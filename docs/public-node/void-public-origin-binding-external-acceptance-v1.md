@@ -138,6 +138,13 @@ SHA-256, reparses it with fatal UTF-8, reruns the reviewed Ed25519/trust
 verification at `collected_at`, and requires the resulting binding digest,
 validity window, fingerprint, and trust-registry generation to match the receipt.
 
+The receipt records
+`evidence_authentication=content_addressed_unsigned_v1`. Its receipt ID is a
+tamper-evident content identity, **not** an observer signature. Offline
+verification proves internal contract consistency, signed-origin authenticity,
+and exact source-generation provenance; it does not independently authenticate
+the human/machine identity that performed the external observation.
+
 The receipt contains no private key, capability token, wallet secret, or
 signature-creation authority.
 
