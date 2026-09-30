@@ -70,6 +70,13 @@ for (const phase of
   assert.deepEqual(normalizeBuyVoidPostgresActivationGateStateV1(state), state);
 }
 
+const expectedForwardGates = [
+  "claimed_runtime",
+  "full_runtime",
+  "admitted_guarded_runtime",
+  "full_runtime_apply",
+] as const;
+
 for (
   let index = 0;
   index <
@@ -96,6 +103,7 @@ for (
   assert.equal(forward.ok, true);
   if (forward.ok) {
     assert.equal(forward.status, "forward");
+    assert.equal(forward.changed_gate, expectedForwardGates[index]);
     assert.equal(forward.money_capable_after, toName === "live_apply");
   }
 
@@ -110,6 +118,7 @@ for (
   assert.equal(rollback.ok, true);
   if (rollback.ok) {
     assert.equal(rollback.status, "rollback");
+    assert.equal(rollback.changed_gate, expectedForwardGates[index]);
     assert.equal(rollback.money_capable_after, false);
   }
 }
@@ -202,6 +211,12 @@ assert.equal(
   candidate.reviewed_source_main_commit,
   "eef17f65a8bd495d581df3b91d9a411a5402cde8",
 );
+assert.equal(
+  candidate.reviewed_source_blobs[
+    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
+  ],
+  "ddad4f26460ba01b4da31d10e2c4b49ac978ddbe",
+);
 assert.deepEqual(
   candidate.activation_phase_order,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1,
@@ -282,6 +297,7 @@ console.log(
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_CONTRACT_V1_PROOF_GREEN",
 );
 console.log("adjacent_forward_transitions_green=true");
+console.log("exact_forward_gate_order_green=true");
 console.log("adjacent_rollback_transitions_green=true");
 console.log("rollback_clears_apply_first_green=true");
 console.log("direct_live_apply_jump_forbidden_green=true");
