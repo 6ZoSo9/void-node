@@ -54,12 +54,15 @@ INSTALL_ROOT="$(dirname "$(dirname "$SELF")")"
 CURRENT="$INSTALL_ROOT/current"
 CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"
 
-run_control_updater(){
+ensure_control_runtime(){
   test -f "$CONTROL_UPDATER" || { printf 'ERROR: %s recovery updater is missing\n' "$MARKER" >&2; exit 1; }
   test -x "$CURRENT/runtime/bin/node" || { printf 'ERROR: %s verified bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
-  exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" "$@"
 }
-run_control_rollback(){
+run_control_updater(){
+  ensure_control_runtime
+  "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" "$@"
+}
+exec_control_rollback(){
   local args=()
   while test $# -gt 0; do
     case "$1" in
@@ -67,16 +70,30 @@ run_control_rollback(){
       *) args+=("$1"); shift ;;
     esac
   done
-  run_control_updater rollback --install-root "$INSTALL_ROOT" "${args[@]}"
+  ensure_control_runtime
+  exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT" "${args[@]}"
 }
+
+requested_rollback=0
+if test "${1:-}" = rollback || { test "${1:-}" = update && test "${2:-}" = rollback; }; then requested_rollback=1; fi
 
 recovery_required=0
 for artifact in .current.update-next .previous.update-next .rollback.update-transaction-v1.json .rollback.update-transaction-v1.json.next; do
   if test -e "$INSTALL_ROOT/$artifact" || test -L "$INSTALL_ROOT/$artifact"; then recovery_required=1; break; fi
 done
-if test "$recovery_required" = 1; then run_control_rollback; fi
-if test "${1:-}" = rollback; then shift; run_control_rollback "$@"; fi
-if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; run_control_rollback "$@"; fi
+if test "$recovery_required" = 1; then
+  recovery_output="$(run_control_updater recover --install-root "$INSTALL_ROOT")" || { rc=$?; printf '%s\n' "$recovery_output"; exit "$rc"; }
+  printf '%s\n' "$recovery_output"
+  case "$recovery_output" in
+    *"recovery_outcome=rollback_committed"*)
+      if test "$requested_rollback" = 1; then exit 0; fi
+      ;;
+    *"recovery_outcome=rollback_aborted_before_publication"*) ;;
+    *) printf 'ERROR: %s unrecognized rollback recovery outcome\n' "$MARKER" >&2; exit 1 ;;
+  esac
+fi
+if test "${1:-}" = rollback; then shift; exec_control_rollback "$@"; fi
+if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; exec_control_rollback "$@"; fi
 test -x "$CURRENT/bin/void-node" || { printf 'ERROR: %s current release manager is unavailable\n' "$MARKER" >&2; exit 1; }
 exec "$CURRENT/bin/void-node" "$@"
 EOFMANAGER
