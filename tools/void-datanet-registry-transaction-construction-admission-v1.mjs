@@ -232,6 +232,7 @@ export function buildVoidDatanetRegistryTransactionConstructionAdmissionV1(
 
 export function validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
   admission,
+  evidence,
 ){
   if(
     !admission||
@@ -246,6 +247,8 @@ export function validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
     admission.construction_authorized!==false||
     admission.required_confirmation!==
       VOID_DATANET_REGISTRY_TRANSACTION_CONSTRUCTION_CONFIRMATION_V1||
+    admission.next_gate!==
+      "separate_explicit_operation_bound_confirmation_to_construct_exact_signable_eip1559_registry_deployment_candidate"||
     !DEPLOYMENT_PLAN_ID.test(String(admission.deployment_input_plan_id||""))||
     !PRE_SIGN_ID.test(String(admission.pre_sign_revalidation_id||""))||
     !FEE_PACKET_ID.test(String(admission.fresh_fee_funding_packet_id||""))||
@@ -326,6 +329,27 @@ export function validateVoidDatanetRegistryTransactionConstructionAdmissionV1(
     expiresMs-evaluatedMs>PRE_SIGN_VALIDITY_SECONDS_V1*1000
   ){
     throw new Error("transaction_construction_admission_time_invalid");
+  }
+
+  if(!evidence||typeof evidence!=="object"||Array.isArray(evidence)){
+    throw new Error("transaction_construction_admission_evidence_required");
+  }
+  let rebuilt;
+  try{
+    rebuilt=buildVoidDatanetRegistryTransactionConstructionAdmissionV1({
+      deployment_input_plan:evidence.deployment_input_plan,
+      fresh_fee_funding_packet:evidence.fresh_fee_funding_packet,
+      pre_sign_revalidation_receipt:evidence.pre_sign_revalidation_receipt,
+      evaluated_at_utc:admission.evaluated_at_utc,
+    });
+  }catch(error){
+    throw new Error(
+      "transaction_construction_admission_evidence_rebuild_failed:"+
+      String(error?.message||error).slice(0,160),
+    );
+  }
+  if(canonicalJson(rebuilt)!==canonicalJson(admission)){
+    throw new Error("transaction_construction_admission_evidence_rebuild_mismatch");
   }
   return admission;
 }
