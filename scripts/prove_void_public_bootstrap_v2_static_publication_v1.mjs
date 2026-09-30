@@ -9,6 +9,7 @@ import {
   VOID_PUBLIC_BOOTSTRAP_V2_STATIC_V1,
 } from "../ops/public/void-public-bootstrap-v2-static-v1.mjs";
 import {
+  buildManifestReference,
   validateBootstrapRecordV2,
 } from "./lib/void_public_bootstrap_record_v2_mirror_contract_v1.mjs";
 
@@ -24,17 +25,48 @@ const NIMO_ONION =
 
 const sourceManifest = fs.readFileSync("public/bootstrap/v1.json");
 const sourceManifestJson = JSON.parse(sourceManifest.toString("utf8"));
-const currentManifestId = String(sourceManifestJson.manifest_id || "");
-assert.match(currentManifestId, /^voidpbm1_[0-9a-f]{64}$/);
+assert.equal(
+  typeof sourceManifestJson.manifest_id,
+  "string",
+  "current alias manifest_id must be a string",
+);
+const currentValidationTime = Date.parse(sourceManifestJson.generated_at);
+assert.ok(
+  Number.isFinite(currentValidationTime),
+  "current alias generated_at must be a valid deterministic validation time",
+);
+const currentManifestReference = buildManifestReference(sourceManifest, {
+  nowMs: currentValidationTime,
+});
+const currentManifestId = currentManifestReference.manifest_id;
+assert.equal(
+  sourceManifestJson.manifest_id,
+  currentManifestId,
+  "current alias manifest_id is not derived from its exact content",
+);
+assert.equal(currentManifestReference.size_bytes, sourceManifest.length);
+const currentManifestSha256 = currentManifestReference.sha256;
+
+for (const invalidManifestId of [
+  `voidpbm1_${"0".repeat(64)}`,
+  [currentManifestId],
+  { id: currentManifestId },
+  7,
+  null,
+]) {
+  const mutated = structuredClone(sourceManifestJson);
+  mutated.manifest_id = invalidManifestId;
+  const bytes = Buffer.from(`${JSON.stringify(mutated, null, 2)}\n`);
+  assert.throws(
+    () => buildManifestReference(bytes, { nowMs: currentValidationTime }),
+    /bootstrap manifest ID does not match its content/,
+  );
+}
 
 const currentMirrorPath =
   `public/void/bootstrap/v2/manifests/${currentManifestId}.json`;
 const currentMirroredManifest = fs.readFileSync(currentMirrorPath);
 assert.equal(currentMirroredManifest.equals(sourceManifest), true);
-const currentManifestSha256 = crypto
-  .createHash("sha256")
-  .update(sourceManifest)
-  .digest("hex");
 
 const loadedCurrentManifest = loadVoidPublicBootstrapV2StaticV1(
   `/void/bootstrap/v2/manifests/${currentManifestId}.json`,
@@ -134,6 +166,8 @@ console.log(`manifest_sha256=${currentManifestSha256}`);
 console.log(`manifest_size_bytes=${sourceManifest.length}`);
 console.log(`historical_manifest_id=${HISTORICAL_MANIFEST_ID}`);
 console.log(`historical_record_id=${HISTORICAL_RECORD_ID}`);
+console.log("current_manifest_reference_strict=true");
+console.log("manifest_id_negative_controls=5");
 console.log("current_alias_has_immutable_mirror=true");
 console.log("historical_record_preserved=true");
 console.log("mirror_count=3");

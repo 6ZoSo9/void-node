@@ -1,17 +1,29 @@
 # VOID public seed URL compatibility record
 
-Historically verified/default public HTTPS seed surface (fresh qualification required before use):
+Current configured public HTTPS seed origin:
 
-- https://zoso-alienware-aurora-r7.taila47fd.ts.net
+- https://seed.nullfeed.org
 
-Documented role for that seed generation:
+Fresh qualification and an unexpired bootstrap manifest are required before this
+origin can be treated as authoritative bootstrap input. This compatibility record
+does not extend manifest validity or substitute for live qualification.
+
+The read-only `VOID public seed live qualification v1` workflow samples
+`https://seed.nullfeed.org` daily and uploads both the qualification/candidate
+artifact and a verified publication review packet bound to the exact source SHA and
+tracked predecessor manifest. The packet includes a fail-closed HOLD rollback and
+review instructions for the immutable v2 mirror. The automation does not publish or
+replace `public/bootstrap/v1.json`; publication remains a separate reviewed source
+change.
+
+Documented public role:
 
 - public-safe VOID seed adapter
 - participant page entrypoint
 - public bootstrap entrypoint
 - public readiness entrypoint
 
-Documented safety posture for that seed generation:
+Documented safety posture:
 
 - /__void/adapter.json is public
 - /__void/ready.json is public
@@ -22,14 +34,22 @@ Documented safety posture for that seed generation:
 - sensitive surfaces are blocked
 - 8545 remains private on 127.0.0.1
 
+Retired historical public seed origin:
+
+- https://zoso-alienware-aurora-r7.taila47fd.ts.net
+
+The Alienware Funnel coordinate is historical verification evidence only and must
+not be used as the default current seed.
+
 Cost posture:
 
 - no Google Cloud hosting
 - no Google Cloud load balancer
 - no paid VPS required
-- this recorded public URL used Tailscale Funnel at the time of qualification
-- custom domain mapping is deferred until it can be done without adding Google Cloud spend
+- no paid custom domain is required for protocol authority
 
 Domain note:
 
-Tailscale Funnel uses the tailnet *.ts.net name as the public HTTPS name. A clean custom domain should be handled later with free DNS plus a free tunnel/proxy path, not by adding paid Google Cloud infrastructure.
+DNS names are routing coordinates, not authority. The configured origin
+`seed.nullfeed.org` must still satisfy the repository's bootstrap qualification,
+expiry, gateway-safety, and live-admission checks.

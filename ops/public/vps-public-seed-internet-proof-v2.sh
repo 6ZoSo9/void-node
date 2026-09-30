@@ -37,10 +37,11 @@ python3 - <<'PY'
 import json
 j=json.load(open("/tmp/void-vps-public-ready.json"))
 assert j.get("ready") is True, j
-assert int(j.get("head")) == 1856587, j
+head=j.get("head")
+assert isinstance(head, int) and not isinstance(head, bool) and head > 0, j
 assert int(j.get("gap")) == 0, j
 assert int(j.get("txroot_live")) == 1, j
-print("[ok] ready true")
+print(f"[ok] ready true head={head}")
 PY
 
 void_curl_retry_v1 "$PUBLIC_SEED_BASE/__void/public-bootstrap.json" /tmp/void-vps-public-bootstrap.json

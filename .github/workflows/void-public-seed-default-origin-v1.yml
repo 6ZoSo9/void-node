@@ -1,0 +1,132 @@
+name: VOID public seed default origin v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-seed-default-origin-v1.yml"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
+      - "docs/public/public-bootstrap-manifest-publication-rollback-v1.md"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "public/bootstrap/v1.json"
+      - "docs/public/current-public-seed-url.md"
+      - "docs/public/mainnet0-current-public-status.md"
+      - "docs/public/public-entrypoints-v1.md"
+      - "ops/public/current-public-seed-url-proof-v1.sh"
+      - "ops/public/public-entrypoints-v1-proof.sh"
+      - "ops/public/vps-public-seed-internet-proof-v2.sh"
+      - "ops/public/public-landing-v1-proof.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-default-origin-v1.yml"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
+      - "docs/public/public-bootstrap-manifest-publication-rollback-v1.md"
+      - "scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs"
+      - "scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs"
+      - "public/bootstrap/v1.json"
+      - "docs/public/current-public-seed-url.md"
+      - "docs/public/mainnet0-current-public-status.md"
+      - "docs/public/public-entrypoints-v1.md"
+      - "ops/public/current-public-seed-url-proof-v1.sh"
+      - "ops/public/public-entrypoints-v1-proof.sh"
+      - "ops/public/vps-public-seed-internet-proof-v2.sh"
+      - "ops/public/public-landing-v1-proof.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Shell syntax
+        run: |
+          bash -n ops/public/current-public-seed-url-proof-v1.sh
+          bash -n ops/public/public-entrypoints-v1-proof.sh
+          bash -n ops/public/vps-public-seed-internet-proof-v2.sh
+          bash -n ops/public/public-landing-v1-proof.sh
+      - name: Prove configured default without live network
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          base = "https://seed.nullfeed.org"
+          retired = "https://zoso-alienware-aurora-r7.taila47fd.ts.net"
+
+          manifest = json.loads(Path("public/bootstrap/v1.json").read_text())
+          enabled = [x for x in manifest.get("sync_endpoints", []) if x.get("enabled") is True]
+          assert any(x.get("base") == base for x in enabled), enabled
+
+          for path in [
+              "ops/public/current-public-seed-url-proof-v1.sh",
+              "ops/public/public-entrypoints-v1-proof.sh",
+              "ops/public/public-landing-v1-proof.sh",
+          ]:
+              text = Path(path).read_text()
+              expected = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-' + base + '}"'
+              assert expected in text, (path, expected)
+              assert retired not in text, path
+
+          for path in [
+              "ops/public/current-public-seed-url-proof-v1.sh",
+              "ops/public/public-entrypoints-v1-proof.sh",
+          ]:
+              proof = Path(path).read_text()
+              assert "bootstrap manifest expired at" in proof, path
+              assert "expires_at > now" in proof, path
+
+          vps = Path("ops/public/vps-public-seed-internet-proof-v2.sh").read_text()
+          assert '== 1856587' not in vps
+          assert 'head > 0' in vps
+
+          current_doc = Path("docs/public/current-public-seed-url.md").read_text()
+          entry_doc = Path("docs/public/public-entrypoints-v1.md").read_text()
+          for text in (current_doc, entry_doc):
+              assert base in text
+              assert retired in text
+              assert "unexpired bootstrap manifest" in text
+
+          current_status = Path("docs/public/mainnet0-current-public-status.md").read_text()
+          assert "https://seed.nullfeed.org/public-node" in current_status
+          assert "zoso-alienware-aurora-r7.taila47fd.ts.net/public-node" not in current_status
+          assert "bootstrap authority still requires a fresh qualification" in current_status
+
+          qualifier = Path(".github/workflows/void-public-seed-live-qualification-v1.yml").read_text()
+          assert 'cron: "17 5 * * *"' in qualifier
+          assert 'endpoint="https://seed.nullfeed.org"' in qualifier
+          assert "manifest_published=false" in qualifier
+          assert "contents: read" in qualifier
+          assert "contents: write" not in qualifier
+          assert "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in qualifier
+          assert "actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b" in qualifier
+          assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in qualifier
+
+          assert 'qualification_dir="$RUNNER_TEMP/void-public-seed-live-qualification-v1"' in qualifier
+          assert 'packet_dir="$RUNNER_TEMP/void-public-bootstrap-manifest-publication-packet-v1"' in qualifier
+          assert "build_void_public_bootstrap_manifest_publication_packet_v1.mjs" in qualifier
+          assert "verify_void_public_bootstrap_manifest_publication_packet_v1.mjs" in qualifier
+          assert "publication_packet_built=true" in qualifier
+          assert "publication_authorized=false" in qualifier
+          assert "repository_mutated=false" in qualifier
+
+          publication_proof = Path("scripts/prove_void_public_bootstrap_manifest_publication_packet_v1.mjs").read_text()
+          assert "stable_predecessor_renewal_packet=true" in publication_proof
+          publication_state = Path("scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs").read_text()
+          assert "public/void/bootstrap/v2/manifests/${packet.candidate.manifest_id}.json" in publication_state
+          publication_doc = Path("docs/public/public-bootstrap-manifest-publication-rollback-v1.md").read_text()
+          assert "stable → stable renewal" in publication_doc
+          assert "rollback is deliberately conservative" in publication_doc
+
+          print("VOID_PUBLIC_SEED_DEFAULT_ORIGIN_V1_GREEN")
+          print("live_network_probe_performed=false")
+          print("manifest_validity_extended=false")
+          PY
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

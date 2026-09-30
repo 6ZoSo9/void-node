@@ -27,6 +27,9 @@ import {
   preparePublicationState,
   reviewText,
 } from "./void_public_bootstrap_manifest_publication_state_v1.mjs";
+import {
+  validateQualificationReceipt,
+} from "./void_public_seed_receipt_v1.mjs";
 
 function parseTopLevelSums(bytes) {
   const text = bytes.toString("utf8");
@@ -90,7 +93,11 @@ export function verifyPublicationPacket({
   packetDir,
   expectedSourceSha,
   expectedPredecessorBlob,
+  nowMs = Date.now(),
 }) {
+  if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+    throw new Error("publication packet verification time is invalid");
+  }
   const repository = assertCleanExactRepository(repoRoot, expectedSourceSha);
   const packetRoot = fs.realpathSync(String(packetDir));
   assertOutsideRepository(repository.root, packetRoot, "packet directory");
@@ -124,6 +131,10 @@ export function verifyPublicationPacket({
     expectedSourceSha: repository.sourceSha,
     expectedPredecessorBlob,
   });
+  if (state.candidateState.expiresAt <= nowMs) {
+    throw new Error("publication candidate manifest is expired");
+  }
+  validateQualificationReceipt(state.artifact.receipt, { nowMs });
   const candidateBytes = readBytes(
     path.join(packetRoot, "candidate", PUBLICATION_DESTINATION),
     "packet candidate manifest",

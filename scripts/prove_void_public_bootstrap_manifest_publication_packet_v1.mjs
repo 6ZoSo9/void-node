@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import childProcess from "node:child_process";
+import nodeAssert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -10,6 +11,12 @@ import {
   createQualificationReceipt,
 } from "./lib/void_public_seed_receipt_v1.mjs";
 import { objectWithId } from "./lib/void_public_seed_common_v1.mjs";
+import {
+  verifyPublicationPacket,
+} from "./lib/void_public_bootstrap_manifest_publication_v1.mjs";
+import {
+  validatePredecessorManifest,
+} from "./lib/void_public_bootstrap_manifest_publication_state_v1.mjs";
 
 const MARKER = "VOID_PUBLIC_BOOTSTRAP_MANIFEST_PUBLICATION_PACKET_V1_PROOF_GREEN";
 const ROOT = fs.realpathSync(process.cwd());
@@ -19,6 +26,9 @@ const TEMP = fs.mkdtempSync(
 const FIXTURE_REPO = path.join(TEMP, "fixture-repository");
 const ARTIFACT = path.join(TEMP, "qualification-output");
 const PACKET = path.join(TEMP, "publication-packet");
+const STABLE_FIXTURE_REPO = path.join(TEMP, "stable-fixture-repository");
+const STABLE_ARTIFACT = path.join(TEMP, "stable-qualification-output");
+const STABLE_PACKET = path.join(TEMP, "stable-publication-packet");
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -99,14 +109,56 @@ function fixtureHoldManifest() {
   );
 }
 
-function initializeFixtureRepository() {
-  fs.mkdirSync(FIXTURE_REPO, { mode: 0o700 });
-  run("git", ["init", "-q"], { cwd: FIXTURE_REPO });
+function fixtureStableManifest() {
+  return objectWithId(
+    "voidpbm1_",
+    {
+      schema: "void_public_bootstrap_v1",
+      network: "VOID Network",
+      chain_id: 2050,
+      status: "stable_https_seed",
+      generated_at: "2026-09-27T15:35:15.171Z",
+      expires_at: "2026-09-30T15:35:15.171Z",
+      sync_endpoints: [
+        {
+          transport: "https",
+          base: "https://seed.previous.example.org",
+          priority: 10,
+          enabled: true,
+          temporary: false,
+          qualification_id: `voidpsq1_${"1".repeat(64)}`,
+          qualified_at: "2026-09-27T15:35:15.108Z",
+          qualified_head: 1951058,
+        },
+      ],
+      onion_endpoints: [],
+      private_tailnet_endpoints_published: false,
+      authority: authorityFalse(),
+      notes: "Isolated stable predecessor renewal fixture.",
+    },
+    "manifest_id",
+  );
+}
 
-  const holdPath = path.join(FIXTURE_REPO, "public", "bootstrap", "v1.json");
-  write(holdPath, jsonBytes(fixtureHoldManifest()));
+function resealPredecessor(manifest, mutate) {
+  const copy = structuredClone(manifest);
+  mutate(copy);
+  delete copy.manifest_id;
+  return objectWithId("voidpbm1_", copy, "manifest_id");
+}
 
-  run("git", ["add", "--", "public/bootstrap/v1.json"], { cwd: FIXTURE_REPO });
+function initializeFixtureRepository({
+  repoRoot = FIXTURE_REPO,
+  predecessor = fixtureHoldManifest(),
+  message = "fixture: canonical hold predecessor",
+} = {}) {
+  fs.mkdirSync(repoRoot, { mode: 0o700 });
+  run("git", ["init", "-q"], { cwd: repoRoot });
+
+  const predecessorPath = path.join(repoRoot, "public", "bootstrap", "v1.json");
+  write(predecessorPath, jsonBytes(predecessor));
+
+  run("git", ["add", "--", "public/bootstrap/v1.json"], { cwd: repoRoot });
   run(
     "git",
     [
@@ -119,31 +171,31 @@ function initializeFixtureRepository() {
       "commit",
       "-q",
       "-m",
-      "fixture: canonical hold predecessor",
+      message,
     ],
-    { cwd: FIXTURE_REPO },
+    { cwd: repoRoot },
   );
 
   const sourceSha = run("git", ["rev-parse", "HEAD"], {
-    cwd: FIXTURE_REPO,
+    cwd: repoRoot,
   }).stdout.trim();
   const predecessorBlob = run(
     "git",
     ["rev-parse", "HEAD:public/bootstrap/v1.json"],
-    { cwd: FIXTURE_REPO },
+    { cwd: repoRoot },
   ).stdout.trim();
   const status = run(
     "git",
     ["status", "--porcelain=v1", "--untracked-files=all"],
-    { cwd: FIXTURE_REPO },
+    { cwd: repoRoot },
   ).stdout.trim();
 
   assert(/^[0-9a-f]{40}$/.test(sourceSha), "fixture source SHA is invalid");
   assert(/^[0-9a-f]{40}$/.test(predecessorBlob), "fixture predecessor blob is invalid");
   assert(status === "", "fixture repository is not clean");
-  assert(fs.realpathSync(FIXTURE_REPO) !== ROOT, "fixture repository was not isolated");
+  assert(fs.realpathSync(repoRoot) !== ROOT, "fixture repository was not isolated");
 
-  return { sourceSha, predecessorBlob };
+  return { sourceSha, predecessorBlob, repoRoot };
 }
 
 function builderArgs({
@@ -233,6 +285,39 @@ try {
   const verified = run(process.execPath, verifierArgs({ sourceSha, predecessorBlob }));
   assert(verified.stdout.includes("repository_mutated=false"), "verifier mutation marker missing");
 
+  const directVerified = verifyPublicationPacket({
+    repoRoot: FIXTURE_REPO,
+    packetDir: PACKET,
+    expectedSourceSha: sourceSha,
+    expectedPredecessorBlob: predecessorBlob,
+    nowMs,
+  });
+  assert(directVerified.packet.candidate.manifest_id === candidate.manifest_id);
+
+  const staleReceiptNowMs = nowMs + (2 * 60 * 60 * 1000) + 1;
+  nodeAssert.throws(
+    () => verifyPublicationPacket({
+      repoRoot: FIXTURE_REPO,
+      packetDir: PACKET,
+      expectedSourceSha: sourceSha,
+      expectedPredecessorBlob: predecessorBlob,
+      nowMs: staleReceiptNowMs,
+    }),
+    /qualification receipt is stale/,
+  );
+
+  const expiredCandidateNowMs = Date.parse(candidate.expires_at) + 1;
+  nodeAssert.throws(
+    () => verifyPublicationPacket({
+      repoRoot: FIXTURE_REPO,
+      packetDir: PACKET,
+      expectedSourceSha: sourceSha,
+      expectedPredecessorBlob: predecessorBlob,
+      nowMs: expiredCandidateNowMs,
+    }),
+    /publication candidate manifest is expired/,
+  );
+
   const packet = JSON.parse(fs.readFileSync(path.join(PACKET, "packet.json"), "utf8"));
   const packetCandidate = fs.readFileSync(
     path.join(PACKET, "candidate", "public", "bootstrap", "v1.json"),
@@ -264,6 +349,153 @@ try {
   for (const forbidden of ["git push", "gh pr", "sudo ", "systemctl ", "curl "]) {
     assert(!review.includes(forbidden), `review text contains active command ${forbidden}`);
   }
+
+  const stablePredecessor = fixtureStableManifest();
+  for (const [name, mutate, expectedError] of [
+    [
+      "status_array",
+      (manifest) => { manifest.status = ["stable_https_seed"]; },
+      /predecessor status must be a string/,
+    ],
+    [
+      "chain_id_string",
+      (manifest) => { manifest.chain_id = "2050"; },
+      /predecessor chain_id must be the exact integer Chain-2050 ID/,
+    ],
+    [
+      "generated_at_array",
+      (manifest) => { manifest.generated_at = [manifest.generated_at]; },
+      /predecessor generated_at must be a string/,
+    ],
+    [
+      "expires_at_array",
+      (manifest) => { manifest.expires_at = [manifest.expires_at]; },
+      /predecessor expires_at must be a string/,
+    ],
+    [
+      "qualification_id_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].qualification_id =
+          [manifest.sync_endpoints[0].qualification_id];
+      },
+      /qualification ID must be a string/,
+    ],
+    [
+      "qualified_at_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].qualified_at =
+          [manifest.sync_endpoints[0].qualified_at];
+      },
+      /qualified_at must be a string/,
+    ],
+    [
+      "base_array",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = [manifest.sync_endpoints[0].base];
+      },
+      /base must be a string/,
+    ],
+    [
+      "base_path",
+      (manifest) => {
+        manifest.sync_endpoints[0].base =
+          "https://seed.previous.example.org/not-an-origin";
+      },
+      /not acceptable public HTTPS/,
+    ],
+    [
+      "base_private_ip",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = "https://127.0.0.1";
+      },
+      /not acceptable public HTTPS/,
+    ],
+    [
+      "base_noncanonical_trailing_slash",
+      (manifest) => {
+        manifest.sync_endpoints[0].base = "https://seed.previous.example.org/";
+      },
+      /not acceptable public HTTPS/,
+    ],
+  ]) {
+    const malformed = resealPredecessor(stablePredecessor, mutate);
+    nodeAssert.throws(
+      () => validatePredecessorManifest(malformed),
+      expectedError,
+      name,
+    );
+  }
+  const {
+    sourceSha: stableSourceSha,
+    predecessorBlob: stablePredecessorBlob,
+  } = initializeFixtureRepository({
+    repoRoot: STABLE_FIXTURE_REPO,
+    predecessor: stablePredecessor,
+    message: "fixture: stable predecessor renewal",
+  });
+  copyDirectory(ARTIFACT, STABLE_ARTIFACT);
+  write(
+    path.join(STABLE_ARTIFACT, "source.txt"),
+    Buffer.from(`source_sha=${stableSourceSha}\n`),
+  );
+  artifactSums(STABLE_ARTIFACT);
+
+  const stableBuilt = run(
+    process.execPath,
+    builderArgs({
+      artifact: STABLE_ARTIFACT,
+      output: STABLE_PACKET,
+      sourceSha: stableSourceSha,
+      predecessorBlob: stablePredecessorBlob,
+      repoRoot: STABLE_FIXTURE_REPO,
+    }),
+  );
+  assert(
+    stableBuilt.stdout.includes("publication_authorized=false"),
+    "stable renewal builder authority marker missing",
+  );
+  const stableVerified = run(
+    process.execPath,
+    verifierArgs({
+      packet: STABLE_PACKET,
+      sourceSha: stableSourceSha,
+      predecessorBlob: stablePredecessorBlob,
+      repoRoot: STABLE_FIXTURE_REPO,
+    }),
+  );
+  assert(
+    stableVerified.stdout.includes("repository_mutated=false"),
+    "stable renewal verifier mutation marker missing",
+  );
+
+  const stablePacket = JSON.parse(
+    fs.readFileSync(path.join(STABLE_PACKET, "packet.json"), "utf8"),
+  );
+  assert(stablePacket.predecessor.status === "stable_https_seed");
+  assert(stablePacket.predecessor.manifest_id === stablePredecessor.manifest_id);
+  assert(
+    stablePacket.candidate.precondition_manifest_id === stablePredecessor.manifest_id,
+    "stable renewal candidate precondition mismatch",
+  );
+  assert(
+    stablePacket.rollback.precondition_manifest_id === stablePacket.candidate.manifest_id,
+    "stable renewal rollback precondition mismatch",
+  );
+  const stableRollback = JSON.parse(
+    fs.readFileSync(
+      path.join(STABLE_PACKET, "rollback", "public", "bootstrap", "v1.json"),
+      "utf8",
+    ),
+  );
+  assert(
+    stableRollback.status === "hold_no_stable_seed",
+    "stable renewal rollback must fail closed to HOLD",
+  );
+  assert(stableRollback.sync_endpoints.length === 0);
+  assert(
+    Object.values(stableRollback.authority).every((value) => value === false),
+    "stable renewal rollback carries authority",
+  );
 
   const checksumTamper = path.join(TEMP, "artifact-checksum-tamper");
   copyDirectory(ARTIFACT, checksumTamper);
@@ -375,6 +607,12 @@ try {
   console.log("candidate_byte_exact=true");
   console.log("candidate_destination_count=1");
   console.log("rollback_hold_deterministic=true");
+  console.log("stable_predecessor_renewal_packet=true");
+  console.log("predecessor_exact_json_types_enforced=true");
+  console.log("predecessor_public_seed_origin_contract_reused=true");
+  console.log("predecessor_negative_controls=10");
+  console.log("verifier_receipt_freshness_enforced=true");
+  console.log("verifier_candidate_expiry_enforced=true");
   console.log("publication_authorized=false");
   console.log("repository_mutated=false");
   console.log("services_changed=false");

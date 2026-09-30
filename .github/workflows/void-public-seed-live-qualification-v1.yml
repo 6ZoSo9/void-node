@@ -1,6 +1,12 @@
 name: VOID public seed live qualification v1
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
+  schedule:
+    - cron: "17 5 * * *"
   workflow_dispatch:
     inputs:
       endpoint:
@@ -25,45 +31,67 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout exact source
-        uses: actions/checkout@v6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
 
       - name: Use Node.js 24 LTS
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: '24'
 
       - name: Bind workflow to exact reviewed source
         shell: bash
         env:
-          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          INPUT_EXPECTED_SOURCE_SHA: ${{ github.event.inputs.expected_source_sha }}
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+
+          expected="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            expected="$INPUT_EXPECTED_SOURCE_SHA"
+          fi
+
+          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$expected"
           git diff --quiet --ignore-submodules --
           git diff --cached --quiet --ignore-submodules --
+
+          printf 'VOID_QUALIFICATION_SOURCE_SHA=%s\n' "$expected" >> "$GITHUB_ENV"
 
       - name: Qualify stable HTTPS seed across three observations
         shell: bash
         env:
-          PUBLIC_SEED_ENDPOINT: ${{ inputs.endpoint }}
+          INPUT_PUBLIC_SEED_ENDPOINT: ${{ github.event.inputs.endpoint }}
         run: |
           set -euo pipefail
-          test "${#PUBLIC_SEED_ENDPOINT}" -le 2048
-          mkdir -p qualification-output
+
+          endpoint="https://seed.nullfeed.org"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            endpoint="$INPUT_PUBLIC_SEED_ENDPOINT"
+          fi
+
+          test -n "$endpoint"
+          test "${#endpoint}" -le 2048
+
+          qualification_dir="$RUNNER_TEMP/void-public-seed-live-qualification-v1"
+          test ! -e "$qualification_dir"
+          mkdir -p "$qualification_dir"
+
+          printf 'VOID_QUALIFICATION_ENDPOINT=%s\n' "$endpoint" >> "$GITHUB_ENV"
+          printf 'VOID_QUALIFICATION_DIR=%s\n' "$qualification_dir" >> "$GITHUB_ENV"
+
           node --check scripts/qualify_void_public_seed_v1.mjs
           node --check scripts/build_void_public_bootstrap_manifest_v1.mjs
           node scripts/qualify_void_public_seed_v1.mjs \
-            --endpoint "$PUBLIC_SEED_ENDPOINT" \
+            --endpoint "$endpoint" \
             --samples 3 \
             --interval-ms 30000 \
-            --output qualification-output/qualification.json
+            --output "$qualification_dir/qualification.json"
           node scripts/build_void_public_bootstrap_manifest_v1.mjs \
-            --receipt qualification-output/qualification.json \
+            --receipt "$qualification_dir/qualification.json" \
             --validity-hours 72 \
-            --output qualification-output/public-bootstrap-v1.json
+            --output "$qualification_dir/public-bootstrap-v1.json"
 
       - name: Verify qualification artifact boundary
         shell: bash
@@ -71,8 +99,12 @@ jobs:
           set -euo pipefail
           node - <<'NODE'
           const fs = require('node:fs');
-          const receipt = JSON.parse(fs.readFileSync('qualification-output/qualification.json', 'utf8'));
-          const manifest = JSON.parse(fs.readFileSync('qualification-output/public-bootstrap-v1.json', 'utf8'));
+          const path = require('node:path');
+          const dir = process.env.VOID_QUALIFICATION_DIR;
+          const receipt = JSON.parse(fs.readFileSync(path.join(dir, 'qualification.json'), 'utf8'));
+          const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'public-bootstrap-v1.json'), 'utf8'));
+          const endpoint = process.env.VOID_QUALIFICATION_ENDPOINT;
+
           if (receipt.schema !== 'void_public_seed_qualification_v1') throw new Error('receipt schema mismatch');
           if (!/^voidpsq1_[0-9a-f]{64}$/.test(receipt.qualification_id || '')) throw new Error('receipt ID mismatch');
           if (receipt.sample_count !== 3) throw new Error('receipt sample count mismatch');
@@ -81,29 +113,67 @@ jobs:
           if (!/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id || '')) throw new Error('manifest ID mismatch');
           if (manifest.status !== 'stable_https_seed') throw new Error('manifest status mismatch');
           if (!Array.isArray(manifest.sync_endpoints) || manifest.sync_endpoints.length !== 1) throw new Error('manifest endpoint count mismatch');
+          if (manifest.sync_endpoints[0].base !== endpoint) throw new Error('manifest endpoint mismatch');
           if (manifest.sync_endpoints[0].temporary !== false) throw new Error('manifest accepted a temporary endpoint');
           for (const value of Object.values(manifest.authority || {})) {
             if (value !== false) throw new Error('manifest authority boundary mismatch');
           }
           NODE
-          printf 'source_sha=%s\n' "$(git rev-parse HEAD)" > qualification-output/source.txt
+
+          printf 'source_sha=%s\n' "$VOID_QUALIFICATION_SOURCE_SHA" > "$VOID_QUALIFICATION_DIR/source.txt"
           (
-            cd qualification-output
+            cd "$VOID_QUALIFICATION_DIR"
             sha256sum qualification.json \
               public-bootstrap-v1.json \
               source.txt \
               > SHA256SUMS
           )
+
           echo 'VOID_PUBLIC_SEED_LIVE_QUALIFICATION_V1_GREEN'
+          echo "trigger=$GITHUB_EVENT_NAME"
+          echo "endpoint=$VOID_QUALIFICATION_ENDPOINT"
           echo 'manifest_published=false'
           echo 'services_deployed=false'
           echo 'credentials_accessed=false'
           echo 'money_movement_authority=false'
 
-      - name: Upload qualification and candidate manifest
-        uses: actions/upload-artifact@v4
+      - name: Build and verify publication review packet
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          packet_dir="$RUNNER_TEMP/void-public-bootstrap-manifest-publication-packet-v1"
+          test ! -e "$packet_dir"
+          predecessor_blob="$(git rev-parse HEAD:public/bootstrap/v1.json)"
+          [[ "$predecessor_blob" =~ ^[0-9a-f]{40}$ ]]
+
+          node --check scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs
+          node --check scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs
+
+          node scripts/build_void_public_bootstrap_manifest_publication_packet_v1.mjs \
+            --artifact "$VOID_QUALIFICATION_DIR" \
+            --repo-root "$PWD" \
+            --expected-source-sha "$VOID_QUALIFICATION_SOURCE_SHA" \
+            --expected-predecessor-blob "$predecessor_blob" \
+            --output "$packet_dir"
+
+          node scripts/verify_void_public_bootstrap_manifest_publication_packet_v1.mjs \
+            --packet "$packet_dir" \
+            --repo-root "$PWD" \
+            --expected-source-sha "$VOID_QUALIFICATION_SOURCE_SHA" \
+            --expected-predecessor-blob "$predecessor_blob"
+
+          echo 'publication_packet_built=true'
+          echo 'publication_packet_verified=true'
+          echo 'publication_authorized=false'
+          echo 'repository_mutated=false'
+
+      - name: Upload qualification and publication review packet
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: void-public-seed-live-qualification-v1-${{ github.sha }}
-          path: qualification-output/
+          name: void-public-seed-live-qualification-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/void-public-seed-live-qualification-v1/
+            ${{ runner.temp }}/void-public-bootstrap-manifest-publication-packet-v1/
           if-no-files-found: error
           retention-days: 14
