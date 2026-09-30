@@ -261,15 +261,29 @@ assert.equal(
   assert.equal(at,0);
 }
 {
-  const held=await runWithReplies(
-    feeReplies(),
-    "2030-01-01T00:08:10.001Z",
-  );
+  const replies=feeReplies();
+  let at=0;
+  const held=await runVoidDatanetRegistryCandidateFreshRevalidationV1({
+    unsigned_transaction_candidate:candidate,
+    candidate_evidence:candidateEvidence,
+    prior_credential_binding:priorBinding,
+    deployer_selection:fixture.deployerSelection,
+    activation_plan:fixture.activationPlan,
+    activation_receipt:fixture.activationReceipt,
+    resolution_packet:fixture.resolutionPacket,
+    deployer_address:fixture.deployerSelection.deployer_address,
+    publisher_address:fixture.publisherSelection.publisher_address,
+    predecessor_address:fixture.predecessor,
+    compiled_identity:fixture.compiledIdentity,
+    observed_at_utc:"2030-01-01T00:08:10.001Z",
+    transport:async()=>replies[at++],
+  });
   assert.equal(held.ok,false);
   assert.equal(
     held.reason,
     "candidate_revalidation_candidate_too_close_to_expiry",
   );
+  assert.equal(at,0);
 }
 {
   const bad=structuredClone(green.receipt);
