@@ -87,6 +87,7 @@ const repositoryPolicy = JSON.parse(readFileSync(
   "utf8",
 ));
 validatePolicy(repositoryPolicy);
+assert.equal(repositoryPolicy.recent_remote_pre_pr_freshness_seconds, 1800);
 assert.equal(repositoryPolicy.reserved_exact_branches.length, 0);
 assert.equal(repositoryPolicy.retired_exact_reservations.length, 10);
 assert.deepEqual(
