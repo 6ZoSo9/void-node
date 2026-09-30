@@ -546,7 +546,22 @@ function readSnapshotFile(location) {
     } catch {
       throw new Error("session_state_file_json_invalid");
     }
-    return canonicalSnapshot(parsed);
+    const snapshot = canonicalSnapshot(parsed);
+    const accepted = fs.fstatSync(fd, { bigint: true });
+    if (
+      accepted.dev !== after.dev ||
+      accepted.ino !== after.ino ||
+      accepted.uid !== after.uid ||
+      privateMode(accepted) !== privateMode(after) ||
+      accepted.nlink !== after.nlink ||
+      accepted.size !== after.size ||
+      accepted.mtimeNs !== after.mtimeNs ||
+      accepted.ctimeNs !== after.ctimeNs
+    ) {
+      throw new Error("session_state_file_changed_during_read");
+    }
+    assertPathMatchesOpenedFile(location, accepted);
+    return snapshot;
   } finally {
     fs.closeSync(fd);
   }
@@ -630,8 +645,7 @@ function writeSnapshotAtomic(location, snapshot) {
     );
     fs.writeFileSync(fd, rendered, { encoding: "utf8" });
     fs.fsyncSync(fd);
-    fs.closeSync(fd);
-    fd = null;
+    const prepared = validateOpenedStateFile(fd, location);
 
     assertParentIdentity(location);
     try {
@@ -644,8 +658,21 @@ function writeSnapshotAtomic(location, snapshot) {
     fs.renameSync(temp, target);
     replaced = true;
 
-    validateExistingStatePath(location);
+    const installed = fs.fstatSync(fd, { bigint: true });
+    if (
+      installed.dev !== prepared.dev ||
+      installed.ino !== prepared.ino ||
+      installed.uid !== prepared.uid ||
+      privateMode(installed) !== privateMode(prepared) ||
+      installed.nlink !== prepared.nlink ||
+      installed.size !== prepared.size
+    ) {
+      throw new Error("session_state_installed_descriptor_changed");
+    }
+    assertPathMatchesOpenedFile(location, installed);
     fsyncDirectory(location);
+    const durable = fs.fstatSync(fd, { bigint: true });
+    assertPathMatchesOpenedFile(location, durable);
     assertParentIdentity(location);
   } catch (error) {
     primaryError = markReplaceState(error, replaced);
