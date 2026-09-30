@@ -57,15 +57,46 @@ for (const forbidden of [
   }
 }
 
-const adapterFetches = [
-  ...client.matchAll(/fetch\(\s*([`'"])(.*?)\1/gms),
-].map((match) => match[2]);
+const directFetchCount = client.split("fetch(").length - 1;
+const requestOwnerRunCount =
+  client.split("walletRequestOwner.run(").length - 1;
 
 if (
-  adapterFetches.length !== 1 ||
-  !adapterFetches[0].includes("/__void/ui/wave3/wallet.json?account=")
+  directFetchCount !== 0 ||
+  requestOwnerRunCount !== 1 ||
+  !client.includes(
+    "const route = \`${WALLET_ENDPOINT}?account=\${encodeURIComponent(value)}\`;",
+  ) ||
+  !client.includes("readBoundedNetworkJsonV1(response, signal, lifetime)") ||
+  !client.includes("response.url !== expectedUrl") ||
+  !client.includes("credentials: 'omit'") ||
+  !client.includes("redirect: 'error'") ||
+  !client.includes("mode: 'same-origin'") ||
+  !client.includes("referrerPolicy: 'no-referrer'")
 ) {
-  fail(`frontend must fetch exactly one Wave 3 adapter, found ${adapterFetches.length}`);
+  fail("frontend Wallet transport boundary is not the single reviewed adapter request");
+}
+
+for (const route of [
+  "/__void/participant/wallet/status",
+  "/wc/balance",
+  "/wc/production/balance",
+]) {
+  if (!client.includes(`validateSource(`) || !client.includes(route)) {
+    fail(`Wallet sanitized source-metadata validation missing: ${route}`);
+  }
+  for (const directPattern of [
+    `fetch('${route}`,
+    `fetch("${route}`,
+    `fetch(\`${route}`,
+    `walletRequestOwner.run('${route}`,
+    `walletRequestOwner.run("${route}`,
+    `walletRequestOwner.run(\`${route}`,
+  ]) {
+    if (client.includes(directPattern)) {
+      fail(`Wallet client directly requests sanitized source route: ${route}`);
+    }
+  }
 }
 
 for (const forbidden of [
@@ -77,9 +108,6 @@ for (const forbidden of [
   "sendTransaction",
   "personal_sign",
   "eth_sendTransaction",
-  "/__void/participant/wallet/",
-  "/wc/balance",
-  "/wc/production/balance",
 ]) {
   if (client.includes(forbidden)) {
     fail(`frontend contains forbidden direct wallet/source marker: ${forbidden}`);

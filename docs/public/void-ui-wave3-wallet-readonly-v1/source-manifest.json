@@ -22,15 +22,15 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "d7a442e642b60a6d4a52fb4c2894b849f9ee840311ed0badef3d8cd6cd6e8b9a",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "d83bc1d5f83c84d0d256ae3f6f4992d1838df6b2a19a21b370a27d0b1e27e434",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
-    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "62f344babf6209a64561bba14d1230b5822d767bb5eb85966a27eb1826bfbc99",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "b54a5bcb390cf2259c12b15ec5157fae0c6d59e09f0a6debe304e73b3b8d59e2",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
-    "public/void-app-wave1-v1/assets/js/earn-live.js": "a9670d89d4293fef07138312146119830b500dc8b5673a78ea4d631c7c875b74",
+    "public/void-app-wave1-v1/assets/js/earn-live.js": "c438155459d92451ff8076ca0023ada6dba989fb7f6cb03deae8b443f72c789a",
     "public/void-app-wave1-v1/assets/js/views.js": "60adf3fbd3fa94b80dfaf77d91aeb78c0da43eaed40254ed6da548f9b109e0b1",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "d7bf33c0d6f6320eafb5919dddd7e23253bf199203cb8ff093b9b6104473c59f",
     "public/void-app-wave1-v1/index.html": "969762fc67aa9bb3c1506b37103cf7c3b72e4e6e37aa3ca0a92c774b8cd68b72",
@@ -53,5 +53,6 @@
   "modal_background_direct_body_surface_refresh_date": "2026-09-27",
   "wallet_account_query_type_strict_refresh_date": "2026-09-27",
   "wallet_snapshot_freshness_refresh_date": "2026-09-29",
-  "repository_hashes_reconciled_current_main_date": "2026-09-29"
+  "repository_hashes_reconciled_current_main_date": "2026-09-29",
+  "earn_snapshot_identity_freshness_refresh_date": "2026-09-29"
 }
