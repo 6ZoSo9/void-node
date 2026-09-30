@@ -73,6 +73,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     maxJobsPerTick?: number;
     maxSyncCompletionRebuildBytes?: number;
     completionRebuildBackoffMs?: number;
+    maxCompletionIdsPerFile?: number;
   } = {}) {
     this.maxScanBytesPerTick = boundedIntV1(
       opts.maxScanBytesPerTick ??
@@ -90,6 +91,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     this.completionIndex = new AgentPick2JsonlSemanticIndexV1({
       maxSyncCompletionRebuildBytes: opts.maxSyncCompletionRebuildBytes,
       completionRebuildBackoffMs: opts.completionRebuildBackoffMs,
+      maxCompletionIdsPerFile:
+        opts.maxCompletionIdsPerFile ??
+        process.env.VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE,
     });
   }
 
