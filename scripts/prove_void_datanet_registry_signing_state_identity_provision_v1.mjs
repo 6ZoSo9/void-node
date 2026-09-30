@@ -145,6 +145,8 @@ for(const required of [
   'entries.includes("consumed")',
   'signing_consumed_dir',
   'signing_state_identity_existing_conflict',
+  'signing_state_root_generation_changed_before_publication',
+  'assertStateRootGeneration(expected)',
   'lstatExists(IDENTITY_FILE)',
   'fs.constants.O_NOFOLLOW',
   'fs.constants.O_EXCL',
