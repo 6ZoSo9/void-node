@@ -120,7 +120,8 @@ function readIdentityFile(){
     value=JSON.parse(
       new TextDecoder("utf-8",{fatal:true}).decode(fs.readFileSync(IDENTITY_FILE)),
     );
-  }catch{
+  }catch(parseError){
+    void parseError;
     fail("signing_state_identity_invalid_utf8_json");
   }
   return validateVoidDatanetRegistrySigningStateIdentityV1(value);
