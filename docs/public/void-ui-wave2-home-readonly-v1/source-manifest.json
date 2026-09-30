@@ -43,7 +43,7 @@
     "docs/public/void-ui-wave2-home-readonly-v1/README.md": "3e4eb6582b0ef28ecb9f5334b75a897347fab98433a10c024c85c2b7e637feec",
     "docs/public/void-ui-wave2-home-readonly-v1/VISUAL_APPROVAL.md": "177f4a1268fc15bc19caa530c5fbb298900373b5730dfb68ca49f27a186a03e5",
     "docs/public/void-ui-wave4-earn-readonly-v1/ACCEPTANCE_CRITERIA.md": "3eb414cd5f103772128b6ac3e88def67bb509ae5bc007b721345fdef0a143940",
-    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "5ac844c147921736e03cdfc737ca6ad88997df1aec153595b0fb02ff2ff56ace",
+    "docs/public/void-ui-wave4-earn-readonly-v1/ADAPTER_CONTRACT.md": "2d1af16a56b489738ae86aa4908a47f9053ea81ce1874ac590bcbf1732badee5",
     "docs/public/void-ui-wave4-earn-readonly-v1/README.md": "5706290385ee81c47042e8133ef0831ae003c3bbd189a4c845ab7aa186c2911b",
     "fixtures/ops/guard-baselines/index-ts-size-v1.json": "c035a55840bd2751212f8827a0aa04b1c272aa55beae6dec2e5f21341660090e",
     "public/void-app-wave1-v1/assets/css/views.css": "c50e89a9ec72bf12be07c0b9db396f291799ebf4eab4aa860f8c3751a9612fb6",
@@ -58,7 +58,7 @@
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
     "src/ui/void_app_wave3_wallet_readonly_v1.ts": "6505012afe95e4c9ea9aa88b3d292cc5d12541273fd5a38b19a307ad145baf40",
-    "src/ui/void_app_wave4_earn_readonly_v1.ts": "68ad4dc947797d0cd77110aaab597c25fa2fb086836807c8906864570c27c1bb"
+    "src/ui/void_app_wave4_earn_readonly_v1.ts": "4d8783548163235aa55f8835995614aa8b3c4aee35cbdb9da6201401de5db495"
   },
   "repository_hashes_refreshed_after_visual_approval": true,
   "repository_hashes_refreshed_date": "2026-09-22",
@@ -128,5 +128,6 @@
   "earn_transport_lifetime_refresh_date": "2026-09-29",
   "earn_snapshot_schema_closure_refresh_date": "2026-09-29",
   "earn_backend_source_transport_refresh_date": "2026-09-30",
-  "earn_backend_source_fetch_deadline_refresh_date": "2026-09-30"
+  "earn_backend_source_fetch_deadline_refresh_date": "2026-09-30",
+  "earn_backend_source_allowlist_refresh_date": "2026-09-30"
 }
