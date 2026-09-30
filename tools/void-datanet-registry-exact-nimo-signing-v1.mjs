@@ -18,7 +18,6 @@ import {
 } from "./void-datanet-registry-single-transaction-signing-authorization-v1.mjs";
 import {
   VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_ID_V1,
-  VOID_DATANET_REGISTRY_DEPLOYER_ADDRESS_V1,
   validateVoidDatanetRegistryDeployerSelectionV1,
 } from "./void-datanet-registry-deployer-credential-binding-v1.mjs";
 
@@ -397,8 +396,6 @@ export function validateVoidDatanetRegistryExactSigningContextV1(
     candidate.candidate_id!==authorization.candidate_id||
     String(candidate.transaction?.from_address||"").toLowerCase()!==
       String(selection.deployer_address||"").toLowerCase()||
-    String(selection.deployer_address||"").toLowerCase()!==
-      VOID_DATANET_REGISTRY_DEPLOYER_ADDRESS_V1||
     selection.credential_id!==VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_ID_V1||
     input?.confirmation!==authorization.required_confirmation
   ){
