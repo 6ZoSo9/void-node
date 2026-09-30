@@ -95,12 +95,17 @@ export function buildVoidDatanetRegistryExactSigningRequestV1(input){
 
   const requestedAt=String(input?.requested_at_utc||"");
   const requestedMs=Date.parse(requestedAt);
+  const requestedAtCanonical =
+    Number.isFinite(requestedMs)
+      ? new Date(requestedMs).toISOString()
+      : "";
   const reviewEvaluatedMs=Date.parse(String(review.evaluated_at_utc||""));
   const reviewExpiryMs=Date.parse(String(review.valid_until_utc||""));
   const candidateExpiryMs=Date.parse(String(candidate.valid_until_utc||""));
   if(
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(requestedAt)||
     !Number.isFinite(requestedMs)||
+    requestedAtCanonical!==requestedAt||
     !Number.isFinite(reviewEvaluatedMs)||
     !Number.isFinite(reviewExpiryMs)||
     !Number.isFinite(candidateExpiryMs)||
@@ -299,11 +304,15 @@ export function validateVoidDatanetRegistryExactSigningRequestV1(
     }
   }
 
-  const requestedMs=Date.parse(String(request.requested_at_utc||""));
-  const validMs=Date.parse(String(request.valid_until_utc||""));
+  const requestedAt=String(request.requested_at_utc||"");
+  const requestedMs=Date.parse(requestedAt);
+  const validAt=String(request.valid_until_utc||"");
+  const validMs=Date.parse(validAt);
   if(
     !Number.isFinite(requestedMs)||
+    new Date(requestedMs).toISOString()!==requestedAt||
     !Number.isFinite(validMs)||
+    new Date(validMs).toISOString()!==validAt||
     validMs<=requestedMs||
     validMs-requestedMs>60_000
   ){
