@@ -2399,7 +2399,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
     testHooks?: TestHooksV1;
     maxSyncCompletionRebuildBytes?: number;
     completionRebuildBackoffMs?: number;
-    maxCompletionIdsPerFile?: number;
+    maxCompletionIdsPerFile?: number | string;
   } = {}) {
     const requested = Number(opts.chunkBytes || 64 * 1024);
     this.chunkBytes = Number.isFinite(requested)
