@@ -189,6 +189,32 @@ if (
   );
 }
 
+for (const route of [
+  "/wc/runner/status",
+  "/wc/reward-stats",
+  "/wc/redeemable",
+  "/wc/production/balance",
+  "/jobs",
+  "/receipts",
+  "/__void/participant/datanet-wc/status",
+]) {
+  if (!client.includes(route)) {
+    fail(`Earn sanitized source-metadata validation missing: ${route}`);
+  }
+  for (const directPattern of [
+    `fetch('${route}`,
+    `fetch("${route}`,
+    `fetch(\`${route}`,
+    `earnRequestOwner.run('${route}`,
+    `earnRequestOwner.run("${route}`,
+    `earnRequestOwner.run(\`${route}`,
+  ]) {
+    if (client.includes(directPattern)) {
+      fail(`Earn client directly requests sanitized source route: ${route}`);
+    }
+  }
+}
+
 for (const marker of [
   "const EARN_ENDPOINT = '/__void/ui/wave4/earn.json'",
   "method: 'GET'",
@@ -202,6 +228,12 @@ for (const marker of [
   "snapshot.ok !== true || snapshot.marker !== EARN_MARKER",
   "Earn response account does not match request",
   "Earn generated timestamp outside freshness window",
+  "EARN_HISTORY_LIMIT = 5",
+  "EARN_SANITIZATION_KEYS",
+  "EARN_BOUNDARY_KEYS",
+  "validateEarnHistory(",
+  "Earn authority boundary elevated",
+  "Earn sanitization boundary elevated",
   "data-earn-account-form",
   "data-earn-jobs-list",
   "data-earn-receipts-list",
@@ -216,10 +248,6 @@ for (const forbidden of [
   "globalThis.ethereum",
   "XMLHttpRequest",
   "WebSocket",
-  "/wc/",
-  "/jobs",
-  "/receipts",
-  "/__void/participant/",
   "sendTransaction",
   "personal_sign",
   "eth_sendTransaction",
