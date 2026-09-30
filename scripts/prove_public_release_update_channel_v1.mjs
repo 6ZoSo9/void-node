@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import childProcess from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -57,8 +58,9 @@ need("ops/public/install-void-node-v1.sh",[
   "VOID_NODE_STABLE_MANAGER_V1",
   'CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"',
   ".rollback.update-transaction-v1.json",
-  'if test "${1:-}" = rollback; then shift; run_control_rollback "$@"; fi',
-  'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; run_control_rollback "$@"; fi',
+  "recovery_outcome=rollback_committed",
+  'if test "${1:-}" = rollback; then shift; exec_control_rollback "$@"; fi',
+  'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; exec_control_rollback "$@"; fi',
 ]);
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
@@ -151,14 +153,13 @@ exit 2
   if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v3||!fs.existsSync(rollbackJournal)||!fs.existsSync(previousNext))fail("interrupted rollback did not preserve the expected reconstructable partial state");
   pass("rollback-interruption-journal-preserved");
 
-  const recovered=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
-  const recoveredOutput=`${recovered.stdout}${recovered.stderr}`;
-  if(recovered.status===0||!recoveredOutput.includes("ROLLBACK_RECOVERED")||!recoveredOutput.includes("recovered interrupted rollback; re-run the requested command"))fail("stable manager did not recover interrupted rollback before dispatch");
-  if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("rollback recovery did not restore coherent current/previous pointers");
+  const recoveredRollback=run(managerPath,["rollback"],{env:e,capture:true});
+  if(!recoveredRollback.includes("ROLLBACK_RECOVERED")||!recoveredRollback.includes("recovery_outcome=rollback_committed"))fail("stable manager did not classify committed rollback recovery");
+  if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("committed rollback recovery was accidentally applied twice");
   for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
     if(fs.existsSync(path.join(installRoot,artifact)))fail(`rollback recovery left transaction artifact ${artifact}`);
   }
-  pass("stable-manager-recovered-interrupted-rollback");
+  pass("stable-manager-committed-recovery-satisfies-rollback-once");
 
   const postRecoveryVersion=run(managerPath,["version"],{env:e,capture:true});
   if(!postRecoveryVersion.includes(v3))fail("stable manager did not resume normal current-release dispatch after recovery");
@@ -182,9 +183,8 @@ exit 2
   pass("rollback-restart-obligation-held-without-systemd");
 
   const restartRecoveryEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE:"0",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog};
-  const restartRecovered=run(managerPath,["version"],{env:restartRecoveryEnv,capture:true,allowFail:true});
-  const restartRecoveredOutput=`${restartRecovered.stdout}${restartRecovered.stderr}`;
-  if(restartRecovered.status===0||!restartRecoveredOutput.includes("ROLLBACK_RECOVERED"))fail("restart-window recovery did not replay committed rollback transaction");
+  const restartRecovered=run(managerPath,["version"],{env:restartRecoveryEnv,capture:true});
+  if(!restartRecovered.includes("ROLLBACK_RECOVERED")||!restartRecovered.includes("recovery_outcome=rollback_committed")||!restartRecovered.includes(v3))fail("restart-window recovery did not replay committed rollback transaction before dispatch");
   if(!fs.existsSync(restartLog)||fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("restart-window recovery did not restore previously active service after it became inactive");
   if(fs.existsSync(rollbackJournal)||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("restart-window recovery did not finalize coherent pointer state");
   pass("rollback-restart-intent-replayed-before-journal-cleanup");
@@ -200,9 +200,8 @@ exit 2
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3||!fs.existsSync(currentNext)||fs.existsSync(rollbackJournal))fail("pre-journal interruption did not preserve exact staged-only state");
   pass("rollback-prejournal-interruption-preserved");
 
-  const prepRecovered=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
-  const prepRecoveredOutput=`${prepRecovered.stdout}${prepRecovered.stderr}`;
-  if(prepRecovered.status===0||!prepRecoveredOutput.includes("ROLLBACK_PREP_RECOVERED")||!prepRecoveredOutput.includes("recovered interrupted rollback; re-run the requested command"))fail("stable manager did not recover pre-journal rollback staging");
+  const prepRecovered=run(managerPath,["version"],{env:e,capture:true});
+  if(!prepRecovered.includes("ROLLBACK_PREP_RECOVERED")||!prepRecovered.includes("recovery_outcome=rollback_aborted_before_publication")||!prepRecovered.includes(v2))fail("stable manager did not classify and continue after pre-journal rollback cleanup");
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("pre-journal rollback recovery changed canonical pointers");
   for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
     if(fs.existsSync(path.join(installRoot,artifact)))fail(`pre-journal rollback recovery left artifact ${artifact}`);
@@ -217,9 +216,8 @@ exit 2
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3||!fs.existsSync(currentNext)||!fs.existsSync(previousNext)||!fs.existsSync(rollbackJournalNext)||fs.existsSync(rollbackJournal))fail("staged-journal interruption did not preserve exact prepared rollback state");
   pass("rollback-staging-journal-interruption-preserved");
 
-  const journalStageRecovered=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
-  const journalStageRecoveredOutput=`${journalStageRecovered.stdout}${journalStageRecovered.stderr}`;
-  if(journalStageRecovered.status===0||!journalStageRecoveredOutput.includes("ROLLBACK_PREP_RECOVERED")||!journalStageRecoveredOutput.includes("recovered interrupted rollback; re-run the requested command"))fail("stable manager did not recover staged rollback journal");
+  const journalStageRecovered=run(managerPath,["version"],{env:e,capture:true});
+  if(!journalStageRecovered.includes("ROLLBACK_PREP_RECOVERED")||!journalStageRecovered.includes("recovery_outcome=rollback_aborted_before_publication")||!journalStageRecovered.includes(v2))fail("stable manager did not classify and continue after staged rollback-journal cleanup");
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("staged-journal recovery changed canonical pointers");
   for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
     if(fs.existsSync(path.join(installRoot,artifact)))fail(`staged-journal recovery left artifact ${artifact}`);
