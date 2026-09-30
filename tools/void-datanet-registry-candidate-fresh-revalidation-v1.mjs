@@ -147,8 +147,7 @@ export async function runVoidDatanetRegistryCandidateFreshRevalidationV1(input){
   if(
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(observedAt)||
     !Number.isFinite(observedMs)||
-    !Number.isFinite(candidateExpiryMs)||
-    observedMs>Date.now()+365*24*60*60*1000
+    !Number.isFinite(candidateExpiryMs)
   ){
     return held("candidate_revalidation_time_invalid");
   }
