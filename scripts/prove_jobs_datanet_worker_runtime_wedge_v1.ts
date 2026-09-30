@@ -809,6 +809,41 @@ try {
     "completion-id-length-overflow-holds-before-jobs",
     `ready=${completionIdOverflow.ready} jobs=${completionIdOverflow.jobs.length} reason=${completionIdOverflow.holdReason}`,
   );
+  const completionIdOverflowBytes = Number(
+    completionIdOverflow.completionIo?.bytes_read_total || 0,
+  );
+  const completionIdOverflowRepeat = completionIdOverflowIndex.scan(
+    completionIdInput,
+  );
+  assert(
+    completionIdOverflowRepeat.ready === false &&
+      completionIdOverflowRepeat.jobs.length === 0 &&
+      Number(completionIdOverflowRepeat.completionIo?.bytes_read_total || 0) ===
+        completionIdOverflowBytes &&
+      String(completionIdOverflowRepeat.holdReason || "").includes(
+        "kind=cached_generation",
+      ),
+    "completion-id-length-same-generation-hold-does-not-reread",
+    `before_bytes=${completionIdOverflowBytes} after_bytes=${completionIdOverflowRepeat.completionIo?.bytes_read_total || 0} reason=${completionIdOverflowRepeat.holdReason}`,
+  );
+  fs.writeFileSync(
+    completionIdReceiptsFile,
+    JSON.stringify({
+      job_id: "x".repeat(VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1),
+      status: "completed",
+    }) + "\n",
+  );
+  const completionIdRecovered = completionIdOverflowIndex.scan(
+    completionIdInput,
+  );
+  assert(
+    completionIdRecovered.ready === true &&
+      completionIdRecovered.jobs.some(
+        (entry) => entry.jobId === "completion_id_length_job",
+      ),
+    "completion-id-length-generation-change-clears-cached-hold",
+    `ready=${completionIdRecovered.ready} jobs=${completionIdRecovered.jobs.map((x) => x.jobId).join(",")}`,
+  );
 
   const cardinalityJobsFile = path.join(root, "jobs-completion-cardinality.jsonl");
   const cardinalityReceiptsFile = path.join(
@@ -1262,6 +1297,7 @@ try {
     semanticSource.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD") &&
       semanticSource.includes("addCompletionIdBoundedV1") &&
       semanticSource.includes("completionCardinalityHoldStamps") &&
+      semanticSource.includes("completionIdLengthHoldStamps") &&
       semanticSource.includes("normalizeMaxCompletionIdsPerFileV1") &&
       semanticSource.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD") &&
       helperSource.includes("VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE"),
