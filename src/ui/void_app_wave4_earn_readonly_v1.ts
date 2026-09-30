@@ -495,11 +495,15 @@ export async function fetchVoidUiWave4EarnSourceJsonV1(
 ): Promise<SourceResult> {
   const target = new URL(route, base.endsWith("/") ? base : `${base}/`).href;
   const controller = new AbortController();
-  const timeoutMs =
+  const requestedTimeoutMs =
     Number.isSafeInteger(options.timeoutMs) &&
     Number(options.timeoutMs) > 0
       ? Number(options.timeoutMs)
       : VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1;
+  const timeoutMs = Math.min(
+    requestedTimeoutMs,
+    VOID_UI_WAVE4_EARN_SOURCE_TIMEOUT_MS_V1,
+  );
   const timer = setTimeout(
     () => controller.abort(new Error("earn_source_deadline_exceeded")),
     timeoutMs,
