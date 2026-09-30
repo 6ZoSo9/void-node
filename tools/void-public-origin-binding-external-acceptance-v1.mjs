@@ -1179,6 +1179,8 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     version: 1,
     status: "green",
     external_acceptance: true,
+    evidence_authentication:
+      "content_addressed_unsigned_v1",
     collected_at: new Date(nowMs).toISOString(),
     source: Object.freeze({
       repository_head: sourceProvenance.repository_head,
@@ -1295,6 +1297,7 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
       "version",
       "status",
       "external_acceptance",
+      "evidence_authentication",
       "collected_at",
       "source",
       "coordinator",
@@ -1312,6 +1315,8 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
     || receipt.version !== 1
     || receipt.status !== "green"
     || receipt.external_acceptance !== true
+    || receipt.evidence_authentication !==
+      "content_addressed_unsigned_v1"
     || !EXTERNAL_ACCEPTANCE_RECEIPT_ID_V1.test(
       String(receipt.receipt_id || ""),
     )
