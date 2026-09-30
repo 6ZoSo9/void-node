@@ -12,8 +12,8 @@ const repo = path.resolve(__dirname, '..');
 const guidePath = path.join(repo, 'docs/public/void-public-earn-no-node-client-v1.md');
 const clientRel = 'tools/void_public_earn_no_node_client_v1.mjs';
 const clientPath = path.join(repo, clientRel);
-const pinnedCommit = 'f860d6deb0c871a9d05de77544a9335334576c4b';
-const expectedGitBlobSha1 = '6b57345db81e0d35830b5da23a9048f2f9d72419';
+const pinnedCommit = 'dd2d5c705eaa04de59493a2afc21b41977891bff';
+const expectedGitBlobSha1 = 'd73bd46f0a4ff54f800ace6b66c5cc9f84993505';
 const coordinatorNodeId = 'c'.repeat(32);
 
 function gitBlobSha1(bytes) {
@@ -122,6 +122,11 @@ for (const required of [pinnedCommit, expectedGitBlobSha1]) {
   assert.equal(markdown.includes(required), true, `guide binding missing: ${required}`);
 }
 assert.equal(markdown.includes('/download/void-public-earn-no-node-client-v1.mjs'), false, 'guide must not execute client bytes selected by Public Earn gateway');
+assert.equal(
+  markdown.includes('Dataset responses are admitted as a bounded stream.'),
+  true,
+  'guide must document the dataset streaming byte boundary',
+);
 
 const pinnedBytes = execFileSync('git', ['show', `${pinnedCommit}:${clientRel}`], { cwd: repo, maxBuffer: 2 * 1024 * 1024 });
 const currentBytes = fs.readFileSync(clientPath);
