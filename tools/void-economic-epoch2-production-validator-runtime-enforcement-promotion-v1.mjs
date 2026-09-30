@@ -35,6 +35,12 @@ function exactUtcSeconds(value) {
   );
 }
 
+function currentUtcSeconds() {
+  return new Date(Math.floor(Date.now() / 1000) * 1000)
+    .toISOString()
+    .replace(".000Z", "Z");
+}
+
 function canonicalEvidencePath(role) {
   return (
     "ops/mainnet0/economic-epoch2-production-validator-runtime-evidence-" +
@@ -305,6 +311,10 @@ function readJson(filename) {
 
 if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href) {
   const root = process.cwd();
+  if (arg("--promotion-evaluated-at-utc") !== undefined) {
+    fail("promotion_evaluation_time_override_forbidden");
+  }
+  const promotionEvaluationTimeUtc=currentUtcSeconds();
   const outputDir = path.resolve(String(arg("--output-dir") || ""));
   if (!outputDir || outputDir === path.parse(outputDir).root) {
     fail("output_dir_required");
@@ -355,9 +365,7 @@ if (import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
       migrationCandidate,
       evidenceBytesByRole,
       importReceiptsByRole,
-      promotionEvaluationTimeUtc: String(
-        arg("--promotion-evaluated-at-utc") || "",
-      ),
+      promotionEvaluationTimeUtc,
     });
 
   fs.mkdirSync(outputDir, { recursive: false });
