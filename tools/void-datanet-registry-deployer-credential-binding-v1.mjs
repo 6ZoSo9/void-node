@@ -60,9 +60,11 @@ function exactKeys(value,keys,label){
 }
 function timestamp(value,label){
   const raw=String(value||"");
+  const parsed=Date.parse(raw);
   if(
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(raw)||
-    !Number.isFinite(Date.parse(raw))
+    !Number.isFinite(parsed)||
+    new Date(parsed).toISOString()!==raw
   ){
     throw new Error(label+"_invalid");
   }
@@ -294,6 +296,33 @@ export function observeVoidDatanetRegistryDeployerCredentialFileV1(input){
   }
 }
 
+function validateCredentialBindingContextV1(candidate,input){
+  const boundAt=timestamp(
+    input?.bound_at_utc,
+    "registry_deployer_bound_at",
+  );
+  const candidateDeadline=timestamp(
+    candidate?.valid_until_utc,
+    "registry_deployer_candidate_valid_until",
+  );
+  if(Date.parse(boundAt)>Date.parse(candidateDeadline)){
+    throw new Error("registry_deployer_candidate_expired_for_binding");
+  }
+
+  const boundOnHost=String(input?.bound_on_host||"");
+  const observedRepoHead=String(input?.observed_repo_head||"");
+  if(boundOnHost!=="Nimo"||!SHA40.test(observedRepoHead)){
+    throw new Error("registry_deployer_binding_host_or_repo_head_invalid");
+  }
+
+  return Object.freeze({
+    bound_at_utc:boundAt,
+    candidate_valid_until_utc:candidateDeadline,
+    bound_on_host:boundOnHost,
+    observed_repo_head:observedRepoHead,
+  });
+}
+
 function validateCandidateForCredentialBindingV1(
   candidateInput,
   candidateEvidence,
@@ -359,22 +388,14 @@ export function buildVoidDatanetRegistryDeployerCredentialBindingV1(input){
     throw new Error("registry_deployer_credential_observation_invalid");
   }
 
-  const boundAt=timestamp(input?.bound_at_utc,"registry_deployer_bound_at");
-  const candidateDeadline=timestamp(
-    candidate.valid_until_utc,
-    "registry_deployer_candidate_valid_until",
+  const context=validateCredentialBindingContextV1(
+    candidate,
+    input,
   );
-  const boundMs=Date.parse(boundAt);
-  const deadlineMs=Date.parse(candidateDeadline);
-  if(boundMs>deadlineMs){
-    throw new Error("registry_deployer_candidate_expired_for_binding");
-  }
-
-  const boundOnHost=String(input?.bound_on_host||"");
-  const observedRepoHead=String(input?.observed_repo_head||"");
-  if(boundOnHost!=="Nimo"||!SHA40.test(observedRepoHead)){
-    throw new Error("registry_deployer_binding_host_or_repo_head_invalid");
-  }
+  const boundAt=context.bound_at_utc;
+  const candidateDeadline=context.candidate_valid_until_utc;
+  const boundOnHost=context.bound_on_host;
+  const observedRepoHead=context.observed_repo_head;
 
   const material={
     marker:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_V1,
@@ -603,10 +624,11 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
 
   try{
     validateVoidDatanetRegistryDeployerSelectionV1(input?.deployer_selection);
-    validateCandidateForCredentialBindingV1(
+    const candidate=validateCandidateForCredentialBindingV1(
       input?.unsigned_transaction_candidate,
       input?.candidate_evidence,
     );
+    validateCredentialBindingContextV1(candidate,input);
   }catch{
     return held(
       "registry_deployer_public_binding_input_invalid",
