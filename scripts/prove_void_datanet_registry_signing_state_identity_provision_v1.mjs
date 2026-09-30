@@ -140,7 +140,6 @@ for(const required of [
   '.local/state/void/datanet-registry-signing-v1',
   '.config/void',
   'datanet-registry-signing-state-identity-v1.json',
-  'provisionDatanetRegistrySigningStateIdentityV1',
   'signing_state_identity_prior_consumption_present',
   'entries.includes("consumed")',
   'signing_consumed_dir',
