@@ -41,10 +41,10 @@ Before any private-key access the tool:
 6. proves the output path is create-only and currently absent.
 
 Only after those gates does it inspect the node key path. Immediately after key
-loading, the exported signing primitive takes a fresh signing-clock reading and
-repeats the active-time check directly before Ed25519 signing. The execution
-function does not accept a caller-selected clock value, so request validity
-cannot be frozen across key loading.
+loading, the exported signing primitive takes a fresh `Date.now()` reading and
+repeats the active-time check directly before Ed25519 signing. Neither the
+execution function nor the signing primitive accepts a caller-selected clock
+value, so request validity cannot be frozen or backdated across key loading.
 
 ## Existing key only
 
