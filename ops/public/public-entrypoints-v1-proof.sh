@@ -9,11 +9,20 @@ echo "base=$PUBLIC_SEED_BASE"
 
 python3 - "$PUBLIC_SEED_BASE" <<'PY'
 import json, sys
+from datetime import datetime, timezone
+
 base=sys.argv[1]
 manifest=json.load(open("public/bootstrap/v1.json"))
 enabled=[x for x in manifest.get("sync_endpoints", []) if x.get("enabled") is True]
 assert any(x.get("base") == base for x in enabled), (base, enabled)
-print("[ok] entrypoint default matches committed bootstrap endpoint")
+
+expires_raw=manifest.get("expires_at")
+assert isinstance(expires_raw, str) and expires_raw, manifest
+expires_at=datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+assert expires_at.tzinfo is not None, expires_raw
+now=datetime.now(timezone.utc)
+assert expires_at > now, f"bootstrap manifest expired at {expires_at.isoformat()} now={now.isoformat()}"
+print(f"[ok] default origin matches committed bootstrap endpoint; expires_at={expires_at.isoformat()}")
 PY
 
 grep -Fq "VOID public access is domain-optional" "$DOC"
