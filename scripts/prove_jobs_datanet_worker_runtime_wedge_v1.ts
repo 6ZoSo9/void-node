@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { JobsDatanetWorkerRuntimeIndexV1 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
 import {
   AgentPick2JsonlSemanticIndexV1,
+  VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1,
   VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
   VOID_AGENT_PICK2_JSONL_MAX_RECORD_BYTES_V1,
   normalizeMaxCompletionIdsPerFileV1,
@@ -724,6 +725,91 @@ try {
       `zero=${normalizeMaxCompletionIdsPerFileV1(0)}`,
     ].join(" "),
   );
+  assert(
+    VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1 === 192,
+    "completion-id-length-default-pinned",
+    `max_chars=${VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1}`,
+  );
+  const completionIdJobsFile = path.join(root, "jobs-completion-id-length.jsonl");
+  const completionIdReceiptsFile = path.join(
+    root,
+    "receipts-completion-id-length.jsonl",
+  );
+  const completionIdJobStateFile = path.join(
+    root,
+    "job-state-completion-id-length.jsonl",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    completionIdJobsFile,
+    JSON.stringify({
+      job_id: "completion_id_length_job",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "id-length" },
+    }) + "\n",
+  );
+  fs.writeFileSync(completionIdJobStateFile, "");
+  fs.writeFileSync(
+    completionIdReceiptsFile,
+    JSON.stringify({
+      job_id: "x".repeat(VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1),
+      status: "completed",
+    }) + "\n",
+  );
+  const completionIdBoundaryIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+    maxCompletionIdsPerFile: 8,
+  });
+  const completionIdInput = {
+    jobsFile: completionIdJobsFile,
+    receiptsFile: completionIdReceiptsFile,
+    jobStateFile: completionIdJobStateFile,
+  };
+  const completionIdBoundary = completionIdBoundaryIndex.scan(
+    completionIdInput,
+  );
+  assert(
+    completionIdBoundary.ready === true &&
+      completionIdBoundary.jobs.some(
+        (entry) => entry.jobId === "completion_id_length_job",
+      ),
+    "completion-id-length-exact-boundary-admitted",
+    `ready=${completionIdBoundary.ready} jobs=${completionIdBoundary.jobs.map((x) => x.jobId).join(",")}`,
+  );
+
+  fs.writeFileSync(
+    completionIdReceiptsFile,
+    JSON.stringify({
+      job_id: "x".repeat(
+        VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1 + 1,
+      ),
+      status: "completed",
+    }) + "\n",
+  );
+  const completionIdOverflowIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+    maxCompletionIdsPerFile: 8,
+  });
+  const completionIdOverflow = completionIdOverflowIndex.scan(
+    completionIdInput,
+  );
+  assert(
+    completionIdOverflow.ready === false &&
+      completionIdOverflow.jobs.length === 0 &&
+      String(completionIdOverflow.holdReason || "").includes(
+        "VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD",
+      ),
+    "completion-id-length-overflow-holds-before-jobs",
+    `ready=${completionIdOverflow.ready} jobs=${completionIdOverflow.jobs.length} reason=${completionIdOverflow.holdReason}`,
+  );
+
   const cardinalityJobsFile = path.join(root, "jobs-completion-cardinality.jsonl");
   const cardinalityReceiptsFile = path.join(
     root,
@@ -1177,6 +1263,7 @@ try {
       semanticSource.includes("addCompletionIdBoundedV1") &&
       semanticSource.includes("completionCardinalityHoldStamps") &&
       semanticSource.includes("normalizeMaxCompletionIdsPerFileV1") &&
+      semanticSource.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD") &&
       helperSource.includes("VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE"),
     "completion-cardinality-guard-source-present",
     "semantic cardinality guard and worker configuration seam present",
