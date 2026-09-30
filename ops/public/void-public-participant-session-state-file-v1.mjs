@@ -37,6 +37,8 @@ const SHA256_RE = /^[0-9a-f]{64}$/;
 const BASE64URL32_RE = /^[A-Za-z0-9_-]{43}$/;
 const UINT64_RE = /^(0|[1-9][0-9]{0,19})$/;
 const MAX_UINT64 = 18446744073709551615n;
+const MAX_ACTIVE_CHALLENGES = 256;
+const MAX_ACTIVE_SESSIONS = 256;
 
 const SNAPSHOT_KEYS = Object.freeze([
   "challenges",
@@ -177,6 +179,10 @@ function canonicalRoleAdmission(value) {
     value.schema !== "void.participant-role-authority-admission.v1" ||
     value.chain_id !== 2050 ||
     value.role !== "AGENT" ||
+    typeof value.identity_id !== "string" ||
+    !IDENTITY_RE.test(value.identity_id) ||
+    typeof value.account_id !== "string" ||
+    !ACCOUNT_RE.test(value.account_id) ||
     typeof value.subject_binding_sha256 !== "string" ||
     !SHA256_RE.test(value.subject_binding_sha256) ||
     typeof value.authority_policy_sha256 !== "string" ||
@@ -232,15 +238,30 @@ function canonicalSessionRow(value) {
   if (expires <= issued) {
     throw new Error("session_state_session_expiry_invalid");
   }
+  const identity = canonicalIdentity(value.identity_id);
+  const account = canonicalAccount(value.account);
+  const roleAdmission = canonicalRoleAdmission(value.role_admission);
+  if (
+    (identity === null) !== (roleAdmission === null) ||
+    (
+      roleAdmission !== null &&
+      (
+        roleAdmission.identity_id !== identity ||
+        roleAdmission.account_id !== account
+      )
+    )
+  ) {
+    throw new Error("session_state_role_admission_binding_invalid");
+  }
   return Object.freeze({
     id: value.id,
     token_sha256: value.token_sha256,
-    identity_id: canonicalIdentity(value.identity_id),
-    account: canonicalAccount(value.account),
+    identity_id: identity,
+    account,
     public_key_fingerprint_sha256:
       value.public_key_fingerprint_sha256,
     capability: value.capability,
-    role_admission: canonicalRoleAdmission(value.role_admission),
+    role_admission: roleAdmission,
     issued_at_ms: issued,
     expires_at_ms: expires,
   });
@@ -261,6 +282,12 @@ function canonicalSnapshot(value) {
     value.generation,
     "session_state_generation",
   );
+  if (
+    value.challenges.length > MAX_ACTIVE_CHALLENGES ||
+    value.sessions.length > MAX_ACTIVE_SESSIONS
+  ) {
+    throw new Error("session_state_cardinality_limit_exceeded");
+  }
   const challenges = value.challenges.map(canonicalChallengeRow);
   const sessions = value.sessions.map(canonicalSessionRow);
   const challengeIds = new Set(challenges.map((row) => row.id));
