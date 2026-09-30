@@ -32,6 +32,17 @@ The Nimo runner may read the credential only when supplied exactly:
 A general source-work authorization, merged PR, green CI run, or prior
 transaction-construction confirmation does not satisfy this gate.
 
+The confirmation is enforced twice by design:
+
+- the Nimo runner rejects before loading evidence; and
+- the exported credential-file observer itself rejects before inspecting the
+  credential directory or opening the key file.
+
+The production binding functions do not accept injectable candidate validators
+or credential observers. Tests use the canonical merged unsigned-candidate
+validator and test credential observation separately; callers cannot substitute
+a fake observer to manufacture identity evidence.
+
 The runner also requires host `Nimo`, clean `main`, and the exact unsigned
 candidate plus all four candidate evidence artifacts.
 
