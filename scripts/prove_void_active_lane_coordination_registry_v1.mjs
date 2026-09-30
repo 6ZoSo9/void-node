@@ -7,6 +7,7 @@ import { join } from "node:path";
 import {
   DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
   MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS,
+  ORIGIN_HEAD_QUERY_TIMEOUT_MS,
   REMOTE_PRE_PR_FRESHNESS_BASIS,
   POLICY_MARKER,
   REGISTRY_MARKER,
@@ -87,6 +88,7 @@ validatePolicy(policy);
 const compiled = compilePolicy(policy);
 assert.equal(DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS, 1800);
 assert.equal(MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS, 300);
+assert.equal(ORIGIN_HEAD_QUERY_TIMEOUT_MS, 15000);
 assert.equal(REMOTE_PRE_PR_FRESHNESS_BASIS, "head_committer_epoch");
 assert.equal(compiled.remote_pre_pr_freshness_seconds, 1800);
 
@@ -631,6 +633,7 @@ console.log("recent_remote_pre_pr_freshness_basis_green=true");
 console.log("canonical_origin_repository_binding_green=true");
 console.log("canonical_origin_transport_restriction_green=true");
 console.log("canonical_origin_casefold_match_green=true");
+console.log("origin_head_query_timeout_green=true");
 console.log("live_origin_head_parser_green=true");
 console.log("live_origin_head_parity_green=true");
 console.log("worktree_porcelain_parser_green=true");
