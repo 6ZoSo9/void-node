@@ -104,11 +104,12 @@ assert.match(signingOperationId,/^voiddrso1_[0-9a-f]{64}$/u);
 
 {
   const root=stateRoot();
+  const identity=stateIdentity(root);
   try{
     const now=authorizedMs+1_000;
     const result=
       consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
-        authInput(fixture,root,authorization),
+        authInput(fixture,root,authorization,identity),
         now,
       );
     assert.equal(result.ok,true);
@@ -126,6 +127,8 @@ assert.match(signingOperationId,/^voiddrso1_[0-9a-f]{64}$/u);
     );
     assert.equal(result.signing_request_id,request.signing_request_id);
     assert.equal(result.candidate_id,request.candidate_id);
+    assert.equal(result.signing_operation_id,signingOperationId);
+    assert.equal(result.state_store_id,identity.state_store_id);
     assert.deepEqual(
       result.transaction_summary,
       request.transaction_summary,
@@ -139,13 +142,16 @@ assert.match(signingOperationId,/^voiddrso1_[0-9a-f]{64}$/u);
     assert.equal(result.consumption.single_use,true);
     assert.equal(result.consumption.authorization_consumed,true);
     assert.equal(result.consumption.immutable_consumption_record,true);
+    assert.equal(result.consumption.stable_signing_operation_slot,true);
+    assert.equal(result.consumption.state_store_generation_bound,true);
+    assert.equal(result.consumption.descriptor_relative_publication,true);
     assert.equal(
-      result.consumption.replay_rejected_within_exact_state_store,
+      result.consumption.replay_rejected_within_exact_state_store_generation,
       true,
     );
     assert.equal(
       result.consumption.replay_prevention_scope,
-      "exact_state_store_realpath",
+      "exact_state_store_generation_and_signing_operation",
     );
     assert.equal(
       result.consumption.consumption_precedes_any_signer_access,
@@ -167,7 +173,7 @@ assert.match(signingOperationId,/^voiddrso1_[0-9a-f]{64}$/u);
     const files=fs.readdirSync(consumedDir);
     assert.deepEqual(
       files,
-      [authorization.signing_authorization_id+".json"],
+      [signingOperationId+".json"],
     );
     const file=path.join(consumedDir,files[0]);
     assert.equal(fs.lstatSync(consumedDir).mode&0o777,0o700);
@@ -183,6 +189,22 @@ assert.match(signingOperationId,/^voiddrso1_[0-9a-f]{64}$/u);
     assert.equal(
       duplicate.reason,
       "registry_signing_consumption_already_consumed",
+    );
+    assert.deepEqual(fs.readFileSync(file),before);
+
+    const equivalentAuthorization=
+      consumeVoidDatanetRegistrySigningAuthorizationWithClockV1(
+        authInput(fixture,root,authorizationTwo,identity),
+        now+750,
+      );
+    assert.equal(equivalentAuthorization.ok,false);
+    assert.equal(
+      equivalentAuthorization.reason,
+      "registry_signing_consumption_already_consumed",
+    );
+    assert.equal(
+      equivalentAuthorization.signing_operation_id,
+      signingOperationId,
     );
     assert.deepEqual(fs.readFileSync(file),before);
   }finally{
