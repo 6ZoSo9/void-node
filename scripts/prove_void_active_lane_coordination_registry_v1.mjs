@@ -5,12 +5,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
   POLICY_MARKER,
   REGISTRY_MARKER,
   SEVERITY_MARKER,
   assessCandidate,
   canonicalJson,
   collectChangedPaths,
+  collectRecentOriginBranchPathClaims,
   compilePolicy,
   familyMatches,
   findPathCollisions,
@@ -45,6 +47,7 @@ const policy = {
       pattern: "buy-void",
     },
   ],
+  recent_remote_pre_pr_freshness_seconds: 1800,
   coordination_severity: {
     marker: SEVERITY_MARKER,
     version: 2,
@@ -76,6 +79,8 @@ const policy = {
 
 validatePolicy(policy);
 const compiled = compilePolicy(policy);
+assert.equal(DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS, 1800);
+assert.equal(compiled.remote_pre_pr_freshness_seconds, 1800);
 
 const repositoryPolicy = JSON.parse(readFileSync(
   new URL("../ops/coordination/active-lane-reservations-v1.json", import.meta.url),
@@ -339,6 +344,13 @@ assert.throws(
   }),
   /invalid sensitive_path_patterns regex/,
 );
+assert.throws(
+  () => validatePolicy({
+    ...policy,
+    recent_remote_pre_pr_freshness_seconds: 59,
+  }),
+  /recent_remote_pre_pr_freshness_seconds/,
+);
 
 const temp = mkdtempSync(join(tmpdir(), "void-active-lane-proof-"));
 try {
@@ -365,9 +377,84 @@ try {
   execFileSync("git", [
     "-C", repositoryTemp, "update-ref", "refs/remotes/origin/main", "HEAD",
   ]);
+  const baseHead = execFileSync(
+    "git", ["-C", repositoryTemp, "rev-parse", "HEAD"], { encoding: "utf8" },
+  ).trim();
   writeFileSync(join(repositoryTemp, "committed.txt"), "committed\n");
   execFileSync("git", ["-C", repositoryTemp, "add", "committed.txt"]);
   execFileSync("git", ["-C", repositoryTemp, "commit", "--quiet", "-m", "lane"]);
+  const laneHead = execFileSync(
+    "git", ["-C", repositoryTemp, "rev-parse", "HEAD"], { encoding: "utf8" },
+  ).trim();
+  const laneEpoch = Number.parseInt(execFileSync(
+    "git", ["-C", repositoryTemp, "show", "-s", "--format=%ct", laneHead],
+    { encoding: "utf8" },
+  ).trim(), 10);
+  execFileSync("git", [
+    "-C", repositoryTemp, "update-ref",
+    "refs/remotes/origin/feat/pre-pr-v1", laneHead,
+  ]);
+
+  const recentRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch + 60,
+  });
+  assert.equal(recentRemote.complete, true);
+  assert.equal(recentRemote.branches.length, 1);
+  assert.equal(recentRemote.branches[0].branch, "feat/pre-pr-v1");
+  assert.deepEqual(
+    recentRemote.claims.map((item) => [item.path, item.source, item.branch]),
+    [["committed.txt", "recent_remote_pre_pr", "feat/pre-pr-v1"]],
+  );
+
+  const staleRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch + 1801,
+  });
+  assert.equal(staleRemote.complete, true);
+  assert.equal(staleRemote.branches.length, 0);
+  assert.equal(staleRemote.claims.length, 0);
+
+  const openPrRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    openPrBranches: new Map([["feat/pre-pr-v1", { number: 123 }]]),
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch + 60,
+  });
+  assert.equal(openPrRemote.branches.length, 0);
+  assert.equal(openPrRemote.claims.length, 0);
+
+  const checkedOutRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    checkedOutBranches: new Set(["feat/pre-pr-v1"]),
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch + 60,
+  });
+  assert.equal(checkedOutRemote.branches.length, 0);
+  assert.equal(checkedOutRemote.claims.length, 0);
+
   writeFileSync(join(repositoryTemp, "tracked.txt"), "changed\n");
   writeFileSync(join(repositoryTemp, "staged.txt"), "staged\n");
   writeFileSync(join(repositoryTemp, "untracked.txt"), "untracked\n");
@@ -396,6 +483,8 @@ console.log("incomplete_metadata_risk_weighting_green=true");
 console.log("priority_fallthrough_green=true");
 console.log("exploration_permission_green=true");
 console.log("changed_path_enumeration_green=true");
+console.log("recent_remote_pre_pr_path_collision_green=true");
+console.log("recent_remote_pre_pr_freshness_window_green=true");
 console.log("worktree_porcelain_parser_green=true");
 console.log("canonical_output_green=true");
 console.log("VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1_PROOF_GREEN=true");
