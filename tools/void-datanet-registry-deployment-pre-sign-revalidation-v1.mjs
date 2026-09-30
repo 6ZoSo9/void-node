@@ -289,6 +289,10 @@ export async function runVoidDatanetRegistryDeploymentPreSignRevalidationV1(
       prior.deployment_plan.resolution_lineage.resolution_packet_id,
     prior_fee_funding_packet_id:prior.prior_packet.packet_id,
     fresh_fee_funding_packet_id:freshPacket.packet_id,
+    prior_observation_block_number:oldObs.observation_block_number,
+    prior_observation_block_hash:oldObs.observation_block_hash,
+    fresh_observation_block_number:freshObs.observation_block_number,
+    fresh_observation_block_hash:freshObs.observation_block_hash,
     read_only_rpc_revalidation_complete:true,
     rpc_methods_used:[...freshObserver.rpc_methods_used],
     continuity:{
@@ -367,6 +371,12 @@ export function validateVoidDatanetRegistryDeploymentPreSignRevalidationV1(
     !PLAN_ID.test(String(receipt.deployment_input_plan_id||""))||
     !FEE_PACKET_ID.test(String(receipt.prior_fee_funding_packet_id||""))||
     !FEE_PACKET_ID.test(String(receipt.fresh_fee_funding_packet_id||""))||
+    decimal(receipt.prior_observation_block_number)===null||
+    decimal(receipt.fresh_observation_block_number)===null||
+    decimal(receipt.fresh_observation_block_number)<
+      decimal(receipt.prior_observation_block_number)||
+    !/^0x[0-9a-f]{64}$/u.test(String(receipt.prior_observation_block_hash||""))||
+    !/^0x[0-9a-f]{64}$/u.test(String(receipt.fresh_observation_block_hash||""))||
     receipt.freshness_seconds!==PRE_SIGN_VALIDITY_SECONDS_V1||
     receipt.read_only_rpc_revalidation_complete!==true||
     !Number.isFinite(Date.parse(String(receipt.observed_at_utc||"")))||
