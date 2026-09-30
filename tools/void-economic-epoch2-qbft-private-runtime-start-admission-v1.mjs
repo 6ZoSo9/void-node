@@ -4,6 +4,9 @@ import crypto from "node:crypto";
 import {
   validateVoidEconomicEpoch2QbftHostPrestartReceiptV1,
 } from "./void-economic-epoch2-qbft-private-runtime-prestart-v1.mjs";
+import {
+  validateVoidEconomicEpoch2QbftPrivateRuntimeBundleSetReceiptV1,
+} from "./void-economic-epoch2-qbft-private-runtime-install-v1.mjs";
 
 export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_START_ADMISSION_V1 =
   "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_START_ADMISSION_V1";
@@ -40,6 +43,11 @@ function exactKeys(value,keys,label) {
 }
 
 export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input) {
+  const validated=validateVoidEconomicEpoch2QbftPrivateRuntimeBundleSetReceiptV1(
+    input?.bundle_set_receipt,
+    input?.plan,
+    input?.plan_file_sha256,
+  );
   const evaluatedAt=String(input?.evaluated_at_utc||"");
   const evaluatedMs=Date.parse(evaluatedAt);
   if(
@@ -58,8 +66,6 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
   }
 
   const rows=[];
-  const planIds=new Set();
-  const bundleSetIds=new Set();
   const repoHeads=new Set();
   const installIds=new Set();
   const observedTimes=[];
@@ -69,6 +75,61 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       receipts[role],
     );
     if(receipt.role!==role) throw new Error("start_admission_role_mismatch:"+role);
+    const planHost=validated.plan.hosts.find((x)=>x.role===role);
+    const bundleRow=validated.receipt.roles.find((x)=>x.role===role);
+    if(!planHost||!bundleRow) {
+      throw new Error("start_admission_role_binding_missing:"+role);
+    }
+    if(
+      receipt.plan_id!==validated.plan.plan_id||
+      receipt.bundle_set_id!==validated.receipt.bundle_set_id||
+      receipt.materialization_id!==bundleRow.materialization_id||
+      receipt.hostname!==planHost.hostname||
+      receipt.tailscale_ipv4!==planHost.tailscale_ipv4||
+      receipt.enode!==planHost.enode||
+      receipt.validator_address!==planHost.validator_address||
+      receipt.besu_public_key!==planHost.besu_public_key||
+      receipt.installed_hashes?.genesis_sha256!==bundleRow.genesis_sha256||
+      receipt.installed_hashes?.static_nodes_sha256!==bundleRow.static_nodes_sha256||
+      receipt.installed_hashes?.systemd_unit_sha256!==bundleRow.systemd_unit_sha256||
+      receipt.installed_hashes?.private_plan_file_sha256!==
+        validated.plan_file_sha256
+    ) {
+      throw new Error("start_admission_identity_or_hash_binding_mismatch:"+role);
+    }
+    const expectedFacts={
+      repo_main_clean:true,
+      installed_repo_head_ancestor:true,
+      current_tailnet_ipv4_exact:true,
+      current_enode_exact:true,
+      installed_genesis_sha256_exact:true,
+      installed_genesis_evidence_bound:true,
+      installed_bundle_set_bytes_exact:true,
+      installed_static_nodes_sha256_exact:true,
+      installed_systemd_unit_sha256_exact:true,
+      installed_data_directory_empty:true,
+      service_inactive:true,
+      service_disabled:true,
+      autostart_links_absent:true,
+      plugin_sha256_exact:true,
+      besu_image_identity_exact:true,
+      rootless_docker_verified:true,
+      p2p_port_vacant:true,
+      precision_rpc_port_vacant:role==="precision"?true:null,
+      nodekey_regular_private_mode:true,
+      nodekey_path_canonical:true,
+      nodekey_single_link:true,
+      nodekey_public_key_exact:true,
+      nodekey_validator_address_exact:true,
+      nodekey_bytes_emitted:false,
+      nodekey_bytes_persisted:false,
+    };
+    exactKeys(receipt.facts,Object.keys(expectedFacts),"prestart_facts_"+role);
+    for(const [key,value] of Object.entries(expectedFacts)) {
+      if(receipt.facts[key]!==value) {
+        throw new Error("start_admission_fact_mismatch:"+role+":"+key);
+      }
+    }
     const observedMs=Date.parse(receipt.observed_at_utc);
     const validMs=Date.parse(receipt.valid_until_utc);
     if(
@@ -117,8 +178,6 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       throw new Error("start_admission_premature_authority:"+role);
     }
 
-    planIds.add(receipt.plan_id);
-    bundleSetIds.add(receipt.bundle_set_id);
     repoHeads.add(receipt.observed_repo_head);
     if(installIds.has(receipt.install_receipt_id)) {
       throw new Error("start_admission_install_receipt_duplicate");
@@ -141,8 +200,6 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
     });
   }
 
-  if(planIds.size!==1) throw new Error("start_admission_plan_id_not_common");
-  if(bundleSetIds.size!==1) throw new Error("start_admission_bundle_set_id_not_common");
   if(repoHeads.size!==1) throw new Error("start_admission_repo_head_not_common");
   if(Math.max(...observedTimes)-Math.min(...observedTimes)>120000) {
     throw new Error("start_admission_observation_skew_exceeded");
@@ -153,8 +210,8 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
     version:1,
     status:"THREE_HOST_PRESTART_GREEN_VALIDATOR_START_CONFIRMATION_REQUIRED",
     evaluated_at_utc:evaluatedAt,
-    plan_id:[...planIds][0],
-    bundle_set_id:[...bundleSetIds][0],
+    plan_id:validated.plan.plan_id,
+    bundle_set_id:validated.receipt.bundle_set_id,
     observed_repo_head:[...repoHeads][0],
     validator_count:3,
     required_quorum:2,
