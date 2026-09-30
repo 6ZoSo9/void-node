@@ -13,6 +13,8 @@ export const VOID_AGENT_PICK2_JSONL_MAX_SYNC_COMPLETION_REBUILD_BYTES_V1 =
   16 * 1024 * 1024;
 export const VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1 =
   30_000;
+export const VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1 =
+  250_000;
 
 const VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1 =
   "VOID_AGENT_PICK2_JSONL_ISOLATION_RECOVERY_V1";
@@ -2349,6 +2351,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
   private readonly testHooks: TestHooksV1;
   private readonly maxSyncCompletionRebuildBytes: number;
   private readonly completionRebuildBackoffMs: number;
+  private readonly maxCompletionIdsPerFile: number;
   private readonly completionRebuildHoldUntil = new Map<string, number>();
   private readonly completionWarmTasks = new Map<string, Promise<void>>();
   private readonly completions = new Map<string, CompletionStateV1>();
@@ -2374,6 +2377,7 @@ export class AgentPick2JsonlSemanticIndexV1 {
     testHooks?: TestHooksV1;
     maxSyncCompletionRebuildBytes?: number;
     completionRebuildBackoffMs?: number;
+    maxCompletionIdsPerFile?: number;
   } = {}) {
     const requested = Number(opts.chunkBytes || 64 * 1024);
     this.chunkBytes = Number.isFinite(requested)
@@ -2394,7 +2398,32 @@ export class AgentPick2JsonlSemanticIndexV1 {
     this.completionRebuildBackoffMs = Number.isFinite(requestedBackoff)
       ? Math.max(1, Math.floor(requestedBackoff))
       : VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1;
+    const requestedCompletionIds = Number(
+      opts.maxCompletionIdsPerFile ??
+        VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1,
+    );
+    this.maxCompletionIdsPerFile = Number.isFinite(requestedCompletionIds)
+      ? Math.max(1, Math.min(5_000_000, Math.floor(requestedCompletionIds)))
+      : VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1;
     this.testHooks = opts.testHooks || {};
+  }
+
+  private addCompletionIdBoundedV1(
+    target: Set<string>,
+    id: string,
+    file: string,
+    kind: string,
+    baseSize = 0,
+  ): void {
+    if (!id || target.has(id)) return;
+    if (baseSize + target.size >= this.maxCompletionIdsPerFile) {
+      throw new Error(
+        "VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD " +
+          `file=${file} kind=${kind} ` +
+          `max_ids=${this.maxCompletionIdsPerFile}`,
+      );
+    }
+    target.add(id);
   }
 
   private metricKind(kind: string) {
@@ -2655,7 +2684,14 @@ export class AgentPick2JsonlSemanticIndexV1 {
               const x = entry.parsed;
               if (x && isCompletedTruthV1(x)) {
                 const id = rowIdV1(x);
-                if (id) completed.add(id);
+                if (id) {
+                  this.addCompletionIdBoundedV1(
+                    completed,
+                    id,
+                    file,
+                    kind,
+                  );
+                }
               }
             }
             from = i + 1;
@@ -2784,7 +2820,8 @@ export class AgentPick2JsonlSemanticIndexV1 {
       const hold =
         message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD") ||
         message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF") ||
-        message.startsWith("VOID_AGENT_PICK2_JSONL_UNWITNESSED_COMPLETION_GROWTH_HOLD");
+        message.startsWith("VOID_AGENT_PICK2_JSONL_UNWITNESSED_COMPLETION_GROWTH_HOLD") ||
+        message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD");
       if (!hold) throw err;
       return {
         ready: false,
@@ -2838,7 +2875,14 @@ export class AgentPick2JsonlSemanticIndexV1 {
           const x = entry.parsed;
           if (!x || !isCompletedTruthV1(x)) return;
           const id = rowIdV1(x);
-          if (id) completed.add(id);
+          if (id) {
+            this.addCompletionIdBoundedV1(
+              completed,
+              id,
+              file,
+              kind,
+            );
+          }
         },
       );
       return { completed, endedWithNewline };
@@ -2905,7 +2949,15 @@ export class AgentPick2JsonlSemanticIndexV1 {
             const x = entry.parsed;
             if (!x || !isCompletedTruthV1(x)) return;
             const id = rowIdV1(x);
-            if (id) additions.add(id);
+            if (id && !prior.completed.has(id)) {
+              this.addCompletionIdBoundedV1(
+                additions,
+                id,
+                file,
+                "completion_append",
+                prior.completed.size,
+              );
+            }
           },
         );
         return { additions, endedWithNewline };
