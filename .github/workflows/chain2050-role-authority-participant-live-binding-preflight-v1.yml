@@ -10,6 +10,8 @@ on:
       - "tools/chain2050-role-authority-checkpoint-verified-attestation-evidence-v1.mjs"
       - "tools/chain2050-role-authority-sovereign-genesis-append-reconciliation-evidence-v1.mjs"
       - "tools/chain2050-role-authority-live-rpc-observer-v1.mjs"
+      - "tools/chain2050-role-authority-registry-dual-compiler-v1.mjs"
+      - "contracts/mainnet0/VoidChain2050RoleAuthorityRegistryV1.sol"
       - "src/security/chain2050_role_authority_live_rpc_binding_v1.ts"
       - "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts"
       - "src/security/chain2050_role_authority_contract_projection_v1.ts"
@@ -24,6 +26,7 @@ permissions:
 
 jobs:
   proof:
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +41,96 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npx --no-install tsx scripts/prove_chain2050_role_authority_participant_live_binding_preflight_v1.ts
+
+      - name: Materialize exact accepted deployed runtime fixture
+        run: |
+          set -Eeuo pipefail
+          COMPILER_DIR="$RUNNER_TEMP/role-authority-solcjs"
+          RUNTIME_FILE="$RUNNER_TEMP/role-authority-accepted-runtime.hex"
+          export COMPILER_DIR RUNTIME_FILE
+          mkdir -p "$COMPILER_DIR"
+          npm init --yes --prefix "$COMPILER_DIR" >/dev/null
+          npm install \
+            --prefix "$COMPILER_DIR" \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            --save-exact \
+            solc@0.8.20
+
+          node --input-type=module <<'NODE'
+          import crypto from "node:crypto";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { pathToFileURL } from "node:url";
+          import {
+            CONTRACT_PATH,
+            EMPTY_REGISTRY_ROOT_SHA256,
+            SOLC_RELEASE,
+            buildStandardJsonInput,
+            parseCompilerOutput,
+          } from "./tools/chain2050-role-authority-registry-dual-compiler-v1.mjs";
+
+          const solcModule = await import(
+            pathToFileURL(
+              path.join(
+                process.env.COMPILER_DIR,
+                "node_modules/solc/index.js",
+              ),
+            ).href
+          );
+          const solc = solcModule.default;
+          if (solc.version() !== SOLC_RELEASE + ".Emscripten.clang") {
+            throw new Error(
+              "role_authority_fixture_compiler_release_mismatch:" +
+              solc.version(),
+            );
+          }
+
+          const source = fs.readFileSync(CONTRACT_PATH, "utf8");
+          const input = buildStandardJsonInput(source);
+          const output = solc.compile(JSON.stringify(input));
+          const parsed = parseCompilerOutput(
+            Buffer.from(output + "\n", "utf8"),
+            "participant_live_binding_fixture",
+          );
+
+          const runtime = Buffer.from(
+            parsed.runtime_template.object,
+            "hex",
+          );
+          const immutable = Buffer.from(
+            EMPTY_REGISTRY_ROOT_SHA256,
+            "hex",
+          );
+          for (const row of parsed.runtime_template.immutable_references) {
+            immutable.copy(runtime, row.start);
+          }
+          const digest = crypto.createHash("sha256")
+            .update(runtime)
+            .digest("hex");
+          const expected =
+            "b2e1938deb9dd2692a322fd837a5128aeb99d3c33095087c8af8d828a6ed930d";
+          if (digest !== expected) {
+            throw new Error(
+              "role_authority_fixture_runtime_identity_mismatch:" +
+              digest,
+            );
+          }
+          fs.writeFileSync(
+            process.env.RUNTIME_FILE,
+            "0x" + runtime.toString("hex") + "\n",
+            { mode: 0o600 },
+          );
+          console.log("accepted_runtime_sha256=" + digest);
+          NODE
+
+      - name: Prove participant live binding preflight
+        run: |
+          VOID_ROLE_AUTHORITY_ACCEPTED_RUNTIME_HEX_FILE="$RUNNER_TEMP/role-authority-accepted-runtime.hex" \
+            npx --no-install tsx \
+            scripts/prove_chain2050_role_authority_participant_live_binding_preflight_v1.ts
+
       - if: matrix.node == 24
         run: |
           npx --no-install tsx scripts/prove_chain2050_role_authority_live_rpc_observer_v1.ts
