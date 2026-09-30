@@ -19,7 +19,11 @@ grep -F 'VOID_PUBLIC_SURFACE_SAFETY_INDEX_V1_GREEN' "$doc" >/dev/null
 grep -F 'VOID_PUBLIC_MUTATION_METHOD_BOUNDARY_AUDIT_V1_GREEN' "$doc" >/dev/null
 grep -F 'VOID_FUNDING_GATEWAY_CARD_V1_GREEN' "$doc" >/dev/null
 
-grep -F 'VOID_BASE_URL="${VOID_BASE_URL:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}"' "$doc" >/dev/null
+grep -F 'VOID_BASE_URL="${VOID_BASE_URL:-https://seed.nullfeed.org}"' "$doc" >/dev/null
+grep -F 'VOID_BASE_URL_GUARD="${VOID_BASE_URL,,}"' "$doc" >/dev/null
+grep -F 'zoso-alienware-aurora-r7.taila47fd.ts.net' "$doc" >/dev/null
+grep -F '100.122.79.39' "$doc" >/dev/null
+grep -F 'HOLD: retired Alienware public seed target is forbidden' "$doc" >/dev/null
 grep -F 'curl -fsS "$VOID_BASE_URL/version"' "$doc" >/dev/null
 grep -F 'curl -fsS "$VOID_BASE_URL/"' "$doc" >/dev/null
 grep -F 'curl -fsS "$VOID_BASE_URL/public-node/reviewer-handoff-v1.json"' "$doc" >/dev/null
