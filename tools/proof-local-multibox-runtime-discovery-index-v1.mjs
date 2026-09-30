@@ -46,9 +46,19 @@ for (const routeLiteral of [
   }
 }
 
-for (const name of ['Precision', 'Alienware', 'Nimo/N153B']) {
-  if (!JSON.stringify(indexJson).includes(name)) throw new Error(`index JSON missing machine: ${name}`);
-  if (!indexHtml.includes(name)) throw new Error(`index HTML missing machine: ${name}`);
+const active = ['Precision', 'Nimo/N153B', 'Xiphos'];
+if (JSON.stringify(indexJson.summary?.machines) !== JSON.stringify(active)) {
+  throw new Error('discovery index active fleet mismatch');
+}
+for (const name of active) {
+  if (!JSON.stringify(indexJson).includes(name)) throw new Error(`index JSON missing active machine: ${name}`);
+  if (!indexHtml.includes(name)) throw new Error(`index HTML missing active machine: ${name}`);
+}
+if (JSON.stringify(indexJson.summary?.retired_machines) !== JSON.stringify(['Alienware'])) {
+  throw new Error('discovery index retired fleet mismatch');
+}
+if (indexJson.summary?.current_all_fleet_runtime_green_claim !== false) {
+  throw new Error('discovery index must not claim current all-fleet runtime green');
 }
 
 const b = indexJson.boundary || {};

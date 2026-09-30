@@ -1,10 +1,20 @@
 {
   "marker": "VOID_LOCAL_MULTIBOX_RUNTIME_STATUS_V1",
   "purpose": "public_safe_local_multibox_runtime_visibility",
-  "status": "local_multibox_runtime_observed",
+  "status": "historical_runtime_observation_active_fleet_topology",
   "updated_utc": "2026-07-03T22:49:34Z",
   "summary": {
-    "void_is_running_on_multiple_local_machines": true,
+    "active_operator_fleet": [
+      "Precision",
+      "Nimo/N153B",
+      "Xiphos"
+    ],
+    "retired_operator_machines": [
+      "Alienware"
+    ],
+    "historical_multibox_runtime_observation_recorded": true,
+    "historical_observation_at_utc": "2026-07-03T22:49:34Z",
+    "current_all_fleet_runtime_green_claim": false,
     "public_internet_network_claim": false,
     "local_runtime_visibility_only": true
   },
@@ -13,37 +23,30 @@
       "name": "Precision",
       "host": "zoso-Precision-Tower-7810",
       "role": "source_of_truth_live_node",
-      "repo": "~/dev/void-node",
-      "branch": "main",
-      "head": "57015d528408b0b73db47c7e4c608e5fee3c0a6b",
-      "http_port": 4100,
-      "p2p_port": 4700,
-      "node_id": "9d89483769e469e0473b489dc50dba96",
-      "observed_ready": true,
-      "observed_head": 1856587,
-      "observed_gap": 0,
-      "listen": [
-        "192.168.1.88:4700"
-      ]
-    },
-    {
-      "name": "Alienware",
-      "role": "local_void_runtime_machine",
-      "observed_running": true,
-      "details": "Running VOID locally; public-safe status only."
+      "active_fleet_member": true,
+      "current_runtime_green_claim": false,
+      "details": "Active fleet topology member; current runtime health requires fresh live evidence."
     },
     {
       "name": "Nimo/N153B",
-      "role": "local_observer_follower_node",
-      "observed_running": true,
-      "details": "Running local VOID observer/follower node; public-safe status only."
+      "role": "executor_observer_follower_node",
+      "active_fleet_member": true,
+      "current_runtime_green_claim": false,
+      "details": "Active fleet topology member; current runtime health requires fresh live evidence."
+    },
+    {
+      "name": "Xiphos",
+      "role": "follower_node",
+      "active_fleet_member": true,
+      "current_runtime_green_claim": false,
+      "details": "Active fleet topology member; current runtime health requires fresh live evidence."
     }
   ],
   "public_routes": {
-    "precision_effective_base_url": "http://108.232.1.111:4100",
-    "well_known": "http://108.232.1.111:4100/.well-known/void-public-node.json",
-    "public_node": "http://108.232.1.111:4100/public-node",
-    "proofs": "http://108.232.1.111:4100/proofs"
+    "runtime_index": "/public-node/runtime/index.json",
+    "status_json": "/public-node/runtime/local-multibox-status-v1.json",
+    "status_html": "/public-node/runtime/local-multibox-status-v1.html",
+    "diagnostic": "/__void/diag/local-multibox-runtime-route-v1.json"
   },
   "boundary": {
     "read_only": true,
@@ -57,5 +60,42 @@
     "validator_admission_enabled": false,
     "public_wc_self_serve_earning_enabled": false,
     "public_internet_mesh_claim": false
+  },
+  "updated_utc_scope": "historical_observation_timestamp",
+  "active_fleet_as_of": "2026-09-30",
+  "historical_observation": {
+    "observed_at_utc": "2026-07-03T22:49:34Z",
+    "scope": "dated_runtime_observation_not_current_fleet_health",
+    "machines": [
+      {
+        "name": "Precision",
+        "host": "zoso-Precision-Tower-7810",
+        "role": "source_of_truth_live_node",
+        "repo": "~/dev/void-node",
+        "branch": "main",
+        "head": "57015d528408b0b73db47c7e4c608e5fee3c0a6b",
+        "http_port": 4100,
+        "p2p_port": 4700,
+        "node_id": "9d89483769e469e0473b489dc50dba96",
+        "observed_ready": true,
+        "observed_head": 1856587,
+        "observed_gap": 0,
+        "listen": [
+          "192.168.1.88:4700"
+        ]
+      },
+      {
+        "name": "Alienware",
+        "role": "local_void_runtime_machine",
+        "observed_running": true,
+        "details": "Running VOID locally; public-safe status only."
+      },
+      {
+        "name": "Nimo/N153B",
+        "role": "local_observer_follower_node",
+        "observed_running": true,
+        "details": "Running local VOID observer/follower node; public-safe status only."
+      }
+    ]
   }
 }
