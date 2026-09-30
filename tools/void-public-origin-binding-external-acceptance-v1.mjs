@@ -179,7 +179,7 @@ function runJsonChildV1({
       {
         cwd: resolve(HERE, ".."),
         stdio: ["ignore", "pipe", "pipe"],
-        env: process.env,
+        env: {},
       },
     );
     const stdoutChunks = [];
