@@ -873,7 +873,7 @@ function atomicWriteDropinBytes(
     fs.closeSync(fd);
   }
   fs.renameSync(tempPath, dropinPath);
-  fs.chmodSync(dropinPath, mode);
+  fsyncDirectory(dropinDir);
 }
 
 function atomicInstallDropin(
@@ -893,14 +893,20 @@ function restoreDropin(
   dropinDir,
   dropinPath,
   previous,
+  dropinDirectory = { existed: true },
 ) {
   if (!previous.existed) {
     try {
       fs.unlinkSync(dropinPath);
+      fsyncDirectory(dropinDir);
     } catch (error) {
       if (error?.code !== "ENOENT") {
         throw error;
       }
+    }
+    if (dropinDirectory.existed === false) {
+      fs.rmdirSync(dropinDir);
+      fsyncDirectory(path.dirname(dropinDir));
     }
     return;
   }
@@ -1063,6 +1069,7 @@ async function verifyLocalBindingAliases(
 function rollbackAfterFailure({
   target,
   previous,
+  dropinDirectory,
   systemctlRunner,
 }) {
   const failures = [];
@@ -1071,6 +1078,7 @@ function rollbackAfterFailure({
       target.dropinDir,
       target.dropinPath,
       previous,
+      dropinDirectory,
     );
   } catch (error) {
     failures.push(
