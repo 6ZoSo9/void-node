@@ -116,6 +116,10 @@ ops/mainnet0/economic-evm-successor-migration-candidate-v1.json
 ```
 
 Each is descriptor-bound and raw-file SHA-256 committed into the artifact.
+The exact bytes read are also converted to Git blob identity and must equal the
+corresponding `HEAD:<path>` blob before promotion can continue. This closes the
+ABA case where a candidate file is temporarily replaced, read, then restored
+before the final clean-worktree check.
 
 ## Exact gate deltas
 
@@ -189,7 +193,8 @@ The create-only private output records:
 
 - repository HEAD/tree;
 - exact request-file raw SHA-256;
-- exact three canonical source-file SHA-256 digests;
+- exact three canonical source-file SHA-256 digests and matching HEAD Git-blob
+  identities;
 - coupled launch ID and opening mode;
 - claim/replay binding ID;
 - persisted claim-binding SHA-256;
