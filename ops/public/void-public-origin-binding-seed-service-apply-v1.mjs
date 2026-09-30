@@ -1439,12 +1439,28 @@ export function recoverVoidPublicOriginBindingSeedServiceApplyV1({
     );
   }
 
+  const freshState =
+    assertRecoveryTargetState(
+      inspected.target,
+      inspected.journal,
+    );
+  if (
+    freshState.current_matches_previous
+      !== inspected.state.current_matches_previous
+    || freshState.current_matches_desired
+      !== inspected.state.current_matches_desired
+  ) {
+    fail(
+      "seed-service recovery target changed during recovery preflight",
+    );
+  }
+
   const failures =
     rollbackAfterFailure({
       target: inspected.target,
-      previous: inspected.state.previous,
+      previous: freshState.previous,
       dropinDirectory:
-        inspected.state.dropinDirectory,
+        freshState.dropinDirectory,
       systemctlRunner,
     });
   if (failures.length > 0) {
