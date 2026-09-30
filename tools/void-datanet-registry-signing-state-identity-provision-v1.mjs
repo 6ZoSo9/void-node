@@ -117,6 +117,19 @@ export function validateVoidDatanetRegistrySigningStateIdentityV1(value){
   return rebuilt;
 }
 
+export function requiredVoidDatanetRegistrySigningStateIdentityProvisionConfirmationV1(
+  identityInput,
+){
+  const identity=validateVoidDatanetRegistrySigningStateIdentityV1(
+    identityInput,
+  );
+  return (
+    VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1+
+    ":"+
+    identity.state_store_id
+  );
+}
+
 export function buildVoidDatanetRegistrySigningStateIdentityProvisionReceiptV1(
   input,
 ){
