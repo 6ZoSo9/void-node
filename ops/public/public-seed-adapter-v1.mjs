@@ -556,6 +556,10 @@ function gatewayStatus() {
     marker: "VOID_PUBLIC_EARN_GATEWAY_V1",
     enabled: publicEarnEnabled(),
     fixed_award_wc: 3,
+    public_origin_binding:
+      publicOriginBindingServingStatusV1(
+        PUBLIC_ORIGIN_BINDING_SERVING,
+      ),
     routes: {
       health: EARN_HEALTH_PATH,
       status: EARN_STATUS_PATH,
@@ -564,10 +568,6 @@ function gatewayStatus() {
       participant_cli: EARN_CLI_PATH,
       claim_cli: EARN_CLAIM_CLI_PATH,
       no_node_client: EARN_NO_NODE_CLIENT_PATH,
-      public_origin_binding:
-        publicOriginBindingServingStatusV1(
-          PUBLIC_ORIGIN_BINDING_SERVING,
-        ),
     },
     methods: {
       health: ["GET", "HEAD"],
