@@ -234,8 +234,22 @@ if(
   fail("explicit_confirmation_required");
 }
 
+const voidStateBase=path.join(os.homedir(),".local/share/void");
+const voidStateBaseStat=fs.lstatSync(voidStateBase);
+if(
+  voidStateBaseStat.isSymbolicLink()||
+  !voidStateBaseStat.isDirectory()||
+  fs.realpathSync(voidStateBase)!==voidStateBase
+) {
+  fail("void_state_base_invalid");
+}
 const runtimeParent=path.dirname(runtimeRoot);
-fs.mkdirSync(runtimeParent,{recursive:true,mode:0o700});
+if(path.dirname(runtimeParent)!==voidStateBase) {
+  fail("runtime_parent_scope_invalid");
+}
+if(!fs.existsSync(runtimeParent)) {
+  fs.mkdirSync(runtimeParent,{mode:0o700});
+}
 const runtimeParentStat=fs.lstatSync(runtimeParent);
 if(
   runtimeParentStat.isSymbolicLink()||
