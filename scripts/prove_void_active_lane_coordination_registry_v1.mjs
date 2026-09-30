@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS,
+  MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS,
+  REMOTE_PRE_PR_FRESHNESS_BASIS,
   POLICY_MARKER,
   REGISTRY_MARKER,
   SEVERITY_MARKER,
@@ -80,6 +82,8 @@ const policy = {
 validatePolicy(policy);
 const compiled = compilePolicy(policy);
 assert.equal(DEFAULT_REMOTE_PRE_PR_FRESHNESS_SECONDS, 1800);
+assert.equal(MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS, 300);
+assert.equal(REMOTE_PRE_PR_FRESHNESS_BASIS, "head_committer_epoch");
 assert.equal(compiled.remote_pre_pr_freshness_seconds, 1800);
 
 const repositoryPolicy = JSON.parse(readFileSync(
@@ -407,12 +411,48 @@ try {
     nowEpochSeconds: laneEpoch + 60,
   });
   assert.equal(recentRemote.complete, true);
+  assert.equal(recentRemote.freshness_basis, "head_committer_epoch");
+  assert.equal(recentRemote.max_future_skew_seconds, 300);
   assert.equal(recentRemote.branches.length, 1);
   assert.equal(recentRemote.branches[0].branch, "feat/pre-pr-v1");
   assert.deepEqual(
     recentRemote.claims.map((item) => [item.path, item.source, item.branch]),
     [["committed.txt", "recent_remote_pre_pr", "feat/pre-pr-v1"]],
   );
+
+  const nearFutureRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch - 300,
+  });
+  assert.equal(nearFutureRemote.complete, true);
+  assert.equal(nearFutureRemote.branches.length, 1);
+  assert.equal(nearFutureRemote.branches[0].age_seconds, 0);
+  assert.equal(nearFutureRemote.claims.length, 1);
+
+  const farFutureRemote = collectRecentOriginBranchPathClaims({
+    repoRoot: repositoryTemp,
+    originBranches: {
+      main: baseHead,
+      "feat/pre-pr-v1": laneHead,
+    },
+    originMainSha: baseHead,
+    freshnessSeconds: 1800,
+    nowEpochSeconds: laneEpoch - 301,
+  });
+  assert.equal(farFutureRemote.complete, false);
+  assert.equal(farFutureRemote.claims.length, 0);
+  assert.equal(farFutureRemote.branches.length, 1);
+  assert.equal(
+    farFutureRemote.branches[0].error,
+    "remote_commit_time_too_far_in_future",
+  );
+  assert.equal(farFutureRemote.branches[0].age_seconds, null);
 
   const staleRemote = collectRecentOriginBranchPathClaims({
     repoRoot: repositoryTemp,
@@ -486,6 +526,8 @@ console.log("exploration_permission_green=true");
 console.log("changed_path_enumeration_green=true");
 console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
+console.log("recent_remote_pre_pr_future_timestamp_bound_green=true");
+console.log("recent_remote_pre_pr_freshness_basis_green=true");
 console.log("worktree_porcelain_parser_green=true");
 console.log("canonical_output_green=true");
 console.log("VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1_PROOF_GREEN=true");
