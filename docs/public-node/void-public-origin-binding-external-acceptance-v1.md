@@ -165,8 +165,7 @@ Optional timeout controls remain timing-only:
 
 The total alias deadline must be at least the inactivity deadline.
 
-A saved receipt can be reverified without any network request or child-process
-execution:
+A saved receipt can be reverified without any network request:
 
 ```bash
 node tools/void-public-origin-binding-external-acceptance-v1.mjs verify \
@@ -176,8 +175,11 @@ node tools/void-public-origin-binding-external-acceptance-v1.mjs verify \
 Offline verification uses bounded canonical-file admission, validates the closed
 receipt schema and content-derived ID, re-verifies the embedded signed binding,
 and reconstructs the recorded collector/directory/handoff source bytes directly
-from the recorded Git commit. The recorded source commit must be available and
-an ancestor of current `main`; re-pinning source hashes inside the JSON is not
+from the recorded Git commit. Source reconstruction intentionally executes only
+bounded `git` child processes (`cat-file`, `merge-base`, and `show`) with
+constant repository paths and a restricted `PATH`; it does not execute the
+recorded source commit. The recorded source commit must be available and an
+ancestor of current `main`; re-pinning source hashes inside the JSON is not
 sufficient to pass.
 
 ## Authority boundary
