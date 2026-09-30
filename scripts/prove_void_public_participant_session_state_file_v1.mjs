@@ -614,7 +614,7 @@ try {
           issued_at_ms: clock,
           expires_at_ms: clock + 60_000,
         }),
-        /session_state_file_path_identity_changed/,
+        /session_state_(?:installed_descriptor_changed|installed_content_changed|file_path_identity_changed)/,
         "installed pathname replacement escaped open-descriptor binding",
       );
     } finally {
