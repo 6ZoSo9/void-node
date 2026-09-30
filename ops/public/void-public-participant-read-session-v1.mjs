@@ -185,7 +185,22 @@ function randomBase64Url32(randomBytes) {
 }
 
 function tokenDigest(token) {
-  return crypto.createHash("sha256").update(token, "utf8").digest();
+  return crypto.createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+function tokenDigestMatches(token, expectedDigest) {
+  const actual = tokenDigest(token);
+  if (
+    !SHA256_RE.test(actual) ||
+    typeof expectedDigest !== "string" ||
+    !SHA256_RE.test(expectedDigest)
+  ) {
+    return false;
+  }
+  return crypto.timingSafeEqual(
+    Buffer.from(actual, "hex"),
+    Buffer.from(expectedDigest, "hex"),
+  );
 }
 
 function publicKeyFingerprint(publicKey) {
@@ -339,9 +354,114 @@ function signatureBytes(raw) {
   return bytes;
 }
 
+const SESSION_STATE_STORE_MARKER =
+  "VOID_PUBLIC_PARTICIPANT_SESSION_STATE_STORE_V1";
+
+function createMemorySessionStateStoreV1() {
+  const challenges = new Map();
+  const sessions = new Map();
+
+  return Object.freeze({
+    marker: SESSION_STATE_STORE_MARKER,
+    version: 1,
+    durable: false,
+    bearer_token_persisted: false,
+    wallet_private_key_access: false,
+    signing_authority: false,
+    transaction_authority: false,
+    work_credit_mutation_authority: false,
+    validator_mutation_authority: false,
+    chain2050_write_authority: false,
+    money_movement_authority: false,
+    purge(nowMs) {
+      for (const [id, row] of challenges) {
+        if (row.expires_at_ms <= nowMs) challenges.delete(id);
+      }
+      for (const [id, row] of sessions) {
+        if (row.expires_at_ms <= nowMs) sessions.delete(id);
+      }
+    },
+    challengeCount() {
+      return challenges.size;
+    },
+    sessionCount() {
+      return sessions.size;
+    },
+    putChallenge(row) {
+      if (challenges.has(row.id)) {
+        throw new Error("session_state_challenge_id_collision");
+      }
+      challenges.set(row.id, structuredClone(row));
+    },
+    takeChallenge(id) {
+      const row = challenges.get(id);
+      if (!row) return null;
+      challenges.delete(id);
+      return structuredClone(row);
+    },
+    putSession(row) {
+      if (sessions.has(row.id)) {
+        throw new Error("session_state_session_id_collision");
+      }
+      sessions.set(row.id, structuredClone(row));
+    },
+    getSession(id) {
+      const row = sessions.get(id);
+      return row ? structuredClone(row) : null;
+    },
+    deleteSession(id) {
+      return sessions.delete(id);
+    },
+  });
+}
+
+function normalizeSessionStateStoreV1(raw) {
+  const store = raw ?? createMemorySessionStateStoreV1();
+  if (!store || typeof store !== "object" || Array.isArray(store)) {
+    throw new Error("session_state_store_invalid");
+  }
+  if (
+    store.marker !== SESSION_STATE_STORE_MARKER ||
+    store.version !== 1 ||
+    typeof store.durable !== "boolean" ||
+    store.bearer_token_persisted !== false
+  ) {
+    throw new Error("session_state_store_invalid");
+  }
+  for (const key of [
+    "wallet_private_key_access",
+    "signing_authority",
+    "transaction_authority",
+    "work_credit_mutation_authority",
+    "validator_mutation_authority",
+    "chain2050_write_authority",
+    "money_movement_authority",
+  ]) {
+    if (store[key] !== false) {
+      throw new Error("session_state_store_invalid");
+    }
+  }
+  for (const key of [
+    "purge",
+    "challengeCount",
+    "sessionCount",
+    "putChallenge",
+    "takeChallenge",
+    "putSession",
+    "getSession",
+    "deleteSession",
+  ]) {
+    if (typeof store[key] !== "function") {
+      throw new Error("session_state_store_invalid");
+    }
+  }
+  return store;
+}
+
 export function createVoidPublicParticipantReadSessionV1({
   bindingRegistryFile,
   roleAuthority = null,
+  stateStore = null,
   now = () => Date.now(),
   randomBytes = crypto.randomBytes,
 } = {}) {
@@ -350,9 +470,7 @@ export function createVoidPublicParticipantReadSessionV1({
   }
   const roleAdapter = normalizeRoleAuthorityAdapter(roleAuthority);
   const roleAuthorityRequired = roleAdapter !== null;
-
-  const challenges = new Map();
-  const sessions = new Map();
+  const sessionState = normalizeSessionStateStoreV1(stateStore);
 
   const resolveBinding = (account) => {
     try {
@@ -364,17 +482,13 @@ export function createVoidPublicParticipantReadSessionV1({
 
   const purge = () => {
     const current = Number(now());
-    for (const [id, row] of challenges) {
-      if (row.expires_at_ms <= current || row.consumed) challenges.delete(id);
-    }
-    for (const [id, row] of sessions) {
-      if (row.expires_at_ms <= current || row.revoked) sessions.delete(id);
-    }
+    sessionState.purge(current);
+    return current;
   };
 
   const challenge = (input) => {
     purge();
-    if (challenges.size >= VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.max_active_challenges) {
+    if (sessionState.challengeCount() >= VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.max_active_challenges) {
       throw new Error("challenge_capacity_reached");
     }
 
@@ -399,9 +513,8 @@ export function createVoidPublicParticipantReadSessionV1({
       issued_at_ms: issuedAt,
       expires_at_ms:
         issuedAt + VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.challenge_ttl_ms,
-      consumed: false,
     };
-    challenges.set(id, row);
+    sessionState.putChallenge(row);
     return Object.freeze({
       marker: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.marker,
       challenge_id: id,
@@ -446,11 +559,8 @@ export function createVoidPublicParticipantReadSessionV1({
     const account = safeAccount(raw.account);
     const id = String(raw.challenge_id || "");
     if (!HEX_32_RE.test(id)) throw new Error("challenge_invalid");
-    const row = challenges.get(id);
-    if (!row || row.consumed) throw new Error("challenge_unavailable");
-
-    row.consumed = true;
-    challenges.delete(id);
+    const row = sessionState.takeChallenge(id);
+    if (!row) throw new Error("challenge_unavailable");
 
     if (
       row.identity_id !== identityId ||
@@ -477,7 +587,7 @@ export function createVoidPublicParticipantReadSessionV1({
 
     const issueSession = (roleAdmission = null) => {
       purge();
-      if (sessions.size >= VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.max_active_sessions) {
+      if (sessionState.sessionCount() >= VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.max_active_sessions) {
         throw new Error("session_capacity_reached");
       }
 
@@ -485,7 +595,8 @@ export function createVoidPublicParticipantReadSessionV1({
       const secret = randomBase64Url32(randomBytes);
       const token = `vps1.${sessionId}.${secret}`;
       const issuedAt = Number(now());
-      sessions.set(sessionId, {
+      sessionState.putSession({
+        id: sessionId,
         token_sha256: tokenDigest(token),
         identity_id: identityId,
         account,
@@ -496,7 +607,6 @@ export function createVoidPublicParticipantReadSessionV1({
         issued_at_ms: issuedAt,
         expires_at_ms:
           issuedAt + VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1.session_ttl_ms,
-        revoked: false,
       });
 
       return Object.freeze({
@@ -576,16 +686,12 @@ export function createVoidPublicParticipantReadSessionV1({
     const parsed = TOKEN_RE.exec(token);
     if (!parsed) throw new Error("session_token_invalid");
 
-    const row = sessions.get(parsed[1]);
-    if (!row || row.revoked || row.expires_at_ms <= Number(now())) {
+    const row = sessionState.getSession(parsed[1]);
+    if (!row || row.expires_at_ms <= Number(now())) {
       throw new Error("session_unavailable");
     }
 
-    const actual = tokenDigest(token);
-    if (
-      actual.length !== row.token_sha256.length ||
-      !crypto.timingSafeEqual(actual, row.token_sha256)
-    ) {
+    if (!tokenDigestMatches(token, row.token_sha256)) {
       throw new Error("session_token_invalid");
     }
 
@@ -604,8 +710,33 @@ export function createVoidPublicParticipantReadSessionV1({
       throw new Error("session_binding_stale");
     }
 
-    const finish = (roleContext = null) =>
-      Object.freeze({
+    const requireLiveSession = () => {
+      const liveRow = sessionState.getSession(parsed[1]);
+      if (
+        !liveRow ||
+        liveRow.expires_at_ms <= Number(now()) ||
+        !tokenDigestMatches(token, liveRow.token_sha256) ||
+        liveRow.account !== account ||
+        liveRow.capability !== row.capability ||
+        liveRow.public_key_fingerprint_sha256 !==
+          row.public_key_fingerprint_sha256
+      ) {
+        throw new Error("session_unavailable");
+      }
+      const latestBinding = resolveBinding(account);
+      if (
+        !latestBinding ||
+        latestBinding.public_key_fingerprint_sha256 !==
+          liveRow.public_key_fingerprint_sha256
+      ) {
+        throw new Error("session_binding_stale");
+      }
+      return liveRow;
+    };
+
+    const finish = (roleContext = null) => {
+      requireLiveSession();
+      return Object.freeze({
         ...(row.identity_id === null ? {} : {
           identity_id: row.identity_id,
           role: "AGENT",
@@ -624,6 +755,7 @@ export function createVoidPublicParticipantReadSessionV1({
         signing_authority: false,
         money_movement_authority: false,
       });
+    };
 
     if (!roleAuthorityRequired) {
       return finish(null);
@@ -678,20 +810,14 @@ export function createVoidPublicParticipantReadSessionV1({
     const parsed = TOKEN_RE.exec(match[1]);
     if (!parsed) return false;
 
-    const row = sessions.get(parsed[1]);
+    const row = sessionState.getSession(parsed[1]);
     if (!row) return false;
 
-    const actual = tokenDigest(match[1]);
-    if (
-      actual.length !== row.token_sha256.length ||
-      !crypto.timingSafeEqual(actual, row.token_sha256)
-    ) {
+    if (!tokenDigestMatches(match[1], row.token_sha256)) {
       return false;
     }
 
-    row.revoked = true;
-    sessions.delete(parsed[1]);
-    return true;
+    return sessionState.deleteSession(parsed[1]);
   };
 
   return Object.freeze({
@@ -700,6 +826,7 @@ export function createVoidPublicParticipantReadSessionV1({
     authorize,
     logout,
     role_authority_required: roleAuthorityRequired,
+    state_store_durable: sessionState.durable === true,
     authority: VOID_PUBLIC_PARTICIPANT_READ_SESSION_V1,
   });
 }
