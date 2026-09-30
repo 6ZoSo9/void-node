@@ -141,7 +141,11 @@ are captured through one `O_NOFOLLOW` file descriptor with before/after
 device/inode/size/mtime/ctime checks and a single-link requirement. Existing
 drop-in rollback evidence is capped at 256 KiB, and the fully serialized journal
 must fit the same 512 KiB ceiling used by recovery before any mutation can
-begin. The journal is durably published before mutation.
+begin. The journal is durably published before mutation. After publication, the
+operator synchronously rechecks that the target drop-in/directory still equals
+the journaled prior generation before marking mutation started. A foreign change
+between prior-state capture and journal publication therefore HOLDs without
+being rolled back or overwritten.
 
 If any ordinary post-write daemon-reload/restart/environment/binding
 qualification step fails, the operator restores the exact prior drop-in and
@@ -219,6 +223,9 @@ It proves:
 - mode-0600 success receipt;
 - a durable journal exists before the first drop-in mutation and is removed only
   after successful qualification;
+- after journal publication, the target must still equal the journaled prior
+  generation before mutation can start; pre-mutation failure does not restore
+  or overwrite foreign state;
 - a stale journal blocks a new apply;
 - wrong recovery confirmation causes zero systemd calls;
 - foreign/unknown drop-in bytes refuse recovery;
