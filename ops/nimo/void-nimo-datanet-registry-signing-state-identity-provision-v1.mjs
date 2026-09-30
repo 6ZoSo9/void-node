@@ -140,6 +140,25 @@ function fsyncDir(dir){
   const fd=fs.openSync(dir,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
   try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
 }
+function assertStateRootGeneration(expectedIdentity){
+  const rootNow=canonicalPrivateDir(
+    STATE_ROOT,
+    "signing_state_root",
+    0o700,
+  );
+  const statNow=fs.lstatSync(rootNow.dir,{bigint:true});
+  const current=buildVoidDatanetRegistrySigningStateIdentityV1({
+    state_root_realpath:rootNow.dir,
+    state_root_dev:String(statNow.dev),
+    state_root_ino:String(statNow.ino),
+  });
+  if(
+    voidDatanetRegistrySigningStateIdentityCanonicalJsonV1(current)!==
+      voidDatanetRegistrySigningStateIdentityCanonicalJsonV1(expectedIdentity)
+  ){
+    fail("signing_state_root_generation_changed_before_publication");
+  }
+}
 function writeExclusiveIdentity(bytes){
   const temp=path.join(
     CONFIG_DIR,
@@ -321,6 +340,8 @@ if(
   fail("explicit_confirmation_required");
 }
 
+assertStateRootGeneration(expected);
+assertNoPriorConsumption();
 writeExclusiveIdentity(expectedBytes);
 const observed=readIdentityFile();
 if(
