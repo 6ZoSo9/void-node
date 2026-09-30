@@ -622,11 +622,11 @@ async function buildSnapshot(account: string): Promise<Record<string, unknown>> 
     fetchVoidUiWave4EarnSourceJsonV1(base, `/wc/redeemable?account=${encoded}`),
     fetchVoidUiWave4EarnSourceJsonV1(base, `/wc/production/balance?account=${encoded}`),
     fetchVoidUiWave4EarnSourceJsonV1(base, `/jobs?account=${encoded}&limit=${HISTORY_LIMIT}`),
-    fetchJson(
+    fetchVoidUiWave4EarnSourceJsonV1(
       base,
       `/receipts?account=${encoded}&limit=${HISTORY_LIMIT}`
     ),
-    fetchJson(
+    fetchVoidUiWave4EarnSourceJsonV1(
       base,
       `/__void/participant/datanet-wc/status?account=${encoded}`
     ),
