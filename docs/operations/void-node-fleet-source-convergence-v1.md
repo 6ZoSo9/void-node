@@ -20,7 +20,7 @@ Each node receives its own deterministic plan and exact confirmation set. A
 failure, target race, or ambiguous SSH result stops at that node. The controller
 never rolls forward to another machine and never retries automatically.
 
-This keeps Precision, Nimo, and Alienware independently inspectable during
+This keeps Precision, Nimo, and Xiphos independently inspectable during
 convergence instead of turning a partial fleet update into an all-or-nothing
 guess.
 

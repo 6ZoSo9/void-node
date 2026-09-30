@@ -1,44 +1,54 @@
-# Alienware Runtime Service
+# Alienware Runtime Service — Historical Record
 
-Status: current operational truth
+Status: retired historical evidence
+Current authority: none
 Mutation: documentation/proof only
 
-## Summary
+VOID_RETIRED_ALIENWARE_RUNTIME_SERVICE_HISTORY_V1
 
-Alienware runs the VOID node as a user-level systemd service, not as a system-level service.
+Alienware is permanently retired and is not part of the active VOID operator fleet.
+The service/restart details below are preserved only as dated operational evidence.
+Do not execute these commands as current operations.
 
-Correct restart path:
+## Historical summary
+
+At the recorded checkpoint, Alienware ran the VOID node as a user-level systemd
+service rather than a system-level service.
+
+Historical restart path:
 
     systemctl --user restart void-node.service
 
-Incorrect restart path:
+Historical incorrect restart path:
 
     sudo systemctl restart void-node.service
 
-The system-level command fails on Alienware because there is no system-level void-node.service unit.
+The system-level command failed on Alienware because there was no system-level
+`void-node.service` unit.
 
-## Current user services
+## Historical user services
 
-Expected active user services:
+The recorded expected user services were:
 
 - void-node.service
 - void-wc-relayer.service
 - void-workcredits-devnet-http.service
 
-## Runtime process
+## Historical runtime process
 
-Alienware starts the node through:
+Alienware started the node through:
 
     npm exec tsx src/index.ts
 
-The node owns ports:
+The node owned ports:
 
 - 4100
 - 4700
 
 ## Proof history
 
-The user-service restart path was proven after the VOID native web-hosting current-plan checkpoint:
+The user-service restart path was proven after the VOID native web-hosting
+current-plan checkpoint:
 
 - checkpoint: ckpt-void-native-web-hosting-current-plan-green-20260530-205937
 - head: 75d26150
@@ -49,8 +59,13 @@ The user-service restart path was proven after the VOID native web-hosting curre
 - txroot_live: 1
 - cross-box smoke: passed
 
+These facts describe that historical observation window only. They do not restore
+Alienware to the active fleet and do not authorize restart, SSH, Funnel, update,
+or deployment activity.
+
 ## Required markers
 
 VOID_ALIENWARE_USER_SERVICE_RESTART_V1
 VOID_ALIENWARE_NO_SYSTEM_SERVICE_RESTART_V1
 VOID_ALIENWARE_RUNTIME_SERVICE_DOC_V1
+VOID_RETIRED_ALIENWARE_RUNTIME_SERVICE_HISTORY_V1

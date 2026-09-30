@@ -204,7 +204,7 @@ fresh source receipt and freshness audit before another decision.
 
 Each node receives a separate plan and confirmation set. The controller never
 continues to another configured machine and never attempts a fleet rollback.
-This bounds loss of connectivity and keeps Precision, Nimo, and Alienware
+This bounds loss of connectivity and keeps Precision, Nimo, and Xiphos
 independently inspectable.
 
 ## Authority boundary
