@@ -21,6 +21,7 @@ import {
   buildVoidDatanetRegistrySigningExecutionAdmissionV1,
   signVoidDatanetRegistryConsumedAuthorizationV1,
   validateVoidDatanetRegistrySignedTransactionV1,
+  validateVoidDatanetRegistrySigningClaimV1,
 } from "../../tools/void-datanet-registry-consumed-authorization-signing-v1.mjs";
 
 const ROOT=process.cwd();
@@ -533,6 +534,15 @@ try{
   signingFd=ensurePrivateChildDir(rootFd,"signing");
   const claim=buildVoidDatanetRegistrySigningClaimV1({admission});
   atomicClaimAtFd(signingFd,operationId+".json",claim);
+  const storedClaim=readPrivateRecordAtFd(
+    signingFd,
+    operationId+".json",
+    "signing_claim_record",
+  );
+  validateVoidDatanetRegistrySigningClaimV1(storedClaim,admission);
+  if(JSON.stringify(storedClaim)!==JSON.stringify(claim)){
+    fail("registry_signing_claim_readback_mismatch");
+  }
 
   const liveRoot=fs.lstatSync(STATE_ROOT,{bigint:true});
   const pinnedRoot=fs.fstatSync(rootFd,{bigint:true});
