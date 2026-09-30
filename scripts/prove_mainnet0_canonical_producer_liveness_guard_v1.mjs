@@ -25,11 +25,13 @@ function requireExcludes(source, token, label) {
 const guardPath = "ops/guard-canonical-producer-liveness-v1.sh";
 const canonicalInstallerPath = "ops/mainnet0/install-canonical-producer-liveness-v1.sh";
 const liveInstallerPath = "ops/install-void-node-live-user-service-v1.sh";
+const liveRunnerPath = "ops/run-void-node-live-v1.sh";
 const quarantineInstallerPath = "ops/mainnet0/public-node-live-runtime-quarantine-install.sh";
 
 const guard = read(guardPath);
 const canonicalInstaller = read(canonicalInstallerPath);
 const liveInstaller = read(liveInstallerPath);
+const liveRunner = read(liveRunnerPath);
 const quarantineInstaller = read(quarantineInstallerPath);
 const runtime = read("src/index.ts");
 
@@ -89,6 +91,13 @@ requireIncludes(liveInstaller, guardPrestart, "live service installer");
 requireIncludes(liveInstaller, listenerPrestart, "live service installer");
 requireExcludes(liveInstaller, "After=default.target", "live service installer");
 requireIncludes(liveInstaller, "WantedBy=default.target", "live service installer");
+for (const [source, label] of [
+  [liveRunner, "live node runner"],
+  [liveInstaller, "live service installer"],
+]) {
+  requireExcludes(source, "VOID_PUBLIC_SEED_ADAPTER_BASE", label);
+  requireExcludes(source, "100.122.79.39", label);
+}
 if (liveInstaller.indexOf(guardPrestart) > liveInstaller.indexOf(listenerPrestart)) {
   throw new Error("canonical producer liveness guard must run before listener cleanup");
 }
@@ -282,6 +291,7 @@ console.log(
     guard_runs_before_listener_cleanup: true,
     installer_restart_performed: false,
     default_target_ordering_cycle_prevented: true,
+    retired_seed_adapter_env_absent: true,
     runtime_liveness_surfaces_bound: true,
   }),
 );
