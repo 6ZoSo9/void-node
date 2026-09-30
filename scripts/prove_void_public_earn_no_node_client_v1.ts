@@ -136,6 +136,10 @@ for (const required of [
   "MAX_CONTROL_RESPONSE_BYTES = 64 * 1024",
   "readResponseTextBounded(response)",
   "readDatasetBytesBounded(response, maxBytes)",
+  "reviewed_signed_public_origin_v1",
+  "PUBLIC_ORIGIN_BINDING_PATH",
+  "REVIEWED_PUBLIC_NODE_FINGERPRINTS",
+  "canonicalReviewedPublicHttpsOrigin",
 ]) {
   assert.equal(source.includes(required), true, `required client marker missing: ${required}`);
 }
@@ -168,6 +172,263 @@ assert.equal(
   "https://public.example:8443",
 );
 assert.equal(tool.MAX_CONTROL_RESPONSE_BYTES, 64 * 1024);
+assert.equal(
+  tool.PUBLIC_ORIGIN_BINDING_PATH,
+  "/.well-known/void-node-public-origin-binding-v1.json",
+);
+assert.equal(
+  tool.REVIEWED_PUBLIC_NODE_FINGERPRINTS[
+    "9d89483769e469e0473b489dc50dba96"
+  ],
+  "2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b",
+);
+assert.equal(
+  tool.REVIEWED_PUBLIC_NODE_IDENTITY_TRUST_SHA256,
+  "49f285908fa70c72ce036b44d9ead41e11fc1bd40092384636a2c0cc3a0d3790",
+);
+assert.equal(
+  t.requiresReviewedPublicOriginBinding(
+    "https://public.example",
+  ),
+  true,
+);
+assert.equal(
+  t.requiresReviewedPublicOriginBinding(
+    "https://127.0.0.1",
+  ),
+  true,
+);
+assert.equal(
+  t.requiresReviewedPublicOriginBinding(
+    "https://node.tail.ts.net",
+  ),
+  true,
+);
+assert.equal(
+  t.requiresReviewedPublicOriginBinding(
+    "http://127.0.0.1:8082",
+  ),
+  false,
+);
+assert.equal(
+  t.canonicalReviewedPublicHttpsOrigin(
+    "https://public.example",
+  ),
+  "https://public.example",
+);
+for (const invalidOrigin of [
+  "https://public.example:8443",
+  "https://public.example/",
+  "https://Public.Example",
+  "https://proofservice.onion",
+  "https://203.0.113.7",
+  "https://127.0.0.1",
+]) {
+  assert.throws(
+    () => t.canonicalReviewedPublicHttpsOrigin(invalidOrigin),
+    /public_origin_binding_origin_mismatch/,
+    invalidOrigin,
+  );
+}
+
+{
+  const { privateKey, publicKey } =
+    crypto.generateKeyPairSync("ed25519");
+  const publicKeyPem = publicKey
+    .export({ type: "spki", format: "pem" })
+    .toString();
+  const fingerprint = t.sha256(
+    publicKey.export({ type: "spki", format: "der" }),
+  );
+  const nodeId = "d".repeat(32);
+  const nowMs = Date.parse("2026-09-30T12:00:00.000Z");
+  const binding = {
+    marker: "VOID_NODE_PUBLIC_ORIGIN_BINDING_V1",
+    version: 1,
+    status: "active",
+    issued_at: "2026-09-30T11:59:00.000Z",
+    expires_at: "2026-10-30T11:59:00.000Z",
+    network: {
+      name: "VOID Mainnet-0",
+      identity: "mainnet0",
+      chain_id: 2050,
+    },
+    origin: {
+      value: "https://public.example",
+    },
+    node: {
+      node_id: nodeId,
+      key_type: "ed25519",
+      public_key_pem: publicKeyPem,
+      public_key_fingerprint_sha256: fingerprint,
+    },
+    surface: {
+      binding_paths: [
+        "/.well-known/void-node-public-origin-binding-v1.json",
+        "/public-node/identity/public-origin-binding-v1.json",
+      ],
+      health: {
+        path: "/health",
+        methods: ["GET"],
+      },
+      work_credit_status: {
+        path: "/wc/public-earning-pilot-v1/status",
+        methods: ["GET"],
+      },
+      same_origin_only: true,
+      redirects_allowed: false,
+    },
+    authority: {
+      read_only: true,
+      transaction_submission: false,
+      payment_authority: false,
+      wallet_or_signer_access: false,
+      work_credit_write: false,
+      validator_mutation: false,
+      governance_mutation: false,
+      treasury_or_liquidity: false,
+      void_settlement: false,
+      node_runtime_mutation: false,
+      operator_control: false,
+    },
+    signature: {
+      domain: "VOID_NODE_PUBLIC_ORIGIN_BINDING_V1",
+      algorithm: "ed25519",
+      encoding: "base64",
+      canonicalization: "void-canonical-json-v1",
+      key_id: `ed25519:${fingerprint}`,
+      value: "",
+    },
+  };
+  const resignBinding = (value: typeof binding) => {
+    value.signature.value = crypto.sign(
+      null,
+      t.publicOriginBindingUnsignedBytes(value),
+      privateKey,
+    ).toString("base64");
+    return value;
+  };
+  resignBinding(binding);
+
+  const verified = t.verifyPublicOriginBindingV1(
+    binding,
+    {
+      expectedOrigin: "https://public.example",
+      expectedNodeId: nodeId,
+      trustedFingerprints: {
+        [nodeId]: fingerprint,
+      },
+      nowMs,
+    },
+  );
+  assert.equal(
+    verified.mode,
+    "reviewed_signed_public_origin_v1",
+  );
+  assert.equal(verified.node_id, nodeId);
+  assert.equal(
+    verified.public_key_fingerprint_sha256,
+    fingerprint,
+  );
+
+  for (const invalidOrigin of [
+    "https://public.example:8443",
+    "https://public.example/",
+    "https://Public.Example",
+    "https://proofservice.onion",
+    "https://203.0.113.7",
+    "https://127.0.0.1",
+  ]) {
+    const invalidBinding = structuredClone(binding);
+    invalidBinding.origin.value = invalidOrigin;
+    resignBinding(invalidBinding);
+    assert.throws(
+      () => t.verifyPublicOriginBindingV1(
+        invalidBinding,
+        {
+          expectedOrigin: invalidOrigin,
+          expectedNodeId: nodeId,
+          trustedFingerprints: {
+            [nodeId]: fingerprint,
+          },
+          nowMs,
+        },
+      ),
+      /public_origin_binding_origin_mismatch/,
+      invalidOrigin,
+    );
+  }
+
+  const wrongTrust = {
+    ...binding,
+  };
+  assert.throws(
+    () => t.verifyPublicOriginBindingV1(
+      wrongTrust,
+      {
+        expectedOrigin: "https://public.example",
+        expectedNodeId: nodeId,
+        trustedFingerprints: {
+          [nodeId]: "0".repeat(64),
+        },
+        nowMs,
+      },
+    ),
+    /public_origin_binding_fingerprint_mismatch/,
+  );
+
+  const tamperedOrigin = structuredClone(binding);
+  tamperedOrigin.origin.value =
+    "https://attacker.example";
+  assert.throws(
+    () => t.verifyPublicOriginBindingV1(
+      tamperedOrigin,
+      {
+        expectedOrigin: "https://public.example",
+        expectedNodeId: nodeId,
+        trustedFingerprints: {
+          [nodeId]: fingerprint,
+        },
+        nowMs,
+      },
+    ),
+    /public_origin_binding_origin_mismatch/,
+  );
+
+  const escalated = structuredClone(binding);
+  escalated.authority.wallet_or_signer_access = true;
+  assert.throws(
+    () => t.verifyPublicOriginBindingV1(
+      escalated,
+      {
+        expectedOrigin: "https://public.example",
+        expectedNodeId: nodeId,
+        trustedFingerprints: {
+          [nodeId]: fingerprint,
+        },
+        nowMs,
+      },
+    ),
+    /public_origin_binding_authority_invalid/,
+  );
+
+  const expired = structuredClone(binding);
+  expired.expires_at = "2026-09-30T11:00:00.000Z";
+  assert.throws(
+    () => t.verifyPublicOriginBindingV1(
+      expired,
+      {
+        expectedOrigin: "https://public.example",
+        expectedNodeId: nodeId,
+        trustedFingerprints: {
+          [nodeId]: fingerprint,
+        },
+        nowMs,
+      },
+    ),
+    /public_origin_binding_expired/,
+  );
+}
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-public-earn-no-node-client-v1-"));
 const successState = path.join(root, "success-state");
