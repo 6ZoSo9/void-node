@@ -160,13 +160,14 @@ It is a read-only post-activation evidence collector.
 node --check tools/void-public-origin-binding-external-acceptance-v1.mjs
 node --check scripts/prove_void_public_origin_binding_external_acceptance_v1.mjs
 node scripts/prove_void_public_origin_binding_external_acceptance_v1.mjs
-node scripts/prove_wc_public_opportunity_directory_v1.mjs
 node scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs
 ```
 
 CI uses an ephemeral signed binding and synthetic directory/handoff evidence for
-the successful validator path. It performs no external network access and never
-uses the production node key.
+the successful collector-contract path, then runs the existing focused
+signed-origin handoff regression. It intentionally does not inherit the broader
+directory fixture suite. CI performs no external network access and never uses
+the production node key.
 
 ## Production boundary
 
