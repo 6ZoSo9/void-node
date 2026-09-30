@@ -195,6 +195,22 @@ try {
     VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.directory_fsync_before_ack,
     true,
   );
+  assert.equal(
+    VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.descriptor_bound_startup_read,
+    true,
+  );
+  assert.equal(
+    VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.state_file_nofollow_required,
+    true,
+  );
+  assert.equal(
+    VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.parent_dev_inode_custody_retained,
+    true,
+  );
+  assert.equal(
+    VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.parent_descriptor_fsync,
+    true,
+  );
 
   // A failed authentication burns its one-use challenge durably.
   {
