@@ -535,7 +535,7 @@ mainnet0-go-no-go-with-runtime:
 
 .PHONY: prove-alienware-follower-autostart
 prove-alienware-follower-autostart:
-	bash ops/prove-alienware-follower-autostart.sh
+	@printf '%s\n' 'VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1 target=prove-alienware-follower-autostart' >&2; exit 2
 
 .PHONY: post-bootstrap-ops-proof post-bootstrap-crossbox-proof
 

@@ -220,12 +220,13 @@ assert.ok(source.includes("funds_moved: false"));
 
 const retiredMarker = "VOID_RETIRED_ALIENWARE_OPERATOR_COMMAND_HOLD_V1";
 const makefile = readFileSync(new URL("../Makefile", import.meta.url), "utf8");
-assert.equal((makefile.match(new RegExp(retiredMarker, "g")) ?? []).length, 4);
+assert.equal((makefile.match(new RegExp(retiredMarker, "g")) ?? []).length, 5);
 for (const target of [
   "alienware-bootstrap",
   "alienware-update",
   "alienware-remote-update",
   "alienware-funnel-public-seed",
+  "prove-alienware-follower-autostart",
 ]) {
   assert.ok(
     makefile.includes(`${retiredMarker} target=${target}`),
