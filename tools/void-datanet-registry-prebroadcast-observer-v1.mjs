@@ -12,6 +12,8 @@ import {
 export const VOID_DATANET_REGISTRY_PREBROADCAST_OBSERVER_V1 =
   "VOID_DATANET_REGISTRY_PREBROADCAST_OBSERVER_V1";
 
+export const VOID_DATANET_REGISTRY_PREBROADCAST_VALIDITY_SECONDS_V1=120;
+
 export const VOID_DATANET_REGISTRY_PREBROADCAST_RPC_METHODS_V1 = Object.freeze([
   "eth_chainId",
   "eth_blockNumber",
@@ -154,6 +156,19 @@ export async function observeVoidDatanetRegistryPrebroadcastV1(input){
     return await transport({url:rpcUrl,method,params});
   }
 
+  const observedAt=String(input?.observed_at_utc||"");
+  const observedMs=Date.parse(observedAt);
+  if(
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(observedAt)||
+    !Number.isFinite(observedMs)||
+    new Date(observedMs).toISOString()!==observedAt
+  ){
+    return held("registry_prebroadcast_observed_at_invalid",authorization);
+  }
+  const validUntil=new Date(
+    observedMs+VOID_DATANET_REGISTRY_PREBROADCAST_VALIDITY_SECONDS_V1*1000,
+  ).toISOString();
+
   const tx=authorization.transaction_summary;
   try{
     const nonce=decimal(tx.nonce,"registry_prebroadcast_nonce");
@@ -277,6 +292,9 @@ export async function observeVoidDatanetRegistryPrebroadcastV1(input){
       marker:VOID_DATANET_REGISTRY_PREBROADCAST_OBSERVER_V1,
       version:1,
       status:"FRESH_PREBROADCAST_OBSERVATION_GREEN_CONSUMPTION_HOLD",
+      observed_at_utc:observedAt,
+      valid_until_utc:validUntil,
+      freshness_seconds:VOID_DATANET_REGISTRY_PREBROADCAST_VALIDITY_SECONDS_V1,
       broadcast_authorization_id:authorization.broadcast_authorization_id,
       signed_transaction_id:authorization.signed_transaction_id,
       signed_transaction_hash:tx.signed_transaction_hash,
@@ -356,6 +374,12 @@ export function validateVoidDatanetRegistryPrebroadcastObservationV1(
     observation.marker!==VOID_DATANET_REGISTRY_PREBROADCAST_OBSERVER_V1||
     observation.version!==1||
     observation.status!=="FRESH_PREBROADCAST_OBSERVATION_GREEN_CONSUMPTION_HOLD"||
+    observation.freshness_seconds!==
+      VOID_DATANET_REGISTRY_PREBROADCAST_VALIDITY_SECONDS_V1||
+    !Number.isFinite(Date.parse(String(observation.observed_at_utc||"")))||
+    !Number.isFinite(Date.parse(String(observation.valid_until_utc||"")))||
+    Date.parse(observation.valid_until_utc)-Date.parse(observation.observed_at_utc)!==
+      VOID_DATANET_REGISTRY_PREBROADCAST_VALIDITY_SECONDS_V1*1000||
     !/^voiddrpbo1_[0-9a-f]{64}$/u.test(
       String(observation.prebroadcast_observation_id||""),
     )||
