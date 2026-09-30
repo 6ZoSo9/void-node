@@ -1238,6 +1238,8 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     receipt,
     {
       expectedSourceProvenance: sourceProvenance,
+      expectedFingerprint,
+      expectedTrustRegistrySha256,
     },
   );
 }
@@ -1247,6 +1249,10 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
   receipt,
   {
     expectedSourceProvenance = null,
+    expectedFingerprint =
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1,
+    expectedTrustRegistrySha256 =
+      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256,
   } = {},
 ) {
   exactKeysV1(
@@ -1329,9 +1335,9 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
     || receipt.coordinator.node_id !==
       VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
     || receipt.coordinator.public_key_fingerprint_sha256 !==
-      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1
+      expectedFingerprint
     || receipt.coordinator.trust_registry_sha256 !==
-      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256
+      expectedTrustRegistrySha256
   ) {
     fail("external acceptance coordinator contract invalid");
   }
@@ -1416,9 +1422,9 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
       || alias.issued_at !== receipt.binding.issued_at
       || alias.expires_at !== receipt.binding.expires_at
       || alias.public_key_fingerprint_sha256 !==
-        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1
+        expectedFingerprint
       || alias.trust_registry_sha256 !==
-        VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256
+        expectedTrustRegistrySha256
     ) {
       fail("external acceptance binding alias contract invalid");
     }
@@ -1473,7 +1479,7 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
     || receipt.handoff.trust_mode !==
       "signed_public_origin_binding"
     || receipt.handoff.trust_registry_sha256 !==
-      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256
+      expectedTrustRegistrySha256
     || receipt.handoff.binding_sha256 !==
       receipt.binding.binding_sha256
     || receipt.handoff.health_node_id !==
