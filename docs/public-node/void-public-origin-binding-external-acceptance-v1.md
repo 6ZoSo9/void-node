@@ -32,6 +32,7 @@ The live CLI is pinned to:
 base=https://seed.nullfeed.org
 node_id=9d89483769e469e0473b489dc50dba96
 public_key_fingerprint_sha256=2f52b928cb00bf309510d1edef299554277fba6d52bfd1ddb52b9b015397c50b
+trust_registry_sha256=49f285908fa70c72ce036b44d9ead41e11fc1bd40092384636a2c0cc3a0d3790
 account=void-public-origin-acceptance-v1
 ```
 
