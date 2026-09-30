@@ -341,13 +341,8 @@ try {
     /must not traverse symlinks or aliases/u,
   );
 
-  const aliasedPath = path.join(
-    work,
-    "real-parent",
-    "..",
-    "real-parent",
-    "binding.json",
-  );
+  const aliasedPath =
+    work + "/real-parent/../real-parent/binding.json";
   assert.throws(
     () =>
       loadVoidPublicOriginBindingServingFileV1({
