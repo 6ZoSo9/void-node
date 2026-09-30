@@ -185,6 +185,8 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
       manifest.local_checks?.repo_main_clean!==true||
       manifest.local_checks?.plan_source_head_ancestor!==true||
       manifest.local_checks?.nodekey_regular_private_mode!==true||
+      manifest.local_checks?.nodekey_path_canonical!==true||
+      manifest.local_checks?.nodekey_single_link!==true||
       manifest.local_checks?.nodekey_content_read!==false||
       manifest.local_checks?.plugin_sha256_exact!==true||
       manifest.local_checks?.besu_image_identity_exact!==true||
