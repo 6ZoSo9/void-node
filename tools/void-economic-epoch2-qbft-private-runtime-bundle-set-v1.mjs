@@ -57,6 +57,10 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
   const plan=validateVoidEconomicEpoch2QbftPrivateRuntimePlanForMaterializationV1(
     input?.plan,
   );
+  const planFileSha256=String(input?.plan_file_sha256||"");
+  if(!SHA256.test(planFileSha256)) {
+    throw new Error("plan_file_sha256_invalid");
+  }
   const bundles=input?.bundles;
   if(!bundles||typeof bundles!=="object"||Array.isArray(bundles)) {
     throw new Error("bundle_set_invalid");
@@ -247,6 +251,9 @@ export function verifyVoidEconomicEpoch2QbftPrivateRuntimeBundleSetV1(input) {
 
     if(!SHA256.test(String(manifest.private_plan_file_sha256||""))) {
       throw new Error("bundle_plan_file_sha_invalid:"+role);
+    }
+    if(manifest.private_plan_file_sha256!==planFileSha256) {
+      throw new Error("bundle_plan_file_sha_mismatch:"+role);
     }
     genesisShas.add(genesisSha);
     planFileShas.add(manifest.private_plan_file_sha256);
