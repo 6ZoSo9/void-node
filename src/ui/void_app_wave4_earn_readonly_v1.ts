@@ -410,7 +410,16 @@ export async function readVoidUiWave4EarnBoundedTextV1(
   response: Response,
   signal: AbortSignal,
 ): Promise<string> {
-  const declared = earnSourceDeclaredLengthV1(response);
+  let declared: number | null;
+  try {
+    declared = earnSourceDeclaredLengthV1(response);
+  } catch (error) {
+    await cancelEarnSourceResponseBoundedV1(
+      response,
+      "earn_source_content_length_invalid",
+    );
+    throw error;
+  }
   if (
     declared !== null &&
     declared > VOID_UI_WAVE4_EARN_SOURCE_MAX_RESPONSE_BYTES_V1
