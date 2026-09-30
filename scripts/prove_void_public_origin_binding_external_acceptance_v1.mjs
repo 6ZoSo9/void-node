@@ -375,6 +375,139 @@ assert.equal(
   evidence.safety.funds_movement,
   false,
 );
+assert.match(
+  evidence.receipt_id,
+  /^voidpora1_[0-9a-f]{64}$/u,
+);
+assert.equal(
+  Buffer.from(
+    evidence.binding.artifact_base64,
+    "base64",
+  ).equals(bindingBytes),
+  true,
+);
+
+const receiptValidationOptions = {
+  expectedSourceProvenance: sourceProvenance,
+  verifyBinding: verifyEphemeral,
+  expectedFingerprint: fingerprint,
+  expectedTrustRegistrySha256: trustRegistrySha256,
+};
+assert.deepEqual(
+  validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+    clone(evidence),
+    receiptValidationOptions,
+  ),
+  evidence,
+);
+assert.deepEqual(
+  verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+    evidence.source,
+    { requireMainAncestor: false },
+  ),
+  evidence.source,
+);
+
+{
+  const bad = clone(evidence);
+  bad.receipt_id = "voidpora1_"+"0".repeat(64);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /receipt ID mismatch/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  bad.source.collector_sha256 = "0".repeat(64);
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /source provenance mismatch/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  const fakeArtifact = Buffer.from("{}\n","utf8");
+  const fakeSha = sha256(fakeArtifact);
+  bad.binding.artifact_base64 =
+    fakeArtifact.toString("base64");
+  bad.binding.artifact_sha256 = fakeSha;
+  for (const alias of bad.binding.aliases) {
+    alias.artifact_sha256 = fakeSha;
+  }
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /binding|public-origin|shape|identity/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  bad.handoff.public_copy_ready = false;
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /handoff contract invalid/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  bad.safety.private_key_access = true;
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /safety mismatch: private_key_access/u,
+  );
+}
+
+{
+  const root = fs.mkdtempSync(
+    "/tmp/void-public-origin-acceptance-receipt-v1-",
+  );
+  const receiptFile = root+"/receipt.json";
+  try {
+    fs.writeFileSync(
+      receiptFile,
+      JSON.stringify(evidence,null,2)+"\n",
+      {mode:0o600},
+    );
+    assert.deepEqual(
+      readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+        receiptFile,
+        {
+          requireMainAncestor:false,
+          verifyBinding:verifyEphemeral,
+          expectedFingerprint:fingerprint,
+          expectedTrustRegistrySha256:
+            trustRegistrySha256,
+        },
+      ),
+      evidence,
+    );
+  } finally {
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
 
 {
   assert.throws(
