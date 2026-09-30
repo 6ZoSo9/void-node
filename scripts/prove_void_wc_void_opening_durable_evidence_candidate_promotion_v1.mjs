@@ -341,6 +341,10 @@ try {
   );
   assert.equal(promotion.durable_claim_binding_verified, true);
   assert.equal(promotion.durable_replay_terminal_verified, true);
+  assert.equal(
+    promotion.shared_opening_evidence_custody_generation_verified,
+    true,
+  );
   assert.deepEqual(
     promotion.promoted_production_fields,
     [
@@ -475,6 +479,81 @@ try {
   fs.writeFileSync(bindingPath, bindingBackup, { mode: 0o600 });
   fs.chmodSync(bindingPath, 0o600);
 
+  // The claim and replay inspectors are individually generation-safe, but
+  // promotion also requires one shared store generation across both reads.
+  // Swap only the replay store after the outer pre-snapshot. The replacement
+  // contains identical valid terminal bytes, so the replay inspector itself
+  // can succeed; the combined custody envelope must still HOLD.
+  {
+    const raceParent = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-wc-opening-promotion-custody-race-"),
+    );
+    fs.chmodSync(raceParent, 0o700);
+    const raceState = createState(raceParent);
+    const raceRequest = requestFor(raceState.dataDir);
+    const raceRequestFile = path.join(raceParent, "request.json");
+    fs.writeFileSync(
+      raceRequestFile,
+      prettyBytes(raceRequest),
+      { mode: 0o600 },
+    );
+    fs.chmodSync(raceRequestFile, 0o600);
+    const raceRequestSha = sha256(fs.readFileSync(raceRequestFile));
+
+    const replayFile = path.join(
+      raceState.dataDir,
+      raceState.replay.terminal_path,
+    );
+    const replayDir = path.dirname(replayFile);
+    const replayName = path.basename(replayFile);
+    const replayBytes = fs.readFileSync(replayFile);
+    const replacementDir = replayDir + ".replacement";
+    const originalDir = replayDir + ".original";
+    fs.mkdirSync(replacementDir, { mode: 0o700 });
+    fs.chmodSync(replacementDir, 0o700);
+    fs.writeFileSync(
+      path.join(replacementDir, replayName),
+      replayBytes,
+      { mode: 0o600 },
+    );
+    fs.chmodSync(
+      path.join(replacementDir, replayName),
+      0o600,
+    );
+
+    const originalLstatSync = fs.lstatSync;
+    let replayDirLstatCount = 0;
+    let swappedReplayStore = false;
+    try {
+      fs.lstatSync = function injectedLstatSync(candidate, ...args) {
+        const resolved = path.resolve(String(candidate));
+        if (resolved === path.resolve(replayDir)) {
+          replayDirLstatCount += 1;
+          if (!swappedReplayStore && replayDirLstatCount === 2) {
+            fs.renameSync(replayDir, originalDir);
+            fs.renameSync(replacementDir, replayDir);
+            swappedReplayStore = true;
+          }
+        }
+        return originalLstatSync.call(fs, candidate, ...args);
+      };
+
+      rejects(
+        () =>
+          prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
+            requestFile: raceRequestFile,
+            requestFileSha256: raceRequestSha,
+          }),
+        /promotion_opening_evidence_custody_changed/,
+      );
+    } finally {
+      fs.lstatSync = originalLstatSync;
+      fs.rmSync(raceParent, { recursive: true, force: true });
+    }
+    assert.equal(swappedReplayStore, true);
+    assert.ok(replayDirLstatCount >= 2);
+  }
+
   const cli = spawnSync(
     process.execPath,
     [
@@ -554,6 +633,8 @@ console.log("real_inspector_composition_green=true");
 console.log("claim_and_replay_binding_identity_equal=true");
 console.log("clean_repository_generation_bound=true");
 console.log("canonical_candidate_bytes_bound_to_head_blobs=true");
+console.log("shared_opening_evidence_custody_generation_bound=true");
+console.log("cross_inspector_store_swap_rejected=true");
 console.log("production_candidate_exact_two_gate_delta=true");
 console.log("coupled_candidate_exact_one_gate_delta=true");
 console.log("production_candidate_file_updated=false");
