@@ -147,6 +147,26 @@ function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function gitBlobSha1(bytes) {
+  const header = Buffer.from(`blob ${bytes.length}\0`, "utf8");
+  return crypto
+    .createHash("sha1")
+    .update(header)
+    .update(bytes)
+    .digest("hex");
+}
+
+function expectedHeadBlobSha1(relativePath) {
+  const value = gitRead(
+    ["rev-parse", `HEAD:${relativePath}`],
+    "promotion_repository_blob_unavailable",
+  );
+  if (!HEX40.test(value)) {
+    fail("promotion_repository_blob_identity_invalid");
+  }
+  return value;
+}
+
 function sameStamp(a, b) {
   return (
     a.dev === b.dev
@@ -323,6 +343,7 @@ function readStableJsonFile(
     return Object.freeze({
       value,
       sha256: digest,
+      git_blob_sha1: gitBlobSha1(bytes),
       bytes: bytes.length,
     });
   } finally {
@@ -484,6 +505,20 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
       maxBytes: MAX_SOURCE_JSON_BYTES,
     },
   );
+
+  const expectedProductionBlob =
+    expectedHeadBlobSha1(PRODUCTION_REL);
+  const expectedCoupledBlob =
+    expectedHeadBlobSha1(COUPLED_REL);
+  const expectedSuccessorBlob =
+    expectedHeadBlobSha1(SUCCESSOR_REL);
+  if (
+    productionSource.git_blob_sha1 !== expectedProductionBlob
+    || coupledSource.git_blob_sha1 !== expectedCoupledBlob
+    || successorSource.git_blob_sha1 !== expectedSuccessorBlob
+  ) {
+    fail("promotion_canonical_source_blob_mismatch");
+  }
 
   const productionCandidate = productionSource.value;
   const coupledCandidate = coupledSource.value;
@@ -681,10 +716,13 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     replay_transition_id: replayEvidence.transition_id,
     production_candidate_path: PRODUCTION_REL,
     production_candidate_sha256: productionSource.sha256,
+    production_candidate_git_blob_sha1: expectedProductionBlob,
     coupled_candidate_path: COUPLED_REL,
     coupled_candidate_sha256: coupledSource.sha256,
+    coupled_candidate_git_blob_sha1: expectedCoupledBlob,
     successor_candidate_path: SUCCESSOR_REL,
     successor_candidate_sha256: successorSource.sha256,
+    successor_candidate_git_blob_sha1: expectedSuccessorBlob,
     promoted_production_fields: Object.freeze([
       "duplicate_replay_protection_proven",
       "participant_opening_claim_policy_ready",
