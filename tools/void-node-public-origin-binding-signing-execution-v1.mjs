@@ -263,7 +263,7 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
   verifiedRequest,
   keypair,
   verifySignedBinding,
-  nowMs=Date.now(),
+  nowMs,
 }={}){
   if(!request || typeof request!=="object"){
     fail("verified request object is required");
@@ -271,10 +271,6 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
   if(!verifiedRequest || typeof verifiedRequest!=="object"){
     fail("verified request summary is required");
   }
-  assertVoidNodePublicOriginBindingSigningRequestActiveV1(
-    request,
-    nowMs,
-  );
   if(
     !keypair ||
     keypair.privateKey?.type!=="private" ||
@@ -339,6 +335,13 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
     fail("existing VOID public key does not match signing request");
   }
 
+  const signingNowMs=
+    nowMs===undefined ? Date.now() : nowMs;
+  assertVoidNodePublicOriginBindingSigningRequestActiveV1(
+    request,
+    signingNowMs,
+  );
+
   const signature=cryptoSign(null,payload,keypair.privateKey);
   if(signature.length!==64){
     fail("Ed25519 signature must contain 64 bytes");
@@ -349,7 +352,7 @@ export function signVerifiedVoidNodePublicOriginBindingRequestV1({
   const verifiedSigned=verifySignedBinding(signed,{
     expectedOrigin:verifiedRequest.origin,
     expectedNodeId:verifiedRequest.node_id,
-    nowMs,
+    nowMs:signingNowMs,
   });
   if(
     verifiedSigned?.origin!==verifiedRequest.origin ||
@@ -386,14 +389,14 @@ export async function executeVoidNodePublicOriginBindingSigningV1({
   keyFile,
   outputFile,
   confirmation,
-  nowMs=Date.now(),
 }={}){
   const request=readRequestFile(requestFile);
   const verifiedRequest=
     verifyVoidNodePublicOriginBindingSigningRequestV1(request);
+  const preKeyNowMs=Date.now();
   assertVoidNodePublicOriginBindingSigningRequestActiveV1(
     request,
-    nowMs,
+    preKeyNowMs,
   );
 
   const requiredConfirmation=
@@ -423,7 +426,6 @@ export async function executeVoidNodePublicOriginBindingSigningV1({
       keypair,
       verifySignedBinding:
         verifyReviewedVoidNodePublicOriginBindingV1,
-      nowMs,
     });
 
   const written=writeCreateOnlyPrivateJson(
