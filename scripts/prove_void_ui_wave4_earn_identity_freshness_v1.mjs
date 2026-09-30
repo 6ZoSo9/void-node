@@ -3,27 +3,23 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import {
+  EARN_SCHEMA_PROOF_NOW,
+  EARN_SCHEMA_PROOF_NOW_MS,
+  validEarnSnapshotV1,
+} from "./void_ui_wave4_earn_snapshot_fixture_v1.mjs";
+
+import {
   EARN_SNAPSHOT_MAX_AGE_MS,
   EARN_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   validateEarnSnapshotV1,
 } from "../public/void-app-wave1-v1/assets/js/earn-live.js";
 
-const PROOF_NOW_MS=Date.parse("2026-09-29T12:00:00.000Z");
-const PROOF_NOW=new Date(PROOF_NOW_MS).toISOString();
+const PROOF_NOW_MS=EARN_SCHEMA_PROOF_NOW_MS;
+const PROOF_NOW=EARN_SCHEMA_PROOF_NOW;
 const clientPath="public/void-app-wave1-v1/assets/js/earn-live.js";
 
-const snapshot=(account="account-A",generatedAt=PROOF_NOW)=>({
-  ok:true,
-  marker:"VOID_UI_WAVE4_EARN_READONLY_V1",
-  generated_at:generatedAt,
-  read_only:true,
-  network_name:"Mainnet-0",
-  account:{
-    selected:true,
-    id:account,
-    label:account,
-  },
-});
+const snapshot=(account="account-A",generatedAt=PROOF_NOW)=>
+  validEarnSnapshotV1({ account, generatedAt });
 
 const validateAt=(
   value,
