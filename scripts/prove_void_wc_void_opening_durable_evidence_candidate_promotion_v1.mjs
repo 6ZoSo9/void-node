@@ -371,6 +371,14 @@ try {
       .opening_claim_transfer_or_refund_binding_ready,
     true,
   );
+  assert.equal(
+    promotion.promoted_production_candidate.bounded_canary_green,
+    false,
+  );
+  assert.equal(
+    promotion.promoted_coupled_candidate.gates.bounded_canary_green,
+    false,
+  );
   assert.equal(promotion.production_before.status, "HOLD");
   assert.equal(promotion.production_after.status, "HOLD");
   assert.equal(
@@ -668,6 +676,7 @@ console.log("canonical_candidate_bytes_bound_to_head_blobs=true");
 console.log("shared_opening_evidence_custody_generation_bound=true");
 console.log("cross_inspector_store_swap_rejected=true");
 console.log("content_addressed_candidate_copies_deep_frozen=true");
+console.log("pre_canary_candidate_state_required=true");
 console.log("production_candidate_exact_two_gate_delta=true");
 console.log("coupled_candidate_exact_one_gate_delta=true");
 console.log("production_candidate_file_updated=false");
