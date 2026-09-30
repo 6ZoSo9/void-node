@@ -374,5 +374,13 @@ export async function buildVoidDatanetRegistryUnsignedCandidateFixtureV1(){
     candidate,
     candidateEvidence,
     deployerSelection,
+    publisherSelection,
+    compiledIdentity,
+    predecessor,
+    activationPlan,
+    activationReceipt,
+    resolutionPacket,
+    deploymentPlan,
+    binding,
   });
 }
