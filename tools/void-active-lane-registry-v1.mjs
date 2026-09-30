@@ -100,6 +100,55 @@ function parseRefs(raw, prefix) {
   return output;
 }
 
+export function parseLiveOriginHeads(raw) {
+  if (typeof raw !== "string") fail("live origin head bytes must be text");
+  const output = {};
+  for (const line of raw.split("\n")) {
+    if (!line) continue;
+    const match = /^([0-9a-f]{40})\trefs\/heads\/(.+)$/i.exec(line);
+    if (!match || !match[2]) fail(`malformed live origin head row: ${line}`);
+    if (Object.hasOwn(output, match[2])) {
+      fail(`duplicate live origin head: ${match[2]}`);
+    }
+    output[match[2]] = match[1];
+  }
+  return output;
+}
+
+export function compareOriginHeadMaps(localBranches, liveBranches) {
+  if (!localBranches || typeof localBranches !== "object" || Array.isArray(localBranches)) {
+    fail("localBranches must be an object");
+  }
+  if (!liveBranches || typeof liveBranches !== "object" || Array.isArray(liveBranches)) {
+    fail("liveBranches must be an object");
+  }
+  const localNames = Object.keys(localBranches).sort();
+  const liveNames = Object.keys(liveBranches).sort();
+  const missingLocal = liveNames.filter((name) => !Object.hasOwn(localBranches, name));
+  const staleLocal = localNames.filter((name) => !Object.hasOwn(liveBranches, name));
+  const mismatched = liveNames
+    .filter(
+      (name) => Object.hasOwn(localBranches, name)
+        && localBranches[name] !== liveBranches[name],
+    )
+    .map((name) => ({
+      branch: name,
+      local_head: localBranches[name],
+      live_head: liveBranches[name],
+    }));
+  return {
+    exact:
+      missingLocal.length === 0
+      && staleLocal.length === 0
+      && mismatched.length === 0,
+    local_count: localNames.length,
+    live_count: liveNames.length,
+    missing_local: missingLocal,
+    stale_local: staleLocal,
+    mismatched,
+  };
+}
+
 function validateRegexList(values, label) {
   if (!Array.isArray(values)) fail(`${label} must be an array`);
   for (const value of values) {
@@ -564,6 +613,45 @@ export function collectChangedPaths(worktreePath) {
   return { complete: true, paths: [...new Set(paths)].sort() };
 }
 
+function collectOriginHeadParity(repoRoot, localBranches, requireRemote) {
+  const result = git(repoRoot, ["ls-remote", "--heads", "origin"], { check: false });
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || "").trim();
+    if (requireRemote) fail(`live origin head metadata unavailable: ${detail}`);
+    return {
+      available: false,
+      exact: false,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: detail || "git_ls_remote_failed",
+    };
+  }
+  let liveBranches;
+  try {
+    liveBranches = parseLiveOriginHeads(result.stdout);
+  } catch (error) {
+    if (requireRemote) throw error;
+    return {
+      available: false,
+      exact: false,
+      local_count: Object.keys(localBranches).length,
+      live_count: null,
+      missing_local: [],
+      stale_local: [],
+      mismatched: [],
+      error: error.message,
+    };
+  }
+  return {
+    available: true,
+    ...compareOriginHeadMaps(localBranches, liveBranches),
+    error: null,
+  };
+}
+
 export function collectRecentOriginBranchPathClaims({
   repoRoot,
   originBranches,
@@ -837,6 +925,11 @@ function captureRepository({
     ).stdout,
     "refs/remotes/origin/",
   );
+  const originHeadParity = collectOriginHeadParity(
+    resolvedRepo,
+    originBranches,
+    requireGithub,
+  );
 
   const gh = run(
     "gh",
@@ -998,7 +1091,8 @@ function captureRepository({
       pathMetadataComplete:
         worktreePathMetadataComplete
         && openPrPathResult.complete
-        && recentRemotePrePrResult.complete,
+        && recentRemotePrePrResult.complete
+        && originHeadParity.exact,
     });
   }
 
@@ -1036,6 +1130,11 @@ function captureRepository({
       registered_worktrees: worktrees.length,
       local_branches: Object.keys(localBranches).length,
       origin_branches: Object.keys(originBranches).length,
+      origin_head_parity_available: originHeadParity.available,
+      origin_head_parity_exact: originHeadParity.exact,
+      origin_head_parity_missing_local: originHeadParity.missing_local.length,
+      origin_head_parity_stale_local: originHeadParity.stale_local.length,
+      origin_head_parity_mismatched: originHeadParity.mismatched.length,
       open_prs: openPrs.length,
       github_metadata_available: githubAvailable,
       recent_remote_pre_pr_branches: recentRemotePrePrResult.branches.length,
@@ -1047,7 +1146,8 @@ function captureRepository({
       changed_path_metadata_complete:
         worktreePathMetadataComplete
         && openPrPathResult.complete
-        && recentRemotePrePrResult.complete,
+        && recentRemotePrePrResult.complete
+        && originHeadParity.exact,
     },
     policy: {
       path: resolvedPolicy,
@@ -1062,6 +1162,7 @@ function captureRepository({
     classification_counts: counts,
     active_lanes: classifications,
     open_pull_requests: openPrs,
+    origin_head_parity: originHeadParity,
     recent_remote_pre_pr_branches: recentRemotePrePrResult.branches,
     active_path_claims: activePathClaims,
     candidate,
@@ -1124,6 +1225,7 @@ async function main() {
   console.log(`repository_head=${registry.repository.head}`);
   console.log(`registered_worktrees=${registry.repository.registered_worktrees}`);
   console.log(`open_prs=${registry.repository.open_prs}`);
+  console.log(`origin_head_parity_exact=${registry.repository.origin_head_parity_exact}`);
   console.log(
     `recent_remote_pre_pr_branches=${registry.repository.recent_remote_pre_pr_branches}`,
   );
