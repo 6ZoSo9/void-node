@@ -235,6 +235,8 @@ function compileCandidate(input,{requireConfirmation}){
     marker:VOID_DATANET_REGISTRY_UNSIGNED_TRANSACTION_CANDIDATE_V1,
     version:1,
     status:"UNSIGNED_SIGNABLE_TRANSACTION_CANDIDATE_READY_SIGNING_HOLD",
+    construction_confirmation:
+      VOID_DATANET_REGISTRY_TRANSACTION_CONSTRUCTION_CONFIRMATION_V1,
     constructed_at_utc:constructedAt,
     valid_until_utc:evidence.admission.expires_at_utc,
     deployment_input_plan_id:plan.plan_id,
@@ -268,7 +270,7 @@ function compileCandidate(input,{requireConfirmation}){
     authority:{
       transaction_construction:true,
       signable_transaction_materialized:true,
-      source_artifact_write_by_caller:false,
+      local_candidate_file_write:true,
       rpc_call:false,
       filesystem_secret_read:false,
       credential_access:false,
@@ -315,6 +317,8 @@ export function validateVoidDatanetRegistryUnsignedTransactionCandidateV1(
     candidate.version!==1||
     candidate.status!==
       "UNSIGNED_SIGNABLE_TRANSACTION_CANDIDATE_READY_SIGNING_HOLD"||
+    candidate.construction_confirmation!==
+      VOID_DATANET_REGISTRY_TRANSACTION_CONSTRUCTION_CONFIRMATION_V1||
     !/^voiddrtxc1_[0-9a-f]{64}$/u.test(String(candidate.candidate_id||""))||
     candidate.signing_authorized!==false||
     candidate.next_gate!==
@@ -335,7 +339,7 @@ export function validateVoidDatanetRegistryUnsignedTransactionCandidateV1(
   const expectedAuthority={
     transaction_construction:true,
     signable_transaction_materialized:true,
-    source_artifact_write_by_caller:false,
+    local_candidate_file_write:true,
     rpc_call:false,
     filesystem_secret_read:false,
     credential_access:false,
