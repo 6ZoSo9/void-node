@@ -98,6 +98,40 @@ try {
   );
   const expectedUnitText =
     testOnly.expectedSeedGatewayUnitText();
+  const independentlyExpectedUnitText = [
+    "[Unit]",
+    "Description=VOID restricted public seed gateway v1",
+    "After=network-online.target",
+    "Wants=network-online.target",
+    "",
+    "[Service]",
+    "Type=simple",
+    `WorkingDirectory=${process.cwd()}`,
+    "Environment=VOID_PUBLIC_SEED_BIND=127.0.0.1",
+    "Environment=VOID_PUBLIC_SEED_PORT=4111",
+    "Environment=VOID_PUBLIC_SEED_UPSTREAM=http://127.0.0.1:4100",
+    `ExecStart=${JSON.stringify(process.execPath)} ${JSON.stringify(
+      path.join(
+        process.cwd(),
+        "tools",
+        "void-public-seed-gateway-v1.mjs",
+      ),
+    )}`,
+    "Restart=always",
+    "RestartSec=5",
+    "KillMode=control-group",
+    "TimeoutStopSec=15",
+    "NoNewPrivileges=true",
+    "PrivateTmp=true",
+    "",
+    "[Install]",
+    "WantedBy=default.target",
+    "",
+  ].join("\n");
+  assert.equal(
+    expectedUnitText,
+    independentlyExpectedUnitText,
+  );
   fs.writeFileSync(
     unitPath,
     expectedUnitText,
@@ -1571,27 +1605,80 @@ try {
     "inspectVoidPublicOriginBindingSeedServicePlanV1({",
     applyStart,
   );
+  const unitCaptureAt = source.indexOf(
+    "const unitGeneration =",
+    firstInspectAt,
+  );
   const preflightActiveAt = source.indexOf(
     '"seed gateway active preflight"',
-    firstInspectAt,
+    unitCaptureAt,
   );
   const freshInspectAt = source.indexOf(
     "const freshInspected =",
     preflightActiveAt,
   );
+  const freshUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    freshInspectAt,
+  );
   const previousDropinAt = source.indexOf(
     "const previous =",
-    freshInspectAt,
+    freshUnitRecheckAt,
+  );
+  const journalWriteAt = source.indexOf(
+    "writeCreateOnlyPrivateJson(\n      target.journalPath",
+    previousDropinAt,
+  );
+  const finalUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    journalWriteAt + 1,
   );
   const installAt = source.indexOf(
     "atomicInstallDropin(",
-    previousDropinAt,
+    finalUnitRecheckAt,
   );
   assert.ok(firstInspectAt > applyStart);
-  assert.ok(preflightActiveAt > firstInspectAt);
+  assert.ok(unitCaptureAt > firstInspectAt);
+  assert.ok(preflightActiveAt > unitCaptureAt);
   assert.ok(freshInspectAt > preflightActiveAt);
-  assert.ok(previousDropinAt > freshInspectAt);
-  assert.ok(installAt > previousDropinAt);
+  assert.ok(freshUnitRecheckAt > freshInspectAt);
+  assert.ok(previousDropinAt > freshUnitRecheckAt);
+  assert.ok(journalWriteAt > previousDropinAt);
+  assert.ok(finalUnitRecheckAt > journalWriteAt);
+  assert.ok(installAt > finalUnitRecheckAt);
+
+  const rollbackStart = source.indexOf(
+    "function rollbackAfterFailure({",
+  );
+  const rollbackUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    rollbackStart,
+  );
+  const rollbackReloadAt = source.indexOf(
+    "let reloadResult;",
+    rollbackUnitRecheckAt,
+  );
+  assert.ok(rollbackUnitRecheckAt > rollbackStart);
+  assert.ok(rollbackReloadAt > rollbackUnitRecheckAt);
+
+  const recoverStart = source.indexOf(
+    "export function recoverVoidPublicOriginBindingSeedServiceApplyV1",
+  );
+  const recoveryFragmentAt = source.indexOf(
+    '"seed gateway FragmentPath recovery preflight"',
+    recoverStart,
+  );
+  const recoveryUnitRecheckAt = source.indexOf(
+    "assertVoidPublicSeedGatewayUnitGenerationV1(",
+    recoveryFragmentAt,
+  );
+  const recoveryStateRecheckAt = source.indexOf(
+    "const freshState =",
+    recoveryUnitRecheckAt,
+  );
+  assert.ok(recoveryFragmentAt > recoverStart);
+  assert.ok(recoveryUnitRecheckAt > recoveryFragmentAt);
+  assert.ok(recoveryStateRecheckAt > recoveryUnitRecheckAt);
 
   console.log(
     "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1_PROOF_GREEN",
