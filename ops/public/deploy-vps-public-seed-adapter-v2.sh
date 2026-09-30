@@ -2,12 +2,12 @@
 set -euo pipefail
 
 : "${VPS_HOST:?missing VPS_HOST}"
+: "${VOID_SEED_UPSTREAM:?missing VOID_SEED_UPSTREAM (reviewed internal VOID HTTP origin)}"
 
 VPS_USER="${VPS_USER:-zoso}"
 VPS_PORT="${VPS_PORT:-8080}"
 REMOTE_ROOT="${REMOTE_ROOT:-/home/$VPS_USER/dev/void-node}"
 REPO_URL="${REPO_URL:-https://github.com/6ZoSo9/void-node.git}"
-VOID_SEED_UPSTREAM="${VOID_SEED_UPSTREAM:-http://100.122.79.39:4100}"
 VOID_EARN_COORDINATOR_UPSTREAM="${VOID_EARN_COORDINATOR_UPSTREAM:-}"
 
 validate_http_origin() {
