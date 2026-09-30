@@ -114,6 +114,7 @@ function validateConsumptionRecord(record,authorization,stateIdentity){
     record.authorized_at_utc!==authorization.authorized_at_utc||
     record.valid_until_utc!==authorization.valid_until_utc||
     record.state_store_id!==stateIdentity.state_store_id||
+    record.state_store_realpath_sha256!==sha256(stateIdentity.state_root_realpath)||
     record.state_store_root_dev!==stateIdentity.state_root_dev||
     record.state_store_root_ino!==stateIdentity.state_root_ino
   ){
@@ -276,8 +277,12 @@ export function buildVoidDatanetRegistrySigningExecutionAdmissionV1(input){
     consumption.consumed_at_utc,
     "registry_signing_execution_consumed_at",
   );
-  if(consumedAt.ms>signedAt.ms){
-    throw new Error("registry_signing_execution_consumption_after_sign_time");
+  if(
+    consumedAt.ms<authorizedAt.ms||
+    consumedAt.ms>=expiresAt.ms||
+    consumedAt.ms>signedAt.ms
+  ){
+    throw new Error("registry_signing_execution_consumption_time_invalid");
   }
 
   const tx=candidate.transaction;
