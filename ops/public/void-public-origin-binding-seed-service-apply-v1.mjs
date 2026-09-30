@@ -17,8 +17,13 @@ import {
 
 export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1 =
   "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_V1";
+export const VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1 =
+  "VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_APPLY_JOURNAL_V1";
 
 const MAX_PLAN_BYTES = 1024 * 1024;
+const MAX_JOURNAL_BYTES = 512 * 1024;
+const APPLY_JOURNAL_NAME =
+  ".void-public-origin-binding-seed-service-apply-v1.journal.json";
 const MAX_BINDING_BYTES = 128 * 1024;
 const SYSTEMCTL = "/usr/bin/systemctl";
 const BINDING_PATHS = Object.freeze([
@@ -339,11 +344,16 @@ function canonicalHomeTarget(homeDir, plan) {
     dropinDir,
     plan.target.dropin_name,
   );
+  const journalPath = path.join(
+    userDir,
+    APPLY_JOURNAL_NAME,
+  );
   return Object.freeze({
     userDir,
     unitPath,
     dropinDir,
     dropinPath,
+    journalPath,
   });
 }
 
@@ -378,30 +388,81 @@ function preflightCreateOnly(file, label) {
   return file;
 }
 
-function writeCreateOnlyPrivateJson(file, value) {
+function fsyncDirectory(dir) {
   const fd = fs.openSync(
-    file,
-    fs.constants.O_WRONLY
-      | fs.constants.O_CREAT
-      | fs.constants.O_EXCL
-      | Number(fs.constants.O_NOFOLLOW || 0),
-    0o600,
+    dir,
+    fs.constants.O_RDONLY
+      | Number(fs.constants.O_DIRECTORY || 0),
   );
   try {
-    const bytes = Buffer.from(
-      JSON.stringify(value, null, 2) + "\n",
-      "utf8",
-    );
-    fs.writeFileSync(fd, bytes);
     fs.fsyncSync(fd);
-    fs.fchmodSync(fd, 0o600);
-    return Object.freeze({
-      bytes,
-      sha256: sha256(bytes),
-    });
   } finally {
     fs.closeSync(fd);
   }
+}
+
+function writeCreateOnlyPrivateJson(file, value) {
+  preflightCreateOnly(file, "private JSON output");
+  const parent = path.dirname(file);
+  const bytes = Buffer.from(
+    JSON.stringify(value, null, 2) + "\n",
+    "utf8",
+  );
+  const tempPath = path.join(
+    parent,
+    "." + path.basename(file)
+      + ".tmp-" + process.pid + "-" + Date.now(),
+  );
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      tempPath,
+      fs.constants.O_WRONLY
+        | fs.constants.O_CREAT
+        | fs.constants.O_EXCL
+        | Number(fs.constants.O_NOFOLLOW || 0),
+      0o600,
+    );
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = -1;
+    fs.linkSync(tempPath, file);
+    fsyncDirectory(parent);
+  } finally {
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch (closeError) {
+        void closeError;
+      }
+    }
+    try {
+      fs.unlinkSync(tempPath);
+      fsyncDirectory(parent);
+    } catch (unlinkError) {
+      if (unlinkError?.code !== "ENOENT") {
+        void unlinkError;
+      }
+    }
+  }
+  const observed = readDirectFile(
+    file,
+    "private JSON output",
+    Math.max(bytes.length, 1),
+    { requireMode600: true },
+  );
+  if (
+    observed.bytes.length !== bytes.length
+    || !timingSafeEqual(observed.bytes, bytes)
+  ) {
+    fail("private JSON output readback mismatch");
+  }
+  return Object.freeze({
+    bytes,
+    sha256: sha256(bytes),
+  });
 }
 
 function productionSystemctl(args) {
