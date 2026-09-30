@@ -93,12 +93,17 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_AUTHORIT
     market_activation: false,
     public_presale_activation: false,
     funds_movement: false,
-    staged_activation_required: true,
-    adjacent_transition_only: true,
-    claimed_selector_before_apply_required: true,
-    full_runtime_before_apply_required: true,
-    admitted_runtime_before_apply_required: true,
-    rollback_clears_apply_first: true,
+    staged_transition_supported: true,
+    adjacent_staged_transition_required: true,
+    atomic_restart_transition_supported: true,
+    atomic_restart_dormant_live_apply_only: true,
+    atomic_restart_single_config_generation_required: true,
+    non_atomic_multi_gate_transition_forbidden: true,
+    claimed_selector_required_when_apply_live: true,
+    full_runtime_required_when_apply_live: true,
+    admitted_runtime_required_when_apply_live: true,
+    staged_rollback_clears_apply_first: true,
+    atomic_rollback_all_inner_gates_zero_together: true,
     exact_per_attempt_confirmation_still_required: true,
     automatic_retry: false,
   } as const);
@@ -198,18 +203,30 @@ export function classifyBuyVoidPostgresActivationPhaseV1(
   return null;
 }
 
+export type BuyVoidPostgresActivationTransitionModeV1 =
+  | "staged"
+  | "atomic_restart";
+
 export type BuyVoidPostgresActivationTransitionDecisionV1 =
   | Readonly<{
       ok: true;
-      status: "stable" | "forward" | "rollback";
+      status:
+        | "stable"
+        | "forward"
+        | "rollback"
+        | "atomic_forward"
+        | "atomic_rollback";
+      mode: BuyVoidPostgresActivationTransitionModeV1;
       from: BuyVoidPostgresActivationPhaseV1;
       to: BuyVoidPostgresActivationPhaseV1;
-      changed_gate: string | null;
+      changed_gates: readonly string[];
+      requires_process_restart: boolean;
       money_capable_after: boolean;
     }>
   | Readonly<{
       ok: false;
       status: "held";
+      mode: BuyVoidPostgresActivationTransitionModeV1;
       reason: string;
       from: BuyVoidPostgresActivationPhaseV1 | null;
       to: BuyVoidPostgresActivationPhaseV1 | null;
@@ -218,6 +235,7 @@ export type BuyVoidPostgresActivationTransitionDecisionV1 =
 export function decideBuyVoidPostgresActivationTransitionV1(
   fromValue: unknown,
   toValue: unknown,
+  mode: BuyVoidPostgresActivationTransitionModeV1 = "staged",
 ): BuyVoidPostgresActivationTransitionDecisionV1 {
   const from = classifyBuyVoidPostgresActivationPhaseV1(fromValue);
   const to = classifyBuyVoidPostgresActivationPhaseV1(toValue);
@@ -225,31 +243,8 @@ export function decideBuyVoidPostgresActivationTransitionV1(
     return Object.freeze({
       ok: false,
       status: "held",
+      mode,
       reason: "activation_state_not_canonical",
-      from,
-      to,
-    });
-  }
-
-  const order =
-    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1;
-  const fromIndex = order.indexOf(from);
-  const toIndex = order.indexOf(to);
-  if (fromIndex === toIndex) {
-    return Object.freeze({
-      ok: true,
-      status: "stable",
-      from,
-      to,
-      changed_gate: null,
-      money_capable_after: to === "live_apply",
-    });
-  }
-  if (Math.abs(toIndex - fromIndex) !== 1) {
-    return Object.freeze({
-      ok: false,
-      status: "held",
-      reason: "activation_transition_must_be_adjacent",
       from,
       to,
     });
@@ -264,11 +259,84 @@ export function decideBuyVoidPostgresActivationTransitionV1(
       fromState[key as keyof BuyVoidPostgresActivationGateStateV1] !==
       toState[key as keyof BuyVoidPostgresActivationGateStateV1],
   );
+
+  if (from === to) {
+    return Object.freeze({
+      ok: true,
+      status: "stable",
+      mode,
+      from,
+      to,
+      changed_gates: Object.freeze([]),
+      requires_process_restart: false,
+      money_capable_after: to === "live_apply",
+    });
+  }
+
+  if (mode === "atomic_restart") {
+    const forward = from === "dormant" && to === "live_apply";
+    const rollback = from === "live_apply" && to === "dormant";
+    if (!forward && !rollback) {
+      return Object.freeze({
+        ok: false,
+        status: "held",
+        mode,
+        reason: "atomic_restart_transition_scope_invalid",
+        from,
+        to,
+      });
+    }
+    const expectedChanged = [
+      "claimed_runtime",
+      "full_runtime",
+      "admitted_guarded_runtime",
+      "full_runtime_apply",
+    ];
+    if (
+      changed.length !== expectedChanged.length ||
+      changed.some((key, index) => key !== expectedChanged[index])
+    ) {
+      return Object.freeze({
+        ok: false,
+        status: "held",
+        mode,
+        reason: "atomic_restart_gate_set_invalid",
+        from,
+        to,
+      });
+    }
+    return Object.freeze({
+      ok: true,
+      status: forward ? "atomic_forward" : "atomic_rollback",
+      mode,
+      from,
+      to,
+      changed_gates: Object.freeze([...changed]),
+      requires_process_restart: true,
+      money_capable_after: forward,
+    });
+  }
+
+  const order =
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1;
+  const fromIndex = order.indexOf(from);
+  const toIndex = order.indexOf(to);
+  if (Math.abs(toIndex - fromIndex) !== 1) {
+    return Object.freeze({
+      ok: false,
+      status: "held",
+      mode,
+      reason: "staged_activation_transition_must_be_adjacent",
+      from,
+      to,
+    });
+  }
   if (changed.length !== 1) {
     return Object.freeze({
       ok: false,
       status: "held",
-      reason: "activation_transition_changes_multiple_gates",
+      mode,
+      reason: "staged_activation_transition_changes_multiple_gates",
       from,
       to,
     });
@@ -277,9 +345,12 @@ export function decideBuyVoidPostgresActivationTransitionV1(
   return Object.freeze({
     ok: true,
     status: toIndex > fromIndex ? "forward" : "rollback",
+    mode,
     from,
     to,
-    changed_gate: changed[0],
+    changed_gates: Object.freeze([...changed]),
+    requires_process_restart: true,
     money_capable_after: to === "live_apply",
   });
 }
+
