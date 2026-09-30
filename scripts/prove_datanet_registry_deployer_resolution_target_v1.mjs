@@ -88,7 +88,11 @@ assert.equal(
 );
 assert.equal(
   migration.successor_execution_layer.production_validator_set_bound,
-  false,
+  true,
+);
+assert.equal(
+  migration.successor_execution_layer.production_validator_set_bound_evidence,
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
 );
 assert.equal(migration.launch_authority.public_activation,false);
 
@@ -127,6 +131,10 @@ assert.equal(
 );
 assert.equal(
   currentTruth.includes("Reviewed: 2026-09-30."),
+  true,
+);
+assert.equal(
+  currentTruth.includes("`production_validator_set_bound=true`"),
   true,
 );
 assert.doesNotMatch(
