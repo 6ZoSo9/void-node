@@ -82,8 +82,12 @@ jobs:
         run: node scripts/prove_void_public_network_shell_truth_v1.mjs
       - name: Wallet evidence-boundary proof
         run: npx tsx scripts/prove_void_ui_wave3_wallet_evidence_boundary_v1.ts
+      - name: Wave-3 Wallet integrity regression
+        run: npx tsx scripts/prove_void_ui_wave3_wallet_readonly_v1.ts
       - name: Earn identity/freshness proof
         run: node scripts/prove_void_ui_wave4_earn_identity_freshness_v1.mjs
+      - name: Wave-4 Earn integrity regression
+        run: npx tsx scripts/prove_void_ui_wave4_earn_readonly_v1.ts
       - name: Site-theme regression
         run: node scripts/prove_void_app_site_theme_v1.mjs
       - name: Diff hygiene
