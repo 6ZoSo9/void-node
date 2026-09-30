@@ -331,3 +331,138 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       "voide2qactp1_"+sha256(Buffer.from(canonicalJson(material))),
   });
 }
+
+
+export function buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1(
+  input,
+) {
+  const activationPlan=input?.activation_plan;
+  if(
+    !activationPlan||
+    activationPlan.marker!==VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1||
+    activationPlan.version!==1||
+    activationPlan.status!==
+      "THREE_HOST_INSTALLED_PRESTART_REVALIDATION_READY_START_HOLD"||
+    !/^voide2qactp1_[0-9a-f]{64}$/u.test(
+      String(activationPlan.activation_plan_id||""),
+    )
+  ) {
+    throw new Error("activation_plan_invalid");
+  }
+  const material=structuredClone(activationPlan);
+  const observedPlanId=material.activation_plan_id;
+  delete material.activation_plan_id;
+  const expectedPlanId=
+    "voide2qactp1_"+sha256(Buffer.from(canonicalJson(material)));
+  if(observedPlanId!==expectedPlanId) {
+    throw new Error("activation_plan_id_mismatch");
+  }
+
+  const observed=input?.observed;
+  if(!observed||typeof observed!=="object"||Array.isArray(observed)) {
+    throw new Error("activation_observation_invalid");
+  }
+  const validators=observed.validators;
+  if(
+    !Array.isArray(validators)||
+    validators.length!==3||
+    JSON.stringify([...validators].map((x)=>String(x).toLowerCase()).sort())!==
+      JSON.stringify([...EXPECTED_VALIDATORS_V1].sort())
+  ) {
+    throw new Error("activation_validator_set_mismatch");
+  }
+  const precisionOnly=BigInt(String(observed.precision_only_block_number));
+  const afterNimo=BigInt(String(observed.after_nimo_block_number));
+  const afterXiphos=BigInt(String(observed.after_xiphos_block_number));
+  if(precisionOnly!==0n) {
+    throw new Error("precision_only_unexpected_block_progress");
+  }
+  if(afterNimo<1n) {
+    throw new Error("two_validator_quorum_not_proven");
+  }
+  if(afterXiphos<=afterNimo) {
+    throw new Error("three_validator_progress_not_proven");
+  }
+  if(Number(observed.after_nimo_peer_count)<1) {
+    throw new Error("two_validator_peer_count_not_proven");
+  }
+  if(Number(observed.after_xiphos_peer_count)<2) {
+    throw new Error("three_validator_peer_count_not_proven");
+  }
+  if(observed.chain_id_hex!=="0x802") {
+    throw new Error("activation_chain_id_mismatch");
+  }
+  if(
+    !Array.isArray(observed.started_roles)||
+    JSON.stringify(observed.started_roles)!==JSON.stringify(START_ORDER)
+  ) {
+    throw new Error("activation_start_order_mismatch");
+  }
+
+  const activatedAt=String(input?.activated_at_utc||"");
+  if(
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(
+      activatedAt,
+    )||
+    !Number.isFinite(Date.parse(activatedAt))
+  ) {
+    throw new Error("activated_at_utc_invalid");
+  }
+
+  const receiptMaterial={
+    marker:"VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_RECEIPT_V1",
+    version:1,
+    status:"PRIVATE_QBFT_RUNTIME_ACTIVE_TRANSACTION_AND_MIGRATION_HOLD",
+    activation_plan_id:activationPlan.activation_plan_id,
+    plan_id:activationPlan.plan_id,
+    bundle_set_id:activationPlan.bundle_set_id,
+    activated_at_utc:activatedAt,
+    chain_id:2050,
+    chain_id_hex:"0x802",
+    execution_epoch:2,
+    consensus:"QBFT",
+    validator_count:3,
+    required_quorum:2,
+    byzantine_fault_tolerance:0,
+    validators:EXPECTED_VALIDATORS_V1,
+    started_roles:START_ORDER,
+    observations:{
+      precision_only_block_number:precisionOnly.toString(10),
+      after_nimo_block_number:afterNimo.toString(10),
+      after_nimo_peer_count:Number(observed.after_nimo_peer_count),
+      after_xiphos_block_number:afterXiphos.toString(10),
+      after_xiphos_peer_count:Number(observed.after_xiphos_peer_count),
+      chain_progression_proven:true,
+      exact_validator_set_proven:true,
+      two_of_three_quorum_proven:true,
+      all_three_validator_services_active:true,
+    },
+    authority:{
+      systemd_reload:true,
+      service_enable:false,
+      service_start:true,
+      service_stop_on_failure_only:true,
+      docker_mutation:false,
+      private_key_access:true,
+      private_key_content_exported:false,
+      private_key_stdout:false,
+      transaction_construction:false,
+      transaction_signing:false,
+      transaction_submission:false,
+      transaction_broadcast:false,
+      authoritative_chain2050_write:true,
+      validator_set_mutation:false,
+      token_movement:false,
+      funds_movement:false,
+      migration_authorized:false,
+      public_activation_authorized:false,
+    },
+    next_gate:
+      "datanet_registry_deployer_live_nonce_balance_and_create_address_vacancy_observation_on_private_successor_rpc",
+  };
+  return Object.freeze({
+    ...receiptMaterial,
+    activation_receipt_id:
+      "voide2qactr1_"+sha256(Buffer.from(canonicalJson(receiptMaterial))),
+  });
+}
