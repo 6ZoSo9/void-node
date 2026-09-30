@@ -241,9 +241,13 @@ function openingEvidenceCustodySnapshot(dataDir) {
   const normalized = path.normalize(dataDir);
   if (
     !path.isAbsolute(normalized)
+    || path.resolve(normalized) !== normalized
     || normalized === path.parse(normalized).root
   ) {
     fail("promotion_data_dir_invalid");
+  }
+  if (isInsideRepo(normalized)) {
+    fail("promotion_data_dir_must_be_outside_repository");
   }
   const wcDir = path.join(normalized, "wc_v1");
   const claimDir = path.join(wcDir, "opening-claim-bindings-v1");
@@ -587,6 +591,7 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
     || !SHA256_ID.test(request.coupled_launch_id)
     || typeof request.data_dir !== "string"
     || !path.isAbsolute(request.data_dir)
+    || path.resolve(request.data_dir) !== request.data_dir
     || !["finalize", "abort"].includes(request.mode)
     || !Array.isArray(request.commitments)
     || !Array.isArray(request.ledger_debits)
@@ -659,6 +664,9 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
       !== request.coupled_launch_id
   ) {
     fail("promotion_coupled_launch_id_mismatch");
+  }
+  if (isInsideRepo(request.data_dir)) {
+    fail("promotion_data_dir_must_be_outside_repository");
   }
 
   const commonInspection = {
