@@ -78,13 +78,20 @@ The status remains:
 
 ## Required next confirmation
 
-The only accepted next operation-bound confirmation is:
+The only accepted next operation-bound confirmation is derived from the exact
+reviewed transaction:
 
-`authorizeDatanetRegistryDeploymentSigningV1`
+```text
+authorizeDatanetRegistryDeploymentSigningV1:<candidate_id>:<final_signing_review_id>:<unsigned_transaction_hash>:<transaction_fingerprint_sha256>
+```
+
+All four bound values are already immutable reviewed request fields, so the
+confirmation can be derived before the content-addressed request ID without
+creating a hash cycle.
 
 A general source-work authorization, green CI, merged PR, prior credential
-binding, or prior candidate-construction confirmation does **not** satisfy this
-gate.
+binding, prior candidate-construction confirmation, or a confirmation issued
+for another candidate/review/transaction does **not** satisfy this gate.
 
 That later confirmation may authorize signing of exactly one reviewed unsigned
 transaction. It must still not imply broadcast, deployment, or any additional
