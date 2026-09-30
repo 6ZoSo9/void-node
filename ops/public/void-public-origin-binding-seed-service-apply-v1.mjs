@@ -501,10 +501,11 @@ function ensureDropinDirectory(dropinDir) {
   }
 }
 
-function atomicInstallDropin(
+function atomicWriteDropinBytes(
   dropinDir,
   dropinPath,
-  text,
+  bytes,
+  mode,
 ) {
   ensureDropinDirectory(dropinDir);
   const tempPath = path.join(
@@ -517,21 +518,34 @@ function atomicInstallDropin(
       | fs.constants.O_CREAT
       | fs.constants.O_EXCL
       | Number(fs.constants.O_NOFOLLOW || 0),
-    0o600,
+    mode,
   );
   try {
-    const bytes = Buffer.from(text, "utf8");
     fs.writeFileSync(fd, bytes);
     fs.fsyncSync(fd);
-    fs.fchmodSync(fd, 0o600);
+    fs.fchmodSync(fd, mode);
   } finally {
     fs.closeSync(fd);
   }
   fs.renameSync(tempPath, dropinPath);
-  fs.chmodSync(dropinPath, 0o600);
+  fs.chmodSync(dropinPath, mode);
+}
+
+function atomicInstallDropin(
+  dropinDir,
+  dropinPath,
+  text,
+) {
+  atomicWriteDropinBytes(
+    dropinDir,
+    dropinPath,
+    Buffer.from(text, "utf8"),
+    0o600,
+  );
 }
 
 function restoreDropin(
+  dropinDir,
   dropinPath,
   previous,
 ) {
@@ -545,16 +559,10 @@ function restoreDropin(
     }
     return;
   }
-  fs.writeFileSync(
+  atomicWriteDropinBytes(
+    dropinDir,
     dropinPath,
     previous.bytes,
-    {
-      flag: "w",
-      mode: previous.mode,
-    },
-  );
-  fs.chmodSync(
-    dropinPath,
     previous.mode,
   );
 }
@@ -707,34 +715,63 @@ async function verifyLocalBindingAliases(
   return Object.freeze(observations);
 }
 
-function rollbackBestEffort({
+function rollbackAfterFailure({
   target,
   previous,
   systemctlRunner,
 }) {
+  const failures = [];
   try {
     restoreDropin(
+      target.dropinDir,
       target.dropinPath,
       previous,
     );
   } catch (error) {
-    void error;
+    failures.push(
+      `restore:${String(
+        error?.message || error,
+      )}`,
+    );
   }
-  try {
-    systemctlRunner([
+
+  for (const [label, args] of [
+    [
       "daemon-reload",
-    ]);
-  } catch (error) {
-    void error;
-  }
-  try {
-    systemctlRunner([
+      ["daemon-reload"],
+    ],
+    [
       "restart",
-      VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1,
-    ]);
-  } catch (error) {
-    void error;
+      [
+        "restart",
+        VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1,
+      ],
+    ],
+  ]) {
+    try {
+      const result =
+        systemctlRunner(args);
+      if (
+        !result
+        || result.status !== 0
+      ) {
+        failures.push(
+          `${label}:${String(
+            result?.stderr
+              || result?.stdout
+              || "nonzero status",
+          ).trim()}`,
+        );
+      }
+    } catch (error) {
+      failures.push(
+        `${label}:${String(
+          error?.message || error,
+        )}`,
+      );
+    }
   }
+  return failures;
 }
 
 export async function applyVoidPublicOriginBindingSeedServicePlanV1({
@@ -938,11 +975,20 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
     });
   } catch (error) {
     if (changed) {
-      rollbackBestEffort({
-        target,
-        previous,
-        systemctlRunner,
-      });
+      const rollbackFailures =
+        rollbackAfterFailure({
+          target,
+          previous,
+          systemctlRunner,
+        });
+      if (rollbackFailures.length > 0) {
+        throw new Error(
+          `${String(
+            error?.message || error,
+          )}; rollback_failed:${rollbackFailures.join("|")}`,
+          { cause: error },
+        );
+      }
     }
     throw error;
   }
