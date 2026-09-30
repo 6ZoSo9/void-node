@@ -633,7 +633,8 @@ export function parseCanonicalGitHubRepositoryRemote(value) {
   try {
     const parsed = new URL(raw);
     if (parsed.hostname.toLowerCase() !== "github.com") return null;
-    if (!["https:", "http:", "ssh:", "git:"].includes(parsed.protocol)) return null;
+    if (!["https:", "ssh:"].includes(parsed.protocol)) return null;
+    if (parsed.protocol === "ssh:" && parsed.username !== "git") return null;
     const parts = parsed.pathname.split("/").filter(Boolean);
     if (parts.length !== 2) return null;
     return normalize(parts[0], parts[1]);
@@ -668,7 +669,11 @@ function collectOriginHeadParity(
   const originRepository = parseCanonicalGitHubRepositoryRemote(
     originUrl.stdout.trim(),
   );
-  const originRepositoryExact = originRepository === expectedRepository;
+  const originRepositoryExact = (
+    typeof originRepository === "string"
+    && typeof expectedRepository === "string"
+    && originRepository.toLowerCase() === expectedRepository.toLowerCase()
+  );
   if (!originRepositoryExact) {
     const observed = originRepository ?? "unsupported";
     if (requireRemote) {
@@ -692,8 +697,7 @@ function collectOriginHeadParity(
 
   const result = git(repoRoot, ["ls-remote", "--heads", "origin"], { check: false });
   if (result.status !== 0) {
-    const detail = (result.stderr || result.stdout || "").trim();
-    if (requireRemote) fail(`live origin head metadata unavailable: ${detail}`);
+    if (requireRemote) fail("live origin head metadata unavailable");
     return {
       available: false,
       exact: false,
@@ -704,7 +708,7 @@ function collectOriginHeadParity(
       missing_local: [],
       stale_local: [],
       mismatched: [],
-      error: detail || "git_ls_remote_failed",
+      error: "git_ls_remote_failed",
     };
   }
 
