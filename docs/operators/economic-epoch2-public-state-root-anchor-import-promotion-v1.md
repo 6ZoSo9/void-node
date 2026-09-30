@@ -40,8 +40,11 @@ arguments**. The importer reads them from this reviewed repository generation
 and requires their exact Git blob identities. It also requires the reviewed Git
 blob identities of the migration classifier, state-root admission source,
 state-root anchor verifier, canonical-truth admission source, and compiler
-profile before promotion can proceed. Any dirty, replaced, or noncanonical
-version of those files fails closed with a canonical-source blob mismatch.
+profile before promotion can proceed. The authority-bearing admission and
+migration-classifier modules are loaded only after those blob checks pass, so
+dirty execution source is rejected before those modules execute. Any dirty,
+replaced, or noncanonical version of the bound files fails closed with a
+canonical-source blob mismatch.
 
 This specifically prevents a caller from cloning the migration candidate,
 flipping only
