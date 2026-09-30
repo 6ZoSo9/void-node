@@ -27,6 +27,8 @@ const PRIVATE_KEY=/^(?:0x)?[0-9a-fA-F]{64}$/u;
 const CANDIDATE_ID=/^voiddrtxc1_[0-9a-f]{64}$/u;
 const HASH=/^0x[0-9a-f]{64}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
+const SHA40=/^[0-9a-f]{40}$/u;
+const BINDING_ID=/^voiddrcb1_[0-9a-f]{64}$/u;
 const MAX_CREDENTIAL_BYTES=128;
 
 function sha256(value){
@@ -361,11 +363,19 @@ export function buildVoidDatanetRegistryDeployerCredentialBindingV1(input){
     throw new Error("registry_deployer_candidate_expired_for_binding");
   }
 
+  const boundOnHost=String(input?.bound_on_host||"");
+  const observedRepoHead=String(input?.observed_repo_head||"");
+  if(boundOnHost!=="Nimo"||!SHA40.test(observedRepoHead)){
+    throw new Error("registry_deployer_binding_host_or_repo_head_invalid");
+  }
+
   const material={
     marker:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_V1,
     version:1,
     status:"DEPLOYER_CREDENTIAL_IDENTITY_BOUND_SIGNING_HOLD",
     bound_at_utc:boundAt,
+    bound_on_host:boundOnHost,
+    observed_repo_head:observedRepoHead,
     candidate_valid_until_utc:candidateDeadline,
     candidate_id:candidate.candidate_id,
     unsigned_transaction_hash:
@@ -436,6 +446,141 @@ export function buildVoidDatanetRegistryDeployerCredentialBindingV1(input){
   });
 }
 
+export function validateVoidDatanetRegistryDeployerCredentialBindingV1(
+  binding,
+  evidence,
+){
+  if(
+    !binding||
+    typeof binding!=="object"||
+    Array.isArray(binding)||
+    binding.marker!==VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_V1||
+    binding.version!==1||
+    binding.status!=="DEPLOYER_CREDENTIAL_IDENTITY_BOUND_SIGNING_HOLD"||
+    !BINDING_ID.test(String(binding.credential_binding_id||""))||
+    binding.bound_on_host!=="Nimo"||
+    !SHA40.test(String(binding.observed_repo_head||""))||
+    binding.signing_authorized!==false||
+    binding.next_gate!==
+      "fresh_read_only_candidate_revalidation_then_fresh_deployer_credential_rebinding_and_separate_exact_signing_authorization"
+  ){
+    throw new Error("registry_deployer_credential_binding_invalid");
+  }
+
+  const material=structuredClone(binding);
+  const id=material.credential_binding_id;
+  delete material.credential_binding_id;
+  const expectedId=
+    "voiddrcb1_"+sha256(Buffer.from(canonicalJson(material)));
+  if(id!==expectedId){
+    throw new Error("registry_deployer_credential_binding_id_mismatch");
+  }
+
+  const expectedAuthority={
+    identity_binding_only:true,
+    credential_content_access_performed:true,
+    private_key_access_performed:true,
+    raw_private_key_output:false,
+    private_key_digest_output:false,
+    signer_object_exposed:false,
+    rpc_call:false,
+    wallet_access:false,
+    deployer_funding:false,
+    transaction_signing_authorized:false,
+    transaction_signing_performed:false,
+    transaction_submission_authorized:false,
+    transaction_submission_performed:false,
+    transaction_broadcast_authorized:false,
+    transaction_broadcast_performed:false,
+    deployment_authorized:false,
+    chain2050_write_authorized:false,
+    validator_mutation:false,
+    token_movement:false,
+    funds_movement:false,
+    migration_authorized:false,
+    public_activation_authorized:false,
+    automatic_retry:false,
+  };
+  exactKeys(
+    binding.authority,
+    Object.keys(expectedAuthority),
+    "registry_deployer_binding_authority",
+  );
+  for(const [key,value] of Object.entries(expectedAuthority)){
+    if(binding.authority[key]!==value){
+      throw new Error("registry_deployer_binding_authority_mismatch:"+key);
+    }
+  }
+
+  const expectedBinding={
+    exact_candidate_deployer_match:true,
+    credential_address_derived:true,
+    derived_address_matches_selected_deployer:true,
+    dedicated_deployer_selection_exact:true,
+    candidate_still_unexpired_at_binding:true,
+    identity_binding_only:true,
+    prior_candidate_does_not_authorize_signing:true,
+    rebind_immediately_before_signing_required:true,
+  };
+  exactKeys(
+    binding.binding,
+    Object.keys(expectedBinding),
+    "registry_deployer_binding_facts",
+  );
+  for(const [key,value] of Object.entries(expectedBinding)){
+    if(binding.binding[key]!==value){
+      throw new Error("registry_deployer_binding_fact_mismatch:"+key);
+    }
+  }
+
+  const observation={
+    ok:true,
+    marker:"VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_FILE_OBSERVATION_V1",
+    version:1,
+    status:"credential_identity_observed_without_signer_object",
+    credential_id:VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_ID_V1,
+    derived_address:VOID_DATANET_REGISTRY_DEPLOYER_ADDRESS_V1,
+    credential_source:{
+      canonical_directory:true,
+      directory_private_mode:true,
+      regular_file:true,
+      symbolic_link:false,
+      single_hard_link:true,
+      owner_current_user:true,
+      mode:binding.credential_source?.mode,
+      size_bytes:binding.credential_source?.size_bytes,
+    },
+    credential_content_access_performed:true,
+    private_key_access_performed:true,
+    raw_private_key_output:false,
+    private_key_digest_output:false,
+    signer_object_exposed:false,
+    transaction_signing_performed:false,
+  };
+
+  let rebuilt;
+  try{
+    rebuilt=buildVoidDatanetRegistryDeployerCredentialBindingV1({
+      deployer_selection:evidence?.deployer_selection,
+      unsigned_transaction_candidate:evidence?.unsigned_transaction_candidate,
+      candidate_evidence:evidence?.candidate_evidence,
+      credential_observation:observation,
+      bound_at_utc:binding.bound_at_utc,
+      bound_on_host:binding.bound_on_host,
+      observed_repo_head:binding.observed_repo_head,
+    });
+  }catch(error){
+    throw new Error(
+      "registry_deployer_credential_binding_evidence_rebuild_failed:"+
+      String(error?.message||error).slice(0,160),
+    );
+  }
+  if(canonicalJson(rebuilt)!==canonicalJson(binding)){
+    throw new Error("registry_deployer_credential_binding_evidence_rebuild_mismatch");
+  }
+  return binding;
+}
+
 export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
   input,
   dependencies={},
@@ -494,6 +639,8 @@ export async function runVoidDatanetRegistryDeployerCredentialBindingV1(
       candidate_validator:candidateValidator,
       credential_observation:observation,
       bound_at_utc:input?.bound_at_utc,
+      bound_on_host:input?.bound_on_host,
+      observed_repo_head:input?.observed_repo_head,
     });
     return Object.freeze({
       ok:true,
