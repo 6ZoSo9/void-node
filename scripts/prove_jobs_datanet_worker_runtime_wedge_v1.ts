@@ -702,6 +702,81 @@ try {
     `old=${generationGEntry!.completionGeneration} new=${generationG1Entry?.completionGeneration || ""}`,
   );
 
+  // Locally-done IDs are only a transient replay fence while durable
+  // completion truth has not caught up. Once the canonical completion ledger
+  // contains the ID, the runtime must retire the duplicate in-memory key.
+  const transientDoneJobsFile = path.join(root, "jobs-transient-done.jsonl");
+  const transientDoneReceiptsFile = path.join(
+    root,
+    "receipts-transient-done.jsonl",
+  );
+  const transientDoneJobStateFile = path.join(
+    root,
+    "job-state-transient-done.jsonl",
+  );
+  appendAgentPick2JsonlCanonicalV1(
+    transientDoneJobsFile,
+    JSON.stringify({
+      job_id: "transient_done_job",
+      status: "queued",
+      account: "proof",
+      kind: "datanet_publish",
+      input: { plaintext: "transient-done" },
+    }) + "\n",
+  );
+  fs.writeFileSync(transientDoneReceiptsFile, "");
+  fs.writeFileSync(transientDoneJobStateFile, "");
+  const transientDoneIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+    maxCompletionIdsPerFile: 8,
+  });
+  const transientDoneInput = {
+    jobsFile: transientDoneJobsFile,
+    receiptsFile: transientDoneReceiptsFile,
+    jobStateFile: transientDoneJobStateFile,
+  };
+  const transientDoneFirst = transientDoneIndex.scan(transientDoneInput);
+  assert(
+    transientDoneFirst.jobs.some(
+      (entry) => entry.jobId === "transient_done_job",
+    ),
+    "transient-done-job-first-admitted",
+    `jobs=${transientDoneFirst.jobs.map((x) => x.jobId).join(",")}`,
+  );
+  transientDoneIndex.markDone("transient_done_job");
+  assert(
+    (transientDoneIndex as any).locallyDone.has("transient_done_job") === true,
+    "transient-done-replay-fence-present-before-durable-truth",
+    `size=${(transientDoneIndex as any).locallyDone.size}`,
+  );
+  const transientDoneAppend = appendAgentPick2JsonlCanonicalV1(
+    transientDoneReceiptsFile,
+    JSON.stringify({
+      job_id: "transient_done_job",
+      status: "completed",
+    }) + "\n",
+  );
+  assert(
+    transientDoneAppend.witnessed === true,
+    "transient-done-durable-completion-witnessed",
+    `witnessed=${transientDoneAppend.witnessed}`,
+  );
+  const transientDoneDurable = transientDoneIndex.scan(transientDoneInput);
+  assert(
+    transientDoneDurable.ready === true &&
+      transientDoneDurable.doneTruthHas("transient_done_job") === true &&
+      transientDoneDurable.jobs.every(
+        (entry) => entry.jobId !== "transient_done_job",
+      ) &&
+      (transientDoneIndex as any).locallyDone.has("transient_done_job") ===
+        false,
+    "durable-completion-retires-transient-done-key",
+    `ready=${transientDoneDurable.ready} local_size=${(transientDoneIndex as any).locallyDone.size}`,
+  );
+
   // Completion history remains exact, but an in-memory source cannot grow
   // without bound. Duplicates do not consume distinct-ID budget; the next new
   // completion ID fails closed before any queued job is surfaced.
@@ -1306,7 +1381,8 @@ try {
       semanticSource.includes("completionIdLengthHoldStamps") &&
       semanticSource.includes("normalizeMaxCompletionIdsPerFileV1") &&
       semanticSource.includes("VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD") &&
-      helperSource.includes("VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE"),
+      helperSource.includes("VOID_JOBS_WORKER_MAX_COMPLETION_IDS_PER_FILE") &&
+      helperSource.includes("this.locallyDone.delete(id)"),
     "completion-cardinality-guard-source-present",
     "semantic cardinality guard and worker configuration seam present",
   );
