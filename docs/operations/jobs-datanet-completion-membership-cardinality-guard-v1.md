@@ -49,13 +49,19 @@ The incremental path accounts for the already-admitted generation before
 accepting new distinct IDs, so a near-cap cached generation cannot bypass the
 limit through a small append.
 
-When a generation first exceeds the bound, the index records that exact file
-stamp as an in-process cardinality HOLD. Repeated scans of the same stamp fail
-immediately without rereading the ledger. If the file is replaced, truncated,
-or otherwise changes to a different exact stamp, the cached HOLD is cleared and
-the new generation is evaluated normally. This prevents an oversized stable
-history from becoming repeated full-ledger I/O churn while preserving a
-fail-closed recovery path for a reviewed compaction/replacement.
+When a generation first exceeds the bound, the index records that exact opened
+file stamp as an in-process cardinality HOLD **only if the current path still
+matches that same stamp**. Repeated scans of the same stamp fail immediately
+without rereading the ledger. If the file is replaced, truncated, or otherwise
+changes to a different exact stamp, the cached HOLD is cleared and the new
+generation is evaluated normally.
+
+Binding the cache to the scanned/opened stamp matters under concurrency: if an
+old descriptor crosses the cardinality boundary while the path is concurrently
+replaced, the old overflow cannot cache-poison the replacement generation. This
+prevents an oversized stable history from becoming repeated full-ledger I/O
+churn while preserving a fail-closed recovery path for reviewed
+compaction/replacement.
 
 ## What this does not solve
 
@@ -91,7 +97,9 @@ IDs and proves:
 5. a changed under-cap generation clears the cached HOLD and becomes usable
    again; and
 6. a fresh full rebuild of an independent over-cap history also HOLDs before any
-   queued job is surfaced.
+   queued job is surfaced; and
+7. a racing under-cap path replacement is not poisoned by an old descriptor's
+   over-cap scan.
 
 Existing immutable completion-generation, jobs-generation, byte-framing,
 backpressure, and pre-effect authority proofs remain in force.
