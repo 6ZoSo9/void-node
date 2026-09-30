@@ -378,3 +378,33 @@ export function validateVoidDatanetRegistryFinalSigningReviewV1(review){
   }
   return review;
 }
+
+export function validateVoidDatanetRegistryFinalSigningReviewEvidenceV1(
+  review,
+  evidence,
+){
+  validateVoidDatanetRegistryFinalSigningReviewV1(review);
+  let rebuilt;
+  try{
+    rebuilt=buildVoidDatanetRegistryFinalSigningReviewV1({
+      unsigned_transaction_candidate:evidence?.unsigned_transaction_candidate,
+      candidate_evidence:evidence?.candidate_evidence,
+      prior_credential_binding:evidence?.prior_credential_binding,
+      candidate_revalidation_receipt:
+        evidence?.candidate_revalidation_receipt,
+      fresh_fee_funding_packet:evidence?.fresh_fee_funding_packet,
+      fresh_credential_binding:evidence?.fresh_credential_binding,
+      deployer_selection:evidence?.deployer_selection,
+      evaluated_at_utc:review.evaluated_at_utc,
+    });
+  }catch(error){
+    throw new Error(
+      "final_signing_review_evidence_rebuild_failed:"+
+      String(error?.message||error).slice(0,180),
+    );
+  }
+  if(canonicalJson(rebuilt)!==canonicalJson(review)){
+    throw new Error("final_signing_review_evidence_rebuild_mismatch");
+  }
+  return review;
+}
