@@ -489,6 +489,17 @@ try {
   ]) {
     assert.equal(participant.includes(forbidden), false, forbidden);
   }
+  assert.equal(
+    participant.includes("--coordinator-base"),
+    false,
+    "identity HOLD page must not emit coordinator-base CLI arguments",
+  );
+  assert.equal(
+    participant.includes("--coordinator-node-id"),
+    false,
+    "identity HOLD page must not emit coordinator-node-id CLI arguments",
+  );
+
   for (const required of [
     "VOID_PUBLIC_PARTICIPANT_NO_NODE_HANDOFF_V1",
     "Earn Work Credits without running a VOID node",
