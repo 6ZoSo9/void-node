@@ -180,6 +180,24 @@ export async function qualifyVoidBuyVoidPrecisionPostgresHostV1({
       "postgres_factory_held:" + safeReason(factory?.reason),
     );
   }
+  if (
+    factory.marker !==
+      factoryModule.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_V1 ||
+    factory.version !== 1 ||
+    factory.status !== "ready" ||
+    factory.authority !==
+      factoryModule.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CONNECTION_FACTORY_AUTHORITY_V1 ||
+    !/^[0-9a-f]{64}$/.test(
+      String(factory.configuration_fingerprint_sha256 || ""),
+    )
+  ) {
+    try {
+      await factory.close?.();
+    } catch {
+      // Identity failure remains authoritative.
+    }
+    throw new Error("postgres_factory_identity_invalid");
+  }
 
   let admission;
   let closeFailed = false;
@@ -205,7 +223,17 @@ export async function qualifyVoidBuyVoidPrecisionPostgresHostV1({
     );
   }
   if (
+    admission.marker !==
+      admissionModule.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_V1 ||
+    admission.version !== 1 ||
     admission.status !== "schema_admitted" ||
+    admission.authority !==
+      admissionModule.VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_SCHEMA_ADMISSION_AUTHORITY_V1 ||
+    admission.configuration_fingerprint_sha256 !==
+      factory.configuration_fingerprint_sha256 ||
+    !/^[0-9a-f]{64}$/.test(
+      String(admission.schema_fingerprint_sha256 || ""),
+    ) ||
     admission.schema_query_performed !== true ||
     admission.database_mutation_performed !== false
   ) {
