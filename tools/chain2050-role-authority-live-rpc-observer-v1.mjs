@@ -313,6 +313,21 @@ function createHttpTransport(policy) {
       }, (response) => {
         const chunks = [];
         let total = 0;
+        const failResponse = (reason) => {
+          finish(new Error(reason));
+        };
+
+        response.on("aborted", () => {
+          failResponse("role_authority_live_rpc_response_aborted");
+        });
+        response.on("error", () => {
+          failResponse("role_authority_live_rpc_response_error");
+        });
+        response.on("close", () => {
+          if (!response.complete) {
+            failResponse("role_authority_live_rpc_response_incomplete");
+          }
+        });
 
         response.on("data", (chunk) => {
           const buffer = Buffer.isBuffer(chunk)

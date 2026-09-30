@@ -128,6 +128,7 @@ type FixtureOptions = {
   codeTamperAfterFirst?: boolean;
   reorgAfterFirstBlock?: boolean;
   countOverride?: bigint | null;
+  abortResponse?: boolean;
   dripResponse?: boolean;
   dripIntervalMs?: number;
 };
@@ -214,6 +215,16 @@ async function fixture(options: FixtureOptions = {}) {
       id: envelope.id,
       result,
     }));
+    if (options.abortResponse) {
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "content-length": String(body.length),
+      });
+      res.write(body.subarray(0, Math.max(1, Math.floor(body.length / 2))));
+      setTimeout(() => res.destroy(), 10);
+      return;
+    }
+
     if (options.dripResponse) {
       res.writeHead(200, {
         "content-type": "application/json",
@@ -452,6 +463,40 @@ for (const [label, options, expected] of [
 }
 
 {
+  const f = await fixture({ abortResponse: true });
+  const startedAt = Date.now();
+  try {
+    const result =
+      await createChain2050RoleAuthorityLiveRpcObserverV1({
+        rpc_url: f.rpcUrl,
+        contract_address: CONTRACT,
+        expected_runtime_code_sha256: CODE_SHA,
+        expected_registry_contract_sha256:
+          REGISTRY_CONTRACT_SHA,
+        confirmation_depth: Number(DEPTH),
+        request_timeout_ms: 3000,
+        max_entries: 16,
+      });
+    const elapsedMs = Date.now() - startedAt;
+    assert.equal(result.ok, false);
+    if (result.ok === true) {
+      throw new Error("aborted response unexpectedly green");
+    }
+    assert.match(
+      String(result.detail?.message || ""),
+      /role_authority_live_rpc_response_(?:aborted|error|incomplete)/,
+    );
+    assert.ok(
+      elapsedMs < 2500,
+      "aborted response waited for outer deadline: " +
+        String(elapsedMs),
+    );
+  } finally {
+    await close(f.server);
+  }
+}
+
+{
   const f = await fixture({
     dripResponse: true,
     dripIntervalMs: 20,
@@ -516,6 +561,7 @@ console.log("read_only_rpc_method_allowlist=true");
 console.log("entry_count_bounded=true");
 console.log("absolute_request_deadline=true");
 console.log("drip_response_cannot_extend_deadline=true");
+console.log("aborted_response_terminal_owned=true");
 console.log("deployment_verified=false");
 console.log("production_activation_authorized=false");
 console.log("credential_access=false");

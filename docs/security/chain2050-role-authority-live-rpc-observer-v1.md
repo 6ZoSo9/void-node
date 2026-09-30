@@ -104,7 +104,9 @@ Each JSON-RPC response is byte-bounded. Every RPC call has both a socket-
 inactivity timeout and an independent absolute wall-clock deadline using the
 reviewed `request_timeout_ms` bound. A peer cannot keep a call alive
 indefinitely by drip-feeding bytes just often enough to reset the socket
-inactivity timer.
+inactivity timer. Aborted, errored, or incomplete response streams are owned as
+explicit failure terminals and settle the call immediately rather than waiting
+for the outer deadline.
 
 ## Deployment truth
 
