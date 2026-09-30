@@ -9,6 +9,7 @@ import {
   VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_V1,
   buildVoidDatanetRegistrySigningStateIdentityProvisionReceiptV1,
   buildVoidDatanetRegistrySigningStateIdentityV1,
+  requiredVoidDatanetRegistrySigningStateIdentityProvisionConfirmationV1,
   validateVoidDatanetRegistrySigningStateIdentityV1,
   voidDatanetRegistrySigningStateIdentityCanonicalJsonV1,
 } from "../tools/void-datanet-registry-signing-state-identity-provision-v1.mjs";
@@ -130,6 +131,36 @@ assert.equal(
   VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1,
   "provisionDatanetRegistrySigningStateIdentityV1",
 );
+const confirmation=
+  requiredVoidDatanetRegistrySigningStateIdentityProvisionConfirmationV1(
+    identity,
+  );
+assert.equal(
+  confirmation,
+  "provisionDatanetRegistrySigningStateIdentityV1:"+
+    identity.state_store_id,
+);
+const replacementIdentity=
+  buildVoidDatanetRegistrySigningStateIdentityV1({
+    ...input,
+    state_root_dev:"124",
+    state_root_ino:"457",
+  });
+const replacementConfirmation=
+  requiredVoidDatanetRegistrySigningStateIdentityProvisionConfirmationV1(
+    replacementIdentity,
+  );
+assert.notEqual(
+  replacementIdentity.state_store_id,
+  identity.state_store_id,
+);
+assert.notEqual(replacementConfirmation,confirmation);
+assert.equal(
+  replacementConfirmation.startsWith(
+    "provisionDatanetRegistrySigningStateIdentityV1:voiddrssi1_",
+  ),
+  true,
+);
 
 const runner=fs.readFileSync(
   "ops/nimo/void-nimo-datanet-registry-signing-state-identity-provision-v1.mjs",
@@ -140,6 +171,9 @@ for(const required of [
   '.local/state/void/datanet-registry-signing-v1',
   '.config/void',
   'datanet-registry-signing-state-identity-v1.json',
+  'requiredVoidDatanetRegistrySigningStateIdentityProvisionConfirmationV1(',
+  'const requiredConfirmation=',
+  'args.confirmation!==requiredConfirmation',
   'signing_state_identity_prior_consumption_present',
   'entries.includes("consumed")',
   'signing_consumed_dir',
@@ -171,12 +205,21 @@ for(const required of [
   assert.ok(runner.includes(required),required);
 }
 
+const confirmationDeriveAt=runner.indexOf(
+  "const requiredConfirmation=",
+);
 const confirmAt=runner.indexOf(
-  'args.confirmation!==\n    VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_CONFIRMATION_V1',
+  "args.confirmation!==requiredConfirmation",
 );
 const publishAt=runner.lastIndexOf("writeExclusiveIdentity(expectedBytes)");
-assert.ok(confirmAt>=0,"confirmation check missing");
+assert.ok(confirmationDeriveAt>=0,"generation-bound confirmation derivation missing");
+assert.ok(confirmAt>confirmationDeriveAt,"confirmation comparison missing");
 assert.ok(publishAt>confirmAt,"identity publication must follow confirmation");
+assert.equal(
+  runner.includes("catch{}"),
+  false,
+  "raw empty cleanup catch must not re-enter the repository",
+);
 
 for(const forbidden of [
   "SigningKey",
@@ -202,6 +245,9 @@ for(const forbidden of [
 console.log("VOID_DATANET_REGISTRY_SIGNING_STATE_IDENTITY_PROVISION_V1_PROOF_GREEN");
 console.log("state_generation_device_inode_bound=true");
 console.log("state_store_id_content_addressed=true");
+console.log("generation_bound_confirmation=true");
+console.log("cross_generation_confirmation_replay=false");
+console.log("raw_empty_cleanup_catches=false");
 console.log("prior_consumption_rejected=true");
 console.log("existing_identity_conflict_rejected=true");
 console.log("exclusive_hardlink_publication=true");
