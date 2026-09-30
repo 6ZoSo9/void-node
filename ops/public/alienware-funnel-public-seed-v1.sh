@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+printf '%s\n' 'VOID_RETIRED_ALIENWARE_SCRIPT_HOLD_V1 script=ops/public/alienware-funnel-public-seed-v1.sh' >&2
+exit 2
+# Historical implementation retained below as inert evidence.
 set -euo pipefail
 
 HOST="${VOID_EDGE_HOST:-100.122.79.39}"
