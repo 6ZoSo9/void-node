@@ -54,6 +54,12 @@ const NO_NODE_CLIENT_TOOL = resolve(
   HERE,
   "void_public_earn_no_node_client_v1.mjs",
 );
+const COLLECTOR_REPO_PATH =
+  "tools/void-public-origin-binding-external-acceptance-v1.mjs";
+const DIRECTORY_REPO_PATH =
+  "tools/wc-public-opportunity-directory-v1.mjs";
+const HANDOFF_REPO_PATH =
+  "tools/wc-public-opportunity-handoff-v1.mjs";
 
 function fail(message) {
   throw new Error(message);
@@ -148,6 +154,41 @@ function gitV1(args) {
   ).trim();
 }
 
+function gitBytesV1(args) {
+  return execFileSync(
+    "git",
+    args,
+    {
+      cwd: REPO_ROOT,
+      encoding: null,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        PATH: "/usr/bin:/bin",
+      },
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+}
+
+function gitSucceedsV1(args) {
+  try {
+    execFileSync(
+      "git",
+      args,
+      {
+        cwd: REPO_ROOT,
+        stdio: ["ignore", "ignore", "ignore"],
+        env: {
+          PATH: "/usr/bin:/bin",
+        },
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function regularSourceSha256V1(file, label) {
   const stat = fs.lstatSync(file);
   if (
@@ -188,6 +229,84 @@ function liveCollectorProvenanceV1() {
       regularSourceSha256V1(DIRECTORY_TOOL, "directory"),
     handoff_tool_sha256:
       regularSourceSha256V1(HANDOFF_TOOL, "handoff"),
+  });
+}
+
+export function verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+  source,
+  {
+    requireMainAncestor = true,
+  } = {},
+) {
+  exactKeysV1(
+    source,
+    [
+      "repository_head",
+      "clean_main",
+      "collector_sha256",
+      "directory_tool_sha256",
+      "handoff_tool_sha256",
+    ],
+    "external acceptance source",
+  );
+  if (
+    source.clean_main !== true
+    || !HEX40_V1.test(source.repository_head)
+    || !HEX64_V1.test(source.collector_sha256)
+    || !HEX64_V1.test(source.directory_tool_sha256)
+    || !HEX64_V1.test(source.handoff_tool_sha256)
+  ) {
+    fail("external acceptance source contract invalid");
+  }
+  if (
+    !gitSucceedsV1([
+      "cat-file",
+      "-e",
+      `${source.repository_head}^{commit}`,
+    ])
+  ) {
+    fail("external acceptance source commit unavailable");
+  }
+  if (
+    requireMainAncestor
+    && !gitSucceedsV1([
+      "merge-base",
+      "--is-ancestor",
+      source.repository_head,
+      "main",
+    ])
+  ) {
+    fail("external acceptance source commit is not on main");
+  }
+  const expected = {
+    collector_sha256: sha256(
+      gitBytesV1([
+        "show",
+        `${source.repository_head}:${COLLECTOR_REPO_PATH}`,
+      ]),
+    ),
+    directory_tool_sha256: sha256(
+      gitBytesV1([
+        "show",
+        `${source.repository_head}:${DIRECTORY_REPO_PATH}`,
+      ]),
+    ),
+    handoff_tool_sha256: sha256(
+      gitBytesV1([
+        "show",
+        `${source.repository_head}:${HANDOFF_REPO_PATH}`,
+      ]),
+    ),
+  };
+  for (const [key, value] of Object.entries(expected)) {
+    if (source[key] !== value) {
+      fail(`external acceptance source hash mismatch: ${key}`);
+    }
+  }
+  return Object.freeze({
+    repository_head: source.repository_head,
+    clean_main: true,
+    ...expected,
   });
 }
 
