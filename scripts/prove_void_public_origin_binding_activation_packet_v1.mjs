@@ -169,7 +169,7 @@ try {
         nowMs,
         verifyBinding: verifyEphemeral,
       }),
-    /binding origin does not match expected origin/u,
+    /binding origin does not match (?:expected|the selected coordinator) origin/u,
   );
 
   const expired = signVoidNodePublicOriginBindingV1({
