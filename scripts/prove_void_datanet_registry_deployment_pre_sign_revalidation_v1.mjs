@@ -52,7 +52,6 @@ function rehashPreSign(value){
   const x=structuredClone(value);
   delete x.pre_sign_revalidation_id;
   for(const key of [
-    "rpc_methods_used",
     "credential_access_performed",
     "wallet_access_performed",
     "private_key_access_performed",
@@ -360,6 +359,20 @@ assert.equal(
   green.receipt,
 );
 assert.equal(green.receipt.freshness_seconds,PRE_SIGN_VALIDITY_SECONDS_V1);
+assert.equal(green.receipt.read_only_rpc_revalidation_complete,true);
+assert.deepEqual(green.receipt.rpc_methods_used,[
+  "eth_chainId",
+  "eth_blockNumber",
+  "eth_getBlockByNumber",
+  "eth_getTransactionCount",
+  "eth_getBalance",
+  "eth_getTransactionCount",
+  "eth_getCode",
+  "eth_estimateGas",
+  "eth_maxPriorityFeePerGas",
+  "eth_getTransactionCount",
+  "eth_getBlockByNumber",
+]);
 assert.equal(
   Date.parse(green.receipt.valid_until_utc)-
     Date.parse(green.receipt.observed_at_utc),
