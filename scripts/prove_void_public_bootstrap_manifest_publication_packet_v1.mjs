@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import childProcess from "node:child_process";
+import nodeAssert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -284,7 +285,7 @@ try {
   assert(directVerified.packet.candidate.manifest_id === candidate.manifest_id);
 
   const staleReceiptNowMs = nowMs + (2 * 60 * 60 * 1000) + 1;
-  assert.throws(
+  nodeAssert.throws(
     () => verifyPublicationPacket({
       repoRoot: FIXTURE_REPO,
       packetDir: PACKET,
@@ -296,7 +297,7 @@ try {
   );
 
   const expiredCandidateNowMs = Date.parse(candidate.expires_at) + 1;
-  assert.throws(
+  nodeAssert.throws(
     () => verifyPublicationPacket({
       repoRoot: FIXTURE_REPO,
       packetDir: PACKET,
