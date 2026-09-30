@@ -1,0 +1,74 @@
+name: VOID public proof seed defaults v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-proof-seed-defaults-v1.yml"
+      - "ops/public/buy-void-public-v1-proof.sh"
+      - "ops/public/buy-void-pool-accounting-v1-proof.sh"
+      - "ops/public/funding-support-v1-proof.sh"
+      - "ops/public/participant-funding-card-v1-proof.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-proof-seed-defaults-v1.yml"
+      - "ops/public/buy-void-public-v1-proof.sh"
+      - "ops/public/buy-void-pool-accounting-v1-proof.sh"
+      - "ops/public/funding-support-v1-proof.sh"
+      - "ops/public/participant-funding-card-v1-proof.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Shell syntax
+        run: |
+          bash -n ops/public/buy-void-public-v1-proof.sh
+          bash -n ops/public/buy-void-pool-accounting-v1-proof.sh
+          bash -n ops/public/funding-support-v1-proof.sh
+          bash -n ops/public/participant-funding-card-v1-proof.sh
+
+      - name: Static canonical seed default proof
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          files = [
+              Path("ops/public/buy-void-public-v1-proof.sh"),
+              Path("ops/public/buy-void-pool-accounting-v1-proof.sh"),
+              Path("ops/public/funding-support-v1-proof.sh"),
+              Path("ops/public/participant-funding-card-v1-proof.sh"),
+          ]
+          canonical = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://seed.nullfeed.org}"'
+          retired_default = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}"'
+          retired_host = "zoso-alienware-aurora-r7.taila47fd.ts.net"
+          retired_ip = "100.122.79.39"
+          hold = "retired Alienware public seed target is forbidden"
+
+          for file in files:
+              text = file.read_text()
+              assert canonical in text, file
+              assert retired_default not in text, file
+              assert retired_host in text, file
+              assert retired_ip in text, file
+              assert hold in text, file
+
+          print("VOID_PUBLIC_PROOF_SEED_DEFAULTS_V1_GREEN")
+          print("canonical_public_seed_default=https://seed.nullfeed.org")
+          print("retired_alienware_default=false")
+          print("retired_alienware_override_rejected=true")
+          print("network_request_performed=false")
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check "origin/${GITHUB_BASE_REF:-main}"...HEAD
