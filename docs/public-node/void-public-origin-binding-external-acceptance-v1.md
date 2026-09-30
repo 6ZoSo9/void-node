@@ -84,6 +84,12 @@ ambient `NODE_OPTIONS`, proxy variables, or other inherited process settings
 cannot change the evidence path. The directory JSON is stored only in a private
 temporary directory so the existing handoff CLI can consume it.
 
+The live collector itself also requires a clean `main` checkout before any
+external collection. Its Git provenance check runs with a minimal fixed
+environment so ambient `GIT_DIR` / `GIT_WORK_TREE` state cannot redirect the
+check. The final receipt binds the exact repository head plus SHA-256 of the
+collector, directory tool, and handoff tool bytes actually used.
+
 The handoff must return:
 
 - marker `VOID_WC_PUBLIC_OPPORTUNITY_HANDOFF_V1`;
@@ -108,6 +114,8 @@ They are **not executed**.
 
 Successful collection writes one create-only mode-0600 JSON receipt containing:
 
+- exact repository head and clean-main assertion;
+- SHA-256 of the collector, directory, and handoff tool bytes;
 - exact public origin/node/fingerprint;
 - raw alias artifact SHA-256;
 - canonical binding SHA-256;
