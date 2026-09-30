@@ -450,6 +450,15 @@ assert.equal(
     /transaction_construction_admission_time_invalid/u,
   );
 }
+{
+  const bad=structuredClone(admission);
+  bad.next_gate="anything_else";
+  bad.construction_admission_id=rehashAdmission(bad);
+  assert.throws(
+    ()=>validateVoidDatanetRegistryTransactionConstructionAdmissionV1(bad),
+    /transaction_construction_admission_invalid/u,
+  );
+}
 
 const runner=fs.readFileSync(
   "ops/precision/void-datanet-registry-transaction-construction-admission-v1.mjs",
