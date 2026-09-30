@@ -644,6 +644,33 @@ export function collectChangedPaths(worktreePath) {
     if (commitPaths.status !== 0) return { complete: false, paths: [] };
     paths.push(...parseNullPaths(commitPaths.stdout));
   }
+
+  // git cherry intentionally omits merge commits. A conflict resolution or
+  // merge-only edit can therefore carry a path that no ordinary commit above
+  // origin/main contains. Enumerate unique merge commits separately and union
+  // every per-parent path they changed into the active worktree claim set.
+  const mergeCommits = git(
+    worktreePath,
+    ["rev-list", "--merges", "origin/main..HEAD"],
+    { check: false },
+  );
+  if (mergeCommits.status !== 0) return { complete: false, paths: [] };
+  for (const mergeCommit of mergeCommits.stdout.split("\n").filter(Boolean)) {
+    if (!/^[0-9a-f]{40}$/.test(mergeCommit)) {
+      return { complete: false, paths: [] };
+    }
+    const mergePaths = git(
+      worktreePath,
+      [
+        "diff-tree", "-m", "--no-commit-id", "--name-only",
+        "-r", "--no-renames", "-z", mergeCommit,
+      ],
+      { check: false },
+    );
+    if (mergePaths.status !== 0) return { complete: false, paths: [] };
+    paths.push(...parseNullPaths(mergePaths.stdout));
+  }
+
   return { complete: true, paths: [...new Set(paths)].sort() };
 }
 
