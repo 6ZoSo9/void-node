@@ -1,6 +1,12 @@
 name: VOID public seed live qualification v1
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
+  schedule:
+    - cron: "17 5 * * *"
   workflow_dispatch:
     inputs:
       endpoint:
@@ -25,38 +31,55 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout exact source
-        uses: actions/checkout@v6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
 
       - name: Use Node.js 24 LTS
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: '24'
 
       - name: Bind workflow to exact reviewed source
         shell: bash
         env:
-          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          INPUT_EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+
+          expected="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            expected="$INPUT_EXPECTED_SOURCE_SHA"
+          fi
+
+          [[ "$expected" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$expected"
           git diff --quiet --ignore-submodules --
           git diff --cached --quiet --ignore-submodules --
+
+          printf 'VOID_QUALIFICATION_SOURCE_SHA=%s\n' "$expected" >> "$GITHUB_ENV"
 
       - name: Qualify stable HTTPS seed across three observations
         shell: bash
         env:
-          PUBLIC_SEED_ENDPOINT: ${{ inputs.endpoint }}
+          INPUT_PUBLIC_SEED_ENDPOINT: ${{ inputs.endpoint }}
         run: |
           set -euo pipefail
-          test "${#PUBLIC_SEED_ENDPOINT}" -le 2048
+
+          endpoint="https://seed.nullfeed.org"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            endpoint="$INPUT_PUBLIC_SEED_ENDPOINT"
+          fi
+
+          test -n "$endpoint"
+          test "${#endpoint}" -le 2048
+          printf 'VOID_QUALIFICATION_ENDPOINT=%s\n' "$endpoint" >> "$GITHUB_ENV"
+
           mkdir -p qualification-output
           node --check scripts/qualify_void_public_seed_v1.mjs
           node --check scripts/build_void_public_bootstrap_manifest_v1.mjs
           node scripts/qualify_void_public_seed_v1.mjs \
-            --endpoint "$PUBLIC_SEED_ENDPOINT" \
+            --endpoint "$endpoint" \
             --samples 3 \
             --interval-ms 30000 \
             --output qualification-output/qualification.json
@@ -73,6 +96,8 @@ jobs:
           const fs = require('node:fs');
           const receipt = JSON.parse(fs.readFileSync('qualification-output/qualification.json', 'utf8'));
           const manifest = JSON.parse(fs.readFileSync('qualification-output/public-bootstrap-v1.json', 'utf8'));
+          const endpoint = process.env.VOID_QUALIFICATION_ENDPOINT;
+
           if (receipt.schema !== 'void_public_seed_qualification_v1') throw new Error('receipt schema mismatch');
           if (!/^voidpsq1_[0-9a-f]{64}$/.test(receipt.qualification_id || '')) throw new Error('receipt ID mismatch');
           if (receipt.sample_count !== 3) throw new Error('receipt sample count mismatch');
@@ -81,12 +106,14 @@ jobs:
           if (!/^voidpbm1_[0-9a-f]{64}$/.test(manifest.manifest_id || '')) throw new Error('manifest ID mismatch');
           if (manifest.status !== 'stable_https_seed') throw new Error('manifest status mismatch');
           if (!Array.isArray(manifest.sync_endpoints) || manifest.sync_endpoints.length !== 1) throw new Error('manifest endpoint count mismatch');
+          if (manifest.sync_endpoints[0].base !== endpoint) throw new Error('manifest endpoint mismatch');
           if (manifest.sync_endpoints[0].temporary !== false) throw new Error('manifest accepted a temporary endpoint');
           for (const value of Object.values(manifest.authority || {})) {
             if (value !== false) throw new Error('manifest authority boundary mismatch');
           }
           NODE
-          printf 'source_sha=%s\n' "$(git rev-parse HEAD)" > qualification-output/source.txt
+
+          printf 'source_sha=%s\n' "$VOID_QUALIFICATION_SOURCE_SHA" > qualification-output/source.txt
           (
             cd qualification-output
             sha256sum qualification.json \
@@ -94,16 +121,19 @@ jobs:
               source.txt \
               > SHA256SUMS
           )
+
           echo 'VOID_PUBLIC_SEED_LIVE_QUALIFICATION_V1_GREEN'
+          echo "trigger=$GITHUB_EVENT_NAME"
+          echo "endpoint=$VOID_QUALIFICATION_ENDPOINT"
           echo 'manifest_published=false'
           echo 'services_deployed=false'
           echo 'credentials_accessed=false'
           echo 'money_movement_authority=false'
 
       - name: Upload qualification and candidate manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: void-public-seed-live-qualification-v1-${{ github.sha }}
+          name: void-public-seed-live-qualification-v1-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: qualification-output/
           if-no-files-found: error
           retention-days: 14
