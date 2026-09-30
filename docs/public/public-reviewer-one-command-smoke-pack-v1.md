@@ -30,7 +30,15 @@ It does not modify `src/index.ts`.
 Set `VOID_BASE_URL` to the public node URL, then run:
 
 ```bash
-VOID_BASE_URL="${VOID_BASE_URL:-https://zoso-alienware-aurora-r7.taila47fd.ts.net}"
+VOID_BASE_URL="${VOID_BASE_URL:-https://seed.nullfeed.org}"
+VOID_BASE_URL_GUARD="${VOID_BASE_URL,,}"
+
+case "$VOID_BASE_URL_GUARD" in
+  *zoso-alienware-aurora-r7.taila47fd.ts.net*|*100.122.79.39*)
+    echo "HOLD: retired Alienware public seed target is forbidden" >&2
+    exit 2
+    ;;
+esac
 
 set -e
 
