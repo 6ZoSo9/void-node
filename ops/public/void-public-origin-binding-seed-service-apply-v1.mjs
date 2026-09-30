@@ -1385,6 +1385,23 @@ function assertRecoveryTargetState(target, journal) {
   });
 }
 
+function assertApplyTargetStillPrevious(
+  target,
+  journal,
+) {
+  const state =
+    assertRecoveryTargetState(
+      target,
+      journal,
+    );
+  if (!state.current_matches_previous) {
+    fail(
+      "seed-service apply target changed before mutation",
+    );
+  }
+  return state;
+}
+
 export function inspectVoidPublicOriginBindingSeedServiceRecoveryV1({
   homeDir = os.homedir(),
 } = {}) {
@@ -1611,6 +1628,7 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
 
   let journal = null;
   let journalPrepared = false;
+  let mutationStarted = false;
   let committed = false;
   let changed = false;
 
@@ -1641,6 +1659,11 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
 
   try {
     if (needsChange) {
+      assertApplyTargetStillPrevious(
+        target,
+        journal,
+      );
+      mutationStarted = true;
       atomicInstallDropin(
         target.dropinDir,
         target.dropinPath,
@@ -1770,24 +1793,30 @@ export async function applyVoidPublicOriginBindingSeedServicePlanV1({
       journalPrepared
       && !committed
     ) {
-      const rollbackFailures =
-        rollbackAfterFailure({
-          target,
-          previous,
-          dropinDirectory,
-          systemctlRunner,
-        });
+      const rollbackFailures = [];
+      if (mutationStarted) {
+        rollbackFailures.push(
+          ...rollbackAfterFailure({
+            target,
+            previous,
+            dropinDirectory,
+            systemctlRunner,
+          }),
+        );
+      }
       if (rollbackFailures.length === 0) {
         try {
           removeApplyJournal(target);
         } catch (journalCleanupError) {
-          rollbackFailures.push(
-            "journal_cleanup:"
-              + String(
-                journalCleanupError?.message
-                  || journalCleanupError,
-              ),
-          );
+          if (journalCleanupError?.code !== "ENOENT") {
+            rollbackFailures.push(
+              "journal_cleanup:"
+                + String(
+                  journalCleanupError?.message
+                    || journalCleanupError,
+                ),
+            );
+          }
         }
       }
       if (rollbackFailures.length > 0) {
