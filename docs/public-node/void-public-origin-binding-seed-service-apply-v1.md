@@ -146,7 +146,10 @@ qualification step fails, the operator restores the exact prior drop-in and
 directory state and reads it back before doing anything else. If restore or
 readback fails, recovery stops immediately and does **not** daemon-reload or
 restart an unknown generation. Only an exact restored generation is followed by
-daemon-reload/restart. The journal is removed only after rollback succeeds. Any
+daemon-reload. If that rollback daemon-reload fails, restart is **not**
+attempted; the journal remains for explicit recovery. A restart is attempted
+only after the restored generation has been successfully reloaded. The journal
+is removed only after rollback succeeds. Any
 restore/readback/reload/restart or journal-cleanup failure is surfaced as
 `rollback_failed`.
 
