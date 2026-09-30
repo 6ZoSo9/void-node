@@ -54,15 +54,29 @@ INSTALL_ROOT="$(dirname "$(dirname "$SELF")")"
 CURRENT="$INSTALL_ROOT/current"
 CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"
 
+run_control_updater(){
+  test -f "$CONTROL_UPDATER" || { printf 'ERROR: %s recovery updater is missing\n' "$MARKER" >&2; exit 1; }
+  test -x "$CURRENT/runtime/bin/node" || { printf 'ERROR: %s verified bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
+  exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" "$@"
+}
+run_control_rollback(){
+  local args=()
+  while test $# -gt 0; do
+    case "$1" in
+      --install-root) test $# -ge 2 || { printf 'ERROR: %s --install-root requires a value\n' "$MARKER" >&2; exit 1; }; shift 2 ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+  run_control_updater rollback --install-root "$INSTALL_ROOT" "${args[@]}"
+}
+
 recovery_required=0
 for artifact in .current.update-next .previous.update-next .rollback.update-transaction-v1.json .rollback.update-transaction-v1.json.next; do
   if test -e "$INSTALL_ROOT/$artifact" || test -L "$INSTALL_ROOT/$artifact"; then recovery_required=1; break; fi
 done
-if test "$recovery_required" = 1; then
-  test -f "$CONTROL_UPDATER" || { printf 'ERROR: %s recovery updater is missing\n' "$MARKER" >&2; exit 1; }
-  test -x "$CURRENT/runtime/bin/node" || { printf 'ERROR: %s verified bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
-  exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT"
-fi
+if test "$recovery_required" = 1; then run_control_rollback; fi
+if test "${1:-}" = rollback; then shift; run_control_rollback "$@"; fi
+if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; run_control_rollback "$@"; fi
 test -x "$CURRENT/bin/void-node" || { printf 'ERROR: %s current release manager is unavailable\n' "$MARKER" >&2; exit 1; }
 exec "$CURRENT/bin/void-node" "$@"
 EOFMANAGER
