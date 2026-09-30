@@ -57,15 +57,24 @@ for (const forbidden of [
   }
 }
 
-const adapterFetches = [
-  ...client.matchAll(/fetch\(\s*([`'"])(.*?)\1/gms),
-].map((match) => match[2]);
+const directFetchCount = client.split("fetch(").length - 1;
+const requestOwnerRunCount =
+  client.split("walletRequestOwner.run(").length - 1;
 
 if (
-  adapterFetches.length !== 1 ||
-  !adapterFetches[0].includes("/__void/ui/wave3/wallet.json?account=")
+  directFetchCount !== 0 ||
+  requestOwnerRunCount !== 1 ||
+  !client.includes(
+    "const route = \`${WALLET_ENDPOINT}?account=\${encodeURIComponent(value)}\`;",
+  ) ||
+  !client.includes("readBoundedNetworkJsonV1(response, signal, lifetime)") ||
+  !client.includes("response.url !== expectedUrl") ||
+  !client.includes("credentials: 'omit'") ||
+  !client.includes("redirect: 'error'") ||
+  !client.includes("mode: 'same-origin'") ||
+  !client.includes("referrerPolicy: 'no-referrer'")
 ) {
-  fail(`frontend must fetch exactly one Wave 3 adapter, found ${adapterFetches.length}`);
+  fail("frontend Wallet transport boundary is not the single reviewed adapter request");
 }
 
 for (const forbidden of [
