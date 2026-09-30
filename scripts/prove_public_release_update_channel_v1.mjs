@@ -22,6 +22,8 @@ need("release/channel/public-release-channel-v1.schema.json",["VOID_PUBLIC_RELEA
 need("tools/build-public-release-channel-v1.mjs",["VOID_PUBLIC_RELEASE_CHANNEL_BUILDER_V1","github_attestation_required","--test-allow-file"]);
 const updater=need("release/bin/void-node-update",[
   "VOID_NODE_RELEASE_UPDATE_V1",
+  "VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1",
+  "ROLLBACK_RECOVERED",
   "downgrade refused",
   "HEALTH_FAIL_ROLLBACK_BEGIN",
   "service_started_implicitly=false",
@@ -39,7 +41,8 @@ for(const forbidden of ['redirect:"follow"',"arrayBuffer()","Number(j?.gap)","Nu
 if(!updater.includes('readHttpBytesBounded(u,64*1024,3000,"health response")'))fail("health response byte ceiling not bound");
 if(!updater.includes("hash.update(chunk)"))fail("asset stream hashing contract missing");
 pass("bounded-network-transport-contract");
-const manager=need("release/bin/void-node",["void-node update check","void-node update apply","bin/void-node-update"]);
+const manager=need("release/bin/void-node",["void-node update check","void-node update apply","bin/void-node-update",'exec "$RELEASE_ROOT/bin/void-node-update" rollback']);
+need("ops/public/install-void-node-v1.sh",["VOID_NODE_STABLE_MANAGER_V1",'CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"',".rollback.update-transaction-v1.json"]);
 need("ops/security/public-release-update-channel-v1-proof.sh",["VOID public release update channel wall v1 proof"]);
 const workflow=need(".github/workflows/public-release-distribution-v1.yml",["public-release-update-channel-v1-proof","build-public-release-channel-v1.mjs","stable-v1.json","(cd dist-release && sha256sum --check --strict SHA256SUMS)"]);
 const checksumCwd=(workflow.match(/\(cd dist-release && sha256sum --check --strict SHA256SUMS\)/g)||[]).length;if(checksumCwd<2)fail(`expected two artifact-directory checksum checks, found ${checksumCwd}`);pass("workflow-checksum-directory-regression");
@@ -62,6 +65,9 @@ try{
   run("bash",[path.join(out1,"install-void-node-v1.sh"),"install","--archive",path.join(out1,m1.archive),"--checksums",path.join(out1,"SHA256SUMS"),"--manifest",path.join(out1,"void-node-release-manifest.json"),"--install-root",installRoot,"--bin-dir",binDir,"--yes"],{env:e});
   if(versionAt(installRoot)!==v1)fail("initial release install mismatch");pass("initial-release-installed");
   const managerPath=path.join(binDir,"void-node");
+  const stableManagerPath=path.join(installRoot,"bin","void-node"),controlUpdaterPath=path.join(installRoot,"control","void-node-update");
+  if(fs.realpathSync(managerPath)!==stableManagerPath||!fs.existsSync(controlUpdaterPath))fail("stable recovery manager/control updater not installed outside current release");
+  pass("stable-recovery-manager-installed");
   const check=run(managerPath,["update","check","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file"],{env:e,capture:true});
   if(!check.includes("update_available=true"))fail("update check did not report update");pass("verified-update-check");
   run(managerPath,["update","apply","--channel",path.join(out2,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e});
@@ -74,7 +80,32 @@ try{
   const tamper=run(managerPath,["update","apply","--channel",path.join(out3,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes"],{env:e,capture:true,allowFail:true});
   if(tamper.status===0||!/size mismatch|checksum mismatch/.test(`${tamper.stdout}${tamper.stderr}`))fail("tampered archive was not rejected");if(versionAt(installRoot)!==v2)fail("tamper rejection changed current release");pass("tampered-asset-rejected");fs.writeFileSync(archive3,backup);
   const health=run(managerPath,["update","apply","--channel",path.join(out3,"stable-v1.json"),"--install-root",installRoot,"--bin-dir",binDir,"--test-allow-file","--skip-attestation","--yes","--health-command","false"],{env:e,capture:true,allowFail:true});
-  if(health.status===0||!`${health.stdout}${health.stderr}`.includes("HEALTH_FAIL_ROLLBACK_BEGIN"))fail("failed health gate did not trigger rollback");if(versionAt(installRoot)!==v2)fail(`health rollback failed; current=${versionAt(installRoot)}`);pass("health-gated-automatic-rollback");
+  if(health.status===0||!`${health.stdout}${health.stderr}`.includes("HEALTH_FAIL_ROLLBACK_BEGIN"))fail("failed health gate did not trigger rollback");if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail(`health rollback failed; current=${versionAt(installRoot)} previous=${previousVersion(installRoot)}`);pass("health-gated-automatic-rollback");
+
+  const interrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{
+    env:{...e,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_CURRENT:"1"},capture:true,allowFail:true,
+  });
+  if(interrupted.status===0||!`${interrupted.stdout}${interrupted.stderr}`.includes("test interruption after current rollback pointer publication"))fail("rollback interruption seam did not stop after current pointer publication");
+  const rollbackJournal=path.join(installRoot,".rollback.update-transaction-v1.json");
+  const previousNext=path.join(installRoot,".previous.update-next");
+  if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v3||!fs.existsSync(rollbackJournal)||!fs.existsSync(previousNext))fail("interrupted rollback did not preserve the expected reconstructable partial state");
+  pass("rollback-interruption-journal-preserved");
+
+  const recovered=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
+  const recoveredOutput=`${recovered.stdout}${recovered.stderr}`;
+  if(recovered.status===0||!recoveredOutput.includes("ROLLBACK_RECOVERED")||!recoveredOutput.includes("recovered interrupted rollback; re-run the requested command"))fail("stable manager did not recover interrupted rollback before dispatch");
+  if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("rollback recovery did not restore coherent current/previous pointers");
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+    if(fs.existsSync(path.join(installRoot,artifact)))fail(`rollback recovery left transaction artifact ${artifact}`);
+  }
+  pass("stable-manager-recovered-interrupted-rollback");
+
+  const postRecoveryVersion=run(managerPath,["version"],{env:e,capture:true});
+  if(!postRecoveryVersion.includes(v3))fail("stable manager did not resume normal current-release dispatch after recovery");
+  run(managerPath,["rollback"],{env:e});
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("post-recovery explicit rollback did not restore expected pointer pair");
+  pass("post-recovery-explicit-rollback");
+
   run(managerPath,["verify"],{env:e});
   run("bash",[path.join(installRoot,"current","install-void-node-v1.sh"),"uninstall","--install-root",installRoot,"--bin-dir",binDir,"--yes","--purge"],{env:e});
   if(fs.existsSync(installRoot)||fs.existsSync(managerPath))fail("uninstall left update-wall artifacts");pass("uninstall-purge-after-update-chain");
