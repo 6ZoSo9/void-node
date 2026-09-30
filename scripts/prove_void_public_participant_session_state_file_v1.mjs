@@ -46,6 +46,20 @@ const malformedRoleStateFile = path.join(
   stateDir,
   "participant-session-malformed-role-state-v1.json",
 );
+const pathnameRaceDir = path.join(temp, "pathname-race-state");
+const pathnameRaceStateFile = path.join(
+  pathnameRaceDir,
+  "participant-session-state-v1.json",
+);
+const pathnameRaceBackupFile =
+  pathnameRaceStateFile + ".opened-original";
+const parentSwapDir = path.join(temp, "parent-swap-state");
+const parentSwapBackupDir =
+  path.join(temp, "parent-swap-state-original");
+const parentSwapStateFile = path.join(
+  parentSwapDir,
+  "participant-session-state-v1.json",
+);
 
 const account = "participant-a";
 const identity = "participant.a";
@@ -142,6 +156,10 @@ try {
   fs.chmodSync(registryDir, 0o700);
   fs.mkdirSync(stateDir, { mode: 0o700 });
   fs.chmodSync(stateDir, 0o700);
+  fs.mkdirSync(pathnameRaceDir, { mode: 0o700 });
+  fs.chmodSync(pathnameRaceDir, 0o700);
+  fs.mkdirSync(parentSwapDir, { mode: 0o700 });
+  fs.chmodSync(parentSwapDir, 0o700);
 
   const login = crypto.generateKeyPairSync("ed25519");
   const wrongLogin = crypto.generateKeyPairSync("ed25519");
@@ -403,6 +421,127 @@ try {
     );
   }
 
+  // Startup parsing is descriptor-bound. Replacing the pathname after the
+  // admitted file descriptor is open must fail even when the replacement has
+  // identical bytes, owner and mode.
+  {
+    const initialized =
+      createVoidPublicParticipantSessionStateFileV1({
+        stateFile: pathnameRaceStateFile,
+      });
+    assert.equal(initialized.challengeCount(), 0);
+    const originalBytes =
+      fs.readFileSync(pathnameRaceStateFile);
+
+    const originalReadSync = fs.readSync;
+    let replacedPath = false;
+    try {
+      fs.readSync = function injectedReadSync(...args) {
+        if (!replacedPath) {
+          replacedPath = true;
+          fs.renameSync(
+            pathnameRaceStateFile,
+            pathnameRaceBackupFile,
+          );
+          fs.writeFileSync(
+            pathnameRaceStateFile,
+            originalBytes,
+            { mode: 0o600 },
+          );
+          fs.chmodSync(pathnameRaceStateFile, 0o600);
+        }
+        return originalReadSync.apply(fs, args);
+      };
+
+      assert.throws(
+        () => createVoidPublicParticipantSessionStateFileV1({
+          stateFile: pathnameRaceStateFile,
+        }),
+        /session_state_file_path_identity_changed/,
+        "pathname replacement escaped descriptor-bound startup read",
+      );
+    } finally {
+      fs.readSync = originalReadSync;
+    }
+    assert.equal(replacedPath, true);
+    assert.equal(
+      fs.readFileSync(pathnameRaceStateFile).equals(originalBytes),
+      true,
+      "replacement fixture bytes drifted",
+    );
+  }
+
+  // Parent-directory custody is retained by dev/inode generation. A same-UID
+  // directory swap after the pre-write check must poison the live store and
+  // must not publish the candidate state into the replacement parent.
+  {
+    const store =
+      createVoidPublicParticipantSessionStateFileV1({
+        stateFile: parentSwapStateFile,
+      });
+    assert.equal(store.challengeCount(), 0);
+
+    const originalOpenSync = fs.openSync;
+    let swappedParent = false;
+    try {
+      fs.openSync = function injectedOpenSync(
+        target,
+        flags,
+        mode,
+      ) {
+        if (
+          !swappedParent &&
+          typeof target === "string" &&
+          target.startsWith(parentSwapDir + path.sep + ".") &&
+          target.includes(".tmp-")
+        ) {
+          swappedParent = true;
+          fs.renameSync(parentSwapDir, parentSwapBackupDir);
+          fs.mkdirSync(parentSwapDir, { mode: 0o700 });
+          fs.chmodSync(parentSwapDir, 0o700);
+        }
+        return originalOpenSync.call(fs, target, flags, mode);
+      };
+
+      assert.throws(
+        () => store.putChallenge({
+          id: "de".repeat(16),
+          nonce: Buffer.alloc(32, 9).toString("base64url"),
+          identity_id: null,
+          account,
+          issued_at_ms: clock,
+          expires_at_ms: clock + 60_000,
+        }),
+        /session_state_parent_identity_changed/,
+        "parent-directory swap escaped retained custody generation",
+      );
+    } finally {
+      fs.openSync = originalOpenSync;
+    }
+
+    assert.equal(swappedParent, true);
+    assert.throws(
+      () => store.challengeCount(),
+      /session_state_store_poisoned/,
+      "parent custody loss did not poison live auth state",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          parentSwapBackupDir,
+          path.basename(parentSwapStateFile),
+        ),
+      ),
+      true,
+      "original admitted state disappeared during parent swap",
+    );
+    assert.equal(
+      fs.existsSync(parentSwapStateFile),
+      false,
+      "candidate state was published into replacement parent",
+    );
+  }
+
   // A failure after the atomic replace is an ambiguous durability terminal:
   // the live store is poisoned rather than rolling authentication state back.
   {
@@ -545,6 +684,10 @@ try {
   console.log("atomic_same_directory_replace=true");
   console.log("file_fsync_before_replace=true");
   console.log("directory_fsync_before_ack=true");
+  console.log("startup_read_descriptor_bound=true");
+  console.log("pathname_replacement_rejected=true");
+  console.log("parent_dev_inode_custody_retained=true");
+  console.log("parent_swap_poisoned=true");
   console.log("post_replace_failure_poisoned=true");
   console.log("ambiguous_commit_cannot_reuse_auth_state=true");
   console.log("role_admission_closed_schema=true");
