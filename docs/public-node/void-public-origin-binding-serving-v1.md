@@ -37,6 +37,10 @@ node-identity trust registry and
 `verifyReviewedVoidNodePublicOriginBindingV1`. Signature, origin, node ID,
 fingerprint, network, surface, expiry, and zero-authority fields must all verify.
 
+Expiry is also re-checked on every exact-route GET/HEAD. A credential that was
+valid when the process started stops being served once its signed expiry is
+reached; a service restart is not required to enforce that transition.
+
 ## Routes
 
 Only these exact aliases are recognized:

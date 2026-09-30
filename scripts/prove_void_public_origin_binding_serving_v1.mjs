@@ -66,13 +66,21 @@ function responseCapture() {
   };
 }
 
-function serve(state, pathname, method = "GET") {
+function serve(
+  state,
+  pathname,
+  method = "GET",
+  servingNowMs = Date.parse(
+    "2026-10-01T00:00:00.000Z",
+  ),
+) {
   const { capture, response } = responseCapture();
   const handled = serveVoidPublicOriginBindingV1(
     { method },
     response,
     new URL(pathname, "https://proof.example"),
     state,
+    { nowMs: servingNowMs },
   );
   return { handled, ...capture };
 }
@@ -210,6 +218,18 @@ try {
   );
   assert.equal(post.status, 405);
   assert.equal(post.headers.allow, "GET, HEAD");
+
+  const expired = serve(
+    state,
+    "/.well-known/void-node-public-origin-binding-v1.json",
+    "GET",
+    Date.parse("2026-10-30T00:00:00.000Z"),
+  );
+  assert.equal(expired.status, 503);
+  assert.match(
+    expired.body.toString("utf8"),
+    /binding_expired/u,
+  );
 
   const unrelated = serve(
     state,
@@ -360,6 +380,8 @@ try {
   console.log("two_aliases_byte_identical=true");
   console.log("get_head_only=true");
   console.log("query_rejected=true");
+  console.log("runtime_expiry_rechecked=true");
+  console.log("expired_binding_not_served=true");
   console.log("disabled_route_not_public=true");
   console.log("partial_configuration_fails_closed=true");
   console.log("public_https_origin_required=true");

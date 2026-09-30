@@ -305,6 +305,7 @@ export function serveVoidPublicOriginBindingV1(
   res,
   url,
   state,
+  { nowMs = Date.now() } = {},
 ) {
   if (!ROUTES.has(url.pathname)) return false;
 
@@ -331,6 +332,29 @@ export function serveVoidPublicOriginBindingV1(
 
   if (state?.configured !== true) {
     sendText(req, res, 404, "not_public\n");
+    return true;
+  }
+
+  if (!Number.isFinite(nowMs)) {
+    sendText(
+      req,
+      res,
+      503,
+      "public_origin_binding_time_invalid\n",
+    );
+    return true;
+  }
+  const expiresAtMs = Date.parse(state.expires_at);
+  if (
+    !Number.isFinite(expiresAtMs)
+    || expiresAtMs <= nowMs
+  ) {
+    sendText(
+      req,
+      res,
+      503,
+      "public_origin_binding_expired\n",
+    );
     return true;
   }
 
