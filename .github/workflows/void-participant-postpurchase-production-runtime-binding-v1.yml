@@ -36,6 +36,9 @@ jobs:
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
       - name: Syntax
         run: |
           node --check tools/void-participant-postpurchase-production-runtime-binding-v1.mjs
