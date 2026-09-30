@@ -370,10 +370,18 @@ try{
   assert.ok(preKeyClockIndex>executeStart);
   assert.ok(executeTimeGateIndex>preKeyClockIndex);
   assert.ok(keyPathIndex>executeTimeGateIndex);
+  const executeSignature=source.slice(
+    executeStart,
+    source.indexOf("}={}){",executeStart)+6,
+  );
   assert.equal(
-    source.includes("nowMs=Date.now()"),
+    executeSignature.includes("nowMs"),
     false,
-    "execution must not freeze a default signing clock at function entry",
+    "execution must not accept or freeze a caller-selected signing clock",
+  );
+  assert.ok(
+    source.includes("nowMs:signingNowMs"),
+    "signed-binding verification must use the fresh pre-signature clock",
   );
 
   console.log(
