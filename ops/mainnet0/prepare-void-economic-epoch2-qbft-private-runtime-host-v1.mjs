@@ -111,6 +111,8 @@ const keyPath=path.join(
 );
 const keyStat=fs.lstatSync(keyPath);
 if(keyStat.isSymbolicLink()||!keyStat.isFile()) throw new Error("nodekey_not_regular");
+if(fs.realpathSync(keyPath)!==keyPath) throw new Error("nodekey_path_not_canonical");
+if(keyStat.nlink!==1) throw new Error("nodekey_link_count_invalid");
 const keyMode=(keyStat.mode & 0o777).toString(8);
 if(keyMode!=="400"&&keyMode!=="600") throw new Error("nodekey_mode_invalid");
 if(keyStat.uid!==process.getuid()) throw new Error("nodekey_owner_invalid");
@@ -231,6 +233,8 @@ const preparation={
     repo_main_clean:true,
     plan_source_head_ancestor:true,
     nodekey_regular_private_mode:true,
+    nodekey_path_canonical:true,
+    nodekey_single_link:true,
     nodekey_content_read:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
