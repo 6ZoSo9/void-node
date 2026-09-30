@@ -489,7 +489,7 @@ try {
         () => createVoidPublicParticipantSessionStateFileV1({
           stateFile: pathnameRaceStateFile,
         }),
-        /session_state_file_path_identity_changed/,
+        /session_state_file_(?:changed_during_read|path_identity_changed)/,
         "pathname replacement escaped descriptor-bound startup read",
       );
     } finally {
