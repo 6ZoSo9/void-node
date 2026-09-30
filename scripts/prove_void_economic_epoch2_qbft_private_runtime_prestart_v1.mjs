@@ -345,7 +345,7 @@ assert.equal(
       evaluated_at_utc:"2030-01-01T00:04:00.000Z",
       receipts:bad,
     }),
-    /start_admission_fact_mismatch:xiphos:nodekey_validator_address_exact/u,
+    /prestart_receipt_fact_mismatch:xiphos:nodekey_validator_address_exact/u,
   );
 }
 {
@@ -360,7 +360,7 @@ assert.equal(
       evaluated_at_utc:"2030-01-01T00:04:00.000Z",
       receipts:bad,
     }),
-    /start_admission_authority_mismatch:nimo:service_start/u,
+    /prestart_receipt_authority_mismatch:nimo:service_start/u,
   );
 }
 {
