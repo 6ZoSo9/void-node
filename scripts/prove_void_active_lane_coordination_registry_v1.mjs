@@ -797,7 +797,8 @@ try {
   execFileSync("git", ["-C", mainSyncTemp, "config", "user.name", "VOID Proof"]);
   execFileSync("git", ["-C", mainSyncTemp, "config", "user.email", "void-proof@example.invalid"]);
   writeFileSync(join(mainSyncTemp, "base.txt"), "base\n");
-  execFileSync("git", ["-C", mainSyncTemp, "add", "base.txt"]);
+  writeFileSync(join(mainSyncTemp, "shared.txt"), "base\n");
+  execFileSync("git", ["-C", mainSyncTemp, "add", "base.txt", "shared.txt"]);
   execFileSync("git", ["-C", mainSyncTemp, "commit", "--quiet", "-m", "base"]);
   const syncBase = execFileSync(
     "git", ["-C", mainSyncTemp, "rev-parse", "HEAD"], { encoding: "utf8" },
@@ -810,7 +811,10 @@ try {
 
   execFileSync("git", ["-C", mainSyncTemp, "switch", "--quiet", "-c", "main", syncBase]);
   writeFileSync(join(mainSyncTemp, "upstream-only.txt"), "upstream\n");
-  execFileSync("git", ["-C", mainSyncTemp, "add", "upstream-only.txt"]);
+  writeFileSync(join(mainSyncTemp, "shared.txt"), "upstream-change\n");
+  execFileSync("git", [
+    "-C", mainSyncTemp, "add", "upstream-only.txt", "shared.txt",
+  ]);
   execFileSync("git", ["-C", mainSyncTemp, "commit", "--quiet", "-m", "upstream"]);
   const syncMain = execFileSync(
     "git", ["-C", mainSyncTemp, "rev-parse", "HEAD"], { encoding: "utf8" },
@@ -821,12 +825,20 @@ try {
 
   execFileSync("git", ["-C", mainSyncTemp, "switch", "--quiet", "lane"]);
   execFileSync("git", [
-    "-C", mainSyncTemp, "merge", "--quiet", "--no-ff",
-    "refs/remotes/origin/main", "-m", "sync main",
+    "-C", mainSyncTemp, "merge", "--quiet", "--no-ff", "--no-commit",
+    "refs/remotes/origin/main",
+  ]);
+  // Deliberately keep the lane/base version of a file changed on main. This is
+  // a lane-owned merge decision even though the resulting bytes equal the
+  // first parent; combined merge diffs omit this case.
+  writeFileSync(join(mainSyncTemp, "shared.txt"), "base\n");
+  execFileSync("git", ["-C", mainSyncTemp, "add", "shared.txt"]);
+  execFileSync("git", [
+    "-C", mainSyncTemp, "commit", "--quiet", "-m", "sync main with lane resolution",
   ]);
   assert.deepEqual(collectChangedPaths(mainSyncTemp), {
     complete: true,
-    paths: ["lane-only.txt"],
+    paths: ["lane-only.txt", "shared.txt"],
   });
 } finally {
   rmSync(mainSyncTemp, { recursive: true, force: true });
@@ -850,6 +862,7 @@ console.log("exploration_permission_green=true");
 console.log("changed_path_enumeration_green=true");
 console.log("merge_only_changed_path_enumeration_green=true");
 console.log("main_sync_upstream_paths_excluded_green=true");
+console.log("main_sync_lane_resolution_retained_green=true");
 console.log("focused_workflow_self_enforcement_green=true");
 console.log("recent_remote_pre_pr_path_collision_green=true");
 console.log("recent_remote_pre_pr_freshness_window_green=true");
