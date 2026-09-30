@@ -60,7 +60,8 @@ jobs:
               "ops/public/public-landing-v1-proof.sh",
           ]:
               text = Path(path).read_text()
-              assert f'PUBLIC_SEED_BASE="${{PUBLIC_SEED_BASE:-{base}}}"' in text, path
+              expected = 'PUBLIC_SEED_BASE="${PUBLIC_SEED_BASE:-' + base + '}"'
+              assert expected in text, (path, expected)
               assert retired not in text, path
 
           vps = Path("ops/public/vps-public-seed-internet-proof-v2.sh").read_text()
