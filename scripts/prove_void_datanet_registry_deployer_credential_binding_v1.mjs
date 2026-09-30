@@ -353,6 +353,56 @@ assert.equal(binding.signing_authorized,false);
   assert.equal(held.credential_content_access_performed,false);
   assert.equal(held.private_key_access_performed,false);
 }
+{
+  const expiredCandidate=structuredClone(candidate);
+  expiredCandidate.valid_until_utc="2030-01-01T00:06:59.000Z";
+  const held=await runVoidDatanetRegistryDeployerCredentialBindingV1({
+    confirmation:
+      VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
+    deployer_selection:selection,
+    unsigned_transaction_candidate:expiredCandidate,
+    candidate_evidence:candidateEvidence,
+    credentials_directory:"/not/used",
+    bound_at_utc:"2030-01-01T00:07:00.000Z",
+    bound_on_host:"Nimo",
+    observed_repo_head:"a".repeat(40),
+  });
+  assert.equal(held.ok,false);
+  assert.equal(held.reason,"registry_deployer_public_binding_input_invalid");
+  assert.equal(held.credential_content_access_performed,false);
+  assert.equal(held.private_key_access_performed,false);
+}
+for(const badContext of [
+  {
+    bound_at_utc:"2030-02-30T00:07:00.000Z",
+    bound_on_host:"Nimo",
+    observed_repo_head:"a".repeat(40),
+  },
+  {
+    bound_at_utc:"2030-01-01T00:07:00.000Z",
+    bound_on_host:"Precision",
+    observed_repo_head:"a".repeat(40),
+  },
+  {
+    bound_at_utc:"2030-01-01T00:07:00.000Z",
+    bound_on_host:"Nimo",
+    observed_repo_head:"not-a-sha",
+  },
+]){
+  const held=await runVoidDatanetRegistryDeployerCredentialBindingV1({
+    confirmation:
+      VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
+    deployer_selection:selection,
+    unsigned_transaction_candidate:candidate,
+    candidate_evidence:candidateEvidence,
+    credentials_directory:"/not/used",
+    ...badContext,
+  });
+  assert.equal(held.ok,false);
+  assert.equal(held.reason,"registry_deployer_public_binding_input_invalid");
+  assert.equal(held.credential_content_access_performed,false);
+  assert.equal(held.private_key_access_performed,false);
+}
 
 const toolSource=fs.readFileSync(
   "tools/void-datanet-registry-deployer-credential-binding-v1.mjs",
@@ -430,6 +480,8 @@ console.log("VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_V1_PROOF_GREEN");
 console.log("fixed_credential_id=true");
 console.log("explicit_identity_binding_confirmation_required=true");
 console.log("public_candidate_validated_before_key_access=true");
+console.log("candidate_expiry_checked_before_key_access=true");
+console.log("canonical_binding_context_checked_before_key_access=true");
 console.log("private_directory_required=true");
 console.log("credential_no_follow=true");
 console.log("credential_single_hard_link_required=true");
