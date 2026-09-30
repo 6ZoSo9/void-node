@@ -81,26 +81,35 @@ export function requiredVoidDatanetRegistryDeploymentBroadcastConfirmationV1(
   ].join(":");
 }
 
-export function verifyVoidDatanetRegistrySignedTransactionAgainstLineageV1(
+export function verifyVoidDatanetRegistrySignedTransactionAgainstLineageWithDependenciesV1(
   input,
+  dependencies,
 ){
-  const candidate=validateVoidDatanetRegistryUnsignedTransactionCandidateV1(
+  if(
+    !dependencies||
+    typeof dependencies.validate_candidate!=="function"||
+    typeof dependencies.validate_signing_request!=="function"||
+    typeof dependencies.validate_signing_authorization!=="function"||
+    typeof dependencies.validate_signed_transaction!=="function"
+  ){
+    throw new Error("registry_signed_verification_dependencies_invalid");
+  }
+  const candidate=dependencies.validate_candidate(
     input?.unsigned_transaction_candidate,
     input?.candidate_evidence,
   );
-  const request=validateVoidDatanetRegistryExactSigningRequestV1(
+  const request=dependencies.validate_signing_request(
     input?.signing_request,
     input?.signing_request_evidence,
   );
-  const authorization=
-    validateVoidDatanetRegistrySingleTransactionSigningAuthorizationV1(
-      input?.signing_authorization,
-      {
-        signing_request:request,
-        signing_request_evidence:input?.signing_request_evidence,
-      },
-    );
-  const signed=validateVoidDatanetRegistrySignedTransactionV1(
+  const authorization=dependencies.validate_signing_authorization(
+    input?.signing_authorization,
+    {
+      signing_request:request,
+      signing_request_evidence:input?.signing_request_evidence,
+    },
+  );
+  const signed=dependencies.validate_signed_transaction(
     input?.signed_transaction,
   );
 
@@ -240,6 +249,24 @@ export function verifyVoidDatanetRegistrySignedTransactionAgainstLineageV1(
     signed_transaction_verification_id:
       "voiddrstv1_"+sha256(Buffer.from(canonicalJson(material))),
   });
+}
+
+export function verifyVoidDatanetRegistrySignedTransactionAgainstLineageV1(
+  input,
+){
+  return verifyVoidDatanetRegistrySignedTransactionAgainstLineageWithDependenciesV1(
+    input,
+    {
+      validate_candidate:
+        validateVoidDatanetRegistryUnsignedTransactionCandidateV1,
+      validate_signing_request:
+        validateVoidDatanetRegistryExactSigningRequestV1,
+      validate_signing_authorization:
+        validateVoidDatanetRegistrySingleTransactionSigningAuthorizationV1,
+      validate_signed_transaction:
+        validateVoidDatanetRegistrySignedTransactionV1,
+    },
+  );
 }
 
 export function validateVoidDatanetRegistrySignedTransactionVerificationV1(
