@@ -36,6 +36,7 @@ const updater=need("release/bin/void-node-update",[
   "ROLLBACK_PREP_RECOVERED",
   "ROLLBACK_RECOVERED",
   "restart_if_active",
+  "escapes canonical releases directory",
   "downgrade refused",
   "HEALTH_FAIL_ROLLBACK_BEGIN",
   "service_started_implicitly=false",
@@ -126,6 +127,19 @@ exit 2
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v1)fail("apply did not establish current/previous pointers");pass("verified-apply-current-previous");
 
   const historicalPrevious=fs.realpathSync(path.join(installRoot,"previous"));
+  const previousPointer=path.join(installRoot,"previous"),externalPrevious=path.join(tmp,"external-previous-release");
+  fs.cpSync(historicalPrevious,externalPrevious,{recursive:true});
+  fs.unlinkSync(previousPointer);fs.symlinkSync(externalPrevious,previousPointer);
+  const externalRollback=run(managerPath,["rollback"],{env:e,capture:true,allowFail:true});
+  const externalRollbackOutput=`${externalRollback.stdout}${externalRollback.stderr}`;
+  if(externalRollback.status===0||!externalRollbackOutput.includes("previous release pointer escapes canonical releases directory"))fail("rollback accepted a previous pointer outside canonical releases");
+  if(versionAt(installRoot)!==v2||fs.realpathSync(previousPointer)!==fs.realpathSync(externalPrevious))fail("external-pointer rejection mutated canonical rollback state");
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+    if(fs.existsSync(path.join(installRoot,artifact)))fail(`external-pointer rejection left rollback artifact ${artifact}`);
+  }
+  fs.unlinkSync(previousPointer);fs.symlinkSync(historicalPrevious,previousPointer);
+  pass("rollback-rejects-external-release-pointer-before-mutation");
+
   replaceReleaseManagerWithValidFailFixture(historicalPrevious);
   run(managerPath,["rollback"],{env:e});
   if(versionAt(installRoot)!==v1||previousVersion(installRoot)!==v2)fail("first downgrade-safety rollback did not enter historical release");
