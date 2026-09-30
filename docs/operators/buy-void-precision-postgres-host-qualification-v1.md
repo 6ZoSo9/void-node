@@ -68,9 +68,15 @@ Instead, the wrapper pins Git blob identities for:
 Every live-checkout blob must match the reviewed source generation exactly.
 
 The installed `91` and `94` drop-ins must be byte-identical to source.
-The live `92` may contain operator-private source paths, so only its two fixed
-credential IDs are inspected. The generic `93` dormant overlay must be absent
-on Precision because `94` is the designated-host reconciliation overlay.
+The live `92` may contain operator-private source paths, so its active directive
+shape is restricted to exactly `[Service]` plus one password and one CA
+`LoadCredential=` binding. The generic `93` dormant overlay must be absent on
+Precision because `94` is the designated-host reconciliation overlay.
+
+The wrapper also binds the actually executed package tree to the reviewed lock:
+live `node_modules/pg` must report exactly `8.23.0` and live
+`node_modules/tsx` exactly `4.20.6` before any credential is read or database
+connection is attempted.
 
 ## Credential boundary
 
