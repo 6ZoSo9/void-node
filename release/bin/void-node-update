@@ -95,7 +95,10 @@ function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
 function serviceActive(){return managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;}
 function finalizeRollbackTransaction(installRoot,paths,journal,testInterruptBeforeRestart){
   if(testInterruptBeforeRestart)fail("test interruption after rollback pointer publication before service restart");
-  if(journal.restart_if_active&&serviceActive())run("systemctl",["--user","restart","void-node.service"]);
+  if(journal.restart_if_active){
+    if(!managerAvailable())fail("rollback transaction requires systemd user manager to restore previously active service");
+    run("systemctl",["--user","restart","void-node.service"]);
+  }
   fs.unlinkSync(paths.journal);fsyncDirectory(installRoot);
 }
 function recoverRollbackPreparation(installRoot,paths){
