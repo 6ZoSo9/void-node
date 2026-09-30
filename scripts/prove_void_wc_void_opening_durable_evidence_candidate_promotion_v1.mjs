@@ -50,6 +50,16 @@ const COUPLED = path.join(
   ROOT,
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
 );
+const SUCCESSOR = path.join(
+  ROOT,
+  "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
+);
+const PRODUCTION_REL =
+  "ops/mainnet0/wc-void-production-candidate-v1.json";
+const COUPLED_REL =
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const SUCCESSOR_REL =
+  "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 
 function gitValue(args) {
   const result = spawnSync(
@@ -70,8 +80,14 @@ function gitValue(args) {
 
 const HEAD = gitValue(["rev-parse", "HEAD"]);
 const TREE = gitValue(["rev-parse", "HEAD^{tree}"]);
+const PRODUCTION_BLOB = gitValue(["rev-parse", `HEAD:${PRODUCTION_REL}`]);
+const COUPLED_BLOB = gitValue(["rev-parse", `HEAD:${COUPLED_REL}`]);
+const SUCCESSOR_BLOB = gitValue(["rev-parse", `HEAD:${SUCCESSOR_REL}`]);
 assert.match(HEAD, /^[0-9a-f]{40}$/);
 assert.match(TREE, /^[0-9a-f]{40}$/);
+assert.match(PRODUCTION_BLOB, /^[0-9a-f]{40}$/);
+assert.match(COUPLED_BLOB, /^[0-9a-f]{40}$/);
+assert.match(SUCCESSOR_BLOB, /^[0-9a-f]{40}$/);
 assert.equal(
   gitValue(["status", "--porcelain=v1", "--untracked-files=all"]),
   "",
@@ -299,6 +315,18 @@ try {
   );
   assert.equal(promotion.repository_head_sha, HEAD);
   assert.equal(promotion.repository_tree_sha, TREE);
+  assert.equal(
+    promotion.production_candidate_git_blob_sha1,
+    PRODUCTION_BLOB,
+  );
+  assert.equal(
+    promotion.coupled_candidate_git_blob_sha1,
+    COUPLED_BLOB,
+  );
+  assert.equal(
+    promotion.successor_candidate_git_blob_sha1,
+    SUCCESSOR_BLOB,
+  );
   assert.equal(promotion.request_file_sha256, requestSha);
   assert.equal(promotion.coupled_launch_id, launchId);
   assert.equal(promotion.mode, "finalize");
@@ -525,6 +553,7 @@ console.log(
 console.log("real_inspector_composition_green=true");
 console.log("claim_and_replay_binding_identity_equal=true");
 console.log("clean_repository_generation_bound=true");
+console.log("canonical_candidate_bytes_bound_to_head_blobs=true");
 console.log("production_candidate_exact_two_gate_delta=true");
 console.log("coupled_candidate_exact_one_gate_delta=true");
 console.log("production_candidate_file_updated=false");
