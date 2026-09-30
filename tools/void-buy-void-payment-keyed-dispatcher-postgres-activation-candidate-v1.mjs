@@ -173,7 +173,9 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
 
   if (
     typeof value.reviewed_source_main_commit !== "string" ||
-    !HEX40.test(value.reviewed_source_main_commit)
+    !HEX40.test(value.reviewed_source_main_commit) ||
+    value.reviewed_source_main_commit !==
+      "eef17f65a8bd495d581df3b91d9a411a5402cde8"
   ) {
     fail("reviewed_source_main_commit_invalid");
   }
