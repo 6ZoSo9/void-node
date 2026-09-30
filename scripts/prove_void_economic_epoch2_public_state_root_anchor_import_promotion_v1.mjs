@@ -169,7 +169,7 @@ function digest(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-function promote({
+async function promote({
   membershipValue=membership(),
   confirmation=
     VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_CONFIRMATION_V1,
@@ -189,7 +189,7 @@ function promote({
   });
 }
 
-const result=promote();
+const result=await promote();
 assert.equal(
   result.promotion.marker,
   VOID_ECONOMIC_EPOCH2_PUBLIC_STATE_ROOT_ANCHOR_IMPORT_PROMOTION_V1,
@@ -213,6 +213,10 @@ assert.equal(
   true,
 );
 assert.equal(
+  result.promotion.verification.verified_before_authority_module_load,
+  true,
+);
+assert.equal(
   result.promotion.verification.caller_supplied_canonical_inputs_rejected,
   true,
 );
@@ -225,6 +229,10 @@ assert.equal(
   "exact_reviewed_git_blob_set_v1",
 );
 assert.equal(result.promotion.canonical_source.exact_git_blob_sha1_verified,true);
+assert.equal(
+  result.promotion.canonical_source.verified_before_authority_module_load,
+  true,
+);
 assert.equal(result.promotion.canonical_source.caller_supplied_anchor_payload,false);
 assert.equal(
   result.promotion.canonical_source.caller_supplied_migration_candidate,
@@ -291,24 +299,24 @@ assert.deepEqual(
   ["public_economic_verification_path_required"],
 );
 
-const repeat=promote();
+const repeat=await promote();
 assert.equal(repeat.promotion.promotion_id,result.promotion.promotion_id);
 
-assert.throws(
+await assert.rejects(
   ()=>promote({expectedSha:"0".repeat(64)}),
   /reviewed_membership_sha256_mismatch/,
 );
-assert.throws(
+await assert.rejects(
   ()=>promote({confirmation:"wrong"}),
   /review_confirmation_required/,
 );
-assert.throws(
+await assert.rejects(
   ()=>promote({
     registryAddress:"0x3333333333333333333333333333333333333333",
   }),
   /state_root_anchor_admission_candidate_invalid/,
 );
-assert.throws(
+await assert.rejects(
   ()=>promote({
     publisherAddress:"0x3333333333333333333333333333333333333333",
   }),
@@ -318,7 +326,7 @@ assert.throws(
 {
   const already=structuredClone(migration);
   already.public_verification.successor_state_root_public_void_anchor_ready=true;
-  assert.throws(
+  await assert.rejects(
     ()=>promote({extraInput:{migrationCandidate:already}}),
     /promotion_input_keys_invalid/,
   );
@@ -336,11 +344,11 @@ assert.throws(
     classifyVoidEconomicEvmSuccessorMigrationV1(wouldBePromoted);
   assert.equal(wouldBeClassified.status,"SOURCE_READY");
 
-  assert.throws(
+  await assert.rejects(
     ()=>promote({extraInput:{migrationCandidate:noncanonical}}),
     /promotion_input_keys_invalid/,
   );
-  assert.throws(
+  await assert.rejects(
     ()=>promote({extraInput:{payloadBytes:payload}}),
     /promotion_input_keys_invalid/,
   );
@@ -370,6 +378,15 @@ assert.doesNotMatch(source,/eth_sendRawTransaction|eth_sendTransaction/u);
 assert.doesNotMatch(source,/new\s+Wallet\s*\(/u);
 assert.doesNotMatch(source,/child_process|\bfetch\s*\(/u);
 assert.doesNotMatch(source,/git\s+(?:add|commit|push|merge|checkout|reset)/u);
+assert.doesNotMatch(
+  source,
+  /from "\.\/void-economic-epoch2-public-state-root-anchor-admission-v1\.mjs"/u,
+);
+assert.doesNotMatch(
+  source,
+  /from "\.\/void-economic-evm-successor-migration-v1\.mjs"/u,
+);
+assert.match(source,/await import\(/u);
 assert.match(source,/reviewed_membership_sha256_mismatch/u);
 assert.match(source,/review_confirmation_required/u);
 assert.match(source,/canonical_source_git_blob_mismatch/u);
@@ -382,6 +399,7 @@ console.log(
 console.log("reviewed_membership_digest_required=true");
 console.log("explicit_review_confirmation_required=true");
 console.log("canonical_git_blob_set_verified=true");
+console.log("verified_before_authority_module_load=true");
 console.log("caller_supplied_canonical_inputs_rejected=true");
 console.log("noncanonical_public_read_gate_source_ready_adversary_rejected=true");
 console.log("canonical_truth_admission_rederived=true");
