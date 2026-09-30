@@ -18,6 +18,10 @@ import {
   validateVoidDatanetRegistryDeployerSelectionV1,
 } from "../tools/void-datanet-registry-deployer-credential-binding-v1.mjs";
 
+import {
+  buildVoidDatanetRegistryUnsignedCandidateFixtureV1,
+} from "./fixtures/void-datanet-registry-unsigned-candidate-fixture-v1.mjs";
+
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -176,27 +180,14 @@ try{
   fs.rmSync(tmp,{recursive:true,force:true});
 }
 
-const candidate={
-  marker:"VOID_DATANET_REGISTRY_UNSIGNED_TRANSACTION_CANDIDATE_V1",
-  version:1,
-  status:"UNSIGNED_SIGNABLE_TRANSACTION_CANDIDATE_READY_SIGNING_HOLD",
-  candidate_id:"voiddrtxc1_"+"1".repeat(64),
-  valid_until_utc:"2030-01-01T00:08:00.000Z",
-  signing_authorized:false,
-  transaction:{
-    from_address:VOID_DATANET_REGISTRY_DEPLOYER_ADDRESS_V1,
-    unsigned_transaction_hash:"0x"+"2".repeat(64),
-  },
-  transaction_fingerprint_sha256:"3".repeat(64),
-};
-const candidateEvidence={fixture:"public-candidate-evidence"};
-let candidateValidatorCalls=0;
-const candidateValidator=(value,evidence)=>{
-  candidateValidatorCalls+=1;
-  assert.equal(value,candidate);
-  assert.equal(evidence,candidateEvidence);
-  return value;
-};
+const canonicalFixture=
+  await buildVoidDatanetRegistryUnsignedCandidateFixtureV1();
+const candidate=canonicalFixture.candidate;
+const candidateEvidence=canonicalFixture.candidateEvidence;
+assert.equal(
+  canonicalFixture.deployerSelection.deployer_address,
+  selection.deployer_address,
+);
 const goodCredentialObservation={
   ok:true,
   marker:"VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_FILE_OBSERVATION_V1",
@@ -226,7 +217,6 @@ const binding=buildVoidDatanetRegistryDeployerCredentialBindingV1({
   deployer_selection:selection,
   unsigned_transaction_candidate:candidate,
   candidate_evidence:candidateEvidence,
-  candidate_validator:candidateValidator,
   credential_observation:goodCredentialObservation,
   bound_at_utc:"2030-01-01T00:07:00.000Z",
   bound_on_host:"Nimo",
@@ -286,7 +276,6 @@ assert.equal(binding.signing_authorized,false);
       deployer_selection:selection,
       unsigned_transaction_candidate:candidate,
       candidate_evidence:candidateEvidence,
-      candidate_validator:candidateValidator,
       credential_observation:badObservation,
       bound_at_utc:"2030-01-01T00:07:00.000Z",
       bound_on_host:"Nimo",
@@ -301,7 +290,6 @@ assert.equal(binding.signing_authorized,false);
       deployer_selection:selection,
       unsigned_transaction_candidate:candidate,
       candidate_evidence:candidateEvidence,
-      candidate_validator:candidateValidator,
       credential_observation:goodCredentialObservation,
       bound_at_utc:"2030-01-01T00:09:00.000Z",
       bound_on_host:"Nimo",
@@ -327,90 +315,44 @@ assert.equal(binding.signing_authorized,false);
   );
 }
 
-let observerCalls=0;
-const neverObserver=async()=>{
-  observerCalls+=1;
-  throw new Error("observer_must_not_run");
-};
 {
-  const held=await runVoidDatanetRegistryDeployerCredentialBindingV1(
-    {
-      confirmation:"wrong",
-      deployer_selection:selection,
-      unsigned_transaction_candidate:candidate,
-      candidate_evidence:candidateEvidence,
-      credentials_directory:"/not/used",
-      bound_at_utc:"2030-01-01T00:07:00.000Z",
-      bound_on_host:"Nimo",
-      observed_repo_head:"a".repeat(40),
-    },
-    {
-      candidate_validator:candidateValidator,
-      credential_observer:neverObserver,
-    },
-  );
+  const held=await runVoidDatanetRegistryDeployerCredentialBindingV1({
+    confirmation:"wrong",
+    deployer_selection:selection,
+    unsigned_transaction_candidate:candidate,
+    candidate_evidence:candidateEvidence,
+    credentials_directory:"/not/used",
+    bound_at_utc:"2030-01-01T00:07:00.000Z",
+    bound_on_host:"Nimo",
+    observed_repo_head:"a".repeat(40),
+  });
   assert.equal(held.ok,false);
   assert.equal(
     held.reason,
     "registry_deployer_credential_binding_confirmation_required",
   );
-  assert.equal(observerCalls,0);
+  assert.equal(held.credential_content_access_performed,false);
+  assert.equal(held.private_key_access_performed,false);
 }
 {
-  const held=await runVoidDatanetRegistryDeployerCredentialBindingV1(
-    {
-      confirmation:
-        VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
-      deployer_selection:selection,
-      unsigned_transaction_candidate:candidate,
-      candidate_evidence:candidateEvidence,
-      credentials_directory:"/not/used",
-      bound_at_utc:"2030-01-01T00:07:00.000Z",
-      bound_on_host:"Nimo",
-      observed_repo_head:"a".repeat(40),
-    },
-    {
-      candidate_validator:()=>{throw new Error("candidate_invalid");},
-      credential_observer:neverObserver,
-    },
-  );
-  assert.equal(held.ok,false);
-  assert.equal(held.reason,"registry_deployer_public_binding_input_invalid");
-  assert.equal(observerCalls,0);
-}
-
-let successObserverCalls=0;
-const success=await runVoidDatanetRegistryDeployerCredentialBindingV1(
-  {
+  const badCandidate=structuredClone(candidate);
+  badCandidate.candidate_id="voiddrtxc1_"+"0".repeat(64);
+  const held=await runVoidDatanetRegistryDeployerCredentialBindingV1({
     confirmation:
       VOID_DATANET_REGISTRY_DEPLOYER_CREDENTIAL_BINDING_CONFIRMATION_V1,
     deployer_selection:selection,
-    unsigned_transaction_candidate:candidate,
+    unsigned_transaction_candidate:badCandidate,
     candidate_evidence:candidateEvidence,
-    credentials_directory:"/fixture/not-recorded",
+    credentials_directory:"/not/used",
     bound_at_utc:"2030-01-01T00:07:00.000Z",
     bound_on_host:"Nimo",
     observed_repo_head:"a".repeat(40),
-  },
-  {
-    candidate_validator:candidateValidator,
-    credential_observer:async()=>{
-      successObserverCalls+=1;
-      return goodCredentialObservation;
-    },
-  },
-);
-assert.equal(success.ok,true);
-assert.equal(successObserverCalls,1);
-assert.equal(success.binding.credential_binding_id,binding.credential_binding_id);
-assert.equal(success.raw_private_key_output,false);
-assert.equal(success.private_key_digest_output,false);
-assert.equal(success.signer_object_exposed,false);
-assert.equal(success.signing_performed,false);
-assert.equal(success.transaction_submission_performed,false);
-assert.equal(success.transaction_broadcast_performed,false);
-assert.equal(success.chain2050_write_performed,false);
-assert.equal(success.funds_movement_performed,false);
+  });
+  assert.equal(held.ok,false);
+  assert.equal(held.reason,"registry_deployer_public_binding_input_invalid");
+  assert.equal(held.credential_content_access_performed,false);
+  assert.equal(held.private_key_access_performed,false);
+}
 
 const toolSource=fs.readFileSync(
   "tools/void-datanet-registry-deployer-credential-binding-v1.mjs",
@@ -424,6 +366,8 @@ for(const required of [
   'privateKey=""',
   "validateVoidDatanetRegistryUnsignedTransactionCandidateV1",
   "validateCandidateForCredentialBindingV1",
+  "observeVoidDatanetRegistryDeployerCredentialFileV1",
+  "registry_deployer_credential_binding_confirmation_required",
   "registry_deployer_public_binding_input_invalid",
   "private_path_not_recorded:true",
   '"bindDatanetRegistryDeployerCredentialIdentityV1"',
@@ -431,6 +375,11 @@ for(const required of [
   assert.ok(toolSource.includes(required),required);
 }
 for(const forbidden of [
+  "input?.candidate_validator",
+  "dependencies.candidate_validator",
+  "dependencies.credential_observer",
+  "dependencies={}",
+  "candidate_validator:candidateValidator",
   "console.log(privateKey",
   "console.log(bytes",
   "sha256(privateKey",
