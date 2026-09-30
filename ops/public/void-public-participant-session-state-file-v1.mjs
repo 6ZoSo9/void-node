@@ -64,6 +64,18 @@ const SESSION_KEYS = Object.freeze([
   "role_admission",
   "token_sha256",
 ]);
+const ROLE_ADMISSION_KEYS = Object.freeze([
+  "account_id",
+  "authority_policy_sha256",
+  "chain_id",
+  "identity_id",
+  "role",
+  "role_authority_generation",
+  "role_record_sha256",
+  "role_registry_binding_descriptor_sha256",
+  "schema",
+  "subject_binding_sha256",
+]);
 
 function plain(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -156,18 +168,44 @@ function canonicalChallengeRow(value) {
 
 function canonicalRoleAdmission(value) {
   if (value === null) return null;
-  if (!plain(value)) {
+  exactObject(
+    value,
+    ROLE_ADMISSION_KEYS,
+    "session_state_role_admission",
+  );
+  if (
+    value.schema !== "void.participant-role-authority-admission.v1" ||
+    value.chain_id !== 2050 ||
+    value.role !== "AGENT" ||
+    typeof value.subject_binding_sha256 !== "string" ||
+    !SHA256_RE.test(value.subject_binding_sha256) ||
+    typeof value.authority_policy_sha256 !== "string" ||
+    !SHA256_RE.test(value.authority_policy_sha256) ||
+    typeof value.role_record_sha256 !== "string" ||
+    !SHA256_RE.test(value.role_record_sha256) ||
+    typeof value.role_registry_binding_descriptor_sha256 !== "string" ||
+    !SHA256_RE.test(
+      value.role_registry_binding_descriptor_sha256,
+    )
+  ) {
     throw new Error("session_state_role_admission_invalid");
   }
-  const encoded = JSON.stringify(value);
-  if (
-    typeof encoded !== "string" ||
-    Buffer.byteLength(encoded, "utf8") >
-      VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1.max_role_admission_bytes
-  ) {
-    throw new Error("session_state_role_admission_too_large");
-  }
-  return structuredClone(value);
+  return Object.freeze({
+    schema: "void.participant-role-authority-admission.v1",
+    chain_id: 2050,
+    identity_id: canonicalIdentity(value.identity_id),
+    account_id: canonicalAccount(value.account_id),
+    role: "AGENT",
+    subject_binding_sha256: value.subject_binding_sha256,
+    authority_policy_sha256: value.authority_policy_sha256,
+    role_authority_generation: canonicalUint64(
+      value.role_authority_generation,
+      "session_state_role_authority_generation",
+    ),
+    role_record_sha256: value.role_record_sha256,
+    role_registry_binding_descriptor_sha256:
+      value.role_registry_binding_descriptor_sha256,
+  });
 }
 
 function canonicalSessionRow(value) {
@@ -313,6 +351,14 @@ function fsyncDirectory(parent) {
   }
 }
 
+function markReplaceState(error, replaced) {
+  const value = error instanceof Error
+    ? error
+    : new Error("session_state_persistence_failed");
+  value.session_state_replace_committed = replaced === true;
+  return value;
+}
+
 function writeSnapshotAtomic(target, snapshot) {
   const canonical = canonicalSnapshot(snapshot);
   const rendered = JSON.stringify(canonical, null, 2) + "\n";
@@ -332,6 +378,8 @@ function writeSnapshotAtomic(target, snapshot) {
         crypto.randomBytes(8).toString("hex"),
     );
   let fd = null;
+  let replaced = false;
+  let primaryError = null;
   try {
     fd = fs.openSync(
       temp,
@@ -352,22 +400,30 @@ function writeSnapshotAtomic(target, snapshot) {
     }
 
     fs.renameSync(temp, target);
+    replaced = true;
     fs.chmodSync(target, 0o600);
     validateExistingStateFile(target);
     fsyncDirectory(parent);
+  } catch (error) {
+    primaryError = markReplaceState(error, replaced);
   } finally {
+    let cleanupError = null;
     if (fd !== null) {
       try {
         fs.closeSync(fd);
-      } catch {
-        // The write path already owns the original failure.
+      } catch (error) {
+        cleanupError = markReplaceState(error, replaced);
       }
     }
     try {
       fs.unlinkSync(temp);
     } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
+      if (error?.code !== "ENOENT" && cleanupError === null) {
+        cleanupError = markReplaceState(error, replaced);
+      }
     }
+    if (primaryError !== null) throw primaryError;
+    if (cleanupError !== null) throw cleanupError;
   }
 }
 
@@ -399,6 +455,7 @@ export function createVoidPublicParticipantSessionStateFileV1({
   }
 
   let generation = BigInt(snapshot.generation);
+  let poisoned = false;
   const challenges = new Map(
     snapshot.challenges.map((row) => [row.id, clone(row)]),
   );
@@ -406,7 +463,14 @@ export function createVoidPublicParticipantSessionStateFileV1({
     snapshot.sessions.map((row) => [row.id, clone(row)]),
   );
 
+  const assertHealthy = () => {
+    if (poisoned) {
+      throw new Error("session_state_store_poisoned");
+    }
+  };
+
   const persist = () => {
+    assertHealthy();
     if (generation >= MAX_UINT64) {
       throw new Error("session_state_generation_exhausted");
     }
@@ -422,11 +486,19 @@ export function createVoidPublicParticipantSessionStateFileV1({
         .map(clone)
         .sort((a, b) => a.id.localeCompare(b.id)),
     };
-    writeSnapshotAtomic(location.file, next);
+    try {
+      writeSnapshotAtomic(location.file, next);
+    } catch (error) {
+      if (error?.session_state_replace_committed === true) {
+        poisoned = true;
+      }
+      throw error;
+    }
     generation = nextGeneration;
   };
 
   const purge = (nowMs) => {
+    assertHealthy();
     const current = canonicalTimestamp(nowMs, "session_state_now_ms");
     const removedChallenges = [];
     const removedSessions = [];
@@ -449,13 +521,16 @@ export function createVoidPublicParticipantSessionStateFileV1({
       persist();
       return true;
     } catch (error) {
-      for (const [id, row] of removedChallenges) challenges.set(id, row);
-      for (const [id, row] of removedSessions) sessions.set(id, row);
+      if (!poisoned) {
+        for (const [id, row] of removedChallenges) challenges.set(id, row);
+        for (const [id, row] of removedSessions) sessions.set(id, row);
+      }
       throw error;
     }
   };
 
   const putChallenge = (raw) => {
+    assertHealthy();
     const row = canonicalChallengeRow(raw);
     if (challenges.has(row.id)) {
       throw new Error("session_state_challenge_id_collision");
@@ -464,12 +539,13 @@ export function createVoidPublicParticipantSessionStateFileV1({
     try {
       persist();
     } catch (error) {
-      challenges.delete(row.id);
+      if (!poisoned) challenges.delete(row.id);
       throw error;
     }
   };
 
   const takeChallenge = (id) => {
+    assertHealthy();
     const key = String(id || "");
     const row = challenges.get(key);
     if (!row) return null;
@@ -477,13 +553,14 @@ export function createVoidPublicParticipantSessionStateFileV1({
     try {
       persist();
     } catch (error) {
-      challenges.set(key, row);
+      if (!poisoned) challenges.set(key, row);
       throw error;
     }
     return clone(row);
   };
 
   const putSession = (raw) => {
+    assertHealthy();
     const row = canonicalSessionRow(raw);
     if (sessions.has(row.id)) {
       throw new Error("session_state_session_id_collision");
@@ -492,17 +569,19 @@ export function createVoidPublicParticipantSessionStateFileV1({
     try {
       persist();
     } catch (error) {
-      sessions.delete(row.id);
+      if (!poisoned) sessions.delete(row.id);
       throw error;
     }
   };
 
   const getSession = (id) => {
+    assertHealthy();
     const row = sessions.get(String(id || ""));
     return row ? clone(row) : null;
   };
 
   const deleteSession = (id) => {
+    assertHealthy();
     const key = String(id || "");
     const row = sessions.get(key);
     if (!row) return false;
@@ -511,7 +590,7 @@ export function createVoidPublicParticipantSessionStateFileV1({
       persist();
       return true;
     } catch (error) {
-      sessions.set(key, row);
+      if (!poisoned) sessions.set(key, row);
       throw error;
     }
   };
@@ -521,9 +600,11 @@ export function createVoidPublicParticipantSessionStateFileV1({
     state_file: location.file,
     purge,
     challengeCount() {
+      assertHealthy();
       return challenges.size;
     },
     sessionCount() {
+      assertHealthy();
       return sessions.size;
     },
     putChallenge,
