@@ -625,53 +625,23 @@ export function collectChangedPaths(worktreePath) {
     }
     paths.push(...parseNullPaths(result.stdout));
   }
-  const cherry = git(worktreePath, ["cherry", "origin/main", "HEAD"], {
-    check: false,
-  });
-  if (cherry.status !== 0) return { complete: false, paths: [] };
-  for (const line of cherry.stdout.split("\n").filter(Boolean)) {
-    const match = /^([+-]) ([0-9a-f]{40})$/.exec(line);
-    if (!match) return { complete: false, paths: [] };
-    if (match[1] === "-") continue;
-    const commitPaths = git(
-      worktreePath,
-      [
-        "diff-tree", "--root", "--no-commit-id", "--name-only",
-        "-r", "--no-renames", "-z", match[2],
-      ],
-      { check: false },
-    );
-    if (commitPaths.status !== 0) return { complete: false, paths: [] };
-    paths.push(...parseNullPaths(commitPaths.stdout));
-  }
-
-  // git cherry intentionally omits merge commits. A conflict resolution or
-  // merge-only edit can therefore carry a path that no ordinary commit above
-  // origin/main contains. Enumerate unique merge commits separately, but use a
-  // combined diff so routine merges of origin/main do not reclassify upstream
-  // main-only paths as lane-owned changes. Combined diff paths differ from every
-  // parent and therefore isolate genuine merge-resolution-only material.
-  const mergeCommits = git(
+  // The committed lane claim is the final branch tree relative to its merge
+  // base with refreshed origin/main. This excludes upstream-only files imported
+  // by a routine main sync, includes ordinary lane commits, and retains merge
+  // resolution choices even when the result equals one parent and would be
+  // omitted by combined merge diff output.
+  const committed = git(
     worktreePath,
-    ["rev-list", "--merges", "origin/main..HEAD"],
+    [
+      "diff", "--name-only", "--no-renames", "-z",
+      "origin/main...HEAD", "--",
+    ],
     { check: false },
   );
-  if (mergeCommits.status !== 0) return { complete: false, paths: [] };
-  for (const mergeCommit of mergeCommits.stdout.split("\n").filter(Boolean)) {
-    if (!/^[0-9a-f]{40}$/.test(mergeCommit)) {
-      return { complete: false, paths: [] };
-    }
-    const mergePaths = git(
-      worktreePath,
-      [
-        "diff-tree", "--cc", "--no-commit-id", "--name-only",
-        "-r", "--no-renames", "-z", mergeCommit,
-      ],
-      { check: false },
-    );
-    if (mergePaths.status !== 0) return { complete: false, paths: [] };
-    paths.push(...parseNullPaths(mergePaths.stdout));
+  if (committed.status !== 0) {
+    return { complete: false, paths: [] };
   }
+  paths.push(...parseNullPaths(committed.stdout));
 
   return { complete: true, paths: [...new Set(paths)].sort() };
 }
