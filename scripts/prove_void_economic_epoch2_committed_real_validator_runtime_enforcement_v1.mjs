@@ -155,55 +155,68 @@ for(const role of roles){
   importReceiptsByRole[role]=receipt;
 }
 
-const result=
-  promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1({
+const observedWindowByRole=Object.fromEntries(
+  roles.map((role)=>{
+    const evidence=JSON.parse(evidenceBytesByRole[role].toString("utf8"));
+    return [
+      role,
+      {
+        observed_at_utc:evidence.observed_at_utc,
+        valid_until_utc:evidence.valid_until_utc,
+      },
+    ];
+  }),
+);
+
+const latestObservedAtUtc=roles
+  .map((role)=>observedWindowByRole[role].observed_at_utc)
+  .reduce((latest,value)=>
+    Date.parse(value)>Date.parse(latest) ? value : latest
+  );
+const earliestValidUntilUtc=roles
+  .map((role)=>observedWindowByRole[role].valid_until_utc)
+  .reduce((earliest,value)=>
+    Date.parse(value)<Date.parse(earliest) ? value : earliest
+  );
+
+assert.ok(
+  Date.parse(latestObservedAtUtc)>Date.parse(earliestValidUntilUtc),
+  "committed validator evidence unexpectedly has a common freshness window",
+);
+assert.equal(
+  Object.hasOwn(committedPromotion,"promotion_evaluated_at_utc"),
+  false,
+);
+assert.equal(
+  Object.hasOwn(
+    committedPromotion.verification,
+    "all_three_runtime_rows_fresh_at_common_promotion_time",
+  ),
+  false,
+);
+
+assert.throws(
+  ()=>promoteVoidEconomicEpoch2ProductionValidatorRuntimeEnforcementV1({
     bindingCandidate:binding,
     rawDomainPolicy:rawDomainStart,
     pluginArtifactManifest:artifact,
     migrationCandidate:migrationStart,
     evidenceBytesByRole,
     importReceiptsByRole,
-  });
-
-assert.deepEqual(result.promotion,committedPromotion);
-assert.deepEqual(result.updated_raw_domain_policy,postValidatorRawDomain);
-assert.deepEqual(result.updated_migration_candidate,postValidatorMigration);
-
-assert.equal(
-  result.promotion.verification.all_three_import_receipts_verified,
-  true,
+    promotionEvaluationTimeUtc:latestObservedAtUtc,
+  }),
+  /validator_enforcement_evidence_not_current/,
 );
-assert.equal(
-  result.promotion.verification.all_three_evidence_file_hashes_verified,
-  true,
-);
-assert.equal(
-  result.promotion.verification.all_three_runtime_rows_semantically_verified,
-  true,
-);
-assert.equal(
-  result.promotion.gates.all_production_validators_epoch_domain_enforced,
-  true,
-);
-assert.equal(
-  result.promotion.gates.cross_epoch_replay_protection_proven,
-  false,
-);
-assert.equal(result.promotion.gates.migration_authorized,false);
-assert.equal(result.promotion.gates.public_activation_authorized,false);
-assert.equal(result.promotion.gates.funds_movement_authorized,false);
 
 const classified=
-  classifyVoidEconomicEvmSuccessorMigrationV1(
-    result.updated_migration_candidate,
-  );
+  classifyVoidEconomicEvmSuccessorMigrationV1(migrationStart);
 assert.equal(classified.ok,false);
 assert.equal(classified.status,"HOLD");
 assert.equal(
   classified.missing_gates.includes(
     "production_validator_epoch_domain_enforcement_required",
   ),
-  false,
+  true,
 );
 assert.equal(
   classified.missing_gates.includes("cross_epoch_replay_protection_required"),
@@ -211,16 +224,18 @@ assert.equal(
 );
 
 console.log(
-  "VOID_ECONOMIC_EPOCH2_COMMITTED_REAL_VALIDATOR_RUNTIME_ENFORCEMENT_V1_GREEN",
+  "VOID_ECONOMIC_EPOCH2_COMMITTED_REAL_VALIDATOR_RUNTIME_ENFORCEMENT_V1_PROOF_GREEN",
 );
 console.log("validator_count=3");
 console.log("real_machine_evidence_hashes_verified=true");
 console.log("real_machine_import_receipts_verified=true");
-console.log("real_machine_runtime_rows_semantically_reverified=true");
-console.log("canonical_promotion_bytes_verified=true");
-console.log("validator_stage_reconstructed_from_canonical_replay_state=true");
-console.log("all_production_validators_epoch_domain_enforced=true");
-console.log("production_validator_epoch_domain_enforcement_gate_remaining=false");
+console.log("committed_real_evidence_common_freshness_window=false");
+console.log("latest_observed_at_utc="+latestObservedAtUtc);
+console.log("earliest_valid_until_utc="+earliestValidUntilUtc);
+console.log("stale_committed_promotion_contract_detected=true");
+console.log("stale_real_evidence_promotion_rejected=true");
+console.log("all_production_validators_epoch_domain_enforced=false");
+console.log("production_validator_epoch_domain_enforcement_gate_remaining=true");
 console.log("cross_epoch_replay_protection_proven=false");
 console.log("cross_epoch_replay_protection_gate_remaining=true");
 console.log("migration_authorized=false");
