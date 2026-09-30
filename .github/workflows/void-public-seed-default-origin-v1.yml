@@ -5,6 +5,8 @@ on:
     paths:
       - ".github/workflows/void-public-seed-default-origin-v1.yml"
       - "public/bootstrap/v1.json"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
+      - ".github/workflows/void-public-seed-live-qualification-v1.yml"
       - "docs/public/current-public-seed-url.md"
       - "ops/public/current-public-seed-url-proof-v1.sh"
       - "docs/public/public-entrypoints-v1.md"
@@ -89,6 +91,16 @@ jobs:
           assert "https://seed.nullfeed.org/public-node" in current_status
           assert "zoso-alienware-aurora-r7.taila47fd.ts.net/public-node" not in current_status
           assert "bootstrap authority still requires a fresh qualification" in current_status
+
+          qualifier = Path(".github/workflows/void-public-seed-live-qualification-v1.yml").read_text()
+          assert 'cron: "17 5 * * *"' in qualifier
+          assert 'endpoint="https://seed.nullfeed.org"' in qualifier
+          assert "manifest_published=false" in qualifier
+          assert "contents: read" in qualifier
+          assert "contents: write" not in qualifier
+          assert "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683" in qualifier
+          assert "actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b" in qualifier
+          assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in qualifier
 
           print("VOID_PUBLIC_SEED_DEFAULT_ORIGIN_V1_GREEN")
           print("live_network_probe_performed=false")
