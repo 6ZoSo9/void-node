@@ -18,6 +18,7 @@ import {
   verifyVoidNodePublicOriginBindingV1,
 } from "../tools/lib/void-node-public-origin-binding-v1.mjs";
 import {
+  VOID_PUBLIC_ORIGIN_BINDING_SEED_CLEAN_ENVIRONMENT_DROPIN_V1,
   VOID_PUBLIC_ORIGIN_BINDING_SEED_SERVICE_UNIT_V1,
   buildVoidPublicOriginBindingSeedServicePlanV1,
   writeVoidPublicOriginBindingSeedServicePlanV1,
@@ -137,6 +138,15 @@ try {
   assert.equal(
     plan.target.unit,
     "void-public-seed-gateway-v1.service",
+  );
+  assert.equal(
+    VOID_PUBLIC_ORIGIN_BINDING_SEED_CLEAN_ENVIRONMENT_DROPIN_V1,
+    path.join(
+      os.homedir(),
+      ".config/systemd/user",
+      "void-public-seed-gateway-v1.service.d",
+      "90-void-nullfeed-clean-environment.conf",
+    ),
   );
   assert.equal(plan.target.bind, "127.0.0.1");
   assert.equal(plan.target.port, 4111);
@@ -303,8 +313,6 @@ try {
       "build",
       "--activation-packet",
       activationPacketFile,
-      "--clean-environment-dropin",
-      cleanDropin,
       "--output",
       cliOutput,
     ],
@@ -317,7 +325,42 @@ try {
   );
   assert.equal(fs.existsSync(cliOutput), false);
 
+  const decoyOverride = spawnSync(
+    process.execPath,
+    [
+      TOOL,
+      "build",
+      "--activation-packet",
+      activationPacketFile,
+      "--clean-environment-dropin",
+      cleanDropin,
+      "--output",
+      path.join(work, "decoy-plan.json"),
+    ],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  assert.notEqual(decoyOverride.status, 0);
+  assert.match(
+    decoyOverride.stderr,
+    /unknown argument: --clean-environment-dropin/u,
+  );
+  assert.equal(
+    fs.existsSync(path.join(work, "decoy-plan.json")),
+    false,
+  );
+
   const source = fs.readFileSync(TOOL, "utf8");
+  assert.equal(
+    source.includes('"--clean-environment-dropin"'),
+    false,
+    "production CLI must not accept a clean-environment path override",
+  );
+  assert.ok(
+    source.includes(
+      "VOID_PUBLIC_ORIGIN_BINDING_SEED_CLEAN_ENVIRONMENT_DROPIN_V1",
+    ),
+    "production CLI must use the fixed seed clean-environment path",
+  );
   for (const forbidden of [
     "systemctl",
     "daemon-reload",
@@ -346,6 +389,8 @@ try {
   console.log("canonical_seed_service_fixed=true");
   console.log("canonical_seed_port=4111");
   console.log("clean_environment_conflict_checked=true");
+  console.log("production_clean_environment_path_fixed=true");
+  console.log("clean_environment_path_override=false");
   console.log("binding_unset_conflict_rejected=true");
   console.log("exact_three_environment_lines=true");
   console.log("create_only_plan=true");
