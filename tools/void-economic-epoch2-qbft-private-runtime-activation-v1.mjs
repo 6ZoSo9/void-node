@@ -657,6 +657,7 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1(
     activation_plan_id:activationPlan.activation_plan_id,
     plan_id:activationPlan.plan_id,
     bundle_set_id:activationPlan.bundle_set_id,
+    start_admission_id:activationPlan.start_admission_id,
     activated_at_utc:activatedAt,
     chain_id:2050,
     chain_id_hex:"0x802",
