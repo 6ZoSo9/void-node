@@ -627,9 +627,7 @@ function validateDirectoryV1(directory) {
 }
 
 function shellQuoteV1(value) {
-  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value)
-    ? value
-    : `'${value.replaceAll("'", `'"\""\"'`)}'`;
+  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value) ? value : `'${value.replaceAll("'", `'\"'\"'`)}'`;
 }
 
 function validateHandoffCommandV1(command, kind) {
