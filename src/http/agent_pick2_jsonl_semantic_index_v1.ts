@@ -15,6 +15,8 @@ export const VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF_MS_V1 =
   30_000;
 export const VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_IDS_PER_FILE_V1 =
   250_000;
+export const VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1 =
+  192;
 
 export function normalizeMaxCompletionIdsPerFileV1(value: unknown): number {
   const requested = Number(
@@ -2429,7 +2431,18 @@ export class AgentPick2JsonlSemanticIndexV1 {
     baseSize = 0,
     openedStamp: FileStampV1 | null = null,
   ): void {
-    if (!id || target.has(id)) return;
+    if (!id) return;
+    if (
+      id.length >
+        VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1
+    ) {
+      throw new Error(
+        "VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD " +
+          `file=${file} kind=${kind} ` +
+          `max_chars=${VOID_AGENT_PICK2_JSONL_MAX_COMPLETION_ID_CHARS_V1}`,
+      );
+    }
+    if (target.has(id)) return;
     if (baseSize + target.size >= this.maxCompletionIdsPerFile) {
       const current = openedStamp ? statV1(file) : null;
       if (
@@ -2848,7 +2861,8 @@ export class AgentPick2JsonlSemanticIndexV1 {
         message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_WARMING_HOLD") ||
         message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_REBUILD_BACKOFF") ||
         message.startsWith("VOID_AGENT_PICK2_JSONL_UNWITNESSED_COMPLETION_GROWTH_HOLD") ||
-        message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD");
+        message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_CARDINALITY_HOLD") ||
+        message.startsWith("VOID_AGENT_PICK2_JSONL_COMPLETION_ID_LENGTH_HOLD");
       if (!hold) throw err;
       return {
         ready: false,
