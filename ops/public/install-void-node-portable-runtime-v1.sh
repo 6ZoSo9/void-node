@@ -36,13 +36,24 @@ install_stable_manager(){
   local control_dir="$INSTALL_ROOT/control"
   local manager_dir="$INSTALL_ROOT/bin"
   local control_next="$control_dir/.void-node-update.next"
+  local control_runtime_dir="$control_dir/runtime/bin"
+  local control_runtime="$control_runtime_dir/node"
+  local control_runtime_next="$control_runtime_dir/.node.next"
+  local control_license="$control_dir/runtime/LICENSE.nodejs"
+  local control_license_next="$control_dir/runtime/.LICENSE.nodejs.next"
   local manager_next="$manager_dir/.void-node.next"
   local command_next="$BIN_DIR/.void-node.next"
-  mkdir -p "$control_dir" "$manager_dir"
-  rm -f "$control_next" "$manager_next" "$command_next"
+  mkdir -p "$control_dir" "$control_runtime_dir" "$manager_dir"
+  rm -f "$control_next" "$control_runtime_next" "$control_license_next" "$manager_next" "$command_next"
   cp -- "$DEST/bin/void-node-update" "$control_next"
   chmod 700 "$control_next"
   mv -Tf "$control_next" "$control_dir/void-node-update"
+  ln "$DEST/runtime/bin/node" "$control_runtime_next"
+  mv -Tf "$control_runtime_next" "$control_runtime"
+  cp -- "$DEST/runtime/LICENSE.nodejs" "$control_license_next"
+  mv -Tf "$control_license_next" "$control_license"
+  test "$(sha256sum -- "$control_runtime" | awk '{print $1}')" = "$EXPECTED_RUNTIME_SHA" ||
+    die "stable control runtime SHA mismatch"
   cat > "$manager_next" <<'EOFMANAGER'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -53,14 +64,15 @@ SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 INSTALL_ROOT="$(dirname "$(dirname "$SELF")")"
 CURRENT="$INSTALL_ROOT/current"
 CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"
+CONTROL_RUNTIME="$INSTALL_ROOT/control/runtime/bin/node"
 
 ensure_control_runtime(){
   test -f "$CONTROL_UPDATER" || { printf 'ERROR: %s recovery updater is missing\n' "$MARKER" >&2; exit 1; }
-  test -x "$CURRENT/runtime/bin/node" || { printf 'ERROR: %s verified bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
+  test -x "$CONTROL_RUNTIME" || { printf 'ERROR: %s verified stable bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
 }
 run_control_updater(){
   ensure_control_runtime
-  "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" "$@"
+  "$CONTROL_RUNTIME" "$CONTROL_UPDATER" "$@"
 }
 exec_control_rollback(){
   local args=()
@@ -71,7 +83,7 @@ exec_control_rollback(){
     esac
   done
   ensure_control_runtime
-  exec "$CURRENT/runtime/bin/node" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT" "${args[@]}"
+  exec "$CONTROL_RUNTIME" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT" "${args[@]}"
 }
 
 requested_rollback=0
