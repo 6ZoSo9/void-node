@@ -338,6 +338,40 @@ try {
   }
 
   {
+    const source = makePriorSource(temp, "terminal-prefix-byte-mutation");
+    const auth = prefixAuthority(source.root);
+    const scan = scanner.scanHistoricalSource({
+      sourceDir: source.root,
+      frozenHead: PRIOR_HEAD,
+      sourceLabel: SOURCE_LABEL,
+    });
+    const file = path.join(
+      source.root,
+      "segments",
+      "00010000",
+      "blocks.bin",
+    );
+    const bytes = fs.readFileSync(file);
+    const needle = Buffer.from("1700010000", "utf8");
+    const bodyOffset = bytes.indexOf(needle);
+    assert.ok(bodyOffset >= 4);
+    bytes[bodyOffset] = "2".charCodeAt(0);
+    fs.writeFileSync(file, bytes);
+    appendBlocks(source.root, [10_001]);
+    expectHold(
+      () =>
+        extendCartographySourceV1({
+          priorManifest: scan.manifest,
+          priorPrefixAuthority: auth,
+          sourceDir: source.root,
+          newFrozenHead: 10_001,
+          sourceLabel: SOURCE_LABEL,
+        }),
+      /accepted_prefix_sha256_mismatch/u,
+    );
+  }
+
+  {
     const source = makePriorSource(temp, "height-gap");
     const auth = prefixAuthority(source.root);
     const scan = scanner.scanHistoricalSource({
