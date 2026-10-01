@@ -11,6 +11,26 @@ import {
 
 export const VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1 =
   "VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1";
+export const VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1 = 250_000;
+export const VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1 = 192;
+
+export function normalizeMaxSeenJobIdsV1(value: unknown): number {
+  if (value === undefined || value === null || value === "") {
+    return VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1;
+  }
+  const requested = Number(value);
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    return VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1;
+  }
+  return Math.min(
+    VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1,
+    requested,
+  );
+}
 
 type ScanInputV1 = {
   jobsFile: string;
@@ -56,6 +76,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private readonly completionIndex: AgentPick2JsonlSemanticIndexV1;
   private readonly maxScanBytesPerTick: number;
   private readonly maxJobsPerTick: number;
+  private readonly maxSeenJobIds: number;
 
   private jobsDev = "";
   private jobsIno = "";
@@ -71,6 +92,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   constructor(opts: {
     maxScanBytesPerTick?: number;
     maxJobsPerTick?: number;
+    maxSeenJobIds?: number;
     maxSyncCompletionRebuildBytes?: number;
     completionRebuildBackoffMs?: number;
     maxCompletionIdsPerFile?: number;
@@ -87,6 +109,9 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       8,
       1,
       64,
+    );
+    this.maxSeenJobIds = normalizeMaxSeenJobIdsV1(
+      opts.maxSeenJobIds ?? process.env.VOID_JOBS_WORKER_MAX_SEEN_JOB_IDS,
     );
     this.completionIndex = new AgentPick2JsonlSemanticIndexV1({
       maxSyncCompletionRebuildBytes: opts.maxSyncCompletionRebuildBytes,
@@ -446,7 +471,26 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           continue;
         }
         const jobId = String(job?.job_id || job?.id || "").trim();
-        if (!jobId || this.jobsSeen.has(jobId)) continue;
+        if (!jobId) continue;
+        if (
+          Buffer.byteLength(jobId, "utf8") >
+          VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1
+        ) {
+          this.resetJobsGenerationV1();
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_JOB_ID_TOO_LARGE " +
+              `file=${input.jobsFile}`,
+          );
+        }
+        if (this.jobsSeen.has(jobId)) continue;
+        if (this.jobsSeen.size >= this.maxSeenJobIds) {
+          const limit = this.maxSeenJobIds;
+          this.resetJobsGenerationV1();
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_SEEN_JOB_CARDINALITY_HOLD " +
+              `limit=${limit} file=${input.jobsFile}`,
+          );
+        }
         this.jobsSeen.add(jobId);
         if (String(job?.status || "") !== "queued") continue;
         if (completion.doneTruthHas(jobId)) {
