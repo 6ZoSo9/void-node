@@ -118,6 +118,10 @@ rollback/96-buy-void-payment-keyed-postgres-atomic-activation-v1.conf
 manifest.json
 ```
 
+The wrapper rejects symlink/alias staging directories before any
+permission-changing `chmod`; it does not follow an existing staging symlink
+and mutate the target's mode.
+
 The stage root, stage directory, and both `live/` and `rollback/`
 intermediate directories are direct, realpath-exact, current-owner directories
 with mode `0700`. Staged files and the manifest are direct, current-owner,
