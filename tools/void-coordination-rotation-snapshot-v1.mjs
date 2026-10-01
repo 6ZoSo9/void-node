@@ -262,8 +262,25 @@ function validateChain(raw) {
     ) {
       fail("successor-chain entry successor_issue is invalid");
     }
+    if (entry.successor_issue === null) {
+      if (entry.rotation_pointer_comment_id !== null) {
+        fail("successor-chain entry without successor must not retain pointer comment");
+      }
+    } else {
+      requirePositiveInteger(
+        entry.rotation_pointer_comment_id,
+        "evidence.chain.chain[" + index + "].rotation_pointer_comment_id",
+      );
+    }
     if (typeof entry.rotation_required_here !== "boolean") {
       fail("successor-chain entry rotation_required_here must be boolean");
+    }
+    const expectedRotationRequiredHere =
+      entry.issue_state === "open"
+      && entry.successor_issue === null
+      && entry.total_issue_messages >= ROTATION_THRESHOLD_TOTAL_MESSAGES;
+    if (entry.rotation_required_here !== expectedRotationRequiredHere) {
+      fail("successor-chain entry rotation_required_here is inconsistent");
     }
     if (index < chain.chain.length - 1) {
       const nextIssue = chain.chain_issue_numbers[index + 1];
@@ -365,6 +382,7 @@ function validateOpenPullRequest(raw, index) {
     [
       "number",
       "title",
+      "state",
       "draft",
       "head_sha",
       "base_sha",
@@ -375,6 +393,9 @@ function validateOpenPullRequest(raw, index) {
   );
   requirePositiveInteger(pr.number, label + ".number");
   requireString(pr.title, label + ".title", 500);
+  if (pr.state !== "open") {
+    fail(label + ".state must equal open");
+  }
   requireBoolean(pr.draft, label + ".draft");
   requireSha(pr.head_sha, label + ".head_sha");
   requireSha(pr.base_sha, label + ".base_sha");
@@ -403,6 +424,7 @@ function validateOpenPullRequest(raw, index) {
   return {
     number: pr.number,
     title: pr.title,
+    state: pr.state,
     draft: pr.draft,
     head_sha: pr.head_sha,
     base_sha: pr.base_sha,
@@ -509,6 +531,7 @@ export function buildCoordinationRotationSnapshotV1(policyRaw, evidenceRaw) {
   const prSummary = openPullRequests.map((pr) => ({
     number: pr.number,
     title: pr.title,
+    state: pr.state,
     draft: pr.draft,
     head_sha: pr.head_sha,
     base_sha: pr.base_sha,
