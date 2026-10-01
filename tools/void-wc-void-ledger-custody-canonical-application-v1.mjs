@@ -1094,6 +1094,26 @@ function validatePlan(plan){
     if(actual!==expected) fail(code);
   }
 
+  const runtimeProfile=commitFile(
+    plan.application_base_head_sha,
+    REVIEWED_RUNTIME_PROFILE_REL,
+    "PLAN_REVIEWED_RUNTIME_PROFILE",
+  );
+  if(
+    runtimeProfile.value?.marker!=="VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1"||
+    runtimeProfile.value?.status!=="REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE"||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(
+      String(runtimeProfile.value?.profile_id||""),
+    )||
+    runtimeProfile.value.profile_id!==plan.reviewed_runtime_profile_id||
+    runtimeProfile.value.packages_aggregate_sha256!==
+      plan.reviewed_runtime_packages_aggregate_sha256||
+    JSON.stringify(runtimeProfile.value.root_packages)!==
+      JSON.stringify(["ethers"])
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_PLAN_RUNTIME_PROFILE_MISMATCH");
+  }
+
   const baseProduction=commitFile(
     plan.application_base_head_sha,
     PRODUCTION_REL,
