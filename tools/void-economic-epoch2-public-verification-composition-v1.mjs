@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -17,6 +18,9 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_AUTHORITY_V1 =
     source_only_composition: true,
     canonical_git_source_binding_required: true,
     exact_dependency_git_blobs_required: true,
+    git_replacement_objects_disabled: true,
+    exact_reviewed_git_object_execution_required: true,
+    private_readonly_execution_bundle: true,
     public_read_promotion_reexecuted: true,
     canonical_state_root_import_promotion_reexecuted: true,
     migration_classifier_reexecuted: true,
@@ -165,10 +169,12 @@ function sanitizedGitEnv() {
   return env;
 }
 
-function git(args, { allowFail = false } = {}) {
-  const result = spawnSync(GIT, ["-C", ROOT, ...args], {
-    env: sanitizedGitEnv(),
-    encoding: "utf8",
+function git(args, { allowFail = false, encoding = "utf8" } = {}) {
+  const env = sanitizedGitEnv();
+  env.GIT_NO_REPLACE_OBJECTS = "1";
+  const result = spawnSync(GIT, ["--no-replace-objects", "-C", ROOT, ...args], {
+    env,
+    encoding,
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: 32 * 1024 * 1024,
   });
@@ -199,8 +205,10 @@ function canonicalRemote(value) {
 }
 
 function readHeadBytes(relativePath) {
-  const result = git(["show", "HEAD:" + relativePath]);
-  return Buffer.from(result.stdout, "utf8");
+  const result = git(["show", "HEAD:" + relativePath], { encoding: null });
+  const bytes = Buffer.from(result.stdout || Buffer.alloc(0));
+  if (bytes.length < 1) fail("head_object_empty:" + relativePath);
+  return bytes;
 }
 
 function readReviewedWorktreeBytes(relativePath, expectedBlob) {
@@ -223,6 +231,96 @@ function readReviewedWorktreeBytes(relativePath, expectedBlob) {
     fail("dependency_worktree_blob_mismatch:" + relativePath);
   }
   return bytes;
+}
+
+function reviewedObjectBytes(relativePath, expectedBlob) {
+  const bytes = readHeadBytes(relativePath);
+  if (gitBlobSha1(bytes) !== expectedBlob) {
+    fail("reviewed_git_object_blob_mismatch:" + relativePath);
+  }
+  return bytes;
+}
+
+function materializeReviewedExecutionBundle() {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-epoch2-public-verification-reviewed-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const written = [];
+  try {
+    for (const [relativePath, expectedBlob] of Object.entries(
+      VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1,
+    )) {
+      const bytes = reviewedObjectBytes(relativePath, expectedBlob);
+      const destination = path.join(root, relativePath);
+      const parent = path.dirname(destination);
+      fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(destination, bytes, {
+        flag: "wx",
+        mode: 0o400,
+      });
+      const verify = fs.readFileSync(destination);
+      if (
+        gitBlobSha1(verify) !== expectedBlob ||
+        sha256(verify) !== sha256(bytes)
+      ) {
+        fail("reviewed_execution_bundle_write_mismatch:" + relativePath);
+      }
+      written.push(Object.freeze({
+        path: relativePath,
+        git_blob_sha1: expectedBlob,
+        file_sha256: sha256(bytes),
+      }));
+    }
+
+    const directories = new Set([root]);
+    for (const entry of written) {
+      let dir = path.dirname(path.join(root, entry.path));
+      while (dir.startsWith(root) && dir !== root) {
+        directories.add(dir);
+        dir = path.dirname(dir);
+      }
+    }
+    for (const dir of [...directories].sort((a, b) => b.length - a.length)) {
+      fs.chmodSync(dir, 0o500);
+    }
+
+    return Object.freeze({
+      root,
+      files: Object.freeze(written),
+    });
+  } catch (error) {
+    try {
+      for (const candidate of [root, path.join(root, "tools"), path.join(root, "ops"), path.join(root, "public")]) {
+        if (fs.existsSync(candidate)) fs.chmodSync(candidate, 0o700);
+      }
+      fs.rmSync(root, { recursive: true, force: true });
+    } catch {}
+    throw error;
+  }
+}
+
+function cleanupReviewedExecutionBundle(bundle) {
+  if (!bundle?.root) return;
+  const stack = [bundle.root];
+  const dirs = [];
+  while (stack.length) {
+    const dir = stack.pop();
+    dirs.push(dir);
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) stack.push(path.join(dir, entry.name));
+    }
+  }
+  for (const dir of dirs.sort((a, b) => a.length - b.length)) {
+    try { fs.chmodSync(dir, 0o700); } catch {}
+  }
+  fs.rmSync(bundle.root, { recursive: true, force: true });
 }
 
 function parseJsonBytes(bytes, label) {
@@ -410,30 +508,39 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
   );
   assertClosedLaunchAuthority(canonicalMigration);
 
-  const publicReadModule = await import(
-    pathToFileURL(
-      path.join(ROOT, "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs"),
-    ).href + "?blob=" +
-      VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1[
-        "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs"
-      ]
-  );
-  const stateRootModule = await import(
-    pathToFileURL(
-      path.join(ROOT, "tools/void-economic-epoch2-public-state-root-anchor-import-promotion-v1.mjs"),
-    ).href + "?blob=" +
-      VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1[
-        "tools/void-economic-epoch2-public-state-root-anchor-import-promotion-v1.mjs"
-      ]
-  );
-  const classifierModule = await import(
-    pathToFileURL(
-      path.join(ROOT, "tools/void-economic-evm-successor-migration-v1.mjs"),
-    ).href + "?blob=" +
-      VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1[
-        "tools/void-economic-evm-successor-migration-v1.mjs"
-      ]
-  );
+  const executionBundle = materializeReviewedExecutionBundle();
+  let publicReadModule;
+  let stateRootModule;
+  let classifierModule;
+  try {
+    publicReadModule = await import(
+      pathToFileURL(
+        path.join(
+          executionBundle.root,
+          "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs",
+        ),
+      ).href
+    );
+    stateRootModule = await import(
+      pathToFileURL(
+        path.join(
+          executionBundle.root,
+          "tools/void-economic-epoch2-public-state-root-anchor-import-promotion-v1.mjs",
+        ),
+      ).href
+    );
+    classifierModule = await import(
+      pathToFileURL(
+        path.join(
+          executionBundle.root,
+          "tools/void-economic-evm-successor-migration-v1.mjs",
+        ),
+      ).href
+    );
+  } catch (error) {
+    cleanupReviewedExecutionBundle(executionBundle);
+    throw error;
+  }
 
   if (
     typeof publicReadModule.promoteVoidEconomicEpoch2PublicReadRuntimeV1 !==
@@ -443,6 +550,7 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     typeof classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1 !==
       "function"
   ) {
+    cleanupReviewedExecutionBundle(executionBundle);
     fail("reviewed_execution_exports_invalid");
   }
 
@@ -568,6 +676,9 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     fail("final_migration_classifier_not_source_ready");
   }
 
+  const executedReviewedFiles = executionBundle.files;
+  cleanupReviewedExecutionBundle(executionBundle);
+
   const sourceAfter = repositoryBindingV1();
   const sourceBeforeComparable = structuredClone(source);
   const sourceAfterComparable = structuredClone(sourceAfter);
@@ -590,6 +701,9 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     composition_tool_git_blob_sha1: source.composition_tool_git_blob_sha1,
     composition_tool_file_sha256: source.composition_tool_file_sha256,
     dependency_git_blobs: source.dependency_git_blobs,
+    executed_reviewed_files: executedReviewedFiles,
+    git_replacement_objects_disabled: true,
+    exact_reviewed_git_object_execution_verified: true,
     canonical_migration_candidate_file_sha256:
       source.canonical_migration_candidate_file_sha256,
     canonical_loopback_policy_file_sha256:
