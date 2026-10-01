@@ -122,6 +122,7 @@ const LINEAGE_NAMES =
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SAFE_ID = /^[A-Za-z0-9._:-]{8,240}$/u;
+const MAX_PRIVATE_INPUT_BYTES = 16 * 1024 * 1024;
 
 function fail(code) {
   throw new Error(code);
@@ -659,8 +660,13 @@ function privateRegularFileBytes(file, label) {
   }
   if (real !== file) fail(label + "_PATH_ALIAS_FORBIDDEN");
   const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    fail(label + "_NOT_DIRECT_REGULAR");
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.size < 2 ||
+    stat.size > MAX_PRIVATE_INPUT_BYTES
+  ) {
+    fail(label + "_NOT_DIRECT_BOUNDED_REGULAR");
   }
   if (
     typeof process.getuid === "function" &&
