@@ -63,13 +63,13 @@ function directInput(relativePath) {
   ) {
     fail("MARKET_VAULT_REVIEWED_RUNTIME_INPUT_PATH_ESCAPE");
   }
-  const stat = fs.lstatSync(candidate);
+  const pathStat = fs.lstatSync(candidate);
   if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.nlink !== 1 ||
-    stat.size < 2 ||
-    stat.size > MAX_INPUT_BYTES
+    !pathStat.isFile() ||
+    pathStat.isSymbolicLink() ||
+    pathStat.nlink !== 1 ||
+    pathStat.size < 2 ||
+    pathStat.size > MAX_INPUT_BYTES
   ) {
     fail("MARKET_VAULT_REVIEWED_RUNTIME_INPUT_FILE_INVALID");
   }
@@ -77,10 +77,49 @@ function directInput(relativePath) {
   if (real !== candidate) {
     fail("MARKET_VAULT_REVIEWED_RUNTIME_INPUT_ALIAS_FORBIDDEN");
   }
-  const bytes = fs.readFileSync(candidate);
-  if (bytes.length !== stat.size) {
-    fail("MARKET_VAULT_REVIEWED_RUNTIME_INPUT_SIZE_CHANGED");
+
+  let fd;
+  let before;
+  let bytes;
+  let after;
+  try {
+    fd = fs.openSync(
+      candidate,
+      fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      before.dev !== pathStat.dev ||
+      before.ino !== pathStat.ino ||
+      before.size !== pathStat.size
+    ) {
+      fail("MARKET_VAULT_REVIEWED_RUNTIME_INPUT_DESCRIPTOR_MISMATCH");
+    }
+    bytes = fs.readFileSync(fd);
+    after = fs.fstatSync(fd);
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
+
+  const post = fs.lstatSync(candidate);
+  if (
+    bytes.length !== before.size ||
+    before.dev !== after.dev ||
+    before.ino !== after.ino ||
+    before.size !== after.size ||
+    before.mtimeMs !== after.mtimeMs ||
+    before.ctimeMs !== after.ctimeMs ||
+    post.dev !== before.dev ||
+    post.ino !== before.ino ||
+    post.size !== before.size ||
+    post.mtimeMs !== before.mtimeMs ||
+    post.ctimeMs !== before.ctimeMs
+  ) {
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_INPUT_CHANGED_DURING_READ");
+  }
+
   let value;
   try {
     value = JSON.parse(
