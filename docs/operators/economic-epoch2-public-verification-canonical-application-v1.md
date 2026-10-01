@@ -42,7 +42,7 @@ The application tool binds:
 - the merged #2260 composition-tool Git blob; and
 - the canonical successor migration classifier Git blob.
 
-Git replacement-object semantics are disabled.
+Git replacement-object semantics are disabled. Authority Git reads use the reviewed absolute Git executable with PATH/locale bounded, global/system Git config disabled, repository/worktree/object/config-injection environment removed, and local execution-capable options such as fsmonitor/hooks plus ambient attributes disabled. The canonical origin is read explicitly from local config with includes disabled. Focused pull-request CI checks out the exact PR head rather than GitHub's synthetic merge ref.
 
 To avoid "verified blob, mutable executed file" races, prepare materializes the exact reviewed HEAD tree through `git archive` and executes #2260 plus the migration classifier from that reviewed tree. The materialization contains a private detached Git metadata view whose `HEAD` and index are pinned to the reviewed commit/tree and whose object database is read-only-linked through Git alternates to the canonical repository objects. It does **not** point its `.git` metadata at the moving canonical checkout.
 

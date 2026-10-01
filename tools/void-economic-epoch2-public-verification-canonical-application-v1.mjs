@@ -284,7 +284,12 @@ function sanitizedGitEnv() {
   for (const key of Object.keys(env)) {
     if (/^GIT_/u.test(key) || key === "SSH_ASKPASS") delete env[key];
   }
+  env.HOME = "/nonexistent";
+  env.XDG_CONFIG_HOME = "/nonexistent";
+  env.GIT_CONFIG_GLOBAL = "/dev/null";
+  env.GIT_CONFIG_SYSTEM = "/dev/null";
   env.GIT_CONFIG_NOSYSTEM = "1";
+  env.GIT_ATTR_NOSYSTEM = "1";
   env.GIT_OPTIONAL_LOCKS = "0";
   env.GIT_TERMINAL_PROMPT = "0";
   env.GIT_NO_REPLACE_OBJECTS = "1";
@@ -294,11 +299,29 @@ function sanitizedGitEnv() {
   return env;
 }
 
+function gitSafetyConfigArgs(workTree) {
+  return [
+    "-c", "core.worktree=" + workTree,
+    "-c", "core.fsmonitor=false",
+    "-c", "core.untrackedCache=false",
+    "-c", "core.preloadIndex=false",
+    "-c", "submodule.recurse=false",
+    "-c", "core.hooksPath=/dev/null",
+    "-c", "core.attributesFile=/dev/null",
+  ];
+}
+
 function gitRun(args, code, { encoding = "utf8", allowFail = false } = {}) {
   const before = inspectGitExecutable();
   const result = spawnSync(
     before.path,
-    ["--no-replace-objects", "-C", ROOT, ...args],
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(ROOT),
+      "-C",
+      ROOT,
+      ...args,
+    ],
     {
       encoding,
       env: sanitizedGitEnv(),
@@ -360,7 +383,7 @@ function repositoryIdentity() {
   );
   const remote = canonicalRemote(
     gitText(
-      ["config", "--get", "remote.origin.url"],
+      ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
       "PUBLIC_VERIFICATION_APPLICATION_ORIGIN_UNAVAILABLE",
     ),
   );
@@ -542,6 +565,38 @@ function checkedSpawn(command, args, {
   return result;
 }
 
+function checkedGitSpawn(
+  workTree,
+  args,
+  code,
+  { encoding = "utf8" } = {},
+) {
+  const before = inspectGitExecutable();
+  const result = spawnSync(
+    before.path,
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(workTree),
+      "-C",
+      workTree,
+      ...args,
+    ],
+    {
+      cwd: "/",
+      env: sanitizedGitEnv(),
+      encoding,
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: MAX_BYTES + 1024,
+    },
+  );
+  const after = inspectGitExecutable();
+  if (!sameGitExecutable(before, after)) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_GIT_EXECUTABLE_CHANGED");
+  }
+  if (result.error || result.status !== 0) fail(code);
+  return result;
+}
+
 function materializedBlob(treeRoot, relativePath, expectedBlob) {
   const file = path.resolve(treeRoot, relativePath);
   const relative = path.relative(treeRoot, file);
@@ -578,11 +633,7 @@ function repositoryObjectDirectory() {
 }
 
 function privateGitText(treeRoot, args, code) {
-  const result = checkedSpawn(
-    GIT,
-    ["--no-replace-objects", "-C", treeRoot, ...args],
-    { code },
-  );
+  const result = checkedGitSpawn(treeRoot, args, code);
   const value = String(result.stdout || "").trim();
   if (!value) fail(code);
   return value;
@@ -620,10 +671,10 @@ function installDetachedReviewedGitView(treeRoot, repo) {
     { encoding: "utf8", mode: 0o400, flag: "wx" },
   );
 
-  checkedSpawn(
-    GIT,
-    ["--no-replace-objects", "-C", treeRoot, "read-tree", repo.head],
-    { code: "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_INDEX_FAILED" },
+  checkedGitSpawn(
+    treeRoot,
+    ["read-tree", repo.head],
+    "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_INDEX_FAILED",
   );
 
   if (
@@ -640,7 +691,7 @@ function installDetachedReviewedGitView(treeRoot, repo) {
     canonicalRemote(
       privateGitText(
         treeRoot,
-        ["config", "--get", "remote.origin.url"],
+        ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
         "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_ORIGIN_UNAVAILABLE",
       ),
     ) !== repo.remote
@@ -648,28 +699,12 @@ function installDetachedReviewedGitView(treeRoot, repo) {
     fail("PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_IDENTITY_MISMATCH");
   }
 
-  const clean = spawnSync(
-    GIT,
-    [
-      "--no-replace-objects",
-      "-C",
-      treeRoot,
-      "status",
-      "--porcelain=v1",
-      "--untracked-files=all",
-    ],
-    {
-      env: sanitizedGitEnv(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      maxBuffer: 4 * 1024 * 1024,
-    },
+  const clean = checkedGitSpawn(
+    treeRoot,
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_STATUS_FAILED",
   );
-  if (
-    clean.error ||
-    clean.status !== 0 ||
-    String(clean.stdout || "").trim() !== ""
-  ) {
+  if (String(clean.stdout || "").trim() !== "") {
     fail("PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN");
   }
 }
@@ -699,18 +734,15 @@ async function withReviewedComposition(repo, fn) {
   const archive = path.join(tempRoot, "source.tar");
   fs.mkdirSync(treeRoot, { mode: 0o700 });
   try {
-    checkedSpawn(
-      GIT,
+    checkedGitSpawn(
+      ROOT,
       [
-        "--no-replace-objects",
-        "-C",
-        ROOT,
         "archive",
         "--format=tar",
         "--output=" + archive,
         repo.head,
       ],
-      { code: "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED" },
+      "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
     );
     checkedSpawn(
       "/usr/bin/tar",

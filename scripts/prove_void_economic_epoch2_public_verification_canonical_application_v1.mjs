@@ -448,6 +448,149 @@ const repeat =
 assert.equal(repeat.application_plan_id, plan.application_plan_id);
 
 {
+  const repoRoot = path.resolve(".");
+  const hostile = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-epoch2-public-git-config-hostile-"),
+  );
+  const fakeBin = path.join(hostile, "bin");
+  const fakeGitSentinel = path.join(hostile, "fake-git-invoked");
+  const fsmonitorSentinel = path.join(hostile, "fsmonitor-invoked");
+  const fakeGit = path.join(fakeBin, "git");
+  const fakeFsmonitor = path.join(hostile, "fake-fsmonitor.sh");
+  const hostileAttributes = path.join(hostile, "attributes");
+  const hostileHome = path.join(hostile, "home");
+  fs.mkdirSync(fakeBin, { recursive: true });
+  fs.mkdirSync(hostileHome, { recursive: true });
+  fs.writeFileSync(
+    fakeGit,
+    "#!/bin/sh\nprintf 'invoked\\n' >> " +
+      JSON.stringify(fakeGitSentinel) +
+      "\nexit 91\n",
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    fakeFsmonitor,
+    "#!/bin/sh\nprintf 'invoked\\n' >> " +
+      JSON.stringify(fsmonitorSentinel) +
+      "\nexit 92\n",
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(hostileAttributes, "* export-ignore\n", "utf8");
+  fs.writeFileSync(
+    path.join(hostileHome, ".gitconfig"),
+    [
+      "[core]",
+      "  fsmonitor = " + fakeFsmonitor,
+      "  attributesFile = " + hostileAttributes,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const priorLocal = new Map();
+  for (const key of ["core.fsmonitor", "core.attributesFile"]) {
+    const got = spawnSync(
+      "/usr/bin/git",
+      ["-C", repoRoot, "config", "--local", "--get-all", key],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    priorLocal.set(
+      key,
+      got.status === 0
+        ? String(got.stdout || "").split("\n").filter(Boolean)
+        : [],
+    );
+  }
+
+  const savedEnv = new Map();
+  for (const key of [
+    "PATH",
+    "HOME",
+    "XDG_CONFIG_HOME",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_KEY_0",
+    "GIT_CONFIG_VALUE_0",
+    "GIT_EXEC_PATH",
+  ]) {
+    savedEnv.set(
+      key,
+      Object.prototype.hasOwnProperty.call(process.env, key)
+        ? process.env[key]
+        : undefined,
+    );
+  }
+
+  try {
+    for (const [key, value] of [
+      ["core.fsmonitor", fakeFsmonitor],
+      ["core.attributesFile", hostileAttributes],
+    ]) {
+      const set = spawnSync(
+        "/usr/bin/git",
+        ["-C", repoRoot, "config", "--local", "--replace-all", key, value],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      );
+      assert.equal(set.status, 0, String(set.stderr || ""));
+    }
+
+    process.env.PATH = fakeBin;
+    process.env.HOME = hostileHome;
+    process.env.XDG_CONFIG_HOME = hostileHome;
+    process.env.GIT_DIR = path.join(hostile, "forged.git");
+    process.env.GIT_WORK_TREE = path.join(hostile, "forged-worktree");
+    process.env.GIT_OBJECT_DIRECTORY = path.join(hostile, "forged-objects");
+    process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES =
+      path.join(hostile, "forged-alternates");
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "core.fsmonitor";
+    process.env.GIT_CONFIG_VALUE_0 = fakeFsmonitor;
+    process.env.GIT_EXEC_PATH = fakeBin;
+
+    const hostilePlan =
+      await prepareVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1(
+        request,
+      );
+    assert.equal(hostilePlan.application_plan_id, plan.application_plan_id);
+
+    const hostileReplay =
+      await reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1(
+        semanticReplayInput(hostilePlan),
+      );
+    assert.equal(
+      hostileReplay.application_plan_id,
+      semanticReplay.application_plan_id,
+    );
+    assert.equal(fs.existsSync(fakeGitSentinel), false);
+    assert.equal(fs.existsSync(fsmonitorSentinel), false);
+  } finally {
+    for (const [key, values] of priorLocal) {
+      spawnSync(
+        "/usr/bin/git",
+        ["-C", repoRoot, "config", "--local", "--unset-all", key],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      );
+      for (const value of values) {
+        const restore = spawnSync(
+          "/usr/bin/git",
+          ["-C", repoRoot, "config", "--local", "--add", key, value],
+          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        );
+        assert.equal(restore.status, 0, String(restore.stderr || ""));
+      }
+    }
+    for (const [key, value] of savedEnv) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(hostile, { recursive: true, force: true });
+  }
+}
+
+{
   const forgedReceipt = structuredClone(composed.receipt);
   forgedReceipt.status = "FORGED_SOURCE_READY";
   const bytes = prettyBytes(forgedReceipt);
@@ -655,6 +798,13 @@ for (const forbidden of [
 }
 for (const required of [
   "--no-replace-objects",
+  "core.fsmonitor=false",
+  "core.attributesFile=/dev/null",
+  'env.GIT_CONFIG_GLOBAL = "/dev/null"',
+  'env.GIT_CONFIG_SYSTEM = "/dev/null"',
+  'env.HOME = "/nonexistent"',
+  '"--local", "--no-includes", "--get", "remote.origin.url"',
+  "checkedGitSpawn",
   "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
   "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN",
   'process.env.GIT_OPTIONAL_LOCKS = "0"',
@@ -674,7 +824,21 @@ for (const required of [
 console.log(
   "VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_V1_PROOF_GREEN",
 );
+const workflowSource = fs.readFileSync(
+  ".github/workflows/void-economic-epoch2-public-verification-canonical-application-v1.yml",
+  "utf8",
+);
+assert.ok(
+  workflowSource.includes(
+    "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+  ),
+  "focused workflow must check out exact PR head",
+);
+
 console.log("composition_reexecuted=true");
+console.log("exact_pr_head_checkout_required=true");
+console.log("git_config_execution_surfaces_isolated=true");
+console.log("hostile_fsmonitor_and_fake_git_not_executed=true");
 console.log("verify_applied_semantic_replay_required=true");
 console.log("detached_base_git_view_verified=true");
 console.log("self_hashed_forged_plan_rejected=true");
