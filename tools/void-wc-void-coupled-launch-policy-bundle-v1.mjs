@@ -29,10 +29,6 @@ import {
   economicIntentTtlCapsPolicyIdV1,
 } from "./void-economic-intent-ttl-caps-policy-v1.mjs";
 import {
-  VOID_ECONOMIC_SYSTEM_SPONSORED_POLICY_SCHEMA_V1,
-  economicSystemSponsoredPolicyIdV1,
-} from "./void-economic-system-sponsored-anti-grief-policy-v1.mjs";
-import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT,
 } from "./void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs";
 
@@ -80,6 +76,8 @@ const MAX_SIGNED_INTENT_GAS_LIMIT =
     VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
       .max_signed_intent_gas_limit,
   );
+const VOID_ECONOMIC_SYSTEM_SPONSORED_POLICY_SCHEMA_V1 =
+  "void.economic-system-sponsored-anti-grief-policy.v1";
 
 const INPUT_KEYS = Object.freeze([
   "bundle_committed_at_ms",
@@ -270,6 +268,25 @@ function positiveBps(value, code) {
   const parsed = positiveUintString(value, code);
   if (parsed >= 10_000n) fail(code);
   return parsed;
+}
+
+function sponsoredPolicyPayload(value) {
+  return Object.freeze({
+    schema: value.schema,
+    coupled_launch_id: value.coupled_launch_id,
+    intent_ttl_caps_policy_id: value.intent_ttl_caps_policy_id,
+    policy_generation: value.policy_generation,
+    policy_committed_at_ms: value.policy_committed_at_ms,
+    per_intent_sponsored_gas_limit: value.per_intent_sponsored_gas_limit,
+    per_identity_sponsored_gas_budget:
+      value.per_identity_sponsored_gas_budget,
+    global_sponsored_gas_budget: value.global_sponsored_gas_budget,
+    budget_exhaustion_action: value.budget_exhaustion_action,
+  });
+}
+
+function economicSystemSponsoredPolicyIdDependencyLightV1(value) {
+  return digest(sponsoredPolicyPayload(value));
 }
 
 function deepFreeze(value) {
@@ -552,7 +569,10 @@ function validateSponsor(raw, launchId, window, ttl) {
   ) {
     fail("COUPLED_LAUNCH_SPONSOR_EXHAUSTION_ACTION_INVALID");
   }
-  if (economicSystemSponsoredPolicyIdV1(value) !== value.policy_id) {
+  if (
+    economicSystemSponsoredPolicyIdDependencyLightV1(value) !==
+    value.policy_id
+  ) {
     fail("COUPLED_LAUNCH_SPONSOR_ID_MISMATCH");
   }
   return Object.freeze({ ...value, policy_committed_at_ms: committed });
