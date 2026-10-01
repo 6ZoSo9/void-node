@@ -35,6 +35,7 @@ const explicit = Object.freeze({
   REMOTE_HELPER_BASE: "http://203.0.113.10:4312/workcredits/devnet",
   REMOTE_RELAYER_BASE: "http://203.0.113.10:4313",
   REMOTE_BASE: "http://203.0.113.10:4102",
+  LOCAL_BASE: "http://198.51.100.20:4100",
   PUBLIC_LOCAL_NODE_BASE: "http://198.51.100.20:4100",
 });
 
@@ -49,6 +50,9 @@ function envFor(spec) {
   const env = baseEnv();
   env.ALIEN = explicit.ALIEN;
   for (const name of spec.remote) env[name] = explicit[name];
+  if (spec.path === "ops/two-box-peer-proof-suite.sh") {
+    env.LOCAL_BASE = explicit.LOCAL_BASE;
+  }
   if (spec.publicLocal) env.PUBLIC_LOCAL_NODE_BASE = explicit.PUBLIC_LOCAL_NODE_BASE;
   return env;
 }
