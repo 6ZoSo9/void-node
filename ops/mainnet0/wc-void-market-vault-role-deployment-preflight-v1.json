@@ -87,6 +87,7 @@
   "next_gate": "fresh_launch_controller_public_control_requalification",
   "authority": {
     "source_preflight_only": true,
+    "git_head_source_read": true,
     "credential_read": false,
     "private_key_access": false,
     "wallet_or_signer_access": false,
