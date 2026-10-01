@@ -84,6 +84,13 @@ assert.throws(
   /production_epoch2_rpc_url_not_canonical_loopback/u,
 );
 
+assert.throws(
+  () => validateProductionEpoch2RpcTargetV1(
+    selectedFixture("http://127.0.0.1:28545"),
+  ),
+  /production_epoch2_rpc_url_not_canonical_loopback/u,
+);
+
 const badGenesis = selectedFixture();
 badGenesis.reviewed_successor_identity.genesis_file_sha256 =
   "0".repeat(64);
@@ -106,6 +113,22 @@ assert.throws(
   /production_epoch2_hold_selection_mismatch/u,
 );
 
+const wrongConsumer = structuredClone(target);
+wrongConsumer.downstream_consumers[3] = "invented_consumer";
+assert.throws(
+  () => validateProductionEpoch2RpcTargetV1(wrongConsumer),
+  /production_epoch2_downstream_consumers_mismatch/u,
+);
+
+const reorderedAuthority = structuredClone(target);
+reorderedAuthority.authority = Object.fromEntries(
+  Object.entries(reorderedAuthority.authority).reverse(),
+);
+assert.equal(
+  validateProductionEpoch2RpcTargetV1(reorderedAuthority).status,
+  HOLD_STATUS,
+);
+
 const digest = crypto
   .createHash("sha256")
   .update(fs.readFileSync(
@@ -122,6 +145,9 @@ console.log("isolated_18550_rejected=true");
 console.log("isolated_18551_rejected=true");
 console.log("isolated_18552_rejected=true");
 console.log("remote_rpc_rejected=true");
+console.log("noncanonical_loopback_spelling_rejected=true");
+console.log("exact_downstream_consumer_set_bound=true");
+console.log("json_object_field_order_not_authority=true");
 console.log("synthetic_selected_contract_semantics_green=true");
 console.log("independent_host_acceptance_required=true");
 console.log("transaction_authorized=false");
