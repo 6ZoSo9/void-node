@@ -16,6 +16,8 @@ on:
       - "ops/public/public-entrypoints-v1-proof.sh"
       - "ops/public/vps-public-seed-internet-proof-v2.sh"
       - "ops/public/public-landing-v1-proof.sh"
+      - "tools/void-public-bootstrap-committed-freshness-v1.mjs"
+      - "scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -32,6 +34,12 @@ on:
       - "ops/public/public-entrypoints-v1-proof.sh"
       - "ops/public/vps-public-seed-internet-proof-v2.sh"
       - "ops/public/public-landing-v1-proof.sh"
+      - "tools/void-public-bootstrap-committed-freshness-v1.mjs"
+      - "scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs"
+
+  schedule:
+    - cron: "47 5 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -51,6 +59,10 @@ jobs:
           bash -n ops/public/public-entrypoints-v1-proof.sh
           bash -n ops/public/vps-public-seed-internet-proof-v2.sh
           bash -n ops/public/public-landing-v1-proof.sh
+          node --check tools/void-public-bootstrap-committed-freshness-v1.mjs
+          node --check scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs
+      - name: Prove committed bootstrap freshness policy
+        run: node scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs
       - name: Prove configured default without live network
         run: |
           python3 - <<'PY'
@@ -124,9 +136,20 @@ jobs:
           assert "stable → stable renewal" in publication_doc
           assert "rollback is deliberately conservative" in publication_doc
 
+          seed_guard = Path(".github/workflows/void-public-seed-default-origin-v1.yml").read_text()
+          assert 'cron: "47 5 * * *"' in seed_guard
+          assert "void-public-bootstrap-committed-freshness-v1.mjs" in seed_guard
+          assert "--min-remaining-seconds 86400" in seed_guard
+
           print("VOID_PUBLIC_SEED_DEFAULT_ORIGIN_V1_GREEN")
           print("live_network_probe_performed=false")
           print("manifest_validity_extended=false")
           PY
+      - name: Check committed bootstrap freshness alarm
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          node tools/void-public-bootstrap-committed-freshness-v1.mjs \
+            --manifest public/bootstrap/v1.json \
+            --min-remaining-seconds 86400
       - name: Diff hygiene
         run: git diff --check HEAD^..HEAD
