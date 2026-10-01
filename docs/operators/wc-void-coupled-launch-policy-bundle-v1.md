@@ -42,8 +42,13 @@ worktree. A dedicated reviewed semantic core and its complete 10-module relative
 closure are read from the same captured HEAD, materialized into a private
 temporary source tree, and executed by a permission-fenced Node child. The
 closure is fail-closed against bare packages, dynamic imports, child-process,
-worker, and network-module surfaces. The resulting module Git-blob manifest is
-content-addressed inside `canonical_launch_source`.
+worker, and network-module surfaces.
+
+The reviewed core is deliberately **semantic-only**: it cannot emit the
+production bundle marker, authority object, canonical-source claim, or
+`bundle_id`. Only the parent compiler, after source/canonical-main provenance
+checks, can assemble and content-address the production-shaped bundle. The
+reviewed module Git-blob manifest is embedded in `canonical_launch_source`.
 
 This deliberately binds the bundle to one reviewed source generation without
 hard-pinning unrelated candidate gate fields. Reviewed gate promotions may
