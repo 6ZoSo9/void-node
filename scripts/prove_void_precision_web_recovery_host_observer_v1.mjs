@@ -205,13 +205,36 @@ expectRejected(
 assert.equal(OBSERVATION_MAX_AGE_MS, 300_000);
 assert.equal(OBSERVATION_MAX_FUTURE_SKEW_MS, 5_000);
 
+const observerToolSource = fs.readFileSync(
+  "tools/void-precision-web-recovery-host-observer-v1.mjs",
+  "utf8",
+);
+assert(
+  observerToolSource.includes("return Object.freeze({"),
+  "observer subprocess environment must be an explicit frozen allowlist",
+);
+assert.equal(
+  observerToolSource.includes("const env = { ...baseEnv }"),
+  false,
+  "observer subprocess environment must not inherit ambient process variables",
+);
+
 {
   const env = observerCommandEnvV1({
     PATH: "/tmp/attacker-bin",
-    LD_PRELOAD: "/tmp/attacker.so",
+    HOME: "/tmp/attacker-home",
+    XDG_CONFIG_HOME: "/tmp/attacker-config",
+    LD_PRELOAD: "/tmp/attacker-preload.so",
     LD_LIBRARY_PATH: "/tmp/attacker-lib",
+    LD_AUDIT: "/tmp/attacker-audit.so",
+    LD_DEBUG: "all",
+    GLIBC_TUNABLES: "glibc.malloc.check=3",
+    NODE_OPTIONS: "--require=/tmp/attacker.cjs",
+    PYTHONPATH: "/tmp/attacker-python",
+    GCONV_PATH: "/tmp/attacker-gconv",
     TAILSCALE_SOCKET: "/tmp/attacker.sock",
     SYSTEMD_EDITOR: "/tmp/attacker-editor",
+    SYSTEMD_PAGER: "/tmp/attacker-pager",
     TS_DEBUG_FAKE: "1",
     TAILSCALE_DEBUG_FAKE: "1",
     DBUS_SESSION_BUS_ADDRESS: "unix:path=/tmp/attacker-bus",
@@ -219,19 +242,56 @@ assert.equal(OBSERVATION_MAX_FUTURE_SKEW_MS, 5_000);
     PRESERVE_ME: "yes",
   });
   const uid = process.getuid();
+  assert.deepEqual(
+    Object.keys(env).sort(),
+    [
+      "DBUS_SESSION_BUS_ADDRESS",
+      "GIT_TERMINAL_PROMPT",
+      "HOME",
+      "LANG",
+      "LC_ALL",
+      "NO_COLOR",
+      "PAGER",
+      "PATH",
+      "SYSTEMD_COLORS",
+      "SYSTEMD_PAGER",
+      "XDG_CONFIG_HOME",
+      "XDG_RUNTIME_DIR",
+    ].sort(),
+  );
   assert.equal(env.PATH, "/usr/bin:/bin");
-  assert.equal(env.LD_PRELOAD, undefined);
-  assert.equal(env.LD_LIBRARY_PATH, undefined);
-  assert.equal(env.TAILSCALE_SOCKET, undefined);
-  assert.equal(env.SYSTEMD_EDITOR, undefined);
-  assert.equal(env.TS_DEBUG_FAKE, undefined);
-  assert.equal(env.TAILSCALE_DEBUG_FAKE, undefined);
+  assert.equal(env.HOME, "/nonexistent");
+  assert.equal(env.XDG_CONFIG_HOME, "/nonexistent");
+  assert.equal(env.LANG, "C");
+  assert.equal(env.LC_ALL, "C");
+  assert.equal(env.SYSTEMD_PAGER, "cat");
+  assert.equal(env.SYSTEMD_COLORS, "0");
+  assert.equal(env.PAGER, "cat");
+  assert.equal(env.NO_COLOR, "1");
+  assert.equal(env.GIT_TERMINAL_PROMPT, "0");
   assert.equal(env.XDG_RUNTIME_DIR, "/run/user/" + uid);
   assert.equal(
     env.DBUS_SESSION_BUS_ADDRESS,
     "unix:path=/run/user/" + uid + "/bus",
   );
-  assert.equal(env.PRESERVE_ME, "yes");
+  for (const forbidden of [
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "LD_DEBUG",
+    "GLIBC_TUNABLES",
+    "NODE_OPTIONS",
+    "PYTHONPATH",
+    "GCONV_PATH",
+    "TAILSCALE_SOCKET",
+    "SYSTEMD_EDITOR",
+    "TS_DEBUG_FAKE",
+    "TAILSCALE_DEBUG_FAKE",
+    "PRESERVE_ME",
+  ]) {
+    assert.equal(env[forbidden], undefined, forbidden);
+  }
+  assert.equal(Object.isFrozen(env), true);
 }
 
 const accepted = evaluateCollectedPrecisionWebObservationV1({

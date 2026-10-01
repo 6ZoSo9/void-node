@@ -197,33 +197,26 @@ function sameCommandIdentity(left, right) {
   return canonicalJson(left) === canonicalJson(right);
 }
 
-export function observerCommandEnvV1(baseEnv = process.env) {
-  const env = { ...baseEnv };
-  for (const key of [
-    "LD_PRELOAD",
-    "LD_LIBRARY_PATH",
-    "TAILSCALE_SOCKET",
-    "SYSTEMD_EDITOR",
-  ]) {
-    delete env[key];
-  }
-  for (const key of Object.keys(env)) {
-    if (/^(?:TS_DEBUG|TAILSCALE_DEBUG)/u.test(key)) delete env[key];
-  }
+export function observerCommandEnvV1(_baseEnv = process.env) {
   const uid = typeof process.getuid === "function" ? process.getuid() : null;
   if (!Number.isSafeInteger(uid) || uid < 1) {
     fail("observer_user_uid_unavailable");
   }
-  env.PATH = "/usr/bin:/bin";
-  env.LANG = "C";
-  env.LC_ALL = "C";
-  env.SYSTEMD_PAGER = "cat";
-  env.PAGER = "cat";
-  env.GIT_TERMINAL_PROMPT = "0";
-  env.XDG_RUNTIME_DIR = "/run/user/" + uid;
-  env.DBUS_SESSION_BUS_ADDRESS =
-    "unix:path=/run/user/" + uid + "/bus";
-  return env;
+  return Object.freeze({
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    SYSTEMD_PAGER: "cat",
+    SYSTEMD_COLORS: "0",
+    PAGER: "cat",
+    NO_COLOR: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    XDG_RUNTIME_DIR: "/run/user/" + uid,
+    DBUS_SESSION_BUS_ADDRESS:
+      "unix:path=/run/user/" + uid + "/bus",
+  });
 }
 
 function commandEnv() {

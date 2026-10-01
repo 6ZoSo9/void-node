@@ -70,11 +70,14 @@ The operational collector performs only these classes of reads:
 8. read Tailscale Serve and Funnel status JSON before and after the observation.
 
 All external commands use fixed absolute executable paths and are checked for
-filesystem-identity stability before/after each read. The observer also strips
-dynamic-loader overrides and Tailscale socket/debug overrides, fixes
-`PATH=/usr/bin:/bin`, and pins user-systemd reads to the current UID's
-`/run/user/<uid>/bus` rather than trusting inherited D-Bus/runtime-directory
-coordinates.
+filesystem-identity stability before/after each read. Command subprocesses do
+**not** inherit the ambient process environment. They receive one explicit
+frozen allowlist containing only fixed PATH/locale/HOME/pager controls plus the
+current UID's `XDG_RUNTIME_DIR=/run/user/<uid>` and matching user-systemd D-Bus
+address. Dynamic-loader variables (`LD_PRELOAD`, `LD_AUDIT`,
+`LD_LIBRARY_PATH`, etc.), Node/Python loader options, Tailscale socket/debug
+overrides, editor hooks, and unrelated caller variables therefore cannot cross
+the subprocess boundary.
 
 ## Runtime facts required
 
