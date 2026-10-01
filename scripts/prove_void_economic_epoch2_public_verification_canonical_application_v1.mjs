@@ -23,13 +23,10 @@ import {
   composeVoidEconomicEpoch2PublicVerificationV1,
 } from "../tools/void-economic-epoch2-public-verification-composition-v1.mjs";
 import {
-  classifyVoidEconomicEvmSuccessorMigrationV1,
-} from "../tools/void-economic-evm-successor-migration-v1.mjs";
-import {
   VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_AUTHORITY_V1,
   VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_PLAN_V1,
   prepareVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1,
-  verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationStateV1,
+  reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1,
 } from "../tools/void-economic-epoch2-public-verification-canonical-application-v1.mjs";
 
 const BLOCK_HASH =
@@ -337,6 +334,10 @@ for (const [key, value] of Object.entries(
     "exact_composition_receipt_required",
     "exact_derived_candidate_required",
     "composition_reexecution_required",
+    "applied_composition_reexecution_required",
+    "applied_exact_upstream_evidence_required",
+    "external_plan_not_semantic_authority",
+    "detached_base_git_view_required",
     "composition_receipt_equality_required",
     "derived_candidate_equality_required",
     "canonical_head_candidate_bytes_required",
@@ -380,6 +381,13 @@ assert.equal(
 );
 assert.match(plan.application_plan_id, /^voide2pvca1_[0-9a-f]{64}$/u);
 assert.equal(plan.composition_id, composed.receipt.composition_id);
+assert.deepEqual(plan.composition_receipt, composed.receipt);
+assert.equal(plan.expected_registry_address, REGISTRY);
+assert.equal(plan.expected_publisher_address, PUBLISHER);
+assert.equal(
+  plan.review_confirmation,
+  VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_CONFIRMATION_V1,
+);
 assert.equal(plan.migration_source_ready, true);
 assert.equal(plan.migration_authorized, false);
 assert.equal(plan.public_activation_authorized, false);
@@ -397,15 +405,41 @@ assert.deepEqual(plan.promoted_public_verification_fields, [
   "successor_state_root_public_void_anchor_ready",
 ]);
 
-const state =
-  verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationStateV1({
-    plan,
-    successorCandidate: plan.target_candidate,
-    classifyMigration: classifyVoidEconomicEvmSuccessorMigrationV1,
-  });
-assert.equal(state.ok, true);
-assert.equal(state.successor_source_ready, true);
-assert.equal(state.migration_authorized, false);
+function semanticReplayInput(planValue = plan, overrides = {}) {
+  return {
+    plan: planValue,
+    public_read_evidence_bytes: request.public_read_evidence_bytes,
+    public_read_evidence_file_sha256:
+      request.public_read_evidence_file_sha256,
+    public_read_evidence_id: request.public_read_evidence_id,
+    evaluation_time_utc: request.evaluation_time_utc,
+    state_root_membership_bytes: request.state_root_membership_bytes,
+    state_root_membership_file_sha256:
+      request.state_root_membership_file_sha256,
+    expected_registry_address: request.expected_registry_address,
+    expected_publisher_address: request.expected_publisher_address,
+    review_confirmation: request.review_confirmation,
+    ...overrides,
+  };
+}
+
+const semanticReplay =
+  await reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1(
+    semanticReplayInput(),
+  );
+assert.equal(semanticReplay.ok, true);
+assert.equal(
+  semanticReplay.status,
+  "EPOCH2_PUBLIC_VERIFICATION_APPLICATION_PLAN_SEMANTICS_REVERIFIED",
+);
+assert.equal(semanticReplay.application_plan_id, plan.application_plan_id);
+assert.equal(semanticReplay.composition_id, plan.composition_id);
+assert.equal(semanticReplay.state_root_promotion_id, plan.state_root_promotion_id);
+assert.equal(semanticReplay.exact_upstream_evidence_replayed, true);
+assert.equal(semanticReplay.exact_base_generation_replayed, true);
+assert.equal(semanticReplay.target_candidate_rederived, true);
+assert.equal(semanticReplay.successor_source_ready, true);
+assert.equal(semanticReplay.migration_authorized, false);
 
 const repeat =
   await prepareVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1(
@@ -475,16 +509,49 @@ await assert.rejects(
 );
 
 {
-  const forgedTarget = structuredClone(plan.target_candidate);
-  forgedTarget.native_gas_cleanup.old_native_balance_supply_is_void_supply = true;
-  assert.throws(
+  const forgedPlan = structuredClone(plan);
+  forgedPlan.composition_id = "voide2pvc1_" + "f".repeat(64);
+  forgedPlan.composition_receipt.composition_id = forgedPlan.composition_id;
+  const body = structuredClone(forgedPlan);
+  delete body.application_plan_id;
+  forgedPlan.application_plan_id =
+    "voide2pvca1_" +
+    digest(Buffer.from(canonicalJson(body), "utf8"));
+
+  await assert.rejects(
     () =>
-      verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationStateV1({
-        plan,
-        successorCandidate: forgedTarget,
-        classifyMigration: classifyVoidEconomicEvmSuccessorMigrationV1,
-      }),
-    /PUBLIC_VERIFICATION_APPLICATION_TARGET_NOT_APPLIED/u,
+      reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1(
+        semanticReplayInput(forgedPlan),
+      ),
+    /PUBLIC_VERIFICATION_APPLICATION_REPLAY_COMPOSITION_MISMATCH/u,
+  );
+}
+
+{
+  const wrongEvidence = Buffer.from(request.public_read_evidence_bytes);
+  wrongEvidence[wrongEvidence.length - 2] =
+    wrongEvidence[wrongEvidence.length - 2] === 0x7d ? 0x20 : 0x7d;
+  await assert.rejects(
+    () =>
+      reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1(
+        semanticReplayInput(plan, {
+          public_read_evidence_bytes: wrongEvidence,
+          public_read_evidence_file_sha256: digest(wrongEvidence),
+        }),
+      ),
+    /PUBLIC_VERIFICATION_APPLICATION_REPLAY_PUBLIC_READ_BINDING_MISMATCH/u,
+  );
+}
+
+{
+  await assert.rejects(
+    () =>
+      reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1(
+        semanticReplayInput(plan, {
+          unexpected: true,
+        }),
+      ),
+    /INVALID_PUBLIC_VERIFICATION_APPLICATION_SEMANTIC_REPLAY_INPUT_SHAPE/u,
   );
 }
 
@@ -587,10 +654,15 @@ for (const forbidden of [
 for (const required of [
   "--no-replace-objects",
   "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
+  "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN",
+  "detached_base_git_view_required",
+  "applied_composition_reexecution_required",
   "exact_composition_execution_from_reviewed_head",
   "composeVoidEconomicEpoch2PublicVerificationV1",
   "PUBLIC_VERIFICATION_APPLICATION_COMPOSITION_RECEIPT_MISMATCH",
   "PUBLIC_VERIFICATION_APPLICATION_DERIVED_CANDIDATE_MISMATCH",
+  "PUBLIC_VERIFICATION_APPLICATION_REPLAY_COMPOSITION_MISMATCH",
+  "reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1",
 ]) {
   assert.ok(source.includes(required), required);
 }
@@ -599,6 +671,9 @@ console.log(
   "VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_V1_PROOF_GREEN",
 );
 console.log("composition_reexecuted=true");
+console.log("verify_applied_semantic_replay_required=true");
+console.log("detached_base_git_view_verified=true");
+console.log("self_hashed_forged_plan_rejected=true");
 console.log("composition_receipt_equality_verified=true");
 console.log("derived_candidate_equality_verified=true");
 console.log("canonical_successor_source_bound=true");
