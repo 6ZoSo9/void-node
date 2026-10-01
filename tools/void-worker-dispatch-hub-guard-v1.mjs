@@ -160,7 +160,11 @@ function reviewedGitEnvV1() {
   for (const key of Object.keys(env)) {
     if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
   }
+  env.GIT_CONFIG_GLOBAL = "/dev/null";
+  env.GIT_CONFIG_SYSTEM = "/dev/null";
+  env.GIT_CONFIG_NOSYSTEM = "1";
   env.GIT_OPTIONAL_LOCKS = "0";
+  env.GIT_SSL_NO_VERIFY = "false";
   env.LANG = "C";
   env.LC_ALL = "C";
   env.PATH = "/usr/bin:/bin";
@@ -195,11 +199,18 @@ export function assertCanonicalMainCheckoutV1(localHead, liveMain) {
   return true;
 }
 
-function gitReadV1(args, { timeoutMs = 15_000 } = {}) {
+function gitReadV1(
+  args,
+  {
+    timeoutMs = 15_000,
+    cwd = undefined,
+  } = {},
+) {
   const result = spawnSync(
     GIT,
     args,
     {
+      cwd,
       encoding: "utf8",
       maxBuffer: MAX_STDIN_BYTES,
       stdio: ["ignore", "pipe", "pipe"],
@@ -240,7 +251,10 @@ function resolveCanonicalReviewedMainV1() {
       CANONICAL_GIT_URL,
       CANONICAL_MAIN_REF,
     ],
-    { timeoutMs: LIVE_MAIN_QUERY_TIMEOUT_MS },
+    {
+      timeoutMs: LIVE_MAIN_QUERY_TIMEOUT_MS,
+      cwd: "/",
+    },
   );
   if (liveMainRaw === null) {
     fail("live canonical main metadata is unavailable");
