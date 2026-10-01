@@ -28,8 +28,9 @@ export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1 =
     canonical_candidate_read: true,
     git_application_lineage_read: true,
     candidate_copy_derivation: true,
+    create_only_private_output: true,
     canonical_candidate_write: false,
-    filesystem_write: false,
+    filesystem_write_outside_private_output: false,
     runtime_mutation: false,
     systemd_or_service_mutation: false,
     credential_access: false,
@@ -58,15 +59,64 @@ const COUPLED_REL =
 const SUCCESSOR_REL =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 
-const REQUIRED_LINEAGE = Object.freeze({
-  economic_epoch2_public_verification: Object.freeze([SUCCESSOR_REL]),
-  market_vault: Object.freeze([PRODUCTION_REL]),
-  ledger_custody: Object.freeze([PRODUCTION_REL, COUPLED_REL]),
-  opening_durable: Object.freeze([PRODUCTION_REL, COUPLED_REL]),
-  participant_postpurchase: Object.freeze([COUPLED_REL]),
-  bounded_canary: Object.freeze([PRODUCTION_REL, COUPLED_REL]),
+const APPLICATION_VERIFIERS = Object.freeze({
+  bounded_canary: Object.freeze({
+    module:
+      "tools/void-wc-void-bounded-canary-canonical-application-v1.mjs",
+    export_name:
+      "verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1",
+    expected_status:
+      "CANONICAL_BOUNDED_CANARY_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    argument_style: "camel",
+  }),
+  economic_epoch2_public_verification: Object.freeze({
+    module:
+      "tools/void-economic-epoch2-public-verification-canonical-application-v1.mjs",
+    export_name:
+      "verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1",
+    expected_status:
+      "EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_VERIFIED_SOURCE_READY",
+    argument_style: "snake",
+  }),
+  ledger_custody: Object.freeze({
+    module:
+      "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs",
+    export_name:
+      "verifyVoidWcVoidLedgerCustodyCanonicalApplicationV1",
+    expected_status:
+      "LEDGER_CUSTODY_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    argument_style: "snake",
+  }),
+  market_vault: Object.freeze({
+    module:
+      "tools/void-wc-void-market-vault-canonical-application-v1.mjs",
+    export_name:
+      "verifyVoidWcVoidMarketVaultCanonicalApplicationV1",
+    expected_status:
+      "MARKET_VAULT_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    argument_style: "snake",
+  }),
+  opening_durable: Object.freeze({
+    module:
+      "tools/void-wc-void-opening-durable-evidence-canonical-application-v1.mjs",
+    export_name:
+      "verifyVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1",
+    expected_status:
+      "OPENING_DURABLE_EVIDENCE_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    argument_style: "snake",
+  }),
+  participant_postpurchase: Object.freeze({
+    module:
+      "tools/void-participant-postpurchase-canonical-application-v1.mjs",
+    export_name:
+      "verifyVoidParticipantPostpurchaseCanonicalApplicationV1",
+    expected_status:
+      "PARTICIPANT_CONTROL_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    argument_style: "snake",
+  }),
 });
-const LINEAGE_NAMES = Object.freeze(Object.keys(REQUIRED_LINEAGE).sort());
+const LINEAGE_NAMES =
+  Object.freeze(Object.keys(APPLICATION_VERIFIERS).sort());
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SAFE_ID = /^[A-Za-z0-9._:-]{8,240}$/u;
@@ -169,10 +219,10 @@ function normalizeLineages(raw) {
     if (!plain(entry)) fail("FINAL_COUPLED_LINEAGE_ENTRY_INVALID");
     const keys = Object.keys(entry).sort();
     const expected = [
-      "applied_commit_sha",
+      "application_plan_file_sha256",
       "application_plan_id",
-      "application_receipt_sha256",
       "lane",
+      "verification_status",
       "verified_applied",
     ].sort();
     exactStringArray(keys, expected, "FINAL_COUPLED_LINEAGE_KEYS_INVALID");
@@ -193,24 +243,24 @@ function normalizeLineages(raw) {
       fail("FINAL_COUPLED_LINEAGE_PLAN_ID_INVALID:" + entry.lane);
     }
     if (
-      typeof entry.applied_commit_sha !== "string" ||
-      !HEX40.test(entry.applied_commit_sha)
+      typeof entry.application_plan_file_sha256 !== "string" ||
+      !HEX64.test(entry.application_plan_file_sha256)
     ) {
-      fail("FINAL_COUPLED_LINEAGE_COMMIT_INVALID:" + entry.lane);
+      fail("FINAL_COUPLED_LINEAGE_PLAN_SHA256_INVALID:" + entry.lane);
     }
-    if (
-      typeof entry.application_receipt_sha256 !== "string" ||
-      !HEX64.test(entry.application_receipt_sha256)
-    ) {
-      fail("FINAL_COUPLED_LINEAGE_RECEIPT_SHA256_INVALID:" + entry.lane);
+    const expectedStatus =
+      APPLICATION_VERIFIERS[entry.lane].expected_status;
+    if (entry.verification_status !== expectedStatus) {
+      fail("FINAL_COUPLED_LINEAGE_STATUS_INVALID:" + entry.lane);
     }
     byName.set(
       entry.lane,
       Object.freeze({
         lane: entry.lane,
         application_plan_id: entry.application_plan_id,
-        applied_commit_sha: entry.applied_commit_sha,
-        application_receipt_sha256: entry.application_receipt_sha256,
+        application_plan_file_sha256:
+          entry.application_plan_file_sha256,
+        verification_status: entry.verification_status,
         verified_applied: true,
       }),
     );
@@ -479,34 +529,160 @@ function currentRepositoryIdentity() {
   return Object.freeze({ head, tree });
 }
 
-function verifyGitLineages(lineages, head) {
-  for (const lineage of lineages) {
-    git(
-      ["merge-base", "--is-ancestor", lineage.applied_commit_sha, head],
-      "FINAL_COUPLED_LINEAGE_NOT_ANCESTOR:" + lineage.lane,
-    );
-    const changed = git(
-      [
-        "diff",
-        "--name-only",
-        lineage.applied_commit_sha + "^",
-        lineage.applied_commit_sha,
-      ],
-      "FINAL_COUPLED_LINEAGE_DIFF_UNAVAILABLE:" + lineage.lane,
-    )
-      .split("\n")
-      .filter(Boolean);
-    for (const requiredPath of REQUIRED_LINEAGE[lineage.lane]) {
-      if (!changed.includes(requiredPath)) {
-        fail(
-          "FINAL_COUPLED_LINEAGE_REQUIRED_CANONICAL_PATH_MISSING:" +
-            lineage.lane +
-            ":" +
-            requiredPath,
-        );
-      }
-    }
+function privateRegularFileBytes(file, label) {
+  if (
+    typeof file !== "string" ||
+    !path.isAbsolute(file) ||
+    path.resolve(file) !== file ||
+    !outsideRepository(file)
+  ) {
+    fail(label + "_PATH_INVALID");
   }
+  let real;
+  try {
+    real = fs.realpathSync.native(file);
+  } catch {
+    fail(label + "_PATH_UNAVAILABLE");
+  }
+  if (real !== file) fail(label + "_PATH_ALIAS_FORBIDDEN");
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    fail(label + "_NOT_DIRECT_REGULAR");
+  }
+  if (
+    typeof process.getuid === "function" &&
+    stat.uid !== process.getuid()
+  ) {
+    fail(label + "_OWNER_MISMATCH");
+  }
+  if ((stat.mode & 0o077) !== 0) {
+    fail(label + "_PERMISSIONS_TOO_BROAD");
+  }
+  return fs.readFileSync(file);
+}
+
+function readPrivateLineagePlanManifest(file) {
+  const bytes =
+    privateRegularFileBytes(file, "FINAL_COUPLED_LINEAGE_MANIFEST");
+  let value;
+  try {
+    value = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    );
+  } catch {
+    fail("FINAL_COUPLED_LINEAGE_MANIFEST_JSON_INVALID");
+  }
+  if (!Array.isArray(value) || value.length !== LINEAGE_NAMES.length) {
+    fail("FINAL_COUPLED_LINEAGE_MANIFEST_COUNT_INVALID");
+  }
+  const byName = new Map();
+  for (const entry of value) {
+    if (!plain(entry)) {
+      fail("FINAL_COUPLED_LINEAGE_MANIFEST_ENTRY_INVALID");
+    }
+    const keys = Object.keys(entry).sort();
+    const expected = [
+      "application_plan_file_sha256",
+      "application_plan_path",
+      "lane",
+    ].sort();
+    exactStringArray(
+      keys,
+      expected,
+      "FINAL_COUPLED_LINEAGE_MANIFEST_KEYS_INVALID",
+    );
+    if (
+      typeof entry.lane !== "string" ||
+      !LINEAGE_NAMES.includes(entry.lane) ||
+      byName.has(entry.lane)
+    ) {
+      fail("FINAL_COUPLED_LINEAGE_MANIFEST_LANE_INVALID");
+    }
+    if (
+      typeof entry.application_plan_file_sha256 !== "string" ||
+      !HEX64.test(entry.application_plan_file_sha256)
+    ) {
+      fail(
+        "FINAL_COUPLED_LINEAGE_MANIFEST_PLAN_SHA256_INVALID:" +
+          entry.lane,
+      );
+    }
+    byName.set(entry.lane, Object.freeze({ ...entry }));
+  }
+  return Object.freeze(
+    LINEAGE_NAMES.map((name) => byName.get(name)),
+  );
+}
+
+async function verifyAppliedLineagePlans(manifest) {
+  const verified = [];
+  for (const entry of manifest) {
+    const spec = APPLICATION_VERIFIERS[entry.lane];
+    const planBytes = privateRegularFileBytes(
+      entry.application_plan_path,
+      "FINAL_COUPLED_APPLICATION_PLAN:" + entry.lane,
+    );
+    const actualSha = sha256Bytes(planBytes);
+    if (actualSha !== entry.application_plan_file_sha256) {
+      fail("FINAL_COUPLED_APPLICATION_PLAN_SHA256_MISMATCH:" + entry.lane);
+    }
+    let plan;
+    try {
+      plan = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(planBytes),
+      );
+    } catch {
+      fail("FINAL_COUPLED_APPLICATION_PLAN_JSON_INVALID:" + entry.lane);
+    }
+    if (
+      !plain(plan) ||
+      typeof plan.application_plan_id !== "string" ||
+      !SAFE_ID.test(plan.application_plan_id)
+    ) {
+      fail("FINAL_COUPLED_APPLICATION_PLAN_ID_INVALID:" + entry.lane);
+    }
+
+    const modulePath = path.join(REPO_ROOT, spec.module);
+    if (!fs.existsSync(modulePath)) {
+      fail("FINAL_COUPLED_APPLICATION_VERIFIER_MISSING:" + entry.lane);
+    }
+    const module = await import(pathToFileURL(modulePath).href);
+    const verifier = module[spec.export_name];
+    if (typeof verifier !== "function") {
+      fail("FINAL_COUPLED_APPLICATION_VERIFIER_EXPORT_MISSING:" + entry.lane);
+    }
+    const args =
+      spec.argument_style === "camel"
+        ? {
+            applicationPlanBytes: planBytes,
+            applicationPlanFileSha256:
+              entry.application_plan_file_sha256,
+          }
+        : {
+            application_plan_bytes: planBytes,
+            application_plan_file_sha256:
+              entry.application_plan_file_sha256,
+          };
+    const result = await verifier(args);
+    if (
+      result?.ok !== true ||
+      result.status !== spec.expected_status ||
+      result.application_plan_id !== plan.application_plan_id
+    ) {
+      fail("FINAL_COUPLED_APPLICATION_VERIFY_RESULT_INVALID:" + entry.lane);
+    }
+    verified.push(
+      Object.freeze({
+        lane: entry.lane,
+        application_plan_id: plan.application_plan_id,
+        application_plan_file_sha256:
+          entry.application_plan_file_sha256,
+        verification_status: result.status,
+        verified_applied: true,
+      }),
+    );
+  }
+  return normalizeLineages(verified);
 }
 
 function outsideRepository(file) {
@@ -577,22 +753,6 @@ export function writeVoidWcVoidFinalCoupledActivationPromotionV1(
   });
 }
 
-function readPrivateLineageFile(file) {
-  if (!path.isAbsolute(file) || path.resolve(file) !== file) {
-    fail("FINAL_COUPLED_LINEAGE_FILE_PATH_INVALID");
-  }
-  const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    fail("FINAL_COUPLED_LINEAGE_FILE_NOT_DIRECT_REGULAR");
-  }
-  if ((stat.mode & 0o077) !== 0) {
-    fail("FINAL_COUPLED_LINEAGE_FILE_PERMISSIONS_TOO_BROAD");
-  }
-  const value = JSON.parse(
-    new TextDecoder("utf-8", { fatal: true }).decode(fs.readFileSync(file)),
-  );
-  return normalizeLineages(value);
-}
 
 const direct =
   process.argv[1] &&
@@ -614,8 +774,10 @@ if (direct) {
       );
     }
     const repository = currentRepositoryIdentity();
-    const lineages = readPrivateLineageFile(values.lineages);
-    verifyGitLineages(lineages, repository.head);
+    const lineageManifest =
+      readPrivateLineagePlanManifest(values.lineages);
+    const lineages =
+      await verifyAppliedLineagePlans(lineageManifest);
 
     const result = deriveVoidWcVoidFinalCoupledActivationPromotionV1({
       production_candidate: readJson(PRODUCTION_REL),
