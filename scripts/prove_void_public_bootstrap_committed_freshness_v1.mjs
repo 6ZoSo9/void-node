@@ -100,6 +100,9 @@ for (const [name, mutate, expected] of [
   ["tailnet", (m) => { m.private_tailnet_endpoints_published = true; }, /private tailnet/],
   ["temporary", (m) => { m.sync_endpoints[0].temporary = true; }, /temporary=false/],
   ["transport", (m) => { m.sync_endpoints[0].transport = "http"; }, /must use HTTPS/],
+  ["chain_type", (m) => { m.chain_id = "2050"; }, /network or chain mismatch/],
+  ["extra_authority", (m) => { m.authority.future_authority = false; }, /authority keys mismatch/],
+  ["missing_onion_array", (m) => { delete m.onion_endpoints; }, /onion_endpoints must be an array/],
 ]) {
   assert.throws(
     () => assessCommittedBootstrapFreshnessV1(
@@ -157,6 +160,9 @@ console.log("threshold_holds=true");
 console.log("expired_holds=true");
 console.log("hold_manifest_holds=true");
 console.log("authority_boundary=true");
+console.log("exact_chain_id_type=true");
+console.log("exact_authority_keyset=true");
+console.log("onion_array_required=true");
 console.log("deterministic=true");
 console.log("network_access=false");
 console.log("repository_mutation=false");
