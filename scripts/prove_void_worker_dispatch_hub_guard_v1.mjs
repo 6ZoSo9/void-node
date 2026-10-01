@@ -9,9 +9,18 @@ import {
   WorkerDispatchHubGuardError,
   evaluateWorkerDispatchHubGuardV1,
 } from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
+import {
+  MARKER as UPSTREAM_CHAIN_MARKER,
+} from "../tools/void-coordination-successor-chain-v1.mjs";
+import {
+  MARKER as UPSTREAM_DISPATCH_MARKER,
+} from "../tools/void-worker-coordination-live-dispatch-v1.mjs";
 
 const PROOF_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1_PROOF_GREEN";
 const EVALUATION_ID = "sha256:" + "a".repeat(64);
+
+assert.equal(CHAIN_MARKER, UPSTREAM_CHAIN_MARKER);
+assert.equal(DISPATCH_MARKER, UPSTREAM_DISPATCH_MARKER);
 
 function chain(overrides = {}) {
   return {
@@ -259,4 +268,5 @@ console.log("invalid_chain_holds=true");
 console.log("repository_mismatch_rejected=true");
 console.log("authority_escalation_rejected=true");
 console.log("guard_id_deterministic=true");
+console.log("upstream_markers_bound=true");
 console.log("normal_dispatch_grants_no_source_authority=true");
