@@ -516,9 +516,13 @@ for (const forbidden of [
 assert.match(source, /O_NOFOLLOW/u);
 assert.match(source, /fstatSync/u);
 assert.match(source, /GIT_CONFIG_NOSYSTEM/u);
+assert.match(source, /GIT_CONFIG_GLOBAL: "\/dev\/null"/u);
+assert.match(source, /core\.fsmonitor=false/u);
 assert.match(source, /expected-input-sha256/u);
 assert.match(source, /parentFd/u);
-assert.match(source, /fsyncDirectory\(parent\)/u);
+assert.match(source, /fsyncSync\(parentFd\)/u);
+assert.match(source, /parentAfterPath\.ino/u);
+assert.equal(source.includes("...process.env"), false);
 assert.match(source, /headBlobSha1\(COUPLED_CANDIDATE_REL\)/u);
 assert.equal(
   source.includes("const bytes = fs.readFileSync(file);"),
