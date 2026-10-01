@@ -92,7 +92,10 @@ The intended state binds:
 
 The checkpoint tag is not part of prepare or partial commit. It becomes
 eligible for publication only after both participant states are independently
-verified and the transaction reaches `COMMITTED`.
+verified, the transaction is otherwise ready to commit, and the executor
+**re-checks that the exact checkpoint tag is still absent**. Initial tag
+absence is not enough because another actor could create it while the
+transaction is in flight.
 
 ## State machine
 
@@ -124,6 +127,12 @@ Both receipts are required before commit can begin.
 ### Publish and verify
 
 A publish receipt must match the intended participant state exactly.
+
+Immediately before publication, the live executor must re-observe the
+participant prestate and bind `prestate_id_before_publish` to the original
+captured prestate ID. If any drop-in/environment/validator-lineage/service
+precondition has drifted since PREPARE, publication must HOLD instead of
+overwriting the newer state.
 
 If restart-if-active applies to an active prestate, the receipt must bind:
 
