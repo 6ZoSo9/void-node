@@ -135,7 +135,10 @@ The wrapper:
   before execution;
 - requires the entry module to be a direct regular file strictly inside the
   private materialization root;
-- clears ambient `NODE_PATH`, `NODE_OPTIONS`, and npm prefix overrides;
+- constructs a minimal explicit child environment instead of copying ambient
+  process variables; `LD_PRELOAD`, `LD_LIBRARY_PATH`, `NODE_PATH`,
+  `NODE_OPTIONS`, npm prefix overrides, and unrelated tool-option variables
+  therefore do not cross the execution boundary;
 - launches the current Node executable with the Node permission model enabled;
 - grants filesystem-read permission only to the private materialization root;
   and
@@ -205,6 +208,7 @@ post_copy_inventory_reverification=true
 permission_fenced_execution=true
 ancestor_package_resolution_forbidden=true
 ambient_node_resolution_overrides_ignored=true
+ambient_dynamic_loader_overrides_ignored=true
 
 network_access=false
 npm_install_performed=false
