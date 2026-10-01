@@ -7,6 +7,7 @@ on:
       - "ops/public/buy-void-public-v1-proof.sh"
       - "ops/public/buy-void-pool-accounting-v1-proof.sh"
       - "ops/public/funding-support-v1-proof.sh"
+      - "docs/public/funding-support-v1.md"
       - "ops/public/participant-funding-card-v1-proof.sh"
       - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
       - "ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh"
@@ -18,6 +19,7 @@ on:
       - "ops/public/buy-void-public-v1-proof.sh"
       - "ops/public/buy-void-pool-accounting-v1-proof.sh"
       - "ops/public/funding-support-v1-proof.sh"
+      - "docs/public/funding-support-v1.md"
       - "ops/public/participant-funding-card-v1-proof.sh"
       - "ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
       - "ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh"
@@ -73,6 +75,20 @@ jobs:
               assert retired_ip in text, file
               assert hold in text, file
               assert casefold in text, file
+
+          workflow = Path(".github/workflows/void-public-proof-seed-defaults-v1.yml").read_text()
+          pull = workflow.split("  pull_request:\n", 1)[1].split("  push:\n", 1)[0]
+          push = workflow.split("  push:\n", 1)[1].split("\npermissions:", 1)[0]
+          funding_doc_token = '- "docs/public/funding-support-v1.md"'
+          assert pull.count(funding_doc_token) == 1
+          assert push.count(funding_doc_token) == 1
+
+          funding_doc = Path("docs/public/funding-support-v1.md").read_text()
+          assert "Configured public seed origin:" in funding_doc
+          assert "https://seed.nullfeed.org" in funding_doc
+          assert "Retired historical public seed origin:" in funding_doc
+          assert retired_host in funding_doc
+          assert "Historically verified/default public seed" not in funding_doc
 
           reviewer_doc = Path("docs/public/public-reviewer-one-command-smoke-pack-v1.md").read_text()
           reviewer_proof = Path("ops/mainnet0/public-reviewer-one-command-smoke-pack-v1-proof.sh").read_text()

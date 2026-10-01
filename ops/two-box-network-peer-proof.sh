@@ -3,11 +3,69 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://${ALIEN##*@}:4100}"
+MARKER="VOID_TWO_BOX_NETWORK_PEER_EXPLICIT_TARGET_V1"
+
+: "${ALIEN:?set ALIEN to an explicit SSH target, for example user@host}"
+if [[ "$ALIEN" =~ [[:space:]] ]] || [[ "$ALIEN" == -* ]] || \
+   [[ ! "$ALIEN" =~ ^[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?$ ]]; then
+  echo "$MARKER HOLD: ALIEN must be an explicit SSH alias or user@host, not an option or shell fragment" >&2
+  exit 2
+fi
+
+: "${REMOTE_NODE_BASE:?set REMOTE_NODE_BASE to the explicit remote node HTTP origin}"
+
+TARGET_GUARD="${ALIEN,,} ${REMOTE_NODE_BASE,,}"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*)
+    echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
+
+if ! REMOTE_NODE_BASE="$(python3 - "$REMOTE_NODE_BASE" <<'PY'
+from urllib.parse import urlsplit
+import ipaddress
+import sys
+
+raw = sys.argv[1]
+try:
+    parsed = urlsplit(raw)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("scheme")
+    if not parsed.hostname:
+        raise ValueError("host")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("credentials")
+    _ = parsed.port
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("origin")
+
+    host = parsed.hostname.lower().rstrip(".")
+    if host == "localhost":
+        raise ValueError("local")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+    if ip is not None and ip.is_loopback:
+        raise ValueError("local")
+except Exception:
+    raise SystemExit(2)
+
+print(f"{parsed.scheme}://{parsed.netloc}")
+PY
+)"; then
+  echo "$MARKER HOLD: REMOTE_NODE_BASE must be a credential-free non-loopback HTTP(S) origin" >&2
+  exit 2
+fi
+
 LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
 OUT_DIR="${OUT_DIR:-/tmp/two-box-network-peer-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT_DIR"
+
+echo "$MARKER"
+echo "ssh_target=$ALIEN"
+echo "remote_node_base=$REMOTE_NODE_BASE"
 
 jget() {
   curl -fsS --max-time "${2:-8}" "$1"
