@@ -626,6 +626,23 @@ for (const [key, value] of Object.entries(
 
 const source = fs.readFileSync(TOOL, "utf8");
 const coreSource = fs.readFileSync(CORE, "utf8");
+for (const forbiddenAuthoritySurface of [
+  '"VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1"',
+  "bundle_id",
+  "canonical_launch_source",
+  "authority:",
+]) {
+  assert.equal(
+    coreSource.includes(forbiddenAuthoritySurface),
+    false,
+    "reviewed semantic core must not mint production authority: " +
+      forbiddenAuthoritySurface,
+  );
+}
+assert.match(
+  coreSource,
+  /VOID_WC_VOID_COUPLED_LAUNCH_POLICY_SEMANTIC_CORE_V1/u,
+);
 for (const forbiddenImport of [
   "./void-wc-void-opening-window-policy-v1.mjs",
   "./void-wc-void-opening-concentration-sybil-policy-v1.mjs",
@@ -686,6 +703,7 @@ console.log("explicit_sponsored_gas_budgets_required=true");
 console.log("all_policy_ids_content_addressed=true");
 console.log("canonical_coupled_launch_source_bound=true");
 console.log("reviewed_git_object_policy_execution=true");
+console.log("reviewed_semantic_core_production_authority=false");
 console.log("reviewed_policy_module_count=11");
 console.log("permission_fenced_execution=true");
 console.log("hidden_worktree_policy_execution=false");
