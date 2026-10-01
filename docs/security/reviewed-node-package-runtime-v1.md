@@ -119,8 +119,37 @@ cleanup also fails, both failures are surfaced as
 silently swallowed.
 
 A reviewed module materialization can place its source tree beside this private
-`node_modules`. Bare imports then resolve from the private reviewed package
-runtime rather than the repository's ambient ignored dependency tree.
+`node_modules`.
+
+Private materialization **by itself is not execution authority**. Normal Node
+package resolution walks ancestor directories and could otherwise fall back to
+an unreviewed parent `node_modules` for an optional or missing dependency.
+
+Authority-bearing execution must therefore use:
+
+`runReviewedNodePackageRuntimeV1(...)`
+
+The wrapper:
+
+- re-verifies the private package tree against the reviewed profile immediately
+  before execution;
+- requires the entry module to be a direct regular file strictly inside the
+  private materialization root;
+- clears ambient `NODE_PATH`, `NODE_OPTIONS`, and npm prefix overrides;
+- launches the current Node executable with the Node permission model enabled;
+- grants filesystem-read permission only to the private materialization root;
+  and
+- denies ancestor package fallback, including optional-peer lookup outside the
+  reviewed tree.
+
+The permanent proof demonstrates the boundary with an unreviewed
+`bufferutil` package placed in the parent `node_modules`: ordinary unfenced
+Node resolves and executes that fixture, while the reviewed wrapper fails
+closed with filesystem-read denial before the parent package can execute.
+
+Downstream authority lanes must use the reviewed execution wrapper (or an
+equivalently strong confinement primitive) rather than directly invoking
+`node <entry>` against the materialized directory.
 
 ## Bootstrap and profile pinning
 
@@ -173,6 +202,9 @@ lockfile_closure_required=true
 installed_package_byte_inventory_required=true
 private_dependency_materialization=true
 post_copy_inventory_reverification=true
+permission_fenced_execution=true
+ancestor_package_resolution_forbidden=true
+ambient_node_resolution_overrides_ignored=true
 
 network_access=false
 npm_install_performed=false
