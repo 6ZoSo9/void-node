@@ -369,9 +369,36 @@ function collectInternal(root,rootPackages){
   requireCleanRepository(realRoot);
   const packageMeta=exactHeadMetadata(realRoot,"package.json");
   const lockMeta=exactHeadMetadata(realRoot,"package-lock.json");
+  const packageBytes=stableRegularBytes(
+    path.join(realRoot,"package.json"),
+    "reviewed_node_runtime_package_json_stable_read",
+  );
+  const lockBytes=stableRegularBytes(
+    path.join(realRoot,"package-lock.json"),
+    "reviewed_node_runtime_package_lock_stable_read",
+  );
+  if(
+    sha256(packageBytes)!==packageMeta.sha256||
+    sha256(lockBytes)!==lockMeta.sha256
+  ){
+    fail("reviewed_node_runtime_metadata_changed_after_head_check");
+  }
+  let packageJson;
   let lock;
-  try{lock=JSON.parse(fs.readFileSync(path.join(realRoot,"package-lock.json"),"utf8"));}catch{
-    fail("reviewed_node_runtime_lockfile_json_invalid");
+  try{
+    packageJson=JSON.parse(packageBytes.toString("utf8"));
+    lock=JSON.parse(lockBytes.toString("utf8"));
+  }catch{
+    fail("reviewed_node_runtime_metadata_json_invalid");
+  }
+  for(const rootPackage of rootPackages){
+    canonicalPackageName(rootPackage);
+    if(
+      packageJson?.dependencies?.[rootPackage]===undefined&&
+      packageJson?.devDependencies?.[rootPackage]===undefined
+    ){
+      fail("reviewed_node_runtime_root_package_not_declared:"+rootPackage);
+    }
   }
   const closure=deriveReviewedPackageLockClosureV1(lock,rootPackages);
   const packages=[];
@@ -394,6 +421,29 @@ function collectInternal(root,rootPackages){
     packages.push(summary);
     details.set(row.lock_key,inventory);
   }
+  for(const row of closure.packages){
+    const first=packages.find(item=>item.lock_key===row.lock_key);
+    const identity=packageJsonIdentity(realRoot,row);
+    const inventory=walkPackageDirectory(realRoot,row.lock_key);
+    if(
+      !first||
+      identity.sha256!==first.package_json_sha256||
+      inventory.file_count!==first.file_count||
+      inventory.bytes!==first.bytes||
+      inventory.aggregate_sha256!==first.aggregate_sha256
+    ){
+      fail("reviewed_node_runtime_dependency_tree_changed_during_collection:"+row.lock_key);
+    }
+  }
+  const packageMetaAfter=exactHeadMetadata(realRoot,"package.json");
+  const lockMetaAfter=exactHeadMetadata(realRoot,"package-lock.json");
+  if(
+    canonicalJson(packageMetaAfter)!==canonicalJson(packageMeta)||
+    canonicalJson(lockMetaAfter)!==canonicalJson(lockMeta)
+  ){
+    fail("reviewed_node_runtime_metadata_changed_during_collection");
+  }
+
   const material=Object.freeze({
     marker:VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1,
     version:1,
