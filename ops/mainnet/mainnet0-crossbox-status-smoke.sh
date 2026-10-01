@@ -38,10 +38,12 @@ esac
 
 local_host="$(hostname 2>/dev/null || true)"
 local_short="$(hostname -s 2>/dev/null || true)"
-if [ -n "$local_host" ] && [ "$peer_host" = "$local_host" ]; then
+local_host_lower="$(printf '%s' "$local_host" | tr '[:upper:]' '[:lower:]')"
+local_short_lower="$(printf '%s' "$local_short" | tr '[:upper:]' '[:lower:]')"
+if [ -n "$local_host_lower" ] && [ "$peer_host_lower" = "$local_host_lower" ]; then
   fail "crossbox_peer_local_host_forbidden"
 fi
-if [ -n "$local_short" ] && [ "$peer_host" = "$local_short" ]; then
+if [ -n "$local_short_lower" ] && [ "$peer_host_lower" = "$local_short_lower" ]; then
   fail "crossbox_peer_local_host_forbidden"
 fi
 
@@ -52,24 +54,68 @@ echo "local_fallback_allowed=false"
 
 echo
 echo "=== [1] local truth ==="
-git rev-parse --short HEAD
-git describe --tags --always --dirty
-git status --short
+LOCAL_HEAD="$(git rev-parse HEAD)"
+LOCAL_DESCRIBE="$(git describe --tags --always --dirty)"
+LOCAL_STATUS="$(git status --porcelain)"
+echo "local_head=$LOCAL_HEAD"
+echo "local_describe=$LOCAL_DESCRIBE"
+if [ -n "$LOCAL_STATUS" ]; then
+  printf '%s\n' "$LOCAL_STATUS"
+  fail "crossbox_local_repo_dirty"
+fi
+echo "local_repo_clean=true"
 
 echo
 echo "=== [2] local smoke ==="
 make mainnet0-status-smoke
 
 echo
-echo "=== [3] remote peer sync truth ==="
-ssh -o BatchMode=yes -o ConnectTimeout=6 "$CROSSBOX_PEER" '
+echo "=== [3] remote peer identity and sync truth ==="
+mapfile -t REMOTE_TRUTH < <(
+  ssh -o BatchMode=yes -o ConnectTimeout=6 "$CROSSBOX_PEER" '
 set -euo pipefail
 cd /home/zoso/dev/void-node
 
-echo "peer_head=$(git rev-parse --short HEAD)"
-echo "peer_describe=$(git describe --tags --always --dirty)"
-git status --short
+status="$(git status --porcelain)"
+if [ -n "$status" ]; then
+  printf "%s\n" "$status" >&2
+  exit 3
+fi
+
+hostname
+git rev-parse HEAD
+git describe --tags --always --dirty
 '
+)
+
+if [ "${#REMOTE_TRUTH[@]}" -ne 3 ]; then
+  fail "crossbox_remote_truth_shape_invalid"
+fi
+
+REMOTE_HOST="${REMOTE_TRUTH[0]}"
+REMOTE_HEAD="${REMOTE_TRUTH[1]}"
+REMOTE_DESCRIBE="${REMOTE_TRUTH[2]}"
+REMOTE_HOST_LOWER="$(printf '%s' "$REMOTE_HOST" | tr '[:upper:]' '[:lower:]')"
+
+if [ -z "$REMOTE_HOST_LOWER" ]; then
+  fail "crossbox_remote_hostname_missing"
+fi
+if [ "$REMOTE_HOST_LOWER" = "$local_host_lower" ] || \
+   { [ -n "$local_short_lower" ] && [ "$REMOTE_HOST_LOWER" = "$local_short_lower" ]; }; then
+  fail "crossbox_remote_resolved_to_local_host"
+fi
+if [ "$REMOTE_HEAD" != "$LOCAL_HEAD" ]; then
+  echo "local_head=$LOCAL_HEAD" >&2
+  echo "remote_head=$REMOTE_HEAD" >&2
+  fail "crossbox_head_mismatch"
+fi
+
+echo "remote_host=$REMOTE_HOST"
+echo "remote_head=$REMOTE_HEAD"
+echo "remote_describe=$REMOTE_DESCRIBE"
+echo "remote_repo_clean=true"
+echo "exact_head_match=true"
+echo "distinct_remote_host_verified=true"
 
 echo
 echo "=== [4] remote peer smoke ==="
