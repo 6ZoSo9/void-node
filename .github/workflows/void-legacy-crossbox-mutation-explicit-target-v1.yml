@@ -8,8 +8,6 @@ on:
       - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
       - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
       - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
-      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
-      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
       - "ops/mainnet/validator-crossbox-closeout.sh"
   push:
     branches: [main]
@@ -17,6 +15,8 @@ on:
       - ".github/workflows/void-legacy-crossbox-mutation-explicit-target-v1.yml"
       - "docs/operators/void-legacy-crossbox-mutation-explicit-target-v1.md"
       - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
       - "ops/mainnet/validator-crossbox-closeout.sh"
 
 permissions:
@@ -60,23 +60,32 @@ jobs:
           peer="ops/security/void-public-site-bundle-peer-readiness-proof.sh"
           validator="ops/mainnet/validator-crossbox-closeout.sh"
 
+          valid_alien="operator@203.0.113.10"
+          local_peer="http://203.0.113.10:4100"
+          remote_peer="http://203.0.113.11:4100"
+
           hold "missing explicit ALIEN remote SSH target" bash "$site"
-
-          hold "retired Alienware target is forbidden"             env ALIEN=zoso@100.122.79.39               LOCAL_PEER=http://100.122.79.39:4100               REMOTE_PEER=http://203.0.113.11:4100               CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1               bash "$site"
-
-          hold "confirmation token required"             env ALIEN=operator@203.0.113.10               LOCAL_PEER=http://203.0.113.10:4100               REMOTE_PEER=http://203.0.113.11:4100               bash "$site"
+          hold "invalid explicit ALIEN SSH target"             env ALIEN=-oBatchMode=no                 LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
+          hold "unsafe LOCAL_PEER"             env ALIEN="$valid_alien" LOCAL_PEER=http://bad/path:4100                 REMOTE_PEER="$remote_peer"                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
+          hold "unsafe REMOTE_PEER"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer"                 REMOTE_PEER=http://bad/path:4100                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
+          hold "unsafe DROPIN_NAME"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 DROPIN_NAME=../../evil.conf                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
+          hold "retired Alienware target is forbidden"             env ALIEN=zoso@100.122.79.39                 LOCAL_PEER=http://203.0.113.10:4100                 REMOTE_PEER=http://203.0.113.11:4100                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
+          hold "confirmation token required"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 bash "$site"
 
           hold "missing explicit ALIEN remote SSH target" bash "$auto"
+          hold "invalid explicit ALIEN SSH target" env ALIEN=-oBatchMode=no bash "$auto"
           hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$auto"
 
           hold "missing explicit ALIEN remote SSH target" bash "$peer"
+          hold "invalid explicit ALIEN SSH target" env ALIEN=-oBatchMode=no bash "$peer"
           hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$peer"
 
-          hold "missing explicit CROSSBOX_SSH_TARGET"             bash "$validator" 2 vault-test
-
-          hold "retired Alienware target is forbidden"             env CROSSBOX_SSH_TARGET=zoso@100.122.79.39               CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1               bash "$validator" 2 vault-test
-
-          hold "confirmation token required"             env CROSSBOX_SSH_TARGET=operator@203.0.113.10               bash "$validator" 2 vault-test
+          hold "missing explicit CROSSBOX_SSH_TARGET" bash "$validator" 2 vault-test
+          hold "invalid explicit CROSSBOX_SSH_TARGET"             env CROSSBOX_SSH_TARGET=-oBatchMode=no                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 vault-test
+          hold "epoch must be a canonical positive integer <= 6 digits"             env CROSSBOX_SSH_TARGET="$valid_alien"                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 02 vault-test
+          hold "vault name is unsafe"             env CROSSBOX_SSH_TARGET="$valid_alien"                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 ../../vault
+          hold "retired Alienware target is forbidden"             env CROSSBOX_SSH_TARGET=zoso@100.122.79.39                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 vault-test
+          hold "confirmation token required"             env CROSSBOX_SSH_TARGET="$valid_alien" bash "$validator" 2 vault-test
 
           python3 - <<'PY'
           from pathlib import Path
@@ -88,24 +97,43 @@ jobs:
 
           assert '${ALIEN:-zoso@100.122.79.39}' not in site
           assert '${LOCAL_PEER:-http://100.122.79.39:4100}' not in site
+          assert 'valid_ssh_target "$ALIEN" || hold "invalid explicit ALIEN SSH target"' in site
+          assert 'safe_peer "$LOCAL_PEER" || hold "unsafe LOCAL_PEER"' in site
+          assert 'safe_peer "$REMOTE_PEER" || hold "unsafe REMOTE_PEER"' in site
+          assert 'safe_dropin_name "$DROPIN_NAME" || hold "unsafe DROPIN_NAME"' in site
           assert 'applyVoidSiteBundlePeerEnvPersistenceV1' in site
-          assert site.index('confirmation token required') < site.index('mkdir -p "$(dirname "$LOCAL_DROPIN")"')
-          assert 'ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof' in site
+          assert 'require_crossbox_source_parity' in site
+          assert site.index('safe_peer "$REMOTE_PEER"') < site.index('confirmation token required')
+          assert site.index('confirmation token required') < site.index('require_crossbox_source_parity')
+          assert site.index('require_crossbox_source_parity') < site.index('write_local_dropin "$LOCAL_PEER"')
+          assert site.index('ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof') > site.index('write_remote_dropin "$REMOTE_PEER"')
           assert 'ALIEN="$ALIEN" make void-public-site-bundle-peer-readiness-proof' in site
 
           for child in (auto, peer):
               assert '${ALIEN:-zoso@100.122.79.39}' not in child
-              assert 'missing explicit ALIEN remote SSH target' in child
+              assert 'valid_ssh_target "$ALIEN" || hold "invalid explicit ALIEN SSH target"' in child
               assert 'retired Alienware target is forbidden' in child
-              assert child.index('missing explicit ALIEN remote SSH target') < child.index('mkdir -p "$OUT"')
+              assert child.index('invalid explicit ALIEN SSH target') < child.index('mkdir -p "$OUT"')
 
           assert '${ALIEN:-zoso@100.122.79.39}' not in validator
+          assert 'valid_ssh_target "$CROSSBOX_SSH_TARGET" || hold "invalid explicit CROSSBOX_SSH_TARGET"' in validator
+          assert 'epoch must be a canonical positive integer <= 6 digits' in validator
+          assert 'vault name is unsafe' in validator
           assert 'publishValidatorCrossboxCloseoutV1' in validator
-          assert validator.index('confirmation token required') < validator.index('mkdir -p "$LIVE_STAGE"')
+          assert 'require_crossbox_source_parity' in validator
+          assert validator.index('confirmation token required') < validator.index('require_crossbox_source_parity')
+          assert validator.index('require_crossbox_source_parity') < validator.index('mkdir -p "$LIVE_STAGE"')
           assert 'ssh "$ALIEN"' not in validator
           assert 'ssh "$CROSSBOX_SSH_TARGET"' in validator
+          assert 'git status --porcelain=v1 --untracked-files=all' in validator
+          assert 'local/remote repository HEAD mismatch' in validator
 
           print("VOID_LEGACY_CROSSBOX_MUTATION_EXPLICIT_TARGET_V1_GREEN")
+          print("destination_only_ssh_targets=true")
+          print("peer_urls_validated_before_mutation=true")
+          print("dropin_name_validated_before_mutation=true")
+          print("crossbox_source_parity_required_before_mutation=true")
+          print("validator_epoch_and_vault_name_bounded=true")
           print("runtime_mutation_performed=false")
           print("ssh_performed=false")
           print("git_tag_or_push_performed=false")
