@@ -1,0 +1,65 @@
+name: VOID WC/VOID market-vault role deployment preflight v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-market-vault-role-deployment-preflight-v1.yml"
+      - "docs/operators/wc-void-market-vault-role-deployment-preflight-v1.md"
+      - "ops/mainnet0/wc-void-market-vault-role-deployment-preflight-v1.json"
+      - "scripts/prove_void_wc_void_market_vault_role_deployment_preflight_v1.mjs"
+      - "tools/void-wc-void-market-vault-role-deployment-preflight-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-authorization-v1.json"
+      - "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-wc-void-market-vault-role-deployment-preflight-v1.yml"
+      - "docs/operators/wc-void-market-vault-role-deployment-preflight-v1.md"
+      - "ops/mainnet0/wc-void-market-vault-role-deployment-preflight-v1.json"
+      - "scripts/prove_void_wc_void_market_vault_role_deployment_preflight_v1.mjs"
+      - "tools/void-wc-void-market-vault-role-deployment-preflight-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-authorization-v1.json"
+      - "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node.js major
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-wc-void-market-vault-role-deployment-preflight-v1.mjs
+          node --check scripts/prove_void_wc_void_market_vault_role_deployment_preflight_v1.mjs
+      - name: Verify current HOLD preflight
+        run: node tools/void-wc-void-market-vault-role-deployment-preflight-v1.mjs
+      - name: Prove role/deployment boundary
+        run: node scripts/prove_void_wc_void_market_vault_role_deployment_preflight_v1.mjs
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          base="origin/${GITHUB_BASE_REF:-main}"
+          git diff --check "$base"...HEAD
