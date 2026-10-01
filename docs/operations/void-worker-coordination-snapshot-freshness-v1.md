@@ -10,7 +10,7 @@ Coordination V3 stores a reviewed point-in-time lane snapshot. Live GitHub facts
 
 The snapshot-freshness helper makes that boundary machine-readable. It does not replace the V3 validator, the V1 Red/Amber/Green collision registry, or live GitHub inspection. It consumes the checked-in V3 roster/state plus an independently observed current `main` SHA and reports whether the snapshot's source anchor still matches that observation.
 
-The companion live-dispatch evaluator closes the separate non-idle assignment gap. It composes all 15 current scheduled workers, validates one bounded fallback for every worker, consumes a closed live-evidence packet, and emits exactly one deterministic dispatch recommendation per worker. It does not invoke workers or grant source, merge, deployment, scheduler, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority.
+The companion live-dispatch evaluator closes the separate non-idle assignment gap. It composes all 14 currently enabled scheduled workers, validates one bounded fallback for every worker, consumes a closed live-evidence packet, and emits exactly one deterministic dispatch recommendation per worker. It does not invoke workers or grant source, merge, deployment, scheduler, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority.
 
 ## Snapshot truth boundary
 
@@ -114,7 +114,7 @@ The optional output file is create-only and mode `0600`.
 
 ## Run live dispatch
 
-The live evidence packet is read from standard input. It must use marker `VOID_WORKER_LIVE_DISPATCH_EVIDENCE_V1`, exact closed schemas, the exact 15-worker scheduled set, canonical timestamps, a current-main SHA, normalized primary states/collisions, and bounded fallback evidence.
+The live evidence packet is read from standard input. It must use marker `VOID_WORKER_LIVE_DISPATCH_EVIDENCE_V1`, exact closed schemas, the exact 14-worker currently enabled scheduled set, canonical timestamps, a current-main SHA, normalized primary states/collisions, and bounded fallback evidence.
 
 ```bash
 node tools/void-worker-coordination-live-dispatch-v1.mjs --pretty \
