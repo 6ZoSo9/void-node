@@ -20,9 +20,9 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const REVIEWED_INHERITED_SOURCE_MAIN_COMMIT =
   "eef17f65a8bd495d581df3b91d9a411a5402cde8";
 const CANDIDATE_SOURCE_REVIEW_BASE_COMMIT =
-  "cc5e9790e02e188b3e3878fe7cc9c9a9dd11b376";
+  "c4614c49d79a6111c2590518ea4dda7863b14042";
 const CANDIDATE_SOURCE_REVIEW_BASE_TREE =
-  "f06b9a1504050cb959a6e6a5197f5a15daa50c79";
+  "69c505eb451ef0c3ae75963fd651d3cae635c780";
 
 const EXPECTED_INHERITED_SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_runtime_integration_v1.ts":
@@ -41,7 +41,7 @@ const EXPECTED_INHERITED_SOURCE_BLOBS = Object.freeze({
 
 const EXPECTED_CANDIDATE_HEAD_SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
-    "d06a265aa14e37b77a8309720a3c4e71c51971d7",
+    "4e5d9a633b05d9254424c2132fc6620b94ff3692",
 });
 
 const EXPECTED_READINESS = Object.freeze({
@@ -89,6 +89,8 @@ const EXPECTED_TRANSITION_POLICY = Object.freeze({
   atomic_restart_dormant_to_live_apply_allowed: true,
   atomic_restart_live_apply_to_dormant_allowed: true,
   atomic_restart_single_config_generation_required: true,
+  atomic_restart_configuration_digest_derived_from_gate_material: true,
+  atomic_restart_generation_id_derived_from_configuration_digest: true,
   non_atomic_multi_gate_transition_forbidden: true,
   claimed_selector_required_when_apply_live: true,
   full_runtime_required_when_apply_live: true,
