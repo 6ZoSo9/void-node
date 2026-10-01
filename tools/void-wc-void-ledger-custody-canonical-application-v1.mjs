@@ -80,6 +80,8 @@ const HEX40=/^[0-9a-f]{40}$/u;
 const HEX64=/^[0-9a-f]{64}$/u;
 const PLAN_ID=/^voidwclcca1_[0-9a-f]{64}$/u;
 const PROMOTION_ID=/^voidwclccp1_[0-9a-f]{64}$/u;
+const REVIEWED_RUNTIME_PROFILE_ID=/^voidrnpr1_[0-9a-f]{64}$/u;
+const CANONICAL_REMOTE="https://github.com/6ZoSo9/void-node.git";
 const MAX_BYTES=64*1024*1024;
 
 const INPUT_KEYS=Object.freeze([
@@ -222,7 +224,20 @@ function repositoryIdentity(){
     {allowEmpty:true},
   );
   if(!HEX40.test(head)||!HEX40.test(tree)) fail("LEDGER_CUSTODY_APPLICATION_REPOSITORY_IDENTITY_INVALID");
-  return Object.freeze({head,tree,branch});
+  const rawOrigin=gitText(
+    ["config","--local","--no-includes","--get","remote.origin.url"],
+    "LEDGER_CUSTODY_APPLICATION_ORIGIN_UNAVAILABLE",
+  );
+  const acceptedOrigins=new Set([
+    "https://github.com/6ZoSo9/void-node",
+    "https://github.com/6ZoSo9/void-node.git",
+    "git@github.com:6ZoSo9/void-node.git",
+    "ssh://git@github.com/6ZoSo9/void-node.git",
+  ]);
+  if(!acceptedOrigins.has(rawOrigin)){
+    fail("LEDGER_CUSTODY_APPLICATION_CANONICAL_ORIGIN_MISMATCH");
+  }
+  return Object.freeze({head,tree,branch,origin:CANONICAL_REMOTE});
 }
 function commitFile(commit,rel,label){
   if(typeof commit!=="string"||!HEX40.test(commit)){
@@ -862,6 +877,29 @@ function assertReviewedExecutionBinding(plan,binding){
   }
 }
 
+function canonicalRemoteMainHead(){
+  const result=spawnSync(
+    GIT,
+    ["ls-remote",CANONICAL_REMOTE,"refs/heads/main"],
+    {
+      env:sanitizedGitEnv(),
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      maxBuffer:1024*1024,
+      timeout:60_000,
+    },
+  );
+  if(result.error||result.status!==0){
+    fail("LEDGER_CUSTODY_APPLICATION_REMOTE_MAIN_UNAVAILABLE");
+  }
+  const line=String(result.stdout||"").trim();
+  const match=/^([0-9a-f]{40})\s+refs\/heads\/main$/u.exec(line);
+  if(!match){
+    fail("LEDGER_CUSTODY_APPLICATION_REMOTE_MAIN_INVALID");
+  }
+  return match[1];
+}
+
 function parseJsonBytes(bytes,expectedSha,label){
   if(!Buffer.isBuffer(bytes)||bytes.length<2||bytes.length>MAX_BYTES) fail(label+"_BYTES_INVALID");
   if(typeof expectedSha!=="string"||!HEX64.test(expectedSha)) fail(label+"_SHA256_INVALID");
@@ -954,6 +992,12 @@ function validatePlan(plan){
     plan.coupled_status_remains_hold!==true||
     plan.coupled_activation_ready!==false||
     plan.reviewed_git_commit_required!==true||
+    !plain(plan.reviewed_execution_module_git_blobs)||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(String(plan.reviewed_runtime_profile_id||""))||
+    !HEX64.test(String(plan.reviewed_runtime_packages_aggregate_sha256||""))||
+    plan.reviewed_execution_permission_fenced!==true||
+    plan.reviewed_execution_ancestor_package_resolution_allowed!==false||
+    plan.reviewed_execution_network_isolation_provided!==false||
     plan.market_activation_authorized!==false||
     plan.public_presale_activation_authorized!==false||
     plan.funds_movement_authorized!==false
@@ -962,7 +1006,10 @@ function validatePlan(plan){
     "application_base_head_sha","application_base_tree_sha",
     "application_tool_git_blob_sha1","promotion_tool_git_blob_sha1",
     "production_classifier_git_blob_sha1","coupled_classifier_git_blob_sha1",
-    "ledger_import_tool_git_blob_sha1","production_source_git_blob_sha1",
+    "ledger_import_tool_git_blob_sha1",
+    "reviewed_runtime_tool_git_blob_sha1",
+    "reviewed_runtime_profile_git_blob_sha1",
+    "production_source_git_blob_sha1",
     "production_target_git_blob_sha1","coupled_source_git_blob_sha1",
     "coupled_target_git_blob_sha1","successor_source_git_blob_sha1",
   ]) if(!HEX40.test(String(plan[key]||""))) fail("LEDGER_CUSTODY_APPLICATION_PLAN_GIT_ID_INVALID:"+key);
@@ -1019,6 +1066,34 @@ function validatePlan(plan){
     if(actual!==expectedBlob) fail(code);
   }
 
+  const expectedClosure=reviewedModuleClosure(
+    plan.application_base_head_sha,
+  );
+  if(
+    canonicalJson(plan.reviewed_execution_module_git_blobs)!==
+      canonicalJson(expectedClosure.module_git_blobs)
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_PLAN_REVIEWED_MODULE_CLOSURE_MISMATCH");
+  }
+  for(const [rel,expected,code] of [
+    [
+      REVIEWED_RUNTIME_TOOL_REL,
+      plan.reviewed_runtime_tool_git_blob_sha1,
+      "LEDGER_CUSTODY_APPLICATION_PLAN_RUNTIME_TOOL_BLOB_MISMATCH",
+    ],
+    [
+      REVIEWED_RUNTIME_PROFILE_REL,
+      plan.reviewed_runtime_profile_git_blob_sha1,
+      "LEDGER_CUSTODY_APPLICATION_PLAN_RUNTIME_PROFILE_BLOB_MISMATCH",
+    ],
+  ]){
+    const actual=gitText(
+      ["rev-parse",plan.application_base_head_sha+":"+rel],
+      code+"_UNAVAILABLE",
+    );
+    if(actual!==expected) fail(code);
+  }
+
   const baseProduction=commitFile(
     plan.application_base_head_sha,
     PRODUCTION_REL,
@@ -1069,37 +1144,31 @@ function validatePlan(plan){
     plan.coupled_target_candidate,
   );
 
-  const productionBefore=
-    classifyVoidWcVoidProductionReadinessV1(baseProduction.value);
-  const productionAfter=
-    classifyVoidWcVoidProductionReadinessV1(plan.production_target_candidate);
-  const coupledBefore=
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      baseCoupled.value,
-      baseSuccessor.value,
-    );
-  const coupledAfter=
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      plan.coupled_target_candidate,
-      baseSuccessor.value,
-    );
+  const productionBefore=plan.production_before;
+  const productionAfter=plan.production_after;
+  const coupledBefore=plan.coupled_before;
+  const coupledAfter=plan.coupled_after;
   const removed=[
     "wc_ledger_persistence_verification_required",
     "quote_reserve_custody_verification_required",
   ];
+  for(const [value,label] of [
+    [productionBefore,"PRODUCTION_BEFORE"],
+    [productionAfter,"PRODUCTION_AFTER"],
+    [coupledBefore,"COUPLED_BEFORE"],
+    [coupledAfter,"COUPLED_AFTER"],
+  ]){
+    exactObject(
+      value,
+      ["ok","status","reason","missing_gates"],
+      "LEDGER_CUSTODY_APPLICATION_PLAN_"+label+"_SUMMARY_INVALID",
+    );
+  }
   if(
-    canonicalJson(summary(productionBefore))!==
-      canonicalJson(plan.production_before)||
-    canonicalJson(summary(productionAfter))!==
-      canonicalJson(plan.production_after)||
-    canonicalJson(summary(coupledBefore))!==
-      canonicalJson(plan.coupled_before)||
-    canonicalJson(summary(coupledAfter))!==
-      canonicalJson(plan.coupled_after)||
-    productionBefore?.status!=="HOLD"||
-    productionAfter?.status!=="HOLD"||
-    coupledBefore?.status!=="HOLD"||
-    coupledAfter?.status!=="HOLD"||
+    productionBefore.status!=="HOLD"||
+    productionAfter.status!=="HOLD"||
+    coupledBefore.status!=="HOLD"||
+    coupledAfter.status!=="HOLD"||
     !sameStrings(
       productionAfter.missing_gates,
       removeGates(productionBefore.missing_gates,removed),
