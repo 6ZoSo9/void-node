@@ -307,6 +307,34 @@ assert.throws(
   /control_ttl_out_of_range/u,
 );
 
+const forbiddenRepoOutput = path.join(
+  process.cwd(),
+  "void-launch-controller-control-live-evidence-forbidden.json",
+);
+try {
+  fs.unlinkSync(forbiddenRepoOutput);
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+}
+const forbiddenOutputRun = spawnSync(
+  process.execPath,
+  [
+    TOOL,
+    "prepare",
+    "--candidate-address",
+    fixtureWallet.address,
+    "--output",
+    forbiddenRepoOutput,
+  ],
+  { encoding: "utf8" },
+);
+assert.notEqual(forbiddenOutputRun.status, 0);
+assert.match(
+  forbiddenOutputRun.stderr,
+  /control_output_must_be_outside_repository/u,
+);
+assert.equal(fs.existsSync(forbiddenRepoOutput), false);
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-launch-controller-control-proof-"),
 );
@@ -450,7 +478,7 @@ console.log("wrong_signer_held_green=true");
 console.log("expired_challenge_held_green=true");
 console.log("source_drift_held_green=true");
 console.log("accessor_nonexecution_green=true");
-console.log("cli_round_trip_green=true");
+console.log("cli_round_trip_green=true");\nconsole.log("live_evidence_outside_repository_green=true");
 console.log("role_binding_authorized=false");
 console.log("deployment_authorized=false");
 console.log("inventory_funding_authorized=false");
