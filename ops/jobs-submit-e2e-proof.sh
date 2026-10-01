@@ -19,6 +19,8 @@ try:
         raise ValueError("scheme")
     if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
         raise ValueError("host")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("credentials")
     if parsed.port is None:
         raise ValueError("port")
     if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
@@ -80,7 +82,7 @@ echo "job_id=$JOB_ID" | tee "$OUT/job-id.txt"
 
 echo
 echo "=== [3] poll for real worker/receipt/credit evidence ==="
-NODE_PID="$(ss -ltnp 2>/dev/null | awk -v p=":$BASE_PORT" 'index($4,p){print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n1)"
+NODE_PID="$(ss -ltnp 2>/dev/null | awk -v p="$BASE_PORT" '$4 ~ (":" p "$"){print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n1)"
 for i in $(seq 1 30); do
   TS_NOW="$(date '+%F %T')"
   H="$(curl -o /dev/null -sS -w '%{http_code}' --max-time 5 "$BASE/health" || true)"
