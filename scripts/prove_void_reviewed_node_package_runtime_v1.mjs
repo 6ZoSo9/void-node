@@ -294,6 +294,76 @@ try{
   );
 
   {
+    const saved=new Map();
+    for(const key of [
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "NODE_OPTIONS",
+      "NODE_PATH",
+      "NPM_CONFIG_PREFIX",
+      "npm_config_prefix",
+    ]){
+      saved.set(
+        key,
+        Object.prototype.hasOwnProperty.call(process.env,key)
+          ? process.env[key]
+          : undefined,
+      );
+    }
+    try{
+      process.env.LD_PRELOAD="/definitely/unreviewed/libvoid-preload.so";
+      process.env.LD_LIBRARY_PATH="/definitely/unreviewed/lib";
+      process.env.NODE_OPTIONS="--trace-warnings";
+      process.env.NODE_PATH="/definitely/unreviewed/node_modules";
+      process.env.NPM_CONFIG_PREFIX="/definitely/unreviewed/npm";
+      process.env.npm_config_prefix="/definitely/unreviewed/npm-lower";
+      const envEntry=path.join(destination,"env-probe.mjs");
+      fs.writeFileSync(
+        envEntry,
+        [
+          'console.log(JSON.stringify({',
+          '  ld_preload:process.env.LD_PRELOAD??null,',
+          '  ld_library_path:process.env.LD_LIBRARY_PATH??null,',
+          '  node_options:process.env.NODE_OPTIONS??null,',
+          '  node_path:process.env.NODE_PATH??null,',
+          '  npm_prefix:process.env.NPM_CONFIG_PREFIX??null,',
+          '  npm_prefix_lower:process.env.npm_config_prefix??null,',
+          '}));',
+          "",
+        ].join("\n"),
+        {mode:0o400},
+      );
+      const envProbe=runReviewedNodePackageRuntimeV1({
+        profile,
+        destinationRoot:destination,
+        entryFile:envEntry,
+      });
+      assert.equal(envProbe.ok,true,envProbe.stderr);
+      assert.equal(envProbe.ambient_dynamic_loader_overrides_ignored,true);
+      assert.deepEqual(
+        JSON.parse(envProbe.stdout.trim()),
+        {
+          ld_preload:null,
+          ld_library_path:null,
+          node_options:null,
+          node_path:null,
+          npm_prefix:null,
+          npm_prefix_lower:null,
+        },
+      );
+      assert.doesNotMatch(
+        envProbe.stderr,
+        /definitely\/unreviewed|ld\.so|preload/iu,
+      );
+    }finally{
+      for(const [key,value] of saved){
+        if(value===undefined) delete process.env[key];
+        else process.env[key]=value;
+      }
+    }
+  }
+
+  {
     const ancestorPackage=path.join(temp,"node_modules","bufferutil");
     fs.mkdirSync(ancestorPackage,{recursive:true,mode:0o700});
     fs.writeFileSync(
@@ -391,6 +461,7 @@ for(const [key,value] of Object.entries(
     "permission_fenced_execution",
     "ancestor_package_resolution_forbidden",
     "ambient_node_resolution_overrides_ignored",
+    "ambient_dynamic_loader_overrides_ignored",
     "reviewed_profile_head_binding",
     "reviewed_profile_content_id_rederivation",
   ]);
@@ -435,6 +506,7 @@ for(const required of [
   '"--permission"',
   '"--allow-fs-read="+root',
   "reviewedNodeExecutionEnv",
+  'HOME:"/nonexistent"',
   "runReviewedNodePackageRuntimeV1",
   "readReviewedNodePackageRuntimeProfileV1",
   "reviewed_node_runtime_profile_content_id_mismatch",
@@ -469,6 +541,7 @@ console.log("ambient_repository_node_modules_rejected=true");
 console.log("ancestor_node_modules_fallback_reachable_without_fence=true");
 console.log("ancestor_node_modules_resolution_blocked_by_permission_fence=true");
 console.log("permission_fenced_execution_green=true");
+console.log("ambient_dynamic_loader_environment_blocked=true");
 console.log("local_git_fsmonitor_execution_blocked=true");
 console.log("ambient_git_environment_redirect_blocked=true");
 console.log("materialization_cleanup_failure_observable=true");
