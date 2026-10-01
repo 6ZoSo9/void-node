@@ -58,13 +58,20 @@ Every challenge is bound to the exact current canonical source inputs:
 - Epoch-2 VOID token
   `0x470075b85352eb86f7d089fb9ba88945f12aad94`.
 
-Challenge preparation requires a clean Git worktree. The challenge records the
-current HEAD/tree and exact source blobs. Verification requires the challenge
-HEAD to remain an ancestor of the verifier's current HEAD and requires both
-canonical source blobs to remain byte-identical.
+Challenge preparation requires a clean Git worktree. The challenge records:
 
-Unrelated later commits therefore do not invalidate a challenge, but changing
-the launch or accepted vault identity does.
+- current HEAD and tree;
+- exact coupled-candidate and vault-identity blobs;
+- exact `package.json` and `package-lock.json` blobs; and
+- the exact Git blob of this control-verifier tool at that HEAD.
+
+Verification requires the challenge HEAD to remain an ancestor of the current
+HEAD, requires all reviewed input/package blobs to remain byte-identical, and
+requires the control-verifier tool blob itself to remain unchanged.
+
+Unrelated later commits therefore do not invalidate a challenge. Changing the
+launch, accepted vault identity, reviewed dependency generation, or the control
+verifier source invalidates the outstanding challenge and requires a new one.
 
 ## EIP-712 challenge
 
