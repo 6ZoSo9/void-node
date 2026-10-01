@@ -76,6 +76,13 @@ The staging tool reuses the exact renderer exported by:
 tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs
 ```
 
+It does not trust the renderer's reported digest by itself: it independently
+SHA-256 hashes the rendered live and rollback bytes and requires those hashes
+to equal both the renderer result and the fresh preflight receipt. The Precision
+wrapper then independently SHA-256 hashes the staged files again and requires
+those actual file hashes to equal the exact live/rollback hashes captured from
+the fresh preflight log.
+
 The known generation currently derives:
 
 ```text
