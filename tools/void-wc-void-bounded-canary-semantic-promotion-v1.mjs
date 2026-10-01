@@ -14,10 +14,16 @@ import {
   deriveWcVoidOpeningClaimBindingV1,
 } from "./void-wc-void-opening-claim-binding-v1.mjs";
 import {
+  VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_AUTHORITY_V1,
+  VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_V1,
+} from "./void-wc-void-opening-claim-binding-persistence-v1.mjs";
+import {
   deriveWcVoidOpeningReplayTransitionV1,
   initialWcVoidOpeningReplayStateV1,
 } from "./void-wc-void-opening-replay-protection-v1.mjs";
 import {
+  VOID_WC_VOID_OPENING_REPLAY_INSPECTION_AUTHORITY_V1,
+  VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_V1,
   VOID_WC_VOID_OPENING_REPLAY_TERMINAL_CAPSULE_V1,
 } from "./void-wc-void-opening-replay-persistence-v1.mjs";
 import {
@@ -38,7 +44,9 @@ export const VOID_WC_VOID_BOUNDED_CANARY_SEMANTIC_PROMOTION_AUTHORITY_V1 =
     market_vault_at_use_reverification:true,
     ledger_persistence_semantic_import:true,
     opening_claim_binding_rederivation:true,
+    opening_claim_persistence_receipt_validation:true,
     opening_replay_capsule_rederivation:true,
+    opening_replay_persistence_receipt_validation:true,
     participant_at_use_reverification:true,
     source_only_promotion:true,
     filesystem_read:false,
@@ -89,8 +97,12 @@ const INPUT_KEYS=Object.freeze([
   "opening_request_file_sha256",
   "opening_claim_binding_bytes",
   "opening_claim_binding_file_sha256",
+  "opening_claim_persistence_receipt_bytes",
+  "opening_claim_persistence_receipt_file_sha256",
   "opening_replay_capsule_bytes",
   "opening_replay_capsule_file_sha256",
+  "opening_replay_inspection_receipt_bytes",
+  "opening_replay_inspection_receipt_file_sha256",
   "participant_at_use_bytes",
   "participant_at_use_file_sha256",
 ]);
@@ -102,6 +114,65 @@ const OPENING_REQUEST_KEYS=Object.freeze([
   "dispositions",
   "ledger_debits",
   "mode",
+]);
+
+const CLAIM_PERSISTENCE_RECEIPT_KEYS=Object.freeze([
+  "ok",
+  "status",
+  "marker",
+  "version",
+  "coupled_launch_id",
+  "opening_state_id",
+  "binding_id",
+  "mode",
+  "persisted_path",
+  "persisted_bytes",
+  "persisted_file_sha256",
+  "disposition_count",
+  "transferred_void_atoms",
+  "refunded_wc_units",
+  "canonical_binding_direct_file",
+  "canonical_binding_realpath_exact",
+  "canonical_binding_owner_bound",
+  "canonical_binding_not_group_or_world_writable",
+  "stable_file_identity_during_read",
+  "stable_parent_directory_identity_during_read",
+  "exact_binding_rederivation_verified",
+  "binding_persistence_verified",
+  "opening_claim_transfer_or_refund_binding_persistence_verified",
+  "runtime_execution_ready",
+  "ledger_write_performed",
+  "wc_balance_mutation_performed",
+  "token_transfer_performed",
+  "refund_write_performed",
+  "market_activation_authority",
+  "public_presale_activation_authority",
+  "funds_movement_authority",
+  "authority",
+]);
+
+const REPLAY_INSPECTION_RECEIPT_KEYS=Object.freeze([
+  "ok",
+  "status",
+  "marker",
+  "version",
+  "coupled_launch_id",
+  "mode",
+  "capsule_id",
+  "transition_id",
+  "binding_id",
+  "before_state_id",
+  "after_state_id",
+  "terminal_path",
+  "terminal_capsule_sha256",
+  "terminal_replay_state_persisted",
+  "durable_replay_state_persistence_verified",
+  "duplicate_replay_protection_verified_for_launch",
+  "production_duplicate_replay_gate_updated",
+  "market_activation_authority",
+  "public_presale_activation_authority",
+  "funds_movement_authority",
+  "authority",
 ]);
 
 function fail(code){throw new Error(code);}
@@ -217,6 +288,103 @@ function exactBytesEqual(actual,expected,code){
   if(!actual.equals(expected)) fail(code);
 }
 
+function exactAuthority(actual,expected,code){
+  const value=exactObject(actual,Object.keys(expected),code+"_SHAPE");
+  if(canonicalJson(value)!==canonicalJson(expected)) fail(code+"_MISMATCH");
+  return value;
+}
+
+function validateClaimPersistenceReceipt(receipt,binding,claimSource){
+  const value=exactObject(
+    receipt,
+    CLAIM_PERSISTENCE_RECEIPT_KEYS,
+    "BOUNDED_CANARY_OPENING_CLAIM_PERSISTENCE_RECEIPT_SHAPE_INVALID",
+  );
+  if(
+    value.ok!==true||
+    value.status!=="PERSISTENCE_VERIFIED"||
+    value.marker!==VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_V1||
+    value.version!==1||
+    value.coupled_launch_id!==CURRENT_LAUNCH||
+    value.opening_state_id!==binding.opening_state_id||
+    value.binding_id!==binding.binding_id||
+    value.mode!=="finalize"||
+    value.persisted_path!==
+      "wc_v1/opening-claim-bindings-v1/"+
+        binding.binding_id.slice("sha256:".length)+".json"||
+    value.persisted_bytes!==String(claimSource.bytes.length)||
+    value.persisted_file_sha256!==claimSource.sha256||
+    value.disposition_count!==binding.disposition_count||
+    value.transferred_void_atoms!==binding.transferred_void_atoms||
+    value.refunded_wc_units!==binding.refunded_wc_units||
+    value.canonical_binding_direct_file!==true||
+    value.canonical_binding_realpath_exact!==true||
+    value.canonical_binding_owner_bound!==true||
+    value.canonical_binding_not_group_or_world_writable!==true||
+    value.stable_file_identity_during_read!==true||
+    value.stable_parent_directory_identity_during_read!==true||
+    value.exact_binding_rederivation_verified!==true||
+    value.binding_persistence_verified!==true||
+    value.opening_claim_transfer_or_refund_binding_persistence_verified!==true||
+    value.runtime_execution_ready!==false||
+    value.ledger_write_performed!==false||
+    value.wc_balance_mutation_performed!==false||
+    value.token_transfer_performed!==false||
+    value.refund_write_performed!==false||
+    value.market_activation_authority!==false||
+    value.public_presale_activation_authority!==false||
+    value.funds_movement_authority!==false
+  ){
+    fail("BOUNDED_CANARY_OPENING_CLAIM_PERSISTENCE_RECEIPT_INVALID");
+  }
+  exactAuthority(
+    value.authority,
+    VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_AUTHORITY_V1,
+    "BOUNDED_CANARY_OPENING_CLAIM_PERSISTENCE_AUTHORITY",
+  );
+  return value;
+}
+
+function validateReplayInspectionReceipt(receipt,transition,capsule,replaySource){
+  const value=exactObject(
+    receipt,
+    REPLAY_INSPECTION_RECEIPT_KEYS,
+    "BOUNDED_CANARY_OPENING_REPLAY_PERSISTENCE_RECEIPT_SHAPE_INVALID",
+  );
+  if(
+    value.ok!==true||
+    value.status!=="verified"||
+    value.marker!==VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_V1||
+    value.version!==1||
+    value.coupled_launch_id!==CURRENT_LAUNCH||
+    value.mode!=="finalize"||
+    value.capsule_id!==capsule.capsule_id||
+    value.transition_id!==transition.transition_id||
+    value.binding_id!==transition.binding_id||
+    value.before_state_id!==transition.before_state_id||
+    value.after_state_id!==transition.after_state_id||
+    value.terminal_path!==
+      "wc_v1/opening-replay-terminal-v1/"+
+        CURRENT_LAUNCH.slice("sha256:".length)+".json"||
+    value.terminal_capsule_sha256!==replaySource.sha256||
+    value.terminal_replay_state_persisted!==true||
+    value.durable_replay_state_persistence_verified!==true||
+    value.duplicate_replay_protection_verified_for_launch!==true||
+    value.production_duplicate_replay_gate_updated!==false||
+    value.market_activation_authority!==false||
+    value.public_presale_activation_authority!==false||
+    value.funds_movement_authority!==false
+  ){
+    fail("BOUNDED_CANARY_OPENING_REPLAY_PERSISTENCE_RECEIPT_INVALID");
+  }
+  exactAuthority(
+    value.authority,
+    VOID_WC_VOID_OPENING_REPLAY_INSPECTION_AUTHORITY_V1,
+    "BOUNDED_CANARY_OPENING_REPLAY_PERSISTENCE_AUTHORITY",
+  );
+  return value;
+}
+
 function replayCapsuleFor(transition,mode){
   const body=Object.freeze({
     marker:VOID_WC_VOID_OPENING_REPLAY_TERMINAL_CAPSULE_V1,
@@ -280,10 +448,20 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     request.opening_claim_binding_file_sha256,
     "BOUNDED_CANARY_OPENING_CLAIM_FILE",
   );
+  const claimPersistenceSource=parseJsonBytes(
+    request.opening_claim_persistence_receipt_bytes,
+    request.opening_claim_persistence_receipt_file_sha256,
+    "BOUNDED_CANARY_OPENING_CLAIM_PERSISTENCE_RECEIPT_FILE",
+  );
   const replaySource=parseJsonBytes(
     request.opening_replay_capsule_bytes,
     request.opening_replay_capsule_file_sha256,
     "BOUNDED_CANARY_OPENING_REPLAY_FILE",
+  );
+  const replayInspectionSource=parseJsonBytes(
+    request.opening_replay_inspection_receipt_bytes,
+    request.opening_replay_inspection_receipt_file_sha256,
+    "BOUNDED_CANARY_OPENING_REPLAY_PERSISTENCE_RECEIPT_FILE",
   );
   const participantSource=parseJsonBytes(
     request.participant_at_use_bytes,
@@ -406,6 +584,12 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     binding.runtime_execution_ready!==false
   ) fail("BOUNDED_CANARY_OPENING_CLAIM_SEMANTIC_MISMATCH");
 
+  const claimPersistence=validateClaimPersistenceReceipt(
+    claimPersistenceSource.value,
+    binding,
+    claimSource,
+  );
+
   const participantDispositions=binding.dispositions.filter(
     (row)=>row.void_recipient===participant.participant_address,
   );
@@ -450,6 +634,19 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     capsule.capsule_id!==evidence.replay_capsule_id||
     replaySource.sha256!==evidence.replay_terminal_capsule_sha256
   ) fail("BOUNDED_CANARY_REPLAY_EVIDENCE_MISMATCH");
+
+  const replayPersistence=validateReplayInspectionReceipt(
+    replayInspectionSource.value,
+    transition,
+    capsule,
+    replaySource,
+  );
+  if(
+    claimPersistence.binding_id!==replayPersistence.binding_id||
+    claimPersistence.binding_id!==binding.binding_id
+  ){
+    fail("BOUNDED_CANARY_DURABLE_OPENING_BINDING_CROSSLINK_MISMATCH");
+  }
 
   const vaultConfirmations=uint(
     vaultSource.value.observed_confirmation_count,
@@ -544,8 +741,14 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     ledger_persistence_import_input_file_sha256:ledgerSource.sha256,
     opening_request_file_sha256:openingRequestSource.sha256,
     opening_claim_binding_file_sha256:claimSource.sha256,
+    opening_claim_persistence_receipt_file_sha256:
+      claimPersistenceSource.sha256,
     opening_replay_capsule_file_sha256:replaySource.sha256,
+    opening_replay_inspection_receipt_file_sha256:
+      replayInspectionSource.sha256,
     participant_at_use_file_sha256:participantSource.sha256,
+    opening_claim_persistence_semantically_verified:true,
+    opening_replay_persistence_semantically_verified:true,
     upstream_evidence_semantically_verified:true,
     live_canary_evidence_verified:true,
     bounded_canary_green:true,
