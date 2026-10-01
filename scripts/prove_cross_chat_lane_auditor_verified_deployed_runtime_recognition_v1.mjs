@@ -454,6 +454,7 @@ const fixtureHead = "a".repeat(40);
 const selfOverlapFixture = {
   laneLocalMain: fixtureHead,
   laneRemoteMain: fixtureHead,
+  laneRemoteMainAncestorOfHead: true,
   lane: {
     path: repo,
     branch: laneBranch,
