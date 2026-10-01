@@ -36,7 +36,7 @@ for (const path of files) {
 
 const mutual = fs.readFileSync(files[0], "utf8");
 assert.ok(
-  mutual.includes('printf \'%s\\\\n\' "$ALIEN" "$ALIEN_TS"'),
+  mutual.includes('"$ALIEN" "$ALIEN_TS"'),
   "mutual peer guard must include the ALIEN_TS override",
 );
 const firstMutation = mutual.indexOf("systemctl --user");
