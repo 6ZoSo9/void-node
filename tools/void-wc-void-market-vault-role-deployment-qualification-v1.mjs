@@ -571,11 +571,19 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
   ) {
     fail("launch_controller_reverification_export_invalid");
   }
-  const control =
-    await controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
-      evidence,
-      nowUnix: evaluation,
-    });
+  const originalPath = process.env.PATH;
+  let control;
+  try {
+    process.env.PATH = "/usr/bin:/bin";
+    control =
+      await controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+        evidence,
+        nowUnix: evaluation,
+      });
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH;
+    else process.env.PATH = originalPath;
+  }
   if (
     control?.status !== "CANDIDATE_CONTROL_VERIFIED_ROLE_NOT_AUTHORIZED" ||
     control?.evidence_reverified !== true ||
