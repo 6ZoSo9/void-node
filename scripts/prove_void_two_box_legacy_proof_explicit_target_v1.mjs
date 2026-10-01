@@ -88,6 +88,9 @@ for (const needle of [
   'rev-parse HEAD',
   'local/remote Git HEAD mismatch',
   'remote HTTP origin host does not match selected SSH peer',
+  'GIT_NO_REPLACE_OBJECTS=1',
+  'GIT_CONFIG_GLOBAL=/dev/null',
+  '/usr/bin/ssh',
 ]) {
   assert.ok(helper.includes(needle), `helper missing ${needle}`);
 }
@@ -249,6 +252,19 @@ for (const spec of scripts) {
       'void_two_box_validate_http_prefix "REMOTE_HELPER_BASE" "${REMOTE_HELPER_BASE:-}" "/workcredits/devnet"',
     ),
     "remote-product helper origin must bind exact reviewed path prefix",
+  );
+}
+
+{
+  const text = fs.readFileSync(
+    "ops/two-box-datanet-peer-path-proof.sh",
+    "utf8",
+  );
+  assert.ok(
+    text.includes(
+      'CONFIRM_TWO_BOX_LEGACY_PROOF="runVoidTwoBoxLegacyProofV1:two-box-remote-verify-redundancy-proof.sh" bash ops/two-box-remote-verify-redundancy-proof.sh',
+    ),
+    "parent peer-path proof must propagate the child wrapper's exact confirmation",
   );
 }
 
