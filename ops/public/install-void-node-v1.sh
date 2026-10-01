@@ -444,21 +444,39 @@ else
   chmod 700 "$INSTALL_ROOT" "$CONFIG_DIR" "$STATE_DIR" 2>/dev/null || true
 fi
 DEST="$INSTALL_ROOT/releases/$VERSION"
-if test -d "$DEST"; then
-  (
-    cd "$DEST"
-    sha256sum --check --strict RELEASE-CONTENTS-SHA256 >/dev/null
-  ) || die "existing release directory failed verification: $DEST"
-  if test "$MATERIALIZE_ONLY" = 1; then
+if test "$MATERIALIZE_ONLY" = 1; then
+  MATERIALIZE_STAGE="$INSTALL_ROOT/releases/.${VERSION}.materialize-next"
+  if test -e "$MATERIALIZE_STAGE" || test -L "$MATERIALIZE_STAGE"; then
+    rm -rf -- "$MATERIALIZE_STAGE"
+  fi
+
+  if test -e "$DEST" || test -L "$DEST"; then
+    test -d "$DEST" && test ! -L "$DEST" ||
+      die "existing materialized release path is not a real directory: $DEST"
+    (
+      cd "$DEST"
+      sha256sum --check --strict RELEASE-CONTENTS-SHA256 >/dev/null
+    ) || die "existing release directory failed verification: $DEST"
     verify_materialized_tree_matches "$EXTRACTED" "$DEST" ||
       die "existing release directory does not exactly match verified candidate: $DEST"
+    rm -rf "$EXTRACTED"
+  else
+    mkdir "$MATERIALIZE_STAGE"
+    cp -a -- "$EXTRACTED/." "$MATERIALIZE_STAGE/"
+    verify_materialized_tree_matches "$EXTRACTED" "$MATERIALIZE_STAGE" ||
+      {
+        rm -rf -- "$MATERIALIZE_STAGE"
+        die "materialize staging tree does not exactly match verified candidate"
+      }
+    fsync_materialized_release "$MATERIALIZE_STAGE" ||
+      {
+        rm -rf -- "$MATERIALIZE_STAGE"
+        die "materialize staging durability sync failed"
+      }
+    mv -T -- "$MATERIALIZE_STAGE" "$DEST"
+    rm -rf "$EXTRACTED"
   fi
-  rm -rf "$EXTRACTED"
-else
-  mv "$EXTRACTED" "$DEST"
-fi
 
-if test "$MATERIALIZE_ONLY" = 1; then
   fsync_materialized_release "$DEST" ||
     die "materialized release durability sync failed: $DEST"
   say "$MARKER MATERIALIZE_ONLY_GREEN"
@@ -476,6 +494,16 @@ if test "$MATERIALIZE_ONLY" = 1; then
   say "guarded_lanes_activated=false"
   say "money_movement=false"
   exit 0
+fi
+
+if test -d "$DEST"; then
+  (
+    cd "$DEST"
+    sha256sum --check --strict RELEASE-CONTENTS-SHA256 >/dev/null
+  ) || die "existing release directory failed verification: $DEST"
+  rm -rf "$EXTRACTED"
+else
+  mv "$EXTRACTED" "$DEST"
 fi
 
 OLD_CURRENT=""
