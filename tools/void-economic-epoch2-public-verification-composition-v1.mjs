@@ -170,10 +170,10 @@ function git(args, { allowFail = false } = {}) {
   return result;
 }
 
-function gitText(args, code) {
+function gitText(args, code, { allowEmpty = false } = {}) {
   const result = git(args);
   const text = String(result.stdout || "").trim();
-  if (!text) fail(code);
+  if (!allowEmpty && !text) fail(code);
   return text;
 }
 
@@ -258,6 +258,7 @@ function repositoryBindingV1() {
   const status = gitText(
     ["status", "--porcelain=v1", "--untracked-files=all"],
     "repository_status_unavailable",
+    { allowEmpty: true },
   );
   if (status !== "") fail("repository_not_clean");
 
