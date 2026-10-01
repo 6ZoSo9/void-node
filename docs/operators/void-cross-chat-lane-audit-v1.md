@@ -60,7 +60,7 @@ node --experimental-strip-types scripts/prove_void_cross_chat_lane_audit_v1.ts
 
 The fixture proof covers one green case and seven HOLD cases: shared-worktree overlap, pull-request overlap, stale remote main, a lane HEAD that does not contain the fresh remote main, a conflicting process, a dirty path outside the reservation, and a lane-branch mismatch.
 
-The dedicated cross-chat auditor GitHub Actions workflow runs this exact fixture proof whenever the auditor, this proof, or this operator contract changes.
+The dedicated cross-chat auditor GitHub Actions workflow runs this exact fixture proof whenever the auditor, this proof, or this operator contract changes. On pull requests it checks out the actual pull-request head SHA rather than GitHub's synthetic merge ref, so the fresh-main ancestry gate cannot be satisfied by CI's temporary merge commit.
 
 ## Mutation boundary
 
