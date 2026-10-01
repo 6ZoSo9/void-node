@@ -76,6 +76,19 @@ ledger-debit settlement IDs, opening state, and shared post-discovery
 reconciliation from the reviewed launch ID. It emits the exact replacement
 `shared_post_discovery_reconciliation` object as a **derived candidate copy**.
 
+The deterministic reconciled identities are:
+
+```text
+wc_opening_state_id=
+sha256:fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621
+
+reconciliation_id=
+sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba
+```
+
+Both are pinned by the preparation and proof, so any future policy/fixture drift
+changes the IDs and fails the reviewed reconciliation generation.
+
 ## Atomic source transition
 
 Current classifier source also hardcodes the old source-model launch ID.
