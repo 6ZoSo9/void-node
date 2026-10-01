@@ -40,7 +40,7 @@ Run this from Precision/coordinator with an explicitly reviewed, nonlocal curren
 
 There is intentionally no default peer. The retired Alienware identity is rejected, as are loopback/local-host targets. The proof checks local Precision smoke, then SSHes to the selected peer and runs the same no-Prometheus smoke there.
 
-If the peer is missing or unreachable, the cross-box proof fails. A local smoke must never substitute for required cross-box evidence.
+If the peer is missing or unreachable, the cross-box proof fails. The local and remote repositories must both be clean, resolve to distinct hostnames, and report the exact same Git HEAD. A local smoke must never substitute for required cross-box evidence.
 
 ## Known environment difference
 
