@@ -965,6 +965,11 @@ assert.equal(
   false,
   "permission-fenced runner must not use fs.readFileSync(0)",
 );
+assert.equal(
+  source.includes("runtime_binding_file_sha256: runtimeSource.sha256"),
+  false,
+  "reviewed child promotion must not trust caller runtime receipt hash",
+);
 for (const forbidden of [
   "eth_sendRawTransaction",
   "eth_sendTransaction",
@@ -979,6 +984,7 @@ for (const forbidden of [
 }
 for (const required of [
   "buildVoidParticipantPostpurchaseProductionRuntimeBindingV1",
+  'const runtime_binding_file_sha256=createHash("sha256")',
   "PARTICIPANT_CANONICAL_RUNTIME_BINDING_REDERIVATION_MISMATCH",
   "buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1",
   "participant_post_purchase_voidtoken_control_ready",
@@ -1040,6 +1046,7 @@ console.log("reviewed_execution_symlink_boundary_green=true");
 console.log("reviewed_execution_chmod_descriptor_bound=true");
 console.log("permission_fenced_stdin_streaming=true");
 console.log("reviewed_authority_semantic_failure_preserved=true");
+console.log("promotion_runtime_hash_rederived_inside_reviewed_child=true");
 console.log("reviewed_runner_outside_private_git_checkout=true");
 console.log("private_git_checkout_remains_clean=true");
 console.log("focused_workflow_trigger_symmetry_green=true");
