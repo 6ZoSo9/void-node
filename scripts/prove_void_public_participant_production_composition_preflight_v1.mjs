@@ -107,6 +107,15 @@ const roleAuthority=Object.freeze({
 });
 
 try{
+  assert.throws(
+    ()=>createVoidPublicParticipantSessionHttpV1({
+      bindingRegistryFile:registryFile,
+      roleAuthority,
+    }),
+    /durable_state_store_required/u,
+    "production session HTTP accepted memory-only state",
+  );
+
   const store=createVoidPublicParticipantSessionStateFileV1({stateFile});
   assert.equal(store.durable,true);
   assert.equal(store.bearer_token_persisted,false);
@@ -311,6 +320,7 @@ try{
   console.log(
     "VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_PREFLIGHT_V1_PROOF_GREEN",
   );
+  console.log("session_http_memory_state_rejected=true");
   console.log("merged_durable_session_contract_bound=true");
   console.log("merged_live_role_source_contract_bound=true");
   console.log("hermetic_durable_role_bound_session_http_green=true");

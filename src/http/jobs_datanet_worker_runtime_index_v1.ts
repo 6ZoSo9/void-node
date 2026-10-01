@@ -11,6 +11,45 @@ import {
 
 export const VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1 =
   "VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1";
+export const VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1 = 250_000;
+export const VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 = 250_000;
+export const VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1 = 192;
+
+export function normalizeMaxSeenJobIdsV1(value: unknown): number {
+  if (value === undefined || value === null || value === "") {
+    return VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1;
+  }
+  const requested = Number(value);
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    return VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1;
+  }
+  return Math.min(
+    VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1,
+    requested,
+  );
+}
+
+export function normalizeMaxLocallyDoneJobIdsV1(value: unknown): number {
+  if (value === undefined || value === null || value === "") {
+    return VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1;
+  }
+  const requested = Number(value);
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    return VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1;
+  }
+  return Math.min(
+    VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1,
+    requested,
+  );
+}
 
 type ScanInputV1 = {
   jobsFile: string;
@@ -56,6 +95,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private readonly completionIndex: AgentPick2JsonlSemanticIndexV1;
   private readonly maxScanBytesPerTick: number;
   private readonly maxJobsPerTick: number;
+  private readonly maxSeenJobIds: number;
+  private readonly maxLocallyDoneJobIds: number;
 
   private jobsDev = "";
   private jobsIno = "";
@@ -66,11 +107,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private locallyDone = new Set<string>();
   private jobsAdmittedStamp: AgentPick2JsonlFileStampV1 | null = null;
   private jobsSourceRejected = false;
+  private jobsSourceRejectReason: string | null = null;
   private bytesReadTotal = 0;
 
   constructor(opts: {
     maxScanBytesPerTick?: number;
     maxJobsPerTick?: number;
+    maxSeenJobIds?: number;
+    maxLocallyDoneJobIds?: number;
     maxSyncCompletionRebuildBytes?: number;
     completionRebuildBackoffMs?: number;
     maxCompletionIdsPerFile?: number;
@@ -87,6 +131,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       8,
       1,
       64,
+    );
+    this.maxSeenJobIds = normalizeMaxSeenJobIdsV1(
+      opts.maxSeenJobIds ?? process.env.VOID_JOBS_WORKER_MAX_SEEN_JOB_IDS,
+    );
+    this.maxLocallyDoneJobIds = normalizeMaxLocallyDoneJobIdsV1(
+      opts.maxLocallyDoneJobIds ??
+        process.env.VOID_JOBS_WORKER_MAX_LOCALLY_DONE_JOB_IDS,
     );
     this.completionIndex = new AgentPick2JsonlSemanticIndexV1({
       maxSyncCompletionRebuildBytes: opts.maxSyncCompletionRebuildBytes,
@@ -109,6 +160,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private clearJobsSourceAuthorityV1(): void {
     this.jobsAdmittedStamp = null;
     this.jobsSourceRejected = false;
+    this.jobsSourceRejectReason = null;
+  }
+
+  private rejectJobsSourceV1(reason: string): void {
+    this.resetJobsGenerationV1();
+    this.jobsSourceRejected = true;
+    this.jobsSourceRejectReason = reason;
   }
 
   private admitJobsSourceV1(
@@ -130,6 +188,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       // Keep the last admitted generation. A later B -> B observation must not
       // self-authorize a transition that already failed A -> B.
       this.jobsSourceRejected = true;
+      this.jobsSourceRejectReason = "jobs_unwitnessed_source_change";
       return false;
     }
     this.jobsAdmittedStamp = { ...current };
@@ -246,7 +305,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           ready: false,
           jobs: [],
           doneTruthHas: () => false,
-          holdReason: "jobs_unwitnessed_source_change",
+          holdReason:
+            this.jobsSourceRejectReason || "jobs_unwitnessed_source_change",
           scanComplete: false,
           bytesReadThisTick: 0,
           bytesReadTotal: this.bytesReadTotal,
@@ -446,7 +506,26 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           continue;
         }
         const jobId = String(job?.job_id || job?.id || "").trim();
-        if (!jobId || this.jobsSeen.has(jobId)) continue;
+        if (!jobId) continue;
+        if (
+          Buffer.byteLength(jobId, "utf8") >
+          VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1
+        ) {
+          this.rejectJobsSourceV1("jobs_job_id_too_large");
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_JOB_ID_TOO_LARGE " +
+              `file=${input.jobsFile}`,
+          );
+        }
+        if (this.jobsSeen.has(jobId)) continue;
+        if (this.jobsSeen.size >= this.maxSeenJobIds) {
+          const limit = this.maxSeenJobIds;
+          this.rejectJobsSourceV1("jobs_seen_job_cardinality_hold");
+          throw new Error(
+            "VOID_JOBS_DATANET_WORKER_SEEN_JOB_CARDINALITY_HOLD " +
+              `limit=${limit} file=${input.jobsFile}`,
+          );
+        }
         this.jobsSeen.add(jobId);
         if (String(job?.status || "") !== "queued") continue;
         if (completion.doneTruthHas(jobId)) {
@@ -516,6 +595,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     }
 
     const jobs: ScanJobV1[] = [];
+    const locallyDoneBudgetRemaining = Math.max(
+      0,
+      this.maxLocallyDoneJobIds - this.locallyDone.size,
+    );
     for (const [jobId, entry] of this.pending) {
       if (completion.doneTruthHas(jobId)) {
         this.pending.delete(jobId);
@@ -525,6 +608,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       if (this.locallyDone.has(jobId)) {
         this.pending.delete(jobId);
         continue;
+      }
+      if (jobs.length >= locallyDoneBudgetRemaining) {
+        const limit = this.maxLocallyDoneJobIds;
+        this.rejectJobsSourceV1("jobs_locally_done_cardinality_hold");
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD " +
+            `limit=${limit} file=${input.jobsFile}`,
+        );
       }
       jobs.push({
         jobId,
@@ -557,7 +648,26 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   markDone(jobId: string): void {
     const id = String(jobId || "").trim();
     if (!id) return;
+    if (
+      Buffer.byteLength(id, "utf8") >
+      VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1
+    ) {
+      this.rejectJobsSourceV1("jobs_locally_done_job_id_too_large");
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_JOB_ID_TOO_LARGE",
+      );
+    }
+    if (!this.locallyDone.has(id)) {
+      if (this.locallyDone.size >= this.maxLocallyDoneJobIds) {
+        const limit = this.maxLocallyDoneJobIds;
+        this.rejectJobsSourceV1("jobs_locally_done_cardinality_hold");
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD " +
+            `limit=${limit}`,
+        );
+      }
+      this.locallyDone.add(id);
+    }
     this.pending.delete(id);
-    this.locallyDone.add(id);
   }
 }

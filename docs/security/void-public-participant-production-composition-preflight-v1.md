@@ -31,9 +31,10 @@ createVoidPublicParticipantSessionHttpV1({
 })
 ```
 
-The merged session HTTP contract now requires a role-authority adapter, and
-production additionally requires a durable state store. Therefore current source
-correctly remains a composition wiring HOLD.
+The merged session HTTP contract now fails closed unless both a role-authority
+adapter and a durable state store are supplied. Therefore the current gateway,
+which injects neither, correctly remains a composition wiring HOLD before any
+participant route can mount.
 
 ## Exact reviewed source generation
 
@@ -115,8 +116,13 @@ The merged session HTTP contract requires:
 role_authority_required=true
 required_role=AGENT
 durable_state_store_required_for_production=true
+durable_state_store_required (constructor enforcement)
 production_route_mounted=false
 ```
+
+The focused proof additionally proves that a valid role-authority adapter with
+no durable state store is rejected; role authority alone cannot fall back to the
+read-session memory store.
 
 The account-read path uses the exact same session HTTP instance and remains
 limited to `participant.account.read.v1`.
