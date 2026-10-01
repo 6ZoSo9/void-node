@@ -73,6 +73,10 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1=
   "sha256:"+VOID_WC_VOID_COUPLED_LAUNCH_DIGEST_HEX_V1;
 export const VOID_WC_VOID_COUPLED_LAUNCH_VAULT_BYTES32_V1=
   "0x"+VOID_WC_VOID_COUPLED_LAUNCH_DIGEST_HEX_V1;
+export const VOID_WC_VOID_RECONCILED_OPENING_STATE_ID_V1=
+  "sha256:fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621";
+export const VOID_WC_VOID_RECONCILED_SHARED_STATE_ID_V1=
+  "sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba";
 
 const CURRENT_SOURCE_MODEL_LAUNCH_ID="sha256:"+"a".repeat(64);
 const HEX40=/^[0-9a-f]{40}$/u;
@@ -556,6 +560,10 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
   if(
     reconciledShared.coupled_launch_id!==
       launchIdentity.opening_domain_id||
+    reconciledShared.reconciliation_id!==
+      VOID_WC_VOID_RECONCILED_SHARED_STATE_ID_V1||
+    reconciledShared.wc_opening_state_id!==
+      VOID_WC_VOID_RECONCILED_OPENING_STATE_ID_V1||
     reconciledShared.reconciliation_id===currentShared.reconciliation_id||
     reconciledShared.wc_opening_state_id===currentShared.wc_opening_state_id
   ) {
@@ -609,6 +617,8 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
       commitment_digest_rederived:true,
       opening_and_vault_encodings_lossless:true,
       reconciled_shared_state_rederived:true,
+      exact_reconciled_reconciliation_id_verified:true,
+      exact_reconciled_opening_state_id_verified:true,
       reconciliation_id_rotated:true,
       wc_opening_state_id_rotated:true,
       proposed_candidate_change_scope_shared_reconciliation_only:true,
