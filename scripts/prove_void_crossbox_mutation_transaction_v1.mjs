@@ -377,8 +377,21 @@ rollback=beginVoidCrossboxMutationRollbackV1(
   "remote publication failed",
 );
 assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"RESTORE_LOCAL");
+assert.throws(
+  ()=>recordVoidCrossboxMutationRestoredV1(
+    rollback,
+    restoreReceipt(rollback,"local",{
+      restart_before_invocation_id:"e".repeat(32),
+    }),
+  ),
+  /restore_restart_before_publish_mismatch/u,
+);
 const restoreLocal=restoreReceipt(rollback,"local");
 assert.equal(restoreLocal.restart_performed,true);
+assert.equal(
+  restoreLocal.restart_before_invocation_id,
+  rollbackPublishLocal.restart_after_invocation_id,
+);
 rollback=recordVoidCrossboxMutationRestoredV1(rollback,restoreLocal);
 assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"RESTORE_REMOTE");
 const duplicateRestore=recordVoidCrossboxMutationRestoredV1(
@@ -417,6 +430,12 @@ assert.equal(
     /publish_prestate_drift/u,
   );
 }
+
+// A rollback restart must begin from the invocation established by publish.
+assert(
+  fs.readFileSync("tools/void-crossbox-mutation-transaction-v1.mjs","utf8")
+    .includes("restore_restart_before_publish_mismatch"),
+);
 
 // A restart for a previously active service must advance InvocationID.
 {

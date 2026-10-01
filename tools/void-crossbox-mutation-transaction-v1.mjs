@@ -796,6 +796,10 @@ function normalizedRestoreReceipt(transaction,value){
       true,
       "restore_restart_after_invalid",
     );
+    const published=transaction.published[participant];
+    if(!published||before!==published.restart_after_invocation_id){
+      fail("restore_restart_before_publish_mismatch");
+    }
     if(after===before)fail("restore_restart_invocation_not_advanced");
     return Object.freeze({...value,restart_before_invocation_id:before,restart_after_invocation_id:after});
   }

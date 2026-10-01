@@ -173,9 +173,21 @@ Validator restore additionally requires:
 A participant that was never published must not perform an unnecessary
 recovery restart.
 
-A published participant whose active service requires restart must advance
-`InvocationID`; repeated exact receipts are idempotent, while conflicting
-duplicates fail closed.
+A published participant whose active service requires restart must form one
+continuous invocation chain:
+
+```text
+prestate InvocationID
+  -> publish.restart_after_invocation_id
+  -> restore.restart_before_invocation_id
+  -> restore.restart_after_invocation_id
+```
+
+The restore receipt's `restart_before_invocation_id` must equal that same
+participant's publish `restart_after_invocation_id` exactly, and the restore
+restart must advance it again. A valid-looking but unrelated InvocationID fails
+closed. Repeated exact receipts are idempotent, while conflicting duplicates
+fail closed.
 
 Both participants require restore receipts before `RESTORED`.
 
