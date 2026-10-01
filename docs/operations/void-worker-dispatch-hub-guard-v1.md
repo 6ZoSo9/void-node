@@ -26,7 +26,7 @@ Read one JSON object from standard input. The operational CLI requires authentic
 }
 ```
 
-The guard validates the relevant V1 markers, repository identity, plan/current issue relationship, content-addressed dispatch evaluation identity, and the negative authority fields of both upstream artifacts.
+The guard validates the relevant V1 markers, repository identity, plan/current issue relationship, content-addressed dispatch evaluation identity, the dispatch `evaluated_at` / 30-minute `next_reevaluation_at` window, and the negative authority fields of both upstream artifacts.
 
 For operational CLI use, it then runs the merged `resolveCoordinationSuccessorChainLiveV1(...)` against the dispatch repository/root issue and requires canonical JSON equality with the supplied chain artifact before evaluating dispatch alignment. A comment/state/pointer change between chain capture and guard execution therefore fails closed instead of reusing stale coordination evidence.
 
@@ -54,6 +54,10 @@ automatic_merge_authorized=false
 authority_granted=false
 mutation_performed=false
 ```
+
+### `HOLD_DISPATCH_EVIDENCE_EXPIRED`
+
+A live-dispatch output is only current until its declared 30-minute reevaluation deadline. Even with a matching fresh hub, an expired dispatch artifact cannot unlock normal dispatch and must be regenerated from fresh worker/collision evidence.
 
 ### `HOLD_CHAIN_LIVENESS_UNPROVEN`
 
@@ -107,7 +111,7 @@ Exit status is `0` only for `DISPATCH_HUB_ALIGNED`, `3` for a valid read-only HO
 node scripts/prove_void_worker_dispatch_hub_guard_v1.mjs
 ```
 
-The proof covers current-hub alignment, retained-chain liveness HOLD, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, live-chain mismatch rejection, repository mismatch, authority escalation, and deterministic guard identity. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy, then feeds those actual outputs through this guard. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
+The proof covers current-hub alignment, expired-dispatch HOLD, exact 30-minute dispatch-window validation, retained-chain liveness HOLD, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, live-chain mismatch rejection, repository mismatch, authority escalation, and deterministic guard identity. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy, then feeds those actual outputs through this guard. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
 
 ## Relationship to #2258
 
