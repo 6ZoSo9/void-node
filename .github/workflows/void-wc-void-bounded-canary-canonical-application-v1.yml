@@ -10,6 +10,7 @@ on:
       - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
       - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
       - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
@@ -28,6 +29,7 @@ on:
       - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
       - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
       - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
@@ -51,6 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
@@ -67,6 +70,7 @@ jobs:
         run: node scripts/prove_void_wc_void_bounded_canary_canonical_application_v1.mjs
       - name: Upstream promotion and classifier regressions
         run: |
+          node scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs
           node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
           node scripts/prove_void_wc_void_production_readiness_v1.mjs
           node scripts/prove_void_coupled_economic_successor_gate_v1.mjs

@@ -6,8 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
-  VOID_WC_VOID_BOUNDED_CANARY_SEMANTIC_PROMOTION_AUTHORITY_V1,
-  VOID_WC_VOID_BOUNDED_CANARY_SEMANTIC_PROMOTION_V1,
+  promoteWcVoidBoundedCanarySemanticV1,
 } from "../tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs";
 import {
   promoteWcVoidBoundedCanaryCandidatesV1,
@@ -68,72 +67,70 @@ function git(...args) {
   ).trim();
 }
 
-function fixtureSemanticPromotion() {
-  const material = {
-    marker: VOID_WC_VOID_BOUNDED_CANARY_SEMANTIC_PROMOTION_V1,
-    version: 1,
-    status: "BOUNDED_CANARY_SEMANTICALLY_VERIFIED_PROMOTION_READY",
-    chain_id: 2050,
-    execution_epoch: 2,
-    pair: "WC_VOID",
-    coupled_launch_id: LAUNCH,
-    reviewed_policy_id: "voidwcbcp1_" + "1".repeat(64),
-    canary_evidence_id: "voidwcbce1_" + "2".repeat(64),
-    evaluation_time_utc: "2030-01-01T00:00:00Z",
-    observed_at_utc: "2030-01-01T00:00:00Z",
-    valid_until_utc: "2030-01-01T00:10:00Z",
-    participant_count: "1",
-    settled_wc_units: "25",
-    delivered_void_atoms: "1250000000000000000000000",
-    observed_finality_confirmations: "11",
-    market_vault_address: "0x1111111111111111111111111111111111111111",
-    market_vault_runtime_code_sha256: "3".repeat(64),
-    market_vault_runtime_verification_evidence_id:
-      "sha256:" + "4".repeat(64),
-    inventory_lock_evidence_id: "sha256:" + "5".repeat(64),
-    wc_ledger_custody_evidence_id: "sha256:" + "6".repeat(64),
-    opening_claim_binding_id: "sha256:" + "7".repeat(64),
-    opening_claim_binding_persistence_evidence_id:
-      "sha256:" + "8".repeat(64),
-    replay_capsule_id: "voidwcrp1_" + "9".repeat(64),
-    replay_terminal_capsule_sha256: "a".repeat(64),
-    participant_control_evidence_id: "sha256:" + "b".repeat(64),
-    bounded_canary_input_file_sha256: "c".repeat(64),
-    market_vault_at_use_file_sha256: "d".repeat(64),
-    ledger_persistence_import_input_file_sha256: "e".repeat(64),
-    opening_request_file_sha256: "f".repeat(64),
-    opening_claim_binding_file_sha256: "0".repeat(64),
-    opening_claim_persistence_receipt_file_sha256: "1".repeat(64),
-    opening_replay_capsule_file_sha256: "2".repeat(64),
-    opening_replay_inspection_receipt_file_sha256: "3".repeat(64),
-    participant_at_use_file_sha256: "4".repeat(64),
-    durable_claim_binding_verified: true,
-    durable_replay_terminal_verified: true,
-    upstream_evidence_semantically_verified: true,
-    live_canary_evidence_verified: true,
-    bounded_canary_green: true,
-    production_candidate_binding_allowed: true,
-    production_candidate_updated: false,
-    coupled_candidate_updated: false,
-    candidate_promotion_required: true,
-    coupled_activation_ready: false,
-    market_activation_authorized: false,
-    public_presale_activation_authorized: false,
-    funds_movement_authorized: false,
-    authority:
-      VOID_WC_VOID_BOUNDED_CANARY_SEMANTIC_PROMOTION_AUTHORITY_V1,
-  };
-  const digest = sha256(
-    Buffer.from(canonicalJson(material), "utf8"),
+const SEMANTIC_PROOF_PATH =
+  "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs";
+
+function reviewedSemanticRequestFixture() {
+  const reviewedProof = fs.readFileSync(SEMANTIC_PROOF_PATH, "utf8");
+  const splitMarker = "const f=await fixture();";
+  const splitAt = reviewedProof.indexOf(splitMarker);
+  assert(splitAt > 0, "reviewed semantic proof fixture marker missing");
+
+  const tempScript = path.join(
+    "scripts",
+    ".void-wc-semantic-origin-fixture-" + String(process.pid) + ".mjs",
   );
-  return {
-    ...material,
-    semantic_evidence_id: "sha256:" + digest,
-    promotion_id: "voidwcbcsp1_" + digest,
-  };
+  const outputMarker = "VOID_SEMANTIC_FIXTURE_JSON_V1=";
+  const extractor =
+    reviewedProof.slice(0, splitAt) +
+    "\nconst __fixture=await fixture();\n" +
+    "try{\n" +
+    "  const __encoded={};\n" +
+    "  for(const [key,value] of Object.entries(__fixture.request)){\n" +
+    "    __encoded[key]=Buffer.isBuffer(value)\n" +
+    "      ? {kind:'bytes',base64:value.toString('base64')}\n" +
+    "      : {kind:'value',value};\n" +
+    "  }\n" +
+    "  process.stdout.write('" + outputMarker + "'+JSON.stringify(__encoded)+'\\n');\n" +
+    "}finally{__fixture.cleanup();}\n";
+
+  fs.writeFileSync(tempScript, extractor, { mode: 0o600 });
+  let raw;
+  try {
+    raw = execFileSync(
+      process.execPath,
+      [tempScript],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+  } finally {
+    fs.rmSync(tempScript, { force: true });
+  }
+  const markerAt = raw.lastIndexOf(outputMarker);
+  assert(markerAt >= 0, "reviewed semantic fixture output marker missing");
+  const encoded = JSON.parse(
+    raw.slice(markerAt + outputMarker.length).trim(),
+  );
+  const request = {};
+  for (const [key, entry] of Object.entries(encoded)) {
+    request[key] =
+      entry.kind === "bytes"
+        ? Buffer.from(entry.base64, "base64")
+        : entry.value;
+  }
+  assert.equal(
+    git("status", "--porcelain=v1", "--untracked-files=all"),
+    "",
+    "semantic fixture extraction must leave repository clean",
+  );
+  return request;
 }
 
-const semantic = fixtureSemanticPromotion();
+const semanticRequest = reviewedSemanticRequestFixture();
+const semantic = promoteWcVoidBoundedCanarySemanticV1(semanticRequest);
 const semanticBytes = prettyBytes(semantic);
 const productionBytes = fs.readFileSync(PRODUCTION);
 const coupledBytes = fs.readFileSync(COUPLED);
@@ -161,6 +158,7 @@ const plan =
   prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     semanticPromotionBytes: semanticBytes,
     semanticPromotionFileSha256: sha256(semanticBytes),
+    semanticPromotionRequest: semanticRequest,
     candidatePromotionReceiptBytes: promotionBytes,
     candidatePromotionReceiptFileSha256: sha256(promotionBytes),
   });
@@ -172,6 +170,10 @@ assert.equal(
 assert.equal(plan.status, "CANONICAL_BOUNDED_CANARY_APPLICATION_PREPARED");
 assert.match(plan.application_plan_id, /^voidwcbcap1_[0-9a-f]{64}$/u);
 assert.equal(plan.candidate_promotion_id, promotion.promotion_id);
+assert.equal(
+  plan.semantic_promotion_file_sha256,
+  sha256(semanticBytes),
+);
 assert.equal(plan.production_target_candidate.bounded_canary_green, true);
 assert.equal(plan.production_target_candidate.coupled_activation_ready, false);
 assert.equal(plan.production_target_candidate.status, "hold");
@@ -225,6 +227,46 @@ assert.throws(
 );
 
 {
+  const forgedSemantic = structuredClone(semantic);
+  forgedSemantic.canary_evidence_id =
+    "voidwcbce1_" + "f".repeat(64);
+  const {
+    semantic_evidence_id: _semanticEvidenceId,
+    promotion_id: _semanticPromotionId,
+    ...forgedSemanticMaterial
+  } = forgedSemantic;
+  const forgedDigest = sha256(
+    Buffer.from(canonicalJson(forgedSemanticMaterial), "utf8"),
+  );
+  forgedSemantic.semantic_evidence_id = "sha256:" + forgedDigest;
+  forgedSemantic.promotion_id = "voidwcbcsp1_" + forgedDigest;
+  const forgedSemanticBytes = prettyBytes(forgedSemantic);
+  const forgedPromotion = promoteWcVoidBoundedCanaryCandidatesV1({
+    repository_head_sha: head,
+    repository_tree_sha: tree,
+    semantic_promotion_bytes: forgedSemanticBytes,
+    semantic_promotion_file_sha256: sha256(forgedSemanticBytes),
+    production_candidate_bytes: productionBytes,
+    production_candidate_file_sha256: sha256(productionBytes),
+    coupled_candidate_bytes: coupledBytes,
+    coupled_candidate_file_sha256: sha256(coupledBytes),
+    successor_candidate_bytes: successorBytes,
+    successor_candidate_file_sha256: sha256(successorBytes),
+  });
+  const forgedPromotionBytes = prettyBytes(forgedPromotion);
+  assert.throws(
+    () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+      semanticPromotionBytes: forgedSemanticBytes,
+      semanticPromotionFileSha256: sha256(forgedSemanticBytes),
+      semanticPromotionRequest: semanticRequest,
+      candidatePromotionReceiptBytes: forgedPromotionBytes,
+      candidatePromotionReceiptFileSha256: sha256(forgedPromotionBytes),
+    }),
+    /CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH/u,
+  );
+}
+
+{
   const forged = structuredClone(promotion);
   forged.promoted_production_candidate.inventory_funded = true;
   const bytes = prettyBytes(forged);
@@ -232,6 +274,7 @@ assert.throws(
     () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
       semanticPromotionBytes: semanticBytes,
       semanticPromotionFileSha256: sha256(semanticBytes),
+      semanticPromotionRequest: semanticRequest,
       candidatePromotionReceiptBytes: bytes,
       candidatePromotionReceiptFileSha256: sha256(bytes),
     }),
@@ -260,10 +303,28 @@ assert.throws(
   );
 }
 
+{
+  const badRequest = {
+    ...semanticRequest,
+    participant_at_use_file_sha256: "0".repeat(64),
+  };
+  assert.throws(
+    () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+      semanticPromotionBytes: semanticBytes,
+      semanticPromotionFileSha256: sha256(semanticBytes),
+      semanticPromotionRequest: badRequest,
+      candidatePromotionReceiptBytes: promotionBytes,
+      candidatePromotionReceiptFileSha256: sha256(promotionBytes),
+    }),
+    /BOUNDED_CANARY_PARTICIPANT_AT_USE_FILE_SHA256_MISMATCH/u,
+  );
+}
+
 assert.throws(
   () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     semanticPromotionBytes: semanticBytes,
     semanticPromotionFileSha256: "0".repeat(64),
+    semanticPromotionRequest: semanticRequest,
     candidatePromotionReceiptBytes: promotionBytes,
     candidatePromotionReceiptFileSha256: sha256(promotionBytes),
   }),
@@ -276,6 +337,9 @@ for (const [key, value] of Object.entries(
   const allowed = new Set([
     "source_only_application",
     "exact_semantic_promotion_bytes_required",
+    "exact_semantic_origin_inputs_required",
+    "semantic_promotion_reexecution_required",
+    "semantic_promotion_equality_required",
     "exact_candidate_promotion_receipt_required",
     "candidate_promotion_reexecution_required",
     "canonical_head_candidate_bytes_required",
@@ -310,8 +374,13 @@ for (const forbidden of [
   assert.equal(source.includes(forbidden), false, forbidden);
 }
 for (const required of [
+  "promoteWcVoidBoundedCanarySemanticV1",
+  "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH",
   "promoteWcVoidBoundedCanaryCandidatesV1",
   "--no-replace-objects",
+  "canonicalRemoteGitText",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
   "ls-remote",
   "https://github.com/6ZoSo9/void-node.git",
   "CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ",
@@ -327,8 +396,11 @@ for (const required of [
 console.log(
   "VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_V1_PROOF_GREEN",
 );
+console.log("semantic_promotion_reexecuted_from_exact_origin_inputs=true");
+console.log("fabricated_semantic_origin_held=true");
 console.log("candidate_promotion_reexecuted=true");
 console.log("canonical_source_prestates_bound=true");
+console.log("canonical_remote_config_isolated=true");
 console.log("exact_two_gate_delta_prepared=true");
 console.log("forged_promotion_receipt_held=true");
 console.log("forged_application_plan_held=true");

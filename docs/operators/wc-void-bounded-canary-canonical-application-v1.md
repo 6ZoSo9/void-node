@@ -7,8 +7,9 @@ canonical Git commit itself and does not activate WC/VOID.
 
 ## Purpose
 
-Merged #2240 can validate an exact semantic bounded-canary artifact and prepare
-candidate copies where only:
+Merged #2237 can rederive the semantic bounded-canary artifact from its exact
+upstream evidence byte set. Merged #2240 can then validate that rederived semantic
+artifact and prepare candidate copies where only:
 
 - production `bounded_canary_green: false -> true`; and
 - coupled `gates.bounded_canary_green: false -> true`
@@ -41,8 +42,18 @@ The tool never writes repository files.
 
 Prepare requires exact bytes + SHA-256 for:
 
-- the semantic bounded-canary promotion artifact accepted by #2240; and
+- the supplied semantic bounded-canary promotion artifact;
+- all nine #2237 semantic-origin inputs: first-stage bounded-canary input,
+  market-vault at-use evidence, ledger-persistence import input, opening request,
+  opening claim binding, opening-claim persistence receipt, opening replay capsule,
+  opening-replay inspection receipt, and participant at-use evidence; and
 - the exact #2240 candidate-promotion receipt.
+
+The reviewed policy ID and semantic evaluation time are derived from the bounded-canary
+input. #2256 executes merged #2237 directly over this exact origin byte set and requires
+the resulting pretty-JSON semantic artifact to be byte-identical and semantically
+identical to the supplied semantic promotion. A self-consistent fabricated semantic
+receipt is therefore not sufficient.
 
 It also reads the canonical source directly from clean `HEAD`:
 
@@ -50,11 +61,12 @@ It also reads the canonical source directly from clean `HEAD`:
 - `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`; and
 - `ops/mainnet0/economic-evm-successor-migration-candidate-v1.json`.
 
-The current repository HEAD/tree are passed back through
-`promoteWcVoidBoundedCanaryCandidatesV1(...)`. The returned receipt must be
-semantically identical to the supplied reviewed receipt. Therefore the
-application layer does not merely trust a caller-supplied
-`bounded_canary_green=true` summary.
+Only after #2237 semantic-origin reexecution succeeds are the current repository
+HEAD/tree and the freshly rederived semantic bytes passed through
+`promoteWcVoidBoundedCanaryCandidatesV1(...)`. The returned #2240 receipt must be
+semantically identical to the supplied reviewed receipt. Therefore the application
+layer trusts neither a caller-supplied `bounded_canary_green=true` summary nor a
+self-content-addressed semantic receipt without its origin evidence.
 
 ## Base-generation binding
 
@@ -166,8 +178,12 @@ pure state verifier, but it cannot emit canonical applied lineage.
 
 The final verifier also requires `origin` to identify
 `6ZoSo9/void-node` and performs a read-only `git ls-remote` against the fixed
-canonical HTTPS repository. The returned `refs/heads/main` SHA must equal local
-HEAD. Prepare itself remains network-free.
+canonical HTTPS repository. That fixed-URL remote read does not use repository
+discovery and runs with global/system Git config disabled, interactive prompting
+disabled, and replacement objects disabled, so repository-local URL rewrites,
+HTTP/TLS relaxations, and transport helpers cannot redirect the canonical check.
+The returned `refs/heads/main` SHA must equal local HEAD. Prepare itself remains
+network-free.
 
 Verification requires:
 
@@ -200,6 +216,24 @@ Prepare:
 node tools/void-wc-void-bounded-canary-canonical-application-v1.mjs prepare \
   --semantic /absolute/semantic-promotion.json \
   --semantic-sha256 <64hex> \
+  --bounded-canary-input /absolute/bounded-canary-input.json \
+  --bounded-canary-input-sha256 <64hex> \
+  --market-vault-at-use /absolute/market-vault-at-use.json \
+  --market-vault-at-use-sha256 <64hex> \
+  --ledger-persistence-import-input /absolute/ledger-import.json \
+  --ledger-persistence-import-input-sha256 <64hex> \
+  --opening-request /absolute/opening-request.json \
+  --opening-request-sha256 <64hex> \
+  --opening-claim-binding /absolute/opening-claim.json \
+  --opening-claim-binding-sha256 <64hex> \
+  --opening-claim-persistence-receipt /absolute/claim-persistence.json \
+  --opening-claim-persistence-receipt-sha256 <64hex> \
+  --opening-replay-capsule /absolute/replay-capsule.json \
+  --opening-replay-capsule-sha256 <64hex> \
+  --opening-replay-inspection-receipt /absolute/replay-inspection.json \
+  --opening-replay-inspection-receipt-sha256 <64hex> \
+  --participant-at-use /absolute/participant-at-use.json \
+  --participant-at-use-sha256 <64hex> \
   --promotion /absolute/candidate-promotion.json \
   --promotion-sha256 <64hex>
 ```
@@ -220,6 +254,9 @@ node tools/void-wc-void-bounded-canary-canonical-application-v1.mjs verify-appli
 ```text
 source_only_application=true
 exact_semantic_promotion_bytes_required=true
+exact_semantic_origin_inputs_required=true
+semantic_promotion_reexecution_required=true
+semantic_promotion_equality_required=true
 exact_candidate_promotion_receipt_required=true
 candidate_promotion_reexecution_required=true
 canonical_head_candidate_bytes_required=true

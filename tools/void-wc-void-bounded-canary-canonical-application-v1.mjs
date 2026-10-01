@@ -12,6 +12,9 @@ import {
   promoteWcVoidBoundedCanaryCandidatesV1,
 } from "./void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
 import {
+  promoteWcVoidBoundedCanarySemanticV1,
+} from "./void-wc-void-bounded-canary-semantic-promotion-v1.mjs";
+import {
   classifyVoidWcVoidProductionReadinessV1,
 } from "./void-wc-void-production-readiness-v1.mjs";
 import {
@@ -27,6 +30,9 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
   Object.freeze({
     source_only_application: true,
     exact_semantic_promotion_bytes_required: true,
+    exact_semantic_origin_inputs_required: true,
+    semantic_promotion_reexecution_required: true,
+    semantic_promotion_equality_required: true,
     exact_candidate_promotion_receipt_required: true,
     candidate_promotion_reexecution_required: true,
     canonical_head_candidate_bytes_required: true,
@@ -92,6 +98,29 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const PROMOTION_ID = /^voidwcbccp1_[0-9a-f]{64}$/u;
 const PLAN_ID = /^voidwcbcap1_[0-9a-f]{64}$/u;
 const MAX_BYTES = 64 * 1024 * 1024;
+
+const SEMANTIC_REQUEST_KEYS = Object.freeze([
+  "reviewed_policy_id",
+  "evaluation_time_utc",
+  "bounded_canary_input_bytes",
+  "bounded_canary_input_file_sha256",
+  "market_vault_at_use_bytes",
+  "market_vault_at_use_file_sha256",
+  "ledger_persistence_import_input_bytes",
+  "ledger_persistence_import_input_file_sha256",
+  "opening_request_bytes",
+  "opening_request_file_sha256",
+  "opening_claim_binding_bytes",
+  "opening_claim_binding_file_sha256",
+  "opening_claim_persistence_receipt_bytes",
+  "opening_claim_persistence_receipt_file_sha256",
+  "opening_replay_capsule_bytes",
+  "opening_replay_capsule_file_sha256",
+  "opening_replay_inspection_receipt_bytes",
+  "opening_replay_inspection_receipt_file_sha256",
+  "participant_at_use_bytes",
+  "participant_at_use_file_sha256",
+]);
 
 const PLAN_KEYS = Object.freeze([
   "marker",
@@ -310,6 +339,33 @@ function gitRun(args, code, { encoding = "utf8", maxBuffer = MAX_BYTES + 1024 } 
 
 function gitText(args, code) {
   return String(gitRun(args, code)).trim();
+}
+
+function canonicalRemoteGitText(args, code) {
+  const before = inspectGitExecutable();
+  const env = sanitizedGitEnv();
+  env.HOME = "/nonexistent";
+  env.GIT_CONFIG_GLOBAL = "/dev/null";
+  env.GIT_CONFIG_SYSTEM = "/dev/null";
+  env.GIT_CONFIG_NOSYSTEM = "1";
+  env.GIT_TERMINAL_PROMPT = "0";
+  const result = spawnSync(
+    before.path,
+    ["--no-replace-objects", ...args],
+    {
+      cwd: "/",
+      encoding: "utf8",
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: MAX_BYTES + 1024,
+    },
+  );
+  if (result.error || result.status !== 0) fail(code);
+  const after = inspectGitExecutable();
+  if (!sameGitExecutable(before, after)) {
+    fail("CANONICAL_APPLICATION_GIT_EXECUTABLE_CHANGED_DURING_REMOTE_READ");
+  }
+  return String(result.stdout).trim();
 }
 
 function gitBytes(args, code) {
@@ -672,7 +728,7 @@ function verifyCanonicalRemoteMain(expectedHead) {
   if (!CANONICAL_ORIGIN_FORMS.has(origin)) {
     fail("CANONICAL_APPLICATION_ORIGIN_NOT_CANONICAL");
   }
-  const raw = gitText(
+  const raw = canonicalRemoteGitText(
     [
       "ls-remote",
       "--heads",
@@ -731,6 +787,7 @@ function exactCandidateDelta(source, target, kind) {
 export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   semanticPromotionBytes,
   semanticPromotionFileSha256,
+  semanticPromotionRequest,
   candidatePromotionReceiptBytes,
   candidatePromotionReceiptFileSha256,
 } = {}) {
@@ -739,6 +796,23 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     semanticPromotionFileSha256,
     "CANONICAL_APPLICATION_SEMANTIC_PROMOTION_FILE",
   );
+  const semanticRequest = exactObject(
+    semanticPromotionRequest,
+    SEMANTIC_REQUEST_KEYS,
+    "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_INPUT_SHAPE_INVALID",
+  );
+  const rederivedSemantic =
+    promoteWcVoidBoundedCanarySemanticV1(semanticRequest);
+  const rederivedSemanticBytes = prettyBytes(rederivedSemantic);
+  const rederivedSemanticSha256 = sha256(rederivedSemanticBytes);
+  if (
+    canonicalJson(rederivedSemantic) !== canonicalJson(semantic.value) ||
+    rederivedSemanticSha256 !== semantic.sha256 ||
+    !semantic.bytes.equals(rederivedSemanticBytes)
+  ) {
+    fail("CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH");
+  }
+
   const reviewedReceipt = parseJsonBytes(
     candidatePromotionReceiptBytes,
     candidatePromotionReceiptFileSha256,
@@ -765,8 +839,8 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   const rederived = promoteWcVoidBoundedCanaryCandidatesV1({
     repository_head_sha: repository.head,
     repository_tree_sha: repository.tree,
-    semantic_promotion_bytes: semantic.bytes,
-    semantic_promotion_file_sha256: semantic.sha256,
+    semantic_promotion_bytes: rederivedSemanticBytes,
+    semantic_promotion_file_sha256: rederivedSemanticSha256,
     production_candidate_bytes: production.bytes,
     production_candidate_file_sha256: production.sha256,
     coupled_candidate_bytes: coupled.bytes,
@@ -1140,6 +1214,15 @@ function readStableFile(file, expectedSha, label) {
 function usage() {
   console.log(
     "prepare --semantic /absolute/semantic.json --semantic-sha256 <64hex> " +
+      "--bounded-canary-input /absolute/input.json --bounded-canary-input-sha256 <64hex> " +
+      "--market-vault-at-use /absolute/vault.json --market-vault-at-use-sha256 <64hex> " +
+      "--ledger-persistence-import-input /absolute/ledger.json --ledger-persistence-import-input-sha256 <64hex> " +
+      "--opening-request /absolute/opening.json --opening-request-sha256 <64hex> " +
+      "--opening-claim-binding /absolute/claim.json --opening-claim-binding-sha256 <64hex> " +
+      "--opening-claim-persistence-receipt /absolute/claim-persistence.json --opening-claim-persistence-receipt-sha256 <64hex> " +
+      "--opening-replay-capsule /absolute/replay.json --opening-replay-capsule-sha256 <64hex> " +
+      "--opening-replay-inspection-receipt /absolute/replay-inspection.json --opening-replay-inspection-receipt-sha256 <64hex> " +
+      "--participant-at-use /absolute/participant.json --participant-at-use-sha256 <64hex> " +
       "--promotion /absolute/promotion.json --promotion-sha256 <64hex>",
   );
   console.log(
@@ -1154,6 +1237,24 @@ async function main(argv) {
     options: {
       semantic: { type: "string" },
       "semantic-sha256": { type: "string" },
+      "bounded-canary-input": { type: "string" },
+      "bounded-canary-input-sha256": { type: "string" },
+      "market-vault-at-use": { type: "string" },
+      "market-vault-at-use-sha256": { type: "string" },
+      "ledger-persistence-import-input": { type: "string" },
+      "ledger-persistence-import-input-sha256": { type: "string" },
+      "opening-request": { type: "string" },
+      "opening-request-sha256": { type: "string" },
+      "opening-claim-binding": { type: "string" },
+      "opening-claim-binding-sha256": { type: "string" },
+      "opening-claim-persistence-receipt": { type: "string" },
+      "opening-claim-persistence-receipt-sha256": { type: "string" },
+      "opening-replay-capsule": { type: "string" },
+      "opening-replay-capsule-sha256": { type: "string" },
+      "opening-replay-inspection-receipt": { type: "string" },
+      "opening-replay-inspection-receipt-sha256": { type: "string" },
+      "participant-at-use": { type: "string" },
+      "participant-at-use-sha256": { type: "string" },
       promotion: { type: "string" },
       "promotion-sha256": { type: "string" },
       plan: { type: "string" },
@@ -1169,11 +1270,24 @@ async function main(argv) {
     return;
   }
   if (command === "prepare") {
+    const semanticInputSpecs = [
+      ["bounded-canary-input", "bounded_canary_input_bytes", "bounded_canary_input_file_sha256", "CANONICAL_APPLICATION_BOUNDED_CANARY_INPUT"],
+      ["market-vault-at-use", "market_vault_at_use_bytes", "market_vault_at_use_file_sha256", "CANONICAL_APPLICATION_MARKET_VAULT_AT_USE"],
+      ["ledger-persistence-import-input", "ledger_persistence_import_input_bytes", "ledger_persistence_import_input_file_sha256", "CANONICAL_APPLICATION_LEDGER_PERSISTENCE_IMPORT_INPUT"],
+      ["opening-request", "opening_request_bytes", "opening_request_file_sha256", "CANONICAL_APPLICATION_OPENING_REQUEST"],
+      ["opening-claim-binding", "opening_claim_binding_bytes", "opening_claim_binding_file_sha256", "CANONICAL_APPLICATION_OPENING_CLAIM_BINDING"],
+      ["opening-claim-persistence-receipt", "opening_claim_persistence_receipt_bytes", "opening_claim_persistence_receipt_file_sha256", "CANONICAL_APPLICATION_OPENING_CLAIM_PERSISTENCE_RECEIPT"],
+      ["opening-replay-capsule", "opening_replay_capsule_bytes", "opening_replay_capsule_file_sha256", "CANONICAL_APPLICATION_OPENING_REPLAY_CAPSULE"],
+      ["opening-replay-inspection-receipt", "opening_replay_inspection_receipt_bytes", "opening_replay_inspection_receipt_file_sha256", "CANONICAL_APPLICATION_OPENING_REPLAY_INSPECTION_RECEIPT"],
+      ["participant-at-use", "participant_at_use_bytes", "participant_at_use_file_sha256", "CANONICAL_APPLICATION_PARTICIPANT_AT_USE"],
+    ];
     if (
       !values.semantic ||
       !values["semantic-sha256"] ||
       !values.promotion ||
-      !values["promotion-sha256"]
+      !values["promotion-sha256"] ||
+      semanticInputSpecs.some(([flag]) =>
+        !values[flag] || !values[flag + "-sha256"])
     ) {
       fail("CANONICAL_APPLICATION_PREPARE_ARGUMENTS_MISSING");
     }
@@ -1182,6 +1296,42 @@ async function main(argv) {
       values["semantic-sha256"],
       "CANONICAL_APPLICATION_SEMANTIC_FILE",
     );
+    const boundedCanaryBytes = readStableFile(
+      values["bounded-canary-input"],
+      values["bounded-canary-input-sha256"],
+      "CANONICAL_APPLICATION_BOUNDED_CANARY_INPUT",
+    );
+    let boundedCanaryInput;
+    try {
+      boundedCanaryInput = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(boundedCanaryBytes),
+      );
+    } catch {
+      fail("CANONICAL_APPLICATION_BOUNDED_CANARY_INPUT_JSON_INVALID");
+    }
+    if (
+      !plain(boundedCanaryInput) ||
+      typeof boundedCanaryInput.expected_policy_id !== "string" ||
+      typeof boundedCanaryInput.evaluation_time_utc !== "string"
+    ) {
+      fail("CANONICAL_APPLICATION_BOUNDED_CANARY_INPUT_IDENTITY_INVALID");
+    }
+    const semanticPromotionRequest = {
+      reviewed_policy_id: boundedCanaryInput.expected_policy_id,
+      evaluation_time_utc: boundedCanaryInput.evaluation_time_utc,
+    };
+    for (const [flag, bytesKey, shaKey, label] of semanticInputSpecs) {
+      const bytes =
+        flag === "bounded-canary-input"
+          ? boundedCanaryBytes
+          : readStableFile(
+              values[flag],
+              values[flag + "-sha256"],
+              label,
+            );
+      semanticPromotionRequest[bytesKey] = bytes;
+      semanticPromotionRequest[shaKey] = values[flag + "-sha256"];
+    }
     const promotionBytes = readStableFile(
       values.promotion,
       values["promotion-sha256"],
@@ -1190,6 +1340,7 @@ async function main(argv) {
     const plan = prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
       semanticPromotionBytes: semanticBytes,
       semanticPromotionFileSha256: values["semantic-sha256"],
+      semanticPromotionRequest,
       candidatePromotionReceiptBytes: promotionBytes,
       candidatePromotionReceiptFileSha256: values["promotion-sha256"],
     });
