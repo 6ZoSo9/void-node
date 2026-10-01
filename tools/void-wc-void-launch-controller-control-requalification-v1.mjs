@@ -721,8 +721,23 @@ function validateChallengeEnvelopeV1(value, nowUnix) {
   if (envelope.typed_data_digest !== digest) {
     fail("control_challenge_typed_data_digest_mismatch");
   }
+  const normalizedChallenge = Object.freeze({
+    ...challenge,
+    candidate_address: candidate,
+  });
+  const normalizedEnvelope = Object.freeze({
+    marker: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_REQUALIFICATION_V1,
+    version: 1,
+    challenge: normalizedChallenge,
+    source_binding: source,
+    typed_data: expectedTypedData,
+    challenge_id: expectedId,
+    typed_data_digest: digest,
+    authority: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_AUTHORITY_V1,
+  });
   return Object.freeze({
-    challenge: Object.freeze({ ...challenge, candidate_address: candidate }),
+    challenge: normalizedChallenge,
+    challenge_envelope: normalizedEnvelope,
     source_binding: source,
     challenge_id: expectedId,
     typed_data_digest: digest,
@@ -803,10 +818,18 @@ export async function verifyVoidWcVoidLaunchControllerControlSignatureV1({
     (1n << 64n) - 1n,
     "control_verify_now_invalid",
   );
-  const material = Object.freeze({
+  const normalizedSignatureEnvelope = Object.freeze({
+    marker: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNATURE_V1,
+    version: 1,
+    challenge_id: challenge.challenge_id,
+    signature: signature.signature,
+  });
+  const identityMaterial = Object.freeze({
     marker: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1,
     version: 1,
     status: "CANDIDATE_CONTROL_VERIFIED_ROLE_NOT_AUTHORIZED",
+    challenge_envelope: challenge.challenge_envelope,
+    signature_envelope: normalizedSignatureEnvelope,
     challenge_id: challenge.challenge_id,
     candidate_address: recovered,
     coupled_launch_id: EXPECTED_COUPLED_LAUNCH_ID,
@@ -818,7 +841,6 @@ export async function verifyVoidWcVoidLaunchControllerControlSignatureV1({
     source_head_sha: challenge.source_binding.source_head_sha,
     typed_data_digest: challenge.typed_data_digest,
     signature: signature.signature,
-    verified_at_unix: verifiedAt.toString(),
     valid_until_unix: challenge.expires_at_unix.toString(),
     control_verified: true,
     role_binding_authorized: false,
@@ -831,11 +853,137 @@ export async function verifyVoidWcVoidLaunchControllerControlSignatureV1({
   });
   const evidenceId =
     "voidwlcce1_" +
-    sha256(Buffer.from(canonicalJson(material), "utf8"));
+    sha256(Buffer.from(canonicalJson(identityMaterial), "utf8"));
   if (!EVIDENCE_ID.test(evidenceId)) {
     fail("control_evidence_id_internal_invalid");
   }
-  return Object.freeze({ ...material, evidence_id: evidenceId });
+  return Object.freeze({
+    ...identityMaterial,
+    evidence_id: evidenceId,
+    verified_at_unix: verifiedAt.toString(),
+  });
+}
+
+export async function reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+  evidence,
+  nowUnix = Math.floor(Date.now() / 1000),
+} = {}) {
+  const value = exactOwnDataObject(
+    evidence,
+    [
+      "marker",
+      "version",
+      "status",
+      "challenge_envelope",
+      "signature_envelope",
+      "challenge_id",
+      "candidate_address",
+      "coupled_launch_id",
+      "coupled_launch_id_bytes32",
+      "compiled_identity_id",
+      "void_token",
+      "source_binding_sha256",
+      "source_head_sha",
+      "typed_data_digest",
+      "signature",
+      "valid_until_unix",
+      "control_verified",
+      "role_binding_authorized",
+      "deployment_authorized",
+      "inventory_funding_authorized",
+      "market_activation_authorized",
+      "public_presale_activation_authorized",
+      "funds_movement_authorized",
+      "authority",
+      "evidence_id",
+      "verified_at_unix",
+    ],
+    "control_evidence",
+  );
+  if (
+    value.marker !== VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1 ||
+    value.version !== 1 ||
+    value.status !== "CANDIDATE_CONTROL_VERIFIED_ROLE_NOT_AUTHORIZED" ||
+    typeof value.evidence_id !== "string" ||
+    !EVIDENCE_ID.test(value.evidence_id) ||
+    typeof value.challenge_id !== "string" ||
+    !CHALLENGE_ID.test(value.challenge_id) ||
+    typeof value.typed_data_digest !== "string" ||
+    !BYTES32.test(value.typed_data_digest) ||
+    typeof value.signature !== "string" ||
+    !isHexString(value.signature, 65) ||
+    value.control_verified !== true ||
+    value.role_binding_authorized !== false ||
+    value.deployment_authorized !== false ||
+    value.inventory_funding_authorized !== false ||
+    value.market_activation_authorized !== false ||
+    value.public_presale_activation_authorized !== false ||
+    value.funds_movement_authorized !== false
+  ) {
+    fail("control_evidence_identity_invalid");
+  }
+  exactAuthorityV1(value.authority);
+
+  const fresh =
+    await verifyVoidWcVoidLaunchControllerControlSignatureV1({
+      challengeEnvelope: value.challenge_envelope,
+      signatureEnvelope: value.signature_envelope,
+      nowUnix,
+    });
+
+  for (const key of [
+    "evidence_id",
+    "challenge_id",
+    "candidate_address",
+    "coupled_launch_id",
+    "coupled_launch_id_bytes32",
+    "compiled_identity_id",
+    "void_token",
+    "source_binding_sha256",
+    "source_head_sha",
+    "typed_data_digest",
+    "signature",
+    "valid_until_unix",
+  ]) {
+    if (value[key] !== fresh[key]) {
+      fail("control_evidence_reverification_mismatch:" + key);
+    }
+  }
+
+  const verifiedAt = decimal(
+    value.verified_at_unix,
+    (1n << 64n) - 1n,
+    "control_evidence_verified_at_invalid",
+  );
+  const issuedAt = decimal(
+    fresh.challenge_envelope.challenge.issued_at_unix,
+    (1n << 64n) - 1n,
+    "control_evidence_issued_at_invalid",
+  );
+  const validUntil = decimal(
+    fresh.valid_until_unix,
+    (1n << 64n) - 1n,
+    "control_evidence_valid_until_invalid",
+  );
+  const now = decimal(
+    String(nowUnix),
+    (1n << 64n) - 1n,
+    "control_verify_now_invalid",
+  );
+  if (
+    verifiedAt < issuedAt ||
+    verifiedAt >= validUntil ||
+    verifiedAt > now
+  ) {
+    fail("control_evidence_verified_at_out_of_window");
+  }
+
+  return Object.freeze({
+    ...fresh,
+    verified_at_unix: value.verified_at_unix,
+    reverified_at_unix: now.toString(),
+    evidence_reverified: true,
+  });
 }
 
 function isInsideRepo(file) {
