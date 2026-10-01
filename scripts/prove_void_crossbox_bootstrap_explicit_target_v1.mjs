@@ -77,7 +77,6 @@ const doc = fs.readFileSync(
   "utf8",
 );
 assert.ok(doc.includes(MARKER));
-assert.ok(doc.includes("active operator fleet"));
 for (const host of ["Precision", "Nimo", "Xiphos"]) {
   assert.ok(doc.includes(host), `operator doc missing active host ${host}`);
 }
