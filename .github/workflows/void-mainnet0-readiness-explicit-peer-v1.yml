@@ -79,7 +79,7 @@ jobs:
             "whitespace" \
             "zoso@xiphos bad" \
             "must be an explicit SSH alias or user@host"
-          control_target="$(printf 'zoso@xiphos\\nbad')"
+          control_target="$(printf 'zoso@xiphos\nbad')"
           assert_rejected_target \
             "control" \
             "$control_target" \
