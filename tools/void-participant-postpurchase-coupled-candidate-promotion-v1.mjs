@@ -666,6 +666,23 @@ export function buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
   ) {
     fail("promotion_successor_file_sha256_unbound");
   }
+  if (
+    gitBlobSha1(
+      Buffer.from(JSON.stringify(candidate, null, 2) + "\n", "utf8"),
+    ) !== candidateGitBlobSha1
+  ) {
+    fail("promotion_candidate_git_blob_unbound");
+  }
+  if (
+    gitBlobSha1(
+      Buffer.from(
+        JSON.stringify(successorMigrationCandidate, null, 2) + "\n",
+        "utf8",
+      ),
+    ) !== successorCandidateGitBlobSha1
+  ) {
+    fail("promotion_successor_git_blob_unbound");
+  }
 
   const runtimeBinding =
     validateNormalizedReceipt(runtimeBindingReceipt);
