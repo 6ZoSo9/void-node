@@ -172,6 +172,9 @@ assert.equal(rotation.marker, MARKER);
 assert.equal(rotation.version, 1);
 assert.equal(rotation.repository, "6ZoSo9/void-node");
 assert.equal(rotation.observed_main_sha, MAIN);
+assert.match(rotation.live_dispatch_policy_sha256, /^sha256:[0-9a-f]{64}$/u);
+assert.match(rotation.successor_chain_sha256, /^sha256:[0-9a-f]{64}$/u);
+assert.match(rotation.open_pull_request_evidence_sha256, /^sha256:[0-9a-f]{64}$/u);
 assert.equal(rotation.outcome, "ROTATION_PREPARATION_READY");
 assert.equal(rotation.rotation_preparation_ready, true);
 assert.equal(rotation.successor_creation_required, true);
@@ -319,8 +322,16 @@ const invalid = buildCoordinationRotationSnapshotV1(
     chainValue: chain({
       outcome: "HOLD_INVALID_SUCCESSOR_CHAIN",
       chain_valid: false,
+      hold_reasons: ["terminal_issue_not_open:#1507"],
       rotation_required: false,
+      chain: [
+        terminalIssue({
+          state: "closed",
+          rotationRequired: false,
+        }),
+      ],
       dispatch_plan_issue_should_be: null,
+      plan_issue_update_required: false,
     }),
   }),
 );
@@ -350,6 +361,61 @@ expectRejected(
     }),
   ),
   /authority_granted must remain false/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
+    evidence({
+      chainValue: chain({
+        current_issue: 1600,
+        outcome: "SUCCESSOR_RESOLVED",
+        rotation_required: false,
+        chain_issue_numbers: [1507, 1600],
+        chain: [
+          terminalIssue({
+            number: 1507,
+            state: "closed",
+            comments: 249,
+            totalMessages: 250,
+            successor: 1700,
+            rotationRequired: false,
+          }),
+          terminalIssue({
+            number: 1600,
+            comments: 10,
+            totalMessages: 11,
+            rotationRequired: false,
+          }),
+        ],
+        dispatch_plan_issue_should_be: 1600,
+        plan_issue_update_required: true,
+      }),
+    }),
+  ),
+  /successor-chain link mismatch/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
+    evidence({
+      chainValue: chain({
+        outcome: "HOLD_INVALID_SUCCESSOR_CHAIN",
+        chain_valid: false,
+        hold_reasons: [],
+        rotation_required: false,
+        chain: [
+          terminalIssue({
+            state: "closed",
+            rotationRequired: false,
+          }),
+        ],
+        dispatch_plan_issue_should_be: null,
+      }),
+    }),
+  ),
+  /must retain hold reasons/,
 );
 
 expectRejected(
@@ -435,5 +501,7 @@ console.log("successor_resolved_detected=true");
 console.log("stale_policy_plan_issue_detected=true");
 console.log("invalid_chain_holds=true");
 console.log("pr_order_deterministic=true");
+console.log("forged_chain_link_rejected=true");
+console.log("snapshot_lineage_content_addressed=true");
 console.log("authority_granted=false");
 console.log("mutation_performed=false");
