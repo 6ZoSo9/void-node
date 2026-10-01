@@ -37,6 +37,13 @@ The existing durable promotion is re-executed. That re-execution reads and
 inspects the real persisted claim/replay state referenced by the request and
 requires the complete result to equal the supplied promotion receipt.
 
+Authority-bearing promotion/classifier code is **not** imported from the mutable
+working tree. The application wrapper first binds a clean repository HEAD/tree,
+then creates a private temporary execution tree from that exact Git generation.
+The tree receives only reviewed Node package bytes from the merged
+`reviewed-node-package-runtime-ethers-v1` profile. Execution uses Node
+permissions, a minimal child environment, and the exact reviewed Git generation.
+
 The application wrapper additionally binds one clean repository HEAD/tree and
 the exact HEAD Git blobs of:
 
@@ -49,8 +56,20 @@ the exact HEAD Git blobs of:
 - replay persistence inspector; and
 - both canonical classifiers.
 
-Git reads use `/usr/bin/git --no-replace-objects` with Git override environment
-removed.
+Git reads use absolute `/usr/bin/git --no-replace-objects` with a minimal
+explicit environment. Global/system Git config is disabled and command-line
+overrides disable fsmonitor, hooks, attributes, untracked cache, preload index
+and submodule recursion. Dynamic-loader and Node path/loader variables are not
+inherited.
+
+The private reviewed execution checkout is detached at the exact application
+base HEAD/tree. The reviewed durable-promotion module is the only allowed module
+in its recursive semantic closure with a child-process import, and its child
+process is Git. The private process may read the reviewed execution tree plus
+the exact private request/data directory needed for real persistence inspection;
+it receives no filesystem-write permission. Bare `ethers` resolution is served
+from the reviewed package materialization rather than repository/ancestor
+`node_modules`.
 
 ## Exact delta
 
@@ -98,7 +117,11 @@ re-proves:
 - source candidate identities;
 - tool/classifier/inspector identities;
 - exact three-field source delta; and
-- before/after classifier transition.
+- before/after classifier transition executed from the exact private reviewed
+  base generation.
+
+Hidden working-tree changes, Git replacement refs, hostile fsmonitor/global
+config and ambient dynamic-loader/Node overrides are not execution authority.
 
 A caller cannot add an unrelated target change, recompute target hashes and the
 plan ID, and obtain a valid application plan.
@@ -137,10 +160,17 @@ This applied lineage is a prerequisite of #2200, not final activation.
 
 ## Authority
 
-No canonical source is written by this tool. It performs no runtime/service/RPC
-mutation, credential/key/wallet/signer access, transaction
-construction/signing/broadcast, Chain-2050 write, token/WC movement, inventory
-or liquidity action, market/presale activation, or funds movement.
+No canonical source is written by this tool. The verifier does create and remove
+a private temporary reviewed execution tree outside the repository; that
+temporary filesystem write is implementation scaffolding, not repository or
+runtime mutation.
+
+It performs no runtime/service/RPC mutation, credential/key/wallet/signer
+access, transaction construction/signing/broadcast, Chain-2050 write, token/WC
+movement, inventory or liquidity action, market/presale activation, or funds
+movement. The reviewed child execution does not claim socket-level network
+isolation; instead the recursive reviewed semantic closure contains no network
+operation and its sole child-process surface is the reviewed Git read path.
 
 Focused proof:
 
