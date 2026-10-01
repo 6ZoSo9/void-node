@@ -254,9 +254,12 @@ for (const [key, value] of Object.entries(
     key === "source_policy_compilation_only" ||
     key === "explicit_reviewed_values_required" ||
     key === "canonical_launch_source_binding_required" ||
+    key === "git_config_isolated" ||
     key === "descriptor_bound_private_input" ||
+    key === "reviewed_private_input_sha256_required" ||
     key === "create_only_private_output" ||
-    key === "durable_output_directory_entry_required"
+    key === "durable_output_directory_entry_required" ||
+    key === "output_parent_directory_identity_bound"
   ) {
     assert.equal(value, true, key);
   } else {
@@ -401,17 +404,45 @@ for (const [key, value] of Object.entries(
     fs.chmodSync(tmp, 0o700);
     const input = path.join(tmp, "input.json");
     const output = path.join(tmp, "bundle.json");
+    const inputBytes = Buffer.from(
+      JSON.stringify(fixture(), null, 2) + "\n",
+      "utf8",
+    );
     fs.writeFileSync(
       input,
-      JSON.stringify(fixture(), null, 2) + "\n",
+      inputBytes,
       { mode: 0o600 },
     );
+    const inputSha256 =
+      crypto.createHash("sha256").update(inputBytes).digest("hex");
+
+    const wrongDigest = spawnSync(
+      process.execPath,
+      [
+        TOOL,
+        "--input",
+        input,
+        "--expected-input-sha256",
+        "0".repeat(64),
+        "--output",
+        path.join(tmp, "wrong-digest-output.json"),
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(wrongDigest.status, 2);
+    assert.match(
+      wrongDigest.stderr,
+      /COUPLED_LAUNCH_POLICY_INPUT_SHA256_MISMATCH/u,
+    );
+
     const first = spawnSync(
       process.execPath,
       [
         TOOL,
         "--input",
         input,
+        "--expected-input-sha256",
+        inputSha256,
         "--output",
         output,
       ],
@@ -424,6 +455,10 @@ for (const [key, value] of Object.entries(
     );
     assert.match(first.stdout, /values_selected_by_source=false/u);
     assert.match(first.stdout, /runtime_enforcement_verified=false/u);
+    assert.match(
+      first.stdout,
+      new RegExp("reviewed_input_sha256=" + inputSha256, "u"),
+    );
     assert.equal(fs.statSync(output).mode & 0o777, 0o600);
     const persisted = JSON.parse(fs.readFileSync(output, "utf8"));
     assert.equal(persisted.bundle_id, result.bundle_id);
@@ -436,6 +471,8 @@ for (const [key, value] of Object.entries(
         TOOL,
         "--input",
         alias,
+        "--expected-input-sha256",
+        inputSha256,
         "--output",
         path.join(tmp, "alias-output.json"),
       ],
@@ -450,6 +487,8 @@ for (const [key, value] of Object.entries(
         TOOL,
         "--input",
         input,
+        "--expected-input-sha256",
+        inputSha256,
         "--output",
         output,
       ],
@@ -476,6 +515,9 @@ for (const forbidden of [
 }
 assert.match(source, /O_NOFOLLOW/u);
 assert.match(source, /fstatSync/u);
+assert.match(source, /GIT_CONFIG_NOSYSTEM/u);
+assert.match(source, /expected-input-sha256/u);
+assert.match(source, /parentFd/u);
 assert.match(source, /fsyncDirectory\(parent\)/u);
 assert.match(source, /headBlobSha1\(COUPLED_CANDIDATE_REL\)/u);
 assert.equal(
@@ -493,6 +535,9 @@ console.log("explicit_sponsored_gas_budgets_required=true");
 console.log("all_policy_ids_content_addressed=true");
 console.log("canonical_coupled_launch_source_bound=true");
 console.log("private_input_descriptor_bound=true");
+console.log("reviewed_private_input_sha256_required=true");
+console.log("git_config_isolated=true");
+console.log("private_output_parent_identity_bound=true");
 console.log("private_output_directory_fsync_green=true");
 console.log("all_policy_commitments_precede_open=true");
 console.log("hidden_minimum_trade_amount_applied=false");
