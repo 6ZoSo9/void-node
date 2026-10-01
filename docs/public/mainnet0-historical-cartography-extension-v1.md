@@ -31,6 +31,8 @@ Before the scanner module is dynamically loaded, the planner:
 
 The scanner and schema have no commits after the acceptance generation, but this runtime check makes future drift fail closed rather than relying on repository history.
 
+The planner also closes the verify→execute boundary: it never imports the worktree scanner pathname after hashing it. The exact scanner bytes used to derive the accepted semantics root are copied into a private temporary directory, rehashed, made read-only, imported from that private materialization, and then the temporary pathname is removed after module evaluation. The exported proof reports `worktree_scanner_execution=false`.
+
 ## Prefix verification
 
 The later frozen source must retain the exact accepted segment namespace.
