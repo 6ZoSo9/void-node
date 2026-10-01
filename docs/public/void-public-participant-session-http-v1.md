@@ -4,11 +4,18 @@ Marker: `VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1`
 
 ## Purpose
 
-This source-only stage gives the Stage-A Ed25519 participant session primitive
-an exact HTTP-shaped contract without mounting it in the production public
-gateway.
+This source-only stage gives the role-bound Stage-A Ed25519 participant session
+primitive an exact HTTP-shaped contract without mounting it in the production
+public gateway.
 
-It intentionally stops before Wallet or Earn projection.
+Construction now fails closed unless both reviewed production prerequisites are
+supplied:
+
+- a role-authority adapter; and
+- a durable session-state store.
+
+A memory-only fallback is not accepted by this HTTP surface. It intentionally
+stops before Wallet or Earn projection.
 
 ## Exact routes
 
@@ -26,7 +33,10 @@ No listener or application route is mounted by this stage.
 The challenge body is exactly:
 
 ```json
-{"account":"participant-account-id"}
+{
+  "identity_id":"participant.identity",
+  "account":"participant-account-id"
+}
 ```
 
 The account must match `^[A-Za-z0-9._:-]{1,128}$`.
@@ -43,6 +53,7 @@ The login body is exactly:
 {
   "challenge_id":"<32 lowercase hex>",
   "nonce":"<challenge nonce>",
+  "identity_id":"participant.identity",
   "account":"participant-account-id",
   "signature_base64url":"<Ed25519 signature>"
 }
@@ -76,6 +87,22 @@ the presented token was live, already logged out, malformed, or unknown.
 
 A later edge binding must preserve these rules and add its own bounded ingress
 and rate-limit policy.
+
+## Production state requirement
+
+`createVoidPublicParticipantSessionHttpV1(...)` rejects construction with
+`role_authority_adapter_required` when role authority is absent. After the
+role adapter is accepted, it also requires
+`session.state_store_durable === true`; otherwise construction fails with
+`durable_state_store_required`.
+
+This check occurs before any participant HTTP route can be served. The status
+surface therefore reports `durable_state_store=true` for every successfully
+constructed session-HTTP instance.
+
+The reviewed durable implementation persists session-token SHA-256 only; bearer
+token bytes, wallet keys, signing authority, Work Credit authority, validator
+authority, and money-movement authority remain absent.
 
 ## Internal authorization hook
 
@@ -115,6 +142,8 @@ This stage performs no:
 
 - unknown and enrolled accounts receive the same challenge shape;
 - an unknown account fails only at login with the generic authentication error;
+- role authority without a durable state store is rejected at construction;
+- the real durable file-backed store is accepted and reported as durable;
 - a real Ed25519 fixture can log in;
 - the resulting session authorizes only its exact account;
 - challenge replay fails;

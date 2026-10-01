@@ -11,6 +11,9 @@ import {
 import {
   createVoidParticipantRoleAuthoritySessionStubV1,
 } from "./lib/void_participant_role_authority_session_stub_v1.mjs";
+import {
+  createVoidPublicParticipantSessionStateFileV1,
+} from "../ops/public/void-public-participant-session-state-file-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1_PROOF_GREEN";
 const temp = fs.mkdtempSync(
@@ -20,6 +23,11 @@ const registryDir = path.join(temp, "registry");
 const registryFile = path.join(
   registryDir,
   "participant-login-bindings-v1.json",
+);
+const stateDir = path.join(temp, "state");
+const stateFile = path.join(
+  stateDir,
+  "participant-session-state-v1.json",
 );
 let clock = 1_800_000_000_000;
 let randomCounter = 0;
@@ -68,6 +76,8 @@ function signChallenge(challenge, privateKey) {
 try {
   fs.mkdirSync(registryDir, { mode: 0o700 });
   fs.chmodSync(registryDir, 0o700);
+  fs.mkdirSync(stateDir, { mode: 0o700 });
+  fs.chmodSync(stateDir, 0o700);
 
   const loginA = crypto.generateKeyPairSync("ed25519");
   const loginB = crypto.generateKeyPairSync("ed25519");
@@ -99,13 +109,35 @@ try {
   );
   fs.chmodSync(registryFile, 0o600);
 
+  const roleAuthority =
+    createVoidParticipantRoleAuthoritySessionStubV1();
+
+  assert.throws(
+    () => createVoidPublicParticipantSessionHttpV1({
+      bindingRegistryFile: registryFile,
+      roleAuthority,
+      now: () => clock,
+      randomBytes: deterministicBytes,
+    }),
+    /durable_state_store_required/,
+    "session HTTP accepted memory-only production state",
+  );
+
+  const stateStore =
+    createVoidPublicParticipantSessionStateFileV1({
+      stateFile,
+    });
+  assert.equal(stateStore.durable, true);
+  assert.equal(stateStore.bearer_token_persisted, false);
+
   const adapter = createVoidPublicParticipantSessionHttpV1({
     bindingRegistryFile: registryFile,
-    roleAuthority:
-      createVoidParticipantRoleAuthoritySessionStubV1(),
+    roleAuthority,
+    stateStore,
     now: () => clock,
     randomBytes: deterministicBytes,
   });
+  assert.equal(adapter.state_store_durable, true);
 
   for (const key of [
     "cookie_authentication",
@@ -134,6 +166,11 @@ try {
   assert.equal(status.body.ok, true);
   assert.equal(status.body.login_key_type, "ed25519");
   assert.equal(status.body.account_enumeration, false);
+  assert.equal(status.body.durable_state_store, true);
+  assert.equal(
+    status.body.durable_state_store_required_for_production,
+    true,
+  );
   assert.equal(status.headers["cache-control"], "no-store");
 
   const smuggledAuthority = await adapter.handle(jsonRequest(
@@ -428,6 +465,8 @@ try {
   console.log(MARKER);
   console.log("unknown_account_challenge_indistinguishable=true");
   console.log("unknown_account_login_generic_failure=true");
+  console.log("durable_state_store_required=true");
+  console.log("durable_state_store_bound=true");
   console.log("ed25519_login_success=true");
   console.log("exact_account_authorization=true");
   console.log("cross_account_authorization_rejected=true");

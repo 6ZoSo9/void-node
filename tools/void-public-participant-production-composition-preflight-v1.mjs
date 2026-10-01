@@ -46,7 +46,7 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
     "ops/public/void-public-participant-read-session-v1.mjs":
       "00fea49e1da53975deba78b69f5776537f6899e8",
     "ops/public/void-public-participant-session-http-v1.mjs":
-      "ca30f1e55217581ee933a97b51319447a49d0999",
+      "f2c1d2cc3ea3d20737af834e51f60654fa951162",
     "ops/public/void-public-participant-account-read-projection-v1.mjs":
       "985ac993f59d9bfc4f0650853f142bfd398b9e18",
     "ops/public/void-public-participant-account-read-http-edge-v1.mjs":
@@ -200,6 +200,8 @@ function inspectSessionHttpV1(text){
     'required_role: "AGENT"',
     "durable_state_store_supported: true",
     "durable_state_store_required_for_production: true",
+    'session.state_store_durable !== true',
+    'fail("durable_state_store_required")',
     "cookie_authentication: false",
     "cors_wildcard: false",
     "wallet_private_key_access: false",
