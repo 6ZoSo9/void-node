@@ -361,6 +361,7 @@ assert(
     wrapperSource.indexOf('chmod 700 "$dir"'),
 );
 for (const required of [
+  'mkdir -m 700 -- "$dir"',
   'ensure_private_direct_dir "$HOME/.config/void" "void_config_dir"',
   'ensure_private_direct_dir "$stage_root" "stage_root"',
   'bash "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel"',
