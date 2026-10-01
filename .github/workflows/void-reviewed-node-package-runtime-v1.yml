@@ -1,0 +1,53 @@
+name: VOID reviewed Node package runtime v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-reviewed-node-package-runtime-v1.yml"
+      - "docs/security/reviewed-node-package-runtime-v1.md"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-reviewed-node-package-runtime-v1.yml"
+      - "docs/security/reviewed-node-package-runtime-v1.md"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install exact locked dependencies without package scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax
+        run: |
+          node --check tools/void-reviewed-node-package-runtime-v1.mjs
+          node --check scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+      - name: Collect and prove reviewed ethers runtime bootstrap
+        run: node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
