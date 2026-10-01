@@ -59,12 +59,16 @@ assert.equal(
   false,
 );
 assert.equal(
+  candidate.shared_post_discovery_reconciliation.coupled_launch_id,
+  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+);
+assert.equal(
   candidate.shared_post_discovery_reconciliation.reconciliation_id,
-  "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
+  "sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba",
 );
 assert.equal(
   candidate.shared_post_discovery_reconciliation.wc_opening_state_id,
-  "sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d",
+  "sha256:fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621",
 );
 assert.equal(
   candidate.shared_post_discovery_reconciliation.wc_void_phase,
@@ -84,6 +88,20 @@ assert.equal(
   ),
   false,
 );
+
+{
+  const staleLaunch = structuredClone(candidate);
+  staleLaunch.shared_post_discovery_reconciliation.coupled_launch_id =
+    "sha256:" + "a".repeat(64);
+  const staleLaunchDecision =
+    classifyVoidCoupledEconomicSuccessorGateV1(staleLaunch, successor);
+  assert.equal(staleLaunchDecision.ok, false);
+  assert.equal(staleLaunchDecision.status, "HOLD");
+  assert.equal(
+    staleLaunchDecision.reason,
+    "shared_post_discovery_reconciliation_mismatch:coupled_launch_id",
+  );
+}
 
 assert.equal(candidate.gates.opening_commitment_window_policy_ready, true);
 assert.equal(
@@ -569,11 +587,11 @@ assert.equal(
 );
 assert.equal(
   sourceReady.shared_post_discovery_reconciliation_id,
-  "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5",
+  "sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba",
 );
 assert.equal(
   sourceReady.shared_post_discovery_opening_state_id,
-  "sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d",
+  "sha256:fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621",
 );
 assert.equal(
   sourceReady.shared_post_discovery_model_profile,
@@ -1066,9 +1084,11 @@ console.log("opening_sale_tranche_void=5000000");
 console.log("post_opening_void_reserve=5000000");
 console.log("opening_allocation_policy=pro_rata_largest_remainder_v1");
 console.log("shared_post_discovery_model_reconciled=true");
+console.log("coupled_launch_identity_reconciled=true");
+console.log("stale_source_model_launch_id_rejected=true");
 console.log("shared_post_discovery_model_profile=canonical_source_model_fixture_v2");
-console.log("shared_post_discovery_reconciliation_id=sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5");
-console.log("shared_post_discovery_opening_state_id=sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d");
+console.log("shared_post_discovery_reconciliation_id=sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba");
+console.log("shared_post_discovery_opening_state_id=sha256:fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621");
 console.log("shared_post_discovery_runtime_or_launch_evidence=false");
 console.log("opening_commitment_window_policy_ready=true");
 console.log("opening_participant_provenance_and_eligibility_ready=true");
