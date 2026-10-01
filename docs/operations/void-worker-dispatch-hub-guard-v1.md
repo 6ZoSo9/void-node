@@ -31,7 +31,9 @@ Read one JSON object from standard input. The operational CLI requires authentic
 
 The guard validates the relevant V1 markers, repository identity, plan/current issue relationship, content-addressed dispatch evaluation identity, the dispatch `evaluated_at` / 30-minute `next_reevaluation_at` window, and the negative authority fields of both upstream artifacts.
 
-For operational CLI use, the repository is pinned to canonical `6ZoSo9/void-node`. The guard runs the merged `resolveCoordinationSuccessorChainLiveV1(...)` and requires canonical JSON equality with the supplied chain artifact. It also loads the dispatch policy from the exact current `HEAD:ops/coordination/worker-live-dispatch-policy-v1.json` Git object, re-runs `evaluateWorkerLiveDispatchV1(...)` against the supplied `dispatch_evidence` packet, and requires canonical JSON equality with the supplied dispatch artifact. The dispatch `evaluation_id` is independently recomputed from the dispatch body. A chain change, stale predecessor policy, modified dispatch body, or fabricated successor-aligned dispatch therefore fails closed.
+For operational CLI use, the repository is pinned to canonical `6ZoSo9/void-node`. Before policy replay, the guard performs a noninteractive read-only `git ls-remote --heads https://github.com/6ZoSo9/void-node.git refs/heads/main` with a 15-second timeout, requires exactly one well-formed lowercase SHA-1 record, and requires the local reviewed `HEAD` commit to equal that live canonical-main SHA. It then loads the dispatch policy from that exact live-main commit object, not from an unverified local branch tip. No fetch, checkout, reset, or ref mutation is performed.
+
+After the main-generation gate, the guard runs the merged `resolveCoordinationSuccessorChainLiveV1(...)` and requires canonical JSON equality with the supplied chain artifact. It re-runs `evaluateWorkerLiveDispatchV1(...)` against the supplied `dispatch_evidence` packet and requires canonical JSON equality with the supplied dispatch artifact. The dispatch `evaluation_id` is independently recomputed from the dispatch body. A stale local checkout, chain change, stale predecessor policy, modified dispatch body, or fabricated successor-aligned dispatch therefore fails closed.
 
 ## Outcomes
 
@@ -44,7 +46,8 @@ Requires all of the following:
 - the chain identifies a non-null `dispatch_plan_issue_should_be`;
 - `dispatch.plan_issue` equals that exact issue;
 - the supplied successor-chain artifact has just been re-resolved from live GitHub and is byte-semantically identical to that fresh resolution;
-- the exact current HEAD dispatch policy has freshly re-evaluated the supplied worker-evidence packet; and
+- local `HEAD` has been proved equal to the freshly queried canonical public `main` SHA;
+- the dispatch policy loaded from that exact live-main commit has freshly re-evaluated the supplied worker-evidence packet; and
 - the supplied dispatch is byte-semantically identical to that fresh dispatch evaluation.
 
 `normal_dispatch_allowed=true` means only that normal live-dispatch interpretation may continue under its existing separate authority and collision gates.
@@ -70,7 +73,11 @@ Structurally aligned retained artifacts are not enough to unlock normal dispatch
 
 ### `HOLD_DISPATCH_LIVENESS_UNPROVEN`
 
-Even a structurally valid, unexpired dispatch cannot unlock normal routing unless it has just been re-evaluated from the exact current HEAD dispatch policy and the supplied `dispatch_evidence` packet. This blocks a caller from fabricating a successor-aligned dispatch while the checked-in policy remains bound to the predecessor hub.
+Even a structurally valid, unexpired dispatch cannot unlock normal routing unless it has just been re-evaluated from the reviewed dispatch policy and the supplied `dispatch_evidence` packet. This blocks a caller from fabricating a successor-aligned dispatch while the checked-in policy remains bound to the predecessor hub.
+
+### `HOLD_MAIN_PROVENANCE_UNPROVEN`
+
+A caller cannot unlock aligned routing merely by supplying matching chain/dispatch objects. Operational use must first prove that the local reviewed `HEAD` equals a fresh canonical public `main` query and must replay policy from that exact commit. A stale checkout therefore cannot be described as the current reviewed dispatch-policy generation.
 
 ### `HOLD_ROTATION_REQUIRED`
 
@@ -122,7 +129,7 @@ Exit status is `0` only for `DISPATCH_HUB_ALIGNED`, `3` for a valid read-only HO
 node scripts/prove_void_worker_dispatch_hub_guard_v1.mjs
 ```
 
-The proof covers current-hub alignment, expired-dispatch HOLD, exact 30-minute dispatch-window validation, retained-chain and retained-dispatch liveness HOLDs, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, live-chain mismatch rejection, exact dispatch content-ID rederivation, canonical repository pinning, fresh live-dispatch mismatch rejection, authority escalation, and deterministic guard identity. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy. A fabricated content-valid successor dispatch is explicitly rejected when the freshly re-evaluated policy still produces the predecessor dispatch. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
+The proof covers current-hub alignment, expired-dispatch HOLD, exact 30-minute dispatch-window validation, retained-chain and retained-dispatch liveness HOLDs, live-main-provenance HOLD, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, live-chain mismatch rejection, exact dispatch content-ID rederivation, canonical repository pinning, fresh live-dispatch mismatch rejection, authority escalation, and deterministic guard identity. It validates the exact canonical Git URL/main ref constants, one-record `ls-remote` grammar, malformed/duplicate/wrong-ref rejection, and stale local-HEAD refusal. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy. A fabricated content-valid successor dispatch is explicitly rejected when the freshly re-evaluated policy still produces the predecessor dispatch. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
 
 ## Relationship to #2258
 
