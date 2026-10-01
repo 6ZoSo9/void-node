@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  CANONICAL_MAIN_REF_URL_V1,
   DEFAULT_EXPECTED_HOSTNAME,
   MARKER,
   OBSERVATION_MARKER,
@@ -16,6 +17,7 @@ import {
   evaluateCollectedPrecisionWebObservationV1,
   findProcessSourceByDigestV1,
   observerCommandEnvV1,
+  parseCanonicalMainRefV1,
   parseSsListenersV1,
   parseSystemctlShowV1,
   requireExactLoopbackListenerV1,
@@ -107,6 +109,7 @@ function collected(overrides = {}) {
     marker: OBSERVATION_MARKER,
     version: 1,
     hostname: DEFAULT_EXPECTED_HOSTNAME,
+    canonical_main_sha: plan.source_head_sha,
     units: { ...units },
     services: {
       adapter: service(
@@ -174,16 +177,64 @@ assert.equal(
   "VOID_PRECISION_WEB_RECOVERY_HOST_OBSERVATION_V1",
 );
 assert.equal(DEFAULT_EXPECTED_HOSTNAME, "zoso-Precision-Tower-7810");
+assert.equal(
+  CANONICAL_MAIN_REF_URL_V1,
+  "https://api.github.com/repos/6ZoSo9/void-node/git/ref/heads/main",
+);
+assert.equal(
+  parseCanonicalMainRefV1({
+    ref:"refs/heads/main",
+    object:{type:"commit",sha:plan.source_head_sha},
+  }),
+  plan.source_head_sha,
+);
+expectRejected(
+  ()=>parseCanonicalMainRefV1({
+    ref:"refs/heads/not-main",
+    object:{type:"commit",sha:plan.source_head_sha},
+  }),
+  /canonical_main_ref_invalid/,
+);
+expectRejected(
+  ()=>parseCanonicalMainRefV1({
+    ref:"refs/heads/main",
+    object:{type:"commit",sha:"f".repeat(39)},
+  }),
+  /canonical_main_ref_invalid/,
+);
 assert.equal(OBSERVATION_MAX_AGE_MS, 300_000);
 assert.equal(OBSERVATION_MAX_FUTURE_SKEW_MS, 5_000);
+
+const observerToolSource = fs.readFileSync(
+  "tools/void-precision-web-recovery-host-observer-v1.mjs",
+  "utf8",
+);
+assert(
+  observerToolSource.includes("return Object.freeze({"),
+  "observer subprocess environment must be an explicit frozen allowlist",
+);
+assert.equal(
+  observerToolSource.includes("const env = { ...baseEnv }"),
+  false,
+  "observer subprocess environment must not inherit ambient process variables",
+);
 
 {
   const env = observerCommandEnvV1({
     PATH: "/tmp/attacker-bin",
-    LD_PRELOAD: "/tmp/attacker.so",
+    HOME: "/tmp/attacker-home",
+    XDG_CONFIG_HOME: "/tmp/attacker-config",
+    LD_PRELOAD: "/tmp/attacker-preload.so",
     LD_LIBRARY_PATH: "/tmp/attacker-lib",
+    LD_AUDIT: "/tmp/attacker-audit.so",
+    LD_DEBUG: "all",
+    GLIBC_TUNABLES: "glibc.malloc.check=3",
+    NODE_OPTIONS: "--require=/tmp/attacker.cjs",
+    PYTHONPATH: "/tmp/attacker-python",
+    GCONV_PATH: "/tmp/attacker-gconv",
     TAILSCALE_SOCKET: "/tmp/attacker.sock",
     SYSTEMD_EDITOR: "/tmp/attacker-editor",
+    SYSTEMD_PAGER: "/tmp/attacker-pager",
     TS_DEBUG_FAKE: "1",
     TAILSCALE_DEBUG_FAKE: "1",
     DBUS_SESSION_BUS_ADDRESS: "unix:path=/tmp/attacker-bus",
@@ -191,19 +242,56 @@ assert.equal(OBSERVATION_MAX_FUTURE_SKEW_MS, 5_000);
     PRESERVE_ME: "yes",
   });
   const uid = process.getuid();
+  assert.deepEqual(
+    Object.keys(env).sort(),
+    [
+      "DBUS_SESSION_BUS_ADDRESS",
+      "GIT_TERMINAL_PROMPT",
+      "HOME",
+      "LANG",
+      "LC_ALL",
+      "NO_COLOR",
+      "PAGER",
+      "PATH",
+      "SYSTEMD_COLORS",
+      "SYSTEMD_PAGER",
+      "XDG_CONFIG_HOME",
+      "XDG_RUNTIME_DIR",
+    ].sort(),
+  );
   assert.equal(env.PATH, "/usr/bin:/bin");
-  assert.equal(env.LD_PRELOAD, undefined);
-  assert.equal(env.LD_LIBRARY_PATH, undefined);
-  assert.equal(env.TAILSCALE_SOCKET, undefined);
-  assert.equal(env.SYSTEMD_EDITOR, undefined);
-  assert.equal(env.TS_DEBUG_FAKE, undefined);
-  assert.equal(env.TAILSCALE_DEBUG_FAKE, undefined);
+  assert.equal(env.HOME, "/nonexistent");
+  assert.equal(env.XDG_CONFIG_HOME, "/nonexistent");
+  assert.equal(env.LANG, "C");
+  assert.equal(env.LC_ALL, "C");
+  assert.equal(env.SYSTEMD_PAGER, "cat");
+  assert.equal(env.SYSTEMD_COLORS, "0");
+  assert.equal(env.PAGER, "cat");
+  assert.equal(env.NO_COLOR, "1");
+  assert.equal(env.GIT_TERMINAL_PROMPT, "0");
   assert.equal(env.XDG_RUNTIME_DIR, "/run/user/" + uid);
   assert.equal(
     env.DBUS_SESSION_BUS_ADDRESS,
     "unix:path=/run/user/" + uid + "/bus",
   );
-  assert.equal(env.PRESERVE_ME, "yes");
+  for (const forbidden of [
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "LD_DEBUG",
+    "GLIBC_TUNABLES",
+    "NODE_OPTIONS",
+    "PYTHONPATH",
+    "GCONV_PATH",
+    "TAILSCALE_SOCKET",
+    "SYSTEMD_EDITOR",
+    "TS_DEBUG_FAKE",
+    "TAILSCALE_DEBUG_FAKE",
+    "PRESERVE_ME",
+  ]) {
+    assert.equal(env[forbidden], undefined, forbidden);
+  }
+  assert.equal(Object.isFrozen(env), true);
 }
 
 const accepted = evaluateCollectedPrecisionWebObservationV1({
@@ -218,6 +306,8 @@ assert.equal(
 );
 assert.equal(accepted.hostname, DEFAULT_EXPECTED_HOSTNAME);
 assert.equal(accepted.plan_id, plan.plan_id);
+assert.equal(accepted.canonical_main_sha,plan.source_head_sha);
+assert.equal(accepted.canonical_main_source_head_match,true);
 assert.match(accepted.recovery_evidence_id, /^voidpwre1_[0-9a-f]{64}$/u);
 assert.match(accepted.observation_id, /^voidpwro1_[0-9a-f]{64}$/u);
 assert.equal(accepted.live_host_observation_performed, false);
@@ -408,6 +498,14 @@ expectRejected(
   }),
   /precision_hostname_mismatch/,
 );
+expectRejected(
+  () => evaluateCollectedPrecisionWebObservationV1({
+    plan,
+    collected: collected({ canonical_main_sha: "f".repeat(40) }),
+    trustedNowMs: PROOF_NOW_MS,
+  }),
+  /canonical_main_source_head_mismatch/,
+);
 
 {
   const bad = collected();
@@ -593,7 +691,28 @@ expectRejected(
 }
 
 console.log(PROOF_MARKER);
+const observerSource=fs.readFileSync(
+  "tools/void-precision-web-recovery-host-observer-v1.mjs",
+  "utf8",
+);
+for(const required of [
+  "https://api.github.com/repos/6ZoSo9/void-node/git/ref/heads/main",
+  "parseCanonicalMainRefV1",
+  "canonical_main_source_head_mismatch",
+  "canonical_main_live_verification_mismatch",
+  "canonical_main_live_read_performed: true",
+]){
+  assert.equal(observerSource.includes(required),true,required);
+}
+assert.ok(
+  observerSource.indexOf("await readCanonicalMainShaV1()") <
+    observerSource.indexOf("readNodeInvocationId(units.node)"),
+  "canonical main must be verified before live host observation begins",
+);
+
 console.log("current_plan_bound=true");
+console.log("canonical_main_fixed_public_ref_bound=true");
+console.log("canonical_main_live_match_required=true");
 console.log("host_identity_bound=true");
 console.log("node_unit_identity_pinned=true");
 console.log("web_service_unit_identity_bound=true");
