@@ -220,7 +220,7 @@ function validateDispatch(raw) {
 
 export function evaluateWorkerDispatchHubGuardV1(
   rawEvidence,
-  { liveChainRevalidated = false } = {},
+  { liveChain = null } = {},
 ) {
   const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
   if (evidence.marker !== EVIDENCE_MARKER) {
@@ -233,6 +233,10 @@ export function evaluateWorkerDispatchHubGuardV1(
   if (chain.repository_scope !== dispatch.repository) {
     fail("coordination chain and live dispatch repository mismatch");
   }
+
+  const liveChainRevalidated =
+    liveChain !== null
+    && assertFreshLiveChainMatchesV1(evidence.chain, liveChain) === true;
 
   let outcome;
   let reason;
@@ -338,9 +342,8 @@ async function main() {
     suppliedDispatch.repository,
     suppliedChain.root_issue,
   );
-  assertFreshLiveChainMatchesV1(evidence.chain, liveChain);
   const result = evaluateWorkerDispatchHubGuardV1(evidence, {
-    liveChainRevalidated: true,
+    liveChain,
   });
   const output = JSON.stringify(result, null, args.pretty ? 2 : 0) + "\n";
   if (args.outputPath) {
