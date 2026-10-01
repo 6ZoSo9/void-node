@@ -985,8 +985,6 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
     fail("vault_role_address_collision");
   }
 
-  const ethers = await import("ethers");
-  const abi = ethers.AbiCoder.defaultAbiCoder();
   const constructorTypes = [
     "address",
     "address",
@@ -1001,11 +999,23 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
     current.closeout_controller,
     EXPECTED.coupled_launch_id_bytes32,
   ];
-  const encodedArgs = abi.encode(constructorTypes, constructorValues);
-  const deploymentDataHex = ethers.concat([current.creation_hex, encodedArgs]);
+  const reviewedEthers = await withReviewedEthersBridge(
+    source,
+    async (deriveDeploymentMaterial, bridgeSha256) =>
+      Object.freeze({
+        ...deriveDeploymentMaterial(
+          constructorTypes,
+          constructorValues,
+          current.creation_hex,
+        ),
+        bridge_sha256: bridgeSha256,
+      }),
+  );
+  const encodedArgs = reviewedEthers.encoded_args_hex;
+  const deploymentDataHex = reviewedEthers.deployment_data_hex;
   const deploymentBytes = Buffer.from(deploymentDataHex.slice(2), "hex");
   if (
-    ethers.keccak256(current.creation_hex) !== EXPECTED.creation_bytecode_keccak256
+    reviewedEthers.creation_keccak256 !== EXPECTED.creation_bytecode_keccak256
   ) {
     fail("creation_bytecode_keccak256_mismatch");
   }
@@ -1082,6 +1092,22 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
       all_addresses_distinct: true,
       void_token_distinct_from_all_roles: true,
     }),
+    reviewed_package_runtime: Object.freeze({
+      runtime_tool_path: REVIEWED_RUNTIME_TOOL_REL,
+      runtime_tool_git_blob_sha1:
+        source.dependency_git_blobs[REVIEWED_RUNTIME_TOOL_REL],
+      runtime_profile_path: REVIEWED_RUNTIME_PROFILE_REL,
+      runtime_profile_git_blob_sha1:
+        source.dependency_git_blobs[REVIEWED_RUNTIME_PROFILE_REL],
+      profile_id: REVIEWED_RUNTIME_PROFILE_ID,
+      packages_aggregate_sha256:
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256,
+      root_packages: Object.freeze(["ethers"]),
+      qualification_bridge_sha256: reviewedEthers.bridge_sha256,
+      reviewed_package_bytes_verified: true,
+      ancestor_package_resolution_preempted: true,
+      execution_network_isolation_provided: false,
+    }),
     vault_identity: Object.freeze({
       contract_name: "WCVoidMarketVaultV2",
       canonical_void_token: EXPECTED.void_token,
@@ -1102,7 +1128,7 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
       deployment_data_hex: deploymentDataHex,
       deployment_data_bytes: deploymentBytes.length,
       deployment_data_sha256: sha256(deploymentBytes),
-      deployment_data_keccak256: ethers.keccak256(deploymentDataHex),
+      deployment_data_keccak256: reviewedEthers.deployment_data_keccak256,
       exact_creation_payload_ready: true,
       deployer_selected: false,
       nonce_observed: false,
