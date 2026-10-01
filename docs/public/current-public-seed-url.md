@@ -16,6 +16,12 @@ review instructions for the immutable v2 mirror. The automation does not publish
 replace `public/bootstrap/v1.json`; publication remains a separate reviewed source
 change.
 
+A companion read-only freshness alarm runs daily at 05:47 UTC, thirty minutes
+after the qualifier schedule. It fails closed when the committed manifest is
+expired, in HOLD, malformed, authority-bearing, or has **24 hours or less**
+remaining. The alarm does not fetch the network, publish a candidate, mutate the
+repository, or grant publication authority.
+
 Documented public role:
 
 - public-safe VOID seed adapter
