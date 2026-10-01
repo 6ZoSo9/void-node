@@ -108,7 +108,7 @@ function inspectGitExecutableV1(){
       String(stat.ino),
       String(stat.size),
       String(stat.mode&0o7777),
-    ].join("\\0"),
+    ].join("\0"),
   });
 }
 
