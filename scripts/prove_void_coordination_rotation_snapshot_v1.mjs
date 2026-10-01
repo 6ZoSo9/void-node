@@ -215,6 +215,14 @@ assert.equal(rotation.policy_plan_issue_matches_current, true);
 assert.equal(rotation.policy_plan_issue_rebind_required, false);
 assert.equal(rotation.scheduled_worker_count, 15);
 assert.equal(rotation.scheduled_workers.length, 15);
+assert.equal(
+  rotation.scheduled_workers.every(
+    (worker) =>
+      typeof worker.authority_boundary === "string"
+      && worker.authority_boundary.length >= 120,
+  ),
+  true,
+);
 assert.deepEqual(
   rotation.scheduled_workers.map((worker) => worker.id),
   [
@@ -635,6 +643,7 @@ console.log(PROOF_MARKER);
 console.log("rotation_preparation_ready=true");
 console.log("rotation_writer_worker_id=ada");
 console.log("scheduled_workers=15");
+console.log("worker_authority_boundaries_retained=true");
 console.log("open_pr_ownership_scope_is_partial=true");
 console.log("issue_lane_refresh_required=true");
 console.log("dependency_graph_refresh_required=true");
