@@ -273,6 +273,8 @@ for (const [key, value] of Object.entries(
     "canonical_classifier_reexecution",
     "exact_two_gate_source_delta",
     "reviewed_git_commit_required",
+    "reviewed_git_executable_required",
+    "ambient_git_overrides_ignored",
     "filesystem_read",
   ]);
   assert.equal(value, allowed.has(key), key);
