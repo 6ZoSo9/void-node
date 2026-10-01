@@ -67,8 +67,12 @@ The plan binds:
 - successor candidate Git blob + file SHA-256; and
 - exact target Git blob + file SHA-256 for both promoted candidates.
 
-Plan validation re-reads the exact base commit from Git. A caller cannot alter a
-target object, recompute the plan ID, and retain validity.
+Plan validation re-reads the exact base commit from Git. Git execution uses the
+reviewed executable path, disables replacement objects, strips repository/program/config
+override environment, and pins every source read to one captured HEAD/tree generation.
+The generation and clean-worktree state are rechecked before an artifact is returned.
+
+A caller cannot alter a target object, recompute the plan ID, and retain validity.
 
 ## Exact allowed source delta
 
