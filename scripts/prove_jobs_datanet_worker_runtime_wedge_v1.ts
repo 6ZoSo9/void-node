@@ -6,7 +6,9 @@ import { readFileSync } from "node:fs";
 import {
   JobsDatanetWorkerRuntimeIndexV1,
   VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1,
+  VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1,
   VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1,
+  normalizeMaxLocallyDoneJobIdsV1,
   normalizeMaxSeenJobIdsV1,
 } from "../src/http/jobs_datanet_worker_runtime_index_v1.js";
 import {
@@ -1165,6 +1167,133 @@ try {
       `lowered=${normalizeMaxSeenJobIdsV1(2)}`,
     ].join(" "),
   );
+  assert(
+    VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 === 250_000,
+    "locally-done-cardinality-default-pinned",
+    `max_local=${VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1}`,
+  );
+  assert(
+    normalizeMaxLocallyDoneJobIdsV1(undefined) ===
+      VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 &&
+      normalizeMaxLocallyDoneJobIdsV1("") ===
+        VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 &&
+      normalizeMaxLocallyDoneJobIdsV1("not-a-number") ===
+        VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 &&
+      normalizeMaxLocallyDoneJobIdsV1(0) ===
+        VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 &&
+      normalizeMaxLocallyDoneJobIdsV1(5_000_000) ===
+        VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 &&
+      normalizeMaxLocallyDoneJobIdsV1(2) === 2,
+    "locally-done-cardinality-config-cannot-raise-ceiling",
+    [
+      `default=${normalizeMaxLocallyDoneJobIdsV1(undefined)}`,
+      `invalid=${normalizeMaxLocallyDoneJobIdsV1("not-a-number")}`,
+      `zero=${normalizeMaxLocallyDoneJobIdsV1(0)}`,
+      `raised=${normalizeMaxLocallyDoneJobIdsV1(5_000_000)}`,
+      `lowered=${normalizeMaxLocallyDoneJobIdsV1(2)}`,
+    ].join(" "),
+  );
+
+  // Locally-completed replay truth crosses admitted jobs-file generations.
+  // It must remain exact while bounded, and overflow must HOLD before a new
+  // queued job can be returned to the worker.
+  const localDoneJobsFile = path.join(root, "jobs-local-done-bound.jsonl");
+  const localDoneReceiptsFile = path.join(root, "receipts-local-done-bound.jsonl");
+  const localDoneJobStateFile = path.join(root, "job-state-local-done-bound.jsonl");
+  fs.writeFileSync(localDoneReceiptsFile, "");
+  fs.writeFileSync(localDoneJobStateFile, "");
+  const localDoneIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 64 * 1024,
+    maxJobsPerTick: 8,
+    maxSeenJobIds: 8,
+    maxLocallyDoneJobIds: 2,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const localDoneInput = {
+    jobsFile: localDoneJobsFile,
+    receiptsFile: localDoneReceiptsFile,
+    jobStateFile: localDoneJobStateFile,
+  };
+  const writeLocalDoneGeneration = (ids: string[]) => {
+    fs.writeFileSync(
+      localDoneJobsFile,
+      ids.map((jobId) => JSON.stringify({ job_id: jobId, status: "queued" }))
+        .join("\n") + "\n",
+    );
+  };
+  const resetLocalDoneGeneration = () => {
+    if (fs.existsSync(localDoneJobsFile)) fs.unlinkSync(localDoneJobsFile);
+    const empty = localDoneIndex.scan(localDoneInput);
+    assert(
+      empty.ready === true && empty.jobs.length === 0,
+      "locally-done-explicit-source-lifecycle-reset-green",
+      `ready=${empty.ready} jobs=${empty.jobs.length}`,
+    );
+  };
+
+  writeLocalDoneGeneration(["local_done_a"]);
+  const localDoneA = localDoneIndex.scan(localDoneInput);
+  assert(
+    localDoneA.jobs.map((item) => item.jobId).join(",") === "local_done_a",
+    "locally-done-generation-a-admitted",
+    `jobs=${localDoneA.jobs.map((item) => item.jobId).join(",")}`,
+  );
+  localDoneIndex.markDone("local_done_a");
+
+  resetLocalDoneGeneration();
+  writeLocalDoneGeneration(["local_done_a", "local_done_b"]);
+  const localDoneB = localDoneIndex.scan(localDoneInput);
+  assert(
+    localDoneB.jobs.map((item) => item.jobId).join(",") === "local_done_b" &&
+      (localDoneIndex as any).locallyDone.has("local_done_a") === true,
+    "locally-done-replay-fence-survives-generation-reset",
+    `jobs=${localDoneB.jobs.map((item) => item.jobId).join(",")} local_size=${(localDoneIndex as any).locallyDone.size}`,
+  );
+  localDoneIndex.markDone("local_done_b");
+  assert(
+    (localDoneIndex as any).locallyDone.size === 2,
+    "locally-done-budget-filled-exactly",
+    `size=${(localDoneIndex as any).locallyDone.size}`,
+  );
+
+  resetLocalDoneGeneration();
+  writeLocalDoneGeneration(["local_done_c"]);
+  let localDoneOverflowReason = "";
+  try {
+    localDoneIndex.scan(localDoneInput);
+  } catch (error) {
+    localDoneOverflowReason = String((error as Error)?.message || error);
+  }
+  assert(
+    localDoneOverflowReason.includes(
+      "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD",
+    ) && localDoneOverflowReason.includes("limit=2"),
+    "locally-done-overflow-holds-before-new-job-return",
+    `reason=${localDoneOverflowReason}`,
+  );
+  const localDoneAfterHold = localDoneIndex.scan(localDoneInput);
+  assert(
+    localDoneAfterHold.ready === false &&
+      localDoneAfterHold.jobs.length === 0 &&
+      localDoneAfterHold.holdReason === "jobs_locally_done_cardinality_hold" &&
+      (localDoneIndex as any).locallyDone.has("local_done_a") === true &&
+      (localDoneIndex as any).locallyDone.has("local_done_b") === true &&
+      (localDoneIndex as any).locallyDone.has("local_done_c") === false,
+    "locally-done-overflow-quarantines-without-eviction",
+    `ready=${localDoneAfterHold.ready} reason=${localDoneAfterHold.holdReason} local_size=${(localDoneIndex as any).locallyDone.size}`,
+  );
+
+  resetLocalDoneGeneration();
+  writeLocalDoneGeneration(["local_done_a"]);
+  const localDoneReplay = localDoneIndex.scan(localDoneInput);
+  assert(
+    localDoneReplay.ready === true &&
+      localDoneReplay.jobs.length === 0 &&
+      (localDoneIndex as any).locallyDone.size === 2,
+    "locally-done-old-membership-remains-authoritative-after-reset",
+    `ready=${localDoneReplay.ready} jobs=${localDoneReplay.jobs.length} local_size=${(localDoneIndex as any).locallyDone.size}`,
+  );
 
   const seenDupJobsFile = path.join(root, "jobs-seen-duplicate-budget.jsonl");
   const seenDupReceiptsFile = path.join(
@@ -1693,6 +1822,22 @@ try {
       helperSource.includes("jobs_seen_job_cardinality_hold"),
     "seen-job-cardinality-guard-source-present",
     "per-generation seen-job Set has bounded count and UTF-8 ID bytes",
+  );
+  assert(
+    helperSource.includes(
+      "VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1",
+    ) &&
+      helperSource.includes("VOID_JOBS_WORKER_MAX_LOCALLY_DONE_JOB_IDS") &&
+      helperSource.includes(
+        "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD",
+      ) &&
+      helperSource.includes("this.maxLocallyDoneJobIds - this.locallyDone.size") &&
+      helperSource.includes(
+        'this.rejectJobsSourceV1("jobs_locally_done_cardinality_hold")',
+      ) &&
+      !helperSource.includes("this.locallyDone.clear()"),
+    "locally-done-cardinality-guard-source-present",
+    "cross-generation locallyDone Set is exact, bounded, and never evicted",
   );
   assert(
     semanticSource.includes("COMPLETION_SNAPSHOT_EXPIRED") &&

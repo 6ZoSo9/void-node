@@ -12,6 +12,7 @@ import {
 export const VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1 =
   "VOID_JOBS_DATANET_WORKER_RUNTIME_INDEX_V1";
 export const VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1 = 250_000;
+export const VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 = 250_000;
 export const VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1 = 192;
 
 export function normalizeMaxSeenJobIdsV1(value: unknown): number {
@@ -28,6 +29,24 @@ export function normalizeMaxSeenJobIdsV1(value: unknown): number {
   }
   return Math.min(
     VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1,
+    requested,
+  );
+}
+
+export function normalizeMaxLocallyDoneJobIdsV1(value: unknown): number {
+  if (value === undefined || value === null || value === "") {
+    return VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1;
+  }
+  const requested = Number(value);
+  if (
+    !Number.isFinite(requested) ||
+    !Number.isInteger(requested) ||
+    requested < 1
+  ) {
+    return VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1;
+  }
+  return Math.min(
+    VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1,
     requested,
   );
 }
@@ -77,6 +96,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private readonly maxScanBytesPerTick: number;
   private readonly maxJobsPerTick: number;
   private readonly maxSeenJobIds: number;
+  private readonly maxLocallyDoneJobIds: number;
 
   private jobsDev = "";
   private jobsIno = "";
@@ -94,6 +114,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     maxScanBytesPerTick?: number;
     maxJobsPerTick?: number;
     maxSeenJobIds?: number;
+    maxLocallyDoneJobIds?: number;
     maxSyncCompletionRebuildBytes?: number;
     completionRebuildBackoffMs?: number;
     maxCompletionIdsPerFile?: number;
@@ -113,6 +134,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     );
     this.maxSeenJobIds = normalizeMaxSeenJobIdsV1(
       opts.maxSeenJobIds ?? process.env.VOID_JOBS_WORKER_MAX_SEEN_JOB_IDS,
+    );
+    this.maxLocallyDoneJobIds = normalizeMaxLocallyDoneJobIdsV1(
+      opts.maxLocallyDoneJobIds ??
+        process.env.VOID_JOBS_WORKER_MAX_LOCALLY_DONE_JOB_IDS,
     );
     this.completionIndex = new AgentPick2JsonlSemanticIndexV1({
       maxSyncCompletionRebuildBytes: opts.maxSyncCompletionRebuildBytes,
@@ -570,6 +595,10 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
     }
 
     const jobs: ScanJobV1[] = [];
+    const locallyDoneBudgetRemaining = Math.max(
+      0,
+      this.maxLocallyDoneJobIds - this.locallyDone.size,
+    );
     for (const [jobId, entry] of this.pending) {
       if (completion.doneTruthHas(jobId)) {
         this.pending.delete(jobId);
@@ -579,6 +608,14 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       if (this.locallyDone.has(jobId)) {
         this.pending.delete(jobId);
         continue;
+      }
+      if (jobs.length >= locallyDoneBudgetRemaining) {
+        const limit = this.maxLocallyDoneJobIds;
+        this.rejectJobsSourceV1("jobs_locally_done_cardinality_hold");
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD " +
+            `limit=${limit} file=${input.jobsFile}`,
+        );
       }
       jobs.push({
         jobId,
@@ -611,7 +648,26 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   markDone(jobId: string): void {
     const id = String(jobId || "").trim();
     if (!id) return;
+    if (
+      Buffer.byteLength(id, "utf8") >
+      VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1
+    ) {
+      this.rejectJobsSourceV1("jobs_locally_done_job_id_too_large");
+      throw new Error(
+        "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_JOB_ID_TOO_LARGE",
+      );
+    }
+    if (!this.locallyDone.has(id)) {
+      if (this.locallyDone.size >= this.maxLocallyDoneJobIds) {
+        const limit = this.maxLocallyDoneJobIds;
+        this.rejectJobsSourceV1("jobs_locally_done_cardinality_hold");
+        throw new Error(
+          "VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD " +
+            `limit=${limit}`,
+        );
+      }
+      this.locallyDone.add(id);
+    }
     this.pending.delete(id);
-    this.locallyDone.add(id);
   }
 }

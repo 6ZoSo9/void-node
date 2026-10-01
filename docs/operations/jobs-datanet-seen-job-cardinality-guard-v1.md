@@ -17,16 +17,20 @@ The current jobs/DataNet worker already has:
 - immutable completion generations with expiry checks; and
 - a deterministic per-file completion-membership cardinality ceiling.
 
-One separate long-lived Set remained unbounded:
+Two exact-membership Sets require explicit RAM ceilings:
 
 ```text
 jobsSeen = Set<string>
+locallyDone = Set<string>
 ```
 
-Every distinct job ID encountered in an admitted append-only jobs generation is
-remembered so a duplicate historical row cannot become fresh pending work.
-Canonical witnessed appends keep the same logical generation alive, so this Set
-could otherwise grow with the entire jobs history.
+`jobsSeen` remembers distinct IDs inside the current admitted jobs generation
+so duplicate historical rows cannot become fresh pending work.
+
+`locallyDone` is different: it deliberately survives jobs-generation resets
+until durable completion truth catches up, because clearing it could re-authorize
+a job whose effects already happened. That cross-generation replay fence was the
+remaining unbounded path.
 
 ## Guard
 
@@ -34,14 +38,17 @@ The worker now pins:
 
 ```text
 VOID_JOBS_DATANET_WORKER_MAX_SEEN_JOB_IDS_V1 = 250000
+VOID_JOBS_DATANET_WORKER_MAX_LOCALLY_DONE_JOB_IDS_V1 = 250000
 VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1 = 192
 ```
 
-`VOID_JOBS_WORKER_MAX_SEEN_JOB_IDS` may lower the distinct-ID ceiling for a
-deployment or proof. It cannot raise the reviewed 250,000 ceiling.
+`VOID_JOBS_WORKER_MAX_SEEN_JOB_IDS` and
+`VOID_JOBS_WORKER_MAX_LOCALLY_DONE_JOB_IDS` may independently lower their
+respective ceilings for a deployment or proof. Neither can raise the reviewed
+250,000 ceiling.
 
 Invalid, zero, fractional, or non-numeric configuration falls back to the
-reviewed ceiling rather than disabling the guard.
+corresponding reviewed ceiling rather than disabling either guard.
 
 ## Admission order
 
@@ -76,6 +83,20 @@ VOID_JOBS_DATANET_WORKER_SEEN_JOB_CARDINALITY_HOLD
 
 The over-budget ID is never inserted.
 
+For `locallyDone`, the worker also checks remaining replay-fence capacity while
+building the batch returned by `scan()`. If returning another new job could
+later require an over-budget `markDone()`, the jobs source is quarantined and
+`scan()` throws:
+
+```text
+VOID_JOBS_DATANET_WORKER_LOCALLY_DONE_CARDINALITY_HOLD
+```
+
+This occurs before the new job crosses the worker-effect boundary. The
+`markDone()` path repeats the same guard as a backstop. No old locally-done ID
+is cleared or evicted to make room. Only observed durable completion truth
+removes it.
+
 An overlong ID similarly throws:
 
 ```text
@@ -97,8 +118,10 @@ unusable after the overflow, and the next scan must return a quarantined
 
 ## What this does not solve
 
-This guard bounds the current in-memory design; it does not make historical jobs
-membership scalable.
+These guards bound both long-lived in-memory exact-membership Sets; they do not
+make historical jobs membership scalable. In the worst case the reviewed design
+can retain up to 250,000 current-generation `jobsSeen` IDs plus 250,000
+cross-generation `locallyDone` IDs, subject to the shared 192-byte job-ID cap.
 
 Issue #1613 remains open for an exact disk-backed membership/index successor
 that can retain duplicate/replay truth without storing the full historical set
@@ -117,7 +140,11 @@ The permanent jobs/DataNet runtime wedge proves:
 - the 250,000 maximum is pinned;
 - runtime configuration can lower but cannot raise it;
 - duplicate job rows consume one distinct-ID slot;
-- a third distinct ID with a test ceiling of two HOLDs before insertion;
+- a third distinct ID with a test `jobsSeen` ceiling of two HOLDs before insertion;
+- two locally-completed IDs survive explicit jobs-generation resets when durable
+  completion truth is absent;
+- a third generation's new queued job HOLDs before worker return when the test
+  `locallyDone` ceiling of two is exhausted, with no eviction of the older IDs;
 - a 97-character multibyte ID that is 194 UTF-8 bytes is rejected despite being
   fewer than 192 JavaScript characters; and
 - existing completion, generation, byte-framing, O(delta), and consumer-effect
