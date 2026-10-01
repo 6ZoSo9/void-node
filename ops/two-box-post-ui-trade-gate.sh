@@ -6,6 +6,37 @@ set -euo pipefail
 set +H
 set +o histexpand
 
+MARKER="VOID_TWO_BOX_STATE_CHANGE_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+require_explicit "REMOTE_BASE" "${REMOTE_BASE:-}"
+require_explicit "REMOTE_HELPER_BASE" "${REMOTE_HELPER_BASE:-}"
+require_explicit "REMOTE_RELAYER_BASE" "${REMOTE_RELAYER_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE" "$REMOTE_BASE" "$REMOTE_HELPER_BASE" "$REMOTE_RELAYER_BASE"
+
+export ALIEN REMOTE_NODE_BASE REMOTE_BASE REMOTE_HELPER_BASE REMOTE_RELAYER_BASE
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -45,8 +76,6 @@ cat "$OUT/local.health.preflight.json"
 
 LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
 PUBLIC_LOCAL_NODE_BASE="${PUBLIC_LOCAL_NODE_BASE:-http://100.93.2.116:4100}"
-REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
-REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}"
 
 run_step "participant_datanet_e2e" "LOCAL_NODE_BASE='$LOCAL_NODE_BASE' PUBLIC_LOCAL_NODE_BASE='$PUBLIC_LOCAL_NODE_BASE' REMOTE_NODE_BASE='$REMOTE_NODE_BASE' bash ops/two-box-participant-datanet-e2e-proof.sh"
 # canonical participant-facing DataNet journey proof
