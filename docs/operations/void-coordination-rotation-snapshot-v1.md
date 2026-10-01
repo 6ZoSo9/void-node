@@ -126,7 +126,7 @@ The packet records:
 - current hub comment and total-message counts;
 - chain outcome and rotation state;
 - checked-in dispatch-policy issue identity;
-- all 15 scheduled workers with cohort, tracking issue, fallback lane/priority, sensitivity, and exploration domains;
+- all 15 scheduled workers with cohort, tracking issue, fallback lane/priority, sensitivity, exploration domains, and the policy's explicit worker authority boundary;
 - every supplied open PR with exact head/base, draft state, update timestamp, normalized changed paths, path count, and path-list SHA-256;
 - a suggested successor section guide matching #1507's rollover contract.
 
