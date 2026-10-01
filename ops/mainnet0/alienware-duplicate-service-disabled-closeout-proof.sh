@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/dev/void-node" || exit 1
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+if [ "${LIVE_SERVICE_CHECK:-0}" != "0" ]; then
+  echo "VOID_RETIRED_ALIENWARE_LIVE_SERVICE_CHECK_HOLD_V1 proof=alienware-duplicate-service-disabled-closeout" >&2
+  echo "alienware_retired=true" >&2
+  echo "live_service_check_performed=false" >&2
+  exit 2
+fi
 
 DOC="ops/mainnet0/alienware-duplicate-service-disabled-closeout.md"
 GUARD_DOC="ops/mainnet0/alienware-runtime-service-truth-guard.md"
@@ -54,40 +62,14 @@ echo
 echo "=== [4] guard linkage ==="
 expect_grep "runtime service guard artifact" "VOID_ALIENWARE_RUNTIME_SERVICE_TRUTH_GUARD_V1" "$GUARD_DOC"
 expect_grep "guard green marker" "VOID_ALIENWARE_RUNTIME_SERVICE_TRUTH_GUARD_GREEN" "$DOC"
-expect_grep "guard live service check" "LIVE_SERVICE_CHECK" "$GUARD_PROOF"
+expect_grep "guard retired live-service wall" "VOID_RETIRED_ALIENWARE_LIVE_SERVICE_CHECK_HOLD_V1" "$GUARD_PROOF"
+expect_grep "retired historical status" "Status: retired historical evidence" "$DOC"
+expect_grep "no current authority" "Current authority: none" "$DOC"
 
 echo
-echo "=== [5] optional live service check ==="
-if [ "${LIVE_SERVICE_CHECK:-0}" = "1" ]; then
-  systemctl --user is-active --quiet void-node-live.service
-  echo "[ok] void-node-live.service active"
-
-  if systemctl --user is-active --quiet void-node.service; then
-    echo "[fatal] duplicate void-node.service is active"
-    exit 1
-  fi
-  echo "[ok] duplicate void-node.service inactive"
-
-  live_enabled="$(systemctl --user is-enabled void-node-live.service || true)"
-  legacy_enabled="$(systemctl --user is-enabled void-node.service || true)"
-
-  if [ "$live_enabled" != "enabled" ]; then
-    echo "[fatal] void-node-live.service not enabled: $live_enabled"
-    exit 1
-  fi
-  echo "[ok] void-node-live.service enabled"
-
-  if [ "$legacy_enabled" != "disabled" ]; then
-    echo "[fatal] void-node.service not disabled: $legacy_enabled"
-    exit 1
-  fi
-  echo "[ok] void-node.service disabled"
-
-  curl -fsS --max-time 15 http://127.0.0.1:4100/__void/ready.json | grep -q '"ready":true'
-  echo "[ok] live ready endpoint responds"
-else
-  echo "[ok] LIVE_SERVICE_CHECK not requested"
-fi
+echo "=== [5] retired live-service boundary ==="
+expect_grep "live service recheck prohibited" "Live service recheck: prohibited" "$DOC"
+echo "[ok] LIVE_SERVICE_CHECK permanently disabled for retired Alienware evidence"
 
 echo
 echo "=== [6] safety markers ==="
@@ -97,3 +79,6 @@ expect_grep "no buy void fulfillment" "buy_void_fulfillment: false" "$DOC"
 
 echo
 echo "VOID_ALIENWARE_DUPLICATE_SERVICE_DISABLED_CLOSEOUT_GREEN"
+echo "historical_evidence_only=true"
+echo "current_runtime_authority=false"
+echo "live_service_check_performed=false"
