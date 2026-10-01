@@ -23,6 +23,12 @@ import {
 
 const MARKER =
   "VOID_BTC_VOID_ATOMIC_SETTLEMENT_CURRENT_STACK_V1_PROOF_GREEN";
+const COUPLED_CANDIDATE =
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const EXPECTED_COUPLED_BLOB =
+  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+const EXPECTED_RECONCILIATION_ID =
+  "sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba";
 
 function contentId(value) {
   return `sha256:${crypto
@@ -223,6 +229,71 @@ assert.equal(
 );
 assert.equal(btcEvaluation.current_market_binding.quote_unit, "satoshi");
 assert.equal(
+  btcEvaluation.current_market_binding.shared_market_marker,
+  "VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_schema,
+  "void.shared-market-post-discovery-state.v2",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_source_git_blob_sha1,
+  EXPECTED_COUPLED_BLOB,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_reconciliation_id,
+  EXPECTED_RECONCILIATION_ID,
+);
+assert.equal(btcEvaluation.current_market_binding.chain_id, 2050);
+assert.equal(btcEvaluation.current_market_binding.network_identity, "mainnet0");
+assert.equal(btcEvaluation.current_market_binding.execution_epoch, 2);
+assert.equal(
+  btcEvaluation.current_market_binding.void_token,
+  "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+);
+assert.equal(btcEvaluation.current_market_binding.void_token_decimals, 18);
+assert.equal(
+  btcEvaluation.current_market_binding.btc_void_phase,
+  "post_presale_unopened",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.btc_void_remains_post_presale,
+  true,
+);
+assert.equal(btcEvaluation.current_market_binding.protocol_quote_seed_units, "0");
+assert.equal(
+  btcEvaluation.current_market_binding.planned_btc_void_inventory_atoms,
+  "10000000000000000000000000",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.quote_reserve_custody_verified,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.void_reserve_custody_verified,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.inventory_funding_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.market_activation_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.public_presale_activation_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.funds_movement_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.legacy_v1_shared_market_production_authority,
+  false,
+);
+assert.equal(
   btcEvaluation.current_market_binding.wc_void_fixed_redemption_claim_created,
   false,
 );
@@ -234,6 +305,23 @@ assert.equal(btcEvaluation.terminal_market_follow_on.journal_status, "CREATE");
 assert.match(
   btcEvaluation.terminal_market_follow_on.buyback_lot_plan_id,
   /^sha256:[0-9a-f]{64}$/u,
+);
+assert.equal(
+  btcEvaluation.invariants.current_shared_market_v2_canonical_source_bound,
+  true,
+);
+assert.equal(
+  btcEvaluation.invariants.historical_v1_shared_market_authority_rejected,
+  true,
+);
+assert.equal(
+  btcEvaluation.invariants.btc_void_post_presale_unopened_required,
+  true,
+);
+assert.equal(
+  btcEvaluation.invariants
+    .btc_void_inventory_funding_and_activation_authority_false,
+  true,
 );
 assert.equal(btcEvaluation.authority.source_only_evaluation, true);
 assert.equal(btcEvaluation.authority.bitcoin_regtest_executed, false);
@@ -410,6 +498,37 @@ assert.throws(
   /contract direction mismatch/u,
 );
 
+const source = fs.readFileSync(
+  "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
+  "utf8",
+);
+assert.equal(
+  source.includes("void-shared-market-post-discovery-state-v1.mjs"),
+  false,
+);
+assert.equal(
+  source.includes("void-shared-market-post-discovery-state-v2.mjs"),
+  true,
+);
+assert.equal(source.includes(EXPECTED_COUPLED_BLOB), true);
+assert.equal(source.includes("post_presale_unopened"), true);
+
+{
+  const original = fs.readFileSync(COUPLED_CANDIDATE);
+  try {
+    fs.writeFileSync(
+      COUPLED_CANDIDATE,
+      Buffer.concat([original, Buffer.from(" ", "utf8")]),
+    );
+    assert.throws(
+      () => currentBtcVoidMarketPolicyBindingV1(),
+      /canonical coupled candidate source generation mismatch/u,
+    );
+  } finally {
+    fs.writeFileSync(COUPLED_CANDIDATE, original);
+  }
+}
+
 await proveBtcVoidBoundedStdinV1({
   cliPath: resolve(
     "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
@@ -421,6 +540,11 @@ await proveBtcVoidBoundedStdinV1({
 console.log(MARKER);
 console.log("current_quote_identity_rederived=true");
 console.log("current_shared_market_policy_bound=true");
+console.log("current_shared_market_v2_canonical_source_bound=true");
+console.log("historical_shared_market_v1_production_authority=false");
+console.log("btc_void_phase=post_presale_unopened");
+console.log("btc_void_inventory_funding_authority=false");
+console.log("btc_void_market_activation_authority=false");
 console.log("current_reserve_policy_rederived=true");
 console.log("current_buyback_journal_decision_rederived=true");
 console.log("exact_event_replay_idempotent=true");
