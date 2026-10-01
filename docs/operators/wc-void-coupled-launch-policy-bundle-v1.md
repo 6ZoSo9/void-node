@@ -32,16 +32,23 @@ by `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`:
 sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
 ```
 
-A policy bundle for any other launch ID fails closed. The canonical candidate is
-read through one stable descriptor and its bytes must equal the exact current
-`HEAD:ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json` Git
-blob before its launch identity is accepted.
+A policy bundle for any other launch ID fails closed. The canonical candidate
+is read from the exact captured Git commit object, not from mutable worktree
+bytes, and its Git blob/SHA-256 plus repository HEAD/tree are embedded in the
+source binding.
 
-This deliberately binds the bundle to canonical source generation without
-hard-pinning unrelated candidate gate fields: reviewed gate promotions may
-change the candidate blob while keeping the same coupled-launch identity. The CI
-workflow tracks the candidate path, so every such change reruns this proof; an
-actual launch-identity change still fails closed until explicitly reviewed.
+The policy compiler itself no longer imports policy modules from the parent
+worktree. A dedicated reviewed semantic core and its complete 10-module relative
+closure are read from the same captured HEAD, materialized into a private
+temporary source tree, and executed by a permission-fenced Node child. The
+closure is fail-closed against bare packages, dynamic imports, child-process,
+worker, and network-module surfaces. The resulting module Git-blob manifest is
+content-addressed inside `canonical_launch_source`.
+
+This deliberately binds the bundle to one reviewed source generation without
+hard-pinning unrelated candidate gate fields. Reviewed gate promotions may
+change the candidate blob while keeping the same coupled-launch identity, but a
+new bundle must then be compiled from the new reviewed generation.
 
 ## No source-selected defaults
 
@@ -192,7 +199,14 @@ input bytes; a pathname alone is never launch-policy authority.
 
 Canonical Git source binding runs with system/global Git configuration disabled,
 replace refs disabled, hooks disabled, fsmonitor/untracked-cache/preload disabled,
-and a fixed minimal environment.
+and a fixed minimal environment. The parent compiler also requires its own
+executing worktree bytes to match the captured HEAD blob before compilation.
+
+For a production CLI artifact, the repository branch must be exactly `main`,
+the origin must identify exactly `6ZoSo9/void-node`, and a fixed-HTTPS
+`git ls-remote --heads ... refs/heads/main` executed outside repository
+discovery with TLS verification forced must equal local HEAD. Feature-branch CI
+does not fabricate that condition.
 
 The output is create-only, mode `0600`, fsynced, and never overwritten. Its
 parent directory is opened once, owner/mode/device/inode bound, fsynced through
@@ -203,7 +217,8 @@ bytes.
 
 ## CLI
 
-After the operator has independently reviewed every explicit value:
+After the operator has independently reviewed every explicit value, production
+artifact generation is:
 
 ```bash
 node tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs \
@@ -212,9 +227,17 @@ node tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs \
   --output /absolute/private/launch-policy-bundle.json
 ```
 
-A green bundle is still policy preparation only. Runtime enforcement, final
-opening-cohort observations, final coupled source promotion, Buy VOID process
-gates, and the launch ceremony remain separate gates.
+That command succeeds only on exact canonical remote `main`.
+
+Hosted PR proof uses the explicit `--test-only` mode. Test-only output has marker
+`VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1`, sets
+`production_artifact_authorized=false`, and deliberately contains no production
+`bundle_id`. It exists only to prove reviewed semantics and private-file custody
+on a feature branch.
+
+A green production bundle is still policy preparation only. Runtime enforcement,
+final opening-cohort observations, final coupled source promotion, Buy VOID
+process gates, and the launch ceremony remain separate gates.
 
 ## Authority boundary
 
@@ -236,3 +259,10 @@ The bundle does not perform or authorize:
 ```bash
 node scripts/prove_void_wc_void_coupled_launch_policy_bundle_v1.mjs
 ```
+
+The proof also hides a malicious worktree edit to one imported policy module
+behind Git's assume-unchanged bit. Compilation must still use the exact Git-object
+module closure and the malicious sentinel must never execute. The feature-branch
+production CLI path must HOLD before creating an output, while `--test-only`
+continues to exercise descriptor-bound input and create-only durable output
+custody.
