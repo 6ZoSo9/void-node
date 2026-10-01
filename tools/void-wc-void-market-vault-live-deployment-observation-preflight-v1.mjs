@@ -75,6 +75,20 @@ const QUALIFICATION_TOOL_REL =
 const PREFLIGHT_TOOL_REL =
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
+const CANONICAL_COUPLED_LAUNCH_ID =
+  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+const CANONICAL_VOID_TOKEN =
+  "0x470075b85352eb86f7d089fb9ba88945f12aad94";
+const CANONICAL_SETTLEMENT_EXECUTOR =
+  "0xc884f631c3881b8b672bfcbf019c856146cd7f73";
+const CANONICAL_CLOSEOUT_CONTROLLER =
+  "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b";
+const CANONICAL_COMPILED_IDENTITY_ID =
+  "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a";
+const REVIEWED_RUNTIME_PROFILE_ID =
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 =
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 const OPENING_INVENTORY_ATOMS = 10000000000000000000000000n;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const HEX40 = /^[0-9a-f]{40}$/u;
@@ -329,6 +343,7 @@ function verifyQualification(bytes, expectedSha, repo) {
     q.status !== "QUALIFIED_DEPLOYMENT_PREPARATION_READY_NOT_AUTHORIZED" ||
     q.chain_id !== 2050 ||
     q.execution_epoch !== 2 ||
+    q.coupled_launch_id !== CANONICAL_COUPLED_LAUNCH_ID ||
     !SHA256_ID.test(String(q.coupled_launch_id || "")) ||
     !QUALIFICATION_ID.test(String(q.qualification_id || "")) ||
     q.next_gate !==
@@ -443,6 +458,11 @@ function verifyQualification(bytes, expectedSha, repo) {
     "live_deployment_preflight_void_token_invalid",
   );
   if (
+    settlementExecutor !== CANONICAL_SETTLEMENT_EXECUTOR ||
+    closeoutController !== CANONICAL_CLOSEOUT_CONTROLLER ||
+    token !== CANONICAL_VOID_TOKEN ||
+    q.vault_identity?.accepted_compiled_identity_id !==
+      CANONICAL_COMPILED_IDENTITY_ID ||
     new Set([launchController, settlementExecutor, closeoutController, token])
       .size !== 4 ||
     q.role_separation?.all_addresses_nonzero !== true ||
@@ -472,7 +492,18 @@ function verifyQualification(bytes, expectedSha, repo) {
     ) ||
     !HEX64.test(
       String(q.reviewed_package_runtime?.packages_aggregate_sha256 || ""),
-    )
+    ) ||
+    q.reviewed_package_runtime?.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+    q.reviewed_package_runtime?.packages_aggregate_sha256 !==
+      REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 ||
+    q.reviewed_package_runtime?.runtime_tool_git_blob_sha1 !==
+      source.dependency_git_blobs[
+        "tools/void-reviewed-node-package-runtime-v1.mjs"
+      ] ||
+    q.reviewed_package_runtime?.runtime_profile_git_blob_sha1 !==
+      source.dependency_git_blobs[
+        "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      ]
   ) {
     fail("live_deployment_preflight_reviewed_runtime_binding_invalid");
   }
@@ -1004,7 +1035,11 @@ function readPrivateFile(file, expectedSha, label) {
     pathStat.nlink !== 1 ||
     pathStat.size < 2 ||
     pathStat.size > MAX_QUALIFICATION_BYTES ||
-    (pathStat.mode & 0o077) !== 0
+    (pathStat.mode & 0o077) !== 0 ||
+    (
+      typeof process.getuid === "function" &&
+      pathStat.uid !== process.getuid()
+    )
   ) {
     fail(label + "_file_invalid");
   }
@@ -1062,7 +1097,11 @@ function writePrivateJson(file, value) {
   if (
     !parentStat.isDirectory() ||
     parentStat.isSymbolicLink() ||
-    (parentStat.mode & 0o022) !== 0
+    (parentStat.mode & 0o022) !== 0 ||
+    (
+      typeof process.getuid === "function" &&
+      parentStat.uid !== process.getuid()
+    )
   ) {
     fail("live_deployment_preflight_output_parent_unsafe");
   }
