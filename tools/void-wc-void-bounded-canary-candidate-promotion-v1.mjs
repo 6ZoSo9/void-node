@@ -1,5 +1,8 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   VOID_WC_VOID_BOUNDED_CANARY_SEMANTIC_PROMOTION_AUTHORITY_V1,
@@ -23,8 +26,13 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1 =
     semantic_canary_fresh_at_reviewed_evaluation_required: true,
     canonical_classifier_reexecution: true,
     exact_two_gate_candidate_delta: true,
+    git_repository_identity_read: true,
+    clean_worktree_required: true,
+    reviewed_source_generation_required: true,
+    canonical_head_candidate_bytes_required: true,
+    semantic_source_contract_generation_required: true,
     canonical_candidate_file_update: false,
-    filesystem_read: false,
+    filesystem_read: true,
     filesystem_write: false,
     credential_access: false,
     wallet_or_signer_access: false,
@@ -48,7 +56,47 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1 =
 
 const CURRENT_LAUNCH =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const REVIEWED_SOURCE_COMMIT =
+  "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
+const PROMOTION_TOOL_REL =
+  "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
+const REVIEWED_SOURCE_BINDINGS = Object.freeze({
+  semantic_promotion_tool: Object.freeze({
+    path: "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs",
+    blob_sha1: "4b84dc9c90f368cf03d3b37c7be3afe566e4629a",
+  }),
+  semantic_promotion_proof: Object.freeze({
+    path: "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs",
+    blob_sha1: "992b6ca4fc53ff4c3d903750640cd0271248f544",
+  }),
+  production_candidate: Object.freeze({
+    path: "ops/mainnet0/wc-void-production-candidate-v1.json",
+    blob_sha1: "a3e07c0731b1e771a699f4c91f07206705b99efb",
+  }),
+  coupled_candidate: Object.freeze({
+    path: "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+    blob_sha1: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+  }),
+  successor_candidate: Object.freeze({
+    path: "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
+    blob_sha1: "1457b8a0b060c4c515bf2232320af19f4e70dd35",
+  }),
+  production_classifier: Object.freeze({
+    path: "tools/void-wc-void-production-readiness-v1.mjs",
+    blob_sha1: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
+  }),
+  coupled_classifier: Object.freeze({
+    path: "tools/void-coupled-economic-successor-gate-v1.mjs",
+    blob_sha1: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+  }),
+  successor_classifier: Object.freeze({
+    path: "tools/void-economic-evm-successor-migration-v1.mjs",
+    blob_sha1: "9f51b193da687669700c898ed587edf9040f6264",
+  }),
+});
 const MAX_INPUT_BYTES = 64 * 1024 * 1024;
+const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const SEMANTIC_PROMOTION_ID = /^voidwcbcsp1_[0-9a-f]{64}$/u;
@@ -60,6 +108,8 @@ const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
 
 const INPUT_KEYS = Object.freeze([
+  "repository_head_sha",
+  "repository_tree_sha",
   "semantic_promotion_bytes",
   "semantic_promotion_file_sha256",
   "production_candidate_bytes",
@@ -182,6 +232,145 @@ function canonicalJson(value) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function gitRun(args, code, { encoding = "utf8", maxBuffer = 4 * 1024 * 1024 } = {}) {
+  const env = { ...process.env, GIT_OPTIONAL_LOCKS: "0", LANG: "C", LC_ALL: "C" };
+  for (const key of [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_REPLACE_REF_BASE",
+  ]) {
+    delete env[key];
+  }
+  const result = spawnSync(
+    "git",
+    ["--no-replace-objects", "-C", REPO_ROOT, ...args],
+    {
+      encoding,
+      maxBuffer,
+      stdio: ["ignore", "pipe", "pipe"],
+      env,
+    },
+  );
+  if (result.error || result.status !== 0) fail(code);
+  return result.stdout;
+}
+
+function gitText(args, code) {
+  return String(gitRun(args, code)).trim();
+}
+
+function headBlobSha1(relativePath, label) {
+  const blob = gitText(
+    ["rev-parse", `HEAD:${relativePath}`],
+    "BOUNDED_CANARY_REPOSITORY_BLOB_UNAVAILABLE:" + label,
+  );
+  if (!HEX40.test(blob)) {
+    fail("BOUNDED_CANARY_REPOSITORY_BLOB_INVALID:" + label);
+  }
+  return blob;
+}
+
+function exactHeadBytes(relativePath, label) {
+  const value = gitRun(
+    ["show", `HEAD:${relativePath}`],
+    "BOUNDED_CANARY_REPOSITORY_BYTES_UNAVAILABLE:" + label,
+    { encoding: null, maxBuffer: MAX_INPUT_BYTES + 1024 },
+  );
+  return Buffer.from(value);
+}
+
+function bindReviewedRepositorySourceV1(request, sources) {
+  if (
+    typeof request.repository_head_sha !== "string"
+    || !HEX40.test(request.repository_head_sha)
+    || typeof request.repository_tree_sha !== "string"
+    || !HEX40.test(request.repository_tree_sha)
+  ) {
+    fail("BOUNDED_CANARY_REPOSITORY_IDENTITY_INPUT_INVALID");
+  }
+
+  if (
+    gitText(
+      ["status", "--porcelain=v1", "--untracked-files=all"],
+      "BOUNDED_CANARY_REPOSITORY_STATUS_UNAVAILABLE",
+    ) !== ""
+  ) {
+    fail("BOUNDED_CANARY_REPOSITORY_MUST_BE_CLEAN");
+  }
+
+  const head = gitText(
+    ["rev-parse", "HEAD"],
+    "BOUNDED_CANARY_REPOSITORY_HEAD_UNAVAILABLE",
+  );
+  const tree = gitText(
+    ["rev-parse", "HEAD^{tree}"],
+    "BOUNDED_CANARY_REPOSITORY_TREE_UNAVAILABLE",
+  );
+  if (!HEX40.test(head) || !HEX40.test(tree)) {
+    fail("BOUNDED_CANARY_REPOSITORY_IDENTITY_INVALID");
+  }
+  if (request.repository_head_sha !== head) {
+    fail("BOUNDED_CANARY_REPOSITORY_HEAD_MISMATCH");
+  }
+  if (request.repository_tree_sha !== tree) {
+    fail("BOUNDED_CANARY_REPOSITORY_TREE_MISMATCH");
+  }
+
+  gitText(
+    ["merge-base", "--is-ancestor", REVIEWED_SOURCE_COMMIT, "HEAD"],
+    "BOUNDED_CANARY_REVIEWED_SOURCE_COMMIT_NOT_ANCESTOR",
+  );
+
+  const blobs = Object.create(null);
+  for (const [name, binding] of Object.entries(REVIEWED_SOURCE_BINDINGS)) {
+    const actual = headBlobSha1(binding.path, name);
+    if (actual !== binding.blob_sha1) {
+      fail("BOUNDED_CANARY_REVIEWED_SOURCE_DRIFT:" + name);
+    }
+    blobs[name] = actual;
+  }
+
+  for (const [name, source] of [
+    ["production_candidate", sources.production],
+    ["coupled_candidate", sources.coupled],
+    ["successor_candidate", sources.successor],
+  ]) {
+    const binding = REVIEWED_SOURCE_BINDINGS[name];
+    const canonicalBytes = exactHeadBytes(binding.path, name);
+    if (!source.bytes.equals(canonicalBytes)) {
+      fail(
+        "BOUNDED_CANARY_"
+        + name.toUpperCase()
+        + "_NOT_CANONICAL_REVIEWED_HEAD_BYTES",
+      );
+    }
+  }
+
+  const promotionToolBlob = headBlobSha1(
+    PROMOTION_TOOL_REL,
+    "candidate_promotion_tool",
+  );
+
+  return Object.freeze({
+    repository_head_sha: head,
+    repository_tree_sha: tree,
+    reviewed_source_commit_sha: REVIEWED_SOURCE_COMMIT,
+    semantic_promotion_tool_git_blob_sha1: blobs.semantic_promotion_tool,
+    semantic_promotion_proof_git_blob_sha1: blobs.semantic_promotion_proof,
+    production_candidate_git_blob_sha1: blobs.production_candidate,
+    coupled_candidate_git_blob_sha1: blobs.coupled_candidate,
+    successor_candidate_git_blob_sha1: blobs.successor_candidate,
+    production_classifier_git_blob_sha1: blobs.production_classifier,
+    coupled_classifier_git_blob_sha1: blobs.coupled_classifier,
+    successor_classifier_git_blob_sha1: blobs.successor_classifier,
+    candidate_promotion_tool_git_blob_sha1: promotionToolBlob,
+  });
 }
 
 function parseJsonBytes(bytes, expectedSha, label) {
@@ -435,6 +624,12 @@ export function promoteWcVoidBoundedCanaryCandidatesV1(input) {
     "BOUNDED_CANARY_SUCCESSOR_CANDIDATE_FILE",
   );
 
+  const repository = bindReviewedRepositorySourceV1(request, {
+    production: productionSource,
+    coupled: coupledSource,
+    successor: successorSource,
+  });
+
   const semantic = validateSemanticPromotion(semanticSource.value);
   const production = productionSource.value;
   const coupled = coupledSource.value;
@@ -555,6 +750,29 @@ export function promoteWcVoidBoundedCanaryCandidatesV1(input) {
     execution_epoch: 2,
     pair: "WC_VOID",
     coupled_launch_id: semantic.coupled_launch_id,
+    repository_head_sha: repository.repository_head_sha,
+    repository_tree_sha: repository.repository_tree_sha,
+    reviewed_source_commit_sha: repository.reviewed_source_commit_sha,
+    semantic_promotion_tool_git_blob_sha1:
+      repository.semantic_promotion_tool_git_blob_sha1,
+    semantic_promotion_proof_git_blob_sha1:
+      repository.semantic_promotion_proof_git_blob_sha1,
+    production_candidate_git_blob_sha1:
+      repository.production_candidate_git_blob_sha1,
+    coupled_candidate_git_blob_sha1:
+      repository.coupled_candidate_git_blob_sha1,
+    successor_candidate_git_blob_sha1:
+      repository.successor_candidate_git_blob_sha1,
+    production_classifier_git_blob_sha1:
+      repository.production_classifier_git_blob_sha1,
+    coupled_classifier_git_blob_sha1:
+      repository.coupled_classifier_git_blob_sha1,
+    successor_classifier_git_blob_sha1:
+      repository.successor_classifier_git_blob_sha1,
+    candidate_promotion_tool_git_blob_sha1:
+      repository.candidate_promotion_tool_git_blob_sha1,
+    canonical_candidate_bytes_bound_to_reviewed_head_blobs: true,
+    semantic_source_contract_generation_bound: true,
     semantic_evaluation_time_utc: semantic.evaluation_time_utc,
     semantic_valid_until_utc: semantic.valid_until_utc,
     semantic_promotion_id: semantic.promotion_id,

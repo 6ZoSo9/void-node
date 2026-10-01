@@ -15,6 +15,18 @@ The promotion consumes exact bytes plus SHA-256 for:
 - the coupled-economic candidate; and
 - the economic-successor migration candidate.
 
+It also requires the caller to bind the request to the current clean repository
+HEAD and tree. The tool independently verifies those Git identities, requires
+reviewed source commit `c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71`
+to be an ancestor, and pins the exact reviewed Git blobs for the three
+candidate prestates, the semantic-promotion tool/proof, and the classifiers
+used to evaluate the candidates.
+
+The three caller-supplied candidate byte strings must equal the corresponding
+`git show HEAD:<path>` bytes exactly. A lookalike candidate with an unrelated
+gate pre-flipped is rejected even when its caller-supplied SHA-256 is internally
+consistent.
+
 It does **not** accept an application timestamp as freshness authority.
 
 The semantic receipt must prove that its own reviewed
@@ -124,6 +136,10 @@ Therefore the expected poststate is still HOLD, including
 
 The content-addressed promotion includes:
 
+- exact repository HEAD/tree identity and the reviewed source commit;
+- exact Git blob identities for reviewed semantic/classifier sources;
+- exact reviewed Git blob identities for all three canonical candidate prestates;
+- the current candidate-promotion tool Git blob identity;
 - exact source file SHA-256s;
 - semantic promotion/evidence/policy/canary IDs;
 - the reviewed coupled launch;
@@ -177,9 +193,14 @@ exact_candidate_bytes_required=true
 semantic_canary_fresh_at_reviewed_evaluation_required=true
 canonical_classifier_reexecution=true
 exact_two_gate_candidate_delta=true
+git_repository_identity_read=true
+clean_worktree_required=true
+reviewed_source_generation_required=true
+canonical_head_candidate_bytes_required=true
+semantic_source_contract_generation_required=true
 
 canonical_candidate_file_update=false
-filesystem_read=false
+filesystem_read=true
 filesystem_write=false
 credential_access=false
 wallet_or_signer_access=false

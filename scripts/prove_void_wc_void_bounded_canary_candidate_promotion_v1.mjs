@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 
@@ -19,6 +20,18 @@ const COUPLED =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
+const REVIEWED_SOURCE_COMMIT =
+  "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
+const EXPECTED_BLOBS = Object.freeze({
+  semantic_promotion_tool: "4b84dc9c90f368cf03d3b37c7be3afe566e4629a",
+  semantic_promotion_proof: "992b6ca4fc53ff4c3d903750640cd0271248f544",
+  production_candidate: "a3e07c0731b1e771a699f4c91f07206705b99efb",
+  coupled_candidate: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+  successor_candidate: "1457b8a0b060c4c515bf2232320af19f4e70dd35",
+  production_classifier: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
+  coupled_classifier: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+  successor_classifier: "9f51b193da687669700c898ed587edf9040f6264",
+});
 
 const LAUNCH =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
@@ -48,6 +61,29 @@ function sha256(value) {
 function prettyBytes(value) {
   return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
 }
+
+function gitValue(args) {
+  const result = spawnSync(
+    "git",
+    ["--no-replace-objects", ...args],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", LANG: "C", LC_ALL: "C" },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr || String(result.error || ""));
+  return String(result.stdout || "").trim();
+}
+
+const REPOSITORY_HEAD_SHA = gitValue(["rev-parse", "HEAD"]);
+const REPOSITORY_TREE_SHA = gitValue(["rev-parse", "HEAD^{tree}"]);
+assert.match(REPOSITORY_HEAD_SHA, /^[0-9a-f]{40}$/u);
+assert.match(REPOSITORY_TREE_SHA, /^[0-9a-f]{40}$/u);
+assert.equal(
+  gitValue(["status", "--porcelain=v1", "--untracked-files=all"]),
+  "",
+);
 
 function semanticPromotionFixture(overrides = {}) {
   const material = {
@@ -134,6 +170,8 @@ assert.equal(
 function requestWith(semantic) {
   const semanticBytes = prettyBytes(semantic);
   return {
+    repository_head_sha: REPOSITORY_HEAD_SHA,
+    repository_tree_sha: REPOSITORY_TREE_SHA,
     semantic_promotion_bytes: semanticBytes,
     semantic_promotion_file_sha256: sha256(semanticBytes),
     production_candidate_bytes: productionBytes,
@@ -159,6 +197,44 @@ assert.equal(
   "BOUNDED_CANARY_CANDIDATE_PROMOTION_READY_FINAL_ACTIVATION_HOLD",
 );
 assert.equal(result.coupled_launch_id, LAUNCH);
+assert.equal(result.repository_head_sha, REPOSITORY_HEAD_SHA);
+assert.equal(result.repository_tree_sha, REPOSITORY_TREE_SHA);
+assert.equal(result.reviewed_source_commit_sha, REVIEWED_SOURCE_COMMIT);
+assert.equal(
+  result.semantic_promotion_tool_git_blob_sha1,
+  EXPECTED_BLOBS.semantic_promotion_tool,
+);
+assert.equal(
+  result.semantic_promotion_proof_git_blob_sha1,
+  EXPECTED_BLOBS.semantic_promotion_proof,
+);
+assert.equal(
+  result.production_candidate_git_blob_sha1,
+  EXPECTED_BLOBS.production_candidate,
+);
+assert.equal(
+  result.coupled_candidate_git_blob_sha1,
+  EXPECTED_BLOBS.coupled_candidate,
+);
+assert.equal(
+  result.successor_candidate_git_blob_sha1,
+  EXPECTED_BLOBS.successor_candidate,
+);
+assert.equal(
+  result.production_classifier_git_blob_sha1,
+  EXPECTED_BLOBS.production_classifier,
+);
+assert.equal(
+  result.coupled_classifier_git_blob_sha1,
+  EXPECTED_BLOBS.coupled_classifier,
+);
+assert.equal(
+  result.successor_classifier_git_blob_sha1,
+  EXPECTED_BLOBS.successor_classifier,
+);
+assert.match(result.candidate_promotion_tool_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.equal(result.canonical_candidate_bytes_bound_to_reviewed_head_blobs, true);
+assert.equal(result.semantic_source_contract_generation_bound, true);
 assert.equal(result.semantic_promotion_id, semantic.promotion_id);
 assert.equal(result.semantic_evidence_id, semantic.semantic_evidence_id);
 assert.equal(result.semantic_canary_fresh_at_reviewed_evaluation, true);
@@ -251,6 +327,12 @@ for (const [key, value] of Object.entries(
     "semantic_canary_fresh_at_reviewed_evaluation_required",
     "canonical_classifier_reexecution",
     "exact_two_gate_candidate_delta",
+    "git_repository_identity_read",
+    "clean_worktree_required",
+    "reviewed_source_generation_required",
+    "canonical_head_candidate_bytes_required",
+    "semantic_source_contract_generation_required",
+    "filesystem_read",
   ]);
   assert.equal(value, allowed.has(key), key);
 }
@@ -288,8 +370,28 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  assert.throws(
+    () => promoteWcVoidBoundedCanaryCandidatesV1({
+      ...requestWith(semantic),
+      repository_head_sha: "f".repeat(40),
+    }),
+    /BOUNDED_CANARY_REPOSITORY_HEAD_MISMATCH/u,
+  );
+}
+
+{
+  assert.throws(
+    () => promoteWcVoidBoundedCanaryCandidatesV1({
+      ...requestWith(semantic),
+      repository_tree_sha: "e".repeat(40),
+    }),
+    /BOUNDED_CANARY_REPOSITORY_TREE_MISMATCH/u,
+  );
+}
+
+{
   const badProduction = structuredClone(production);
-  badProduction.bounded_canary_green = true;
+  badProduction.inventory_funded = true;
   const bytes = prettyBytes(badProduction);
   assert.throws(
     () => promoteWcVoidBoundedCanaryCandidatesV1({
@@ -297,13 +399,13 @@ for (const [key, value] of Object.entries(
       production_candidate_bytes: bytes,
       production_candidate_file_sha256: sha256(bytes),
     }),
-    /BOUNDED_CANARY_PRODUCTION_CANDIDATE_PRESTATE_INVALID/u,
+    /BOUNDED_CANARY_PRODUCTION_CANDIDATE_NOT_CANONICAL_REVIEWED_HEAD_BYTES/u,
   );
 }
 
 {
   const badCoupled = structuredClone(coupled);
-  badCoupled.gates.coupled_activation_ready = true;
+  badCoupled.gates.wc_ledger_persistence_verified = true;
   const bytes = prettyBytes(badCoupled);
   assert.throws(
     () => promoteWcVoidBoundedCanaryCandidatesV1({
@@ -311,7 +413,21 @@ for (const [key, value] of Object.entries(
       coupled_candidate_bytes: bytes,
       coupled_candidate_file_sha256: sha256(bytes),
     }),
-    /BOUNDED_CANARY_COUPLED_CANDIDATE_PRESTATE_INVALID/u,
+    /BOUNDED_CANARY_COUPLED_CANDIDATE_NOT_CANONICAL_REVIEWED_HEAD_BYTES/u,
+  );
+}
+
+{
+  const badSuccessor = JSON.parse(successorBytes.toString("utf8"));
+  badSuccessor.status = "READY";
+  const bytes = prettyBytes(badSuccessor);
+  assert.throws(
+    () => promoteWcVoidBoundedCanaryCandidatesV1({
+      ...requestWith(semantic),
+      successor_candidate_bytes: bytes,
+      successor_candidate_file_sha256: sha256(bytes),
+    }),
+    /BOUNDED_CANARY_SUCCESSOR_CANDIDATE_NOT_CANONICAL_REVIEWED_HEAD_BYTES/u,
   );
 }
 
@@ -340,6 +456,9 @@ for (const required of [
   "BOUNDED_CANARY_SEMANTIC_PROMOTION_TIME_WINDOW_INVALID",
   "BOUNDED_CANARY_PRODUCTION_CANDIDATE_CHANGE_SCOPE_INVALID",
   "BOUNDED_CANARY_COUPLED_CANDIDATE_CHANGE_SCOPE_INVALID",
+  "BOUNDED_CANARY_REVIEWED_SOURCE_DRIFT",
+  "BOUNDED_CANARY_PRODUCTION_CANDIDATE_NOT_CANONICAL_REVIEWED_HEAD_BYTES",
+  "REVIEWED_SOURCE_COMMIT",
   'promotedProduction.bounded_canary_green = true',
   'promotedCoupled.gates.bounded_canary_green = true',
   "coupled_activation_ready: false",
@@ -349,6 +468,10 @@ for (const required of [
 
 console.log("VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1_PROOF_GREEN");
 console.log("exact_semantic_promotion_receipt_bound=true");
+console.log("clean_repository_generation_bound=true");
+console.log("canonical_candidate_bytes_bound_to_reviewed_head_blobs=true");
+console.log("semantic_source_contract_generation_bound=true");
+console.log("reviewed_source_commit_ancestor_required=true");
 console.log("semantic_canary_fresh_at_reviewed_evaluation=true");
 console.log("application_time_authority=false");
 console.log("exact_two_gate_candidate_delta=true");
