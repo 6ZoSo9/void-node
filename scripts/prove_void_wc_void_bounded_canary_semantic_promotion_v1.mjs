@@ -779,9 +779,9 @@ try{
     out.promotion_id.slice("voidwcbcsp1_".length),
   );
 
-  const repeat=promoteWcVoidBoundedCanarySemanticV1(
-    structuredClone(f.request),
-  );
+  const repeat=promoteWcVoidBoundedCanarySemanticV1({
+    ...f.request,
+  });
   assert.equal(repeat.promotion_id,out.promotion_id);
 
   {
