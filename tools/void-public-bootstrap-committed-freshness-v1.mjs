@@ -65,7 +65,7 @@ export function assessCommittedBootstrapFreshnessV1(
   if (value.schema !== "void_public_bootstrap_v1") {
     throw new Error("bootstrap manifest schema mismatch");
   }
-  if (value.network !== "VOID Network" || Number(value.chain_id) !== 2050) {
+  if (value.network !== "VOID Network" || value.chain_id !== 2050) {
     throw new Error("bootstrap manifest network or chain mismatch");
   }
   if (value.private_tailnet_endpoints_published !== false) {
@@ -73,6 +73,11 @@ export function assessCommittedBootstrapFreshnessV1(
   }
 
   const authority = objectV1(value.authority, "bootstrap authority");
+  const authorityKeys = Object.keys(authority).sort();
+  const expectedAuthorityKeys = [...AUTHORITY_KEYS].sort();
+  if (JSON.stringify(authorityKeys) !== JSON.stringify(expectedAuthorityKeys)) {
+    throw new Error("bootstrap authority keys mismatch");
+  }
   for (const key of AUTHORITY_KEYS) {
     if (authority[key] !== false) {
       throw new Error("bootstrap authority must remain false: " + key);
@@ -81,6 +86,9 @@ export function assessCommittedBootstrapFreshnessV1(
 
   if (!Array.isArray(value.sync_endpoints)) {
     throw new Error("bootstrap sync_endpoints must be an array");
+  }
+  if (!Array.isArray(value.onion_endpoints)) {
+    throw new Error("bootstrap onion_endpoints must be an array");
   }
 
   if (value.status === "hold_no_stable_seed") {
