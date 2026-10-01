@@ -179,6 +179,22 @@ function exactOwnDataObject(value, keys, label) {
   return out;
 }
 
+function exactAuthorityV1(value) {
+  const expected =
+    VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_AUTHORITY_V1;
+  const actual = exactOwnDataObject(
+    value,
+    Object.keys(expected),
+    "control_authority",
+  );
+  for (const [key, expectedValue] of Object.entries(expected)) {
+    if (actual[key] !== expectedValue) {
+      fail("control_authority_mismatch:" + key);
+    }
+  }
+  return Object.freeze({ ...actual });
+}
+
 function canonicalAddress(value, reason) {
   if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/u.test(value)) {
     fail(reason);
@@ -488,11 +504,19 @@ export function prepareVoidWcVoidLaunchControllerControlChallengeV1({
     issued_at_unix: now.toString(),
     expires_at_unix: (now + ttl).toString(),
   });
+  const typedData =
+    voidWcVoidLaunchControllerControlTypedDataV1(challenge);
+  const typedDataDigest = TypedDataEncoder.hash(
+    typedData.domain,
+    typedData.types,
+    typedData.value,
+  );
   const material = Object.freeze({
     marker: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_REQUALIFICATION_V1,
     version: 1,
     challenge,
     source_binding: source,
+    typed_data: typedData,
   });
   const challengeId =
     "voidwclcc1_" +
@@ -500,8 +524,7 @@ export function prepareVoidWcVoidLaunchControllerControlChallengeV1({
   return Object.freeze({
     ...material,
     challenge_id: challengeId,
-    typed_data_digest:
-      voidWcVoidLaunchControllerControlDigestV1(challenge),
+    typed_data_digest: typedDataDigest,
     authority: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_AUTHORITY_V1,
   });
 }
@@ -514,6 +537,7 @@ function validateChallengeEnvelopeV1(value, nowUnix) {
       "version",
       "challenge",
       "source_binding",
+      "typed_data",
       "challenge_id",
       "typed_data_digest",
       "authority",
@@ -527,12 +551,11 @@ function validateChallengeEnvelopeV1(value, nowUnix) {
     typeof envelope.challenge_id !== "string" ||
     !CHALLENGE_ID.test(envelope.challenge_id) ||
     typeof envelope.typed_data_digest !== "string" ||
-    !BYTES32.test(envelope.typed_data_digest) ||
-    canonicalJson(envelope.authority) !==
-      canonicalJson(VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_AUTHORITY_V1)
+    !BYTES32.test(envelope.typed_data_digest)
   ) {
     fail("control_challenge_envelope_invalid");
   }
+  exactAuthorityV1(envelope.authority);
 
   const source = assertSourceBindingCurrentV1(envelope.source_binding);
   const challenge = exactOwnDataObject(
@@ -602,11 +625,20 @@ function validateChallengeEnvelopeV1(value, nowUnix) {
   if (now < issued) fail("control_challenge_not_yet_valid");
   if (now >= expires) fail("control_challenge_expired");
 
+  const expectedTypedData =
+    voidWcVoidLaunchControllerControlTypedDataV1(challenge);
+  if (
+    canonicalJson(envelope.typed_data) !==
+      canonicalJson(expectedTypedData)
+  ) {
+    fail("control_challenge_typed_data_mismatch");
+  }
   const material = {
     marker: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_REQUALIFICATION_V1,
     version: 1,
     challenge,
     source_binding: source,
+    typed_data: expectedTypedData,
   };
   const expectedId =
     "voidwclcc1_" +
@@ -614,8 +646,11 @@ function validateChallengeEnvelopeV1(value, nowUnix) {
   if (envelope.challenge_id !== expectedId) {
     fail("control_challenge_id_mismatch");
   }
-  const digest =
-    voidWcVoidLaunchControllerControlDigestV1(challenge);
+  const digest = TypedDataEncoder.hash(
+    expectedTypedData.domain,
+    expectedTypedData.types,
+    expectedTypedData.value,
+  );
   if (envelope.typed_data_digest !== digest) {
     fail("control_challenge_typed_data_digest_mismatch");
   }
@@ -626,6 +661,26 @@ function validateChallengeEnvelopeV1(value, nowUnix) {
     typed_data_digest: digest,
     issued_at_unix: issued,
     expires_at_unix: expires,
+  });
+}
+
+export function buildVoidWcVoidLaunchControllerControlSignatureEnvelopeV1({
+  challengeId,
+  signature,
+} = {}) {
+  if (
+    typeof challengeId !== "string" ||
+    !CHALLENGE_ID.test(challengeId) ||
+    typeof signature !== "string" ||
+    !isHexString(signature, 65)
+  ) {
+    fail("control_signature_envelope_build_input_invalid");
+  }
+  return Object.freeze({
+    marker: VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNATURE_V1,
+    version: 1,
+    challenge_id: challengeId,
+    signature,
   });
 }
 
@@ -860,10 +915,17 @@ async function main(argv) {
     if (!values["candidate-address"] || !values.output) {
       fail("control_prepare_arguments_missing");
     }
-    const ttl =
+    const ttlRaw =
       values["ttl-seconds"] === undefined
-        ? 900
-        : Number(values["ttl-seconds"]);
+        ? "900"
+        : values["ttl-seconds"];
+    if (
+      typeof ttlRaw !== "string" ||
+      !/^[1-9][0-9]*$/u.test(ttlRaw)
+    ) {
+      fail("control_ttl_invalid");
+    }
+    const ttl = Number(ttlRaw);
     if (!Number.isSafeInteger(ttl)) fail("control_ttl_invalid");
     const challenge =
       prepareVoidWcVoidLaunchControllerControlChallengeV1({
