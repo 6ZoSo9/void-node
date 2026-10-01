@@ -1,0 +1,244 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+import {
+  VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_DROPIN_BASENAME_V1,
+  renderVoidBuyVoidPrecisionAtomicActivationDropinV1,
+} from "../tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs";
+
+const ROOT = process.cwd();
+const TOOL = path.join(
+  ROOT,
+  "tools/void-buy-void-precision-atomic-activation-stage-v1.mjs",
+);
+const WRAPPER = path.join(
+  ROOT,
+  "ops/precision/void_precision_buy_void_atomic_activation_stage_v1.sh",
+);
+
+const LIVE_CONFIGURATION_SHA256 =
+  "88513c7982057b95380b9029157df9414203033d463aba9534d96bfc2854c14f";
+const LIVE_DROPIN_SHA256 =
+  "2772e133833575e1ed9042ff3a4f114eccfb378c6a5655dcfaeb16823c068bb9";
+const DORMANT_CONFIGURATION_SHA256 =
+  "f5366e8f24d664b7dbfebba5d39b04d2ee7ac9e1a98064190a1e133b6c2a5e87";
+const DORMANT_DROPIN_SHA256 =
+  "13e1571f1278809527a629812631e4c0413a1066ff000dc4befa341c7b17ebf7";
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+const live = renderVoidBuyVoidPrecisionAtomicActivationDropinV1({
+  generation_id: "voidbvpcg1_" + LIVE_CONFIGURATION_SHA256,
+  configuration_sha256: LIVE_CONFIGURATION_SHA256,
+  mode: "live_apply",
+});
+const rollback = renderVoidBuyVoidPrecisionAtomicActivationDropinV1({
+  generation_id: "voidbvpcg1_" + DORMANT_CONFIGURATION_SHA256,
+  configuration_sha256: DORMANT_CONFIGURATION_SHA256,
+  mode: "dormant_rollback",
+});
+assert.equal(live.basename, VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_DROPIN_BASENAME_V1);
+assert.equal(rollback.basename, VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_DROPIN_BASENAME_V1);
+assert.equal(live.sha256, LIVE_DROPIN_SHA256);
+assert.equal(rollback.sha256, DORMANT_DROPIN_SHA256);
+assert(live.bytes.includes(
+  "Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED=1",
+));
+assert(live.bytes.includes(
+  "Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED=1",
+));
+assert(rollback.bytes.includes(
+  "Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED=0",
+));
+assert(rollback.bytes.includes(
+  "Environment=VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED=0",
+));
+
+const tmp = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-buy-void-atomic-stage-proof-"),
+);
+try {
+  const active = path.join(tmp, "active-dropins");
+  const stageRoot = path.join(tmp, "stage-root");
+  fs.mkdirSync(active, { mode: 0o700 });
+  fs.mkdirSync(stageRoot, { mode: 0o700 });
+
+  const logPath = path.join(tmp, "preflight.log");
+  const receipt = [
+    "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_WRAPPER_V1",
+    "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1",
+    "phase=full_preflight",
+    "status=ATOMIC_ACTIVATION_PREFLIGHT_GREEN_NOT_AUTHORIZED",
+    "activation_ready=true",
+    "activation_authorized=false",
+    "unreviewed_gate_source_count=0",
+    "canonical_remote_url=https://github.com/6ZoSo9/void-node.git",
+    "repository_head_sha=" + "7".repeat(40),
+    "repository_tree_sha=" + "8".repeat(40),
+    "remote_main_sha=" + "7".repeat(40),
+    "source_slice_manifest_sha256=" + "9".repeat(64),
+    "source_slice_count=22",
+    "preflight_wrapper_git_blob_sha1=" + "a".repeat(40),
+    "preflight_tool_git_blob_sha1=" + "b".repeat(40),
+    "reviewed_source_slice_green=true",
+    "live_configuration_generation_id=voidbvpcg1_" +
+      LIVE_CONFIGURATION_SHA256,
+    "live_configuration_sha256=" + LIVE_CONFIGURATION_SHA256,
+    "live_dropin_sha256=" + LIVE_DROPIN_SHA256,
+    "dormant_configuration_generation_id=voidbvpcg1_" +
+      DORMANT_CONFIGURATION_SHA256,
+    "dormant_configuration_sha256=" + DORMANT_CONFIGURATION_SHA256,
+    "dormant_dropin_sha256=" + DORMANT_DROPIN_SHA256,
+    "runtime_gate_mutation_performed=false",
+    "service_mutation_performed=false",
+    "transaction_broadcast_performed=false",
+    "funds_movement_performed=false",
+    "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1_DONE",
+    "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_WRAPPER_V1_DONE",
+    "",
+  ].join("\n");
+  fs.writeFileSync(logPath, receipt, { mode: 0o600 });
+
+  function run(log, out) {
+    return spawnSync(
+      process.execPath,
+      [
+        TOOL,
+        "--preflight-log",
+        log,
+        "--out-dir",
+        out,
+        "--active-dropin-dir",
+        active,
+      ],
+      { encoding: "utf8" },
+    );
+  }
+
+  const out = path.join(stageRoot, LIVE_CONFIGURATION_SHA256);
+  const first = run(logPath, out);
+  assert.equal(first.status, 0, first.stderr);
+  assert.match(first.stdout, /status=STAGED_NOT_ACTIVATED/u);
+  assert.match(first.stdout, /stage_reused=false/u);
+  assert.match(first.stdout, /active_dropin_write=false/u);
+  assert.match(first.stdout, /runtime_gate_mutation=false/u);
+
+  const livePath = path.join(
+    out,
+    "live",
+    VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_DROPIN_BASENAME_V1,
+  );
+  const rollbackPath = path.join(
+    out,
+    "rollback",
+    VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_DROPIN_BASENAME_V1,
+  );
+  const manifestPath = path.join(out, "manifest.json");
+  assert.equal(sha256(fs.readFileSync(livePath)), LIVE_DROPIN_SHA256);
+  assert.equal(sha256(fs.readFileSync(rollbackPath)), DORMANT_DROPIN_SHA256);
+  assert.equal(fs.statSync(out).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(livePath).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(rollbackPath).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(manifestPath).mode & 0o777, 0o600);
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  assert.equal(
+    manifest.marker,
+    "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1",
+  );
+  assert.equal(manifest.status, "STAGED_NOT_ACTIVATED");
+  assert.equal(manifest.preflight.live_dropin_sha256, LIVE_DROPIN_SHA256);
+  assert.equal(
+    manifest.preflight.dormant_dropin_sha256,
+    DORMANT_DROPIN_SHA256,
+  );
+  assert.equal(manifest.authority.active_dropin_write, false);
+  assert.equal(manifest.authority.daemon_reload, false);
+  assert.equal(manifest.authority.service_restart, false);
+  assert.equal(manifest.authority.runtime_gate_mutation, false);
+  assert.equal(manifest.authority.transaction_broadcast, false);
+  assert.equal(manifest.authority.funds_movement, false);
+
+  const second = run(logPath, out);
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /stage_reused=true/u);
+
+  const badReceiptPath = path.join(tmp, "bad-preflight.log");
+  fs.writeFileSync(
+    badReceiptPath,
+    receipt.replace(
+      "live_dropin_sha256=" + LIVE_DROPIN_SHA256,
+      "live_dropin_sha256=" + "0".repeat(64),
+    ),
+    { mode: 0o600 },
+  );
+  const badReceipt = run(
+    badReceiptPath,
+    path.join(stageRoot, "bad-receipt"),
+  );
+  assert.equal(badReceipt.status, 2);
+  assert.match(badReceipt.stderr, /live_dropin_hash_mismatch/u);
+
+  const overlap = run(logPath, path.join(active, "forbidden-stage"));
+  assert.equal(overlap.status, 2);
+  assert.match(
+    overlap.stderr,
+    /staging_path_overlaps_active_dropin_tree/u,
+  );
+
+  fs.writeFileSync(livePath, live.bytes + "# tampered\n", "utf8");
+  const tampered = run(logPath, out);
+  assert.equal(tampered.status, 2);
+  assert.match(tampered.stderr, /existing_stage_identity_mismatch/u);
+} finally {
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+
+const toolSource = fs.readFileSync(TOOL, "utf8");
+for (const forbidden of [
+  "systemctl",
+  "daemon-reload",
+  "eth_sendRawTransaction",
+  "sign_transaction",
+  "new Wallet(",
+]) {
+  assert.equal(toolSource.includes(forbidden), false, forbidden);
+}
+
+const wrapperSource = fs.readFileSync(WRAPPER, "utf8");
+for (const forbidden of [
+  "systemctl --user daemon-reload",
+  "systemctl --user restart",
+  "systemctl --user stop",
+  "systemctl --user start",
+]) {
+  assert.equal(wrapperSource.includes(forbidden), false, forbidden);
+}
+for (const required of [
+  'bash "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel"',
+  '--active-dropin-dir "$active_dropin_dir"',
+  'test "$pid_after" = "$pid_before"',
+  'test "$inv_after" = "$inv_before"',
+]) {
+  assert(wrapperSource.includes(required), required);
+}
+
+console.log("VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1_PROOF");
+console.log("live_dropin_sha256=" + LIVE_DROPIN_SHA256);
+console.log("dormant_dropin_sha256=" + DORMANT_DROPIN_SHA256);
+console.log("inactive_staging_write_verified=true");
+console.log("idempotent_exact_reuse_verified=true");
+console.log("tamper_rejection_verified=true");
+console.log("active_dropin_tree_rejection_verified=true");
+console.log("service_mutation=false");
+console.log("runtime_gate_mutation=false");
+console.log("transaction_broadcast=false");
+console.log("funds_movement=false");
+console.log("VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1_GREEN");
