@@ -930,14 +930,24 @@ function validatePlan(plan){
     plan.coupled_target_candidate,
   );
 
-  const pBefore=classifyVoidWcVoidProductionReadinessV1(baseProduction.value);
-  const pAfter=classifyVoidWcVoidProductionReadinessV1(plan.production_target_candidate);
-  const cBefore=classifyVoidCoupledEconomicSuccessorGateV1(
-    baseCoupled.value,baseSuccessor.value,
+  const reviewedClassifiers=runReviewedAuthority(
+    {
+      head:plan.application_base_head_sha,
+      tree:plan.application_base_tree_sha,
+    },
+    {
+      operation:"classify",
+      production_before:baseProduction.value,
+      production_after:plan.production_target_candidate,
+      coupled_before:baseCoupled.value,
+      coupled_after:plan.coupled_target_candidate,
+      successor:baseSuccessor.value,
+    },
   );
-  const cAfter=classifyVoidCoupledEconomicSuccessorGateV1(
-    plan.coupled_target_candidate,baseSuccessor.value,
-  );
+  const pBefore=reviewedClassifiers.production_before;
+  const pAfter=reviewedClassifiers.production_after;
+  const cBefore=reviewedClassifiers.coupled_before;
+  const cAfter=reviewedClassifiers.coupled_after;
   if(
     canonicalJson(summary(pBefore))!==canonicalJson(plan.production_before)||
     canonicalJson(summary(pAfter))!==canonicalJson(plan.production_after)||
@@ -992,10 +1002,19 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1(in
   const coupled=headFile(COUPLED_REL,"COUPLED_SOURCE");
   const successor=headFile(SUCCESSOR_REL,"SUCCESSOR_SOURCE");
 
-  const reexecuted=prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
-    requestFile:request.request_file,
-    requestFileSha256:request.request_file_sha256,
-  });
+  const reviewed=runReviewedAuthority(
+    repo,
+    {
+      operation:"prepare",
+      request_file:request.request_file,
+      request_file_sha256:request.request_file_sha256,
+    },
+    {
+      requestFile:request.request_file,
+      requestFileSha256:request.request_file_sha256,
+    },
+  );
+  const reexecuted=reviewed.promotion;
   if(canonicalJson(reexecuted)!==canonicalJson(receiptSource.value)){
     fail("OPENING_DURABLE_APPLICATION_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
   }
@@ -1019,17 +1038,17 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1(in
     reexecuted.bounded_canary_green!==false||
     reexecuted.coupled_activation_ready!==false||
     canonicalJson(reexecuted.authority)!==
-      canonicalJson(VOID_WC_VOID_OPENING_DURABLE_EVIDENCE_CANDIDATE_PROMOTION_AUTHORITY_V1)
+      canonicalJson(reviewed.promotion_authority)
   ) fail("OPENING_DURABLE_APPLICATION_PROMOTION_CONTRACT_INVALID");
 
   const productionTarget=structuredClone(reexecuted.promoted_production_candidate);
   const coupledTarget=structuredClone(reexecuted.promoted_coupled_candidate);
   assertTargetDelta(production.value,productionTarget,coupled.value,coupledTarget);
 
-  const pBefore=classifyVoidWcVoidProductionReadinessV1(production.value);
-  const pAfter=classifyVoidWcVoidProductionReadinessV1(productionTarget);
-  const cBefore=classifyVoidCoupledEconomicSuccessorGateV1(coupled.value,successor.value);
-  const cAfter=classifyVoidCoupledEconomicSuccessorGateV1(coupledTarget,successor.value);
+  const pBefore=reviewed.production_before;
+  const pAfter=reviewed.production_after;
+  const cBefore=reviewed.coupled_before;
+  const cAfter=reviewed.coupled_after;
   if(
     canonicalJson(summary(pBefore))!==canonicalJson(reexecuted.production_before)||
     canonicalJson(summary(pAfter))!==canonicalJson(reexecuted.production_after)||
@@ -1138,8 +1157,22 @@ export function verifyVoidWcVoidOpeningDurableEvidenceCanonicalApplicationStateV
     sha256(successorBytes)!==plan.successor_source_file_sha256||
     gitBlobSha1(successorBytes)!==plan.successor_source_git_blob_sha1
   ) fail("OPENING_DURABLE_APPLICATION_SUCCESSOR_SOURCE_DRIFT");
-  const p=classifyVoidWcVoidProductionReadinessV1(productionCandidate);
-  const c=classifyVoidCoupledEconomicSuccessorGateV1(coupledCandidate,successorCandidate);
+  const reviewed=runReviewedAuthority(
+    {
+      head:plan.application_base_head_sha,
+      tree:plan.application_base_tree_sha,
+    },
+    {
+      operation:"classify",
+      production_before:productionCandidate,
+      production_after:productionCandidate,
+      coupled_before:coupledCandidate,
+      coupled_after:coupledCandidate,
+      successor:successorCandidate,
+    },
+  );
+  const p=reviewed.production_after;
+  const c=reviewed.coupled_after;
   if(
     canonicalJson(summary(p))!==canonicalJson(plan.production_after)||
     canonicalJson(summary(c))!==canonicalJson(plan.coupled_after)
@@ -1173,10 +1206,10 @@ export function verifyVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1({
   const plan=validatePlan(source.value);
   const repo=repositoryIdentity();
   if(repo.branch!=="main") fail("OPENING_DURABLE_APPLICATION_APPLIED_BRANCH_NOT_MAIN");
-  const ancestry=spawnSync(
-    GIT,
-    ["--no-replace-objects","-C",ROOT,"merge-base","--is-ancestor",plan.application_base_head_sha,repo.head],
-    {env:sanitizedGitEnv(),stdio:["ignore","ignore","ignore"]},
+  const ancestry=gitRun(
+    ["merge-base","--is-ancestor",plan.application_base_head_sha,repo.head],
+    "OPENING_DURABLE_APPLICATION_BASE_ANCESTRY_FAILED",
+    {allowFail:true},
   );
   if(ancestry.status!==0) fail("OPENING_DURABLE_APPLICATION_BASE_NOT_ANCESTOR");
 
