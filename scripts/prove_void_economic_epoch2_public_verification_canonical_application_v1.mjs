@@ -528,9 +528,11 @@ await assert.rejects(
 }
 
 {
-  const wrongEvidence = Buffer.from(request.public_read_evidence_bytes);
-  wrongEvidence[wrongEvidence.length - 2] =
-    wrongEvidence[wrongEvidence.length - 2] === 0x7d ? 0x20 : 0x7d;
+  const wrongEvidenceValue=JSON.parse(
+    request.public_read_evidence_bytes.toString("utf8"),
+  );
+  wrongEvidenceValue.observed_at_utc="2030-01-01T00:00:01Z";
+  const wrongEvidence=prettyBytes(wrongEvidenceValue);
   await assert.rejects(
     () =>
       reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1(
