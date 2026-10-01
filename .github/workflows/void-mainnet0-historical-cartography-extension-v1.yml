@@ -1,0 +1,57 @@
+name: VOID Mainnet-0 Historical Cartography Extension v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-mainnet0-historical-cartography-extension-v1.yml"
+      - "tools/void-mainnet0-historical-cartography-extension-v1.mjs"
+      - "scripts/prove_void_mainnet0_historical_cartography_extension_v1.mjs"
+      - "docs/public/mainnet0-historical-cartography-extension-v1.md"
+      - "public/mainnet0-historical-cartography-extension-v1.schema.json"
+      - "scripts/mainnet0_historical_cartography_v1.mjs"
+      - "public/mainnet0-historical-cartography-v1.json"
+      - "public/mainnet0-historical-cartography-v1.schema.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.schema.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-mainnet0-historical-cartography-extension-v1.yml"
+      - "tools/void-mainnet0-historical-cartography-extension-v1.mjs"
+      - "scripts/prove_void_mainnet0_historical_cartography_extension_v1.mjs"
+      - "docs/public/mainnet0-historical-cartography-extension-v1.md"
+      - "public/mainnet0-historical-cartography-extension-v1.schema.json"
+      - "scripts/mainnet0_historical_cartography_v1.mjs"
+      - "public/mainnet0-historical-cartography-v1.json"
+      - "public/mainnet0-historical-cartography-v1.schema.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.json"
+      - "public/mainnet0-historical-cartography-acceptance-v1.schema.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node_major: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node_major }}
+      - name: Syntax
+        run: |
+          node --check tools/void-mainnet0-historical-cartography-extension-v1.mjs
+          node --check scripts/prove_void_mainnet0_historical_cartography_extension_v1.mjs
+          node --check scripts/mainnet0_historical_cartography_v1.mjs
+          node -e 'JSON.parse(require("fs").readFileSync("public/mainnet0-historical-cartography-extension-v1.schema.json","utf8"))'
+      - name: Prove incremental cartography extension
+        run: node scripts/prove_void_mainnet0_historical_cartography_extension_v1.mjs

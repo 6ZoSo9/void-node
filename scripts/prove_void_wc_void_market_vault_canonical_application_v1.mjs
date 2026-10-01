@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { Interface } from "ethers";
 
 import {
@@ -32,6 +35,40 @@ function sha256(value){
 }
 function prettyBytes(value){
   return Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
+}
+
+function safeLocalGit(args){
+  return spawnSync(
+    "/usr/bin/git",
+    [
+      "--no-replace-objects",
+      "-c","core.fsmonitor=false",
+      "-c","core.hooksPath=/dev/null",
+      "-c","core.attributesFile=/dev/null",
+      "-c","core.untrackedCache=false",
+      "-c","core.preloadIndex=false",
+      "-c","submodule.recurse=false",
+      "-C",process.cwd(),
+      ...args,
+    ],
+    {
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      env:{
+        PATH:"/usr/bin:/bin",
+        LANG:"C",
+        LC_ALL:"C",
+        HOME:"/nonexistent",
+        XDG_CONFIG_HOME:"/nonexistent",
+        GIT_CONFIG_GLOBAL:"/dev/null",
+        GIT_CONFIG_SYSTEM:"/dev/null",
+        GIT_CONFIG_NOSYSTEM:"1",
+        GIT_ATTR_NOSYSTEM:"1",
+        GIT_NO_REPLACE_OBJECTS:"1",
+        GIT_OPTIONAL_LOCKS:"0",
+      },
+    },
+  );
 }
 function canonical(value){
   if(value===null)return "null";
@@ -320,6 +357,7 @@ for(const [key,value] of Object.entries(
     "at_use_semantic_reverification_required",
     "evidence_fresh_at_collection_required",
     "canonical_head_candidate_required",
+    "git_config_isolated",
     "reviewed_execution_source_required",
     "verified_modules_loaded_from_exact_git_objects",
     "ephemeral_verified_module_materialization",
@@ -372,6 +410,108 @@ assert.deepEqual(
     }),
     /AT_USE_REQUIRED_VERIFICATION_MISSING|AT_USE_ARTIFACT_CONTENT_ID_MISMATCH|MARKET_VAULT_CANONICAL_EVIDENCE_INVALID/u,
   );
+}
+
+{
+  const hostile=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-market-vault-canonical-git-hostile-"),
+  );
+  const home=path.join(hostile,"home");
+  const fsmonitor=path.join(hostile,"fake-fsmonitor.sh");
+  const attributes=path.join(hostile,"attributes");
+  const sentinel=path.join(hostile,"fsmonitor-invoked");
+  fs.mkdirSync(home,{recursive:true});
+  fs.writeFileSync(
+    fsmonitor,
+    "#!/bin/sh\nprintf 'invoked\\n' >> "+JSON.stringify(sentinel)+"\nexit 92\n",
+    {mode:0o755},
+  );
+  fs.writeFileSync(attributes,"* export-ignore\n","utf8");
+  fs.writeFileSync(
+    path.join(home,".gitconfig"),
+    [
+      "[core]",
+      "  fsmonitor = "+fsmonitor,
+      "  attributesFile = "+attributes,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const prior=new Map();
+  for(const key of ["core.fsmonitor","core.attributesFile"]){
+    const got=safeLocalGit(["config","--local","--no-includes","--get-all",key]);
+    prior.set(
+      key,
+      got.status===0
+        ? String(got.stdout||"").split("\n").filter(Boolean)
+        : [],
+    );
+  }
+
+  const saved=new Map();
+  for(const key of [
+    "HOME","XDG_CONFIG_HOME","GIT_DIR","GIT_WORK_TREE",
+    "GIT_OBJECT_DIRECTORY","GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG_COUNT","GIT_CONFIG_KEY_0","GIT_CONFIG_VALUE_0",
+    "GIT_EXEC_PATH",
+  ]){
+    saved.set(
+      key,
+      Object.prototype.hasOwnProperty.call(process.env,key)
+        ? process.env[key]
+        : undefined,
+    );
+  }
+
+  try{
+    let set=safeLocalGit([
+      "config","--local","--no-includes","--replace-all",
+      "core.attributesFile",attributes,
+    ]);
+    assert.equal(set.status,0,String(set.stderr||""));
+    set=safeLocalGit([
+      "config","--local","--no-includes","--replace-all",
+      "core.fsmonitor",fsmonitor,
+    ]);
+    assert.equal(set.status,0,String(set.stderr||""));
+    assert.equal(fs.existsSync(sentinel),false);
+
+    process.env.HOME=home;
+    process.env.XDG_CONFIG_HOME=home;
+    process.env.GIT_DIR=path.join(hostile,"forged.git");
+    process.env.GIT_WORK_TREE=path.join(hostile,"forged-worktree");
+    process.env.GIT_OBJECT_DIRECTORY=path.join(hostile,"forged-objects");
+    process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES=
+      path.join(hostile,"forged-alternates");
+    process.env.GIT_CONFIG_COUNT="1";
+    process.env.GIT_CONFIG_KEY_0="core.fsmonitor";
+    process.env.GIT_CONFIG_VALUE_0=fsmonitor;
+    process.env.GIT_EXEC_PATH=path.join(hostile,"fake-exec");
+
+    const hostilePlan=
+      await prepareVoidWcVoidMarketVaultCanonicalApplicationV1({
+        at_use_artifact_bytes:artifactBytes,
+        at_use_artifact_file_sha256:sha256(artifactBytes),
+      });
+    assert.equal(hostilePlan.application_plan_id,plan.application_plan_id);
+    assert.equal(fs.existsSync(sentinel),false);
+  }finally{
+    for(const [key,values] of prior){
+      safeLocalGit(["config","--local","--no-includes","--unset-all",key]);
+      for(const value of values){
+        const restored=safeLocalGit([
+          "config","--local","--no-includes","--add",key,value,
+        ]);
+        assert.equal(restored.status,0,String(restored.stderr||""));
+      }
+    }
+    for(const [key,value] of saved){
+      if(value===undefined)delete process.env[key];
+      else process.env[key]=value;
+    }
+    fs.rmSync(hostile,{recursive:true,force:true});
+  }
 }
 
 {
@@ -443,6 +583,11 @@ for(const required of [
   "ephemeral_verified_module_materialization:true",
   "GIT_NO_REPLACE_OBJECTS",
   "--no-replace-objects",
+  "core.fsmonitor=false",
+  "core.hooksPath=/dev/null",
+  "core.attributesFile=/dev/null",
+  "GIT_CONFIG_GLOBAL",
+  "git_config_isolated:true",
   "canonicalRemoteMainHead",
   "MARKET_VAULT_CANONICAL_TARGET_DELTA_SCOPE_INVALID",
   "application_time_authority:false",
@@ -453,6 +598,8 @@ for(const required of [
 console.log("VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_V1_PROOF_GREEN");
 console.log("exact_at_use_artifact_semantically_reverified=true");
 console.log("reviewed_execution_modules_loaded_from_git_objects=true");
+console.log("git_config_isolated=true");
+console.log("hostile_fsmonitor_execution=false");
 console.log("canonical_head_production_candidate_bound=true");
 console.log("exact_five_field_source_delta=true");
 console.log("market_vault_independently_verified=true");
