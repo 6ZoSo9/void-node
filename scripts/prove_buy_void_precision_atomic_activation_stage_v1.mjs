@@ -362,6 +362,7 @@ assert(
 );
 for (const required of [
   'git_bin="/usr/bin/git"',
+  'bash_bin="/usr/bin/bash"',
   'node_bin="/usr/bin/node"',
   '"$git_bin" --no-replace-objects -C "$repo"',
   'GIT_CONFIG_GLOBAL=/dev/null',
@@ -370,8 +371,10 @@ for (const required of [
   'mkdir -m 700 -- "$dir"',
   'ensure_private_direct_dir "$HOME/.config/void" "void_config_dir"',
   'ensure_private_direct_dir "$stage_root" "stage_root"',
-  'bash "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel"',
+  'exec "$bash_bin" --noprofile --norc',
+  'unset BASH_ENV ENV NODE_OPTIONS NODE_PATH NPM_CONFIG_PREFIX npm_config_prefix',
   'test "$preflight_repository_head_sha" = "$head"',
+  'test "$preflight_wrapper_git_blob_sha1" = "${source_blob[$preflight_wrapper_rel]}"',
   'test "$preflight_repository_tree_sha" = "$tree"',
   'repository_head_changed_after_preflight',
   'reviewed_runtime="$tmp/reviewed-stage-runtime"',

@@ -84,8 +84,11 @@ after preflight, then materializes the stage tool and renderer from those exact
 captured Git-object bytes into a private read-only temporary source directory.
 Only that immutable private stage tool is executed. Git reads use absolute
 `/usr/bin/git --no-replace-objects` with repository/config/object-selection
-overrides stripped, and the child Node execution strips ambient Node/dynamic
-loader overrides.
+overrides stripped. The fresh preflight is launched through absolute
+`/usr/bin/bash --noprofile --norc` with `BASH_ENV`, Node and dynamic-loader
+overrides removed; its reported wrapper/tool Git blobs must equal the captured
+generation. The child Node staging execution likewise strips ambient Node and
+dynamic-loader overrides.
 
 The wrapper emits the exact stage-tool and renderer Git blobs so later evidence
 can bind the execution generation.

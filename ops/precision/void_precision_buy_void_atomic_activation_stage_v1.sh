@@ -13,6 +13,7 @@ preflight_tool_rel="tools/void-buy-void-precision-atomic-activation-preflight-v1
 stage_wrapper_rel="ops/precision/void_precision_buy_void_atomic_activation_stage_v1.sh"
 stage_tool_rel="tools/void-buy-void-precision-atomic-activation-stage-v1.mjs"
 git_bin="/usr/bin/git"
+bash_bin="/usr/bin/bash"
 node_bin="/usr/bin/node"
 
 say(){ printf '%s\n' "$*"; }
@@ -56,6 +57,11 @@ safe_git(){
       -c submodule.recurse=false \
       "$@"
 }
+
+unset BASH_ENV ENV
+unset NODE_OPTIONS NODE_PATH NPM_CONFIG_PREFIX npm_config_prefix
+unset LD_PRELOAD LD_LIBRARY_PATH
+unset DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
 
 ensure_private_direct_dir(){
   local dir="$1"
@@ -101,6 +107,7 @@ test "$repo" = "/home/zoso/dev/void-node" ||
   hold "live_repo_root_mismatch"
 test -d "$repo/.git" || hold "live_repo_missing"
 test -x "$git_bin" || hold "reviewed_git_executable_missing"
+test -x "$bash_bin" || hold "reviewed_bash_executable_missing"
 test -x "$node_bin" || hold "reviewed_node_executable_missing"
 cd "$repo"
 
@@ -150,8 +157,14 @@ stage_log="$tmp/stage.log"
 
 say "=== FRESH ATOMIC PREFLIGHT ==="
 set +e
-bash "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel" |
-  tee "$preflight_log"
+(
+  unset BASH_ENV ENV NODE_OPTIONS NODE_PATH NPM_CONFIG_PREFIX npm_config_prefix
+  unset LD_PRELOAD LD_LIBRARY_PATH
+  unset DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
+  export PATH=/usr/bin:/bin LANG=C LC_ALL=C
+  exec "$bash_bin" --noprofile --norc \
+    "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel"
+) | tee "$preflight_log"
 preflight_rc="${PIPESTATUS[0]}"
 set -e
 test "$preflight_rc" -eq 0 ||
@@ -188,6 +201,12 @@ preflight_repository_tree_sha="$(
     END { print value }
   ' "$preflight_log"
 )"
+preflight_wrapper_git_blob_sha1="$(
+  awk -F= '
+    $1=="preflight_wrapper_git_blob_sha1" { value=$2 }
+    END { print value }
+  ' "$preflight_log"
+)"
 preflight_tool_git_blob_sha1="$(
   awk -F= '
     $1=="preflight_tool_git_blob_sha1" { value=$2 }
@@ -204,12 +223,16 @@ preflight_tool_git_blob_sha1="$(
   hold "preflight_repository_head_sha_missing"
 [[ "$preflight_repository_tree_sha" =~ ^[0-9a-f]{40}$ ]] ||
   hold "preflight_repository_tree_sha_missing"
+[[ "$preflight_wrapper_git_blob_sha1" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "preflight_wrapper_git_blob_sha1_missing"
 [[ "$preflight_tool_git_blob_sha1" =~ ^[0-9a-f]{40}$ ]] ||
   hold "preflight_tool_git_blob_sha1_missing"
 test "$preflight_repository_head_sha" = "$head" ||
   hold "preflight_repository_head_mismatch"
 test "$preflight_repository_tree_sha" = "$tree" ||
   hold "preflight_repository_tree_mismatch"
+test "$preflight_wrapper_git_blob_sha1" = "${source_blob[$preflight_wrapper_rel]}" ||
+  hold "preflight_wrapper_blob_mismatch"
 test "$preflight_tool_git_blob_sha1" = "${source_blob[$preflight_tool_rel]}" ||
   hold "preflight_tool_blob_mismatch"
 
@@ -219,6 +242,9 @@ test "$(safe_git rev-parse 'HEAD^{tree}')" = "$tree" ||
   hold "repository_tree_changed_after_preflight"
 test -z "$(safe_git status --porcelain=v1 --untracked-files=all)" ||
   hold "live_repo_dirty_after_preflight"
+test "$(safe_git hash-object "$repo/$preflight_wrapper_rel")" = \
+  "${source_blob[$preflight_wrapper_rel]}" ||
+  hold "preflight_wrapper_changed_after_preflight"
 test "$(safe_git hash-object "$repo/$stage_wrapper_rel")" = \
   "${source_blob[$stage_wrapper_rel]}" ||
   hold "stage_wrapper_changed_after_preflight"
