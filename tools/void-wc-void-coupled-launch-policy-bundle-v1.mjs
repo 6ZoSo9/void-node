@@ -797,11 +797,45 @@ function writePrivateJson(file, value) {
     });
 
     const bytes = prettyBytes(value);
+    const basename = path.basename(file);
+    if (
+      basename === "" ||
+      basename === "." ||
+      basename === ".." ||
+      basename.includes(path.sep)
+    ) {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_BASENAME_INVALID");
+    }
+    const procParent = "/proc/self/fd/" + String(parentFd);
+    let procParentStat;
+    try {
+      procParentStat = fs.statSync(procParent);
+    } catch {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_DIRFD_PATH_UNAVAILABLE");
+    }
+    if (
+      !procParentStat.isDirectory() ||
+      procParentStat.dev !== parentIdentity.dev ||
+      procParentStat.ino !== parentIdentity.ino
+    ) {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_DIRFD_IDENTITY_INVALID");
+    }
+    const boundCreatePath = path.join(procParent, basename);
+
+    const parentBeforeCreatePath = fs.lstatSync(parent);
+    if (
+      parentBeforeCreatePath.dev !== parentIdentity.dev ||
+      parentBeforeCreatePath.ino !== parentIdentity.ino
+    ) {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_PARENT_CHANGED");
+    }
+
+    const bytes = prettyBytes(value);
     let fd;
     let createdStat;
     try {
       fd = fs.openSync(
-        file,
+        boundCreatePath,
         fs.constants.O_WRONLY |
           fs.constants.O_CREAT |
           fs.constants.O_EXCL |
