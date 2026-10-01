@@ -140,8 +140,8 @@ function contentId(value) {
     .digest("hex");
 }
 
-function reviewedGitEnvV1() {
-  const env = { ...process.env };
+export function reviewedGitEnvV1(baseEnv = process.env) {
+  const env = { ...baseEnv };
   for (const key of [
     "GIT_DIR",
     "GIT_WORK_TREE",
