@@ -5,7 +5,8 @@ set +o histexpand
 
 MARKER="VOID_TWO_BOX_REMOTE_JOBS_EXPLICIT_TARGET_V1"
 : "${ALIEN:?set ALIEN to an explicit SSH target, for example user@host}"
-case "$ALIEN" in
+TARGET_GUARD="${ALIEN,,}"
+case "$TARGET_GUARD" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*)
     echo "$MARKER HOLD: retired Alienware SSH target is forbidden" >&2
     exit 2
