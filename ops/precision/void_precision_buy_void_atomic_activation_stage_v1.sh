@@ -16,6 +16,32 @@ stage_tool_rel="tools/void-buy-void-precision-atomic-activation-stage-v1.mjs"
 say(){ printf '%s\n' "$*"; }
 hold(){ say "${MARKER}_HOLD reason=$*" >&2; exit 2; }
 
+ensure_private_direct_dir(){
+  local dir="$1"
+  local label="$2"
+  local parent
+  parent="$(dirname "$dir")"
+
+  if test -e "$dir" || test -L "$dir"; then
+    test -d "$dir" && test ! -L "$dir" ||
+      hold "${label}_not_direct_directory"
+    test "$(readlink -f "$dir")" = "$dir" ||
+      hold "${label}_alias_forbidden"
+  else
+    test -d "$parent" && test ! -L "$parent" ||
+      hold "${label}_parent_not_direct_directory"
+    test "$(readlink -f "$parent")" = "$parent" ||
+      hold "${label}_parent_alias_forbidden"
+    mkdir "$dir" || hold "${label}_create_failed"
+  fi
+
+  test "$(stat -c '%u' "$dir")" = "$(id -u)" ||
+    hold "${label}_owner_mismatch"
+  chmod 700 "$dir"
+  test "$(stat -c '%a' "$dir")" = "700" ||
+    hold "${label}_mode_mismatch"
+}
+
 say "$MARKER"
 say "inactive_staging_only=true"
 say "preflight_requalification=true"
@@ -101,11 +127,8 @@ dormant_dropin_sha256="$(
 [[ "$dormant_dropin_sha256" =~ ^[0-9a-f]{64}$ ]] ||
   hold "dormant_dropin_sha256_missing"
 
-mkdir -p "$HOME/.config/void" "$stage_root"
-chmod 700 "$HOME/.config/void" "$stage_root"
-test ! -L "$stage_root" || hold "stage_root_symlink_forbidden"
-test "$(stat -Lc '%a' "$stage_root")" = "700" ||
-  hold "stage_root_mode_mismatch"
+ensure_private_direct_dir "$HOME/.config/void" "void_config_dir"
+ensure_private_direct_dir "$stage_root" "stage_root"
 
 out_dir="$stage_root/$live_configuration_sha256"
 
