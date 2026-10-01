@@ -79,8 +79,15 @@ installed_content_revalidated_after_parent_fsync=true
 Wallet/private-key/signing/transaction/Work-Credit/validator/Chain-2050-write
 and money authority remain false.
 
-The proof also instantiates this store only in a disposable mode-0700 temporary
-directory and verifies the session HTTP layer reports a durable state store.
+The production HTTP layer does not trust the public `durable=true` field by
+itself. The reviewed file-store factory registers each created store in a
+module-private `WeakSet`, and the HTTP constructor requires that factory
+identity. A shape-identical spread clone of a real store is not registered and
+must fail closed.
+
+The proof also instantiates the real store only in a disposable mode-0700
+temporary directory, rejects a forged durable-store clone, and verifies the
+session HTTP layer reports a durable state store.
 
 ## Role-authority contract
 
@@ -122,7 +129,9 @@ production_route_mounted=false
 
 The focused proof additionally proves that a valid role-authority adapter with
 no durable state store is rejected; role authority alone cannot fall back to the
-read-session memory store.
+read-session memory store. It also proves that an object with the same public
+store shape and `durable=true`, but without reviewed factory identity, is
+rejected before session HTTP construction.
 
 The account-read path uses the exact same session HTTP instance and remains
 limited to `participant.account.read.v1`.
