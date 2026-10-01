@@ -6,6 +6,7 @@ import {
 } from "./void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
 import {
   attestWcVoidMarketVaultRuntimeV1,
+  reconstructWcVoidMarketVaultRuntimeV1,
 } from "./void-wc-void-market-vault-runtime-attestation-v1.mjs";
 import {
   importWcVoidMarketVaultRuntimeAttestationV1,
@@ -79,6 +80,7 @@ const ARTIFACT_KEYS = Object.freeze([
   "opening_domain_coupled_launch_id",
   "vault_coupled_launch_id",
   "compiled_identity_id",
+  "compiled_identity_acceptance",
   "market_vault_address",
   "market_vault_runtime_code_sha256",
   "deployment_transaction_hash",
@@ -296,6 +298,34 @@ function requireCurrentLaunch(attestation) {
   }
 }
 
+function reconstructAndVerifyRuntime(artifact) {
+  const attestation=artifact.runtime_attestation;
+  const expected=artifact.expected_binding;
+  const deployment=Object.freeze({
+    market_vault_address:expected.market_vault_address,
+    deployment_transaction_hash:expected.deployment_transaction_hash,
+    deployment_deployer:expected.deployment_deployer,
+    void_token:attestation.void_token,
+    launch_controller:expected.launch_controller,
+    settlement_executor:expected.settlement_executor,
+    closeout_controller:expected.closeout_controller,
+    coupled_launch_id:expected.coupled_launch_id,
+  });
+  const reconstructed=reconstructWcVoidMarketVaultRuntimeV1(
+    artifact.compiled_identity_acceptance,
+    deployment,
+  );
+  if(
+    reconstructed.runtime_bytes!==attestation.runtime_code_bytes||
+    reconstructed.runtime_sha256!==attestation.runtime_code_sha256||
+    reconstructed.runtime_keccak256!==attestation.runtime_code_keccak256||
+    reconstructed.runtime_sha256!==artifact.market_vault_runtime_code_sha256
+  ) {
+    fail("AT_USE_DEPLOYED_RUNTIME_RECONSTRUCTION_MISMATCH");
+  }
+  return reconstructed;
+}
+
 function semanticImport(attestation,expected) {
   const imported=importWcVoidMarketVaultRuntimeAttestationV1({
     expected,
@@ -449,6 +479,7 @@ export async function collectWcVoidMarketVaultAtUseRevalidationV1(input) {
     vault_coupled_launch_id:
       VOID_WC_VOID_CURRENT_COUPLED_LAUNCH_VAULT_ID_V1,
     compiled_identity_id:COMPILED_IDENTITY_EXPECTED.identity_id,
+    compiled_identity_acceptance:request.compiled_identity_acceptance,
     market_vault_address:attestation.market_vault_address,
     market_vault_runtime_code_sha256:attestation.runtime_code_sha256,
     deployment_transaction_hash:attestation.deployment_transaction_hash,
@@ -544,6 +575,7 @@ export function verifyWcVoidMarketVaultAtUseRevalidationV1(input) {
     EXPECTED_KEYS,
     "AT_USE_EXPECTED_BINDING_SHAPE_INVALID",
   );
+  reconstructAndVerifyRuntime(artifact);
   requireCurrentLaunch(artifact.runtime_attestation);
   const imported=semanticImport(
     artifact.runtime_attestation,
