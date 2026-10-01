@@ -15,7 +15,10 @@ import {
   nextVoidCrossboxMutationRecoveryV1,
   prepareVoidCrossboxMutationTransactionV1,
   recordVoidCrossboxMutationPreparedV1,
+  recordVoidCrossboxMutationPublishNoEffectV1,
+  recordVoidCrossboxMutationPublishStartedV1,
   recordVoidCrossboxMutationPublishedV1,
+  recordVoidCrossboxMutationRestoreStartedV1,
   recordVoidCrossboxMutationRestoredV1,
   recordVoidCrossboxMutationVerifiedV1,
 } from "../tools/void-crossbox-mutation-transaction-v1.mjs";
@@ -183,6 +186,46 @@ function prepareReceipt(transaction,participant){
   };
 }
 
+function publishStartedReceipt(transaction,participant,overrides={}){
+  const restart=(
+    transaction.intended.restart_if_active[participant]===true&&
+    transaction.prestate[participant].service.active===true
+  );
+  return {
+    transaction_id:transaction.transaction_id,
+    participant,
+    prestate_id_before_publish:prestateId(transaction,participant),
+    published_state_sha256:
+      transaction.kind==="site_bundle_peer_env"
+        ?participant==="local"
+          ?transaction.intended.local_target_dropin_sha256
+          :transaction.intended.remote_target_dropin_sha256
+        :transaction.intended.manifest_set_sha256,
+    restart_expected:restart,
+    restart_before_invocation_id:restart
+      ?transaction.prestate[participant].service.invocation_id
+      :null,
+    publication_performed:false,
+    ...overrides,
+  };
+}
+
+function publishNoEffectReceipt(transaction,participant,overrides={}){
+  const active=transaction.prestate[participant].service.active;
+  return {
+    transaction_id:transaction.transaction_id,
+    participant,
+    observed_prestate_id:prestateId(transaction,participant),
+    service_active:active,
+    service_invocation_id:active
+      ?transaction.prestate[participant].service.invocation_id
+      :null,
+    publication_performed:false,
+    restart_performed:false,
+    ...overrides,
+  };
+}
+
 function publishReceipt(transaction,participant,overrides={}){
   const restart=(
     transaction.intended.restart_if_active[participant]===true&&
@@ -229,6 +272,26 @@ function verifyReceipt(transaction,participant,published){
           :transaction.prestate[participant].service.invocation_id
         :null,
     intended_state_verified:true,
+  };
+}
+
+function restoreStartedReceipt(transaction,participant,overrides={}){
+  const published=transaction.published[participant];
+  const restart=Boolean(
+    published&&
+    transaction.intended.restart_if_active[participant]===true&&
+    transaction.prestate[participant].service.active===true
+  );
+  return {
+    transaction_id:transaction.transaction_id,
+    participant,
+    restored_prestate_id:prestateId(transaction,participant),
+    restart_expected:restart,
+    restart_before_invocation_id:restart
+      ?published.restart_after_invocation_id
+      :null,
+    restoration_performed:false,
+    ...overrides,
   };
 }
 
@@ -315,11 +378,21 @@ assert.throws(
 );
 
 site=beginVoidCrossboxMutationCommitV1(site);
-assert.equal(nextVoidCrossboxMutationRecoveryV1(site),"PUBLISH_LOCAL");
+assert.equal(nextVoidCrossboxMutationRecoveryV1(site),"BEGIN_PUBLISH_LOCAL");
+site=recordVoidCrossboxMutationPublishStartedV1(
+  site,
+  publishStartedReceipt(site,"local"),
+);
+assert.equal(nextVoidCrossboxMutationRecoveryV1(site),"RECOVER_PUBLISH_LOCAL");
 
 const sitePublishLocal=publishReceipt(site,"local");
 site=recordVoidCrossboxMutationPublishedV1(site,sitePublishLocal);
-assert.equal(nextVoidCrossboxMutationRecoveryV1(site),"PUBLISH_REMOTE");
+assert.equal(nextVoidCrossboxMutationRecoveryV1(site),"BEGIN_PUBLISH_REMOTE");
+site=recordVoidCrossboxMutationPublishStartedV1(
+  site,
+  publishStartedReceipt(site,"remote"),
+);
+assert.equal(nextVoidCrossboxMutationRecoveryV1(site),"RECOVER_PUBLISH_REMOTE");
 
 const sitePublishRemote=publishReceipt(site,"remote");
 assert.equal(sitePublishRemote.restart_performed,false);
@@ -367,6 +440,10 @@ rollback=recordVoidCrossboxMutationPreparedV1(
   prepareReceipt(rollback,"remote"),
 );
 rollback=beginVoidCrossboxMutationCommitV1(rollback);
+rollback=recordVoidCrossboxMutationPublishStartedV1(
+  rollback,
+  publishStartedReceipt(rollback,"local"),
+);
 const rollbackPublishLocal=publishReceipt(rollback,"local");
 rollback=recordVoidCrossboxMutationPublishedV1(
   rollback,
@@ -376,7 +453,12 @@ rollback=beginVoidCrossboxMutationRollbackV1(
   rollback,
   "remote publication failed",
 );
-assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"RESTORE_LOCAL");
+assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"BEGIN_RESTORE_LOCAL");
+rollback=recordVoidCrossboxMutationRestoreStartedV1(
+  rollback,
+  restoreStartedReceipt(rollback,"local"),
+);
+assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"RECOVER_RESTORE_LOCAL");
 assert.throws(
   ()=>recordVoidCrossboxMutationRestoredV1(
     rollback,
@@ -386,20 +468,31 @@ assert.throws(
   ),
   /restore_restart_before_publish_mismatch/u,
 );
-const restoreLocal=restoreReceipt(rollback,"local");
+// Simulate a successful rollback restart followed by process/power loss before
+// the final restore receipt is persisted. The durable start must cause recovery
+// to observe first instead of issuing a blind second restart.
+assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"RECOVER_RESTORE_LOCAL");
+const restoreLocal=restoreReceipt(rollback,"local",{
+  restart_after_invocation_id:"f".repeat(32),
+});
 assert.equal(restoreLocal.restart_performed,true);
 assert.equal(
   restoreLocal.restart_before_invocation_id,
   rollbackPublishLocal.restart_after_invocation_id,
 );
 rollback=recordVoidCrossboxMutationRestoredV1(rollback,restoreLocal);
-assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"RESTORE_REMOTE");
+assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"BEGIN_RESTORE_REMOTE");
 const duplicateRestore=recordVoidCrossboxMutationRestoredV1(
   rollback,
   restoreLocal,
 );
 assert.equal(duplicateRestore.state_id,rollback.state_id);
 
+rollback=recordVoidCrossboxMutationRestoreStartedV1(
+  rollback,
+  restoreStartedReceipt(rollback,"remote"),
+);
+assert.equal(nextVoidCrossboxMutationRecoveryV1(rollback),"RECOVER_RESTORE_REMOTE");
 const restoreRemote=restoreReceipt(rollback,"remote");
 assert.equal(restoreRemote.restart_performed,false);
 rollback=recordVoidCrossboxMutationRestoredV1(rollback,restoreRemote);
@@ -420,6 +513,10 @@ assert.equal(
   tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
   tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
   tx=beginVoidCrossboxMutationCommitV1(tx);
+  tx=recordVoidCrossboxMutationPublishStartedV1(
+    tx,
+    publishStartedReceipt(tx,"local"),
+  );
   assert.throws(
     ()=>recordVoidCrossboxMutationPublishedV1(
       tx,
@@ -431,11 +528,24 @@ assert.equal(
   );
 }
 
-// A rollback restart must begin from the invocation established by publish.
-assert(
-  fs.readFileSync("tools/void-crossbox-mutation-transaction-v1.mjs","utf8")
-    .includes("restore_restart_before_publish_mismatch"),
-);
+// Durable journals must exist before authority-bearing publish/restore effects.
+{
+  const transactionSource=fs.readFileSync(
+    "tools/void-crossbox-mutation-transaction-v1.mjs",
+    "utf8",
+  );
+  for(const required of [
+    "publish_started",
+    "publish_no_effect",
+    "restore_started",
+    "rollback_publish_start_unresolved",
+    "RECOVER_PUBLISH_LOCAL",
+    "RECOVER_RESTORE_LOCAL",
+    "restore_restart_before_publish_mismatch",
+  ]){
+    assert(transactionSource.includes(required),required);
+  }
+}
 
 // A restart for a previously active service must advance InvocationID.
 {
@@ -443,6 +553,10 @@ assert(
   tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
   tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
   tx=beginVoidCrossboxMutationCommitV1(tx);
+  tx=recordVoidCrossboxMutationPublishStartedV1(
+    tx,
+    publishStartedReceipt(tx,"local"),
+  );
   assert.throws(
     ()=>recordVoidCrossboxMutationPublishedV1(
       tx,
@@ -452,6 +566,60 @@ assert(
     ),
     /publish_restart_invocation_not_advanced/u,
   );
+}
+
+// A durable publish-start witness closes the side-effect/receipt crash window.
+// Recovery observes first; rollback is forbidden while the publish outcome is
+// still ambiguous.
+{
+  let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
+  tx=beginVoidCrossboxMutationCommitV1(tx);
+  tx=recordVoidCrossboxMutationPublishStartedV1(
+    tx,
+    publishStartedReceipt(tx,"local"),
+  );
+  assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"RECOVER_PUBLISH_LOCAL");
+  assert.throws(
+    ()=>beginVoidCrossboxMutationRollbackV1(
+      tx,
+      "crash after publish side effect before receipt",
+    ),
+    /rollback_publish_start_unresolved:local/u,
+  );
+
+  // Simulate recovery observing that publish+restart completed before the
+  // crash. Persisting the final receipt completes the outcome without another
+  // publish-start/restart.
+  tx=recordVoidCrossboxMutationPublishedV1(
+    tx,
+    publishReceipt(tx,"local",{
+      restart_after_invocation_id:"e".repeat(32),
+    }),
+  );
+  assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"BEGIN_PUBLISH_REMOTE");
+}
+
+// If recovery proves the original prestate/invocation is still exact, it can
+// close a started publish as no-effect and force rollback instead of retry.
+{
+  let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
+  tx=beginVoidCrossboxMutationCommitV1(tx);
+  tx=recordVoidCrossboxMutationPublishStartedV1(
+    tx,
+    publishStartedReceipt(tx,"local"),
+  );
+  tx=recordVoidCrossboxMutationPublishNoEffectV1(
+    tx,
+    publishNoEffectReceipt(tx,"local"),
+  );
+  assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"BEGIN_ROLLBACK");
+  tx=beginVoidCrossboxMutationRollbackV1(tx,"publish observed no-effect");
+  assert.equal(tx.phase,"ROLLING_BACK");
+  assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"BEGIN_RESTORE_LOCAL");
 }
 
 // Conflicting duplicate receipts fail closed.
@@ -554,11 +722,19 @@ validator=recordVoidCrossboxMutationPreparedV1(
 validator=beginVoidCrossboxMutationCommitV1(validator);
 assert.equal(validator.checkpoint_publish_allowed,false);
 
+validator=recordVoidCrossboxMutationPublishStartedV1(
+  validator,
+  publishStartedReceipt(validator,"local"),
+);
 const validatorPublishLocal=publishReceipt(validator,"local");
 assert.equal(validatorPublishLocal.restart_performed,false);
 validator=recordVoidCrossboxMutationPublishedV1(
   validator,
   validatorPublishLocal,
+);
+validator=recordVoidCrossboxMutationPublishStartedV1(
+  validator,
+  publishStartedReceipt(validator,"remote"),
 );
 const validatorPublishRemote=publishReceipt(validator,"remote");
 assert.equal(validatorPublishRemote.restart_performed,true);
@@ -651,6 +827,10 @@ console.log("site_manager_environment_in_prestate=true");
 console.log("active_service_invocation_must_advance=true");
 console.log("rollback_exact_prestate_receipts_required=true");
 console.log("duplicate_recovery_idempotent=true");
+console.log("publish_side_effect_intent_durable=true");
+console.log("publish_crash_requires_observation_before_retry=true");
+console.log("restore_side_effect_intent_durable=true");
+console.log("restore_restart_crash_recovers_without_blind_second_restart=true");
 console.log("stored_transaction_intent_rederived=true");
 console.log("stored_receipts_rederived=true");
 console.log("forged_state_id_cannot_widen_authority=true");
