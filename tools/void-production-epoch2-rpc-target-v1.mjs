@@ -74,6 +74,13 @@ const AUTHORITY = Object.freeze({
   funds_movement: false,
 });
 
+const CONSUMERS = Object.freeze([
+  "datanet_registry_deployer_resolution",
+  "participant_postpurchase_production_runtime_finality",
+  "wc_void_market_vault_live_deployment_observation",
+  "future_buy_void_and_economic_submission",
+]);
+
 const TOP_KEYS = Object.freeze([
   "marker",
   "version",
@@ -139,8 +146,25 @@ function exactKeys(value, keys, label) {
   }
 }
 
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  return (
+    "{" +
+    Object.keys(value)
+      .sort()
+      .map((key) => JSON.stringify(key) + ":" + canonicalJson(value[key]))
+      .join(",") +
+    "}"
+  );
+}
+
 function deepEqualJson(actual, expected, label) {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+  if (canonicalJson(actual) !== canonicalJson(expected)) {
     fail(label + "_mismatch");
   }
 }
@@ -174,6 +198,9 @@ function canonicalLoopbackRpcUrl(value) {
   const port = Number(parsed.port);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) {
     fail("production_epoch2_rpc_port_invalid");
+  }
+  if (parsed.href !== value) {
+    fail("production_epoch2_rpc_url_not_canonical_loopback");
   }
   return parsed.href;
 }
@@ -303,13 +330,14 @@ export function validateProductionEpoch2RpcTargetV1(value) {
   );
   deepEqualJson(value.authority, AUTHORITY, "authority");
 
-  if (
-    !Array.isArray(value.downstream_consumers) ||
-    value.downstream_consumers.length !== 4 ||
-    new Set(value.downstream_consumers).size !== 4
-  ) {
+  if (!Array.isArray(value.downstream_consumers)) {
     fail("production_epoch2_downstream_consumers_invalid");
   }
+  deepEqualJson(
+    value.downstream_consumers,
+    CONSUMERS,
+    "production_epoch2_downstream_consumers",
+  );
 
   const forbiddenValues = Object.entries(FORBIDDEN)
     .filter(([key]) => key !== "rationale")
