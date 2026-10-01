@@ -186,13 +186,21 @@ exit 2
   fs.rmSync(restartLog,{force:true});
   const restartWindowEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE:"1",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_BEFORE_SERVICE_RESTART:"1"};
   const restartInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{env:restartWindowEnv,capture:true,allowFail:true});
-  if(restartInterrupted.status===0||!`${restartInterrupted.stdout}${restartInterrupted.stderr}`.includes("test interruption after rollback pointer publication before service restart"))fail("restart-window rollback interruption seam did not fire");
+  const restartInterruptedOutput=`${restartInterrupted.stdout||""}${restartInterrupted.stderr||""}`;
+  if(restartInterrupted.status===0||!restartInterruptedOutput.includes("test interruption after rollback pointer publication before service restart")){
+    throw new Error(
+      "restart-window rollback interruption seam did not fire "+
+      `status=${JSON.stringify(restartInterrupted.status)} output=${JSON.stringify(restartInterruptedOutput.slice(-2000))}`
+    );
+  }
   const restartJournal=JSON.parse(fs.readFileSync(rollbackJournal,"utf8"));
   const restartWindowCurrent=versionAt(installRoot),restartWindowPrevious=previousVersion(installRoot);
-  if(restartJournal.restart_if_active!==true||restartWindowCurrent!==v3||restartWindowPrevious!==v2)fail(
-    "restart-window interruption did not persist restart intent with completed pointer pair "+
-    `restart_if_active=${JSON.stringify(restartJournal.restart_if_active)} current=${restartWindowCurrent} previous=${restartWindowPrevious}`
-  );
+  if(restartJournal.restart_if_active!==true||restartWindowCurrent!==v3||restartWindowPrevious!==v2){
+    throw new Error(
+      "restart-window interruption did not persist restart intent with completed pointer pair "+
+      `restart_if_active=${JSON.stringify(restartJournal.restart_if_active)} current=${restartWindowCurrent} previous=${restartWindowPrevious}`
+    );
+  }
   if(fs.existsSync(restartLog))fail("service restart occurred before restart-window interruption");
   pass("rollback-restart-intent-journal-preserved");
 
