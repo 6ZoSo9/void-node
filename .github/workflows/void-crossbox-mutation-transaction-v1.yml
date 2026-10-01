@@ -59,6 +59,9 @@ jobs:
           grep -F 'manager_environment_restored' "$tool" >/dev/null
           grep -F 'prestate_id_before_publish' "$tool" >/dev/null
           grep -F 'publish_prestate_drift' "$tool" >/dev/null
+          grep -F 'transaction_id_mismatch' "$tool" >/dev/null
+          grep -F 'transaction_authority_mismatch' "$tool" >/dev/null
+          grep -F 'transaction_committed_state_invalid' "$tool" >/dev/null
           grep -F 'validator_checkpoint_tag_absence_recheck_required' "$tool" >/dev/null
           grep -F 'publish_restart_invocation_not_advanced' "$tool" >/dev/null
 
