@@ -3,8 +3,33 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-REMOTE_HTTP="${REMOTE_HTTP:-http://100.122.79.39:4100}"
+MARKER="VOID_TWO_BOX_STATE_CHANGE_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired remote node target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_HTTP" "${REMOTE_HTTP:-}"
+guard_targets "$ALIEN" "$REMOTE_HTTP"
+
+REMOTE_HTTP="${REMOTE_HTTP%/}"
 TS="$(date +%Y%m%d-%H%M%S)"
 ACCOUNT="mainnet0-remote-state-change-$TS"
 PLAINTEXT="two-box mainnet0 remote state change proof $TS"
@@ -23,7 +48,7 @@ python3 -c 'import json,sys; ready=json.load(open(sys.argv[1])); peer=json.load(
   "$OUT/local-ready-before.json" "$OUT/local-peer-before.json"
 
 echo
-echo "=== [2] publish direct DataNet state change on Alienware ==="
+echo "=== [2] publish direct DataNet state change on remote node ==="
 PLAINTEXT="$PLAINTEXT" python3 -c 'import base64,json,os; print(json.dumps({"name":"mainnet0-state-change-proof.txt","mime":"text/plain","plaintext_b64":base64.b64encode(os.environ["PLAINTEXT"].encode()).decode()}))' \
   > "$OUT/publish-payload.json"
 
@@ -41,25 +66,25 @@ echo "dataset_id=$DATASET_ID"
 echo "root_hex=$ROOT_HEX"
 
 echo
-echo "=== [3] prove Alienware local fetch truth ==="
+echo "=== [3] prove remote node local fetch truth ==="
 ssh "$ALIEN" "curl -fsS 'http://127.0.0.1:4100/datanet/v1/fetch/$DATASET_ID?who=$ACCOUNT'" \
   > "$OUT/remote-fetch.json"
 
 cat "$OUT/remote-fetch.json"
 echo
 
-PLAINTEXT="$PLAINTEXT" python3 -c 'import base64,json,os,sys; j=json.load(open(sys.argv[1])); assert j.get("ok") is True,j; assert str(j.get("id") or "")==sys.argv[2],j; assert str(j.get("who") or "")==sys.argv[3],j; decoded=base64.b64decode(j.get("cipher_b64") or "").decode(); assert decoded==os.environ["PLAINTEXT"], {"decoded":decoded,"expected":os.environ["PLAINTEXT"]}; print("[ok] Alienware fetch returned exact published plaintext")' \
+PLAINTEXT="$PLAINTEXT" python3 -c 'import base64,json,os,sys; j=json.load(open(sys.argv[1])); assert j.get("ok") is True,j; assert str(j.get("id") or "")==sys.argv[2],j; assert str(j.get("who") or "")==sys.argv[3],j; decoded=base64.b64decode(j.get("cipher_b64") or "").decode(); assert decoded==os.environ["PLAINTEXT"], {"decoded":decoded,"expected":os.environ["PLAINTEXT"]}; print("[ok] remote node fetch returned exact published plaintext")' \
   "$OUT/remote-fetch.json" "$DATASET_ID" "$ACCOUNT"
 
 echo
 echo "=== [4] local follower truth after remote state change ==="
 curl -fsS --max-time 10 http://127.0.0.1:4100/__void/peer-main-status.json | tee "$OUT/local-peer-after.json"
 echo
-curl -fsS --max-time 10 "http://127.0.0.1:4100/follower/status?peer=http://100.122.79.39:4100" | tee "$OUT/local-follower-after.json"
+curl -fsS --max-time 10 "http://127.0.0.1:4100/follower/status?peer=$REMOTE_HTTP" | tee "$OUT/local-follower-after.json"
 echo
 
 echo
-echo "=== [5] Precision cross-box fetch of Alienware dataset ==="
+echo "=== [5] Precision cross-box fetch of remote node dataset ==="
 curl -fsS --max-time 20 "$REMOTE_HTTP/datanet/v1/fetch/$DATASET_ID?who=$ACCOUNT" > "$OUT/precision-crossbox-fetch.json"
 
 cat "$OUT/precision-crossbox-fetch.json"
