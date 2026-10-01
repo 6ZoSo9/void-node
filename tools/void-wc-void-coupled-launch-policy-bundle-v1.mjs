@@ -26,6 +26,7 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1 =
     worktree_policy_execution_forbidden: true,
     canonical_main_artifact_required: true,
     canonical_remote_main_read_required: true,
+    canonical_remote_main_external_network_read: true,
     git_config_isolated: true,
     descriptor_bound_private_input: true,
     reviewed_private_input_sha256_required: true,
@@ -522,7 +523,7 @@ function canonicalLaunchSource(repo,moduleBlobs){
     permission_fenced_execution:true,
   });
 }
-function compileReviewed(raw,{requireCanonicalMain}){
+function compileReviewedSemantic(raw,{requireCanonicalMain}){
   const repo=repositoryIdentity({requireCanonicalMain});
   const closure=reviewedModuleClosure(repo.head);
   const launchSource=canonicalLaunchSource(repo,closure.module_git_blobs);
@@ -544,12 +545,20 @@ function compileReviewed(raw,{requireCanonicalMain}){
   ){
     fail("COUPLED_LAUNCH_POLICY_REVIEWED_SEMANTIC_RESULT_INVALID");
   }
+  return Object.freeze({
+    semantic:deepFreeze({...semantic}),
+    canonical_launch_source:launchSource,
+  });
+}
+
+export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw){
+  const reviewed=compileReviewedSemantic(raw,{requireCanonicalMain:true});
   const body=Object.freeze({
     marker:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
     schema:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1,
     version:1,
-    ...semantic,
-    canonical_launch_source:launchSource,
+    ...reviewed.semantic,
+    canonical_launch_source:reviewed.canonical_launch_source,
     authority:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1,
   });
   return deepFreeze({
@@ -557,28 +566,16 @@ function compileReviewed(raw,{requireCanonicalMain}){
     bundle_id:digest(body),
   });
 }
-
-export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw){
-  return compileReviewed(raw,{requireCanonicalMain:true});
-}
 export function testOnlyCompileVoidWcVoidCoupledLaunchPolicyBundleV1(raw){
-  const bundle=compileReviewed(raw,{requireCanonicalMain:false});
-  const {
-    marker:_marker,
-    schema:_schema,
-    version:_version,
-    bundle_id:_bundleId,
-    authority:_authority,
-    ...semantic
-  }=bundle;
-  void _marker;void _schema;void _version;void _bundleId;void _authority;
+  const reviewed=compileReviewedSemantic(raw,{requireCanonicalMain:false});
   return deepFreeze({
     marker:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1,
     version:1,
     status:"TEST_ONLY_REVIEWED_SOURCE_COMPILATION_GREEN",
     production_artifact_authorized:false,
     production_bundle_id_emitted:false,
-    ...semantic,
+    ...reviewed.semantic,
+    canonical_launch_source:reviewed.canonical_launch_source,
   });
 }
 
@@ -670,44 +667,6 @@ function readStableDirectFile(
   } finally {
     fs.closeSync(fd);
   }
-}
-
-function canonicalLaunchSourceBinding() {
-  const file = path.join(REPO_ROOT, COUPLED_CANDIDATE_REL);
-  const source = readStableDirectFile(
-    file,
-    "COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE",
-    { maxBytes: MAX_INPUT_BYTES },
-  );
-  const blobSha1 = gitBlobSha1(source.bytes);
-  const expectedHeadBlobSha1 = headBlobSha1(COUPLED_CANDIDATE_REL);
-  if (blobSha1 !== expectedHeadBlobSha1) {
-    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_BLOB_MISMATCH");
-  }
-  let candidate;
-  try {
-    candidate = JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(source.bytes),
-    );
-  } catch {
-    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_JSON_INVALID");
-  }
-  const launchId =
-    candidate?.shared_post_discovery_reconciliation?.coupled_launch_id;
-  if (
-    candidate?.marker !== "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1" ||
-    candidate?.version !== 1 ||
-    candidate?.chain_id !== 2050 ||
-    launchId !== VOID_WC_VOID_COUPLED_LAUNCH_ID_V1
-  ) {
-    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_LAUNCH_ID_MISMATCH");
-  }
-  return Object.freeze({
-    path: COUPLED_CANDIDATE_REL,
-    git_blob_sha1: blobSha1,
-    file_sha256: sha256Bytes(source.bytes),
-    coupled_launch_id: launchId,
-  });
 }
 
 function readPrivateJson(file, label, expectedSha256) {
