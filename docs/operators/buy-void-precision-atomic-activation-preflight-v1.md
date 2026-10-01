@@ -52,7 +52,7 @@ It requires:
 - branch `main`;
 - clean worktree;
 - exact reviewed main
-  `53c451727bdeb38b53381716a46502eaa8c71f90`;
+  `74b5242dde224282de5b1b881d7d4cb942f00d48`;
 - `void-node-live.service` active/running;
 - process cwd exactly the live repo;
 - configured and running process gates exactly dormant.
