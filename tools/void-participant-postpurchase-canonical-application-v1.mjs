@@ -644,56 +644,79 @@ function gitRunPrivate(cwd, args, code, { allowFail = false } = {}) {
   return result;
 }
 
+function fchmodParticipantReviewedDirectoryV1(file, mode) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY |
+      Number(fs.constants.O_DIRECTORY || 0) |
+      Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isDirectory()) {
+      fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_DIRECTORY_DESCRIPTOR_INVALID");
+    }
+    fs.fchmodSync(fd, mode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fchmodParticipantReviewedRegularFileV1(file, mode) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1) {
+      fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_FILE_DESCRIPTOR_INVALID");
+    }
+    fs.fchmodSync(fd, mode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function assertParticipantReviewedSymlinkV1(file) {
+  const stat = fs.lstatSync(file);
+  if (!stat.isSymbolicLink()) {
+    fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_SYMLINK_IDENTITY_INVALID");
+  }
+}
+
 export function makeParticipantReviewedExecutionTreeReadOnlyV1(root) {
   function walk(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const file = path.join(dir, entry.name);
-      const stat = fs.lstatSync(file);
       if (entry.isDirectory()) {
-        if (!stat.isDirectory() || stat.isSymbolicLink()) {
-          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_DIRECTORY_IDENTITY_INVALID");
-        }
         walk(file);
-        fs.chmodSync(file, 0o500);
+        fchmodParticipantReviewedDirectoryV1(file, 0o500);
       } else if (entry.isSymbolicLink()) {
-        if (!stat.isSymbolicLink()) {
-          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_SYMLINK_IDENTITY_INVALID");
-        }
+        assertParticipantReviewedSymlinkV1(file);
       } else if (entry.isFile()) {
-        if (!stat.isFile() || stat.isSymbolicLink()) {
-          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_FILE_IDENTITY_INVALID");
-        }
-        fs.chmodSync(file, 0o400);
+        fchmodParticipantReviewedRegularFileV1(file, 0o400);
       } else {
         fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_ENTRY_TYPE_UNSUPPORTED");
       }
     }
   }
   walk(root);
-  fs.chmodSync(root, 0o500);
+  fchmodParticipantReviewedDirectoryV1(root, 0o500);
 }
 
 export function makeParticipantReviewedExecutionTreeRemovableV1(root) {
   if (!fs.existsSync(root)) return;
   function walk(dir) {
-    fs.chmodSync(dir, 0o700);
+    fchmodParticipantReviewedDirectoryV1(dir, 0o700);
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const file = path.join(dir, entry.name);
-      const stat = fs.lstatSync(file);
       if (entry.isDirectory()) {
-        if (!stat.isDirectory() || stat.isSymbolicLink()) {
-          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_DIRECTORY_IDENTITY_INVALID");
-        }
         walk(file);
       } else if (entry.isSymbolicLink()) {
-        if (!stat.isSymbolicLink()) {
-          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_SYMLINK_IDENTITY_INVALID");
-        }
+        assertParticipantReviewedSymlinkV1(file);
       } else if (entry.isFile()) {
-        if (!stat.isFile() || stat.isSymbolicLink()) {
-          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_FILE_IDENTITY_INVALID");
-        }
-        fs.chmodSync(file, 0o600);
+        fchmodParticipantReviewedRegularFileV1(file, 0o600);
       } else {
         fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_ENTRY_TYPE_UNSUPPORTED");
       }
