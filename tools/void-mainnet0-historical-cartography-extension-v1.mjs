@@ -903,6 +903,42 @@ export function extendCartographySourceV1({
   scanner = SCANNER,
   testAfterSuffixFrameHook = null,
 }) {
+  if (
+    !MANIFEST_ID.test(String(priorManifest?.manifest_id || "")) ||
+    priorManifest.manifest_id !==
+      rederiveContentAddress(priorManifest, "manifest_id", "voidm0map1_") ||
+    priorManifest.status !== "complete" ||
+    priorManifest.marker !== scanner.MARKER ||
+    priorManifest.schema !== scanner.SCHEMA ||
+    priorManifest.scanner_version !== scanner.SCANNER_VERSION ||
+    priorManifest.unclassified_blocks !== 0 ||
+    priorManifest.ambiguous_classifications !== 0 ||
+    priorManifest.transition_gaps !== 0 ||
+    !Array.isArray(priorManifest.holds) ||
+    priorManifest.holds.length !== 0
+  ) {
+    hold("prior_manifest_integrity_mismatch");
+  }
+  const priorSourceIdentity = {
+    kind: priorManifest.source?.kind,
+    source_label: priorManifest.source?.source_label,
+    frozen_head: priorManifest.source?.frozen_head,
+    segment_count: priorManifest.source?.segment_count,
+    source_segments_digest: priorManifest.source?.source_segments_digest,
+    checkpoint_descriptor_sha256:
+      priorManifest.source?.checkpoint_descriptor_sha256,
+  };
+  const priorSourceId =
+    "voidm0src1_" +
+    sha256Hex(Buffer.from(stableStringify(priorSourceIdentity), "utf8"));
+  if (
+    !SOURCE_ID.test(String(priorManifest.source?.source_id || "")) ||
+    priorManifest.source.source_id !== priorSourceId ||
+    !lowerHex(priorManifest.complete_scan_digest, 64)
+  ) {
+    hold("prior_manifest_source_or_digest_mismatch");
+  }
+
   const source = path.resolve(String(sourceDir || ""));
   if (!source || !fs.existsSync(source)) hold("source_dir_missing");
   const rootSt = fs.lstatSync(source);
