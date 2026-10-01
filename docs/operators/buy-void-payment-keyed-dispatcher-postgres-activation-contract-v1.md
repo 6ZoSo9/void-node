@@ -220,9 +220,16 @@ whenever apply authority is on. There is no process-visible interval in which
 No other atomic jump is accepted. For example, dormant -> admission_armed and
 claimed_exclusive -> live_apply are both HOLDs in atomic-restart mode.
 
-The later host activation plan must prove the four values are one reviewed
-configuration generation and that the restart is the single runtime boundary;
-this source contract does not implement that mutation.
+For an atomic transition, the caller must supply one reviewed configuration
+generation identity (`voidbvpcg1_<sha256>`) and one exact configuration SHA-256.
+Each of the four inner gate values carries that same generation ID and digest.
+The contract rejects a missing generation, mixed generation IDs, mixed digests,
+or a gate value that does not match the target phase.
+
+The later host activation plan must still prove that the reviewed digest belongs
+to the exact systemd configuration bytes that will be installed and that the
+restart is the single runtime boundary; this source contract does not implement
+that mutation.
 
 ## Invalid states
 
@@ -249,9 +256,13 @@ The machine-readable candidate is:
 
 It binds:
 
-- reviewed source commit `eef17f65a8bd495d581df3b91d9a411a5402cde8`;
+- inherited runtime source to reviewed main commit
+  `eef17f65a8bd495d581df3b91d9a411a5402cde8`;
+- the new activation-contract source to reviewed candidate-generation commit
+  `73409836b0822d5cdcddc54735b08316c2406e45` and tree
+  `dd6fc701d3e0a8bfb8ba43c9f80929ec4a1863e1`;
 - exact Git blobs for the mounted parent/full-runtime/claimed/admitted source
-  slice;
+  slice and the activation-contract source;
 - full-runtime policy fingerprint;
 - runtime policy fingerprint;
 - preparation policy fingerprint;
@@ -262,10 +273,16 @@ It binds:
 - PostgreSQL schema fingerprint; and
 - the observed dormant gate state.
 
-The candidate verifier checks the source blobs directly from the worktree with
-`git hash-object` and requires the recorded reviewed-main commit to be an actual
-Git ancestor of the evaluated `HEAD`. A checkout with copied matching files but
-no reviewed lineage therefore cannot claim the candidate provenance.
+The candidate verifier requires a clean worktree. It verifies the inherited
+runtime blobs at the reviewed main commit, verifies the activation-contract blob
+and tree at the reviewed candidate-generation commit, requires both reviewed
+commits to be ancestors of the evaluated `HEAD`, and then verifies the same
+exact blobs through `git rev-parse HEAD:<path>`. It reports the evaluated
+repository HEAD/tree as verification evidence. Mutable working-tree
+`git hash-object` output is not provenance authority.
+
+A checkout with copied matching files, dirty source bytes, or no reviewed
+lineage therefore cannot claim the candidate provenance.
 
 A green candidate means only:
 
