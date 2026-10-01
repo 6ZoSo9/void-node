@@ -694,6 +694,14 @@ function validatePlan(plan) {
     !PLAN_ID.test(String(plan.application_plan_id || "")) ||
     plan.migration_source_ready !== true ||
     plan.reviewed_git_commit_required !== true ||
+    plan.composition_source_head_sha !== plan.application_base_head_sha ||
+    plan.composition_source_tree_sha !== plan.application_base_tree_sha ||
+    plan.target_candidate?.public_verification
+      ?.public_balance_receipt_code_verification_evidence !==
+      "ops/mainnet0/economic-epoch2-public-read-runtime-evidence-v1.json" ||
+    plan.target_candidate?.public_verification
+      ?.public_balance_receipt_code_verification_promotion !==
+      "ops/mainnet0/economic-epoch2-public-read-runtime-promotion-v1.json" ||
     plan.migration_authorized !== false ||
     plan.public_activation_authorized !== false ||
     plan.money_movement_authorized !== false
