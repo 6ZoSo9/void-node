@@ -166,6 +166,27 @@ assert.equal(policyRaw.marker, LIVE_DISPATCH_POLICY_MARKER);
 assert.equal(policyRaw.plan_issue, 1507);
 assert.equal(policyRaw.workers.length, 15);
 
+const githubTimestampRotation = buildCoordinationRotationSnapshotV1(
+  policyRaw,
+  evidence({
+    chainValue: chain({
+      chain: [
+        {
+          ...terminalIssue(),
+          issue_updated_at: "2026-10-01T19:13:19Z",
+        },
+      ],
+    }),
+    prs: [
+      {
+        ...evidence().open_pull_requests[0],
+        updated_at: "2026-10-01T19:18:01Z",
+      },
+    ],
+  }),
+);
+assert.equal(githubTimestampRotation.rotation_preparation_ready, true);
+
 const rotation = buildCoordinationRotationSnapshotV1(
   policyRaw,
   evidence(),
@@ -545,6 +566,26 @@ expectRejected(
 expectRejected(
   () => buildCoordinationRotationSnapshotV1(
     policyRaw,
+    evidence({
+      prs: [
+        openPr({
+          number: 2,
+          title: "control-char path",
+          draft: true,
+          head: "b".repeat(40),
+          base: "c".repeat(40),
+          updatedAt: "2026-10-01T19:18:01Z",
+          changedPaths: ["tools/bad\npath.mjs"],
+        }),
+      ],
+    }),
+  ),
+  /repository-relative path/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
     {
       ...evidence(),
       observed_main_sha: "ABC",
@@ -579,6 +620,6 @@ console.log("forged_chain_link_rejected=true");
 console.log("snapshot_lineage_content_addressed=true");
 console.log("open_pr_state_enforced=true");
 console.log("rotation_pointer_comment_bound=true");
-console.log("rotation_required_here_rederived=true");
+console.log("rotation_required_here_rederived=true");\nconsole.log("github_utc_timestamp_forms_accepted=true");\nconsole.log("changed_path_control_chars_rejected=true");
 console.log("authority_granted=false");
 console.log("mutation_performed=false");
