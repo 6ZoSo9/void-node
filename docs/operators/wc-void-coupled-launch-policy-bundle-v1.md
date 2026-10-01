@@ -210,11 +210,14 @@ executing worktree bytes to match the captured HEAD blob before compilation.
 For a production CLI artifact, the repository branch must be exactly `main`,
 the origin must identify exactly `6ZoSo9/void-node`, and a fixed-HTTPS
 `git ls-remote --heads ... refs/heads/main` executed outside repository
-discovery with TLS verification forced must equal local HEAD. After reviewed
-child execution, local HEAD/tree/branch/origin/clean state and parent-tool blob
-are rechecked; production mode also repeats the remote-main read and requires it
-to remain the same canonical HEAD before the bundle is minted. Feature-branch CI
-does not fabricate that condition.
+discovery with TLS verification forced must equal local HEAD. This fixed
+canonical-main provenance query is an explicit external network read; it is not
+an RPC/runtime/market action. After reviewed child execution, local
+HEAD/tree/branch/origin/clean state and parent-tool blob are rechecked;
+production mode also repeats the remote-main read and requires it to remain the
+same canonical HEAD before the bundle is minted. Feature-branch CI does not
+fabricate that condition and test-only compilation performs no canonical-remote
+read.
 
 The output is create-only, mode `0600`, fsynced, and never overwritten. Its
 parent directory is opened once and owner/mode/device/inode bound. The actual
