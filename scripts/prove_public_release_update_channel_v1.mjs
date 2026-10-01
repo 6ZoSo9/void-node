@@ -296,7 +296,7 @@ exit 2
   const journalStageRecovered=run(managerPath,["version"],{env:e,capture:true});
   if(!journalStageRecovered.includes("ROLLBACK_PREP_RECOVERED")||!journalStageRecovered.includes("recovery_outcome=rollback_aborted_before_publication")||!journalStageRecovered.includes(v2))fail("stable manager did not classify and continue after staged rollback-journal cleanup");
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("staged-journal recovery changed canonical pointers");
-  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".rollback.restart-witness-v1",".current.update-next",".previous.update-next"]){
     if(fs.existsSync(path.join(installRoot,artifact)))fail(`staged-journal recovery left artifact ${artifact}`);
   }
   pass("stable-manager-recovered-staging-journal");
