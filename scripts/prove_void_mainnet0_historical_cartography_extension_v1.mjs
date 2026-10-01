@@ -15,6 +15,7 @@ import {
   EXPECTED_PREFIX_ROOT,
   EXPECTED_SOURCE_ID,
   MARKER,
+  acceptedScannerExecutionV1,
   productionBaselineV1,
   sha256Hex,
   stableStringify,
@@ -161,6 +162,14 @@ assert.equal(
 assert.equal(production.prefix.prefix_root, EXPECTED_PREFIX_ROOT);
 assert.equal(production.acceptance.acceptance_contract.append_authority, false);
 assert.equal(production.acceptance.acceptance_contract.runtime_authority, false);
+
+const scannerExecution = acceptedScannerExecutionV1();
+assert.equal(
+  scannerExecution.source_sha256,
+  production.semantics.inputs[0].sha256,
+);
+assert.equal(scannerExecution.private_materialization, true);
+assert.equal(scannerExecution.worktree_imported, false);
 
 {
   const badAcceptance = structuredClone(production.acceptance);
@@ -531,6 +540,8 @@ try {
   console.log(PROOF_MARKER);
   console.log("production_acceptance_id_bound=true");
   console.log("classification_semantics_root_bound=true");
+  console.log("accepted_scanner_private_execution=true");
+  console.log("worktree_scanner_execution=false");
   console.log("accepted_prefix_hash_only_revalidation=true");
   console.log("historical_prefix_reparse_required=false");
   console.log("terminal_segment_boundary_recovered=true");
