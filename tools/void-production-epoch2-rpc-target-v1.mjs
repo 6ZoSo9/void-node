@@ -120,6 +120,8 @@ const SELECTION_KEYS = Object.freeze([
   "runtime_active_verified",
   "exact_genesis_bound",
   "production_validator_set_bound",
+  "production_validator_binding_source_path",
+  "production_validator_binding_evidence_sha256",
   "write_capability_classification",
   "independent_host_acceptance",
 ]);
@@ -272,6 +274,8 @@ function validateHoldSelection(selection) {
     runtime_active_verified: false,
     exact_genesis_bound: false,
     production_validator_set_bound: false,
+    production_validator_binding_source_path: null,
+    production_validator_binding_evidence_sha256: null,
     write_capability_classification: null,
     independent_host_acceptance: false,
   };
@@ -297,6 +301,14 @@ function validateSelectedSelection(selection, forbiddenValues) {
     selection.runtime_active_verified !== true ||
     selection.exact_genesis_bound !== true ||
     selection.production_validator_set_bound !== true ||
+    typeof selection.production_validator_binding_source_path !== "string" ||
+    !/^ops\/mainnet0\/[a-z0-9-]+\.json$/u.test(
+      selection.production_validator_binding_source_path,
+    ) ||
+    typeof selection.production_validator_binding_evidence_sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(
+      selection.production_validator_binding_evidence_sha256,
+    ) ||
     selection.write_capability_classification !==
       "write_capable_not_authorized" ||
     selection.independent_host_acceptance !== true
