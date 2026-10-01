@@ -284,6 +284,33 @@ assert.equal(
   false,
 );
 
+const fleetWorkflow = readFileSync(
+  new URL("../.github/workflows/void-node-fleet-drift-audit-v1.yml", import.meta.url),
+  "utf8",
+);
+const pullStart = fleetWorkflow.indexOf("  pull_request:\n");
+const pushStart = fleetWorkflow.indexOf("  push:\n");
+const permissionsStart = fleetWorkflow.indexOf("\npermissions:\n");
+assert.ok(pullStart >= 0 && pushStart > pullStart && permissionsStart > pushStart);
+const pullBlock = fleetWorkflow.slice(pullStart, pushStart);
+const pushBlock = fleetWorkflow.slice(pushStart, permissionsStart);
+for (const relativePath of [
+  "ops/mainnet/operator-contact.zoso.md",
+  "ops/mainnet/validator-admission-promotion-plan.zoso.md",
+]) {
+  const token = `- "${relativePath}"`;
+  assert.equal(
+    pullBlock.split(token).length - 1,
+    1,
+    `pull_request trigger mismatch: ${relativePath}`,
+  );
+  assert.equal(
+    pushBlock.split(token).length - 1,
+    1,
+    `push trigger mismatch: ${relativePath}`,
+  );
+}
+
 for (const relativePath of [
   "../ops/alienware-bootstrap-node-helper-relayer.sh",
   "../ops/alienware-update-node-helper-relayer.sh",
@@ -333,4 +360,5 @@ console.log("deterministic_audit_id=true");
 console.log("retired_alienware_operator_commands_hold=true");
 console.log("retired_alienware_direct_scripts_hold=true");
 console.log("active_operator_topology_docs_pinned=true");
+console.log("active_operator_topology_trigger_symmetry=true");
 console.log("mutation_attempted=false");
