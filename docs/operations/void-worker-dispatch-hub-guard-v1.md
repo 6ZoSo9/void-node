@@ -33,11 +33,15 @@ The guard validates the relevant V1 markers, repository identity, plan/current i
 
 For operational CLI use, the repository is pinned to canonical `6ZoSo9/void-node`. Before policy replay, the guard performs a noninteractive read-only `git ls-remote --heads https://github.com/6ZoSo9/void-node.git refs/heads/main` with a 15-second timeout, requires exactly one well-formed lowercase SHA-1 record, and requires the local reviewed `HEAD` commit to equal that live canonical-main SHA. The canonical remote query runs outside the repository working directory with repository/global/system Git-config influence disabled, Git config injection variables removed, a fixed system Git/PATH, and TLS verification forced on, so `url.*.insteadOf` or local/global config cannot silently redirect the canonical URL. It then loads the dispatch policy from that exact live-main commit object, not from an unverified local branch tip. After dispatch re-evaluation and live successor-chain resolution, the guard queries canonical main again and requires the final SHA to equal the initial SHA; a main change anywhere inside the evaluation window therefore fails closed. No fetch, checkout, reset, or ref mutation is performed.
 
-After the main-generation gate, the guard runs the merged `resolveCoordinationSuccessorChainLiveV1(...)` and requires canonical JSON equality with the supplied chain artifact. It re-runs `evaluateWorkerLiveDispatchV1(...)` against the supplied `dispatch_evidence` packet and requires canonical JSON equality with the supplied dispatch artifact. The dispatch `evaluation_id` is independently recomputed from the dispatch body. A stale local checkout, chain change, stale predecessor policy, modified dispatch body, or fabricated successor-aligned dispatch therefore fails closed.
+After the main-generation gate, the operational CLI runs the merged `resolveCoordinationSuccessorChainLiveV1(...)` and requires canonical JSON equality with the supplied chain artifact. It re-runs `evaluateWorkerLiveDispatchV1(...)` against the supplied `dispatch_evidence` packet and requires canonical JSON equality with the supplied dispatch artifact. The dispatch `evaluation_id` is independently recomputed from the dispatch body. A stale local checkout, chain change, stale predecessor policy, modified dispatch body, or fabricated successor-aligned dispatch therefore fails closed.
+
+The exported `evaluateWorkerDispatchHubGuardV1(...)` function is deliberately retained-evidence-only. It accepts exactly the evidence object and cannot accept caller-supplied live-chain, live-dispatch, or reviewed-main claims. Supplying a second argument is rejected. The module's liveness-capable evaluator and its `Symbol` capability are private and are used only by the operational CLI after the canonical live checks above have completed.
 
 ## Outcomes
 
 ### `DISPATCH_HUB_ALIGNED`
+
+This outcome is operational-CLI-only. The exported pure evaluator cannot produce it.
 
 Requires all of the following:
 
@@ -69,15 +73,15 @@ A live-dispatch output is only current until its declared 30-minute reevaluation
 
 ### `HOLD_CHAIN_LIVENESS_UNPROVEN`
 
-Structurally aligned retained artifacts are not enough to unlock normal dispatch. The pure evaluator returns this HOLD unless the caller explicitly supplies the live-revalidation condition established by the operational CLI. This prevents an old pre-threshold `CURRENT` chain artifact from remaining usable after new coordination comments push the live hub across the rotation boundary.
+Structurally aligned retained artifacts are not enough to unlock normal dispatch. The exported pure evaluator returns this HOLD for an otherwise-current retained packet because it has no liveness capability. Callers cannot supply or synthesize that capability. This prevents an old pre-threshold `CURRENT` chain artifact from remaining usable after new coordination comments push the live hub across the rotation boundary.
 
 ### `HOLD_DISPATCH_LIVENESS_UNPROVEN`
 
-Even a structurally valid, unexpired dispatch cannot unlock normal routing unless it has just been re-evaluated from the reviewed dispatch policy and the supplied `dispatch_evidence` packet. This blocks a caller from fabricating a successor-aligned dispatch while the checked-in policy remains bound to the predecessor hub.
+Even a structurally valid, unexpired dispatch cannot unlock normal routing unless the operational CLI has just re-evaluated it from the reviewed dispatch policy and the supplied `dispatch_evidence` packet. The private live capability is not exported, so a library caller cannot turn retained dispatch equality into liveness authority.
 
 ### `HOLD_MAIN_PROVENANCE_UNPROVEN`
 
-A caller cannot unlock aligned routing merely by supplying matching chain/dispatch objects. Operational use must first prove that the local reviewed `HEAD` equals a fresh canonical public `main` query and must replay policy from that exact commit. A stale checkout therefore cannot be described as the current reviewed dispatch-policy generation.
+A caller cannot unlock aligned routing by supplying a SHA-shaped value or matching chain/dispatch objects. Operational use must prove that the local reviewed `HEAD` equals a fresh canonical public `main` query and replay policy from that exact commit. The exported pure evaluator accepts no reviewed-main liveness argument.
 
 ### `HOLD_ROTATION_REQUIRED`
 
@@ -129,7 +133,7 @@ Exit status is `0` only for `DISPATCH_HUB_ALIGNED`, `3` for a valid read-only HO
 node scripts/prove_void_worker_dispatch_hub_guard_v1.mjs
 ```
 
-The proof covers current-hub alignment, expired-dispatch HOLD, exact 30-minute dispatch-window validation, retained-chain and retained-dispatch liveness HOLDs, live-main-provenance HOLD, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, live-chain mismatch rejection, exact dispatch content-ID rederivation, canonical repository pinning, fresh live-dispatch mismatch rejection, authority escalation, and deterministic guard identity. It validates the exact canonical Git URL/main ref constants, one-record `ls-remote` grammar, malformed/duplicate/wrong-ref rejection, stale local-HEAD refusal, mid-evaluation main-generation change rejection, and the isolated Git environment that strips repository/worktree/config injection while disabling global/system config and forced SSL bypass. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy. A fabricated content-valid successor dispatch is explicitly rejected when the freshly re-evaluated policy still produces the predecessor dispatch. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
+The proof covers retained current-hub HOLD, expired-dispatch HOLD, exact 30-minute dispatch-window validation, rotation-required HOLD, stale-predecessor HOLD, retained successor HOLD, invalid-chain HOLD, live-chain mismatch rejection, exact dispatch content-ID rederivation, canonical repository pinning, fresh live-dispatch mismatch rejection, authority escalation, and deterministic guard identity. It explicitly replays the old bypass attempt—supplying retained chain/dispatch objects plus an arbitrary 40-hex reviewed-main SHA—and requires rejection. It also proves that the module-private live capability and liveness-capable evaluator are not exported and that only the operational `main()` path calls the private evaluator. The canonical Git URL/main parser and isolated Git environment remain independently covered. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
 
 ## Relationship to #2258
 
