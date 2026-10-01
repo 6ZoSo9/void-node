@@ -21,11 +21,14 @@ wallet/signer material, constructs a transaction, or moves value.
 
 ## Default host and units
 
-Default host identity:
+Pinned host identity:
 
 ```text
 zoso-Precision-Tower-7810
 ```
+
+The hostname is not a CLI override. A different hostname requires a reviewed
+successor contract rather than redefining what this observer calls Precision.
 
 Default user units:
 
@@ -179,9 +182,19 @@ content-addressed as:
 voidpwro1_<sha256>
 ```
 
-`independent_host_acceptance=true` is meaningful only on output produced by an
-actual operational collector run on the expected Precision host. Hosted CI tests
-the evaluator and parsers with fixtures; it does not set live production state.
+`independent_host_acceptance=true` is reachable only through the module-private
+live finalizer called by the operational collector after it has gathered the
+host facts itself. The exported pure evaluator deliberately returns:
+
+```text
+status=PRECISION_WEB_RECOVERY_HOST_OBSERVATION_STRUCTURALLY_VERIFIED_LIVE_RUN_REQUIRED
+live_host_observation_performed=false
+independent_host_acceptance=false
+```
+
+This prevents fabricated fixture JSON from being promoted to a live acceptance
+through a library call. Hosted CI tests that structural evaluator and its
+parsers; it does not set live production state.
 
 ## Run on Precision
 
