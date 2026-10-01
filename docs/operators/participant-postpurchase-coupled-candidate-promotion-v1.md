@@ -45,6 +45,14 @@ two-space/trailing-newline JSON serialization is also hashed again inside the
 pure promotion builder, so a library caller cannot pair a parsed candidate with
 an unrelated claimed source-file digest.
 
+The source reader requires a clean Git worktree, records exact repository HEAD
+and tree identities, and binds the candidate, successor candidate, classifier,
+and promotion tool to their exact `HEAD:<path>` Git blob identities. It
+rechecks HEAD/tree after the source reads. The builder independently verifies
+those repository identities and also recomputes each parsed candidate's Git blob
+identity, so valid-looking but false Git provenance or dirty local candidate
+bytes fail closed.
+
 The canonical candidate must already be a valid `HOLD`, must have
 `participant_post_purchase_voidtoken_control_ready=false`, and must still
 have `coupled_activation_ready=false`.
@@ -105,6 +113,10 @@ used by the merged collector.
 
 The output is a create-only mode-0600 JSON artifact containing:
 
+- exact repository HEAD and tree identities;
+- exact source-candidate Git blob identity;
+- exact successor-candidate Git blob identity;
+- exact classifier and promotion-tool Git blob identities;
 - exact source-candidate raw-file SHA-256;
 - exact successor-migration-candidate raw-file SHA-256;
 - exact reviewed runtime-binding file SHA-256;
