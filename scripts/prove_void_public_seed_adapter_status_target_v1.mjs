@@ -73,10 +73,17 @@ for (const retired of [
 }
 
 const staleWrapper =
-  'VOID_ADAPTER_HOST=$${VOID_ADAPTER_HOST:-100.122.79.39}';
-if (makefile.includes(staleWrapper)) {
-  const wrapperFallback = run({ VOID_ADAPTER_HOST: "100.122.79.39" });
-  assert.equal(wrapperFallback.status, 2);
+  'VOID_ADAPTER_HOST=${VOID_ADAPTER_HOST:-100.122.79.39}';
+assert.equal(
+  makefile.includes(staleWrapper),
+  false,
+  "Makefile still injects retired Alienware adapter target",
+);
+for (const target of [
+  "public-seed-adapter-status:\n\t@bash ops/public/public-seed-adapter-status-v1.sh",
+  "public-seed-adapter-status-json:\n\t@bash ops/public/public-seed-adapter-status-v1.sh --json",
+]) {
+  assert.ok(makefile.includes(target), `Makefile target not explicit-target safe: ${target}`);
 }
 
 assert.ok(doc.includes("requires an explicit"));
@@ -90,6 +97,7 @@ console.log("retired_ip_hold=true");
 console.log("retired_hostname_hold=true");
 console.log("casefold_retired_hostname_hold=true");
 console.log("guard_precedes_network=true");
+console.log("makefile_retired_default_removed=true");
 console.log("retired_default_removed=true");
 console.log("runtime_mutation=false");
 console.log("credentials_read=false");
