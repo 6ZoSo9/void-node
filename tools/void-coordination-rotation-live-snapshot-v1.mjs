@@ -423,6 +423,7 @@ function fetchPrChangedPaths(repository, number, changedFiles) {
   if (changedFiles > MAX_CHANGED_PATHS_PER_PR) {
     fail("PR #" + number + " exceeds changed path capture bound");
   }
+  if (changedFiles === 0) return [];
   const paths = [];
   for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
     const rows = runGhJson([
@@ -437,6 +438,10 @@ function fetchPrChangedPaths(repository, number, changedFiles) {
     for (const row of rows) {
       paths.push(row.filename);
     }
+    if (paths.length > changedFiles) {
+      fail("PR #" + number + " changed path response exceeds metadata count");
+    }
+    if (paths.length === changedFiles) return paths;
     if (rows.length < 100) break;
     if (page === MAX_FILE_PAGES) {
       fail("PR #" + number + " changed paths exceed pagination bound");
