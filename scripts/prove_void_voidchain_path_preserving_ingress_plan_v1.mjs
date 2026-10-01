@@ -47,7 +47,10 @@ const temp=fs.mkdtempSync(
 try{
   fs.chmodSync(temp,0o700);
   const tunnelId="6ff42ae2-765d-4adf-8112-31c55c1551ef";
-  const credential=path.join(temp,tunnelId+".json");
+  const credentialDir=path.join(temp,"credential # [edge]: value");
+  fs.mkdirSync(credentialDir,{mode:0o700});
+  fs.chmodSync(credentialDir,0o700);
+  const credential=path.join(credentialDir,tunnelId+".json");
   const executedMarker=path.join(temp,"cloudflared-executed.txt");
   const cloudflared=path.join(temp,"cloudflared");
   const output=path.join(temp,"packet");
@@ -142,6 +145,11 @@ try{
     (config.match(/^  - service: http_status:404$/gmu)||[]).length,
     1,
   );
+  assert.equal(
+    config.includes("credentials-file: "+JSON.stringify(credential)+"\n"),
+    true,
+    "credential path must be emitted as one deterministic quoted YAML scalar",
+  );
   assert.doesNotMatch(config,/\bpath:/u);
   assert.doesNotMatch(config,/rewrite|stripPrefix|prefix-strip/iu);
 
@@ -198,6 +206,21 @@ try{
     {...request,output_dir:path.join(temp,"bad-head"),expected_repository_head:"0".repeat(40)},
     /VOIDCHAIN_INGRESS_REPOSITORY_HEAD_MISMATCH/u,
   );
+  {
+    const key="GIT_CONFIG_PARAMETERS";
+    const had=Object.prototype.hasOwnProperty.call(process.env,key);
+    const prior=process.env[key];
+    process.env[key]="'remote.origin.url=https://github.com/example/fork.git'";
+    try{
+      rejectPrepare(
+        {...request,output_dir:path.join(temp,"git-config-parameters")},
+        /VOIDCHAIN_INGRESS_AMBIENT_GIT_OVERRIDE:GIT_CONFIG_PARAMETERS/u,
+      );
+    }finally{
+      if(had) process.env[key]=prior;
+      else delete process.env[key];
+    }
+  }
   rejectPrepare(
     {...request,output_dir:path.join(ROOT,".voidchain-ingress-plan-test")},
     /VOIDCHAIN_INGRESS_OUTPUT_MUST_BE_OUTSIDE_REPOSITORY/u,
@@ -271,7 +294,9 @@ try{
     '"http_status:404"',
     'path: req.url || "/"',
     "GIT_NO_REPLACE_OBJECTS",
+    "GIT_CONFIG_PARAMETERS",
     "--no-replace-objects",
+    "yamlDoubleQuoted",
     "credential_content_read: false",
     "cloudflared_execution: false",
     "installation_authorized: false",
@@ -284,6 +309,9 @@ try{
   console.log("hostname=voidchain.org");
   console.log("frontdoor_origin=http://127.0.0.1:8083");
   console.log("path_preserving=true");
+  console.log("exact_pr_head_checkout_required=true");
+  console.log("git_config_parameters_rejected=true");
+  console.log("credential_path_yaml_quoted=true");
   console.log("cloudflared_executed=false");
   console.log("credential_content_read=false");
   console.log("precision_recovery_independent_acceptance_required=true");

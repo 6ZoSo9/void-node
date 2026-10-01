@@ -119,7 +119,8 @@ Preparation requires:
 - canonical `6ZoSo9/void-node` origin identity;
 - absolute reviewed `/usr/bin/git`;
 - Git replacement objects disabled;
-- ambient Git repository/config/program overrides removed/rejected; and
+- ambient Git repository/config/program overrides removed/rejected, including
+  `GIT_CONFIG_PARAMETERS`; and
 - exact `HEAD:<path>` blobs for the frontdoor, composition, adapter, current
   Precision recovery contract, frontdoor proof, and public HTML.
 
@@ -151,7 +152,9 @@ The tunnel credential file must be:
 - named exactly `<tunnel-id>.json`.
 
 The packet does **not** read, hash, parse, print, copy, or embed credential
-contents.
+contents. The absolute credential path is emitted into cloudflared YAML as one
+deterministic double-quoted scalar, so spaces, `#`, `:`, brackets, and other
+ordinary filesystem characters cannot be reinterpreted as YAML structure.
 
 Instead it records a content-addressed metadata identity over:
 
@@ -243,6 +246,10 @@ and routing state. Only after current #1618 independent host acceptance may a
 separately authorized live lane install/start the named tunnel and change
 DNS/TLS. External qualification must then prove representative non-root paths
 arrive unchanged through `https://voidchain.org`.
+
+Focused PR CI checks out the exact pull-request head rather than GitHub's
+synthetic merge commit because repository HEAD/tree are themselves part of the
+plan identity.
 
 ## CLI
 

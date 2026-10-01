@@ -96,6 +96,7 @@ const GIT_OVERRIDE_KEYS=Object.freeze([
   "GIT_REPLACE_REF_BASE",
   "GIT_CONFIG",
   "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_PARAMETERS",
   "GIT_CONFIG_GLOBAL",
   "GIT_CONFIG_SYSTEM",
   "GIT_EXEC_PATH",
@@ -188,6 +189,10 @@ function rejectControl(value,label){
   const text=String(value);
   if(/[\0\r\n]/u.test(text)) fail(label+"_CONTROL_CHARACTER_FORBIDDEN");
   return text;
+}
+
+function yamlDoubleQuoted(value,label){
+  return JSON.stringify(rejectControl(value,label));
 }
 
 function isInside(parent,candidate){
@@ -512,7 +517,8 @@ function systemdQuote(value){
 function renderConfig({tunnelId,credentialPath}){
   return [
     "tunnel: "+tunnelId,
-    "credentials-file: "+credentialPath,
+    "credentials-file: "+
+      yamlDoubleQuoted(credentialPath,"VOIDCHAIN_INGRESS_CREDENTIAL_YAML"),
     "originRequest:",
     "  connectTimeout: 10s",
     "ingress:",
