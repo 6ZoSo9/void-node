@@ -2,10 +2,12 @@
 
 Marker: `VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1`
 
-Status: inactive host-private staging after a fresh GREEN atomic activation
-preflight. This lane does **not** install an active systemd drop-in, daemon-reload
-systemd, restart the node, enable any Buy VOID runtime gate, sign or broadcast a
-transaction, activate the public presale, or move funds.
+Status: inactive host-private byte staging. The Precision wrapper requires a
+fresh GREEN atomic activation preflight immediately before staging, but the
+standalone stage manifest is deliberately **not** authority that the preflight
+executed. This lane does **not** install an active systemd drop-in,
+daemon-reload systemd, restart the node, enable any Buy VOID runtime gate, sign
+or broadcast a transaction, activate the public presale, or move funds.
 
 ## Purpose
 
@@ -38,9 +40,33 @@ transaction_broadcast_performed=false
 funds_movement_performed=false
 ```
 
-The staging tool also requires the receipt to bind the repository head/tree,
-remote main, reviewed source-slice manifest, wrapper/tool Git blobs, and both
-configuration generations and drop-in hashes.
+The staging tool structurally validates the supplied preflight text and binds
+its exact SHA-256, repository head/tree, remote main, reviewed source-slice
+manifest, wrapper/tool Git blobs, and both configuration generations and
+drop-in hashes.
+
+That structural validation does **not** prove the preflight command actually
+ran. Accordingly every standalone manifest records:
+
+```text
+structural_validation_only=true
+fresh_execution_proven=false
+manifest_is_preflight_authority=false
+```
+
+Operationally, the Precision wrapper runs the reviewed preflight itself, hashes
+the exact captured log, requires the stage tool to report that same log hash,
+and emits:
+
+```text
+stage_binds_exact_fresh_preflight_log=true
+wrapper_fresh_preflight_execution_proven=true
+stage_manifest_preflight_authority=false
+```
+
+Any later activation transaction must revalidate the operational preflight
+boundary; it must not treat the stage manifest by itself as fresh-preflight
+authority.
 
 ## Canonical byte derivation
 
@@ -85,12 +111,22 @@ rollback/96-buy-void-payment-keyed-postgres-atomic-activation-v1.conf
 manifest.json
 ```
 
-The stage directory is mode `0700`; staged files and the manifest are mode
-`0600`.
+The stage root, stage directory, and both `live/` and `rollback/`
+intermediate directories are direct, realpath-exact, current-owner directories
+with mode `0700`. Staged files and the manifest are direct, current-owner,
+single-link regular files with mode `0600`.
+
+Initial publication fsyncs every staged file, both intermediate directories and
+the temporary stage directory before the final rename, then fsyncs the staging
+parent after rename before success. Exact-stage reuse revalidates the complete
+custody tree and fsyncs it again before success. This lets a later invocation
+safely re-durabilize a stage that survived a process interruption after rename
+but before the parent-directory fsync.
 
 The tool fails closed if the requested staging path overlaps the active systemd
-drop-in tree. Existing exact staging is accepted idempotently; any existing
-byte, hash, manifest or mode mismatch HOLDs.
+drop-in tree. Existing exact staging is accepted idempotently only after the
+full custody check; byte, manifest, ownership, link, directory-alias or mode
+drift HOLDs.
 
 ## Precision execution
 
@@ -112,6 +148,10 @@ remain unchanged afterward, then rechecks node health and readiness.
 
 ```text
 inactive_staging_only=true
+wrapper_fresh_preflight_execution_proven=true
+stage_manifest_preflight_authority=false
+durable_fsync_publication_required=true
+private_stage_custody_required=true
 active_dropin_write=false
 daemon_reload=false
 service_stop=false
@@ -125,10 +165,15 @@ public_activation=false
 funds_movement=false
 ```
 
-A GREEN staging result means only that the exact live and rollback bytes have
-been materialized privately outside the active systemd tree and are ready for
-review.
+A standalone stage-tool GREEN result means only that the exact live and
+rollback bytes have been durably materialized under the private custody
+contract and are ready for review. It does not establish preflight freshness.
 
-It is **not activation authority**. Installing the live file into the active
-drop-in tree, daemon-reloading, crossing the controlled restart boundary and
-enabling money-capable execution remain a later separately reviewed operation.
+A Precision-wrapper GREEN result additionally means that wrapper invocation
+executed the fresh preflight immediately before staging and bound the stage to
+the exact captured preflight-log SHA-256.
+
+Neither result is **activation authority**. Installing the live file into the
+active drop-in tree, daemon-reloading, crossing the controlled restart boundary
+and enabling money-capable execution remain a later separately reviewed
+operation.
