@@ -33,6 +33,8 @@ export const VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_AUTHORITY_V1 =
     canonical_classifier_reexecution: true,
     reviewed_git_commit_required: true,
     canonical_main_application_required: true,
+    canonical_remote_main_read_required: true,
+    external_network_read: true,
     repository_source_write: false,
     filesystem_read: true,
     filesystem_write: false,
@@ -288,6 +290,47 @@ function withHardenedInheritedGit(fn) {
       if (value !== undefined) process.env[key] = value;
     }
   }
+}
+
+function canonicalRemoteMainHead() {
+  const env = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+  const result = spawnSync(
+    GIT,
+    [
+      "ls-remote",
+      "https://github.com/6ZoSo9/void-node.git",
+      "refs/heads/main",
+    ],
+    {
+      cwd: "/",
+      env,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 1024 * 1024,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("PARTICIPANT_CANONICAL_REMOTE_MAIN_UNAVAILABLE");
+  }
+  const lines = String(result.stdout || "")
+    .trim()
+    .split(/\r?\n/u)
+    .filter(Boolean);
+  if (lines.length !== 1) {
+    fail("PARTICIPANT_CANONICAL_REMOTE_MAIN_INVALID");
+  }
+  const match = lines[0].match(/^([0-9a-f]{40})\trefs\/heads\/main$/u);
+  if (!match) fail("PARTICIPANT_CANONICAL_REMOTE_MAIN_INVALID");
+  return match[1];
 }
 
 function canonicalRemote(value) {
@@ -854,6 +897,10 @@ export function verifyVoidParticipantPostpurchaseCanonicalApplicationV1({
   if (ancestry.status !== 0) {
     fail("PARTICIPANT_CANONICAL_BASE_NOT_ANCESTOR");
   }
+  const remoteMain = canonicalRemoteMainHead();
+  if (remoteMain !== repo.head) {
+    fail("PARTICIPANT_CANONICAL_APPLIED_HEAD_NOT_REMOTE_MAIN");
+  }
 
   const coupled = headFile(COUPLED_REL, "PARTICIPANT_CANONICAL_APPLIED_COUPLED");
   const successor = headFile(
@@ -916,6 +963,7 @@ export function verifyVoidParticipantPostpurchaseCanonicalApplicationV1({
     applied_head_sha: repo.head,
     applied_tree_sha: repo.tree,
     canonical_origin_url: repo.origin,
+    canonical_remote_main_sha: remoteMain,
     coupled_candidate_git_blob_sha1: coupled.blob_sha1,
     successor_candidate_git_blob_sha1: successor.blob_sha1,
     exact_one_gate_source_application_verified: true,
