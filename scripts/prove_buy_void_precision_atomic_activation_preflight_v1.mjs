@@ -161,6 +161,7 @@ assert.deepEqual(
 const inventory = evaluateGateSourceInventoryV1(gateSources);
 assert.equal(inventory.reviewed.length, 3);
 assert.equal(inventory.unreviewed.length, 0);
+assert.equal(inventory.complete, true);
 
 const green =
   await evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
@@ -202,6 +203,26 @@ for (const line of [
   assert(green.dormant_dropin_bytes.includes(line), line);
 }
 
+const incompleteInventory =
+  evaluateGateSourceInventoryV1(gateSources.slice(0, 2));
+assert.equal(incompleteInventory.unreviewed.length, 0);
+assert.equal(incompleteInventory.complete, false);
+
+const incompleteHold =
+  await evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+    snapshot({
+      gate_sources: gateSources.slice(0, 2),
+      runtime_status: {},
+      postgres_qualification: {},
+    }),
+    activationContract,
+  );
+assert.equal(incompleteHold.status, "HOLD_GATE_SOURCE_INVENTORY_INCOMPLETE");
+assert.equal(incompleteHold.activation_ready, false);
+assert.equal(incompleteHold.gate_source_inventory_complete, false);
+assert.equal(incompleteHold.credential_read_performed, false);
+assert.equal(incompleteHold.database_connection_performed, false);
+
 const lateDormant = {
   path: "/home/zoso/.config/systemd/user/void-node-live.service.d/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~BUY-VOID-PK-DORMANT-V1.conf",
   sha256: "a".repeat(64),
@@ -223,6 +244,7 @@ assert.equal(hold.status, "HOLD_UNRECONCILED_GATE_ASSIGNMENT_SOURCES");
 assert.equal(hold.activation_ready, false);
 assert.equal(hold.unreviewed_gate_sources.length, 1);
 assert.equal(hold.unreviewed_gate_sources[0].path, lateDormant.path);
+assert.equal(hold.gate_source_inventory_complete, false);
 assert.equal(hold.credential_read_performed, false);
 assert.equal(hold.database_connection_performed, false);
 
@@ -288,6 +310,20 @@ await assert.rejects(
   /postgres_qualification_invalid/u,
 );
 
+await assert.rejects(
+  () =>
+    evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+      snapshot({
+        runtime_status: {
+          ...runtimeStatus,
+          root_dir: "/tmp/not-the-canonical-buy-void-root",
+        },
+      }),
+      activationContract,
+    ),
+  /runtime_status_not_activation_ready_dormant/u,
+);
+
 const toolSource = fs.readFileSync(
   "tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs",
   "utf8",
@@ -316,6 +352,16 @@ const qualifierPosition = wrapperSource.indexOf(
 );
 assert(inventoryPosition >= 0);
 assert(qualifierPosition > inventoryPosition);
+assert(
+  wrapperSource.includes(
+    'expected_tool_blob="4b39fbf8eda9053d8bca0765fb1525e6af3491f3"',
+  ),
+  "preflight tool blob pin missing",
+);
+assert(
+  wrapperSource.includes("preflight_tool_blob_mismatch"),
+  "preflight tool mismatch HOLD missing",
+);
 for (const forbidden of [
   "systemctl --user daemon-reload",
   "systemctl --user restart",
@@ -328,19 +374,89 @@ for (const forbidden of [
   assert.equal(wrapperSource.includes(forbidden), false, forbidden);
 }
 
+const workflow = fs.readFileSync(
+  ".github/workflows/buy-void-precision-atomic-activation-preflight-v1.yml",
+  "utf8",
+);
+const workflowDependencies = [
+  ".github/workflows/buy-void-precision-atomic-activation-preflight-v1.yml",
+  "docs/operators/buy-void-precision-atomic-activation-preflight-v1.md",
+  "ops/precision/void_precision_buy_void_atomic_activation_preflight_v1.sh",
+  "scripts/prove_buy_void_precision_atomic_activation_preflight_v1.mjs",
+  "tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts",
+  "ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json",
+  "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs",
+  "ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh",
+  "tools/void-precision-buy-void-postgres-host-qualification-v1.mjs",
+  "ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example",
+  "ops/systemd/void-node-live.service.d/94-buy-void-claimed-postgres-precision-reconcile-v1.conf.example",
+  "src/economic/buy_void_runtime_integration_v1.ts",
+  "src/economic/buy_void_payment_keyed_full_runtime_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts",
+  "package.json",
+  "package-lock.json",
+];
+const prStart = workflow.indexOf("  pull_request:\n");
+const pushStart = workflow.indexOf("  push:\n");
+const permissionsStart = workflow.indexOf("\npermissions:\n");
+assert(prStart >= 0 && pushStart > prStart && permissionsStart > pushStart);
+const prBlock = workflow.slice(prStart, pushStart);
+const pushBlock = workflow.slice(pushStart, permissionsStart);
+for (const dependency of workflowDependencies) {
+  const token = `- "${dependency}"`;
+  assert.equal(
+    prBlock.split(token).length - 1,
+    1,
+    `PR trigger mismatch: ${dependency}`,
+  );
+  assert.equal(
+    pushBlock.split(token).length - 1,
+    1,
+    `push trigger mismatch: ${dependency}`,
+  );
+}
+assert.match(workflow, /uses: actions\/checkout@[0-9a-f]{40}/u);
+assert.match(workflow, /uses: actions\/setup-node@[0-9a-f]{40}/u);
+assert.doesNotMatch(
+  workflow,
+  /uses: actions\/(?:checkout|setup-node)@v[0-9]/u,
+);
+assert.match(workflow, /persist-credentials:\s*false/u);
+assert.match(workflow, /fetch-depth:\s*0/u);
+for (const required of [
+  "npm ci --ignore-scripts --no-audit --no-fund",
+  "bash -n ops/precision/void_precision_buy_void_atomic_activation_preflight_v1.sh",
+  "node --check tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs",
+  "node --check scripts/prove_buy_void_precision_atomic_activation_preflight_v1.mjs",
+  "npm exec -- tsx scripts/prove_buy_void_precision_atomic_activation_preflight_v1.mjs",
+  "npm run typecheck",
+]) {
+  assert(workflow.includes(required), required);
+}
+
 console.log(
   "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1_PROOF_GREEN",
 );
 console.log("reviewed_gate_inventory_green=true");
+console.log("complete_gate_inventory_required_green=true");
 console.log("late_dormant_override_hold_green=true");
 console.log("credential_read_blocked_before_inventory_green=true");
+console.log("preflight_tool_blob_pin_green=true");
 console.log("configured_process_dormant_match_green=true");
 console.log("runtime_policy_fingerprints_bound_green=true");
+console.log("canonical_runtime_root_bound_green=true");
 console.log("postgres_qualification_fingerprints_bound_green=true");
 console.log("atomic_live_generation_derived_green=true");
 console.log("atomic_dormant_generation_derived_green=true");
 console.log("exact_live_dropin_bytes_derived_green=true");
 console.log("exact_dormant_dropin_bytes_derived_green=true");
+console.log("focused_workflow_self_enforcement_green=true");
 console.log("activation_authorized=false");
 console.log("runtime_gate_mutation=false");
 console.log("service_mutation=false");
