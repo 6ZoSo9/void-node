@@ -1,11 +1,45 @@
-NODE_BASE="${NODE_BASE:-http://100.122.79.39:4100}"
 #!/usr/bin/env bash
 set -euo pipefail
 set +H
 set +o histexpand
 
+MARKER="VOID_JOBS_SUBMIT_E2E_LOCAL_EVIDENCE_BINDING_V1"
+NODE_BASE="${NODE_BASE:-http://127.0.0.1:4100}"
 BASE="${BASE:-${NODE_BASE}}"
 DATA_DIR="${DATA_DIR:-$HOME/dev/void-node/data_a}"
+
+if ! BASE_PORT="$(python3 - "$BASE" <<'PY'
+from urllib.parse import urlsplit
+import sys
+
+raw = sys.argv[1]
+try:
+    parsed = urlsplit(raw)
+    if parsed.scheme != "http":
+        raise ValueError("scheme")
+    if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError("host")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("credentials")
+    if parsed.port is None:
+        raise ValueError("port")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("origin")
+except Exception:
+    raise SystemExit(2)
+
+print(parsed.port)
+PY
+)"; then
+  echo "$MARKER HOLD: BASE must be a loopback HTTP origin with an explicit port" >&2
+  exit 2
+fi
+
+echo "$MARKER"
+echo "base=$BASE"
+echo "base_port=$BASE_PORT"
+echo "data_dir=$DATA_DIR"
+echo "remote_submission=false"
 OUT="${OUT:-/tmp/void-jobs-submit-e2e-$(date +%Y%m%d-%H%M%S)}"
 ACCOUNT="${ACCOUNT:-jobs-submit-proof-user-$(date +%Y%m%d-%H%M%S)}"
 PLAINTEXT="${PLAINTEXT:-jobs submit route proof $(date +%Y%m%d-%H%M%S)}"
@@ -48,7 +82,7 @@ echo "job_id=$JOB_ID" | tee "$OUT/job-id.txt"
 
 echo
 echo "=== [3] poll for real worker/receipt/credit evidence ==="
-NODE_PID="$(ss -ltnp 2>/dev/null | awk '/:4100 /{print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n1)"
+NODE_PID="$(ss -ltnp 2>/dev/null | awk -v p="$BASE_PORT" '$4 ~ (":" p "$"){print $NF}' | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' | head -n1)"
 for i in $(seq 1 30); do
   TS_NOW="$(date '+%F %T')"
   H="$(curl -o /dev/null -sS -w '%{http_code}' --max-time 5 "$BASE/health" || true)"

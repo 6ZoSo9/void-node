@@ -803,12 +803,12 @@ function renderHtmlUi() {
 <body>
 <div style="max-width:920px;margin:0 auto 14px auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 4px;">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <a href="http://100.122.79.39:4100/participant" style="color:#93c5fd;text-decoration:none;">Participant</a>
-    <a href="http://100.122.79.39:4100/datanet-demo" style="color:#93c5fd;text-decoration:none;">DataNet</a>
+    <a id="voidParticipantNavLink" href="#" style="color:#93c5fd;text-decoration:none;">Participant</a>
+    <a id="voidDatanetNavLink" href="#" style="color:#93c5fd;text-decoration:none;">DataNet</a>
     <a href="/workcredits/devnet/ui" style="color:#e5e7eb;text-decoration:none;font-weight:700;">Trading</a>
   </div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <a href="http://100.122.79.39:4100/participant#wallet" style="color:#94a3b8;text-decoration:none;">Back to Wallet</a>
+    <a id="voidWalletNavLink" href="#" style="color:#94a3b8;text-decoration:none;">Back to Wallet</a>
   </div>
 </div>
   <div class="shell">
@@ -1130,6 +1130,14 @@ function renderHtmlUi() {
   }
 
   function bindLinks(addr){
+    var nodeBase = window.location.protocol + "//" + window.location.hostname + ":4100";
+    var participantNav = document.getElementById("voidParticipantNavLink");
+    var datanetNav = document.getElementById("voidDatanetNavLink");
+    var walletNav = document.getElementById("voidWalletNavLink");
+    if (participantNav) participantNav.href = nodeBase + "/participant";
+    if (datanetNav) datanetNav.href = nodeBase + "/datanet-demo";
+    if (walletNav) walletNav.href = nodeBase + "/participant#wallet";
+
     var pool = window.location.protocol + "//" + window.location.hostname + ":4312/workcredits/devnet/pool.json";
     document.querySelectorAll("[data-local-wc-ui]").forEach(function(a){
       a.href = helperHref(addr);

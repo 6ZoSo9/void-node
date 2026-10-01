@@ -59,7 +59,10 @@ Each request has:
 - content-length validation; and
 - aborted/incomplete response ownership.
 
-Both bodies must be byte-identical.
+Both bodies must be byte-identical. The saved receipt also binds each
+alias's reported `bytes` field to the exact embedded artifact byte length;
+changing only an alias byte count and recomputing the unsigned receipt ID must
+HOLD.
 
 Each body is independently parsed and passed through the reviewed signed
 public-origin verifier for the exact canonical origin and node ID. Both
@@ -183,8 +186,10 @@ content-derived ID, re-verifies the embedded signed binding, and reconstructs
 the recorded collector/directory/handoff source bytes directly from the
 recorded Git commit. Source reconstruction intentionally executes only
 bounded `git` child processes (`cat-file`, `merge-base`, and `show`) with
-constant repository paths and a restricted `PATH`; it does not execute the
-recorded source commit. The recorded source commit must be available and an
+constant repository paths, a restricted `PATH`, `GIT_NO_LAZY_FETCH=1`,
+`GIT_TERMINAL_PROMPT=0`, and a fixed 10-second child timeout. Missing promised
+objects therefore HOLD instead of triggering an implicit promisor-remote fetch,
+and verification does not execute the recorded source commit. The recorded source commit must be available and an
 ancestor of current `main`; re-pinning source hashes inside the JSON is not
 sufficient to pass.
 

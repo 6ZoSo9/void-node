@@ -38,6 +38,12 @@ const MAX_ALIAS_BYTES = 128 * 1024;
 const MAX_CHILD_STDOUT_BYTES = 512 * 1024;
 const MAX_CHILD_STDERR_BYTES = 128 * 1024;
 const CHILD_TERMINATION_GRACE_MS = 250;
+const GIT_CHILD_TIMEOUT_MS = 10_000;
+const OFFLINE_GIT_ENV_V1 = Object.freeze({
+  PATH: "/usr/bin:/bin",
+  GIT_NO_LAZY_FETCH: "1",
+  GIT_TERMINAL_PROMPT: "0",
+});
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "..");
@@ -164,9 +170,8 @@ function gitV1(args) {
       cwd: REPO_ROOT,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        PATH: "/usr/bin:/bin",
-      },
+      env: OFFLINE_GIT_ENV_V1,
+      timeout: GIT_CHILD_TIMEOUT_MS,
     },
   ).trim();
 }
@@ -179,9 +184,8 @@ function gitBytesV1(args) {
       cwd: REPO_ROOT,
       encoding: null,
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        PATH: "/usr/bin:/bin",
-      },
+      env: OFFLINE_GIT_ENV_V1,
+      timeout: GIT_CHILD_TIMEOUT_MS,
       maxBuffer: 8 * 1024 * 1024,
     },
   );
@@ -195,9 +199,8 @@ function gitSucceedsV1(args) {
       {
         cwd: REPO_ROOT,
         stdio: ["ignore", "ignore", "ignore"],
-        env: {
-          PATH: "/usr/bin:/bin",
-        },
+        env: OFFLINE_GIT_ENV_V1,
+        timeout: GIT_CHILD_TIMEOUT_MS,
       },
     );
     return true;
@@ -1590,6 +1593,7 @@ export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
       || !Number.isSafeInteger(alias.bytes)
       || alias.bytes < 2
       || alias.bytes > MAX_ALIAS_BYTES
+      || alias.bytes !== artifactBytes.length
       || alias.artifact_sha256 !==
         receipt.binding.artifact_sha256
       || alias.binding_sha256 !==

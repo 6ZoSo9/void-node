@@ -32,7 +32,7 @@ Private keys, seed phrases, mnemonic phrases, keystore JSON, passphrases, hardwa
 ## Required future steps
 
 1. Start from a clean repository.
-2. Confirm Precision and Alienware are ready.
+2. Confirm Precision is ready and `VOID_MAINNET0_CROSSBOX_PEER` names an explicitly reviewed nonlocal current-fleet peer whose status smoke is green.
 3. Confirm launch remains NO-GO before ceremony.
 4. Prepare offline encrypted backup storage.
 5. Generate fresh never-used Mainnet-0 keys outside the repository.
