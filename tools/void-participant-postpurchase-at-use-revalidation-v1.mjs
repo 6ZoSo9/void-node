@@ -60,6 +60,12 @@ const GENESIS_BLOCK_HASH=
   "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d";
 const GENESIS_STATE_ROOT=
   "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2";
+const STATUS_URL=
+  VOID_PARTICIPANT_POSTPURCHASE_PRODUCTION_PUBLIC_ORIGIN_V1+
+  "/public-node/economic/epoch2/read-status-v1.json";
+const RECEIPT_URL_PREFIX=
+  VOID_PARTICIPANT_POSTPURCHASE_PRODUCTION_PUBLIC_ORIGIN_V1+
+  "/public-node/economic/epoch2/receipt-v1?tx=";
 
 const HASH=/^0x[0-9a-f]{64}$/u;
 const ADDRESS=/^0x[0-9a-f]{40}$/u;
@@ -416,6 +422,7 @@ function validateRuntimeBinding(runtimeBinding,imported){
     runtime.execution_epoch!==2||
     runtime.external_public_receipt_route_verified!==true||
     runtime.raw_public_rpc_used!==false||
+    status.url!==STATUS_URL||
     status.status!==PUBLIC_RUNTIME_STATUS||
     status.chain_id!==2050||
     status.execution_epoch!==2||
@@ -425,9 +432,26 @@ function validateRuntimeBinding(runtimeBinding,imported){
   ) fail("PARTICIPANT_AT_USE_RUNTIME_PUBLIC_BOUNDARY_INVALID");
 
   for(const [label,receipt] of [["DELIVERY",delivery],["CONTROL",control]]){
+    const expectedUrl=RECEIPT_URL_PREFIX+receipt.transaction_hash;
+    const sourceEvidenceMaterial=Object.freeze({
+      query_kind:"receipt",
+      chain_id:2050,
+      execution_epoch:2,
+      block_number:"0x"+BigInt(receipt.block_number).toString(16),
+      block_hash:receipt.block_hash,
+      state_root:receipt.state_root,
+      transaction_hash:receipt.transaction_hash,
+      receipt_status:"0x1",
+      receipt_from:receipt.receipt_from,
+      receipt_to:receipt.receipt_to,
+    });
+    const expectedSourceEvidenceId=
+      "sha256:"+sha256Text(canonicalJson(sourceEvidenceMaterial));
     if(
+      receipt.url!==expectedUrl||
       typeof receipt.artifact_sha256!=="string"||!HEX64.test(receipt.artifact_sha256)||
       typeof receipt.source_evidence_id!=="string"||!SHA256_ID.test(receipt.source_evidence_id)||
+      receipt.source_evidence_id!==expectedSourceEvidenceId||
       normalizeHash(receipt.transaction_hash,"PARTICIPANT_AT_USE_"+label+"_TX_INVALID")!==receipt.transaction_hash||
       uint(receipt.block_number,"PARTICIPANT_AT_USE_"+label+"_BLOCK_INVALID",{positive:true})<=0n||
       normalizeHash(receipt.block_hash,"PARTICIPANT_AT_USE_"+label+"_BLOCK_HASH_INVALID")!==receipt.block_hash||
