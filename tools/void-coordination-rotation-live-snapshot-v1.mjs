@@ -17,13 +17,16 @@ import {
   buildCoordinationRotationSnapshotV1,
 } from "./void-coordination-rotation-snapshot-v1.mjs";
 
-export const MARKER = "VOID_COORDINATION_ROTATION_LIVE_SNAPSHOT_V1";\nexport const CANONICAL_POLICY_PATH =\n  "ops/coordination/worker-live-dispatch-policy-v1.json";
+export const MARKER = "VOID_COORDINATION_ROTATION_LIVE_SNAPSHOT_V1";
+export const CANONICAL_POLICY_PATH =
+  "ops/coordination/worker-live-dispatch-policy-v1.json";
 
 const MAX_OPEN_PRS = 250;
 const MAX_CHANGED_PATHS_PER_PR = 500;
 const MAX_PR_PAGES = 3;
 const MAX_FILE_PAGES = 5;
-const SHA_PATTERN = /^[0-9a-f]{40}$/u;\nconst MAX_POLICY_BYTES = 1024 * 1024;
+const SHA_PATTERN = /^[0-9a-f]{40}$/u;
+const MAX_POLICY_BYTES = 1024 * 1024;
 
 export class CoordinationRotationLiveSnapshotError extends Error {
   constructor(message) {
