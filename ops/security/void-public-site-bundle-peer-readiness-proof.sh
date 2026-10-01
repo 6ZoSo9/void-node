@@ -3,9 +3,24 @@ set -uo pipefail
 set +H
 set +o histexpand 2>/dev/null || true
 
-cd "${VOID_REPO:-$HOME/dev/void-node}" || exit 1
+MARKER="VOID_PUBLIC_SITE_BUNDLE_PEER_READINESS_V1"
+ROOT="${VOID_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+ALIEN="${ALIEN:-}"
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+hold(){
+  echo "$MARKER HOLD: $*" >&2
+  exit 2
+}
+
+[ -n "$ALIEN" ] || hold "missing explicit ALIEN remote SSH target"
+target_guard="$(printf '%s' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
+case "$target_guard" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    hold "retired Alienware target is forbidden"
+    ;;
+esac
+
+cd "$ROOT" || exit 1
 LOCAL_BASE="${LOCAL_BASE:-http://127.0.0.1:4100}"
 REMOTE_BASE="${REMOTE_BASE:-http://127.0.0.1:4100}"
 OUT="${OUT:-/tmp/void-public-site-bundle-peer-readiness-proof-$(date +%Y%m%d-%H%M%S)}"
