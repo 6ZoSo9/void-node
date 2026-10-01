@@ -2,17 +2,13 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import * as http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import {
-  VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_AUTHORITY_V1,
-  VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1,
-  VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1,
-} from "./void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1 =
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1";
@@ -23,6 +19,8 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     exact_qualification_bytes_required: true,
     qualification_current_head_required: true,
     canonical_source_revalidation_required: true,
+    reviewed_qualification_contract_exact_head_execution: true,
+    private_reviewed_qualification_contract_materialization: true,
     explicit_deployer_recorded_not_authorized: true,
     explicit_inventory_source_recorded_not_authorized: true,
     canonical_chain_id: "2050",
@@ -213,13 +211,13 @@ function gitSafetyArgs() {
   ];
 }
 
-function git(args, code, { allowFail = false } = {}) {
+function git(args, code, { allowFail = false, encoding = "utf8" } = {}) {
   const result = spawnSync(
     GIT,
     ["--no-replace-objects", ...gitSafetyArgs(), "-C", ROOT, ...args],
     {
       env: gitEnv(),
-      encoding: "utf8",
+      encoding,
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 32 * 1024 * 1024,
       timeout: 60_000,
@@ -290,6 +288,80 @@ function repositoryIdentity() {
   });
 }
 
+function writePrivateReviewedSource(file, bytes) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    0o400,
+  );
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, 0o400);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+async function reviewedQualificationContract(repo) {
+  const object = git(
+    ["show", repo.head + ":" + QUALIFICATION_TOOL_REL],
+    "live_deployment_preflight_qualification_contract_bytes_unavailable",
+    { encoding: null },
+  );
+  const bytes = Buffer.from(object.stdout || Buffer.alloc(0));
+  if (
+    bytes.length < 1 ||
+    bytes.length > 8 * 1024 * 1024 ||
+    gitBlobSha1(bytes) !== repo.qualification_tool_git_blob_sha1
+  ) {
+    fail("live_deployment_preflight_qualification_contract_blob_mismatch");
+  }
+
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-market-vault-live-preflight-contract-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const file = path.join(root, "qualification-contract.mjs");
+  try {
+    writePrivateReviewedSource(file, bytes);
+    const reviewed = await import(
+      pathToFileURL(file).href +
+        "?blob=" +
+        repo.qualification_tool_git_blob_sha1
+    );
+    const marker =
+      reviewed.VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1;
+    const authority =
+      reviewed.VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_AUTHORITY_V1;
+    const sourceBlobs =
+      reviewed.VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1;
+    if (
+      marker !== "VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1" ||
+      !plain(authority) ||
+      !Object.isFrozen(authority) ||
+      !plain(sourceBlobs) ||
+      !Object.isFrozen(sourceBlobs) ||
+      Object.keys(sourceBlobs).length < 1 ||
+      Object.values(sourceBlobs).some((value) => !HEX40.test(String(value)))
+    ) {
+      fail("live_deployment_preflight_qualification_contract_invalid");
+    }
+    return Object.freeze({
+      marker,
+      authority,
+      source_blobs: sourceBlobs,
+      git_blob_sha1: repo.qualification_tool_git_blob_sha1,
+      file_sha256: sha256Bytes(bytes),
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function currentFileIdentity(relativePath, expectedBlob, code) {
   const file = path.join(ROOT, relativePath);
   const bytes = fs.readFileSync(file);
@@ -338,7 +410,7 @@ function parsePrettyQualification(bytes, expectedSha) {
   return qualification;
 }
 
-function verifyQualification(bytes, expectedSha, repo) {
+function verifyQualification(bytes, expectedSha, repo, contract) {
   const q = parsePrettyQualification(bytes, expectedSha);
   exactObject(
     q,
@@ -353,7 +425,7 @@ function verifyQualification(bytes, expectedSha, repo) {
   );
 
   if (
-    q.marker !== VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1 ||
+    q.marker !== contract.marker ||
     q.version !== 1 ||
     q.status !== "QUALIFIED_DEPLOYMENT_PREPARATION_READY_NOT_AUTHORIZED" ||
     q.chain_id !== 2050 ||
@@ -364,9 +436,7 @@ function verifyQualification(bytes, expectedSha, repo) {
     q.next_gate !==
       "separately_authorized_exact_market_vault_deployment_and_inventory_lock" ||
     canonicalJson(q.authority) !==
-      canonicalJson(
-        VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_AUTHORITY_V1,
-      )
+      canonicalJson(contract.authority)
   ) {
     fail("live_deployment_preflight_qualification_semantics_invalid");
   }
@@ -426,15 +496,11 @@ function verifyQualification(bytes, expectedSha, repo) {
     !plain(source.dependency_git_blobs) ||
     !plain(source.dependency_file_sha256) ||
     canonicalJson(source.dependency_git_blobs) !==
-      canonicalJson(
-        VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1,
-      )
+      canonicalJson(contract.source_blobs)
   ) {
     fail("live_deployment_preflight_dependency_manifest_mismatch");
   }
-  const dependencyKeys = Object.keys(
-    VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1,
-  ).sort();
+  const dependencyKeys = Object.keys(contract.source_blobs).sort();
   if (
     Object.keys(source.dependency_file_sha256).sort().join("\n") !==
       dependencyKeys.join("\n")
@@ -443,9 +509,7 @@ function verifyQualification(bytes, expectedSha, repo) {
   }
   for (const relativePath of dependencyKeys) {
     const expectedBlob =
-      VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1[
-        relativePath
-      ];
+      contract.source_blobs[relativePath];
     const identity = currentFileIdentity(
       relativePath,
       expectedBlob,
@@ -779,10 +843,12 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
   let rpcPolicy;
   try {
     repo = repositoryIdentity();
+    const qualificationContract = await reviewedQualificationContract(repo);
     verifiedQualification = verifyQualification(
       input?.qualification_bytes,
       input?.qualification_file_sha256,
       repo,
+      qualificationContract,
     );
     deployer = canonicalAddress(
       input?.deployer_address,
