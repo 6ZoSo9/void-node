@@ -122,6 +122,27 @@ void_two_box_origin_host() {
   printf '%s\n' "${authority%:*}"
 }
 
+void_two_box_require_origin_matches_local() {
+  local name="${1:-origin}"
+  local value="${2:-}"
+  void_two_box_validate_http_origin "$name" "$value"
+  local origin_host local_host local_fqdn local_tsip local_tsdns matched
+  origin_host="$(void_two_box_origin_host "$value")"
+  local_host="$(/usr/bin/hostname)"
+  local_fqdn="$(/usr/bin/hostname -f 2>/dev/null || /usr/bin/hostname)"
+  local_tsip="$(/usr/bin/tailscale ip -4 2>/dev/null | head -n1 || true)"
+  local_tsdns="$(/usr/bin/tailscale status --json 2>/dev/null | /usr/bin/python3 -c 'import json,sys; x=json.load(sys.stdin); print(str((x.get("Self") or {}).get("DNSName") or "").rstrip("."))' 2>/dev/null || true)"
+  matched=0
+  for candidate in "$local_host" "$local_fqdn" "$local_tsip" "$local_tsdns"; do
+    [ -n "$candidate" ] || continue
+    if [ "${origin_host,,}" = "${candidate,,}" ]; then
+      matched=1
+      break
+    fi
+  done
+  [ "$matched" = 1 ] || void_two_box_hold "$name host does not match local host"
+}
+
 void_two_box_require_mutation_confirmation() {
   local script_path="${1:-$0}"
   local script_name expected
