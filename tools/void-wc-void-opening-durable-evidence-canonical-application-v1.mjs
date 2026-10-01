@@ -773,7 +773,17 @@ function runReviewedAuthority(repo,request,{requestFile=null,requestFileSha256=n
     },
   );
   if(result.error||result.status!==0){
-    fail("OPENING_DURABLE_APPLICATION_REVIEWED_AUTHORITY_EXECUTION_FAILED");
+    const stderr=String(result.stderr||"");
+    const tokens=stderr.match(
+      /\b(?:ERR_[A-Z0-9_]+|OPENING_[A-Z0-9_:.-]+|promotion_[A-Za-z0-9_:.-]+)/gu,
+    )||[];
+    const detail=tokens.length?tokens[tokens.length-1]:"UNCLASSIFIED";
+    const exit=Number.isInteger(result.status)?String(result.status):"null";
+    const signal=typeof result.signal==="string"?result.signal:"none";
+    fail(
+      "OPENING_DURABLE_APPLICATION_REVIEWED_AUTHORITY_EXECUTION_FAILED:"+
+      detail+":exit="+exit+":signal="+signal,
+    );
   }
   let value;
   try{
