@@ -516,14 +516,22 @@ assert.equal(
   "source_candidate_activation_contract_only_no_gate_change_authorized",
 );
 assert.equal(
-  candidate.reviewed_source_main_commit,
+  candidate.reviewed_inherited_source_main_commit,
   "eef17f65a8bd495d581df3b91d9a411a5402cde8",
 );
 assert.equal(
-  candidate.reviewed_source_blobs[
+  candidate.reviewed_candidate_generation_commit,
+  "73409836b0822d5cdcddc54735b08316c2406e45",
+);
+assert.equal(
+  candidate.reviewed_candidate_generation_tree,
+  "dd6fc701d3e0a8bfb8ba43c9f80929ec4a1863e1",
+);
+assert.equal(
+  candidate.reviewed_candidate_generation_source_blobs[
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
   ],
-  "fccf33123bbea6c7bd71d5090737506d3b4c6354",
+  "5317e9d1379b8837cb66f1655c89675f8bef7616",
 );
 assert.deepEqual(
   candidate.activation_phase_order,
@@ -580,6 +588,10 @@ for (const marker of [
   "current_phase=dormant",
   "readiness_bound=true",
   "source_blobs_bound=true",
+  "reviewed_candidate_generation_commit=73409836b0822d5cdcddc54735b08316c2406e45",
+  "reviewed_candidate_generation_tree=dd6fc701d3e0a8bfb8ba43c9f80929ec4a1863e1",
+  "repository_head_sha=",
+  "repository_tree_sha=",
   "activation_authorized=false",
   "runtime_gate_mutation=false",
   "service_mutation=false",
@@ -663,6 +675,23 @@ assert(
   toolSource.includes("reviewed_source_main_not_ancestor_of_head"),
   "reviewed source ancestry HOLD missing",
 );
+assert(
+  toolSource.includes('"status", "--porcelain=v1", "--untracked-files=all"'),
+  "clean worktree enforcement missing",
+);
+assert(
+  toolSource.includes('gitBlobAt("HEAD", relativePath)'),
+  "HEAD source blob verification missing",
+);
+assert(
+  toolSource.includes("reviewed_candidate_generation_tree_mismatch"),
+  "candidate generation tree verification missing",
+);
+assert.equal(
+  toolSource.includes('"hash-object"'),
+  false,
+  "mutable working-tree hash-object provenance is forbidden",
+);
 
 for (const forbidden of [
   "systemctl",
@@ -704,6 +733,9 @@ console.log("exact_own_data_state_green=true");
 console.log("readiness_fingerprints_bound_green=true");
 console.log("source_blob_identity_bound_green=true");
 console.log("reviewed_source_main_ancestry_green=true");
+console.log("reviewed_candidate_generation_commit_tree_green=true");
+console.log("clean_worktree_head_blob_verification_green=true");
+console.log("mutable_worktree_hash_object_provenance=false");
 console.log("runtime_gate_name_binding_green=true");
 console.log("focused_workflow_self_enforcement_green=true");
 console.log("focused_proof_typecheck_green=true");
