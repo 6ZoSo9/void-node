@@ -20,7 +20,7 @@ hold(){
 
 valid_ssh_target(){
   local target="$1"
-  [[ "$target" =~ ^([A-Za-z0-9._-]+@)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+  [[ "$target" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
 }
 
 require_crossbox_source_parity(){
