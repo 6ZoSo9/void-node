@@ -98,7 +98,7 @@ export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1=
     [PACKAGE_LOCK_REL]:"b2671f0149f522b2489247016df0a5ec4bb72b8b",
     [REVIEWED_RUNTIME_TOOL_REL]:"6475c3f18ffe566cf5f448ca1de4795391a6efde",
     [REVIEWED_RUNTIME_PROFILE_REL]:"87b650e28366acfea3d140ea7778f41f57e5b0c3",
-    [REVIEWED_RUNTIME_BRIDGE_REL]:"64f60ed90d9dd237bf31c46bbfbb82a17d722521",
+    [REVIEWED_RUNTIME_BRIDGE_REL]:"5ecc2670a5e75344dc0929e81c9746741d59acff",
   });
 
 const PLAN_ID=/^voidwcmvcap1_[0-9a-f]{64}$/u;
@@ -414,16 +414,30 @@ function parseBridgeResult(execution,operation){
   catch{fail("MARKET_VAULT_REVIEWED_RUNTIME_STDOUT_JSON_INVALID");}
   exactObject(
     envelope,
-    ["marker","version","operation","result"],
+    ["marker","version","operation","ok","result","error"],
     "MARKET_VAULT_REVIEWED_RUNTIME_OUTPUT_SHAPE_INVALID",
   );
   if(
     envelope.marker!==REVIEWED_RUNTIME_BRIDGE_MARKER||
     envelope.version!==1||
     envelope.operation!==operation||
-    !plain(envelope.result)
+    typeof envelope.ok!=="boolean"
   ){
     fail("MARKET_VAULT_REVIEWED_RUNTIME_OUTPUT_INVALID");
+  }
+  if(envelope.ok===false){
+    if(
+      envelope.result!==null||
+      typeof envelope.error!=="string"||
+      envelope.error.length<1||
+      envelope.error.length>512
+    ){
+      fail("MARKET_VAULT_REVIEWED_RUNTIME_ERROR_OUTPUT_INVALID");
+    }
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_CHILD_ERROR:"+envelope.error);
+  }
+  if(!plain(envelope.result)||envelope.error!==null){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_SUCCESS_OUTPUT_INVALID");
   }
   return envelope.result;
 }
