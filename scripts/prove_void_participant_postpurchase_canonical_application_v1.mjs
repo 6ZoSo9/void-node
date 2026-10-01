@@ -990,6 +990,10 @@ for (const required of [
   "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_EXECUTION_FAILED",
   "makeParticipantReviewedExecutionTreeReadOnlyV1",
   "makeParticipantReviewedExecutionTreeRemovableV1",
+  "O_NOFOLLOW",
+  "O_DIRECTORY",
+  "fstatSync",
+  "fchmodSync",
   "isSymbolicLink",
   "participant_reviewed_execution_cleanup_failed",
   "reviewed_execution_bundle_id",
@@ -1016,6 +1020,7 @@ console.log("execution_child_process_required_for_reviewed_git=true");
 console.log("execution_network_isolation_provided=false");
 console.log("hostile_ambient_execution_env_ignored=true");
 console.log("reviewed_execution_symlink_boundary_green=true");
+console.log("reviewed_execution_chmod_descriptor_bound=true");
 console.log("focused_workflow_trigger_symmetry_green=true");
 console.log("raw_empty_catch_count=0");
 console.log("exact_one_gate_source_delta=true");
