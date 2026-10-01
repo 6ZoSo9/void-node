@@ -9,6 +9,8 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1,
+  type BuyVoidPostgresActivationGateStateV1,
+  type BuyVoidPostgresActivationPhaseV1,
   classifyBuyVoidPostgresActivationPhaseV1,
   decideBuyVoidPostgresActivationTransitionV1,
   normalizeBuyVoidPostgresActivationGateStateV1,
@@ -140,6 +142,43 @@ const expectedForwardGates = [
   "full_runtime_apply",
 ] as const;
 
+const ATOMIC_GENERATION_ID =
+  "voidbvpcg1_" + "1".repeat(64);
+const ATOMIC_CONFIGURATION_SHA256 = "2".repeat(64);
+
+function atomicConfigurationGeneration(
+  state: BuyVoidPostgresActivationGateStateV1,
+  {
+    generationId = ATOMIC_GENERATION_ID,
+    configurationSha256 = ATOMIC_CONFIGURATION_SHA256,
+  }: {
+    generationId?: string;
+    configurationSha256?: string;
+  } = {},
+) {
+  const gate = (
+    key:
+      | "claimed_runtime"
+      | "full_runtime"
+      | "admitted_guarded_runtime"
+      | "full_runtime_apply",
+  ) => ({
+    value: state[key],
+    generation_id: generationId,
+    configuration_sha256: configurationSha256,
+  });
+  return {
+    generation_id: generationId,
+    configuration_sha256: configurationSha256,
+    gates: {
+      claimed_runtime: gate("claimed_runtime"),
+      full_runtime: gate("full_runtime"),
+      admitted_guarded_runtime: gate("admitted_guarded_runtime"),
+      full_runtime_apply: gate("full_runtime_apply"),
+    },
+  };
+}
+
 for (
   let index = 0;
   index <
@@ -150,11 +189,13 @@ for (
   const fromName =
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1[
       index
-    ];
+    ] as BuyVoidPostgresActivationPhaseV1;
   const toName =
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1[
       index + 1
-    ];
+    ] as BuyVoidPostgresActivationPhaseV1;
+  const expectedGate =
+    expectedForwardGates[index] as (typeof expectedForwardGates)[number];
   const forward = decideBuyVoidPostgresActivationTransitionV1(
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1[
       fromName
@@ -167,7 +208,7 @@ for (
   if (forward.ok) {
     assert.equal(forward.status, "forward");
     assert.equal(forward.mode, "staged");
-    assert.deepEqual(forward.changed_gates, [expectedForwardGates[index]]);
+    assert.deepEqual(forward.changed_gates, [expectedGate]);
     assert.equal(forward.requires_process_restart, true);
     assert.equal(forward.money_capable_after, toName === "live_apply");
   }
@@ -184,7 +225,7 @@ for (
   if (rollback.ok) {
     assert.equal(rollback.status, "rollback");
     assert.equal(rollback.mode, "staged");
-    assert.deepEqual(rollback.changed_gates, [expectedForwardGates[index]]);
+    assert.deepEqual(rollback.changed_gates, [expectedGate]);
     assert.equal(rollback.requires_process_restart, true);
     assert.equal(rollback.money_capable_after, false);
   }
@@ -230,10 +271,15 @@ for (const [from, to] of forbiddenJumps) {
   }
 }
 
+const atomicForwardGeneration =
+  atomicConfigurationGeneration(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+  );
 const atomicForward = decideBuyVoidPostgresActivationTransitionV1(
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
   "atomic_restart",
+  atomicForwardGeneration,
 );
 assert.equal(atomicForward.ok, true);
 if (atomicForward.ok) {
@@ -242,12 +288,29 @@ if (atomicForward.ok) {
   assert.deepEqual(atomicForward.changed_gates, expectedForwardGates);
   assert.equal(atomicForward.requires_process_restart, true);
   assert.equal(atomicForward.money_capable_after, true);
+  assert.equal(
+    atomicForward.configuration_generation_id,
+    ATOMIC_GENERATION_ID,
+  );
+  assert.equal(
+    atomicForward.configuration_sha256,
+    ATOMIC_CONFIGURATION_SHA256,
+  );
 }
 
+const atomicRollbackGeneration =
+  atomicConfigurationGeneration(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+    {
+      generationId: "voidbvpcg1_" + "3".repeat(64),
+      configurationSha256: "4".repeat(64),
+    },
+  );
 const atomicRollback = decideBuyVoidPostgresActivationTransitionV1(
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
   "atomic_restart",
+  atomicRollbackGeneration,
 );
 assert.equal(atomicRollback.ok, true);
 if (atomicRollback.ok) {
@@ -256,6 +319,84 @@ if (atomicRollback.ok) {
   assert.deepEqual(atomicRollback.changed_gates, expectedForwardGates);
   assert.equal(atomicRollback.requires_process_restart, true);
   assert.equal(atomicRollback.money_capable_after, false);
+  assert.equal(
+    atomicRollback.configuration_generation_id,
+    atomicRollbackGeneration.generation_id,
+  );
+  assert.equal(
+    atomicRollback.configuration_sha256,
+    atomicRollbackGeneration.configuration_sha256,
+  );
+}
+
+const missingAtomicGeneration =
+  decideBuyVoidPostgresActivationTransitionV1(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+    "atomic_restart",
+  );
+assert.equal(missingAtomicGeneration.ok, false);
+if (!missingAtomicGeneration.ok) {
+  assert.equal(
+    missingAtomicGeneration.reason,
+    "atomic_restart_configuration_generation_invalid",
+  );
+}
+
+{
+  const mixed = structuredClone(atomicForwardGeneration);
+  mixed.gates.full_runtime.generation_id =
+    "voidbvpcg1_" + "5".repeat(64);
+  const decision = decideBuyVoidPostgresActivationTransitionV1(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+    "atomic_restart",
+    mixed,
+  );
+  assert.equal(decision.ok, false);
+  if (!decision.ok) {
+    assert.equal(
+      decision.reason,
+      "atomic_restart_mixed_configuration_generation",
+    );
+  }
+}
+
+{
+  const mixed = structuredClone(atomicForwardGeneration);
+  mixed.gates.admitted_guarded_runtime.configuration_sha256 =
+    "6".repeat(64);
+  const decision = decideBuyVoidPostgresActivationTransitionV1(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+    "atomic_restart",
+    mixed,
+  );
+  assert.equal(decision.ok, false);
+  if (!decision.ok) {
+    assert.equal(
+      decision.reason,
+      "atomic_restart_mixed_configuration_generation",
+    );
+  }
+}
+
+{
+  const wrongValue = structuredClone(atomicForwardGeneration);
+  wrongValue.gates.full_runtime_apply.value = "0";
+  const decision = decideBuyVoidPostgresActivationTransitionV1(
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
+    "atomic_restart",
+    wrongValue,
+  );
+  assert.equal(decision.ok, false);
+  if (!decision.ok) {
+    assert.equal(
+      decision.reason,
+      "atomic_restart_configuration_gate_values_mismatch",
+    );
+  }
 }
 
 const invalidMode = decideBuyVoidPostgresActivationTransitionV1(
@@ -550,6 +691,10 @@ console.log("staged_rollback_clears_apply_first_green=true");
 console.log("staged_direct_live_apply_jump_forbidden_green=true");
 console.log("atomic_dormant_live_apply_transition_green=true");
 console.log("atomic_live_apply_dormant_rollback_green=true");
+console.log("atomic_single_configuration_generation_enforced_green=true");
+console.log("atomic_mixed_generation_id_held_green=true");
+console.log("atomic_mixed_configuration_digest_held_green=true");
+console.log("atomic_target_gate_values_bound_green=true");
 console.log("non_atomic_multi_gate_transition_forbidden_green=true");
 console.log("invalid_transition_mode_held_green=true");
 console.log("unsafe_apply_state_rejected_green=true");
