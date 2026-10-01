@@ -50,10 +50,11 @@ The CLI reads one closed JSON object from standard input:
     {
       "number": 2290,
       "title": "example",
+      "state": "open",
       "draft": true,
       "head_sha": "<40-char lowercase SHA>",
       "base_sha": "<40-char lowercase SHA>",
-      "updated_at": "2026-10-01T19:20:12.000Z",
+      "updated_at": "2026-10-01T19:20:12Z",
       "changed_paths": [
         "tools/example.mjs"
       ]
@@ -62,7 +63,7 @@ The CLI reads one closed JSON object from standard input:
 }
 ```
 
-Every PR entry must explicitly declare `state: "open"`; closed/merged PR evidence is rejected. Open PR numbers must be unique. Each changed path must be repository-relative, normalized, and unique within the PR. Input is bounded to 4 MiB, at most 250 open PRs, and at most 500 changed paths per PR.
+Every PR entry must explicitly declare `state: "open"`; closed/merged PR evidence is rejected. GitHub UTC timestamps are accepted in their canonical second form (`...Z`) or canonical millisecond form (`...sssZ`). Open PR numbers must be unique. Each changed path must be repository-relative, normalized, and unique within the PR. Input is bounded to 4 MiB, at most 250 open PRs, and at most 500 changed paths per PR.
 
 The live-dispatch policy is read from:
 
