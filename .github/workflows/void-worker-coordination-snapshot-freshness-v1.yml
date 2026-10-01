@@ -9,6 +9,10 @@ on:
       - "tools/void-worker-coordination-live-dispatch-v1.mjs"
       - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
       - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
+      - "tools/void-coordination-successor-chain-v1.mjs"
+      - "tools/void-coordination-rotation-snapshot-v1.mjs"
+      - "scripts/prove_void_coordination_rotation_snapshot_v1.mjs"
+      - "docs/operations/void-coordination-rotation-snapshot-v1.md"
   push:
     branches:
       - main
@@ -19,6 +23,10 @@ on:
       - "tools/void-worker-coordination-live-dispatch-v1.mjs"
       - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
       - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
+      - "tools/void-coordination-successor-chain-v1.mjs"
+      - "tools/void-coordination-rotation-snapshot-v1.mjs"
+      - "scripts/prove_void_coordination_rotation_snapshot_v1.mjs"
+      - "docs/operations/void-coordination-rotation-snapshot-v1.md"
   workflow_dispatch:
 
 permissions:
@@ -45,10 +53,14 @@ jobs:
           node --check tools/void-worker-coordination-live-dispatch-v1.mjs
           node --check scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
           node --check scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
+          node --check tools/void-coordination-rotation-snapshot-v1.mjs
+          node --check scripts/prove_void_coordination_rotation_snapshot_v1.mjs
           node --check scripts/prove_void_worker_coordination_v3.mjs
       - name: Prove snapshot freshness
         run: node scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
       - name: Prove live dispatch
         run: node scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
+      - name: Prove rotation preparation snapshot
+        run: node scripts/prove_void_coordination_rotation_snapshot_v1.mjs
       - name: Prove complete Coordination V3 wall
         run: node scripts/prove_void_worker_coordination_v3.mjs
