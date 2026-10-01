@@ -4,6 +4,7 @@ set +H
 set +o histexpand
 
 ALIEN="${ALIEN:-}"
+LOCAL_BASE="${LOCAL_BASE:-}"
 REMOTE_BASE="${REMOTE_BASE:-}"
 
 MARKER="VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1"
@@ -11,10 +12,12 @@ MARKER="VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/lib/void-two-box-legacy-proof-admission-v1.sh"
 void_two_box_validate_ssh_destination "${ALIEN:-}"
+void_two_box_validate_http_origin "LOCAL_BASE" "${LOCAL_BASE:-}"
 void_two_box_validate_http_origin "REMOTE_BASE" "${REMOTE_BASE:-}"
-void_two_box_guard_retired "${ALIEN:-}" "${REMOTE_BASE:-}"
+void_two_box_guard_retired "${ALIEN:-}" "${LOCAL_BASE:-}" "${REMOTE_BASE:-}"
 void_two_box_require_mutation_confirmation "$0"
 void_two_box_require_source_parity_and_bind_remote "$ALIEN" "$REMOTE_BASE"
+void_two_box_require_origin_matches_local "LOCAL_BASE" "$LOCAL_BASE"
 
 require_explicit() {
   local name="$1"
