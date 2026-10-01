@@ -258,11 +258,12 @@ It binds:
 
 - inherited runtime source to reviewed main commit
   `eef17f65a8bd495d581df3b91d9a411a5402cde8`;
-- the new activation-contract source to reviewed candidate-generation commit
-  `73409836b0822d5cdcddc54735b08316c2406e45` and tree
-  `dd6fc701d3e0a8bfb8ba43c9f80929ec4a1863e1`;
+- a squash-safe candidate-source review base at commit
+  `cc5e9790e02e188b3e3878fe7cc9c9a9dd11b376` and tree
+  `f06b9a1504050cb959a6e6a5197f5a15daa50c79`;
 - exact Git blobs for the mounted parent/full-runtime/claimed/admitted source
-  slice and the activation-contract source;
+  slice and the activation-contract source, with the activation-contract blob
+  required to match the clean evaluated `HEAD`;
 - full-runtime policy fingerprint;
 - runtime policy fingerprint;
 - preparation policy fingerprint;
@@ -274,15 +275,23 @@ It binds:
 - the observed dormant gate state.
 
 The candidate verifier requires a clean worktree. It verifies the inherited
-runtime blobs at the reviewed main commit, verifies the activation-contract blob
-and tree at the reviewed candidate-generation commit, requires both reviewed
-commits to be ancestors of the evaluated `HEAD`, and then verifies the same
-exact blobs through `git rev-parse HEAD:<path>`. It reports the evaluated
-repository HEAD/tree as verification evidence. Mutable working-tree
-`git hash-object` output is not provenance authority.
+runtime blobs at the reviewed inherited-source commit and requires that commit
+to be an ancestor of the evaluated `HEAD`. For candidate-specific source, it
+requires the review-base commit/tree to be an ancestor anchor and verifies the
+reviewed activation-contract blob directly through
+`git rev-parse HEAD:<path>`.
 
-A checkout with copied matching files, dirty source bytes, or no reviewed
-lineage therefore cannot claim the candidate provenance.
+This split is deliberate and squash-safe: the review base proves where the
+candidate-source review began, while the exact clean-HEAD blob proves the source
+bytes actually under review. The verifier does not require those changed bytes
+to have existed in the pre-change review-base commit, which would make a
+squash-merged source change impossible to represent without a future/self-
+referential commit identity.
+
+The verifier reports the evaluated repository HEAD/tree as evidence. Mutable
+working-tree `git hash-object` output is not provenance authority. A checkout
+with copied matching files, dirty source bytes, a non-ancestor review base, or
+unreviewed HEAD source bytes therefore cannot claim the candidate provenance.
 
 A green candidate means only:
 
