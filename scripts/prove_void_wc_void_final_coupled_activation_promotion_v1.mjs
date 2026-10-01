@@ -295,7 +295,7 @@ for (const key of [
   "public_presale_activation_authorized",
   "funds_movement_authorized",
 ]) {
-  assert.equal(promotion[key], false, key);
+  assert.equal(preview[key], false, key);
 }
 
 assert.throws(
