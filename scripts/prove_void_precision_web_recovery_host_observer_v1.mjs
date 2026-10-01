@@ -159,13 +159,13 @@ const accepted = evaluateCollectedPrecisionWebObservationV1({
 assert.equal(accepted.marker, MARKER);
 assert.equal(
   accepted.status,
-  "PRECISION_WEB_RECOVERY_HOST_OBSERVATION_ACCEPTED",
+  "PRECISION_WEB_RECOVERY_HOST_OBSERVATION_STRUCTURALLY_VERIFIED_LIVE_RUN_REQUIRED",
 );
 assert.equal(accepted.hostname, DEFAULT_EXPECTED_HOSTNAME);
 assert.equal(accepted.plan_id, plan.plan_id);
 assert.match(accepted.recovery_evidence_id, /^voidpwre1_[0-9a-f]{64}$/u);
 assert.match(accepted.observation_id, /^voidpwro1_[0-9a-f]{64}$/u);
-assert.equal(accepted.live_host_observation_performed, true);
+assert.equal(accepted.live_host_observation_performed, false);
 assert.equal(accepted.services_active_and_exact, true);
 assert.equal(accepted.loopback_listeners_exact, true);
 assert.equal(accepted.running_source_bytes_bound, true);
@@ -178,7 +178,7 @@ assert.equal(accepted.tailscale_funnel_stable_during_observation, true);
 assert.equal(accepted.observer_read_only, true);
 assert.equal(accepted.negative_action_scope, "observer_process_only");
 assert.equal(accepted.historical_mutation_absence_not_inferred, true);
-assert.equal(accepted.independent_host_acceptance, true);
+assert.equal(accepted.independent_host_acceptance, false);
 assert.equal(accepted.ingress_activation_authorized, false);
 assert.equal(accepted.service_mutation_authorized, false);
 assert.equal(accepted.routing_mutation_authorized, false);
