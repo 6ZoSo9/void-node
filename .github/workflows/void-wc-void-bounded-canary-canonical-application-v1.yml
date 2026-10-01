@@ -17,6 +17,34 @@ on:
       - "tools/void-wc-void-production-readiness-v1.mjs"
       - "tools/void-coupled-economic-successor-gate-v1.mjs"
       - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-evidence-v1.mjs"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-v1.mjs"
       - "package.json"
       - "package-lock.json"
   push:
@@ -36,6 +64,34 @@ on:
       - "tools/void-wc-void-production-readiness-v1.mjs"
       - "tools/void-coupled-economic-successor-gate-v1.mjs"
       - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-evidence-v1.mjs"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-v1.mjs"
       - "package.json"
       - "package-lock.json"
 
@@ -45,7 +101,7 @@ permissions:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -68,7 +124,7 @@ jobs:
           node --check scripts/prove_void_wc_void_bounded_canary_canonical_application_v1.mjs
       - name: Prove canonical bounded-canary application
         run: node scripts/prove_void_wc_void_bounded_canary_canonical_application_v1.mjs
-      - name: Upstream promotion and classifier regressions
+      - name: Upstream semantic, promotion, and classifier regressions
         run: |
           node scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs
           node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
