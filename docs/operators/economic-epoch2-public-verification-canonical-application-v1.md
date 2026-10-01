@@ -27,7 +27,7 @@ Prepare consumes exact bytes plus independent SHA-256 values for:
 - the #2260 composition receipt;
 - the #2260 derived successor candidate.
 
-It also consumes the exact public-read evidence ID, evaluation time, registry address, publisher address, and #2260 review confirmation token.
+It also consumes the exact public-read evidence ID, evaluation time, registry address, publisher address, and #2260 review confirmation token. Those reviewed inputs and the exact #2260 composition receipt object are retained in the application plan so post-application replay can require equality rather than trusting summary IDs.
 
 Self-consistent caller-created receipt/candidate bytes are insufficient. Prepare re-executes #2260 from the upstream evidence set and requires exact semantic equality with both supplied artifacts.
 
@@ -44,7 +44,11 @@ The application tool binds:
 
 Git replacement-object semantics are disabled.
 
-To avoid "verified blob, mutable executed file" races, prepare materializes the exact reviewed HEAD tree through `git archive`, attaches it read-only to the repository object database, and executes #2260 plus the migration classifier from that reviewed tree. #2260 then performs its own exact reviewed-object execution for the public-read and state-root promotion dependencies.
+To avoid "verified blob, mutable executed file" races, prepare materializes the exact reviewed HEAD tree through `git archive` and executes #2260 plus the migration classifier from that reviewed tree. The materialization contains a private detached Git metadata view whose `HEAD` and index are pinned to the reviewed commit/tree and whose object database is read-only-linked through Git alternates to the canonical repository objects. It does **not** point its `.git` metadata at the moving canonical checkout.
+
+That distinction matters after application: current `main` may already contain the promoted successor candidate, while semantic replay must still execute #2260 against the original false-gate base generation. The detached base Git view makes that replay deterministic without checking out, resetting, or mutating the canonical repository.
+
+#2260 then performs its own exact reviewed-object execution for the public-read and state-root promotion dependencies.
 
 ## Exact source delta
 
@@ -106,15 +110,31 @@ node tools/void-economic-epoch2-public-verification-canonical-application-v1.mjs
 
 A later Git source change must be reviewed separately and set the canonical successor file to the plan's exact target bytes.
 
-After that reviewed commit is on canonical `main`:
+After that reviewed commit is on canonical `main`, verify-applied must be given the original reviewed upstream evidence again:
 
 ```bash
 node tools/void-economic-epoch2-public-verification-canonical-application-v1.mjs verify-applied \
   --plan /absolute/application-plan.json \
-  --plan-sha256 <64hex>
+  --plan-sha256 <64hex> \
+  --public-read-evidence /absolute/public-read.json \
+  --public-read-sha256 <64hex> \
+  --public-read-evidence-id voide2pre1_<64hex> \
+  --evaluation-time-utc <same-reviewed-UTC> \
+  --state-root-membership /absolute/membership.json \
+  --membership-sha256 <64hex> \
+  --registry 0x... \
+  --publisher 0x... \
+  --confirmation importReviewedRealFinalizedStateRootMembershipV1
 ```
 
-Verify-applied requires the plan base to be an ancestor, the canonical successor blob to equal the plan target exactly, and the application/composition/classifier source blobs to remain the reviewed versions.
+A plan is content-addressed for integrity, but its self-hash is **not semantic authority**. Verify-applied therefore:
+
+1. reopens the plan's exact base commit/tree in a private detached Git view;
+2. re-executes merged #2260 from the exact public-read evidence, finalized-membership bytes, evaluation time, registry, publisher, and review confirmation;
+3. requires the rederived composition receipt, composition ID, state-root promotion ID, and final successor candidate to equal the plan exactly;
+4. only then checks that canonical current `main` contains that exact target successor blob and that the application/composition/classifier source lineage has not drifted.
+
+A caller-created self-consistent plan cannot substitute for the upstream semantic evidence.
 
 ## Evidence size boundary
 
