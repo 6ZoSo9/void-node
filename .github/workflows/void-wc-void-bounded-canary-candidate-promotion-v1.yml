@@ -1,0 +1,128 @@
+name: VOID WC/VOID bounded-canary candidate promotion v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml"
+      - "docs/operators/wc-void-bounded-canary-candidate-promotion-v1.md"
+      - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
+      - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-evidence-v1.mjs"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-v1.mjs"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml"
+      - "docs/operators/wc-void-bounded-canary-candidate-promotion-v1.md"
+      - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
+      - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-evidence-v1.mjs"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-v1.mjs"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax
+        run: |
+          node --check tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs
+          node --check scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
+      - name: Prove bounded-canary candidate promotion
+        run: node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
+      - name: Upstream classifier regressions
+        run: |
+          node scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs
+          node scripts/prove_void_wc_void_production_readiness_v1.mjs
+          node scripts/prove_void_coupled_economic_successor_gate_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

@@ -27,6 +27,7 @@ import {
   parseCanonicalGitHubRepositoryRemote,
   parseLiveOriginHeads,
   parseWorktreePorcelain,
+  processReferenceReasonsForSnapshotV1,
   sha256Bytes,
   validatePolicy,
 } from "../tools/void-active-lane-registry-v1.mjs";
@@ -92,6 +93,51 @@ assert.equal(MAX_REMOTE_PRE_PR_FUTURE_SKEW_SECONDS, 300);
 assert.equal(ORIGIN_HEAD_QUERY_TIMEOUT_MS, 15000);
 assert.equal(REMOTE_PRE_PR_FRESHNESS_BASIS, "head_committer_epoch");
 assert.equal(compiled.remote_pre_pr_freshness_seconds, 1800);
+
+assert.deepEqual(
+  processReferenceReasonsForSnapshotV1({
+    targetPath: "/tmp/void-lane",
+    cwd: "/tmp",
+    root: "/",
+    exe: "/usr/bin/node",
+    argv: ["/usr/bin/node", "/tmp/void-lane/tools/worker.mjs"],
+    fdTargets: [],
+  }),
+  ["argv"],
+);
+assert.deepEqual(
+  processReferenceReasonsForSnapshotV1({
+    targetPath: "/tmp/void-lane",
+    cwd: "/tmp",
+    root: "/",
+    exe: "/usr/bin/node",
+    argv: ["/usr/bin/node", "/tmp/unrelated/worker.mjs"],
+    fdTargets: ["/tmp/void-lane/.git/index"],
+  }),
+  ["fd"],
+);
+assert.deepEqual(
+  processReferenceReasonsForSnapshotV1({
+    targetPath: "/tmp/void-lane",
+    cwd: "/tmp/void-lane",
+    root: "/",
+    exe: "/tmp/void-lane/bin/helper",
+    argv: ["/tmp/void-lane/bin/helper"],
+    fdTargets: ["/tmp/void-lane/state.lock (deleted)"],
+  }),
+  ["argv", "cwd", "exe", "fd"],
+);
+assert.deepEqual(
+  processReferenceReasonsForSnapshotV1({
+    targetPath: "/tmp/void-lane",
+    cwd: "/tmp/void-lane-other",
+    root: "/",
+    exe: "/usr/bin/node",
+    argv: ["/usr/bin/node", "/tmp/void-lane-other/worker.mjs"],
+    fdTargets: ["/tmp/void-lane-other/file"],
+  }),
+  [],
+);
 
 const repositoryPolicy = JSON.parse(readFileSync(
   new URL("../ops/coordination/active-lane-reservations-v1.json", import.meta.url),
@@ -877,5 +923,6 @@ console.log("origin_head_query_timeout_green=true");
 console.log("live_origin_head_parser_green=true");
 console.log("live_origin_head_parity_green=true");
 console.log("worktree_porcelain_parser_green=true");
+console.log("external_process_reference_guard_green=true");
 console.log("canonical_output_green=true");
 console.log("VOID_ACTIVE_LANE_COORDINATION_REGISTRY_V1_PROOF_GREEN=true");
