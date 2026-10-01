@@ -43,6 +43,8 @@ assert.deepEqual(profile.root_packages,["ethers"]);
 assert.match(profile.profile_id,/^voidrnpr1_[0-9a-f]{64}$/u);
 assert.match(profile.packages_aggregate_sha256,/^[0-9a-f]{64}$/u);
 assert.equal(profile.package_count,expectedPackages.length);
+assert(Number.isSafeInteger(profile.total_file_count)&&profile.total_file_count>0);
+assert(Number.isSafeInteger(profile.total_bytes)&&profile.total_bytes>0);
 assert.deepEqual(
   profile.packages.map(row=>row.name).sort(),
   expectedPackages,
@@ -138,7 +140,7 @@ try{
     entry,
     [
       'import { version, Wallet, TypedDataEncoder } from "ethers";',
-      'const out={version,wallet:typeof Wallet,typed:typeof TypedDataEncoder};',
+      'const out={version,wallet:typeof Wallet,typed:typeof TypedDataEncoder,resolved:import.meta.resolve("ethers")};',
       'console.log(JSON.stringify(out));',
       "",
     ].join("\n"),
@@ -160,6 +162,12 @@ try{
   assert.equal(probe.version,"6.17.0");
   assert.equal(probe.wallet,"function");
   assert.equal(probe.typed,"function");
+  assert.ok(
+    probe.resolved.startsWith(
+      new URL("./node_modules/ethers/",new URL("file://"+destination+"/")).href,
+    ),
+    probe.resolved,
+  );
 
   const ethersRow=profile.packages.find(row=>row.name==="ethers");
   assert(ethersRow);
