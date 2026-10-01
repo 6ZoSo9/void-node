@@ -69,6 +69,10 @@ const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
 export const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+const COUPLED_CANDIDATE_REL =
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const REVIEWED_COUPLED_CANDIDATE_GIT_BLOB_SHA1 =
+  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
 const MAX_INPUT_BYTES = 1024 * 1024;
 const MAX_TRACKED_INTENTS = 1_000_000;
 const MAX_SIGNED_INTENT_GAS_LIMIT =
@@ -225,6 +229,15 @@ function digest(value) {
 
 function sha256Bytes(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function gitBlobSha1(value) {
+  const header = Buffer.from("blob " + value.length + "\0", "utf8");
+  return crypto
+    .createHash("sha1")
+    .update(header)
+    .update(value)
+    .digest("hex");
 }
 
 function prettyBytes(value) {
@@ -579,6 +592,7 @@ function validateSponsor(raw, launchId, window, ttl) {
 }
 
 export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw) {
+  const canonicalLaunchSource = canonicalLaunchSourceBinding();
   const input = exactObject(
     raw,
     INPUT_KEYS,
@@ -588,7 +602,10 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw) {
     input.coupled_launch_id,
     "COUPLED_LAUNCH_POLICY_BUNDLE_LAUNCH_ID_INVALID",
   );
-  if (launchId !== VOID_WC_VOID_COUPLED_LAUNCH_ID_V1) {
+  if (
+    launchId !== VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 ||
+    launchId !== canonicalLaunchSource.coupled_launch_id
+  ) {
     fail("COUPLED_LAUNCH_POLICY_BUNDLE_CANONICAL_LAUNCH_ID_MISMATCH");
   }
   const generation = canonicalGeneration(
@@ -647,6 +664,7 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw) {
     minimum_depth_policy: depth,
     intent_ttl_caps_policy: ttl,
     sponsored_execution_policy: sponsor,
+    canonical_launch_source: canonicalLaunchSource,
     source_contract_ids: Object.freeze({
       concentration_sybil:
         VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT
@@ -687,6 +705,123 @@ function outsideRepository(file) {
   );
 }
 
+function fsyncDirectory(directory) {
+  const fd = fs.openSync(directory, fs.constants.O_RDONLY);
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function readStableDirectFile(
+  file,
+  label,
+  { maxBytes, requirePrivateOwner = false } = {},
+) {
+  const real = fs.realpathSync.native(file);
+  if (real !== file) fail(label + "_PATH_ALIAS_FORBIDDEN");
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.size < 2 ||
+      before.size > maxBytes
+    ) {
+      fail(label + "_NOT_DIRECT_BOUNDED_REGULAR");
+    }
+    if (
+      requirePrivateOwner &&
+      typeof process.getuid === "function" &&
+      before.uid !== process.getuid()
+    ) {
+      fail(label + "_OWNER_MISMATCH");
+    }
+    if (requirePrivateOwner && (before.mode & 0o077) !== 0) {
+      fail(label + "_PERMISSIONS_TOO_BROAD");
+    }
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (count <= 0) fail(label + "_SHORT_READ");
+      offset += count;
+    }
+    const after = fs.fstatSync(fd);
+    for (const key of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
+      if (before[key] !== after[key]) fail(label + "_CHANGED_DURING_READ");
+    }
+    if (
+      requirePrivateOwner &&
+      (
+        after.uid !== before.uid ||
+        (after.mode & 0o077) !== 0
+      )
+    ) {
+      fail(label + "_CHANGED_DURING_READ");
+    }
+    return Object.freeze({
+      bytes,
+      stat: Object.freeze({
+        dev: after.dev,
+        ino: after.ino,
+        size: after.size,
+        uid: after.uid,
+        mode: after.mode,
+      }),
+    });
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function canonicalLaunchSourceBinding() {
+  const file = path.join(REPO_ROOT, COUPLED_CANDIDATE_REL);
+  const source = readStableDirectFile(
+    file,
+    "COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE",
+    { maxBytes: MAX_INPUT_BYTES },
+  );
+  const blobSha1 = gitBlobSha1(source.bytes);
+  if (blobSha1 !== REVIEWED_COUPLED_CANDIDATE_GIT_BLOB_SHA1) {
+    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_BLOB_MISMATCH");
+  }
+  let candidate;
+  try {
+    candidate = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(source.bytes),
+    );
+  } catch {
+    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_JSON_INVALID");
+  }
+  const launchId =
+    candidate?.shared_post_discovery_reconciliation?.coupled_launch_id;
+  if (
+    candidate?.marker !== "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1" ||
+    candidate?.version !== 1 ||
+    candidate?.chain_id !== 2050 ||
+    launchId !== VOID_WC_VOID_COUPLED_LAUNCH_ID_V1
+  ) {
+    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_LAUNCH_ID_MISMATCH");
+  }
+  return Object.freeze({
+    path: COUPLED_CANDIDATE_REL,
+    git_blob_sha1: blobSha1,
+    file_sha256: sha256Bytes(source.bytes),
+    coupled_launch_id: launchId,
+  });
+}
+
 function readPrivateJson(file, label) {
   if (
     typeof file !== "string" ||
@@ -696,25 +831,12 @@ function readPrivateJson(file, label) {
   ) {
     fail(label + "_PATH_INVALID");
   }
-  const real = fs.realpathSync.native(file);
-  if (real !== file) fail(label + "_PATH_ALIAS_FORBIDDEN");
-  const stat = fs.lstatSync(file);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.size < 2 ||
-    stat.size > MAX_INPUT_BYTES
-  ) {
-    fail(label + "_NOT_DIRECT_BOUNDED_REGULAR");
-  }
-  if (
-    typeof process.getuid === "function" &&
-    stat.uid !== process.getuid()
-  ) {
-    fail(label + "_OWNER_MISMATCH");
-  }
-  if ((stat.mode & 0o077) !== 0) fail(label + "_PERMISSIONS_TOO_BROAD");
-  const bytes = fs.readFileSync(file);
+  const source = readStableDirectFile(
+    file,
+    label,
+    { maxBytes: MAX_INPUT_BYTES, requirePrivateOwner: true },
+  );
+  const bytes = source.bytes;
   let value;
   try {
     value = JSON.parse(
@@ -754,6 +876,7 @@ function writePrivateJson(file, value) {
   }
   const bytes = prettyBytes(value);
   let fd;
+  let createdStat;
   try {
     fd = fs.openSync(
       file,
@@ -764,21 +887,26 @@ function writePrivateJson(file, value) {
       0o600,
     );
     fs.writeFileSync(fd, bytes);
-    fs.fsyncSync(fd);
     fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+    createdStat = fs.fstatSync(fd);
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }
-  const stat = fs.lstatSync(file);
+  fsyncDirectory(parent);
+  const persistedSource = readStableDirectFile(
+    file,
+    "COUPLED_LAUNCH_POLICY_OUTPUT",
+    { maxBytes: MAX_INPUT_BYTES, requirePrivateOwner: true },
+  );
   if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    (stat.mode & 0o777) !== 0o600
+    persistedSource.stat.dev !== createdStat.dev ||
+    persistedSource.stat.ino !== createdStat.ino ||
+    (persistedSource.stat.mode & 0o777) !== 0o600
   ) {
     fail("COUPLED_LAUNCH_POLICY_OUTPUT_IDENTITY_INVALID");
   }
-  const persisted = fs.readFileSync(file);
-  if (!persisted.equals(bytes)) {
+  if (!persistedSource.bytes.equals(bytes)) {
     fail("COUPLED_LAUNCH_POLICY_OUTPUT_BYTES_MISMATCH");
   }
   return Object.freeze({
