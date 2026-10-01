@@ -18,8 +18,6 @@ on:
       - "ops/public/public-landing-v1-proof.sh"
       - "tools/void-public-bootstrap-committed-freshness-v1.mjs"
       - "scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs"
-      - "tools/void-public-bootstrap-committed-freshness-v1.mjs"
-      - "scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -36,6 +34,8 @@ on:
       - "ops/public/public-entrypoints-v1-proof.sh"
       - "ops/public/vps-public-seed-internet-proof-v2.sh"
       - "ops/public/public-landing-v1-proof.sh"
+      - "tools/void-public-bootstrap-committed-freshness-v1.mjs"
+      - "scripts/prove_void_public_bootstrap_committed_freshness_v1.mjs"
 
   schedule:
     - cron: "47 5 * * *"
