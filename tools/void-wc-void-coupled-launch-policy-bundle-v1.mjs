@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -74,8 +75,6 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 const COUPLED_CANDIDATE_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
-const REVIEWED_COUPLED_CANDIDATE_GIT_BLOB_SHA1 =
-  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
 const MAX_INPUT_BYTES = 1024 * 1024;
 const MAX_TRACKED_INTENTS = 1_000_000;
 const MAX_SIGNED_INTENT_GAS_LIMIT =
@@ -708,6 +707,36 @@ function outsideRepository(file) {
   );
 }
 
+function headBlobSha1(relativePath) {
+  const result = spawnSync(
+    "/usr/bin/git",
+    [
+      "--no-replace-objects",
+      "-C",
+      REPO_ROOT,
+      "rev-parse",
+      "HEAD:" + relativePath,
+    ],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_NO_REPLACE_OBJECTS: "1",
+      },
+    },
+  );
+  const value = String(result.stdout || "").trim();
+  if (
+    result.status !== 0 ||
+    !/^[0-9a-f]{40}$/u.test(value)
+  ) {
+    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_HEAD_BLOB_UNAVAILABLE");
+  }
+  return value;
+}
+
 function fsyncDirectory(directory) {
   const fd = fs.openSync(directory, fs.constants.O_RDONLY);
   try {
@@ -796,7 +825,8 @@ function canonicalLaunchSourceBinding() {
     { maxBytes: MAX_INPUT_BYTES },
   );
   const blobSha1 = gitBlobSha1(source.bytes);
-  if (blobSha1 !== REVIEWED_COUPLED_CANDIDATE_GIT_BLOB_SHA1) {
+  const expectedHeadBlobSha1 = headBlobSha1(COUPLED_CANDIDATE_REL);
+  if (blobSha1 !== expectedHeadBlobSha1) {
     fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_BLOB_MISMATCH");
   }
   let candidate;
