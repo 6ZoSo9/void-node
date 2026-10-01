@@ -21,6 +21,33 @@ assert.ok(source.includes("ip.is_loopback"));
 assert.ok(source.includes("parsed.username is not None or parsed.password is not None"));
 assert.ok(source.includes('parsed.path not in {"", "/"} or parsed.query or parsed.fragment'));
 
+const workflow = fs.readFileSync(
+  ".github/workflows/void-two-box-remote-jobs-explicit-target-v1.yml",
+  "utf8",
+);
+const prStart = workflow.indexOf("  pull_request:\n");
+const pushStart = workflow.indexOf("  push:\n");
+const permissionsStart = workflow.indexOf("\npermissions:\n");
+assert.ok(prStart >= 0 && pushStart > prStart && permissionsStart > pushStart);
+const prBlock = workflow.slice(prStart, pushStart);
+const pushBlock = workflow.slice(pushStart, permissionsStart);
+for (const dependency of [
+  "ops/two-box-network-peer-proof.sh",
+  "scripts/prove_void_two_box_network_peer_explicit_target_v1.mjs",
+]) {
+  const token = `- "${dependency}"`;
+  assert.equal(
+    prBlock.split(token).length - 1,
+    1,
+    `pull_request trigger mismatch: ${dependency}`,
+  );
+  assert.equal(
+    pushBlock.split(token).length - 1,
+    1,
+    `push trigger mismatch: ${dependency}`,
+  );
+}
+
 for (const forbidden of [
   " -X POST",
   "/jobs/submit",
@@ -97,6 +124,7 @@ console.log("explicit_remote_http_origin_required=true");
 console.log("retired_target_casefold_rejected=true");
 console.log("ssh_option_or_shell_fragment_rejected=true");
 console.log("remote_origin_credentials_path_query_loopback_rejected=true");
+console.log("network_peer_trigger_symmetry=true");
 console.log("live_ssh_executed=false");
 console.log("live_http_executed=false");
 console.log("mutation_attempted=false");
