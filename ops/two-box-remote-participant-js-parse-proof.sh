@@ -8,6 +8,13 @@ REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-}"
 
 MARKER="VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+source "$SCRIPT_DIR/lib/void-two-box-legacy-proof-admission-v1.sh"
+void_two_box_validate_ssh_destination "${ALIEN:-}"
+void_two_box_validate_http_origin "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+void_two_box_guard_retired "${ALIEN:-}" "${REMOTE_NODE_BASE:-}"
+void_two_box_require_source_parity_and_bind_remote "$ALIEN" "$REMOTE_NODE_BASE"
+
 require_explicit() {
   local name="$1"
   local value="${2:-}"
