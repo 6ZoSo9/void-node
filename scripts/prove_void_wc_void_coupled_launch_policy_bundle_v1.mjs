@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 
 import {
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1,
+  VOID_WC_VOID_COUPLED_LAUNCH_ID_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
   compileVoidWcVoidCoupledLaunchPolicyBundleV1,
 } from "../tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
@@ -43,7 +44,7 @@ import {
 
 const TOOL =
   "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
-const LAUNCH = "sha256:" + "a".repeat(64);
+const LAUNCH = VOID_WC_VOID_COUPLED_LAUNCH_ID_V1;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -283,6 +284,15 @@ for (const [key, value] of Object.entries(
   assert.throws(
     () => compileVoidWcVoidCoupledLaunchPolicyBundleV1(bad),
     /COUPLED_LAUNCH_SPONSOR_BUDGET_RELATION_INVALID/u,
+  );
+}
+
+{
+  const bad = fixture();
+  bad.coupled_launch_id = "sha256:" + "b".repeat(64);
+  assert.throws(
+    () => compileVoidWcVoidCoupledLaunchPolicyBundleV1(bad),
+    /COUPLED_LAUNCH_POLICY_BUNDLE_CANONICAL_LAUNCH_ID_MISMATCH/u,
   );
 }
 
