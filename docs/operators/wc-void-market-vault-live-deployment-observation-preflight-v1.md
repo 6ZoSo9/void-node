@@ -18,8 +18,12 @@ The preflight consumes exact pretty-serialized bytes from a current-generation:
 
 The caller also supplies an independent SHA-256 of those bytes.
 
-Before any RPC call, the preflight requires:
+Before any RPC call, the **production** preflight requires:
 
+- local branch exactly `main`;
+- a fixed, config-isolated, noninteractive
+  `git ls-remote --heads https://github.com/6ZoSo9/void-node.git refs/heads/main`
+  read whose exact SHA equals local HEAD;
 - qualification marker/version/status;
 - qualification source HEAD == preflight repository HEAD;
 - qualification source tree == current HEAD tree;
@@ -74,6 +78,10 @@ address.
 
 ## RPC boundary
 
+The production API does not accept a caller-supplied transport implementation.
+Any own `transport` property fails before source admission or RPC. Production
+always constructs the reviewed HTTP transport internally.
+
 Only an explicit loopback HTTP endpoint is accepted:
 
 - `127.0.0.1`; or
@@ -96,6 +104,10 @@ eth_call
 ```
 
 No send/sign/admin/personal/debug RPC method exists in this lane.
+
+The fixed canonical GitHub `ls-remote` source-generation read is a separate
+read-only external Git/TLS observation. `loopback_http_only` refers to
+Chain-2050 JSON-RPC, not that canonical source read.
 
 ## Coherent observation
 
@@ -142,13 +154,14 @@ selected here.
 
 ## Receipt
 
-A coherent observation is content-addressed as:
+A coherent **production** observation is content-addressed as:
 
 `voidwcmvldop1_<sha256(canonical receipt material)>`
 
 and records:
 
-- repository HEAD/tree/preflight-tool identity;
+- repository HEAD/tree, branch `main`, canonical remote-main SHA, and
+  preflight-tool identity;
 - exact qualification ID/file SHA/source generation;
 - deployer/inventory-source observation subjects;
 - RPC URL fingerprint and method census;
@@ -163,6 +176,30 @@ and records:
 - read-only sufficiency booleans.
 
 A balance shortfall is an observation, not authority to fund it.
+
+## Test-only verification surface
+
+Pre-merge CI cannot truthfully mint a production live-observation receipt from a
+feature branch because production requires local `main` to equal canonical
+remote `main`.
+
+The proof therefore uses
+`testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(...)` to
+exercise the same qualification and RPC semantics against a real ephemeral
+`127.0.0.1` HTTP JSON-RPC server. Its output is permanently distinct:
+
+```text
+marker=VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1
+status=TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN
+production_artifact_authorized=false
+production_preflight_id_emitted=false
+```
+
+It emits neither the production marker/status nor a production
+`voidwcmvldop1_...` identifier and is not used by the CLI. Separate proof
+adversaries require the production API to HOLD on the PR feature branch before
+RPC, reject caller transport injection, reject stale/feature canonical-main
+identities, and reject off-owner Git origins.
 
 ## Private CLI custody
 
