@@ -257,10 +257,20 @@ export function deriveVoidBuyVoidPrecisionAtomicActivationStageV1(
     configuration_sha256: receipt.dormant_configuration_sha256,
     mode: "dormant_rollback",
   });
-  if (live.sha256 !== receipt.live_dropin_sha256) {
+  const liveBytes = Buffer.from(String(live.bytes), "utf8");
+  const rollbackBytes = Buffer.from(String(rollback.bytes), "utf8");
+  const liveBytesSha256 = sha256(liveBytes);
+  const rollbackBytesSha256 = sha256(rollbackBytes);
+  if (
+    live.sha256 !== liveBytesSha256 ||
+    liveBytesSha256 !== receipt.live_dropin_sha256
+  ) {
     fail("live_dropin_hash_mismatch");
   }
-  if (rollback.sha256 !== receipt.dormant_dropin_sha256) {
+  if (
+    rollback.sha256 !== rollbackBytesSha256 ||
+    rollbackBytesSha256 !== receipt.dormant_dropin_sha256
+  ) {
     fail("dormant_dropin_hash_mismatch");
   }
   return Object.freeze({ receipt, live, rollback });
