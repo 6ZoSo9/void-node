@@ -10,7 +10,7 @@ HTTP_PORT="${HTTP_PORT:-4100}"
 PRECISION_TS="${PRECISION_TS:-$(tailscale ip -4 2>/dev/null | head -n1)}"
 ALIEN_TS="${ALIEN_TS:-${ALIEN##*@}}"
 
-TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$ALIEN_TS" | tr '[:upper:]' '[:lower:]')"
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$ALIEN_TS" "$PRECISION_TS" | tr '[:upper:]' '[:lower:]')"
 case "$TARGET_GUARD" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
     echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
