@@ -25,8 +25,11 @@ Preparation requires a clean repository and exact reviewed source blobs.
 All Git identity/object reads use the absolute reviewed `/usr/bin/git`
 executable with replacement refs disabled, repository/object/config/program
 override environment variables removed, fixed PATH/locale, and executable
-identity revalidation before/after each read. The plan records the current
-repository HEAD/tree and this verifier's Git blob.
+identity revalidation before/after each read. The repository HEAD/tree is
+captured once; every reviewed source/blob read is then addressed through that
+captured commit rather than a moving `HEAD` name. Preparation finally rechecks
+clean worktree + HEAD/tree before returning the plan. The plan records that
+captured repository HEAD/tree and this verifier's Git blob.
 
 Unrelated later commits are not silently treated as the same plan. A new source
 generation requires a new content-addressed plan.

@@ -346,6 +346,10 @@ for(const required of [
   "GIT_CONFIG_COUNT",
   "GIT_EXEC_PATH",
   "precision_web_git_executable_changed_during_read",
+  '["rev-parse",head+":"+relativePath]',
+  "gitBytes(relativePath,head)",
+  "inspectCurrentSources(source.source_head_sha)",
+  "precision_web_repository_changed_during_plan",
   "PrivateTmp=true",
   "ProtectSystem=strict",
   "ProtectHome=read-only",
@@ -366,6 +370,8 @@ console.log("reviewed_absolute_git_executable=true");
 console.log("git_replacement_refs_disabled=true");
 console.log("ambient_git_repository_and_config_overrides_ignored=true");
 console.log("hostile_path_git_substitution_rejected=true");
+console.log("captured_head_object_reads_only=true");
+console.log("repository_generation_rechecked_before_plan_return=true");
 console.log("adapter_8080_recovery_override_bound=true");
 console.log("composition_8082_strict_ready_contract_bound=true");
 console.log("frontdoor_8083_upstream_strict_ready_contract_bound=true");

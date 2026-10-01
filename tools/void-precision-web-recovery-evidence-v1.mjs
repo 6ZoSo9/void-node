@@ -217,13 +217,16 @@ function git(args,code,{encoding="utf8"}={}){
   return encoding===null?Buffer.from(result.stdout):String(result.stdout).trim();
 }
 
-function gitText(relativePath){
-  return git(["show","HEAD:"+relativePath],"precision_web_source_read_failed:"+relativePath);
+function gitText(relativePath,ref="HEAD"){
+  return git(
+    ["show",ref+":"+relativePath],
+    "precision_web_source_read_failed:"+relativePath,
+  );
 }
 
-function gitBytes(relativePath){
+function gitBytes(relativePath,ref="HEAD"){
   return git(
-    ["show","HEAD:"+relativePath],
+    ["show",ref+":"+relativePath],
     "precision_web_source_bytes_failed:"+relativePath,
     {encoding:null},
   );
@@ -249,16 +252,16 @@ function sourceGeneration(){
   const hashes={};
   for(const [relativePath,expectedBlob] of Object.entries(SOURCE_BLOBS)){
     const blob=git(
-      ["rev-parse","HEAD:"+relativePath],
+      ["rev-parse",head+":"+relativePath],
       "precision_web_source_blob_unavailable:"+relativePath,
     );
     if(blob!==expectedBlob) fail("precision_web_source_blob_mismatch:"+relativePath);
     blobs[relativePath]=blob;
-    hashes[relativePath]=sha256(gitBytes(relativePath));
+    hashes[relativePath]=sha256(gitBytes(relativePath,head));
   }
   const toolPath="tools/void-precision-web-recovery-evidence-v1.mjs";
   const toolBlob=git(
-    ["rev-parse","HEAD:"+toolPath],
+    ["rev-parse",head+":"+toolPath],
     "precision_web_tool_blob_unavailable",
   );
   if(!HEX40.test(toolBlob)) fail("precision_web_tool_blob_invalid");
@@ -271,17 +274,18 @@ function sourceGeneration(){
   });
 }
 
-function inspectCurrentSources(){
-  const adapter=gitText("ops/public/public-seed-adapter-v1.mjs");
-  const adapterRunner=gitText("ops/public/run-public-seed-adapter-v1.sh");
-  const composition=gitText("ops/public/void-public-app-composition-gateway-v1.mjs");
-  const compositionRunner=gitText("ops/public/run-void-public-app-composition-gateway-v1.sh");
+function inspectCurrentSources(ref){
+  const adapter=gitText("ops/public/public-seed-adapter-v1.mjs",ref);
+  const adapterRunner=gitText("ops/public/run-public-seed-adapter-v1.sh",ref);
+  const composition=gitText("ops/public/void-public-app-composition-gateway-v1.mjs",ref);
+  const compositionRunner=gitText("ops/public/run-void-public-app-composition-gateway-v1.sh",ref);
   const compositionUnit=gitText(
     "ops/systemd/user/void-public-app-composition-gateway-v1.service.example",
+    ref,
   );
-  const frontdoor=gitText("ops/public/void-public-frontdoor-v1.mjs");
-  const cutover=gitText("ops/public/void-public-frontdoor-cutover-v1.sh");
-  const html=gitText("public/void-public-frontdoor-v1/index.html");
+  const frontdoor=gitText("ops/public/void-public-frontdoor-v1.mjs",ref);
+  const cutover=gitText("ops/public/void-public-frontdoor-cutover-v1.sh",ref);
+  const html=gitText("public/void-public-frontdoor-v1/index.html",ref);
 
   requireContains(adapter,[
     'process.env.VOID_SEED_UPSTREAM || "http://127.0.0.1:4100"',
@@ -371,9 +375,32 @@ function serviceProfile(){
   });
 }
 
+function requireSourceGenerationStillCurrent(source){
+  const status=git(
+    ["status","--porcelain=v1","--untracked-files=all"],
+    "precision_web_repository_status_recheck_unavailable",
+  );
+  const head=git(
+    ["rev-parse","HEAD"],
+    "precision_web_head_recheck_unavailable",
+  );
+  const tree=git(
+    ["rev-parse","HEAD^{tree}"],
+    "precision_web_tree_recheck_unavailable",
+  );
+  if(
+    status!==""||
+    head!==source.source_head_sha||
+    tree!==source.source_tree_sha
+  ){
+    fail("precision_web_repository_changed_during_plan");
+  }
+}
+
 export function prepareVoidPrecisionWebRecoveryPlanV1(){
-  inspectCurrentSources();
   const source=sourceGeneration();
+  inspectCurrentSources(source.source_head_sha);
+  requireSourceGenerationStillCurrent(source);
   const material=Object.freeze({
     marker:VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V1,
     version:1,
