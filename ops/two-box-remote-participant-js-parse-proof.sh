@@ -3,8 +3,36 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
+ALIEN="${ALIEN:-}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-}"
+
+MARKER="VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE"
+export ALIEN REMOTE_NODE_BASE
+
 ACCOUNT="${ACCOUNT:-participant-consume-view-proof-user-20260402-220336}"
 OUT="${OUT:-/tmp/two-box-remote-participant-js-parse-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"

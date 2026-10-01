@@ -3,10 +3,38 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+ALIEN="${ALIEN:-}"
 ALIEN_HOST="${ALIEN##*@}"
 LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
-REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://${ALIEN_HOST}:4100}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-}"
+
+MARKER="VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE"
+export ALIEN REMOTE_NODE_BASE
+
 TS_NOW="$(date +%Y%m%d-%H%M%S)"
 ACCOUNT="${ACCOUNT:-reverse-bidirectional-open-user-$TS_NOW}"
 PLAINTEXT_LOCAL="${PLAINTEXT_LOCAL:-precision-to-alienware reverse bidirectional proof $TS_NOW}"
