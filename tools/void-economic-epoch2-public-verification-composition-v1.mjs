@@ -19,6 +19,8 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_AUTHORITY_V1 =
     canonical_git_source_binding_required: true,
     exact_dependency_git_blobs_required: true,
     git_replacement_objects_disabled: true,
+    git_config_isolated: true,
+    subprocess_environment_isolated: true,
     exact_reviewed_git_object_execution_required: true,
     private_readonly_execution_bundle: true,
     public_read_promotion_reexecuted: true,
@@ -102,21 +104,6 @@ const INPUT_KEYS = Object.freeze([
   "reviewConfirmation",
 ]);
 
-const GIT_ENV_BLOCKLIST = Object.freeze([
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_COMMON_DIR",
-  "GIT_INDEX_FILE",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_NAMESPACE",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_CONFIG",
-  "GIT_CONFIG_COUNT",
-  "GIT_CONFIG_KEY_0",
-  "GIT_CONFIG_VALUE_0",
-]);
-
 function fail(reason) {
   throw new Error(reason);
 }
@@ -161,23 +148,51 @@ function exactObject(value, keys, code) {
 }
 
 function sanitizedGitEnv() {
-  const env = { ...process.env };
-  for (const key of GIT_ENV_BLOCKLIST) delete env[key];
-  for (const key of Object.keys(env)) {
-    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
-  }
-  return env;
+  return {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+}
+
+function gitSafetyConfigArgs() {
+  return [
+    "-c", "core.worktree=" + ROOT,
+    "-c", "core.fsmonitor=false",
+    "-c", "core.hooksPath=/dev/null",
+    "-c", "core.attributesFile=/dev/null",
+    "-c", "core.untrackedCache=false",
+    "-c", "core.preloadIndex=false",
+    "-c", "submodule.recurse=false",
+  ];
 }
 
 function git(args, { allowFail = false, encoding = "utf8" } = {}) {
-  const env = sanitizedGitEnv();
-  env.GIT_NO_REPLACE_OBJECTS = "1";
-  const result = spawnSync(GIT, ["--no-replace-objects", "-C", ROOT, ...args], {
-    env,
-    encoding,
-    stdio: ["ignore", "pipe", "pipe"],
-    maxBuffer: 32 * 1024 * 1024,
-  });
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(),
+      "-C",
+      ROOT,
+      ...args,
+    ],
+    {
+      env: sanitizedGitEnv(),
+      encoding,
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 32 * 1024 * 1024,
+    },
+  );
   if (result.error) throw result.error;
   if (result.status !== 0 && !allowFail) {
     fail("git_failed:" + args.join("_"));
