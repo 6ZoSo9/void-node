@@ -481,6 +481,7 @@ export function buildCoordinationRotationSnapshotV1(policyRaw, evidenceRaw) {
       [
         "marker",
         "version",
+        "observed_at",
         "observed_main_sha",
         "chain",
         "open_pull_requests",
@@ -493,6 +494,11 @@ export function buildCoordinationRotationSnapshotV1(policyRaw, evidenceRaw) {
   }
   if (evidence.version !== 1) fail("evidence.version must equal 1");
 
+  const observedAt = requireIsoTimestamp(
+    evidence.observed_at,
+    "evidence.observed_at",
+  );
+  const observedAtMs = Date.parse(observedAt);
   const observedMainSha = requireSha(
     evidence.observed_main_sha,
     "evidence.observed_main_sha",
@@ -501,6 +507,19 @@ export function buildCoordinationRotationSnapshotV1(policyRaw, evidenceRaw) {
   const openPullRequests = normalizeOpenPullRequests(
     evidence.open_pull_requests,
   );
+  const terminalUpdatedAtMs = Date.parse(
+    chain.chain[chain.chain.length - 1].issue_updated_at,
+  );
+  if (terminalUpdatedAtMs > observedAtMs) {
+    fail("successor-chain terminal issue update postdates evidence.observed_at");
+  }
+  for (const pr of openPullRequests) {
+    if (Date.parse(pr.updated_at) > observedAtMs) {
+      fail(
+        "open PR #" + pr.number + " update postdates evidence.observed_at",
+      );
+    }
+  }
 
   if (policy.marker !== LIVE_DISPATCH_POLICY_MARKER) {
     fail("validated live-dispatch policy marker mismatch");
@@ -551,6 +570,7 @@ export function buildCoordinationRotationSnapshotV1(policyRaw, evidenceRaw) {
     marker: MARKER,
     version: 1,
     repository: policy.repository,
+    observed_at: observedAt,
     observed_main_sha: observedMainSha,
     live_dispatch_policy_sha256: sha256Id(policyRaw),
     successor_chain_sha256: sha256Id(chain),
@@ -581,6 +601,8 @@ export function buildCoordinationRotationSnapshotV1(policyRaw, evidenceRaw) {
     open_pull_requests: prSummary,
     ownership_scope: "open_pull_requests_only",
     ownership_complete: false,
+    point_in_time_only: true,
+    live_refresh_required_before_successor_write: true,
     issue_lane_refresh_required: true,
     dependency_graph_refresh_required: true,
     recent_coordination_comment_refresh_required: true,
