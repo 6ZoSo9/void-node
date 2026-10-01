@@ -82,6 +82,7 @@ const REVIEWED_EXECUTION_ROOTS=Object.freeze([
 ]);
 const HEX40=/^[0-9a-f]{40}$/u;
 const HEX64=/^[0-9a-f]{64}$/u;
+const PROMOTION_MARKER="VOID_WC_VOID_OPENING_DURABLE_EVIDENCE_CANDIDATE_PROMOTION_V1";
 const PROMOTION_ID=/^voidwcodecp1_[0-9a-f]{64}$/u;
 const BINDING_ID=/^sha256:[0-9a-f]{64}$/u;
 const REPLAY_ID=/^voidwcrp1_[0-9a-f]{64}$/u;
@@ -1077,7 +1078,7 @@ export function prepareVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1(in
     fail("OPENING_DURABLE_APPLICATION_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
   }
   if(
-    reexecuted.marker!==VOID_WC_VOID_OPENING_DURABLE_EVIDENCE_CANDIDATE_PROMOTION_V1||
+    reexecuted.marker!==PROMOTION_MARKER||
     reexecuted.repository_head_sha!==repo.head||
     reexecuted.repository_tree_sha!==repo.tree||
     reexecuted.production_candidate_git_blob_sha1!==production.blob_sha1||
