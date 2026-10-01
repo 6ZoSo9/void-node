@@ -106,9 +106,18 @@ function snapshot(overrides = {}) {
       branch: "main",
       head_sha:
         "a7e4de59debf8cd4de37e763c3f69edada137fab",
+      repository_tree_sha:
+        "b".repeat(40),
       remote_main_sha:
         "a7e4de59debf8cd4de37e763c3f69edada137fab",
+      canonical_remote_url:
+        "https://github.com/6ZoSo9/void-node.git",
       reviewed_anchor_is_ancestor: true,
+      reviewed_source_slice_green: true,
+      source_slice_manifest_sha256: "c".repeat(64),
+      source_slice_count: 22,
+      preflight_wrapper_git_blob_sha1: "d".repeat(40),
+      preflight_tool_git_blob_sha1: "e".repeat(40),
       worktree_clean: true,
       service_unit: "void-node-live.service",
       active_state: "active",
@@ -138,6 +147,8 @@ assert.deepEqual(
   {
     designated_host_read_only_preflight: true,
     repository_identity_read: true,
+    canonical_repository_origin_required: true,
+    reviewed_source_slice_required: true,
     process_environment_read_safe_keys_only: true,
     systemd_dropin_gate_assignment_read: true,
     loopback_status_read: true,
@@ -178,6 +189,32 @@ const green =
 assert.equal(green.status, "ATOMIC_ACTIVATION_PREFLIGHT_GREEN_NOT_AUTHORIZED");
 assert.equal(green.activation_ready, true);
 assert.equal(green.activation_authorized, false);
+assert.equal(
+  green.canonical_remote_url,
+  "https://github.com/6ZoSo9/void-node.git",
+);
+assert.equal(
+  green.repository_head_sha,
+  snapshot().host.head_sha,
+);
+assert.equal(
+  green.repository_tree_sha,
+  snapshot().host.repository_tree_sha,
+);
+assert.equal(green.reviewed_source_slice_green, true);
+assert.equal(
+  green.source_slice_manifest_sha256,
+  snapshot().host.source_slice_manifest_sha256,
+);
+assert.equal(green.source_slice_count, 22);
+assert.equal(
+  green.preflight_wrapper_git_blob_sha1,
+  snapshot().host.preflight_wrapper_git_blob_sha1,
+);
+assert.equal(
+  green.preflight_tool_git_blob_sha1,
+  snapshot().host.preflight_tool_git_blob_sha1,
+);
 assert.equal(green.unreviewed_gate_sources.length, 0);
 assert.match(green.live_configuration_generation_id, /^voidbvpcg1_[0-9a-f]{64}$/u);
 assert.match(green.live_configuration_sha256, /^[0-9a-f]{64}$/u);
@@ -307,6 +344,48 @@ await assert.rejects(
   () =>
     evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
       snapshot({
+        host: {
+          ...snapshot().host,
+          canonical_remote_url: "https://github.com/example/fork.git",
+        },
+      }),
+      activationContract,
+    ),
+  /host_source_or_service_alignment_required/u,
+);
+
+await assert.rejects(
+  () =>
+    evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+      snapshot({
+        host: {
+          ...snapshot().host,
+          reviewed_source_slice_green: false,
+        },
+      }),
+      activationContract,
+    ),
+  /host_source_or_service_alignment_required/u,
+);
+
+await assert.rejects(
+  () =>
+    evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+      snapshot({
+        host: {
+          ...snapshot().host,
+          source_slice_count: 21,
+        },
+      }),
+      activationContract,
+    ),
+  /host_source_or_service_alignment_required/u,
+);
+
+await assert.rejects(
+  () =>
+    evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+      snapshot({
         process_gates: {
           ...dormant,
           full_runtime: "1",
@@ -385,21 +464,53 @@ const inventoryPosition = wrapperSource.indexOf(
 const qualifierPosition = wrapperSource.indexOf(
   "postgres_requalification_credential_read_inside_reviewed_factory=true",
 );
+const sourceSlicePosition = wrapperSource.indexOf(
+  "reviewed_source_slice_green=true",
+);
 assert(inventoryPosition >= 0);
+assert(sourceSlicePosition >= 0);
+assert(sourceSlicePosition < inventoryPosition);
 assert(qualifierPosition > inventoryPosition);
 assert(
+  wrapperSource.includes('git_bin="/usr/bin/git"'),
+  "absolute reviewed Git executable missing",
+);
+assert(
   wrapperSource.includes(
-    'expected_tool_blob="c3abb7c19559413c0e46845244ac918f44967cbf"',
+    'canonical_remote_url="https://github.com/6ZoSo9/void-node.git"',
   ),
-  "preflight tool blob pin missing",
+  "canonical repository origin missing",
 );
 assert(
-  wrapperSource.includes("preflight_tool_blob_mismatch"),
-  "preflight tool mismatch HOLD missing",
+  wrapperSource.includes("canonical_remote_url_mismatch"),
+  "canonical repository origin HOLD missing",
 );
 assert(
-  wrapperSource.includes("git ls-remote --heads origin refs/heads/main"),
-  "read-only remote main resolution missing",
+  wrapperSource.includes("preflight_wrapper_not_current_head_bytes"),
+  "wrapper current-HEAD byte binding missing",
+);
+assert(
+  wrapperSource.includes("preflight_tool_not_current_head_bytes"),
+  "tool current-HEAD byte binding missing",
+);
+assert(
+  wrapperSource.includes("reviewed_source_slice_blob_mismatch"),
+  "reviewed dependency blob HOLD missing",
+);
+assert(
+  wrapperSource.includes("reviewed_source_slice_manifest_sha256"),
+  "reviewed source slice manifest missing",
+);
+assert(
+  wrapperSource.includes('source_slice_count" = "22"') ||
+    wrapperSource.includes('source_slice_count" = "22"'),
+  "reviewed source slice count gate missing",
+);
+assert(
+  wrapperSource.includes(
+    'safe_git_timeout ls-remote --heads "$canonical_remote_url" refs/heads/main',
+  ),
+  "canonical remote main resolution missing",
 );
 assert(
   wrapperSource.includes("git merge-base --is-ancestor"),
@@ -445,12 +556,15 @@ const workflowDependencies = [
   "ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh",
   "tools/void-precision-buy-void-postgres-host-qualification-v1.mjs",
   "ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example",
+  "ops/systemd/void-node-live.service.d/92-buy-void-dispatcher-postgres-credentials-v1.conf.example",
   "ops/systemd/void-node-live.service.d/94-buy-void-claimed-postgres-precision-reconcile-v1.conf.example",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_production_config_v1.ts",
   "src/economic/buy_void_runtime_integration_v1.ts",
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts",
+  "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_connection_factory_v1.ts",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts",
@@ -503,7 +617,11 @@ console.log("complete_gate_inventory_required_green=true");
 console.log("base_unit_gate_inventory_green=true");
 console.log("late_dormant_override_hold_green=true");
 console.log("credential_read_blocked_before_inventory_green=true");
-console.log("preflight_tool_blob_pin_green=true");
+console.log("preflight_tool_current_head_binding_green=true");
+console.log("preflight_wrapper_current_head_binding_green=true");
+console.log("canonical_repository_origin_green=true");
+console.log("reviewed_source_slice_count=22");
+console.log("reviewed_source_slice_manifest_bound_green=true");
 console.log("live_remote_main_binding_green=true");
 console.log("reviewed_main_anchor_ancestry_green=true");
 console.log("configured_process_dormant_match_green=true");

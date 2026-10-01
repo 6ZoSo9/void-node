@@ -51,8 +51,19 @@ It requires:
 - live repo exactly `/home/zoso/dev/void-node`;
 - branch `main`;
 - clean worktree;
-- exact reviewed main
-  `74b5242dde224282de5b1b881d7d4cb942f00d48`;
+- canonical origin exactly `https://github.com/6ZoSo9/void-node.git`;
+- local HEAD exactly equal to canonical remote `main`;
+- reviewed anchor `74b5242dde224282de5b1b881d7d4cb942f00d48`
+  remains an ancestor rather than being required as the current HEAD;
+- current repository HEAD/tree are recorded;
+- the executing wrapper and preflight tool byte-match their current
+  `HEAD:<path>` Git objects;
+- a 22-entry reviewed source slice is GREEN before any credential-capable
+  qualification. It contains those two current feature blobs plus 20 exact
+  activation-contract, activation-candidate, PostgreSQL qualifier/runtime/schema,
+  systemd example, and npm lock-state blobs;
+- the deterministic source-slice manifest SHA-256 is recorded in the preflight
+  evidence;
 - `void-node-live.service` active/running;
 - process cwd exactly the live repo;
 - configured and running process gates exactly dormant.
@@ -184,8 +195,9 @@ This preflight implements none of those mutations.
 
 Two likely first-run HOLDs are intentional, not failures of the design:
 
-- `live_repo_head_not_reviewed_main` if Precision has not yet been source-aligned
-  to the reviewed activation generation; and
+- `live_repo_head_not_remote_main`, `canonical_remote_url_mismatch`, or a
+  reviewed-source-slice HOLD if Precision is not aligned to the current reviewed
+  canonical source generation; and
 - `HOLD_UNRECONCILED_GATE_ASSIGNMENT_SOURCES` if the host-private late dormant
   safety overlay or other legacy gate owners are still present.
 
@@ -194,6 +206,8 @@ Those facts must be reconciled explicitly before activation planning advances.
 ## Authority
 
 ```text
+canonical_repository_origin_required=true
+reviewed_source_slice_required=true
 source_mutation=false
 dropin_write=false
 dropin_remove=false

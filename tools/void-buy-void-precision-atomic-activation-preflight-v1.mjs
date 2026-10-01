@@ -11,6 +11,8 @@ export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_AUTHORITY_V1 =
   Object.freeze({
     designated_host_read_only_preflight: true,
     repository_identity_read: true,
+    canonical_repository_origin_required: true,
+    reviewed_source_slice_required: true,
     process_environment_read_safe_keys_only: true,
     systemd_dropin_gate_assignment_read: true,
     loopback_status_read: true,
@@ -466,10 +468,15 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
       "repo_root",
       "branch",
       "head_sha",
+      "repository_tree_sha",
       "remote_main_sha",
       "canonical_remote_url",
       "reviewed_anchor_is_ancestor",
       "reviewed_source_slice_green",
+      "source_slice_manifest_sha256",
+      "source_slice_count",
+      "preflight_wrapper_git_blob_sha1",
+      "preflight_tool_git_blob_sha1",
       "worktree_clean",
       "service_unit",
       "active_state",
@@ -485,6 +492,8 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
     host.branch !== "main" ||
     typeof host.head_sha !== "string" ||
     !/^[0-9a-f]{40}$/u.test(host.head_sha) ||
+    typeof host.repository_tree_sha !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(host.repository_tree_sha) ||
     typeof host.remote_main_sha !== "string" ||
     !/^[0-9a-f]{40}$/u.test(host.remote_main_sha) ||
     host.head_sha !== host.remote_main_sha ||
@@ -492,6 +501,13 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
       "https://github.com/6ZoSo9/void-node.git" ||
     host.reviewed_anchor_is_ancestor !== true ||
     host.reviewed_source_slice_green !== true ||
+    typeof host.source_slice_manifest_sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(host.source_slice_manifest_sha256) ||
+    host.source_slice_count !== 22 ||
+    typeof host.preflight_wrapper_git_blob_sha1 !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(host.preflight_wrapper_git_blob_sha1) ||
+    typeof host.preflight_tool_git_blob_sha1 !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(host.preflight_tool_git_blob_sha1) ||
     host.worktree_clean !== true ||
     host.service_unit !== "void-node-live.service" ||
     host.active_state !== "active" ||
@@ -621,7 +637,15 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
     activation_authorized: false,
     reviewed_main_anchor_sha:
       VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_ANCHOR_V1,
+    repository_head_sha: host.head_sha,
+    repository_tree_sha: host.repository_tree_sha,
     remote_main_sha: host.remote_main_sha,
+    canonical_remote_url: host.canonical_remote_url,
+    reviewed_source_slice_green: true,
+    source_slice_manifest_sha256: host.source_slice_manifest_sha256,
+    source_slice_count: host.source_slice_count,
+    preflight_wrapper_git_blob_sha1: host.preflight_wrapper_git_blob_sha1,
+    preflight_tool_git_blob_sha1: host.preflight_tool_git_blob_sha1,
     reviewed_gate_sources: inventory.reviewed,
     unreviewed_gate_sources: Object.freeze([]),
     gate_source_inventory_complete: true,
