@@ -60,6 +60,11 @@ http://127.0.0.1:18552/  isolated/public-read successor replica
 The 18552 replica is useful read evidence. It is not a long-lived production
 write target and must not be silently promoted.
 
+The current QBFT extra-data evidence still records
+`production_validator_set_bound=false`. Therefore a future selected target
+must carry a separately reviewed validator-binding evidence path + SHA-256; an
+RPC URL or host-observation receipt alone cannot close that gate.
+
 ## Selected-state contract
 
 A future selected descriptor may use
@@ -72,7 +77,8 @@ following are present:
 - content-addressed runtime host-observation ID and artifact SHA-256;
 - runtime active verification;
 - exact reviewed successor genesis binding;
-- production validator-set binding;
+- production validator-set binding plus the reviewed source path and SHA-256 of
+  the validator-binding evidence that established it;
 - write-capability classification
   `write_capable_not_authorized`; and
 - independent host acceptance.
