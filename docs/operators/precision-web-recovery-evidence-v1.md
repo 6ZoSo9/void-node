@@ -5,8 +5,13 @@ Marker: `VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V1`
 Status: source-only recovery plan plus strict external-observation contract.
 This lane does not install, start, stop, restart, route, or publish anything.
 
-It is the compact current-main replacement for the stale multi-file recovery
-packet referenced by #1618.
+It is the compact reviewed-source-generation replacement for the stale
+multi-file recovery packet referenced by #1618.
+
+This source plan does not, by itself, claim that the checked-out commit is the
+live GitHub `main` tip. That current-main assertion belongs to the operational
+Precision host observer, which performs a separate fixed public-ref check before
+live independent acceptance is reachable.
 
 ## Current source generation
 
@@ -55,6 +60,18 @@ Git blob.
 
 Unrelated later commits are not silently treated as the same plan. A new source
 generation requires a new content-addressed plan.
+
+A clean feature branch or detached commit with the same reviewed source blobs
+can therefore be structurally compiled as a reviewed-generation plan, but it is
+not current-main authority. The live Precision observer must read:
+
+```text
+https://api.github.com/repos/6ZoSo9/void-node/git/ref/heads/main
+```
+
+and require the returned commit SHA to equal this plan's
+`source_head_sha` before it can emit
+`independent_host_acceptance=true`.
 
 ## Reconstructed Precision topology
 
