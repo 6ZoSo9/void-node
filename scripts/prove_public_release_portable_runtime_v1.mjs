@@ -67,6 +67,14 @@ const installer = needText("ops/public/install-void-node-portable-runtime-v1.sh"
   "host_node_required=false",
   "service_started_implicitly=false",
   "guarded_lanes_activated=false",
+  "VOID_NODE_STABLE_MANAGER_V1",
+  'CONTROL_RUNTIME="$INSTALL_ROOT/control/runtime/bin/node"',
+  "stable control runtime SHA mismatch",
+  ".rollback.restart-witness-v1",
+  "recovery_outcome=rollback_committed",
+  "recovery_outcome=rollback_restart_witness_cleaned",
+  'if test "${1:-}" = rollback; then shift; exec_control_rollback "$@"; fi',
+  'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; exec_control_rollback "$@"; fi',
 ]);
 if (/for tool in[^\n]*\bnode\b/.test(installer)) fail("portable installer still requires a host node command");
 if (/command -v node/.test(installer)) fail("portable installer probes host Node.js");
@@ -78,6 +86,7 @@ const manager = needText("release/portable/bin/void-node", [
   "VOID_NODE_PORTABLE_RELEASE_DOCTOR_V1",
   'RUNTIME_NODE="$RELEASE_ROOT/runtime/bin/node"',
   'exec "$RUNTIME_NODE" "$RELEASE_ROOT/bin/void-node-update"',
+  'exec "$RUNTIME_NODE" "$RELEASE_ROOT/bin/void-node-update" rollback',
   "host_node_required=false",
 ]);
 if (/\bnode\s+-e\b/.test(manager)) fail("portable manager directly invokes host node");
@@ -179,8 +188,49 @@ try {
   pass("install-with-poisoned-host-node");
 
   const command = path.join(binDir, "void-node");
+  const stableManager = path.join(installRoot, "bin", "void-node");
+  const controlUpdater = path.join(installRoot, "control", "void-node-update");
+  const controlRuntime = path.join(installRoot, "control", "runtime", "bin", "node");
+  const controlLicense = path.join(installRoot, "control", "runtime", "LICENSE.nodejs");
+  const portableRoot = fs.realpathSync(path.join(installRoot, "current"));
+  const portableRuntime = path.join(portableRoot, "runtime", "bin", "node");
+  if (fs.realpathSync(command) !== stableManager || !fs.existsSync(controlUpdater)) fail("portable stable recovery manager/control updater not installed outside current release");
+  if (!fs.existsSync(controlRuntime) || !fs.existsSync(controlLicense)) fail("portable stable recovery runtime/license not installed");
+  if (fs.statSync(controlRuntime).ino !== fs.statSync(portableRuntime).ino) fail("portable control runtime is not retained independently as the verified runtime inode");
+  pass("portable-stable-recovery-manager-installed");
   run(command, ["version"], {env});
   run(command, ["verify"], {env});
+  const rollbackNoPrevious = childProcess.spawnSync(command, ["rollback"], {
+    env: {...process.env, ...env},
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 128 * 1024 * 1024,
+  });
+  if (rollbackNoPrevious.error) throw rollbackNoPrevious.error;
+  const rollbackNoPreviousOutput = `${rollbackNoPrevious.stdout || ""}${rollbackNoPrevious.stderr || ""}`;
+  if (rollbackNoPrevious.status === 0 || !rollbackNoPreviousOutput.includes("previous release pointer is missing") || rollbackNoPreviousOutput.includes("HOST_NODE_MUST_NOT_RUN")) fail("portable direct rollback did not route through bundled journaled updater");
+  pass("portable-direct-rollback-routes-through-journaled-updater");
+
+  const standardLike = path.join(installRoot, "releases", "standard-like-no-runtime");
+  fs.cpSync(portableRoot, standardLike, {recursive: true});
+  fs.rmSync(path.join(standardLike, "runtime"), {recursive: true, force: true});
+  const standardSums = path.join(standardLike, "RELEASE-CONTENTS-SHA256");
+  const filteredSums = fs.readFileSync(standardSums, "utf8").split(/\r?\n/).filter((line) => !/^[0-9a-f]{64}  runtime\//.test(line));
+  fs.writeFileSync(standardSums, filteredSums.join("\n"));
+  const currentPointer = path.join(installRoot, "current"), previousPointer = path.join(installRoot, "previous");
+  fs.unlinkSync(currentPointer); fs.symlinkSync(standardLike, currentPointer); fs.symlinkSync(portableRoot, previousPointer);
+  const mixedRollback = childProcess.spawnSync(command, ["rollback"], {
+    env: {...process.env, ...env},
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 128 * 1024 * 1024,
+  });
+  if (mixedRollback.error) throw mixedRollback.error;
+  const mixedRollbackOutput = `${mixedRollback.stdout || ""}${mixedRollback.stderr || ""}`;
+  if (mixedRollback.status !== 0 || mixedRollbackOutput.includes("HOST_NODE_MUST_NOT_RUN")) fail("portable rollback could not recover when current release lacked a bundled runtime");
+  if (fs.realpathSync(currentPointer) !== portableRoot || fs.realpathSync(previousPointer) !== fs.realpathSync(standardLike)) fail("mixed-history portable rollback did not publish expected pointer pair");
+  pass("portable-control-runtime-survives-current-without-runtime");
+
   const doctor = run(command, ["doctor"], {env, capture: true});
   if (!doctor.includes("bundled_node22=true") || !doctor.includes("host_node_required=false")) fail("portable doctor did not prove bundled runtime health");
   run(command, ["update", "help"], {env});
