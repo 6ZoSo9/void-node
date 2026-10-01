@@ -1,0 +1,209 @@
+{
+  "arch": "x64",
+  "authority": {
+    "ambient_node_resolution_overrides_ignored": true,
+    "ancestor_package_resolution_forbidden": true,
+    "chain2050_write": false,
+    "credential_access": false,
+    "exact_head_package_metadata_required": true,
+    "funds_movement": false,
+    "installed_package_byte_inventory_required": true,
+    "lockfile_closure_required": true,
+    "market_activation": false,
+    "network_access": false,
+    "npm_install_performed": false,
+    "package_script_execution": false,
+    "permission_fenced_execution": true,
+    "post_copy_inventory_reverification": true,
+    "private_dependency_materialization": true,
+    "private_key_access": false,
+    "public_presale_activation": false,
+    "reviewed_profile_content_id_rederivation": true,
+    "reviewed_profile_head_binding": true,
+    "rpc_call": false,
+    "runtime_service_mutation": false,
+    "source_only_dependency_binding": true,
+    "transaction_broadcast": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "wallet_or_signer_access": false,
+    "ambient_dynamic_loader_overrides_ignored": true
+  },
+  "marker": "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1",
+  "package_count": 9,
+  "package_json_source": {
+    "bytes": 3189,
+    "git_blob_sha1": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+    "path": "package.json",
+    "sha256": "f50464fac47ca0fa59242147a443c6e83603ca64adce3aa03edc4ee334243885"
+  },
+  "package_lock_source": {
+    "bytes": 63840,
+    "git_blob_sha1": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+    "path": "package-lock.json",
+    "sha256": "63e63ac3f28bc4a52c3cd44afc25938cc8c6fbf76626cef5239db6e8cf555cfe"
+  },
+  "packages": [
+    {
+      "aggregate_sha256": "8cadf9fb48fdc3e82ac968c6bb7adfae17cb5fd97cc5ef45ee83c2c12d36d10b",
+      "bytes": 455684,
+      "dependencies": [],
+      "file_count": 16,
+      "integrity": "sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==",
+      "lock_key": "node_modules/@adraffy/ens-normalize",
+      "name": "@adraffy/ens-normalize",
+      "optional_absent": [],
+      "package_json_sha256": "fbc5b24e52963420ec80bdfb24d21e783428afe612545ce4dd8e4a43a2f6dbd7",
+      "version": "1.11.1"
+    },
+    {
+      "aggregate_sha256": "59551522df87ce7543be89e32e577295eb6489aa9224ea79cbb5405ff730e15a",
+      "bytes": 1354635,
+      "dependencies": [
+        {
+          "lock_key": "node_modules/@noble/hashes",
+          "name": "@noble/hashes"
+        }
+      ],
+      "file_count": 151,
+      "integrity": "sha512-oYclrNgRaM9SsBUBVbb8M6DTV7ZHRTKugureoYEncY5c65HOmRzvSiTE3y5CYaPYJA/GVkrhXEoF0M3Ya9PMnw==",
+      "lock_key": "node_modules/@noble/curves",
+      "name": "@noble/curves",
+      "optional_absent": [],
+      "package_json_sha256": "bf61194229da9a7fd331fcf44cc24f746b5cbaefe941a312215376584c269bd5",
+      "version": "1.2.0"
+    },
+    {
+      "aggregate_sha256": "38907d1e957d1845eed7831cde84b5b7d4039c0bb958f39a82ae14db8ec9f4f3",
+      "bytes": 746880,
+      "dependencies": [],
+      "file_count": 142,
+      "integrity": "sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ==",
+      "lock_key": "node_modules/@noble/hashes",
+      "name": "@noble/hashes",
+      "optional_absent": [],
+      "package_json_sha256": "8d8203c66e91a9e6ee510facf378a2c7420b27139360132a257010c2e5f091bc",
+      "version": "1.3.2"
+    },
+    {
+      "aggregate_sha256": "92c82dd4cccba347fe9aef21820ab502eb397cc284bdae32be95299c62bce61b",
+      "bytes": 737817,
+      "dependencies": [],
+      "file_count": 108,
+      "integrity": "sha512-G965FqalsNyrPqgEGON7nIx1e/OVENSgiEIzyC63haUMuvNnwIgIjMs52hlTCKhkBny7A2ORNlfY9Zu+jmGk1Q==",
+      "lock_key": "node_modules/aes-js",
+      "name": "aes-js",
+      "optional_absent": [],
+      "package_json_sha256": "60fc352466697ba86743b36101b2157cf413ac0e7d317788548993600f10cd7d",
+      "version": "4.0.0-beta.5"
+    },
+    {
+      "aggregate_sha256": "d6e7ce6986ae05f090eb49afd01ae1819aa3ef596326e60406a2136f1898d0c0",
+      "bytes": 13035887,
+      "dependencies": [
+        {
+          "lock_key": "node_modules/@adraffy/ens-normalize",
+          "name": "@adraffy/ens-normalize"
+        },
+        {
+          "lock_key": "node_modules/@noble/curves",
+          "name": "@noble/curves"
+        },
+        {
+          "lock_key": "node_modules/@noble/hashes",
+          "name": "@noble/hashes"
+        },
+        {
+          "lock_key": "node_modules/ethers/node_modules/@types/node",
+          "name": "@types/node"
+        },
+        {
+          "lock_key": "node_modules/aes-js",
+          "name": "aes-js"
+        },
+        {
+          "lock_key": "node_modules/tslib",
+          "name": "tslib"
+        },
+        {
+          "lock_key": "node_modules/ws",
+          "name": "ws"
+        }
+      ],
+      "file_count": 1301,
+      "integrity": "sha512-BpyrpIPJ3ydEVow8zGaz1DuPS7YU8DcWxuBnY9a0UA/lvAPwrMr+EPXsfrul628SRaekPNeIM4UFh/91GWZang==",
+      "lock_key": "node_modules/ethers",
+      "name": "ethers",
+      "optional_absent": [],
+      "package_json_sha256": "d644d7df228197962e4ca19824b06e8d50dce0b5ee2aced63dcfc2a11ec7b90f",
+      "version": "6.17.0"
+    },
+    {
+      "aggregate_sha256": "9c746e65478e462ad9407d055c84b38436c312150b1643e8d41ba1ab57b647ca",
+      "bytes": 2254135,
+      "dependencies": [
+        {
+          "lock_key": "node_modules/ethers/node_modules/undici-types",
+          "name": "undici-types"
+        }
+      ],
+      "file_count": 64,
+      "integrity": "sha512-jML7s2NAzMWc//QSJ1a3prpk78cOPchGvXJsC3C6R6PSMoooztvRVQEz89gmBTBY1SPMaqo5teB4uNHPdetShQ==",
+      "lock_key": "node_modules/ethers/node_modules/@types/node",
+      "name": "@types/node",
+      "optional_absent": [],
+      "package_json_sha256": "d57a323bf4705370a5e2f0ce927e2f265017d2479fd31e9b32e11334c1550308",
+      "version": "22.7.5"
+    },
+    {
+      "aggregate_sha256": "0390ce7baa30876b2deebdf2d4a02df8fb5833aa9810d2a727e89dea098e1767",
+      "bytes": 84225,
+      "dependencies": [],
+      "file_count": 41,
+      "integrity": "sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==",
+      "lock_key": "node_modules/ethers/node_modules/undici-types",
+      "name": "undici-types",
+      "optional_absent": [],
+      "package_json_sha256": "0635ace61c576d1297d05c344c4fab0a77e8c88ffa185c9f18b23d18f7387c40",
+      "version": "6.19.8"
+    },
+    {
+      "aggregate_sha256": "a31a56d6e36e675ae38347b4009b03ea884b707a777a892e1e7d265e13a82e72",
+      "bytes": 86155,
+      "dependencies": [],
+      "file_count": 14,
+      "integrity": "sha512-gLXCKdN1/j47AiHiOkJN69hJmcbGTHI0ImLmbYLHykhgeN0jVGola9yVjFgzCUklsZQMW55o+dW7IXv3RCXDzA==",
+      "lock_key": "node_modules/tslib",
+      "name": "tslib",
+      "optional_absent": [],
+      "package_json_sha256": "7ecf3460a204a34f0ef8ea32d0f9828385658d4e5d5e271f93f40e7b36a32972",
+      "version": "2.7.0"
+    },
+    {
+      "aggregate_sha256": "37792a848e2ff63aa46ae8004fd63d0133531e57f5e96c1d10dd452194d3af5d",
+      "bytes": 151087,
+      "dependencies": [],
+      "file_count": 19,
+      "integrity": "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==",
+      "lock_key": "node_modules/ws",
+      "name": "ws",
+      "optional_absent": [
+        "peer:bufferutil",
+        "peer:utf-8-validate"
+      ],
+      "package_json_sha256": "584ce6e7516587ba249dc910b0c04e2753f6b3f451fc3a5bc324f7735bdacc71",
+      "version": "8.21.0"
+    }
+  ],
+  "packages_aggregate_sha256": "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73",
+  "platform": "linux",
+  "profile_id": "voidrnpr1_1492f01cb202c23ad68260655fa111544d3cc6d6c17a4aa07540e2665c7c9e6d",
+  "root_packages": [
+    "ethers"
+  ],
+  "status": "REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE",
+  "total_bytes": 18906505,
+  "total_file_count": 1856,
+  "version": 1
+}
