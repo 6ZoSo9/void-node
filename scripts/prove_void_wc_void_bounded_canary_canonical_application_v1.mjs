@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -59,11 +60,29 @@ function prettyBytes(value) {
   return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
 }
 
+function proofGitEnv() {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+}
+
 function git(...args) {
   return execFileSync(
     "/usr/bin/git",
     ["-C", process.cwd(), ...args],
-    { encoding: "utf8" },
+    {
+      encoding: "utf8",
+      env: proofGitEnv(),
+    },
   ).trim();
 }
 
@@ -215,6 +234,123 @@ assert.throws(
   }),
   /CANONICAL_APPLICATION_APPLIED_BRANCH_NOT_MAIN/u,
 );
+
+{
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-bounded-canary-git-provenance-"),
+  );
+  const localSentinel = path.join(temp, "local-fsmonitor-executed");
+  const globalSentinel = path.join(temp, "global-fsmonitor-executed");
+  const localFsmonitor = path.join(temp, "local-fsmonitor.sh");
+  const globalFsmonitor = path.join(temp, "global-fsmonitor.sh");
+  const globalConfig = path.join(temp, "global.gitconfig");
+  const loaderPrefix = path.join(temp, "ld-debug");
+
+  fs.writeFileSync(
+    localFsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(localSentinel) +
+      "\nexit 91\n",
+    { mode: 0o700 },
+  );
+  fs.writeFileSync(
+    globalFsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(globalSentinel) +
+      "\nexit 91\n",
+    { mode: 0o700 },
+  );
+  fs.writeFileSync(
+    globalConfig,
+    "[core]\n  fsmonitor = " + globalFsmonitor + "\n",
+    { mode: 0o600 },
+  );
+
+  const previous = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "--get", "core.fsmonitor"],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: proofGitEnv(),
+    },
+  );
+  assert.ok(previous.status === 0 || previous.status === 1);
+  const previousValue =
+    previous.status === 0 ? String(previous.stdout || "").trim() : null;
+
+  const setLocal = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "core.fsmonitor", localFsmonitor],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: proofGitEnv(),
+    },
+  );
+  assert.equal(setLocal.status, 0, String(setLocal.stderr || ""));
+
+  const saved = Object.fromEntries(
+    ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "LD_DEBUG", "LD_DEBUG_OUTPUT"]
+      .map((key) => [key, process.env[key]]),
+  );
+  process.env.GIT_CONFIG_GLOBAL = globalConfig;
+  process.env.GIT_CONFIG_SYSTEM = globalConfig;
+  process.env.LD_DEBUG = "libs";
+  process.env.LD_DEBUG_OUTPUT = loaderPrefix;
+
+  try {
+    assert.throws(
+      () => verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+        applicationPlanBytes: planBytes,
+        applicationPlanFileSha256: sha256(planBytes),
+      }),
+      /CANONICAL_APPLICATION_APPLIED_BRANCH_NOT_MAIN/u,
+    );
+    assert.equal(
+      fs.existsSync(localSentinel),
+      false,
+      "repository-local core.fsmonitor executed during authority Git read",
+    );
+    assert.equal(
+      fs.existsSync(globalSentinel),
+      false,
+      "ambient global Git config executed during authority Git read",
+    );
+    assert.equal(
+      fs.readdirSync(temp).some((name) => name.startsWith("ld-debug.")),
+      false,
+      "dynamic-loader environment crossed into authority Git subprocess",
+    );
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    const restore =
+      previousValue === null
+        ? spawnSync(
+            "/usr/bin/git",
+            ["-C", process.cwd(), "config", "--local", "--unset-all", "core.fsmonitor"],
+            {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              env: proofGitEnv(),
+            },
+          )
+        : spawnSync(
+            "/usr/bin/git",
+            ["-C", process.cwd(), "config", "--local", "core.fsmonitor", previousValue],
+            {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              env: proofGitEnv(),
+            },
+          );
+    assert.equal(restore.status, 0, String(restore.stderr || ""));
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
 
 assert.throws(
   () => verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
@@ -373,6 +509,11 @@ for (const forbidden of [
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.equal(
+  source.includes("const env = { ...process.env }"),
+  false,
+  "authority Git environment must not inherit process.env",
+);
 for (const required of [
   "promoteWcVoidBoundedCanarySemanticV1",
   "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH",
@@ -381,6 +522,14 @@ for (const required of [
   "canonicalRemoteGitText",
   "GIT_CONFIG_GLOBAL",
   "GIT_CONFIG_SYSTEM",
+  "GIT_ATTR_NOSYSTEM",
+  "core.fsmonitor=false",
+  "core.hooksPath=/dev/null",
+  "core.attributesFile=/dev/null",
+  "core.untrackedCache=false",
+  "core.preloadIndex=false",
+  "submodule.recurse=false",
+  "http.sslVerify=true",
   "ls-remote",
   "https://github.com/6ZoSo9/void-node.git",
   "CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ",
@@ -401,6 +550,10 @@ console.log("fabricated_semantic_origin_held=true");
 console.log("candidate_promotion_reexecuted=true");
 console.log("canonical_source_prestates_bound=true");
 console.log("canonical_remote_config_isolated=true");
+console.log("minimal_git_subprocess_environment=true");
+console.log("repository_local_fsmonitor_ignored=true");
+console.log("ambient_global_git_config_ignored=true");
+console.log("dynamic_loader_git_injection_ignored=true");
 console.log("exact_two_gate_delta_prepared=true");
 console.log("forged_promotion_receipt_held=true");
 console.log("forged_application_plan_held=true");
