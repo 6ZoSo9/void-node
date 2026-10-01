@@ -1,0 +1,119 @@
+name: VOID Mainnet-0 readiness explicit peer v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-mainnet0-readiness-explicit-peer-v1.yml"
+      - "docs/operators/void-mainnet0-readiness-explicit-peer-v1.md"
+      - "ops/two-box-mainnet0-readiness-proof.sh"
+      - "ops/void-mainnet0-stamp-validator-status.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-mainnet0-readiness-explicit-peer-v1.yml"
+      - "docs/operators/void-mainnet0-readiness-explicit-peer-v1.md"
+      - "ops/two-box-mainnet0-readiness-proof.sh"
+      - "ops/void-mainnet0-stamp-validator-status.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Shell syntax
+        run: |
+          bash -n ops/two-box-mainnet0-readiness-proof.sh
+          bash -n ops/void-mainnet0-stamp-validator-status.sh
+
+      - name: Prove fail-closed remote target boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="ops/two-box-mainnet0-readiness-proof.sh"
+
+          set +e
+          output="$(bash "$proof" 2>&1)"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          grep -F "missing explicit CROSSBOX_SSH_TARGET" <<<"$output" >/dev/null
+
+          set +e
+          output="$(CROSSBOX_SSH_TARGET=zoso@100.122.79.39 bash "$proof" 2>&1)"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          grep -F "retired Alienware target is forbidden" <<<"$output" >/dev/null
+
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+
+          assert_rejected_target() {
+            local label="$1"
+            local target="$2"
+            local needle="$3"
+            local out="$tmp/$label"
+
+            set +e
+            output="$(OUT="$out" CROSSBOX_SSH_TARGET="$target" bash "$proof" 2>&1)"
+            rc=$?
+            set -e
+            test "$rc" -eq 2
+            grep -F "$needle" <<<"$output" >/dev/null
+            test ! -e "$out"
+          }
+
+          assert_rejected_target \
+            "leading-option" \
+            "-oProxyCommand=touch_/tmp/void-should-not-run" \
+            "must be an explicit SSH alias or user@host"
+          assert_rejected_target \
+            "whitespace" \
+            "zoso@xiphos bad" \
+            "must be an explicit SSH alias or user@host"
+          control_target="$(printf 'zoso@xiphos\nbad')"
+          assert_rejected_target \
+            "control" \
+            "$control_target" \
+            "must be an explicit SSH alias or user@host"
+          assert_rejected_target \
+            "shell-fragment" \
+            "zoso@xiphos;id" \
+            "must be an explicit SSH alias or user@host"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          readiness=Path("ops/two-box-mainnet0-readiness-proof.sh").read_text()
+          stamp=Path("ops/void-mainnet0-stamp-validator-status.sh").read_text()
+
+          assert '${ALIEN:-zoso@100.122.79.39}' not in readiness
+          assert 'ssh "$ALIEN"' not in readiness
+          assert 'ssh "$CROSSBOX_SSH_TARGET"' in readiness
+          assert '[[ "$CROSSBOX_SSH_TARGET" =~ [[:space:]] ]]' in readiness
+          assert '[[ "$CROSSBOX_SSH_TARGET" == -* ]]' in readiness
+          assert "^[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?$" in readiness
+          safe_guard = "CROSSBOX_SSH_TARGET must be an explicit SSH alias or user@host, not an option or shell fragment"
+          for side_effect in ('mkdir -p "$OUT"', "curl -fsS", 'ssh "$CROSSBOX_SSH_TARGET"'):
+              assert readiness.index(safe_guard) < readiness.index(side_effect)
+          assert readiness.index("missing explicit CROSSBOX_SSH_TARGET") < readiness.index(safe_guard)
+
+          assert '100.122.79.39' not in stamp
+          assert 'MAIN_BASE=' not in stamp
+
+          print("VOID_MAINNET0_READINESS_EXPLICIT_PEER_V1_GREEN")
+          print("ssh_performed=false")
+          print("runtime_observation_performed=false")
+          print("validator_mutation_performed=false")
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
