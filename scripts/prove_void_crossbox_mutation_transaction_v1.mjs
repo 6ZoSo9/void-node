@@ -38,6 +38,15 @@ function prestateId(transaction,participant){
   );
 }
 
+function forgeStoredState(transaction,mutator){
+  const copy=structuredClone(transaction);
+  mutator(copy);
+  delete copy.state_id;
+  copy.state_id=
+    "voidxms1_"+sha256(Buffer.from(canonical(copy),"utf8"));
+  return copy;
+}
+
 function managerEnv(overrides={}){
   return {
     VOID_SITE_BUNDLE_PEERS:null,
@@ -440,6 +449,55 @@ assert.equal(
   );
 }
 
+// Recomputing the outer state ID cannot authorize immutable-intent drift.
+{
+  const tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  const forged=forgeStoredState(tx,(value)=>{
+    value.intended.local_target_dropin_sha256="e".repeat(64);
+  });
+  assert.throws(
+    ()=>nextVoidCrossboxMutationRecoveryV1(forged),
+    /transaction_id_mismatch/u,
+  );
+}
+
+// Recomputing state ID cannot widen the source-only authority object.
+{
+  const tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  const forged=forgeStoredState(tx,(value)=>{
+    value.authority.systemd_mutation=true;
+  });
+  assert.throws(
+    ()=>nextVoidCrossboxMutationRecoveryV1(forged),
+    /transaction_authority_mismatch/u,
+  );
+}
+
+// Stored receipt semantics are re-derived on every transition/recovery read.
+{
+  let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
+  const forged=forgeStoredState(tx,(value)=>{
+    value.prepared.local.staged_state_sha256="f".repeat(64);
+  });
+  assert.throws(
+    ()=>nextVoidCrossboxMutationRecoveryV1(forged),
+    /prepare_staged_state_mismatch/u,
+  );
+}
+
+// A forged phase cannot turn an empty transaction into a terminal GREEN state.
+{
+  const tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  const forged=forgeStoredState(tx,(value)=>{
+    value.phase="COMMITTED";
+  });
+  assert.throws(
+    ()=>nextVoidCrossboxMutationRecoveryV1(forged),
+    /transaction_committed_state_invalid/u,
+  );
+}
+
 // Participant host identity is canonicalized and cannot differ only by case.
 {
   const bad=siteInput();
@@ -574,6 +632,9 @@ console.log("site_manager_environment_in_prestate=true");
 console.log("active_service_invocation_must_advance=true");
 console.log("rollback_exact_prestate_receipts_required=true");
 console.log("duplicate_recovery_idempotent=true");
+console.log("stored_transaction_intent_rederived=true");
+console.log("stored_receipts_rederived=true");
+console.log("forged_state_id_cannot_widen_authority=true");
 console.log("validator_checkpoint_after_two_party_commit_only=true");
 console.log("ssh_execution=false");
 console.log("systemd_mutation=false");
