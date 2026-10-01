@@ -38,6 +38,13 @@ also receives a content-addressed state ID.
 A caller cannot change a prestate, intended state, source generation, or
 participant identity without changing the transaction ID.
 
+This module is a **state-machine/receipt contract**, not a host observer. The
+later live executor must derive every prestate, publish, verify, and restore
+receipt from independently observed filesystem/systemd/runtime truth. It must
+not treat caller-declared receipt booleans or hashes as evidence by themselves.
+The executor integration is responsible for binding those observations to
+durable files/receipts before passing them through this contract.
+
 ## Site-bundle peer persistence prestate
 
 For each participant the prestate includes:
