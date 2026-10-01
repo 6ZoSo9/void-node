@@ -175,33 +175,43 @@ function sameGitExecutable(left,right){
   );
 }
 
+export function precisionWebRecoveryGitEnvV1(){
+  return Object.freeze({
+    PATH:"/usr/bin:/bin",
+    HOME:"/nonexistent",
+    XDG_CONFIG_HOME:"/nonexistent",
+    LANG:"C",
+    LC_ALL:"C",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_ATTR_NOSYSTEM:"1",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_NO_LAZY_FETCH:"1",
+    GIT_NO_REPLACE_OBJECTS:"1",
+  });
+}
+
 function sanitizedGitEnv(){
-  const env={...process.env};
-  for(const key of GIT_REPOSITORY_ENV) delete env[key];
-  for(const key of GIT_PROGRAM_ENV) delete env[key];
-  delete env.GIT_CONFIG_PARAMETERS;
-  delete env.GIT_CONFIG_COUNT;
-  for(const key of Object.keys(env)){
-    if(/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
-  }
-  env.PATH="/usr/bin:/bin";
-  env.HOME="/nonexistent";
-  env.GIT_CONFIG_GLOBAL="/dev/null";
-  env.GIT_CONFIG_SYSTEM="/dev/null";
-  env.GIT_CONFIG_NOSYSTEM="1";
-  env.GIT_TERMINAL_PROMPT="0";
-  env.GIT_OPTIONAL_LOCKS="0";
-  env.GIT_NO_LAZY_FETCH="1";
-  env.LANG="C";
-  env.LC_ALL="C";
-  return env;
+  return {...precisionWebRecoveryGitEnvV1()};
 }
 
 function git(args,code,{encoding="utf8"}={}){
   const before=inspectGitExecutable();
   const result=spawnSync(
     before.path,
-    ["--no-replace-objects","-C",ROOT,...args],
+    [
+      "--no-replace-objects",
+      "-c","core.hooksPath=/dev/null",
+      "-c","core.attributesFile=/dev/null",
+      "-c","core.fsmonitor=false",
+      "-c","core.untrackedCache=false",
+      "-c","core.preloadIndex=false",
+      "-c","submodule.recurse=false",
+      "-C",ROOT,
+      ...args,
+    ],
     {
       encoding,
       stdio:["ignore","pipe","pipe"],

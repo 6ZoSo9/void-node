@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voidchain.org/schemas/mainnet0-historical-cartography-extension-v1.schema.json",
+  "title": "VOID Mainnet-0 Historical Cartography Extension V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "marker",
+    "version",
+    "network",
+    "chain_id",
+    "status",
+    "prior",
+    "suffix",
+    "prefix_verification",
+    "candidate_manifest",
+    "authority",
+    "extension_id"
+  ],
+  "properties": {
+    "schema": {
+      "const": "void_mainnet0_historical_cartography_extension_v1"
+    },
+    "marker": {
+      "const": "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_EXTENSION_V1"
+    },
+    "version": { "const": 1 },
+    "network": { "const": "VOID Mainnet-0" },
+    "chain_id": { "const": 2050 },
+    "status": { "const": "candidate_complete" },
+    "prior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptance_id",
+        "manifest_id",
+        "source_id",
+        "frozen_head",
+        "block_count",
+        "complete_scan_digest",
+        "classification_semantics_root",
+        "prefix_root",
+        "checkpoint_descriptor_sha256"
+      ],
+      "properties": {
+        "acceptance_id": {
+          "const": "voidm0accept1_0845069c3f20572f2fdf80a7aeb4bde0fc359192d1501a1f6221ba90523bf959"
+        },
+        "manifest_id": {
+          "const": "voidm0map1_38f4dd05deae1a0dbc8b3d028ffd35bda7f1ba177f37a8b4fc37fb20e2bcc912"
+        },
+        "source_id": {
+          "const": "voidm0src1_c87dfdfbbe3aa6099bef0f1f9eafab20a09fe0a8d67453e83828c3eb967090da"
+        },
+        "frozen_head": { "const": 1951058 },
+        "block_count": { "const": 1951059 },
+        "complete_scan_digest": {
+          "const": "b4fe72e12e2ad709b4c3d6d4c210f8baa3463df2269d616ec9388badae7ed01c"
+        },
+        "classification_semantics_root": {
+          "const": "ea40d5f61cc8e8da68445382e76dc000cebce4d3805132bee93269e73d57a5ad"
+        },
+        "prefix_root": {
+          "const": "b9c0f187688790dc32e1fea7ea3294a4540bc410131303ec7806d3c811c67dde"
+        },
+        "checkpoint_descriptor_sha256": {
+          "const": "6d27db0954e625d71c0abe0fb06cc2519562b8b71fe7b25ce0495079558350b8"
+        }
+      }
+    },
+    "suffix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from_height",
+        "to_height",
+        "blocks_scanned",
+        "class_counts",
+        "digest_start",
+        "digest_end"
+      ],
+      "properties": {
+        "from_height": { "const": 1951059 },
+        "to_height": { "type": "integer", "minimum": 1951059 },
+        "blocks_scanned": { "type": "integer", "minimum": 1 },
+        "class_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "MINIMAL_V1",
+            "LEGACY_V2FS_V1",
+            "MODERN_SIGNED_V1",
+            "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1",
+            "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1"
+          ],
+          "properties": {
+            "MINIMAL_V1": { "type": "integer", "minimum": 0 },
+            "LEGACY_V2FS_V1": { "type": "integer", "minimum": 0 },
+            "MODERN_SIGNED_V1": { "type": "integer", "minimum": 0 },
+            "LEGACY_V2FS_EMPTY_HEADER_ROOT_OBJECT_V1": { "type": "integer", "minimum": 0 },
+            "MODERN_SIGNED_LEGACY_EMPTY_HEADER_ROOT_V1": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "digest_start": {
+          "const": "b4fe72e12e2ad709b4c3d6d4c210f8baa3463df2269d616ec9388badae7ed01c"
+        },
+        "digest_end": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "prefix_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accepted_frozen_head",
+        "descriptors_verified",
+        "prefix_bytes_verified",
+        "prefix_root",
+        "terminal_segment",
+        "terminal_prefix_bytes",
+        "terminal_prefix_sha256",
+        "terminal_block_raw_sha256",
+        "accepted_prefix_modified"
+      ],
+      "properties": {
+        "accepted_frozen_head": { "const": 1951058 },
+        "descriptors_verified": { "const": 196 },
+        "prefix_bytes_verified": { "const": 452333282 },
+        "prefix_root": {
+          "const": "b9c0f187688790dc32e1fea7ea3294a4540bc410131303ec7806d3c811c67dde"
+        },
+        "terminal_segment": { "const": "01950000" },
+        "terminal_prefix_bytes": { "const": 267927 },
+        "terminal_prefix_sha256": {
+          "const": "8bf4ea9fa5982ce4fa01d9f09948a5a4344a8d84f22ea524b991f62f4b711c9e"
+        },
+        "terminal_block_raw_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "accepted_prefix_modified": { "const": false }
+      }
+    },
+    "candidate_manifest": {
+      "type": "object",
+      "required": [
+        "schema",
+        "marker",
+        "status",
+        "scanner_version",
+        "source",
+        "historical_blocks_scanned",
+        "class_counts",
+        "complete_scan_digest",
+        "ranges",
+        "exceptions",
+        "manifest_id"
+      ],
+      "properties": {
+        "schema": { "const": "void_mainnet0_historical_cartography_v1" },
+        "marker": { "const": "VOID_MAINNET0_HISTORICAL_CARTOGRAPHY_V1" },
+        "status": { "const": "complete" },
+        "scanner_version": { "const": "v1.1" },
+        "manifest_id": {
+          "type": "string",
+          "pattern": "^voidm0map1_[0-9a-f]{64}$"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_only_extension_candidate",
+        "prior_acceptance_preserved",
+        "accepted_prefix_modified",
+        "candidate_acceptance_required",
+        "append_authority",
+        "runtime_projection_modified",
+        "runtime_authority",
+        "validator_authority",
+        "checkpoint_publication_authority",
+        "deployment_authority",
+        "wallet_or_signer_authority",
+        "work_credit_authority",
+        "transaction_authority",
+        "treasury_or_liquidity_authority",
+        "funds_movement_authority"
+      ],
+      "properties": {
+        "source_only_extension_candidate": { "const": true },
+        "prior_acceptance_preserved": { "const": true },
+        "accepted_prefix_modified": { "const": false },
+        "candidate_acceptance_required": { "const": true },
+        "append_authority": { "const": false },
+        "runtime_projection_modified": { "const": false },
+        "runtime_authority": { "const": false },
+        "validator_authority": { "const": false },
+        "checkpoint_publication_authority": { "const": false },
+        "deployment_authority": { "const": false },
+        "wallet_or_signer_authority": { "const": false },
+        "work_credit_authority": { "const": false },
+        "transaction_authority": { "const": false },
+        "treasury_or_liquidity_authority": { "const": false },
+        "funds_movement_authority": { "const": false }
+      }
+    },
+    "extension_id": {
+      "type": "string",
+      "pattern": "^voidm0ext1_[0-9a-f]{64}$"
+    }
+  }
+}

@@ -83,7 +83,11 @@ Before either executes, the tool requires a clean repository and binds exact
 - `package-lock.json`.
 
 Git replacement objects and Git configuration injection are disabled for the
-source reads.
+source reads. Authority-bearing repository Git commands run with a minimal fixed
+environment, null global/system config, and explicit command-line overrides for
+`core.fsmonitor=false`, hooks, ambient attributes, untracked cache, preload
+index and submodule recursion. Canonical origin is read from repository-local
+config with includes disabled.
 
 The reviewed module files are then copied from exact Git-object bytes into a
 private, uniquely named temporary directory under the repository Git directory.
@@ -217,9 +221,9 @@ A later reviewed source commit may apply the prepared candidate bytes.
 
 `verifyVoidWcVoidMarketVaultCanonicalApplicationV1(...)` requires:
 
-- clean repository;
+- clean repository, checked without executing repository-local fsmonitor/hooks;
 - branch exactly `main`;
-- canonical GitHub origin;
+- canonical GitHub origin read from local config with includes disabled;
 - fixed-URL remote `refs/heads/main` equal to local HEAD;
 - application base commit still an ancestor;
 - application base tree unchanged;
