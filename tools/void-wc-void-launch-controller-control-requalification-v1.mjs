@@ -439,6 +439,30 @@ function assertSourceBindingCurrentV1(bindingValue) {
   } catch {
     fail("control_source_head_not_ancestor_of_current_head");
   }
+  const reviewedTree = gitRead(
+    ["rev-parse", binding.source_head_sha + "^{tree}"],
+    "control_reviewed_source_tree_unavailable",
+  );
+  if (reviewedTree !== binding.source_tree_sha) {
+    fail("control_reviewed_source_tree_mismatch");
+  }
+  for (const [relativePath, expectedBlob] of
+    Object.entries(EXPECTED_SOURCE_BLOBS)) {
+    const reviewedBlob = gitRead(
+      [
+        "rev-parse",
+        binding.source_head_sha + ":" + relativePath,
+      ],
+      "control_reviewed_source_blob_unavailable",
+    );
+    if (
+      reviewedBlob !== expectedBlob ||
+      reviewedBlob !== blobs[relativePath]
+    ) {
+      fail("control_reviewed_source_blob_mismatch:" + relativePath);
+    }
+  }
+
   const reviewedControlBlob = gitRead(
     [
       "rev-parse",
