@@ -82,6 +82,10 @@ function git(root,args,code,{binary=false}={}){
       "--no-replace-objects",
       "-c","core.hooksPath=/dev/null",
       "-c","core.attributesFile=/dev/null",
+      "-c","core.fsmonitor=false",
+      "-c","core.untrackedCache=false",
+      "-c","core.preloadIndex=false",
+      "-c","submodule.recurse=false",
       ...args,
     ],
     {
@@ -96,6 +100,9 @@ function git(root,args,code,{binary=false}={}){
         LC_ALL:"C",
         GIT_NO_REPLACE_OBJECTS:"1",
         GIT_CONFIG_NOSYSTEM:"1",
+        GIT_CONFIG_GLOBAL:"/dev/null",
+        GIT_CONFIG_SYSTEM:"/dev/null",
+        GIT_TERMINAL_PROMPT:"0",
         HOME:"/nonexistent",
       },
     },
@@ -187,7 +194,59 @@ function canonicalPackageName(value){
   return value;
 }
 
+function canonicalLockKey(value){
+  if(
+    typeof value!=="string"||
+    value.length<1||
+    value.length>MAX_PATH_CHARS||
+    value.includes("\\")||
+    path.posix.normalize(value)!==value
+  ){
+    fail("reviewed_node_runtime_lock_key_invalid");
+  }
+  const parts=value.split("/");
+  if(parts.some(part=>!part||part==="."||part==="..")){
+    fail("reviewed_node_runtime_lock_key_invalid");
+  }
+  let index=0;
+  while(index<parts.length){
+    if(parts[index]!=="node_modules"){
+      fail("reviewed_node_runtime_lock_key_invalid");
+    }
+    index+=1;
+    if(index>=parts.length) fail("reviewed_node_runtime_lock_key_invalid");
+    if(parts[index].startsWith("@")){
+      if(index+1>=parts.length){
+        fail("reviewed_node_runtime_lock_key_invalid");
+      }
+      canonicalPackageName(parts[index]+"/"+parts[index+1]);
+      index+=2;
+    }else{
+      canonicalPackageName(parts[index]);
+      index+=1;
+    }
+  }
+  return value;
+}
+
+function packageBaseWithinRoot(root,lockKey,code){
+  canonicalLockKey(lockKey);
+  const resolvedRoot=path.resolve(root);
+  const base=path.resolve(resolvedRoot,...lockKey.split("/"));
+  const relative=path.relative(resolvedRoot,base);
+  if(
+    relative===""||
+    relative===".."||
+    relative.startsWith(".."+path.sep)||
+    path.isAbsolute(relative)
+  ){
+    fail(code);
+  }
+  return base;
+}
+
 function packageNameFromKey(key){
+  canonicalLockKey(key);
   const marker="node_modules/";
   const index=key.lastIndexOf(marker);
   if(index<0) fail("reviewed_node_runtime_lock_key_invalid");
@@ -287,7 +346,11 @@ export function deriveReviewedPackageLockClosureV1(lock,rootPackages=DEFAULT_ROO
 }
 
 function walkPackageDirectory(root,lockKey){
-  const base=path.join(root,...lockKey.split("/"));
+  const base=packageBaseWithinRoot(
+    root,
+    lockKey,
+    "reviewed_node_runtime_package_path_escape:"+String(lockKey),
+  );
   let baseReal;
   try{
     const stat=fs.lstatSync(base);
@@ -348,8 +411,13 @@ function walkPackageDirectory(root,lockKey){
 }
 
 function packageJsonIdentity(root,lockRow){
+  const base=packageBaseWithinRoot(
+    root,
+    lockRow.lock_key,
+    "reviewed_node_runtime_package_path_escape:"+String(lockRow.lock_key),
+  );
   const bytes=stableRegularBytes(
-    path.join(root,...lockRow.lock_key.split("/"),"package.json"),
+    path.join(base,"package.json"),
     "reviewed_node_runtime_dependency_package_json",
   );
   let value;
@@ -521,9 +589,67 @@ function validateProfileSelfIdentity(profile){
   ){
     fail("reviewed_node_runtime_profile_shape_invalid");
   }
+  const roots=profile.root_packages.map(canonicalPackageName);
+  if(
+    new Set(roots).size!==roots.length||
+    canonicalJson([...roots].sort(compareText))!==canonicalJson(roots)
+  ){
+    fail("reviewed_node_runtime_profile_root_packages_invalid");
+  }
+  if(
+    !Number.isSafeInteger(profile.package_count)||
+    profile.package_count<1||
+    profile.package_count>MAX_PACKAGES
+  ){
+    fail("reviewed_node_runtime_profile_package_count_invalid");
+  }
+  const seenLockKeys=new Set();
   const fileCount=profile.packages.reduce((sum,row)=>{
-    if(!plain(row)||!Number.isSafeInteger(row.file_count)||row.file_count<1){
+    if(
+      !plain(row)||
+      typeof row.lock_key!=="string"||
+      canonicalLockKey(row.lock_key)!==row.lock_key||
+      typeof row.name!=="string"||
+      canonicalPackageName(row.name)!==row.name||
+      packageNameFromKey(row.lock_key)!==row.name||
+      typeof row.version!=="string"||
+      row.version.length<1||
+      row.version.length>128||
+      typeof row.integrity!=="string"||
+      !/^sha512-[A-Za-z0-9+/]+={0,2}$/u.test(row.integrity)||
+      typeof row.package_json_sha256!=="string"||
+      !SHA64.test(row.package_json_sha256)||
+      typeof row.aggregate_sha256!=="string"||
+      !SHA64.test(row.aggregate_sha256)||
+      !Array.isArray(row.dependencies)||
+      !Array.isArray(row.optional_absent)||
+      !Number.isSafeInteger(row.file_count)||
+      row.file_count<1
+    ){
       fail("reviewed_node_runtime_profile_package_invalid");
+    }
+    if(seenLockKeys.has(row.lock_key)){
+      fail("reviewed_node_runtime_profile_duplicate_lock_key");
+    }
+    seenLockKeys.add(row.lock_key);
+    for(const dependency of row.dependencies){
+      if(
+        !plain(dependency)||
+        typeof dependency.name!=="string"||
+        typeof dependency.lock_key!=="string"
+      ){
+        fail("reviewed_node_runtime_profile_dependency_invalid");
+      }
+      const name=dependency.name.startsWith("peer:")
+        ? dependency.name.slice(5)
+        : dependency.name;
+      canonicalPackageName(name);
+      canonicalLockKey(dependency.lock_key);
+    }
+    for(const absent of row.optional_absent){
+      if(typeof absent!=="string"||absent.length<1||absent.length>256){
+        fail("reviewed_node_runtime_profile_optional_absent_invalid");
+      }
     }
     return sum+row.file_count;
   },0);
@@ -660,8 +786,16 @@ function writeExclusive(file,bytes){
 }
 
 function copyPackage(root,destinationRoot,row,inventory){
-  const sourceBase=path.join(root,...row.lock_key.split("/"));
-  const destBase=path.join(destinationRoot,...row.lock_key.split("/"));
+  const sourceBase=packageBaseWithinRoot(
+    root,
+    row.lock_key,
+    "reviewed_node_runtime_package_path_escape:"+String(row.lock_key),
+  );
+  const destBase=packageBaseWithinRoot(
+    destinationRoot,
+    row.lock_key,
+    "reviewed_node_runtime_materialized_package_path_escape:"+String(row.lock_key),
+  );
   fs.mkdirSync(destBase,{recursive:true,mode:0o700});
   for(const member of inventory.members){
     const source=path.join(sourceBase,...member.path.split("/"));
@@ -708,6 +842,7 @@ export function verifyMaterializedReviewedNodePackageRuntimeV1({
   destinationRoot,
 }={}){
   if(!plain(profile)) fail("reviewed_node_runtime_profile_required");
+  validateProfileSelfIdentity(profile);
   const root=fs.realpathSync.native(destinationRoot);
   if(root!==path.resolve(destinationRoot)){
     fail("reviewed_node_runtime_materialized_root_alias");
@@ -769,7 +904,12 @@ export function materializeReviewedNodePackageRuntimeV1({
     try{
       makeRemovableTree(destinationRoot);
       fs.rmSync(destinationRoot,{recursive:true,force:true});
-    }catch{}
+    }catch(cleanupError){
+      throw new AggregateError(
+        [error,cleanupError],
+        "reviewed_node_runtime_cleanup_failed",
+      );
+    }
     throw error;
   }
 }

@@ -56,8 +56,12 @@ Collection requires a clean repository and binds exact current HEAD blobs for:
 - `package.json`; and
 - `package-lock.json`.
 
-Git inspection uses the system Git binary with replacement-object semantics
-disabled and global/system Git configuration excluded from source authority.
+Git inspection uses the absolute system Git binary with replacement-object
+semantics disabled and global/system Git configuration excluded from source
+authority. Repository status explicitly disables local `core.fsmonitor`,
+untracked-cache, index-preload, hooks, attributes-file, and submodule recursion
+execution seams. Ambient Git environment variables are not inherited by the
+reviewed subprocess.
 
 The working-tree metadata bytes must equal those exact HEAD blobs.
 
@@ -65,6 +69,10 @@ The working-tree metadata bytes must equal those exact HEAD blobs.
 
 For every package in the lock-derived closure, collection verifies:
 
+- every lock key is a normalized npm `node_modules/... ` package path with no
+  empty, `.`, `..`, backslash, or path-escape component;
+- every resolved package base remains strictly inside the reviewed repository or
+  private materialization root;
 - installed package directory exists as a direct directory;
 - installed `package.json` name/version equal the lock record;
 - lockfile package version and SHA-512 integrity string are retained;
@@ -98,8 +106,13 @@ It then copies every verified package file into a caller-selected new private
 directory outside the repository, using create-only files. Every source file is
 re-read stably and must still equal the collected member hash.
 
-The copied dependency tree is inventoried again and must equal the reviewed
-profile before the tree is made read-only.
+The exported private-tree verifier first validates the profile's complete
+self-identity and lock-key path grammar before it traverses any caller-selected
+path. The copied dependency tree is then inventoried again and must equal the
+reviewed profile before the tree is made read-only. If materialization fails and
+cleanup also fails, both failures are surfaced as
+`reviewed_node_runtime_cleanup_failed`; partial cleanup failure is never
+silently swallowed.
 
 A reviewed module materialization can place its source tree beside this private
 `node_modules`. Bare imports then resolve from the private reviewed package

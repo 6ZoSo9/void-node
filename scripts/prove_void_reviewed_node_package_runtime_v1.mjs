@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -86,19 +87,37 @@ assert.equal(verified.ok,true);
 assert.equal(verified.status,"REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED");
 assert.equal(verified.profile_id,profile.profile_id);
 
+function sha256(value){
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+function selfConsistentProfile(value){
+  const next=structuredClone(value);
+  next.packages_aggregate_sha256=sha256(
+    Buffer.from(canonicalJson(next.packages),"utf8"),
+  );
+  const body=Object.fromEntries(
+    Object.entries(next).filter(([key])=>key!=="profile_id"),
+  );
+  next.profile_id="voidrnpr1_"+sha256(
+    Buffer.from(canonicalJson(body),"utf8"),
+  );
+  return next;
+}
+
 {
   const bad=structuredClone(profile);
   bad.packages_aggregate_sha256="0".repeat(64);
   assert.throws(
     ()=>verifyReviewedNodePackageRuntimeV1({profile:bad}),
-    /reviewed_node_runtime_profile_mismatch/u,
+    /reviewed_node_runtime_profile_package_aggregate_mismatch/u,
   );
 }
 {
   const bad=structuredClone(profile);
   bad.packages[0].version="0.0.0";
+  const expected=selfConsistentProfile(bad);
   assert.throws(
-    ()=>verifyReviewedNodePackageRuntimeV1({profile:bad}),
+    ()=>verifyReviewedNodePackageRuntimeV1({profile:expected}),
     /reviewed_node_runtime_profile_mismatch/u,
   );
 }
@@ -116,7 +135,87 @@ function makeWritable(root){
 
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-reviewed-node-runtime-proof-"));
 const destination=path.join(temp,"private-runtime");
+
+const gitConfig=(args,{check=true}={})=>{
+  const result=spawnSync(
+    "/usr/bin/git",
+    ["-C",path.resolve(path.dirname(new URL(import.meta.url).pathname),".."),"config","--local",...args],
+    {encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+  );
+  if(check&&result.status!==0){
+    throw new Error("git config failed: "+String(result.stderr||""));
+  }
+  return result;
+};
+
 try{
+  const fakeBin=path.join(temp,"fake-bin");
+  const fakeGit=path.join(fakeBin,"git");
+  const fakeSentinel=path.join(temp,"fake-git-invoked");
+  const fsmonitor=path.join(temp,"fsmonitor.sh");
+  const fsmonitorSentinel=path.join(temp,"fsmonitor-invoked");
+  fs.mkdirSync(fakeBin);
+  fs.writeFileSync(
+    fakeGit,
+    "#!/bin/sh\nprintf 'invoked\\n' >> "+JSON.stringify(fakeSentinel)+"\nexit 91\n",
+    {mode:0o700},
+  );
+  fs.writeFileSync(
+    fsmonitor,
+    "#!/bin/sh\nprintf 'invoked\\n' >> "+JSON.stringify(fsmonitorSentinel)+"\nexit 0\n",
+    {mode:0o700},
+  );
+  const priorFsmonitor=gitConfig(
+    ["--get-all","core.fsmonitor"],
+    {check:false},
+  );
+  if(priorFsmonitor.status!==0&&priorFsmonitor.status!==1){
+    throw new Error("unable to read prior core.fsmonitor");
+  }
+  gitConfig(["--replace-all","core.fsmonitor",fsmonitor]);
+  const savedEnv=new Map();
+  for(const key of [
+    "PATH","GIT_DIR","GIT_WORK_TREE","GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES","GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT","GIT_EXEC_PATH",
+  ]){
+    savedEnv.set(
+      key,
+      Object.prototype.hasOwnProperty.call(process.env,key)
+        ? process.env[key]
+        : undefined,
+    );
+  }
+  try{
+    process.env.PATH=fakeBin;
+    process.env.GIT_DIR=path.join(temp,"forged.git");
+    process.env.GIT_WORK_TREE=temp;
+    process.env.GIT_OBJECT_DIRECTORY=path.join(temp,"objects");
+    process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES=path.join(temp,"alternate");
+    process.env.GIT_CONFIG_PARAMETERS="'core.fsmonitor="+fsmonitor.replaceAll("'","")+"'";
+    process.env.GIT_CONFIG_COUNT="1";
+    process.env.GIT_CONFIG_KEY_0="core.fsmonitor";
+    process.env.GIT_CONFIG_VALUE_0=fsmonitor;
+    process.env.GIT_EXEC_PATH=fakeBin;
+    const hostile=collectReviewedNodePackageRuntimeV1({
+      rootPackages:["ethers"],
+    });
+    assert.equal(canonicalJson(hostile),canonicalJson(profile));
+    assert.equal(fs.existsSync(fakeSentinel),false);
+    assert.equal(fs.existsSync(fsmonitorSentinel),false);
+  }finally{
+    for(const [key,value] of savedEnv){
+      if(value===undefined) delete process.env[key];
+      else process.env[key]=value;
+    }
+    gitConfig(["--unset-all","core.fsmonitor"],{check:false});
+    if(priorFsmonitor.status===0){
+      for(const value of String(priorFsmonitor.stdout||"").split("\n").filter(Boolean)){
+        gitConfig(["--add","core.fsmonitor",value]);
+      }
+    }
+  }
+
   const materialized=materializeReviewedNodePackageRuntimeV1({
     profile,
     destinationRoot:destination,
@@ -134,6 +233,19 @@ try{
     destinationRoot:destination,
   });
   assert.equal(rechecked.ok,true);
+
+  {
+    const escaped=structuredClone(profile);
+    escaped.packages[0].lock_key="node_modules/ethers/../../escape";
+    const escapedProfile=selfConsistentProfile(escaped);
+    assert.throws(
+      ()=>verifyMaterializedReviewedNodePackageRuntimeV1({
+        profile:escapedProfile,
+        destinationRoot:destination,
+      }),
+      /reviewed_node_runtime_lock_key_invalid/u,
+    );
+  }
 
   const entry=path.join(destination,"probe.mjs");
   fs.writeFileSync(
@@ -227,8 +339,16 @@ for(const required of [
   '"--no-replace-objects"',
   '"core.hooksPath=/dev/null"',
   '"core.attributesFile=/dev/null"',
+  '"core.fsmonitor=false"',
+  '"core.untrackedCache=false"',
   "GIT_NO_REPLACE_OBJECTS",
   "GIT_CONFIG_NOSYSTEM",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "reviewed_node_runtime_lock_key_invalid",
+  "reviewed_node_runtime_package_path_escape",
+  "reviewed_node_runtime_cleanup_failed",
+  "AggregateError",
   "reviewed_node_runtime_dependency_symlink_forbidden",
   "reviewed_node_runtime_dependency_changed_before_copy",
   "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED",
@@ -245,6 +365,10 @@ console.log("package_count="+profile.package_count);
 console.log("packages_aggregate_sha256="+profile.packages_aggregate_sha256);
 console.log("profile_id="+profile.profile_id);
 console.log("private_ethers_import_green=true");
+console.log("materialized_lock_key_path_escape_rejected=true");
+console.log("local_git_fsmonitor_execution_blocked=true");
+console.log("ambient_git_environment_redirect_blocked=true");
+console.log("materialization_cleanup_failure_observable=true");
 console.log("ambient_node_modules_execution_required=false");
 console.log("network_access=false");
 console.log("package_script_execution=false");
