@@ -6,6 +6,7 @@ import path from "node:path";
 
 import {
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1,
+  VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1,
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
   deriveVoidWcVoidFinalCoupledActivationPromotionV1,
   writeVoidWcVoidFinalCoupledActivationPromotionV1,
@@ -125,6 +126,10 @@ assert.equal(
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
   "VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1",
 );
+assert.equal(
+  VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1,
+  "VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1",
+);
 for (const [key, value] of Object.entries(
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1,
 )) {
@@ -179,7 +184,7 @@ assert.deepEqual(
   ["coupled_activation_ready_required"],
 );
 
-const promotion =
+const preview =
   deriveVoidWcVoidFinalCoupledActivationPromotionV1({
     production_candidate: productionPre,
     coupled_candidate: coupledPre,
@@ -189,56 +194,65 @@ const promotion =
   });
 
 assert.equal(
-  promotion.status,
-  "FINAL_COUPLED_ACTIVATION_PROMOTION_READY_NOT_ACTIVATED",
+  preview.marker,
+  VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1,
 );
-assert.match(promotion.promotion_id, /^voidwcfcap1_[0-9a-f]{64}$/u);
-assert.match(promotion.composition_id, /^sha256:[0-9a-f]{64}$/u);
-assert.equal(promotion.repository_head_sha, "a".repeat(40));
-assert.equal(promotion.repository_tree_sha, "b".repeat(40));
 assert.equal(
-  promotion.canonical_remote_url,
+  preview.status,
+  "FINAL_COUPLED_STRUCTURAL_PREVIEW_NOT_SOURCE_VERIFIED",
+);
+assert.match(preview.preview_id, /^voidwcfcappreview1_[0-9a-f]{64}$/u);
+assert.equal(Object.hasOwn(preview, "promotion_id"), false);
+assert.equal(preview.authority.source_promotion_only, false);
+assert.equal(preview.authority.canonical_candidate_read, false);
+assert.equal(preview.authority.git_application_lineage_read, false);
+assert.equal(preview.authority.create_only_private_output, false);
+assert.match(preview.composition_id, /^sha256:[0-9a-f]{64}$/u);
+assert.equal(preview.repository_head_sha, "a".repeat(40));
+assert.equal(preview.repository_tree_sha, "b".repeat(40));
+assert.equal(
+  preview.canonical_remote_url,
   "https://github.com/6ZoSo9/void-node.git",
 );
-assert.equal(promotion.remote_main_sha, "a".repeat(40));
-assert.match(promotion.production_source_file_sha256, /^[0-9a-f]{64}$/u);
-assert.match(promotion.production_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
-assert.match(promotion.coupled_source_file_sha256, /^[0-9a-f]{64}$/u);
-assert.match(promotion.coupled_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
-assert.match(promotion.successor_source_file_sha256, /^[0-9a-f]{64}$/u);
-assert.match(promotion.successor_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
-assert.match(promotion.production_target_file_sha256, /^[0-9a-f]{64}$/u);
-assert.match(promotion.production_target_git_blob_sha1, /^[0-9a-f]{40}$/u);
-assert.match(promotion.coupled_target_file_sha256, /^[0-9a-f]{64}$/u);
-assert.match(promotion.coupled_target_git_blob_sha1, /^[0-9a-f]{40}$/u);
-assert.equal(promotion.applied_lineages.length, 6);
-assert.deepEqual(promotion.final_production_fields, [
+assert.equal(preview.remote_main_sha, "a".repeat(40));
+assert.match(preview.production_source_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(preview.production_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.match(preview.coupled_source_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(preview.coupled_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.match(preview.successor_source_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(preview.successor_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.match(preview.production_target_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(preview.production_target_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.match(preview.coupled_target_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(preview.coupled_target_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.equal(preview.applied_lineages.length, 6);
+assert.deepEqual(preview.final_production_fields, [
   "coupled_activation_ready",
   "status",
 ]);
-assert.deepEqual(promotion.final_coupled_fields, [
+assert.deepEqual(preview.final_coupled_fields, [
   "gates.coupled_activation_ready",
   "status",
 ]);
 
-assert.equal(promotion.production_target_candidate.status, "source_ready");
+assert.equal(preview.production_target_candidate.status, "source_ready");
 assert.equal(
-  promotion.production_target_candidate.coupled_activation_ready,
+  preview.production_target_candidate.coupled_activation_ready,
   true,
 );
-assert.equal(promotion.coupled_target_candidate.status, "SOURCE_READY");
+assert.equal(preview.coupled_target_candidate.status, "SOURCE_READY");
 assert.equal(
-  promotion.coupled_target_candidate.gates.coupled_activation_ready,
+  preview.coupled_target_candidate.gates.coupled_activation_ready,
   true,
 );
 assert.deepEqual(
-  promotion.successor_migration_candidate,
+  preview.successor_migration_candidate,
   successorReady,
 );
 
 const productionAfter =
   classifyVoidWcVoidProductionReadinessV1(
-    promotion.production_target_candidate,
+    preview.production_target_candidate,
   );
 assert.equal(productionAfter.ok, true);
 assert.equal(productionAfter.status, "SOURCE_READY");
@@ -247,8 +261,8 @@ assert.equal(productionAfter.funding_authority, false);
 
 const coupledAfter =
   classifyVoidCoupledEconomicSuccessorGateV1(
-    promotion.coupled_target_candidate,
-    promotion.successor_migration_candidate,
+    preview.coupled_target_candidate,
+    preview.successor_migration_candidate,
   );
 assert.equal(coupledAfter.ok, true);
 assert.equal(coupledAfter.status, "SOURCE_READY");
@@ -258,10 +272,10 @@ assert.equal(coupledAfter.funds_movement_authorized, false);
 
 const composed =
   classifyVoidWcVoidCoupledLaunchReadinessV1({
-    production_candidate: promotion.production_target_candidate,
-    coupled_candidate: promotion.coupled_target_candidate,
+    production_candidate: preview.production_target_candidate,
+    coupled_candidate: preview.coupled_target_candidate,
     successor_migration_candidate:
-      promotion.successor_migration_candidate,
+      preview.successor_migration_candidate,
   });
 assert.equal(composed.ok, true);
 assert.equal(composed.status, "SOURCE_READY");
@@ -270,7 +284,7 @@ assert.equal(composed.funding_authority, false);
 assert.equal(composed.market_activation_authorized, false);
 assert.equal(composed.public_presale_activation_authorized, false);
 assert.equal(composed.funds_movement_authorized, false);
-assert.equal(composed.composition_id, promotion.composition_id);
+assert.equal(composed.composition_id, preview.composition_id);
 
 for (const key of [
   "canonical_candidate_files_updated",
@@ -360,15 +374,15 @@ assert.throws(
 );
 
 assert.equal(
-  Object.isFrozen(promotion.production_target_candidate),
+  Object.isFrozen(preview.production_target_candidate),
   true,
 );
 assert.equal(
-  Object.isFrozen(promotion.production_target_candidate.authority),
+  Object.isFrozen(preview.production_target_candidate.authority),
   true,
 );
 assert.equal(
-  Object.isFrozen(promotion.coupled_target_candidate.gates),
+  Object.isFrozen(preview.coupled_target_candidate.gates),
   true,
 );
 
@@ -377,33 +391,32 @@ const outRoot = fs.mkdtempSync(
 );
 try {
   const output = path.join(outRoot, "promotion.json");
-  const persisted =
-    writeVoidWcVoidFinalCoupledActivationPromotionV1(
-      output,
-      promotion,
-    );
-  assert.equal(persisted.output_path, output);
-  assert.match(persisted.output_sha256, /^[0-9a-f]{64}$/u);
-  assert.ok(persisted.output_bytes > 0);
-  assert.equal(fs.statSync(output).mode & 0o777, 0o600);
-  const parsed = JSON.parse(fs.readFileSync(output, "utf8"));
-  assert.equal(parsed.promotion_id, promotion.promotion_id);
-  assert.equal(
-    parsed.production_target_file_sha256,
-    promotion.production_target_file_sha256,
-  );
-  assert.equal(
-    parsed.coupled_target_file_sha256,
-    promotion.coupled_target_file_sha256,
-  );
   assert.throws(
     () =>
       writeVoidWcVoidFinalCoupledActivationPromotionV1(
         output,
-        promotion,
+        preview,
       ),
-    /FINAL_COUPLED_OUTPUT_ALREADY_EXISTS/u,
+    /FINAL_COUPLED_OUTPUT_PROMOTION_INVALID/u,
   );
+  assert.equal(fs.existsSync(output), false);
+
+  const forged = {
+    ...structuredClone(preview),
+    marker: VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
+    status: "FINAL_COUPLED_ACTIVATION_PROMOTION_READY_NOT_ACTIVATED",
+    promotion_id: "voidwcfcap1_" + "0".repeat(64),
+  };
+  delete forged.preview_id;
+  assert.throws(
+    () =>
+      writeVoidWcVoidFinalCoupledActivationPromotionV1(
+        output,
+        forged,
+      ),
+    /FINAL_COUPLED_OUTPUT_PROMOTION_INVALID/u,
+  );
+  assert.equal(fs.existsSync(output), false);
 } finally {
   fs.rmSync(outRoot, { recursive: true, force: true });
 }
@@ -412,6 +425,22 @@ const source = fs.readFileSync(
   "tools/void-wc-void-final-coupled-activation-promotion-v1.mjs",
   "utf8",
 );
+for (const required of [
+  "FINAL_COUPLED_VERIFIED_SOURCE_CAPABILITY",
+  "deriveVerifiedVoidWcVoidFinalCoupledActivationPromotionV1",
+  "VERIFIED_SOURCE_PROMOTIONS.has(promotion)",
+  "FINAL_COUPLED_STRUCTURAL_PREVIEW_NOT_SOURCE_VERIFIED",
+]) {
+  assert.equal(source.includes(required), true, required);
+}
+assert.equal(
+  source.includes(
+    "export function deriveVerifiedVoidWcVoidFinalCoupledActivationPromotionV1",
+  ),
+  false,
+  "verified derivation must remain module-private",
+);
+
 for (const forbidden of [
   "eth_sendRawTransaction",
   "systemctl",
@@ -430,7 +459,9 @@ console.log("coupled_nonfinal_gates_must_already_be_green=true");
 console.log("exact_final_production_change_scope=true");
 console.log("exact_final_coupled_change_scope=true");
 console.log("exact_target_file_hashes_bound=true");
-console.log("private_create_only_promotion_artifact_verified=true");
+console.log("synthetic_preview_cannot_mint_authoritative_promotion=true");
+console.log("synthetic_preview_authoritative_writer_rejected=true");
+console.log("verified_cli_private_capability_required=true");
 console.log("composite_source_ready_proven=true");
 console.log("canonical_candidate_files_updated=false");
 console.log("runtime_activation_authorized=false");

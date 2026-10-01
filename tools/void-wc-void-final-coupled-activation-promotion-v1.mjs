@@ -21,6 +21,13 @@ import {
 
 export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1 =
   "VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1";
+export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1 =
+  "VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1";
+
+const FINAL_COUPLED_VERIFIED_SOURCE_CAPABILITY = Symbol(
+  "VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_VERIFIED_SOURCE_V1",
+);
+const VERIFIED_SOURCE_PROMOTIONS = new WeakSet();
 
 export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1 =
   Object.freeze({
@@ -48,6 +55,15 @@ export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1 =
     public_presale_activation: false,
     migration_activation: false,
     funds_movement: false,
+  });
+
+const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PREVIEW_AUTHORITY_V1 =
+  Object.freeze({
+    ...VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1,
+    source_promotion_only: false,
+    canonical_candidate_read: false,
+    git_application_lineage_read: false,
+    create_only_private_output: false,
   });
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -314,13 +330,15 @@ function normalizeRepositoryBinding(value) {
   });
 }
 
-export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
+function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
   production_candidate,
   coupled_candidate,
   successor_migration_candidate,
   applied_lineages,
   repository_identity,
-}) {
+}, verifiedSourceCapability = null) {
+  const authorityBearing =
+    verifiedSourceCapability === FINAL_COUPLED_VERIFIED_SOURCE_CAPABILITY;
   if (
     !plain(production_candidate) ||
     !plain(coupled_candidate) ||
@@ -474,9 +492,13 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
   const coupledTargetBytes = prettyBytes(coupledTarget);
 
   const material = Object.freeze({
-    marker: VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
+    marker: authorityBearing
+      ? VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1
+      : VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1,
     version: 1,
-    status: "FINAL_COUPLED_ACTIVATION_PROMOTION_READY_NOT_ACTIVATED",
+    status: authorityBearing
+      ? "FINAL_COUPLED_ACTIVATION_PROMOTION_READY_NOT_ACTIVATED"
+      : "FINAL_COUPLED_STRUCTURAL_PREVIEW_NOT_SOURCE_VERIFIED",
     chain_id: 2050,
     execution_epoch: 2,
     pair: "WC_VOID",
@@ -531,15 +553,35 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
     market_activation_authorized: false,
     public_presale_activation_authorized: false,
     funds_movement_authorized: false,
-    authority:
-      VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1,
+    authority: authorityBearing
+      ? VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1
+      : VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PREVIEW_AUTHORITY_V1,
   });
 
-  return deepFreeze({
-    ...material,
-    promotion_id:
-      "voidwcfcap1_" + sha256Text(canonicalJson(material)),
-  });
+  const result = authorityBearing
+    ? deepFreeze({
+        ...material,
+        promotion_id:
+          "voidwcfcap1_" + sha256Text(canonicalJson(material)),
+      })
+    : deepFreeze({
+        ...material,
+        preview_id:
+          "voidwcfcappreview1_" + sha256Text(canonicalJson(material)),
+      });
+  if (authorityBearing) VERIFIED_SOURCE_PROMOTIONS.add(result);
+  return result;
+}
+
+export function deriveVoidWcVoidFinalCoupledActivationPromotionV1(input) {
+  return deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1(input);
+}
+
+function deriveVerifiedVoidWcVoidFinalCoupledActivationPromotionV1(input) {
+  return deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1(
+    input,
+    FINAL_COUPLED_VERIFIED_SOURCE_CAPABILITY,
+  );
 }
 
 function git(args, code) {
@@ -851,8 +893,12 @@ export function writeVoidWcVoidFinalCoupledActivationPromotionV1(
   ) {
     fail("FINAL_COUPLED_OUTPUT_PATH_INVALID");
   }
-  if (!plain(promotion) || promotion.marker !==
-    VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1) {
+  if (
+    !plain(promotion) ||
+    promotion.marker !==
+      VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1 ||
+    !VERIFIED_SOURCE_PROMOTIONS.has(promotion)
+  ) {
     fail("FINAL_COUPLED_OUTPUT_PROMOTION_INVALID");
   }
   privateOutputParent(file);
@@ -918,13 +964,14 @@ if (direct) {
     const lineages =
       await verifyAppliedLineagePlans(lineageManifest);
 
-    const result = deriveVoidWcVoidFinalCoupledActivationPromotionV1({
-      production_candidate: headJson(PRODUCTION_REL),
-      coupled_candidate: headJson(COUPLED_REL),
-      successor_migration_candidate: headJson(SUCCESSOR_REL),
-      applied_lineages: lineages,
-      repository_identity: repository,
-    });
+    const result =
+      deriveVerifiedVoidWcVoidFinalCoupledActivationPromotionV1({
+        production_candidate: headJson(PRODUCTION_REL),
+        coupled_candidate: headJson(COUPLED_REL),
+        successor_migration_candidate: headJson(SUCCESSOR_REL),
+        applied_lineages: lineages,
+        repository_identity: repository,
+      });
 
     const persisted =
       writeVoidWcVoidFinalCoupledActivationPromotionV1(

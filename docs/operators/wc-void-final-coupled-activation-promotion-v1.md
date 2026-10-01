@@ -187,6 +187,33 @@ generation where that canonical application module has not yet merged, the
 final promotion HOLDs with a missing-verifier error rather than weakening the
 dependency.
 
+## Library API boundary
+
+The exported `deriveVoidWcVoidFinalCoupledActivationPromotionV1(...)` is a
+structural preview only. Caller-supplied candidate, lineage, and repository
+objects can be useful for deterministic delta inspection, but that exported
+function emits:
+
+```text
+marker=VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1
+status=FINAL_COUPLED_STRUCTURAL_PREVIEW_NOT_SOURCE_VERIFIED
+```
+
+It never emits the final promotion marker/status or a `promotion_id`. Its
+authority metadata also marks source promotion, canonical candidate read, Git
+application-lineage read, and create-only authoritative output as unproven.
+
+The authority-bearing derivation is module-private and requires a module-private
+verified-source capability. Only the CLI path obtains that capability, after it
+has derived repository identity, read the canonical `HEAD:<candidate>` inputs,
+and completed the six application-verifier checks. The create-only writer also
+requires the exact in-process verified promotion object. A caller cannot turn a
+preview into reviewed output by merely changing marker/status fields.
+
+This closes the exported-library bypass without claiming to close the separate
+reviewed-execution/runtime provenance or lane-specific verifier-input blockers
+that still keep this PR Draft.
+
 ## CLI
 
 Once all upstream canonical applications are merged:
