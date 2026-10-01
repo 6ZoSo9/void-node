@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import {
   VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_AUTHORITY_V1,
   VOID_VOIDCHAIN_PATH_PRESERVING_INGRESS_PLAN_V1,
+  buildVoidchainIngressGitInvocationV1,
   prepareVoidchainPathPreservingIngressPlanV1,
   verifyVoidchainPathPreservingIngressPlanV1,
 } from "../tools/void-voidchain-path-preserving-ingress-plan-v1.mjs";
@@ -221,6 +222,74 @@ try{
       else delete process.env[key];
     }
   }
+  {
+    const fakeBin=path.join(temp,"fake-bin");
+    const fakeGit=path.join(fakeBin,"git");
+    const fakeSentinel=path.join(temp,"fake-git-executed");
+    fs.mkdirSync(fakeBin,{mode:0o700});
+    fs.writeFileSync(
+      fakeGit,
+      "#!/bin/sh\nprintf executed > "+JSON.stringify(fakeSentinel)+"\nexit 91\n",
+      {mode:0o755},
+    );
+    const hostile={
+      PATH:fakeBin,
+      LD_PRELOAD:"/tmp/void-should-not-load.so",
+      LD_LIBRARY_PATH:"/tmp/void-should-not-search",
+      DYLD_INSERT_LIBRARIES:"/tmp/void-should-not-load.dylib",
+      DYLD_LIBRARY_PATH:"/tmp/void-should-not-search",
+      NODE_OPTIONS:"--require=/tmp/void-should-not-require.js",
+      BASH_ENV:"/tmp/void-should-not-source",
+      ENV:"/tmp/void-should-not-source",
+    };
+    const saved=new Map();
+    for(const [key,value] of Object.entries(hostile)){
+      saved.set(
+        key,
+        Object.prototype.hasOwnProperty.call(process.env,key)
+          ? process.env[key]
+          : undefined,
+      );
+      process.env[key]=value;
+    }
+    try{
+      const invocation=buildVoidchainIngressGitInvocationV1(["rev-parse","HEAD"]);
+      assert.equal(invocation.executable,"/usr/bin/git");
+      assert.equal(invocation.env.PATH,"/usr/bin:/bin");
+      for(const key of Object.keys(hostile)){
+        if(key==="PATH") continue;
+        assert.equal(
+          Object.hasOwn(invocation.env,key),
+          false,
+          "hostile loader/tool variable leaked into Git environment: "+key,
+        );
+      }
+      for(const required of [
+        "core.fsmonitor=false",
+        "core.hooksPath=/dev/null",
+        "core.attributesFile=/dev/null",
+        "core.preloadIndex=false",
+        "core.untrackedCache=false",
+        "submodule.recurse=false",
+        "core.bare=false",
+        "core.worktree="+ROOT,
+      ]){
+        assert.equal(invocation.args.includes(required),true,required);
+      }
+      const isolated=prepareVoidchainPathPreservingIngressPlanV1({
+        ...request,
+        output_dir:path.join(temp,"hostile-loader-env"),
+      });
+      assert.match(isolated.plan_id,/^voidvci1_[0-9a-f]{64}$/u);
+      assert.equal(fs.existsSync(fakeSentinel),false);
+    }finally{
+      for(const [key,value] of saved){
+        if(value===undefined) delete process.env[key];
+        else process.env[key]=value;
+      }
+    }
+  }
+
   rejectPrepare(
     {...request,output_dir:path.join(ROOT,".voidchain-ingress-plan-test")},
     /VOIDCHAIN_INGRESS_OUTPUT_MUST_BE_OUTSIDE_REPOSITORY/u,
@@ -306,6 +375,10 @@ try{
     "GIT_NO_REPLACE_OBJECTS",
     "GIT_CONFIG_PARAMETERS",
     "--no-replace-objects",
+    "core.fsmonitor=false",
+    "core.hooksPath=/dev/null",
+    "core.preloadIndex=false",
+    "buildVoidchainIngressGitInvocationV1",
     "yamlDoubleQuoted",
     "credential_content_read: false",
     "cloudflared_execution: false",
@@ -321,6 +394,8 @@ try{
   console.log("path_preserving=true");
   console.log("exact_pr_head_checkout_required=true");
   console.log("git_config_parameters_rejected=true");
+  console.log("ambient_git_loader_tool_env_excluded=true");
+  console.log("repository_local_git_execution_features_disabled=true");
   console.log("credential_path_yaml_quoted=true");
   console.log("cloudflared_executed=false");
   console.log("credential_content_read=false");

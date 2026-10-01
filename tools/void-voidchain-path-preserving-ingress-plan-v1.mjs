@@ -200,26 +200,48 @@ function isInside(parent,candidate){
   return rel===""||(rel!==".."&&!rel.startsWith(".."+path.sep)&&!path.isAbsolute(rel));
 }
 
-function safeGitEnv(){
-  const env={...process.env};
-  for(const key of GIT_OVERRIDE_KEYS) delete env[key];
-  for(const key of Object.keys(env)){
-    if(/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
+export function buildVoidchainIngressGitInvocationV1(args){
+  if(
+    !Array.isArray(args)||
+    args.some((value)=>
+      typeof value!=="string"||
+      value.length===0||
+      value.length>4096||
+      /[\0\r\n]/u.test(value)
+    )
+  ){
+    fail("VOIDCHAIN_INGRESS_GIT_ARGUMENT_INVALID");
   }
-  return {
-    ...env,
-    PATH:"/usr/bin:/bin",
-    HOME:"/nonexistent",
-    XDG_CONFIG_HOME:"/nonexistent",
-    LANG:"C",
-    LC_ALL:"C",
-    GIT_CONFIG_NOSYSTEM:"1",
-    GIT_CONFIG_GLOBAL:"/dev/null",
-    GIT_NO_REPLACE_OBJECTS:"1",
-    GIT_OPTIONAL_LOCKS:"0",
-    GIT_TERMINAL_PROMPT:"0",
-    GIT_ASKPASS:"/bin/false",
-  };
+  return Object.freeze({
+    executable:GIT,
+    args:Object.freeze([
+      "--no-replace-objects",
+      "-c","core.fsmonitor=false",
+      "-c","core.hooksPath=/dev/null",
+      "-c","core.attributesFile=/dev/null",
+      "-c","core.preloadIndex=false",
+      "-c","core.untrackedCache=false",
+      "-c","submodule.recurse=false",
+      "-c","core.bare=false",
+      "-c","core.worktree="+ROOT,
+      "-C",ROOT,
+      ...args,
+    ]),
+    env:Object.freeze({
+      PATH:"/usr/bin:/bin",
+      HOME:"/nonexistent",
+      XDG_CONFIG_HOME:"/nonexistent",
+      LANG:"C",
+      LC_ALL:"C",
+      GIT_CONFIG_NOSYSTEM:"1",
+      GIT_CONFIG_GLOBAL:"/dev/null",
+      GIT_CONFIG_SYSTEM:"/dev/null",
+      GIT_NO_REPLACE_OBJECTS:"1",
+      GIT_OPTIONAL_LOCKS:"0",
+      GIT_TERMINAL_PROMPT:"0",
+      GIT_ASKPASS:"/bin/false",
+    }),
+  });
 }
 
 function rejectAmbientGitOverrides(){
@@ -234,13 +256,14 @@ function rejectAmbientGitOverrides(){
 }
 
 function gitRun(args,{encoding="utf8",maxBuffer=32*1024*1024}={}){
+  const invocation=buildVoidchainIngressGitInvocationV1(args);
   const result=spawnSync(
-    GIT,
-    ["--no-replace-objects","-C",ROOT,...args],
+    invocation.executable,
+    [...invocation.args],
     {
       encoding,
       stdio:["ignore","pipe","pipe"],
-      env:safeGitEnv(),
+      env:{...invocation.env},
       maxBuffer,
       timeout:10_000,
     },

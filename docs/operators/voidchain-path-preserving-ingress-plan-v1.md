@@ -118,6 +118,12 @@ Preparation requires:
 - an exact caller-supplied 40-hex repository HEAD;
 - canonical `6ZoSo9/void-node` origin identity;
 - absolute reviewed `/usr/bin/git`;
+- a minimal explicit Git subprocess environment that does not inherit loader/tool
+  variables such as `LD_*`, `DYLD_*`, `NODE_OPTIONS`, shell startup hooks,
+  or ambient PATH selection;
+- fail-closed Git command configuration disabling repository-local fsmonitor,
+  hooks, ambient attributes, preload-index, untracked-cache, and recursive
+  submodule behavior during source-authority reads;
 - Git replacement objects disabled;
 - ambient Git repository/config/program overrides removed/rejected, including
   `GIT_CONFIG_PARAMETERS`; and
