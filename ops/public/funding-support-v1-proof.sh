@@ -19,6 +19,15 @@ echo "base=$PUBLIC_SEED_BASE"
 echo "funding_url=$FUNDING_URL"
 echo "status_url=$STATUS_URL"
 
+grep -Fq "Configured public seed origin:" "$DOC"
+grep -Fq "https://seed.nullfeed.org" "$DOC"
+grep -Fq "Retired historical public seed origin:" "$DOC"
+grep -Fq "https://zoso-alienware-aurora-r7.taila47fd.ts.net" "$DOC"
+if grep -Fq "Historically verified/default public seed" "$DOC"; then
+  echo "HOLD: funding doc still labels retired Alienware seed as default" >&2
+  exit 2
+fi
+
 grep -Fq "USDC -> VOID" "$DOC"
 grep -Fq "guarded Buy VOID" "$DOC"
 grep -Fq "fulfillment is manual/guarded, not automatic" "$DOC"
