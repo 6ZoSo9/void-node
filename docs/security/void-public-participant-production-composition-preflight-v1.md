@@ -59,13 +59,13 @@ listener-bearing runtime module.
 Those Git reads are themselves provenance-bound. The preflight uses the reviewed
 absolute Git executable, revalidates its filesystem identity and SHA-256 around
 each read, supplies a minimal explicit environment rather than inherited
-\`process.env\`, disables replacement objects plus hooks/attributes/fsmonitor,
+`process.env`, disables replacement objects plus hooks/attributes/fsmonitor,
 untracked-cache/preload-index, and submodule recursion, and ignores caller
 repository/worktree/index/object/config/program overrides. It captures one clean
 HEAD/tree, reads every reviewed source from that exact captured commit, then
 requires the repository to remain clean at the same HEAD/tree before returning.
 
-The focused proof runs the same preflight under a hostile fake-\`git\` PATH,
+The focused proof runs the same preflight under a hostile fake-`git` PATH,
 repository/object/config/replacement overrides, and a global fsmonitor sentinel.
 The preflight identity must remain identical and neither hostile executable may
 run.
