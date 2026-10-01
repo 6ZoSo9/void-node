@@ -154,35 +154,48 @@ Downstream authority lanes must use the reviewed execution wrapper (or an
 equivalently strong confinement primitive) rather than directly invoking
 `node <entry>` against the materialized directory.
 
-## Bootstrap and profile pinning
+## Reviewed profile and enforcement
 
-The first Draft generation intentionally runs a bootstrap matrix after:
+The bootstrap matrix completed successfully on Node 22, 24, and 26 after:
 
 ```bash
 npm ci --ignore-scripts --no-audit --no-fund
 ```
 
-on Node 22, 24, and 26.
-
-The proof prints:
+All three supported Node majors produced byte-identical profile payloads with:
 
 ```text
-packages_aggregate_sha256=...
-profile_id=voidrnpr1_...
-PROFILE_BASE64=...
+packages_aggregate_sha256=5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73
 ```
 
-No aggregate becomes source authority merely because one runner printed it.
+The reviewed source profile is now:
 
-The reviewed profile
-`ops/security/reviewed-node-package-runtime-ethers-v1.json` is added only
-after the three supported Node majors produce the same Linux-x64 package
-profile. If legitimate environments differ, the profile format must enumerate
-the accepted variants explicitly instead of accepting arbitrary installed
-bytes.
+```text
+ops/security/reviewed-node-package-runtime-ethers-v1.json
+```
 
-Once the profile is pinned, CI switches from bootstrap observation to
-fail-closed verification/materialization against that exact profile.
+and, with the final authority boundary that also excludes ambient dynamic-loader
+variables, has content ID:
+
+```text
+voidrnpr1_1492f01cb202c23ad68260655fa111544d3cc6d6c17a4aa07540e2665c7c9e6d
+```
+
+Focused CI is no longer observational. Each Node 22/24/26 job:
+
+1. performs the exact locked install with package scripts disabled;
+2. loads the reviewed profile from its exact HEAD Git blob;
+3. recomputes the complete installed-byte profile;
+4. requires byte-semantic equality with the reviewed profile;
+5. materializes and re-verifies the private dependency tree;
+6. proves the permission-fenced `ethers` execution path;
+7. proves an unreviewed ancestor package is reachable without confinement but
+   blocked under the reviewed execution wrapper; and
+8. proves ambient Node and dynamic-loader environment overrides do not cross
+   the reviewed child-process boundary.
+
+Any supported-major package-byte drift now fails closed instead of creating a
+new accepted profile.
 
 ## What this does not prove
 
