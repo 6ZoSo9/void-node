@@ -18,13 +18,6 @@ on:
       - "ops/mainnet/mainnet0-final-gonogo-map.current.md"
       - "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md"
       - "ops/mainnet/mainnet0-blockers.current.md"
-      - "ops/mainnet/mainnet0-launch-approval-artifact.template.md"
-      - "ops/mainnet/mainnet0-final-path.current.md"
-      - "ops/mainnet/mainnet0-authority-funding-preflight.current.md"
-      - "ops/mainnet/mainnet0-key-ceremony-result-runbook.template.md"
-      - "ops/mainnet/mainnet0-final-gonogo-map.current.md"
-      - "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md"
-      - "ops/mainnet/mainnet0-blockers.current.md"
       - "Makefile"
   push:
     branches: [main]
@@ -37,6 +30,13 @@ on:
       - "ops/mainnet/mainnet0-status-runbook.md"
       - "ops/mainnet/mainnet0-prelaunch-safety-runbook.md"
       - "ops/mainnet/mainnet0-status-smoke.sh"
+      - "ops/mainnet/mainnet0-launch-approval-artifact.template.md"
+      - "ops/mainnet/mainnet0-final-path.current.md"
+      - "ops/mainnet/mainnet0-authority-funding-preflight.current.md"
+      - "ops/mainnet/mainnet0-key-ceremony-result-runbook.template.md"
+      - "ops/mainnet/mainnet0-final-gonogo-map.current.md"
+      - "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md"
+      - "ops/mainnet/mainnet0-blockers.current.md"
       - "Makefile"
 
 permissions:
