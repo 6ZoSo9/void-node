@@ -6,6 +6,7 @@ on:
       - ".github/workflows/void-two-box-legacy-proof-explicit-target-v1.yml"
       - "docs/operators/void-two-box-legacy-proof-explicit-target-v1.md"
       - "scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs"
+      - "ops/lib/void-two-box-legacy-proof-admission-v1.sh"
       - "ops/two-box-remote-product-proof.sh"
       - "ops/two-box-remote-participant-js-parse-proof.sh"
       - "ops/two-box-remote-participant-copy-actions-proof.sh"
@@ -28,6 +29,7 @@ on:
       - ".github/workflows/void-two-box-legacy-proof-explicit-target-v1.yml"
       - "docs/operators/void-two-box-legacy-proof-explicit-target-v1.md"
       - "scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs"
+      - "ops/lib/void-two-box-legacy-proof-admission-v1.sh"
       - "ops/two-box-remote-product-proof.sh"
       - "ops/two-box-remote-participant-js-parse-proof.sh"
       - "ops/two-box-remote-participant-copy-actions-proof.sh"
@@ -67,6 +69,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Shell syntax
         run: |
+          bash -n ops/lib/void-two-box-legacy-proof-admission-v1.sh
           bash -n ops/two-box-remote-product-proof.sh
           bash -n ops/two-box-remote-participant-js-parse-proof.sh
           bash -n ops/two-box-remote-participant-copy-actions-proof.sh
@@ -86,7 +89,17 @@ jobs:
       - name: Proof syntax
         run: node --check scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs
       - name: Prove fail-closed explicit targets
-        run: node scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs
+        run: |
+          set -euo pipefail
+          node scripts/prove_void_two_box_legacy_proof_explicit_target_v1.mjs \
+            | tee "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1_PROOF_GREEN' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'ssh_destination_syntax_rejected=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'remote_origin_syntax_rejected=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'effectful_confirmation_required=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'source_parity_mismatch_held=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'remote_origin_peer_binding_verified=true' "$RUNNER_TEMP/legacy-two-box-admission.log"
+          grep -Fx 'live_network_execution_performed=false' "$RUNNER_TEMP/legacy-two-box-admission.log"
       - name: Diff hygiene
         shell: bash
         env:
