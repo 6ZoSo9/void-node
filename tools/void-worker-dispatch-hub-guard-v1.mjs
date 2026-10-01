@@ -37,6 +37,9 @@ const CHAIN_OUTCOMES = new Set([
   "SUCCESSOR_RESOLVED",
   "HOLD_INVALID_SUCCESSOR_CHAIN",
 ]);
+const LIVE_REVALIDATION_CAPABILITY = Symbol(
+  "VOID_WORKER_DISPATCH_HUB_GUARD_LIVE_REVALIDATION_V1",
+);
 
 export class WorkerDispatchHubGuardError extends Error {
   constructor(message) {
@@ -469,12 +472,13 @@ function validateDispatch(raw, trustedNowMs) {
   };
 }
 
-export function evaluateWorkerDispatchHubGuardV1(
+function evaluateWorkerDispatchHubGuardCoreV1(
   rawEvidence,
   {
     liveChain = null,
     liveDispatch = null,
     reviewedMainSha = null,
+    liveCapability = null,
   } = {},
 ) {
   const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
@@ -493,17 +497,22 @@ export function evaluateWorkerDispatchHubGuardV1(
     fail("coordination chain and live dispatch repository mismatch");
   }
 
+  const operationalLiveRevalidation =
+    liveCapability === LIVE_REVALIDATION_CAPABILITY;
   const liveChainRevalidated =
-    liveChain !== null
+    operationalLiveRevalidation
+    && liveChain !== null
     && assertFreshLiveChainMatchesV1(evidence.chain, liveChain) === true;
   const liveDispatchRevalidated =
-    liveDispatch !== null
+    operationalLiveRevalidation
+    && liveDispatch !== null
     && assertFreshLiveDispatchMatchesV1(
       evidence.dispatch,
       liveDispatch,
     ) === true;
   const liveMainRevalidated =
-    reviewedMainSha !== null
+    operationalLiveRevalidation
+    && reviewedMainSha !== null
     && typeof reviewedMainSha === "string"
     && SHA1_PATTERN.test(reviewedMainSha);
 
@@ -589,6 +598,29 @@ export function evaluateWorkerDispatchHubGuardV1(
   });
 }
 
+export function evaluateWorkerDispatchHubGuardV1(rawEvidence) {
+  if (arguments.length > 1) {
+    fail("caller-supplied live revalidation is forbidden");
+  }
+  return evaluateWorkerDispatchHubGuardCoreV1(rawEvidence);
+}
+
+function evaluateWorkerDispatchHubGuardLiveV1(
+  rawEvidence,
+  {
+    liveChain,
+    liveDispatch,
+    reviewedMainSha,
+  },
+) {
+  return evaluateWorkerDispatchHubGuardCoreV1(rawEvidence, {
+    liveChain,
+    liveDispatch,
+    reviewedMainSha,
+    liveCapability: LIVE_REVALIDATION_CAPABILITY,
+  });
+}
+
 async function readBoundedStdin() {
   const chunks = [];
   let bytes = 0;
@@ -658,7 +690,7 @@ async function main() {
     reviewedMainSha,
     finalReviewedMainSha,
   );
-  const result = evaluateWorkerDispatchHubGuardV1(evidence, {
+  const result = evaluateWorkerDispatchHubGuardLiveV1(evidence, {
     liveChain,
     liveDispatch,
     reviewedMainSha,
