@@ -68,6 +68,9 @@ jobs:
           grep -F 'publish_no_effect' "$tool" >/dev/null
           grep -F 'restore_started' "$tool" >/dev/null
           grep -F 'rollback_publish_start_unresolved' "$tool" >/dev/null
+          grep -F 'publish_started_other_unresolved' "$tool" >/dev/null
+          grep -F 'restore_started_other_unresolved' "$tool" >/dev/null
+          grep -F 'publish_started_after_no_effect_forbidden' "$tool" >/dev/null
           grep -F 'RECOVER_PUBLISH_LOCAL' "$tool" >/dev/null
           grep -F 'RECOVER_RESTORE_LOCAL' "$tool" >/dev/null
 

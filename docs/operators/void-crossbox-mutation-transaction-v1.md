@@ -245,6 +245,12 @@ That distinction is the durable crash seam: once a side-effect intent has been
 persisted, recovery observes before acting instead of inferring that a missing
 final receipt means the side effect never happened.
 
+Only one unresolved side-effect start may exist at a time. A second participant
+cannot begin publication/restoration while an earlier participant remains in a
+`RECOVER_*` state. Once any publish attempt is proven `publish_no_effect`,
+no further publish or verify action is accepted in that transaction; rollback
+is the only normal continuation.
+
 ## Future live integration
 
 This source slice does not yet edit:
