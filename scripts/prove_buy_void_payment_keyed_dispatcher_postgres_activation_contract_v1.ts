@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 
 import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_AUTHORITY_V1,
@@ -604,6 +604,29 @@ for (const marker of [
   assert(toolOutput.includes(marker), marker);
 }
 
+{
+  const activationSourcePath =
+    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts";
+  const original = fs.readFileSync(activationSourcePath);
+  try {
+    fs.appendFileSync(activationSourcePath, "\n");
+    const dirty = spawnSync(
+      process.execPath,
+      [
+        "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(dirty.status, 0);
+    assert.match(
+      String(dirty.stderr || ""),
+      /repository_worktree_not_clean/u,
+    );
+  } finally {
+    fs.writeFileSync(activationSourcePath, original);
+  }
+}
+
 const workflow = fs.readFileSync(
   ".github/workflows/buy-void-payment-keyed-dispatcher-postgres-activation-contract-v1.yml",
   "utf8",
@@ -735,6 +758,7 @@ console.log("source_blob_identity_bound_green=true");
 console.log("reviewed_source_main_ancestry_green=true");
 console.log("reviewed_candidate_generation_commit_tree_green=true");
 console.log("clean_worktree_head_blob_verification_green=true");
+console.log("dirty_worktree_candidate_verification_held_green=true");
 console.log("mutable_worktree_hash_object_provenance=false");
 console.log("runtime_gate_name_binding_green=true");
 console.log("focused_workflow_self_enforcement_green=true");
