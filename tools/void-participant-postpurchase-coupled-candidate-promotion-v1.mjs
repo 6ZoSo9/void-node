@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -52,9 +53,15 @@ const SUCCESSOR_REL =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const CANDIDATE_PATH = path.join(REPO_ROOT, CANDIDATE_REL);
 const SUCCESSOR_PATH = path.join(REPO_ROOT, SUCCESSOR_REL);
+const PROMOTION_TOOL_REL =
+  "tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs";
+const CLASSIFIER_REL =
+  "tools/void-coupled-economic-successor-gate-v1.mjs";
+const CLASSIFIER_PATH = path.join(REPO_ROOT, CLASSIFIER_REL);
 
 const MAX_RUNTIME_BINDING_BYTES = 1024 * 1024;
 const MAX_CANDIDATE_BYTES = 2 * 1024 * 1024;
+const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const HASH = /^0x[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
@@ -132,6 +139,65 @@ function prettyJsonSha256(value) {
   return sha256(
     Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8"),
   );
+}
+
+function gitBlobSha1(bytes) {
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+function gitRead(args, code) {
+  const result = spawnSync(
+    "git",
+    ["-C", REPO_ROOT, ...args],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+    },
+  );
+  if (result.error || result.status !== 0) fail(code);
+  return String(result.stdout || "").trim();
+}
+
+function readRepositoryIdentityV1() {
+  const head = gitRead(
+    ["rev-parse", "HEAD"],
+    "promotion_repository_head_unavailable",
+  );
+  const tree = gitRead(
+    ["rev-parse", "HEAD^{tree}"],
+    "promotion_repository_tree_unavailable",
+  );
+  if (!HEX40.test(head) || !HEX40.test(tree)) {
+    fail("promotion_repository_identity_invalid");
+  }
+  if (
+    gitRead(
+      ["status", "--porcelain=v1", "--untracked-files=all"],
+      "promotion_repository_status_unavailable",
+    ) !== ""
+  ) {
+    fail("promotion_repository_must_be_clean");
+  }
+  return Object.freeze({
+    repository_head_sha: head,
+    repository_tree_sha: tree,
+  });
+}
+
+function expectedHeadBlobSha1(relativePath) {
+  const value = gitRead(
+    ["rev-parse", `HEAD:${relativePath}`],
+    "promotion_repository_blob_unavailable",
+  );
+  if (!HEX40.test(value)) {
+    fail("promotion_repository_blob_identity_invalid");
+  }
+  return value;
 }
 
 function sameStamp(a, b) {
@@ -540,6 +606,12 @@ export function buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
   runtimeBindingFileSha256,
   candidateFileSha256,
   successorCandidateFileSha256,
+  repositoryHeadSha,
+  repositoryTreeSha,
+  candidateGitBlobSha1,
+  successorCandidateGitBlobSha1,
+  classifierGitBlobSha1,
+  promotionToolGitBlobSha1,
 } = {}) {
   if (
     typeof runtimeBindingFileSha256 !== "string"
@@ -550,6 +622,33 @@ export function buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
     || !HEX64.test(successorCandidateFileSha256)
   ) {
     fail("promotion_source_sha256_invalid");
+  }
+  for (const value of [
+    repositoryHeadSha,
+    repositoryTreeSha,
+    candidateGitBlobSha1,
+    successorCandidateGitBlobSha1,
+    classifierGitBlobSha1,
+    promotionToolGitBlobSha1,
+  ]) {
+    if (typeof value !== "string" || !HEX40.test(value)) {
+      fail("promotion_repository_identity_invalid");
+    }
+  }
+  const repositoryIdentity = readRepositoryIdentityV1();
+  if (
+    repositoryHeadSha !== repositoryIdentity.repository_head_sha
+    || repositoryTreeSha !== repositoryIdentity.repository_tree_sha
+  ) {
+    fail("promotion_repository_identity_mismatch");
+  }
+  if (
+    candidateGitBlobSha1 !== expectedHeadBlobSha1(CANDIDATE_REL)
+    || successorCandidateGitBlobSha1 !== expectedHeadBlobSha1(SUCCESSOR_REL)
+    || classifierGitBlobSha1 !== expectedHeadBlobSha1(CLASSIFIER_REL)
+    || promotionToolGitBlobSha1 !== expectedHeadBlobSha1(PROMOTION_TOOL_REL)
+  ) {
+    fail("promotion_repository_blob_identity_mismatch");
   }
   if (
     runtimeBindingFileSha256 !== prettyJsonSha256(runtimeBindingReceipt)
@@ -647,11 +746,20 @@ export function buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
       VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_V1,
     version: 1,
     status: "PARTICIPANT_CONTROL_GATE_PROMOTION_ARTIFACT_READY_CANDIDATE_HOLD",
+    repository_head_sha: repositoryIdentity.repository_head_sha,
+    repository_tree_sha: repositoryIdentity.repository_tree_sha,
     source_candidate_path: CANDIDATE_REL,
+    source_candidate_git_blob_sha1: candidateGitBlobSha1,
     source_candidate_sha256: candidateFileSha256,
     successor_migration_candidate_path: SUCCESSOR_REL,
     successor_migration_candidate_sha256:
       successorCandidateFileSha256,
+    successor_migration_candidate_git_blob_sha1:
+      successorCandidateGitBlobSha1,
+    classifier_path: CLASSIFIER_REL,
+    classifier_git_blob_sha1: classifierGitBlobSha1,
+    promotion_tool_path: PROMOTION_TOOL_REL,
+    promotion_tool_git_blob_sha1: promotionToolGitBlobSha1,
     runtime_binding_file_sha256: runtimeBindingFileSha256,
     runtime_binding_id: runtimeBinding.runtime_binding_id,
     finality_import_id: runtimeBinding.finality.import_id,
@@ -691,6 +799,7 @@ export function readVoidParticipantPostpurchasePromotionSourcesV1({
   ) {
     fail("runtime_binding_file_sha256_invalid");
   }
+  const repositoryBefore = readRepositoryIdentityV1();
   const runtimeBinding =
     readStableJsonFile(
       runtimeBindingFile,
@@ -719,6 +828,40 @@ export function readVoidParticipantPostpurchasePromotionSourcesV1({
       },
     );
 
+  const candidateGitBlobSha1 = gitBlobSha1(candidate.bytes);
+  const successorCandidateGitBlobSha1 = gitBlobSha1(successor.bytes);
+  const expectedCandidateGitBlobSha1 =
+    expectedHeadBlobSha1(CANDIDATE_REL);
+  const expectedSuccessorGitBlobSha1 =
+    expectedHeadBlobSha1(SUCCESSOR_REL);
+  const classifierBytes = fs.readFileSync(CLASSIFIER_PATH);
+  const classifierGitBlobSha1 = gitBlobSha1(classifierBytes);
+  const expectedClassifierGitBlobSha1 =
+    expectedHeadBlobSha1(CLASSIFIER_REL);
+  const promotionToolBytes = fs.readFileSync(fileURLToPath(import.meta.url));
+  const promotionToolGitBlobSha1 = gitBlobSha1(promotionToolBytes);
+  const expectedPromotionToolGitBlobSha1 =
+    expectedHeadBlobSha1(PROMOTION_TOOL_REL);
+
+  if (
+    candidateGitBlobSha1 !== expectedCandidateGitBlobSha1
+    || successorCandidateGitBlobSha1 !== expectedSuccessorGitBlobSha1
+    || classifierGitBlobSha1 !== expectedClassifierGitBlobSha1
+    || promotionToolGitBlobSha1 !== expectedPromotionToolGitBlobSha1
+  ) {
+    fail("promotion_repository_blob_identity_mismatch");
+  }
+
+  const repositoryAfter = readRepositoryIdentityV1();
+  if (
+    repositoryAfter.repository_head_sha
+      !== repositoryBefore.repository_head_sha
+    || repositoryAfter.repository_tree_sha
+      !== repositoryBefore.repository_tree_sha
+  ) {
+    fail("promotion_repository_changed_during_source_read");
+  }
+
   return Object.freeze({
     runtimeBindingReceipt: runtimeBinding.value,
     runtimeBindingFileSha256: runtimeBinding.sha256,
@@ -726,6 +869,12 @@ export function readVoidParticipantPostpurchasePromotionSourcesV1({
     candidateFileSha256: candidate.sha256,
     successorMigrationCandidate: successor.value,
     successorCandidateFileSha256: successor.sha256,
+    repositoryHeadSha: repositoryAfter.repository_head_sha,
+    repositoryTreeSha: repositoryAfter.repository_tree_sha,
+    candidateGitBlobSha1,
+    successorCandidateGitBlobSha1,
+    classifierGitBlobSha1,
+    promotionToolGitBlobSha1,
   });
 }
 
