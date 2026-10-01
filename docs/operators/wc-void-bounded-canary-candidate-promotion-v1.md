@@ -19,8 +19,12 @@ It also requires the caller to bind the request to the current clean repository
 HEAD and tree. The promotion records reviewed source commit
 `c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71` as the review-generation
 anchor and independently pins the exact Git blobs reviewed at that generation
-for the three candidate prestates, the semantic-promotion tool/proof, and the
-classifiers used to evaluate the candidates. This avoids depending on deep Git
+for the three candidate prestates and the complete transitive source dependency
+closure used by semantic reverification and candidate classification. The
+reviewed closure is 37 exact Git blobs and includes the semantic verifier
+dependencies, coupled policy dependencies, participant/finality dependencies,
+and `package.json` / `package-lock.json` for the imported `ethers` state.
+Any drift in that closure fails closed. This avoids depending on deep Git
 history being present in a shallow CI checkout while still requiring exact
 reviewed source bytes.
 
@@ -139,8 +143,10 @@ Therefore the expected poststate is still HOLD, including
 The content-addressed promotion includes:
 
 - exact repository HEAD/tree identity and the reviewed source commit;
-- exact Git blob identities for reviewed semantic/classifier sources;
+- a deterministic SHA-256 manifest covering all 37 reviewed dependency blobs;
+- exact Git blob identities for the top-level reviewed semantic/classifier sources;
 - exact reviewed Git blob identities for all three canonical candidate prestates;
+- exact `package.json` and `package-lock.json` Git blobs;
 - the current candidate-promotion tool Git blob identity;
 - exact source file SHA-256s;
 - semantic promotion/evidence/policy/canary IDs;
@@ -200,6 +206,8 @@ clean_worktree_required=true
 reviewed_source_generation_required=true
 canonical_head_candidate_bytes_required=true
 semantic_source_contract_generation_required=true
+reviewed_dependency_closure_required=true
+package_lock_generation_required=true
 
 canonical_candidate_file_update=false
 filesystem_read=true

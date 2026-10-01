@@ -31,6 +31,8 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1 =
     reviewed_source_generation_required: true,
     canonical_head_candidate_bytes_required: true,
     semantic_source_contract_generation_required: true,
+    reviewed_dependency_closure_required: true,
+    package_lock_generation_required: true,
     canonical_candidate_file_update: false,
     filesystem_read: true,
     filesystem_write: false,
@@ -93,6 +95,122 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   successor_classifier: Object.freeze({
     path: "tools/void-economic-evm-successor-migration-v1.mjs",
     blob_sha1: "9f51b193da687669700c898ed587edf9040f6264",
+  }),
+  semantic_bounded_canary_evidence: Object.freeze({
+    path: "tools/void-wc-void-bounded-canary-evidence-v1.mjs",
+    blob_sha1: "b3b351771833d85286ca496606498aac7e6f4fc0",
+  }),
+  semantic_market_vault_at_use: Object.freeze({
+    path: "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs",
+    blob_sha1: "9b415bc3ff7810debcb2ea217e6144ec46153237",
+  }),
+  semantic_ledger_persistence_import: Object.freeze({
+    path: "tools/void-wc-void-ledger-persistence-import-v1.mjs",
+    blob_sha1: "225d1228ad4ca6b554bddf5c06af1d2ba7a73041",
+  }),
+  semantic_opening_claim_binding: Object.freeze({
+    path: "tools/void-wc-void-opening-claim-binding-v1.mjs",
+    blob_sha1: "8789967dbd8d4151833f2f006510b00ccf8281cf",
+  }),
+  semantic_opening_claim_persistence: Object.freeze({
+    path: "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs",
+    blob_sha1: "a9b471aa4598fa36341f369545a9b3490aee3934",
+  }),
+  semantic_opening_replay_protection: Object.freeze({
+    path: "tools/void-wc-void-opening-replay-protection-v1.mjs",
+    blob_sha1: "ee902e77f0ded31aea73cb231eb806e4121d1bc8",
+  }),
+  semantic_opening_replay_persistence: Object.freeze({
+    path: "tools/void-wc-void-opening-replay-persistence-v1.mjs",
+    blob_sha1: "82f052dd2454299293d8c1a36d841e87f1fbb215",
+  }),
+  semantic_coupled_opening: Object.freeze({
+    path: "tools/void-wc-void-coupled-opening-v1.mjs",
+    blob_sha1: "886feaef71a228b1e6f49f1106ae8ec2b34c404e",
+  }),
+  semantic_participant_at_use: Object.freeze({
+    path: "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs",
+    blob_sha1: "2b4454742298e54f73a254d3085503ccfc757dec",
+  }),
+  production_market_vault_identity_acceptance: Object.freeze({
+    path: "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs",
+    blob_sha1: "96dc42543c57fd48ff4d7567d78bdaa800d45598",
+  }),
+  production_settlement_adapter_review: Object.freeze({
+    path: "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs",
+    blob_sha1: "c19a2e42e8d722eade864c7742af2dcaf3c7b11f",
+  }),
+  coupled_shared_market_post_discovery: Object.freeze({
+    path: "tools/void-shared-market-post-discovery-state-v2.mjs",
+    blob_sha1: "bcfff9c2981e713a7053ff51a39145eb06b7238b",
+  }),
+  coupled_nonproduction_exclusion: Object.freeze({
+    path: "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs",
+    blob_sha1: "fcc915b20df0d281646a2ffda60667e1aa6859de",
+  }),
+  coupled_participant_provenance: Object.freeze({
+    path: "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs",
+    blob_sha1: "db034d197a8b932d0b9eb1d134a6a4a7a0fb6b86",
+  }),
+  coupled_concentration_sybil_policy: Object.freeze({
+    path: "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs",
+    blob_sha1: "27c686c9bf95bbf9b56f09c692cb59ffba958d0d",
+  }),
+  coupled_minimum_real_wc_depth_policy: Object.freeze({
+    path: "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs",
+    blob_sha1: "9b1e784c0d35e5129f89a93aeba509c4ab7ccaea",
+  }),
+  coupled_reverse_settlement: Object.freeze({
+    path: "tools/void-wc-void-reverse-settlement-v1.mjs",
+    blob_sha1: "e018dab911fba65547ddbb61e145018f04953b76",
+  }),
+  coupled_intent_ttl_caps_policy: Object.freeze({
+    path: "tools/void-economic-intent-ttl-caps-policy-v1.mjs",
+    blob_sha1: "139d79bb7177c866259747b1ca47ab40870f24b1",
+  }),
+  coupled_system_sponsored_anti_grief_policy: Object.freeze({
+    path: "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs",
+    blob_sha1: "48b4ec260b0aef06ee7c9d9bc7bfcc179d9ee51c",
+  }),
+  semantic_market_vault_runtime_attestation: Object.freeze({
+    path: "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
+    blob_sha1: "64a7993a38f764d91a2071240b834fcd97770962",
+  }),
+  semantic_market_vault_runtime_attestation_import: Object.freeze({
+    path: "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs",
+    blob_sha1: "4d698202ccc1b82e555685454de97d34e81607db",
+  }),
+  semantic_ledger_persistence: Object.freeze({
+    path: "tools/void-wc-void-ledger-persistence-v1.mjs",
+    blob_sha1: "3cca8fe0d1f356800c1f85087298d1a4ead3a4e3",
+  }),
+  participant_finality_import: Object.freeze({
+    path: "tools/void-participant-postpurchase-finality-import-v1.mjs",
+    blob_sha1: "6bd0e4393fc556f56dca05ec5e08331d0900a402",
+  }),
+  participant_production_runtime_binding: Object.freeze({
+    path: "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs",
+    blob_sha1: "5077b2020f9c00fbfb995dacab991cb351ca4e5e",
+  }),
+  market_vault_compiler_identity: Object.freeze({
+    path: "tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
+    blob_sha1: "3ac765215d3d2c7881e893100e63e0306cf2593f",
+  }),
+  public_quote_disclosure: Object.freeze({
+    path: "tools/void-wc-void-public-quote-disclosure-v1.mjs",
+    blob_sha1: "708a81bf9068b561110a80cb6204e6b09744e66c",
+  }),
+  participant_finality: Object.freeze({
+    path: "tools/void-participant-postpurchase-finality-v1.mjs",
+    blob_sha1: "4bbc6d47f556133e0c49e2353d88ebcd4e789e65",
+  }),
+  package_json: Object.freeze({
+    path: "package.json",
+    blob_sha1: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+  }),
+  package_lock: Object.freeze({
+    path: "package-lock.json",
+    blob_sha1: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
   }),
 });
 const MAX_INPUT_BYTES = 64 * 1024 * 1024;
@@ -285,6 +403,21 @@ function exactHeadBytes(relativePath, label) {
   return Buffer.from(value);
 }
 
+function reviewedBindingManifestV1(blobs) {
+  const entries = Object.entries(REVIEWED_SOURCE_BINDINGS)
+    .map(([name, binding]) => Object.freeze({
+      path: binding.path,
+      blob_sha1: blobs[name],
+    }))
+    .sort((left, right) => (
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    ));
+  return Object.freeze({
+    count: entries.length,
+    sha256: sha256(Buffer.from(canonicalJson(entries), "utf8")),
+  });
+}
+
 function bindReviewedRepositorySourceV1(request, sources) {
   if (
     typeof request.repository_head_sha !== "string"
@@ -351,6 +484,7 @@ function bindReviewedRepositorySourceV1(request, sources) {
     PROMOTION_TOOL_REL,
     "candidate_promotion_tool",
   );
+  const reviewedManifest = reviewedBindingManifestV1(blobs);
 
   return Object.freeze({
     repository_head_sha: head,
@@ -364,6 +498,10 @@ function bindReviewedRepositorySourceV1(request, sources) {
     production_classifier_git_blob_sha1: blobs.production_classifier,
     coupled_classifier_git_blob_sha1: blobs.coupled_classifier,
     successor_classifier_git_blob_sha1: blobs.successor_classifier,
+    package_json_git_blob_sha1: blobs.package_json,
+    package_lock_git_blob_sha1: blobs.package_lock,
+    reviewed_binding_count: reviewedManifest.count,
+    reviewed_binding_manifest_sha256: reviewedManifest.sha256,
     candidate_promotion_tool_git_blob_sha1: promotionToolBlob,
   });
 }
@@ -764,10 +902,19 @@ export function promoteWcVoidBoundedCanaryCandidatesV1(input) {
       repository.coupled_classifier_git_blob_sha1,
     successor_classifier_git_blob_sha1:
       repository.successor_classifier_git_blob_sha1,
+    package_json_git_blob_sha1:
+      repository.package_json_git_blob_sha1,
+    package_lock_git_blob_sha1:
+      repository.package_lock_git_blob_sha1,
+    reviewed_binding_count: repository.reviewed_binding_count,
+    reviewed_binding_manifest_sha256:
+      repository.reviewed_binding_manifest_sha256,
     candidate_promotion_tool_git_blob_sha1:
       repository.candidate_promotion_tool_git_blob_sha1,
     canonical_candidate_bytes_bound_to_reviewed_head_blobs: true,
     semantic_source_contract_generation_bound: true,
+    reviewed_dependency_closure_bound: true,
+    package_dependency_state_bound: true,
     semantic_evaluation_time_utc: semantic.evaluation_time_utc,
     semantic_valid_until_utc: semantic.valid_until_utc,
     semantic_promotion_id: semantic.promotion_id,

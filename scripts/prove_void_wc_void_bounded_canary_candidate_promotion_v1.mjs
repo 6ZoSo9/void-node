@@ -31,6 +31,8 @@ const EXPECTED_BLOBS = Object.freeze({
   production_classifier: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
   coupled_classifier: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
   successor_classifier: "9f51b193da687669700c898ed587edf9040f6264",
+  package_json: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+  package_lock: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
 });
 
 const LAUNCH =
@@ -232,9 +234,18 @@ assert.equal(
   result.successor_classifier_git_blob_sha1,
   EXPECTED_BLOBS.successor_classifier,
 );
+assert.equal(result.package_json_git_blob_sha1, EXPECTED_BLOBS.package_json);
+assert.equal(result.package_lock_git_blob_sha1, EXPECTED_BLOBS.package_lock);
+assert.equal(result.reviewed_binding_count, 37);
+assert.equal(
+  result.reviewed_binding_manifest_sha256,
+  "29b8b3c0abd45f436aaf121f4f64b6979d2a4d3c1a2d7fa552c6f9e257d9babf",
+);
 assert.match(result.candidate_promotion_tool_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.equal(result.canonical_candidate_bytes_bound_to_reviewed_head_blobs, true);
 assert.equal(result.semantic_source_contract_generation_bound, true);
+assert.equal(result.reviewed_dependency_closure_bound, true);
+assert.equal(result.package_dependency_state_bound, true);
 assert.equal(result.semantic_promotion_id, semantic.promotion_id);
 assert.equal(result.semantic_evidence_id, semantic.semantic_evidence_id);
 assert.equal(result.semantic_canary_fresh_at_reviewed_evaluation, true);
@@ -332,6 +343,8 @@ for (const [key, value] of Object.entries(
     "reviewed_source_generation_required",
     "canonical_head_candidate_bytes_required",
     "semantic_source_contract_generation_required",
+    "reviewed_dependency_closure_required",
+    "package_lock_generation_required",
     "filesystem_read",
   ]);
   assert.equal(value, allowed.has(key), key);
@@ -460,6 +473,10 @@ for (const required of [
   "NOT_CANONICAL_REVIEWED_HEAD_BYTES",
   "name.toUpperCase()",
   "REVIEWED_SOURCE_COMMIT",
+  "reviewed_binding_manifest_sha256",
+  "semantic_market_vault_runtime_attestation",
+  "participant_production_runtime_binding",
+  "package-lock.json",
   'promotedProduction.bounded_canary_green = true',
   'promotedCoupled.gates.bounded_canary_green = true',
   "coupled_activation_ready: false",
@@ -473,6 +490,9 @@ console.log("clean_repository_generation_bound=true");
 console.log("canonical_candidate_bytes_bound_to_reviewed_head_blobs=true");
 console.log("semantic_source_contract_generation_bound=true");
 console.log("reviewed_source_generation_blob_pins_required=true");
+console.log("reviewed_dependency_closure_count=37");
+console.log("reviewed_dependency_closure_bound=true");
+console.log("package_dependency_state_bound=true");
 console.log("semantic_canary_fresh_at_reviewed_evaluation=true");
 console.log("application_time_authority=false");
 console.log("exact_two_gate_candidate_delta=true");
