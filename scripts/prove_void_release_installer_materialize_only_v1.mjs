@@ -588,7 +588,13 @@ function proveFreshParentCreation({
   );
   assert.match(result.output, /MATERIALIZE_ONLY_GREEN/u);
   assert.match(result.output, /materialize_parent_durable=true/u);
+  assert.match(result.output, /materialize_install_root_created_private=true/u);
   assert.match(result.output, /materialized_release_durable=true/u);
+  assert.equal(
+    fs.lstatSync(installRoot).mode & 0o7777,
+    0o700,
+    "fresh materialize-only install root must be private",
+  );
   const candidateDir = path.join(harness.releases, fixture.version);
   assert.equal(fs.existsSync(candidateDir), true);
   assert.equal(
@@ -607,6 +613,7 @@ function proveFreshParentCreation({
     assert.match(result.output, /host_node_required=false/u);
   }
   console.log(`${label}_fresh_parent_creation_durable_green=true`);
+  console.log(`${label}_fresh_install_root_mode_0700_green=true`);
 }
 
 const root = fs.mkdtempSync(

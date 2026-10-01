@@ -15,7 +15,7 @@ For `install` or `update` with `--materialize-only`, the installer may:
 - create exactly the verified `INSTALL_ROOT/releases/<version>` candidate when absent; or
 - reuse that candidate only after the existing tree exactly matches the newly verified extraction by repository-relative path, entry kind, file bytes, file/directory mode, and symlink target.
 
-For a new candidate, materialize-only first durably creates any missing install-root / `releases/` directory chain, fsyncing each newly created directory and its parent. It then removes only its deterministic hidden `releases/.<version>.materialize-next` staging entry, copies the verified extraction as the staging root (preserving the verified root mode), exact-compares the root plus all descendants to the verified extraction, fsyncs the staged tree, then atomically renames the staged directory to `releases/<version>`. A stale staging symlink is unlinked rather than followed. Before success, every regular file in the final candidate is fsynced, candidate directories are fsynced bottom-up, and the `releases/` parent directory is fsynced. A successful result therefore reports both `materialize_parent_durable=true` and `materialized_release_durable=true`.
+For a new candidate, materialize-only first durably creates any missing install-root / `releases/` directory chain, explicitly setting a newly created `INSTALL_ROOT` to mode `0700` before fsyncing each newly created directory and its parent. It then removes only its deterministic hidden `releases/.<version>.materialize-next` staging entry, copies the verified extraction as the staging root (preserving the verified root mode), exact-compares the root plus all descendants to the verified extraction, fsyncs the staged tree, then atomically renames the staged directory to `releases/<version>`. A stale staging symlink is unlinked rather than followed. Before success, every regular file in the final candidate is fsynced, candidate directories are fsynced bottom-up, and the `releases/` parent directory is fsynced. A successful result therefore reports both `materialize_parent_durable=true` and `materialized_release_durable=true`.
 
 ## Explicit non-mutations
 
@@ -49,7 +49,7 @@ The hermetic proof exercises both installers and verifies:
 - the verified release-root mode is preserved on first materialization;
 - release-root mode drift is rejected on idempotent reuse;
 - executable-mode drift is rejected;
-- fresh nested install-root / `releases/` parent creation exercises the durable-parent fsync path;
+- fresh nested install-root / `releases/` parent creation exercises the durable-parent fsync path and requires newly-created `INSTALL_ROOT` mode `0700`;
 - symlink-target drift is rejected;
 - an unexpected extra path is rejected;
 - `--enable` is rejected before mutation;

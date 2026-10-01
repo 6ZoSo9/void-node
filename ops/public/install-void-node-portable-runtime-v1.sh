@@ -89,6 +89,7 @@ import sys
 
 install_root=pathlib.Path(sys.argv[1])
 releases=install_root / "releases"
+install_root_was_missing=not os.path.lexists(install_root)
 missing=[]
 cursor=releases
 while not os.path.lexists(cursor):
@@ -108,6 +109,8 @@ require_real_directory(releases, "releases root")
 os.makedirs(releases, exist_ok=True)
 require_real_directory(install_root, "install root")
 require_real_directory(releases, "releases root")
+if install_root_was_missing:
+    os.chmod(install_root, 0o700)
 
 def sync_directory(path):
     fd=os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
@@ -120,6 +123,8 @@ for created in missing:
     sync_directory(created)
     sync_directory(created.parent)
 
+if install_root_was_missing:
+    print("materialize_install_root_created_private=true")
 print("materialize_parent_durable=true")
 PYPARENT
 }
