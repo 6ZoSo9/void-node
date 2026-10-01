@@ -51,6 +51,41 @@ assert.match(
   "snapshot-freshness workflow checkout must not persist credentials",
 );
 
+const pullRequestStart = workflowSource.indexOf("  pull_request:\n");
+const pushStart = workflowSource.indexOf("  push:\n");
+const workflowDispatchStart = workflowSource.indexOf("  workflow_dispatch:\n");
+assert(
+  pullRequestStart >= 0
+    && pushStart > pullRequestStart
+    && workflowDispatchStart > pushStart,
+  "snapshot-freshness workflow trigger blocks missing or reordered",
+);
+const pullRequestBlock = workflowSource.slice(pullRequestStart, pushStart);
+const pushBlock = workflowSource.slice(pushStart, workflowDispatchStart);
+const operatorDocTrigger =
+  '- "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"';
+assert.equal(
+  pullRequestBlock.split(operatorDocTrigger).length - 1,
+  1,
+  "snapshot-freshness operator contract must trigger PR focused CI exactly once",
+);
+assert.equal(
+  pushBlock.split(operatorDocTrigger).length - 1,
+  1,
+  "snapshot-freshness operator contract must trigger push focused CI exactly once",
+);
+
+assert.match(
+  workflowSource,
+  /node --check scripts\/prove_void_worker_coordination_live_dispatch_v1\.mjs/u,
+  "snapshot-freshness workflow must syntax-check the actual live-dispatch proof path",
+);
+assert.doesNotMatch(
+  workflowSource,
+  /prove_void_worker_coordination_live-dispatch-v1\.mjs/u,
+  "snapshot-freshness workflow must not reference the nonexistent hyphenated proof path",
+);
+
 const { roster, state } = await loadCoordinationFiles({
   rosterPath: ROSTER_PATH,
   statePath: STATE_PATH,
@@ -154,4 +189,6 @@ console.log("runtime_mutation_authorized=false");
 console.log("workflow_actions_commit_pinned=true");
 console.log("workflow_actual_pr_head_checkout=true");
 console.log("workflow_checkout_credentials_persisted=false");
+console.log("workflow_operator_contract_triggered=true");
+console.log("workflow_live_dispatch_proof_path_exact=true");
 console.log("authority_granted=false");

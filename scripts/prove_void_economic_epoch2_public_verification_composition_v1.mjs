@@ -308,6 +308,8 @@ const trueAuthorityKeys = new Set([
   "canonical_git_source_binding_required",
   "exact_dependency_git_blobs_required",
   "git_replacement_objects_disabled",
+  "git_config_isolated",
+  "subprocess_environment_isolated",
   "exact_reviewed_git_object_execution_required",
   "private_readonly_execution_bundle",
   "public_read_promotion_reexecuted",
@@ -485,6 +487,153 @@ await assert.rejects(
 }
 
 {
+  const hostile = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-epoch2-composition-git-hostile-"),
+  );
+  const fakeFsmonitor = path.join(hostile, "fake-fsmonitor.sh");
+  const fsmonitorSentinel = path.join(hostile, "fsmonitor-invoked");
+  const hostileAttributes = path.join(hostile, "attributes");
+  const hostileHome = path.join(hostile, "home");
+  fs.mkdirSync(hostileHome, { recursive: true });
+  fs.writeFileSync(
+    fakeFsmonitor,
+    "#!/bin/sh\nprintf 'invoked\\n' >> " +
+      JSON.stringify(fsmonitorSentinel) +
+      "\nexit 92\n",
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(hostileAttributes, "* export-ignore\n", "utf8");
+  fs.writeFileSync(
+    path.join(hostileHome, ".gitconfig"),
+    [
+      "[core]",
+      "  fsmonitor = " + fakeFsmonitor,
+      "  attributesFile = " + hostileAttributes,
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const safeGit = (args) =>
+    spawnSync(
+      "/usr/bin/git",
+      [
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.attributesFile=/dev/null",
+        "-C",
+        process.cwd(),
+        ...args,
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          PATH: "/usr/bin:/bin",
+          LANG: "C",
+          LC_ALL: "C",
+          HOME: "/nonexistent",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_CONFIG_SYSTEM: "/dev/null",
+          GIT_CONFIG_NOSYSTEM: "1",
+        },
+      },
+    );
+
+  const prior = new Map();
+  for (const key of ["core.fsmonitor", "core.attributesFile"]) {
+    const got = safeGit(["config", "--local", "--get-all", key]);
+    prior.set(
+      key,
+      got.status === 0
+        ? String(got.stdout || "").split("\n").filter(Boolean)
+        : [],
+    );
+  }
+
+  const savedEnv = new Map();
+  for (const key of [
+    "HOME",
+    "XDG_CONFIG_HOME",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_KEY_0",
+    "GIT_CONFIG_VALUE_0",
+    "GIT_EXEC_PATH",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+  ]) {
+    savedEnv.set(
+      key,
+      Object.prototype.hasOwnProperty.call(process.env, key)
+        ? process.env[key]
+        : undefined,
+    );
+  }
+
+  try {
+    let set = safeGit([
+      "config",
+      "--local",
+      "--replace-all",
+      "core.attributesFile",
+      hostileAttributes,
+    ]);
+    assert.equal(set.status, 0, String(set.stderr || ""));
+    set = safeGit([
+      "config",
+      "--local",
+      "--replace-all",
+      "core.fsmonitor",
+      fakeFsmonitor,
+    ]);
+    assert.equal(set.status, 0, String(set.stderr || ""));
+    assert.equal(fs.existsSync(fsmonitorSentinel), false);
+
+    process.env.HOME = hostileHome;
+    process.env.XDG_CONFIG_HOME = hostileHome;
+    process.env.GIT_DIR = path.join(hostile, "forged.git");
+    process.env.GIT_WORK_TREE = path.join(hostile, "forged-worktree");
+    process.env.GIT_OBJECT_DIRECTORY = path.join(hostile, "forged-objects");
+    process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES =
+      path.join(hostile, "forged-alternates");
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "core.fsmonitor";
+    process.env.GIT_CONFIG_VALUE_0 = fakeFsmonitor;
+    process.env.GIT_EXEC_PATH = path.join(hostile, "fake-exec-path");
+    process.env.LD_PRELOAD = path.join(hostile, "fake-preload.so");
+    process.env.LD_LIBRARY_PATH = hostile;
+
+    const hostileResult =
+      await composeVoidEconomicEpoch2PublicVerificationV1(
+        compositionInput(fresh),
+      );
+    assert.equal(
+      hostileResult.receipt.composition_id,
+      result.receipt.composition_id,
+    );
+    assert.equal(fs.existsSync(fsmonitorSentinel), false);
+  } finally {
+    for (const [key, values] of prior) {
+      safeGit(["config", "--local", "--unset-all", key]);
+      for (const value of values) {
+        const restored = safeGit(["config", "--local", "--add", key, value]);
+        assert.equal(restored.status, 0, String(restored.stderr || ""));
+      }
+    }
+    for (const [key, value] of savedEnv) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(hostile, { recursive: true, force: true });
+  }
+}
+
+{
   const target =
     VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1[
       "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs"
@@ -648,6 +797,9 @@ console.log("git_replacement_objects_disabled=true");
 console.log("exact_reviewed_git_object_execution_green=true");
 console.log("git_replace_attack_held_green=true");
 console.log("independent_promotion_scoped_merge_verified=true");
+console.log("git_config_isolated=true");
+console.log("subprocess_environment_isolated=true");
+console.log("hostile_fsmonitor_execution=false");
 console.log("final_migration_classifier_status=SOURCE_READY");
 console.log("remaining_migration_gate_count=0");
 console.log("dirty_worktree_held=true");

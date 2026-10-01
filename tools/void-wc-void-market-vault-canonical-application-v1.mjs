@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -17,9 +18,18 @@ export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_AUTHORITY_V1 =
     evidence_fresh_at_collection_required:true,
     application_time_authority:false,
     canonical_head_candidate_required:true,
+    git_config_isolated:true,
     reviewed_execution_source_required:true,
     verified_modules_loaded_from_exact_git_objects:true,
     ephemeral_verified_module_materialization:true,
+    reviewed_package_runtime_required:true,
+    reviewed_package_bytes_verified:true,
+    private_reviewed_package_materialization:true,
+    permission_fenced_reviewed_execution:true,
+    ancestor_package_resolution_forbidden:true,
+    ambient_node_resolution_overrides_ignored:true,
+    ambient_dynamic_loader_overrides_ignored:true,
+    execution_network_isolation_provided:false,
     exact_five_field_source_delta:true,
     canonical_classifier_reexecution:true,
     canonical_main_application_required:true,
@@ -62,6 +72,17 @@ const ADAPTER_REVIEW_REL="tools/void-wc-void-opening-settlement-adapter-review-v
 const OPENING_REL="tools/void-wc-void-coupled-opening-v1.mjs";
 const PACKAGE_REL="package.json";
 const PACKAGE_LOCK_REL="package-lock.json";
+const REVIEWED_RUNTIME_TOOL_REL="tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL=
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_RUNTIME_BRIDGE_REL=
+  "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs";
+const REVIEWED_RUNTIME_BRIDGE_MARKER=
+  "VOID_WC_VOID_MARKET_VAULT_REVIEWED_RUNTIME_BRIDGE_V1";
+const REVIEWED_RUNTIME_PROFILE_ID_V1=
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1=
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 
 export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1=
   Object.freeze({
@@ -75,9 +96,13 @@ export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1=
     [OPENING_REL]:"886feaef71a228b1e6f49f1106ae8ec2b34c404e",
     [PACKAGE_REL]:"f28c3e9446c7623ef203da36a9642d046e5f34ee",
     [PACKAGE_LOCK_REL]:"b2671f0149f522b2489247016df0a5ec4bb72b8b",
+    [REVIEWED_RUNTIME_TOOL_REL]:"6475c3f18ffe566cf5f448ca1de4795391a6efde",
+    [REVIEWED_RUNTIME_PROFILE_REL]:"87b650e28366acfea3d140ea7778f41f57e5b0c3",
+    [REVIEWED_RUNTIME_BRIDGE_REL]:"5ecc2670a5e75344dc0929e81c9746741d59acff",
   });
 
 const PLAN_ID=/^voidwcmvcap1_[0-9a-f]{64}$/u;
+const REVIEWED_RUNTIME_PROFILE_ID=/^voidrnpr1_[0-9a-f]{64}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 const HEX40=/^[0-9a-f]{40}$/u;
 const MAX_BYTES=8*1024*1024;
@@ -149,23 +174,44 @@ function exactObject(value,keys,code){
 }
 
 function gitEnv(){
-  const env={
+  return {
     PATH:"/usr/bin:/bin",
+    LANG:"C",
+    LC_ALL:"C",
     HOME:"/nonexistent",
     XDG_CONFIG_HOME:"/nonexistent",
     GIT_CONFIG_NOSYSTEM:"1",
     GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_ATTR_NOSYSTEM:"1",
     GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_OPTIONAL_LOCKS:"0",
     GIT_TERMINAL_PROMPT:"0",
     GIT_ASKPASS:"/bin/false",
   };
-  return env;
+}
+
+function gitSafetyConfigArgs(){
+  return [
+    "-c","core.worktree="+ROOT,
+    "-c","core.fsmonitor=false",
+    "-c","core.hooksPath=/dev/null",
+    "-c","core.attributesFile=/dev/null",
+    "-c","core.untrackedCache=false",
+    "-c","core.preloadIndex=false",
+    "-c","submodule.recurse=false",
+  ];
 }
 
 function gitRun(args,{encoding="utf8",allowFail=false}={}){
   const r=spawnSync(
     GIT,
-    ["--no-replace-objects","-C",ROOT,...args],
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(),
+      "-C",ROOT,
+      ...args,
+    ],
     {
       env:gitEnv(),
       encoding,
@@ -200,7 +246,7 @@ function repositoryIdentity(){
   );
   if(!HEX40.test(head)||!HEX40.test(tree))fail("MARKET_VAULT_CANONICAL_REPOSITORY_IDENTITY_INVALID");
   const origin=gitText(
-    ["config","--get","remote.origin.url"],
+    ["config","--local","--no-includes","--get","remote.origin.url"],
     "MARKET_VAULT_CANONICAL_ORIGIN_UNAVAILABLE",
   );
   if(![
@@ -263,27 +309,198 @@ const REVIEWED_MODULE_PATHS=Object.freeze([
   READINESS_REL,
   ADAPTER_REVIEW_REL,
   OPENING_REL,
+  REVIEWED_RUNTIME_BRIDGE_REL,
 ]);
 
-function reviewedModuleTempRoot(repo){
-  const raw=gitText(
-    ["rev-parse","--git-dir"],
-    "MARKET_VAULT_CANONICAL_GIT_DIR_UNAVAILABLE",
+function writePrivateExactFile(file,bytes,mode=0o400){
+  fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_WRONLY|
+      fs.constants.O_CREAT|
+      fs.constants.O_EXCL|
+      Number(fs.constants.O_NOFOLLOW||0),
+    mode,
   );
-  const gitDir=path.isAbsolute(raw)?raw:path.resolve(ROOT,raw);
-  const stat=fs.lstatSync(gitDir);
-  if(!stat.isDirectory()||stat.isSymbolicLink()){
-    fail("MARKET_VAULT_CANONICAL_GIT_DIR_INVALID");
+  try{
+    fs.writeFileSync(fd,bytes);
+    fs.fchmodSync(fd,mode);
+    fs.fsyncSync(fd);
+  }finally{
+    fs.closeSync(fd);
   }
-  const prefix=path.join(gitDir,"void-market-vault-canonical-reviewed-");
-  const temp=fs.mkdtempSync(prefix);
-  fs.chmodSync(temp,0o700);
-  return temp;
+  const stat=fs.lstatSync(file);
+  if(
+    !stat.isFile()||
+    stat.isSymbolicLink()||
+    stat.nlink!==1||
+    (stat.mode&0o777)!==mode
+  ){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_PRIVATE_FILE_INVALID");
+  }
+  const written=fs.readFileSync(file);
+  if(!written.equals(bytes)){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_PRIVATE_FILE_MISMATCH");
+  }
+}
+
+function makeRemovableTree(root){
+  if(!fs.existsSync(root))return;
+  const stat=fs.lstatSync(root);
+  if(stat.isSymbolicLink())return;
+  if(stat.isDirectory()){
+    fs.chmodSync(root,0o700);
+    for(const entry of fs.readdirSync(root)){
+      makeRemovableTree(path.join(root,entry));
+    }
+  }else if(stat.isFile()){
+    fs.chmodSync(root,0o600);
+  }
+}
+
+function reviewedRuntimeProfile(repo){
+  const source=commitBytes(
+    repo.head,
+    REVIEWED_RUNTIME_PROFILE_REL,
+    "MARKET_VAULT_REVIEWED_NODE_RUNTIME_PROFILE",
+  );
+  let profile;
+  try{
+    profile=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(source.bytes));
+  }catch{
+    fail("MARKET_VAULT_REVIEWED_NODE_RUNTIME_PROFILE_JSON_INVALID");
+  }
+  if(
+    !plain(profile)||
+    profile.marker!=="VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1"||
+    profile.status!=="REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE"||
+    profile.version!==1||
+    !Array.isArray(profile.root_packages)||
+    JSON.stringify(profile.root_packages)!==JSON.stringify(["ethers"])||
+    typeof profile.profile_id!=="string"||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(profile.profile_id)||
+    profile.profile_id!==REVIEWED_RUNTIME_PROFILE_ID_V1||
+    typeof profile.packages_aggregate_sha256!=="string"||
+    !SHA256.test(profile.packages_aggregate_sha256)||
+    profile.packages_aggregate_sha256!==
+      REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1
+  ){
+    fail("MARKET_VAULT_REVIEWED_NODE_RUNTIME_PROFILE_INVALID");
+  }
+  return Object.freeze({source,profile});
+}
+
+function parseBridgeResult(execution,operation){
+  if(
+    execution?.ok!==true||
+    execution.status!=="PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_EXECUTION_GREEN"||
+    execution.permission_fenced!==true||
+    execution.ancestor_package_resolution_allowed!==false||
+    execution.ambient_node_resolution_overrides_ignored!==true||
+    execution.ambient_dynamic_loader_overrides_ignored!==true
+  ){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_EXECUTION_INVALID");
+  }
+  const text=String(execution.stdout||"").trim();
+  if(text.length<2||text.length>MAX_BYTES){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_STDOUT_INVALID");
+  }
+  const lines=text.split(/\r?\n/u);
+  if(lines.length!==1){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_STDOUT_MULTILINE");
+  }
+  let envelope;
+  try{envelope=JSON.parse(lines[0]);}
+  catch{fail("MARKET_VAULT_REVIEWED_RUNTIME_STDOUT_JSON_INVALID");}
+  exactObject(
+    envelope,
+    ["marker","version","operation","ok","result","error"],
+    "MARKET_VAULT_REVIEWED_RUNTIME_OUTPUT_SHAPE_INVALID",
+  );
+  if(
+    envelope.marker!==REVIEWED_RUNTIME_BRIDGE_MARKER||
+    envelope.version!==1||
+    envelope.operation!==operation||
+    typeof envelope.ok!=="boolean"
+  ){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_OUTPUT_INVALID");
+  }
+  if(envelope.ok===false){
+    if(
+      envelope.result!==null||
+      typeof envelope.error!=="string"||
+      envelope.error.length<1||
+      envelope.error.length>512
+    ){
+      fail("MARKET_VAULT_REVIEWED_RUNTIME_ERROR_OUTPUT_INVALID");
+    }
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_CHILD_ERROR:"+envelope.error);
+  }
+  if(!plain(envelope.result)||envelope.error!==null){
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_SUCCESS_OUTPUT_INVALID");
+  }
+  return envelope.result;
 }
 
 async function withReviewedExecutionModules(repo,fn){
-  const temp=reviewedModuleTempRoot(repo);
+  const parent=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-market-vault-reviewed-runtime-"),
+  );
+  fs.chmodSync(parent,0o700);
   try{
+    const runtimeToolSource=commitBytes(
+      repo.head,
+      REVIEWED_RUNTIME_TOOL_REL,
+      "MARKET_VAULT_REVIEWED_NODE_RUNTIME_TOOL",
+    );
+    const runtimeToolPath=path.join(parent,"reviewed-node-runtime.mjs");
+    writePrivateExactFile(runtimeToolPath,runtimeToolSource.bytes,0o400);
+    const runtime=await import(
+      pathToFileURL(runtimeToolPath).href+"?blob="+runtimeToolSource.blob
+    );
+    for(const name of [
+      "verifyReviewedNodePackageRuntimeV1",
+      "materializeReviewedNodePackageRuntimeV1",
+      "runReviewedNodePackageRuntimeV1",
+    ]){
+      if(typeof runtime[name]!=="function"){
+        fail("MARKET_VAULT_REVIEWED_NODE_RUNTIME_EXPORT_MISSING:"+name);
+      }
+    }
+
+    const profileSource=reviewedRuntimeProfile(repo);
+    const verifiedProfile=runtime.verifyReviewedNodePackageRuntimeV1({
+      profile:profileSource.profile,
+      repoRoot:ROOT,
+    });
+    if(
+      verifiedProfile?.ok!==true||
+      verifiedProfile.status!=="REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"||
+      verifiedProfile.profile_id!==profileSource.profile.profile_id||
+      verifiedProfile.packages_aggregate_sha256!==
+        profileSource.profile.packages_aggregate_sha256
+    ){
+      fail("MARKET_VAULT_REVIEWED_NODE_RUNTIME_PROFILE_NOT_VERIFIED");
+    }
+
+    const runtimeRoot=path.join(parent,"runtime");
+    const materialized=runtime.materializeReviewedNodePackageRuntimeV1({
+      profile:profileSource.profile,
+      repoRoot:ROOT,
+      destinationRoot:runtimeRoot,
+    });
+    if(
+      materialized?.ok!==true||
+      materialized.status!=="PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"||
+      materialized.profile_id!==profileSource.profile.profile_id||
+      materialized.packages_aggregate_sha256!==
+        profileSource.profile.packages_aggregate_sha256||
+      materialized.read_only_materialization!==true
+    ){
+      fail("MARKET_VAULT_REVIEWED_NODE_RUNTIME_MATERIALIZATION_INVALID");
+    }
+
+    const sourceRoot=path.join(runtimeRoot,"source");
     for(const relativePath of REVIEWED_MODULE_PATHS){
       const expected=
         VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1[
@@ -297,33 +514,76 @@ async function withReviewedExecutionModules(repo,fn){
       if(source.blob!==expected){
         fail("MARKET_VAULT_REVIEWED_MODULE_BLOB_MISMATCH:"+relativePath);
       }
-      const destination=path.join(temp,relativePath);
-      fs.mkdirSync(path.dirname(destination),{recursive:true,mode:0o700});
-      fs.writeFileSync(destination,source.bytes,{flag:"wx",mode:0o600});
-      const written=fs.readFileSync(destination);
-      if(gitBlobSha1(written)!==expected){
+      const destination=path.join(sourceRoot,relativePath);
+      writePrivateExactFile(destination,source.bytes,0o400);
+      if(gitBlobSha1(fs.readFileSync(destination))!==expected){
         fail("MARKET_VAULT_REVIEWED_MODULE_MATERIALIZATION_MISMATCH:"+relativePath);
       }
     }
 
-    const atUse=await import(
-      pathToFileURL(path.join(temp,AT_USE_REL)).href
-    );
-    const readiness=await import(
-      pathToFileURL(path.join(temp,READINESS_REL)).href
-    );
-    if(
-      typeof atUse.verifyWcVoidMarketVaultAtUseRevalidationV1!=="function"||
-      typeof readiness.classifyVoidWcVoidProductionReadinessV1!=="function"
-    ){
-      fail("MARKET_VAULT_REVIEWED_MODULE_EXPORT_MISSING");
-    }
+    const bridgePath=path.join(sourceRoot,REVIEWED_RUNTIME_BRIDGE_REL);
+    const inputRoot=path.join(runtimeRoot,"inputs");
+    fs.mkdirSync(inputRoot,{mode:0o700});
+    let sequence=0;
+
+    const runOperation=(operation,payload)=>{
+      sequence+=1;
+      const inputName=
+        String(sequence).padStart(4,"0")+"-"+operation+".json";
+      const inputPath=path.join(inputRoot,inputName);
+      const inputBytes=Buffer.from(JSON.stringify(payload,null,2)+"\n","utf8");
+      if(inputBytes.length>MAX_BYTES){
+        fail("MARKET_VAULT_REVIEWED_RUNTIME_INPUT_TOO_LARGE");
+      }
+      writePrivateExactFile(inputPath,inputBytes,0o400);
+      const execution=runtime.runReviewedNodePackageRuntimeV1({
+        profile:profileSource.profile,
+        destinationRoot:runtimeRoot,
+        entryFile:bridgePath,
+        args:[
+          "--operation",operation,
+          "--input",path.relative(runtimeRoot,inputPath),
+        ],
+        repoRoot:ROOT,
+        timeoutMs:30_000,
+      });
+      if(
+        execution.profile_id!==profileSource.profile.profile_id||
+        execution.packages_aggregate_sha256!==
+          profileSource.profile.packages_aggregate_sha256
+      ){
+        fail("MARKET_VAULT_REVIEWED_RUNTIME_EXECUTION_PROFILE_DRIFT");
+      }
+      return parseBridgeResult(execution,operation);
+    };
+
+    const packageRuntimeBinding=Object.freeze({
+      runtime_tool_git_blob_sha1:runtimeToolSource.blob,
+      runtime_profile_git_blob_sha1:profileSource.source.blob,
+      profile_id:profileSource.profile.profile_id,
+      packages_aggregate_sha256:
+        profileSource.profile.packages_aggregate_sha256,
+      bridge_git_blob_sha1:
+        VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1[
+          REVIEWED_RUNTIME_BRIDGE_REL
+        ],
+      permission_fenced:true,
+      ancestor_package_resolution_allowed:false,
+      ambient_node_resolution_overrides_ignored:true,
+      ambient_dynamic_loader_overrides_ignored:true,
+      execution_network_isolation_provided:false,
+    });
+
     return await fn(Object.freeze({
-      verifyAtUse:atUse.verifyWcVoidMarketVaultAtUseRevalidationV1,
-      classifyReadiness:readiness.classifyVoidWcVoidProductionReadinessV1,
+      verifyAtUse:async ({artifact,evaluation_time_utc})=>
+        runOperation("verify_at_use",{artifact,evaluation_time_utc}),
+      classifyReadiness:async (candidate)=>
+        runOperation("classify_readiness",{candidate}),
+      packageRuntimeBinding,
     }));
   }finally{
-    fs.rmSync(temp,{recursive:true,force:true});
+    makeRemovableTree(parent);
+    fs.rmSync(parent,{recursive:true,force:true});
   }
 }
 
@@ -418,6 +678,14 @@ function validatePlan(plan){
     "marker","version","status","chain_id","pair",
     "application_base_head_sha","application_base_tree_sha",
     "application_tool_git_blob_sha1","reviewed_source_blobs",
+    "reviewed_node_package_runtime_tool_git_blob_sha1",
+    "reviewed_node_package_runtime_profile_git_blob_sha1",
+    "reviewed_node_package_runtime_profile_id",
+    "reviewed_node_package_runtime_packages_aggregate_sha256",
+    "reviewed_execution_bridge_git_blob_sha1",
+    "reviewed_execution_permission_fenced",
+    "reviewed_execution_ancestor_package_resolution_allowed",
+    "reviewed_execution_network_isolation_provided",
     "at_use_artifact_file_sha256","at_use_revalidation_id",
     "at_use_evidence_sha256","evidence_collection_completed_at_utc",
     "evidence_valid_until_utc","evidence_fresh_at_reviewed_collection",
@@ -444,6 +712,16 @@ function validatePlan(plan){
     !PLAN_ID.test(String(plan.application_plan_id||""))||
     plan.evidence_fresh_at_reviewed_collection!==true||
     plan.application_time_authority!==false||
+    !HEX40.test(String(plan.reviewed_node_package_runtime_tool_git_blob_sha1||""))||
+    !HEX40.test(String(plan.reviewed_node_package_runtime_profile_git_blob_sha1||""))||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(
+      String(plan.reviewed_node_package_runtime_profile_id||""),
+    )||
+    !SHA256.test(String(plan.reviewed_node_package_runtime_packages_aggregate_sha256||""))||
+    !HEX40.test(String(plan.reviewed_execution_bridge_git_blob_sha1||""))||
+    plan.reviewed_execution_permission_fenced!==true||
+    plan.reviewed_execution_ancestor_package_resolution_allowed!==false||
+    plan.reviewed_execution_network_isolation_provided!==false||
     plan.market_vault_independently_verified!==true||
     plan.inventory_funded!==true||
     plan.inventory_lock_proven!==true||
@@ -457,6 +735,28 @@ function validatePlan(plan){
     plan.production_candidate_path!==PRODUCTION_REL||
     JSON.stringify(plan.promoted_production_fields)!==JSON.stringify(PROMOTED_FIELDS)
   )fail("MARKET_VAULT_CANONICAL_PLAN_INVALID");
+  if(
+    canonicalJson(plan.reviewed_source_blobs)!==
+      canonicalJson(
+        VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1,
+      )
+  ){
+    fail("MARKET_VAULT_CANONICAL_REVIEWED_SOURCE_MANIFEST_MISMATCH");
+  }
+  if(
+    plan.reviewed_node_package_runtime_tool_git_blob_sha1!==
+      plan.reviewed_source_blobs[REVIEWED_RUNTIME_TOOL_REL]||
+    plan.reviewed_node_package_runtime_profile_git_blob_sha1!==
+      plan.reviewed_source_blobs[REVIEWED_RUNTIME_PROFILE_REL]||
+    plan.reviewed_execution_bridge_git_blob_sha1!==
+      plan.reviewed_source_blobs[REVIEWED_RUNTIME_BRIDGE_REL]||
+    plan.reviewed_node_package_runtime_profile_id!==
+      REVIEWED_RUNTIME_PROFILE_ID_V1||
+    plan.reviewed_node_package_runtime_packages_aggregate_sha256!==
+      REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1
+  ){
+    fail("MARKET_VAULT_CANONICAL_REVIEWED_RUNTIME_PLAN_BINDING_MISMATCH");
+  }
   if(
     canonicalJson(plan.authority)!==
       canonicalJson(VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_AUTHORITY_V1)
@@ -490,8 +790,8 @@ export async function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
   }
   const result=await withReviewedExecutionModules(
     repo,
-    async ({verifyAtUse,classifyReadiness})=>{
-      const verified=verifyAtUse({
+    async ({verifyAtUse,classifyReadiness,packageRuntimeBinding})=>{
+      const verified=await verifyAtUse({
         artifact,
         evaluation_time_utc:artifact.collection_completed_at_utc,
       });
@@ -509,7 +809,7 @@ export async function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
     verified.funds_movement_authorized!==false
   )fail("MARKET_VAULT_CANONICAL_EVIDENCE_INVALID");
 
-  const before=classifyReadiness(production.value);
+  const before=await classifyReadiness(production.value);
   if(
     before?.ok!==false||
     before.status!=="HOLD"||
@@ -518,7 +818,7 @@ export async function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
   )fail("MARKET_VAULT_CANONICAL_CLASSIFIER_PRESTATE_INVALID");
 
   const target=targetFrom(production.value,verified);
-  const after=classifyReadiness(target);
+  const after=await classifyReadiness(target);
   if(
     after?.ok!==false||
     after.status!=="HOLD"||
@@ -537,6 +837,22 @@ export async function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
     application_base_tree_sha:repo.tree,
     application_tool_git_blob_sha1:sourceBinding.tool_blob_sha1,
     reviewed_source_blobs:sourceBinding.reviewed,
+    reviewed_node_package_runtime_tool_git_blob_sha1:
+      packageRuntimeBinding.runtime_tool_git_blob_sha1,
+    reviewed_node_package_runtime_profile_git_blob_sha1:
+      packageRuntimeBinding.runtime_profile_git_blob_sha1,
+    reviewed_node_package_runtime_profile_id:
+      packageRuntimeBinding.profile_id,
+    reviewed_node_package_runtime_packages_aggregate_sha256:
+      packageRuntimeBinding.packages_aggregate_sha256,
+    reviewed_execution_bridge_git_blob_sha1:
+      packageRuntimeBinding.bridge_git_blob_sha1,
+    reviewed_execution_permission_fenced:
+      packageRuntimeBinding.permission_fenced,
+    reviewed_execution_ancestor_package_resolution_allowed:
+      packageRuntimeBinding.ancestor_package_resolution_allowed,
+    reviewed_execution_network_isolation_provided:
+      packageRuntimeBinding.execution_network_isolation_provided,
     at_use_artifact_file_sha256:evidenceSource.sha256,
     at_use_revalidation_id:artifact.revalidation_id,
     at_use_evidence_sha256:artifact.at_use_evidence_sha256,
@@ -590,7 +906,7 @@ async function verifyStateWithClassifier(plan,productionCandidate,classifyReadin
   if(canonicalJson(productionCandidate)!==canonicalJson(reviewed.production_target_candidate)){
     fail("MARKET_VAULT_CANONICAL_TARGET_NOT_APPLIED");
   }
-  const decision=classifyReadiness(productionCandidate);
+  const decision=await classifyReadiness(productionCandidate);
   if(canonicalJson(summarize(decision))!==canonicalJson(reviewed.production_after)){
     fail("MARKET_VAULT_CANONICAL_CLASSIFIER_STATE_MISMATCH");
   }
@@ -615,11 +931,38 @@ export async function verifyVoidWcVoidMarketVaultCanonicalApplicationStateV1({
   productionCandidate,
 }={}){
   const repo=repositoryIdentity();
-  assertReviewedExecutionSource(repo);
+  const sourceBinding=assertReviewedExecutionSource(repo);
+  const reviewed=validatePlan(plan);
+  if(
+    reviewed.application_tool_git_blob_sha1!==sourceBinding.tool_blob_sha1||
+    canonicalJson(reviewed.reviewed_source_blobs)!==
+      canonicalJson(sourceBinding.reviewed)
+  ){
+    fail("MARKET_VAULT_CANONICAL_STATE_SOURCE_LINEAGE_DRIFT");
+  }
   return await withReviewedExecutionModules(
     repo,
-    async ({classifyReadiness})=>
-      await verifyStateWithClassifier(plan,productionCandidate,classifyReadiness),
+    async ({classifyReadiness,packageRuntimeBinding})=>{
+      if(
+        plan.reviewed_node_package_runtime_tool_git_blob_sha1!==
+          packageRuntimeBinding.runtime_tool_git_blob_sha1||
+        plan.reviewed_node_package_runtime_profile_git_blob_sha1!==
+          packageRuntimeBinding.runtime_profile_git_blob_sha1||
+        plan.reviewed_node_package_runtime_profile_id!==
+          packageRuntimeBinding.profile_id||
+        plan.reviewed_node_package_runtime_packages_aggregate_sha256!==
+          packageRuntimeBinding.packages_aggregate_sha256||
+        plan.reviewed_execution_bridge_git_blob_sha1!==
+          packageRuntimeBinding.bridge_git_blob_sha1
+      ){
+        fail("MARKET_VAULT_CANONICAL_REVIEWED_RUNTIME_LINEAGE_DRIFT");
+      }
+      return await verifyStateWithClassifier(
+        plan,
+        productionCandidate,
+        classifyReadiness,
+      );
+    },
   );
 }
 
@@ -674,11 +1017,26 @@ export async function verifyVoidWcVoidMarketVaultCanonicalApplicationV1({
 
   return await withReviewedExecutionModules(
     repo,
-    async ({classifyReadiness})=>
-      await verifyStateWithClassifier(
+    async ({classifyReadiness,packageRuntimeBinding})=>{
+      if(
+        plan.reviewed_node_package_runtime_tool_git_blob_sha1!==
+          packageRuntimeBinding.runtime_tool_git_blob_sha1||
+        plan.reviewed_node_package_runtime_profile_git_blob_sha1!==
+          packageRuntimeBinding.runtime_profile_git_blob_sha1||
+        plan.reviewed_node_package_runtime_profile_id!==
+          packageRuntimeBinding.profile_id||
+        plan.reviewed_node_package_runtime_packages_aggregate_sha256!==
+          packageRuntimeBinding.packages_aggregate_sha256||
+        plan.reviewed_execution_bridge_git_blob_sha1!==
+          packageRuntimeBinding.bridge_git_blob_sha1
+      ){
+        fail("MARKET_VAULT_CANONICAL_REVIEWED_RUNTIME_LINEAGE_DRIFT");
+      }
+      return await verifyStateWithClassifier(
         plan,
         current.value,
         classifyReadiness,
-      ),
+      );
+    },
   );
 }
