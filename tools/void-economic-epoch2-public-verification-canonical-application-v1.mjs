@@ -41,7 +41,7 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_AUTH
     reviewed_git_commit_required: true,
     repository_source_write: false,
     filesystem_read: true,
-    filesystem_write: false,
+    private_temporary_filesystem_write: true,
     runtime_mutation: false,
     service_mutation: false,
     production_rpc_contact: false,
