@@ -441,6 +441,7 @@ function normalizedPublishReceipt(transaction,value){
     [
       "transaction_id",
       "participant",
+      "prestate_id_before_publish",
       "published_state_sha256",
       "restart_performed",
       "restart_before_invocation_id",
@@ -455,6 +456,9 @@ function normalizedPublishReceipt(transaction,value){
     fail("publish_participant_invalid");
   }
   const participant=value.participant;
+  if(value.prestate_id_before_publish!==prestateId(transaction.prestate[participant])){
+    fail("publish_prestate_drift");
+  }
   if(value.published_state_sha256!==stagedStateSha(transaction,participant)){
     fail("publish_state_mismatch");
   }
@@ -700,12 +704,27 @@ export function recordVoidCrossboxMutationVerifiedV1(transaction,value){
   );
 }
 
-export function finalizeVoidCrossboxMutationCommittedV1(transaction){
+export function finalizeVoidCrossboxMutationCommittedV1(
+  transaction,
+  options={},
+){
   validateBaseTransaction(transaction);
   if(transaction.phase==="COMMITTED")return transaction;
   if(transaction.phase!=="COMMITTING")fail("commit_finalize_phase_invalid");
   if(!transaction.verified.local||!transaction.verified.remote){
     fail("commit_requires_two_verified_participants");
+  }
+  if(transaction.kind==="validator_truth_closeout"){
+    exactObject(
+      options,
+      ["checkpoint_tag_absent_verified"],
+      "validator_commit_options_shape",
+    );
+    if(options.checkpoint_tag_absent_verified!==true){
+      fail("validator_checkpoint_tag_absence_recheck_required");
+    }
+  }else{
+    exactObject(options,[],"site_commit_options_shape");
   }
   const next=deepClone(transaction);
   next.phase="COMMITTED";
