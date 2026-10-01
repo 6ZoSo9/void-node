@@ -13,6 +13,7 @@ import {
   canonicalJson,
   collectReviewedNodePackageRuntimeV1,
   materializeReviewedNodePackageRuntimeV1,
+  runReviewedNodePackageRuntimeV1,
   verifyMaterializedReviewedNodePackageRuntimeV1,
   verifyReviewedNodePackageRuntimeV1,
 } from "../tools/void-reviewed-node-package-runtime-v1.mjs";
@@ -269,18 +270,18 @@ try{
     ].join("\n"),
     {mode:0o400},
   );
-  const env={...process.env};
-  for(const key of [
-    "NODE_PATH","NODE_OPTIONS","NPM_CONFIG_PREFIX","npm_config_prefix",
-  ]) delete env[key];
-  const child=spawnSync(process.execPath,[entry],{
-    cwd:destination,
-    encoding:"utf8",
-    stdio:["ignore","pipe","pipe"],
-    timeout:20_000,
-    env,
+  const child=runReviewedNodePackageRuntimeV1({
+    profile,
+    destinationRoot:destination,
+    entryFile:entry,
   });
-  assert.equal(child.status,0,child.stderr);
+  assert.equal(child.ok,true,child.stderr);
+  assert.equal(
+    child.status,
+    "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_EXECUTION_GREEN",
+  );
+  assert.equal(child.permission_fenced,true);
+  assert.equal(child.ancestor_package_resolution_allowed,false);
   const probe=JSON.parse(child.stdout.trim());
   assert.equal(probe.version,"6.17.0");
   assert.equal(probe.wallet,"function");
@@ -291,6 +292,70 @@ try{
     ),
     probe.resolved,
   );
+
+  {
+    const ancestorPackage=path.join(temp,"node_modules","bufferutil");
+    fs.mkdirSync(ancestorPackage,{recursive:true,mode:0o700});
+    fs.writeFileSync(
+      path.join(ancestorPackage,"package.json"),
+      JSON.stringify({
+        name:"bufferutil",
+        version:"9.9.9",
+        type:"module",
+        exports:"./index.js",
+      })+"\n",
+      {mode:0o600},
+    );
+    fs.writeFileSync(
+      path.join(ancestorPackage,"index.js"),
+      'export const marker="UNREVIEWED_ANCESTOR_PACKAGE_EXECUTED";\n',
+      {mode:0o600},
+    );
+    const ancestorEntry=path.join(destination,"ancestor-probe.mjs");
+    fs.writeFileSync(
+      ancestorEntry,
+      'import { marker } from "bufferutil"; console.log(marker);\n',
+      {mode:0o400},
+    );
+
+    const unfencedEnv={...process.env};
+    for(const key of [
+      "NODE_PATH","NODE_OPTIONS","NPM_CONFIG_PREFIX","npm_config_prefix",
+    ]) delete unfencedEnv[key];
+    const unfenced=spawnSync(process.execPath,[ancestorEntry],{
+      cwd:destination,
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      timeout:20_000,
+      env:unfencedEnv,
+    });
+    assert.equal(unfenced.status,0,unfenced.stderr);
+    assert.match(
+      unfenced.stdout,
+      /UNREVIEWED_ANCESTOR_PACKAGE_EXECUTED/u,
+    );
+
+    const fenced=runReviewedNodePackageRuntimeV1({
+      profile,
+      destinationRoot:destination,
+      entryFile:ancestorEntry,
+      allowFailure:true,
+    });
+    assert.equal(fenced.ok,false);
+    assert.equal(
+      fenced.status,
+      "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_EXECUTION_FAILED_CLOSED",
+    );
+    assert.notEqual(fenced.exit_code,0);
+    assert.doesNotMatch(
+      fenced.stdout,
+      /UNREVIEWED_ANCESTOR_PACKAGE_EXECUTED/u,
+    );
+    assert.match(
+      fenced.stderr,
+      /ERR_ACCESS_DENIED|Access to this API has been restricted/u,
+    );
+  }
 
   const ethersRow=profile.packages.find(row=>row.name==="ethers");
   assert(ethersRow);
@@ -323,6 +388,9 @@ for(const [key,value] of Object.entries(
     "installed_package_byte_inventory_required",
     "private_dependency_materialization",
     "post_copy_inventory_reverification",
+    "permission_fenced_execution",
+    "ancestor_package_resolution_forbidden",
+    "ambient_node_resolution_overrides_ignored",
     "reviewed_profile_head_binding",
     "reviewed_profile_content_id_rederivation",
   ]);
@@ -363,6 +431,11 @@ for(const required of [
   "reviewed_node_runtime_dependency_symlink_forbidden",
   "reviewed_node_runtime_dependency_changed_before_copy",
   "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED",
+  "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_EXECUTION_GREEN",
+  '"--permission"',
+  '"--allow-fs-read="+root',
+  "reviewedNodeExecutionEnv",
+  "runReviewedNodePackageRuntimeV1",
   "readReviewedNodePackageRuntimeProfileV1",
   "reviewed_node_runtime_profile_content_id_mismatch",
 ]){
@@ -393,6 +466,9 @@ console.log("profile_id="+profile.profile_id);
 console.log("private_ethers_import_green=true");
 console.log("materialized_lock_key_path_escape_rejected=true");
 console.log("ambient_repository_node_modules_rejected=true");
+console.log("ancestor_node_modules_fallback_reachable_without_fence=true");
+console.log("ancestor_node_modules_resolution_blocked_by_permission_fence=true");
+console.log("permission_fenced_execution_green=true");
 console.log("local_git_fsmonitor_execution_blocked=true");
 console.log("ambient_git_environment_redirect_blocked=true");
 console.log("materialization_cleanup_failure_observable=true");
