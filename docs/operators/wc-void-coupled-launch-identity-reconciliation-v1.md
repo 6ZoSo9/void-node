@@ -123,10 +123,36 @@ move to the rederived values from the same generation.
 
 This lane does **not** perform that source application automatically.
 
+## Durable two-generation verification
+
+The reconciliation verifier recognizes exactly two reviewed source generations:
+
+1. `pre_application` — the existing placeholder candidate/classifier/proof/doc
+   blobs; and
+2. `applied` — the exact four canonical blobs produced by the dependent
+   reviewed application.
+
+In `pre_application`, the verifier emits
+`ATOMIC_SOURCE_RECONCILIATION_PREPARED_APPLICATION_REQUIRED`, retains the
+four-file required update set, and keeps real downstream evidence blocked on
+application.
+
+In `applied`, it independently rederives the same `fe02...` commitment,
+opening state, and shared reconciliation from exact HEAD-object bytes, requires
+the canonical candidate to equal that rederived state, and requires the
+classifier/proof/doc to carry the reviewed applied identities. It then emits
+`CANONICAL_SOURCE_RECONCILIATION_APPLIED`, with no remaining source-application
+hold.
+
+Any third/unreviewed blob generation fails closed with
+`reconciliation_source_generation_unreviewed`. This keeps the guard useful
+after application rather than turning the preparation workflow into an
+obsolete permanently-red check.
+
 ## Downstream hold
 
-Until the four-file source transition is reviewed and applied, the new launch
-identity must not be used as authority for real:
+While the verifier reports `pre_application`, the new launch identity must
+not be used as authority for real:
 
 - opening ledger/custody evidence;
 - opening claim/replay evidence;
