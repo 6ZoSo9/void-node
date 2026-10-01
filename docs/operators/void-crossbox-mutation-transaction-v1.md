@@ -38,6 +38,12 @@ also receives a content-addressed state ID.
 A caller cannot change a prestate, intended state, source generation, or
 participant identity without changing the transaction ID.
 
+Every later transition/recovery read re-derives that transaction ID from the
+stored immutable intent, requires the exact source-only authority object,
+revalidates every stored receipt, and checks phase/receipt consistency. Merely
+editing durable JSON and recomputing the outer state hash cannot turn forged
+intent, widened authority, or a partial transaction into a valid terminal.
+
 This module is a **state-machine/receipt contract**, not a host observer. The
 later live executor must derive every prestate, publish, verify, and restore
 receipt from independently observed filesystem/systemd/runtime truth. It must
