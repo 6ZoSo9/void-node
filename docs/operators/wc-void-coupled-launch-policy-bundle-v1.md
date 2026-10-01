@@ -32,8 +32,16 @@ by `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`:
 sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
 ```
 
-A policy bundle for any other launch ID fails closed. The CI workflow tracks the
-canonical candidate path so a reviewed launch-identity change forces this
+A policy bundle for any other launch ID fails closed. The compiler also binds the
+exact reviewed Git blob of that canonical candidate:
+
+```text
+d78bc88dd26c47921a54c081a79ceefc0d5abcee
+```
+
+The candidate is read through one stable descriptor and its launch identity is
+revalidated before bundle compilation. The CI workflow tracks the canonical
+candidate path so any reviewed candidate or launch-identity change forces this
 compiler to be reconsidered.
 
 ## No source-selected defaults
@@ -178,7 +186,13 @@ The input must be:
 The output parent must be a direct, non-symlink, owner-controlled directory that
 is not group/other writable.
 
-The output is create-only, mode `0600`, fsynced, and never overwritten.
+Private input is descriptor-bound with `O_NOFOLLOW` and stable
+device/inode/size/time checks so a validated pathname is not reopened later.
+
+The output is create-only, mode `0600`, fsynced, and never overwritten. After
+the file is fsynced, the parent directory is fsynced and the persisted
+device/inode is rechecked, so a green result includes durable directory-entry
+publication rather than only buffered file bytes.
 
 ## CLI
 
