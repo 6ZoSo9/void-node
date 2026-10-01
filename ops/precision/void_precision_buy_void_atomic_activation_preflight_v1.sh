@@ -61,8 +61,14 @@ safe_git_timeout(){
     -u GIT_PAGER \
     -u GIT_EDITOR \
     -u GIT_SEQUENCE_EDITOR \
-    PATH=/usr/bin:/bin GIT_OPTIONAL_LOCKS=0 LANG=C LC_ALL=C \
-    timeout 15 "$git_bin" --no-replace-objects -C "$repo" "$@"
+    PATH=/usr/bin:/bin \
+    HOME=/nonexistent \
+    GIT_CONFIG_GLOBAL=/dev/null \
+    GIT_CONFIG_SYSTEM=/dev/null \
+    GIT_CONFIG_NOSYSTEM=1 \
+    GIT_TERMINAL_PROMPT=0 \
+    GIT_OPTIONAL_LOCKS=0 LANG=C LC_ALL=C \
+    timeout 15 "$git_bin" --no-replace-objects -C / "$@"
 }
 
 say "$MARKER"
@@ -99,7 +105,7 @@ tree="$(safe_git rev-parse 'HEAD^{tree}')"
 [[ "$head" =~ ^[0-9a-f]{40}$ ]] || hold "live_repo_head_invalid"
 [[ "$tree" =~ ^[0-9a-f]{40}$ ]] || hold "live_repo_tree_invalid"
 
-origin_url="$(safe_git remote get-url origin)"
+origin_url="$(safe_git config --local --no-includes --get remote.origin.url)"
 test "$origin_url" = "$canonical_remote_url" ||
   hold "canonical_remote_url_mismatch"
 
@@ -158,10 +164,13 @@ source_slice_material="$(
     printf '%s=%s\n' "$wrapper_rel" "$wrapper_head_blob"
     printf '%s=%s\n' "$tool_rel" "$tool_head_blob"
     for rel in "${!reviewed_source_blob[@]}"; do
-      actual="$(safe_git rev-parse "HEAD:$rel")"
-      test "$actual" = "${reviewed_source_blob[$rel]}" ||
-        hold "reviewed_source_slice_blob_mismatch:$rel"
-      printf '%s=%s\n' "$rel" "$actual"
+      head_blob="$(safe_git rev-parse "HEAD:$rel")"
+      file_blob="$(safe_git hash-object "$repo/$rel")"
+      test "$head_blob" = "${reviewed_source_blob[$rel]}" ||
+        hold "reviewed_source_slice_head_blob_mismatch:$rel"
+      test "$file_blob" = "$head_blob" ||
+        hold "reviewed_source_slice_filesystem_blob_mismatch:$rel"
+      printf '%s=%s\n' "$rel" "$head_blob"
     done
   } | LC_ALL=C sort
 )"
