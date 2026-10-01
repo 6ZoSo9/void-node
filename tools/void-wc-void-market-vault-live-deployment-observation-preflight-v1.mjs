@@ -305,6 +305,47 @@ function canonicalRemoteMainHead() {
   return match[1];
 }
 
+function validateCanonicalMainIdentity({ branch, head, remoteMainSha }) {
+  if (branch !== "main") {
+    fail("live_deployment_preflight_canonical_main_branch_required");
+  }
+  if (!HEX40.test(String(remoteMainSha || ""))) {
+    fail("live_deployment_preflight_remote_main_invalid");
+  }
+  if (remoteMainSha !== head) {
+    fail("live_deployment_preflight_remote_main_head_mismatch");
+  }
+  return true;
+}
+
+export function testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1(
+  input,
+) {
+  try {
+    validateCanonicalMainIdentity({
+      branch: text(input?.branch),
+      head: text(input?.head),
+      remoteMainSha: text(input?.remote_main_sha),
+    });
+    return Object.freeze({
+      ok: true,
+      marker:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+      status: "TEST_ONLY_CANONICAL_MAIN_IDENTITY_GREEN",
+      production_artifact_authorized: false,
+    });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      marker:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+      status: "TEST_ONLY_HOLD",
+      reason: error instanceof Error ? error.message : String(error),
+      production_artifact_authorized: false,
+    });
+  }
+}
+
 function repositoryIdentity({ requireCanonicalMain = false } = {}) {
   const head = gitText(["rev-parse", "HEAD"], "live_deployment_preflight_head_unavailable");
   const tree = gitText(
@@ -349,9 +390,11 @@ function repositoryIdentity({ requireCanonicalMain = false } = {}) {
       fail("live_deployment_preflight_canonical_main_branch_required");
     }
     remoteMainSha = canonicalRemoteMainHead();
-    if (remoteMainSha !== head) {
-      fail("live_deployment_preflight_remote_main_head_mismatch");
-    }
+    validateCanonicalMainIdentity({
+      branch,
+      head,
+      remoteMainSha,
+    });
   }
 
   return Object.freeze({
