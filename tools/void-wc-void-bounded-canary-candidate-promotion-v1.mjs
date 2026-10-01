@@ -55,6 +55,9 @@ const SEMANTIC_PROMOTION_ID = /^voidwcbcsp1_[0-9a-f]{64}$/u;
 const CANDIDATE_PROMOTION_ID = /^voidwcbccp1_[0-9a-f]{64}$/u;
 const POLICY_ID = /^voidwcbcp1_[0-9a-f]{64}$/u;
 const CANARY_EVIDENCE_ID = /^voidwcbce1_[0-9a-f]{64}$/u;
+const REPLAY_ID = /^voidwcrp1_[0-9a-f]{64}$/u;
+const ADDRESS = /^0x[0-9a-f]{40}$/u;
+const UINT = /^(0|[1-9][0-9]*)$/u;
 
 const INPUT_KEYS = Object.freeze([
   "application_time_utc",
@@ -278,6 +281,60 @@ function validateSemanticPromotion(raw, applicationTime) {
     value.funds_movement_authorized !== false
   ) {
     fail("BOUNDED_CANARY_SEMANTIC_PROMOTION_RECEIPT_INVALID");
+  }
+
+  for (const [name, amount] of [
+    ["settled_wc_units", value.settled_wc_units],
+    ["delivered_void_atoms", value.delivered_void_atoms],
+    ["observed_finality_confirmations", value.observed_finality_confirmations],
+  ]) {
+    if (
+      typeof amount !== "string" ||
+      !UINT.test(amount) ||
+      BigInt(amount) <= 0n
+    ) {
+      fail("BOUNDED_CANARY_SEMANTIC_PROMOTION_AMOUNT_INVALID:" + name);
+    }
+  }
+  if (
+    typeof value.market_vault_address !== "string" ||
+    !ADDRESS.test(value.market_vault_address) ||
+    value.market_vault_address === "0x0000000000000000000000000000000000000000" ||
+    typeof value.market_vault_runtime_code_sha256 !== "string" ||
+    !HEX64.test(value.market_vault_runtime_code_sha256) ||
+    typeof value.replay_capsule_id !== "string" ||
+    !REPLAY_ID.test(value.replay_capsule_id) ||
+    typeof value.replay_terminal_capsule_sha256 !== "string" ||
+    !HEX64.test(value.replay_terminal_capsule_sha256)
+  ) {
+    fail("BOUNDED_CANARY_SEMANTIC_PROMOTION_EVIDENCE_IDENTITY_INVALID");
+  }
+  for (const [name, id] of [
+    ["market_vault_runtime_verification_evidence_id", value.market_vault_runtime_verification_evidence_id],
+    ["inventory_lock_evidence_id", value.inventory_lock_evidence_id],
+    ["wc_ledger_custody_evidence_id", value.wc_ledger_custody_evidence_id],
+    ["opening_claim_binding_id", value.opening_claim_binding_id],
+    ["opening_claim_binding_persistence_evidence_id", value.opening_claim_binding_persistence_evidence_id],
+    ["participant_control_evidence_id", value.participant_control_evidence_id],
+  ]) {
+    if (typeof id !== "string" || !SHA256_ID.test(id)) {
+      fail("BOUNDED_CANARY_SEMANTIC_PROMOTION_EVIDENCE_REFERENCE_INVALID:" + name);
+    }
+  }
+  for (const [name, digest] of [
+    ["bounded_canary_input_file_sha256", value.bounded_canary_input_file_sha256],
+    ["market_vault_at_use_file_sha256", value.market_vault_at_use_file_sha256],
+    ["ledger_persistence_import_input_file_sha256", value.ledger_persistence_import_input_file_sha256],
+    ["opening_request_file_sha256", value.opening_request_file_sha256],
+    ["opening_claim_binding_file_sha256", value.opening_claim_binding_file_sha256],
+    ["opening_claim_persistence_receipt_file_sha256", value.opening_claim_persistence_receipt_file_sha256],
+    ["opening_replay_capsule_file_sha256", value.opening_replay_capsule_file_sha256],
+    ["opening_replay_inspection_receipt_file_sha256", value.opening_replay_inspection_receipt_file_sha256],
+    ["participant_at_use_file_sha256", value.participant_at_use_file_sha256],
+  ]) {
+    if (typeof digest !== "string" || !HEX64.test(digest)) {
+      fail("BOUNDED_CANARY_SEMANTIC_PROMOTION_FILE_DIGEST_INVALID:" + name);
+    }
   }
 
   const authority = exactObject(
