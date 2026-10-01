@@ -22,6 +22,8 @@ import {
 import {
   VOID_WC_VOID_LEDGER_CUSTODY_CANONICAL_APPLICATION_AUTHORITY_V1,
   VOID_WC_VOID_LEDGER_CUSTODY_CANONICAL_APPLICATION_PLAN_V1,
+  makeVoidWcVoidLedgerCustodyReviewedTreeReadOnlyV1,
+  makeVoidWcVoidLedgerCustodyReviewedTreeRemovableV1,
   _internal,
   prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1,
   verifyVoidWcVoidLedgerCustodyCanonicalApplicationStateV1,
@@ -179,6 +181,75 @@ const promotion=buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
 });
 const inputBytes=prettyBytes(input);
 const promotionBytes=prettyBytes(promotion);
+
+{
+  const tempRoot=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-ledger-custody-tree-symlink-"),
+  );
+  const treePath=path.join(tempRoot,"tree");
+  const external=path.join(tempRoot,"external-sentinel.txt");
+  const regular=path.join(treePath,"regular.txt");
+  const executable=path.join(treePath,"executable.sh");
+  const link=path.join(treePath,"absolute-link");
+
+  fs.mkdirSync(treePath,{mode:0o700});
+  fs.writeFileSync(external,"sentinel\n",{mode:0o600});
+  fs.writeFileSync(regular,"regular\n",{mode:0o600});
+  fs.writeFileSync(executable,"#!/usr/bin/env bash\nexit 0\n",{mode:0o700});
+  fs.symlinkSync(external,link);
+
+  const externalBefore=fs.statSync(external);
+  const externalBytes=fs.readFileSync(external);
+
+  makeVoidWcVoidLedgerCustodyReviewedTreeReadOnlyV1(treePath);
+  assert.equal(fs.lstatSync(link).isSymbolicLink(),true);
+  assert.equal(fs.readlinkSync(link),external);
+  assert.equal(fs.statSync(regular).mode&0o777,0o400);
+  assert.equal(fs.statSync(executable).mode&0o777,0o500);
+  assert.equal(fs.statSync(external).mode&0o777,externalBefore.mode&0o777);
+  assert.deepEqual(fs.readFileSync(external),externalBytes);
+
+  makeVoidWcVoidLedgerCustodyReviewedTreeRemovableV1(treePath);
+  assert.equal(fs.statSync(regular).mode&0o777,0o600);
+  assert.equal(fs.statSync(executable).mode&0o777,0o600);
+  assert.equal(fs.statSync(external).mode&0o777,externalBefore.mode&0o777);
+  assert.deepEqual(fs.readFileSync(external),externalBytes);
+
+  fs.rmSync(treePath,{recursive:true,force:true});
+  assert.equal(fs.existsSync(external),true);
+  assert.deepEqual(fs.readFileSync(external),externalBytes);
+  fs.rmSync(tempRoot,{recursive:true,force:true});
+}
+
+{
+  const tempRoot=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-ledger-custody-tree-hardlink-"),
+  );
+  const treePath=path.join(tempRoot,"tree");
+  const external=path.join(tempRoot,"external-sentinel.txt");
+  const hardlink=path.join(treePath,"hardlink.txt");
+
+  fs.mkdirSync(treePath,{mode:0o700});
+  fs.writeFileSync(external,"sentinel\n",{mode:0o600});
+  fs.linkSync(external,hardlink);
+
+  const before=fs.statSync(external);
+  const bytes=fs.readFileSync(external);
+  assert.equal(before.nlink,2);
+
+  assert.throws(
+    ()=>makeVoidWcVoidLedgerCustodyReviewedTreeReadOnlyV1(treePath),
+    /LEDGER_CUSTODY_APPLICATION_REVIEWED_FILE_DESCRIPTOR_INVALID/u,
+  );
+  const after=fs.statSync(external);
+  assert.equal(after.mode&0o777,before.mode&0o777);
+  assert.equal(after.nlink,2);
+  assert.deepEqual(fs.readFileSync(external),bytes);
+
+  fs.rmSync(treePath,{recursive:true,force:true});
+  assert.equal(fs.statSync(external).nlink,1);
+  fs.rmSync(tempRoot,{recursive:true,force:true});
+}
 
 {
   const packagePath="node_modules/ethers/package.json";
@@ -519,6 +590,35 @@ for(const [key,value] of Object.entries(
   assert.equal(value,allowed.has(key),key);
 }
 
+const focusedWorkflow=fs.readFileSync(
+  ".github/workflows/void-wc-void-ledger-custody-canonical-application-v1.yml",
+  "utf8",
+);
+const prStart=focusedWorkflow.indexOf("  pull_request:\n");
+const pushStart=focusedWorkflow.indexOf("  push:\n");
+const permissionsStart=focusedWorkflow.indexOf("\npermissions:\n");
+assert(prStart>=0&&pushStart>prStart&&permissionsStart>pushStart);
+
+const pathToken=/^\s*-\s+"([^"]+)"\s*$/gmu;
+const collectPaths=(block)=>
+  [...block.matchAll(pathToken)].map((match)=>match[1]).sort();
+const pullPaths=collectPaths(focusedWorkflow.slice(prStart,pushStart));
+const pushPaths=collectPaths(focusedWorkflow.slice(pushStart,permissionsStart));
+assert(pullPaths.length>0);
+assert.deepEqual(pushPaths,pullPaths);
+assert.equal(new Set(pullPaths).size,pullPaths.length);
+
+for(const requiredPath of [
+  ...REVIEWED_MODULES,
+  "tools/void-reviewed-node-package-runtime-v1.mjs",
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json",
+  "scripts/prove_void_reviewed_node_package_runtime_v1.mjs",
+  "package.json",
+  "package-lock.json",
+]){
+  assert.equal(pullPaths.includes(requiredPath),true,requiredPath);
+}
+
 const source=fs.readFileSync(
   "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs",
   "utf8",
@@ -536,6 +636,13 @@ for(const required of [
   "core.fsmonitor=false",
   "GIT_CONFIG_GLOBAL",
   "reviewedModuleClosure",
+  "makeVoidWcVoidLedgerCustodyReviewedTreeReadOnlyV1",
+  "makeVoidWcVoidLedgerCustodyReviewedTreeRemovableV1",
+  "O_NOFOLLOW",
+  "O_DIRECTORY",
+  "fstatSync",
+  "fchmodSync",
+  "stat.nlink!==1",
   "materializeReviewedNodePackageRuntimeV1",
   "verifyMaterializedReviewedNodePackageRuntimeV1",
   "--permission",
@@ -561,6 +668,10 @@ console.log("candidate_promotion_reexecuted=true");
 console.log("reviewed_git_object_execution_verified=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("permission_fenced_execution=true");
+console.log("reviewed_execution_symlink_boundary_green=true");
+console.log("reviewed_execution_hardlink_rejected=true");
+console.log("reviewed_execution_chmod_descriptor_bound=true");
+console.log("focused_workflow_trigger_symmetry_green=true");
 console.log("ancestor_package_resolution_allowed=false");
 console.log("ambient_git_and_node_overrides_ignored=true");
 console.log("hidden_worktree_authority_mutation_ignored=true");
