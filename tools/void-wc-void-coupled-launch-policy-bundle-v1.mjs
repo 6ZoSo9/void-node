@@ -796,7 +796,6 @@ function writePrivateJson(file, value) {
       ino: parentFdStat.ino,
     });
 
-    const bytes = prettyBytes(value);
     const basename = path.basename(file);
     if (
       basename === "" ||
