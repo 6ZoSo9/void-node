@@ -3,12 +3,34 @@ set -uo pipefail
 set +H
 set +o histexpand 2>/dev/null || true
 
-cd "${VOID_REPO:-$HOME/dev/void-node}" || exit 1
-
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-LOCAL_PEER="${LOCAL_PEER:-http://100.122.79.39:4100}"
-REMOTE_PEER="${REMOTE_PEER:-http://100.93.2.116:4100}"
+MARKER="VOID_SITE_BUNDLE_PEER_ENV_PERSISTENCE_V1"
+ROOT="${VOID_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+ALIEN="${ALIEN:-}"
+LOCAL_PEER="${LOCAL_PEER:-}"
+REMOTE_PEER="${REMOTE_PEER:-}"
+CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE="${CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE:-}"
 DROPIN_NAME="${DROPIN_NAME:-97-site-bundle-peers.conf}"
+
+hold(){
+  echo "$MARKER HOLD: $*" >&2
+  exit 2
+}
+
+[ -n "$ALIEN" ] || hold "missing explicit ALIEN remote SSH target"
+[ -n "$LOCAL_PEER" ] || hold "missing explicit LOCAL_PEER"
+[ -n "$REMOTE_PEER" ] || hold "missing explicit REMOTE_PEER"
+
+target_guard="$(printf '%s\n' "$ALIEN" "$LOCAL_PEER" "$REMOTE_PEER" | tr '[:upper:]' '[:lower:]')"
+case "$target_guard" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    hold "retired Alienware target is forbidden"
+    ;;
+esac
+
+[ "$CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE" = "applyVoidSiteBundlePeerEnvPersistenceV1" ] \
+  || hold "confirmation token required"
+
+cd "$ROOT" || exit 1
 LOCAL_DROPIN="$HOME/.config/systemd/user/void-node.service.d/$DROPIN_NAME"
 
 FAIL=0
@@ -161,7 +183,10 @@ REMOTE
 }
 
 echo "=== VOID site bundle peer env persistence proof ==="
+echo "marker=$MARKER"
 echo "mutation=systemd_user_service_dropin_only"
+echo "explicit_remote_target=true"
+echo "retired_alienware_target=false"
 echo "local_peer=$LOCAL_PEER"
 echo "remote_peer=$REMOTE_PEER"
 echo
@@ -177,8 +202,8 @@ check_remote
 
 echo
 echo "=== [3] prove site bundle auto-materialization still works from durable env ==="
-make void-public-site-bundle-auto-materialize-proof || FAIL=1
-make void-public-site-bundle-peer-readiness-proof || FAIL=1
+ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof || FAIL=1
+ALIEN="$ALIEN" make void-public-site-bundle-peer-readiness-proof || FAIL=1
 make void-public-site-bundle-proof || FAIL=1
 make mainnet0-status-smoke || FAIL=1
 make mainnet0-crossbox-status-smoke || FAIL=1
