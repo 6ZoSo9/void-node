@@ -323,6 +323,8 @@ for (const required of [
   "fs.fsyncSync",
   "fsyncDirectory(parent)",
   "writeDurablePrivateFile",
+  "const liveBytesSha256 = sha256(liveBytes)",
+  "const rollbackBytesSha256 = sha256(rollbackBytes)",
   "private_stage_custody_required",
   "manifest_is_preflight_authority: false",
   "VOID_BUY_VOID_STAGE_TEST_INTERRUPT_AFTER_DURABLE_TEMP",
@@ -352,6 +354,10 @@ for (const required of [
   '--active-dropin-dir "$active_dropin_dir"',
   'sha256sum "$preflight_log"',
   'test "$staged_preflight_log_sha256" = "$expected_preflight_log_sha256"',
+  'actual_live_dropin_sha256="$(sha256sum "$live_path" | awk',
+  'actual_dormant_dropin_sha256="$(sha256sum "$rollback_path" | awk',
+  'test "$actual_live_dropin_sha256" = "$live_dropin_sha256"',
+  'test "$actual_dormant_dropin_sha256" = "$dormant_dropin_sha256"',
   'wrapper_fresh_preflight_execution_proven=true',
   'stage_manifest_preflight_authority=false',
   'test "$pid_after" = "$pid_before"',
@@ -367,6 +373,8 @@ console.log("inactive_staging_write_verified=true");
 console.log("synthetic_receipt_preflight_authority=false");
 console.log("idempotent_exact_reuse_verified=true");
 console.log("private_stage_custody_verified=true");
+console.log("rendered_bytes_independently_hashed=true");
+console.log("wrapper_staged_bytes_rehashed=true");
 console.log("durable_fsync_publication_verified=true");
 console.log("pre_rename_interruption_cleanup_verified=true");
 console.log("post_rename_reuse_redurability_verified=true");
