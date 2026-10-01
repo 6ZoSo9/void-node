@@ -12,9 +12,12 @@ assert.ok(source.includes('NODE_BASE="${NODE_BASE:-http://127.0.0.1:4100}"'));
 assert.ok(source.includes('MARKER="VOID_JOBS_SUBMIT_E2E_LOCAL_EVIDENCE_BINDING_V1"'));
 assert.ok(source.includes('parsed.hostname not in {"127.0.0.1", "localhost", "::1"}'));
 assert.ok(source.includes('parsed.scheme != "http"'));
+assert.ok(source.includes('parsed.username is not None or parsed.password is not None'));
 assert.ok(source.includes('parsed.port is None'));
 assert.ok(source.includes('BASE must be a loopback HTTP origin with an explicit port'));
-assert.ok(source.includes('awk -v p=":$BASE_PORT"'));
+assert.ok(source.includes('awk -v p="$BASE_PORT"'));
+assert.ok(source.includes('$4 ~ (":" p "$")'));
+assert.equal(source.includes("index($4,p)"), false, "listener match must be exact-port");
 assert.equal(source.includes("awk '/:4100 /"), false, "PID lookup still pins port 4100");
 
 for (const requiredLocalEvidence of [
@@ -31,6 +34,8 @@ assert.ok(source.includes('echo "remote_submission=false"'));
 console.log(`${MARKER}_PROOF_GREEN`);
 console.log("default_base_loopback=true");
 console.log("remote_base_rejected=true");
+console.log("origin_credentials_rejected=true");
+console.log("listener_port_exact_match=true");
 console.log("evidence_files_local=true");
 console.log("listener_port_derived_from_base=true");
 console.log("live_job_submission_executed=false");
