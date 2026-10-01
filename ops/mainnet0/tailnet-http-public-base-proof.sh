@@ -3,9 +3,11 @@ set -euo pipefail
 set +H
 set +o histexpand 2>/dev/null || true
 
-MARKER="VOID_CROSSBOX_BOOTSTRAP_MUTATION_BOUNDARY_V1"\nLEGACY_MARKER="VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1"
+MARKER="VOID_CROSSBOX_BOOTSTRAP_MUTATION_BOUNDARY_V1"
+LEGACY_MARKER="VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1"
 ROOT="${VOID_REPO:-$HOME/dev/void-node}"
-ALIEN="${ALIEN:-}"\n: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+ALIEN="${ALIEN:-}"
+: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
 HTTP_PORT="${HTTP_PORT:-4100}"
 
 hold(){
