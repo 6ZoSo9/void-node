@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   CHAIN_MARKER,
   DISPATCH_MARKER,
@@ -11,9 +12,12 @@ import {
 } from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
 import {
   MARKER as UPSTREAM_CHAIN_MARKER,
+  resolveCoordinationSuccessorChainRecordsV1,
 } from "../tools/void-coordination-successor-chain-v1.mjs";
 import {
+  EVIDENCE_MARKER as UPSTREAM_DISPATCH_EVIDENCE_MARKER,
   MARKER as UPSTREAM_DISPATCH_MARKER,
+  evaluateWorkerLiveDispatchV1,
 } from "../tools/void-worker-coordination-live-dispatch-v1.mjs";
 
 const PROOF_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1_PROOF_GREEN";
@@ -21,6 +25,83 @@ const EVALUATION_ID = "sha256:" + "a".repeat(64);
 
 assert.equal(CHAIN_MARKER, UPSTREAM_CHAIN_MARKER);
 assert.equal(DISPATCH_MARKER, UPSTREAM_DISPATCH_MARKER);
+
+const policyRaw = JSON.parse(
+  readFileSync(
+    new URL("../ops/coordination/worker-live-dispatch-policy-v1.json", import.meta.url),
+    "utf8",
+  ),
+);
+
+function upstreamCoordinationRecord(commentCount) {
+  return {
+    issue: {
+      number: 1507,
+      state: "open",
+      comments: commentCount,
+      updated_at: "2026-10-01T00:00:00Z",
+    },
+    comments: Array.from({ length: commentCount }, (_, index) => ({
+      id: index + 1,
+      body: "coordination evidence",
+    })),
+  };
+}
+
+function actualUpstreamDispatch() {
+  const evaluatedAt = new Date().toISOString();
+  return evaluateWorkerLiveDispatchV1(policyRaw, {
+    marker: UPSTREAM_DISPATCH_EVIDENCE_MARKER,
+    version: 1,
+    repository: policyRaw.repository,
+    plan_issue: policyRaw.plan_issue,
+    evaluated_at: evaluatedAt,
+    observed_main_sha: "b".repeat(40),
+    workers: policyRaw.workers.map((worker) => ({
+      id: worker.id,
+      primary: {
+        lane_id: null,
+        state: "NONE",
+        priority: null,
+        collision: "CLEAR",
+        next_action: null,
+        execution_evidence_at: null,
+      },
+      fallback: {
+        collision: "CLEAR",
+        issue_open: true,
+        draft_pr_open: false,
+        progress_evidence_at: null,
+      },
+    })),
+  });
+}
+
+const actualCurrentChain = resolveCoordinationSuccessorChainRecordsV1({
+  "1507": upstreamCoordinationRecord(248),
+});
+const actualRotationChain = resolveCoordinationSuccessorChainRecordsV1({
+  "1507": upstreamCoordinationRecord(249),
+});
+const actualDispatch = actualUpstreamDispatch();
+
+const actualAligned = evaluateWorkerDispatchHubGuardV1({
+  marker: EVIDENCE_MARKER,
+  version: 1,
+  chain: actualCurrentChain,
+  dispatch: actualDispatch,
+});
+assert.equal(actualAligned.outcome, "DISPATCH_HUB_ALIGNED");
+assert.equal(actualAligned.normal_dispatch_allowed, true);
+
+const actualRotationHold = evaluateWorkerDispatchHubGuardV1({
+  marker: EVIDENCE_MARKER,
+  version: 1,
+  chain: actualRotationChain,
+  dispatch: actualDispatch,
+});
+assert.equal(actualRotationHold.outcome, "HOLD_ROTATION_REQUIRED");
+assert.equal(actualRotationHold.normal_dispatch_allowed, false);
 
 function chain(overrides = {}) {
   return {
@@ -269,4 +350,5 @@ console.log("repository_mismatch_rejected=true");
 console.log("authority_escalation_rejected=true");
 console.log("guard_id_deterministic=true");
 console.log("upstream_markers_bound=true");
+console.log("real_upstream_composition_green=true");
 console.log("normal_dispatch_grants_no_source_authority=true");
