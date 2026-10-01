@@ -134,7 +134,6 @@ const GIT_OVERRIDE_NAMES = Object.freeze([
   "GIT_CONFIG_COUNT",
   "GIT_CONFIG_GLOBAL",
   "GIT_CONFIG_SYSTEM",
-  "GIT_REPLACE_REF_BASE",
 ]);
 
 function fail(reason) {
