@@ -665,13 +665,40 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
     applied_event_ids: appliedEventIds,
     current_market_binding: {
       pair: marketPolicy.pair,
+      shared_market_marker: marketPolicy.shared_market_marker,
+      shared_market_schema: marketPolicy.shared_market_schema,
+      shared_market_source_git_blob_sha1:
+        marketPolicy.shared_market_source_git_blob_sha1,
+      shared_market_reconciliation_id:
+        marketPolicy.shared_market_reconciliation_id,
+      chain_id: marketPolicy.chain_id,
+      network_identity: marketPolicy.network_identity,
+      execution_epoch: marketPolicy.execution_epoch,
+      void_token: marketPolicy.void_token,
+      void_token_decimals: marketPolicy.void_token_decimals,
+      btc_void_phase: marketPolicy.btc_void_phase,
+      btc_void_remains_post_presale:
+        marketPolicy.btc_void_remains_post_presale,
       settlement_source_domain: marketPolicy.settlement_source_domain,
+      quote_asset_form: marketPolicy.quote_asset_form,
       quote_unit: marketPolicy.quote_unit,
       quote_decimals: marketPolicy.quote_decimals,
-      opening_settlement_adapter_configured:
-        marketPolicy.opening_settlement_adapter_configured,
-      void_market_allocation_atomic:
-        marketPolicy.void_market_allocation_atomic,
+      protocol_quote_seed_units: marketPolicy.protocol_quote_seed_units,
+      planned_btc_void_inventory_atoms:
+        marketPolicy.planned_btc_void_inventory_atoms,
+      quote_reserve_custody_verified:
+        marketPolicy.quote_reserve_custody_verified,
+      void_reserve_custody_verified:
+        marketPolicy.void_reserve_custody_verified,
+      inventory_funding_authority:
+        marketPolicy.inventory_funding_authority,
+      market_activation_authority:
+        marketPolicy.market_activation_authority,
+      public_presale_activation_authority:
+        marketPolicy.public_presale_activation_authority,
+      funds_movement_authority:
+        marketPolicy.funds_movement_authority,
+      legacy_v1_shared_market_production_authority: false,
       wc_void_fixed_redemption_claim_created: false,
       wc_void_pricing_remains_market_determined: true,
     },
@@ -691,6 +718,10 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
       native_integer_amounts_bound: true,
       bitcoin_amount_within_max_money: true,
       current_shared_market_policy_bound: true,
+      current_shared_market_v2_canonical_source_bound: true,
+      historical_v1_shared_market_authority_rejected: true,
+      btc_void_post_presale_unopened_required: true,
+      btc_void_inventory_funding_and_activation_authority_false: true,
       current_reserve_policy_rederived_on_btc_sale_settlement:
         contract.direction !== "btc_to_void" || phase !== "SETTLED" || terminal !== null,
       current_buyback_journal_decision_rederived_on_btc_sale_settlement:
