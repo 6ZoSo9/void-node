@@ -1,0 +1,92 @@
+name: VOID WC/VOID market-vault canonical application v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-market-vault-canonical-application-v1.yml"
+      - "docs/operators/wc-void-market-vault-canonical-application-v1.md"
+      - "scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs"
+      - "tools/void-wc-void-market-vault-canonical-application-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+      - "scripts/prove_void_wc_void_market_vault_at_use_revalidation_v1.mjs"
+      - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-wc-void-market-vault-canonical-application-v1.yml"
+      - "docs/operators/wc-void-market-vault-canonical-application-v1.md"
+      - "scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs"
+      - "tools/void-wc-void-market-vault-canonical-application-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+      - "scripts/prove_void_wc_void_market_vault_at_use_revalidation_v1.mjs"
+      - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax
+        run: |
+          node --check tools/void-wc-void-market-vault-canonical-application-v1.mjs
+          node --check tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs
+          node --check scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs
+      - name: Prove market-vault canonical application
+        run: node scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs
+      - name: Upstream regressions
+        run: |
+          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
+          node scripts/prove_void_wc_void_market_vault_at_use_revalidation_v1.mjs
+          node scripts/prove_void_wc_void_production_readiness_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
