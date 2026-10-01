@@ -432,7 +432,7 @@ function proveInstaller({
   );
   assertBoundary(harness, candidateDir);
   const verifiedExtractionRootMode =
-    fixture.releaseRootMode & ~process.umask() & 0o7777;
+    fixture.releaseRootMode & ~0o077 & 0o7777;
   assert.equal(
     fs.lstatSync(candidateDir).mode & 0o7777,
     verifiedExtractionRootMode,
@@ -593,7 +593,7 @@ function proveFreshParentCreation({
   assert.equal(fs.existsSync(candidateDir), true);
   assert.equal(
     fs.lstatSync(candidateDir).mode & 0o7777,
-    fixture.releaseRootMode & ~process.umask() & 0o7777,
+    fixture.releaseRootMode & ~0o077 & 0o7777,
   );
   assert.equal(fs.existsSync(path.join(installRoot, "current")), false);
   assert.equal(fs.existsSync(path.join(installRoot, "previous")), false);
