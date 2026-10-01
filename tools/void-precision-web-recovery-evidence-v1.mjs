@@ -459,82 +459,20 @@ export function verifyVoidPrecisionWebRecoveryEvidenceV1({plan,evidence}={}){
 
   return Object.freeze({
     ok:true,
-    status:"PRECISION_WEB_RECOVERY_EVIDENCE_VERIFIED",
+    status:"PRECISION_WEB_RECOVERY_OBSERVATION_CONTRACT_VERIFIED_ACCEPTANCE_REQUIRED",
     plan_id:current.plan_id,
     evidence_id:evidence.evidence_id,
-    local_web_stack_verified:true,
-    adapter_8080_verified:true,
-    composition_8082_strict_ready_verified:true,
-    frontdoor_8083_strict_ready_verified:true,
-    precision_descriptor_walk_compatible_unit_profile_verified:true,
-    routing_unchanged:true,
+    observation_claims_consistent:true,
+    adapter_8080_claim_bound:true,
+    composition_8082_strict_ready_claim_bound:true,
+    frontdoor_8083_strict_ready_claim_bound:true,
+    precision_descriptor_walk_compatible_unit_profile_bound:true,
+    routing_unchanged_claim_bound:true,
+    live_host_observation_performed_by_this_verifier:false,
+    independent_host_acceptance_required:true,
     node_restart_performed:false,
     installation_authorized:false,
     independent_acceptance:false,
     authority:VOID_PRECISION_WEB_RECOVERY_AUTHORITY_V1,
   });
-}
-
-export function buildVoidPrecisionWebRecoveryEvidenceFixtureV1(plan,overrides={}){
-  const current=verifyCurrentPlanSource(plan);
-  const hashes=current.source_file_sha256;
-  const hardening={
-    no_new_privileges:true,
-    restrict_suid_sgid:true,
-    lock_personality:true,
-    private_tmp:false,
-    protect_home:false,
-    protect_system:false,
-  };
-  const body={
-    marker:VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V1,
-    version:1,
-    status:"PRECISION_WEB_RECOVERY_LOCALLY_VERIFIED_ROUTING_UNCHANGED",
-    plan_id:current.plan_id,
-    source_head_sha:current.source_head_sha,
-    source_tree_sha:current.source_tree_sha,
-    host_role:"precision_public_origin",
-    adapter:{
-      active:true,
-      listener:current.topology.adapter.listener,
-      marker:current.topology.adapter.marker,
-      source_file_sha256:hashes[current.topology.adapter.source],
-    },
-    composition:{
-      active:true,
-      listener:current.topology.composition.listener,
-      marker:current.topology.composition.marker,
-      runtime_truth_marker:current.topology.composition.runtime_truth_marker,
-      strict_ready:true,
-      network_name:"Mainnet-0",
-      node_label:"Precision public seed",
-      source_file_sha256:hashes[current.topology.composition.source],
-    },
-    frontdoor:{
-      active:true,
-      listener:current.topology.frontdoor.listener,
-      marker:current.topology.frontdoor.marker,
-      ready:true,
-      upstream_strict_ready:true,
-      upstream_marker:current.topology.composition.marker,
-      upstream_runtime_truth_marker:current.topology.composition.runtime_truth_marker,
-      source_file_sha256:hashes[current.topology.frontdoor.source],
-    },
-    service_hardening:{
-      adapter:{...hardening},
-      composition:{...hardening},
-      frontdoor:{...hardening},
-    },
-    node_service_restart_performed:false,
-    tailscale_routing_mutated:false,
-    dns_mutated:false,
-    funnel_mutated:false,
-    wallet_or_signer_accessed:false,
-    transaction_performed:false,
-    funds_moved:false,
-    observed_at_utc:"2030-01-01T00:00:00Z",
-    ...overrides,
-  };
-  const digest=sha256(Buffer.from(canonicalJson(body),"utf8"));
-  return Object.freeze({...body,evidence_id:"voidpwre1_"+digest});
 }
