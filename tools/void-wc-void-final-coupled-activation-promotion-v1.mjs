@@ -157,7 +157,7 @@ function normalizeLineages(raw) {
       "application_receipt_sha256",
       "lane",
       "verified_applied",
-    ];
+    ].sort();
     exactStringArray(keys, expected, "FINAL_COUPLED_LINEAGE_KEYS_INVALID");
     if (
       typeof entry.lane !== "string" ||
