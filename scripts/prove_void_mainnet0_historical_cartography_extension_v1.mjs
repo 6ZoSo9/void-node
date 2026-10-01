@@ -502,7 +502,8 @@ try {
   console.log("terminal_segment_boundary_recovered=true");
   console.log("suffix_digest_continued=true");
   console.log("combined_manifest_equals_fresh_full_scan=true");
-  console.log("prior_manifest_tamper_rejected=true");\n  console.log("closed_segment_mutation_rejected=true");
+  console.log("prior_manifest_tamper_rejected=true");
+  console.log("closed_segment_mutation_rejected=true");
   console.log("terminal_prefix_mutation_rejected=true");
   console.log("height_gap_rejected=true");
   console.log("unknown_shape_rejected=true");
