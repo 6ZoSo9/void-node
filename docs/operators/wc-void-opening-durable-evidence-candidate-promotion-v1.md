@@ -66,6 +66,16 @@ The request file must be:
 - exact two-space JSON plus one terminal newline; and
 - equal to an independently supplied raw-file SHA-256.
 
+The referenced `data_dir` is itself production evidence custody, not source
+material. It must be an absolute canonical path **outside the source
+repository**. Gitignored paths such as `data*/` or `node_modules/` do not
+qualify merely because they keep the worktree clean.
+
+The existing custody checks still apply to the external evidence tree:
+`data_dir`, `wc_v1`, the claim-binding store, and the replay-terminal store
+must be direct owner-controlled directories with stable device/inode/uid/gid/mode
+identity across both inspector calls.
+
 The replay prestate is **not** caller supplied. The tool derives
 `initialWcVoidOpeningReplayStateV1(coupled_launch_id)` itself.
 
@@ -249,7 +259,10 @@ persistence mechanisms to:
 1. persist one real synthetic replay terminal;
 2. publish one replay-bound synthetic claim binding;
 3. run the new **read-only** preparation over those files;
-4. prove the exact 2+1 gate deltas;
+4. create the same valid durable claim/replay state under a private gitignored
+   directory inside `REPO_ROOT` and require
+   `promotion_data_dir_must_be_outside_repository`;
+5. prove the exact 2+1 gate deltas;
 5. prove both classifiers remain HOLD;
 6. delete the replay terminal and require HOLD;
 8. delete the claim-binding file and require HOLD;

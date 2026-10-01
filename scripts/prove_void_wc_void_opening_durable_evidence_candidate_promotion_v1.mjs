@@ -434,6 +434,43 @@ try {
   assert.equal(promotion.public_presale_activation_authorized, false);
   assert.equal(promotion.funds_movement_authorized, false);
 
+  const insideRepoParent = fs.mkdtempSync(
+    path.join(ROOT, "data-proof-opening-durable-promotion-"),
+  );
+  try {
+    fs.chmodSync(insideRepoParent, 0o700);
+    const insideRepoState = createState(insideRepoParent);
+    const insideRepoRequest = requestFor(insideRepoState.dataDir);
+    const insideRepoRequestFile = path.join(
+      temp,
+      "inside-repo-data-dir-request.json",
+    );
+    fs.writeFileSync(
+      insideRepoRequestFile,
+      prettyBytes(insideRepoRequest),
+      { mode: 0o600 },
+    );
+    fs.chmodSync(insideRepoRequestFile, 0o600);
+    const insideRepoRequestSha = sha256(
+      fs.readFileSync(insideRepoRequestFile),
+    );
+    assert.equal(
+      gitValue(["status", "--porcelain=v1", "--untracked-files=all"]),
+      "",
+      "ignored in-repo evidence root must keep worktree clean for adversary",
+    );
+    rejects(
+      () =>
+        prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
+          requestFile: insideRepoRequestFile,
+          requestFileSha256: insideRepoRequestSha,
+        }),
+      /promotion_data_dir_must_be_outside_repository/,
+    );
+  } finally {
+    fs.rmSync(insideRepoParent, { recursive: true, force: true });
+  }
+
   const repeat =
     prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({
       requestFile,
@@ -674,6 +711,7 @@ console.log("claim_and_replay_binding_identity_equal=true");
 console.log("clean_repository_generation_bound=true");
 console.log("canonical_candidate_bytes_bound_to_head_blobs=true");
 console.log("shared_opening_evidence_custody_generation_bound=true");
+console.log("opening_evidence_root_outside_repository_green=true");
 console.log("cross_inspector_store_swap_rejected=true");
 console.log("content_addressed_candidate_copies_deep_frozen=true");
 console.log("pre_canary_candidate_state_required=true");
