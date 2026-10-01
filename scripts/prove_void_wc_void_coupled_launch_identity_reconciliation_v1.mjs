@@ -282,8 +282,9 @@ assert.doesNotMatch(
   source,
   /classifyVoidCoupledEconomicSuccessorGateFromDecisionV1/u,
 );
-assert.match(source,/canonical_candidate_file_updated:false/u);
-assert.match(source,/classifier_source_updated:false/u);
+assert.match(source,/canonical_candidate_file_updated:applied/u);
+assert.match(source,/classifier_source_updated:applied/u);
+assert.match(source,/source_application_required:!applied/u);
 
 console.log(
   "VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_V1_PROOF_GREEN",
