@@ -39,12 +39,31 @@ It then reads the canonical candidates directly from one clean Git HEAD:
 - `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`; and
 - `ops/mainnet0/economic-evm-successor-migration-candidate-v1.json`.
 
-Git reads use `/usr/bin/git --no-replace-objects` with Git override
-environment removed.
+Git reads use `/usr/bin/git --no-replace-objects` with a minimal fixed
+environment, null global/system config, and command-line overrides disabling
+fsmonitor, hooks, ambient attributes, untracked cache/preload and recursive
+submodule behavior.
 
-The #2187 promotion is re-executed against those exact current coupled and
-successor bytes and the supplied ledger import input. Its complete result must
-equal the supplied promotion receipt.
+The application does not execute #2187 or either canonical classifier from
+mutable worktree imports. It resolves the complete transitive authority closure
+from exact HEAD Git objects (19 relative modules), requires the only bare package
+family to be `ethers`, verifies the reviewed `ethers` package-runtime profile,
+materializes those package bytes into a private execution root, then checks out
+the exact reviewed Git generation beside them.
+
+Promotion and classifier calls execute only from that private generation under
+the Node permission model. Filesystem read is limited to the private temporary
+root and child-process permission is needed only for the reviewed promotion
+module's Git provenance reads. Ambient Node/dynamic-loader overrides are not
+inherited.
+
+The #2187 promotion is re-executed there against the exact current coupled and
+successor bytes and supplied ledger import input. Its complete result must equal
+the supplied promotion receipt.
+
+This reviewed Node boundary does **not** claim cross-version network isolation:
+`execution_network_isolation_provided=false`. The reviewed authority closure
+contains no network observation step in this source-only lane.
 
 ## Exact source delta
 
@@ -110,6 +129,11 @@ The plan binds:
 - exact application-base HEAD and tree;
 - exact application-tool, #2187 promotion-tool, import-tool and classifier Git
   blobs;
+- the full reviewed execution module Git-blob closure;
+- reviewed package-runtime tool/profile Git blobs, profile ID and package
+  aggregate SHA-256;
+- permission-fenced execution / ancestor-package-fallback / network-isolation
+  truth;
 - exact source and target candidate Git blobs and file SHA-256 values;
 - exact successor source identity;
 - exact ledger import and promotion-receipt SHA-256 values;
@@ -149,6 +173,8 @@ canonical `main` generation.
 
 The verifier requires:
 
+- current branch is `main`;
+- local HEAD equals config-isolated fixed-URL canonical GitHub remote `main`;
 - application base remains an ancestor of current main;
 - production and coupled HEAD blobs equal the exact target identities;
 - successor candidate remains the exact prepared source identity;
@@ -182,10 +208,18 @@ reviewed_repository_generation_required=true
 exact_four_field_source_delta=true
 canonical_classifier_reexecution=true
 reviewed_git_commit_required=true
+reviewed_git_object_execution_required=true
+reviewed_package_runtime_required=true
+permission_fenced_execution_required=true
+minimal_git_environment_required=true
+ambient_loader_tool_overrides_ignored=true
+execution_child_process_limited_to_reviewed_git=true
+private_temporary_filesystem_write=true
 filesystem_read=true
+filesystem_write=true
+execution_network_isolation_provided=false
 
 repository_source_write=false
-filesystem_write=false
 rpc_call=false
 production_ledger_read=false
 production_ledger_write=false
