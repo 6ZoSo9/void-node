@@ -41,6 +41,9 @@ Before loading the #2241 verifier, the tool:
 - rejects ambient Git repository/config overrides;
 - requires the ambient `git` executable to resolve to the reviewed
   `/usr/bin/git` identity;
+- disables Git replacement-object semantics with both
+  `--no-replace-objects` and `GIT_NO_REPLACE_OBJECTS=1`;
+- isolates global/system Git configuration for reviewed object reads;
 - requires a clean repository worktree;
 - requires reviewed main anchor
   `2dcf6544f373f828347434fd0c6d434334af1658` to be an ancestor of the
@@ -49,6 +52,15 @@ Before loading the #2241 verifier, the tool:
 - verifies exact `HEAD:<path>` blobs for every reviewed dependency; and
 - computes Git blob identities over the actual worktree bytes and requires them
   to match those reviewed blobs.
+
+Before #2241 reverification, the qualification then materializes the exact
+reviewed HEAD tree beneath the repository Git directory from Git object bytes,
+verifies the reviewed dependency blobs again, makes the materialized tree
+read-only, and executes the launch-controller control verifier from that
+private tree. The verifier receives a fixed Git context pointed at the
+materialized reviewed worktree and the canonical object database with
+replacement objects disabled. It therefore cannot execute a mutable
+worktree version that merely happened to pass an earlier blob check.
 
 The exact evaluated HEAD/tree, tool blob/file hash, dependency Git blobs, and
 dependency file hashes are recorded in the qualification receipt and rechecked
@@ -167,6 +179,9 @@ source_qualification_only=true
 canonical_git_source_binding_required=true
 actual_worktree_blob_binding_required=true
 launch_controller_control_reverification=true
+reviewed_control_execution_from_exact_git_objects=true
+private_reviewed_source_materialization=true
+git_replacement_objects_disabled=true
 settlement_executor_public_identity_rederivation=true
 closeout_controller_public_identity_rederivation=true
 role_separation_verification=true
@@ -215,3 +230,9 @@ node scripts/prove_void_wc_void_market_vault_role_deployment_qualification_v1.mj
 
 The focused proof uses only an ephemeral random test wallet. It does not
 exercise or read any production key.
+
+The proof also installs a temporary live Git replacement ref and requires the
+qualification result to remain unchanged, then exercises a deterministic
+change-and-restore race against the mutable worktree copy of the #2241 module.
+The qualification must still execute the reviewed Git-object materialization
+and return the same qualification ID.
