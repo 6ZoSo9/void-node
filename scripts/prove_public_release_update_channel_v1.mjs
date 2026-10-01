@@ -36,6 +36,9 @@ const updater=need("release/bin/void-node-update",[
   "ROLLBACK_PREP_RECOVERED",
   "ROLLBACK_RECOVERED",
   "restart_if_active",
+  "restart_before_invocation_id",
+  "ROLLBACK_RESTART_ALREADY_SATISFIED",
+  "VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_SERVICE_RESTART",
   "escapes canonical releases directory",
   "downgrade refused",
   "HEALTH_FAIL_ROLLBACK_BEGIN",
@@ -82,7 +85,7 @@ try{
   build(root,out1,v1,1700000100);build(root,out2,v2,1700000200);build(root,out3,v3,1700000300);
   channel(root,out1,v1,`release-v${v1}`);channel(root,out2,v2,`release-v${v2}`);channel(root,out3,v3,`release-v${v3}`);
   const home=path.join(tmp,"home"),installRoot=path.join(home,"share","void-node"),binDir=path.join(home,"bin"),fakeBin=path.join(tmp,"fake-bin");fs.mkdirSync(home,{recursive:true});fs.mkdirSync(fakeBin,{recursive:true});
-  const restartLog=path.join(tmp,"systemd-restart.log"),fakeSystemctl=path.join(fakeBin,"systemctl");
+  const restartLog=path.join(tmp,"systemd-restart.log"),activeFile=path.join(tmp,"systemd-active.txt"),invocationFile=path.join(tmp,"systemd-invocation-id.txt"),fakeSystemctl=path.join(fakeBin,"systemctl");
   fs.writeFileSync(fakeSystemctl,`#!/usr/bin/env bash
 set -euo pipefail
 case "$*" in
@@ -92,13 +95,25 @@ case "$*" in
     ;;
   "--user is-active --quiet void-node.service")
     test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
-    test "\${VOID_TEST_SYSTEMD_ACTIVE:-0}" = 1
+    if [ -n "\${VOID_TEST_SYSTEMD_ACTIVE_FILE:-}" ]; then
+      test "$(cat "$VOID_TEST_SYSTEMD_ACTIVE_FILE" 2>/dev/null || true)" = 1
+    else
+      test "\${VOID_TEST_SYSTEMD_ACTIVE:-0}" = 1
+    fi
+    exit 0
+    ;;
+  "--user show void-node.service --property=InvocationID --value")
+    test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
+    : "\${VOID_TEST_SYSTEMD_INVOCATION_FILE:?}"
+    cat "$VOID_TEST_SYSTEMD_INVOCATION_FILE"
     exit 0
     ;;
   "--user restart void-node.service")
     test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
     : "\${VOID_TEST_SYSTEMD_RESTART_LOG:?}"
     printf 'restart\\n' >> "$VOID_TEST_SYSTEMD_RESTART_LOG"
+    if [ -n "\${VOID_TEST_SYSTEMD_ACTIVE_FILE:-}" ]; then printf '1\\n' > "$VOID_TEST_SYSTEMD_ACTIVE_FILE"; fi
+    if [ -n "\${VOID_TEST_SYSTEMD_INVOCATION_FILE:-}" ]; then : "\${VOID_TEST_SYSTEMD_NEXT_INVOCATION_ID:?}"; printf '%s\\n' "$VOID_TEST_SYSTEMD_NEXT_INVOCATION_ID" > "$VOID_TEST_SYSTEMD_INVOCATION_FILE"; fi
     exit 0
     ;;
 esac
@@ -185,8 +200,11 @@ exit 2
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("post-recovery explicit rollback did not restore expected pointer pair");
   pass("post-recovery-explicit-rollback");
 
+  const invocationBefore="11111111111111111111111111111111",invocationAfter="22222222222222222222222222222222";
   fs.rmSync(restartLog,{force:true});
-  const restartWindowEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE:"1",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_BEFORE_SERVICE_RESTART:"1"};
+  fs.writeFileSync(activeFile,"1\n");
+  fs.writeFileSync(invocationFile,invocationBefore+"\n");
+  const restartWindowEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE_FILE:activeFile,VOID_TEST_SYSTEMD_INVOCATION_FILE:invocationFile,VOID_TEST_SYSTEMD_NEXT_INVOCATION_ID:invocationAfter,VOID_TEST_SYSTEMD_RESTART_LOG:restartLog,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_BEFORE_SERVICE_RESTART:"1"};
   const restartInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{env:restartWindowEnv,capture:true,allowFail:true});
   const restartInterruptedOutput=`${restartInterrupted.stdout||""}${restartInterrupted.stderr||""}`;
   if(restartInterrupted.status===0||!restartInterruptedOutput.includes("test interruption after rollback pointer publication before service restart")){
@@ -197,10 +215,10 @@ exit 2
   }
   const restartJournal=JSON.parse(fs.readFileSync(rollbackJournal,"utf8"));
   const restartWindowCurrent=versionAt(installRoot),restartWindowPrevious=previousVersion(installRoot);
-  if(restartJournal.restart_if_active!==true||restartWindowCurrent!==v3||restartWindowPrevious!==v2){
+  if(restartJournal.schema_version!==2||restartJournal.restart_if_active!==true||restartJournal.restart_before_invocation_id!==invocationBefore||restartWindowCurrent!==v3||restartWindowPrevious!==v2){
     throw new Error(
-      "restart-window interruption did not persist restart intent with completed pointer pair "+
-      `restart_if_active=${JSON.stringify(restartJournal.restart_if_active)} current=${restartWindowCurrent} previous=${restartWindowPrevious}`
+      "restart-window interruption did not persist invocation-bound restart intent with completed pointer pair "+
+      `restart_if_active=${JSON.stringify(restartJournal.restart_if_active)} witness=${JSON.stringify(restartJournal.restart_before_invocation_id)} current=${restartWindowCurrent} previous=${restartWindowPrevious}`
     );
   }
   if(fs.existsSync(restartLog))fail("service restart occurred before restart-window interruption");
@@ -212,15 +230,35 @@ exit 2
   if(fs.existsSync(restartLog))fail("systemd-unavailable recovery unexpectedly restarted service");
   pass("rollback-restart-obligation-held-without-systemd");
 
-  const restartRecoveryEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE:"0",VOID_TEST_SYSTEMD_RESTART_LOG:restartLog};
+  fs.writeFileSync(activeFile,"0\n");
+  const restartRecoveryEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE_FILE:activeFile,VOID_TEST_SYSTEMD_INVOCATION_FILE:invocationFile,VOID_TEST_SYSTEMD_NEXT_INVOCATION_ID:invocationAfter,VOID_TEST_SYSTEMD_RESTART_LOG:restartLog};
   const restartRecovered=run(managerPath,["version"],{env:restartRecoveryEnv,capture:true});
   if(!restartRecovered.includes("ROLLBACK_RECOVERED")||!restartRecovered.includes("recovery_outcome=rollback_committed")||!restartRecovered.includes(v3))fail("restart-window recovery did not replay committed rollback transaction before dispatch");
   if(!fs.existsSync(restartLog)||fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("restart-window recovery did not restore previously active service after it became inactive");
+  if(fs.readFileSync(invocationFile,"utf8").trim()!==invocationAfter||fs.readFileSync(activeFile,"utf8").trim()!=="1")fail("restart-window recovery did not publish a new active invocation witness");
   if(fs.existsSync(rollbackJournal)||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("restart-window recovery did not finalize coherent pointer state");
   pass("rollback-restart-intent-replayed-before-journal-cleanup");
 
   run(managerPath,["rollback"],{env:e});
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("post-restart-recovery rollback did not restore expected pointer pair");
+
+  const crashBeforeInvocation="33333333333333333333333333333333",crashAfterInvocation="44444444444444444444444444444444";
+  fs.rmSync(restartLog,{force:true});
+  fs.writeFileSync(activeFile,"1\n");
+  fs.writeFileSync(invocationFile,crashBeforeInvocation+"\n");
+  const postRestartCrashEnv={...e,VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:"1",VOID_TEST_SYSTEMD_ACTIVE_FILE:activeFile,VOID_TEST_SYSTEMD_INVOCATION_FILE:invocationFile,VOID_TEST_SYSTEMD_NEXT_INVOCATION_ID:crashAfterInvocation,VOID_TEST_SYSTEMD_RESTART_LOG:restartLog,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_SERVICE_RESTART:"1"};
+  const postRestartCrash=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{env:postRestartCrashEnv,capture:true,allowFail:true});
+  const postRestartCrashOutput=`${postRestartCrash.stdout||""}${postRestartCrash.stderr||""}`;
+  if(postRestartCrash.status===0||!postRestartCrashOutput.includes("test interruption after successful service restart before rollback journal cleanup"))fail("post-restart crash seam did not fire");
+  if(!fs.existsSync(rollbackJournal)||fs.readFileSync(restartLog,"utf8")!=="restart\n"||fs.readFileSync(invocationFile,"utf8").trim()!==crashAfterInvocation||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("post-restart crash did not preserve one completed restart plus committed rollback journal");
+  const postRestartRecovered=run(managerPath,["version"],{env:{...postRestartCrashEnv,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_SERVICE_RESTART:"0"},capture:true});
+  if(!postRestartRecovered.includes("ROLLBACK_RESTART_ALREADY_SATISFIED")||!postRestartRecovered.includes("ROLLBACK_RECOVERED")||!postRestartRecovered.includes(v3))fail("post-restart recovery did not recognize already-satisfied invocation witness");
+  if(fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("post-restart recovery replayed service restart twice");
+  if(fs.existsSync(rollbackJournal))fail("post-restart recovery did not clear completed rollback journal");
+  pass("rollback-post-restart-crash-does-not-restart-twice");
+
+  run(managerPath,["rollback"],{env:e});
+  if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("post-restart-dedupe rollback did not restore expected pointer pair");
 
   const prepInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{
     env:{...e,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_FIRST_STAGE:"1"},capture:true,allowFail:true,
