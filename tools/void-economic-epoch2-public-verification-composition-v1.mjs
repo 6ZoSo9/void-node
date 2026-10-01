@@ -134,6 +134,15 @@ function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function gitBlobSha1(bytes) {
+  if (!Buffer.isBuffer(bytes)) fail("git_blob_bytes_required");
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from("blob " + bytes.length + "\0", "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
 function exactObject(value, keys, code) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail(code);
   const actual = Object.keys(value).sort();
@@ -192,6 +201,28 @@ function canonicalRemote(value) {
 function readHeadBytes(relativePath) {
   const result = git(["show", "HEAD:" + relativePath]);
   return Buffer.from(result.stdout, "utf8");
+}
+
+function readReviewedWorktreeBytes(relativePath, expectedBlob) {
+  const file = path.resolve(ROOT, relativePath);
+  const relative = path.relative(ROOT, file);
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  ) {
+    fail("dependency_path_escape:" + relativePath);
+  }
+  const stat = fs.lstatSync(file);
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.size < 1 || stat.size > 16 * 1024 * 1024) {
+    fail("dependency_worktree_file_invalid:" + relativePath);
+  }
+  const bytes = fs.readFileSync(file);
+  if (gitBlobSha1(bytes) !== expectedBlob) {
+    fail("dependency_worktree_blob_mismatch:" + relativePath);
+  }
+  return bytes;
 }
 
 function parseJsonBytes(bytes, label) {
@@ -286,6 +317,7 @@ function repositoryBindingV1() {
       "dependency_blob_unavailable:" + relativePath,
     );
     if (blob !== expectedBlob) fail("dependency_blob_mismatch:" + relativePath);
+    readReviewedWorktreeBytes(relativePath, expectedBlob);
     dependencies[relativePath] = blob;
   }
 
@@ -294,6 +326,10 @@ function repositoryBindingV1() {
     "composition_tool_blob_unavailable",
   );
   if (!HEX40.test(compositionToolBlob)) fail("composition_tool_blob_invalid");
+  const compositionToolBytes = readReviewedWorktreeBytes(
+    TOOL_REL,
+    compositionToolBlob,
+  );
 
   const migrationBytes = readHeadBytes(MIGRATION_REL);
   const loopbackBytes = readHeadBytes(LOOPBACK_REL);
@@ -304,6 +340,7 @@ function repositoryBindingV1() {
     canonical_remote_url: remote,
     reviewed_main_anchor: REVIEWED_MAIN_ANCHOR,
     composition_tool_git_blob_sha1: compositionToolBlob,
+    composition_tool_file_sha256: sha256(compositionToolBytes),
     dependency_git_blobs: Object.freeze({ ...dependencies }),
     canonical_migration_candidate_file_sha256: sha256(migrationBytes),
     canonical_loopback_policy_file_sha256: sha256(loopbackBytes),
@@ -551,6 +588,7 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     canonical_remote_url: source.canonical_remote_url,
     reviewed_main_anchor: source.reviewed_main_anchor,
     composition_tool_git_blob_sha1: source.composition_tool_git_blob_sha1,
+    composition_tool_file_sha256: source.composition_tool_file_sha256,
     dependency_git_blobs: source.dependency_git_blobs,
     canonical_migration_candidate_file_sha256:
       source.canonical_migration_candidate_file_sha256,
