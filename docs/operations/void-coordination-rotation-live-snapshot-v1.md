@@ -71,7 +71,11 @@ node tools/void-coordination-rotation-live-snapshot-v1.mjs \
 
 Output files are create-only and mode `0600`.
 
-The wrapper uses only `gh api` GET requests. It reads the canonical policy bytes from the exact captured remote-main commit rather than trusting the local checkout. It does not fetch Git refs, checkout, reset, commit, push, create or close issues, post comments, or mutate scheduler/runtime state.
+The wrapper uses only `gh api` GET requests. Every API read is launched through absolute `/usr/bin/gh` with explicit `--hostname github.com`. The API subprocess receives a minimal environment with fixed PATH/locale/host, HOME/config disabled, no ambient GH repository/host selection, no loader variables, no proxy/CA overrides, and no interactive prompting. Authentication is reduced to one token: `GH_TOKEN` / `GITHUB_TOKEN` when supplied; otherwise the wrapper first reads the token with `/usr/bin/gh auth token --hostname github.com` using only the default HOME auth store, then performs API reads config-free.
+
+The successor chain is captured through that same hardened API client and then evaluated with the existing pure `inspectCoordinationIssueV1` / `resolveCoordinationSuccessorChainRecordsV1` semantics. This wrapper does not call the shared ambient live resolver.
+
+It reads the canonical policy bytes from the exact captured remote-main commit rather than trusting the local checkout. It does not fetch Git refs, checkout, reset, commit, push, create or close issues, post comments, or mutate scheduler/runtime state.
 
 ## Output
 
@@ -124,7 +128,10 @@ The proof uses the real merged successor-chain resolver and real checked-in live
 - missing/duplicate PR captures;
 - unsafe paths;
 - repository/root mismatch;\n- exact remote-main policy Git-blob binding and tamper rejection; and
-- deterministic live-capture identity.
+- deterministic live-capture identity;
+- absolute GitHub CLI + fixed `github.com` API-host invocation;
+- hostile PATH/GH host/config/loader/proxy environment cannot alter the reviewed API invocation; and
+- successor-chain capture uses the same hardened client before pure successor resolution.
 
 ## Relationship to #2258
 

@@ -10,7 +10,8 @@ import { pathToFileURL } from "node:url";
 import {
   DEFAULT_REPOSITORY,
   DEFAULT_ROOT_ISSUE,
-  resolveCoordinationSuccessorChainLiveV1,
+  inspectCoordinationIssueV1,
+  resolveCoordinationSuccessorChainRecordsV1,
 } from "./void-coordination-successor-chain-v1.mjs";
 import {
   EVIDENCE_MARKER as SNAPSHOT_EVIDENCE_MARKER,
@@ -25,8 +26,12 @@ const MAX_OPEN_PRS = 250;
 const MAX_CHANGED_PATHS_PER_PR = 500;
 const MAX_PR_PAGES = 3;
 const MAX_FILE_PAGES = 5;
+const MAX_CHAIN_HOPS = 32;
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const MAX_POLICY_BYTES = 1024 * 1024;
+const GH_EXECUTABLE = "/usr/bin/gh";
+const GITHUB_HOST = "github.com";
+const MAX_GITHUB_TOKEN_CHARS = 4096;
 
 export class CoordinationRotationLiveSnapshotError extends Error {
   constructor(message) {
@@ -417,26 +422,138 @@ export function buildCoordinationRotationLiveSnapshotV1({
   });
 }
 
-function runGhJson(args) {
-  const result = spawnSync("gh", ["api", ...args], {
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      GH_PAGER: "cat",
-      GIT_TERMINAL_PROMPT: "0",
+function requireGithubTokenV1(value) {
+  if (
+    typeof value !== "string"
+    || value.length < 8
+    || value.length > MAX_GITHUB_TOKEN_CHARS
+    || /[\s\0]/u.test(value)
+  ) {
+    fail("GitHub authentication token is unavailable or malformed");
+  }
+  return value;
+}
+
+function githubAuthLookupEnvV1(sourceEnv = process.env) {
+  const home =
+    typeof sourceEnv.HOME === "string"
+    && path.isAbsolute(sourceEnv.HOME)
+    && !/[\0\r\n]/u.test(sourceEnv.HOME)
+      ? sourceEnv.HOME
+      : "/nonexistent";
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: home,
+    LANG: "C",
+    LC_ALL: "C",
+    GH_HOST: GITHUB_HOST,
+    GH_PROMPT_DISABLED: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    NO_COLOR: "1",
+  };
+}
+
+function resolveGithubTokenV1({
+  sourceEnv = process.env,
+  spawnImpl = spawnSync,
+} = {}) {
+  const direct = sourceEnv.GH_TOKEN || sourceEnv.GITHUB_TOKEN;
+  if (direct) return requireGithubTokenV1(direct);
+  const result = spawnImpl(
+    GH_EXECUTABLE,
+    ["auth", "token", "--hostname", GITHUB_HOST],
+    {
+      encoding: "utf8",
+      env: githubAuthLookupEnvV1(sourceEnv),
+      maxBuffer: 16 * 1024,
+      timeout: 10_000,
+      stdio: ["ignore", "pipe", "pipe"],
     },
-    maxBuffer: 32 * 1024 * 1024,
-    timeout: 30_000,
+  );
+  if (result?.error || result?.status !== 0) {
+    fail("GitHub authentication token lookup failed");
+  }
+  return requireGithubTokenV1(String(result.stdout || "").trim());
+}
+
+export function buildReviewedGhApiInvocationV1(args, token) {
+  if (
+    !Array.isArray(args)
+    || args.some(
+      (value) =>
+        typeof value !== "string"
+        || value.length === 0
+        || value.length > 4096
+        || /[\0\r\n]/u.test(value),
+    )
+  ) {
+    fail("GitHub API arguments must be bounded single-line strings");
+  }
+  const reviewedToken = requireGithubTokenV1(token);
+  return Object.freeze({
+    executable: GH_EXECUTABLE,
+    args: Object.freeze([
+      "api",
+      "--hostname",
+      GITHUB_HOST,
+      ...args,
+    ]),
+    env: Object.freeze({
+      PATH: "/usr/bin:/bin",
+      HOME: "/nonexistent",
+      XDG_CONFIG_HOME: "/nonexistent",
+      LANG: "C",
+      LC_ALL: "C",
+      GH_HOST: GITHUB_HOST,
+      GH_TOKEN: reviewedToken,
+      GH_CONFIG_DIR: "/nonexistent/gh",
+      GH_PAGER: "cat",
+      GH_PROMPT_DISABLED: "1",
+      GIT_TERMINAL_PROMPT: "0",
+      NO_COLOR: "1",
+    }),
   });
-  if (result.error) fail("gh failed to start: " + result.error.message);
-  if (result.status !== 0) {
-    fail("gh api failed with status " + result.status);
+}
+
+export function runReviewedGhApiJsonV1(
+  args,
+  {
+    token = null,
+    spawnImpl = spawnSync,
+    authEnv = process.env,
+  } = {},
+) {
+  const reviewedToken =
+    token === null
+      ? resolveGithubTokenV1({ sourceEnv: authEnv, spawnImpl })
+      : requireGithubTokenV1(token);
+  const invocation = buildReviewedGhApiInvocationV1(args, reviewedToken);
+  const result = spawnImpl(
+    invocation.executable,
+    [...invocation.args],
+    {
+      encoding: "utf8",
+      env: { ...invocation.env },
+      maxBuffer: 32 * 1024 * 1024,
+      timeout: 30_000,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  if (result?.error) {
+    fail("gh failed to start: " + result.error.message);
+  }
+  if (result?.status !== 0) {
+    fail("gh api failed with status " + String(result?.status));
   }
   try {
-    return JSON.parse(result.stdout);
+    return JSON.parse(String(result.stdout || ""));
   } catch (error) {
     fail("gh api returned malformed JSON: " + error.message);
   }
+}
+
+function runGhJson(args) {
+  return runReviewedGhApiJsonV1(args);
 }
 
 function githubPrSummary(raw) {
@@ -461,6 +578,80 @@ function githubPrDetail(raw) {
 function fetchMainSha(repository) {
   const value = runGhJson(["repos/" + repository + "/branches/main"]);
   return requireSha(value?.commit?.sha, "live main SHA");
+}
+
+function fetchCoordinationIssue(repository, issueNumber) {
+  return runGhJson([
+    "repos/" + repository + "/issues/" + issueNumber,
+  ]);
+}
+
+function fetchCoordinationComments(repository, issueNumber) {
+  const comments = [];
+  for (let page = 1; page <= 100; page += 1) {
+    const rows = runGhJson([
+      "repos/"
+      + repository
+      + "/issues/"
+      + issueNumber
+      + "/comments?per_page=100&page="
+      + page,
+    ]);
+    if (!Array.isArray(rows)) {
+      fail("GitHub coordination comments response must be an array");
+    }
+    comments.push(...rows);
+    if (rows.length < 100) return comments;
+  }
+  fail("GitHub coordination comments exceed pagination bound");
+}
+
+function fetchCoordinationRecord(repository, issueNumber) {
+  const before = fetchCoordinationIssue(repository, issueNumber);
+  const comments = fetchCoordinationComments(repository, issueNumber);
+  const after = fetchCoordinationIssue(repository, issueNumber);
+  if (
+    before?.number !== after?.number
+    || before?.state !== after?.state
+    || before?.comments !== after?.comments
+    || before?.updated_at !== after?.updated_at
+  ) {
+    fail("coordination issue changed during live capture");
+  }
+  return { issue: after, comments };
+}
+
+function resolveCoordinationSuccessorChainReviewedLiveV1(
+  repository,
+  rootIssue,
+) {
+  const records = {};
+  const visited = new Set();
+  let issueNumber = rootIssue;
+  for (let hop = 0; hop < MAX_CHAIN_HOPS; hop += 1) {
+    if (visited.has(issueNumber)) {
+      fail("coordination successor cycle detected at #" + issueNumber);
+    }
+    visited.add(issueNumber);
+    const record = fetchCoordinationRecord(repository, issueNumber);
+    records[String(issueNumber)] = record;
+    const inspected = inspectCoordinationIssueV1(
+      record.issue,
+      record.comments,
+    );
+    if (inspected.successor_issue === null) {
+      const result = resolveCoordinationSuccessorChainRecordsV1(
+        records,
+        rootIssue,
+      );
+      return Object.freeze({
+        ...result,
+        repository_scope: repository,
+      });
+    }
+    issueNumber = inspected.successor_issue;
+  }
+  fail("coordination successor chain exceeds maximum hops");
 }
 
 function fetchRepositoryTextAtRef(repository, repositoryPath, ref) {
@@ -595,7 +786,7 @@ export async function captureCoordinationRotationLiveSnapshotV1({
     fail("policyPath must equal canonical live-dispatch policy path");
   }
 
-  const chainBefore = resolveCoordinationSuccessorChainLiveV1(repo, root);
+  const chainBefore = resolveCoordinationSuccessorChainReviewedLiveV1(repo, root);
   const mainBefore = fetchMainSha(repo);
   const policy = fetchRepositoryTextAtRef(
     repo,
@@ -608,7 +799,7 @@ export async function captureCoordinationRotationLiveSnapshotV1({
   );
   const openPrListAfter = fetchOpenPrList(repo);
   const mainAfter = fetchMainSha(repo);
-  const chainAfter = resolveCoordinationSuccessorChainLiveV1(repo, root);
+  const chainAfter = resolveCoordinationSuccessorChainReviewedLiveV1(repo, root);
   const capturedAt = new Date().toISOString();
 
   return buildCoordinationRotationLiveSnapshotV1({

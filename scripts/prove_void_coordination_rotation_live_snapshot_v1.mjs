@@ -10,7 +10,9 @@ import {
   CANONICAL_POLICY_PATH,
   CoordinationRotationLiveSnapshotError,
   buildCoordinationRotationLiveSnapshotV1,
+  buildReviewedGhApiInvocationV1,
   gitBlobShaV1,
+  runReviewedGhApiJsonV1,
 } from "../tools/void-coordination-rotation-live-snapshot-v1.mjs";
 import {
   resolveCoordinationSuccessorChainRecordsV1,
@@ -29,6 +31,98 @@ const policyBlobSha = gitBlobShaV1(policyBytes);
 const POLICY_REPOSITORY_PATH = CANONICAL_POLICY_PATH;
 const MAIN = "a".repeat(40);
 const CAPTURED_AT = "2026-10-01T21:00:00.000Z";
+
+{
+  const hostile = {
+    PATH: "/tmp/fake-bin",
+    GH_HOST: "evil.example",
+    GH_REPO: "evil/other",
+    GH_CONFIG_DIR: "/tmp/evil-gh",
+    LD_PRELOAD: "/tmp/evil.so",
+    LD_LIBRARY_PATH: "/tmp/evil-lib",
+    DYLD_INSERT_LIBRARIES: "/tmp/evil.dylib",
+    HTTPS_PROXY: "http://127.0.0.1:9",
+    SSL_CERT_FILE: "/tmp/evil-ca.pem",
+    NODE_OPTIONS: "--require=/tmp/evil-node.js",
+  };
+  const saved = new Map();
+  for (const [key, value] of Object.entries(hostile)) {
+    saved.set(
+      key,
+      Object.prototype.hasOwnProperty.call(process.env, key)
+        ? process.env[key]
+        : undefined,
+    );
+    process.env[key] = value;
+  }
+  try {
+    const testToken = "github_pat_reviewed_live_snapshot_test_token";
+    const built = buildReviewedGhApiInvocationV1(
+      ["repos/6ZoSo9/void-node/branches/main"],
+      testToken,
+    );
+    assert.equal(built.executable, "/usr/bin/gh");
+    assert.deepEqual(
+      built.args,
+      [
+        "api",
+        "--hostname",
+        "github.com",
+        "repos/6ZoSo9/void-node/branches/main",
+      ],
+    );
+    assert.equal(built.env.PATH, "/usr/bin:/bin");
+    assert.equal(built.env.GH_HOST, "github.com");
+    assert.equal(built.env.GH_CONFIG_DIR, "/nonexistent/gh");
+    assert.equal(built.env.GH_TOKEN, testToken);
+    assert.equal(built.env.HOME, "/nonexistent");
+    for (const forbidden of Object.keys(hostile)) {
+      if (
+        forbidden === "PATH"
+        || forbidden === "GH_HOST"
+        || forbidden === "GH_CONFIG_DIR"
+      ) {
+        continue;
+      }
+      assert.equal(
+        Object.hasOwn(built.env, forbidden),
+        false,
+        "hostile variable leaked into reviewed gh env: " + forbidden,
+      );
+    }
+
+    let observed = null;
+    const fakeSpawn = (executable, args, options) => {
+      observed = {
+        executable,
+        args: [...args],
+        env: { ...options.env },
+      };
+      return {
+        status: 0,
+        stdout: JSON.stringify({ ok: true }),
+        stderr: "",
+        error: null,
+      };
+    };
+    const result = runReviewedGhApiJsonV1(
+      ["repos/6ZoSo9/void-node/branches/main"],
+      {
+        token: testToken,
+        spawnImpl: fakeSpawn,
+      },
+    );
+    assert.deepEqual(result, { ok: true });
+    assert.equal(observed.executable, "/usr/bin/gh");
+    assert.deepEqual(observed.args, built.args);
+    assert.deepEqual(observed.env, built.env);
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
 
 function comment(id, body = "coordination evidence") {
   return { id, body };
@@ -468,7 +562,37 @@ const repeated = buildCoordinationRotationLiveSnapshotV1(input());
 assert.equal(repeated.live_capture_id, ready.live_capture_id);
 assert.deepEqual(repeated, ready);
 
+const liveSource = fs.readFileSync(
+  "tools/void-coordination-rotation-live-snapshot-v1.mjs",
+  "utf8",
+);
+for (const required of [
+  'const GH_EXECUTABLE = "/usr/bin/gh"',
+  '"--hostname",',
+  'const GITHUB_HOST = "github.com"',
+  'HOME: "/nonexistent"',
+  'GH_CONFIG_DIR: "/nonexistent/gh"',
+  "resolveCoordinationSuccessorChainRecordsV1",
+  "inspectCoordinationIssueV1",
+]) {
+  assert.equal(liveSource.includes(required), true, required);
+}
+assert.equal(
+  liveSource.includes("resolveCoordinationSuccessorChainLiveV1"),
+  false,
+  "ambient shared live resolver must not be used",
+);
+assert.equal(
+  liveSource.includes('spawnSync("gh"'),
+  false,
+  "ambient PATH gh execution must not be used",
+);
+
 console.log(PROOF_MARKER);
+console.log("reviewed_absolute_gh_client_bound=true");
+console.log("github_host_fixed_to_github_com=true");
+console.log("ambient_gh_host_config_loader_proxy_env_excluded=true");
+console.log("successor_chain_uses_pure_record_resolver=true");
 console.log("rotation_preparation_ready=true");
 console.log("successor_resolved_rebind_detected=true");
 console.log("policy_git_blob_bound=true");
