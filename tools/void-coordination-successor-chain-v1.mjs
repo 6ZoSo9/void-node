@@ -85,6 +85,10 @@ export function inspectCoordinationIssueV1(issueInput, commentsInput) {
   const issue = requireIssue(structuredClone(issueInput), "issue");
   if (!Array.isArray(commentsInput)) fail("comments must be an array");
   const comments = commentsInput.map((item, index) => requireComment(item, index));
+  const commentIds = comments.map((item) => item.id);
+  if (new Set(commentIds).size !== commentIds.length) {
+    fail("duplicate coordination comment id in capture");
+  }
   if (comments.length !== issue.comments) {
     fail(
       "complete comment capture required: issue.comments="
@@ -197,8 +201,11 @@ function finalizeChain(entries, rootIssue) {
     rotation_threshold_total_messages: ROTATION_THRESHOLD_TOTAL_MESSAGES,
     chain_issue_numbers: Object.freeze(entries.map((entry) => entry.issue_number)),
     chain: Object.freeze(entries.map((entry) => Object.freeze({ ...entry }))),
-    dispatch_plan_issue_should_be: terminal.issue_number,
-    plan_issue_update_required: terminal.issue_number !== rootIssue,
+    dispatch_plan_issue_should_be:
+      uniqueHoldReasons.length === 0 ? terminal.issue_number : null,
+    plan_issue_update_required:
+      uniqueHoldReasons.length === 0
+      && terminal.issue_number !== rootIssue,
     issue_creation_authorized: false,
     issue_close_authorized: false,
     scheduler_mutation_authorized: false,
