@@ -1,0 +1,94 @@
+name: VOID WC/VOID bounded-canary semantic promotion v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-bounded-canary-semantic-promotion-v1.yml"
+      - "docs/operators/wc-void-bounded-canary-semantic-promotion-v1.md"
+      - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
+      - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-evidence-v1.mjs"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-publication-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs"
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-wc-void-bounded-canary-semantic-promotion-v1.yml"
+      - "docs/operators/wc-void-bounded-canary-semantic-promotion-v1.md"
+      - "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs"
+      - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-evidence-v1.mjs"
+      - "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs"
+      - "tools/void-wc-void-opening-claim-binding-publication-v1.mjs"
+      - "tools/void-wc-void-opening-replay-protection-v1.mjs"
+      - "tools/void-wc-void-opening-replay-persistence-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs"
+      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
+      - "tools/void-participant-postpurchase-finality-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
+      - "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax
+        run: |
+          node --check tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs
+          node --check scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs
+      - name: Prove semantic bounded-canary promotion
+        run: node scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs
+      - name: Upstream semantic regressions
+        run: |
+          node scripts/prove_void_wc_void_bounded_canary_evidence_v1.mjs
+          node scripts/prove_void_wc_void_market_vault_at_use_revalidation_v1.mjs
+          node scripts/prove_void_wc_void_ledger_persistence_import_v1.mjs
+          node scripts/prove_void_wc_void_opening_claim_binding_v1.mjs
+          node scripts/prove_void_wc_void_opening_claim_binding_persistence_v1.mjs
+          node scripts/prove_void_wc_void_opening_replay_persistence_v1.mjs
+          node scripts/prove_void_wc_void_opening_claim_binding_publication_v1.mjs
+          node scripts/prove_void_wc_void_opening_replay_protection_v1.mjs
+          node scripts/prove_void_participant_postpurchase_at_use_revalidation_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

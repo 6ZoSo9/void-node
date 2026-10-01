@@ -1,14 +1,38 @@
 #!/usr/bin/env bash
 # Canonical two-box VOID send execution proof.
-# Sends onchain VOID (ERC20 transfer) on Alienware's devnet, then verifies
-# before/after balances and remote participant wallet surfaces from Precision.
+# Sends onchain VOID (ERC20 transfer) on an explicitly selected remote devnet,
+# then verifies before/after balances and participant wallet surfaces.
 set -euo pipefail
 set +H
 set +o histexpand
 
-REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
-REMOTE_RELAYER_BASE="${REMOTE_RELAYER_BASE:-http://100.122.79.39:4313/api/wc-relayer/v1}"
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+MARKER="VOID_TWO_BOX_STATE_CHANGE_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+require_explicit "REMOTE_RELAYER_BASE" "${REMOTE_RELAYER_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE" "$REMOTE_RELAYER_BASE"
+
 REMOTE_RPC="${REMOTE_RPC:-http://127.0.0.1:8545}"
 
 # Standard anvil funded accounts.
