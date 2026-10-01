@@ -15,6 +15,7 @@ import {
   PrecisionWebRecoveryHostObserverError,
   evaluateCollectedPrecisionWebObservationV1,
   findProcessSourceByDigestV1,
+  observerCommandEnvV1,
   parseSsListenersV1,
   parseSystemctlShowV1,
   requireExactLoopbackListenerV1,
@@ -67,6 +68,8 @@ function service(name, pid, port, planSource, overrides = {}) {
     },
     process_source_path: "/tmp/" + name + ".mjs",
     process_source_sha256: plan.source_file_sha256[planSource],
+    process_entry_arg_index: 1,
+    node_executable_path: "/usr/bin/node",
     ...overrides,
   };
 }
@@ -150,6 +153,35 @@ assert.equal(
 assert.equal(DEFAULT_EXPECTED_HOSTNAME, "zoso-Precision-Tower-7810");
 assert.equal(OBSERVATION_MAX_AGE_MS, 300_000);
 assert.equal(OBSERVATION_MAX_FUTURE_SKEW_MS, 5_000);
+
+{
+  const env = observerCommandEnvV1({
+    PATH: "/tmp/attacker-bin",
+    LD_PRELOAD: "/tmp/attacker.so",
+    LD_LIBRARY_PATH: "/tmp/attacker-lib",
+    TAILSCALE_SOCKET: "/tmp/attacker.sock",
+    SYSTEMD_EDITOR: "/tmp/attacker-editor",
+    TS_DEBUG_FAKE: "1",
+    TAILSCALE_DEBUG_FAKE: "1",
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/tmp/attacker-bus",
+    XDG_RUNTIME_DIR: "/tmp/attacker-runtime",
+    PRESERVE_ME: "yes",
+  });
+  const uid = process.getuid();
+  assert.equal(env.PATH, "/usr/bin:/bin");
+  assert.equal(env.LD_PRELOAD, undefined);
+  assert.equal(env.LD_LIBRARY_PATH, undefined);
+  assert.equal(env.TAILSCALE_SOCKET, undefined);
+  assert.equal(env.SYSTEMD_EDITOR, undefined);
+  assert.equal(env.TS_DEBUG_FAKE, undefined);
+  assert.equal(env.TAILSCALE_DEBUG_FAKE, undefined);
+  assert.equal(env.XDG_RUNTIME_DIR, "/run/user/" + uid);
+  assert.equal(
+    env.DBUS_SESSION_BUS_ADDRESS,
+    "unix:path=/run/user/" + uid + "/bus",
+  );
+  assert.equal(env.PRESERVE_ME, "yes");
+}
 
 const accepted = evaluateCollectedPrecisionWebObservationV1({
   plan,
@@ -290,9 +322,12 @@ expectRejected(
         "utf8",
       ),
       cwd: temp,
+      exePath: "/usr/bin/node",
     });
     assert.equal(found.path, sourcePath);
     assert.equal(found.sha256, sha256(bytes));
+    assert.equal(found.argv_index, 1);
+    assert.equal(found.node_executable_path, "/usr/bin/node");
 
     expectRejected(
       () => findProcessSourceByDigestV1({
@@ -303,8 +338,37 @@ expectRejected(
           "utf8",
         ),
         cwd: temp,
+        exePath: "/usr/bin/node",
       }),
-      /process_source_digest_match_count_invalid/,
+      /process_entry_script_digest_mismatch/,
+    );
+
+    expectRejected(
+      () => findProcessSourceByDigestV1({
+        pid: 999,
+        expectedSha256: sha256(bytes),
+        cmdlineBytes: Buffer.from(
+          "/usr/bin/node\0--inspect\0" + sourcePath + "\0",
+          "utf8",
+        ),
+        cwd: temp,
+        exePath: "/usr/bin/node",
+      }),
+      /process_entry_script_unavailable/,
+    );
+
+    expectRejected(
+      () => findProcessSourceByDigestV1({
+        pid: 999,
+        expectedSha256: sha256(bytes),
+        cmdlineBytes: Buffer.from(
+          "/usr/bin/node\0" + sourcePath + "\0",
+          "utf8",
+        ),
+        cwd: temp,
+        exePath: "/usr/bin/python3",
+      }),
+      /process_executable_is_not_node/,
     );
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
@@ -471,6 +535,8 @@ console.log("host_identity_bound=true");
 console.log("active_systemd_services_required=true");
 console.log("loopback_listener_pid_binding_proved=true");
 console.log("running_source_digest_binding_proved=true");
+console.log("node_entry_script_argv1_binding_proved=true");
+console.log("observer_command_environment_isolated=true");
 console.log("precision_hardening_profile_required=true");
 console.log("adapter_composition_frontdoor_http_truth_bound=true");
 console.log("node_invocation_stability_required=true");
