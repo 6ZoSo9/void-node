@@ -32,17 +32,16 @@ by `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`:
 sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
 ```
 
-A policy bundle for any other launch ID fails closed. The compiler also binds the
-exact reviewed Git blob of that canonical candidate:
+A policy bundle for any other launch ID fails closed. The canonical candidate is
+read through one stable descriptor and its bytes must equal the exact current
+`HEAD:ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json` Git
+blob before its launch identity is accepted.
 
-```text
-d78bc88dd26c47921a54c081a79ceefc0d5abcee
-```
-
-The candidate is read through one stable descriptor and its launch identity is
-revalidated before bundle compilation. The CI workflow tracks the canonical
-candidate path so any reviewed candidate or launch-identity change forces this
-compiler to be reconsidered.
+This deliberately binds the bundle to canonical source generation without
+hard-pinning unrelated candidate gate fields: reviewed gate promotions may
+change the candidate blob while keeping the same coupled-launch identity. The CI
+workflow tracks the candidate path, so every such change reruns this proof; an
+actual launch-identity change still fails closed until explicitly reviewed.
 
 ## No source-selected defaults
 
