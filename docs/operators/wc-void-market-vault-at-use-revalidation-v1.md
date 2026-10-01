@@ -75,9 +75,13 @@ head's validity window.
 
 ## Semantic revalidation
 
-The artifact embeds the complete runtime attestation and an exact expected
-binding. It is immediately passed through
-`importWcVoidMarketVaultRuntimeAttestationV1`, which independently rechecks:
+The artifact embeds the complete reviewed compiled-identity acceptance packet,
+the complete runtime attestation, and an exact expected binding. Source-only
+re-verification first reconstructs the deployed runtime from the acceptance
+packet plus the attested immutable deployment bindings and requires exact
+runtime byte length, SHA-256, and Keccak-256 equality. It then passes the
+attestation through `importWcVoidMarketVaultRuntimeAttestationV1`, which
+independently rechecks:
 
 - Chain 2050 / execution epoch 2;
 - deployment transaction and deployment block;
