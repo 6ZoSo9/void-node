@@ -56,7 +56,7 @@ Run this on Precision with an explicitly reviewed, nonlocal current-fleet SSH ta
 
 There is no default cross-box peer. The retired Alienware identity is rejected. The selected peer only needs to pass the no-Prometheus status smoke.
 
-A missing or unreachable peer is a hard prelaunch failure. The proof must not replace required cross-box evidence with a local status-smoke fallback.
+A missing or unreachable peer is a hard prelaunch failure. The selected peer must be a distinct host with a clean repository at the exact same Git HEAD as Precision. The proof must not replace required cross-box evidence with a local status-smoke fallback.
 
 ## Expected current result
 
