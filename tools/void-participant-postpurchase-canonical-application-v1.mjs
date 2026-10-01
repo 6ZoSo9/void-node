@@ -103,6 +103,8 @@ const REVIEWED_EXECUTION_MODULE_RELS = Object.freeze([
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const REVIEWED_RUNTIME_PROFILE_ID = /^voidrnpr1_[0-9a-f]{64}$/u;
+const REVIEWED_AUTHORITY_ENVELOPE_MARKER =
+  "VOID_PARTICIPANT_POSTPURCHASE_REVIEWED_AUTHORITY_V1";
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const PLAN_ID = /^voidppca1_[0-9a-f]{64}$/u;
 const PROMOTION_ID = /^voidppccp1_[0-9a-f]{64}$/u;
@@ -912,21 +914,31 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
       'import { buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1, VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1 } from '+JSON.stringify(promotionUrl)+';',
       'import { buildVoidParticipantPostpurchaseProductionRuntimeBindingV1 } from '+JSON.stringify(runtimeBindingUrl)+';',
       'import { classifyVoidCoupledEconomicSuccessorGateV1 } from '+JSON.stringify(classifierUrl)+';',
+      'const MARKER='+JSON.stringify(REVIEWED_AUTHORITY_ENVELOPE_MARKER)+';',
       'process.stdin.setEncoding("utf8");',
       'let requestText="";',
       'for await (const chunk of process.stdin) requestText+=chunk;',
-      'const request=JSON.parse(requestText);',
-      'let result;',
-      'if(request.operation==="prepare"){',
-      '  const runtime_binding=buildVoidParticipantPostpurchaseProductionRuntimeBindingV1({finalityInput:request.finality_input,statusResult:request.status_result,deliveryReceiptResult:request.delivery_result,controlReceiptResult:request.control_result});',
-      '  const promotion=buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({candidate:request.coupled,successorMigrationCandidate:request.successor,runtimeBindingReceipt:runtime_binding,runtimeBindingFileSha256:request.runtime_binding_file_sha256,candidateFileSha256:request.coupled_file_sha256,successorCandidateFileSha256:request.successor_file_sha256,repositoryHeadSha:request.repository_head_sha,repositoryTreeSha:request.repository_tree_sha,candidateGitBlobSha1:request.coupled_git_blob_sha1,successorCandidateGitBlobSha1:request.successor_git_blob_sha1,classifierGitBlobSha1:request.classifier_git_blob_sha1,promotionToolGitBlobSha1:request.promotion_tool_git_blob_sha1});',
-      '  const before=classifyVoidCoupledEconomicSuccessorGateV1(request.coupled,request.successor);',
-      '  const after=classifyVoidCoupledEconomicSuccessorGateV1(promotion.promoted_candidate,request.successor);',
-      '  result={runtime_binding,promotion,promotion_authority:VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1,before,after};',
-      '}else if(request.operation==="classify"){',
-      '  result={decision:classifyVoidCoupledEconomicSuccessorGateV1(request.coupled,request.successor)};',
-      '}else{throw new Error("participant_reviewed_operation_invalid");}',
-      'process.stdout.write(JSON.stringify(result));',
+      'let operation="";',
+      'let envelope;',
+      'try{',
+      '  const request=JSON.parse(requestText);',
+      '  operation=String(request.operation||"");',
+      '  let result;',
+      '  if(operation==="prepare"){',
+      '    const runtime_binding=buildVoidParticipantPostpurchaseProductionRuntimeBindingV1({finalityInput:request.finality_input,statusResult:request.status_result,deliveryReceiptResult:request.delivery_result,controlReceiptResult:request.control_result});',
+      '    const promotion=buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({candidate:request.coupled,successorMigrationCandidate:request.successor,runtimeBindingReceipt:runtime_binding,runtimeBindingFileSha256:request.runtime_binding_file_sha256,candidateFileSha256:request.coupled_file_sha256,successorCandidateFileSha256:request.successor_file_sha256,repositoryHeadSha:request.repository_head_sha,repositoryTreeSha:request.repository_tree_sha,candidateGitBlobSha1:request.coupled_git_blob_sha1,successorCandidateGitBlobSha1:request.successor_git_blob_sha1,classifierGitBlobSha1:request.classifier_git_blob_sha1,promotionToolGitBlobSha1:request.promotion_tool_git_blob_sha1});',
+      '    const before=classifyVoidCoupledEconomicSuccessorGateV1(request.coupled,request.successor);',
+      '    const after=classifyVoidCoupledEconomicSuccessorGateV1(promotion.promoted_candidate,request.successor);',
+      '    result={runtime_binding,promotion,promotion_authority:VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1,before,after};',
+      '  }else if(operation==="classify"){',
+      '    result={decision:classifyVoidCoupledEconomicSuccessorGateV1(request.coupled,request.successor)};',
+      '  }else{throw new Error("participant_reviewed_operation_invalid");}',
+      '  envelope={marker:MARKER,version:1,operation,ok:true,result,error:null};',
+      '}catch(error){',
+      '  const message=error instanceof Error?error.message:String(error);',
+      '  envelope={marker:MARKER,version:1,operation,ok:false,result:null,error:message.slice(0,512)};',
+      '}',
+      'process.stdout.write(JSON.stringify(envelope));',
       '',
     ].join("\n");
     writePrivateSource(runnerFile, Buffer.from(runnerSource, "utf8"));
@@ -1012,7 +1024,34 @@ function runReviewedAuthority(repo, reviewedExecution, request) {
   } catch {
     fail("PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_OUTPUT_INVALID");
   }
-  return value;
+  exactDataObject(
+    value,
+    ["marker","version","operation","ok","result","error"],
+    "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_OUTPUT_SHAPE_INVALID",
+  );
+  if (
+    value.marker !== REVIEWED_AUTHORITY_ENVELOPE_MARKER ||
+    value.version !== 1 ||
+    value.operation !== String(request?.operation || "") ||
+    typeof value.ok !== "boolean"
+  ) {
+    fail("PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+  }
+  if (value.ok === false) {
+    if (
+      value.result !== null ||
+      typeof value.error !== "string" ||
+      value.error.length < 1 ||
+      value.error.length > 512
+    ) {
+      fail("PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_ERROR_OUTPUT_INVALID");
+    }
+    fail("PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_CHILD_ERROR:" + value.error);
+  }
+  if (!plain(value.result) || value.error !== null) {
+    fail("PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_SUCCESS_OUTPUT_INVALID");
+  }
+  return value.result;
 }
 
 function parseJsonBytes(bytes, expectedSha, label) {
