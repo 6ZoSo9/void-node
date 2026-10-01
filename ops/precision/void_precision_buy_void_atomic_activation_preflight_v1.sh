@@ -29,6 +29,12 @@ for cmd in git systemctl python3 node curl sha256sum mktemp; do
 done
 
 test -n "$tool" && test -f "$tool" || hold "preflight_tool_missing"
+expected_tool_blob="4b39fbf8eda9053d8bca0765fb1525e6af3491f3"
+actual_tool_blob="$(git hash-object "$tool")"
+test "$actual_tool_blob" = "$expected_tool_blob" ||
+  hold "preflight_tool_blob_mismatch"
+say "preflight_tool_blob_green=true"
+
 test -d "$repo/.git" || hold "live_repo_missing"
 cd "$repo"
 
