@@ -46,6 +46,12 @@ function expectRejected(operation, pattern) {
 }
 
 const plan = prepareVoidPrecisionWebRecoveryPlanV1();
+const units = {
+  adapter: "void-public-seed-adapter.service",
+  composition: "void-public-app-composition-gateway-v1.service",
+  frontdoor: "void-public-frontdoor-v1.service",
+  node: "void-node-live.service",
+};
 const hardening = {
   no_new_privileges: true,
   restrict_suid_sgid: true,
@@ -57,7 +63,7 @@ const hardening = {
 
 function service(name, pid, port, planSource, overrides = {}) {
   return {
-    unit: "void-" + name + ".service",
+    unit: units[name],
     active_state: "active",
     sub_state: "running",
     main_pid: pid,
@@ -79,12 +85,7 @@ function collected(overrides = {}) {
     marker: OBSERVATION_MARKER,
     version: 1,
     hostname: DEFAULT_EXPECTED_HOSTNAME,
-    units: {
-      adapter: "void-public-seed-adapter.service",
-      composition: "void-public-app-composition-gateway-v1.service",
-      frontdoor: "void-public-frontdoor-v1.service",
-      node: "void-node-live.service",
-    },
+    units: { ...units },
     services: {
       adapter: service(
         "adapter",
@@ -386,6 +387,31 @@ expectRejected(
 
 {
   const bad = collected();
+  bad.units.node = "void-dummy-node.service";
+  expectRejected(
+    () => evaluateCollectedPrecisionWebObservationV1({
+      plan,
+      collected: bad,
+      trustedNowMs: PROOF_NOW_MS,
+    }),
+    /node_unit_identity_mismatch/,
+  );
+}
+{
+  const bad = collected();
+  bad.services.adapter.unit = "void-other-adapter.service";
+  expectRejected(
+    () => evaluateCollectedPrecisionWebObservationV1({
+      plan,
+      collected: bad,
+      trustedNowMs: PROOF_NOW_MS,
+    }),
+    /service_unit_identity_mismatch/,
+  );
+}
+
+{
+  const bad = collected();
   bad.node_invocation_id_after = "d".repeat(32);
   expectRejected(
     () => evaluateCollectedPrecisionWebObservationV1({
@@ -532,6 +558,8 @@ expectRejected(
 console.log(PROOF_MARKER);
 console.log("current_plan_bound=true");
 console.log("host_identity_bound=true");
+console.log("node_unit_identity_pinned=true");
+console.log("web_service_unit_identity_bound=true");
 console.log("active_systemd_services_required=true");
 console.log("loopback_listener_pid_binding_proved=true");
 console.log("running_source_digest_binding_proved=true");
