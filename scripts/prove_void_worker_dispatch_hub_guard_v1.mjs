@@ -53,7 +53,7 @@ function trackedMode(relativePath) {
     { encoding: "utf8" },
   ).trim();
   assert.notEqual(row, "", "tracked mode row missing for " + relativePath);
-  return row.split(/\\s+/u)[0];
+  return row.split(" ", 1)[0];
 }
 
 assert.equal(
