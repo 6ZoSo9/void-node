@@ -7,6 +7,7 @@ import path from "node:path";
 
 import {
   createVoidPublicParticipantSessionStateFileV1,
+  isVoidPublicParticipantSessionStateFileStoreV1,
 } from "../ops/public/void-public-participant-session-state-file-v1.mjs";
 import {
   createVoidPublicParticipantSessionHttpV1,
@@ -126,6 +127,21 @@ try{
   assert.equal(store.validator_mutation_authority,false);
   assert.equal(store.chain2050_write_authority,false);
   assert.equal(store.money_movement_authority,false);
+  assert.equal(isVoidPublicParticipantSessionStateFileStoreV1(store),true);
+
+  const forgedStore=Object.freeze({...store});
+  assert.equal(isVoidPublicParticipantSessionStateFileStoreV1(forgedStore),false);
+  assert.throws(
+    ()=>createVoidPublicParticipantSessionHttpV1({
+      bindingRegistryFile:registryFile,
+      roleAuthority,
+      stateStore:forgedStore,
+      now:()=>1_800_000_000_000,
+      randomBytes:(size)=>Buffer.alloc(size,7),
+    }),
+    /durable_state_store_required/u,
+    "production composition accepted forged durable store",
+  );
 
   const sessionHttp=createVoidPublicParticipantSessionHttpV1({
     bindingRegistryFile:registryFile,
@@ -321,6 +337,8 @@ try{
     "VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_PREFLIGHT_V1_PROOF_GREEN",
   );
   console.log("session_http_memory_state_rejected=true");
+  console.log("forged_durable_store_shape_rejected=true");
+  console.log("reviewed_durable_store_factory_identity_required=true");
   console.log("merged_durable_session_contract_bound=true");
   console.log("merged_live_role_source_contract_bound=true");
   console.log("hermetic_durable_role_bound_session_http_green=true");
