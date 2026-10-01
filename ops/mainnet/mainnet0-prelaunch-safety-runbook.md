@@ -49,12 +49,14 @@ It must prove:
 
 ## Where to run it
 
-Run this on Precision:
+Run this on Precision with an explicitly reviewed, nonlocal current-fleet SSH target:
 
     cd "$HOME/dev/void-node"
-    make mainnet0-prelaunch-safety-proof
+    VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-prelaunch-safety-proof
 
-Alienware does not need Prometheus for this command. The proof calls cross-box smoke from Precision and only requires Alienware to pass status smoke.
+There is no default cross-box peer. The retired Alienware identity is rejected. The selected peer only needs to pass the no-Prometheus status smoke.
+
+A missing or unreachable peer is a hard prelaunch failure. The proof must not replace required cross-box evidence with a local status-smoke fallback.
 
 ## Expected current result
 
