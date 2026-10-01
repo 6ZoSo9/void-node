@@ -246,7 +246,10 @@ for (const [key, value] of Object.entries(
   if (
     key === "source_policy_compilation_only" ||
     key === "explicit_reviewed_values_required" ||
-    key === "create_only_private_output"
+    key === "canonical_launch_source_binding_required" ||
+    key === "descriptor_bound_private_input" ||
+    key === "create_only_private_output" ||
+    key === "durable_output_directory_entry_required"
   ) {
     assert.equal(value, true, key);
   } else {
