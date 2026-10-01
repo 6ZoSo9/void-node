@@ -2,7 +2,7 @@
 
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -23,7 +23,7 @@ const MAX_OPEN_PRS = 250;
 const MAX_CHANGED_PATHS_PER_PR = 500;
 const MAX_PR_PAGES = 3;
 const MAX_FILE_PAGES = 5;
-const SHA_PATTERN = /^[0-9a-f]{40}$/u;
+const SHA_PATTERN = /^[0-9a-f]{40}$/u;\nconst MAX_POLICY_BYTES = 1024 * 1024;
 
 export class CoordinationRotationLiveSnapshotError extends Error {
   constructor(message) {
@@ -99,6 +99,48 @@ function requireRepository(value) {
     fail("repository must be owner/name");
   }
   return value;
+}
+
+function normalizeRepositoryPath(value, label) {
+  requireString(value, label, 1000);
+  if (
+    value.startsWith("/")
+    || value.startsWith("./")
+    || value.includes("\\")
+    || value.includes("\0")
+  ) {
+    fail(label + " must be normalized repository-relative path");
+  }
+  const parts = value.split("/");
+  if (parts.some((part) => !part || part === "." || part === "..")) {
+    fail(label + " must be normalized repository-relative path");
+  }
+  return parts.join("/");
+}
+
+export function gitBlobShaV1(bytes) {
+  if (typeof bytes !== "string") fail("git blob bytes must be UTF-8 text");
+  const body = Buffer.from(bytes, "utf8");
+  const header = Buffer.from("blob " + body.length + "\0", "utf8");
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.concat([header, body]))
+    .digest("hex");
+}
+
+function parsePolicyBytes(bytes) {
+  if (
+    typeof bytes !== "string"
+    || Buffer.byteLength(bytes, "utf8") === 0
+    || Buffer.byteLength(bytes, "utf8") > MAX_POLICY_BYTES
+  ) {
+    fail("policy bytes must be non-empty UTF-8 within " + MAX_POLICY_BYTES + " bytes");
+  }
+  try {
+    return JSON.parse(bytes);
+  } catch (error) {
+    fail("policy bytes are not valid JSON: " + error.message);
+  }
 }
 
 function canonicalize(value) {
@@ -254,7 +296,9 @@ export function buildCoordinationRotationLiveSnapshotV1({
   repository,
   rootIssue,
   capturedAt,
-  policyRaw,
+  policyPath,
+  policyBytes,
+  policyBlobSha,
   mainBefore,
   mainAfter,
   chainBefore,
@@ -266,6 +310,18 @@ export function buildCoordinationRotationLiveSnapshotV1({
   const repo = requireRepository(repository);
   const root = requirePositiveInteger(rootIssue, "rootIssue");
   const captured = requireIsoTimestamp(capturedAt, "capturedAt");
+  const canonicalPolicyPath = normalizeRepositoryPath(
+    policyPath,
+    "policyPath",
+  );
+  const canonicalPolicyBlobSha = requireSha(
+    policyBlobSha,
+    "policyBlobSha",
+  );
+  if (gitBlobShaV1(policyBytes) !== canonicalPolicyBlobSha) {
+    fail("policy bytes do not match captured Git blob SHA");
+  }
+  const policyRaw = parsePolicyBytes(policyBytes);
   const beforeMain = requireSha(mainBefore, "mainBefore");
   const afterMain = requireSha(mainAfter, "mainAfter");
   if (beforeMain !== afterMain) {
@@ -328,6 +384,8 @@ export function buildCoordinationRotationLiveSnapshotV1({
     root_issue: root,
     captured_at: captured,
     main_sha: afterMain,
+    policy_path: canonicalPolicyPath,
+    policy_blob_sha: canonicalPolicyBlobSha,
     open_pull_request_count: details.length,
     successor_chain_outcome: snapshot.chain_outcome,
     snapshot_outcome: snapshot.outcome,
@@ -397,6 +455,45 @@ function githubPrDetail(raw) {
 function fetchMainSha(repository) {
   const value = runGhJson(["repos/" + repository + "/branches/main"]);
   return requireSha(value?.commit?.sha, "live main SHA");
+}
+
+function fetchRepositoryTextAtRef(repository, repositoryPath, ref) {
+  const normalizedPath = normalizeRepositoryPath(
+    repositoryPath,
+    "policy repository path",
+  );
+  const encodedPath = normalizedPath
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  const value = runGhJson([
+    "repos/"
+    + repository
+    + "/contents/"
+    + encodedPath
+    + "?ref="
+    + encodeURIComponent(ref),
+  ]);
+  if (
+    !isPlainObject(value)
+    || value.type !== "file"
+    || value.encoding !== "base64"
+    || typeof value.content !== "string"
+  ) {
+    fail("GitHub policy content response is not a base64 file");
+  }
+  const blobSha = requireSha(value.sha, "GitHub policy blob SHA");
+  const bytes = Buffer
+    .from(value.content.replace(/\s/gu, ""), "base64")
+    .toString("utf8");
+  if (gitBlobShaV1(bytes) !== blobSha) {
+    fail("GitHub policy bytes do not match returned blob SHA");
+  }
+  return {
+    path: normalizedPath,
+    blob_sha: blobSha,
+    bytes,
+  };
 }
 
 function fetchOpenPrList(repository) {
@@ -484,12 +581,18 @@ export async function captureCoordinationRotationLiveSnapshotV1({
 } = {}) {
   const repo = requireRepository(repository);
   const root = requirePositiveInteger(rootIssue, "rootIssue");
-  const policyRaw = JSON.parse(
-    await readFile(path.resolve(policyPath), "utf8"),
+  const canonicalPolicyPath = normalizeRepositoryPath(
+    policyPath,
+    "policyPath",
   );
 
   const chainBefore = resolveCoordinationSuccessorChainLiveV1(repo, root);
   const mainBefore = fetchMainSha(repo);
+  const policy = fetchRepositoryTextAtRef(
+    repo,
+    canonicalPolicyPath,
+    mainBefore,
+  );
   const openPrListBefore = fetchOpenPrList(repo);
   const pullRequestCaptures = openPrListBefore.map((summary) =>
     fetchPullRequestCapture(repo, summary)
@@ -503,7 +606,9 @@ export async function captureCoordinationRotationLiveSnapshotV1({
     repository: repo,
     rootIssue: root,
     capturedAt,
-    policyRaw,
+    policyPath: policy.path,
+    policyBytes: policy.bytes,
+    policyBlobSha: policy.blob_sha,
     mainBefore,
     mainAfter,
     chainBefore,
