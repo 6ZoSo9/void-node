@@ -298,6 +298,8 @@ for (const forbidden of [
 }
 for (const required of [
   "promoteWcVoidBoundedCanaryCandidatesV1",
+  "--no-replace-objects",
+  "CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ",
   "production_target_git_blob_sha1",
   "coupled_target_git_blob_sha1",
   "CANONICAL_APPLICATION_PRODUCTION_CHANGE_SCOPE_INVALID",
