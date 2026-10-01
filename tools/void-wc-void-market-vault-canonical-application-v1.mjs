@@ -98,6 +98,7 @@ export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1=
   });
 
 const PLAN_ID=/^voidwcmvcap1_[0-9a-f]{64}$/u;
+const REVIEWED_RUNTIME_PROFILE_ID=/^voidrnpr1_[0-9a-f]{64}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 const HEX40=/^[0-9a-f]{40}$/u;
 const MAX_BYTES=8*1024*1024;
@@ -373,6 +374,7 @@ function reviewedRuntimeProfile(repo){
     !Array.isArray(profile.root_packages)||
     JSON.stringify(profile.root_packages)!==JSON.stringify(["ethers"])||
     typeof profile.profile_id!=="string"||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(profile.profile_id)||
     typeof profile.packages_aggregate_sha256!=="string"||
     !SHA256.test(profile.packages_aggregate_sha256)
   ){
@@ -691,7 +693,9 @@ function validatePlan(plan){
     plan.application_time_authority!==false||
     !HEX40.test(String(plan.reviewed_node_package_runtime_tool_git_blob_sha1||""))||
     !HEX40.test(String(plan.reviewed_node_package_runtime_profile_git_blob_sha1||""))||
-    typeof plan.reviewed_node_package_runtime_profile_id!=="string"||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(
+      String(plan.reviewed_node_package_runtime_profile_id||""),
+    )||
     !SHA256.test(String(plan.reviewed_node_package_runtime_packages_aggregate_sha256||""))||
     !HEX40.test(String(plan.reviewed_execution_bridge_git_blob_sha1||""))||
     plan.reviewed_execution_permission_fenced!==true||
