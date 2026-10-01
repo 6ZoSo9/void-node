@@ -22,13 +22,21 @@ Read one JSON object from standard input. The operational CLI requires authentic
   "marker": "VOID_WORKER_DISPATCH_HUB_GUARD_EVIDENCE_V1",
   "version": 1,
   "chain": { "...": "VOID_COORDINATION_SUCCESSOR_CHAIN_V1 output" },
-  "dispatch": { "...": "VOID_WORKER_LIVE_DISPATCH_V1 output" }
+  "dispatch": { "...": "VOID_WORKER_LIVE_DISPATCH_V1 output" },
+  "dispatch_evidence": {
+    "...": "original VOID_WORKER_LIVE_DISPATCH_EVIDENCE_V1 input"
+  }
 }
 ```
 
 The guard validates the relevant V1 markers, repository identity, plan/current issue relationship, content-addressed dispatch evaluation identity, the dispatch `evaluated_at` / 30-minute `next_reevaluation_at` window, and the negative authority fields of both upstream artifacts.
 
-For operational CLI use, it then runs the merged `resolveCoordinationSuccessorChainLiveV1(...)` against the dispatch repository/root issue and requires canonical JSON equality with the supplied chain artifact before evaluating dispatch alignment. A comment/state/pointer change between chain capture and guard execution therefore fails closed instead of reusing stale coordination evidence.
+For operational CLI use, it then performs **both** upstream revalidations before normal dispatch can align:
+
+1. it re-runs the checked-in `VOID_WORKER_LIVE_DISPATCH_V1` evaluator against the supplied original `dispatch_evidence` and the checked-in dispatch policy, then requires canonical JSON equality with the supplied dispatch output; and
+2. it runs the merged `resolveCoordinationSuccessorChainLiveV1(...)` against the dispatch repository/root issue and requires canonical JSON equality with the supplied chain artifact.
+
+A policy/evidence/output mismatch or a comment/state/pointer change between capture and guard execution therefore fails closed instead of reusing fabricated or stale retained artifacts.
 
 ## Outcomes
 
@@ -40,7 +48,8 @@ Requires all of the following:
 - chain outcome is not `ROTATION_REQUIRED`;
 - the chain identifies a non-null `dispatch_plan_issue_should_be`;
 - `dispatch.plan_issue` equals that exact issue; and
-- the supplied successor-chain artifact has just been re-resolved from live GitHub and is byte-semantically identical to that fresh resolution.
+- the supplied successor-chain artifact has just been re-resolved from live GitHub and is byte-semantically identical to that fresh resolution; and
+- the supplied live-dispatch output has just been rederived from the original dispatch evidence and checked-in policy and is canonically identical to that rederived output.
 
 `normal_dispatch_allowed=true` means only that normal live-dispatch interpretation may continue under its existing separate authority and collision gates.
 
@@ -58,6 +67,10 @@ mutation_performed=false
 ### `HOLD_DISPATCH_EVIDENCE_EXPIRED`
 
 A live-dispatch output is only current until its declared 30-minute reevaluation deadline. Even with a matching fresh hub, an expired dispatch artifact cannot unlock normal dispatch and must be regenerated from fresh worker/collision evidence.
+
+### `HOLD_DISPATCH_PROVENANCE_UNPROVEN`
+
+A structurally valid, fresh dispatch output is still not operationally trusted until the guard re-runs the real live-dispatch evaluator from the original evidence packet and checked-in policy. A caller-supplied output or syntactically valid content ID alone is not provenance.
 
 ### `HOLD_CHAIN_LIVENESS_UNPROVEN`
 
@@ -83,13 +96,17 @@ The upstream chain is structurally invalid. Invalid chains suppress dispatch-pla
 jq -n \
   --slurpfile chain /path/to/successor-chain.json \
   --slurpfile dispatch /path/to/live-dispatch.json \
+  --slurpfile dispatch_evidence /path/to/live-dispatch-evidence.json \
   '{
     marker: "VOID_WORKER_DISPATCH_HUB_GUARD_EVIDENCE_V1",
     version: 1,
     chain: $chain[0],
-    dispatch: $dispatch[0]
+    dispatch: $dispatch[0],
+    dispatch_evidence: $dispatch_evidence[0]
   }' |
-node tools/void-worker-dispatch-hub-guard-v1.mjs --pretty
+node tools/void-worker-dispatch-hub-guard-v1.mjs \
+  --policy ops/coordination/worker-live-dispatch-policy-v1.json \
+  --pretty
 ```
 
 Optional create-only output:
@@ -103,7 +120,7 @@ node tools/void-worker-dispatch-hub-guard-v1.mjs \
 
 Input is bounded to 2 MiB. Output files are create-only and mode `0600`.
 
-Exit status is `0` only for `DISPATCH_HUB_ALIGNED`, `3` for a valid read-only HOLD outcome, and `2` for malformed/inconsistent evidence or a supplied chain that no longer equals the fresh live resolution.
+Exit status is `0` only for `DISPATCH_HUB_ALIGNED`, `3` for a valid read-only HOLD outcome, and `2` for malformed/inconsistent evidence, dispatch-output rederivation mismatch, or a supplied chain that no longer equals the fresh live resolution.
 
 ## Proof
 
@@ -111,7 +128,7 @@ Exit status is `0` only for `DISPATCH_HUB_ALIGNED`, `3` for a valid read-only HO
 node scripts/prove_void_worker_dispatch_hub_guard_v1.mjs
 ```
 
-The proof covers current-hub alignment, expired-dispatch HOLD, exact 30-minute dispatch-window validation, retained-chain liveness HOLD, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, live-chain mismatch rejection, repository mismatch, authority escalation, and deterministic guard identity. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy, then feeds those actual outputs through this guard. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
+The proof covers current-hub alignment, expired-dispatch HOLD, exact 30-minute dispatch-window validation, retained-chain liveness HOLD, unrederived-dispatch provenance HOLD, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, live-chain mismatch rejection, tampered-dispatch-output rejection, repository mismatch, authority escalation, and deterministic guard identity. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy, then feeds those actual outputs through this guard. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
 
 ## Relationship to #2258
 
