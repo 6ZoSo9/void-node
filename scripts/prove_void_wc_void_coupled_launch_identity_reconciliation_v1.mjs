@@ -4,7 +4,6 @@ import fs from "node:fs";
 
 import {
   VOID_WC_VOID_COUPLED_LAUNCH_DIGEST_HEX_V1,
-  VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_APPLIED_BLOBS_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_AUTHORITY_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1,
@@ -15,6 +14,18 @@ import {
   deriveWcVoidCoupledLaunchIdentityV1,
   prepareWcVoidCoupledLaunchIdentityReconciliationV1,
 } from "../tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs";
+
+const EXPECTED_APPLIED_BLOBS=Object.freeze({
+  ...VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json":
+    "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+  "tools/void-coupled-economic-successor-gate-v1.mjs":
+    "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+  "scripts/prove_void_coupled_economic_successor_gate_v1.mjs":
+    "ea606b2276fb0da8ac140263e2cde4040f17075b",
+  "docs/operators/coupled-economic-successor-gate-v1.md":
+    "513b0ab50c2a26f90db0d5abd7004600335d1f89",
+});
 
 const result=await prepareWcVoidCoupledLaunchIdentityReconciliationV1();
 const artifact=result.artifact;
@@ -155,7 +166,7 @@ assert.deepEqual(
 );
 
 const expectedBlobs=applied
-  ?VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_APPLIED_BLOBS_V1
+  ?EXPECTED_APPLIED_BLOBS
   :VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1;
 for(const [path,sha] of Object.entries(expectedBlobs)) {
   assert.equal(artifact.reviewed_source_blobs[path],sha);
@@ -257,6 +268,10 @@ assert.doesNotMatch(
   source,
   /import\(\s*new URL\(\s*"\.\/void-wc-void-coupled-opening-v1\.mjs/u,
 );
+for(const sha of Object.values(EXPECTED_APPLIED_BLOBS)) {
+  assert.match(sha,/^[0-9a-f]{40}$/u);
+  assert.ok(source.includes(sha),"applied blob identity missing from tool source: "+sha);
+}
 assert.match(source,/sourceGeneration="pre_application"/u);
 assert.match(source,/sourceGeneration="applied"/u);
 assert.match(source,/CANONICAL_SOURCE_RECONCILIATION_APPLIED/u);
