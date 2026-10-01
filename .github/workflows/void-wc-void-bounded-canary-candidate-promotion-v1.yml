@@ -42,6 +42,7 @@ on:
       - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
       - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
       - "tools/void-participant-postpurchase-finality-v1.mjs"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
       - "package.json"
       - "package-lock.json"
   push:
@@ -86,6 +87,7 @@ on:
       - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
       - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
       - "tools/void-participant-postpurchase-finality-v1.mjs"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
       - "package.json"
       - "package-lock.json"
 

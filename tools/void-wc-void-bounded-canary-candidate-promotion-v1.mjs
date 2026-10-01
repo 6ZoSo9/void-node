@@ -225,6 +225,10 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
     path: "tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
     blob_sha1: "3ac765215d3d2c7881e893100e63e0306cf2593f",
   }),
+  market_vault_contract_source: Object.freeze({
+    path: "contracts/mainnet/WCVoidMarketVaultV2.sol",
+    blob_sha1: "bd11190e2c22f58ac60918ecdf603f53427cadd0",
+  }),
   public_quote_disclosure: Object.freeze({
     path: "tools/void-wc-void-public-quote-disclosure-v1.mjs",
     blob_sha1: "708a81bf9068b561110a80cb6204e6b09744e66c",
