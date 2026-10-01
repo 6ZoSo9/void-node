@@ -402,8 +402,11 @@ function validateBaseTransaction(transaction){
       "transaction_id",
       "phase",
       "prepared",
+      "publish_started",
+      "publish_no_effect",
       "published",
       "verified",
+      "restore_started",
       "restored",
       "rollback_reason",
       "checkpoint_publish_allowed",
@@ -475,7 +478,15 @@ function validateBaseTransaction(transaction){
     fail("transaction_rollback_reason_invalid");
   }
 
-  for(const bucket of ["prepared","published","verified","restored"]){
+  for(const bucket of [
+    "prepared",
+    "publish_started",
+    "publish_no_effect",
+    "published",
+    "verified",
+    "restore_started",
+    "restored",
+  ]){
     exactObject(
       transaction[bucket],
       ["local","remote"],
@@ -488,6 +499,22 @@ function validateBaseTransaction(transaction){
     ),
     remote:validateStoredReceipt(
       transaction,"prepared","remote",normalizedPrepareReceipt,
+    ),
+  };
+  const publishStarted={
+    local:validateStoredReceipt(
+      transaction,"publish_started","local",normalizedPublishStartedReceipt,
+    ),
+    remote:validateStoredReceipt(
+      transaction,"publish_started","remote",normalizedPublishStartedReceipt,
+    ),
+  };
+  const publishNoEffect={
+    local:validateStoredReceipt(
+      transaction,"publish_no_effect","local",normalizedPublishNoEffectReceipt,
+    ),
+    remote:validateStoredReceipt(
+      transaction,"publish_no_effect","remote",normalizedPublishNoEffectReceipt,
     ),
   };
   const published={
@@ -506,6 +533,14 @@ function validateBaseTransaction(transaction){
       transaction,"verified","remote",normalizedVerifyReceipt,
     ),
   };
+  const restoreStarted={
+    local:validateStoredReceipt(
+      transaction,"restore_started","local",normalizedRestoreStartedReceipt,
+    ),
+    remote:validateStoredReceipt(
+      transaction,"restore_started","remote",normalizedRestoreStartedReceipt,
+    ),
+  };
   const restored={
     local:validateStoredReceipt(
       transaction,"restored","local",normalizedRestoreReceipt,
@@ -515,48 +550,76 @@ function validateBaseTransaction(transaction){
     ),
   };
 
+  const unresolvedPublish={local:false,remote:false};
   for(const participant of ["local","remote"]){
-    if(published[participant]&&!prepared[participant]){
-      fail("transaction_publish_without_prepare:"+participant);
+    if(publishStarted[participant]&&!prepared[participant]){
+      fail("transaction_publish_start_without_prepare:"+participant);
+    }
+    if(publishNoEffect[participant]&&!publishStarted[participant]){
+      fail("transaction_publish_no_effect_without_start:"+participant);
+    }
+    if(published[participant]&&!publishStarted[participant]){
+      fail("transaction_publish_without_start:"+participant);
+    }
+    if(publishNoEffect[participant]&&published[participant]){
+      fail("transaction_publish_effect_conflict:"+participant);
     }
     if(verified[participant]&&!published[participant]){
       fail("transaction_verify_without_publish:"+participant);
     }
+    if(restored[participant]&&!restoreStarted[participant]){
+      fail("transaction_restore_without_start:"+participant);
+    }
+    unresolvedPublish[participant]=Boolean(
+      publishStarted[participant]&&
+      !publishNoEffect[participant]&&
+      !published[participant]
+    );
   }
 
   const bothPrepared=Boolean(prepared.local&&prepared.remote);
   const bothPublished=Boolean(published.local&&published.remote);
   const bothVerified=Boolean(verified.local&&verified.remote);
+  const bothRestoreStarted=Boolean(restoreStarted.local&&restoreStarted.remote);
   const bothRestored=Boolean(restored.local&&restored.remote);
+  const anyPublishStarted=Boolean(publishStarted.local||publishStarted.remote);
+  const anyPublishNoEffect=Boolean(publishNoEffect.local||publishNoEffect.remote);
   const anyPublished=Boolean(published.local||published.remote);
   const anyVerified=Boolean(verified.local||verified.remote);
+  const anyRestoreStarted=Boolean(restoreStarted.local||restoreStarted.remote);
   const anyRestored=Boolean(restored.local||restored.remote);
+  const anyUnresolvedPublish=Boolean(
+    unresolvedPublish.local||unresolvedPublish.remote
+  );
 
   switch(transaction.phase){
     case "PREPARING":
       if(
-        bothPrepared||anyPublished||anyVerified||anyRestored||
+        bothPrepared||anyPublishStarted||anyPublishNoEffect||
+        anyPublished||anyVerified||anyRestoreStarted||anyRestored||
         transaction.rollback_reason!==null||
         transaction.checkpoint_publish_allowed!==false
       )fail("transaction_preparing_state_invalid");
       break;
     case "PREPARED":
       if(
-        !bothPrepared||anyPublished||anyVerified||anyRestored||
+        !bothPrepared||anyPublishStarted||anyPublishNoEffect||
+        anyPublished||anyVerified||anyRestoreStarted||anyRestored||
         transaction.rollback_reason!==null||
         transaction.checkpoint_publish_allowed!==false
       )fail("transaction_prepared_state_invalid");
       break;
     case "COMMITTING":
       if(
-        !bothPrepared||anyRestored||
+        !bothPrepared||anyRestoreStarted||anyRestored||
         transaction.rollback_reason!==null||
         transaction.checkpoint_publish_allowed!==false
       )fail("transaction_committing_state_invalid");
       break;
     case "COMMITTED":
       if(
-        !bothPrepared||!bothPublished||!bothVerified||anyRestored||
+        !bothPrepared||!bothPublished||!bothVerified||
+        anyPublishNoEffect||anyRestoreStarted||anyRestored||
         transaction.rollback_reason!==null||
         transaction.checkpoint_publish_allowed!==
           (transaction.kind==="validator_truth_closeout")
@@ -564,13 +627,14 @@ function validateBaseTransaction(transaction){
       break;
     case "ROLLING_BACK":
       if(
-        transaction.rollback_reason===null||
+        transaction.rollback_reason===null||anyUnresolvedPublish||
         transaction.checkpoint_publish_allowed!==false
       )fail("transaction_rolling_back_state_invalid");
       break;
     case "RESTORED":
       if(
-        transaction.rollback_reason===null||!bothRestored||
+        transaction.rollback_reason===null||anyUnresolvedPublish||
+        !bothRestoreStarted||!bothRestored||
         transaction.checkpoint_publish_allowed!==false
       )fail("transaction_restored_state_invalid");
       break;
@@ -635,6 +699,108 @@ function normalizedPrepareReceipt(transaction,value){
   return Object.freeze({...value});
 }
 
+function normalizedPublishStartedReceipt(transaction,value){
+  exactObject(
+    value,
+    [
+      "transaction_id",
+      "participant",
+      "prestate_id_before_publish",
+      "published_state_sha256",
+      "restart_expected",
+      "restart_before_invocation_id",
+      "publication_performed",
+    ],
+    "publish_started_receipt_shape",
+  );
+  if(value.transaction_id!==transaction.transaction_id){
+    fail("publish_started_transaction_id_mismatch");
+  }
+  if(!["local","remote"].includes(value.participant)){
+    fail("publish_started_participant_invalid");
+  }
+  const participant=value.participant;
+  if(value.prestate_id_before_publish!==prestateId(transaction.prestate[participant])){
+    fail("publish_started_prestate_mismatch");
+  }
+  if(value.published_state_sha256!==stagedStateSha(transaction,participant)){
+    fail("publish_started_state_mismatch");
+  }
+  if(value.publication_performed!==false){
+    fail("publish_started_must_precede_publication");
+  }
+  const expectedRestart=restartExpected(transaction,participant);
+  if(value.restart_expected!==expectedRestart){
+    fail("publish_started_restart_policy_mismatch");
+  }
+  if(expectedRestart){
+    const before=validInvocation(
+      value.restart_before_invocation_id,
+      true,
+      "publish_started_restart_before_invalid",
+    );
+    if(before!==transaction.prestate[participant].service.invocation_id){
+      fail("publish_started_restart_before_prestate_mismatch");
+    }
+    return Object.freeze({...value,restart_before_invocation_id:before});
+  }
+  if(value.restart_before_invocation_id!==null){
+    fail("publish_started_unexpected_restart_witness");
+  }
+  return Object.freeze({...value});
+}
+
+function normalizedPublishNoEffectReceipt(transaction,value){
+  exactObject(
+    value,
+    [
+      "transaction_id",
+      "participant",
+      "observed_prestate_id",
+      "service_active",
+      "service_invocation_id",
+      "publication_performed",
+      "restart_performed",
+    ],
+    "publish_no_effect_receipt_shape",
+  );
+  if(value.transaction_id!==transaction.transaction_id){
+    fail("publish_no_effect_transaction_id_mismatch");
+  }
+  if(!["local","remote"].includes(value.participant)){
+    fail("publish_no_effect_participant_invalid");
+  }
+  const participant=value.participant;
+  if(!transaction.publish_started[participant]){
+    fail("publish_no_effect_requires_start");
+  }
+  if(value.observed_prestate_id!==prestateId(transaction.prestate[participant])){
+    fail("publish_no_effect_prestate_mismatch");
+  }
+  if(value.publication_performed!==false||value.restart_performed!==false){
+    fail("publish_no_effect_side_effect_claim_invalid");
+  }
+  const active=transaction.prestate[participant].service.active;
+  if(value.service_active!==active){
+    fail("publish_no_effect_service_state_mismatch");
+  }
+  if(active){
+    const invocation=validInvocation(
+      value.service_invocation_id,
+      true,
+      "publish_no_effect_invocation_invalid",
+    );
+    if(invocation!==transaction.prestate[participant].service.invocation_id){
+      fail("publish_no_effect_invocation_changed");
+    }
+    return Object.freeze({...value,service_invocation_id:invocation});
+  }
+  if(value.service_invocation_id!==null){
+    fail("publish_no_effect_inactive_invocation_invalid");
+  }
+  return Object.freeze({...value});
+}
+
 function normalizedPublishReceipt(transaction,value){
   exactObject(
     value,
@@ -656,13 +822,18 @@ function normalizedPublishReceipt(transaction,value){
     fail("publish_participant_invalid");
   }
   const participant=value.participant;
-  if(value.prestate_id_before_publish!==prestateId(transaction.prestate[participant])){
+  const started=transaction.publish_started[participant];
+  if(!started)fail("publish_requires_started_witness");
+  if(transaction.publish_no_effect[participant]){
+    fail("publish_after_no_effect_forbidden");
+  }
+  if(value.prestate_id_before_publish!==started.prestate_id_before_publish){
     fail("publish_prestate_drift");
   }
-  if(value.published_state_sha256!==stagedStateSha(transaction,participant)){
+  if(value.published_state_sha256!==started.published_state_sha256){
     fail("publish_state_mismatch");
   }
-  const expectedRestart=restartExpected(transaction,participant);
+  const expectedRestart=started.restart_expected;
   if(value.restart_performed!==expectedRestart){
     fail("publish_restart_policy_mismatch");
   }
@@ -677,7 +848,10 @@ function normalizedPublishReceipt(transaction,value){
       true,
       "publish_restart_after_invalid",
     );
-    if(before!==transaction.prestate[participant].service.invocation_id){
+    if(
+      before!==started.restart_before_invocation_id||
+      before!==transaction.prestate[participant].service.invocation_id
+    ){
       fail("publish_restart_before_prestate_mismatch");
     }
     if(after===before)fail("publish_restart_invocation_not_advanced");
@@ -741,6 +915,58 @@ function normalizedVerifyReceipt(transaction,value){
   return Object.freeze({...value});
 }
 
+function normalizedRestoreStartedReceipt(transaction,value){
+  exactObject(
+    value,
+    [
+      "transaction_id",
+      "participant",
+      "restored_prestate_id",
+      "restart_expected",
+      "restart_before_invocation_id",
+      "restoration_performed",
+    ],
+    "restore_started_receipt_shape",
+  );
+  if(value.transaction_id!==transaction.transaction_id){
+    fail("restore_started_transaction_id_mismatch");
+  }
+  if(!["local","remote"].includes(value.participant)){
+    fail("restore_started_participant_invalid");
+  }
+  const participant=value.participant;
+  if(value.restored_prestate_id!==prestateId(transaction.prestate[participant])){
+    fail("restore_started_prestate_id_mismatch");
+  }
+  if(value.restoration_performed!==false){
+    fail("restore_started_must_precede_restoration");
+  }
+  const published=transaction.published[participant];
+  const expectedRestart=Boolean(
+    published&&
+    transaction.intended.restart_if_active[participant]===true&&
+    transaction.prestate[participant].service.active===true
+  );
+  if(value.restart_expected!==expectedRestart){
+    fail("restore_started_restart_policy_mismatch");
+  }
+  if(expectedRestart){
+    const before=validInvocation(
+      value.restart_before_invocation_id,
+      true,
+      "restore_started_restart_before_invalid",
+    );
+    if(!published||before!==published.restart_after_invocation_id){
+      fail("restore_started_restart_before_publish_mismatch");
+    }
+    return Object.freeze({...value,restart_before_invocation_id:before});
+  }
+  if(value.restart_before_invocation_id!==null){
+    fail("restore_started_unexpected_restart_witness");
+  }
+  return Object.freeze({...value});
+}
+
 function normalizedRestoreReceipt(transaction,value){
   const common=[
     "transaction_id",
@@ -762,7 +988,9 @@ function normalizedRestoreReceipt(transaction,value){
     fail("restore_participant_invalid");
   }
   const participant=value.participant;
-  if(value.restored_prestate_id!==prestateId(transaction.prestate[participant])){
+  const started=transaction.restore_started[participant];
+  if(!started)fail("restore_requires_started_witness");
+  if(value.restored_prestate_id!==started.restored_prestate_id){
     fail("restore_prestate_id_mismatch");
   }
   if(value.service_state_restored!==true)fail("restore_service_state_required");
@@ -776,12 +1004,7 @@ function normalizedRestoreReceipt(transaction,value){
   ){
     fail("restore_validator_state_incomplete");
   }
-  const mutated=Boolean(transaction.published[participant]);
-  const expectedRestart=(
-    mutated&&
-    transaction.intended.restart_if_active[participant]===true&&
-    transaction.prestate[participant].service.active===true
-  );
+  const expectedRestart=started.restart_expected;
   if(value.restart_performed!==expectedRestart){
     fail("restore_restart_policy_mismatch");
   }
@@ -797,7 +1020,11 @@ function normalizedRestoreReceipt(transaction,value){
       "restore_restart_after_invalid",
     );
     const published=transaction.published[participant];
-    if(!published||before!==published.restart_after_invocation_id){
+    if(
+      !published||
+      before!==started.restart_before_invocation_id||
+      before!==published.restart_after_invocation_id
+    ){
       fail("restore_restart_before_publish_mismatch");
     }
     if(after===before)fail("restore_restart_invocation_not_advanced");
@@ -843,8 +1070,11 @@ export function prepareVoidCrossboxMutationTransactionV1(input){
     transaction_id:transactionId,
     phase:"PREPARING",
     prepared:{local:null,remote:null},
+    publish_started:{local:null,remote:null},
+    publish_no_effect:{local:null,remote:null},
     published:{local:null,remote:null},
     verified:{local:null,remote:null},
+    restore_started:{local:null,remote:null},
     restored:{local:null,remote:null},
     rollback_reason:null,
     checkpoint_publish_allowed:false,
@@ -884,12 +1114,58 @@ export function beginVoidCrossboxMutationCommitV1(transaction){
   return seal(next);
 }
 
+export function recordVoidCrossboxMutationPublishStartedV1(transaction,value){
+  validateBaseTransaction(transaction);
+  if(transaction.phase!=="COMMITTING")fail("publish_started_phase_invalid");
+  const receipt=normalizedPublishStartedReceipt(transaction,value);
+  if(!transaction.prepared[receipt.participant]){
+    fail("publish_started_requires_prepare_receipt");
+  }
+  if(
+    transaction.published[receipt.participant]||
+    transaction.publish_no_effect[receipt.participant]
+  ){
+    fail("publish_started_after_terminal_outcome");
+  }
+  return seal(
+    setParticipantReceipt(
+      transaction,
+      "publish_started",
+      receipt.participant,
+      receipt,
+    ),
+  );
+}
+
+export function recordVoidCrossboxMutationPublishNoEffectV1(transaction,value){
+  validateBaseTransaction(transaction);
+  if(transaction.phase!=="COMMITTING")fail("publish_no_effect_phase_invalid");
+  const receipt=normalizedPublishNoEffectReceipt(transaction,value);
+  if(transaction.published[receipt.participant]){
+    fail("publish_no_effect_after_publish_forbidden");
+  }
+  return seal(
+    setParticipantReceipt(
+      transaction,
+      "publish_no_effect",
+      receipt.participant,
+      receipt,
+    ),
+  );
+}
+
 export function recordVoidCrossboxMutationPublishedV1(transaction,value){
   validateBaseTransaction(transaction);
   if(transaction.phase!=="COMMITTING")fail("publish_phase_invalid");
   const receipt=normalizedPublishReceipt(transaction,value);
   if(!transaction.prepared[receipt.participant]){
     fail("publish_requires_prepare_receipt");
+  }
+  if(!transaction.publish_started[receipt.participant]){
+    fail("publish_requires_started_witness");
+  }
+  if(transaction.publish_no_effect[receipt.participant]){
+    fail("publish_after_no_effect_forbidden");
   }
   return seal(
     setParticipantReceipt(transaction,"published",receipt.participant,receipt),
@@ -943,6 +1219,15 @@ export function beginVoidCrossboxMutationRollbackV1(transaction,reason){
   if(["COMMITTED","RESTORED","HOLD"].includes(transaction.phase)){
     fail("rollback_terminal_phase_invalid");
   }
+  for(const participant of ["local","remote"]){
+    if(
+      transaction.publish_started[participant]&&
+      !transaction.published[participant]&&
+      !transaction.publish_no_effect[participant]
+    ){
+      fail("rollback_publish_start_unresolved:"+participant);
+    }
+  }
   const text=String(reason||"").trim();
   if(!text||text.length>256||/[\r\n\0]/u.test(text)){
     fail("rollback_reason_invalid");
@@ -954,10 +1239,30 @@ export function beginVoidCrossboxMutationRollbackV1(transaction,reason){
   return seal(next);
 }
 
+export function recordVoidCrossboxMutationRestoreStartedV1(transaction,value){
+  validateBaseTransaction(transaction);
+  if(transaction.phase!=="ROLLING_BACK")fail("restore_started_phase_invalid");
+  const receipt=normalizedRestoreStartedReceipt(transaction,value);
+  if(transaction.restored[receipt.participant]){
+    fail("restore_started_after_restore");
+  }
+  return seal(
+    setParticipantReceipt(
+      transaction,
+      "restore_started",
+      receipt.participant,
+      receipt,
+    ),
+  );
+}
+
 export function recordVoidCrossboxMutationRestoredV1(transaction,value){
   validateBaseTransaction(transaction);
   if(transaction.phase!=="ROLLING_BACK")fail("restore_phase_invalid");
   const receipt=normalizedRestoreReceipt(transaction,value);
+  if(!transaction.restore_started[receipt.participant]){
+    fail("restore_requires_started_witness");
+  }
   return seal(
     setParticipantReceipt(transaction,"restored",receipt.participant,receipt),
   );
@@ -1006,15 +1311,29 @@ export function nextVoidCrossboxMutationRecoveryV1(transaction){
   }
   if(transaction.phase==="PREPARED")return "BEGIN_COMMIT";
   if(transaction.phase==="COMMITTING"){
-    if(!transaction.published.local)return "PUBLISH_LOCAL";
-    if(!transaction.published.remote)return "PUBLISH_REMOTE";
+    if(!transaction.published.local){
+      if(transaction.publish_no_effect.local)return "BEGIN_ROLLBACK";
+      if(!transaction.publish_started.local)return "BEGIN_PUBLISH_LOCAL";
+      return "RECOVER_PUBLISH_LOCAL";
+    }
+    if(!transaction.published.remote){
+      if(transaction.publish_no_effect.remote)return "BEGIN_ROLLBACK";
+      if(!transaction.publish_started.remote)return "BEGIN_PUBLISH_REMOTE";
+      return "RECOVER_PUBLISH_REMOTE";
+    }
     if(!transaction.verified.local)return "VERIFY_LOCAL";
     if(!transaction.verified.remote)return "VERIFY_REMOTE";
     return "FINALIZE_COMMIT";
   }
   if(transaction.phase==="ROLLING_BACK"){
-    if(!transaction.restored.local)return "RESTORE_LOCAL";
-    if(!transaction.restored.remote)return "RESTORE_REMOTE";
+    if(!transaction.restored.local){
+      if(!transaction.restore_started.local)return "BEGIN_RESTORE_LOCAL";
+      return "RECOVER_RESTORE_LOCAL";
+    }
+    if(!transaction.restored.remote){
+      if(!transaction.restore_started.remote)return "BEGIN_RESTORE_REMOTE";
+      return "RECOVER_RESTORE_REMOTE";
+    }
     return "FINALIZE_RESTORE";
   }
   fail("transaction_recovery_state_invalid");
