@@ -173,16 +173,37 @@ function sameCommandIdentity(left, right) {
   return canonicalJson(left) === canonicalJson(right);
 }
 
+export function observerCommandEnvV1(baseEnv = process.env) {
+  const env = { ...baseEnv };
+  for (const key of [
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "TAILSCALE_SOCKET",
+    "SYSTEMD_EDITOR",
+  ]) {
+    delete env[key];
+  }
+  for (const key of Object.keys(env)) {
+    if (/^(?:TS_DEBUG|TAILSCALE_DEBUG)/u.test(key)) delete env[key];
+  }
+  const uid = typeof process.getuid === "function" ? process.getuid() : null;
+  if (!Number.isSafeInteger(uid) || uid < 1) {
+    fail("observer_user_uid_unavailable");
+  }
+  env.PATH = "/usr/bin:/bin";
+  env.LANG = "C";
+  env.LC_ALL = "C";
+  env.SYSTEMD_PAGER = "cat";
+  env.PAGER = "cat";
+  env.GIT_TERMINAL_PROMPT = "0";
+  env.XDG_RUNTIME_DIR = "/run/user/" + uid;
+  env.DBUS_SESSION_BUS_ADDRESS =
+    "unix:path=/run/user/" + uid + "/bus";
+  return env;
+}
+
 function commandEnv() {
-  return {
-    ...process.env,
-    PATH: "/usr/bin:/bin",
-    LANG: "C",
-    LC_ALL: "C",
-    SYSTEMD_PAGER: "cat",
-    PAGER: "cat",
-    GIT_TERMINAL_PROMPT: "0",
-  };
+  return observerCommandEnvV1();
 }
 
 function runReadOnly(executable, args, code) {
@@ -363,6 +384,14 @@ function readProcCwd(pid) {
   }
 }
 
+function readProcExe(pid) {
+  try {
+    return fs.realpathSync("/proc/" + pid + "/exe");
+  } catch {
+    fail("process_executable_unavailable:" + pid);
+  }
+}
+
 function candidateFilePath(arg, cwd) {
   if (typeof arg !== "string" || arg.length === 0) return null;
   if (arg.startsWith("-")) return null;
@@ -381,6 +410,7 @@ export function findProcessSourceByDigestV1({
   expectedSha256,
   cmdlineBytes = null,
   cwd = null,
+  exePath = null,
   readBytes = (filePath) => fs.readFileSync(filePath),
 } = {}) {
   requirePositiveInteger(pid, "pid");
@@ -394,31 +424,40 @@ export function findProcessSourceByDigestV1({
     ? cmdlineBytes
     : readProcCmdline(pid);
   const processCwd = cwd === null ? readProcCwd(pid) : cwd;
+  const processExe = exePath === null ? readProcExe(pid) : exePath;
+  if (
+    typeof processExe !== "string" ||
+    !["node", "nodejs"].includes(path.basename(processExe))
+  ) {
+    fail("process_executable_is_not_node:" + pid);
+  }
+
   const args = cmdline
     .toString("utf8")
     .split("\0")
     .filter(Boolean);
-  const matches = [];
-  for (const arg of args) {
-    const resolved = candidateFilePath(arg, processCwd);
-    if (!resolved) continue;
-    let bytes;
-    try {
-      bytes = readBytes(resolved);
-    } catch {
-      continue;
-    }
-    if (sha256Bytes(bytes) === expectedSha256) {
-      matches.push(resolved);
-    }
+  if (args.length < 2) {
+    fail("process_entry_script_missing:" + pid);
   }
-  const unique = [...new Set(matches)];
-  if (unique.length !== 1) {
-    fail("process_source_digest_match_count_invalid:" + pid);
+  const entryScript = candidateFilePath(args[1], processCwd);
+  if (!entryScript) {
+    fail("process_entry_script_unavailable:" + pid);
   }
+  let bytes;
+  try {
+    bytes = readBytes(entryScript);
+  } catch {
+    fail("process_entry_script_read_failed:" + pid);
+  }
+  if (sha256Bytes(bytes) !== expectedSha256) {
+    fail("process_entry_script_digest_mismatch:" + pid);
+  }
+
   return Object.freeze({
-    path: unique[0],
+    path: entryScript,
     sha256: expectedSha256,
+    argv_index: 1,
+    node_executable_path: processExe,
   });
 }
 
@@ -656,6 +695,15 @@ export function evaluateCollectedPrecisionWebObservationV1({
     ) {
       fail("service_process_source_mismatch:" + name);
     }
+    if (
+      observed.process_entry_arg_index !== 1 ||
+      typeof observed.node_executable_path !== "string" ||
+      !["node", "nodejs"].includes(
+        path.basename(observed.node_executable_path),
+      )
+    ) {
+      fail("service_process_entry_binding_mismatch:" + name);
+    }
     requireHardeningObserved(observed.hardening, name);
   }
 
@@ -859,6 +907,8 @@ export async function collectPrecisionWebRecoveryObservationV1({
       listener,
       process_source_path: source.path,
       process_source_sha256: source.sha256,
+      process_entry_arg_index: source.argv_index,
+      node_executable_path: source.node_executable_path,
     };
   }
 
