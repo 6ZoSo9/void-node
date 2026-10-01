@@ -26,6 +26,8 @@ const TAILSCALE = "/usr/bin/tailscale";
 const MAX_COMMAND_BYTES = 2 * 1024 * 1024;
 const MAX_HTTP_BYTES = 256 * 1024;
 const HTTP_TIMEOUT_MS = 5_000;
+export const OBSERVATION_MAX_AGE_MS = 5 * 60_000;
+export const OBSERVATION_MAX_FUTURE_SKEW_MS = 5_000;
 const RECEIPT_ID_RE = /^voidpwre1_[0-9a-f]{64}$/u;
 const OBSERVATION_ID_RE = /^voidpwro1_[0-9a-f]{64}$/u;
 const UNIT_RE = /^[A-Za-z0-9_.@:-]+\.service$/u;
@@ -599,6 +601,7 @@ export function evaluateCollectedPrecisionWebObservationV1({
   plan,
   collected,
   expectedHostname = DEFAULT_EXPECTED_HOSTNAME,
+  trustedNowMs = Date.now(),
 } = {}) {
   requireObject(plan, "plan");
   requireObject(collected, "collected");
@@ -713,6 +716,24 @@ export function evaluateCollectedPrecisionWebObservationV1({
     )
   ) {
     fail("observation_timestamp_invalid");
+  }
+  if (!Number.isSafeInteger(trustedNowMs) || trustedNowMs < 0) {
+    fail("trusted_observer_time_invalid");
+  }
+  const observedAtMs = Date.parse(collected.observed_at_utc);
+  if (
+    !Number.isFinite(observedAtMs) ||
+    new Date(observedAtMs).toISOString().replace(".000Z", "Z") !==
+      collected.observed_at_utc
+  ) {
+    fail("observation_timestamp_invalid");
+  }
+  const observationAgeMs = trustedNowMs - observedAtMs;
+  if (observationAgeMs < -OBSERVATION_MAX_FUTURE_SKEW_MS) {
+    fail("observation_timestamp_too_far_in_future");
+  }
+  if (observationAgeMs > OBSERVATION_MAX_AGE_MS) {
+    fail("observation_timestamp_stale");
   }
 
   const evidence = makeRecoveryEvidence(plan, collected);
