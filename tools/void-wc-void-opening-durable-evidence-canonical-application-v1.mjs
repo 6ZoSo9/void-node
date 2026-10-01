@@ -361,15 +361,27 @@ function gitRunPrivate(cwd,args,code,{allowFail=false}={}){
 }
 
 function makeExecutionTreeReadOnly(root){
+  const rootStat=fs.lstatSync(root);
+  if(rootStat.isSymbolicLink()||!rootStat.isDirectory()){
+    fail("OPENING_DURABLE_APPLICATION_REVIEWED_TREE_ROOT_INVALID");
+  }
   function walk(dir){
     for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
       const file=path.join(dir,entry.name);
-      if(entry.isDirectory()){
+      const stat=fs.lstatSync(file);
+      if(stat.isSymbolicLink()){
+        continue;
+      }
+      if(stat.isDirectory()){
         walk(file);
         fs.chmodSync(file,0o500);
-      }else{
-        fs.chmodSync(file,0o400);
+        continue;
       }
+      if(stat.isFile()){
+        fs.chmodSync(file,0o400);
+        continue;
+      }
+      fail("OPENING_DURABLE_APPLICATION_REVIEWED_TREE_ENTRY_INVALID");
     }
   }
   walk(root);
@@ -378,12 +390,27 @@ function makeExecutionTreeReadOnly(root){
 
 function makeExecutionTreeRemovable(root){
   if(!fs.existsSync(root)) return;
+  const rootStat=fs.lstatSync(root);
+  if(rootStat.isSymbolicLink()||!rootStat.isDirectory()){
+    fail("OPENING_DURABLE_APPLICATION_REVIEWED_TREE_ROOT_INVALID");
+  }
   function walk(dir){
     fs.chmodSync(dir,0o700);
     for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
       const file=path.join(dir,entry.name);
-      if(entry.isDirectory()) walk(file);
-      else fs.chmodSync(file,0o600);
+      const stat=fs.lstatSync(file);
+      if(stat.isSymbolicLink()){
+        continue;
+      }
+      if(stat.isDirectory()){
+        walk(file);
+        continue;
+      }
+      if(stat.isFile()){
+        fs.chmodSync(file,0o600);
+        continue;
+      }
+      fail("OPENING_DURABLE_APPLICATION_REVIEWED_TREE_ENTRY_INVALID");
     }
   }
   walk(root);
@@ -616,10 +643,19 @@ function buildReviewedExecutionRoot(repo){
     });
     return reviewedExecutionCache;
   }catch(error){
+    let cleanupError=null;
     try{
       makeExecutionTreeRemovable(parent);
       fs.rmSync(parent,{recursive:true,force:true});
-    }catch{}
+    }catch(candidateCleanupError){
+      cleanupError=candidateCleanupError;
+    }
+    if(cleanupError!==null){
+      throw new AggregateError(
+        [error,cleanupError],
+        "opening_durable_reviewed_execution_cleanup_failed",
+      );
+    }
     throw error;
   }
 }
@@ -1286,5 +1322,10 @@ export function verifyVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1({
 }
 
 export const _internal=Object.freeze({
-  canonicalJson,prettyBytes,sha256,gitBlobSha1,
+  canonicalJson,
+  prettyBytes,
+  sha256,
+  gitBlobSha1,
+  makeExecutionTreeReadOnly,
+  makeExecutionTreeRemovable,
 });

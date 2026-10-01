@@ -362,6 +362,39 @@ try{
   }
 
   {
+    const permissionRoot=path.join(temp,"reviewed-permission-walk");
+    const nested=path.join(permissionRoot,"nested");
+    const external=path.join(temp,"external-permission-sentinel");
+    fs.mkdirSync(nested,{recursive:true,mode:0o700});
+    fs.writeFileSync(path.join(nested,"inside.txt"),"inside\n",{mode:0o600});
+    fs.writeFileSync(external,"outside\n",{mode:0o640});
+    const externalModeBefore=fs.lstatSync(external).mode&0o7777;
+    fs.symlinkSync(external,path.join(nested,"external-link"));
+
+    _internal.makeExecutionTreeReadOnly(permissionRoot);
+    assert.equal(
+      fs.lstatSync(external).mode&0o7777,
+      externalModeBefore,
+      "read-only permission walk must not chmod through symlink targets",
+    );
+    assert.equal(
+      fs.lstatSync(path.join(nested,"external-link")).isSymbolicLink(),
+      true,
+    );
+    _internal.makeExecutionTreeRemovable(permissionRoot);
+    assert.equal(
+      fs.lstatSync(external).mode&0o7777,
+      externalModeBefore,
+      "removable permission walk must not chmod through symlink targets",
+    );
+    assert.equal(
+      fs.readFileSync(external,"utf8"),
+      "outside\n",
+      "permission walks must not mutate external symlink targets",
+    );
+  }
+
+  {
     const sentinelDir=path.join(temp,"hostile-env");
     fs.mkdirSync(sentinelDir,{mode:0o700});
     const fsmonitor=path.join(sentinelDir,"fsmonitor.sh");
@@ -532,6 +565,10 @@ try{
     "GIT_CONFIG_GLOBAL",
     "reviewedModuleClosure",
     "void-reviewed-node-package-runtime-v1.mjs",
+    "makeExecutionTreeReadOnly",
+    "makeExecutionTreeRemovable",
+    "lstatSync",
+    "opening_durable_reviewed_execution_cleanup_failed",
     "--permission",
     "--allow-child-process",
     "OPENING_DURABLE_APPLICATION_PLAN_BASE_SOURCE_MISMATCH",
@@ -551,6 +588,8 @@ try{
   console.log("reviewed_git_object_execution=true");
   console.log("reviewed_ethers_runtime=true");
   console.log("permission_fenced_execution=true");
+  console.log("reviewed_tree_symlink_targets_not_followed=true");
+  console.log("reviewed_tree_cleanup_failure_not_suppressed=true");
   console.log("ambient_git_loader_overrides_ignored=true");
   console.log("hidden_worktree_promotion_not_executed=true");
   console.log("git_replacement_refs_ignored=true");

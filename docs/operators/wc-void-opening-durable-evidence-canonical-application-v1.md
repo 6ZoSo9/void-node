@@ -63,7 +63,13 @@ and submodule recursion. Dynamic-loader and Node path/loader variables are not
 inherited.
 
 The private reviewed execution checkout is detached at the exact application
-base HEAD/tree. The reviewed durable-promotion module is the only allowed module
+base HEAD/tree. Permission transitions use no-follow `lstat` type checks:
+tracked symlinks are never chmod-followed, only real directories and regular
+files inside the private tree have modes changed, and unexpected entry types
+HOLD. Cleanup failure is not silently discarded; it is combined with the
+original failure.
+
+The reviewed durable-promotion module is the only allowed module
 in its recursive semantic closure with a child-process import, and its child
 process is Git. The private process may read the reviewed execution tree plus
 the exact private request/data directory needed for real persistence inspection;
