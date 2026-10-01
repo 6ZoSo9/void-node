@@ -45,6 +45,7 @@ function terminalIssue({
   comments = 344,
   totalMessages = comments + 1,
   successor = null,
+  pointerCommentId = successor === null ? null : 999,
   rotationRequired = true,
 } = {}) {
   return {
@@ -55,7 +56,7 @@ function terminalIssue({
     total_issue_messages: totalMessages,
     rotation_threshold_total_messages: 250,
     successor_issue: successor,
-    rotation_pointer_comment_id: null,
+    rotation_pointer_comment_id: pointerCommentId,
     rotation_required_here: rotationRequired,
   };
 }
@@ -102,6 +103,7 @@ function openPr({
   return {
     number,
     title,
+    state: "open",
     draft,
     head_sha: head,
     base_sha: base,
@@ -211,6 +213,7 @@ assert.deepEqual(
   ],
 );
 assert.equal(rotation.open_pull_request_count, 2);
+assert.equal(rotation.open_pull_requests.every((pr) => pr.state === "open"), true);
 assert.deepEqual(
   rotation.open_pull_requests.map((pr) => pr.number),
   [2290, 2299],
@@ -453,6 +456,77 @@ expectRejected(
     policyRaw,
     evidence({
       prs: [
+        {
+          ...evidence().open_pull_requests[0],
+          state: "closed",
+        },
+      ],
+    }),
+  ),
+  /state must equal open/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
+    evidence({
+      chainValue: chain({
+        chain: [
+          {
+            ...terminalIssue({
+              number: 1507,
+              state: "closed",
+              comments: 249,
+              totalMessages: 250,
+              successor: 1600,
+              rotationRequired: false,
+            }),
+            rotation_pointer_comment_id: null,
+          },
+          terminalIssue({
+            number: 1600,
+            comments: 10,
+            totalMessages: 11,
+            rotationRequired: false,
+          }),
+        ],
+        current_issue: 1600,
+        outcome: "SUCCESSOR_RESOLVED",
+        rotation_required: false,
+        chain_issue_numbers: [1507, 1600],
+        dispatch_plan_issue_should_be: 1600,
+        plan_issue_update_required: true,
+      }),
+    }),
+  ),
+  /rotation_pointer_comment_id/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
+    evidence({
+      chainValue: chain({
+        chain: [
+          terminalIssue({
+            comments: 100,
+            totalMessages: 101,
+            rotationRequired: true,
+          }),
+        ],
+        outcome: "CURRENT",
+        rotation_required: false,
+      }),
+    }),
+  ),
+  /rotation_required_here is inconsistent/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
+    evidence({
+      prs: [
         openPr({
           number: 1,
           title: "bad path",
@@ -503,5 +577,8 @@ console.log("invalid_chain_holds=true");
 console.log("pr_order_deterministic=true");
 console.log("forged_chain_link_rejected=true");
 console.log("snapshot_lineage_content_addressed=true");
+console.log("open_pr_state_enforced=true");
+console.log("rotation_pointer_comment_bound=true");
+console.log("rotation_required_here_rederived=true");
 console.log("authority_granted=false");
 console.log("mutation_performed=false");
