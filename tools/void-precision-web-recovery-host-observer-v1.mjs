@@ -43,14 +43,32 @@ const SERVICE_SPECS = Object.freeze({
   adapter: Object.freeze({
     port: 8080,
     planSource: "ops/public/public-seed-adapter-v1.mjs",
+    expectedEnvironment: Object.freeze({
+      VOID_SEED_UPSTREAM: "http://127.0.0.1:4100",
+      VOID_ADAPTER_HOST: "127.0.0.1",
+      VOID_ADAPTER_PORT: "8080",
+    }),
   }),
   composition: Object.freeze({
     port: 8082,
     planSource: "ops/public/void-public-app-composition-gateway-v1.mjs",
+    expectedEnvironment: Object.freeze({
+      VOID_COMPOSITION_HOST: "127.0.0.1",
+      VOID_COMPOSITION_PORT: "8082",
+      VOID_PUBLIC_GATEWAY_UPSTREAM: "http://127.0.0.1:8080",
+      VOID_NODE_UPSTREAM: "http://127.0.0.1:4100",
+      VOID_PUBLIC_NODE_LABEL: "Precision public seed",
+      VOID_PUBLIC_NETWORK_NAME: "Mainnet-0",
+    }),
   }),
   frontdoor: Object.freeze({
     port: 8083,
     planSource: "ops/public/void-public-frontdoor-v1.mjs",
+    expectedEnvironment: Object.freeze({
+      VOID_PUBLIC_FRONTDOOR_BIND: "127.0.0.1",
+      VOID_PUBLIC_FRONTDOOR_PORT: "8083",
+      VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT: "8082",
+    }),
   }),
 });
 
@@ -392,6 +410,40 @@ function readProcExe(pid) {
   }
 }
 
+function readProcEnvironment(pid) {
+  try {
+    return fs.readFileSync("/proc/" + pid + "/environ");
+  } catch {
+    fail("process_environment_unavailable:" + pid);
+  }
+}
+
+export function parseProcEnvironmentV1(raw) {
+  const bytes = Buffer.isBuffer(raw) ? raw : Buffer.from(String(raw), "utf8");
+  const result = {};
+  for (const entry of bytes.toString("utf8").split("\0")) {
+    if (!entry) continue;
+    const index = entry.indexOf("=");
+    if (index < 1) fail("process_environment_row_malformed");
+    const key = entry.slice(0, index);
+    const value = entry.slice(index + 1);
+    if (Object.hasOwn(result, key)) {
+      fail("process_environment_duplicate_key:" + key);
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+function requireProcessEnvironmentV1(actual, expected, label) {
+  requireObject(actual, label);
+  for (const [key, value] of Object.entries(expected)) {
+    if (actual[key] !== value) {
+      fail("process_environment_mismatch:" + label + ":" + key);
+    }
+  }
+}
+
 function candidateFilePath(arg, cwd) {
   if (typeof arg !== "string" || arg.length === 0) return null;
   if (arg.startsWith("-")) return null;
@@ -716,6 +768,11 @@ export function evaluateCollectedPrecisionWebObservationV1({
     ) {
       fail("service_process_entry_binding_mismatch:" + name);
     }
+    requireProcessEnvironmentV1(
+      observed.process_environment,
+      spec.expectedEnvironment,
+      name,
+    );
     requireHardeningObserved(observed.hardening, name);
   }
 
@@ -822,7 +879,9 @@ export function evaluateCollectedPrecisionWebObservationV1({
     live_host_observation_performed: false,
     services_active_and_exact: true,
     loopback_listeners_exact: true,
-    running_source_bytes_bound: true,
+    process_entry_file_bytes_bound: true,
+    running_loaded_source_bytes_proved: false,
+    runtime_configuration_bound: true,
     precision_hardening_profile_observed: true,
     composition_strict_ready_observed: true,
     frontdoor_strict_ready_observed: true,
@@ -917,6 +976,9 @@ export async function collectPrecisionWebRecoveryObservationV1({
       pid: service.main_pid,
       expectedSha256: expectedDigest,
     });
+    const processEnvironment = parseProcEnvironmentV1(
+      readProcEnvironment(service.main_pid),
+    );
     observedServices[name] = {
       ...service,
       listener,
@@ -924,6 +986,7 @@ export async function collectPrecisionWebRecoveryObservationV1({
       process_source_sha256: source.sha256,
       process_entry_arg_index: source.argv_index,
       node_executable_path: source.node_executable_path,
+      process_environment: processEnvironment,
     };
   }
 
