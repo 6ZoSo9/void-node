@@ -159,7 +159,7 @@ const result = compileVoidWcVoidCoupledLaunchPolicyBundleV1(fixture());
 
 assert.equal(
   result.marker,
-  undefined,
+  VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
 );
 assert.equal(
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
