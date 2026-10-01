@@ -417,6 +417,13 @@ export function buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
   ) {
     fail("promotion_repository_identity_invalid");
   }
+  const repositoryIdentity = readRepositoryIdentityV1();
+  if (
+    repositoryHeadSha !== repositoryIdentity.repository_head_sha
+    || repositoryTreeSha !== repositoryIdentity.repository_tree_sha
+  ) {
+    fail("promotion_repository_identity_mismatch");
+  }
 
   if (
     typeof ledgerPersistenceImportInputFileSha256 !== "string"
@@ -545,8 +552,8 @@ export function buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
   const material = Object.freeze({
     marker:
       VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1,
-    repository_head_sha: repositoryHeadSha,
-    repository_tree_sha: repositoryTreeSha,
+    repository_head_sha: repositoryIdentity.repository_head_sha,
+    repository_tree_sha: repositoryIdentity.repository_tree_sha,
     version: 1,
     status:
       "WC_LEDGER_CUSTODY_PROMOTION_ARTIFACT_READY_CANDIDATE_HOLD",
