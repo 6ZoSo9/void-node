@@ -657,6 +657,25 @@ const repeat=await prepareVoidWcVoidMarketVaultCanonicalApplicationV1({
 });
 assert.equal(repeat.application_plan_id,plan.application_plan_id);
 
+const bridgeSource=fs.readFileSync(
+  "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs",
+  "utf8",
+);
+for(const forbidden of [
+  "writeFileSync",
+  "appendFileSync",
+  "spawnSync",
+  "execSync",
+  "fetch(",
+  "node:http",
+  "node:https",
+  "node:net",
+  "eth_sendRawTransaction",
+  "eth_sendTransaction",
+]){
+  assert.equal(bridgeSource.includes(forbidden),false,"bridge:"+forbidden);
+}
+
 const source=fs.readFileSync(
   "tools/void-wc-void-market-vault-canonical-application-v1.mjs",
   "utf8",
