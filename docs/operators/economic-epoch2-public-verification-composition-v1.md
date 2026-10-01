@@ -27,6 +27,9 @@ Before any authority-bearing promotion module is loaded, the composition:
 - verifies exact `HEAD:<path>` Git blobs for the canonical migration
   candidate, loopback policy, both promotion sources, the migration classifier,
   state-root admission, anchor verifier, and canonical-truth dependencies;
+- hashes the actual worktree bytes using Git blob framing and requires every
+  loaded dependency to equal that reviewed blob, so local index flags cannot
+  hide source drift;
 - records exact HEAD/tree, composition-tool blob, dependency blobs, and
   canonical source file SHA-256 values in the receipt; and
 - rechecks the source binding after composition so source drift during the run
