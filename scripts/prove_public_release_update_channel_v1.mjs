@@ -65,7 +65,9 @@ need("ops/public/install-void-node-v1.sh",[
   "VOID_NODE_STABLE_MANAGER_V1",
   'CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"',
   ".rollback.update-transaction-v1.json",
+  ".rollback.restart-witness-v1",
   "recovery_outcome=rollback_committed",
+  "recovery_outcome=rollback_restart_witness_cleaned",
   'if test "${1:-}" = rollback; then shift; exec_control_rollback "$@"; fi',
   'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; exec_control_rollback "$@"; fi',
 ]);
