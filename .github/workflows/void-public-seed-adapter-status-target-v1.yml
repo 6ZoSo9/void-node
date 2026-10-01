@@ -1,0 +1,46 @@
+name: VOID public seed adapter status target v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-public-seed-adapter-status-target-v1.yml"
+      - "Makefile"
+      - "docs/public/current-public-seed-adapter.md"
+      - "ops/public/public-seed-adapter-status-v1.sh"
+      - "scripts/prove_void_public_seed_adapter_status_target_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-public-seed-adapter-status-target-v1.yml"
+      - "Makefile"
+      - "docs/public/current-public-seed-adapter.md"
+      - "ops/public/public-seed-adapter-status-v1.sh"
+      - "scripts/prove_void_public_seed_adapter_status_target_v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          bash -n ops/public/public-seed-adapter-status-v1.sh
+          node --check scripts/prove_void_public_seed_adapter_status_target_v1.mjs
+      - name: Prove explicit target boundary
+        run: node scripts/prove_void_public_seed_adapter_status_target_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

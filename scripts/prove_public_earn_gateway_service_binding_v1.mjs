@@ -60,6 +60,28 @@ assert.match(
   /Environment="VOID_EARN_COORDINATOR_UPSTREAM=\$VOID_EARN_COORDINATOR_UPSTREAM"/,
 );
 assert.match(vpsInstaller, /validate_http_origin/);
+assert.match(
+  vpsInstaller,
+  /VOID_SEED_UPSTREAM:\?missing VOID_SEED_UPSTREAM \(reviewed internal VOID HTTP origin\)/,
+);
+assert.equal(
+  vpsInstaller.includes("VOID_SEED_UPSTREAM:-http://100.122.79.39:4100"),
+  false,
+  "VPS installer must not default to retired Alienware",
+);
+assert.match(vpsInstaller, /retired Alienware seed upstream is forbidden/);
+assert.equal(
+  vpsInstaller.indexOf("retired Alienware seed upstream is forbidden") <
+    vpsInstaller.indexOf('mkdir -p "$SERVICE_DIR"'),
+  true,
+  "retired upstream guard must precede unit creation",
+);
+assert.equal(
+  vpsInstaller.indexOf("retired Alienware seed upstream is forbidden") <
+    vpsInstaller.indexOf("systemctl --user daemon-reload"),
+  true,
+  "retired upstream guard must precede systemd mutation",
+);
 assert.equal(
   vpsInstaller.includes("After=default.target"),
   false,
@@ -78,6 +100,58 @@ assert.match(
 );
 assert.match(vpsDeploy, /earn_coordinator_bound=true/);
 assert.match(vpsDeploy, /VOID_PUBLIC_EARN_GATEWAY_V1/);
+assert.match(
+  vpsDeploy,
+  /VOID_SEED_UPSTREAM:\?missing VOID_SEED_UPSTREAM \(reviewed internal VOID HTTP origin\)/,
+);
+
+const vpsGuardTemp = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-vps-seed-upstream-guard-v1-"),
+);
+try {
+  const home = path.join(vpsGuardTemp, "home");
+  const fakeBin = path.join(vpsGuardTemp, "bin");
+  const systemctlLog = path.join(vpsGuardTemp, "systemctl.log");
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(fakeBin, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(
+    path.join(fakeBin, "systemctl"),
+    `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >>"$SYSTEMCTL_LOG"\nexit 0\n`,
+    { mode: 0o755 },
+  );
+
+  const guardEnv = {
+    HOME: home,
+    PATH: `${fakeBin}:${process.env.PATH}`,
+    SYSTEMCTL_LOG: systemctlLog,
+    VOID_NODE_ROOT: ROOT,
+    VOID_ADAPTER_HOST: "127.0.0.1",
+    VOID_ADAPTER_PORT: "8080",
+    START_SERVICE: "0",
+  };
+
+  const missingUpstream = run("bash", [vpsInstallerPath], {
+    env: { ...guardEnv, VOID_SEED_UPSTREAM: "" },
+  });
+  assert.notEqual(missingUpstream.status, 0, "missing seed upstream must fail");
+  assert.match(missingUpstream.stderr, /missing VOID_SEED_UPSTREAM/);
+  assert.equal(fs.existsSync(systemctlLog), false, "missing upstream touched systemctl");
+
+  for (const retired of [
+    "http://100.122.79.39:4100",
+    "http://zoso-alienware-aurora-r7.taila47fd.ts.net:4100",
+    "http://ZOSO-ALIENWARE-AURORA-R7.TAILA47FD.TS.NET:4100",
+  ]) {
+    const denied = run("bash", [vpsInstallerPath], {
+      env: { ...guardEnv, VOID_SEED_UPSTREAM: retired },
+    });
+    assert.equal(denied.status, 2, retired);
+    assert.match(denied.stderr, /retired Alienware seed upstream is forbidden/, retired);
+    assert.equal(fs.existsSync(systemctlLog), false, `retired upstream touched systemctl: ${retired}`);
+  }
+} finally {
+  fs.rmSync(vpsGuardTemp, { recursive: true, force: true });
+}
 
 const localInstaller = read(localInstallerPath);
 for (const required of [
@@ -226,8 +300,8 @@ try {
 
 const workflow = read(workflowPath);
 for (const required of [
-  "actions/checkout@v6",
-  "actions/setup-node@v6",
+  "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+  "actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b",
   'node-version: "22"',
   "node scripts/prove_public_earn_gateway_service_binding_v1.mjs",
   "npm run typecheck",
@@ -255,6 +329,8 @@ console.log(JSON.stringify({
   run_wrapper_forwards_earn_upstream: true,
   vps_unit_binds_earn_upstream: true,
   vps_deploy_forwards_earn_upstream: true,
+  vps_seed_upstream_explicit_required: true,
+  retired_alienware_seed_upstream_rejected: true,
   local_gateway_loopback_only: true,
   disabled_by_default: true,
   exact_activation_confirmation_required: true,
