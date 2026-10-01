@@ -44,6 +44,28 @@ const CLASSIFIER =
   "tools/void-coupled-economic-successor-gate-v1.mjs";
 const RUNTIME_TOOL =
   "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs";
+const REVIEWED_RUNTIME_TOOL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_EXECUTION_MODULES = Object.freeze([
+  "tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs",
+  "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs",
+  "tools/void-participant-postpurchase-finality-import-v1.mjs",
+  "tools/void-participant-postpurchase-finality-v1.mjs",
+  "tools/void-coupled-economic-successor-gate-v1.mjs",
+  "tools/void-economic-evm-successor-migration-v1.mjs",
+  "tools/void-economic-intent-ttl-caps-policy-v1.mjs",
+  "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs",
+  "tools/void-shared-market-post-discovery-state-v2.mjs",
+  "tools/void-wc-void-coupled-opening-v1.mjs",
+  "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs",
+  "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs",
+  "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs",
+  "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs",
+  "tools/void-wc-void-reverse-settlement-v1.mjs",
+  "tools/void-wc-void-public-quote-disclosure-v1.mjs",
+]);
 
 const TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
 const PARTICIPANT = "0x" + "1".repeat(40);
@@ -491,6 +513,12 @@ const authorityTrue = new Set([
   "reviewed_repository_generation_required",
   "exact_one_gate_source_delta",
   "canonical_classifier_reexecution",
+  "reviewed_git_object_execution_required",
+  "reviewed_package_runtime_required",
+  "permission_fenced_execution_required",
+  "ancestor_package_resolution_forbidden",
+  "ambient_dynamic_loader_overrides_ignored",
+  "execution_child_process_limited_to_reviewed_git",
   "reviewed_git_commit_required",
   "canonical_main_application_required",
   "canonical_remote_main_read_required",
@@ -504,10 +532,55 @@ for (const [key, value] of Object.entries(
 }
 
 const fixture = requestFixture();
-const plan =
-  prepareVoidParticipantPostpurchaseCanonicalApplicationV1(
-    fixture.request,
+const hostileRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-participant-hostile-exec-env-"),
+);
+let plan;
+try {
+  const sentinel = path.join(hostileRoot, "node-options-sentinel.cjs");
+  const sentinelOut = path.join(hostileRoot, "node-options-executed.txt");
+  fs.writeFileSync(
+    sentinel,
+    "require('node:fs').writeFileSync(" +
+      JSON.stringify(sentinelOut) +
+      ", 'executed\\n');\n",
+    { mode: 0o600 },
   );
+  const fakeBin = path.join(hostileRoot, "bin");
+  fs.mkdirSync(fakeBin, { mode: 0o700 });
+  const fakeGit = path.join(fakeBin, "git");
+  fs.writeFileSync(
+    fakeGit,
+    "#!/usr/bin/env bash\nprintf 'fake-git-executed\\n' >> " +
+      JSON.stringify(sentinelOut) +
+      "\nexit 97\n",
+    { mode: 0o700 },
+  );
+  const saved = new Map(
+    ["PATH", "NODE_OPTIONS", "NODE_PATH", "GIT_DIR", "GIT_CONFIG_COUNT",
+      "LD_PRELOAD", "LD_LIBRARY_PATH"].map((key) => [key, process.env[key]]),
+  );
+  try {
+    process.env.PATH = fakeBin + ":/usr/bin:/bin";
+    process.env.NODE_OPTIONS = "--require=" + sentinel;
+    process.env.NODE_PATH = path.join(hostileRoot, "node_modules");
+    process.env.GIT_DIR = path.join(hostileRoot, "fake-git-dir");
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.LD_PRELOAD = path.join(hostileRoot, "missing-preload.so");
+    process.env.LD_LIBRARY_PATH = hostileRoot;
+    plan = prepareVoidParticipantPostpurchaseCanonicalApplicationV1(
+      fixture.request,
+    );
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  assert.equal(fs.existsSync(sentinelOut), false);
+} finally {
+  fs.rmSync(hostileRoot, { recursive: true, force: true });
+}
 
 assert.equal(
   plan.marker,
@@ -543,6 +616,52 @@ assert.equal(plan.market_activation_authorized, false);
 assert.equal(plan.public_presale_activation_authorized, false);
 assert.equal(plan.funds_movement_authorized, false);
 assert.equal(plan.runtime_binding_rederived_from_evidence, true);
+assert.match(
+  plan.reviewed_execution.reviewed_runtime_profile_id,
+  /^voidrnpr1_[0-9a-f]{64}$/u,
+);
+assert.match(
+  plan.reviewed_execution.reviewed_runtime_packages_aggregate_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+assert.equal(
+  plan.reviewed_execution.reviewed_runtime_tool_path,
+  REVIEWED_RUNTIME_TOOL,
+);
+assert.equal(
+  plan.reviewed_execution.reviewed_runtime_profile_path,
+  REVIEWED_RUNTIME_PROFILE,
+);
+assert.deepEqual(
+  Object.keys(plan.reviewed_execution.reviewed_module_git_blobs).sort(),
+  [...REVIEWED_EXECUTION_MODULES].sort(),
+);
+for (const blob of Object.values(
+  plan.reviewed_execution.reviewed_module_git_blobs,
+)) {
+  assert.match(blob, /^[0-9a-f]{40}$/u);
+}
+assert.equal(plan.reviewed_execution.permission_fenced_execution, true);
+assert.equal(
+  plan.reviewed_execution.child_process_required_for_reviewed_git,
+  true,
+);
+assert.equal(
+  plan.reviewed_execution.ancestor_package_resolution_allowed,
+  false,
+);
+assert.equal(
+  plan.reviewed_execution.ambient_dynamic_loader_overrides_ignored,
+  true,
+);
+assert.equal(
+  plan.reviewed_execution.execution_network_isolation_provided,
+  false,
+);
+assert.match(
+  plan.reviewed_execution.reviewed_execution_bundle_id,
+  /^sha256:[0-9a-f]{64}$/u,
+);
 assert.equal(plan.finality_input_file_sha256, sha256(fixture.finalityBytes));
 assert.equal(plan.status_result_file_sha256, sha256(fixture.statusBytes));
 assert.equal(
@@ -778,6 +897,9 @@ for (const forbidden of [
   "systemctl",
   "fetch(",
   "new Wallet(",
+  'from "./void-participant-postpurchase-coupled-candidate-promotion-v1.mjs";',
+  'from "./void-participant-postpurchase-production-runtime-binding-v1.mjs";',
+  'from "./void-coupled-economic-successor-gate-v1.mjs";',
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
@@ -792,7 +914,18 @@ for (const required of [
   "canonicalRemote",
   "canonicalRemoteMainHead",
   "PARTICIPANT_CANONICAL_APPLIED_HEAD_NOT_REMOTE_MAIN",
-  "assertWorktreeBlob",
+  "REVIEWED_EXECUTION_MODULE_RELS",
+  "REVIEWED_RUNTIME_TOOL_REL",
+  "REVIEWED_RUNTIME_PROFILE_REL",
+  "materializeReviewedNodePackageRuntimeV1",
+  "verifyMaterializedReviewedNodePackageRuntimeV1",
+  "--permission",
+  "--allow-fs-read=",
+  "--allow-child-process",
+  "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_EXECUTION_FAILED",
+  "reviewed_execution_bundle_id",
+  "execution_network_isolation_provided",
+  "GIT_CONFIG_COUNT",
 ]) {
   assert.equal(source.includes(required), true, required);
 }
@@ -805,6 +938,14 @@ console.log(
 console.log("runtime_binding_reexecution_verified=true");
 console.log("runtime_binding_origin_evidence_bound=true");
 console.log("promotion_reexecution_verified=true");
+console.log("reviewed_git_object_execution_verified=true");
+console.log("reviewed_ethers_runtime_verified=true");
+console.log("permission_fenced_execution=true");
+console.log("ancestor_package_resolution_allowed=false");
+console.log("ambient_dynamic_loader_overrides_ignored=true");
+console.log("execution_child_process_required_for_reviewed_git=true");
+console.log("execution_network_isolation_provided=false");
+console.log("hostile_ambient_execution_env_ignored=true");
 console.log("exact_one_gate_source_delta=true");
 console.log("participant_post_purchase_voidtoken_control_ready=true");
 console.log("participant_control_missing_gate_removed=true");
