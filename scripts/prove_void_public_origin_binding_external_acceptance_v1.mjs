@@ -474,6 +474,26 @@ assert.deepEqual(
 }
 {
   const bad = clone(evidence);
+  const actualBytes = Buffer.from(
+    bad.binding.artifact_base64,
+    "base64",
+  ).length;
+  const contradictoryBytes =
+    actualBytes === 2 ? 3 : actualBytes - 1;
+  assert.notEqual(contradictoryBytes, actualBytes);
+  bad.binding.aliases[0].bytes = contradictoryBytes;
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /binding alias contract invalid/u,
+  );
+}
+{
+  const bad = clone(evidence);
   bad.handoff.public_copy_ready = false;
   rehashReceipt(bad);
   assert.throws(
@@ -845,6 +865,11 @@ for (const required of [
   '"offline_verification=true"',
   '"external_request=false"',
   '"bounded_git_child_process_execution=true"',
+  'GIT_NO_LAZY_FETCH: "1"',
+  'GIT_TERMINAL_PROMPT: "0"',
+  "GIT_CHILD_TIMEOUT_MS",
+  "timeout: GIT_CHILD_TIMEOUT_MS",
+  "alias.bytes !== artifactBytes.length",
 ]) {
   assert.equal(
     source.includes(required),
@@ -910,6 +935,9 @@ console.log(
 );
 console.log("two_https_binding_aliases_required=true");
 console.log("aliases_byte_identical=true");
+console.log("alias_byte_count_bound_to_artifact_green=true");
+console.log("offline_git_lazy_fetch_disabled_green=true");
+console.log("offline_git_child_timeout_green=true");
 console.log("reviewed_identity_verification_required=true");
 console.log("directory_available_required=true");
 console.log("handoff_public_copy_ready_required=true");
