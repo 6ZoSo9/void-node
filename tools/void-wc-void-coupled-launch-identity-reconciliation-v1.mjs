@@ -66,6 +66,15 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1=
     [CLASSIFIER_DOC_REL]:"98bb1dc3e25c48f01136ba192c51574aa266dbb6",
   });
 
+export const VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_APPLIED_BLOBS_V1=
+  Object.freeze({
+    ...VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
+    [CANDIDATE_REL]:"d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+    [CLASSIFIER_REL]:"ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+    [CLASSIFIER_PROOF_REL]:"ea606b2276fb0da8ac140263e2cde4040f17075b",
+    [CLASSIFIER_DOC_REL]:"513b0ab50c2a26f90db0d5abd7004600335d1f89",
+  });
+
 export const VOID_WC_VOID_COUPLED_LAUNCH_DIGEST_HEX_V1=
   "fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 export const VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1=
@@ -230,6 +239,12 @@ async function loadVerifiedHeadModulesV1() {
   return Object.freeze({openingModule,sharedModule});
 }
 
+function sameBlobSet(actual,expected) {
+  return Object.keys(expected).every(
+    (relativePath)=>actual[relativePath]===expected[relativePath],
+  );
+}
+
 function verifyReviewedSourceGenerationV1() {
   const head=git(["rev-parse","HEAD"],"reconciliation_repository_head_unavailable");
   const tree=git(["rev-parse","HEAD^{tree}"],"reconciliation_repository_tree_unavailable");
@@ -242,21 +257,41 @@ function verifyReviewedSourceGenerationV1() {
   );
   if(status!=="") fail("reconciliation_repository_must_be_clean");
 
-  for(const [relativePath,expected] of Object.entries(
+  const actual={};
+  for(const relativePath of Object.keys(
     VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
   )) {
-    const actual=headBlobSha1(relativePath);
-    if(actual!==expected) {
-      fail("reconciliation_source_blob_mismatch:"+relativePath);
-    }
+    actual[relativePath]=headBlobSha1(relativePath);
   }
+
+  let sourceGeneration;
+  if(
+    sameBlobSet(
+      actual,
+      VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
+    )
+  ) {
+    sourceGeneration="pre_application";
+  } else if(
+    sameBlobSet(
+      actual,
+      VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_APPLIED_BLOBS_V1,
+    )
+  ) {
+    sourceGeneration="applied";
+  } else {
+    fail("reconciliation_source_generation_unreviewed");
+  }
+
   return Object.freeze({
     repository_head_sha:head,
     repository_tree_sha:tree,
+    source_generation:sourceGeneration,
+    reviewed_source_blobs:Object.freeze(actual),
   });
 }
 
-function assertCurrentCandidateBaseline(candidate) {
+function assertCandidateCommonBaseline(candidate) {
   const shared=candidate?.shared_post_discovery_reconciliation;
   if(
     candidate?.marker!=="VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1"||
@@ -268,7 +303,16 @@ function assertCurrentCandidateBaseline(candidate) {
     !plain(shared)||
     shared.profile!=="canonical_source_model_fixture_v2"||
     shared.source_model_fixture!==true||
-    shared.runtime_or_launch_evidence!==false||
+    shared.runtime_or_launch_evidence!==false
+  ) {
+    fail("reconciliation_candidate_common_baseline_mismatch");
+  }
+  return shared;
+}
+
+function assertCurrentCandidateBaseline(candidate) {
+  const shared=assertCandidateCommonBaseline(candidate);
+  if(
     shared.coupled_launch_id!==CURRENT_SOURCE_MODEL_LAUNCH_ID||
     shared.reconciliation_id!==
       "sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5"||
@@ -276,6 +320,17 @@ function assertCurrentCandidateBaseline(candidate) {
       "sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d"
   ) {
     fail("reconciliation_current_candidate_fixture_mismatch");
+  }
+}
+
+function assertAppliedCandidateBaseline(candidate) {
+  const shared=assertCandidateCommonBaseline(candidate);
+  if(
+    shared.coupled_launch_id!==VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1||
+    shared.reconciliation_id!==VOID_WC_VOID_RECONCILED_SHARED_STATE_ID_V1||
+    shared.wc_opening_state_id!==VOID_WC_VOID_RECONCILED_OPENING_STATE_ID_V1
+  ) {
+    fail("reconciliation_applied_candidate_identity_mismatch");
   }
 }
 
@@ -546,6 +601,38 @@ function assertAtomicSourceBaseline(
   assertCurrentCandidateBaseline(candidate);
 }
 
+function assertAppliedSourceBaseline(
+  candidate,
+  classifierSource,
+  classifierProof,
+  classifierDoc,
+) {
+  const launch=VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1;
+  if(
+    !classifierSource.includes(
+      '"sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26"',
+    )||
+    !classifierSource.includes(
+      "coupled_launch_id: SOURCE_MODEL_COUPLED_LAUNCH_ID",
+    )||
+    classifierSource.includes(
+      'const SOURCE_MODEL_COUPLED_LAUNCH_ID = "sha256:" + "a".repeat(64);',
+    )
+  ) {
+    fail("reconciliation_applied_classifier_identity_mismatch");
+  }
+  for(const source of [classifierProof,classifierDoc]) {
+    if(
+      !source.includes(launch)||
+      !source.includes(VOID_WC_VOID_RECONCILED_SHARED_STATE_ID_V1)||
+      !source.includes(VOID_WC_VOID_RECONCILED_OPENING_STATE_ID_V1)
+    ) {
+      fail("reconciliation_applied_proof_or_doc_identity_mismatch");
+    }
+  }
+  assertAppliedCandidateBaseline(candidate);
+}
+
 function requiredAtomicSourceUpdatesV1() {
   return Object.freeze([
     Object.freeze({
@@ -580,12 +667,21 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
   const classifierProof=readHeadText(CLASSIFIER_PROOF_REL);
   const classifierDoc=readHeadText(CLASSIFIER_DOC_REL);
 
-  assertAtomicSourceBaseline(
-    candidate,
-    classifierSource,
-    classifierProof,
-    classifierDoc,
-  );
+  if(repository.source_generation==="pre_application") {
+    assertAtomicSourceBaseline(
+      candidate,
+      classifierSource,
+      classifierProof,
+      classifierDoc,
+    );
+  } else {
+    assertAppliedSourceBaseline(
+      candidate,
+      classifierSource,
+      classifierProof,
+      classifierDoc,
+    );
+  }
 
   const commitment=buildReviewedCoupledLaunchCommitmentV1(
     candidate,
@@ -610,12 +706,6 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     sharedModule,
   );
   const currentShared=sharedCandidateSummaryV2(currentState);
-  if(
-    canonicalJson(currentShared)!==
-      canonicalJson(candidate.shared_post_discovery_reconciliation)
-  ) {
-    fail("reconciliation_current_fixture_rederivation_mismatch");
-  }
 
   const reconciledState=deriveSharedSourceModelV2(
     launchIdentity.opening_domain_id,
@@ -636,27 +726,47 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     fail("reconciliation_rederived_shared_state_invalid");
   }
 
-  const proposedCandidate=structuredClone(candidate);
-  proposedCandidate.shared_post_discovery_reconciliation=
-    structuredClone(reconciledShared);
+  let proposedCandidate;
+  if(repository.source_generation==="pre_application") {
+    if(
+      canonicalJson(currentShared)!==
+        canonicalJson(candidate.shared_post_discovery_reconciliation)
+    ) {
+      fail("reconciliation_current_fixture_rederivation_mismatch");
+    }
+    proposedCandidate=structuredClone(candidate);
+    proposedCandidate.shared_post_discovery_reconciliation=
+      structuredClone(reconciledShared);
 
-  const scopeCheck=structuredClone(proposedCandidate);
-  scopeCheck.shared_post_discovery_reconciliation=
-    structuredClone(candidate.shared_post_discovery_reconciliation);
-  if(canonicalJson(scopeCheck)!==canonicalJson(candidate)) {
-    fail("reconciliation_candidate_change_scope_invalid");
+    const scopeCheck=structuredClone(proposedCandidate);
+    scopeCheck.shared_post_discovery_reconciliation=
+      structuredClone(candidate.shared_post_discovery_reconciliation);
+    if(canonicalJson(scopeCheck)!==canonicalJson(candidate)) {
+      fail("reconciliation_candidate_change_scope_invalid");
+    }
+  } else {
+    if(
+      canonicalJson(reconciledShared)!==
+        canonicalJson(candidate.shared_post_discovery_reconciliation)
+    ) {
+      fail("reconciliation_applied_candidate_rederivation_mismatch");
+    }
+    proposedCandidate=structuredClone(candidate);
   }
 
   const frozenProposedCandidate=deepFreeze(proposedCandidate);
+  const applied=repository.source_generation==="applied";
 
   const material=Object.freeze({
     marker:VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_V1,
     version:1,
-    status:"ATOMIC_SOURCE_RECONCILIATION_PREPARED_APPLICATION_REQUIRED",
+    status:applied
+      ?"CANONICAL_SOURCE_RECONCILIATION_APPLIED"
+      :"ATOMIC_SOURCE_RECONCILIATION_PREPARED_APPLICATION_REQUIRED",
+    source_generation:repository.source_generation,
     repository_head_sha:repository.repository_head_sha,
     repository_tree_sha:repository.repository_tree_sha,
-    reviewed_source_blobs:
-      VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
+    reviewed_source_blobs:repository.reviewed_source_blobs,
     current_source_fixture:Object.freeze({
       opening_domain_id:CURRENT_SOURCE_MODEL_LAUNCH_ID,
       reconciliation_id:currentShared.reconciliation_id,
@@ -667,21 +777,27 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     proposed_shared_post_discovery_reconciliation:reconciledShared,
     proposed_candidate_sha256:
       sha256Text(canonicalJson(frozenProposedCandidate)),
-    required_atomic_source_updates:requiredAtomicSourceUpdatesV1(),
-    downstream_real_evidence_blocked_until_application:Object.freeze([
-      "opening_ledger_custody_evidence",
-      "opening_claim_replay_evidence",
-      "bounded_canary_evidence",
-      "market_vault_role_authorization",
-      "market_vault_deployment_attestation",
-      "final_coupled_activation",
-    ]),
+    required_atomic_source_updates:applied
+      ?Object.freeze([])
+      :requiredAtomicSourceUpdatesV1(),
+    downstream_real_evidence_blocked_until_application:applied
+      ?Object.freeze([])
+      :Object.freeze([
+        "opening_ledger_custody_evidence",
+        "opening_claim_replay_evidence",
+        "bounded_canary_evidence",
+        "market_vault_role_authorization",
+        "market_vault_deployment_attestation",
+        "final_coupled_activation",
+      ]),
     verification:Object.freeze({
       reviewed_source_blobs_verified:true,
       canonical_inputs_loaded_from_head_git_objects:true,
       verified_modules_loaded_from_head_git_objects:true,
       working_tree_module_execution:false,
       repository_clean:true,
+      pre_application_generation_verified:!applied,
+      applied_source_generation_verified:applied,
       current_fixture_rederived:true,
       commitment_digest_rederived:true,
       opening_and_vault_encodings_lossless:true,
@@ -690,13 +806,14 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
       exact_reconciled_opening_state_id_verified:true,
       reconciliation_id_rotated:true,
       wc_opening_state_id_rotated:true,
-      proposed_candidate_change_scope_shared_reconciliation_only:true,
-      current_classifier_source_fixture_verified:true,
-      candidate_classifier_atomic_source_update_required:true,
+      proposed_candidate_change_scope_shared_reconciliation_only:!applied,
+      current_classifier_source_fixture_verified:!applied,
+      applied_classifier_source_identity_verified:applied,
+      candidate_classifier_atomic_source_update_required:!applied,
       classifier_execution_performed:false,
-      canonical_candidate_file_updated:false,
-      classifier_source_updated:false,
-      source_application_required:true,
+      canonical_candidate_file_updated:applied,
+      classifier_source_updated:applied,
+      source_application_required:!applied,
     }),
     authority:
       VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_AUTHORITY_V1,
@@ -723,6 +840,7 @@ if(direct) {
     const result=await prepareWcVoidCoupledLaunchIdentityReconciliationV1();
     console.log(VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_V1);
     console.log("status="+result.artifact.status);
+    console.log("source_generation="+result.artifact.source_generation);
     console.log("reconciliation_plan_id="+result.artifact.reconciliation_plan_id);
     console.log("digest_hex="+result.artifact.launch_identity.digest_hex);
     console.log(
@@ -741,9 +859,18 @@ if(direct) {
         result.artifact.proposed_shared_post_discovery_reconciliation
           .wc_opening_state_id,
     );
-    console.log("atomic_source_update_required=true");
-    console.log("canonical_candidate_file_updated=false");
-    console.log("classifier_source_updated=false");
+    console.log(
+      "atomic_source_update_required="+
+        String(result.artifact.verification.source_application_required),
+    );
+    console.log(
+      "canonical_candidate_file_updated="+
+        String(result.artifact.verification.canonical_candidate_file_updated),
+    );
+    console.log(
+      "classifier_source_updated="+
+        String(result.artifact.verification.classifier_source_updated),
+    );
     console.log("deployment=false");
     console.log("role_authorization=false");
     console.log("funds_movement=false");
