@@ -433,6 +433,8 @@ try {
         buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
           ...sources,
           runtimeBindingReceipt: bad,
+          runtimeBindingFileSha256:
+            sha256(Buffer.from(JSON.stringify(bad, null, 2) + "\n", "utf8")),
         }),
       /runtime_binding_id_mismatch/u,
     );
@@ -447,6 +449,8 @@ try {
         buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
           ...sources,
           runtimeBindingReceipt: bad,
+          runtimeBindingFileSha256:
+            sha256(Buffer.from(JSON.stringify(bad, null, 2) + "\n", "utf8")),
         }),
       /runtime_binding_authority_mismatch/u,
     );
@@ -462,6 +466,8 @@ try {
         buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
           ...sources,
           runtimeBindingReceipt: bad,
+          runtimeBindingFileSha256:
+            sha256(Buffer.from(JSON.stringify(bad, null, 2) + "\n", "utf8")),
         }),
       /runtime_binding_control_participant_mismatch/u,
     );
