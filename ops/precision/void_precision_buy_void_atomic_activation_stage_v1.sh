@@ -82,8 +82,24 @@ live_configuration_sha256="$(
     END { print value }
   ' "$preflight_log"
 )"
+live_dropin_sha256="$(
+  awk -F= '
+    $1=="live_dropin_sha256" { value=$2 }
+    END { print value }
+  ' "$preflight_log"
+)"
+dormant_dropin_sha256="$(
+  awk -F= '
+    $1=="dormant_dropin_sha256" { value=$2 }
+    END { print value }
+  ' "$preflight_log"
+)"
 [[ "$live_configuration_sha256" =~ ^[0-9a-f]{64}$ ]] ||
   hold "live_configuration_sha256_missing"
+[[ "$live_dropin_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+  hold "live_dropin_sha256_missing"
+[[ "$dormant_dropin_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+  hold "dormant_dropin_sha256_missing"
 
 mkdir -p "$HOME/.config/void" "$stage_root"
 chmod 700 "$HOME/.config/void" "$stage_root"
@@ -122,6 +138,31 @@ grep -qx 'manifest_is_preflight_authority=false' "$stage_log" ||
 say "stage_binds_exact_fresh_preflight_log=true"
 say "stage_manifest_preflight_authority=false"
 say "wrapper_fresh_preflight_execution_proven=true"
+
+live_path="$(
+  awk -F= '
+    $1=="live_path" { value=$2 }
+    END { print value }
+  ' "$stage_log"
+)"
+rollback_path="$(
+  awk -F= '
+    $1=="rollback_path" { value=$2 }
+    END { print value }
+  ' "$stage_log"
+)"
+test "$live_path" =   "$out_dir/live/96-buy-void-payment-keyed-postgres-atomic-activation-v1.conf" ||
+  hold "staged_live_path_mismatch"
+test "$rollback_path" =   "$out_dir/rollback/96-buy-void-payment-keyed-postgres-atomic-activation-v1.conf" ||
+  hold "staged_rollback_path_mismatch"
+actual_live_dropin_sha256="$(sha256sum "$live_path" | awk '{print $1}')"
+actual_dormant_dropin_sha256="$(sha256sum "$rollback_path" | awk '{print $1}')"
+test "$actual_live_dropin_sha256" = "$live_dropin_sha256" ||
+  hold "staged_live_dropin_sha256_mismatch"
+test "$actual_dormant_dropin_sha256" = "$dormant_dropin_sha256" ||
+  hold "staged_dormant_dropin_sha256_mismatch"
+say "staged_live_dropin_sha256_verified=true"
+say "staged_dormant_dropin_sha256_verified=true"
 
 pid_after="$(systemctl --user show "$unit" -p MainPID --value)"
 inv_after="$(systemctl --user show "$unit" -p InvocationID --value)"
