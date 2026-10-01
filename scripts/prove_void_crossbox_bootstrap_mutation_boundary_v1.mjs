@@ -36,10 +36,15 @@ for (const file of ALL) {
     false,
     `${file}: retired SSH default returned`,
   );
-  assert.ok(
-    text.indexOf("valid_ssh_target") < text.indexOf('ssh "$ALIEN"'),
-    `${file}: SSH validation must precede SSH`,
-  );
+  const validationAt = text.indexOf('valid_ssh_target "$ALIEN"');
+  const directSshAt = text.indexOf('ssh "$ALIEN"');
+  assert.ok(validationAt >= 0, `${file}: SSH validation call missing`);
+  if (directSshAt >= 0) {
+    assert.ok(
+      validationAt < directSshAt,
+      `${file}: SSH validation must precede direct SSH`,
+    );
+  }
 }
 
 const mutating = source(MUTATING);
@@ -99,9 +104,13 @@ assert.ok(
 );
 
 const sshPreflight = source("ops/tailscale-ssh-auth-preflight-proof.sh");
+const sshPreflightValidationAt =
+  sshPreflight.indexOf('valid_ssh_target "$ALIEN"');
 assert.ok(
-  sshPreflight.indexOf('valid_ssh_target "$ALIEN"') <
-    sshPreflight.indexOf('mkdir -p "$OUT"'),
+  sshPreflightValidationAt < sshPreflight.indexOf('mkdir -p "$OUT"'),
+);
+assert.ok(
+  sshPreflightValidationAt < sshPreflight.indexOf("set +e"),
 );
 
 const tmp = fs.mkdtempSync(
