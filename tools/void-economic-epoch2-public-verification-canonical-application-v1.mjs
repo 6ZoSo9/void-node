@@ -20,6 +20,10 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_AUTH
     exact_composition_receipt_required: true,
     exact_derived_candidate_required: true,
     composition_reexecution_required: true,
+    applied_composition_reexecution_required: true,
+    applied_exact_upstream_evidence_required: true,
+    external_plan_not_semantic_authority: true,
+    detached_base_git_view_required: true,
     composition_receipt_equality_required: true,
     derived_candidate_equality_required: true,
     canonical_head_candidate_bytes_required: true,
@@ -98,6 +102,33 @@ const INPUT_KEYS = Object.freeze([
   "derived_candidate_file_sha256",
 ]);
 
+const APPLIED_VERIFY_KEYS = Object.freeze([
+  "application_plan_bytes",
+  "application_plan_file_sha256",
+  "public_read_evidence_bytes",
+  "public_read_evidence_file_sha256",
+  "public_read_evidence_id",
+  "evaluation_time_utc",
+  "state_root_membership_bytes",
+  "state_root_membership_file_sha256",
+  "expected_registry_address",
+  "expected_publisher_address",
+  "review_confirmation",
+]);
+
+const SEMANTIC_REPLAY_KEYS = Object.freeze([
+  "plan",
+  "public_read_evidence_bytes",
+  "public_read_evidence_file_sha256",
+  "public_read_evidence_id",
+  "evaluation_time_utc",
+  "state_root_membership_bytes",
+  "state_root_membership_file_sha256",
+  "expected_registry_address",
+  "expected_publisher_address",
+  "review_confirmation",
+]);
+
 const PLAN_KEYS = Object.freeze([
   "marker",
   "version",
@@ -117,6 +148,7 @@ const PLAN_KEYS = Object.freeze([
   "target_candidate_file_sha256",
   "target_candidate",
   "composition_receipt_file_sha256",
+  "composition_receipt",
   "composition_id",
   "composition_source_head_sha",
   "composition_source_tree_sha",
@@ -125,6 +157,9 @@ const PLAN_KEYS = Object.freeze([
   "public_read_evidence_id",
   "evaluation_time_utc",
   "state_root_membership_file_sha256",
+  "expected_registry_address",
+  "expected_publisher_address",
+  "review_confirmation",
   "state_root_promotion_id",
   "promoted_public_verification_fields",
   "migration_before",
@@ -529,8 +564,133 @@ function materializedBlob(treeRoot, relativePath, expectedBlob) {
   return bytes;
 }
 
+function repositoryObjectDirectory() {
+  const raw = gitText(
+    ["rev-parse", "--git-path", "objects"],
+    "PUBLIC_VERIFICATION_APPLICATION_OBJECT_DIR_UNAVAILABLE",
+  );
+  const resolved = path.isAbsolute(raw) ? raw : path.resolve(ROOT, raw);
+  const stat = fs.lstatSync(resolved);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_OBJECT_DIR_INVALID");
+  }
+  return fs.realpathSync.native(resolved);
+}
+
+function privateGitText(treeRoot, args, code) {
+  const result = checkedSpawn(
+    GIT,
+    ["--no-replace-objects", "-C", treeRoot, ...args],
+    { code },
+  );
+  const value = String(result.stdout || "").trim();
+  if (!value) fail(code);
+  return value;
+}
+
+function installDetachedReviewedGitView(treeRoot, repo) {
+  const gitDir = path.join(treeRoot, ".git");
+  const objectInfo = path.join(gitDir, "objects", "info");
+  fs.mkdirSync(objectInfo, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(gitDir, "refs"), { recursive: true, mode: 0o700 });
+
+  const config = [
+    "[core]",
+    "\trepositoryformatversion = 0",
+    "\tfilemode = true",
+    "\tbare = false",
+    "\tlogallrefupdates = false",
+    "[remote \"origin\"]",
+    "\turl = " + CANONICAL_REMOTE,
+    "",
+  ].join("\n");
+  fs.writeFileSync(path.join(gitDir, "config"), config, {
+    encoding: "utf8",
+    mode: 0o400,
+    flag: "wx",
+  });
+  fs.writeFileSync(path.join(gitDir, "HEAD"), repo.head + "\n", {
+    encoding: "utf8",
+    mode: 0o400,
+    flag: "wx",
+  });
+  fs.writeFileSync(
+    path.join(objectInfo, "alternates"),
+    repositoryObjectDirectory() + "\n",
+    { encoding: "utf8", mode: 0o400, flag: "wx" },
+  );
+
+  checkedSpawn(
+    GIT,
+    ["--no-replace-objects", "-C", treeRoot, "read-tree", repo.head],
+    { code: "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_INDEX_FAILED" },
+  );
+
+  if (
+    privateGitText(
+      treeRoot,
+      ["rev-parse", "HEAD"],
+      "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_HEAD_UNAVAILABLE",
+    ) !== repo.head ||
+    privateGitText(
+      treeRoot,
+      ["rev-parse", "HEAD^{tree}"],
+      "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_TREE_UNAVAILABLE",
+    ) !== repo.tree ||
+    canonicalRemote(
+      privateGitText(
+        treeRoot,
+        ["config", "--get", "remote.origin.url"],
+        "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_ORIGIN_UNAVAILABLE",
+      ),
+    ) !== repo.remote
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_IDENTITY_MISMATCH");
+  }
+
+  const clean = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      "-C",
+      treeRoot,
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ],
+    {
+      env: sanitizedGitEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 4 * 1024 * 1024,
+    },
+  );
+  if (
+    clean.error ||
+    clean.status !== 0 ||
+    String(clean.stdout || "").trim() !== ""
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN");
+  }
+}
+
 async function withReviewedComposition(repo, fn) {
-  const gitDir = repositoryGitDir();
+  if (
+    !repo ||
+    !HEX40.test(String(repo.head || "")) ||
+    !HEX40.test(String(repo.tree || "")) ||
+    canonicalRemote(repo.remote) !== CANONICAL_REMOTE
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_REPOSITORY_INVALID");
+  }
+  const actualTree = gitText(
+    ["rev-parse", repo.head + "^{tree}"],
+    "PUBLIC_VERIFICATION_APPLICATION_REVIEWED_TREE_UNAVAILABLE",
+  );
+  if (actualTree !== repo.tree) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_TREE_MISMATCH");
+  }
+
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-epoch2-public-application-reviewed-"),
   );
@@ -570,41 +730,12 @@ async function withReviewedComposition(repo, fn) {
     materializedBlob(treeRoot, COMPOSITION_REL, compositionBlob);
     materializedBlob(treeRoot, CLASSIFIER_REL, classifierBlob);
 
-    fs.writeFileSync(
-      path.join(treeRoot, ".git"),
-      "gitdir: " + gitDir + "\n",
-      { encoding: "utf8", mode: 0o400, flag: "wx" },
-    );
+    installDetachedReviewedGitView(treeRoot, repo);
     checkedSpawn(
       "/usr/bin/chmod",
       ["-R", "a-w", treeRoot],
       { code: "PUBLIC_VERIFICATION_APPLICATION_READONLY_LOCK_FAILED" },
     );
-
-    const clean = spawnSync(
-      GIT,
-      [
-        "--no-replace-objects",
-        "-C",
-        treeRoot,
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-      ],
-      {
-        env: sanitizedGitEnv(),
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        maxBuffer: 4 * 1024 * 1024,
-      },
-    );
-    if (
-      clean.error ||
-      clean.status !== 0 ||
-      String(clean.stdout || "").trim() !== ""
-    ) {
-      fail("PUBLIC_VERIFICATION_APPLICATION_MATERIALIZED_REPOSITORY_NOT_CLEAN");
-    }
 
     const compositionModule = await import(
       pathToFileURL(path.join(treeRoot, COMPOSITION_REL)).href +
