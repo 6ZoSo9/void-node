@@ -32,31 +32,74 @@ All six inputs must use the canonical pretty JSON serialization used by the
 collector/proof path. Prepare remains network-free: the public-read observations
 are explicit evidence inputs.
 
+## Reviewed execution boundary
+
+The application tool does **not** import the authority-bearing runtime-binding,
+promotion, or coupled-classifier modules from the mutable worktree.
+
+Before re-execution it binds one clean canonical repository HEAD/tree and records
+the exact Git blobs for the complete authority-bearing relative-module closure.
+V1 contains 16 reviewed source modules and exactly one bare package dependency:
+`ethers`.
+
+The plan also binds the merged reviewed package runtime:
+
+- `tools/void-reviewed-node-package-runtime-v1.mjs`;
+- `ops/security/reviewed-node-package-runtime-ethers-v1.json`;
+- its reviewed profile ID;
+- its complete installed-package aggregate; and
+- every reviewed module Git blob used by the participant authority path.
+
+Prepare then constructs a private execution root outside the repository:
+
+1. the reviewed package-runtime binder/profile are copied from exact HEAD Git
+   objects;
+2. the merged reviewed `ethers` closure is materialized and re-verified in a
+   private `node_modules`;
+3. a private Git repository fetches/checks out the exact reviewed local HEAD and
+   verifies its tree plus all 16 authority-module blobs;
+4. an ignored private runner is added under the private root; and
+5. the complete execution root is made read-only before authority execution.
+
+The private child is launched with Node's permission model and filesystem-read
+authority limited to that reviewed execution root. Ambient `NODE_PATH`,
+`NODE_OPTIONS`, npm prefix overrides, dynamic-loader variables, caller PATH,
+Git repository-selection variables, and global/system Git configuration do not
+cross the boundary.
+
+The reviewed participant promotion needs one child-process capability for its
+Git provenance reads. A recursive source census proves that this is the only
+child-process surface in the 16-module closure. The child therefore receives
+`--allow-child-process` together with a fixed `/usr/bin:/bin` PATH and
+fail-closed Git configuration that disables replacement objects, fsmonitor,
+hooks, ambient attributes, untracked-cache/index-preload behavior, and submodule
+recursion.
+
+This contract does **not** claim child socket/network confinement across
+Node 22/24/26. The reviewed package-runtime contract explicitly records
+`execution_network_isolation_provided=false`. This participant application
+does not need a child network observation because every production observation
+is supplied as reviewed evidence bytes.
+
 ## Re-execution
 
-Prepare does not trust either supplied derived receipt.
-
-It first directly executes the reviewed production runtime-binding builder:
+Inside the reviewed private execution root, prepare executes:
 
 `buildVoidParticipantPostpurchaseProductionRuntimeBindingV1(...)`
 
-over the exact finality/status/delivery/control evidence inputs. The rederived
+over the exact finality/status/delivery/control inputs. The rederived
 runtime-binding object must be byte-identical to the supplied reviewed
-runtime-binding receipt. A self-consistent fabricated receipt is not origin
-authority.
+runtime-binding receipt. A self-consistent fabricated receipt is not authority.
 
-It then captures one clean repository HEAD/tree, reads the canonical coupled and
-successor candidates from that exact Git generation, binds the exact promotion,
-classifier, runtime-binding, finality-import, finality, and application-tool
-blobs, then directly re-executes:
+The same private execution then runs:
 
 `buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1(...)`
 
-The re-executed promotion object must be exactly equal to the supplied reviewed
-promotion receipt.
+and the canonical coupled classifier before/after the promotion. The re-executed
+promotion must be exactly equal to the supplied reviewed promotion receipt.
 
-The inherited promotion Git subprocesses run with replacement objects disabled,
-Git/config injection variables removed, and a fixed system Git PATH.
+No authority-bearing function object loaded from the application tool's mutable
+worktree is used for those decisions.
 
 ## Exact source delta
 
@@ -73,7 +116,8 @@ status=HOLD
 gates.coupled_activation_ready=false
 ```
 
-The canonical coupled classifier is rerun before and after. Exactly
+The canonical coupled classifier is rerun before and after in the reviewed
+private execution root. Exactly
 `participant_post_purchase_voidtoken_control_required` must disappear from
 the missing-gate list; ordering and every other missing gate remain unchanged.
 
@@ -83,6 +127,9 @@ The content-addressed plan binds:
 
 - application base HEAD/tree;
 - exact application/promotion/classifier/runtime-binding/finality tool Git blobs;
+- the full 16-module reviewed execution blob map;
+- reviewed package-runtime tool/profile blobs, profile ID, and package aggregate;
+- the reviewed execution-bundle content ID;
 - exact finality/status/delivery/control evidence SHA-256 values;
 - exact runtime-binding and promotion receipt SHA-256 values;
 - exact coupled source and target Git-blob/SHA-256 identities;
@@ -107,8 +154,12 @@ A later reviewed Git source commit may apply the target candidate bytes.
   equals the exact local applied HEAD;
 - current coupled source to equal the exact planned target blob/bytes;
 - successor source to remain unchanged;
-- application/promotion/classifier/runtime-binding tool lineage unchanged; and
-- the canonical classifier to reproduce the exact planned post-state.
+- application/promotion/classifier/runtime-binding/finality tool lineage
+  unchanged;
+- every reviewed execution-module Git blob unchanged;
+- reviewed package-runtime tool/profile lineage unchanged; and
+- the canonical classifier to reproduce the exact planned post-state through
+  the same private reviewed execution bundle.
 
 The resulting applied-lineage receipt still declares final coupled activation
 required.
@@ -126,6 +177,13 @@ canonical_head_candidate_bytes_required=true
 reviewed_repository_generation_required=true
 exact_one_gate_source_delta=true
 canonical_classifier_reexecution=true
+reviewed_git_object_execution_required=true
+reviewed_package_runtime_required=true
+permission_fenced_execution_required=true
+ancestor_package_resolution_forbidden=true
+ambient_dynamic_loader_overrides_ignored=true
+execution_child_process_limited_to_reviewed_git=true
+execution_network_isolation_provided=false
 reviewed_git_commit_required=true
 canonical_main_application_required=true
 canonical_remote_main_read_required=true
@@ -150,11 +208,21 @@ public_presale_activation=false
 funds_movement=false
 ```
 
+The `external_network_read=true` authority applies only to the later
+`verify-applied` fixed-URL canonical GitHub main check. Prepare itself performs
+no network read; its reviewed execution consumes explicit evidence and local
+reviewed Git/package bytes.
+
 ## Verification
 
 ```bash
 node scripts/prove_void_participant_postpurchase_canonical_application_v1.mjs
 ```
+
+Focused CI runs this proof on Node 22, 24, and 26 after an exact locked install,
+then reruns the merged reviewed-package-runtime and participant upstream
+regressions. Workflow triggers include every member of the reviewed execution
+closure plus the package profile/metadata.
 
 A green source proof is not a runtime-control event, token transfer, market
 activation, presale activation, or final coupled activation.
