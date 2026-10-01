@@ -10,12 +10,16 @@ const workflowPath = ".github/workflows/mainnet0-canonical-producer-liveness-gua
 const noEmptyProofPath = "scripts/prove_canonical_producer_no_empty_autoprop_v1.mjs";
 const runtimeProofPath = "ops/prove-main-runtime-autoprop.sh";
 const goNoGoPath = "ops/mainnet0-go-no-go-with-runtime.sh";
+const crossboxSmokePath = "ops/mainnet/mainnet0-crossbox-status-smoke.sh";
+const makefilePath = "Makefile";
 const selfPath = "scripts/prove_canonical_producer_no_empty_operator_contract_v1.mjs";
 
 const workflow = fs.readFileSync(workflowPath, "utf8");
 const noEmptyProof = fs.readFileSync(noEmptyProofPath, "utf8");
 const runtimeProof = fs.readFileSync(runtimeProofPath, "utf8");
 const goNoGo = fs.readFileSync(goNoGoPath, "utf8");
+const crossboxSmoke = fs.readFileSync(crossboxSmokePath, "utf8");
+const makefile = fs.readFileSync(makefilePath, "utf8");
 
 function sectionPaths(section, nextToken) {
   const startToken = `  ${section}:\n`;
@@ -55,6 +59,8 @@ const requiredTriggerInputs = [
   ...directProofInputs,
   runtimeProofPath,
   goNoGoPath,
+  crossboxSmokePath,
+  makefilePath,
   selfPath,
 ];
 
@@ -96,8 +102,44 @@ assert.ok(
   "official runtime go/no-go must not inject real work implicitly",
 );
 
+assert.ok(
+  goNoGo.includes('CROSSBOX_PEER="${VOID_MAINNET0_CROSSBOX_PEER:-}"'),
+  "official runtime go/no-go must require an explicit current-fleet cross-box peer",
+);
+assert.ok(
+  goNoGo.includes("crossbox_peer_required"),
+  "official runtime go/no-go must fail closed when cross-box peer is missing",
+);
+assert.ok(
+  goNoGo.includes(
+    'VOID_MAINNET0_CROSSBOX_PEER="$CROSSBOX_PEER" make mainnet0-crossbox-status-smoke',
+  ),
+  "official runtime go/no-go must run the guarded current-fleet cross-box smoke",
+);
+assert.equal(
+  goNoGo.includes("prove-alienware-follower-autostart"),
+  false,
+  "official runtime go/no-go must not call the retired Alienware follower proof",
+);
+assert.ok(
+  makefile.includes(
+    "mainnet0-crossbox-status-smoke:\n\tbash ops/mainnet/mainnet0-crossbox-status-smoke.sh",
+  ),
+  "Makefile must route current-fleet cross-box smoke to the reviewed script",
+);
+assert.ok(
+  crossboxSmoke.includes('CROSSBOX_PEER="${VOID_MAINNET0_CROSSBOX_PEER:-}"'),
+  "cross-box smoke must require explicit peer input",
+);
+assert.ok(
+  crossboxSmoke.includes("crossbox_peer_retired"),
+  "cross-box smoke must reject retired Alienware identity",
+);
+
 console.log(MARKER);
 console.log(`direct_dependency_count=${directProofInputs.length}`);
 console.log("idle_contract=stable_head");
 console.log("work_contract=explicit_reviewed_stimulus_then_head_advances");
+console.log("current_fleet_crossbox_required=true");
+console.log("retired_alienware_gonogo_dependency=false");
 console.log("automatic_empty_seal=false");

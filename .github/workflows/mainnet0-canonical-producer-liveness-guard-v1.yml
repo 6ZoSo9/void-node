@@ -19,6 +19,10 @@ on:
       - ".env.example"
       - "ops/prove-main-runtime-autoprop.sh"
       - "ops/mainnet0-go-no-go-with-runtime.sh"
+      - "ops/mainnet/mainnet0-crossbox-status-smoke.sh"
+      - "Makefile"
+      - "ops/mainnet/mainnet0-crossbox-status-smoke.sh"
+      - "Makefile"
       - "scripts/prove_canonical_producer_no_empty_operator_contract_v1.mjs"
       - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
   push:
@@ -71,6 +75,7 @@ jobs:
           bash -n scripts/boot.sh
           bash -n ops/prove-main-runtime-autoprop.sh
           bash -n ops/mainnet0-go-no-go-with-runtime.sh
+          bash -n ops/mainnet/mainnet0-crossbox-status-smoke.sh
       - name: Canonical producer liveness proof
         env:
           VOID_CANONICAL_SELF_HTTP_GUARD: "1"

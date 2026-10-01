@@ -52,6 +52,10 @@ const files={
     "ops/mainnet/mainnet0-blockers.current.md",
     "utf8",
   ),
+  goNoGo:fs.readFileSync(
+    "ops/mainnet0-go-no-go-with-runtime.sh",
+    "utf8",
+  ),
   workflow:fs.readFileSync(
     ".github/workflows/void-mainnet0-crossbox-peer-safety-v1.yml",
     "utf8",
@@ -75,6 +79,12 @@ assert.ok(prStart>=0&&pushStart>prStart&&permissionsStart>pushStart);
 const prBlock=files.workflow.slice(prStart,pushStart);
 const pushBlock=files.workflow.slice(pushStart,permissionsStart);
 for(const path of launchTruthPaths) {
+  const token='- "'+path+'"';
+  assert.equal(prBlock.split(token).length-1,1,"pull_request trigger mismatch: "+path);
+  assert.equal(pushBlock.split(token).length-1,1,"push trigger mismatch: "+path);
+}
+
+for (const path of ["ops/mainnet0-go-no-go-with-runtime.sh"]) {
   const token='- "'+path+'"';
   assert.equal(prBlock.split(token).length-1,1,"pull_request trigger mismatch: "+path);
   assert.equal(pushBlock.split(token).length-1,1,"push trigger mismatch: "+path);
@@ -143,6 +153,10 @@ assert.ok(
     'VOID_MAINNET0_CROSSBOX_PEER="$CROSSBOX_PEER" make mainnet0-prelaunch-safety-proof',
   ),
 );
+assert.match(files.goNoGo,/crossbox_peer_required/u);
+assert.ok(files.goNoGo.includes(guardedInvocation));
+assert.doesNotMatch(files.goNoGo,/prove-alienware-follower-autostart/u);
+assert.match(files.goNoGo,/runtime\+crossbox wrapper passed/u);
 assert.match(
   files.statusRunbook,
   /VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-crossbox-status-smoke/u,
@@ -239,6 +253,7 @@ console.log("local_and_remote_repo_clean_required=true");
 console.log("exact_git_head_match_required=true");
 console.log("crossbox_ssh_failure_fails_closed=true");
 console.log("local_smoke_fallback_for_crossbox_forbidden=true");
+console.log("gonogo_current_fleet_crossbox_bound=true");
 console.log("network_execution=false");
 console.log("runtime_mutation=false");
 console.log("validator_mutation=false");
