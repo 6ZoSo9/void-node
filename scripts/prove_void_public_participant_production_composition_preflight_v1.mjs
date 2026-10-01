@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -278,6 +279,11 @@ try{
       "source_only_preflight",
       "git_repository_identity_read",
       "exact_head_source_blob_binding",
+      "reviewed_git_executable_required",
+      "minimal_git_environment_required",
+      "git_override_state_ignored",
+      "captured_commit_source_reads_required",
+      "git_identity_revalidated",
       "durable_session_contract_review",
       "role_authority_contract_review",
       "participant_http_contract_review",
@@ -286,6 +292,82 @@ try{
     ]);
     assert.equal(value,allowed.has(key),key);
   }
+
+
+  const hostileGitDir=path.join(temp,"hostile-git-env");
+  fs.mkdirSync(hostileGitDir,{mode:0o700});
+  const fakeGit=path.join(hostileGitDir,"git");
+  const sentinel=path.join(hostileGitDir,"sentinel");
+  const fsmonitor=path.join(hostileGitDir,"fsmonitor.sh");
+  const globalConfig=path.join(hostileGitDir,"gitconfig");
+  fs.writeFileSync(
+    fakeGit,
+    "#!/bin/sh\\nprintf '%s\\n' fake-git > "+JSON.stringify(sentinel)+"\\nexit 91\\n",
+    {mode:0o700},
+  );
+  fs.writeFileSync(
+    fsmonitor,
+    "#!/bin/sh\\nprintf '%s\\n' fsmonitor >> "+JSON.stringify(sentinel)+"\\nexit 91\\n",
+    {mode:0o700},
+  );
+  fs.writeFileSync(
+    globalConfig,
+    "[core]\\n  fsmonitor = "+fsmonitor+"\\n",
+    {mode:0o600},
+  );
+  const hostileRun=spawnSync(
+    process.execPath,
+    ["tools/void-public-participant-production-composition-preflight-v1.mjs"],
+    {
+      cwd:process.cwd(),
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      env:{
+        ...process.env,
+        PATH:hostileGitDir,
+        HOME:hostileGitDir,
+        XDG_CONFIG_HOME:hostileGitDir,
+        GIT_DIR:path.join(hostileGitDir,"not-a-repository"),
+        GIT_WORK_TREE:hostileGitDir,
+        GIT_COMMON_DIR:path.join(hostileGitDir,"common"),
+        GIT_INDEX_FILE:path.join(hostileGitDir,"index"),
+        GIT_OBJECT_DIRECTORY:path.join(hostileGitDir,"objects"),
+        GIT_ALTERNATE_OBJECT_DIRECTORIES:path.join(hostileGitDir,"alternate"),
+        GIT_NAMESPACE:"hostile",
+        GIT_REPLACE_REF_BASE:"refs/hostile/",
+        GIT_EXEC_PATH:hostileGitDir,
+        GIT_EXTERNAL_DIFF:fsmonitor,
+        GIT_PAGER:fsmonitor,
+        GIT_EDITOR:fsmonitor,
+        GIT_SEQUENCE_EDITOR:fsmonitor,
+        GIT_ASKPASS:fsmonitor,
+        SSH_ASKPASS:fsmonitor,
+        GIT_CONFIG_GLOBAL:globalConfig,
+        GIT_CONFIG_SYSTEM:globalConfig,
+        GIT_CONFIG_COUNT:"1",
+        GIT_CONFIG_KEY_0:"core.fsmonitor",
+        GIT_CONFIG_VALUE_0:fsmonitor,
+        GIT_NO_REPLACE_OBJECTS:"0",
+      },
+      timeout:60_000,
+      maxBuffer:4*1024*1024,
+    },
+  );
+  assert.equal(
+    hostileRun.status,
+    0,
+    "hostile Git environment changed preflight execution: "+hostileRun.stderr,
+  );
+  assert.match(
+    hostileRun.stdout,
+    new RegExp("preflight_id="+preflight.preflight_id+"(?:\\\\n|$)","u"),
+    "hostile Git environment changed preflight identity",
+  );
+  assert.equal(
+    fs.existsSync(sentinel),
+    false,
+    "ambient Git executable/config hook was executed",
+  );
 
   const gateway=fs.readFileSync(
     "ops/public/void-public-app-composition-gateway-v1.mjs",
@@ -339,6 +421,13 @@ try{
   console.log("session_http_memory_state_rejected=true");
   console.log("forged_durable_store_shape_rejected=true");
   console.log("reviewed_durable_store_factory_identity_required=true");
+  console.log("reviewed_git_executable_required=true");
+  console.log("minimal_git_environment_required=true");
+  console.log("git_override_state_ignored=true");
+  console.log("captured_commit_source_reads_required=true");
+  console.log("git_identity_revalidated=true");
+  console.log("hostile_git_environment_ignored=true");
+  console.log("fake_git_or_fsmonitor_execution=false");
   console.log("merged_durable_session_contract_bound=true");
   console.log("merged_live_role_source_contract_bound=true");
   console.log("hermetic_durable_role_bound_session_http_green=true");
