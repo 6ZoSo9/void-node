@@ -283,15 +283,67 @@ assert.deepEqual(result.candidate_fields, {
   inventory_funded: true,
   inventory_lock_proven: true,
 });
-assert.equal(result.production_candidate_binding_ready, true);
+assert.equal(result.production_candidate_binding_ready, false);
+assert.equal(
+  result.production_candidate_binding_hold_reason,
+  "fresh_live_head_and_preactivation_state_revalidation_required",
+);
+assert.equal(result.freshness_revalidation_required, true);
+assert.equal(
+  result.freshness_revalidation_basis,
+  "live_head_and_preactivation_state",
+);
 assert.equal(result.production_candidate_updated, false);
 assert.equal(result.market_activation_authorized, false);
 assert.equal(result.public_presale_activation_authorized, false);
 assert.equal(result.funds_movement_authorized, false);
 
+const legacyIdentityBody = {
+  marker: result.marker,
+  version: result.version,
+  status: result.status,
+  binding_id: result.binding_id,
+  source_evidence_id: result.source_evidence_id,
+  chain_id: result.chain_id,
+  execution_epoch: result.execution_epoch,
+  coupled_launch_id: result.coupled_launch_id,
+  market_vault_address: result.market_vault_address,
+  market_vault_runtime_code_sha256:
+    result.market_vault_runtime_code_sha256,
+  market_vault_compiled_identity_id:
+    result.market_vault_compiled_identity_id,
+  deployment_transaction_hash:
+    result.deployment_transaction_hash,
+  deployment_block_number: result.deployment_block_number,
+  deployment_block_hash: result.deployment_block_hash,
+  observed_head_block_number:
+    result.observed_head_block_number,
+  observed_head_block_hash:
+    result.observed_head_block_hash,
+  observed_confirmation_count:
+    result.observed_confirmation_count,
+  minimum_observed_head_block_number:
+    result.minimum_observed_head_block_number,
+  minimum_confirmation_count:
+    result.minimum_confirmation_count,
+  candidate_fields: result.candidate_fields,
+};
+const legacyCandidateReadyImportId =
+  "voidwcmvri1_"
+  + createHash("sha256")
+    .update(canonicalJson(legacyIdentityBody))
+    .digest("hex");
+assert.notEqual(
+  result.import_id,
+  legacyCandidateReadyImportId,
+  "freshness-held semantics must not reuse the legacy candidate-ready import identity",
+);
+
 const repeated = verify();
 assert.equal(repeated.import_id, result.import_id);
 assert.equal(repeated.binding_id, result.binding_id);
+assert.equal(repeated.production_candidate_binding_ready, false);
+assert.equal(repeated.freshness_revalidation_required, true);
 
 rejects(
   null,
@@ -409,6 +461,11 @@ for (const forbidden of [
 }
 
 console.log("VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_IMPORT_V1_PROOF_GREEN");
+console.log("static_attestation_import_verified=true");
+console.log("production_candidate_binding_ready=false");
+console.log("fresh_live_head_and_preactivation_state_revalidation_required=true");
+console.log("freshness_hold_semantics_content_addressed=true");
+console.log("legacy_candidate_ready_import_identity_reuse=false");
 console.log("reviewed_expected_deployment_binding_required=true");
 console.log("attestation_evidence_id_recomputed=true");
 console.log("minimum_head_bound=true");

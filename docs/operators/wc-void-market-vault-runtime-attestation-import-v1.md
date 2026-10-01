@@ -55,6 +55,8 @@ The importer independently requires:
 - exact pre-activation lock state;
 - deployment block/head/finality arithmetic consistency;
 - head and confirmation observations at or above the reviewed thresholds;
+- explicit classification that these thresholds are historical/static evidence,
+  not an indefinite freshness proof;
 - deployment/runtime/role/inventory proof booleans true;
 - market/presale/funds authority false;
 - exact read-only attestation authority; and
@@ -72,11 +74,27 @@ inventory_funded=true
 inventory_lock_proven=true
 ```
 
-The importer reports `production_candidate_binding_ready=true` but
-`production_candidate_updated=false`.
+The importer deliberately reports:
 
-A later promotion lane must bind a real imported receipt into the production
-candidate. This source-only Draft does not do so.
+```text
+production_candidate_binding_ready=false
+freshness_revalidation_required=true
+production_candidate_binding_hold_reason=fresh_live_head_and_preactivation_state_revalidation_required
+production_candidate_updated=false
+```
+
+The receipt is still useful as exact historical/static deployment evidence and
+the five candidate fields remain derived from it. But minimum head/finality
+thresholds do not prove the observation is still current: the vault could have
+activated, changed reserve state, or otherwise advanced after the attestation.
+
+A later promotion/composition lane must therefore perform a fresh live-head and
+preactivation-state revalidation before those derived fields may become
+production-candidate truth. Content addressing proves what was observed; it
+does not grant indefinite freshness.
+
+This source-only repair performs no live revalidation itself and does not update
+the production candidate.
 
 ## Authority boundary
 
