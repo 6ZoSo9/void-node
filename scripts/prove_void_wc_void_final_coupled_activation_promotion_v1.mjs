@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1,
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
   deriveVoidWcVoidFinalCoupledActivationPromotionV1,
+  writeVoidWcVoidFinalCoupledActivationPromotionV1,
 } from "../tools/void-wc-void-final-coupled-activation-promotion-v1.mjs";
 import {
   classifyVoidWcVoidProductionReadinessV1,
@@ -173,6 +176,10 @@ assert.equal(
 );
 assert.match(promotion.promotion_id, /^voidwcfcap1_[0-9a-f]{64}$/u);
 assert.match(promotion.composition_id, /^sha256:[0-9a-f]{64}$/u);
+assert.match(promotion.production_target_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(promotion.production_target_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.match(promotion.coupled_target_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(promotion.coupled_target_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.equal(promotion.applied_lineages.length, 6);
 assert.deepEqual(promotion.final_production_fields, [
   "coupled_activation_ready",
@@ -329,6 +336,42 @@ assert.equal(
   true,
 );
 
+const outRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-final-coupled-promotion-"),
+);
+try {
+  const output = path.join(outRoot, "promotion.json");
+  const persisted =
+    writeVoidWcVoidFinalCoupledActivationPromotionV1(
+      output,
+      promotion,
+    );
+  assert.equal(persisted.output_path, output);
+  assert.match(persisted.output_sha256, /^[0-9a-f]{64}$/u);
+  assert.ok(persisted.output_bytes > 0);
+  assert.equal(fs.statSync(output).mode & 0o777, 0o600);
+  const parsed = JSON.parse(fs.readFileSync(output, "utf8"));
+  assert.equal(parsed.promotion_id, promotion.promotion_id);
+  assert.equal(
+    parsed.production_target_file_sha256,
+    promotion.production_target_file_sha256,
+  );
+  assert.equal(
+    parsed.coupled_target_file_sha256,
+    promotion.coupled_target_file_sha256,
+  );
+  assert.throws(
+    () =>
+      writeVoidWcVoidFinalCoupledActivationPromotionV1(
+        output,
+        promotion,
+      ),
+    /FINAL_COUPLED_OUTPUT_ALREADY_EXISTS/u,
+  );
+} finally {
+  fs.rmSync(outRoot, { recursive: true, force: true });
+}
+
 const source = fs.readFileSync(
   "tools/void-wc-void-final-coupled-activation-promotion-v1.mjs",
   "utf8",
@@ -350,6 +393,8 @@ console.log("production_nonfinal_gates_must_already_be_green=true");
 console.log("coupled_nonfinal_gates_must_already_be_green=true");
 console.log("exact_final_production_change_scope=true");
 console.log("exact_final_coupled_change_scope=true");
+console.log("exact_target_file_hashes_bound=true");
+console.log("private_create_only_promotion_artifact_verified=true");
 console.log("composite_source_ready_proven=true");
 console.log("canonical_candidate_files_updated=false");
 console.log("runtime_activation_authorized=false");
