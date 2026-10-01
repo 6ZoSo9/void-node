@@ -32,6 +32,92 @@ trap cleanup EXIT INT TERM
 need(){ command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"; }
 manager_available(){ command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; }
 
+install_stable_manager(){
+  local control_dir="$INSTALL_ROOT/control"
+  local manager_dir="$INSTALL_ROOT/bin"
+  local control_next="$control_dir/.void-node-update.next"
+  local control_runtime_dir="$control_dir/runtime/bin"
+  local control_runtime="$control_runtime_dir/node"
+  local control_runtime_next="$control_runtime_dir/.node.next"
+  local control_license="$control_dir/runtime/LICENSE.nodejs"
+  local control_license_next="$control_dir/runtime/.LICENSE.nodejs.next"
+  local manager_next="$manager_dir/.void-node.next"
+  local command_next="$BIN_DIR/.void-node.next"
+  mkdir -p "$control_dir" "$control_runtime_dir" "$manager_dir"
+  rm -f "$control_next" "$control_runtime_next" "$control_license_next" "$manager_next" "$command_next"
+  cp -- "$DEST/bin/void-node-update" "$control_next"
+  chmod 700 "$control_next"
+  mv -Tf "$control_next" "$control_dir/void-node-update"
+  ln "$DEST/runtime/bin/node" "$control_runtime_next"
+  mv -Tf "$control_runtime_next" "$control_runtime"
+  cp -- "$DEST/runtime/LICENSE.nodejs" "$control_license_next"
+  mv -Tf "$control_license_next" "$control_license"
+  test "$(sha256sum -- "$control_runtime" | awk '{print $1}')" = "$EXPECTED_RUNTIME_SHA" ||
+    die "stable control runtime SHA mismatch"
+  cat > "$manager_next" <<'EOFMANAGER'
+#!/usr/bin/env bash
+set -euo pipefail
+set +H
+
+MARKER="VOID_NODE_STABLE_MANAGER_V1"
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+INSTALL_ROOT="$(dirname "$(dirname "$SELF")")"
+CURRENT="$INSTALL_ROOT/current"
+CONTROL_UPDATER="$INSTALL_ROOT/control/void-node-update"
+CONTROL_RUNTIME="$INSTALL_ROOT/control/runtime/bin/node"
+
+ensure_control_runtime(){
+  test -f "$CONTROL_UPDATER" || { printf 'ERROR: %s recovery updater is missing\n' "$MARKER" >&2; exit 1; }
+  test -x "$CONTROL_RUNTIME" || { printf 'ERROR: %s verified stable bundled recovery runtime is missing\n' "$MARKER" >&2; exit 1; }
+}
+run_control_updater(){
+  ensure_control_runtime
+  "$CONTROL_RUNTIME" "$CONTROL_UPDATER" "$@"
+}
+exec_control_rollback(){
+  local args=()
+  while test $# -gt 0; do
+    case "$1" in
+      --install-root) test $# -ge 2 || { printf 'ERROR: %s --install-root requires a value\n' "$MARKER" >&2; exit 1; }; shift 2 ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+  ensure_control_runtime
+  exec "$CONTROL_RUNTIME" "$CONTROL_UPDATER" rollback --install-root "$INSTALL_ROOT" "${args[@]}"
+}
+
+requested_rollback=0
+if test "${1:-}" = rollback || { test "${1:-}" = update && test "${2:-}" = rollback; }; then requested_rollback=1; fi
+
+recovery_required=0
+for artifact in .current.update-next .previous.update-next .rollback.update-transaction-v1.json .rollback.update-transaction-v1.json.next .rollback.restart-witness-v1; do
+  if test -e "$INSTALL_ROOT/$artifact" || test -L "$INSTALL_ROOT/$artifact"; then recovery_required=1; break; fi
+done
+if test "$recovery_required" = 1; then
+  recovery_output="$(run_control_updater recover --install-root "$INSTALL_ROOT")" || { rc=$?; printf '%s\n' "$recovery_output"; exit "$rc"; }
+  printf '%s\n' "$recovery_output"
+  case "$recovery_output" in
+    *"recovery_outcome=rollback_committed"*)
+      if test "$requested_rollback" = 1; then exit 0; fi
+      ;;
+    *"recovery_outcome=rollback_aborted_before_publication"*) ;;
+    *"recovery_outcome=rollback_restart_witness_cleaned"*) ;;
+    *) printf 'ERROR: %s unrecognized rollback recovery outcome\n' "$MARKER" >&2; exit 1 ;;
+  esac
+fi
+if test "${1:-}" = rollback; then shift; exec_control_rollback "$@"; fi
+if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; exec_control_rollback "$@"; fi
+test -x "$CURRENT/bin/void-node" || { printf 'ERROR: %s current release manager is unavailable\n' "$MARKER" >&2; exit 1; }
+exec "$CURRENT/bin/void-node" "$@"
+EOFMANAGER
+  chmod 700 "$manager_next"
+  mv -Tf "$manager_next" "$manager_dir/void-node"
+  if test "$(readlink -f "$BIN_DIR")" != "$(readlink -f "$manager_dir")"; then
+    ln -s "$manager_dir/void-node" "$command_next"
+    mv -Tf "$command_next" "$BIN_DIR/void-node"
+  fi
+}
+
 usage(){
   cat <<'HELP'
 VOID Network portable release installer v1
@@ -294,7 +380,7 @@ if test -n "$OLD_CURRENT" && test "$OLD_CURRENT" != "$DEST" && test -d "$OLD_CUR
   mv -Tf "$INSTALL_ROOT/.previous.next" "$INSTALL_ROOT/previous"
 fi
 
-ln -sfn "$INSTALL_ROOT/current/bin/void-node" "$BIN_DIR/void-node"
+install_stable_manager
 ln -sfn "$INSTALL_ROOT/current/bin/void-node-run" "$BIN_DIR/void-node-run"
 
 ENV_FILE="$CONFIG_DIR/env"
