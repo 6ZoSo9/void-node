@@ -451,6 +451,7 @@ expectRejected(
           terminalIssue({
             comments: 100,
             totalMessages: 101,
+            rotationRequired: false,
           }),
         ],
       }),
