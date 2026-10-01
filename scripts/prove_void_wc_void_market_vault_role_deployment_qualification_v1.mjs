@@ -22,6 +22,8 @@ import {
 
 const TOOL =
   "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
+const CONTROL_TOOL =
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
 const DOC =
   "docs/operators/wc-void-market-vault-role-deployment-qualification-v1.md";
 const VOID_TOKEN =
@@ -68,6 +70,9 @@ const trueAuthorityKeys = new Set([
   "canonical_git_source_binding_required",
   "actual_worktree_blob_binding_required",
   "launch_controller_control_reverification",
+  "reviewed_control_execution_from_exact_git_objects",
+  "private_reviewed_source_materialization",
+  "git_replacement_objects_disabled",
   "settlement_executor_public_identity_rederivation",
   "closeout_controller_public_identity_rederivation",
   "role_separation_verification",
@@ -297,6 +302,67 @@ await rejects(
   }
 }
 
+{
+  const head = spawnSync(
+    "/usr/bin/git",
+    ["--no-replace-objects","rev-parse","HEAD"],
+    { cwd:process.cwd(), encoding:"utf8" },
+  );
+  const parent = spawnSync(
+    "/usr/bin/git",
+    ["--no-replace-objects","rev-parse","HEAD^"],
+    { cwd:process.cwd(), encoding:"utf8" },
+  );
+  assert.equal(head.status,0,head.stderr);
+  assert.equal(parent.status,0,parent.stderr);
+  const headSha=String(head.stdout).trim();
+  const parentSha=String(parent.stdout).trim();
+  const replaceRef="refs/replace/"+headSha;
+  const install=spawnSync(
+    "/usr/bin/git",
+    ["--no-replace-objects","update-ref",replaceRef,parentSha],
+    { cwd:process.cwd(), encoding:"utf8" },
+  );
+  assert.equal(install.status,0,install.stderr);
+  try{
+    const replacementSafe=
+      await qualifyVoidWcVoidMarketVaultRoleDeploymentV1(request);
+    assert.equal(replacementSafe.qualification_id,qualified.qualification_id);
+  }finally{
+    const remove=spawnSync(
+      "/usr/bin/git",
+      ["--no-replace-objects","update-ref","-d",replaceRef],
+      { cwd:process.cwd(), encoding:"utf8" },
+    );
+    assert.equal(remove.status,0,remove.stderr);
+  }
+}
+
+{
+  const originalControl=fs.readFileSync(CONTROL_TOOL);
+  const previous=
+    process.env.VOID_TEST_VAULT_ROLE_QUALIFICATION_YIELD_AFTER_SOURCE_BINDING;
+  process.env.VOID_TEST_VAULT_ROLE_QUALIFICATION_YIELD_AFTER_SOURCE_BINDING="1";
+  try{
+    const race=
+      qualifyVoidWcVoidMarketVaultRoleDeploymentV1(request);
+    fs.writeFileSync(
+      CONTROL_TOOL,
+      Buffer.concat([originalControl,Buffer.from("\n// test-race-mutated\n")]),
+    );
+    fs.writeFileSync(CONTROL_TOOL,originalControl);
+    const isolated=await race;
+    assert.equal(isolated.qualification_id,qualified.qualification_id);
+  }finally{
+    fs.writeFileSync(CONTROL_TOOL,originalControl);
+    if(previous===undefined){
+      delete process.env.VOID_TEST_VAULT_ROLE_QUALIFICATION_YIELD_AFTER_SOURCE_BINDING;
+    }else{
+      process.env.VOID_TEST_VAULT_ROLE_QUALIFICATION_YIELD_AFTER_SOURCE_BINDING=previous;
+    }
+  }
+}
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-wc-void-vault-qualification-"),
 );
@@ -357,6 +423,12 @@ for (const forbidden of [
   assert.equal(source.includes(forbidden), false, forbidden);
 }
 for (const required of [
+  "withReviewedControlReverifier",
+  "reviewed_control_execution_from_exact_git_objects:true",
+  "private_reviewed_source_materialization:true",
+  "git_replacement_objects_disabled:true",
+  "GIT_NO_REPLACE_OBJECTS",
+  "--no-replace-objects",
   "reverifyVoidWcVoidLaunchControllerControlEvidenceV1",
   "AbiCoder.defaultAbiCoder",
   "creation_bytecode_hex",
@@ -376,6 +448,9 @@ console.log(
 );
 console.log("ephemeral_control_signature_verified=true");
 console.log("launch_controller_control_reverified=true");
+console.log("reviewed_control_execution_from_exact_git_objects=true");
+console.log("git_replacement_ref_attack_held=true");
+console.log("worktree_change_restore_execution_race_held=true");
 console.log("settlement_executor_public_identity_rederived=true");
 console.log("closeout_controller_public_identity_rederived=true");
 console.log("all_role_addresses_distinct=true");
