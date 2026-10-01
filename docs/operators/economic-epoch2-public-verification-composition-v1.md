@@ -27,6 +27,12 @@ Before any authority-bearing promotion module is loaded, the composition:
 - runs every Git identity/object read with `--no-replace-objects` and
   `GIT_NO_REPLACE_OBJECTS=1`, so local `refs/replace/*` cannot alter commit,
   tree, blob, ancestry, or `git show` semantics;
+- uses a minimal explicit subprocess environment with fixed PATH/locale,
+  non-existent HOME/XDG config roots, null global/system Git config, and no
+  inherited dynamic-loader or tool-option environment;
+- forces repository-local executable/config surfaces off with command-line Git
+  overrides for fsmonitor, hooks, ambient attributes, untracked cache, preload
+  index, submodule recursion, and the exact worktree;
 - verifies exact `HEAD:<path>` Git blobs for the canonical migration
   candidate, loopback policy, both promotion sources, the migration classifier,
   state-root admission, anchor verifier, and canonical-truth dependencies;
@@ -161,6 +167,8 @@ source_only_composition=true
 canonical_git_source_binding_required=true
 exact_dependency_git_blobs_required=true
 git_replacement_objects_disabled=true
+git_config_isolated=true
+subprocess_environment_isolated=true
 exact_reviewed_git_object_execution_required=true
 private_readonly_execution_bundle=true
 public_read_promotion_reexecuted=true
