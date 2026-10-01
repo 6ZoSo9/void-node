@@ -2,6 +2,7 @@ name: VOID Epoch-2 public verification canonical application v1
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - ".github/workflows/void-economic-epoch2-public-verification-canonical-application-v1.yml"
       - "docs/operators/economic-epoch2-public-verification-canonical-application-v1.md"
@@ -55,6 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b

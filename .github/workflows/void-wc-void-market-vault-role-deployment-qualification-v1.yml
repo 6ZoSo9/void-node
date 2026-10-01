@@ -16,6 +16,12 @@ on:
       - "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs"
       - "package.json"
       - "package-lock.json"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -47,6 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
@@ -63,6 +70,7 @@ jobs:
         run: node scripts/prove_void_wc_void_market_vault_role_deployment_qualification_v1.mjs
       - name: Upstream source regressions
         run: |
+          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
           node scripts/prove_void_wc_void_launch_controller_control_requalification_v1.mjs
           node scripts/prove_void_wc_void_market_vault_compiled_identity_acceptance_v1.mjs
           node scripts/prove_void_wc_void_market_vault_runtime_attestation_v1.mjs
