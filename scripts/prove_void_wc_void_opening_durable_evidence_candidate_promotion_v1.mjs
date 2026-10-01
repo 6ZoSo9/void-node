@@ -105,7 +105,13 @@ function rejects(fn, pattern) {
   assert.throws(fn, pattern);
 }
 
-const launchId = "sha256:" + "a".repeat(64);
+const launchId = JSON.parse(
+  fs.readFileSync(COUPLED, "utf8"),
+).shared_post_discovery_reconciliation.coupled_launch_id;
+assert.equal(
+  launchId,
+  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+);
 const hash = (digit) => "sha256:" + String(digit).repeat(64);
 
 function commitment(participantDigit, account, wcUnits) {
