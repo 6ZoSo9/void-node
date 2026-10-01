@@ -244,6 +244,52 @@ function gitText(args, code, { allowEmpty = false } = {}) {
   return text;
 }
 
+function withHardenedInheritedGit(fn) {
+  const keys = [
+    "PATH",
+    "HOME",
+    "XDG_CONFIG_HOME",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+  ];
+  const saved = new Map(keys.map((key) => [key, process.env[key]]));
+  const dynamic = Object.keys(process.env).filter((key) =>
+    /^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key),
+  );
+  const savedDynamic = new Map(dynamic.map((key) => [key, process.env[key]]));
+  try {
+    process.env.PATH = "/usr/bin:/bin";
+    process.env.HOME = "/nonexistent";
+    process.env.XDG_CONFIG_HOME = "/nonexistent";
+    process.env.GIT_CONFIG_NOSYSTEM = "1";
+    process.env.GIT_CONFIG_GLOBAL = "/dev/null";
+    process.env.GIT_NO_REPLACE_OBJECTS = "1";
+    for (const key of keys.slice(6)) delete process.env[key];
+    for (const key of dynamic) delete process.env[key];
+    return fn();
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    for (const key of dynamic) delete process.env[key];
+    for (const [key, value] of savedDynamic) {
+      if (value !== undefined) process.env[key] = value;
+    }
+  }
+}
+
 function canonicalRemote(value) {
   const text = String(value || "").trim();
   if (
@@ -277,6 +323,7 @@ function repositoryIdentity() {
   const branch = gitText(
     ["branch", "--show-current"],
     "PARTICIPANT_CANONICAL_REPOSITORY_BRANCH_UNAVAILABLE",
+    { allowEmpty: true },
   );
   if (!HEX40.test(head) || !HEX40.test(tree)) {
     fail("PARTICIPANT_CANONICAL_REPOSITORY_IDENTITY_INVALID");
@@ -628,7 +675,7 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
     assertWorktreeBlob(relativePath, expected, code);
   }
 
-  const reexecuted =
+  const reexecuted = withHardenedInheritedGit(() =>
     buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
       candidate: coupled.value,
       successorMigrationCandidate: successor.value,
@@ -642,7 +689,8 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
       successorCandidateGitBlobSha1: successor.blob_sha1,
       classifierGitBlobSha1: toolBlobs.classifier,
       promotionToolGitBlobSha1: toolBlobs.promotion,
-    });
+    }),
+  );
 
   if (canonicalJson(reexecuted) !== canonicalJson(promotionSource.value)) {
     fail("PARTICIPANT_CANONICAL_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
