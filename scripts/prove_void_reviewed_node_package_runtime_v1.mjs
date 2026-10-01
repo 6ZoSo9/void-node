@@ -200,6 +200,8 @@ for(const [key,value] of Object.entries(
     "installed_package_byte_inventory_required",
     "private_dependency_materialization",
     "post_copy_inventory_reverification",
+    "reviewed_profile_head_binding",
+    "reviewed_profile_content_id_rederivation",
   ]);
   assert.equal(value,allowed.has(key),key);
 }
@@ -230,6 +232,8 @@ for(const required of [
   "reviewed_node_runtime_dependency_symlink_forbidden",
   "reviewed_node_runtime_dependency_changed_before_copy",
   "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED",
+  "readReviewedNodePackageRuntimeProfileV1",
+  "reviewed_node_runtime_profile_content_id_mismatch",
 ]){
   assert.equal(source.includes(required),true,required);
 }
