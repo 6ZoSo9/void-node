@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -234,6 +235,39 @@ try {
     sources.runtimeBindingReceipt.runtime_binding_id,
     receipt.runtime_binding_id,
   );
+  const repositoryHead =
+    execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const repositoryTree =
+    execFileSync("git", ["rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
+  assert.equal(sources.repositoryHeadSha, repositoryHead);
+  assert.equal(sources.repositoryTreeSha, repositoryTree);
+  for (const key of [
+    "candidateGitBlobSha1",
+    "successorCandidateGitBlobSha1",
+    "classifierGitBlobSha1",
+    "promotionToolGitBlobSha1",
+  ]) {
+    assert.match(sources[key], /^[0-9a-f]{40}$/u, key);
+  }
+
+  {
+    const candidatePath =
+      "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+    const original = fs.readFileSync(candidatePath);
+    try {
+      fs.appendFileSync(candidatePath, "\n");
+      assert.throws(
+        () =>
+          readVoidParticipantPostpurchasePromotionSourcesV1({
+            runtimeBindingFile: receiptFile,
+            runtimeBindingFileSha256: receiptSha,
+          }),
+        /promotion_repository_must_be_clean/u,
+      );
+    } finally {
+      fs.writeFileSync(candidatePath, original);
+    }
+  }
 
   const promotion =
     buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1(
@@ -339,6 +373,32 @@ try {
       }),
     /promotion_successor_file_sha256_unbound/u,
   );
+  {
+    const falseHead =
+      (sources.repositoryHeadSha[0] === "0" ? "1" : "0")
+      + sources.repositoryHeadSha.slice(1);
+    assert.throws(
+      () =>
+        buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
+          ...sources,
+          repositoryHeadSha: falseHead,
+        }),
+      /promotion_repository_identity_mismatch/u,
+    );
+  }
+  {
+    const falseBlob =
+      (sources.candidateGitBlobSha1[0] === "0" ? "1" : "0")
+      + sources.candidateGitBlobSha1.slice(1);
+    assert.throws(
+      () =>
+        buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
+          ...sources,
+          candidateGitBlobSha1: falseBlob,
+        }),
+      /promotion_repository_blob_identity_mismatch/u,
+    );
+  }
 
   fs.chmodSync(receiptFile, 0o644);
   assert.throws(
@@ -416,6 +476,8 @@ try {
         buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
           ...sources,
           candidate: badCandidate,
+          candidateFileSha256:
+            sha256(Buffer.from(JSON.stringify(badCandidate, null, 2) + "\n", "utf8")),
         }),
       /promotion_candidate_prestate_invalid/u,
     );
@@ -430,6 +492,8 @@ try {
         buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
           ...sources,
           candidate: badCandidate,
+          candidateFileSha256:
+            sha256(Buffer.from(JSON.stringify(badCandidate, null, 2) + "\n", "utf8")),
         }),
       /promotion_candidate_prestate_classification_invalid/u,
     );
@@ -444,6 +508,10 @@ try {
   console.log("runtime_binding_id_recomputed=true");
   console.log("canonical_candidate_path_fixed=true");
   console.log("successor_candidate_path_fixed=true");
+  console.log("repository_head_tree_bound=true");
+  console.log("candidate_successor_classifier_tool_git_blobs_bound=true");
+  console.log("dirty_worktree_rejected=true");
+  console.log("false_valid_git_identity_rejected=true");
   console.log("exactly_one_candidate_gate_promoted=true");
   console.log("canonical_candidate_file_updated=false");
   console.log("candidate_status_remains_hold=true");
