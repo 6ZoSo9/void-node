@@ -20,7 +20,7 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1 =
     source_only_promotion: true,
     exact_semantic_promotion_bytes_required: true,
     exact_candidate_bytes_required: true,
-    semantic_canary_must_be_current_at_application: true,
+    semantic_canary_fresh_at_reviewed_evaluation_required: true,
     canonical_classifier_reexecution: true,
     exact_two_gate_candidate_delta: true,
     canonical_candidate_file_update: false,
@@ -60,7 +60,6 @@ const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
 
 const INPUT_KEYS = Object.freeze([
-  "application_time_utc",
   "semantic_promotion_bytes",
   "semantic_promotion_file_sha256",
   "production_candidate_bytes",
@@ -247,7 +246,7 @@ function withoutSemanticIds(value) {
   return body;
 }
 
-function validateSemanticPromotion(raw, applicationTime) {
+function validateSemanticPromotion(raw) {
   const value = exactObject(
     raw,
     SEMANTIC_KEYS,
@@ -377,10 +376,9 @@ function validateSemanticPromotion(raw, applicationTime) {
   );
   if (
     observed > semanticEvaluation ||
-    semanticEvaluation > applicationTime ||
-    applicationTime > validUntil
+    semanticEvaluation > validUntil
   ) {
-    fail("BOUNDED_CANARY_SEMANTIC_PROMOTION_NOT_CURRENT_AT_APPLICATION");
+    fail("BOUNDED_CANARY_SEMANTIC_PROMOTION_TIME_WINDOW_INVALID");
   }
 
   return value;
@@ -416,11 +414,6 @@ export function promoteWcVoidBoundedCanaryCandidatesV1(input) {
     INPUT_KEYS,
     "INVALID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_INPUT_SHAPE",
   );
-  const applicationTime = canonicalUtc(
-    request.application_time_utc,
-    "BOUNDED_CANARY_CANDIDATE_PROMOTION_APPLICATION_TIME_INVALID",
-  );
-
   const semanticSource = parseJsonBytes(
     request.semantic_promotion_bytes,
     request.semantic_promotion_file_sha256,
@@ -442,10 +435,7 @@ export function promoteWcVoidBoundedCanaryCandidatesV1(input) {
     "BOUNDED_CANARY_SUCCESSOR_CANDIDATE_FILE",
   );
 
-  const semantic = validateSemanticPromotion(
-    semanticSource.value,
-    applicationTime,
-  );
+  const semantic = validateSemanticPromotion(semanticSource.value);
   const production = productionSource.value;
   const coupled = coupledSource.value;
   const successor = successorSource.value;
@@ -565,7 +555,8 @@ export function promoteWcVoidBoundedCanaryCandidatesV1(input) {
     execution_epoch: 2,
     pair: "WC_VOID",
     coupled_launch_id: semantic.coupled_launch_id,
-    application_time_utc: request.application_time_utc,
+    semantic_evaluation_time_utc: semantic.evaluation_time_utc,
+    semantic_valid_until_utc: semantic.valid_until_utc,
     semantic_promotion_id: semantic.promotion_id,
     semantic_evidence_id: semantic.semantic_evidence_id,
     reviewed_policy_id: semantic.reviewed_policy_id,
@@ -586,7 +577,8 @@ export function promoteWcVoidBoundedCanaryCandidatesV1(input) {
     production_after: summarize(productionAfter),
     coupled_before: summarize(coupledBefore),
     coupled_after: summarize(coupledAfter),
-    semantic_canary_current_at_application: true,
+    semantic_canary_fresh_at_reviewed_evaluation: true,
+    application_time_authority: false,
     bounded_canary_green: true,
     production_status_remains_hold: true,
     coupled_status_remains_hold: true,
