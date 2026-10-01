@@ -41,8 +41,10 @@ for (const path of [
     source.includes(': "${REMOTE_NODE_BASE:?set REMOTE_NODE_BASE to the explicit remote node HTTP origin}"'),
     `explicit HTTP origin requirement missing: ${path}`,
   );
-  assert.ok(source.includes('case "$REMOTE_NODE_BASE" in'), path);
-  assert.ok(source.includes('http://*|https://*)'), path);
+  assert.ok(source.includes('parsed.scheme not in {"http", "https"}'), path);
+  assert.ok(source.includes("parsed.username is not None or parsed.password is not None"), path);
+  assert.ok(source.includes('parsed.path not in {"", "/"} or parsed.query or parsed.fragment'), path);
+  assert.ok(source.includes("credential-free HTTP(S) origin"), path);
 }
 
 const sshOnly = fs.readFileSync("ops/two-box-remote-jobs-submit-proof.sh", "utf8");
@@ -82,11 +84,54 @@ for (const path of files) {
   );
 }
 
+for (const path of files) {
+  const result = spawnSync("bash", [path], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      ALIEN: "-oProxyCommand=must-not-run",
+      REMOTE_NODE_BASE: "https://example.invalid",
+    },
+    encoding: "utf8",
+    timeout: 2000,
+  });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 2, path);
+  assert.match(String(result.stderr || ""), /ALIEN must be an explicit SSH alias or user@host/u, path);
+}
+
+for (const path of [
+  "ops/two-box-remote-jobs-submit-product-proof.sh",
+  "ops/two-box-remote-datanet-view-proof.sh",
+]) {
+  for (const badBase of [
+    "https://user:pass@example.invalid:4100",
+    "https://example.invalid:4100/path",
+    "https://example.invalid:4100?query=1",
+  ]) {
+    const result = spawnSync("bash", [path], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ALIEN: "reviewed-host",
+        REMOTE_NODE_BASE: badBase,
+      },
+      encoding: "utf8",
+      timeout: 2000,
+    });
+    assert.equal(result.error, undefined, result.error?.message);
+    assert.equal(result.status, 2, path + " " + badBase);
+    assert.match(String(result.stderr || ""), /credential-free HTTP\(S\) origin/u, path);
+  }
+}
+
 console.log(`${MARKER}_PROOF_GREEN`);
 console.log("implicit_retired_ssh_target=false");
 console.log("implicit_retired_http_origin=false");
 console.log("explicit_remote_target_required=true");
 console.log("retired_target_casefold_rejected=true");
+console.log("ssh_option_injection_rejected=true");
+console.log("remote_origin_credentials_path_query_rejected=true");
 console.log("live_ssh_executed=false");
 console.log("live_http_executed=false");
 console.log("job_submission_executed=false");
