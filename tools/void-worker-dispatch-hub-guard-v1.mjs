@@ -5,6 +5,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import {\n  resolveCoordinationSuccessorChainLiveV1,\n} from "./void-coordination-successor-chain-v1.mjs";
 
 export const MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1";
 export const EVIDENCE_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_EVIDENCE_V1";
@@ -78,6 +79,15 @@ function canonicalize(value) {
 
 export function canonicalJson(value) {
   return JSON.stringify(canonicalize(value));
+}
+
+export function assertFreshLiveChainMatchesV1(suppliedChain, liveChain) {
+  requireObject(suppliedChain, "supplied chain");
+  requireObject(liveChain, "live chain");
+  if (canonicalJson(suppliedChain) !== canonicalJson(liveChain)) {
+    fail("supplied successor chain does not match fresh live resolution");
+  }
+  return true;
 }
 
 function contentId(value) {
@@ -206,8 +216,7 @@ function validateDispatch(raw) {
   return dispatch;
 }
 
-export function evaluateWorkerDispatchHubGuardV1(rawEvidence) {
-  const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
+export function evaluateWorkerDispatchHubGuardV1(\n  rawEvidence,\n  { liveChainRevalidated = false } = {},\n) {\n  const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
   if (evidence.marker !== EVIDENCE_MARKER) {
     fail("evidence.marker mismatch");
   }
@@ -233,9 +242,13 @@ export function evaluateWorkerDispatchHubGuardV1(rawEvidence) {
     outcome = "HOLD_PLAN_ISSUE_MISMATCH";
     reason =
       "live dispatch plan issue does not match the resolved coordination hub";
+  } else if (liveChainRevalidated !== true) {
+    outcome = "HOLD_CHAIN_LIVENESS_UNPROVEN";
+    reason =
+      "aligned retained evidence was not revalidated against the live successor chain";
   } else {
     outcome = "DISPATCH_HUB_ALIGNED";
-    reason = "live dispatch plan issue matches the valid current coordination hub";
+    reason = "live dispatch plan issue matches the freshly revalidated current coordination hub";
     normalDispatchAllowed = true;
   }
 
@@ -253,9 +266,10 @@ export function evaluateWorkerDispatchHubGuardV1(rawEvidence) {
     dispatch_plan_issue_should_be: chain.dispatch_plan_issue_should_be,
     dispatch_plan_issue_observed: dispatch.plan_issue,
     dispatch_evaluation_id: dispatch.evaluation_id,
+    live_chain_revalidated: liveChainRevalidated === true,
     normal_dispatch_allowed: normalDispatchAllowed,
     read_only_evidence_only: !normalDispatchAllowed,
-    requires_fresh_chain_evidence: true,
+    requires_fresh_chain_evidence: liveChainRevalidated !== true,
     requires_fresh_dispatch_evidence: true,
     external_worker_invocation_required: true,
     issue_creation_authorized: false,
@@ -309,7 +323,19 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const evidence = JSON.parse(await readBoundedStdin());
-  const result = evaluateWorkerDispatchHubGuardV1(evidence);
+  const suppliedChain = validateChain(evidence.chain);
+  const suppliedDispatch = validateDispatch(evidence.dispatch);
+  if (suppliedChain.repository_scope !== suppliedDispatch.repository) {
+    fail("coordination chain and live dispatch repository mismatch");
+  }
+  const liveChain = resolveCoordinationSuccessorChainLiveV1(
+    suppliedDispatch.repository,
+    suppliedChain.root_issue,
+  );
+  assertFreshLiveChainMatchesV1(evidence.chain, liveChain);
+  const result = evaluateWorkerDispatchHubGuardV1(evidence, {
+    liveChainRevalidated: true,
+  });
   const output = JSON.stringify(result, null, args.pretty ? 2 : 0) + "\n";
   if (args.outputPath) {
     await writeFile(path.resolve(args.outputPath), output, {
