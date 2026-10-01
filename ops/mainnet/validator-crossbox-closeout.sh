@@ -18,7 +18,50 @@ hold(){
   exit 2
 }
 
+valid_ssh_target(){
+  local target="$1"
+  [[ "$target" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+}
+
+require_crossbox_source_parity(){
+  local local_status local_head local_host local_short remote_truth remote_host remote_head
+  local_status="$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all)" \
+    || hold "local repository status unavailable"
+  [ -z "$local_status" ] || hold "local repository must be clean before validator closeout"
+  local_head="$(git -C "$ROOT" rev-parse HEAD)" \
+    || hold "local repository HEAD unavailable"
+  [[ "$local_head" =~ ^[0-9a-f]{40}$ ]] || hold "local repository HEAD invalid"
+
+  remote_truth="$(
+    ssh -o BatchMode=yes -o ConnectTimeout=6 "$CROSSBOX_SSH_TARGET" '
+set -euo pipefail
+cd "$HOME/dev/void-node"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+printf "%s\n%s\n" "$(hostname)" "$(git rev-parse HEAD)"
+'
+  )" || hold "remote clean repository identity unavailable"
+
+  remote_host="$(printf '%s\n' "$remote_truth" | sed -n '1p')"
+  remote_head="$(printf '%s\n' "$remote_truth" | sed -n '2p')"
+  [[ "$remote_head" =~ ^[0-9a-f]{40}$ ]] || hold "remote repository HEAD invalid"
+  [ "$remote_head" = "$local_head" ] || hold "local/remote repository HEAD mismatch"
+
+  local_host="$(hostname)"
+  local_short="$(hostname -s)"
+  [ -n "$remote_host" ] || hold "remote hostname missing"
+  [ "$remote_host" != "$local_host" ] || hold "remote resolved to local host"
+  [ "$remote_host" != "$local_short" ] || hold "remote resolved to local host"
+
+  echo "local_source_head=$local_head"
+  echo "remote_source_head=$remote_head"
+  echo "remote_source_host=$remote_host"
+  echo "crossbox_source_parity=true"
+}
+
 [ -n "$CROSSBOX_SSH_TARGET" ] || hold "missing explicit CROSSBOX_SSH_TARGET (or legacy ALIEN)"
+valid_ssh_target "$CROSSBOX_SSH_TARGET" || hold "invalid explicit CROSSBOX_SSH_TARGET"
+[[ "$EPOCH" =~ ^[1-9][0-9]{0,5}$ ]] || hold "epoch must be a canonical positive integer <= 6 digits"
+[[ "$VAULT" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || hold "vault name is unsafe"
 
 target_guard="$(printf '%s' "$CROSSBOX_SSH_TARGET" | tr '[:upper:]' '[:lower:]')"
 case "$target_guard" in
@@ -44,6 +87,8 @@ for p in reversed(cands):
 raise SystemExit(f"[ERR] no upgrade-track-{vault}-* with {target}")
 PY
 )"
+
+require_crossbox_source_parity
 
 LIVE_STAGE="$RUNTIME/upgrade-live-${VAULT}-final-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$LIVE_STAGE"

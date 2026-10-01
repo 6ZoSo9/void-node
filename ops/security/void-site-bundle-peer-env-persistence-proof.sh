@@ -16,9 +16,65 @@ hold(){
   exit 2
 }
 
+valid_ssh_target(){
+  local target="$1"
+  [[ "$target" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+}
+
+safe_peer(){
+  local peer="$1"
+  [[ "$peer" =~ ^https?://[A-Za-z0-9][A-Za-z0-9._-]*:4100$ ]]
+}
+
+safe_dropin_name(){
+  local name="$1"
+  [ "$name" != "." ] &&
+  [ "$name" != ".." ] &&
+  [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+}
+
+require_crossbox_source_parity(){
+  local local_status local_head local_host local_short remote_truth remote_host remote_head
+  local_status="$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all)" \
+    || hold "local repository status unavailable"
+  [ -z "$local_status" ] || hold "local repository must be clean before mutation"
+  local_head="$(git -C "$ROOT" rev-parse HEAD)" \
+    || hold "local repository HEAD unavailable"
+  [[ "$local_head" =~ ^[0-9a-f]{40}$ ]] || hold "local repository HEAD invalid"
+
+  remote_truth="$(
+    ssh -o BatchMode=yes -o ConnectTimeout=6 "$ALIEN" '
+set -euo pipefail
+cd "$HOME/dev/void-node"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+printf "%s\n%s\n" "$(hostname)" "$(git rev-parse HEAD)"
+'
+  )" || hold "remote clean repository identity unavailable"
+
+  remote_host="$(printf '%s\n' "$remote_truth" | sed -n '1p')"
+  remote_head="$(printf '%s\n' "$remote_truth" | sed -n '2p')"
+  [[ "$remote_head" =~ ^[0-9a-f]{40}$ ]] || hold "remote repository HEAD invalid"
+  [ "$remote_head" = "$local_head" ] || hold "local/remote repository HEAD mismatch"
+
+  local_host="$(hostname)"
+  local_short="$(hostname -s)"
+  [ -n "$remote_host" ] || hold "remote hostname missing"
+  [ "$remote_host" != "$local_host" ] || hold "remote resolved to local host"
+  [ "$remote_host" != "$local_short" ] || hold "remote resolved to local host"
+
+  echo "local_source_head=$local_head"
+  echo "remote_source_head=$remote_head"
+  echo "remote_source_host=$remote_host"
+  echo "crossbox_source_parity=true"
+}
+
 [ -n "$ALIEN" ] || hold "missing explicit ALIEN remote SSH target"
 [ -n "$LOCAL_PEER" ] || hold "missing explicit LOCAL_PEER"
 [ -n "$REMOTE_PEER" ] || hold "missing explicit REMOTE_PEER"
+valid_ssh_target "$ALIEN" || hold "invalid explicit ALIEN SSH target"
+safe_peer "$LOCAL_PEER" || hold "unsafe LOCAL_PEER"
+safe_peer "$REMOTE_PEER" || hold "unsafe REMOTE_PEER"
+safe_dropin_name "$DROPIN_NAME" || hold "unsafe DROPIN_NAME"
 
 target_guard="$(printf '%s\n' "$ALIEN" "$LOCAL_PEER" "$REMOTE_PEER" | tr '[:upper:]' '[:lower:]')"
 case "$target_guard" in
@@ -31,21 +87,13 @@ esac
   || hold "confirmation token required"
 
 cd "$ROOT" || exit 1
+require_crossbox_source_parity
+
 LOCAL_DROPIN="$HOME/.config/systemd/user/void-node.service.d/$DROPIN_NAME"
 
 FAIL=0
 ok(){ echo "[ok] $*"; }
 fail(){ echo "[fail] $*"; FAIL=1; }
-
-safe_peer(){
-  local peer="$1"
-  case "$peer" in
-    http://*:4100|https://*:4100) ;;
-    *) return 1 ;;
-  esac
-  printf '%s' "$peer" | grep -Eq '[[:space:]"'\''`;$\\]' && return 1
-  return 0
-}
 
 wait_ready(){
   local label="$1"
