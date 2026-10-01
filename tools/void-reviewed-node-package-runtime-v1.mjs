@@ -17,6 +17,8 @@ export const VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1 =
     installed_package_byte_inventory_required:true,
     private_dependency_materialization:true,
     post_copy_inventory_reverification:true,
+    reviewed_profile_head_binding:true,
+    reviewed_profile_content_id_rederivation:true,
     network_access:false,
     npm_install_performed:false,
     package_script_execution:false,
@@ -487,15 +489,115 @@ export function collectReviewedNodePackageRuntimeV1({
   return collectInternal(repoRoot,rootPackages).profile;
 }
 
-function assertExactProfile(actual,expected){
-  if(!plain(expected)) fail("reviewed_node_runtime_expected_profile_invalid");
+function profileBody(profile){
+  const body=Object.create(null);
+  for(const [key,value] of Object.entries(profile)){
+    if(key==="profile_id") continue;
+    body[key]=value;
+  }
+  return body;
+}
+
+function validateProfileSelfIdentity(profile){
   if(
-    typeof expected.profile_id!=="string"||
-    !PROFILE_ID.test(expected.profile_id)||
-    canonicalJson(actual)!==canonicalJson(expected)
+    !plain(profile)||
+    profile.marker!==VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1||
+    profile.version!==1||
+    profile.status!=="REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE"||
+    profile.platform!=="linux"||
+    profile.arch!=="x64"||
+    !Array.isArray(profile.root_packages)||
+    profile.root_packages.length<1||
+    !Array.isArray(profile.packages)||
+    profile.packages.length!==profile.package_count||
+    !Number.isSafeInteger(profile.total_file_count)||
+    profile.total_file_count<1||
+    !Number.isSafeInteger(profile.total_bytes)||
+    profile.total_bytes<1||
+    typeof profile.packages_aggregate_sha256!=="string"||
+    !SHA64.test(profile.packages_aggregate_sha256)||
+    typeof profile.profile_id!=="string"||
+    !PROFILE_ID.test(profile.profile_id)
   ){
+    fail("reviewed_node_runtime_profile_shape_invalid");
+  }
+  const fileCount=profile.packages.reduce((sum,row)=>{
+    if(!plain(row)||!Number.isSafeInteger(row.file_count)||row.file_count<1){
+      fail("reviewed_node_runtime_profile_package_invalid");
+    }
+    return sum+row.file_count;
+  },0);
+  const bytes=profile.packages.reduce((sum,row)=>{
+    if(!Number.isSafeInteger(row.bytes)||row.bytes<1){
+      fail("reviewed_node_runtime_profile_package_invalid");
+    }
+    return sum+row.bytes;
+  },0);
+  if(fileCount!==profile.total_file_count||bytes!==profile.total_bytes){
+    fail("reviewed_node_runtime_profile_totals_mismatch");
+  }
+  if(
+    sha256(Buffer.from(canonicalJson(profile.packages),"utf8"))!==
+      profile.packages_aggregate_sha256
+  ){
+    fail("reviewed_node_runtime_profile_package_aggregate_mismatch");
+  }
+  if(
+    canonicalJson(profile.authority)!==
+      canonicalJson(VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1)
+  ){
+    fail("reviewed_node_runtime_profile_authority_mismatch");
+  }
+  const digest=sha256(Buffer.from(canonicalJson(profileBody(profile)),"utf8"));
+  if(profile.profile_id!=="voidrnpr1_"+digest){
+    fail("reviewed_node_runtime_profile_content_id_mismatch");
+  }
+  return profile;
+}
+
+function assertExactProfile(actual,expected){
+  validateProfileSelfIdentity(expected);
+  if(canonicalJson(actual)!==canonicalJson(expected)){
     fail("reviewed_node_runtime_profile_mismatch");
   }
+}
+
+export function readReviewedNodePackageRuntimeProfileV1({
+  relativePath,
+  repoRoot=ROOT,
+}={}){
+  if(
+    typeof relativePath!=="string"||
+    relativePath.length<1||
+    relativePath.length>MAX_PATH_CHARS||
+    path.isAbsolute(relativePath)||
+    relativePath.split("/").some(part=>!part||part==="."||part==="..")
+  ){
+    fail("reviewed_node_runtime_profile_path_invalid");
+  }
+  const root=fs.realpathSync.native(repoRoot);
+  requireCleanRepository(root);
+  const source=exactHeadMetadata(root,relativePath);
+  const bytes=stableRegularBytes(
+    path.join(root,...relativePath.split("/")),
+    "reviewed_node_runtime_profile_file",
+    4*1024*1024,
+  );
+  if(sha256(bytes)!==source.sha256){
+    fail("reviewed_node_runtime_profile_changed_after_head_check");
+  }
+  let profile;
+  try{profile=JSON.parse(bytes.toString("utf8"));}catch{
+    fail("reviewed_node_runtime_profile_json_invalid");
+  }
+  if(bytes.toString("utf8")!==JSON.stringify(profile,null,2)+"\n"){
+    fail("reviewed_node_runtime_profile_serialization_invalid");
+  }
+  validateProfileSelfIdentity(profile);
+  return Object.freeze({
+    profile:Object.freeze(profile),
+    profile_source:Object.freeze(source),
+  });
 }
 
 export function verifyReviewedNodePackageRuntimeV1({
