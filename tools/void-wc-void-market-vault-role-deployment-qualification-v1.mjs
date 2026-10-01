@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -17,6 +18,14 @@ export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_AUTHORITY_V
     launch_controller_control_reverification: true,
     reviewed_control_execution_from_exact_git_objects: true,
     private_reviewed_source_materialization: true,
+    reviewed_package_runtime_required: true,
+    reviewed_package_bytes_verified: true,
+    private_reviewed_package_materialization: true,
+    permission_fenced_reviewed_execution: true,
+    ancestor_package_resolution_forbidden: true,
+    ambient_node_resolution_overrides_ignored: true,
+    ambient_dynamic_loader_overrides_ignored: true,
+    execution_network_isolation_provided: false,
     git_replacement_objects_disabled: true,
     settlement_executor_public_identity_rederivation: true,
     closeout_controller_public_identity_rederivation: true,
@@ -70,6 +79,18 @@ const CONTROL_REL =
   "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
 const PACKAGE_REL = "package.json";
 const PACKAGE_LOCK_REL = "package-lock.json";
+const REVIEWED_RUNTIME_TOOL_REL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_RUNTIME_BRIDGE_REL =
+  "tools/void-wc-void-market-vault-role-deployment-reviewed-runtime-bridge-v1.mjs";
+const REVIEWED_RUNTIME_BRIDGE_MARKER =
+  "VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_REVIEWED_RUNTIME_BRIDGE_V1";
+const REVIEWED_RUNTIME_PROFILE_ID =
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 =
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 
 export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1 =
   Object.freeze({
@@ -82,6 +103,12 @@ export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOB
     [CONTROL_REL]: "a17a6da5f85a740c5c38b0c4fb3377c7df05d270",
     [PACKAGE_REL]: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
     [PACKAGE_LOCK_REL]: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+    [REVIEWED_RUNTIME_TOOL_REL]:
+      "6475c3f18ffe566cf5f448ca1de4795391a6efde",
+    [REVIEWED_RUNTIME_PROFILE_REL]:
+      "87b650e28366acfea3d140ea7778f41f57e5b0c3",
+    [REVIEWED_RUNTIME_BRIDGE_REL]:
+      "4cc6b7a65ff28347772f212035b9a5b62a3010bf",
   });
 
 const EXPECTED = Object.freeze({
@@ -257,157 +284,281 @@ function gitText(args, code, { allowEmpty = false } = {}) {
   return text;
 }
 
-function checkedSpawn(command,args,{env=sanitizedGitEnv(),cwd="/",code}={}) {
-  const result=spawnSync(command,args,{
-    cwd,
-    env,
-    encoding:"utf8",
-    stdio:["ignore","pipe","pipe"],
-    maxBuffer:64*1024*1024,
-  });
-  if(result.error||result.status!==0)fail(code||"reviewed_materialization_command_failed");
-  return result;
-}
-
-function repositoryGitDir() {
-  const raw=gitText(["rev-parse","--git-dir"],"repository_git_dir_unavailable");
-  const resolved=path.isAbsolute(raw)?raw:path.resolve(ROOT,raw);
-  const stat=fs.lstatSync(resolved);
-  if(!stat.isDirectory()||stat.isSymbolicLink())fail("repository_git_dir_invalid");
-  return fs.realpathSync.native(resolved);
-}
-
-function materializedBlob(treeRoot,relativePath,expectedBlob) {
-  const file=path.resolve(treeRoot,relativePath);
-  const relative=path.relative(treeRoot,file);
-  if(
-    relative===""||
-    relative===".."||
-    relative.startsWith(".."+path.sep)||
-    path.isAbsolute(relative)
-  )fail("reviewed_materialized_path_escape:"+relativePath);
-  const stat=fs.lstatSync(file);
-  if(stat.isSymbolicLink()||!stat.isFile())fail("reviewed_materialized_file_invalid:"+relativePath);
-  const bytes=fs.readFileSync(file);
-  if(gitBlobSha1(bytes)!==expectedBlob){
-    fail("reviewed_materialized_blob_mismatch:"+relativePath);
-  }
-  return bytes;
-}
-
-function reviewedControlEnv(treeRoot,gitDir) {
-  return {
-    PATH:"/usr/bin:/bin",
-    HOME:"/nonexistent",
-    XDG_CONFIG_HOME:"/nonexistent",
-    GIT_CONFIG_NOSYSTEM:"1",
-    GIT_CONFIG_GLOBAL:"/dev/null",
-    GIT_NO_REPLACE_OBJECTS:"1",
-    GIT_OPTIONAL_LOCKS:"0",
-    GIT_TERMINAL_PROMPT:"0",
-    GIT_ASKPASS:"/bin/false",
-    GIT_DIR:gitDir,
-    GIT_WORK_TREE:treeRoot,
-  };
-}
-
-function restoreEnvironment(saved,keys) {
-  for(const key of keys){
-    if(saved[key]===undefined)delete process.env[key];
-    else process.env[key]=saved[key];
-  }
-}
-
-async function withReviewedControlReverifier(source,fn) {
-  const gitDir=repositoryGitDir();
-  const tempRoot=fs.mkdtempSync(
-    path.join(gitDir,"void-vault-role-reviewed-control-"),
+function writePrivateExactFile(file, bytes, mode = 0o400) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    mode,
   );
-  fs.chmodSync(tempRoot,0o700);
-  const treeRoot=path.join(tempRoot,"tree");
-  const archive=path.join(tempRoot,"source.tar");
-  fs.mkdirSync(treeRoot,{mode:0o700});
-  try{
-    checkedSpawn(
-      GIT,
-      [
-        "--no-replace-objects",
-        "-C",ROOT,
-        "archive",
-        "--format=tar",
-        "--output="+archive,
-        source.source_head_sha,
-      ],
-      {code:"reviewed_control_git_archive_failed"},
-    );
-    checkedSpawn(
-      "/usr/bin/tar",
-      ["-xf",archive,"-C",treeRoot],
-      {code:"reviewed_control_git_archive_extract_failed"},
-    );
-    fs.unlinkSync(archive);
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, mode);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  const stat = fs.lstatSync(file);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1 ||
+    (stat.mode & 0o777) !== mode
+  ) {
+    fail("reviewed_runtime_private_file_invalid");
+  }
+  const written = fs.readFileSync(file);
+  if (!written.equals(bytes)) fail("reviewed_runtime_private_file_mismatch");
+}
 
-    for(const [relativePath,expectedBlob] of Object.entries(
-      source.dependency_git_blobs,
-    )){
-      materializedBlob(treeRoot,relativePath,expectedBlob);
+function makeReviewedRuntimeTreeRemovable(root) {
+  if (!fs.existsSync(root)) return;
+  const stat = fs.lstatSync(root);
+  if (stat.isSymbolicLink()) return;
+  if (stat.isDirectory()) {
+    fs.chmodSync(root, 0o700);
+    for (const entry of fs.readdirSync(root)) {
+      makeReviewedRuntimeTreeRemovable(path.join(root, entry));
     }
-    const controlExpected=
-      VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1[
-        CONTROL_REL
-      ];
-    materializedBlob(treeRoot,CONTROL_REL,controlExpected);
+  } else if (stat.isFile()) {
+    fs.chmodSync(root, 0o600);
+  }
+}
 
-    checkedSpawn(
-      "/usr/bin/chmod",
-      ["-R","a-w",treeRoot],
-      {code:"reviewed_control_readonly_lock_failed"},
+function reviewedRuntimeProfile(source) {
+  let profile;
+  try {
+    profile = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(
+        source.bytes[REVIEWED_RUNTIME_PROFILE_REL],
+      ),
     );
+  } catch {
+    fail("reviewed_runtime_profile_json_invalid");
+  }
+  if (
+    !profile ||
+    typeof profile !== "object" ||
+    Array.isArray(profile) ||
+    profile.marker !== "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1" ||
+    profile.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE" ||
+    profile.version !== 1 ||
+    !Array.isArray(profile.root_packages) ||
+    JSON.stringify(profile.root_packages) !== JSON.stringify(["ethers"]) ||
+    profile.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+    profile.packages_aggregate_sha256 !==
+      REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256
+  ) {
+    fail("reviewed_runtime_profile_invalid");
+  }
+  return profile;
+}
 
-    const env=reviewedControlEnv(treeRoot,gitDir);
-    const keys=Object.keys(env);
-    const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
-    Object.assign(process.env,env);
-    try{
-      const status=spawnSync(
-        GIT,
-        ["--no-replace-objects","-C",treeRoot,"status","--porcelain=v1","--untracked-files=all"],
-        {
-          env,
-          encoding:"utf8",
-          stdio:["ignore","pipe","pipe"],
-          maxBuffer:4*1024*1024,
-        },
-      );
-      if(
-        status.error||
-        status.status!==0||
-        String(status.stdout||"").trim()!==""
-      )fail("reviewed_control_materialized_repository_not_clean");
-
-      const controlModule=await import(
-        pathToFileURL(path.join(treeRoot,CONTROL_REL)).href+
-          "?reviewed_blob="+controlExpected+
-          "&head="+source.source_head_sha
-      );
-      if(
-        typeof controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1!==
-          "function"
-      )fail("launch_controller_reverification_export_invalid");
-      return await fn(
-        controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
-      );
-    }finally{
-      restoreEnvironment(saved,keys);
+function parseReviewedRuntimeBridgeResult(execution, operation) {
+  if (
+    execution?.ok !== true ||
+    execution.status !==
+      "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_EXECUTION_GREEN" ||
+    execution.permission_fenced !== true ||
+    execution.ancestor_package_resolution_allowed !== false ||
+    execution.ambient_node_resolution_overrides_ignored !== true ||
+    execution.ambient_dynamic_loader_overrides_ignored !== true
+  ) {
+    fail("reviewed_runtime_execution_invalid");
+  }
+  const text = String(execution.stdout || "").trim();
+  if (text.length < 2 || text.length > 4 * 1024 * 1024) {
+    fail("reviewed_runtime_stdout_invalid");
+  }
+  const lines = text.split(/\r?\n/u);
+  if (lines.length !== 1) fail("reviewed_runtime_stdout_multiline");
+  let envelope;
+  try {
+    envelope = JSON.parse(lines[0]);
+  } catch {
+    fail("reviewed_runtime_stdout_json_invalid");
+  }
+  exactObject(
+    envelope,
+    ["marker", "version", "operation", "ok", "result", "error"],
+    "reviewed_runtime_output_shape_invalid",
+  );
+  if (
+    envelope.marker !== REVIEWED_RUNTIME_BRIDGE_MARKER ||
+    envelope.version !== 1 ||
+    envelope.operation !== operation ||
+    typeof envelope.ok !== "boolean"
+  ) {
+    fail("reviewed_runtime_output_invalid");
+  }
+  if (envelope.ok === false) {
+    if (
+      envelope.result !== null ||
+      typeof envelope.error !== "string" ||
+      envelope.error.length < 1 ||
+      envelope.error.length > 512
+    ) {
+      fail("reviewed_runtime_error_output_invalid");
     }
-  }finally{
-    if(fs.existsSync(treeRoot)){
-      spawnSync("/usr/bin/chmod",["-R","u+w",treeRoot],{
-        env:{PATH:"/usr/bin:/bin"},
-        stdio:"ignore",
+    fail(envelope.error);
+  }
+  if (
+    !envelope.result ||
+    typeof envelope.result !== "object" ||
+    Array.isArray(envelope.result) ||
+    envelope.error !== null
+  ) {
+    fail("reviewed_runtime_success_output_invalid");
+  }
+  return envelope.result;
+}
+
+async function withReviewedQualificationRuntime(source, fn) {
+  const parent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-vault-role-reviewed-runtime-"),
+  );
+  fs.chmodSync(parent, 0o700);
+  try {
+    const runtimeToolFile = path.join(parent, "reviewed-node-runtime.mjs");
+    writePrivateExactFile(
+      runtimeToolFile,
+      source.bytes[REVIEWED_RUNTIME_TOOL_REL],
+      0o400,
+    );
+    const runtime = await import(
+      pathToFileURL(runtimeToolFile).href +
+        "?blob=" +
+        source.dependency_git_blobs[REVIEWED_RUNTIME_TOOL_REL]
+    );
+    for (const name of [
+      "verifyReviewedNodePackageRuntimeV1",
+      "materializeReviewedNodePackageRuntimeV1",
+      "runReviewedNodePackageRuntimeV1",
+    ]) {
+      if (typeof runtime[name] !== "function") {
+        fail("reviewed_runtime_export_missing:" + name);
+      }
+    }
+
+    const profile = reviewedRuntimeProfile(source);
+    const verified = runtime.verifyReviewedNodePackageRuntimeV1({
+      profile,
+      repoRoot: ROOT,
+    });
+    if (
+      verified?.ok !== true ||
+      verified.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      verified.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      verified.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256
+    ) {
+      fail("reviewed_runtime_profile_not_verified");
+    }
+
+    const runtimeRoot = path.join(parent, "runtime");
+    const materialized = runtime.materializeReviewedNodePackageRuntimeV1({
+      profile,
+      repoRoot: ROOT,
+      destinationRoot: runtimeRoot,
+    });
+    if (
+      materialized?.ok !== true ||
+      materialized.status !==
+        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      materialized.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      materialized.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 ||
+      materialized.read_only_materialization !== true
+    ) {
+      fail("reviewed_runtime_materialization_invalid");
+    }
+
+    const sourceRoot = path.join(runtimeRoot, "source");
+    for (const relativePath of [CONTROL_REL, REVIEWED_RUNTIME_BRIDGE_REL]) {
+      const destination = path.join(sourceRoot, relativePath);
+      const bytes = source.bytes[relativePath];
+      writePrivateExactFile(destination, bytes, 0o400);
+      if (
+        gitBlobSha1(fs.readFileSync(destination)) !==
+        source.dependency_git_blobs[relativePath]
+      ) {
+        fail("reviewed_runtime_source_materialization_mismatch:" + relativePath);
+      }
+    }
+
+    const bridgePath = path.join(sourceRoot, REVIEWED_RUNTIME_BRIDGE_REL);
+    const inputRoot = path.join(runtimeRoot, "inputs");
+    fs.mkdirSync(inputRoot, { mode: 0o700 });
+    let sequence = 0;
+
+    const runOperation = (operation, payload) => {
+      sequence += 1;
+      const inputName =
+        String(sequence).padStart(4, "0") + "-" + operation + ".json";
+      const inputPath = path.join(inputRoot, inputName);
+      const inputBytes = Buffer.from(JSON.stringify(payload, null, 2) + "\n");
+      if (inputBytes.length > 4 * 1024 * 1024) {
+        fail("reviewed_runtime_input_too_large");
+      }
+      writePrivateExactFile(inputPath, inputBytes, 0o400);
+      const execution = runtime.runReviewedNodePackageRuntimeV1({
+        profile,
+        destinationRoot: runtimeRoot,
+        entryFile: bridgePath,
+        args: [
+          "--operation",
+          operation,
+          "--input",
+          path.relative(runtimeRoot, inputPath),
+        ],
+        repoRoot: ROOT,
+        timeoutMs: 30_000,
       });
-    }
-    fs.rmSync(tempRoot,{recursive:true,force:true});
+      if (
+        execution.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+        execution.packages_aggregate_sha256 !==
+          REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256
+      ) {
+        fail("reviewed_runtime_execution_profile_drift");
+      }
+      return parseReviewedRuntimeBridgeResult(execution, operation);
+    };
+
+    const binding = Object.freeze({
+      runtime_tool_git_blob_sha1:
+        source.dependency_git_blobs[REVIEWED_RUNTIME_TOOL_REL],
+      runtime_profile_git_blob_sha1:
+        source.dependency_git_blobs[REVIEWED_RUNTIME_PROFILE_REL],
+      runtime_profile_id: REVIEWED_RUNTIME_PROFILE_ID,
+      packages_aggregate_sha256:
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256,
+      bridge_git_blob_sha1:
+        source.dependency_git_blobs[REVIEWED_RUNTIME_BRIDGE_REL],
+      permission_fenced: true,
+      ancestor_package_resolution_allowed: false,
+      ambient_node_resolution_overrides_ignored: true,
+      ambient_dynamic_loader_overrides_ignored: true,
+      execution_network_isolation_provided: false,
+    });
+
+    return await fn(
+      Object.freeze({
+        reverifyControl: async ({ evidence, nowUnix }) =>
+          runOperation("reverify_control", {
+            evidence,
+            now_unix: String(nowUnix),
+          }),
+        deriveDeployment: async (payload) =>
+          runOperation("derive_deployment", payload),
+        binding,
+      }),
+    );
+  } finally {
+    makeReviewedRuntimeTreeRemovable(parent);
+    fs.rmSync(parent, { recursive: true, force: true });
   }
 }
 
@@ -738,73 +889,98 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
   const current = deriveCurrentRoleAndVaultSources(source);
   await testOnlyYieldAfterSourceBinding();
 
-  const control=await withReviewedControlReverifier(
+  const reviewedExecution = await withReviewedQualificationRuntime(
     source,
-    async reverify=>
-      await reverify({
+    async ({ reverifyControl, deriveDeployment, binding }) => {
+      const control = await reverifyControl({
         evidence,
-        nowUnix:evaluation,
-      }),
-  );
-  if (
-    control?.status !== "CANDIDATE_CONTROL_VERIFIED_ROLE_NOT_AUTHORIZED" ||
-    control?.evidence_reverified !== true ||
-    control?.control_verified !== true ||
-    control?.coupled_launch_id !== EXPECTED.coupled_launch_id ||
-    control?.coupled_launch_id_bytes32 !== EXPECTED.coupled_launch_id_bytes32 ||
-    control?.compiled_identity_id !== EXPECTED.compiled_identity_id ||
-    canonicalAddress(
-      control?.void_token,
-      "control_void_token_invalid",
-    ) !== EXPECTED.void_token ||
-    control?.role_binding_authorized !== false ||
-    control?.deployment_authorized !== false ||
-    control?.inventory_funding_authorized !== false ||
-    control?.market_activation_authorized !== false ||
-    control?.public_presale_activation_authorized !== false ||
-    control?.funds_movement_authorized !== false
-  ) {
-    fail("launch_controller_control_evidence_invalid");
-  }
+        nowUnix: evaluation,
+      });
+      if (
+        control?.status !== "CANDIDATE_CONTROL_VERIFIED_ROLE_NOT_AUTHORIZED" ||
+        control?.evidence_reverified !== true ||
+        control?.control_verified !== true ||
+        control?.coupled_launch_id !== EXPECTED.coupled_launch_id ||
+        control?.coupled_launch_id_bytes32 !==
+          EXPECTED.coupled_launch_id_bytes32 ||
+        control?.compiled_identity_id !== EXPECTED.compiled_identity_id ||
+        canonicalAddress(
+          control?.void_token,
+          "control_void_token_invalid",
+        ) !== EXPECTED.void_token ||
+        control?.role_binding_authorized !== false ||
+        control?.deployment_authorized !== false ||
+        control?.inventory_funding_authorized !== false ||
+        control?.market_activation_authorized !== false ||
+        control?.public_presale_activation_authorized !== false ||
+        control?.funds_movement_authorized !== false
+      ) {
+        fail("launch_controller_control_evidence_invalid");
+      }
 
-  const launchController = canonicalAddress(
-    control.candidate_address,
-    "launch_controller_address_invalid",
-  );
-  const roles = [
-    EXPECTED.void_token,
-    launchController,
-    current.settlement_executor,
-    current.closeout_controller,
-  ];
-  if (new Set(roles).size !== roles.length) {
-    fail("vault_role_address_collision");
-  }
+      const launchController = canonicalAddress(
+        control.candidate_address,
+        "launch_controller_address_invalid",
+      );
+      const roles = [
+        EXPECTED.void_token,
+        launchController,
+        current.settlement_executor,
+        current.closeout_controller,
+      ];
+      if (new Set(roles).size !== roles.length) {
+        fail("vault_role_address_collision");
+      }
 
-  const ethers = await import("ethers");
-  const abi = ethers.AbiCoder.defaultAbiCoder();
-  const constructorTypes = [
-    "address",
-    "address",
-    "address",
-    "address",
-    "bytes32",
-  ];
-  const constructorValues = [
-    EXPECTED.void_token,
-    launchController,
-    current.settlement_executor,
-    current.closeout_controller,
-    EXPECTED.coupled_launch_id_bytes32,
-  ];
-  const encodedArgs = abi.encode(constructorTypes, constructorValues);
-  const deploymentDataHex = ethers.concat([current.creation_hex, encodedArgs]);
+      const deployment = await deriveDeployment({
+        creation_hex: current.creation_hex,
+        void_token: EXPECTED.void_token,
+        launch_controller: launchController,
+        settlement_executor: current.settlement_executor,
+        closeout_controller: current.closeout_controller,
+        coupled_launch_id_bytes32: EXPECTED.coupled_launch_id_bytes32,
+      });
+      if (
+        canonicalJson(deployment.constructor_types) !==
+          canonicalJson([
+            "address",
+            "address",
+            "address",
+            "address",
+            "bytes32",
+          ]) ||
+        canonicalJson(deployment.constructor_values) !==
+          canonicalJson([
+            EXPECTED.void_token,
+            launchController,
+            current.settlement_executor,
+            current.closeout_controller,
+            EXPECTED.coupled_launch_id_bytes32,
+          ]) ||
+        deployment.creation_bytecode_keccak256 !==
+          EXPECTED.creation_bytecode_keccak256
+      ) {
+        fail("reviewed_runtime_deployment_derivation_invalid");
+      }
+
+      return Object.freeze({
+        control,
+        launchController,
+        deployment,
+        binding,
+      });
+    },
+  );
+
+  const control = reviewedExecution.control;
+  const launchController = reviewedExecution.launchController;
+  const deployment = reviewedExecution.deployment;
+  const reviewedRuntimeBinding = reviewedExecution.binding;
+  const constructorTypes = deployment.constructor_types;
+  const constructorValues = deployment.constructor_values;
+  const encodedArgs = deployment.encoded_args_hex;
+  const deploymentDataHex = deployment.deployment_data_hex;
   const deploymentBytes = Buffer.from(deploymentDataHex.slice(2), "hex");
-  if (
-    ethers.keccak256(current.creation_hex) !== EXPECTED.creation_bytecode_keccak256
-  ) {
-    fail("creation_bytecode_keccak256_mismatch");
-  }
 
   const constructorMaterial = Object.freeze({
     constructor_signature:
@@ -847,6 +1023,7 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
     execution_epoch: EXPECTED.execution_epoch,
     coupled_launch_id: EXPECTED.coupled_launch_id,
     source_binding: sourceReceipt,
+    reviewed_execution: reviewedRuntimeBinding,
     launch_controller: Object.freeze({
       address: launchController,
       evidence_id: control.evidence_id,
@@ -898,7 +1075,8 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
       deployment_data_hex: deploymentDataHex,
       deployment_data_bytes: deploymentBytes.length,
       deployment_data_sha256: sha256(deploymentBytes),
-      deployment_data_keccak256: ethers.keccak256(deploymentDataHex),
+      deployment_data_keccak256:
+        deployment.deployment_data_keccak256,
       exact_creation_payload_ready: true,
       deployer_selected: false,
       nonce_observed: false,
