@@ -41,7 +41,7 @@ require_explicit "REMOTE_BASE" "${REMOTE_BASE:-}"
 guard_targets "$ALIEN" "$REMOTE_BASE"
 export ALIEN REMOTE_BASE
 
-cd "$HOME/dev/void-node"
+cd "$VOID_TWO_BOX_REPO_ROOT"
 
 WHO="${WHO:-zoso}"
 QUICK_MODE="${QUICK_MODE:-0}"
