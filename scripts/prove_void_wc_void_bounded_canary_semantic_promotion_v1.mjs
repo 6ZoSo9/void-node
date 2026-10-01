@@ -37,11 +37,21 @@ import {
   wcVoidOpeningTransferDispositionIdV1,
 } from "../tools/void-wc-void-opening-claim-binding-v1.mjs";
 import {
+  inspectWcVoidOpeningClaimBindingPersistenceV1,
+} from "../tools/void-wc-void-opening-claim-binding-persistence-v1.mjs";
+import {
+  VOID_WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_CONFIRMATION_V1,
+  persistWcVoidOpeningClaimBindingV1,
+} from "../tools/void-wc-void-opening-claim-binding-publication-v1.mjs";
+import {
   deriveWcVoidOpeningReplayTransitionV1,
   initialWcVoidOpeningReplayStateV1,
 } from "../tools/void-wc-void-opening-replay-protection-v1.mjs";
 import {
+  VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_CONFIRMATION_V1,
   VOID_WC_VOID_OPENING_REPLAY_TERMINAL_CAPSULE_V1,
+  inspectWcVoidOpeningReplayTerminalV1,
+  persistWcVoidOpeningReplayTerminalV1,
 } from "../tools/void-wc-void-opening-replay-persistence-v1.mjs";
 import {
   VOID_PARTICIPANT_POSTPURCHASE_FINALITY_AUTHORITY_V1,
@@ -216,19 +226,19 @@ const dispositions=[
 const firstDisposition=dispositions[0];
 assert.equal(firstDisposition.void_atoms,"1250000000000000000000000");
 
-function openingRequest(){
+function openingRequest(dataDir){
   return {
     commitments,
     coupled_launch_id:LAUNCH,
-    data_dir:"/synthetic/not-read-by-semantic-proof",
+    data_dir:dataDir,
     dispositions,
     ledger_debits:ledgerDebits,
     mode:"finalize",
   };
 }
 
-function openingEvidenceBytes(){
-  const request=openingRequest();
+function openingEvidenceBytes(dataDir){
+  const request=openingRequest(dataDir);
   const binding=deriveWcVoidOpeningClaimBindingV1({
     coupled_launch_id:LAUNCH,
     commitments,
@@ -261,13 +271,57 @@ function openingEvidenceBytes(){
     ...body,
     capsule_id:"voidwcrp1_"+sha256(Buffer.from(canonicalJson(body),"utf8")),
   };
+
+  persistWcVoidOpeningReplayTerminalV1({
+    data_dir:dataDir,
+    recorded_at_utc:"2030-01-01T00:00:00Z",
+    confirmation:VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_CONFIRMATION_V1,
+    before_state:before,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+  const replayInspection=inspectWcVoidOpeningReplayTerminalV1({
+    data_dir:dataDir,
+    before_state:before,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+
+  persistWcVoidOpeningClaimBindingV1({
+    data_dir:dataDir,
+    confirmation:VOID_WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_CONFIRMATION_V1,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+  const claimPersistence=inspectWcVoidOpeningClaimBindingPersistenceV1({
+    data_dir:dataDir,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+
   return {
     request,
     requestBytes:prettyBytes(request),
     binding,
     bindingBytes:canonicalBytes(binding),
+    claimPersistence,
+    claimPersistenceBytes:prettyBytes(claimPersistence),
     capsule,
     capsuleBytes:canonicalBytes(capsule),
+    replayInspection,
+    replayInspectionBytes:prettyBytes(replayInspection),
   };
 }
 
@@ -303,7 +357,7 @@ function ledgerImportFixture(){
     binding_id:"voidwclprb1_"+"0".repeat(64),
   };
   expected.binding_id=wcVoidLedgerPersistenceReviewBindingIdV1(expected);
-  return {parent,input:{expected,evidence:receipt}};
+  return {parent,dataDir,input:{expected,evidence:receipt}};
 }
 
 const acceptance=JSON.parse(fs.readFileSync(
@@ -659,7 +713,7 @@ function canaryPolicy(vaultArtifact){
 async function fixture(){
   const upstream=await buildUpstream();
   const ledger=ledgerImportFixture();
-  const openingEvidence=openingEvidenceBytes();
+  const openingEvidence=openingEvidenceBytes(ledger.dataDir);
   const observedAt=
     Date.parse(upstream.vaultArtifact.collection_completed_at_utc)>=
     Date.parse(upstream.participantArtifact.collection_completed_at_utc)
@@ -735,8 +789,16 @@ async function fixture(){
       opening_request_file_sha256:sha256(openingEvidence.requestBytes),
       opening_claim_binding_bytes:openingEvidence.bindingBytes,
       opening_claim_binding_file_sha256:sha256(openingEvidence.bindingBytes),
+      opening_claim_persistence_receipt_bytes:
+        openingEvidence.claimPersistenceBytes,
+      opening_claim_persistence_receipt_file_sha256:
+        sha256(openingEvidence.claimPersistenceBytes),
       opening_replay_capsule_bytes:openingEvidence.capsuleBytes,
       opening_replay_capsule_file_sha256:sha256(openingEvidence.capsuleBytes),
+      opening_replay_inspection_receipt_bytes:
+        openingEvidence.replayInspectionBytes,
+      opening_replay_inspection_receipt_file_sha256:
+        sha256(openingEvidence.replayInspectionBytes),
       participant_at_use_bytes:participantBytes,
       participant_at_use_file_sha256:sha256(participantBytes),
     },
@@ -765,6 +827,8 @@ try{
   assert.equal(out.live_canary_evidence_verified,true);
   assert.equal(out.bounded_canary_green,true);
   assert.equal(out.production_candidate_binding_allowed,true);
+  assert.equal(out.durable_claim_binding_verified,true);
+  assert.equal(out.durable_replay_terminal_verified,true);
   assert.equal(out.production_candidate_updated,false);
   assert.equal(out.coupled_candidate_updated,false);
   assert.equal(out.candidate_promotion_required,true);
@@ -832,6 +896,45 @@ try{
     );
   }
   {
+    const missing={...f.request};
+    delete missing.opening_claim_persistence_receipt_bytes;
+    delete missing.opening_claim_persistence_receipt_file_sha256;
+    assert.throws(
+      ()=>promoteWcVoidBoundedCanarySemanticV1(missing),
+      /INVALID_WC_VOID_BOUNDED_CANARY_SEMANTIC_INPUT_SHAPE/u,
+    );
+  }
+  {
+    const receipt=JSON.parse(
+      f.request.opening_claim_persistence_receipt_bytes.toString("utf8"),
+    );
+    receipt.binding_persistence_verified=false;
+    const bytes=prettyBytes(receipt);
+    assert.throws(
+      ()=>promoteWcVoidBoundedCanarySemanticV1({
+        ...f.request,
+        opening_claim_persistence_receipt_bytes:bytes,
+        opening_claim_persistence_receipt_file_sha256:sha256(bytes),
+      }),
+      /BOUNDED_CANARY_CLAIM_PERSISTENCE_RECEIPT_INVALID/u,
+    );
+  }
+  {
+    const receipt=JSON.parse(
+      f.request.opening_replay_inspection_receipt_bytes.toString("utf8"),
+    );
+    receipt.durable_replay_state_persistence_verified=false;
+    const bytes=prettyBytes(receipt);
+    assert.throws(
+      ()=>promoteWcVoidBoundedCanarySemanticV1({
+        ...f.request,
+        opening_replay_inspection_receipt_bytes:bytes,
+        opening_replay_inspection_receipt_file_sha256:sha256(bytes),
+      }),
+      /BOUNDED_CANARY_REPLAY_INSPECTION_RECEIPT_INVALID/u,
+    );
+  }
+  {
     const badInput=JSON.parse(f.request.bounded_canary_input_bytes.toString("utf8"));
     badInput.evidence.valid_until_utc=
       new Date(Date.parse(badInput.evidence.valid_until_utc)-1000)
@@ -861,7 +964,9 @@ for(const [key,value] of Object.entries(
     "market_vault_at_use_reverification",
     "ledger_persistence_semantic_import",
     "opening_claim_binding_rederivation",
+    "opening_claim_persistence_receipt_validation",
     "opening_replay_capsule_rederivation",
+    "opening_replay_persistence_receipt_validation",
     "participant_at_use_reverification",
     "source_only_promotion",
   ]);
@@ -882,7 +987,9 @@ for(const required of [
   "verifyWcVoidMarketVaultAtUseRevalidationV1",
   "importWcVoidLedgerPersistenceV1",
   "deriveWcVoidOpeningClaimBindingV1",
+  "VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_V1",
   "deriveWcVoidOpeningReplayTransitionV1",
+  "VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_V1",
   "verifyVoidParticipantPostpurchaseAtUseRevalidationV1",
   "BOUNDED_CANARY_FINALITY_COMPOSITION_MISMATCH",
   "BOUNDED_CANARY_FRESHNESS_COMPOSITION_MISMATCH",
@@ -899,7 +1006,9 @@ console.log("exact_upstream_bytes_sha256_bound=true");
 console.log("vault_at_use_semantics_reverified=true");
 console.log("ledger_persistence_semantics_reimported=true");
 console.log("opening_claim_binding_rederived=true");
+console.log("opening_claim_persistence_receipt_verified=true");
 console.log("opening_replay_capsule_rederived=true");
+console.log("opening_replay_persistence_receipt_verified=true");
 console.log("participant_at_use_semantics_reverified=true");
 console.log("one_canary_participant_selected_from_opening_cohort=true");
 console.log("canary_finality_minimum_composed=true");
