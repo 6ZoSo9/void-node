@@ -385,6 +385,12 @@ function proveInstaller({
   harness,
   portable,
 }) {
+  const staleStage = path.join(
+    harness.releases,
+    `.${fixture.version}.materialize-next`,
+  );
+  fs.symlinkSync(harness.configDir, staleStage);
+
   const first = run(
     "bash",
     materializeArgs(installer, fixture, harness, "install"),
@@ -407,6 +413,18 @@ function proveInstaller({
   }
 
   const candidateDir = path.join(harness.releases, fixture.version);
+  assert.equal(
+    fs.existsSync(staleStage) || (() => {
+      try {
+        fs.lstatSync(staleStage);
+        return true;
+      } catch {
+        return false;
+      }
+    })(),
+    false,
+    "stale materialize staging entry survived successful retry",
+  );
   assertBoundary(harness, candidateDir);
 
   const second = run(
@@ -475,12 +493,38 @@ function proveInstaller({
   );
   assertBoundary(harness, candidateDir);
 
+  const destructive = run(
+    "bash",
+    [
+      installer,
+      "uninstall",
+      "--materialize-only",
+      "--yes",
+      "--install-root",
+      harness.installRoot,
+      "--bin-dir",
+      harness.binDir,
+    ],
+    {
+      env: environment(harness),
+      check: false,
+    },
+  );
+  assert.notEqual(destructive.status, 0);
+  assert.match(
+    destructive.output,
+    /--materialize-only supports install\/update only/u,
+  );
+  assertBoundary(harness, candidateDir);
+
   console.log(`${label}_initial_materialization_green=true`);
   console.log(`${label}_idempotent_exact_retry_green=true`);
   console.log(`${label}_mode_drift_rejected=true`);
   console.log(`${label}_symlink_target_drift_rejected=true`);
   console.log(`${label}_extra_path_rejected=true`);
   console.log(`${label}_activation_flags_rejected=true`);
+  console.log(`${label}_destructive_command_rejected=true`);
+  console.log(`${label}_stale_stage_symlink_recovered=true`);
   console.log(`${label}_pointer_and_external_sentinels_unchanged=true`);
   console.log(`${label}_retention_pruning_suppressed=true`);
 }
