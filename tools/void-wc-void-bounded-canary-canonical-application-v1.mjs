@@ -331,6 +331,27 @@ function headIdentity() {
   return Object.freeze({ head, tree });
 }
 
+function assertHeadStable(expected) {
+  const currentHead = gitText(
+    ["rev-parse", "HEAD"],
+    "CANONICAL_APPLICATION_HEAD_RECHECK_UNAVAILABLE",
+  );
+  const currentTree = gitText(
+    ["rev-parse", "HEAD^{tree}"],
+    "CANONICAL_APPLICATION_TREE_RECHECK_UNAVAILABLE",
+  );
+  if (
+    currentHead !== expected.head ||
+    currentTree !== expected.tree ||
+    gitText(
+      ["status", "--porcelain=v1", "--untracked-files=all"],
+      "CANONICAL_APPLICATION_STATUS_RECHECK_UNAVAILABLE",
+    ) !== ""
+  ) {
+    fail("CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ");
+  }
+}
+
 function headBlob(pathname, code) {
   const value = gitText(
     ["rev-parse", "HEAD:" + pathname],
@@ -685,9 +706,21 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   );
 
   const repository = headIdentity();
-  const production = headFile(PRODUCTION_REL, "PRODUCTION_SOURCE");
-  const coupled = headFile(COUPLED_REL, "COUPLED_SOURCE");
-  const successor = headFile(SUCCESSOR_REL, "SUCCESSOR_SOURCE");
+  const production = commitFile(
+    repository.head,
+    PRODUCTION_REL,
+    "PRODUCTION_SOURCE",
+  );
+  const coupled = commitFile(
+    repository.head,
+    COUPLED_REL,
+    "COUPLED_SOURCE",
+  );
+  const successor = commitFile(
+    repository.head,
+    SUCCESSOR_REL,
+    "SUCCESSOR_SOURCE",
+  );
 
   const rederived = promoteWcVoidBoundedCanaryCandidatesV1({
     repository_head_sha: repository.head,
@@ -765,11 +798,13 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
 
   const productionTargetBytes = prettyBytes(targetProduction);
   const coupledTargetBytes = prettyBytes(targetCoupled);
-  const toolBlob = headBlob(
+  const toolBlob = commitBlob(
+    repository.head,
     TOOL_REL,
     "CANONICAL_APPLICATION_TOOL_BLOB_UNAVAILABLE",
   );
-  const promotionToolBlob = headBlob(
+  const promotionToolBlob = commitBlob(
+    repository.head,
     PROMOTION_TOOL_REL,
     "CANONICAL_APPLICATION_PROMOTION_TOOL_BLOB_UNAVAILABLE",
   );
@@ -832,6 +867,7 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
       VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1,
   });
   const digest = sha256(Buffer.from(canonicalJson(material), "utf8"));
+  assertHeadStable(repository);
   return Object.freeze({
     ...material,
     application_plan_id: "voidwcbcap1_" + digest,
@@ -903,11 +939,13 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   );
 
   if (
-    headBlob(
+    commitBlob(
+      repository.head,
       TOOL_REL,
       "CANONICAL_APPLICATION_CURRENT_TOOL_BLOB_UNAVAILABLE",
     ) !== plan.canonical_application_tool_git_blob_sha1 ||
-    headBlob(
+    commitBlob(
+      repository.head,
       PROMOTION_TOOL_REL,
       "CANONICAL_APPLICATION_CURRENT_PROMOTION_TOOL_BLOB_UNAVAILABLE",
     ) !== plan.candidate_promotion_tool_git_blob_sha1
@@ -915,9 +953,21 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     fail("CANONICAL_APPLICATION_SOURCE_TOOL_DRIFT");
   }
 
-  const production = headFile(PRODUCTION_REL, "APPLIED_PRODUCTION");
-  const coupled = headFile(COUPLED_REL, "APPLIED_COUPLED");
-  const successor = headFile(SUCCESSOR_REL, "APPLIED_SUCCESSOR");
+  const production = commitFile(
+    repository.head,
+    PRODUCTION_REL,
+    "APPLIED_PRODUCTION",
+  );
+  const coupled = commitFile(
+    repository.head,
+    COUPLED_REL,
+    "APPLIED_COUPLED",
+  );
+  const successor = commitFile(
+    repository.head,
+    SUCCESSOR_REL,
+    "APPLIED_SUCCESSOR",
+  );
 
   if (
     production.blob_sha1 !== plan.production_target_git_blob_sha1 ||
@@ -977,6 +1027,7 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
       VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1,
   });
   const digest = sha256(Buffer.from(canonicalJson(material), "utf8"));
+  assertHeadStable(repository);
   return Object.freeze({
     ...material,
     application_id: "voidwbcaa1_" + digest,
