@@ -34,19 +34,19 @@ This checks status files, node readiness, Buy VOID watcher config, validator pla
 
 ## Cross-box smoke proof
 
-Use this from Precision to check Precision and Alienware together:
+Run this from Precision/coordinator with an explicitly reviewed, nonlocal current-fleet SSH target:
 
-    make mainnet0-crossbox-status-smoke
+    VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-crossbox-status-smoke
 
-This checks local Precision smoke, then SSHes to Alienware and runs the same no-Prometheus smoke there.
+There is intentionally no default peer. The retired Alienware identity is rejected, as are loopback/local-host targets. The proof checks local Precision smoke, then SSHes to the selected peer and runs the same no-Prometheus smoke there.
+
+If the peer is missing or unreachable, the cross-box proof fails. The local and remote repositories must both be clean, resolve to distinct hostnames, and report the exact same Git HEAD. A local smoke must never substitute for required cross-box evidence.
 
 ## Known environment difference
 
 Precision currently has the full monitoring stack.
 
-Alienware currently does not have Prometheus/node_exporter installed, so full make mainnet0-status-proof is expected to fail there until monitoring is installed.
-
-Use make mainnet0-status-smoke on Alienware.
+The selected cross-box peer is only required to pass `make mainnet0-status-smoke`; it does not need Prometheus/node_exporter for this cross-box command.
 
 ## Buy VOID rule
 
