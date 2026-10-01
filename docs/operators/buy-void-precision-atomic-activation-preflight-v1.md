@@ -57,10 +57,12 @@ It requires:
 - process cwd exactly the live repo;
 - configured and running process gates exactly dormant.
 
-It then reads only the five activation-gate assignments from active systemd
-drop-ins.
+It then reads only the five activation-gate assignments from the active systemd
+base unit fragment **and** every active drop-in, in the unit's reported load
+order. The base unit is not an approved owner of these gates; any gate assignment
+there is therefore an unreviewed source and HOLDs.
 
-Only these gate sources are currently reviewed:
+Only these drop-in gate sources are currently reviewed:
 
 | drop-in | SHA-256 | reviewed gate assignments |
 | --- | --- | --- |
