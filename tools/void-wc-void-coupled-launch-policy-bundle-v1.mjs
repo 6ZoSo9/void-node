@@ -1,41 +1,17 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import {
-  VOID_WC_VOID_OPENING_WINDOW_SCHEMA_V1,
-  wcVoidOpeningWindowIdV1,
-} from "./void-wc-void-opening-window-policy-v1.mjs";
-import {
-  VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_SCHEMA_V1,
-  wcVoidOpeningConcentrationSybilPolicyIdV1,
-} from "./void-wc-void-opening-concentration-sybil-policy-v1.mjs";
-import {
-  VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT,
-} from "./void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs";
-import {
-  VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_SCHEMA_V1,
-  wcVoidOpeningMinimumRealWcDepthPolicyIdV1,
-} from "./void-wc-void-opening-minimum-real-wc-depth-policy-v1.mjs";
-import {
-  VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT,
-} from "./void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs";
-import {
-  VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1,
-  VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_SCHEMA_V1,
-  economicIntentTtlCapsPolicyIdV1,
-} from "./void-economic-intent-ttl-caps-policy-v1.mjs";
-import {
-  VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT,
-} from "./void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs";
-
 export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1 =
   "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1";
-
+export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1 =
+  "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1";
 export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1 =
   "void.wc-void-coupled-launch-policy-bundle.v1";
 
@@ -44,12 +20,19 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1 =
     source_policy_compilation_only: true,
     explicit_reviewed_values_required: true,
     canonical_launch_source_binding_required: true,
+    reviewed_git_object_execution_required: true,
+    reviewed_policy_module_closure_required: true,
+    permission_fenced_execution_required: true,
+    worktree_policy_execution_forbidden: true,
+    canonical_main_artifact_required: true,
+    canonical_remote_main_read_required: true,
     git_config_isolated: true,
     descriptor_bound_private_input: true,
     reviewed_private_input_sha256_required: true,
     create_only_private_output: true,
     durable_output_directory_entry_required: true,
     output_parent_directory_identity_bound: true,
+    private_temporary_filesystem_write: true,
     production_values_selected_by_source: false,
     runtime_enforcement_verified: false,
     wall_clock_read: false,
@@ -70,635 +53,475 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1 =
     funds_movement: false,
   });
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(HERE, "..");
-const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
-const HEX64 = /^[0-9a-f]{64}$/u;
-const UINT = /^(0|[1-9][0-9]*)$/u;
+const HERE=path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT=path.resolve(HERE,"..");
+const GIT="/usr/bin/git";
+const TOOL_REL="tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
+const CORE_REL="tools/void-wc-void-coupled-launch-policy-reviewed-core-v1.mjs";
+const COUPLED_CANDIDATE_REL=
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const CANONICAL_REMOTE="https://github.com/6ZoSo9/void-node.git";
+const HEX40=/^[0-9a-f]{40}$/u;
+const HEX64=/^[0-9a-f]{64}$/u;
+const MAX_INPUT_BYTES=1024*1024;
+const MAX_SOURCE_BYTES=8*1024*1024;
 export const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
-const COUPLED_CANDIDATE_REL =
-  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
-const MAX_INPUT_BYTES = 1024 * 1024;
-const MAX_TRACKED_INTENTS = 1_000_000;
-const MAX_SIGNED_INTENT_GAS_LIMIT =
-  BigInt(
-    VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
-      .max_signed_intent_gas_limit,
-  );
-const VOID_ECONOMIC_SYSTEM_SPONSORED_POLICY_SCHEMA_V1 =
-  "void.economic-system-sponsored-anti-grief-policy.v1";
 
-const INPUT_KEYS = Object.freeze([
-  "bundle_committed_at_ms",
-  "bundle_generation",
-  "concentration_policy",
-  "coupled_launch_id",
-  "intent_ttl_caps_policy",
-  "minimum_depth_policy",
-  "opening_window",
-  "sponsored_execution_policy",
-]);
-
-const WINDOW_KEYS = Object.freeze([
-  "closes_at_ms",
-  "coupled_launch_id",
-  "opens_at_ms",
-  "policy_committed_at_ms",
-  "schema",
-  "window_id",
-]);
-
-const CONCENTRATION_KEYS = Object.freeze([
-  "coupled_launch_id",
-  "failure_action",
-  "max_participant_share_bps",
-  "max_related_identity_share_bps",
-  "opening_window_id",
-  "policy_committed_at_ms",
-  "policy_generation",
-  "policy_id",
-  "schema",
-]);
-
-const DEPTH_KEYS = Object.freeze([
-  "coupled_launch_id",
-  "minimum_depth_failure_action",
-  "minimum_real_wc_units",
-  "opening_window_id",
-  "policy_committed_at_ms",
-  "policy_generation",
-  "policy_id",
-  "schema",
-]);
-
-const TTL_KEYS = Object.freeze([
-  "coupled_launch_id",
-  "global_max_outstanding",
-  "intent_ttl_seconds",
-  "late_payment_action",
-  "per_identity_max_outstanding",
-  "policy_committed_at_ms",
-  "policy_generation",
-  "policy_id",
-  "schema",
-]);
-
-const SPONSOR_KEYS = Object.freeze([
-  "budget_exhaustion_action",
-  "coupled_launch_id",
-  "global_sponsored_gas_budget",
-  "intent_ttl_caps_policy_id",
-  "per_identity_sponsored_gas_budget",
-  "per_intent_sponsored_gas_limit",
-  "policy_committed_at_ms",
-  "policy_generation",
-  "policy_id",
-  "schema",
-]);
-
-function fail(code) {
-  throw new Error(code);
+function fail(code){throw new Error(code);}
+function compareText(left,right){return left<right?-1:left>right?1:0;}
+function plain(value){
+  return value!==null&&typeof value==="object"&&!Array.isArray(value)&&
+    (Object.getPrototypeOf(value)===Object.prototype||
+     Object.getPrototypeOf(value)===null);
 }
-
-function compareText(left, right) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function plain(value) {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    (
-      Object.getPrototypeOf(value) === Object.prototype ||
-      Object.getPrototypeOf(value) === null
-    )
-  );
-}
-
-function exactObject(value, keys, code) {
-  if (!plain(value)) fail(code);
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const actual = Reflect.ownKeys(descriptors);
-  if (actual.some((key) => typeof key !== "string")) fail(code);
-  actual.sort(compareText);
-  const expected = [...keys].sort(compareText);
-  if (
-    actual.length !== expected.length ||
-    actual.some((key, index) => key !== expected[index])
-  ) {
-    fail(code);
-  }
-  const out = Object.create(null);
-  for (const key of keys) {
-    const descriptor = descriptors[key];
-    if (
-      !descriptor ||
-      descriptor.enumerable !== true ||
-      !Object.hasOwn(descriptor, "value")
-    ) {
-      fail(code);
-    }
-    out[key] = descriptor.value;
-  }
-  return Object.freeze(out);
-}
-
-function canonicalJson(value) {
-  if (value === null) return "null";
-  if (typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number" && Number.isSafeInteger(value)) {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return "[" + value.map(canonicalJson).join(",") + "]";
-  }
-  if (plain(value)) {
-    return (
-      "{" +
-      Object.keys(value)
-        .sort(compareText)
-        .map((key) => JSON.stringify(key) + ":" + canonicalJson(value[key]))
-        .join(",") +
-      "}"
-    );
+function canonicalJson(value){
+  if(value===null)return "null";
+  if(typeof value==="string")return JSON.stringify(value);
+  if(typeof value==="boolean")return value?"true":"false";
+  if(typeof value==="number"&&Number.isSafeInteger(value))return String(value);
+  if(Array.isArray(value))return "["+value.map(canonicalJson).join(",")+"]";
+  if(plain(value)){
+    return "{"+Object.keys(value).sort(compareText)
+      .map(key=>JSON.stringify(key)+":"+canonicalJson(value[key])).join(",")+"}";
   }
   fail("COUPLED_LAUNCH_POLICY_CANONICAL_VALUE_INVALID");
 }
-
-function digest(value) {
-  return "sha256:" +
-    crypto.createHash("sha256").update(canonicalJson(value), "utf8").digest("hex");
+function sha256Bytes(value){return crypto.createHash("sha256").update(value).digest("hex");}
+function gitBlobSha1(value){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+value.length+"\0","utf8"))
+    .update(value).digest("hex");
 }
-
-function sha256Bytes(value) {
-  return crypto.createHash("sha256").update(value).digest("hex");
+function digest(value){
+  return "sha256:"+crypto.createHash("sha256")
+    .update(canonicalJson(value),"utf8").digest("hex");
 }
-
-function gitBlobSha1(value) {
-  const header = Buffer.from("blob " + value.length + "\0", "utf8");
-  return crypto
-    .createHash("sha1")
-    .update(header)
-    .update(value)
-    .digest("hex");
-}
-
-function prettyBytes(value) {
-  return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
-}
-
-function canonicalSha(value, code) {
-  if (typeof value !== "string" || !SHA256_ID.test(value)) fail(code);
-  return value;
-}
-
-function canonicalGeneration(value, code) {
-  if (
-    typeof value !== "string" ||
-    !UINT.test(value) ||
-    BigInt(value) <= 0n
-  ) {
-    fail(code);
-  }
-  return value;
-}
-
-function canonicalMs(value, code) {
-  if (!Number.isSafeInteger(value) || value <= 0) fail(code);
-  return value;
-}
-
-function positiveUintString(value, code) {
-  if (typeof value !== "string" || !UINT.test(value)) fail(code);
-  const parsed = BigInt(value);
-  if (parsed <= 0n) fail(code);
-  return parsed;
-}
-
-function positiveSafeInteger(value, code) {
-  if (!Number.isSafeInteger(value) || value <= 0) fail(code);
-  return value;
-}
-
-function positiveBps(value, code) {
-  const parsed = positiveUintString(value, code);
-  if (parsed >= 10_000n) fail(code);
-  return parsed;
-}
-
-function sponsoredPolicyPayload(value) {
-  return Object.freeze({
-    schema: value.schema,
-    coupled_launch_id: value.coupled_launch_id,
-    intent_ttl_caps_policy_id: value.intent_ttl_caps_policy_id,
-    policy_generation: value.policy_generation,
-    policy_committed_at_ms: value.policy_committed_at_ms,
-    per_intent_sponsored_gas_limit: value.per_intent_sponsored_gas_limit,
-    per_identity_sponsored_gas_budget:
-      value.per_identity_sponsored_gas_budget,
-    global_sponsored_gas_budget: value.global_sponsored_gas_budget,
-    budget_exhaustion_action: value.budget_exhaustion_action,
-  });
-}
-
-function economicSystemSponsoredPolicyIdDependencyLightV1(value) {
-  return digest(sponsoredPolicyPayload(value));
-}
-
-function deepFreeze(value) {
-  if (
-    value === null ||
-    typeof value !== "object" ||
-    Object.isFrozen(value)
-  ) {
-    return value;
-  }
-  for (const child of Object.values(value)) deepFreeze(child);
+function deepFreeze(value){
+  if(value===null||typeof value!=="object"||Object.isFrozen(value))return value;
+  for(const child of Object.values(value))deepFreeze(child);
   return Object.freeze(value);
 }
+function prettyBytes(value){return Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");}
 
-function validateWindow(raw, launchId) {
-  const value = exactObject(
-    raw,
-    WINDOW_KEYS,
-    "COUPLED_LAUNCH_WINDOW_SHAPE_INVALID",
+function gitEnv(){
+  return {
+    PATH:"/usr/bin:/bin",
+    HOME:"/nonexistent",
+    XDG_CONFIG_HOME:"/nonexistent",
+    LANG:"C",
+    LC_ALL:"C",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_ATTR_NOSYSTEM:"1",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_NO_LAZY_FETCH:"1",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_ASKPASS:"/bin/false",
+  };
+}
+const GIT_SAFETY_ARGS=Object.freeze([
+  "-c","core.hooksPath=/dev/null",
+  "-c","core.attributesFile=/dev/null",
+  "-c","core.fsmonitor=false",
+  "-c","core.untrackedCache=false",
+  "-c","core.preloadIndex=false",
+  "-c","submodule.recurse=false",
+]);
+function gitRun(args,code,{encoding="utf8",allowFail=false,cwd=REPO_ROOT}={}){
+  const result=spawnSync(
+    GIT,
+    ["--no-replace-objects",...GIT_SAFETY_ARGS,"-C",cwd,...args],
+    {
+      env:gitEnv(),
+      encoding,
+      stdio:["ignore","pipe","pipe"],
+      maxBuffer:MAX_SOURCE_BYTES*8,
+      timeout:60_000,
+    },
   );
-  if (value.schema !== VOID_WC_VOID_OPENING_WINDOW_SCHEMA_V1) {
-    fail("COUPLED_LAUNCH_WINDOW_SCHEMA_INVALID");
+  if(result.error)throw result.error;
+  if(result.status!==0&&!allowFail)fail(code);
+  return result;
+}
+function gitText(args,code,{allowEmpty=false}={}){
+  const value=String(gitRun(args,code).stdout||"").trim();
+  if(!allowEmpty&&!value)fail(code);
+  return value;
+}
+function gitBytes(args,code){
+  return Buffer.from(gitRun(args,code,{encoding:null}).stdout||Buffer.alloc(0));
+}
+function canonicalOrigin(value){
+  const accepted=new Set([
+    "https://github.com/6ZoSo9/void-node",
+    "https://github.com/6ZoSo9/void-node.git",
+    "git@github.com:6ZoSo9/void-node.git",
+    "ssh://git@github.com/6ZoSo9/void-node.git",
+  ]);
+  const text=String(value||"").trim();
+  if(!accepted.has(text))fail("COUPLED_LAUNCH_POLICY_CANONICAL_ORIGIN_REQUIRED");
+  return CANONICAL_REMOTE;
+}
+function canonicalRemoteMainHead(){
+  const result=spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      "-c","http.sslVerify=true",
+      ...GIT_SAFETY_ARGS,
+      "ls-remote","--heads",CANONICAL_REMOTE,"refs/heads/main",
+    ],
+    {
+      cwd:"/",
+      env:gitEnv(),
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      maxBuffer:1024*1024,
+      timeout:15_000,
+    },
+  );
+  if(result.error||result.status!==0){
+    fail("COUPLED_LAUNCH_POLICY_REMOTE_MAIN_UNAVAILABLE");
   }
-  canonicalSha(value.window_id, "COUPLED_LAUNCH_WINDOW_ID_INVALID");
-  canonicalSha(
-    value.coupled_launch_id,
-    "COUPLED_LAUNCH_WINDOW_LAUNCH_ID_INVALID",
+  const match=String(result.stdout||"").trim()
+    .match(/^([0-9a-f]{40})\s+refs\/heads\/main$/u);
+  if(!match)fail("COUPLED_LAUNCH_POLICY_REMOTE_MAIN_INVALID");
+  return match[1];
+}
+function commitBytes(commit,relativePath,label){
+  if(!HEX40.test(String(commit||"")))fail(label+"_COMMIT_INVALID");
+  const bytes=gitBytes(["show",commit+":"+relativePath],label+"_BYTES_UNAVAILABLE");
+  if(bytes.length<1||bytes.length>MAX_SOURCE_BYTES)fail(label+"_BYTES_INVALID");
+  const blob=gitText(["rev-parse",commit+":"+relativePath],label+"_BLOB_UNAVAILABLE");
+  if(!HEX40.test(blob)||gitBlobSha1(bytes)!==blob)fail(label+"_BLOB_MISMATCH");
+  return Object.freeze({bytes,blob_sha1:blob,sha256:sha256Bytes(bytes)});
+}
+function repositoryIdentity({requireCanonicalMain=false}={}){
+  const status=gitText(
+    ["status","--porcelain=v1","--untracked-files=all"],
+    "COUPLED_LAUNCH_POLICY_REPOSITORY_STATUS_UNAVAILABLE",
+    {allowEmpty:true},
   );
-  if (value.coupled_launch_id !== launchId) {
-    fail("COUPLED_LAUNCH_WINDOW_LAUNCH_ID_MISMATCH");
+  if(status!=="")fail("COUPLED_LAUNCH_POLICY_REPOSITORY_MUST_BE_CLEAN");
+  const head=gitText(["rev-parse","HEAD"],"COUPLED_LAUNCH_POLICY_HEAD_UNAVAILABLE");
+  const tree=gitText(["rev-parse","HEAD^{tree}"],"COUPLED_LAUNCH_POLICY_TREE_UNAVAILABLE");
+  const branch=gitText(
+    ["branch","--show-current"],
+    "COUPLED_LAUNCH_POLICY_BRANCH_UNAVAILABLE",
+    {allowEmpty:true},
+  );
+  const origin=canonicalOrigin(
+    gitText(
+      ["config","--local","--no-includes","--get","remote.origin.url"],
+      "COUPLED_LAUNCH_POLICY_ORIGIN_UNAVAILABLE",
+    ),
+  );
+  if(!HEX40.test(head)||!HEX40.test(tree)){
+    fail("COUPLED_LAUNCH_POLICY_REPOSITORY_IDENTITY_INVALID");
   }
-  const committed = canonicalMs(
-    value.policy_committed_at_ms,
-    "COUPLED_LAUNCH_WINDOW_COMMITTED_AT_INVALID",
-  );
-  const opens = canonicalMs(
-    value.opens_at_ms,
-    "COUPLED_LAUNCH_WINDOW_OPENS_AT_INVALID",
-  );
-  const closes = canonicalMs(
-    value.closes_at_ms,
-    "COUPLED_LAUNCH_WINDOW_CLOSES_AT_INVALID",
-  );
-  if (!(committed < opens && opens < closes)) {
-    fail("COUPLED_LAUNCH_WINDOW_ORDER_INVALID");
+  const toolObject=commitBytes(head,TOOL_REL,"COUPLED_LAUNCH_POLICY_TOOL");
+  const toolWork=fs.readFileSync(path.join(REPO_ROOT,TOOL_REL));
+  if(gitBlobSha1(toolWork)!==toolObject.blob_sha1){
+    fail("COUPLED_LAUNCH_POLICY_TOOL_WORKTREE_DRIFT");
   }
-  if (wcVoidOpeningWindowIdV1(value) !== value.window_id) {
-    fail("COUPLED_LAUNCH_WINDOW_ID_MISMATCH");
+  let remoteMainSha=null;
+  if(requireCanonicalMain){
+    if(branch!=="main")fail("COUPLED_LAUNCH_POLICY_CANONICAL_MAIN_BRANCH_REQUIRED");
+    remoteMainSha=canonicalRemoteMainHead();
+    if(remoteMainSha!==head)fail("COUPLED_LAUNCH_POLICY_REMOTE_MAIN_HEAD_MISMATCH");
   }
   return Object.freeze({
-    ...value,
-    policy_committed_at_ms: committed,
-    opens_at_ms: opens,
-    closes_at_ms: closes,
+    head,tree,branch,origin,
+    remote_main_sha:remoteMainSha,
+    canonical_main_verified:requireCanonicalMain,
+    tool_git_blob_sha1:toolObject.blob_sha1,
   });
 }
 
-function validateConcentration(raw, launchId, window) {
-  const value = exactObject(
-    raw,
-    CONCENTRATION_KEYS,
-    "COUPLED_LAUNCH_CONCENTRATION_SHAPE_INVALID",
-  );
-  if (
-    value.schema !==
-    VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_SCHEMA_V1
-  ) {
-    fail("COUPLED_LAUNCH_CONCENTRATION_SCHEMA_INVALID");
+function reviewedModuleClosure(commit){
+  const pending=[CORE_REL];
+  const seen=new Set();
+  const sources=new Map();
+  const blobs=Object.create(null);
+  while(pending.length){
+    const rel=pending.pop();
+    if(seen.has(rel))continue;
+    seen.add(rel);
+    const source=commitBytes(
+      commit,
+      rel,
+      "COUPLED_LAUNCH_POLICY_REVIEWED_MODULE_"+rel.replace(/[^A-Za-z0-9]+/gu,"_"),
+    );
+    sources.set(rel,source.bytes);
+    blobs[rel]=source.blob_sha1;
+    const text=new TextDecoder("utf-8",{fatal:true}).decode(source.bytes);
+    if(
+      text.includes("node:child_process")||
+      text.includes("node:http")||
+      text.includes("node:https")||
+      text.includes("node:net")||
+      text.includes("node:tls")||
+      text.includes("node:dgram")||
+      text.includes("node:worker_threads")
+    ){
+      fail("COUPLED_LAUNCH_POLICY_REVIEWED_EXECUTION_SURFACE_FORBIDDEN:"+rel);
+    }
+    if(/\bimport\s*\(/u.test(text)){
+      fail("COUPLED_LAUNCH_POLICY_REVIEWED_DYNAMIC_IMPORT_FORBIDDEN:"+rel);
+    }
+    const specs=[];
+    for(const re of [
+      /\bfrom\s+["']([^"']+)["']/gu,
+      /\bimport\s+["']([^"']+)["']/gu,
+    ]){
+      let match;
+      while((match=re.exec(text))!==null)specs.push(match[1]);
+    }
+    for(const spec of specs){
+      if(spec.startsWith("node:"))continue;
+      if(!spec.startsWith(".")){
+        fail("COUPLED_LAUNCH_POLICY_REVIEWED_BARE_IMPORT_FORBIDDEN:"+spec);
+      }
+      let target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(rel),spec),
+      );
+      if(!target.endsWith(".mjs"))target+=".mjs";
+      if(!target.startsWith("tools/")||target.includes("../")){
+        fail("COUPLED_LAUNCH_POLICY_REVIEWED_IMPORT_ESCAPE:"+target);
+      }
+      pending.push(target);
+    }
   }
-  canonicalSha(value.policy_id, "COUPLED_LAUNCH_CONCENTRATION_ID_INVALID");
-  canonicalGeneration(
-    value.policy_generation,
-    "COUPLED_LAUNCH_CONCENTRATION_GENERATION_INVALID",
-  );
-  if (
-    value.coupled_launch_id !== launchId ||
-    value.opening_window_id !== window.window_id
-  ) {
-    fail("COUPLED_LAUNCH_CONCENTRATION_BINDING_MISMATCH");
-  }
-  const committed = canonicalMs(
-    value.policy_committed_at_ms,
-    "COUPLED_LAUNCH_CONCENTRATION_COMMITTED_AT_INVALID",
-  );
-  if (
-    committed < window.policy_committed_at_ms ||
-    committed >= window.opens_at_ms
-  ) {
-    fail("COUPLED_LAUNCH_CONCENTRATION_COMMIT_ORDER_INVALID");
-  }
-  const participant = positiveBps(
-    value.max_participant_share_bps,
-    "COUPLED_LAUNCH_PARTICIPANT_CAP_INVALID",
-  );
-  const cluster = positiveBps(
-    value.max_related_identity_share_bps,
-    "COUPLED_LAUNCH_CLUSTER_CAP_INVALID",
-  );
-  if (cluster < participant) {
-    fail("COUPLED_LAUNCH_CLUSTER_CAP_BELOW_PARTICIPANT_CAP");
-  }
-  if (
-    value.failure_action !==
-    VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT.failure_action
-  ) {
-    fail("COUPLED_LAUNCH_CONCENTRATION_FAILURE_ACTION_INVALID");
-  }
-  if (wcVoidOpeningConcentrationSybilPolicyIdV1(value) !== value.policy_id) {
-    fail("COUPLED_LAUNCH_CONCENTRATION_ID_MISMATCH");
-  }
-  return Object.freeze({ ...value, policy_committed_at_ms: committed });
-}
-
-function validateDepth(raw, launchId, window) {
-  const value = exactObject(
-    raw,
-    DEPTH_KEYS,
-    "COUPLED_LAUNCH_DEPTH_SHAPE_INVALID",
-  );
-  if (
-    value.schema !==
-    VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_SCHEMA_V1
-  ) {
-    fail("COUPLED_LAUNCH_DEPTH_SCHEMA_INVALID");
-  }
-  canonicalSha(value.policy_id, "COUPLED_LAUNCH_DEPTH_ID_INVALID");
-  canonicalGeneration(
-    value.policy_generation,
-    "COUPLED_LAUNCH_DEPTH_GENERATION_INVALID",
-  );
-  if (
-    value.coupled_launch_id !== launchId ||
-    value.opening_window_id !== window.window_id
-  ) {
-    fail("COUPLED_LAUNCH_DEPTH_BINDING_MISMATCH");
-  }
-  const committed = canonicalMs(
-    value.policy_committed_at_ms,
-    "COUPLED_LAUNCH_DEPTH_COMMITTED_AT_INVALID",
-  );
-  if (
-    committed < window.policy_committed_at_ms ||
-    committed >= window.opens_at_ms
-  ) {
-    fail("COUPLED_LAUNCH_DEPTH_COMMIT_ORDER_INVALID");
-  }
-  const minimum = positiveUintString(
-    value.minimum_real_wc_units,
-    "COUPLED_LAUNCH_MINIMUM_DEPTH_INVALID",
-  );
-  if (minimum > BigInt(Number.MAX_SAFE_INTEGER)) {
-    fail("COUPLED_LAUNCH_MINIMUM_DEPTH_ABOVE_SAFE_INTEGER");
-  }
-  if (
-    value.minimum_depth_failure_action !==
-    VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT
-      .minimum_depth_exhaustion_action
-  ) {
-    fail("COUPLED_LAUNCH_DEPTH_FAILURE_ACTION_INVALID");
-  }
-  if (wcVoidOpeningMinimumRealWcDepthPolicyIdV1(value) !== value.policy_id) {
-    fail("COUPLED_LAUNCH_DEPTH_ID_MISMATCH");
-  }
-  return Object.freeze({ ...value, policy_committed_at_ms: committed });
-}
-
-function validateTtl(raw, launchId, window) {
-  const value = exactObject(
-    raw,
-    TTL_KEYS,
-    "COUPLED_LAUNCH_TTL_SHAPE_INVALID",
-  );
-  if (value.schema !== VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_SCHEMA_V1) {
-    fail("COUPLED_LAUNCH_TTL_SCHEMA_INVALID");
-  }
-  canonicalSha(value.policy_id, "COUPLED_LAUNCH_TTL_ID_INVALID");
-  canonicalGeneration(
-    value.policy_generation,
-    "COUPLED_LAUNCH_TTL_GENERATION_INVALID",
-  );
-  if (value.coupled_launch_id !== launchId) {
-    fail("COUPLED_LAUNCH_TTL_LAUNCH_ID_MISMATCH");
-  }
-  const committed = canonicalMs(
-    value.policy_committed_at_ms,
-    "COUPLED_LAUNCH_TTL_COMMITTED_AT_INVALID",
-  );
-  if (
-    committed < window.policy_committed_at_ms ||
-    committed >= window.opens_at_ms
-  ) {
-    fail("COUPLED_LAUNCH_TTL_COMMIT_ORDER_INVALID");
-  }
-  const ttl = positiveSafeInteger(
-    value.intent_ttl_seconds,
-    "COUPLED_LAUNCH_TTL_SECONDS_INVALID",
-  );
-  if (
-    ttl >
-    Number(VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1.max_ttl_seconds)
-  ) {
-    fail("COUPLED_LAUNCH_TTL_ABOVE_MAXIMUM");
-  }
-  const perIdentity = positiveSafeInteger(
-    value.per_identity_max_outstanding,
-    "COUPLED_LAUNCH_TTL_IDENTITY_CAP_INVALID",
-  );
-  const global = positiveSafeInteger(
-    value.global_max_outstanding,
-    "COUPLED_LAUNCH_TTL_GLOBAL_CAP_INVALID",
-  );
-  if (global < perIdentity || global > MAX_TRACKED_INTENTS) {
-    fail("COUPLED_LAUNCH_TTL_CAP_RELATION_INVALID");
-  }
-  if (
-    value.late_payment_action !==
-    VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1.late_payment_action
-  ) {
-    fail("COUPLED_LAUNCH_TTL_LATE_PAYMENT_ACTION_INVALID");
-  }
-  if (economicIntentTtlCapsPolicyIdV1(value) !== value.policy_id) {
-    fail("COUPLED_LAUNCH_TTL_ID_MISMATCH");
-  }
-  return Object.freeze({ ...value, policy_committed_at_ms: committed });
-}
-
-function validateSponsor(raw, launchId, window, ttl) {
-  const value = exactObject(
-    raw,
-    SPONSOR_KEYS,
-    "COUPLED_LAUNCH_SPONSOR_SHAPE_INVALID",
-  );
-  if (value.schema !== VOID_ECONOMIC_SYSTEM_SPONSORED_POLICY_SCHEMA_V1) {
-    fail("COUPLED_LAUNCH_SPONSOR_SCHEMA_INVALID");
-  }
-  canonicalSha(value.policy_id, "COUPLED_LAUNCH_SPONSOR_ID_INVALID");
-  canonicalGeneration(
-    value.policy_generation,
-    "COUPLED_LAUNCH_SPONSOR_GENERATION_INVALID",
-  );
-  if (
-    value.coupled_launch_id !== launchId ||
-    value.intent_ttl_caps_policy_id !== ttl.policy_id
-  ) {
-    fail("COUPLED_LAUNCH_SPONSOR_BINDING_MISMATCH");
-  }
-  const committed = canonicalMs(
-    value.policy_committed_at_ms,
-    "COUPLED_LAUNCH_SPONSOR_COMMITTED_AT_INVALID",
-  );
-  if (
-    committed <= ttl.policy_committed_at_ms ||
-    committed >= window.opens_at_ms
-  ) {
-    fail("COUPLED_LAUNCH_SPONSOR_COMMIT_ORDER_INVALID");
-  }
-  const perIntent = positiveUintString(
-    value.per_intent_sponsored_gas_limit,
-    "COUPLED_LAUNCH_SPONSOR_INTENT_LIMIT_INVALID",
-  );
-  const perIdentity = positiveUintString(
-    value.per_identity_sponsored_gas_budget,
-    "COUPLED_LAUNCH_SPONSOR_IDENTITY_BUDGET_INVALID",
-  );
-  const global = positiveUintString(
-    value.global_sponsored_gas_budget,
-    "COUPLED_LAUNCH_SPONSOR_GLOBAL_BUDGET_INVALID",
-  );
-  if (
-    perIntent > MAX_SIGNED_INTENT_GAS_LIMIT ||
-    perIdentity < perIntent ||
-    global < perIdentity
-  ) {
-    fail("COUPLED_LAUNCH_SPONSOR_BUDGET_RELATION_INVALID");
-  }
-  if (
-    value.budget_exhaustion_action !==
-    VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
-      .budget_exhaustion_action
-  ) {
-    fail("COUPLED_LAUNCH_SPONSOR_EXHAUSTION_ACTION_INVALID");
-  }
-  if (
-    economicSystemSponsoredPolicyIdDependencyLightV1(value) !==
-    value.policy_id
-  ) {
-    fail("COUPLED_LAUNCH_SPONSOR_ID_MISMATCH");
-  }
-  return Object.freeze({ ...value, policy_committed_at_ms: committed });
-}
-
-export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw) {
-  const canonicalLaunchSource = canonicalLaunchSourceBinding();
-  const input = exactObject(
-    raw,
-    INPUT_KEYS,
-    "COUPLED_LAUNCH_POLICY_BUNDLE_INPUT_SHAPE_INVALID",
-  );
-  const launchId = canonicalSha(
-    input.coupled_launch_id,
-    "COUPLED_LAUNCH_POLICY_BUNDLE_LAUNCH_ID_INVALID",
-  );
-  if (
-    launchId !== VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 ||
-    launchId !== canonicalLaunchSource.coupled_launch_id
-  ) {
-    fail("COUPLED_LAUNCH_POLICY_BUNDLE_CANONICAL_LAUNCH_ID_MISMATCH");
-  }
-  const generation = canonicalGeneration(
-    input.bundle_generation,
-    "COUPLED_LAUNCH_POLICY_BUNDLE_GENERATION_INVALID",
-  );
-  const window = validateWindow(input.opening_window, launchId);
-  const concentration = validateConcentration(
-    input.concentration_policy,
-    launchId,
-    window,
-  );
-  const depth = validateDepth(
-    input.minimum_depth_policy,
-    launchId,
-    window,
-  );
-  const ttl = validateTtl(
-    input.intent_ttl_caps_policy,
-    launchId,
-    window,
-  );
-  const sponsor = validateSponsor(
-    input.sponsored_execution_policy,
-    launchId,
-    window,
-    ttl,
-  );
-  const bundleCommittedAt = canonicalMs(
-    input.bundle_committed_at_ms,
-    "COUPLED_LAUNCH_POLICY_BUNDLE_COMMITTED_AT_INVALID",
-  );
-  const latestDependencyCommit = Math.max(
-    window.policy_committed_at_ms,
-    concentration.policy_committed_at_ms,
-    depth.policy_committed_at_ms,
-    ttl.policy_committed_at_ms,
-    sponsor.policy_committed_at_ms,
-  );
-  if (
-    bundleCommittedAt < latestDependencyCommit ||
-    bundleCommittedAt >= window.opens_at_ms
-  ) {
-    fail("COUPLED_LAUNCH_POLICY_BUNDLE_COMMIT_ORDER_INVALID");
-  }
-
-  const body = Object.freeze({
-    marker: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
-    schema: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1,
-    version: 1,
-    coupled_launch_id: launchId,
-    bundle_generation: generation,
-    bundle_committed_at_ms: bundleCommittedAt,
-    opening_window: window,
-    concentration_policy: concentration,
-    minimum_depth_policy: depth,
-    intent_ttl_caps_policy: ttl,
-    sponsored_execution_policy: sponsor,
-    canonical_launch_source: canonicalLaunchSource,
-    source_contract_ids: Object.freeze({
-      concentration_sybil:
-        VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT
-          .policy_contract_id,
-      minimum_real_wc_depth:
-        VOID_WC_VOID_OPENING_MINIMUM_REAL_WC_DEPTH_POLICY_CONTRACT
-          .policy_contract_id,
-      intent_ttl_caps:
-        VOID_ECONOMIC_INTENT_TTL_CAPS_POLICY_CONTRACT_V1.policy_contract_id,
-      system_sponsored_anti_grief:
-        VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
-          .policy_contract_id,
-    }),
-    exact_values_supplied_explicitly: true,
-    values_selected_by_source: false,
-    all_policy_commitments_precede_open: true,
-    hidden_minimum_trade_amount_applied: false,
-    runtime_enforcement_verified: false,
-    launch_authority: false,
-    market_activation_authorized: false,
-    public_presale_activation_authorized: false,
-    funds_movement_authorized: false,
-    authority: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1,
+  return Object.freeze({
+    sources,
+    module_git_blobs:Object.freeze({...blobs}),
   });
+}
 
+function writePrivateSource(file,bytes){
+  fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_WRONLY|
+      fs.constants.O_CREAT|
+      fs.constants.O_EXCL|
+      Number(fs.constants.O_NOFOLLOW||0),
+    0o400,
+  );
+  try{
+    fs.writeFileSync(fd,bytes);
+    fs.fchmodSync(fd,0o400);
+    fs.fsyncSync(fd);
+  }finally{fs.closeSync(fd);}
+}
+function makePrivateTreeReadOnly(root){
+  const dirs=[];
+  const stack=[root];
+  while(stack.length){
+    const dir=stack.pop();
+    dirs.push(dir);
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      if(entry.isDirectory())stack.push(file);
+      else if(entry.isFile())fs.chmodSync(file,0o400);
+      else fail("COUPLED_LAUNCH_POLICY_PRIVATE_TREE_ENTRY_INVALID");
+    }
+  }
+  for(const dir of dirs.sort((a,b)=>b.length-a.length))fs.chmodSync(dir,0o500);
+}
+function makePrivateTreeRemovable(root){
+  if(!fs.existsSync(root))return;
+  const stack=[root],dirs=[];
+  while(stack.length){
+    const dir=stack.pop();
+    dirs.push(dir);
+    fs.chmodSync(dir,0o700);
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      if(entry.isDirectory())stack.push(file);
+      else if(entry.isFile())fs.chmodSync(file,0o600);
+    }
+  }
+}
+function privateNodeEnv(home){
+  return {
+    PATH:"/usr/bin:/bin",
+    HOME:home,
+    XDG_CONFIG_HOME:home,
+    LANG:"C",
+    LC_ALL:"C",
+    NODE_OPTIONS:"",
+    NODE_PATH:"",
+  };
+}
+function runReviewedCompiler(repo,raw,canonicalLaunchSource){
+  const closure=reviewedModuleClosure(repo.head);
+  const parent=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-coupled-launch-policy-reviewed-"),
+  );
+  fs.chmodSync(parent,0o700);
+  const sourceRoot=path.join(parent,"source");
+  const runnerDir=path.join(parent,"runner");
+  fs.mkdirSync(sourceRoot,{mode:0o700});
+  fs.mkdirSync(runnerDir,{mode:0o700});
+  try{
+    for(const [rel,bytes] of closure.sources){
+      writePrivateSource(path.join(sourceRoot,rel),bytes);
+    }
+    const coreFile=path.join(sourceRoot,CORE_REL);
+    const runnerFile=path.join(runnerDir,"reviewed-launch-policy-runner-v1.mjs");
+    const runnerSource=[
+      'import { compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1 } from '+
+        JSON.stringify(pathToFileURL(coreFile).href)+';',
+      'process.stdin.setEncoding("utf8");',
+      'let text="";',
+      'for await (const chunk of process.stdin) text+=chunk;',
+      'const request=JSON.parse(text);',
+      'let envelope;',
+      'try{',
+      '  const result=compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(request.raw,request.canonical_launch_source);',
+      '  envelope={ok:true,result,error:null};',
+      '}catch(error){',
+      '  envelope={ok:false,result:null,error:(error instanceof Error?error.message:String(error)).slice(0,512)};',
+      '}',
+      'process.stdout.write(JSON.stringify(envelope));',
+      '',
+    ].join("\n");
+    writePrivateSource(runnerFile,Buffer.from(runnerSource,"utf8"));
+    makePrivateTreeReadOnly(sourceRoot);
+    const result=spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [
+        "--permission",
+        "--allow-fs-read="+parent,
+        runnerFile,
+      ],
+      {
+        cwd:runnerDir,
+        env:privateNodeEnv(runnerDir),
+        input:JSON.stringify({raw,canonical_launch_source:canonicalLaunchSource}),
+        encoding:"utf8",
+        stdio:["pipe","pipe","pipe"],
+        maxBuffer:16*1024*1024,
+        timeout:60_000,
+      },
+    );
+    if(result.error||result.status!==0){
+      fail("COUPLED_LAUNCH_POLICY_REVIEWED_EXECUTION_FAILED");
+    }
+    let envelope;
+    try{envelope=JSON.parse(String(result.stdout||""));}
+    catch{fail("COUPLED_LAUNCH_POLICY_REVIEWED_OUTPUT_INVALID");}
+    if(
+      !plain(envelope)||
+      typeof envelope.ok!=="boolean"||
+      !Object.hasOwn(envelope,"result")||
+      !Object.hasOwn(envelope,"error")
+    )fail("COUPLED_LAUNCH_POLICY_REVIEWED_OUTPUT_INVALID");
+    if(!envelope.ok){
+      if(typeof envelope.error!=="string"||envelope.error.length<1){
+        fail("COUPLED_LAUNCH_POLICY_REVIEWED_ERROR_INVALID");
+      }
+      fail(envelope.error);
+    }
+    if(!plain(envelope.result)||envelope.error!==null){
+      fail("COUPLED_LAUNCH_POLICY_REVIEWED_RESULT_INVALID");
+    }
+    return Object.freeze({
+      result:envelope.result,
+      module_git_blobs:closure.module_git_blobs,
+    });
+  }finally{
+    makePrivateTreeRemovable(parent);
+    fs.rmSync(parent,{recursive:true,force:true});
+  }
+}
+function canonicalLaunchSource(repo,moduleBlobs){
+  const source=commitBytes(
+    repo.head,
+    COUPLED_CANDIDATE_REL,
+    "COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE",
+  );
+  let candidate;
+  try{
+    candidate=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(source.bytes));
+  }catch{
+    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_JSON_INVALID");
+  }
+  const launchId=candidate?.shared_post_discovery_reconciliation?.coupled_launch_id;
+  if(
+    candidate?.marker!=="VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1"||
+    candidate?.version!==1||
+    candidate?.chain_id!==2050||
+    launchId!==VOID_WC_VOID_COUPLED_LAUNCH_ID_V1
+  )fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_LAUNCH_ID_MISMATCH");
+  return Object.freeze({
+    path:COUPLED_CANDIDATE_REL,
+    repository_head_sha:repo.head,
+    repository_tree_sha:repo.tree,
+    repository_branch:repo.branch,
+    canonical_remote_url:repo.origin,
+    remote_main_sha:repo.remote_main_sha,
+    canonical_main_verified:repo.canonical_main_verified,
+    git_blob_sha1:source.blob_sha1,
+    file_sha256:source.sha256,
+    coupled_launch_id:launchId,
+    reviewed_policy_module_git_blobs:moduleBlobs,
+    permission_fenced_execution:true,
+  });
+}
+function compileReviewed(raw,{requireCanonicalMain}){
+  const repo=repositoryIdentity({requireCanonicalMain});
+  const closure=reviewedModuleClosure(repo.head);
+  const launchSource=canonicalLaunchSource(repo,closure.module_git_blobs);
+  const reviewed=runReviewedCompiler(repo,raw,launchSource);
+  if(
+    canonicalJson(reviewed.module_git_blobs)!==
+      canonicalJson(closure.module_git_blobs)
+  )fail("COUPLED_LAUNCH_POLICY_REVIEWED_MODULE_LINEAGE_DRIFT");
+  const result=reviewed.result;
+  if(
+    result.marker!==VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1||
+    result.schema!==VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1||
+    result.version!==1||
+    result.coupled_launch_id!==VOID_WC_VOID_COUPLED_LAUNCH_ID_V1||
+    canonicalJson(result.authority)!==
+      canonicalJson(VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1)||
+    canonicalJson(result.canonical_launch_source)!==
+      canonicalJson(launchSource)
+  )fail("COUPLED_LAUNCH_POLICY_REVIEWED_RESULT_BINDING_INVALID");
+  const body={...result};
+  delete body.bundle_id;
+  if(result.bundle_id!==digest(body)){
+    fail("COUPLED_LAUNCH_POLICY_REVIEWED_BUNDLE_ID_MISMATCH");
+  }
+  return deepFreeze(result);
+}
+
+export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw){
+  return compileReviewed(raw,{requireCanonicalMain:true});
+}
+export function testOnlyCompileVoidWcVoidCoupledLaunchPolicyBundleV1(raw){
+  const bundle=compileReviewed(raw,{requireCanonicalMain:false});
+  const {
+    marker:_marker,
+    schema:_schema,
+    version:_version,
+    bundle_id:_bundleId,
+    authority:_authority,
+    ...semantic
+  }=bundle;
+  void _marker;void _schema;void _version;void _bundleId;void _authority;
   return deepFreeze({
-    ...body,
-    bundle_id: digest(body),
+    marker:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1,
+    version:1,
+    status:"TEST_ONLY_REVIEWED_SOURCE_COMPILATION_GREEN",
+    production_artifact_authorized:false,
+    production_bundle_id_emitted:false,
+    ...semantic,
   });
 }
 
@@ -711,46 +534,6 @@ function outsideRepository(file) {
   );
 }
 
-function headBlobSha1(relativePath) {
-  const result = spawnSync(
-    "/usr/bin/git",
-    [
-      "--no-replace-objects",
-      "-c", "core.fsmonitor=false",
-      "-c", "core.hooksPath=/dev/null",
-      "-c", "core.attributesFile=/dev/null",
-      "-c", "core.untrackedCache=false",
-      "-c", "core.preloadIndex=false",
-      "-c", "submodule.recurse=false",
-      "-C",
-      REPO_ROOT,
-      "rev-parse",
-      "HEAD:" + relativePath,
-    ],
-    {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        PATH: "/usr/bin:/bin",
-        LANG: "C",
-        LC_ALL: "C",
-        HOME: "/nonexistent",
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: "/dev/null",
-        GIT_OPTIONAL_LOCKS: "0",
-        GIT_NO_REPLACE_OBJECTS: "1",
-      },
-    },
-  );
-  const value = String(result.stdout || "").trim();
-  if (
-    result.status !== 0 ||
-    !/^[0-9a-f]{40}$/u.test(value)
-  ) {
-    fail("COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_HEAD_BLOB_UNAVAILABLE");
-  }
-  return value;
-}
 
 function fsyncDirectory(directory) {
   const fd = fs.openSync(directory, fs.constants.O_RDONLY);
@@ -1016,75 +799,72 @@ function writePrivateJson(file, value) {
   }
 }
 
-const direct =
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 
-if (direct) {
-  try {
-    const { values } = parseArgs({
-      options: {
-        input: { type: "string" },
-        "expected-input-sha256": { type: "string" },
-        output: { type: "string" },
+
+const direct=
+  process.argv[1]&&
+  import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href;
+
+if(direct){
+  try{
+    const {values}=parseArgs({
+      options:{
+        input:{type:"string"},
+        "expected-input-sha256":{type:"string"},
+        output:{type:"string"},
+        "test-only":{type:"boolean",default:false},
       },
-      strict: true,
+      strict:true,
     });
-    if (
-      !values.input ||
-      !values["expected-input-sha256"] ||
-      !values.output
-    ) {
+    if(!values.input||!values["expected-input-sha256"]||!values.output){
       fail(
-        "usage: --input /absolute/private/launch-policy-input.json " +
-        "--expected-input-sha256 <64hex> " +
-        "--output /absolute/private/launch-policy-bundle.json",
+        "usage: --input /absolute/private/launch-policy-input.json "+
+        "--expected-input-sha256 <64hex> "+
+        "--output /absolute/private/launch-policy-bundle.json [--test-only]",
       );
     }
-    const source = readPrivateJson(
+    const source=readPrivateJson(
       values.input,
       "COUPLED_LAUNCH_POLICY_INPUT",
       values["expected-input-sha256"],
     );
-    const result = compileVoidWcVoidCoupledLaunchPolicyBundleV1(source.value);
-    const persisted = writePrivateJson(values.output, result);
+    const testOnly=values["test-only"]===true;
+    const result=testOnly
+      ? testOnlyCompileVoidWcVoidCoupledLaunchPolicyBundleV1(source.value)
+      : compileVoidWcVoidCoupledLaunchPolicyBundleV1(source.value);
+    const persisted=writePrivateJson(values.output,result);
 
-    console.log(VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1);
-    console.log("bundle_id=" + result.bundle_id);
-    console.log("coupled_launch_id=" + result.coupled_launch_id);
-    console.log("opening_window_id=" + result.opening_window.window_id);
     console.log(
-      "concentration_policy_id=" + result.concentration_policy.policy_id,
+      testOnly
+        ? VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1
+        : VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
     );
-    console.log(
-      "minimum_depth_policy_id=" + result.minimum_depth_policy.policy_id,
-    );
-    console.log(
-      "intent_ttl_caps_policy_id=" +
-        result.intent_ttl_caps_policy.policy_id,
-    );
-    console.log(
-      "sponsored_execution_policy_id=" +
-        result.sponsored_execution_policy.policy_id,
-    );
-    console.log("reviewed_input_sha256=" + source.sha256);
-    console.log("output_path=" + persisted.output_path);
-    console.log("output_sha256=" + persisted.output_sha256);
-    console.log("output_bytes=" + String(persisted.output_bytes));
+    if(testOnly){
+      console.log("production_artifact_authorized=false");
+      console.log("production_bundle_id_emitted=false");
+      console.log("canonical_main_verified=false");
+    }else{
+      console.log("bundle_id="+result.bundle_id);
+      console.log("canonical_main_verified=true");
+    }
+    console.log("coupled_launch_id="+result.coupled_launch_id);
+    console.log("reviewed_input_sha256="+source.sha256);
+    console.log("output_path="+persisted.output_path);
+    console.log("output_sha256="+persisted.output_sha256);
+    console.log("output_bytes="+String(persisted.output_bytes));
     console.log("values_selected_by_source=false");
     console.log("runtime_enforcement_verified=false");
     console.log("market_activation_authorized=false");
     console.log("public_presale_activation_authorized=false");
     console.log("funds_movement_authorized=false");
     console.log(
-      "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1_GREEN_NOT_ACTIVATED",
+      testOnly
+        ? "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1_TEST_ONLY_GREEN"
+        : "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1_GREEN_NOT_ACTIVATED",
     );
-  } catch (error) {
+  }catch(error){
     console.error("VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1_HOLD");
-    console.error(
-      "reason=" +
-        (error instanceof Error ? error.message : String(error)),
-    );
-    process.exitCode = 2;
+    console.error("reason="+(error instanceof Error?error.message:String(error)));
+    process.exitCode=2;
   }
 }
