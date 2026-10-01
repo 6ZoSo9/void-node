@@ -35,4 +35,10 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node-version }}
-      - run: node scripts/prove_buy_void_precision_atomic_activation_stage_v1.mjs
+      - name: Syntax
+        run: |
+          node --check tools/void-buy-void-precision-atomic-activation-stage-v1.mjs
+          node --check scripts/prove_buy_void_precision_atomic_activation_stage_v1.mjs
+          bash -n ops/precision/void_precision_buy_void_atomic_activation_stage_v1.sh
+      - name: Prove inactive staging
+        run: node scripts/prove_buy_void_precision_atomic_activation_stage_v1.mjs
