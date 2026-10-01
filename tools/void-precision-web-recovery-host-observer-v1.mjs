@@ -600,16 +600,14 @@ function makeRecoveryEvidence(plan, collected) {
 export function evaluateCollectedPrecisionWebObservationV1({
   plan,
   collected,
-  expectedHostname = DEFAULT_EXPECTED_HOSTNAME,
   trustedNowMs = Date.now(),
 } = {}) {
   requireObject(plan, "plan");
   requireObject(collected, "collected");
-  requireString(expectedHostname, "expected hostname");
   if (collected.marker !== OBSERVATION_MARKER || collected.version !== 1) {
     fail("collected_observation_identity_invalid");
   }
-  if (collected.hostname !== expectedHostname) {
+  if (collected.hostname !== DEFAULT_EXPECTED_HOSTNAME) {
     fail("precision_hostname_mismatch");
   }
   if (
@@ -754,13 +752,14 @@ export function evaluateCollectedPrecisionWebObservationV1({
   const material = {
     marker: MARKER,
     version: 1,
-    status: "PRECISION_WEB_RECOVERY_HOST_OBSERVATION_ACCEPTED",
+    status:
+      "PRECISION_WEB_RECOVERY_HOST_OBSERVATION_STRUCTURALLY_VERIFIED_LIVE_RUN_REQUIRED",
     hostname: collected.hostname,
     plan_id: plan.plan_id,
     recovery_evidence_id: evidence.evidence_id,
     recovery_evidence: evidence,
     source_verifier_status: verification.status,
-    live_host_observation_performed: true,
+    live_host_observation_performed: false,
     services_active_and_exact: true,
     loopback_listeners_exact: true,
     running_source_bytes_bound: true,
@@ -773,7 +772,7 @@ export function evaluateCollectedPrecisionWebObservationV1({
     observer_read_only: true,
     negative_action_scope: "observer_process_only",
     historical_mutation_absence_not_inferred: true,
-    independent_host_acceptance: true,
+    independent_host_acceptance: false,
     ingress_activation_authorized: false,
     service_mutation_authorized: false,
     routing_mutation_authorized: false,
@@ -793,6 +792,30 @@ export function evaluateCollectedPrecisionWebObservationV1({
   });
 }
 
+function acceptLiveCollectedPrecisionWebObservationV1({
+  plan,
+  collected,
+} = {}) {
+  const structural = evaluateCollectedPrecisionWebObservationV1({
+    plan,
+    collected,
+  });
+  const {
+    observation_id: _structuralObservationId,
+    ...structuralBody
+  } = structural;
+  const material = {
+    ...structuralBody,
+    status: "PRECISION_WEB_RECOVERY_HOST_OBSERVATION_ACCEPTED",
+    live_host_observation_performed: true,
+    independent_host_acceptance: true,
+  };
+  return Object.freeze({
+    ...material,
+    observation_id: contentId("voidpwro1_", material),
+  });
+}
+
 function readAllServiceSnapshots(units) {
   return {
     adapter: readServiceSnapshot(units.adapter),
@@ -802,11 +825,10 @@ function readAllServiceSnapshots(units) {
 }
 
 export async function collectPrecisionWebRecoveryObservationV1({
-  expectedHostname = DEFAULT_EXPECTED_HOSTNAME,
   units = DEFAULT_UNITS,
 } = {}) {
   const hostname = os.hostname();
-  if (hostname !== expectedHostname) fail("precision_hostname_mismatch");
+  if (hostname !== DEFAULT_EXPECTED_HOSTNAME) fail("precision_hostname_mismatch");
   const plan = prepareVoidPrecisionWebRecoveryPlanV1();
 
   const nodeInvocationBefore = readNodeInvocationId(units.node);
@@ -872,16 +894,14 @@ export async function collectPrecisionWebRecoveryObservationV1({
     observed_at_utc: canonicalUtcSecond(),
   });
 
-  return evaluateCollectedPrecisionWebObservationV1({
+  return acceptLiveCollectedPrecisionWebObservationV1({
     plan,
     collected,
-    expectedHostname,
   });
 }
 
 function parseArgs(argv) {
   const args = {
-    expectedHostname: DEFAULT_EXPECTED_HOSTNAME,
     units: { ...DEFAULT_UNITS },
     outputPath: null,
     pretty: false,
@@ -895,8 +915,7 @@ function parseArgs(argv) {
     }
     const value = remaining.shift();
     if (!value || value.startsWith("--")) fail("missing value for " + flag);
-    if (flag === "--expected-hostname") args.expectedHostname = value;
-    else if (flag === "--adapter-unit") args.units.adapter = value;
+    if (flag === "--adapter-unit") args.units.adapter = value;
     else if (flag === "--composition-unit") args.units.composition = value;
     else if (flag === "--frontdoor-unit") args.units.frontdoor = value;
     else if (flag === "--node-unit") args.units.node = value;
@@ -912,7 +931,6 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const result = await collectPrecisionWebRecoveryObservationV1({
-    expectedHostname: args.expectedHostname,
     units: args.units,
   });
   const output = JSON.stringify(result, null, args.pretty ? 2 : 0) + "\n";
