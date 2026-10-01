@@ -1,0 +1,69 @@
+{
+  "marker": "VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1",
+  "version": 1,
+  "status": "HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED",
+  "chain_id": 2050,
+  "execution_epoch": 2,
+  "production_host": {
+    "machine_role": "precision",
+    "hostname": "zoso-Precision-Tower-7810"
+  },
+  "reviewed_successor_identity": {
+    "client": "Besu",
+    "client_version": "26.8.1",
+    "besu_image": "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042",
+    "genesis_file_sha256": "6a074665f4e282ad02d1f96314509295a0b2c6c8645a04989fd1a4b3ad232941",
+    "genesis_block_hash": "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d",
+    "genesis_state_root": "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2",
+    "client_neutral_state_manifest_path": "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
+    "client_neutral_state_manifest_sha256": "affe08799c73320c6fc4efe4a91772cc1c64f6a3ff6e75c2698ea87d27e306d9",
+    "qbft_extra_data_path": "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json",
+    "qbft_extra_data_file_sha256": "c4a98142cc09ddc2c2a2036ffe5a59a1f7e06ff4b213a2d09f39d20bb698adee",
+    "qbft_extra_data_payload_sha256": "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
+    "validator_count": 3
+  },
+  "selection": {
+    "production_rpc_target_selected": false,
+    "rpc_url": null,
+    "rpc_url_fingerprint_sha256": null,
+    "service_unit": null,
+    "runtime_observation_id": null,
+    "runtime_observation_sha256": null,
+    "runtime_active_verified": false,
+    "exact_genesis_bound": false,
+    "production_validator_set_bound": false,
+    "write_capability_classification": null,
+    "independent_host_acceptance": false
+  },
+  "forbidden_as_production_targets": {
+    "legacy_epoch1_archive_rpc": "http://127.0.0.1:8545/",
+    "isolated_successor_equivalence_rpc": "http://127.0.0.1:18550/",
+    "isolated_besu_free_gas_rpc": "http://127.0.0.1:18551/",
+    "isolated_besu_nonce_continuity_rpc": "http://127.0.0.1:18552/",
+    "rationale": "historical_or_isolated_proof_surfaces_do_not_acquire_production_authority"
+  },
+  "downstream_consumers": [
+    "datanet_registry_deployer_resolution",
+    "participant_postpurchase_production_runtime_finality",
+    "wc_void_market_vault_live_deployment_observation",
+    "future_buy_void_and_economic_submission"
+  ],
+  "authority": {
+    "source_only": true,
+    "rpc_call": false,
+    "service_action": false,
+    "credential_access": false,
+    "wallet_or_signer_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_mutation": false,
+    "migration_authorized": false,
+    "market_activation": false,
+    "public_presale_activation": false,
+    "funds_movement": false
+  },
+  "next_gate": "observe_and_select_one_real_long_lived_production_epoch2_rpc_runtime"
+}
