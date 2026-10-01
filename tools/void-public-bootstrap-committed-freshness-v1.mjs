@@ -4,6 +4,10 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import {
+  validatePredecessorManifest,
+} from "../scripts/lib/void_public_bootstrap_manifest_publication_state_v1.mjs";
+
 export const VOID_PUBLIC_BOOTSTRAP_COMMITTED_FRESHNESS_V1 =
   "VOID_PUBLIC_BOOTSTRAP_COMMITTED_FRESHNESS_V1";
 export const DEFAULT_MIN_REMAINING_SECONDS_V1 = 24 * 60 * 60;
@@ -49,7 +53,7 @@ export function assessCommittedBootstrapFreshnessV1(
     minRemainingSeconds = DEFAULT_MIN_REMAINING_SECONDS_V1,
   } = {},
 ) {
-  const value = objectV1(manifest, "bootstrap manifest");
+  const value = validatePredecessorManifest(manifest);
   if (!Number.isSafeInteger(nowMs) || nowMs <= 0) {
     throw new Error("nowMs must be a positive safe integer");
   }
