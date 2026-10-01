@@ -42,11 +42,11 @@ const HEX40=/^[0-9a-f]{40}$/u;
 export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
   Object.freeze({
     "ops/public/void-public-participant-session-state-file-v1.mjs":
-      "d5da8b40963c7d5c7f0c832ba4b9a7b3a2b40621",
+      "260b1ced7eebe2385a514c66edeebff287be54e7",
     "ops/public/void-public-participant-read-session-v1.mjs":
       "00fea49e1da53975deba78b69f5776537f6899e8",
     "ops/public/void-public-participant-session-http-v1.mjs":
-      "f2c1d2cc3ea3d20737af834e51f60654fa951162",
+      "43106ae5ba4af7cd82ec66bc4729d0f6767211cf",
     "ops/public/void-public-participant-account-read-projection-v1.mjs":
       "985ac993f59d9bfc4f0650853f142bfd398b9e18",
     "ops/public/void-public-participant-account-read-http-edge-v1.mjs":
@@ -166,6 +166,9 @@ function inspectDurableSessionStateV1(text){
     "parent_dev_inode_custody_retained: true",
     "installed_inode_bound_to_fsynced_descriptor: true",
     "installed_content_revalidated_after_parent_fsync: true",
+    "REVIEWED_SESSION_STATE_FILE_STORES_V1 = new WeakSet()",
+    "isVoidPublicParticipantSessionStateFileStoreV1",
+    "REVIEWED_SESSION_STATE_FILE_STORES_V1.add(store)",
   ],"participant_composition_durable_state_contract_invalid");
   return true;
 }
@@ -216,6 +219,9 @@ function inspectSessionHttpV1(text){
     "stateStore,",
     "if (!roleAuthority)",
     "role_authority_adapter_required",
+    "isVoidPublicParticipantSessionStateFileStoreV1",
+    "if (!isVoidPublicParticipantSessionStateFileStoreV1(stateStore))",
+    'fail("durable_state_store_required")',
   ],"participant_composition_session_http_contract_invalid");
   return true;
 }
