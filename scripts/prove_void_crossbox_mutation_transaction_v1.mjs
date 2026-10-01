@@ -636,6 +636,70 @@ assert.equal(
   assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"BEGIN_RESTORE_LOCAL");
 }
 
+// Forged durable state cannot synthesize impossible concurrent recovery
+// journals even if every individual receipt is structurally valid.
+{
+  let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
+  tx=beginVoidCrossboxMutationCommitV1(tx);
+  tx=recordVoidCrossboxMutationPublishStartedV1(
+    tx,
+    publishStartedReceipt(tx,"local"),
+  );
+  const forged=forgeStoredState(tx,(value)=>{
+    value.publish_started.remote=publishStartedReceipt(tx,"remote");
+  });
+  assert.throws(
+    ()=>nextVoidCrossboxMutationRecoveryV1(forged),
+    /transaction_multiple_unresolved_publish_starts/u,
+  );
+}
+{
+  let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
+  tx=beginVoidCrossboxMutationCommitV1(tx);
+  tx=recordVoidCrossboxMutationPublishStartedV1(
+    tx,
+    publishStartedReceipt(tx,"local"),
+  );
+  tx=recordVoidCrossboxMutationPublishNoEffectV1(
+    tx,
+    publishNoEffectReceipt(tx,"local"),
+  );
+  const forged=forgeStoredState(tx,(value)=>{
+    value.publish_started.remote=publishStartedReceipt(tx,"remote");
+  });
+  assert.throws(
+    ()=>nextVoidCrossboxMutationRecoveryV1(forged),
+    /transaction_publish_no_effect_with_unresolved_start/u,
+  );
+}
+{
+  let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
+  tx=beginVoidCrossboxMutationCommitV1(tx);
+  tx=recordVoidCrossboxMutationPublishStartedV1(
+    tx,
+    publishStartedReceipt(tx,"local"),
+  );
+  tx=recordVoidCrossboxMutationPublishedV1(tx,publishReceipt(tx,"local"));
+  tx=beginVoidCrossboxMutationRollbackV1(tx,"force restore journal proof");
+  tx=recordVoidCrossboxMutationRestoreStartedV1(
+    tx,
+    restoreStartedReceipt(tx,"local"),
+  );
+  const forged=forgeStoredState(tx,(value)=>{
+    value.restore_started.remote=restoreStartedReceipt(tx,"remote");
+  });
+  assert.throws(
+    ()=>nextVoidCrossboxMutationRecoveryV1(forged),
+    /transaction_multiple_unresolved_restore_starts/u,
+  );
+}
+
 // Conflicting duplicate receipts fail closed.
 {
   let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());

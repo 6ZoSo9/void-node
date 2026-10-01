@@ -588,9 +588,22 @@ function validateBaseTransaction(transaction){
   const anyVerified=Boolean(verified.local||verified.remote);
   const anyRestoreStarted=Boolean(restoreStarted.local||restoreStarted.remote);
   const anyRestored=Boolean(restored.local||restored.remote);
-  const anyUnresolvedPublish=Boolean(
-    unresolvedPublish.local||unresolvedPublish.remote
-  );
+  const unresolvedPublishCount=
+    Number(unresolvedPublish.local)+Number(unresolvedPublish.remote);
+  const unresolvedRestoreCount=
+    Number(Boolean(restoreStarted.local&&!restored.local))+
+    Number(Boolean(restoreStarted.remote&&!restored.remote));
+  const anyUnresolvedPublish=unresolvedPublishCount!==0;
+
+  if(unresolvedPublishCount>1){
+    fail("transaction_multiple_unresolved_publish_starts");
+  }
+  if(anyPublishNoEffect&&anyUnresolvedPublish){
+    fail("transaction_publish_no_effect_with_unresolved_start");
+  }
+  if(unresolvedRestoreCount>1){
+    fail("transaction_multiple_unresolved_restore_starts");
+  }
 
   switch(transaction.phase){
     case "PREPARING":
