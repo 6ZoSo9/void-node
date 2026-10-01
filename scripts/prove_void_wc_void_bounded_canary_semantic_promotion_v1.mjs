@@ -41,8 +41,18 @@ import {
   initialWcVoidOpeningReplayStateV1,
 } from "../tools/void-wc-void-opening-replay-protection-v1.mjs";
 import {
+  VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_CONFIRMATION_V1,
   VOID_WC_VOID_OPENING_REPLAY_TERMINAL_CAPSULE_V1,
+  inspectWcVoidOpeningReplayTerminalV1,
+  persistWcVoidOpeningReplayTerminalV1,
 } from "../tools/void-wc-void-opening-replay-persistence-v1.mjs";
+import {
+  inspectWcVoidOpeningClaimBindingPersistenceV1,
+} from "../tools/void-wc-void-opening-claim-binding-persistence-v1.mjs";
+import {
+  VOID_WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_CONFIRMATION_V1,
+  persistWcVoidOpeningClaimBindingV1,
+} from "../tools/void-wc-void-opening-claim-binding-publication-v1.mjs";
 import {
   VOID_PARTICIPANT_POSTPURCHASE_FINALITY_AUTHORITY_V1,
   VOID_PARTICIPANT_POSTPURCHASE_FINALITY_V1,
@@ -228,7 +238,68 @@ function openingRequest(){
 }
 
 function openingEvidenceBytes(){
-  const request=openingRequest();
+  const parent=fs.mkdtempSync(path.join(os.tmpdir(),"void-canary-opening-"));
+  fs.chmodSync(parent,0o700);
+  const dataDir=path.join(parent,"data");
+  const wcDir=path.join(dataDir,"wc_v1");
+  fs.mkdirSync(wcDir,{recursive:true,mode:0o700});
+  fs.chmodSync(dataDir,0o700);
+  fs.chmodSync(wcDir,0o700);
+
+  const request={
+    commitments,
+    coupled_launch_id:LAUNCH,
+    data_dir:dataDir,
+    dispositions,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+  };
+  const before=initialWcVoidOpeningReplayStateV1(LAUNCH);
+
+  const persistedReplay=persistWcVoidOpeningReplayTerminalV1({
+    data_dir:dataDir,
+    recorded_at_utc:"2030-01-01T00:00:00Z",
+    confirmation:VOID_WC_VOID_OPENING_REPLAY_PERSISTENCE_CONFIRMATION_V1,
+    before_state:before,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+  assert.equal(persistedReplay.ok,true);
+
+  const persistedClaim=persistWcVoidOpeningClaimBindingV1({
+    data_dir:dataDir,
+    confirmation:
+      VOID_WC_VOID_OPENING_CLAIM_BINDING_PUBLICATION_CONFIRMATION_V1,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+  assert.equal(persistedClaim.ok,true);
+  assert.equal(persistedClaim.binding_id,persistedReplay.binding_id);
+
+  const claimInspection=inspectWcVoidOpeningClaimBindingPersistenceV1({
+    data_dir:dataDir,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+  const replayInspection=inspectWcVoidOpeningReplayTerminalV1({
+    data_dir:dataDir,
+    before_state:before,
+    coupled_launch_id:LAUNCH,
+    commitments,
+    ledger_debits:ledgerDebits,
+    mode:"finalize",
+    dispositions,
+  });
+
   const binding=deriveWcVoidOpeningClaimBindingV1({
     coupled_launch_id:LAUNCH,
     commitments,
@@ -236,7 +307,6 @@ function openingEvidenceBytes(){
     mode:"finalize",
     dispositions,
   });
-  const before=initialWcVoidOpeningReplayStateV1(LAUNCH);
   const transition=deriveWcVoidOpeningReplayTransitionV1({
     before_state:before,
     coupled_launch_id:LAUNCH,
@@ -261,13 +331,28 @@ function openingEvidenceBytes(){
     ...body,
     capsule_id:"voidwcrp1_"+sha256(Buffer.from(canonicalJson(body),"utf8")),
   };
+
+  const bindingPath=path.join(dataDir,claimInspection.persisted_path);
+  const replayPath=path.join(dataDir,replayInspection.terminal_path);
+  const bindingBytes=fs.readFileSync(bindingPath);
+  const capsuleBytes=fs.readFileSync(replayPath);
+  assert.equal(sha256(bindingBytes),claimInspection.persisted_file_sha256);
+  assert.equal(sha256(capsuleBytes),replayInspection.terminal_capsule_sha256);
+  assert.deepEqual(JSON.parse(bindingBytes.toString("utf8")),binding);
+  assert.deepEqual(JSON.parse(capsuleBytes.toString("utf8")),capsule);
+
   return {
+    parent,
     request,
     requestBytes:prettyBytes(request),
     binding,
-    bindingBytes:canonicalBytes(binding),
+    bindingBytes,
     capsule,
-    capsuleBytes:canonicalBytes(capsule),
+    capsuleBytes,
+    claimInspection,
+    claimInspectionBytes:prettyBytes(claimInspection),
+    replayInspection,
+    replayInspectionBytes:prettyBytes(replayInspection),
   };
 }
 
@@ -721,7 +806,10 @@ async function fixture(){
   };
   const canaryBytes=prettyBytes(canaryInput);
   return {
-    cleanup:()=>fs.rmSync(ledger.parent,{recursive:true,force:true}),
+    cleanup:()=>{
+      fs.rmSync(ledger.parent,{recursive:true,force:true});
+      fs.rmSync(openingEvidence.parent,{recursive:true,force:true});
+    },
     request:{
       reviewed_policy_id:policy.policy_id,
       evaluation_time_utc:evaluation,
@@ -735,8 +823,16 @@ async function fixture(){
       opening_request_file_sha256:sha256(openingEvidence.requestBytes),
       opening_claim_binding_bytes:openingEvidence.bindingBytes,
       opening_claim_binding_file_sha256:sha256(openingEvidence.bindingBytes),
+      opening_claim_persistence_receipt_bytes:
+        openingEvidence.claimInspectionBytes,
+      opening_claim_persistence_receipt_file_sha256:
+        sha256(openingEvidence.claimInspectionBytes),
       opening_replay_capsule_bytes:openingEvidence.capsuleBytes,
       opening_replay_capsule_file_sha256:sha256(openingEvidence.capsuleBytes),
+      opening_replay_inspection_receipt_bytes:
+        openingEvidence.replayInspectionBytes,
+      opening_replay_inspection_receipt_file_sha256:
+        sha256(openingEvidence.replayInspectionBytes),
       participant_at_use_bytes:participantBytes,
       participant_at_use_file_sha256:sha256(participantBytes),
     },
@@ -761,6 +857,8 @@ try{
     out.participant_control_evidence_id,
     f.upstream.participantArtifact.participant_control_evidence_id,
   );
+  assert.equal(out.opening_claim_persistence_semantically_verified,true);
+  assert.equal(out.opening_replay_persistence_semantically_verified,true);
   assert.equal(out.upstream_evidence_semantically_verified,true);
   assert.equal(out.live_canary_evidence_verified,true);
   assert.equal(out.bounded_canary_green,true);
@@ -832,6 +930,32 @@ try{
     );
   }
   {
+    const badReceipt=structuredClone(f.openingEvidence.claimInspection);
+    badReceipt.binding_persistence_verified=false;
+    const bytes=prettyBytes(badReceipt);
+    assert.throws(
+      ()=>promoteWcVoidBoundedCanarySemanticV1({
+        ...f.request,
+        opening_claim_persistence_receipt_bytes:bytes,
+        opening_claim_persistence_receipt_file_sha256:sha256(bytes),
+      }),
+      /BOUNDED_CANARY_OPENING_CLAIM_PERSISTENCE_RECEIPT_INVALID/u,
+    );
+  }
+  {
+    const badReceipt=structuredClone(f.openingEvidence.replayInspection);
+    badReceipt.durable_replay_state_persistence_verified=false;
+    const bytes=prettyBytes(badReceipt);
+    assert.throws(
+      ()=>promoteWcVoidBoundedCanarySemanticV1({
+        ...f.request,
+        opening_replay_inspection_receipt_bytes:bytes,
+        opening_replay_inspection_receipt_file_sha256:sha256(bytes),
+      }),
+      /BOUNDED_CANARY_OPENING_REPLAY_PERSISTENCE_RECEIPT_INVALID/u,
+    );
+  }
+  {
     const badInput=JSON.parse(f.request.bounded_canary_input_bytes.toString("utf8"));
     badInput.evidence.valid_until_utc=
       new Date(Date.parse(badInput.evidence.valid_until_utc)-1000)
@@ -861,7 +985,9 @@ for(const [key,value] of Object.entries(
     "market_vault_at_use_reverification",
     "ledger_persistence_semantic_import",
     "opening_claim_binding_rederivation",
+    "opening_claim_persistence_receipt_validation",
     "opening_replay_capsule_rederivation",
+    "opening_replay_persistence_receipt_validation",
     "participant_at_use_reverification",
     "source_only_promotion",
   ]);
@@ -882,7 +1008,9 @@ for(const required of [
   "verifyWcVoidMarketVaultAtUseRevalidationV1",
   "importWcVoidLedgerPersistenceV1",
   "deriveWcVoidOpeningClaimBindingV1",
+  "VOID_WC_VOID_OPENING_CLAIM_BINDING_PERSISTENCE_V1",
   "deriveWcVoidOpeningReplayTransitionV1",
+  "VOID_WC_VOID_OPENING_REPLAY_INSPECTION_AUTHORITY_V1",
   "verifyVoidParticipantPostpurchaseAtUseRevalidationV1",
   "BOUNDED_CANARY_FINALITY_COMPOSITION_MISMATCH",
   "BOUNDED_CANARY_FRESHNESS_COMPOSITION_MISMATCH",
@@ -899,7 +1027,9 @@ console.log("exact_upstream_bytes_sha256_bound=true");
 console.log("vault_at_use_semantics_reverified=true");
 console.log("ledger_persistence_semantics_reimported=true");
 console.log("opening_claim_binding_rederived=true");
+console.log("opening_claim_persistence_inspection_receipt_verified=true");
 console.log("opening_replay_capsule_rederived=true");
+console.log("opening_replay_persistence_inspection_receipt_verified=true");
 console.log("participant_at_use_semantics_reverified=true");
 console.log("one_canary_participant_selected_from_opening_cohort=true");
 console.log("canary_finality_minimum_composed=true");
