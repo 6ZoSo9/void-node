@@ -217,6 +217,8 @@ reviewed_repository_generation_required=true
 canonical_classifier_reexecution=true
 exact_two_gate_source_delta=true
 reviewed_git_commit_required=true
+reviewed_git_executable_required=true
+ambient_git_overrides_ignored=true
 
 repository_source_write=false
 filesystem_write=false
