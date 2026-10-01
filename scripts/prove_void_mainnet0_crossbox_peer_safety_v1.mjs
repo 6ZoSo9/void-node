@@ -52,9 +52,34 @@ const files={
     "ops/mainnet/mainnet0-blockers.current.md",
     "utf8",
   ),
+  workflow:fs.readFileSync(
+    ".github/workflows/void-mainnet0-crossbox-peer-safety-v1.yml",
+    "utf8",
+  ),
 };
 
 const retiredIp="100.122.79.39";
+const launchTruthPaths=[
+  "ops/mainnet/mainnet0-launch-approval-artifact.template.md",
+  "ops/mainnet/mainnet0-final-path.current.md",
+  "ops/mainnet/mainnet0-authority-funding-preflight.current.md",
+  "ops/mainnet/mainnet0-key-ceremony-result-runbook.template.md",
+  "ops/mainnet/mainnet0-final-gonogo-map.current.md",
+  "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md",
+  "ops/mainnet/mainnet0-blockers.current.md",
+];
+const prStart=files.workflow.indexOf("  pull_request:\n");
+const pushStart=files.workflow.indexOf("  push:\n");
+const permissionsStart=files.workflow.indexOf("\npermissions:\n");
+assert.ok(prStart>=0&&pushStart>prStart&&permissionsStart>pushStart);
+const prBlock=files.workflow.slice(prStart,pushStart);
+const pushBlock=files.workflow.slice(pushStart,permissionsStart);
+for(const path of launchTruthPaths) {
+  const token='- "'+path+'"';
+  assert.equal(prBlock.split(token).length-1,1,"pull_request trigger mismatch: "+path);
+  assert.equal(pushBlock.split(token).length-1,1,"push trigger mismatch: "+path);
+}
+
 const explicitEnv="VOID_MAINNET0_CROSSBOX_PEER";
 const guardedInvocation=
   'VOID_MAINNET0_CROSSBOX_PEER="$CROSSBOX_PEER" make mainnet0-crossbox-status-smoke';
@@ -207,6 +232,7 @@ console.log("explicit_crossbox_peer_required=true");
 console.log("retired_alienware_default_removed=true");
 console.log("retired_alienware_identity_rejected=true");
 console.log("launch_truth_retired_host_requirements_removed=true");
+console.log("launch_truth_workflow_trigger_symmetry=true");
 console.log("loopback_and_local_peer_rejected=true");
 console.log("distinct_remote_host_required=true");
 console.log("local_and_remote_repo_clean_required=true");
