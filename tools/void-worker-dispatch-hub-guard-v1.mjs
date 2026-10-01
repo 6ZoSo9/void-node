@@ -199,6 +199,19 @@ export function assertCanonicalMainCheckoutV1(localHead, liveMain) {
   return true;
 }
 
+export function assertStableCanonicalMainV1(beforeMain, afterMain) {
+  if (typeof beforeMain !== "string" || !SHA1_PATTERN.test(beforeMain)) {
+    fail("initial canonical main must be a lowercase 40-character SHA-1");
+  }
+  if (typeof afterMain !== "string" || !SHA1_PATTERN.test(afterMain)) {
+    fail("final canonical main must be a lowercase 40-character SHA-1");
+  }
+  if (beforeMain !== afterMain) {
+    fail("canonical main changed during dispatch guard evaluation");
+  }
+  return true;
+}
+
 function gitReadV1(
   args,
   {
@@ -639,6 +652,11 @@ async function main() {
   const liveChain = resolveCoordinationSuccessorChainLiveV1(
     CANONICAL_REPOSITORY,
     suppliedChain.root_issue,
+  );
+  const finalReviewedMainSha = resolveCanonicalReviewedMainV1();
+  assertStableCanonicalMainV1(
+    reviewedMainSha,
+    finalReviewedMainSha,
   );
   const result = evaluateWorkerDispatchHubGuardV1(evidence, {
     liveChain,
