@@ -28,6 +28,9 @@ Before any RPC call, the preflight requires:
   `https://github.com/6ZoSo9/void-node.git`;
 - reviewed main anchor ancestry;
 - exact current qualification-tool Git blob and filesystem bytes;
+- qualification marker/authority/dependency-manifest exports loaded only from a
+  private temporary module containing the exact captured-HEAD qualification-tool
+  bytes, never from a top-level mutable-worktree import;
 - exact reviewed qualification dependency Git blobs and file SHA-256s;
 - rederived content-addressed `qualification_id`;
 - current coupled-launch identity;
@@ -42,10 +45,14 @@ Before any RPC call, the preflight requires:
 - the original qualification authority object.
 
 The preflight does not re-run the #2241 control signature/evidence ceremony.
+Loading the exact qualification module only supplies the reviewed marker,
+authority object, and dependency manifest used to verify the supplied receipt.
 A new current-generation qualification must be generated first.
 
-An off-owner or otherwise noncanonical `remote.origin.url` fails before any RPC
-transport call. The proof exercises both GitHub's checkout URL without a
+A dirty qualification-tool worktree fails before those bytes can execute, and
+the proof carries an execution sentinel for that ordering. An off-owner or
+otherwise noncanonical `remote.origin.url` also fails before any RPC transport
+call. The proof exercises both GitHub's checkout URL without a
 `.git` suffix and the canonical `.git` form, plus an off-owner rejection.
 
 ## Operator selections
