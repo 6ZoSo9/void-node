@@ -349,12 +349,12 @@ function makeRemovableTree(root){
   const stat=fs.lstatSync(root);
   if(stat.isSymbolicLink())return;
   if(stat.isDirectory()){
-    try{fs.chmodSync(root,0o700);}catch{}
+    fs.chmodSync(root,0o700);
     for(const entry of fs.readdirSync(root)){
       makeRemovableTree(path.join(root,entry));
     }
   }else if(stat.isFile()){
-    try{fs.chmodSync(root,0o600);}catch{}
+    fs.chmodSync(root,0o600);
   }
 }
 
@@ -582,7 +582,7 @@ async function withReviewedExecutionModules(repo,fn){
       packageRuntimeBinding,
     }));
   }finally{
-    try{makeRemovableTree(parent);}catch{}
+    makeRemovableTree(parent);
     fs.rmSync(parent,{recursive:true,force:true});
   }
 }
