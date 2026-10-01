@@ -123,7 +123,12 @@ function requireSha(value, label) {
 function requireIsoTimestamp(value, label) {
   requireString(value, label, 40);
   const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== value) {
+  if (!Number.isFinite(parsed)) {
+    fail(label + " must be a canonical UTC ISO timestamp");
+  }
+  const canonical = new Date(parsed).toISOString();
+  const canonicalWithoutZeroMillis = canonical.replace(/\.000Z$/u, "Z");
+  if (value !== canonical && value !== canonicalWithoutZeroMillis) {
     fail(label + " must be a canonical UTC ISO timestamp");
   }
   return value;
@@ -139,6 +144,7 @@ function normalizeChangedPath(value, label) {
     || normalized.startsWith("/")
     || normalized.includes("\\")
     || normalized.includes("\0")
+    || /[\u0000-\u001f\u007f]/u.test(normalized)
   ) {
     fail(label + " must be a repository-relative path");
   }
