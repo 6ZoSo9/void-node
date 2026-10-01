@@ -144,6 +144,7 @@ function evidence({
   return {
     marker: EVIDENCE_MARKER,
     version: 1,
+    observed_at: "2026-10-01T19:30:00Z",
     observed_main_sha: main,
     chain: chainValue,
     open_pull_requests: prs,
@@ -194,6 +195,7 @@ const rotation = buildCoordinationRotationSnapshotV1(
 assert.equal(rotation.marker, MARKER);
 assert.equal(rotation.version, 1);
 assert.equal(rotation.repository, "6ZoSo9/void-node");
+assert.equal(rotation.observed_at, "2026-10-01T19:30:00Z");
 assert.equal(rotation.observed_main_sha, MAIN);
 assert.match(rotation.live_dispatch_policy_sha256, /^sha256:[0-9a-f]{64}$/u);
 assert.match(rotation.successor_chain_sha256, /^sha256:[0-9a-f]{64}$/u);
@@ -249,6 +251,8 @@ assert.match(
 );
 assert.equal(rotation.ownership_scope, "open_pull_requests_only");
 assert.equal(rotation.ownership_complete, false);
+assert.equal(rotation.point_in_time_only, true);
+assert.equal(rotation.live_refresh_required_before_successor_write, true);
 assert.equal(rotation.issue_lane_refresh_required, true);
 assert.equal(rotation.dependency_graph_refresh_required, true);
 assert.equal(rotation.recent_coordination_comment_refresh_required, true);
@@ -599,6 +603,28 @@ expectRejected(
     policyRaw,
     {
       ...evidence(),
+      observed_at: "2026-10-01T19:00:00Z",
+    },
+  ),
+  /terminal issue update postdates/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
+    {
+      ...evidence(),
+      observed_at: "2026-10-01T19:19:00Z",
+    },
+  ),
+  /open PR #2290 update postdates/,
+);
+
+expectRejected(
+  () => buildCoordinationRotationSnapshotV1(
+    policyRaw,
+    {
+      ...evidence(),
       extra: true,
     },
   ),
@@ -623,5 +649,8 @@ console.log("rotation_pointer_comment_bound=true");
 console.log("rotation_required_here_rederived=true");
 console.log("github_utc_timestamp_forms_accepted=true");
 console.log("changed_path_control_chars_rejected=true");
+console.log("point_in_time_observation_bound=true");
+console.log("future_hub_update_rejected=true");
+console.log("future_pr_update_rejected=true");
 console.log("authority_granted=false");
 console.log("mutation_performed=false");
