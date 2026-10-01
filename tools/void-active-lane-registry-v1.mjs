@@ -564,6 +564,16 @@ function parseArgs(argv) {
   return { command, ...values };
 }
 
+function processPathTouchesTargetV1(value, targetPath) {
+  const target = String(targetPath ?? "").replace(/\/+$/u, "");
+  if (!target || !target.startsWith("/")) {
+    fail("process reference target path must be absolute");
+  }
+  if (typeof value !== "string" || !value) return false;
+  const normalized = value.replace(/ \(deleted\)$/u, "");
+  return normalized === target || normalized.startsWith(`${target}/`);
+}
+
 export function processReferenceReasonsForSnapshotV1({
   targetPath,
   cwd = "",
@@ -572,19 +582,11 @@ export function processReferenceReasonsForSnapshotV1({
   argv = [],
   fdTargets = [],
 }) {
-  const target = String(targetPath ?? "").replace(/\/+$/u, "");
-  if (!target || !target.startsWith("/")) {
-    fail("process reference target path must be absolute");
-  }
   if (!Array.isArray(argv) || !Array.isArray(fdTargets)) {
     fail("process reference argv/fdTargets must be arrays");
   }
-  const prefix = `${target}/`;
-  const touches = (value) => {
-    if (typeof value !== "string" || !value) return false;
-    const normalized = value.replace(/ \(deleted\)$/u, "");
-    return normalized === target || normalized.startsWith(prefix);
-  };
+  const touches = (value) =>
+    processPathTouchesTargetV1(value, targetPath);
   const reasons = [];
   if (touches(cwd)) reasons.push("cwd");
   if (touches(root)) reasons.push("root");
@@ -641,8 +643,11 @@ function processReferencesForPath(targetPath) {
     try {
       for (const fd of readdirSync(`${procRoot}/fd`)) {
         try {
-          fdTargets.push(readlinkSync(`${procRoot}/fd/${fd}`));
-          if (fdTargets.length >= 64) break;
+          const fdTarget = readlinkSync(`${procRoot}/fd/${fd}`);
+          if (processPathTouchesTargetV1(fdTarget, targetPath)) {
+            fdTargets.push(fdTarget);
+            break;
+          }
         } catch {
           // Descriptor disappeared or is unreadable.
         }
