@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   MARKER,
+  CANONICAL_POLICY_PATH,
   CoordinationRotationLiveSnapshotError,
   buildCoordinationRotationLiveSnapshotV1,
   gitBlobShaV1,
@@ -25,8 +26,7 @@ const POLICY_PATH = path.join(
 const policyBytes = fs.readFileSync(POLICY_PATH, "utf8");
 const policyRaw = JSON.parse(policyBytes);
 const policyBlobSha = gitBlobShaV1(policyBytes);
-const POLICY_REPOSITORY_PATH =
-  "ops/coordination/worker-live-dispatch-policy-v1.json";
+const POLICY_REPOSITORY_PATH = CANONICAL_POLICY_PATH;
 const MAIN = "a".repeat(40);
 const CAPTURED_AT = "2026-10-01T21:00:00.000Z";
 
@@ -271,6 +271,16 @@ expectRejected(
 expectRejected(
   () =>
     buildCoordinationRotationLiveSnapshotV1(
+      input({
+        policyPath: "ops/coordination/alternate-policy.json",
+      }),
+    ),
+  /must equal canonical live-dispatch policy path/,
+);
+
+expectRejected(
+  () =>
+    buildCoordinationRotationLiveSnapshotV1(
       input({ mainAfter: "f".repeat(40) }),
     ),
   /current main changed during live capture/,
@@ -462,7 +472,7 @@ console.log(PROOF_MARKER);
 console.log("rotation_preparation_ready=true");
 console.log("successor_resolved_rebind_detected=true");
 console.log("policy_git_blob_bound=true");
-console.log("policy_tamper_rejected=true");
+console.log("policy_tamper_rejected=true");\nconsole.log("alternate_policy_path_rejected=true");
 console.log("current_main_race_rejected=true");
 console.log("successor_chain_race_rejected=true");
 console.log("open_pr_census_race_rejected=true");
