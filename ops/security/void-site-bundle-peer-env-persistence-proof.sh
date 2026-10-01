@@ -202,8 +202,8 @@ check_remote
 
 echo
 echo "=== [3] prove site bundle auto-materialization still works from durable env ==="
-make void-public-site-bundle-auto-materialize-proof || FAIL=1
-make void-public-site-bundle-peer-readiness-proof || FAIL=1
+ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof || FAIL=1
+ALIEN="$ALIEN" make void-public-site-bundle-peer-readiness-proof || FAIL=1
 make void-public-site-bundle-proof || FAIL=1
 make mainnet0-status-smoke || FAIL=1
 make mainnet0-crossbox-status-smoke || FAIL=1

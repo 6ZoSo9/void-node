@@ -6,6 +6,10 @@ on:
       - ".github/workflows/void-legacy-crossbox-mutation-explicit-target-v1.yml"
       - "docs/operators/void-legacy-crossbox-mutation-explicit-target-v1.md"
       - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
+      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
       - "ops/mainnet/validator-crossbox-closeout.sh"
   push:
     branches: [main]
@@ -31,6 +35,8 @@ jobs:
       - name: Shell syntax
         run: |
           bash -n ops/security/void-site-bundle-peer-env-persistence-proof.sh
+          bash -n ops/security/void-public-site-bundle-auto-materialize-proof.sh
+          bash -n ops/security/void-public-site-bundle-peer-readiness-proof.sh
           bash -n ops/mainnet/validator-crossbox-closeout.sh
 
       - name: Prove fail-closed pre-mutation gates
@@ -50,6 +56,8 @@ jobs:
           }
 
           site="ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+          auto="ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+          peer="ops/security/void-public-site-bundle-peer-readiness-proof.sh"
           validator="ops/mainnet/validator-crossbox-closeout.sh"
 
           hold "missing explicit ALIEN remote SSH target" bash "$site"
@@ -57,6 +65,12 @@ jobs:
           hold "retired Alienware target is forbidden"             env ALIEN=zoso@100.122.79.39               LOCAL_PEER=http://100.122.79.39:4100               REMOTE_PEER=http://203.0.113.11:4100               CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1               bash "$site"
 
           hold "confirmation token required"             env ALIEN=operator@203.0.113.10               LOCAL_PEER=http://203.0.113.10:4100               REMOTE_PEER=http://203.0.113.11:4100               bash "$site"
+
+          hold "missing explicit ALIEN remote SSH target" bash "$auto"
+          hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$auto"
+
+          hold "missing explicit ALIEN remote SSH target" bash "$peer"
+          hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$peer"
 
           hold "missing explicit CROSSBOX_SSH_TARGET"             bash "$validator" 2 vault-test
 
@@ -68,12 +82,22 @@ jobs:
           from pathlib import Path
 
           site=Path("ops/security/void-site-bundle-peer-env-persistence-proof.sh").read_text()
+          auto=Path("ops/security/void-public-site-bundle-auto-materialize-proof.sh").read_text()
+          peer=Path("ops/security/void-public-site-bundle-peer-readiness-proof.sh").read_text()
           validator=Path("ops/mainnet/validator-crossbox-closeout.sh").read_text()
 
           assert '${ALIEN:-zoso@100.122.79.39}' not in site
           assert '${LOCAL_PEER:-http://100.122.79.39:4100}' not in site
           assert 'applyVoidSiteBundlePeerEnvPersistenceV1' in site
           assert site.index('confirmation token required') < site.index('mkdir -p "$(dirname "$LOCAL_DROPIN")"')
+          assert 'ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof' in site
+          assert 'ALIEN="$ALIEN" make void-public-site-bundle-peer-readiness-proof' in site
+
+          for child in (auto, peer):
+              assert '${ALIEN:-zoso@100.122.79.39}' not in child
+              assert 'missing explicit ALIEN remote SSH target' in child
+              assert 'retired Alienware target is forbidden' in child
+              assert child.index('missing explicit ALIEN remote SSH target') < child.index('mkdir -p "$OUT"')
 
           assert '${ALIEN:-zoso@100.122.79.39}' not in validator
           assert 'publishValidatorCrossboxCloseoutV1' in validator

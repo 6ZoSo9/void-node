@@ -26,6 +26,16 @@ It also requires:
 before any durable drop-in write, systemd reload/restart, SSH mutation, or proof
 composition runs.
 
+The parent propagates its reviewed `ALIEN` target into both composed child
+proofs:
+
+- `ops/security/void-public-site-bundle-auto-materialize-proof.sh`
+- `ops/security/void-public-site-bundle-peer-readiness-proof.sh`
+
+Those child proofs also require an explicit `ALIEN` value and reject the retired
+Alienware coordinates before creating output directories or performing SSH. They
+no longer carry independent retired-host defaults.
+
 ## Validator cross-box closeout
 
 The script requires an explicit remote target through
