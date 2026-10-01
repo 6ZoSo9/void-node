@@ -353,6 +353,24 @@ function renderAtomicDropinV1({
   });
 }
 
+export function renderVoidBuyVoidPrecisionAtomicActivationDropinV1({
+  generation_id,
+  configuration_sha256,
+  mode,
+}) {
+  if (mode !== "live_apply" && mode !== "dormant_rollback") {
+    fail("atomic_render_mode_invalid");
+  }
+  return renderAtomicDropinV1({
+    generation: {
+      generation_id,
+      configuration_sha256,
+    },
+    state: mode === "live_apply" ? LIVE_STATE : DORMANT_STATE,
+    purpose: mode,
+  });
+}
+
 function validateRuntimeStatus(value) {
   const status = exactKeys(
     value,
