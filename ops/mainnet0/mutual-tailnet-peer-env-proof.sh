@@ -5,10 +5,18 @@ set +o histexpand 2>/dev/null || true
 
 cd "$HOME/dev/void-node" || exit 1
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
 HTTP_PORT="${HTTP_PORT:-4100}"
 PRECISION_TS="${PRECISION_TS:-$(tailscale ip -4 2>/dev/null | head -n1)}"
 ALIEN_TS="${ALIEN_TS:-${ALIEN##*@}}"
+
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$ALIEN_TS" "$PRECISION_TS" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
 
 PRECISION_BASE="http://${PRECISION_TS}:${HTTP_PORT}"
 ALIEN_BASE="http://${ALIEN_TS}:${HTTP_PORT}"
@@ -23,11 +31,11 @@ mkdir -p "$OUT"
 echo "=== mutual tailnet peer env proof ==="
 echo "mutation=idempotent_systemd_user_dropin_update"
 echo "precision_base=$PRECISION_BASE"
-echo "alien_base=$ALIEN_BASE"
+echo "remote_base=$ALIEN_BASE"
 echo "dropin=$DROPIN_NAME"
 
 if [ -z "$PRECISION_TS" ] || [ -z "$ALIEN_TS" ]; then
-  echo "[ERR] missing Precision or Alienware tailnet IP"
+  echo "[ERR] missing Precision or remote peer tailnet IP"
   exit 1
 fi
 
@@ -49,7 +57,7 @@ grep -q "Environment=VOID_SITE_BUNDLE_PEERS=${ALIEN_BASE}" "$OUT/precision-syste
 echo "[ok] Precision durable peer env installed"
 
 echo
-echo "=== [2] install Alienware durable peer env ==="
+echo "=== [2] install remote durable peer env ==="
 ssh "$ALIEN" "PRECISION_BASE='$PRECISION_BASE' DROPIN_NAME='$DROPIN_NAME' bash -s" <<'REMOTE'
 set -euo pipefail
 
@@ -70,7 +78,7 @@ grep -q "Environment=VOID_SITE_BUNDLE_PEERS=${PRECISION_BASE}" /tmp/mutual-tailn
 REMOTE
 
 ssh "$ALIEN" "cat /tmp/mutual-tailnet-peer-env-alien-systemd-cat.txt" > "$OUT/alien-systemd-cat.txt"
-echo "[ok] Alienware durable peer env installed"
+echo "[ok] remote durable peer env installed"
 
 echo
 echo "=== [3] local and cross reachability ==="
@@ -111,10 +119,10 @@ import json, sys
 print(json.dumps({
   "mutual_tailnet_peer_env_v1": "green",
   "precision_peer": sys.argv[2],
-  "alienware_peer": sys.argv[1],
+  "remote_peer": sys.argv[1],
   "dropin": "97-mutual-tailnet-peers.conf",
-  "precision_reaches_alienware": True,
-  "alienware_reaches_precision": True,
+  "precision_reaches_remote": True,
+  "remote_reaches_precision": True,
   "participant_share_open_e2e_backstop": True,
   "buy_void_fulfillment": False,
   "validator_mutation": False,
