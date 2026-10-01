@@ -602,37 +602,45 @@ assert.equal(source.includes('"--no-replace-objects"'), true);
 assert.equal(source.includes("materializeReviewedExecutionBundleV1"), true);
 assert.equal(source.includes("private_readonly_execution_bundle"), true);
 
-{
-  const original = fs.readFileSync(COUPLED_CANDIDATE);
+function assertFreshEvaluatorRejectsDirtySource(relativePath, label) {
+  const original = fs.readFileSync(relativePath);
   try {
     fs.writeFileSync(
-      COUPLED_CANDIDATE,
+      relativePath,
       Buffer.concat([original, Buffer.from(" ", "utf8")]),
     );
-    assert.throws(
-      () => currentBtcVoidMarketPolicyBindingV1(),
-      /canonical coupled candidate source generation mismatch/u,
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import(${JSON.stringify(new URL("../tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs", import.meta.url).href)}).then(()=>process.exit(0)).catch((error)=>{console.error(String(error?.message||error));process.exit(22);});`,
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
+      },
+    );
+    assert.notEqual(child.status, 0, label);
+    assert.match(
+      String(child.stdout || "") + String(child.stderr || ""),
+      /reviewed source repository must be clean|reviewed worktree source mismatch/u,
+      label,
     );
   } finally {
-    fs.writeFileSync(COUPLED_CANDIDATE, original);
+    fs.writeFileSync(relativePath, original);
   }
 }
 
-{
-  const original = fs.readFileSync(SHARED_V2_SOURCE);
-  try {
-    fs.writeFileSync(
-      SHARED_V2_SOURCE,
-      Buffer.concat([original, Buffer.from(" ", "utf8")]),
-    );
-    assert.throws(
-      () => currentBtcVoidMarketPolicyBindingV1(),
-      /shared-market v2 source generation mismatch/u,
-    );
-  } finally {
-    fs.writeFileSync(SHARED_V2_SOURCE, original);
-  }
-}
+assertFreshEvaluatorRejectsDirtySource(
+  COUPLED_CANDIDATE,
+  "dirty coupled candidate must fail before evaluator load",
+);
+assertFreshEvaluatorRejectsDirtySource(
+  SHARED_V2_SOURCE,
+  "dirty shared-market v2 source must fail before evaluator load",
+);
 
 {
   const original = fs.readFileSync(QUOTE_SOURCE);

@@ -323,9 +323,9 @@ function gitRunV1(args, { encoding = "utf8", allowFail = false } = {}) {
   return result;
 }
 
-function gitTextV1(args, label) {
+function gitTextV1(args, label, { allowEmpty = false } = {}) {
   const text = String(gitRunV1(args).stdout || "").trim();
-  if (!text) fail(label);
+  if (!allowEmpty && !text) fail(label);
   return text;
 }
 
@@ -380,6 +380,7 @@ function bindReviewedSourceGenerationV1() {
   const status = gitTextV1(
     ["status", "--porcelain=v1", "--untracked-files=all"],
     "reviewed repository status unavailable",
+    { allowEmpty: true },
   );
   if (status !== "") fail("reviewed source repository must be clean");
 
@@ -417,6 +418,7 @@ function bindReviewedSourceGenerationV1() {
   const statusAfter = gitTextV1(
     ["status", "--porcelain=v1", "--untracked-files=all"],
     "reviewed repository status recheck unavailable",
+    { allowEmpty: true },
   );
   const headAfter = gitTextV1(
     ["rev-parse", "HEAD"],
