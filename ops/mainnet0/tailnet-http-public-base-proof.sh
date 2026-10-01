@@ -6,16 +6,17 @@ set +o histexpand 2>/dev/null || true
 cd "$HOME/dev/void-node" || exit 1
 
 : "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
-TARGET_GUARD="$(printf '%s\n' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
+HTTP_PORT="${HTTP_PORT:-4100}"
+TS_IP="${TS_IP:-$(tailscale ip -4 2>/dev/null | head -n1)}"
+PUBLIC_BASE="${PUBLIC_LOCAL_NODE_BASE:-http://${TS_IP}:${HTTP_PORT}}"
+
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$TS_IP" "$PUBLIC_BASE" | tr '[:upper:]' '[:lower:]')"
 case "$TARGET_GUARD" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
     echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
     exit 2
     ;;
 esac
-HTTP_PORT="${HTTP_PORT:-4100}"
-TS_IP="${TS_IP:-$(tailscale ip -4 2>/dev/null | head -n1)}"
-PUBLIC_BASE="${PUBLIC_LOCAL_NODE_BASE:-http://${TS_IP}:${HTTP_PORT}}"
 DROPIN="${DROPIN:-$HOME/.config/systemd/user/void-node.service.d/98-tailnet-http.conf}"
 OUT="${OUT:-/tmp/tailnet-http-public-base-proof-$(date +%Y%m%d-%H%M%S)}"
 
