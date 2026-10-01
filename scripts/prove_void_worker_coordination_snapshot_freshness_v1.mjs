@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -18,6 +19,37 @@ const PROOF_MARKER = "VOID_WORKER_COORDINATION_SNAPSHOT_FRESHNESS_V1_PROOF_GREEN
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ROSTER_PATH = path.join(ROOT, "ops/coordination/worker-roster-v1.json");
 const STATE_PATH = path.join(ROOT, "ops/coordination/worker-coordination-state-v3.json");
+const WORKFLOW_PATH = path.join(
+  ROOT,
+  ".github/workflows/void-worker-coordination-snapshot-freshness-v1.yml",
+);
+
+const workflowSource = fs.readFileSync(WORKFLOW_PATH, "utf8");
+assert.match(
+  workflowSource,
+  /uses: actions\/checkout@[0-9a-f]{40}/u,
+  "snapshot-freshness checkout action must be commit-pinned",
+);
+assert.match(
+  workflowSource,
+  /uses: actions\/setup-node@[0-9a-f]{40}/u,
+  "snapshot-freshness setup-node action must be commit-pinned",
+);
+assert.doesNotMatch(
+  workflowSource,
+  /uses: actions\/(?:checkout|setup-node)@v[0-9]/u,
+  "snapshot-freshness workflow must not use mutable action major tags",
+);
+assert.match(
+  workflowSource,
+  /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u,
+  "snapshot-freshness workflow must check out the actual pull-request head",
+);
+assert.match(
+  workflowSource,
+  /persist-credentials:\s*false/u,
+  "snapshot-freshness workflow checkout must not persist credentials",
+);
 
 const { roster, state } = await loadCoordinationFiles({
   rosterPath: ROSTER_PATH,
@@ -119,4 +151,7 @@ console.log("live_refresh_required_before_mutation=true");
 console.log("point_in_time_lifecycle_only=true");
 console.log("source_mutation_authorized=false");
 console.log("runtime_mutation_authorized=false");
+console.log("workflow_actions_commit_pinned=true");
+console.log("workflow_actual_pr_head_checkout=true");
+console.log("workflow_checkout_credentials_persisted=false");
 console.log("authority_granted=false");

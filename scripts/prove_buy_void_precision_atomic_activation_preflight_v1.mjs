@@ -181,6 +181,20 @@ assert.equal(inventory.reviewed.length, 3);
 assert.equal(inventory.unreviewed.length, 0);
 assert.equal(inventory.complete, true);
 
+const wrapperSortedGateSources = structuredClone(gateSources).map((entry) => ({
+  ...entry,
+  assignments: Object.fromEntries(
+    Object.entries(entry.assignments).sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0
+    ),
+  ),
+}));
+const wrapperSortedInventory =
+  evaluateGateSourceInventoryV1(wrapperSortedGateSources);
+assert.equal(wrapperSortedInventory.reviewed.length, 3);
+assert.equal(wrapperSortedInventory.unreviewed.length, 0);
+assert.equal(wrapperSortedInventory.complete, true);
+
 const green =
   await evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
     snapshot(),
