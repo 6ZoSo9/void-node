@@ -299,6 +299,48 @@ assert.equal(
 
 {
   const good = importInput();
+  const falseHead =
+    (REPOSITORY_HEAD_SHA[0] === "0" ? "1" : "0")
+    + REPOSITORY_HEAD_SHA.slice(1);
+  rejects(
+    () =>
+      buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
+        candidate,
+        successorMigrationCandidate: successor,
+        ledgerPersistenceImportInput: good,
+        ledgerPersistenceImportInputFileSha256: prettySha(good),
+        candidateFileSha256: prettySha(candidate),
+        successorCandidateFileSha256: prettySha(successor),
+        repositoryHeadSha: falseHead,
+        repositoryTreeSha: REPOSITORY_TREE_SHA,
+      }),
+    "promotion_repository_identity_mismatch",
+  );
+}
+
+{
+  const good = importInput();
+  const falseTree =
+    (REPOSITORY_TREE_SHA[0] === "0" ? "1" : "0")
+    + REPOSITORY_TREE_SHA.slice(1);
+  rejects(
+    () =>
+      buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
+        candidate,
+        successorMigrationCandidate: successor,
+        ledgerPersistenceImportInput: good,
+        ledgerPersistenceImportInputFileSha256: prettySha(good),
+        candidateFileSha256: prettySha(candidate),
+        successorCandidateFileSha256: prettySha(successor),
+        repositoryHeadSha: REPOSITORY_HEAD_SHA,
+        repositoryTreeSha: falseTree,
+      }),
+    "promotion_repository_identity_mismatch",
+  );
+}
+
+{
+  const good = importInput();
   rejects(
     () =>
       buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
@@ -450,6 +492,7 @@ console.log(
 console.log("existing_importer_recomputed=true");
 console.log("clean_repository_generation_bound=true");
 console.log("repository_head_tree_recorded=true");
+console.log("repository_head_tree_independently_verified=true");
 console.log("private_evidence_outside_repository=true");
 console.log("coupled_launch_identity_bound=true");
 console.log("reviewed_input_file_digest_bound=true");
