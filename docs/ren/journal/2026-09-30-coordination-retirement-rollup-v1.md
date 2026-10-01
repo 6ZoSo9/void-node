@@ -1,99 +1,104 @@
-# 2026-09-30 — Coordination, Fleet Retirement, and Bootstrap Expiry Rollup V1
+# 2026-09-30 — Coordination, Fleet Retirement, and Launch-Readiness Rollup V1
 
 Marker: `VOID_REN_2026_09_30_COORDINATION_RETIREMENT_ROLLUP_V1`
 
 ## Repository anchor
 
-Canonical `main` observed for this rollup:
+Canonical `main` observed for this continuation:
 
-`1d7fd334c191fa293122a19c3e57c5d8e00070e8`
+`3597117007b5aa6458058762be8608300db94331`
 
-A newer `main` supersedes this anchor immediately.
+A newer `main` supersedes this anchor immediately. This journal is continuity
+context, not runtime authority. Refresh repository state, open PRs, and live
+qualification evidence before every source or operational action.
 
-This entry records material coordination and public-truth changes only. It does
-not replace live repository/runtime refresh, current open-PR inspection, or
-fresh external qualification evidence.
+## Fleet and collision-control truth
 
-## Collision-control continuity
+The active operator fleet is Precision, Nimo/N153B, and Xiphos. Alienware is
+permanently retired from active topology and may appear only as historical
+evidence or an explicitly rejected legacy coordinate.
 
-Three coordination/public-truth changes are now merged:
+The September 30 coordination work materially tightened collision control:
 
-- PR #2172 retired `void-node-alienware.service` from the cross-chat auditor's
-  built-in safe-service set and wired the deterministic collision fixture proof
-  into focused CI.
-- PR #2180 separated active fleet topology from dated multibox runtime evidence.
-  The public-safe topology is Precision, Nimo/N153B, and Xiphos. Alienware is
-  retained only as historical evidence, and the static surface explicitly does
-  not claim current all-fleet runtime-green state.
-- PR #2174 hardened active-lane coordination for fresh pre-PR remote branches,
-  branch/path parity, stale worktree remotes, final branch-diff path census,
-  merge-resolution coverage, and workflow self-enforcement.
+- active-lane coordination and path ownership are checked before writes;
+- multibox proof trigger dependencies are symmetric across pull requests and
+  pushes;
+- CI now rejects new repository-wide pull-request fan-out and glob patterns that
+  newly cover the shared public-node root index; and
+- retired Alienware defaults have been removed from current seed, Buy VOID,
+  adapter, reviewer, and Work Credits navigation surfaces.
 
-At the point of this rollup, a live census of 13 open pull requests found zero
-exact path overlaps between them. That is a point-in-time coordination result,
-not a permanent guarantee; refresh before every write.
+Parallel chats continue to move `main`. A green workflow on an old branch is
+not sufficient merge authority; exact-head CI, current-main drift, open-PR path
+overlap, and existing review findings must be rechecked immediately before
+lifecycle changes.
 
-## Alienware retirement continuity
+## Public bootstrap continuity
 
-Alienware is permanently retired from the active operator fleet.
+The committed bootstrap manifest observed at this anchor is stable:
 
-Current durable topology is:
-
-- Precision;
-- Nimo/N153B; and
-- Xiphos.
-
-PR #2175 remains the active source-retirement lane for stale Alienware operator
-surfaces. At observed head
-`2650c2dbc85ff18385cd4752413d44675ae69787`, its focused fleet drift,
-source-convergence, restart-controller, CI, secret, license, hygiene, and
-GitHub-Actions-reference checks were green.
-
-That PR is not treated as merged by this journal entry. Historical Alienware
-scripts, receipts, and runbooks remain evidence of earlier operation unless the
-active retirement lane explicitly reclassifies them.
-
-## Public bootstrap expiry continuity
-
-At the repository anchor above, `public/bootstrap/v1.json` contains:
-
+- manifest ID:
+  `voidpbm1_93f8c4a2400a3069dfedb13e6f0f565539b95b7be538b6322f569825461cbbc8`;
 - endpoint: `https://seed.nullfeed.org`;
 - qualification ID:
-  `voidpsq1_e9696a0b8658efedb87b14c9b52d283fa87b302e725f405c963b380065451a01`;
+  `voidpsq1_71f5ed8fec3f6fdb9fc094e9304790c8ec241dbf3eb2e155fa2d1d2728cedf52`;
 - qualified head: `1951058`;
-- generated at: `2026-09-27T15:35:15.171Z`; and
-- expires at: `2026-09-30T15:35:15.171Z`.
+- generated at: `2026-09-30T23:42:21.599Z`; and
+- expires at: `2026-10-03T23:42:21.599Z`.
 
-That manifest is expired at the time of this rollup.
+This supersedes the earlier expired September 27 manifest recorded by the first
+version of this journal. Endpoint reachability still does not extend manifest
+validity; expiry/renewal evidence remains an independent fail-closed concern.
 
-Endpoint reachability does not extend manifest validity. A fresh public
-qualification and reviewed publication transition remain required before the
-mutable bootstrap alias can again be treated as valid bootstrap authority.
+## Material source closeouts
 
-PR #2182 is the active repair/renewal-evidence lane. Do not duplicate or bypass
-that lane, and do not synthesize qualification timestamps, IDs, heads, or
-manifest validity.
+By this continuation, reviewed source work merged into `main` includes:
 
-## Ownership handoff continuity
+- public seed/default and Alienware retirement repairs;
+- Buy VOID public proof default retirement;
+- public-origin receipt descriptor binding plus offline Git/byte-count
+  verification;
+- jobs/DataNet completion-membership cardinality bounds;
+- durable participant session-state storage;
+- canonical Chain-2050 participant role-source binding;
+- WC/VOID durable opening-evidence promotion plus outside-repository custody;
+- Epoch-2 state-root anchor import promotion with exact Git-source provenance;
+- claimed PostgreSQL activation state-machine/source contract while live
+  activation authority remains false;
+- DataNet deployer-target current-truth alignment; and
+- Work Credits devnet navigation removal of retired Alienware links.
 
-PR #2180 is merged. Its workflow dependency follow-up is owned separately by
-PR #2185, so future multibox-workflow edits should treat that path as occupied
-until the follow-up clears.
+These source closeouts do not themselves assert deployment, activation,
+transaction broadcast, or funds movement.
 
-The active launch/economic/public lanes are heavily parallelized. Before any
-source write:
+## Active handoffs at observation time
 
-1. refresh `main`;
-2. refresh open PR file sets;
-3. check the active-lane coordination registry;
-4. avoid occupied families and exact paths;
-5. preserve source-only/read-only authority unless the reviewed lane explicitly
-   grants more.
+Open work remains parallelized. The active queue at this observation includes
+release rollback crash recovery, participant post-purchase candidate promotion,
+bootstrap-expiry alarm hardening, canonical WC/VOID launch-identity
+reconciliation/application, local jobs-submit evidence binding, explicit
+two-box target hardening, and final Alienware launch-truth retirement.
+
+Those lane names are point-in-time ownership hints only. Refresh the open-PR
+census before touching any named path.
+
+## Operating rule
+
+Before every source write or merge:
+
+1. refresh `main` and the exact PR head;
+2. inspect current workflow conclusions on that exact head;
+3. inspect unresolved review findings;
+4. compare changed paths and, when branches are stale, exact Git blob identities
+   against current `main`;
+5. avoid active overlapping lanes; and
+6. preserve source-only/read-only authority unless a separate reviewed operation
+   explicitly authorizes more.
 
 ## Authority boundary
 
-This journal entry grants no merge, deployment, restart, scheduler, credential,
-wallet, signer, validator, Work Credit, transaction, treasury, liquidity,
+This journal grants no deployment, restart, scheduler, credential, wallet,
+signer, validator, Work Credit, transaction, treasury, liquidity,
 market-activation, presale-activation, or funds authority.
 
 Memory for context. Repo for truth. Brood journal for continuity.
