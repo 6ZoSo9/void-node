@@ -51,6 +51,14 @@ assert.match(
   "snapshot-freshness workflow checkout must not persist credentials",
 );
 
+assert.equal(
+  workflowSource.split(
+    '- "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"',
+  ).length - 1,
+  2,
+  "snapshot-freshness operator contract must trigger focused CI on PR and push",
+);
+
 const { roster, state } = await loadCoordinationFiles({
   rosterPath: ROSTER_PATH,
   statePath: STATE_PATH,
@@ -154,4 +162,5 @@ console.log("runtime_mutation_authorized=false");
 console.log("workflow_actions_commit_pinned=true");
 console.log("workflow_actual_pr_head_checkout=true");
 console.log("workflow_checkout_credentials_persisted=false");
+console.log("workflow_operator_contract_triggered=true");
 console.log("authority_granted=false");
