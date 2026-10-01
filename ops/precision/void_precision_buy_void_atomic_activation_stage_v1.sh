@@ -175,8 +175,14 @@ test "$(stat -c '%u' "$preflight_log")" = "$(id -u)" ||
   hold "preflight_log_owner_mismatch"
 test "$(stat -c '%a' "$preflight_log")" = "600" ||
   hold "preflight_log_mode_mismatch"
+captured_preflight_log_sha256="$(
+  sha256sum "$preflight_log" | awk '{print $1}'
+)"
+[[ "$captured_preflight_log_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+  hold "captured_preflight_log_sha256_invalid"
 say "fresh_atomic_preflight_green=true"
 say "preflight_log_private_custody=true"
+say "preflight_log_digest_captured_before_staging=true"
 
 live_configuration_sha256="$(
   awk -F= '
@@ -300,7 +306,7 @@ set -e
 test "$stage_rc" -eq 0 ||
   hold "inactive_stage_not_green"
 
-expected_preflight_log_sha256="$(
+observed_preflight_log_sha256="$(
   sha256sum "$preflight_log" | awk '{print $1}'
 )"
 staged_preflight_log_sha256="$(
@@ -309,9 +315,13 @@ staged_preflight_log_sha256="$(
     END { print value }
   ' "$stage_log"
 )"
+[[ "$observed_preflight_log_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+  hold "observed_preflight_log_sha256_invalid"
 [[ "$staged_preflight_log_sha256" =~ ^[0-9a-f]{64}$ ]] ||
   hold "staged_preflight_log_sha256_missing"
-test "$staged_preflight_log_sha256" = "$expected_preflight_log_sha256" ||
+test "$observed_preflight_log_sha256" = "$captured_preflight_log_sha256" ||
+  hold "preflight_log_changed_after_capture"
+test "$staged_preflight_log_sha256" = "$captured_preflight_log_sha256" ||
   hold "staged_preflight_log_sha256_mismatch"
 grep -qx 'fresh_preflight_execution_proven=false' "$stage_log" ||
   hold "stage_manifest_freshness_authority_mismatch"
@@ -369,7 +379,7 @@ assert x.get("txroot_live") == 1
 ' || hold "readiness_not_green"
 
 say "staging_directory=$out_dir"
-say "preflight_log_sha256=$expected_preflight_log_sha256"
+say "preflight_log_sha256=$captured_preflight_log_sha256"
 say "preflight_credential_read_inside_reviewed_factory=true"
 say "wrapper_fresh_preflight_execution_proven=true"
 say "stage_manifest_preflight_authority=false"

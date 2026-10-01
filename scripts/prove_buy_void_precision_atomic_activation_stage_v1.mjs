@@ -387,6 +387,8 @@ for (const required of [
   'exec "$bash_bin" --noprofile --norc',
   'unset BASH_ENV ENV NODE_OPTIONS NODE_PATH NPM_CONFIG_PREFIX npm_config_prefix',
   'chmod 600 "$preflight_log"',
+  'captured_preflight_log_sha256="$(',
+  'preflight_log_digest_captured_before_staging=true',
   'preflight_log_private_custody=true',
   'test "$preflight_repository_head_sha" = "$head"',
   'test "$preflight_wrapper_git_blob_sha1" = "${source_blob[$preflight_wrapper_rel]}"',
@@ -401,7 +403,8 @@ for (const required of [
   'exec "$node_bin" "$reviewed_stage_tool"',
   '--active-dropin-dir "$active_dropin_dir"',
   'sha256sum "$preflight_log"',
-  'test "$staged_preflight_log_sha256" = "$expected_preflight_log_sha256"',
+  'test "$observed_preflight_log_sha256" = "$captured_preflight_log_sha256"',
+  'test "$staged_preflight_log_sha256" = "$captured_preflight_log_sha256"',
   'actual_live_dropin_sha256="$(sha256sum "$live_path" | awk',
   'actual_dormant_dropin_sha256="$(sha256sum "$rollback_path" | awk',
   'test "$actual_live_dropin_sha256" = "$live_dropin_sha256"',
@@ -418,6 +421,9 @@ assert.equal(
   false,
   "worktree stage tool must not execute after preflight",
 );
+const preflightDigestAt = wrapperSource.indexOf(
+  'captured_preflight_log_sha256="$(' ,
+);
 const preflightGreenAt = wrapperSource.indexOf(
   'say "fresh_atomic_preflight_green=true"',
 );
@@ -427,7 +433,8 @@ const immutableMaterializeAt = wrapperSource.indexOf(
 const immutableExecuteAt = wrapperSource.indexOf(
   'exec "$node_bin" "$reviewed_stage_tool"',
 );
-assert(preflightGreenAt >= 0);
+assert(preflightDigestAt >= 0);
+assert(preflightGreenAt > preflightDigestAt);
 assert(immutableMaterializeAt > preflightGreenAt);
 assert(immutableExecuteAt > immutableMaterializeAt);
 
@@ -462,6 +469,7 @@ console.log("wrapper_staged_bytes_rehashed=true");
 console.log("immutable_stage_source_execution_bound=true");
 console.log("descriptor_bound_preflight_log_read=true");
 console.log("private_preflight_log_custody_bound=true");
+console.log("preflight_log_digest_captured_before_staging=true");
 console.log("reviewed_git_boundary_bound=true");
 console.log("exact_head_workflow_bound=true");
 console.log("durable_fsync_publication_verified=true");

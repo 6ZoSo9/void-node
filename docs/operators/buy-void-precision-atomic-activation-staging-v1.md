@@ -63,6 +63,13 @@ single-link `0600` regular-file custody and a bounded size, reads through that
 same descriptor, then requires stable dev/inode/size/mtime/ctime and path
 identity before using the bytes.
 
+The wrapper captures the preflight-log SHA-256 immediately after sealing the
+fresh preflight output, before source materialization or staging. After staging,
+both the still-present log bytes and the stage tool\'s reported
+`preflight_log_sha256` must equal that pre-staging digest. The expected digest
+is therefore fixed before the staged bytes are derived rather than being
+redefined from the pathname after use.
+
 The wrapper emits:
 
 ```text
