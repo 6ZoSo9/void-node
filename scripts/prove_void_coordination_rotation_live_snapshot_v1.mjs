@@ -367,6 +367,54 @@ expectRejected(
   /successor chain root issue does not match/,
 );
 
+const maxPaths = Array.from(
+  { length: 500 },
+  (_, index) => "generated/path-" + String(index).padStart(3, "0") + ".txt",
+);
+const maxPr = summary({
+  number: 2310,
+  title: "max changed-path boundary",
+  head: "1".repeat(40),
+  base: "2".repeat(40),
+  updatedAt: "2026-10-01T20:50:00Z",
+});
+const maxBoundary = buildCoordinationRotationLiveSnapshotV1(
+  input({
+    openPrListBefore: [maxPr],
+    openPrListAfter: [maxPr],
+    pullRequestCaptures: [
+      capture({
+        value: maxPr,
+        changedFiles: 500,
+        paths: maxPaths,
+      }),
+    ],
+  }),
+);
+assert.equal(maxBoundary.open_pull_request_count, 1);
+assert.equal(maxBoundary.snapshot.open_pull_requests[0].changed_path_count, 500);
+
+expectRejected(
+  () =>
+    buildCoordinationRotationLiveSnapshotV1(
+      input({
+        openPrListBefore: [maxPr],
+        openPrListAfter: [maxPr],
+        pullRequestCaptures: [
+          capture({
+            value: maxPr,
+            changedFiles: 501,
+            paths: [
+              ...maxPaths,
+              "generated/path-500.txt",
+            ],
+          }),
+        ],
+      }),
+    ),
+  /changed_files exceeds 500/,
+);
+
 const repeated = buildCoordinationRotationLiveSnapshotV1(input());
 assert.equal(repeated.live_capture_id, ready.live_capture_id);
 assert.deepEqual(repeated, ready);
@@ -382,6 +430,6 @@ console.log("changed_path_truncation_rejected=true");
 console.log("missing_pr_capture_rejected=true");
 console.log("duplicate_pr_rejected=true");
 console.log("unsafe_path_rejected=true");
-console.log("live_capture_id_deterministic=true");
+console.log("exact_500_changed_paths_accepted=true");\nconsole.log("501_changed_paths_rejected=true");\nconsole.log("live_capture_id_deterministic=true");
 console.log("authority_granted=false");
 console.log("mutation_performed=false");
