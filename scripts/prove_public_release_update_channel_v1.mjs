@@ -263,7 +263,7 @@ exit 2
 
   fs.symlinkSync("active-"+crashAfterInvocation,rollbackRestartWitness);
   const orphanWitnessRecovery=run(managerPath,["version"],{env:e,capture:true});
-  if(!orphanWitnessRecovery.includes("ROLLBACK_RESTART_WITNESS_CLEANED")||fs.existsSync(rollbackRestartWitness)||!orphanWitnessRecovery.includes(v3))fail("orphan restart witness cleanup after durable journal deletion failed");
+  if(!orphanWitnessRecovery.includes("ROLLBACK_RESTART_WITNESS_CLEANED")||!orphanWitnessRecovery.includes("recovery_outcome=rollback_restart_witness_cleaned")||fs.existsSync(rollbackRestartWitness)||!orphanWitnessRecovery.includes(v3))fail("orphan restart witness cleanup after durable journal deletion failed");
   pass("rollback-orphan-restart-witness-cleaned");
 
   run(managerPath,["rollback"],{env:e});
