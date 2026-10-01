@@ -164,6 +164,11 @@ After the reviewed candidate commit lands, run `verify-applied` from a clean
 canonical `main` generation. A feature branch may prove the target objects with the
 pure state verifier, but it cannot emit canonical applied lineage.
 
+The final verifier also requires `origin` to identify
+`6ZoSo9/void-node` and performs a read-only `git ls-remote` against the fixed
+canonical HTTPS repository. The returned `refs/heads/main` SHA must equal local
+HEAD. Prepare itself remains network-free.
+
 Verification requires:
 
 - the application base is an ancestor of current HEAD;
@@ -223,6 +228,8 @@ canonical_classifier_reexecution=true
 exact_two_gate_source_delta=true
 reviewed_git_commit_required=true
 canonical_main_application_required=true
+canonical_github_origin_required=true
+canonical_remote_main_read_required=true
 reviewed_git_executable_required=true
 ambient_git_overrides_ignored=true
 
