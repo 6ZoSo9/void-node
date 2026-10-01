@@ -20,6 +20,7 @@ export const VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1 =
     permission_fenced_execution:true,
     ancestor_package_resolution_forbidden:true,
     ambient_node_resolution_overrides_ignored:true,
+    ambient_dynamic_loader_overrides_ignored:true,
     reviewed_profile_head_binding:true,
     reviewed_profile_content_id_rederivation:true,
     network_access:false,
@@ -966,14 +967,12 @@ function strictFileInside(root,file,code){
 }
 
 function reviewedNodeExecutionEnv(){
-  const env={...process.env};
-  for(const key of [
-    "NODE_PATH",
-    "NODE_OPTIONS",
-    "NPM_CONFIG_PREFIX",
-    "npm_config_prefix",
-  ]) delete env[key];
-  return env;
+  return {
+    PATH:"/usr/bin:/bin",
+    LANG:"C",
+    LC_ALL:"C",
+    HOME:"/nonexistent",
+  };
 }
 
 function reviewedNodeExecutable(){
@@ -1066,6 +1065,7 @@ export function runReviewedNodePackageRuntimeV1({
     allowed_fs_read_root:root,
     ancestor_package_resolution_allowed:false,
     ambient_node_resolution_overrides_ignored:true,
+    ambient_dynamic_loader_overrides_ignored:true,
     profile_id:profile.profile_id,
     packages_aggregate_sha256:profile.packages_aggregate_sha256,
   });
