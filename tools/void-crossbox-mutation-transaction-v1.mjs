@@ -108,7 +108,7 @@ function validHead(value,code){
 }
 
 function validHost(value,code){
-  const text=String(value||"");
+  const text=String(value||"").toLowerCase();
   if(!HOST.test(text))fail(code);
   return text;
 }
@@ -657,7 +657,10 @@ export function recordVoidCrossboxMutationPreparedV1(transaction,value){
     receipt.participant,
     receipt,
   );
-  if(next.prepared.local&&next.prepared.remote)next.phase="PREPARED";
+  if(next.prepared.local&&next.prepared.remote&&next.phase!=="PREPARED"){
+    next=deepClone(next);
+    next.phase="PREPARED";
+  }
   return seal(next);
 }
 
