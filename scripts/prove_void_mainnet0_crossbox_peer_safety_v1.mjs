@@ -224,7 +224,7 @@ assert.match(
 );
 assert.match(
   files.launchApprovalPrep,
-  /explicit reviewed cross-box peer target and readiness result/u,
+  /explicit reviewed cross-box peer target, exact-head result, and readiness result/u,
 );
 
 console.log("VOID_MAINNET0_CROSSBOX_PEER_SAFETY_V1_GREEN");
