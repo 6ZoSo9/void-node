@@ -34,7 +34,7 @@ Reusable adapter proof/deployment helpers require an explicit reviewed
 `VOID_SEED_UPSTREAM`; they no longer default to the retired Alienware node.
 The standalone adapter-status helper requires an explicit
 `VOID_ADAPTER_HOST` and rejects the retired Alienware hostname or Tailnet IP
-before any network request. Missing or retired targets fail closed at the helper boundary.
+before any network request. Missing or retired target selection fails closed at the helper boundary.
 The maintained Makefile status targets no longer inject a host fallback;
 operators must choose the reviewed target explicitly.
 The old `live-public-seed-stack-closeout-v1.sh` checkpoint is fail-closed and
