@@ -10,14 +10,14 @@ The standing control-plane contract uses a natural rotation boundary of **250 to
 
 ## Exact successor contract
 
-A predecessor successor pointer is recognized only when one comment contains both exact trimmed lines:
+A predecessor successor pointer is recognized only when one comment contains the exact trimmed pointer line plus a rotation-marker line. The marker may be plain text or a Markdown heading, matching historical repository style:
 
 ```text
 COORDINATION_SUCCESSOR=#<positive issue number>
 CONTROL-PLANE ROTATION
 ```
 
-The resolver rejects multiple pointers, self-pointers, cycles, incomplete comment capture, and chains where a predecessor has a successor pointer but remains open. The final resolved issue must be open.
+The resolver rejects multiple pointers, self-pointers, cycles, pull-request targets masquerading as issues, incomplete comment capture, and chains where a predecessor has a successor pointer but remains open. The final resolved issue must be open.
 
 The issue body is deliberately not scanned for a successor pointer because the control-plane body documents example syntax and historical rules; only comments are eligible live pointer evidence.
 
