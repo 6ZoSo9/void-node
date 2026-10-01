@@ -771,6 +771,18 @@ export async function verifyVoidWcVoidLaunchControllerControlSignatureV1({
   return Object.freeze({ ...material, evidence_id: evidenceId });
 }
 
+function isInsideRepo(file) {
+  const relative = path.relative(ROOT, file);
+  return (
+    relative === "" ||
+    (
+      relative !== ".." &&
+      !relative.startsWith(".." + path.sep) &&
+      !path.isAbsolute(relative)
+    )
+  );
+}
+
 function readStableFile(file, { label, maxBytes, expectedSha256 }) {
   if (
     typeof file !== "string" ||
@@ -778,6 +790,9 @@ function readStableFile(file, { label, maxBytes, expectedSha256 }) {
     path.resolve(file) !== file
   ) {
     fail(label + "_path_invalid");
+  }
+  if (isInsideRepo(file)) {
+    fail(label + "_must_be_outside_repository");
   }
   let real;
   try {
@@ -855,6 +870,9 @@ function writePrivateJson(file, value) {
     path.resolve(file) !== file
   ) {
     fail("control_output_path_invalid");
+  }
+  if (isInsideRepo(file)) {
+    fail("control_output_must_be_outside_repository");
   }
   const parent = path.dirname(file);
   if (fs.realpathSync.native(parent) !== parent) {
