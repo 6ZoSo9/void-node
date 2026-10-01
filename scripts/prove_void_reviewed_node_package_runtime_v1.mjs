@@ -49,7 +49,7 @@ assert.equal(
 assert.match(pinned.profile_source.git_blob_sha1,/^[0-9a-f]{40}$/u);
 assert.equal(
   profile.profile_id,
-  "voidrnpr1_1492f01cb202c23ad68260655fa111544d3cc6d6c17a4aa07540e2665c7c9e6d",
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77",
 );
 assert.equal(
   profile.packages_aggregate_sha256,
@@ -463,6 +463,15 @@ try{
   fs.rmSync(temp,{recursive:true,force:true});
 }
 
+assert.equal(
+  VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1.tool_network_access,
+  false,
+);
+assert.equal(
+  VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1.execution_network_isolation_provided,
+  false,
+);
+
 for(const [key,value] of Object.entries(
   VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1,
 )){
@@ -564,7 +573,7 @@ console.log("ambient_git_environment_redirect_blocked=true");
 console.log("materialization_cleanup_failure_observable=true");
 console.log("exact_pr_head_ci_checkout=true");
 console.log("ambient_node_modules_execution_required=false");
-console.log("network_access=false");
+console.log("tool_network_access=false");\nconsole.log("execution_network_isolation_provided=false");
 console.log("package_script_execution=false");
 console.log("runtime_chain_wallet_transaction_funds_authority=0");
 console.log("PROFILE_BASE64="+encoded);
