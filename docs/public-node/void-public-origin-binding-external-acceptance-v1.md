@@ -172,10 +172,16 @@ node tools/void-public-origin-binding-external-acceptance-v1.mjs verify \
   --input /absolute/external-acceptance.json
 ```
 
-Offline verification uses bounded canonical-file admission, validates the closed
-receipt schema and content-derived ID, re-verifies the embedded signed binding,
-and reconstructs the recorded collector/directory/handoff source bytes directly
-from the recorded Git commit. Source reconstruction intentionally executes only
+Offline verification uses bounded canonical-file admission and opens the receipt
+once with `O_NOFOLLOW`. File type and the 512 KiB ceiling are checked with
+`fstat` on that exact descriptor, the admitted byte count is read from the same
+descriptor, and descriptor/path generation identity is revalidated before the
+bytes are accepted. A concurrent rename, symlink replacement, truncation, or
+growth therefore HOLDs instead of redirecting verification to an unadmitted
+pathname generation. Verification then validates the closed receipt schema and
+content-derived ID, re-verifies the embedded signed binding, and reconstructs
+the recorded collector/directory/handoff source bytes directly from the
+recorded Git commit. Source reconstruction intentionally executes only
 bounded `git` child processes (`cat-file`, `merge-base`, and `show`) with
 constant repository paths and a restricted `PATH`; it does not execute the
 recorded source commit. The recorded source commit must be available and an
@@ -212,8 +218,9 @@ node scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs
 
 CI uses an ephemeral signed binding and synthetic directory/handoff evidence for
 the successful collector-contract path. It proves receipt-ID recomputation,
-closed-schema verification, Git source reconstruction, bounded saved-file
-verification, and repinned tamper rejection for source hashes, binding artifact
+closed-schema verification, Git source reconstruction, descriptor-bound bounded
+saved-file verification, a deterministic pathname-replacement/symlink race that
+must HOLD, and repinned tamper rejection for source hashes, binding artifact
 bytes/digests, copy-ready state, and authority flags. It then runs the existing
 focused signed-origin handoff regression. CI intentionally does not inherit the
 broader directory fixture suite, performs no external network access, and never
