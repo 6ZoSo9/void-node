@@ -469,6 +469,7 @@ function policyWorkers(policy) {
       fallback_priority: worker.fallback_priority,
       sensitive: worker.sensitive,
       exploration_domains: [...worker.exploration_domains].sort(),
+      authority_boundary: worker.authority_boundary,
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
