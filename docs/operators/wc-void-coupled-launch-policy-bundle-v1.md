@@ -217,11 +217,14 @@ to remain the same canonical HEAD before the bundle is minted. Feature-branch CI
 does not fabricate that condition.
 
 The output is create-only, mode `0600`, fsynced, and never overwritten. Its
-parent directory is opened once, owner/mode/device/inode bound, fsynced through
-that descriptor after file creation, and revalidated against the pathname before
-success. The persisted output device/inode is also rechecked, so a green result
-includes durable directory-entry publication rather than only buffered file
-bytes.
+parent directory is opened once and owner/mode/device/inode bound. The actual
+`O_CREAT|O_EXCL|O_NOFOLLOW` create is performed through the retained directory
+descriptor via Linux `/proc/self/fd/<dirfd>/<basename>`, not through the parent
+pathname. The parent is fsynced through that same descriptor after creation and
+revalidated against the pathname before success. The persisted output
+device/inode is also rechecked. A same-owner rename/replacement of the parent
+therefore cannot redirect the create into a replacement directory before the
+post-check notices; failure remains fail-closed.
 
 ## CLI
 
