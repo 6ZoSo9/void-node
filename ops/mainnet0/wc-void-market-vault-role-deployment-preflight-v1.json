@@ -43,7 +43,9 @@
         "source_generation": "sep25_historical_unmerged_branch",
         "current_authority": false,
         "current_launch_bound": false,
-        "current_compiled_identity_bound": false
+        "current_compiled_identity_bound": false,
+        "coupled_launch_id": "0xfb6584220f298f239a4c6a77ff1faa274300a61597eeae85272cdda9e17f1c83",
+        "compiled_identity_id": "voidwcvci1_f4096e7c4520897d656a64a8be5b344a3541e0e960226787654415f867f2d045"
       }
     },
     "settlement_executor": {
