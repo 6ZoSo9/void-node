@@ -15,6 +15,9 @@ import {
 import {
   classifyVoidCoupledEconomicSuccessorGateV1,
 } from "./void-coupled-economic-successor-gate-v1.mjs";
+import {
+  buildVoidParticipantPostpurchaseProductionRuntimeBindingV1,
+} from "./void-participant-postpurchase-production-runtime-binding-v1.mjs";
 
 export const VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_PLAN_V1 =
   "VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_PLAN_V1";
@@ -25,6 +28,8 @@ export const VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_AUTHORITY_V1 =
   Object.freeze({
     source_only_application: true,
     exact_runtime_binding_receipt_required: true,
+    exact_runtime_binding_evidence_required: true,
+    runtime_binding_reexecution_required: true,
     exact_promotion_receipt_required: true,
     promotion_reexecution_required: true,
     canonical_head_candidate_bytes_required: true,
@@ -70,6 +75,10 @@ const CLASSIFIER_REL =
   "tools/void-coupled-economic-successor-gate-v1.mjs";
 const RUNTIME_BINDING_TOOL_REL =
   "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs";
+const FINALITY_IMPORT_TOOL_REL =
+  "tools/void-participant-postpurchase-finality-import-v1.mjs";
+const FINALITY_TOOL_REL =
+  "tools/void-participant-postpurchase-finality-v1.mjs";
 
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
@@ -81,6 +90,14 @@ const MISSING_GATE =
 const PROMOTED_GATE =
   "participant_post_purchase_voidtoken_control_ready";
 const INPUT_KEYS = Object.freeze([
+  "finality_input_bytes",
+  "finality_input_file_sha256",
+  "status_result_bytes",
+  "status_result_file_sha256",
+  "delivery_receipt_result_bytes",
+  "delivery_receipt_result_file_sha256",
+  "control_receipt_result_bytes",
+  "control_receipt_result_file_sha256",
   "runtime_binding_receipt_bytes",
   "runtime_binding_receipt_file_sha256",
   "promotion_receipt_bytes",
@@ -100,7 +117,14 @@ const PLAN_KEYS = Object.freeze([
   "promotion_tool_git_blob_sha1",
   "classifier_git_blob_sha1",
   "runtime_binding_tool_git_blob_sha1",
+  "finality_import_tool_git_blob_sha1",
+  "finality_tool_git_blob_sha1",
+  "finality_input_file_sha256",
+  "status_result_file_sha256",
+  "delivery_receipt_result_file_sha256",
+  "control_receipt_result_file_sha256",
   "runtime_binding_receipt_file_sha256",
+  "runtime_binding_rederived_from_evidence",
   "promotion_receipt_file_sha256",
   "promotion_id",
   "runtime_binding_id",
@@ -535,6 +559,7 @@ function validatePlan(value) {
     plan.coupled_status_remains_hold !== true ||
     plan.coupled_activation_ready !== false ||
     plan.reviewed_git_commit_required !== true ||
+    plan.runtime_binding_rederived_from_evidence !== true ||
     plan.market_activation_authorized !== false ||
     plan.public_presale_activation_authorized !== false ||
     plan.funds_movement_authorized !== false
@@ -548,6 +573,8 @@ function validatePlan(value) {
     "promotion_tool_git_blob_sha1",
     "classifier_git_blob_sha1",
     "runtime_binding_tool_git_blob_sha1",
+    "finality_import_tool_git_blob_sha1",
+    "finality_tool_git_blob_sha1",
     "coupled_source_git_blob_sha1",
     "coupled_target_git_blob_sha1",
     "successor_source_git_blob_sha1",
@@ -557,6 +584,10 @@ function validatePlan(value) {
     }
   }
   for (const key of [
+    "finality_input_file_sha256",
+    "status_result_file_sha256",
+    "delivery_receipt_result_file_sha256",
+    "control_receipt_result_file_sha256",
     "runtime_binding_receipt_file_sha256",
     "promotion_receipt_file_sha256",
     "coupled_source_file_sha256",
@@ -610,6 +641,16 @@ function validatePlan(value) {
       RUNTIME_BINDING_TOOL_REL,
       plan.runtime_binding_tool_git_blob_sha1,
       "PARTICIPANT_CANONICAL_RUNTIME_BINDING_TOOL_BLOB_MISMATCH",
+    ],
+    [
+      FINALITY_IMPORT_TOOL_REL,
+      plan.finality_import_tool_git_blob_sha1,
+      "PARTICIPANT_CANONICAL_FINALITY_IMPORT_TOOL_BLOB_MISMATCH",
+    ],
+    [
+      FINALITY_TOOL_REL,
+      plan.finality_tool_git_blob_sha1,
+      "PARTICIPANT_CANONICAL_FINALITY_TOOL_BLOB_MISMATCH",
     ],
   ]) {
     const actual = gitText(
@@ -674,6 +715,26 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
     INPUT_KEYS,
     "INVALID_PARTICIPANT_CANONICAL_APPLICATION_INPUT_SHAPE",
   );
+  const finalitySource = parseJsonBytes(
+    request.finality_input_bytes,
+    request.finality_input_file_sha256,
+    "PARTICIPANT_CANONICAL_FINALITY_INPUT",
+  );
+  const statusSource = parseJsonBytes(
+    request.status_result_bytes,
+    request.status_result_file_sha256,
+    "PARTICIPANT_CANONICAL_STATUS_RESULT",
+  );
+  const deliverySource = parseJsonBytes(
+    request.delivery_receipt_result_bytes,
+    request.delivery_receipt_result_file_sha256,
+    "PARTICIPANT_CANONICAL_DELIVERY_RECEIPT_RESULT",
+  );
+  const controlSource = parseJsonBytes(
+    request.control_receipt_result_bytes,
+    request.control_receipt_result_file_sha256,
+    "PARTICIPANT_CANONICAL_CONTROL_RECEIPT_RESULT",
+  );
   const runtimeSource = parseJsonBytes(
     request.runtime_binding_receipt_bytes,
     request.runtime_binding_receipt_file_sha256,
@@ -708,22 +769,44 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
       ["rev-parse", "HEAD:" + RUNTIME_BINDING_TOOL_REL],
       "PARTICIPANT_CANONICAL_RUNTIME_BINDING_TOOL_BLOB_UNAVAILABLE",
     ),
+    finality_import: gitText(
+      ["rev-parse", "HEAD:" + FINALITY_IMPORT_TOOL_REL],
+      "PARTICIPANT_CANONICAL_FINALITY_IMPORT_TOOL_BLOB_UNAVAILABLE",
+    ),
+    finality: gitText(
+      ["rev-parse", "HEAD:" + FINALITY_TOOL_REL],
+      "PARTICIPANT_CANONICAL_FINALITY_TOOL_BLOB_UNAVAILABLE",
+    ),
   });
   for (const [relativePath, expected, code] of [
     [TOOL_REL, toolBlobs.application, "PARTICIPANT_CANONICAL_APPLICATION_WORKTREE_DRIFT"],
     [PROMOTION_TOOL_REL, toolBlobs.promotion, "PARTICIPANT_CANONICAL_PROMOTION_WORKTREE_DRIFT"],
     [CLASSIFIER_REL, toolBlobs.classifier, "PARTICIPANT_CANONICAL_CLASSIFIER_WORKTREE_DRIFT"],
     [RUNTIME_BINDING_TOOL_REL, toolBlobs.runtime_binding, "PARTICIPANT_CANONICAL_RUNTIME_BINDING_WORKTREE_DRIFT"],
+    [FINALITY_IMPORT_TOOL_REL, toolBlobs.finality_import, "PARTICIPANT_CANONICAL_FINALITY_IMPORT_WORKTREE_DRIFT"],
+    [FINALITY_TOOL_REL, toolBlobs.finality, "PARTICIPANT_CANONICAL_FINALITY_WORKTREE_DRIFT"],
   ]) {
     assertWorktreeBlob(relativePath, expected, code);
+  }
+
+  const rederivedRuntime =
+    buildVoidParticipantPostpurchaseProductionRuntimeBindingV1({
+      finalityInput: finalitySource.value,
+      statusResult: statusSource.value,
+      deliveryReceiptResult: deliverySource.value,
+      controlReceiptResult: controlSource.value,
+    });
+  const rederivedRuntimeBytes = prettyBytes(rederivedRuntime);
+  if (!rederivedRuntimeBytes.equals(runtimeSource.bytes)) {
+    fail("PARTICIPANT_CANONICAL_RUNTIME_BINDING_REDERIVATION_MISMATCH");
   }
 
   const reexecuted = withHardenedInheritedGit(() =>
     buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
       candidate: coupled.value,
       successorMigrationCandidate: successor.value,
-      runtimeBindingReceipt: runtimeSource.value,
-      runtimeBindingFileSha256: runtimeSource.sha256,
+      runtimeBindingReceipt: rederivedRuntime,
+      runtimeBindingFileSha256: sha256(rederivedRuntimeBytes),
       candidateFileSha256: coupled.sha256,
       successorCandidateFileSha256: successor.sha256,
       repositoryHeadSha: repo.head,
@@ -788,7 +871,14 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
     promotion_tool_git_blob_sha1: toolBlobs.promotion,
     classifier_git_blob_sha1: toolBlobs.classifier,
     runtime_binding_tool_git_blob_sha1: toolBlobs.runtime_binding,
+    finality_import_tool_git_blob_sha1: toolBlobs.finality_import,
+    finality_tool_git_blob_sha1: toolBlobs.finality,
+    finality_input_file_sha256: finalitySource.sha256,
+    status_result_file_sha256: statusSource.sha256,
+    delivery_receipt_result_file_sha256: deliverySource.sha256,
+    control_receipt_result_file_sha256: controlSource.sha256,
     runtime_binding_receipt_file_sha256: runtimeSource.sha256,
+    runtime_binding_rederived_from_evidence: true,
     promotion_receipt_file_sha256: promotionSource.sha256,
     promotion_id: reexecuted.promotion_id,
     runtime_binding_id: reexecuted.runtime_binding_id,
@@ -937,12 +1027,22 @@ export function verifyVoidParticipantPostpurchaseCanonicalApplicationV1({
       ["rev-parse", "HEAD:" + RUNTIME_BINDING_TOOL_REL],
       "PARTICIPANT_CANONICAL_CURRENT_RUNTIME_BINDING_TOOL_BLOB_UNAVAILABLE",
     ),
+    finality_import: gitText(
+      ["rev-parse", "HEAD:" + FINALITY_IMPORT_TOOL_REL],
+      "PARTICIPANT_CANONICAL_CURRENT_FINALITY_IMPORT_TOOL_BLOB_UNAVAILABLE",
+    ),
+    finality: gitText(
+      ["rev-parse", "HEAD:" + FINALITY_TOOL_REL],
+      "PARTICIPANT_CANONICAL_CURRENT_FINALITY_TOOL_BLOB_UNAVAILABLE",
+    ),
   });
   if (
     currentTools.application !== plan.application_tool_git_blob_sha1 ||
     currentTools.promotion !== plan.promotion_tool_git_blob_sha1 ||
     currentTools.classifier !== plan.classifier_git_blob_sha1 ||
-    currentTools.runtime_binding !== plan.runtime_binding_tool_git_blob_sha1
+    currentTools.runtime_binding !== plan.runtime_binding_tool_git_blob_sha1 ||
+    currentTools.finality_import !== plan.finality_import_tool_git_blob_sha1 ||
+    currentTools.finality !== plan.finality_tool_git_blob_sha1
   ) {
     fail("PARTICIPANT_CANONICAL_TOOL_LINEAGE_DRIFT");
   }
@@ -1019,7 +1119,11 @@ function readExternalJson(file, expectedSha, label) {
 
 function usage() {
   console.log(
-    "prepare --runtime-binding /abs/runtime.json --runtime-binding-sha256 <64hex> " +
+    "prepare --finality-input /abs/finality.json --finality-input-sha256 <64hex> " +
+      "--status-result /abs/status.json --status-result-sha256 <64hex> " +
+      "--delivery-result /abs/delivery.json --delivery-result-sha256 <64hex> " +
+      "--control-result /abs/control.json --control-result-sha256 <64hex> " +
+      "--runtime-binding /abs/runtime.json --runtime-binding-sha256 <64hex> " +
       "--promotion /abs/promotion.json --promotion-sha256 <64hex>",
   );
   console.log(
@@ -1031,6 +1135,14 @@ async function main(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
     options: {
+      "finality-input": { type: "string" },
+      "finality-input-sha256": { type: "string" },
+      "status-result": { type: "string" },
+      "status-result-sha256": { type: "string" },
+      "delivery-result": { type: "string" },
+      "delivery-result-sha256": { type: "string" },
+      "control-result": { type: "string" },
+      "control-result-sha256": { type: "string" },
       "runtime-binding": { type: "string" },
       "runtime-binding-sha256": { type: "string" },
       promotion: { type: "string" },
@@ -1049,6 +1161,14 @@ async function main(argv) {
   }
   if (command === "prepare") {
     if (
+      !values["finality-input"] ||
+      !values["finality-input-sha256"] ||
+      !values["status-result"] ||
+      !values["status-result-sha256"] ||
+      !values["delivery-result"] ||
+      !values["delivery-result-sha256"] ||
+      !values["control-result"] ||
+      !values["control-result-sha256"] ||
       !values["runtime-binding"] ||
       !values["runtime-binding-sha256"] ||
       !values.promotion ||
@@ -1056,6 +1176,26 @@ async function main(argv) {
     ) {
       fail("PARTICIPANT_CANONICAL_PREPARE_ARGUMENTS_MISSING");
     }
+    const finality = readExternalJson(
+      path.resolve(values["finality-input"]),
+      values["finality-input-sha256"],
+      "PARTICIPANT_CANONICAL_FINALITY_INPUT",
+    );
+    const status = readExternalJson(
+      path.resolve(values["status-result"]),
+      values["status-result-sha256"],
+      "PARTICIPANT_CANONICAL_STATUS_RESULT",
+    );
+    const delivery = readExternalJson(
+      path.resolve(values["delivery-result"]),
+      values["delivery-result-sha256"],
+      "PARTICIPANT_CANONICAL_DELIVERY_RESULT",
+    );
+    const control = readExternalJson(
+      path.resolve(values["control-result"]),
+      values["control-result-sha256"],
+      "PARTICIPANT_CANONICAL_CONTROL_RESULT",
+    );
     const runtime = readExternalJson(
       path.resolve(values["runtime-binding"]),
       values["runtime-binding-sha256"],
@@ -1067,6 +1207,14 @@ async function main(argv) {
       "PARTICIPANT_CANONICAL_PROMOTION_INPUT",
     );
     const plan = prepareVoidParticipantPostpurchaseCanonicalApplicationV1({
+      finality_input_bytes: finality.bytes,
+      finality_input_file_sha256: finality.sha256,
+      status_result_bytes: status.bytes,
+      status_result_file_sha256: status.sha256,
+      delivery_receipt_result_bytes: delivery.bytes,
+      delivery_receipt_result_file_sha256: delivery.sha256,
+      control_receipt_result_bytes: control.bytes,
+      control_receipt_result_file_sha256: control.sha256,
       runtime_binding_receipt_bytes: runtime.bytes,
       runtime_binding_receipt_file_sha256: runtime.sha256,
       promotion_receipt_bytes: promotion.bytes,

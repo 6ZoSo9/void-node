@@ -20,26 +20,40 @@ transition.
 
 Prepare consumes exactly:
 
+- the finality input bytes and SHA-256;
+- the public read-status transport-result bytes and SHA-256;
+- the delivery receipt transport-result bytes and SHA-256;
+- the control receipt transport-result bytes and SHA-256;
 - the reviewed production runtime/finality binding receipt bytes and SHA-256;
 - the reviewed participant coupled-candidate promotion receipt bytes and
   SHA-256.
 
-Both inputs must use the canonical pretty JSON serialization used by the
-collector/proof path.
+All six inputs must use the canonical pretty JSON serialization used by the
+collector/proof path. Prepare remains network-free: the public-read observations
+are explicit evidence inputs.
 
 ## Re-execution
 
-Prepare does not trust the supplied promotion receipt.
+Prepare does not trust either supplied derived receipt.
 
-It captures one clean repository HEAD/tree, reads the canonical coupled and
+It first directly executes the reviewed production runtime-binding builder:
+
+`buildVoidParticipantPostpurchaseProductionRuntimeBindingV1(...)`
+
+over the exact finality/status/delivery/control evidence inputs. The rederived
+runtime-binding object must be byte-identical to the supplied reviewed
+runtime-binding receipt. A self-consistent fabricated receipt is not origin
+authority.
+
+It then captures one clean repository HEAD/tree, reads the canonical coupled and
 successor candidates from that exact Git generation, binds the exact promotion,
-classifier, runtime-binding, and application-tool blobs, then directly
-re-executes:
+classifier, runtime-binding, finality-import, finality, and application-tool
+blobs, then directly re-executes:
 
 `buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1(...)`
 
-The re-executed object must be exactly equal to the supplied reviewed promotion
-receipt.
+The re-executed promotion object must be exactly equal to the supplied reviewed
+promotion receipt.
 
 The inherited promotion Git subprocesses run with replacement objects disabled,
 Git/config injection variables removed, and a fixed system Git PATH.
@@ -68,7 +82,8 @@ the missing-gate list; ordering and every other missing gate remain unchanged.
 The content-addressed plan binds:
 
 - application base HEAD/tree;
-- exact application/promotion/classifier/runtime-binding tool Git blobs;
+- exact application/promotion/classifier/runtime-binding/finality tool Git blobs;
+- exact finality/status/delivery/control evidence SHA-256 values;
 - exact runtime-binding and promotion receipt SHA-256 values;
 - exact coupled source and target Git-blob/SHA-256 identities;
 - exact successor source Git-blob/SHA-256 identity;
@@ -103,6 +118,8 @@ required.
 ```text
 source_only_application=true
 exact_runtime_binding_receipt_required=true
+exact_runtime_binding_evidence_required=true
+runtime_binding_reexecution_required=true
 exact_promotion_receipt_required=true
 promotion_reexecution_required=true
 canonical_head_candidate_bytes_required=true
