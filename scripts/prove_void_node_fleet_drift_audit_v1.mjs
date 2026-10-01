@@ -259,6 +259,31 @@ assert.ok(retiredRunbook.includes("Historical retired-host record"));
 assert.ok(retiredRunbook.includes("Alienware is permanently retired"));
 assert.ok(retiredRunbook.includes("Precision, Nimo, and Xiphos"));
 
+const operatorContact = readFileSync(
+  new URL("../ops/mainnet/operator-contact.zoso.md", import.meta.url),
+  "utf8",
+);
+assert.ok(operatorContact.includes("active operator fleet: Precision, Nimo, and Xiphos"));
+assert.ok(operatorContact.includes("Alienware is retired"));
+assert.equal(
+  operatorContact.includes("running the Precision and Alienware nodes"),
+  false,
+);
+
+const validatorPromotionPlan = readFileSync(
+  new URL("../ops/mainnet/validator-admission-promotion-plan.zoso.md", import.meta.url),
+  "utf8",
+);
+assert.ok(
+  validatorPromotionPlan.includes(
+    "selected peer must be Nimo or Xiphos; retired Alienware must not satisfy this gate",
+  ),
+);
+assert.equal(
+  validatorPromotionPlan.includes("Prove Precision and Alienware both read"),
+  false,
+);
+
 for (const relativePath of [
   "../ops/alienware-bootstrap-node-helper-relayer.sh",
   "../ops/alienware-update-node-helper-relayer.sh",
@@ -307,4 +332,5 @@ console.log("dirty_and_diverged_hold=true");
 console.log("deterministic_audit_id=true");
 console.log("retired_alienware_operator_commands_hold=true");
 console.log("retired_alienware_direct_scripts_hold=true");
+console.log("active_operator_topology_docs_pinned=true");
 console.log("mutation_attempted=false");
