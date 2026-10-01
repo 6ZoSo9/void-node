@@ -172,6 +172,7 @@ for(const [name,source] of Object.entries(launchTruthDocs)) {
 }
 
 assert.match(files.launchApprovalTemplate,/crossbox_peer_target: REQUIRED/u);
+assert.match(files.launchApprovalTemplate,/crossbox_peer_head_result: REQUIRED/u);
 assert.match(files.launchApprovalTemplate,/crossbox_peer_ready_result: REQUIRED/u);
 assert.match(files.launchApprovalTemplate,/crossbox_peer_status_smoke_log: REQUIRED/u);
 assert.match(files.launchApprovalTemplate,/retired Alienware identity must be rejected/u);
