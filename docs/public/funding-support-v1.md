@@ -2,9 +2,19 @@
 
 VOID Network funding is currently centered around the guarded USDC -> VOID path.
 
-Historically verified/default public seed (fresh qualification required before use):
+Configured public seed origin:
+
+- https://seed.nullfeed.org
+
+Fresh qualification and an unexpired bootstrap manifest are required before the
+configured origin is authoritative bootstrap input.
+
+Retired historical public seed origin:
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
+
+The Alienware Funnel coordinate is historical verification evidence only and is
+not the current default.
 
 Current funding model:
 
@@ -15,9 +25,9 @@ Current funding model:
 - no automatic token delivery is promised
 - no investment return is promised
 
-Reachability claims for this recorded seed are historical observation, not a
-standing uptime guarantee. Before directing a participant to it, freshly verify
-the public seed, participant page, bootstrap, readiness, and seed-adapter status.
+Reachability remains a live property, not a standing uptime guarantee. Before
+directing a participant to the configured origin, freshly verify the public seed,
+participant page, bootstrap freshness, readiness, and seed-adapter status.
 - private RPC remains blocked
 - sensitive wallet/admin/operator surfaces remain blocked
 
@@ -63,7 +73,11 @@ Public entrypoints:
 - /__void/public-bootstrap.json
 - /__void/public-seed-adapter/status.json
 
-Recorded default public URL (fresh qualification required):
+Configured public URL (fresh qualification and unexpired bootstrap required):
+
+- https://seed.nullfeed.org
+
+Retired historical URL:
 
 - https://zoso-alienware-aurora-r7.taila47fd.ts.net
 
