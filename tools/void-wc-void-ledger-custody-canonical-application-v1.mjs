@@ -406,7 +406,7 @@ function fchmodReviewedRegularFile(file,mode){
   );
   try{
     const stat=fs.fstatSync(fd);
-    if(!stat.isFile()){
+    if(!stat.isFile()||stat.nlink!==1){
       fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_FILE_DESCRIPTOR_INVALID");
     }
     fs.fchmodSync(fd,mode);
@@ -415,7 +415,7 @@ function fchmodReviewedRegularFile(file,mode){
   }
 }
 
-function makeExecutionTreeReadOnly(root){
+export function makeVoidWcVoidLedgerCustodyReviewedTreeReadOnlyV1(root){
   const rootStat=fs.lstatSync(root);
   if(rootStat.isSymbolicLink()||!rootStat.isDirectory()){
     fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_TREE_ROOT_INVALID");
@@ -448,7 +448,7 @@ function makeExecutionTreeReadOnly(root){
   fchmodReviewedDirectory(root,0o500);
 }
 
-function makeExecutionTreeRemovable(root){
+export function makeVoidWcVoidLedgerCustodyReviewedTreeRemovableV1(root){
   if(!fs.existsSync(root)) return;
   const rootStat=fs.lstatSync(root);
   if(rootStat.isSymbolicLink()||!rootStat.isDirectory()){
@@ -537,7 +537,7 @@ function cleanupReviewedExecutionCache(){
   if(!reviewedExecutionCache) return;
   const parent=reviewedExecutionCache.parent;
   try{
-    makeExecutionTreeRemovable(parent);
+    makeVoidWcVoidLedgerCustodyReviewedTreeRemovableV1(parent);
     fs.rmSync(parent,{recursive:true,force:true});
   }finally{
     reviewedExecutionCache=null;
@@ -722,7 +722,7 @@ function buildReviewedExecutionRoot(repo){
     ].join("\n");
     writePrivateSource(runnerFile,Buffer.from(runnerSource,"utf8"));
 
-    makeExecutionTreeReadOnly(executionRoot);
+    makeVoidWcVoidLedgerCustodyReviewedTreeReadOnlyV1(executionRoot);
 
     const privateStatus=String(
       gitRunPrivate(
@@ -759,7 +759,7 @@ function buildReviewedExecutionRoot(repo){
   }catch(error){
     let cleanupError=null;
     try{
-      makeExecutionTreeRemovable(parent);
+      makeVoidWcVoidLedgerCustodyReviewedTreeRemovableV1(parent);
       fs.rmSync(parent,{recursive:true,force:true});
     }catch(candidateCleanupError){
       cleanupError=candidateCleanupError;
