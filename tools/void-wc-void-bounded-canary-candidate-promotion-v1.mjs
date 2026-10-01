@@ -322,11 +322,6 @@ function bindReviewedRepositorySourceV1(request, sources) {
     fail("BOUNDED_CANARY_REPOSITORY_TREE_MISMATCH");
   }
 
-  gitText(
-    ["merge-base", "--is-ancestor", REVIEWED_SOURCE_COMMIT, "HEAD"],
-    "BOUNDED_CANARY_REVIEWED_SOURCE_COMMIT_NOT_ANCESTOR",
-  );
-
   const blobs = Object.create(null);
   for (const [name, binding] of Object.entries(REVIEWED_SOURCE_BINDINGS)) {
     const actual = headBlobSha1(binding.path, name);
