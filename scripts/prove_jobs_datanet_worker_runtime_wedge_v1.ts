@@ -130,6 +130,76 @@ try {
     "completed-truth-preserved",
     "job_done=true",
   );
+
+  // Completion snapshots retain the published copy-on-write membership rather
+  // than cloning the full Set. A witnessed append must publish a distinct
+  // membership generation without mutating the already-captured snapshot.
+  const zeroCopyCompletionFile = path.join(
+    root,
+    "receipts-completion-zero-copy.jsonl",
+  );
+  const zeroCopySeed = appendAgentPick2JsonlCanonicalV1(
+    zeroCopyCompletionFile,
+    JSON.stringify({ job_id: "zero_copy_a", status: "completed" }) + "\n",
+  );
+  assert(
+    zeroCopySeed.witnessed === false,
+    "zero-copy-completion-baseline-seeded",
+    `witnessed=${zeroCopySeed.witnessed}`,
+  );
+  const zeroCopyIndex = new AgentPick2JsonlSemanticIndexV1({
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const zeroCopyG = zeroCopyIndex.completionTruthSnapshotV1([
+    zeroCopyCompletionFile,
+  ]);
+  assert(
+    zeroCopyG.ready === true &&
+      zeroCopyG.doneTruthHas("zero_copy_a") === true &&
+      zeroCopyG.doneTruthHas("zero_copy_b") === false,
+    "zero-copy-snapshot-g-captures-original-membership",
+    `ready=${zeroCopyG.ready} generation=${zeroCopyG.generation || ""}`,
+  );
+  const zeroCopyAppend = appendAgentPick2JsonlCanonicalV1(
+    zeroCopyCompletionFile,
+    JSON.stringify({ job_id: "zero_copy_b", status: "completed" }) + "\n",
+  );
+  assert(
+    zeroCopyAppend.witnessed === true,
+    "zero-copy-completion-append-witnessed",
+    `witnessed=${zeroCopyAppend.witnessed}`,
+  );
+  const zeroCopyG1 = zeroCopyIndex.completionTruthSnapshotV1([
+    zeroCopyCompletionFile,
+  ]);
+  assert(
+    zeroCopyG1.ready === true &&
+      zeroCopyG1.doneTruthHas("zero_copy_a") === true &&
+      zeroCopyG1.doneTruthHas("zero_copy_b") === true &&
+      zeroCopyG1.generation !== zeroCopyG.generation,
+    "zero-copy-snapshot-g1-publishes-distinct-membership",
+    `g=${zeroCopyG.generation || ""} g1=${zeroCopyG1.generation || ""}`,
+  );
+  assert(
+    zeroCopyG.doneTruthHas("zero_copy_b") === false,
+    "zero-copy-old-snapshot-membership-remains-immutable",
+    "old_snapshot_zero_copy_b=false",
+  );
+  let zeroCopyExpired = false;
+  try {
+    zeroCopyG.assertGeneration();
+  } catch (error) {
+    zeroCopyExpired = String((error as Error)?.message || error).includes(
+      "COMPLETION_SNAPSHOT_EXPIRED",
+    );
+  }
+  assert(
+    zeroCopyExpired,
+    "zero-copy-old-snapshot-generation-still-expires",
+    `expired=${zeroCopyExpired}`,
+  );
+
   assert(
     snapshot.jobs.every((x) => x.jobId !== "job_done"),
     "completed-job-not-requeued",
@@ -1840,6 +1910,16 @@ try {
     "cross-generation locallyDone Set is exact, bounded, and never evicted",
   );
   assert(
+    semanticSource.includes("completed: ReadonlySet<string>") &&
+      semanticSource.includes("completed: state.completed") &&
+      semanticSource.includes("const nextCompleted = new Set(prior.completed)") &&
+      semanticSource.includes("nextCompleted.add(id)") &&
+      !semanticSource.includes("completed: new Set(state.completed)") &&
+      !semanticSource.includes("state.completed.add(id)"),
+    "completion-snapshot-zero-copy-copy-on-write-source-present",
+    "published completion membership is readonly/copy-on-write and snapshot cloning is absent",
+  );
+  assert(
     semanticSource.includes("COMPLETION_SNAPSHOT_EXPIRED") &&
       helperSource.includes("assertCompletionGenerationV1(completion)") &&
       helperSource.includes(
@@ -1850,6 +1930,9 @@ try {
     "immutable completion identity and pre-effect expiry guard present",
   );
 
+  console.log("completion_snapshot_zero_copy_membership=true");
+  console.log("completion_state_copy_on_write=true");
+  console.log("old_completion_snapshot_membership_immutable=true");
   console.log(
     `${ID}_GREEN ` +
       JSON.stringify({
