@@ -399,27 +399,30 @@ function validateImportedPersistence(imported) {
   return imported;
 }
 
-export function deriveVoidWcVoidLedgerCustodyCoupledCandidatePromotionAtReviewedRepositoryIdentityV1({
+export function buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
   candidate,
   successorMigrationCandidate,
   ledgerPersistenceImportInput,
   ledgerPersistenceImportInputFileSha256,
   candidateFileSha256,
   successorCandidateFileSha256,
-  repositoryIdentity,
+  repositoryHeadSha,
+  repositoryTreeSha,
 } = {}) {
-  const reviewedRepositoryIdentity = exactObject(
-    repositoryIdentity,
-    ["repository_head_sha", "repository_tree_sha"],
-    "promotion_reviewed_repository_identity",
-  );
   if (
-    typeof reviewedRepositoryIdentity.repository_head_sha !== "string"
-    || !HEX40.test(reviewedRepositoryIdentity.repository_head_sha)
-    || typeof reviewedRepositoryIdentity.repository_tree_sha !== "string"
-    || !HEX40.test(reviewedRepositoryIdentity.repository_tree_sha)
+    typeof repositoryHeadSha !== "string"
+    || !HEX40.test(repositoryHeadSha)
+    || typeof repositoryTreeSha !== "string"
+    || !HEX40.test(repositoryTreeSha)
   ) {
     fail("promotion_repository_identity_invalid");
+  }
+  const repositoryIdentity = readRepositoryIdentityV1();
+  if (
+    repositoryHeadSha !== repositoryIdentity.repository_head_sha
+    || repositoryTreeSha !== repositoryIdentity.repository_tree_sha
+  ) {
+    fail("promotion_repository_identity_mismatch");
   }
 
   if (
@@ -549,8 +552,8 @@ export function deriveVoidWcVoidLedgerCustodyCoupledCandidatePromotionAtReviewed
   const material = Object.freeze({
     marker:
       VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1,
-    repository_head_sha: reviewedRepositoryIdentity.repository_head_sha,
-    repository_tree_sha: reviewedRepositoryIdentity.repository_tree_sha,
+    repository_head_sha: repositoryIdentity.repository_head_sha,
+    repository_tree_sha: repositoryIdentity.repository_tree_sha,
     version: 1,
     status:
       "WC_LEDGER_CUSTODY_PROMOTION_ARTIFACT_READY_CANDIDATE_HOLD",
@@ -597,42 +600,6 @@ export function deriveVoidWcVoidLedgerCustodyCoupledCandidatePromotionAtReviewed
     promotion_id:
       "voidwclccp1_"
       + sha256(Buffer.from(canonicalJson(material), "utf8")),
-  });
-}
-
-export function buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
-  candidate,
-  successorMigrationCandidate,
-  ledgerPersistenceImportInput,
-  ledgerPersistenceImportInputFileSha256,
-  candidateFileSha256,
-  successorCandidateFileSha256,
-  repositoryHeadSha,
-  repositoryTreeSha,
-} = {}) {
-  if (
-    typeof repositoryHeadSha !== "string"
-    || !HEX40.test(repositoryHeadSha)
-    || typeof repositoryTreeSha !== "string"
-    || !HEX40.test(repositoryTreeSha)
-  ) {
-    fail("promotion_repository_identity_invalid");
-  }
-  const repositoryIdentity = readRepositoryIdentityV1();
-  if (
-    repositoryHeadSha !== repositoryIdentity.repository_head_sha
-    || repositoryTreeSha !== repositoryIdentity.repository_tree_sha
-  ) {
-    fail("promotion_repository_identity_mismatch");
-  }
-  return deriveVoidWcVoidLedgerCustodyCoupledCandidatePromotionAtReviewedRepositoryIdentityV1({
-    candidate,
-    successorMigrationCandidate,
-    ledgerPersistenceImportInput,
-    ledgerPersistenceImportInputFileSha256,
-    candidateFileSha256,
-    successorCandidateFileSha256,
-    repositoryIdentity,
   });
 }
 
