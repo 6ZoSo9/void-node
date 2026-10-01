@@ -576,6 +576,19 @@ function makeReadOnlyTree(root){
   for(const dir of dirs) fs.chmodSync(dir,0o500);
 }
 
+function makeRemovableTree(root){
+  if(!fs.existsSync(root)) return;
+  function walk(dir){
+    fs.chmodSync(dir,0o700);
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      if(entry.isDirectory()) walk(file);
+      else fs.chmodSync(file,0o600);
+    }
+  }
+  walk(root);
+}
+
 export function verifyMaterializedReviewedNodePackageRuntimeV1({
   profile,
   destinationRoot,
@@ -639,7 +652,10 @@ export function materializeReviewedNodePackageRuntimeV1({
       read_only_materialization:true,
     });
   }catch(error){
-    try{fs.rmSync(destinationRoot,{recursive:true,force:true});}catch{}
+    try{
+      makeRemovableTree(destinationRoot);
+      fs.rmSync(destinationRoot,{recursive:true,force:true});
+    }catch{}
     throw error;
   }
 }
