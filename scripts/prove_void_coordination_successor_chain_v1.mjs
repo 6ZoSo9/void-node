@@ -125,6 +125,8 @@ assert.deepEqual(
   openPredecessor.hold_reasons,
   ["predecessor_with_successor_still_open:#1507"],
 );
+assert.equal(openPredecessor.dispatch_plan_issue_should_be, null);
+assert.equal(openPredecessor.plan_issue_update_required, false);
 
 const closedTerminal = resolveCoordinationSuccessorChainRecordsV1({
   "1507": record(1507, "closed", 10),
@@ -182,6 +184,22 @@ expectRejected(
     [],
   ),
   /complete comment capture required/,
+);
+
+expectRejected(
+  () => inspectCoordinationIssueV1(
+    {
+      number: 1507,
+      state: "open",
+      comments: 2,
+      updated_at: "2026-10-01T00:00:00Z",
+    },
+    [
+      comment(1, "first"),
+      comment(1, "duplicate"),
+    ],
+  ),
+  /duplicate coordination comment id/,
 );
 
 expectRejected(
@@ -255,6 +273,8 @@ console.log("open_predecessor_hold=true");
 console.log("cycle_rejected=true");
 console.log("ambiguous_pointer_rejected=true");
 console.log("complete_comment_capture_required=true");
+console.log("duplicate_comment_id_rejected=true");
+console.log("invalid_chain_dispatch_suppressed=true");
 console.log("markdown_rotation_heading_accepted=true");
 console.log("pull_request_target_rejected=true");
 console.log("authority_granted=false");
