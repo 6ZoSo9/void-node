@@ -296,52 +296,6 @@ function gitText(args, code, { allowEmpty = false } = {}) {
   return text;
 }
 
-function withHardenedInheritedGit(fn) {
-  const keys = [
-    "PATH",
-    "HOME",
-    "XDG_CONFIG_HOME",
-    "GIT_CONFIG_NOSYSTEM",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_NAMESPACE",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_CONFIG",
-    "GIT_CONFIG_COUNT",
-  ];
-  const saved = new Map(keys.map((key) => [key, process.env[key]]));
-  const dynamic = Object.keys(process.env).filter((key) =>
-    /^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key),
-  );
-  const savedDynamic = new Map(dynamic.map((key) => [key, process.env[key]]));
-  try {
-    process.env.PATH = "/usr/bin:/bin";
-    process.env.HOME = "/nonexistent";
-    process.env.XDG_CONFIG_HOME = "/nonexistent";
-    process.env.GIT_CONFIG_NOSYSTEM = "1";
-    process.env.GIT_CONFIG_GLOBAL = "/dev/null";
-    process.env.GIT_NO_REPLACE_OBJECTS = "1";
-    for (const key of keys.slice(6)) delete process.env[key];
-    for (const key of dynamic) delete process.env[key];
-    return fn();
-  } finally {
-    for (const [key, value] of saved) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-    for (const key of dynamic) delete process.env[key];
-    for (const [key, value] of savedDynamic) {
-      if (value !== undefined) process.env[key] = value;
-    }
-  }
-}
-
 function canonicalRemoteMainHead() {
   const env = {
     PATH: "/usr/bin:/bin",
@@ -1121,6 +1075,7 @@ function validatePlan(value) {
     fail("PARTICIPANT_CANONICAL_APPLICATION_PLAN_GATE_SCOPE_INVALID");
   }
   exactAuthority(plan.authority);
+  const reviewedExecution = validateReviewedExecution(plan.reviewed_execution);
   if (
     "voidppca1_" +
       sha256(Buffer.from(canonicalJson(planWithoutId(plan)), "utf8")) !==
@@ -1176,6 +1131,36 @@ function validatePlan(value) {
     if (actual !== expected) fail(code);
   }
 
+  for (const [relativePath, expected] of Object.entries(
+    reviewedExecution.reviewed_module_git_blobs,
+  )) {
+    const actual = gitText(
+      ["rev-parse", plan.application_base_head_sha + ":" + relativePath],
+      "PARTICIPANT_CANONICAL_REVIEWED_MODULE_BASE_BLOB_UNAVAILABLE",
+    );
+    if (actual !== expected) {
+      fail("PARTICIPANT_CANONICAL_REVIEWED_MODULE_BASE_BLOB_MISMATCH:" + relativePath);
+    }
+  }
+  for (const [relativePath, expected, code] of [
+    [
+      REVIEWED_RUNTIME_TOOL_REL,
+      reviewedExecution.reviewed_runtime_tool_git_blob_sha1,
+      "PARTICIPANT_CANONICAL_REVIEWED_RUNTIME_TOOL_BASE_BLOB_MISMATCH",
+    ],
+    [
+      REVIEWED_RUNTIME_PROFILE_REL,
+      reviewedExecution.reviewed_runtime_profile_git_blob_sha1,
+      "PARTICIPANT_CANONICAL_REVIEWED_RUNTIME_PROFILE_BASE_BLOB_MISMATCH",
+    ],
+  ]) {
+    const actual = gitText(
+      ["rev-parse", plan.application_base_head_sha + ":" + relativePath],
+      code + "_UNAVAILABLE",
+    );
+    if (actual !== expected) fail(code);
+  }
+
   const baseCoupled = commitFile(
     plan.application_base_head_sha,
     COUPLED_REL,
@@ -1196,14 +1181,28 @@ function validatePlan(value) {
   }
 
   assertTargetDelta(baseCoupled.value, plan.coupled_target_candidate);
-  const before = classifyVoidCoupledEconomicSuccessorGateV1(
-    baseCoupled.value,
-    baseSuccessor.value,
-  );
-  const after = classifyVoidCoupledEconomicSuccessorGateV1(
-    plan.coupled_target_candidate,
-    baseSuccessor.value,
-  );
+  const baseRepo = Object.freeze({
+    head: plan.application_base_head_sha,
+    tree: plan.application_base_tree_sha,
+  });
+  const before = runReviewedAuthority(
+    baseRepo,
+    reviewedExecution,
+    {
+      operation: "classify",
+      coupled: baseCoupled.value,
+      successor: baseSuccessor.value,
+    },
+  ).decision;
+  const after = runReviewedAuthority(
+    baseRepo,
+    reviewedExecution,
+    {
+      operation: "classify",
+      coupled: plan.coupled_target_candidate,
+      successor: baseSuccessor.value,
+    },
+  ).decision;
   if (
     canonicalJson(summarize(before)) !== canonicalJson(plan.coupled_before) ||
     canonicalJson(summarize(after)) !== canonicalJson(plan.coupled_after) ||
@@ -1294,6 +1293,30 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
       "PARTICIPANT_CANONICAL_FINALITY_TOOL_BLOB_UNAVAILABLE",
     ),
   });
+  const reviewedExecutionFull = reviewedExecutionMetadata(repo);
+  const reviewedExecution = Object.freeze({
+    reviewed_runtime_tool_path:
+      reviewedExecutionFull.reviewed_runtime_tool_path,
+    reviewed_runtime_tool_git_blob_sha1:
+      reviewedExecutionFull.reviewed_runtime_tool_git_blob_sha1,
+    reviewed_runtime_profile_path:
+      reviewedExecutionFull.reviewed_runtime_profile_path,
+    reviewed_runtime_profile_git_blob_sha1:
+      reviewedExecutionFull.reviewed_runtime_profile_git_blob_sha1,
+    reviewed_runtime_profile_id:
+      reviewedExecutionFull.reviewed_runtime_profile_id,
+    reviewed_runtime_packages_aggregate_sha256:
+      reviewedExecutionFull.reviewed_runtime_packages_aggregate_sha256,
+    reviewed_module_git_blobs:
+      reviewedExecutionFull.reviewed_module_git_blobs,
+    permission_fenced_execution: true,
+    child_process_required_for_reviewed_git: true,
+    ancestor_package_resolution_allowed: false,
+    ambient_dynamic_loader_overrides_ignored: true,
+    execution_network_isolation_provided: false,
+    reviewed_execution_bundle_id:
+      reviewedExecutionFull.reviewed_execution_bundle_id,
+  });
   for (const [relativePath, expected, code] of [
     [TOOL_REL, toolBlobs.application, "PARTICIPANT_CANONICAL_APPLICATION_WORKTREE_DRIFT"],
     [PROMOTION_TOOL_REL, toolBlobs.promotion, "PARTICIPANT_CANONICAL_PROMOTION_WORKTREE_DRIFT"],
@@ -1305,62 +1328,54 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
     assertWorktreeBlob(relativePath, expected, code);
   }
 
-  const rederivedRuntime =
-    buildVoidParticipantPostpurchaseProductionRuntimeBindingV1({
-      finalityInput: finalitySource.value,
-      statusResult: statusSource.value,
-      deliveryReceiptResult: deliverySource.value,
-      controlReceiptResult: controlSource.value,
-    });
+  const reviewedResult = runReviewedAuthority(
+    repo,
+    reviewedExecution,
+    {
+      operation: "prepare",
+      finality_input: finalitySource.value,
+      status_result: statusSource.value,
+      delivery_result: deliverySource.value,
+      control_result: controlSource.value,
+      coupled: coupled.value,
+      successor: successor.value,
+      runtime_binding_file_sha256: runtimeSource.sha256,
+      coupled_file_sha256: coupled.sha256,
+      successor_file_sha256: successor.sha256,
+      repository_head_sha: repo.head,
+      repository_tree_sha: repo.tree,
+      coupled_git_blob_sha1: coupled.blob_sha1,
+      successor_git_blob_sha1: successor.blob_sha1,
+      classifier_git_blob_sha1: toolBlobs.classifier,
+      promotion_tool_git_blob_sha1: toolBlobs.promotion,
+    },
+  );
+  const rederivedRuntime = reviewedResult.runtime_binding;
   const rederivedRuntimeBytes = prettyBytes(rederivedRuntime);
   if (!rederivedRuntimeBytes.equals(runtimeSource.bytes)) {
     fail("PARTICIPANT_CANONICAL_RUNTIME_BINDING_REDERIVATION_MISMATCH");
   }
 
-  const reexecuted = withHardenedInheritedGit(() =>
-    buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({
-      candidate: coupled.value,
-      successorMigrationCandidate: successor.value,
-      runtimeBindingReceipt: rederivedRuntime,
-      runtimeBindingFileSha256: sha256(rederivedRuntimeBytes),
-      candidateFileSha256: coupled.sha256,
-      successorCandidateFileSha256: successor.sha256,
-      repositoryHeadSha: repo.head,
-      repositoryTreeSha: repo.tree,
-      candidateGitBlobSha1: coupled.blob_sha1,
-      successorCandidateGitBlobSha1: successor.blob_sha1,
-      classifierGitBlobSha1: toolBlobs.classifier,
-      promotionToolGitBlobSha1: toolBlobs.promotion,
-    }),
-  );
-
+  const reexecuted = reviewedResult.promotion;
   if (canonicalJson(reexecuted) !== canonicalJson(promotionSource.value)) {
     fail("PARTICIPANT_CANONICAL_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
   }
   if (
     reexecuted.marker !==
-      VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_V1 ||
+      "VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_V1" ||
     reexecuted.canonical_candidate_file_updated !== false ||
     reexecuted.candidate_promotion_application_required !== true ||
     reexecuted.coupled_activation_ready !== false ||
     canonicalJson(reexecuted.authority) !==
-      canonicalJson(
-        VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1,
-      )
+      canonicalJson(reviewedResult.promotion_authority)
   ) {
     fail("PARTICIPANT_CANONICAL_PROMOTION_CONTRACT_INVALID");
   }
 
-  const before = classifyVoidCoupledEconomicSuccessorGateV1(
-    coupled.value,
-    successor.value,
-  );
+  const before = reviewedResult.before;
   const target = structuredClone(reexecuted.promoted_candidate);
   assertTargetDelta(coupled.value, target);
-  const after = classifyVoidCoupledEconomicSuccessorGateV1(
-    target,
-    successor.value,
-  );
+  const after = reviewedResult.after;
   if (
     before?.status !== "HOLD" ||
     after?.status !== "HOLD" ||
@@ -1389,6 +1404,7 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
     runtime_binding_tool_git_blob_sha1: toolBlobs.runtime_binding,
     finality_import_tool_git_blob_sha1: toolBlobs.finality_import,
     finality_tool_git_blob_sha1: toolBlobs.finality,
+    reviewed_execution: reviewedExecution,
     finality_input_file_sha256: finalitySource.sha256,
     status_result_file_sha256: statusSource.sha256,
     delivery_receipt_result_file_sha256: deliverySource.sha256,
@@ -1454,10 +1470,18 @@ export function verifyVoidParticipantPostpurchaseCanonicalApplicationStateV1({
   ) {
     fail("PARTICIPANT_CANONICAL_SUCCESSOR_SOURCE_DRIFT");
   }
-  const decision = classifyVoidCoupledEconomicSuccessorGateV1(
-    coupledCandidate,
-    successorCandidate,
-  );
+  const decision = runReviewedAuthority(
+    Object.freeze({
+      head: reviewed.application_base_head_sha,
+      tree: reviewed.application_base_tree_sha,
+    }),
+    reviewed.reviewed_execution,
+    {
+      operation: "classify",
+      coupled: coupledCandidate,
+      successor: successorCandidate,
+    },
+  ).decision;
   if (
     canonicalJson(summarize(decision)) !==
     canonicalJson(reviewed.coupled_after)
@@ -1561,6 +1585,37 @@ export function verifyVoidParticipantPostpurchaseCanonicalApplicationV1({
     currentTools.finality !== plan.finality_tool_git_blob_sha1
   ) {
     fail("PARTICIPANT_CANONICAL_TOOL_LINEAGE_DRIFT");
+  }
+
+  const reviewedExecution = validateReviewedExecution(plan.reviewed_execution);
+  for (const [relativePath, expected] of Object.entries(
+    reviewedExecution.reviewed_module_git_blobs,
+  )) {
+    const actual = gitText(
+      ["rev-parse", "HEAD:" + relativePath],
+      "PARTICIPANT_CANONICAL_CURRENT_REVIEWED_MODULE_BLOB_UNAVAILABLE",
+    );
+    if (actual !== expected) {
+      fail("PARTICIPANT_CANONICAL_REVIEWED_MODULE_LINEAGE_DRIFT:" + relativePath);
+    }
+  }
+  for (const [relativePath, expected, code] of [
+    [
+      REVIEWED_RUNTIME_TOOL_REL,
+      reviewedExecution.reviewed_runtime_tool_git_blob_sha1,
+      "PARTICIPANT_CANONICAL_REVIEWED_RUNTIME_TOOL_LINEAGE_DRIFT",
+    ],
+    [
+      REVIEWED_RUNTIME_PROFILE_REL,
+      reviewedExecution.reviewed_runtime_profile_git_blob_sha1,
+      "PARTICIPANT_CANONICAL_REVIEWED_RUNTIME_PROFILE_LINEAGE_DRIFT",
+    ],
+  ]) {
+    const actual = gitText(
+      ["rev-parse", "HEAD:" + relativePath],
+      code + "_UNAVAILABLE",
+    );
+    if (actual !== expected) fail(code);
   }
 
   const state = verifyVoidParticipantPostpurchaseCanonicalApplicationStateV1({
