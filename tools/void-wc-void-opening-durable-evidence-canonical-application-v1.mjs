@@ -261,6 +261,491 @@ function headFile(rel,label){
   );
   return commitFile(head,rel,label);
 }
+
+function commitBytes(commit,rel,label){
+  if(typeof commit!=="string"||!HEX40.test(commit)){
+    fail("OPENING_DURABLE_APPLICATION_"+label+"_COMMIT_INVALID");
+  }
+  const bytes=gitBytes(
+    ["show",commit+":"+rel],
+    "OPENING_DURABLE_APPLICATION_"+label+"_BYTES_UNAVAILABLE",
+  );
+  if(bytes.length<1||bytes.length>MAX_BYTES){
+    fail("OPENING_DURABLE_APPLICATION_"+label+"_BYTES_INVALID");
+  }
+  const blob=gitText(
+    ["rev-parse",commit+":"+rel],
+    "OPENING_DURABLE_APPLICATION_"+label+"_BLOB_UNAVAILABLE",
+  );
+  if(!HEX40.test(blob)||gitBlobSha1(bytes)!==blob){
+    fail("OPENING_DURABLE_APPLICATION_"+label+"_BLOB_MISMATCH");
+  }
+  return Object.freeze({
+    bytes:Buffer.from(bytes),
+    sha256:sha256(bytes),
+    blob_sha1:blob,
+  });
+}
+
+function privateNodeEnv(home){
+  return {
+    PATH:"/usr/bin:/bin",
+    LANG:"C",
+    LC_ALL:"C",
+    HOME:home,
+    XDG_CONFIG_HOME:home,
+    GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_ASKPASS:"/bin/false",
+    GIT_CONFIG_COUNT:"6",
+    GIT_CONFIG_KEY_0:"core.fsmonitor",
+    GIT_CONFIG_VALUE_0:"false",
+    GIT_CONFIG_KEY_1:"core.hooksPath",
+    GIT_CONFIG_VALUE_1:"/dev/null",
+    GIT_CONFIG_KEY_2:"core.attributesFile",
+    GIT_CONFIG_VALUE_2:"/dev/null",
+    GIT_CONFIG_KEY_3:"core.untrackedCache",
+    GIT_CONFIG_VALUE_3:"false",
+    GIT_CONFIG_KEY_4:"core.preloadIndex",
+    GIT_CONFIG_VALUE_4:"false",
+    GIT_CONFIG_KEY_5:"submodule.recurse",
+    GIT_CONFIG_VALUE_5:"false",
+  };
+}
+
+function writePrivateSource(file,bytes,mode=0o400){
+  fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_WRONLY|
+      fs.constants.O_CREAT|
+      fs.constants.O_EXCL|
+      Number(fs.constants.O_NOFOLLOW||0),
+    mode,
+  );
+  try{
+    fs.writeFileSync(fd,bytes);
+    fs.fsyncSync(fd);
+    fs.fchmodSync(fd,mode);
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
+function gitRunPrivate(cwd,args,code,{allowFail=false}={}){
+  const result=spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-c","protocol.file.allow=always",
+      "-C",cwd,
+      ...args,
+    ],
+    {
+      env:sanitizedGitEnv(),
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      maxBuffer:MAX_BYTES+1024,
+      timeout:120_000,
+    },
+  );
+  if(result.error) throw result.error;
+  if(result.status!==0&&!allowFail) fail(code);
+  return result;
+}
+
+function makeExecutionTreeReadOnly(root){
+  function walk(dir){
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      if(entry.isDirectory()){
+        walk(file);
+        fs.chmodSync(file,0o500);
+      }else{
+        fs.chmodSync(file,0o400);
+      }
+    }
+  }
+  walk(root);
+  fs.chmodSync(root,0o500);
+}
+
+function makeExecutionTreeRemovable(root){
+  if(!fs.existsSync(root)) return;
+  function walk(dir){
+    fs.chmodSync(dir,0o700);
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      if(entry.isDirectory()) walk(file);
+      else fs.chmodSync(file,0o600);
+    }
+  }
+  walk(root);
+}
+
+function reviewedModuleClosure(commit){
+  const pending=[...REVIEWED_EXECUTION_ROOTS];
+  const seen=new Set();
+  const blobs=Object.create(null);
+  while(pending.length){
+    const rel=pending.pop();
+    if(seen.has(rel)) continue;
+    seen.add(rel);
+    const source=commitBytes(
+      commit,
+      rel,
+      "REVIEWED_MODULE_"+rel.replace(/[^A-Za-z0-9]+/gu,"_"),
+    );
+    blobs[rel]=source.blob_sha1;
+    const text=new TextDecoder("utf-8",{fatal:true}).decode(source.bytes);
+    const specs=[];
+    for(const re of [
+      /\bfrom\s+["']([^"']+)["']/gu,
+      /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu,
+      /\bimport\s+["']([^"']+)["']/gu,
+    ]){
+      let match;
+      while((match=re.exec(text))!==null) specs.push(match[1]);
+    }
+    for(const spec of specs){
+      if(spec.startsWith("node:")) continue;
+      if(spec==="ethers") continue;
+      if(!spec.startsWith(".")){
+        fail("OPENING_DURABLE_APPLICATION_REVIEWED_BARE_IMPORT_FORBIDDEN:"+spec);
+      }
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(rel),spec),
+      );
+      if(
+        !target.startsWith("tools/")||
+        !target.endsWith(".mjs")
+      ){
+        fail("OPENING_DURABLE_APPLICATION_REVIEWED_IMPORT_ESCAPE:"+target);
+      }
+      pending.push(target);
+    }
+    if(
+      text.includes("node:child_process")&&
+      rel!==PROMOTION_TOOL_REL
+    ){
+      fail("OPENING_DURABLE_APPLICATION_REVIEWED_CHILD_PROCESS_SURFACE:"+rel);
+    }
+  }
+  return Object.freeze({
+    module_git_blobs:Object.freeze({...blobs}),
+    child_process_module:PROMOTION_TOOL_REL,
+  });
+}
+
+let reviewedExecutionCache=null;
+
+function cleanupReviewedExecutionCache(){
+  if(!reviewedExecutionCache) return;
+  const parent=reviewedExecutionCache.parent;
+  try{
+    makeExecutionTreeRemovable(parent);
+    fs.rmSync(parent,{recursive:true,force:true});
+  }finally{
+    reviewedExecutionCache=null;
+  }
+}
+process.once("exit",cleanupReviewedExecutionCache);
+
+function buildReviewedExecutionRoot(repo){
+  if(
+    reviewedExecutionCache&&
+    reviewedExecutionCache.head===repo.head&&
+    reviewedExecutionCache.tree===repo.tree
+  ){
+    return reviewedExecutionCache;
+  }
+  cleanupReviewedExecutionCache();
+  reviewedModuleClosure(repo.head);
+
+  const parent=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-opening-durable-reviewed-"),
+  );
+  fs.chmodSync(parent,0o700);
+  try{
+    const bootstrapDir=path.join(parent,"bootstrap");
+    fs.mkdirSync(bootstrapDir,{mode:0o700});
+    const runtimeToolFile=path.join(
+      bootstrapDir,
+      "void-reviewed-node-package-runtime-v1.mjs",
+    );
+    writePrivateSource(
+      runtimeToolFile,
+      commitBytes(
+        repo.head,
+        REVIEWED_RUNTIME_TOOL_REL,
+        "REVIEWED_RUNTIME_TOOL",
+      ).bytes,
+    );
+    const profileFile=path.join(bootstrapDir,"profile.json");
+    writePrivateSource(
+      profileFile,
+      commitBytes(
+        repo.head,
+        REVIEWED_RUNTIME_PROFILE_REL,
+        "REVIEWED_RUNTIME_PROFILE",
+      ).bytes,
+    );
+    const executionRoot=path.join(parent,"execution");
+    const bootstrapFile=path.join(bootstrapDir,"bootstrap.mjs");
+    const bootstrapSource=[
+      'import fs from "node:fs";',
+      'import { materializeReviewedNodePackageRuntimeV1, verifyMaterializedReviewedNodePackageRuntimeV1 } from "./void-reviewed-node-package-runtime-v1.mjs";',
+      'const request=JSON.parse(fs.readFileSync(0,"utf8"));',
+      'const profile=JSON.parse(fs.readFileSync(request.profile_file,"utf8"));',
+      'const result=request.action==="materialize"',
+      '  ? materializeReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root})',
+      '  : verifyMaterializedReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root});',
+      'process.stdout.write(JSON.stringify(result));',
+      '',
+    ].join("\n");
+    writePrivateSource(
+      bootstrapFile,
+      Buffer.from(bootstrapSource,"utf8"),
+    );
+    const bootstrap=spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [bootstrapFile],
+      {
+        cwd:bootstrapDir,
+        env:privateNodeEnv(bootstrapDir),
+        input:JSON.stringify({
+          action:"materialize",
+          profile_file:profileFile,
+          repo_root:ROOT,
+          destination_root:executionRoot,
+        }),
+        encoding:"utf8",
+        stdio:["pipe","pipe","pipe"],
+        maxBuffer:16*1024*1024,
+        timeout:120_000,
+      },
+    );
+    if(bootstrap.error||bootstrap.status!==0){
+      fail("OPENING_DURABLE_APPLICATION_REVIEWED_RUNTIME_MATERIALIZATION_FAILED");
+    }
+
+    gitRunPrivate(
+      executionRoot,
+      ["init","--quiet"],
+      "OPENING_DURABLE_APPLICATION_PRIVATE_GIT_INIT_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["fetch","--quiet","--no-tags","--depth=1",ROOT,repo.head],
+      "OPENING_DURABLE_APPLICATION_PRIVATE_GIT_FETCH_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["checkout","--quiet","--detach","FETCH_HEAD"],
+      "OPENING_DURABLE_APPLICATION_PRIVATE_GIT_CHECKOUT_FAILED",
+    );
+    const privateHead=String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse","HEAD"],
+        "OPENING_DURABLE_APPLICATION_PRIVATE_HEAD_UNAVAILABLE",
+      ).stdout||"",
+    ).trim();
+    const privateTree=String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse","HEAD^{tree}"],
+        "OPENING_DURABLE_APPLICATION_PRIVATE_TREE_UNAVAILABLE",
+      ).stdout||"",
+    ).trim();
+    if(privateHead!==repo.head||privateTree!==repo.tree){
+      fail("OPENING_DURABLE_APPLICATION_PRIVATE_GIT_IDENTITY_MISMATCH");
+    }
+    const privateStatus=String(
+      gitRunPrivate(
+        executionRoot,
+        ["status","--porcelain=v1","--untracked-files=all"],
+        "OPENING_DURABLE_APPLICATION_PRIVATE_STATUS_UNAVAILABLE",
+      ).stdout||"",
+    ).trim();
+    if(privateStatus!==""){
+      fail("OPENING_DURABLE_APPLICATION_PRIVATE_WORKTREE_NOT_CLEAN");
+    }
+
+    const runnerFile=path.join(
+      bootstrapDir,
+      "opening-durable-reviewed-runner-v1.mjs",
+    );
+    const runnerSource=[
+      'import fs from "node:fs";',
+      'import { prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1, VOID_WC_VOID_OPENING_DURABLE_EVIDENCE_CANDIDATE_PROMOTION_AUTHORITY_V1 } from "../execution/tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs";',
+      'import { classifyVoidWcVoidProductionReadinessV1 } from "../execution/tools/void-wc-void-production-readiness-v1.mjs";',
+      'import { classifyVoidCoupledEconomicSuccessorGateV1 } from "../execution/tools/void-coupled-economic-successor-gate-v1.mjs";',
+      'const request=JSON.parse(fs.readFileSync(0,"utf8"));',
+      'let result;',
+      'if(request.operation==="prepare"){',
+      '  const promotion=prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1({requestFile:request.request_file,requestFileSha256:request.request_file_sha256});',
+      '  const production=JSON.parse(fs.readFileSync("../execution/ops/mainnet0/wc-void-production-candidate-v1.json","utf8"));',
+      '  const coupled=JSON.parse(fs.readFileSync("../execution/ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json","utf8"));',
+      '  const successor=JSON.parse(fs.readFileSync("../execution/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json","utf8"));',
+      '  result={promotion,promotion_authority:VOID_WC_VOID_OPENING_DURABLE_EVIDENCE_CANDIDATE_PROMOTION_AUTHORITY_V1,production_before:classifyVoidWcVoidProductionReadinessV1(production),production_after:classifyVoidWcVoidProductionReadinessV1(promotion.promoted_production_candidate),coupled_before:classifyVoidCoupledEconomicSuccessorGateV1(coupled,successor),coupled_after:classifyVoidCoupledEconomicSuccessorGateV1(promotion.promoted_coupled_candidate,successor)};',
+      '}else if(request.operation==="classify"){',
+      '  result={production_before:classifyVoidWcVoidProductionReadinessV1(request.production_before),production_after:classifyVoidWcVoidProductionReadinessV1(request.production_after),coupled_before:classifyVoidCoupledEconomicSuccessorGateV1(request.coupled_before,request.successor),coupled_after:classifyVoidCoupledEconomicSuccessorGateV1(request.coupled_after,request.successor)};',
+      '}else{throw new Error("opening_durable_reviewed_operation_invalid");}',
+      'process.stdout.write(JSON.stringify(result));',
+      '',
+    ].join("\n");
+    writePrivateSource(runnerFile,Buffer.from(runnerSource,"utf8"));
+
+    makeExecutionTreeReadOnly(executionRoot);
+    reviewedExecutionCache=Object.freeze({
+      head:repo.head,
+      tree:repo.tree,
+      parent,
+      bootstrap_dir:bootstrapDir,
+      execution_root:executionRoot,
+      runner_file:runnerFile,
+      bootstrap_file:bootstrapFile,
+      profile_file:profileFile,
+    });
+    return reviewedExecutionCache;
+  }catch(error){
+    try{
+      makeExecutionTreeRemovable(parent);
+      fs.rmSync(parent,{recursive:true,force:true});
+    }catch{}
+    throw error;
+  }
+}
+
+function verifyReviewedRuntimeTree(bundle){
+  const result=spawnSync(
+    fs.realpathSync.native(process.execPath),
+    [bundle.bootstrap_file],
+    {
+      cwd:bundle.bootstrap_dir,
+      env:privateNodeEnv(bundle.bootstrap_dir),
+      input:JSON.stringify({
+        action:"verify",
+        profile_file:bundle.profile_file,
+        repo_root:ROOT,
+        destination_root:bundle.execution_root,
+      }),
+      encoding:"utf8",
+      stdio:["pipe","pipe","pipe"],
+      maxBuffer:16*1024*1024,
+      timeout:120_000,
+    },
+  );
+  if(result.error||result.status!==0){
+    fail("OPENING_DURABLE_APPLICATION_REVIEWED_RUNTIME_REVERIFY_FAILED");
+  }
+}
+
+function readEvidencePermissionRoots(requestFile,expectedSha){
+  if(
+    typeof requestFile!=="string"||
+    !path.isAbsolute(requestFile)||
+    path.resolve(requestFile)!==requestFile
+  ){
+    fail("OPENING_DURABLE_APPLICATION_REQUEST_PATH_INVALID");
+  }
+  let bytes;
+  const fd=fs.openSync(
+    requestFile,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const before=fs.fstatSync(fd,{bigint:true});
+    if(!before.isFile()||before.size<2n||before.size>BigInt(MAX_BYTES)){
+      fail("OPENING_DURABLE_APPLICATION_REQUEST_PERMISSION_BYTES_INVALID");
+    }
+    bytes=Buffer.alloc(Number(before.size));
+    let offset=0;
+    while(offset<bytes.length){
+      const count=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);
+      if(count<=0) fail("OPENING_DURABLE_APPLICATION_REQUEST_PERMISSION_SHORT_READ");
+      offset+=count;
+    }
+    const after=fs.fstatSync(fd,{bigint:true});
+    if(
+      before.dev!==after.dev||
+      before.ino!==after.ino||
+      before.size!==after.size||
+      before.mtimeNs!==after.mtimeNs||
+      before.ctimeNs!==after.ctimeNs
+    ){
+      fail("OPENING_DURABLE_APPLICATION_REQUEST_PERMISSION_CHANGED_DURING_READ");
+    }
+  }finally{
+    fs.closeSync(fd);
+  }
+  if(sha256(bytes)!==expectedSha){
+    fail("OPENING_DURABLE_APPLICATION_REQUEST_PERMISSION_SHA256_MISMATCH");
+  }
+  let value;
+  try{
+    value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
+  }catch{
+    fail("OPENING_DURABLE_APPLICATION_REQUEST_PERMISSION_JSON_INVALID");
+  }
+  const dataDir=String(value?.data_dir||"");
+  if(
+    !path.isAbsolute(dataDir)||
+    path.resolve(dataDir)!==dataDir||
+    dataDir===path.parse(dataDir).root
+  ){
+    fail("OPENING_DURABLE_APPLICATION_REQUEST_PERMISSION_DATA_DIR_INVALID");
+  }
+  return Object.freeze({
+    request_file:requestFile,
+    data_dir:dataDir,
+  });
+}
+
+function runReviewedAuthority(repo,request,{requestFile=null,requestFileSha256=null}={}){
+  const bundle=buildReviewedExecutionRoot(repo);
+  verifyReviewedRuntimeTree(bundle);
+  const args=[
+    "--permission",
+    "--allow-fs-read="+bundle.parent,
+    "--allow-child-process",
+  ];
+  if(requestFile!==null){
+    const roots=readEvidencePermissionRoots(requestFile,requestFileSha256);
+    args.push("--allow-fs-read="+roots.request_file);
+    args.push("--allow-fs-read="+roots.data_dir);
+  }
+  args.push(bundle.runner_file);
+  const result=spawnSync(
+    fs.realpathSync.native(process.execPath),
+    args,
+    {
+      cwd:bundle.bootstrap_dir,
+      env:privateNodeEnv(bundle.bootstrap_dir),
+      input:JSON.stringify(request),
+      encoding:"utf8",
+      stdio:["pipe","pipe","pipe"],
+      maxBuffer:64*1024*1024,
+      timeout:120_000,
+    },
+  );
+  if(result.error||result.status!==0){
+    fail("OPENING_DURABLE_APPLICATION_REVIEWED_AUTHORITY_EXECUTION_FAILED");
+  }
+  let value;
+  try{
+    value=JSON.parse(String(result.stdout||""));
+  }catch{
+    fail("OPENING_DURABLE_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+  }
+  return value;
+}
 function parseJsonBytes(bytes,expectedSha,label){
   if(!Buffer.isBuffer(bytes)||bytes.length<2||bytes.length>MAX_BYTES) fail(label+"_BYTES_INVALID");
   if(typeof expectedSha!=="string"||!HEX64.test(expectedSha)) fail(label+"_SHA256_INVALID");
