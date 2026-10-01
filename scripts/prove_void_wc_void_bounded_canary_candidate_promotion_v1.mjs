@@ -134,7 +134,6 @@ assert.equal(
 function requestWith(semantic) {
   const semanticBytes = prettyBytes(semantic);
   return {
-    application_time_utc: "2030-01-01T00:04:00Z",
     semantic_promotion_bytes: semanticBytes,
     semantic_promotion_file_sha256: sha256(semanticBytes),
     production_candidate_bytes: productionBytes,
@@ -162,7 +161,8 @@ assert.equal(
 assert.equal(result.coupled_launch_id, LAUNCH);
 assert.equal(result.semantic_promotion_id, semantic.promotion_id);
 assert.equal(result.semantic_evidence_id, semantic.semantic_evidence_id);
-assert.equal(result.semantic_canary_current_at_application, true);
+assert.equal(result.semantic_canary_fresh_at_reviewed_evaluation, true);
+assert.equal(result.application_time_authority, false);
 assert.deepEqual(result.promoted_production_fields, ["bounded_canary_green"]);
 assert.deepEqual(result.promoted_coupled_gates, ["bounded_canary_green"]);
 assert.equal(result.promoted_production_candidate.bounded_canary_green, true);
@@ -248,7 +248,7 @@ for (const [key, value] of Object.entries(
     "source_only_promotion",
     "exact_semantic_promotion_bytes_required",
     "exact_candidate_bytes_required",
-    "semantic_canary_must_be_current_at_application",
+    "semantic_canary_fresh_at_reviewed_evaluation_required",
     "canonical_classifier_reexecution",
     "exact_two_gate_candidate_delta",
   ]);
@@ -256,11 +256,12 @@ for (const [key, value] of Object.entries(
 }
 
 {
-  const stale = requestWith(semantic);
-  stale.application_time_utc = "2030-01-01T00:05:01Z";
+  const badWindow = semanticPromotionFixture({
+    evaluation_time_utc: "2030-01-01T00:06:00Z",
+  });
   assert.throws(
-    () => promoteWcVoidBoundedCanaryCandidatesV1(stale),
-    /BOUNDED_CANARY_SEMANTIC_PROMOTION_NOT_CURRENT_AT_APPLICATION/u,
+    () => promoteWcVoidBoundedCanaryCandidatesV1(requestWith(badWindow)),
+    /BOUNDED_CANARY_SEMANTIC_PROMOTION_TIME_WINDOW_INVALID/u,
   );
 }
 
@@ -336,7 +337,7 @@ for (const forbidden of [
 for (const required of [
   "classifyVoidWcVoidProductionReadinessV1",
   "classifyVoidCoupledEconomicSuccessorGateV1",
-  "BOUNDED_CANARY_SEMANTIC_PROMOTION_NOT_CURRENT_AT_APPLICATION",
+  "BOUNDED_CANARY_SEMANTIC_PROMOTION_TIME_WINDOW_INVALID",
   "BOUNDED_CANARY_PRODUCTION_CANDIDATE_CHANGE_SCOPE_INVALID",
   "BOUNDED_CANARY_COUPLED_CANDIDATE_CHANGE_SCOPE_INVALID",
   'promotedProduction.bounded_canary_green = true',
@@ -348,7 +349,8 @@ for (const required of [
 
 console.log("VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1_PROOF_GREEN");
 console.log("exact_semantic_promotion_receipt_bound=true");
-console.log("semantic_canary_current_at_application=true");
+console.log("semantic_canary_fresh_at_reviewed_evaluation=true");
+console.log("application_time_authority=false");
 console.log("exact_two_gate_candidate_delta=true");
 console.log("production_bounded_canary_green=true");
 console.log("coupled_bounded_canary_green=true");
