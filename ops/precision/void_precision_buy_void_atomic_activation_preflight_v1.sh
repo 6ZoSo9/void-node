@@ -77,6 +77,10 @@ pg_log="$tmp/postgres-qualification.log"
 pg_json="$tmp/postgres-qualification.json"
 snapshot="$tmp/preflight-snapshot.json"
 
+fragment_path="$(systemctl --user show "$unit" -p FragmentPath --value)"
+test -n "$fragment_path" && test -f "$fragment_path" ||
+  hold "unit_fragment_path_invalid"
+
 mapfile -t dropins < <(
   systemctl --user show "$unit" -p DropInPaths --value |
     tr ' ' '\n' |
@@ -84,7 +88,8 @@ mapfile -t dropins < <(
 )
 test "${#dropins[@]}" -gt 0 || hold "dropin_paths_empty"
 
-python3 - "$gate_sources_json" "${dropins[@]}" <<'PY'
+gate_source_paths=("$fragment_path" "${dropins[@]}")
+python3 - "$gate_sources_json" "${gate_source_paths[@]}" <<'PY'
 import hashlib,json,os,re,sys
 
 out=sys.argv[1]
