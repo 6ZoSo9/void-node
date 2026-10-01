@@ -571,6 +571,8 @@ for (const required of [
   "--is-ancestor",
   "HEAD:",
   "canonical_origin_required",
+  "dependency_worktree_blob_mismatch",
+  "composition_tool_file_sha256",
   "independent_promotion_composition_mismatch",
 ]) {
   assert.equal(source.includes(required), true, required);
