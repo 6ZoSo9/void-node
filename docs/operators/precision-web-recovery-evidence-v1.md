@@ -23,13 +23,35 @@ The plan binds exact Git blobs and file SHA-256 values for:
 
 Preparation requires a clean repository and exact reviewed source blobs.
 All Git identity/object reads use the absolute reviewed `/usr/bin/git`
-executable with replacement refs disabled, repository/object/config/program
-override environment variables removed, fixed PATH/locale, and executable
-identity revalidation before/after each read. The repository HEAD/tree is
-captured once; every reviewed source/blob read is then addressed through that
-captured commit rather than a moving `HEAD` name. Preparation finally rechecks
-clean worktree + HEAD/tree before returning the plan. The plan records that
-captured repository HEAD/tree and this verifier's Git blob.
+executable with replacement refs disabled and a **minimal explicit subprocess
+environment**. The Git process does not inherit ambient repository/object,
+configuration/program, dynamic-loader, Node/npm, archive-tool, proxy, editor,
+pager, or unrelated process variables. Its environment is limited to the fixed
+PATH/HOME/XDG/locale and explicit no-system-config/no-lazy-fetch/no-prompt Git
+controls required by the read-only source inspection.
+
+Each Git invocation also overrides repository-local execution seams with:
+
+```text
+core.hooksPath=/dev/null
+core.attributesFile=/dev/null
+core.fsmonitor=false
+core.untrackedCache=false
+core.preloadIndex=false
+submodule.recurse=false
+```
+
+The permanent proof installs a malicious repository-local `core.fsmonitor`
+program and verifies that plan preparation does not execute it. It also runs
+plan preparation under hostile ambient Git, `LD_*`, `DYLD_*`, Node and
+archive-tool variables and requires the exact same plan.
+
+The reviewed Git executable identity is revalidated before/after each read. The
+repository HEAD/tree is captured once; every reviewed source/blob read is then
+addressed through that captured commit rather than a moving `HEAD` name.
+Preparation finally rechecks clean worktree + HEAD/tree before returning the
+plan. The plan records that captured repository HEAD/tree and this verifier's
+Git blob.
 
 Unrelated later commits are not silently treated as the same plan. A new source
 generation requires a new content-addressed plan.
