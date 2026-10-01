@@ -599,6 +599,11 @@ assert.equal(
   false,
 );
 assert.equal(source.includes('"--no-replace-objects"'), true);
+assert.equal(source.includes("const env = { ...process.env }"), false);
+assert.equal(source.includes('"core.fsmonitor=false"'), true);
+assert.equal(source.includes('"core.hooksPath=/dev/null"'), true);
+assert.equal(source.includes('"core.attributesFile=/dev/null"'), true);
+assert.equal(source.includes("GIT_ATTR_NOSYSTEM"), true);
 assert.equal(source.includes("materializeReviewedExecutionBundleV1"), true);
 assert.equal(source.includes("private_readonly_execution_bundle"), true);
 
@@ -737,6 +742,119 @@ assertFreshEvaluatorRejectsDirtySource(
   }
 }
 
+{
+  const temp = fs.mkdtempSync(
+    join(os.tmpdir(), "void-btc-void-local-git-loader-adversary-"),
+  );
+  const fsmonitorSentinel = join(temp, "fsmonitor-executed");
+  const fsmonitor = join(temp, "fsmonitor.sh");
+  const loaderPrefix = join(temp, "ld-debug");
+  fs.writeFileSync(
+    fsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(fsmonitorSentinel) +
+      "\nexit 91\n",
+    { mode: 0o755 },
+  );
+  const gitConfigEnv = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+  const previous = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "--get", "core.fsmonitor"],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitConfigEnv,
+    },
+  );
+  assert.ok(previous.status === 0 || previous.status === 1);
+  const previousValue = previous.status === 0
+    ? String(previous.stdout || "").trim()
+    : null;
+  const setResult = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "core.fsmonitor", fsmonitor],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitConfigEnv,
+    },
+  );
+  assert.equal(setResult.status, 0, String(setResult.stderr || ""));
+  try {
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        [
+          "process.env.LD_DEBUG='libs';",
+          "process.env.LD_DEBUG_OUTPUT=" + JSON.stringify(loaderPrefix) + ";",
+          "import(" +
+            JSON.stringify(
+              new URL(
+                "../tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
+                import.meta.url,
+              ).href,
+            ) +
+            ").then(()=>process.exit(0)).catch((error)=>{console.error(String(error?.message||error));process.exit(25);});",
+        ].join(""),
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
+      },
+    );
+    assert.equal(
+      child.status,
+      0,
+      String(child.stdout || "") + String(child.stderr || ""),
+    );
+    assert.equal(
+      fs.existsSync(fsmonitorSentinel),
+      false,
+      "repository-local core.fsmonitor executed during reviewed Git reads",
+    );
+    assert.equal(
+      fs.readdirSync(temp).some((name) => name.startsWith("ld-debug.")),
+      false,
+      "dynamic-loader variables crossed into reviewed Git subprocess",
+    );
+  } finally {
+    const restore = previousValue === null
+      ? spawnSync(
+          "/usr/bin/git",
+          ["-C", process.cwd(), "config", "--local", "--unset-all", "core.fsmonitor"],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            env: gitConfigEnv,
+          },
+        )
+      : spawnSync(
+          "/usr/bin/git",
+          ["-C", process.cwd(), "config", "--local", "core.fsmonitor", previousValue],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            env: gitConfigEnv,
+          },
+        );
+    assert.equal(restore.status, 0, String(restore.stderr || ""));
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 await proveBtcVoidBoundedStdinV1({
   cliPath: resolve(
     "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
@@ -751,6 +869,9 @@ console.log("exact_reviewed_execution_git_objects_bound=true");
 console.log("private_readonly_execution_bundle=true");
 console.log("dirty_execution_source_rejected_before_load=true");
 console.log("hostile_git_environment_ignored=true");
+console.log("minimal_git_subprocess_environment=true");
+console.log("repository_local_fsmonitor_ignored=true");
+console.log("dynamic_loader_git_injection_ignored=true");
 console.log("current_shared_market_policy_bound=true");
 console.log("current_shared_market_v2_canonical_source_bound=true");
 console.log("shared_market_v2_source_drift_rejected=true");
