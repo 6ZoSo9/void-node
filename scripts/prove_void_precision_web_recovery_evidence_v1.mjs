@@ -4,10 +4,12 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import {
   VOID_PRECISION_WEB_RECOVERY_AUTHORITY_V1,
   VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V1,
+  precisionWebRecoveryGitEnvV1,
   prepareVoidPrecisionWebRecoveryPlanV1,
   verifyVoidPrecisionWebRecoveryEvidenceV1,
 } from "../tools/void-precision-web-recovery-evidence-v1.mjs";
@@ -100,6 +102,42 @@ function reId(value){
   };
 }
 
+const reviewedGitEnv=precisionWebRecoveryGitEnvV1();
+assert.deepEqual(
+  Object.keys(reviewedGitEnv).sort(),
+  [
+    "GIT_ATTR_NOSYSTEM",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_CONFIG_SYSTEM",
+    "GIT_NO_LAZY_FETCH",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_OPTIONAL_LOCKS",
+    "GIT_TERMINAL_PROMPT",
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "PATH",
+    "XDG_CONFIG_HOME",
+  ].sort(),
+);
+for(const forbidden of [
+  "LD_PRELOAD",
+  "LD_LIBRARY_PATH",
+  "LD_AUDIT",
+  "DYLD_INSERT_LIBRARIES",
+  "DYLD_LIBRARY_PATH",
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_EXEC_PATH",
+  "GIT_SSH_COMMAND",
+  "TAR_OPTIONS",
+]){
+  assert.equal(Object.hasOwn(reviewedGitEnv,forbidden),false,forbidden);
+}
+
 const plan=prepareVoidPrecisionWebRecoveryPlanV1();
 
 {
@@ -132,6 +170,14 @@ const plan=prepareVoidPrecisionWebRecoveryPlanV1();
     "GIT_CONFIG_VALUE_0",
     "GIT_EXEC_PATH",
     "GIT_SSH_COMMAND",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "NODE_OPTIONS",
+    "NODE_PATH",
+    "TAR_OPTIONS",
   ];
   const saved=new Map(
     keys.map((key)=>[
@@ -158,6 +204,14 @@ const plan=prepareVoidPrecisionWebRecoveryPlanV1();
     process.env.GIT_CONFIG_VALUE_0="1";
     process.env.GIT_EXEC_PATH=fakeBin;
     process.env.GIT_SSH_COMMAND="false";
+    process.env.LD_PRELOAD="/definitely/unreviewed/libvoid-preload.so";
+    process.env.LD_LIBRARY_PATH="/definitely/unreviewed/lib";
+    process.env.LD_AUDIT="/definitely/unreviewed/libvoid-audit.so";
+    process.env.DYLD_INSERT_LIBRARIES="/definitely/unreviewed/libvoid-dyld.dylib";
+    process.env.DYLD_LIBRARY_PATH="/definitely/unreviewed/dyld";
+    process.env.NODE_OPTIONS="--trace-warnings";
+    process.env.NODE_PATH="/definitely/unreviewed/node_modules";
+    process.env.TAR_OPTIONS="--checkpoint=1";
     const hostilePlan=prepareVoidPrecisionWebRecoveryPlanV1();
     assert.deepEqual(hostilePlan,plan);
     assert.equal(fs.existsSync(sentinel),false);
@@ -167,6 +221,53 @@ const plan=prepareVoidPrecisionWebRecoveryPlanV1();
       else process.env[key]=value;
     }
     fs.rmSync(hostileRoot,{recursive:true,force:true});
+  }
+}
+
+{
+  const root=process.cwd();
+  const temp=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-precision-web-recovery-fsmonitor-"),
+  );
+  const hook=path.join(temp,"fsmonitor.sh");
+  const sentinel=path.join(temp,"fsmonitor-invoked");
+  fs.writeFileSync(
+    hook,
+    "#!/bin/sh\nprintf 'invoked\\n' >> "+JSON.stringify(sentinel)+"\nexit 73\n",
+    {mode:0o755},
+  );
+  const prior=spawnSync(
+    "/usr/bin/git",
+    ["-C",root,"config","--local","--get","core.fsmonitor"],
+    {encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+  );
+  assert.ok([0,1].includes(prior.status),prior.stderr);
+  const set=spawnSync(
+    "/usr/bin/git",
+    ["-C",root,"config","--local","core.fsmonitor",hook],
+    {encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+  );
+  assert.equal(set.status,0,set.stderr);
+  try{
+    const fsmonitorPlan=prepareVoidPrecisionWebRecoveryPlanV1();
+    assert.deepEqual(fsmonitorPlan,plan);
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "repository-local core.fsmonitor executed during reviewed Git reads",
+    );
+  }finally{
+    const args=prior.status===0
+      ?["-C",root,"config","--local","core.fsmonitor",prior.stdout.trim()]
+      :["-C",root,"config","--local","--unset-all","core.fsmonitor"];
+    const restore=spawnSync(
+      "/usr/bin/git",
+      args,
+      {encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+    );
+    if(prior.status===0) assert.equal(restore.status,0,restore.stderr);
+    else assert.ok([0,5].includes(restore.status),restore.stderr);
+    fs.rmSync(temp,{recursive:true,force:true});
   }
 }
 
@@ -341,10 +442,21 @@ for(const forbidden of [
 for(const required of [
   'const GIT_EXECUTABLE="/usr/bin/git"',
   '"--no-replace-objects"',
+  '"core.hooksPath=/dev/null"',
+  '"core.attributesFile=/dev/null"',
+  '"core.fsmonitor=false"',
+  '"core.untrackedCache=false"',
+  '"core.preloadIndex=false"',
+  '"submodule.recurse=false"',
+  "precisionWebRecoveryGitEnvV1",
+  'XDG_CONFIG_HOME:"/nonexistent"',
+  'GIT_ATTR_NOSYSTEM:"1"',
   "GIT_OBJECT_DIRECTORY",
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_CONFIG_COUNT",
-  "GIT_EXEC_PATH",
+  'GIT_CONFIG_GLOBAL:"/dev/null"',
+  'GIT_CONFIG_SYSTEM:"/dev/null"',
+  'GIT_CONFIG_NOSYSTEM:"1"',
+  'GIT_NO_LAZY_FETCH:"1"',
   "precision_web_git_executable_changed_during_read",
   '["rev-parse",head+":"+relativePath]',
   "gitBytes(relativePath,head)",
@@ -369,6 +481,8 @@ console.log("current_source_generation_bound=true");
 console.log("reviewed_absolute_git_executable=true");
 console.log("git_replacement_refs_disabled=true");
 console.log("ambient_git_repository_and_config_overrides_ignored=true");
+console.log("ambient_dynamic_loader_and_tool_env_ignored=true");
+console.log("repository_local_fsmonitor_execution_blocked=true");
 console.log("hostile_path_git_substitution_rejected=true");
 console.log("captured_head_object_reads_only=true");
 console.log("repository_generation_rechecked_before_plan_return=true");
