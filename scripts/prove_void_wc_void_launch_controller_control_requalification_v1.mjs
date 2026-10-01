@@ -20,6 +20,7 @@ import {
   buildVoidWcVoidLaunchControllerControlSignatureEnvelopeV1,
   canonicalJson,
   prepareVoidWcVoidLaunchControllerControlChallengeV1,
+  reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
   verifyVoidWcVoidLaunchControllerControlSignatureV1,
   voidWcVoidLaunchControllerControlDigestV1,
 } from "../tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
@@ -188,6 +189,43 @@ assert.equal(evidence.public_presale_activation_authorized, false);
 assert.equal(evidence.funds_movement_authorized, false);
 assert.equal(evidence.typed_data_digest, challenge.typed_data_digest);
 assert.equal(evidence.signature, signature);
+
+assert.deepEqual(evidence.challenge_envelope, challenge);
+assert.deepEqual(evidence.signature_envelope, signatureEnvelope);
+
+const reverifiedEvidence =
+  await reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+    evidence,
+    nowUnix: now + 2,
+  });
+assert.equal(reverifiedEvidence.evidence_id, evidence.evidence_id);
+assert.equal(reverifiedEvidence.evidence_reverified, true);
+assert.equal(reverifiedEvidence.reverified_at_unix, String(now + 2));
+assert.equal(
+  reverifiedEvidence.verified_at_unix,
+  evidence.verified_at_unix,
+);
+
+const forgedEvidence = structuredClone(evidence);
+forgedEvidence.coupled_launch_id =
+  "sha256:" + "f".repeat(64);
+await rejects(
+  () =>
+    reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+      evidence: forgedEvidence,
+      nowUnix: now + 2,
+    }),
+  /control_evidence_reverification_mismatch:coupled_launch_id/u,
+);
+
+await rejects(
+  () =>
+    reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+      evidence,
+      nowUnix: now + 300,
+    }),
+  /control_challenge_expired/u,
+);
 
 const wrongSignature = await otherWallet.signTypedData(
   challenge.typed_data.domain,
@@ -439,6 +477,13 @@ try {
   const cliEvidence = JSON.parse(fs.readFileSync(evidenceFile, "utf8"));
   assert.equal(cliEvidence.control_verified, true);
   assert.equal(cliEvidence.role_binding_authorized, false);
+  const cliReverified =
+    await reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+      evidence: cliEvidence,
+      nowUnix: Number(cliEvidence.verified_at_unix),
+    });
+  assert.equal(cliReverified.evidence_id, cliEvidence.evidence_id);
+  assert.equal(cliReverified.evidence_reverified, true);
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
@@ -507,7 +552,9 @@ console.log("expired_challenge_held_green=true");
 console.log("source_drift_held_green=true");
 console.log("accessor_nonexecution_green=true");
 console.log("typed_data_accessor_nonexecution_green=true");
-console.log("cli_round_trip_green=true");\nconsole.log("live_evidence_outside_repository_green=true");
+console.log("cli_round_trip_green=true");
+console.log("self_contained_evidence_reverification_green=true");
+console.log("forged_evidence_summary_held_green=true");\nconsole.log("live_evidence_outside_repository_green=true");
 console.log("role_binding_authorized=false");
 console.log("deployment_authorized=false");
 console.log("inventory_funding_authorized=false");
