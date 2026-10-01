@@ -90,7 +90,7 @@ requested_rollback=0
 if test "${1:-}" = rollback || { test "${1:-}" = update && test "${2:-}" = rollback; }; then requested_rollback=1; fi
 
 recovery_required=0
-for artifact in .current.update-next .previous.update-next .rollback.update-transaction-v1.json .rollback.update-transaction-v1.json.next; do
+for artifact in .current.update-next .previous.update-next .rollback.update-transaction-v1.json .rollback.update-transaction-v1.json.next .rollback.restart-witness-v1; do
   if test -e "$INSTALL_ROOT/$artifact" || test -L "$INSTALL_ROOT/$artifact"; then recovery_required=1; break; fi
 done
 if test "$recovery_required" = 1; then
@@ -101,6 +101,7 @@ if test "$recovery_required" = 1; then
       if test "$requested_rollback" = 1; then exit 0; fi
       ;;
     *"recovery_outcome=rollback_aborted_before_publication"*) ;;
+    *"recovery_outcome=rollback_restart_witness_cleaned"*) ;;
     *) printf 'ERROR: %s unrecognized rollback recovery outcome\n' "$MARKER" >&2; exit 1 ;;
   esac
 fi
