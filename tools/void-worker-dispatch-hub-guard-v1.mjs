@@ -55,6 +55,20 @@ function requireBoolean(value, label) {
   return value;
 }
 
+function requireSafeInteger(value, label) {
+  if (!Number.isSafeInteger(value)) fail(label + " must be a safe integer");
+  return value;
+}
+
+function requireIsoTimestamp(value, label) {
+  requireString(value, label);
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== value) {
+    fail(label + " must be a canonical UTC ISO timestamp");
+  }
+  return parsed;
+}
+
 function requirePositiveInteger(value, label) {
   if (!Number.isSafeInteger(value) || value < 1) {
     fail(label + " must be a positive safe integer");
@@ -181,7 +195,7 @@ function validateChain(raw) {
   return chain;
 }
 
-function validateDispatch(raw) {
+function validateDispatch(raw, trustedNowMs) {
   const dispatch = structuredClone(requireObject(raw, "evidence.dispatch"));
   if (dispatch.marker !== DISPATCH_MARKER) {
     fail("evidence.dispatch.marker mismatch");
@@ -193,6 +207,29 @@ function validateDispatch(raw) {
   if (!SHA256_ID_PATTERN.test(dispatch.evaluation_id)) {
     fail("evidence.dispatch.evaluation_id must be sha256 content id");
   }
+
+  const evaluatedAtMs = requireIsoTimestamp(
+    dispatch.evaluated_at,
+    "evidence.dispatch.evaluated_at",
+  );
+  const nextReevaluationMs = requireIsoTimestamp(
+    dispatch.next_reevaluation_at,
+    "evidence.dispatch.next_reevaluation_at",
+  );
+  const reevaluationMinutes = requireSafeInteger(
+    dispatch.reevaluation_interval_minutes,
+    "evidence.dispatch.reevaluation_interval_minutes",
+  );
+  if (reevaluationMinutes !== 30) {
+    fail("evidence.dispatch.reevaluation_interval_minutes must equal 30");
+  }
+  if (evaluatedAtMs > trustedNowMs) {
+    fail("evidence.dispatch.evaluated_at must not be in the future");
+  }
+  if (nextReevaluationMs - evaluatedAtMs !== reevaluationMinutes * 60_000) {
+    fail("evidence.dispatch reevaluation window is inconsistent");
+  }
+  const dispatchFresh = trustedNowMs < nextReevaluationMs;
 
   for (const key of [
     "continuous_execution_guaranteed",
@@ -215,7 +252,12 @@ function validateDispatch(raw) {
     fail("live dispatch must require external worker invocation");
   }
 
-  return dispatch;
+  return {
+    dispatch,
+    evaluatedAtMs,
+    nextReevaluationMs,
+    dispatchFresh,
+  };
 }
 
 export function evaluateWorkerDispatchHubGuardV1(
@@ -229,7 +271,10 @@ export function evaluateWorkerDispatchHubGuardV1(
   if (evidence.version !== 1) fail("evidence.version must equal 1");
 
   const chain = validateChain(evidence.chain);
-  const dispatch = validateDispatch(evidence.dispatch);
+  const trustedNowMs = Date.now();
+  if (!Number.isSafeInteger(trustedNowMs)) fail("trusted current time is invalid");
+  const dispatchState = validateDispatch(evidence.dispatch, trustedNowMs);
+  const dispatch = dispatchState.dispatch;
   if (chain.repository_scope !== dispatch.repository) {
     fail("coordination chain and live dispatch repository mismatch");
   }
@@ -252,6 +297,9 @@ export function evaluateWorkerDispatchHubGuardV1(
     outcome = "HOLD_PLAN_ISSUE_MISMATCH";
     reason =
       "live dispatch plan issue does not match the resolved coordination hub";
+  } else if (!dispatchState.dispatchFresh) {
+    outcome = "HOLD_DISPATCH_EVIDENCE_EXPIRED";
+    reason = "live dispatch output passed its 30-minute reevaluation deadline";
   } else if (liveChainRevalidated !== true) {
     outcome = "HOLD_CHAIN_LIVENESS_UNPROVEN";
     reason =
@@ -276,11 +324,14 @@ export function evaluateWorkerDispatchHubGuardV1(
     dispatch_plan_issue_should_be: chain.dispatch_plan_issue_should_be,
     dispatch_plan_issue_observed: dispatch.plan_issue,
     dispatch_evaluation_id: dispatch.evaluation_id,
+    dispatch_evaluated_at: dispatch.evaluated_at,
+    dispatch_next_reevaluation_at: dispatch.next_reevaluation_at,
+    dispatch_evidence_fresh: dispatchState.dispatchFresh,
     live_chain_revalidated: liveChainRevalidated === true,
     normal_dispatch_allowed: normalDispatchAllowed,
     read_only_evidence_only: !normalDispatchAllowed,
     requires_fresh_chain_evidence: liveChainRevalidated !== true,
-    requires_fresh_dispatch_evidence: true,
+    requires_fresh_dispatch_evidence: !dispatchState.dispatchFresh,
     external_worker_invocation_required: true,
     issue_creation_authorized: false,
     issue_close_authorized: false,
@@ -334,7 +385,13 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const evidence = JSON.parse(await readBoundedStdin());
   const suppliedChain = validateChain(evidence.chain);
-  const suppliedDispatch = validateDispatch(evidence.dispatch);
+  const trustedNowMs = Date.now();
+  if (!Number.isSafeInteger(trustedNowMs)) fail("trusted current time is invalid");
+  const suppliedDispatchState = validateDispatch(
+    evidence.dispatch,
+    trustedNowMs,
+  );
+  const suppliedDispatch = suppliedDispatchState.dispatch;
   if (suppliedChain.repository_scope !== suppliedDispatch.repository) {
     fail("coordination chain and live dispatch repository mismatch");
   }
