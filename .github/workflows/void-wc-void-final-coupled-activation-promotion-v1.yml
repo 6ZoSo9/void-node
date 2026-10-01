@@ -1,0 +1,54 @@
+name: VOID WC VOID final coupled activation promotion v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-wc-void-final-coupled-activation-promotion-v1.mjs"
+      - "scripts/prove_void_wc_void_final_coupled_activation_promotion_v1.mjs"
+      - "docs/operators/wc-void-final-coupled-activation-promotion-v1.md"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-coupled-launch-readiness-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - ".github/workflows/void-wc-void-final-coupled-activation-promotion-v1.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "tools/void-wc-void-final-coupled-activation-promotion-v1.mjs"
+      - "scripts/prove_void_wc_void_final_coupled_activation_promotion_v1.mjs"
+      - "docs/operators/wc-void-final-coupled-activation-promotion-v1.md"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-coupled-launch-readiness-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - ".github/workflows/void-wc-void-final-coupled-activation-promotion-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Prove final coupled activation promotion
+        run: node scripts/prove_void_wc_void_final_coupled_activation_promotion_v1.mjs
