@@ -88,10 +88,12 @@ set -euo pipefail
 case "$*" in
   "--user show-environment")
     test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
+    exit 0
     ;;
   "--user is-active --quiet void-node.service")
     test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
     test "\${VOID_TEST_SYSTEMD_ACTIVE:-0}" = 1
+    exit 0
     ;;
   "--user restart void-node.service")
     test "\${VOID_TEST_SYSTEMD_MANAGER_AVAILABLE:-0}" = 1
