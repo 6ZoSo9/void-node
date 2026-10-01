@@ -93,10 +93,16 @@ const COUPLED_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const IDENTITY_REL =
   "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
+const CONTROL_REL =
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
+const PACKAGE_REL = "package.json";
+const PACKAGE_LOCK_REL = "package-lock.json";
 
 const EXPECTED_SOURCE_BLOBS = Object.freeze({
   [COUPLED_REL]: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
   [IDENTITY_REL]: "c85b6bc59caac6bc765cb8e969cb980386161d12",
+  [PACKAGE_REL]: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+  [PACKAGE_LOCK_REL]: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
 });
 const EXPECTED_COUPLED_LAUNCH_ID =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
@@ -322,9 +328,18 @@ export function readCurrentLaunchControllerControlSourceBindingV1() {
     fail("control_current_launch_source_semantics_invalid");
   }
 
+  const controlContractBlob = gitRead(
+    ["rev-parse", "HEAD:" + CONTROL_REL],
+    "control_contract_source_blob_unavailable",
+  );
+  if (!HEX40.test(controlContractBlob)) {
+    fail("control_contract_source_blob_invalid");
+  }
+
   const binding = Object.freeze({
     source_head_sha: head,
     source_tree_sha: tree,
+    control_contract_git_blob_sha1: controlContractBlob,
     source_blobs: Object.freeze({ ...sourceBlobs }),
     coupled_launch_id: launchId,
     coupled_launch_id_bytes32: EXPECTED_COUPLED_LAUNCH_BYTES32,
@@ -345,6 +360,7 @@ function assertSourceBindingCurrentV1(bindingValue) {
     [
       "source_head_sha",
       "source_tree_sha",
+      "control_contract_git_blob_sha1",
       "source_blobs",
       "coupled_launch_id",
       "coupled_launch_id_bytes32",
@@ -359,6 +375,8 @@ function assertSourceBindingCurrentV1(bindingValue) {
     !HEX40.test(binding.source_head_sha) ||
     typeof binding.source_tree_sha !== "string" ||
     !HEX40.test(binding.source_tree_sha) ||
+    typeof binding.control_contract_git_blob_sha1 !== "string" ||
+    !HEX40.test(binding.control_contract_git_blob_sha1) ||
     binding.coupled_launch_id !== EXPECTED_COUPLED_LAUNCH_ID ||
     binding.coupled_launch_id_bytes32 !== EXPECTED_COUPLED_LAUNCH_BYTES32 ||
     binding.compiled_identity_id !== EXPECTED_COMPILED_IDENTITY_ID ||
@@ -385,6 +403,8 @@ function assertSourceBindingCurrentV1(bindingValue) {
   const material = {
     source_head_sha: binding.source_head_sha,
     source_tree_sha: binding.source_tree_sha,
+    control_contract_git_blob_sha1:
+      binding.control_contract_git_blob_sha1,
     source_blobs: blobs,
     coupled_launch_id: binding.coupled_launch_id,
     coupled_launch_id_bytes32: binding.coupled_launch_id_bytes32,
@@ -419,6 +439,24 @@ function assertSourceBindingCurrentV1(bindingValue) {
   } catch {
     fail("control_source_head_not_ancestor_of_current_head");
   }
+  const reviewedControlBlob = gitRead(
+    [
+      "rev-parse",
+      binding.source_head_sha + ":" + CONTROL_REL,
+    ],
+    "control_reviewed_contract_source_blob_unavailable",
+  );
+  const currentControlBlob = gitRead(
+    ["rev-parse", "HEAD:" + CONTROL_REL],
+    "control_current_contract_source_blob_unavailable",
+  );
+  if (
+    reviewedControlBlob !== binding.control_contract_git_blob_sha1 ||
+    currentControlBlob !== binding.control_contract_git_blob_sha1
+  ) {
+    fail("control_contract_source_blob_drift");
+  }
+
   for (const [relativePath, expectedBlob] of
     Object.entries(EXPECTED_SOURCE_BLOBS)) {
     const currentBlob = gitRead(
