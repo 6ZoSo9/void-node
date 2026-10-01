@@ -25,6 +25,8 @@ import {
 import {
   VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_AUTHORITY_V1,
   VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_PLAN_V1,
+  makeParticipantReviewedExecutionTreeReadOnlyV1,
+  makeParticipantReviewedExecutionTreeRemovableV1,
   prepareVoidParticipantPostpurchaseCanonicalApplicationV1,
   verifyVoidParticipantPostpurchaseCanonicalApplicationStateV1,
   verifyVoidParticipantPostpurchaseCanonicalApplicationV1,
@@ -814,6 +816,45 @@ assert.throws(
   }
 }
 
+{
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-participant-reviewed-tree-symlink-"),
+  );
+  const tree = path.join(tempRoot, "tree");
+  const external = path.join(tempRoot, "external-sentinel.txt");
+  const regular = path.join(tree, "regular.txt");
+  const link = path.join(tree, "absolute-link");
+
+  fs.mkdirSync(tree, { mode: 0o700 });
+  fs.writeFileSync(external, "sentinel\n", { mode: 0o600 });
+  fs.writeFileSync(regular, "regular\n", { mode: 0o600 });
+  fs.symlinkSync(external, link);
+
+  const beforeExternal = fs.statSync(external);
+  const beforeExternalBytes = fs.readFileSync(external);
+
+  makeParticipantReviewedExecutionTreeReadOnlyV1(tree);
+
+  assert.equal(fs.lstatSync(link).isSymbolicLink(), true);
+  assert.equal(fs.readlinkSync(link), external);
+  assert.equal(fs.statSync(regular).mode & 0o777, 0o400);
+  assert.equal(fs.statSync(external).mode & 0o777, beforeExternal.mode & 0o777);
+  assert.deepEqual(fs.readFileSync(external), beforeExternalBytes);
+
+  makeParticipantReviewedExecutionTreeRemovableV1(tree);
+
+  assert.equal(fs.lstatSync(link).isSymbolicLink(), true);
+  assert.equal(fs.readlinkSync(link), external);
+  assert.equal(fs.statSync(regular).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(external).mode & 0o777, beforeExternal.mode & 0o777);
+  assert.deepEqual(fs.readFileSync(external), beforeExternalBytes);
+
+  fs.rmSync(tree, { recursive: true, force: true });
+  assert.equal(fs.existsSync(external), true);
+  assert.deepEqual(fs.readFileSync(external), beforeExternalBytes);
+  fs.rmSync(tempRoot, { recursive: true, force: true });
+}
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-participant-canonical-application-"),
 );
@@ -892,6 +933,28 @@ try {
   fs.rmSync(temp, { recursive: true, force: true });
 }
 
+const focusedWorkflow = fs.readFileSync(
+  ".github/workflows/void-participant-postpurchase-canonical-application-v1.yml",
+  "utf8",
+);
+const prStart = focusedWorkflow.indexOf("  pull_request:\n");
+const pushStart = focusedWorkflow.indexOf("  push:\n");
+const permissionsStart = focusedWorkflow.indexOf("\npermissions:\n");
+assert(prStart >= 0 && pushStart > prStart && permissionsStart > pushStart);
+
+const pullBlock = focusedWorkflow.slice(prStart, pushStart);
+const pushBlock = focusedWorkflow.slice(pushStart, permissionsStart);
+
+const pathToken = /^\s*-\s+"([^"]+)"\s*$/gmu;
+const collectPaths = (block) =>
+  [...block.matchAll(pathToken)].map((match) => match[1]).sort();
+
+const pullPaths = collectPaths(pullBlock);
+const pushPaths = collectPaths(pushBlock);
+assert(pullPaths.length > 0);
+assert.deepEqual(pushPaths, pullPaths);
+assert.equal(new Set(pullPaths).size, pullPaths.length);
+
 const source = fs.readFileSync(TOOL, "utf8");
 for (const forbidden of [
   "eth_sendRawTransaction",
@@ -925,6 +988,10 @@ for (const required of [
   "--allow-fs-read=",
   "--allow-child-process",
   "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_EXECUTION_FAILED",
+  "makeParticipantReviewedExecutionTreeReadOnlyV1",
+  "makeParticipantReviewedExecutionTreeRemovableV1",
+  "isSymbolicLink",
+  "participant_reviewed_execution_cleanup_failed",
   "reviewed_execution_bundle_id",
   "execution_network_isolation_provided",
   "GIT_CONFIG_COUNT",
@@ -948,6 +1015,9 @@ console.log("ambient_dynamic_loader_overrides_ignored=true");
 console.log("execution_child_process_required_for_reviewed_git=true");
 console.log("execution_network_isolation_provided=false");
 console.log("hostile_ambient_execution_env_ignored=true");
+console.log("reviewed_execution_symlink_boundary_green=true");
+console.log("focused_workflow_trigger_symmetry_green=true");
+console.log("raw_empty_catch_count=0");
 console.log("exact_one_gate_source_delta=true");
 console.log("participant_post_purchase_voidtoken_control_ready=true");
 console.log("participant_control_missing_gate_removed=true");
