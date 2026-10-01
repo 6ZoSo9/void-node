@@ -3,6 +3,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -19,6 +20,8 @@ export const MARKER = "VOID_PRECISION_WEB_RECOVERY_HOST_OBSERVER_V1";
 export const OBSERVATION_MARKER =
   "VOID_PRECISION_WEB_RECOVERY_HOST_OBSERVATION_V1";
 export const DEFAULT_EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810";
+export const CANONICAL_MAIN_REF_URL_V1 =
+  "https://api.github.com/repos/6ZoSo9/void-node/git/ref/heads/main";
 
 const SYSTEMCTL = "/usr/bin/systemctl";
 const SS = "/usr/bin/ss";
@@ -26,6 +29,9 @@ const TAILSCALE = "/usr/bin/tailscale";
 const MAX_COMMAND_BYTES = 2 * 1024 * 1024;
 const MAX_HTTP_BYTES = 256 * 1024;
 const HTTP_TIMEOUT_MS = 5_000;
+const CANONICAL_MAIN_TIMEOUT_MS = 5_000;
+const MAX_CANONICAL_MAIN_BYTES = 64 * 1024;
+const SHA40_RE = /^[0-9a-f]{40}$/u;
 export const OBSERVATION_MAX_AGE_MS = 5 * 60_000;
 export const OBSERVATION_MAX_FUTURE_SKEW_MS = 5_000;
 const RECEIPT_ID_RE = /^voidpwre1_[0-9a-f]{64}$/u;
@@ -604,6 +610,109 @@ function readJsonBounded(urlString) {
   });
 }
 
+export function parseCanonicalMainRefV1(value) {
+  const body = requireObject(value, "canonical main ref");
+  const object = requireObject(body.object, "canonical main ref object");
+  if (
+    body.ref !== "refs/heads/main" ||
+    object.type !== "commit" ||
+    typeof object.sha !== "string" ||
+    !SHA40_RE.test(object.sha)
+  ) {
+    fail("canonical_main_ref_invalid");
+  }
+  return object.sha;
+}
+
+function readCanonicalMainShaV1() {
+  const target = new URL(CANONICAL_MAIN_REF_URL_V1);
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let request;
+    const chunks = [];
+    let bytes = 0;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      if (error) rejectPromise(error);
+      else resolvePromise(value);
+    };
+    const deadline = setTimeout(() => {
+      request?.destroy();
+      finish(new PrecisionWebRecoveryHostObserverError(
+        "canonical_main_ref_deadline_exceeded",
+      ));
+    }, CANONICAL_MAIN_TIMEOUT_MS);
+
+    request = https.request({
+      protocol: "https:",
+      hostname: "api.github.com",
+      port: 443,
+      path: "/repos/6ZoSo9/void-node/git/ref/heads/main",
+      method: "GET",
+      headers: {
+        accept: "application/vnd.github+json",
+        "user-agent": "void-precision-web-recovery-host-observer-v1",
+        "x-github-api-version": "2022-11-28",
+      },
+    }, (response) => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        finish(new PrecisionWebRecoveryHostObserverError(
+          "canonical_main_ref_http_status_invalid:" + response.statusCode,
+        ));
+        return;
+      }
+      const declared = response.headers["content-length"];
+      if (
+        typeof declared === "string" &&
+        /^(?:0|[1-9][0-9]*)$/u.test(declared) &&
+        Number(declared) > MAX_CANONICAL_MAIN_BYTES
+      ) {
+        response.destroy();
+        finish(new PrecisionWebRecoveryHostObserverError(
+          "canonical_main_ref_declared_too_large",
+        ));
+        return;
+      }
+      response.on("data", (chunk) => {
+        if (settled) return;
+        bytes += chunk.length;
+        if (bytes > MAX_CANONICAL_MAIN_BYTES) {
+          response.destroy();
+          finish(new PrecisionWebRecoveryHostObserverError(
+            "canonical_main_ref_body_too_large",
+          ));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
+        if (settled) return;
+        try {
+          const text = new TextDecoder("utf-8", { fatal: true }).decode(
+            Buffer.concat(chunks),
+          );
+          const parsed = JSON.parse(text);
+          finish(null, parseCanonicalMainRefV1(parsed));
+        } catch (error) {
+          finish(
+            error instanceof PrecisionWebRecoveryHostObserverError
+              ? error
+              : new PrecisionWebRecoveryHostObserverError(
+                  "canonical_main_ref_json_invalid",
+                ),
+          );
+        }
+      });
+      response.on("error", (error) => finish(error));
+    });
+    request.on("error", (error) => finish(error));
+    request.end();
+  });
+}
+
 function tailscaleStatus(command) {
   const raw = runReadOnly(
     TAILSCALE,
@@ -700,6 +809,13 @@ export function evaluateCollectedPrecisionWebObservationV1({
   }
   if (collected.hostname !== DEFAULT_EXPECTED_HOSTNAME) {
     fail("precision_hostname_mismatch");
+  }
+  if (
+    typeof collected.canonical_main_sha !== "string" ||
+    !SHA40_RE.test(collected.canonical_main_sha) ||
+    collected.canonical_main_sha !== plan.source_head_sha
+  ) {
+    fail("canonical_main_source_head_mismatch");
   }
   const collectedUnits = requireObject(collected.units, "collected.units");
   if (collectedUnits.node !== DEFAULT_UNITS.node) {
@@ -873,6 +989,8 @@ export function evaluateCollectedPrecisionWebObservationV1({
       "PRECISION_WEB_RECOVERY_HOST_OBSERVATION_STRUCTURALLY_VERIFIED_LIVE_RUN_REQUIRED",
     hostname: collected.hostname,
     plan_id: plan.plan_id,
+    canonical_main_sha: collected.canonical_main_sha,
+    canonical_main_source_head_match: true,
     recovery_evidence_id: evidence.evidence_id,
     recovery_evidence: evidence,
     source_verifier_status: verification.status,
@@ -914,11 +1032,20 @@ export function evaluateCollectedPrecisionWebObservationV1({
 function acceptLiveCollectedPrecisionWebObservationV1({
   plan,
   collected,
+  canonicalMainSha,
 } = {}) {
   const structural = evaluateCollectedPrecisionWebObservationV1({
     plan,
     collected,
   });
+  if (
+    typeof canonicalMainSha !== "string" ||
+    !SHA40_RE.test(canonicalMainSha) ||
+    canonicalMainSha !== plan.source_head_sha ||
+    canonicalMainSha !== collected.canonical_main_sha
+  ) {
+    fail("canonical_main_live_verification_mismatch");
+  }
   const {
     observation_id: _structuralObservationId,
     ...structuralBody
@@ -927,6 +1054,8 @@ function acceptLiveCollectedPrecisionWebObservationV1({
     ...structuralBody,
     status: "PRECISION_WEB_RECOVERY_HOST_OBSERVATION_ACCEPTED",
     live_host_observation_performed: true,
+    canonical_main_live_read_performed: true,
+    canonical_main_live_match: true,
     independent_host_acceptance: true,
   };
   return Object.freeze({
@@ -952,6 +1081,10 @@ export async function collectPrecisionWebRecoveryObservationV1({
     fail("node_unit_override_forbidden");
   }
   const plan = prepareVoidPrecisionWebRecoveryPlanV1();
+  const canonicalMainSha = await readCanonicalMainShaV1();
+  if (canonicalMainSha !== plan.source_head_sha) {
+    fail("canonical_main_source_head_mismatch");
+  }
 
   const nodeInvocationBefore = readNodeInvocationId(units.node);
   const serveBefore = tailscaleStatus("serve");
@@ -1010,6 +1143,7 @@ export async function collectPrecisionWebRecoveryObservationV1({
     marker: OBSERVATION_MARKER,
     version: 1,
     hostname,
+    canonical_main_sha: canonicalMainSha,
     units: { ...units },
     services: observedServices,
     http: httpEvidence,
@@ -1025,6 +1159,7 @@ export async function collectPrecisionWebRecoveryObservationV1({
   return acceptLiveCollectedPrecisionWebObservationV1({
     plan,
     collected,
+    canonicalMainSha,
   });
 }
 
