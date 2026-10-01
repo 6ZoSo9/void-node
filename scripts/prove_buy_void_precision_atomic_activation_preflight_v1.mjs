@@ -5,7 +5,7 @@ import fs from "node:fs";
 import * as activationContract from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts";
 import {
   VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_AUTHORITY_V1,
-  VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_V1,
+  VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_ANCHOR_V1,
   VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1,
   evaluateGateSourceInventoryV1,
   evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1,
@@ -105,7 +105,10 @@ function snapshot(overrides = {}) {
       repo_root: "/home/zoso/dev/void-node",
       branch: "main",
       head_sha:
-        VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_V1,
+        "a7e4de59debf8cd4de37e763c3f69edada137fab",
+      remote_main_sha:
+        "a7e4de59debf8cd4de37e763c3f69edada137fab",
+      reviewed_anchor_is_ancestor: true,
       worktree_clean: true,
       service_unit: "void-node-live.service",
       active_state: "active",
@@ -125,6 +128,10 @@ function snapshot(overrides = {}) {
 assert.equal(
   VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1,
   "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1",
+);
+assert.equal(
+  VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_ANCHOR_V1,
+  "74b5242dde224282de5b1b881d7d4cb942f00d48",
 );
 assert.deepEqual(
   VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_AUTHORITY_V1,
@@ -272,6 +279,34 @@ await assert.rejects(
   () =>
     evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
       snapshot({
+        host: {
+          ...snapshot().host,
+          remote_main_sha: "f".repeat(40),
+        },
+      }),
+      activationContract,
+    ),
+  /host_source_or_service_alignment_required/u,
+);
+
+await assert.rejects(
+  () =>
+    evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+      snapshot({
+        host: {
+          ...snapshot().host,
+          reviewed_anchor_is_ancestor: false,
+        },
+      }),
+      activationContract,
+    ),
+  /host_source_or_service_alignment_required/u,
+);
+
+await assert.rejects(
+  () =>
+    evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+      snapshot({
         process_gates: {
           ...dormant,
           full_runtime: "1",
@@ -354,13 +389,25 @@ assert(inventoryPosition >= 0);
 assert(qualifierPosition > inventoryPosition);
 assert(
   wrapperSource.includes(
-    'expected_tool_blob="fafbace04f8427d526104d77dabadc99d34c6bf1"',
+    'expected_tool_blob="c3abb7c19559413c0e46845244ac918f44967cbf"',
   ),
   "preflight tool blob pin missing",
 );
 assert(
   wrapperSource.includes("preflight_tool_blob_mismatch"),
   "preflight tool mismatch HOLD missing",
+);
+assert(
+  wrapperSource.includes("git ls-remote --heads origin refs/heads/main"),
+  "read-only remote main resolution missing",
+);
+assert(
+  wrapperSource.includes("git merge-base --is-ancestor"),
+  "reviewed main anchor ancestry check missing",
+);
+assert(
+  wrapperSource.includes("live_repo_head_not_remote_main"),
+  "local/remote main equality HOLD missing",
 );
 assert(
   wrapperSource.includes('systemctl --user show "$unit" -p FragmentPath --value'),
@@ -457,6 +504,8 @@ console.log("base_unit_gate_inventory_green=true");
 console.log("late_dormant_override_hold_green=true");
 console.log("credential_read_blocked_before_inventory_green=true");
 console.log("preflight_tool_blob_pin_green=true");
+console.log("live_remote_main_binding_green=true");
+console.log("reviewed_main_anchor_ancestry_green=true");
 console.log("configured_process_dormant_match_green=true");
 console.log("runtime_policy_fingerprints_bound_green=true");
 console.log("canonical_runtime_root_bound_green=true");
