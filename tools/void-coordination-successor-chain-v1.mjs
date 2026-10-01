@@ -15,7 +15,7 @@ export const DEFAULT_REPOSITORY = "6ZoSo9/void-node";
 const MAX_CHAIN_HOPS = 32;
 const MAX_COMMENT_PAGES = 100;
 const POINTER_PATTERN = /^COORDINATION_SUCCESSOR=#([1-9][0-9]*)$/u;
-const ROTATION_MARKER_PATTERN = /^(?:#{1,6}\\s+)?CONTROL-PLANE ROTATION$/u;
+const ROTATION_MARKER_PATTERN = /^(?:#{1,6}\s+)?CONTROL-PLANE ROTATION$/u;
 
 export class CoordinationSuccessorChainError extends Error {
   constructor(message) {
