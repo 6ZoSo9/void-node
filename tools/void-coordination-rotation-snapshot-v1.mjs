@@ -206,6 +206,78 @@ function validateChain(raw) {
   if (!Array.isArray(chain.chain) || chain.chain.length === 0) {
     fail("evidence.chain.chain must contain at least one issue");
   }
+  if (
+    !Array.isArray(chain.chain_issue_numbers)
+    || chain.chain_issue_numbers.length !== chain.chain.length
+  ) {
+    fail("evidence.chain.chain_issue_numbers must match chain length");
+  }
+  const seenIssues = new Set();
+  for (let index = 0; index < chain.chain.length; index += 1) {
+    const entry = requireObject(
+      chain.chain[index],
+      "evidence.chain.chain[" + index + "]",
+    );
+    requirePositiveInteger(
+      entry.issue_number,
+      "evidence.chain.chain[" + index + "].issue_number",
+    );
+    if (seenIssues.has(entry.issue_number)) {
+      fail("evidence.chain.chain contains duplicate issue numbers");
+    }
+    seenIssues.add(entry.issue_number);
+    if (chain.chain_issue_numbers[index] !== entry.issue_number) {
+      fail("evidence.chain.chain_issue_numbers order mismatch");
+    }
+    if (!["open", "closed"].includes(entry.issue_state)) {
+      fail("evidence.chain.chain issue state is unsupported");
+    }
+    requireNonNegativeInteger(
+      entry.comment_count,
+      "evidence.chain.chain[" + index + "].comment_count",
+    );
+    requirePositiveInteger(
+      entry.total_issue_messages,
+      "evidence.chain.chain[" + index + "].total_issue_messages",
+    );
+    if (entry.total_issue_messages !== entry.comment_count + 1) {
+      fail("successor-chain issue message count mismatch");
+    }
+    if (
+      entry.rotation_threshold_total_messages
+      !== ROTATION_THRESHOLD_TOTAL_MESSAGES
+    ) {
+      fail("successor-chain entry rotation threshold mismatch");
+    }
+    requireIsoTimestamp(
+      entry.issue_updated_at,
+      "evidence.chain.chain[" + index + "].issue_updated_at",
+    );
+    if (
+      entry.successor_issue !== null
+      && (
+        !Number.isSafeInteger(entry.successor_issue)
+        || entry.successor_issue < 1
+      )
+    ) {
+      fail("successor-chain entry successor_issue is invalid");
+    }
+    if (typeof entry.rotation_required_here !== "boolean") {
+      fail("successor-chain entry rotation_required_here must be boolean");
+    }
+    if (index < chain.chain.length - 1) {
+      const nextIssue = chain.chain_issue_numbers[index + 1];
+      if (entry.successor_issue !== nextIssue) {
+        fail("successor-chain link mismatch");
+      }
+      if (entry.issue_state !== "closed") {
+        fail("successor-chain predecessor with successor must be closed");
+      }
+    }
+  }
+  if (chain.chain_issue_numbers[0] !== chain.root_issue) {
+    fail("successor-chain root issue mismatch");
+  }
   const terminal = requireObject(
     chain.chain[chain.chain.length - 1],
     "evidence.chain.chain[terminal]",
@@ -213,21 +285,12 @@ function validateChain(raw) {
   if (terminal.issue_number !== chain.current_issue) {
     fail("successor-chain terminal issue mismatch");
   }
-  requireNonNegativeInteger(
-    terminal.comment_count,
-    "evidence.chain.chain[terminal].comment_count",
-  );
-  requirePositiveInteger(
-    terminal.total_issue_messages,
-    "evidence.chain.chain[terminal].total_issue_messages",
-  );
-  if (terminal.total_issue_messages !== terminal.comment_count + 1) {
-    fail("successor-chain terminal message count mismatch");
+  if (terminal.successor_issue !== null) {
+    fail("successor-chain terminal issue must not retain a successor");
   }
-  requireIsoTimestamp(
-    terminal.issue_updated_at,
-    "evidence.chain.chain[terminal].issue_updated_at",
-  );
+  if (chain.chain_valid && terminal.issue_state !== "open") {
+    fail("valid successor-chain terminal issue must be open");
+  }
 
   for (const key of [
     "issue_creation_authorized",
@@ -243,12 +306,36 @@ function validateChain(raw) {
     }
   }
 
+  if (!Array.isArray(chain.hold_reasons)) {
+    fail("evidence.chain.hold_reasons must be an array");
+  }
   if (chain.outcome === "HOLD_INVALID_SUCCESSOR_CHAIN") {
     if (chain.chain_valid !== false) {
       fail("invalid chain outcome must set chain_valid=false");
     }
-  } else if (chain.chain_valid !== true) {
-    fail("non-HOLD chain outcome must set chain_valid=true");
+    if (chain.hold_reasons.length === 0) {
+      fail("invalid chain outcome must retain hold reasons");
+    }
+    if (chain.dispatch_plan_issue_should_be !== null) {
+      fail("invalid chain must suppress dispatch plan issue");
+    }
+    if (chain.plan_issue_update_required !== false) {
+      fail("invalid chain must not request plan issue update");
+    }
+  } else {
+    if (chain.chain_valid !== true) {
+      fail("non-HOLD chain outcome must set chain_valid=true");
+    }
+    if (chain.hold_reasons.length !== 0) {
+      fail("valid chain must not retain hold reasons");
+    }
+    if (chain.dispatch_plan_issue_should_be !== chain.current_issue) {
+      fail("valid chain dispatch plan issue must equal current issue");
+    }
+    const expectedPlanUpdate = chain.current_issue !== chain.root_issue;
+    if (chain.plan_issue_update_required !== expectedPlanUpdate) {
+      fail("valid chain plan issue update flag is inconsistent");
+    }
   }
 
   if (chain.outcome === "ROTATION_REQUIRED") {
@@ -260,6 +347,9 @@ function validateChain(raw) {
       < ROTATION_THRESHOLD_TOTAL_MESSAGES
     ) {
       fail("rotation-required chain is below the message threshold");
+    }
+    if (terminal.rotation_required_here !== true) {
+      fail("rotation-required terminal issue must mark rotation_required_here");
     }
   } else if (chain.rotation_required !== false) {
     fail("only ROTATION_REQUIRED may set rotation_required=true");
@@ -433,6 +523,9 @@ export function buildCoordinationRotationSnapshotV1(policyRaw, evidenceRaw) {
     version: 1,
     repository: policy.repository,
     observed_main_sha: observedMainSha,
+    live_dispatch_policy_sha256: sha256Id(policyRaw),
+    successor_chain_sha256: sha256Id(chain),
+    open_pull_request_evidence_sha256: sha256Id(openPullRequests),
     outcome,
     rotation_preparation_ready: rotationPreparationReady,
     successor_creation_required: successorCreationRequired,
