@@ -19,7 +19,7 @@ guard_targets() {
   guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
   case "$guard" in
     *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
-      echo "$MARKER HOLD: retired remote node target is forbidden" >&2
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
       exit 2
       ;;
   esac
