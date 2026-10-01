@@ -3,6 +3,8 @@
 # Shared fail-closed admission for legacy two-box proof wrappers.
 # Source-only helper: callers decide whether the admitted proof is read-only or mutation-capable.
 
+VOID_TWO_BOX_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+
 void_two_box_hold() {
   local message="$*"
   printf '%s HOLD: %s\n' "${MARKER:-VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1}" "$message" >&2
@@ -91,9 +93,9 @@ void_two_box_require_source_parity_and_bind_remote() {
   void_two_box_validate_ssh_destination "$ssh_target"
 
   local local_branch local_head local_dirty
-  local_branch="$(git branch --show-current 2>/dev/null || true)"
-  local_head="$(git rev-parse HEAD 2>/dev/null || true)"
-  local_dirty="$(git status --porcelain=v1 --untracked-files=all 2>/dev/null || true)"
+  local_branch="$(git -C "$VOID_TWO_BOX_REPO_ROOT" branch --show-current 2>/dev/null || true)"
+  local_head="$(git -C "$VOID_TWO_BOX_REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  local_dirty="$(git -C "$VOID_TWO_BOX_REPO_ROOT" status --porcelain=v1 --untracked-files=all 2>/dev/null || true)"
   [ "$local_branch" = "main" ] || void_two_box_hold "local repository must be on main"
   [[ "$local_head" =~ ^[0-9a-f]{40}$ ]] || void_two_box_hold "local repository HEAD unavailable"
   [ -z "$local_dirty" ] || void_two_box_hold "local repository must be clean"
