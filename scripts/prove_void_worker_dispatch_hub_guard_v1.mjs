@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import * as guardModule from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
 import {
   CANONICAL_GIT_URL,
@@ -42,6 +44,26 @@ const STALE_EVALUATED_AT =
 const STALE_NEXT_REEVALUATION_AT =
   new Date(PROOF_NOW_MS - 60_000).toISOString();
 const REVIEWED_MAIN_SHA = "c".repeat(40);
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
+
+function trackedMode(relativePath) {
+  const row = execFileSync(
+    "git",
+    ["-C", ROOT, "ls-files", "-s", "--", relativePath],
+    { encoding: "utf8" },
+  ).trim();
+  assert.notEqual(row, "", "tracked mode row missing for " + relativePath);
+  return row.split(" ", 1)[0];
+}
+
+assert.equal(
+  trackedMode("tools/void-worker-dispatch-hub-guard-v1.mjs"),
+  "100755",
+);
+assert.equal(
+  trackedMode("scripts/prove_void_worker_dispatch_hub_guard_v1.mjs"),
+  "100755",
+);
 
 assert.equal(CANONICAL_GIT_URL, "https://github.com/6ZoSo9/void-node.git");
 assert.equal(CANONICAL_MAIN_REF, "refs/heads/main");
@@ -684,4 +706,5 @@ assert.doesNotMatch(
   /export const LIVE_REVALIDATION_CAPABILITY/u,
 );
 
+console.log("guard_executable_modes_green=true");
 console.log("normal_dispatch_grants_no_source_authority=true");
