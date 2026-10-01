@@ -38,8 +38,10 @@ The promotion consumes exact bytes plus SHA-256 for:
 3. the WC ledger-persistence import input;
 4. the durable opening request;
 5. the persisted opening claim-binding bytes;
-6. the persisted replay-terminal capsule bytes; and
-7. the #2232 participant-control at-use artifact.
+6. the read-only claim-binding persistence inspection receipt;
+7. the persisted replay-terminal capsule bytes;
+8. the read-only replay-terminal persistence inspection receipt; and
+9. the #2232 participant-control at-use artifact.
 
 No summary boolean is sufficient by itself.
 
@@ -127,6 +129,25 @@ The canary packet must bind:
 - the exact derived `opening_claim_binding_id`; and
 - `opening_claim_binding_persistence_evidence_id=sha256:<exact persisted bytes>`.
 
+Matching bytes are not sufficient durability proof. The semantic promotion also
+requires an exact read-only receipt produced by
+`inspectWcVoidOpeningClaimBindingPersistenceV1`. That receipt must bind the
+same launch, mode, opening-state ID and binding ID, and its
+`persisted_file_sha256` and byte count must match the exact claim-binding file
+supplied to the promotion. It must independently report:
+
+```text
+canonical_binding_direct_file=true
+canonical_binding_realpath_exact=true
+stable_file_identity_during_read=true
+stable_parent_directory_identity_during_read=true
+exact_binding_rederivation_verified=true
+binding_persistence_verified=true
+opening_claim_transfer_or_refund_binding_persistence_verified=true
+```
+
+with all ledger/token/refund/activation/funds authority false.
+
 The verifier then starts from
 `initialWcVoidOpeningReplayStateV1(coupled_launch_id)`, rederives the terminal
 transition, rebuilds the deterministic
@@ -135,6 +156,26 @@ capsule bytes to match exactly.
 
 The canary packet must bind the rederived capsule ID and exact terminal capsule
 SHA-256.
+
+Matching replay bytes are likewise not sufficient durability proof. The
+promotion requires an exact read-only
+`inspectWcVoidOpeningReplayTerminalV1` receipt whose launch, mode, binding ID,
+transition ID, before/after state IDs, capsule ID, terminal path and persisted
+capsule SHA-256 all match the independently rederived replay state. It must
+report:
+
+```text
+terminal_replay_state_persisted=true
+durable_replay_state_persistence_verified=true
+duplicate_replay_protection_verified_for_launch=true
+production_duplicate_replay_gate_updated=false
+```
+
+and all activation/funds authority false.
+
+The claim-persistence and replay-persistence receipts must carry the same
+opening binding ID. Their own exact serialized bytes and SHA-256s are included
+in the final semantic promotion identity.
 
 ## Selecting the one canary participant
 
@@ -215,8 +256,10 @@ The intersection must be non-empty and the evaluation time must fall within it.
 A wrapper cannot widen either upstream artifact's validity.
 
 Ledger persistence and durable opening replay/claim evidence are treated as
-durable content-addressed facts; they are semantically rederived from exact
-bytes rather than assigned a new wall-clock freshness time.
+durable content-addressed facts. Claim/replay content is independently
+rederived, while durability itself is required through the exact read-only
+persistence inspection receipts described above. They are not assigned a new
+wall-clock freshness time.
 
 ## Promotion result
 
@@ -254,7 +297,9 @@ first_stage_canary_reverification=true
 market_vault_at_use_reverification=true
 ledger_persistence_semantic_import=true
 opening_claim_binding_rederivation=true
+opening_claim_persistence_receipt_validation=true
 opening_replay_capsule_rederivation=true
+opening_replay_persistence_receipt_validation=true
 participant_at_use_reverification=true
 source_only_promotion=true
 
