@@ -5,6 +5,21 @@
 
 VOID_TWO_BOX_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 
+void_two_box_git() {
+  env \
+    -u GIT_DIR \
+    -u GIT_WORK_TREE \
+    -u GIT_COMMON_DIR \
+    -u GIT_INDEX_FILE \
+    -u GIT_OBJECT_DIRECTORY \
+    -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+    -u GIT_NAMESPACE \
+    GIT_NO_REPLACE_OBJECTS=1 \
+    GIT_CONFIG_NOSYSTEM=1 \
+    GIT_CONFIG_GLOBAL=/dev/null \
+    /usr/bin/git -C "$VOID_TWO_BOX_REPO_ROOT" "$@"
+}
+
 void_two_box_hold() {
   local message="$*"
   printf '%s HOLD: %s\n' "${MARKER:-VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1}" "$message" >&2
@@ -119,12 +134,15 @@ void_two_box_require_mutation_confirmation() {
 
 void_two_box_collect_remote_identity() {
   local ssh_target="$1"
-  ssh -o BatchMode=yes -o ConnectTimeout=8 "$ssh_target" '
+  /usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=8 "$ssh_target" '
 set -euo pipefail
 cd "$HOME/dev/void-node"
-test "$(/usr/bin/git branch --show-current)" = main
-test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
-printf "HEAD=%s\n" "$(/usr/bin/git rev-parse HEAD)"
+git_clean() {
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_NAMESPACE GIT_NO_REPLACE_OBJECTS=1 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null /usr/bin/git "$@"
+}
+test "$(git_clean branch --show-current)" = main
+test -z "$(git_clean status --porcelain=v1 --untracked-files=all)"
+printf "HEAD=%s\n" "$(git_clean rev-parse HEAD)"
 printf "HOST=%s\n" "$(/usr/bin/hostname)"
 printf "FQDN=%s\n" "$(/usr/bin/hostname -f 2>/dev/null || /usr/bin/hostname)"
 printf "TSIP=%s\n" "$(/usr/bin/tailscale ip -4 2>/dev/null | head -n1 || true)"
@@ -138,9 +156,9 @@ void_two_box_require_source_parity_and_bind_remote() {
   void_two_box_validate_ssh_destination "$ssh_target"
 
   local local_branch local_head local_dirty
-  local_branch="$(git -C "$VOID_TWO_BOX_REPO_ROOT" branch --show-current 2>/dev/null || true)"
-  local_head="$(git -C "$VOID_TWO_BOX_REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
-  local_dirty="$(git -C "$VOID_TWO_BOX_REPO_ROOT" status --porcelain=v1 --untracked-files=all 2>/dev/null || true)"
+  local_branch="$(void_two_box_git branch --show-current 2>/dev/null || true)"
+  local_head="$(void_two_box_git rev-parse HEAD 2>/dev/null || true)"
+  local_dirty="$(void_two_box_git status --porcelain=v1 --untracked-files=all 2>/dev/null || true)"
   [ "$local_branch" = "main" ] || void_two_box_hold "local repository must be on main"
   [[ "$local_head" =~ ^[0-9a-f]{40}$ ]] || void_two_box_hold "local repository HEAD unavailable"
   [ -z "$local_dirty" ] || void_two_box_hold "local repository must be clean"
