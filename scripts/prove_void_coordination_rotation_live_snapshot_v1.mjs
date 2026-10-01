@@ -9,6 +9,7 @@ import {
   MARKER,
   CoordinationRotationLiveSnapshotError,
   buildCoordinationRotationLiveSnapshotV1,
+  gitBlobShaV1,
 } from "../tools/void-coordination-rotation-live-snapshot-v1.mjs";
 import {
   resolveCoordinationSuccessorChainRecordsV1,
@@ -21,7 +22,11 @@ const POLICY_PATH = path.join(
   ROOT,
   "ops/coordination/worker-live-dispatch-policy-v1.json",
 );
-const policyRaw = JSON.parse(fs.readFileSync(POLICY_PATH, "utf8"));
+const policyBytes = fs.readFileSync(POLICY_PATH, "utf8");
+const policyRaw = JSON.parse(policyBytes);
+const policyBlobSha = gitBlobShaV1(policyBytes);
+const POLICY_REPOSITORY_PATH =
+  "ops/coordination/worker-live-dispatch-policy-v1.json";
 const MAIN = "a".repeat(40);
 const CAPTURED_AT = "2026-10-01T21:00:00.000Z";
 
@@ -124,7 +129,9 @@ function input(overrides = {}) {
     repository: "6ZoSo9/void-node",
     rootIssue: 1507,
     capturedAt: CAPTURED_AT,
-    policyRaw,
+    policyPath: POLICY_REPOSITORY_PATH,
+    policyBytes,
+    policyBlobSha,
     mainBefore: MAIN,
     mainAfter: MAIN,
     chainBefore: chain,
@@ -153,6 +160,8 @@ assert.equal(ready.repository, "6ZoSo9/void-node");
 assert.equal(ready.root_issue, 1507);
 assert.equal(ready.captured_at, CAPTURED_AT);
 assert.equal(ready.main_sha, MAIN);
+assert.equal(ready.policy_path, POLICY_REPOSITORY_PATH);
+assert.equal(ready.policy_blob_sha, policyBlobSha);
 assert.equal(ready.open_pull_request_count, 1);
 assert.equal(ready.successor_chain_outcome, "ROTATION_REQUIRED");
 assert.equal(ready.snapshot_outcome, "ROTATION_PREPARATION_READY");
@@ -228,6 +237,36 @@ assert.equal(successor.successor_chain_outcome, "SUCCESSOR_RESOLVED");
 assert.equal(successor.snapshot_outcome, "SUCCESSOR_ALREADY_RESOLVED");
 assert.equal(successor.snapshot.policy_plan_issue_rebind_required, true);
 assert.equal(successor.snapshot.successor_creation_required, false);
+
+expectRejected(
+  () =>
+    buildCoordinationRotationLiveSnapshotV1(
+      input({
+        policyBytes: policyBytes + "\n",
+      }),
+    ),
+  /policy bytes do not match captured Git blob SHA/,
+);
+
+expectRejected(
+  () =>
+    buildCoordinationRotationLiveSnapshotV1(
+      input({
+        policyBlobSha: "f".repeat(40),
+      }),
+    ),
+  /policy bytes do not match captured Git blob SHA/,
+);
+
+expectRejected(
+  () =>
+    buildCoordinationRotationLiveSnapshotV1(
+      input({
+        policyPath: "../policy.json",
+      }),
+    ),
+  /normalized repository-relative path/,
+);
 
 expectRejected(
   () =>
@@ -422,6 +461,8 @@ assert.deepEqual(repeated, ready);
 console.log(PROOF_MARKER);
 console.log("rotation_preparation_ready=true");
 console.log("successor_resolved_rebind_detected=true");
+console.log("policy_git_blob_bound=true");
+console.log("policy_tamper_rejected=true");
 console.log("current_main_race_rejected=true");
 console.log("successor_chain_race_rejected=true");
 console.log("open_pr_census_race_rejected=true");
