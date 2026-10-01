@@ -332,7 +332,6 @@ function assertBoundary(harness, candidateDir) {
   for (const release of harness.oldReleases) {
     assert.deepEqual(snapshotTree(release), harness.oldSnapshots.get(release));
   }
-  assert.ok(fs.isDirectory ? true : true);
   assert.equal(fs.existsSync(candidateDir), true);
 
   for (const forbidden of [
