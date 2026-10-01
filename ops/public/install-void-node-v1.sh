@@ -22,6 +22,7 @@ ENABLE=0
 START=0
 PURGE=0
 VERIFY_ATTESTATION=0
+MATERIALIZE_ONLY=0
 KEEP_RELEASES="${VOID_NODE_KEEP_RELEASES:-3}"
 TMP=""
 
@@ -31,6 +32,49 @@ cleanup(){ test -z "$TMP" || rm -rf "$TMP"; }
 trap cleanup EXIT INT TERM
 need(){ command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"; }
 manager_available(){ command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; }
+
+verify_materialized_tree_matches(){
+  python3 - "$1" "$2" <<'PYMATERIALIZE'
+import hashlib
+import os
+import pathlib
+import stat
+import sys
+
+def sha256_file(path):
+    h=hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def snapshot(root):
+    root=pathlib.Path(root)
+    out={}
+    for candidate in sorted(root.rglob("*"), key=lambda p: p.relative_to(root).as_posix()):
+        rel=candidate.relative_to(root).as_posix()
+        metadata=candidate.lstat()
+        mode=stat.S_IMODE(metadata.st_mode)
+        if candidate.is_symlink():
+            out[rel]=("symlink", mode, os.readlink(candidate))
+        elif candidate.is_dir():
+            out[rel]=("directory", mode)
+        elif candidate.is_file():
+            out[rel]=("file", mode, metadata.st_size, sha256_file(candidate))
+        else:
+            raise SystemExit(f"unsupported materialized release entry: {rel}")
+    return out
+
+expected=snapshot(sys.argv[1])
+observed=snapshot(sys.argv[2])
+if expected != observed:
+    keys=sorted(set(expected) | set(observed))
+    differences=[key for key in keys if expected.get(key) != observed.get(key)]
+    preview=",".join(differences[:8])
+    raise SystemExit(f"existing release tree differs from verified candidate: {preview}")
+print("existing_materialized_release_exact=true")
+PYMATERIALIZE
+}
 
 install_stable_manager(){
   local control_dir="$INSTALL_ROOT/control"
@@ -124,6 +168,7 @@ Options:
   --checksums FILE        Use a local SHA256SUMS.
   --install-root DIR      Versioned release root.
   --bin-dir DIR           User command symlink directory.
+  --materialize-only      Verify/materialize releases/<version> only; publish no pointers or runtime state.
   --enable                Enable the user service after install.
   --start                 Start the user service after install (implies --enable).
   --verify-attestation    Require GitHub artifact attestation verification.
@@ -149,6 +194,7 @@ while test $# -gt 0; do
     --checksums) CHECKSUMS_FILE="${2:?missing file}"; shift 2;;
     --install-root) INSTALL_ROOT="${2:?missing directory}"; shift 2;;
     --bin-dir) BIN_DIR="${2:?missing directory}"; shift 2;;
+    --materialize-only) MATERIALIZE_ONLY=1; shift;;
     --enable) ENABLE=1; shift;;
     --start) START=1; ENABLE=1; shift;;
     --verify-attestation) VERIFY_ATTESTATION=1; shift;;
@@ -158,6 +204,16 @@ while test $# -gt 0; do
     *) die "unknown argument: $1";;
   esac
 done
+
+if test "$MATERIALIZE_ONLY" = 1; then
+  case "$COMMAND" in
+    install|update) ;;
+    *) die "--materialize-only supports install/update only";;
+  esac
+  if test "$ENABLE" = 1 || test "$START" = 1; then
+    die "--materialize-only cannot be combined with --enable/--start"
+  fi
+fi
 
 if test "$COMMAND" = self-test; then
   grep -q '^MARKER="VOID_PUBLIC_RELEASE_INSTALLER_V1"' "${BASH_SOURCE[0]}"
@@ -330,17 +386,43 @@ for k in ("version", "git_commit"):
 print("manifest_build_binding_verified=true")
 PYBIND
 
-mkdir -p "$INSTALL_ROOT/releases" "$BIN_DIR" "$CONFIG_DIR" "$STATE_DIR" "$SYSTEMD_DIR"
-chmod 700 "$INSTALL_ROOT" "$CONFIG_DIR" "$STATE_DIR" 2>/dev/null || true
+if test "$MATERIALIZE_ONLY" = 1; then
+  mkdir -p "$INSTALL_ROOT/releases"
+  chmod 700 "$INSTALL_ROOT" 2>/dev/null || true
+else
+  mkdir -p "$INSTALL_ROOT/releases" "$BIN_DIR" "$CONFIG_DIR" "$STATE_DIR" "$SYSTEMD_DIR"
+  chmod 700 "$INSTALL_ROOT" "$CONFIG_DIR" "$STATE_DIR" 2>/dev/null || true
+fi
 DEST="$INSTALL_ROOT/releases/$VERSION"
 if test -d "$DEST"; then
   (
     cd "$DEST"
     sha256sum --check --strict RELEASE-CONTENTS-SHA256 >/dev/null
   ) || die "existing release directory failed verification: $DEST"
+  if test "$MATERIALIZE_ONLY" = 1; then
+    verify_materialized_tree_matches "$EXTRACTED" "$DEST" ||
+      die "existing release directory does not exactly match verified candidate: $DEST"
+  fi
   rm -rf "$EXTRACTED"
 else
   mv "$EXTRACTED" "$DEST"
+fi
+
+if test "$MATERIALIZE_ONLY" = 1; then
+  say "$MARKER MATERIALIZE_ONLY_GREEN"
+  say "version=$VERSION"
+  say "release_dir=$DEST"
+  say "current_pointer_mutated=false"
+  say "previous_pointer_mutated=false"
+  say "stable_manager_published=false"
+  say "command_symlink_published=false"
+  say "config_state_mutated=false"
+  say "service_unit_written=false"
+  say "service_action_performed=false"
+  say "retention_pruned=false"
+  say "guarded_lanes_activated=false"
+  say "money_movement=false"
+  exit 0
 fi
 
 OLD_CURRENT=""
