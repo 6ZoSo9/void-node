@@ -273,6 +273,16 @@ try{
 
   assert.equal(fs.existsSync(executedMarker),false);
 
+  const workflow=fs.readFileSync(
+    path.join(ROOT,".github/workflows/void-voidchain-path-preserving-ingress-plan-v1.yml"),
+    "utf8",
+  );
+  assert.equal(
+    workflow.includes("ref: ${{ github.event.pull_request.head.sha || github.sha }}"),
+    true,
+    "focused workflow must prove the exact pull-request head",
+  );
+
   const source=fs.readFileSync(
     path.join(ROOT,"tools/void-voidchain-path-preserving-ingress-plan-v1.mjs"),
     "utf8",
