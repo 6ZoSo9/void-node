@@ -519,7 +519,7 @@ try{
         promotion_receipt_bytes:promotionBytes,
         promotion_receipt_file_sha256:sha256(promotionBytes),
       }),
-      /promotion_request_sha256_mismatch/u,
+      /OPENING_DURABLE_APPLICATION_REQUEST_PERMISSION_SHA256_MISMATCH/u,
     );
   }
 
@@ -559,6 +559,13 @@ try{
   ]){
     assert.equal(source.includes(forbidden),false,forbidden);
   }
+  assert.equal(
+    source.includes(
+      'from "./void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs"',
+    ),
+    false,
+    "application tool must not statically import mutable worktree promotion source",
+  );
   for(const required of [
     "--no-replace-objects",
     "core.fsmonitor=false",
