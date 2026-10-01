@@ -330,14 +330,13 @@ for (const required of [
 ]) {
   assert(toolSource.includes(required), required);
 }
-assert(
-  toolSource.indexOf("fsyncDirectory(temp)") <
-    toolSource.indexOf("fs.renameSync(temp, outDir)"),
-);
-assert(
-  toolSource.indexOf("fs.renameSync(temp, outDir)") <
-    toolSource.indexOf("fsyncDirectory(parent)"),
-);
+const durableTempFsyncAt = toolSource.indexOf("fsyncDirectory(temp)");
+const publishRenameAt = toolSource.indexOf("fs.renameSync(temp, outDir)");
+const parentFsyncAfterRenameAt =
+  toolSource.indexOf("fsyncDirectory(parent)", publishRenameAt);
+assert(durableTempFsyncAt >= 0);
+assert(publishRenameAt > durableTempFsyncAt);
+assert(parentFsyncAfterRenameAt > publishRenameAt);
 
 const wrapperSource = fs.readFileSync(WRAPPER, "utf8");
 for (const forbidden of [
@@ -351,6 +350,10 @@ for (const forbidden of [
 for (const required of [
   'bash "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel"',
   '--active-dropin-dir "$active_dropin_dir"',
+  'sha256sum "$preflight_log"',
+  'test "$staged_preflight_log_sha256" = "$expected_preflight_log_sha256"',
+  'wrapper_fresh_preflight_execution_proven=true',
+  'stage_manifest_preflight_authority=false',
   'test "$pid_after" = "$pid_before"',
   'test "$inv_after" = "$inv_before"',
 ]) {
