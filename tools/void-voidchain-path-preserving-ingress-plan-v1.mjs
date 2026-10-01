@@ -600,7 +600,7 @@ function normalizeOutputDir(raw){
 
 function writeExclusive(file,text,mode=0o600){
   fs.writeFileSync(file,text,{encoding:"utf8",flag:"wx",mode});
-  const fd=fs.openSync(file,"r");
+  const fd=fs.openSync(file,"r+");
   try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
 }
 
