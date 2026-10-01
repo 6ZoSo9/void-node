@@ -53,8 +53,12 @@ used by the market-vault requalification work:
 - simultaneous presale/WC-VOID launch ordering.
 
 The source files and the opening/shared-state derivation modules are pinned by
-exact Git blob identity. An unrelated future main advance is acceptable only
-while those exact blobs remain unchanged.
+exact Git blob identity. Canonical JSON/source inputs are read from
+`HEAD:<path>` Git objects, not mutable working-tree files. The opening and
+shared-state modules are likewise executed from exact verified HEAD-object
+bytes using in-memory data-module URLs; the working-tree module paths are not
+executed. An unrelated future main advance is acceptable only while those
+exact blobs remain unchanged.
 
 ## Why one JSON field is not enough
 
