@@ -404,6 +404,8 @@ function collectInternal(root,rootPackages){
   const closure=deriveReviewedPackageLockClosureV1(lock,rootPackages);
   const packages=[];
   const details=new Map();
+  let closureFileCount=0;
+  let closureBytes=0;
   for(const row of closure.packages){
     const identity=packageJsonIdentity(realRoot,row);
     const inventory=walkPackageDirectory(realRoot,row.lock_key);
@@ -419,6 +421,14 @@ function collectInternal(root,rootPackages){
       bytes:inventory.bytes,
       aggregate_sha256:inventory.aggregate_sha256,
     });
+    closureFileCount+=inventory.file_count;
+    closureBytes+=inventory.bytes;
+    if(closureFileCount>MAX_FILES){
+      fail("reviewed_node_runtime_closure_file_count_exceeded");
+    }
+    if(closureBytes>MAX_TOTAL_BYTES){
+      fail("reviewed_node_runtime_closure_bytes_exceeded");
+    }
     packages.push(summary);
     details.set(row.lock_key,inventory);
   }
@@ -455,6 +465,8 @@ function collectInternal(root,rootPackages){
     package_json_source:packageMeta,
     package_lock_source:lockMeta,
     package_count:packages.length,
+    total_file_count:closureFileCount,
+    total_bytes:closureBytes,
     packages:Object.freeze(packages),
     packages_aggregate_sha256:sha256(
       Buffer.from(canonicalJson(packages),"utf8"),
