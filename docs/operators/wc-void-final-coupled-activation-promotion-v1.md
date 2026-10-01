@@ -114,6 +114,15 @@ requires canonical equality. Any additional target mutation fails closed.
 
 The successor candidate is copied without modification.
 
+The prepared promotion also binds exact pretty-JSON target identities for both
+canonical files:
+
+- target file SHA-256; and
+- target Git blob SHA-1.
+
+The CLI writes one create-only private promotion artifact outside the repository
+with mode `0600`. An existing destination is never overwritten.
+
 ## Required poststate
 
 The tool reruns:
@@ -162,14 +171,16 @@ Once all upstream canonical applications are merged:
 
 ```bash
 node tools/void-wc-void-final-coupled-activation-promotion-v1.mjs \
-  --lineages /absolute/private/final-coupled-applied-lineages.json
+  --lineages /absolute/private/final-coupled-applied-lineages.json \
+  --output /absolute/private/final-coupled-promotion.json
 ```
 
 On current main this command is expected to HOLD because upstream canonical
 applications are not all complete yet.
 
-A later GREEN result derives candidate copies only. Applying those copies to
-canonical source remains a separate reviewed Git transition.
+A later GREEN result derives candidate copies and persists only the private
+review artifact. Applying those copies to canonical source remains a separate
+reviewed Git transition.
 
 ## Launch boundary
 
