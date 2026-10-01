@@ -11,7 +11,6 @@ import {
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASE_ORDER_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1,
-  type BuyVoidPostgresActivationGateStateV1,
   type BuyVoidPostgresActivationPhaseV1,
   buyVoidPostgresActivationConfigurationMaterialV1,
   classifyBuyVoidPostgresActivationPhaseV1,
@@ -169,12 +168,15 @@ const atomicForwardGeneration =
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.live_apply,
   );
 assert.notEqual(atomicForwardGeneration, null);
+if (!atomicForwardGeneration) {
+  throw new Error("derived live-apply generation unexpectedly missing");
+}
 assert.equal(
-  atomicForwardGeneration?.configuration_sha256,
+  atomicForwardGeneration.configuration_sha256,
   independentlyDerivedLiveDigest,
 );
 assert.equal(
-  atomicForwardGeneration?.generation_id,
+  atomicForwardGeneration.generation_id,
   "voidbvpcg1_" + independentlyDerivedLiveDigest,
 );
 
@@ -183,9 +185,12 @@ const atomicRollbackGeneration =
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
   );
 assert.notEqual(atomicRollbackGeneration, null);
+if (!atomicRollbackGeneration) {
+  throw new Error("derived dormant generation unexpectedly missing");
+}
 assert.notEqual(
-  atomicRollbackGeneration?.configuration_sha256,
-  atomicForwardGeneration?.configuration_sha256,
+  atomicRollbackGeneration.configuration_sha256,
+  atomicForwardGeneration.configuration_sha256,
 );
 
 for (
@@ -295,7 +300,7 @@ if (atomicForward.ok) {
   assert.equal(atomicForward.money_capable_after, true);
   assert.equal(
     atomicForward.configuration_generation_id,
-    atomicForwardGeneration?.generation_id,
+    atomicForwardGeneration.generation_id,
   );
   assert.equal(
     atomicForward.configuration_sha256,
@@ -341,7 +346,7 @@ if (!missingAtomicGeneration.ok) {
 }
 
 {
-  const mixed = structuredClone(atomicForwardGeneration);
+  const mixed = structuredClone(atomicForwardGeneration) as any;
   mixed.gates.full_runtime.generation_id =
     "voidbvpcg1_" + "5".repeat(64);
   const decision = decideBuyVoidPostgresActivationTransitionV1(
@@ -380,7 +385,7 @@ if (!missingAtomicGeneration.ok) {
 
 {
   const falseDigest = "f".repeat(64);
-  const forged = structuredClone(atomicForwardGeneration);
+  const forged = structuredClone(atomicForwardGeneration) as any;
   assert.notEqual(forged, null);
   if (forged) {
     forged.configuration_sha256 = falseDigest;
@@ -406,7 +411,7 @@ if (!missingAtomicGeneration.ok) {
 }
 
 {
-  const wrongValue = structuredClone(atomicForwardGeneration);
+  const wrongValue = structuredClone(atomicForwardGeneration) as any;
   wrongValue.gates.full_runtime_apply.value = "0";
   const decision = decideBuyVoidPostgresActivationTransitionV1(
     VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_PHASES_V1.dormant,
