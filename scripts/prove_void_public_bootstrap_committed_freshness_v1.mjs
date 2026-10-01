@@ -7,6 +7,9 @@ import {
   VOID_PUBLIC_BOOTSTRAP_COMMITTED_FRESHNESS_V1,
   assessCommittedBootstrapFreshnessV1,
 } from "../tools/void-public-bootstrap-committed-freshness-v1.mjs";
+import {
+  objectWithId,
+} from "./lib/void_public_seed_common_v1.mjs";
 
 const NOW = Date.parse("2026-09-30T12:00:00.000Z");
 
@@ -44,10 +47,9 @@ function stableManifest(remainingSeconds, mutate = () => {}) {
     private_tailnet_endpoints_published: false,
     authority: authorityFalse(),
     notes: "fixture",
-    manifest_id: "voidpbm1_" + "b".repeat(64),
   };
   mutate(manifest);
-  return manifest;
+  return objectWithId("voidpbm1_", manifest, "manifest_id");
 }
 
 const fresh = assessCommittedBootstrapFreshnessV1(
@@ -76,7 +78,8 @@ const expired = assessCommittedBootstrapFreshnessV1(
 assert.equal(expired.ok, false);
 assert.equal(expired.classification, "EXPIRED");
 
-const hold = assessCommittedBootstrapFreshnessV1(
+const holdManifest = objectWithId(
+  "voidpbm1_",
   {
     schema: "void_public_bootstrap_v1",
     network: "VOID Network",
@@ -88,8 +91,11 @@ const hold = assessCommittedBootstrapFreshnessV1(
     private_tailnet_endpoints_published: false,
     authority: authorityFalse(),
     notes: "hold fixture",
-    manifest_id: "voidpbm1_" + "c".repeat(64),
   },
+  "manifest_id",
+);
+const hold = assessCommittedBootstrapFreshnessV1(
+  holdManifest,
   { nowMs: NOW },
 );
 assert.equal(hold.ok, false);
@@ -102,7 +108,9 @@ for (const [name, mutate, expected] of [
   ["transport", (m) => { m.sync_endpoints[0].transport = "http"; }, /must use HTTPS/],
   ["chain_type", (m) => { m.chain_id = "2050"; }, /network or chain mismatch/],
   ["extra_authority", (m) => { m.authority.future_authority = false; }, /authority keys mismatch/],
-  ["missing_onion_array", (m) => { delete m.onion_endpoints; }, /onion_endpoints must be an array/],
+  ["missing_onion_array", (m) => { delete m.onion_endpoints; }, /keys mismatch|onion_endpoints/u],
+  ["extra_endpoint_key", (m) => { m.sync_endpoints[0].future = false; }, /keys mismatch/u],
+  ["onion_endpoint", (m) => { m.onion_endpoints.push({ transport: "tor" }); }, /must not publish onion endpoints/u],
 ]) {
   assert.throws(
     () => assessCommittedBootstrapFreshnessV1(
@@ -111,6 +119,20 @@ for (const [name, mutate, expected] of [
     ),
     expected,
     name,
+  );
+}
+
+{
+  const badManifestId = stableManifest(
+    DEFAULT_MIN_REMAINING_SECONDS_V1 + 1,
+  );
+  badManifestId.manifest_id = "voidpbm1_" + "0".repeat(64);
+  assert.throws(
+    () => assessCommittedBootstrapFreshnessV1(
+      badManifestId,
+      { nowMs: NOW },
+    ),
+    /manifest ID/u,
   );
 }
 
@@ -162,6 +184,9 @@ console.log("hold_manifest_holds=true");
 console.log("authority_boundary=true");
 console.log("exact_chain_id_type=true");
 console.log("exact_authority_keyset=true");
+console.log("canonical_manifest_admission_reused=true");
+console.log("content_derived_manifest_id_required=true");
+console.log("exact_endpoint_keyset_required=true");
 console.log("onion_array_required=true");
 console.log("deterministic=true");
 console.log("network_access=false");
