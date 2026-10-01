@@ -5,7 +5,14 @@ set +o histexpand 2>/dev/null || true
 
 cd "${VOID_REPO:-$HOME/dev/void-node}" || exit 1
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "VOID_SITE_BUNDLE_PEER_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
 LOCAL_BASE="${LOCAL_BASE:-http://127.0.0.1:4100}"
 REMOTE_BASE="${REMOTE_BASE:-http://127.0.0.1:4100}"
 OUT="${OUT:-/tmp/void-public-site-bundle-peer-readiness-proof-$(date +%Y%m%d-%H%M%S)}"

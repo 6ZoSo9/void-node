@@ -1,0 +1,47 @@
+name: VOID site-bundle peer explicit target v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-site-bundle-peer-explicit-target-v1.yml"
+      - "docs/operators/void-site-bundle-peer-explicit-target-v1.md"
+      - "scripts/prove_void_site_bundle_peer_explicit_target_v1.mjs"
+      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
+      - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-site-bundle-peer-explicit-target-v1.yml"
+      - "docs/operators/void-site-bundle-peer-explicit-target-v1.md"
+      - "scripts/prove_void_site_bundle_peer_explicit_target_v1.mjs"
+      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
+      - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: "24"
+      - name: Shell syntax
+        run: |
+          bash -n ops/security/void-public-site-bundle-auto-materialize-proof.sh
+          bash -n ops/security/void-public-site-bundle-peer-readiness-proof.sh
+          bash -n ops/security/void-site-bundle-peer-env-persistence-proof.sh
+      - name: Source-only explicit-target proof
+        run: |
+          node --check scripts/prove_void_site_bundle_peer_explicit_target_v1.mjs
+          node scripts/prove_void_site_bundle_peer_explicit_target_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

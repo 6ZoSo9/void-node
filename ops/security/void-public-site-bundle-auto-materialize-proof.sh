@@ -6,7 +6,14 @@ set +o histexpand 2>/dev/null || true
 cd "${VOID_REPO:-$HOME/dev/void-node}" || exit 1
 
 NODE="${NODE:-http://127.0.0.1:4100}"
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "VOID_SITE_BUNDLE_PEER_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
 OUT="${OUT:-/tmp/void-public-site-bundle-auto-materialize-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 
@@ -167,7 +174,7 @@ python3 - <<PY
 print({
   "public_site_bundle_auto_materialize": "green" if $FAIL == 0 else "failed",
   "mutation": "local_site_bundle_cache_restore_only",
-  "peer": "Alienware via SSH/local HTTP",
+  "peer": "explicit remote peer via SSH/local HTTP",
   "voidchain_dataset": "$VOIDCHAIN_DATASET",
   "nullfeed_dataset": "$NULLFEED_DATASET",
   "out": "$OUT"

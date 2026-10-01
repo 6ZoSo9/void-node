@@ -5,10 +5,18 @@ set +o histexpand 2>/dev/null || true
 
 cd "${VOID_REPO:-$HOME/dev/void-node}" || exit 1
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-LOCAL_PEER="${LOCAL_PEER:-http://100.122.79.39:4100}"
-REMOTE_PEER="${REMOTE_PEER:-http://100.93.2.116:4100}"
+: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+: "${LOCAL_PEER:?set LOCAL_PEER to the explicit peer HTTP origin for the local service}"
+: "${REMOTE_PEER:?set REMOTE_PEER to the explicit peer HTTP origin for the remote service}"
 DROPIN_NAME="${DROPIN_NAME:-97-site-bundle-peers.conf}"
+
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$LOCAL_PEER" "$REMOTE_PEER" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "VOID_SITE_BUNDLE_PEER_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
 LOCAL_DROPIN="$HOME/.config/systemd/user/void-node.service.d/$DROPIN_NAME"
 
 FAIL=0
