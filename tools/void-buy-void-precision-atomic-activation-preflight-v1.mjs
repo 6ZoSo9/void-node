@@ -37,7 +37,7 @@ export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_AUTHORITY_V1 =
     funds_movement: false,
   });
 
-export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_V1 =
+export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_ANCHOR_V1 =
   "74b5242dde224282de5b1b881d7d4cb942f00d48";
 
 export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_DROPIN_BASENAME_V1 =
@@ -466,6 +466,8 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
       "repo_root",
       "branch",
       "head_sha",
+      "remote_main_sha",
+      "reviewed_anchor_is_ancestor",
       "worktree_clean",
       "service_unit",
       "active_state",
@@ -479,8 +481,12 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
     host.hostname !== "zoso-Precision-Tower-7810" ||
     host.repo_root !== "/home/zoso/dev/void-node" ||
     host.branch !== "main" ||
-    host.head_sha !==
-      VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_V1 ||
+    typeof host.head_sha !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(host.head_sha) ||
+    typeof host.remote_main_sha !== "string" ||
+    !/^[0-9a-f]{40}$/u.test(host.remote_main_sha) ||
+    host.head_sha !== host.remote_main_sha ||
+    host.reviewed_anchor_is_ancestor !== true ||
     host.worktree_clean !== true ||
     host.service_unit !== "void-node-live.service" ||
     host.active_state !== "active" ||
@@ -608,8 +614,9 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
     status: "ATOMIC_ACTIVATION_PREFLIGHT_GREEN_NOT_AUTHORIZED",
     activation_ready: true,
     activation_authorized: false,
-    reviewed_main_sha:
-      VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_V1,
+    reviewed_main_anchor_sha:
+      VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_ANCHOR_V1,
+    remote_main_sha: host.remote_main_sha,
     reviewed_gate_sources: inventory.reviewed,
     unreviewed_gate_sources: Object.freeze([]),
     gate_source_inventory_complete: true,
