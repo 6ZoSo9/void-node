@@ -65,7 +65,7 @@ jobs:
           remote_peer="http://203.0.113.11:4100"
 
           hold "missing explicit ALIEN remote SSH target" bash "$site"
-          hold "invalid explicit ALIEN SSH target"             env ALIEN=-oBatchMode=no                 LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
+          hold "invalid explicit ALIEN SSH target"             env ALIEN=-F@host                 LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
           hold "unsafe LOCAL_PEER"             env ALIEN="$valid_alien" LOCAL_PEER=http://bad/path:4100                 REMOTE_PEER="$remote_peer"                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
           hold "unsafe REMOTE_PEER"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer"                 REMOTE_PEER=http://bad/path:4100                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
           hold "unsafe DROPIN_NAME"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 DROPIN_NAME=../../evil.conf                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
@@ -73,15 +73,15 @@ jobs:
           hold "confirmation token required"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 bash "$site"
 
           hold "missing explicit ALIEN remote SSH target" bash "$auto"
-          hold "invalid explicit ALIEN SSH target" env ALIEN=-oBatchMode=no bash "$auto"
+          hold "invalid explicit ALIEN SSH target" env ALIEN=-F@host bash "$auto"
           hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$auto"
 
           hold "missing explicit ALIEN remote SSH target" bash "$peer"
-          hold "invalid explicit ALIEN SSH target" env ALIEN=-oBatchMode=no bash "$peer"
+          hold "invalid explicit ALIEN SSH target" env ALIEN=-F@host bash "$peer"
           hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$peer"
 
           hold "missing explicit CROSSBOX_SSH_TARGET" bash "$validator" 2 vault-test
-          hold "invalid explicit CROSSBOX_SSH_TARGET"             env CROSSBOX_SSH_TARGET=-oBatchMode=no                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 vault-test
+          hold "invalid explicit CROSSBOX_SSH_TARGET"             env CROSSBOX_SSH_TARGET=-F@host                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 vault-test
           hold "epoch must be a canonical positive integer <= 6 digits"             env CROSSBOX_SSH_TARGET="$valid_alien"                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 02 vault-test
           hold "vault name is unsafe"             env CROSSBOX_SSH_TARGET="$valid_alien"                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 ../../vault
           hold "retired Alienware target is forbidden"             env CROSSBOX_SSH_TARGET=zoso@100.122.79.39                 CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1                 bash "$validator" 2 vault-test
