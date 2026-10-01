@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import * as http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -13,8 +14,12 @@ import {
 } from "../tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 import {
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1,
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1,
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
   observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
+  testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1,
+  testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
 } from "../tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
 
 const QUALIFICATION_TOOL =
@@ -263,17 +268,16 @@ function qualificationFixture(override = {}) {
   };
 }
 
-function input(qualification, transport, override = {}) {
+function input(qualification, rpcUrl, override = {}) {
   const qualificationBytes = prettyBytes(qualification);
   return {
     qualification_bytes: qualificationBytes,
     qualification_file_sha256: sha256(qualificationBytes),
     deployer_address: DEPLOYER,
     inventory_source_address: INVENTORY_SOURCE,
-    rpc_url: "http://127.0.0.1:8545/",
+    rpc_url: rpcUrl,
     request_timeout_ms: 5000,
     max_response_bytes: 65536,
-    transport,
     ...override,
   };
 }
@@ -282,113 +286,180 @@ function balanceHex(value) {
   return "0x" + BigInt(value).toString(16).padStart(64, "0");
 }
 
-function fixture(options = {}) {
+async function fixture(options = {}) {
   const calls = [];
   let pendingReads = 0;
   let blockReads = 0;
-  const transport = async (call) => {
-    calls.push(structuredClone(call));
-    switch (call.method) {
-      case "eth_chainId":
-        return options.wrongChain ? "0x1" : "0x802";
-      case "eth_blockNumber":
-        return "0x64";
-      case "eth_getBlockByNumber":
-        blockReads += 1;
-        return {
-          number: "0x64",
-          hash:
-            options.blockDrift && blockReads > 1
-              ? "0x" + "b".repeat(64)
-              : HEAD_HASH,
-          timestamp:
-            options.timestampDrift && blockReads > 1 ? "0x101" : "0x100",
-        };
-      case "eth_getTransactionCount": {
-        const tag = call.params?.[1];
-        if (tag === "pending") {
-          pendingReads += 1;
-          if (options.pendingDrift && pendingReads > 1) return "0x8";
-          return "0x7";
-        }
-        return "0x6";
+  const server = http.createServer((request, response) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    request.on("end", () => {
+      let payload;
+      try {
+        payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        response.writeHead(400, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ error: "invalid_json" }));
+        return;
       }
-      case "eth_getBalance":
-        return options.lowDeployerBalance ? "0x1" : "0x8ac7230489e80000";
-      case "eth_gasPrice":
-        return "0x3b9aca00";
-      case "eth_estimateGas":
-        return options.badGasEstimate ? "0x0" : "0xf4240";
-      case "eth_call":
-        return balanceHex(
-          options.lowInventory
-            ? OPENING_ATOMS - 1n
-            : OPENING_ATOMS + 123n,
+      const call = {
+        method: payload.method,
+        params: payload.params,
+      };
+      calls.push(structuredClone(call));
+      let result;
+      try {
+        switch (call.method) {
+          case "eth_chainId":
+            result = options.wrongChain ? "0x1" : "0x802";
+            break;
+          case "eth_blockNumber":
+            result = "0x64";
+            break;
+          case "eth_getBlockByNumber":
+            blockReads += 1;
+            result = {
+              number: "0x64",
+              hash:
+                options.blockDrift && blockReads > 1
+                  ? "0x" + "b".repeat(64)
+                  : HEAD_HASH,
+              timestamp:
+                options.timestampDrift && blockReads > 1 ? "0x101" : "0x100",
+            };
+            break;
+          case "eth_getTransactionCount": {
+            const tag = call.params?.[1];
+            if (tag === "pending") {
+              pendingReads += 1;
+              result =
+                options.pendingDrift && pendingReads > 1 ? "0x8" : "0x7";
+            } else {
+              result = "0x6";
+            }
+            break;
+          }
+          case "eth_getBalance":
+            result = options.lowDeployerBalance
+              ? "0x1"
+              : "0x8ac7230489e80000";
+            break;
+          case "eth_gasPrice":
+            result = "0x3b9aca00";
+            break;
+          case "eth_estimateGas":
+            result = options.badGasEstimate ? "0x0" : "0xf4240";
+            break;
+          case "eth_call":
+            result = balanceHex(
+              options.lowInventory
+                ? OPENING_ATOMS - 1n
+                : OPENING_ATOMS + 123n,
+            );
+            break;
+          default:
+            throw new Error("unexpected_method:" + String(call.method));
+        }
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: payload.id,
+            result,
+          }),
         );
-      default:
-        throw new Error("unexpected_method:" + call.method);
-    }
+      } catch (error) {
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: payload.id,
+            error: {
+              code: -32000,
+              message: error instanceof Error ? error.message : String(error),
+            },
+          }),
+        );
+      }
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  const address = server.address();
+  assert(address && typeof address === "object");
+  return {
+    calls,
+    rpc_url: "http://127.0.0.1:" + String(address.port) + "/",
+    close: async () =>
+      await new Promise((resolve, reject) => {
+        server.close((error) => error ? reject(error) : resolve());
+      }),
   };
-  return { calls, transport };
 }
 
-{
+async function withFixture(options, callback) {
+  const f = await fixture(options);
+  try {
+    return await callback(f);
+  } finally {
+    await f.close();
+  }
+}
+
+await withFixture({}, async (f) => {
   const q = qualificationFixture();
-  const f = fixture();
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(q, f.transport),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(q, f.rpc_url),
     );
   if (!result.ok) {
     throw new Error("green_fixture_hold:" + result.reason);
   }
   assert.equal(result.ok, true);
-  const preflight = result.preflight;
   assert.equal(
-    preflight.marker,
-    VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1,
+    result.marker,
+    VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
   );
   assert.equal(
-    preflight.status,
-    "LIVE_DEPLOYMENT_OBSERVATION_COMPLETE_NOT_AUTHORIZED",
+    result.status,
+    "TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN",
   );
-  assert.match(preflight.preflight_id, /^voidwcmvldop1_[0-9a-f]{64}$/u);
-  assert.equal(preflight.qualification.qualification_id, q.qualification_id);
-  assert.equal(preflight.operator_selections.deployer_address, DEPLOYER);
+  assert.equal(result.production_artifact_authorized, false);
+  assert.equal(result.production_preflight_id_emitted, false);
+  assert.equal("preflight_id" in result, false);
+  assert.equal("preflight" in result, false);
+  assert.equal(result.qualification_id, q.qualification_id);
+  assert.equal(result.observation.block_number, "100");
+  assert.equal(result.observation.block_hash, HEAD_HASH);
+  assert.equal(result.observation.latest_deployer_nonce, "6");
+  assert.equal(result.observation.pending_deployer_nonce, "7");
+  assert.equal(result.observation.pending_transactions_present, true);
+  assert.equal(result.observation.pending_nonce_revalidated, true);
+  assert.equal(result.observation.deployment_gas_estimate, "1000000");
+  assert.equal(result.observation.gas_price_wei, "1000000000");
   assert.equal(
-    preflight.operator_selections.inventory_source_address,
-    INVENTORY_SOURCE,
-  );
-  assert.equal(preflight.observation.block_number, "100");
-  assert.equal(preflight.observation.block_hash, HEAD_HASH);
-  assert.equal(preflight.observation.latest_deployer_nonce, "6");
-  assert.equal(preflight.observation.pending_deployer_nonce, "7");
-  assert.equal(preflight.observation.pending_transactions_present, true);
-  assert.equal(preflight.observation.pending_nonce_revalidated, true);
-  assert.equal(preflight.observation.deployment_gas_estimate, "1000000");
-  assert.equal(preflight.observation.gas_price_wei, "1000000000");
-  assert.equal(
-    preflight.observation.bare_estimated_deployment_cost_wei,
+    result.observation.bare_estimated_deployment_cost_wei,
     "1000000000000000",
   );
-  assert.equal(preflight.observation.deployer_balance_covers_bare_estimate, true);
+  assert.equal(result.observation.deployer_balance_covers_bare_estimate, true);
   assert.equal(
-    preflight.observation.inventory_source_void_balance_atoms,
+    result.observation.inventory_source_void_balance_atoms,
     (OPENING_ATOMS + 123n).toString(),
   );
   assert.equal(
-    preflight.observation.opening_inventory_required_atoms,
+    result.observation.opening_inventory_required_atoms,
     OPENING_ATOMS.toString(),
   );
   assert.equal(
-    preflight.observation.inventory_source_covers_opening_inventory,
+    result.observation.inventory_source_covers_opening_inventory,
     true,
   );
-  assert.equal(preflight.sufficiency.observation_sufficiency_green, true);
-  assert.equal(
-    preflight.next_gate,
-    "separately_review_gas_limit_fee_policy_nonce_use_and_deployment_authority",
-  );
+  assert.equal(result.sufficiency.observation_sufficiency_green, true);
   assert.equal(f.calls.length, 11);
   assert.deepEqual(
     [...new Set(f.calls.map((call) => call.method))].sort(),
@@ -417,41 +488,123 @@ function fixture(options = {}) {
     balanceCall.params[0].data,
     "0x70a08231" + "0".repeat(24) + INVENTORY_SOURCE.slice(2),
   );
+});
+
+{
+  let injectedCalls = 0;
+  const q = qualificationFixture();
+  const result =
+    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1({
+      ...input(q, "http://127.0.0.1:1/"),
+      transport: async () => {
+        injectedCalls += 1;
+        return "0x802";
+      },
+    });
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "live_deployment_preflight_transport_injection_forbidden",
+  );
+  assert.equal(injectedCalls, 0);
+}
+
+await withFixture({}, async (f) => {
+  const result =
+    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(qualificationFixture(), f.rpc_url),
+    );
+  assert.equal(result.ok, false);
+  assert.equal(
+    [
+      "live_deployment_preflight_canonical_main_branch_required",
+      "live_deployment_preflight_remote_main_head_mismatch",
+    ].includes(result.reason),
+    true,
+    result.reason,
+  );
+  assert.equal(
+    f.calls.length,
+    0,
+    "feature-branch production observation reached RPC",
+  );
+});
+
+{
+  const head = gitText(["rev-parse", "HEAD"]);
+  const feature =
+    testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1({
+      branch: "feature/test",
+      head,
+      remote_main_sha: head,
+    });
+  assert.equal(feature.ok, false);
+  assert.equal(
+    feature.reason,
+    "live_deployment_preflight_canonical_main_branch_required",
+  );
+
+  const stale =
+    testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1({
+      branch: "main",
+      head,
+      remote_main_sha: "f".repeat(40),
+    });
+  assert.equal(stale.ok, false);
+  assert.equal(
+    stale.reason,
+    "live_deployment_preflight_remote_main_head_mismatch",
+  );
+
+  const exact =
+    testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1({
+      branch: "main",
+      head,
+      remote_main_sha: head,
+    });
+  assert.equal(exact.ok, true);
+  assert.equal(exact.production_artifact_authorized, false);
 }
 
 {
   const originalOrigin =
     gitText(["config", "--local", "--get", "remote.origin.url"]);
   try {
-    setOrigin("https://github.com/6ZoSo9/void-node.git");
-    const acceptedFixture = fixture();
-    const accepted =
-      await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-        input(qualificationFixture(), acceptedFixture.transport),
-      );
-    assert.equal(
-      accepted.ok,
-      true,
-      accepted.ok ? "" : accepted.reason,
-    );
+    for (const canonical of [
+      "https://github.com/6ZoSo9/void-node",
+      "https://github.com/6ZoSo9/void-node.git",
+    ]) {
+      setOrigin(canonical);
+      await withFixture({}, async (f) => {
+        const accepted =
+          await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+            input(qualificationFixture(), f.rpc_url),
+          );
+        assert.equal(
+          accepted.ok,
+          true,
+          accepted.ok ? "" : accepted.reason,
+        );
+      });
+    }
 
     setOrigin("https://github.com/not-void/void-node.git");
-    const hostileFixture = fixture();
-    const rejected =
-      await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-        input(qualificationFixture(), hostileFixture.transport),
+    await withFixture({}, async (f) => {
+      const rejected =
+        await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+          input(qualificationFixture(), f.rpc_url),
+        );
+      assert.equal(rejected.ok, false);
+      assert.equal(
+        rejected.reason,
+        "live_deployment_preflight_repository_identity_invalid",
       );
-    assert.equal(rejected.ok, false);
-    if (rejected.ok) throw new Error("hostile origin unexpectedly accepted");
-    assert.equal(
-      rejected.reason,
-      "live_deployment_preflight_repository_identity_invalid",
-    );
-    assert.equal(
-      hostileFixture.calls.length,
-      0,
-      "hostile origin reached RPC transport before rejection",
-    );
+      assert.equal(
+        f.calls.length,
+        0,
+        "hostile origin reached RPC transport before rejection",
+      );
+    });
   } finally {
     setOrigin(originalOrigin);
   }
@@ -464,106 +617,91 @@ for (const [options, expectedReason] of [
   [{ timestampDrift: true }, "live_deployment_preflight_revalidation_mismatch"],
   [{ badGasEstimate: true }, "live_deployment_preflight_gas_estimate_out_of_range"],
 ]) {
-  const f = fixture(options);
-  const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(qualificationFixture(), f.transport),
-    );
-  assert.equal(result.ok, false);
-  if (result.ok) throw new Error("negative fixture unexpectedly green");
-  assert.equal(result.reason, expectedReason);
+  await withFixture(options, async (f) => {
+    const result =
+      await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+        input(qualificationFixture(), f.rpc_url),
+      );
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, expectedReason);
+  });
 }
 
-{
-  const f = fixture({ lowInventory: true });
+await withFixture({ lowInventory: true }, async (f) => {
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(qualificationFixture(), f.transport),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(qualificationFixture(), f.rpc_url),
     );
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error(result.reason);
   assert.equal(
-    result.preflight.sufficiency.opening_inventory_balance_observation_green,
+    result.sufficiency.opening_inventory_balance_observation_green,
     false,
   );
-  assert.equal(result.preflight.sufficiency.observation_sufficiency_green, false);
-  assert.equal(
-    result.preflight.next_gate,
-    "resolve_observed_balance_shortfall_then_repeat_preflight",
-  );
-}
+  assert.equal(result.sufficiency.observation_sufficiency_green, false);
+});
 
-{
-  const f = fixture({ lowDeployerBalance: true });
+await withFixture({ lowDeployerBalance: true }, async (f) => {
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(qualificationFixture(), f.transport),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(qualificationFixture(), f.rpc_url),
     );
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error(result.reason);
   assert.equal(
-    result.preflight.sufficiency.bare_gas_balance_observation_green,
+    result.sufficiency.bare_gas_balance_observation_green,
     false,
   );
-  assert.equal(result.preflight.sufficiency.observation_sufficiency_green, false);
-}
+  assert.equal(result.sufficiency.observation_sufficiency_green, false);
+});
 
 {
-  const f = fixture();
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(qualificationFixture(), f.transport, {
-        rpc_url: "https://example.com/",
-      }),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(qualificationFixture(), "https://example.com/"),
     );
   assert.equal(result.ok, false);
-  assert.equal(f.calls.length, 0);
   assert.equal(result.reason, "live_deployment_preflight_rpc_policy_invalid");
 }
 
-{
+await withFixture({}, async (f) => {
   const q = qualificationFixture();
-  const f = fixture();
   const bytes = prettyBytes(q);
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1({
-      ...input(q, f.transport),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1({
+      ...input(q, f.rpc_url),
       qualification_file_sha256: "0".repeat(64),
     });
   assert.equal(result.ok, false);
   assert.equal(f.calls.length, 0);
   assert.equal(result.reason, "live_deployment_preflight_qualification_bytes_invalid");
   assert.equal(sha256(bytes).length, 64);
-}
+});
 
-{
+await withFixture({}, async (f) => {
   const q = qualificationFixture();
   q.qualification_id = "voidwcvrdq1_" + "0".repeat(64);
-  const f = fixture();
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(q, f.transport),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(q, f.rpc_url),
     );
   assert.equal(result.ok, false);
   assert.equal(f.calls.length, 0);
   assert.equal(result.reason, "live_deployment_preflight_qualification_id_mismatch");
-}
+});
 
-{
+await withFixture({}, async (f) => {
   const q = qualificationFixture();
   q.source_binding.source_head_sha = "0".repeat(40);
   q.qualification_id = qualificationId(q);
-  const f = fixture();
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(q, f.transport),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(q, f.rpc_url),
     );
   assert.equal(result.ok, false);
   assert.equal(f.calls.length, 0);
   assert.equal(result.reason, "live_deployment_preflight_source_generation_mismatch");
-}
+});
 
-{
+await withFixture({}, async (f) => {
   const original = fs.readFileSync(QUALIFICATION_TOOL);
   const sentinel = path.join(
     os.tmpdir(),
@@ -582,13 +720,11 @@ for (const [options, expectedReason] of [
       original,
     ]);
     fs.writeFileSync(QUALIFICATION_TOOL, malicious);
-    const f = fixture();
     const result =
-      await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-        input(qualificationFixture(), f.transport),
+      await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+        input(qualificationFixture(), f.rpc_url),
       );
     assert.equal(result.ok, false);
-    if (result.ok) throw new Error("dirty qualification source unexpectedly green");
     assert.equal(
       result.reason,
       "live_deployment_preflight_repository_identity_invalid",
@@ -603,23 +739,22 @@ for (const [options, expectedReason] of [
     fs.writeFileSync(QUALIFICATION_TOOL, original);
     fs.rmSync(sentinel, { force: true });
   }
-}
+});
 
-{
+await withFixture({}, async (f) => {
   const q = qualificationFixture();
   const substituted = "0x4444444444444444444444444444444444444444";
   q.settlement_executor.address = substituted;
   q.deployment_preparation.constructor.values.settlement_executor = substituted;
   q.qualification_id = qualificationId(q);
-  const f = fixture();
   const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-      input(q, f.transport),
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(q, f.rpc_url),
     );
   assert.equal(result.ok, false);
   assert.equal(f.calls.length, 0);
   assert.equal(result.reason, "live_deployment_preflight_role_binding_invalid");
-}
+});
 
 for (const [key, expected] of Object.entries({
   qualification_receipt_required: true,
@@ -628,6 +763,12 @@ for (const [key, expected] of Object.entries({
   canonical_source_revalidation_required: true,
   reviewed_qualification_contract_exact_head_execution: true,
   private_reviewed_qualification_contract_materialization: true,
+  canonical_main_branch_required: true,
+  canonical_remote_main_read_required: true,
+  canonical_remote_main_head_match_required: true,
+  canonical_remote_main_external_network_read: true,
+  caller_transport_injection_forbidden: true,
+  production_transport_internal_only: true,
   explicit_deployer_recorded_not_authorized: true,
   explicit_inventory_source_recorded_not_authorized: true,
   canonical_chain_id: "2050",
@@ -670,6 +811,30 @@ for (const [key, expected] of Object.entries({
   );
 }
 
+for (const [key, expected] of Object.entries({
+  test_only: true,
+  production_artifact_authorized: false,
+  production_preflight_id_emitted: false,
+  canonical_remote_main_required: false,
+  real_loopback_http_required: true,
+  caller_transport_injection_forbidden: true,
+  rpc_write: false,
+  transaction_construction: false,
+  transaction_signing: false,
+  transaction_broadcast: false,
+  deployment: false,
+  inventory_funding: false,
+  market_activation: false,
+  public_presale_activation: false,
+  funds_movement: false,
+})) {
+  assert.equal(
+    VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1[key],
+    expected,
+    key,
+  );
+}
+
 const source = fs.readFileSync(PREFLIGHT_TOOL, "utf8");
 assert.equal(
   source.includes(
@@ -677,6 +842,16 @@ assert.equal(
   ),
   false,
   "preflight must not statically execute qualification worktree module",
+);
+assert.equal(
+  source.includes("input?.transport || createHttpTransport"),
+  false,
+  "production transport injection fallback must not exist",
+);
+assert.equal(
+  source.includes("const transport = createHttpTransport(rpcPolicy);"),
+  true,
+  "production transport must be internally constructed",
 );
 
 for (const forbidden of [
@@ -702,6 +877,14 @@ for (const required of [
   "O_NOFOLLOW",
   "GIT_CONFIG_GLOBAL",
   "core.fsmonitor=false",
+  "canonicalRemoteMainHead",
+  '"ls-remote"',
+  '"refs/heads/main"',
+  "live_deployment_preflight_canonical_main_branch_required",
+  "live_deployment_preflight_remote_main_head_mismatch",
+  "live_deployment_preflight_transport_injection_forbidden",
+  "testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1",
+  "TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN",
   "reviewedQualificationContract",
   "live_deployment_preflight_qualification_contract_blob_mismatch",
   "qualification_current_head_required",
@@ -715,6 +898,13 @@ console.log(
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1_PROOF_GREEN",
 );
 console.log("qualification_current_head_required=true");
+console.log("canonical_main_branch_required=true");
+console.log("canonical_remote_main_read_required=true");
+console.log("canonical_remote_main_head_match_required=true");
+console.log("caller_transport_injection_forbidden=true");
+console.log("production_transport_internal_only=true");
+console.log("test_only_loopback_http_green=true");
+console.log("production_artifact_from_feature_branch=false");
 console.log("reviewed_qualification_contract_exact_head_execution=true");
 console.log("private_reviewed_qualification_contract_materialization=true");
 console.log("dirty_qualification_source_rejected_before_execution=true");
