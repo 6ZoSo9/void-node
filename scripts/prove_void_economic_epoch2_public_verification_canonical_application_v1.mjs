@@ -457,8 +457,11 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
   const fakeBin = path.join(hostile, "bin");
   const fakeGitSentinel = path.join(hostile, "fake-git-invoked");
   const fsmonitorSentinel = path.join(hostile, "fsmonitor-invoked");
+  const tarSentinel = path.join(hostile, "tar-options-invoked");
+  const loaderSentinelPrefix = path.join(hostile, "ld-debug");
   const fakeGit = path.join(fakeBin, "git");
   const fakeFsmonitor = path.join(hostile, "fake-fsmonitor.sh");
+  const fakeTarHook = path.join(hostile, "fake-tar-hook.sh");
   const hostileAttributes = path.join(hostile, "attributes");
   const hostileHome = path.join(hostile, "home");
   fs.mkdirSync(fakeBin, { recursive: true });
@@ -475,6 +478,13 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
     "#!/bin/sh\nprintf 'invoked\\n' >> " +
       JSON.stringify(fsmonitorSentinel) +
       "\nexit 92\n",
+    { mode: 0o755 },
+  );
+  fs.writeFileSync(
+    fakeTarHook,
+    "#!/bin/sh\nprintf 'invoked\\n' >> " +
+      JSON.stringify(tarSentinel) +
+      "\nexit 93\n",
     { mode: 0o755 },
   );
   fs.writeFileSync(hostileAttributes, "* export-ignore\n", "utf8");
@@ -517,6 +527,14 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
     "GIT_CONFIG_KEY_0",
     "GIT_CONFIG_VALUE_0",
     "GIT_EXEC_PATH",
+    "TAR_OPTIONS",
+    "LD_LIBRARY_PATH",
+    "LD_DEBUG",
+    "LD_DEBUG_OUTPUT",
+    "DYLD_LIBRARY_PATH",
+    "DYLD_INSERT_LIBRARIES",
+    "NODE_OPTIONS",
+    "NODE_PATH",
   ]) {
     savedEnv.set(
       key,
@@ -551,6 +569,15 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
     process.env.GIT_CONFIG_KEY_0 = "core.fsmonitor";
     process.env.GIT_CONFIG_VALUE_0 = fakeFsmonitor;
     process.env.GIT_EXEC_PATH = fakeBin;
+    process.env.TAR_OPTIONS =
+      "--checkpoint=1 --checkpoint-action=exec=" + fakeTarHook;
+    process.env.LD_LIBRARY_PATH = hostile;
+    process.env.LD_DEBUG = "libs";
+    process.env.LD_DEBUG_OUTPUT = loaderSentinelPrefix;
+    process.env.DYLD_LIBRARY_PATH = hostile;
+    process.env.DYLD_INSERT_LIBRARIES = path.join(hostile, "missing.dylib");
+    process.env.NODE_OPTIONS = "--trace-warnings";
+    process.env.NODE_PATH = path.join(hostile, "node_modules");
 
     const hostilePlan =
       await prepareVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1(
@@ -568,6 +595,11 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
     );
     assert.equal(fs.existsSync(fakeGitSentinel), false);
     assert.equal(fs.existsSync(fsmonitorSentinel), false);
+    assert.equal(fs.existsSync(tarSentinel), false);
+    assert.equal(
+      fs.readdirSync(hostile).some((name) => name.startsWith("ld-debug.")),
+      false,
+    );
   } finally {
     for (const [key, values] of priorLocal) {
       spawnSync(
@@ -804,7 +836,9 @@ for (const required of [
   "core.attributesFile=/dev/null",
   'env.GIT_CONFIG_GLOBAL = "/dev/null"',
   'env.GIT_CONFIG_SYSTEM = "/dev/null"',
-  'env.HOME = "/nonexistent"',
+  'HOME: "/nonexistent"',
+  "minimalAuthorityEnv",
+  "withMinimalAuthorityProcessEnv",
   '"--local", "--no-includes", "--get", "remote.origin.url"',
   "checkedGitSpawn",
   "canonicalRemoteGitText",
@@ -814,8 +848,8 @@ for (const required of [
   "production_network_call",
   "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
   "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN",
-  'process.env.GIT_OPTIONAL_LOCKS = "0"',
-  "priorOptionalLocks",
+  "TAR_OPTIONS",
+  "LD_DEBUG_OUTPUT",
   "detached_base_git_view_required",
   "applied_composition_reexecution_required",
   "exact_composition_execution_from_reviewed_head",
