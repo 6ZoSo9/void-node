@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -38,6 +38,11 @@ const ORIGIN =
   VOID_PARTICIPANT_POSTPURCHASE_PRODUCTION_PUBLIC_ORIGIN_V1;
 const PARTICIPANT_MISSING =
   "participant_post_purchase_voidtoken_control_required";
+const ROOT = process.cwd();
+const TOOL = path.join(
+  ROOT,
+  "tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs",
+);
 
 function plain(value) {
   return (
@@ -225,6 +230,37 @@ try {
   fs.chmodSync(receiptFile, 0o600);
   const receiptSha = sha256(receiptBytes);
 
+  {
+    const ignoredRoot = fs.mkdtempSync(
+      path.join(ROOT, "data-proof-participant-promotion-input-"),
+    );
+    try {
+      fs.chmodSync(ignoredRoot, 0o700);
+      const ignoredReceipt = path.join(ignoredRoot, "runtime-binding.json");
+      fs.writeFileSync(ignoredReceipt, receiptBytes, { mode: 0o600 });
+      fs.chmodSync(ignoredReceipt, 0o600);
+      assert.equal(
+        execFileSync(
+          "git",
+          ["status", "--porcelain=v1", "--untracked-files=all"],
+          { encoding: "utf8" },
+        ),
+        "",
+        "ignored in-repo receipt fixture must not dirty worktree",
+      );
+      assert.throws(
+        () =>
+          readVoidParticipantPostpurchasePromotionSourcesV1({
+            runtimeBindingFile: ignoredReceipt,
+            runtimeBindingFileSha256: receiptSha,
+          }),
+        /runtime_binding_receipt_must_be_outside_repository/u,
+      );
+    } finally {
+      fs.rmSync(ignoredRoot, { recursive: true, force: true });
+    }
+  }
+
   const sources =
     readVoidParticipantPostpurchasePromotionSourcesV1({
       runtimeBindingFile: receiptFile,
@@ -273,6 +309,41 @@ try {
     buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1(
       sources,
     );
+
+  {
+    const ignoredRoot = fs.mkdtempSync(
+      path.join(ROOT, "data-proof-participant-promotion-output-"),
+    );
+    try {
+      fs.chmodSync(ignoredRoot, 0o700);
+      const ignoredOutput = path.join(ignoredRoot, "promotion.json");
+      const cli = spawnSync(
+        process.execPath,
+        [
+          TOOL,
+          "prepare",
+          "--runtime-binding",
+          receiptFile,
+          "--runtime-binding-sha256",
+          receiptSha,
+          "--output",
+          ignoredOutput,
+        ],
+        {
+          cwd: ROOT,
+          encoding: "utf8",
+        },
+      );
+      assert.notEqual(cli.status, 0, cli.stdout);
+      assert.match(
+        String(cli.stderr || ""),
+        /promotion_output_must_be_outside_repository/u,
+      );
+      assert.equal(fs.existsSync(ignoredOutput), false);
+    } finally {
+      fs.rmSync(ignoredRoot, { recursive: true, force: true });
+    }
+  }
 
   assert.equal(
     promotion.marker,
@@ -509,6 +580,8 @@ try {
     "VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_V1_PROOF_GREEN",
   );
   console.log("runtime_binding_file_digest_pinned=true");
+  console.log("runtime_binding_receipt_outside_repository=true");
+  console.log("promotion_output_outside_repository=true");
   console.log("pure_builder_source_file_hashes_bound=true");
   console.log("runtime_binding_closed_schema_revalidated=true");
   console.log("runtime_binding_id_recomputed=true");
