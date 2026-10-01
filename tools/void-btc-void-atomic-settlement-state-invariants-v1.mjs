@@ -37,6 +37,14 @@ const TOOL_REL =
   "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs";
 const GIT = "/usr/bin/git";
 const HEX40 = /^[0-9a-f]{40}$/u;
+const REVIEWED_GIT_CONFIG_ARGS = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
 const COUPLED_CANDIDATE_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SHARED_MARKET_V2_REL =
@@ -60,28 +68,7 @@ const REVIEWED_SOURCE_BLOBS = Object.freeze({
   [SHARED_MARKET_V2_REL]: EXPECTED_SHARED_MARKET_V2_GIT_BLOB_SHA1,
   [COUPLED_CANDIDATE_REL]: EXPECTED_COUPLED_CANDIDATE_GIT_BLOB_SHA1,
 });
-const GIT_ENV_BLOCKLIST = Object.freeze([
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_COMMON_DIR",
-  "GIT_INDEX_FILE",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_NAMESPACE",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_CONFIG",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_CONFIG_COUNT",
-  "GIT_EXEC_PATH",
-  "GIT_SSH",
-  "GIT_SSH_COMMAND",
-  "GIT_ASKPASS",
-  "SSH_ASKPASS",
-  "GIT_EXTERNAL_DIFF",
-  "GIT_PAGER",
-  "GIT_EDITOR",
-  "GIT_SEQUENCE_EDITOR",
-]);
+
 const EXPECTED_SHARED_MARKET_V2_MARKER =
   "VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2";
 const EXPECTED_SHARED_MARKET_V2_SCHEMA =
@@ -287,28 +274,28 @@ function sameGitExecutableV1(left, right) {
 }
 
 function sanitizedGitEnvV1() {
-  const env = { ...process.env };
-  for (const key of GIT_ENV_BLOCKLIST) delete env[key];
-  for (const key of Object.keys(env)) {
-    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
-  }
-  env.PATH = "/usr/bin:/bin";
-  env.HOME = "/nonexistent";
-  env.GIT_CONFIG_GLOBAL = "/dev/null";
-  env.GIT_CONFIG_SYSTEM = "/dev/null";
-  env.GIT_CONFIG_NOSYSTEM = "1";
-  env.GIT_OPTIONAL_LOCKS = "0";
-  env.GIT_NO_LAZY_FETCH = "1";
-  env.GIT_TERMINAL_PROMPT = "0";
-  env.LANG = "C";
-  env.LC_ALL = "C";
-  return env;
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_ASKPASS: "/bin/false",
+  };
 }
 
 function gitRunV1(args, { encoding = "utf8", allowFail = false } = {}) {
   const result = spawnSync(
     GIT,
-    ["--no-replace-objects", "-C", ROOT, ...args],
+    ["--no-replace-objects", ...REVIEWED_GIT_CONFIG_ARGS, "-C", ROOT, ...args],
     {
       encoding,
       stdio: ["ignore", "pipe", "pipe"],
