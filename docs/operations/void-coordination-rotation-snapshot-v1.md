@@ -26,6 +26,8 @@ It always emits:
 ```text
 ownership_scope=open_pull_requests_only
 ownership_complete=false
+point_in_time_only=true
+live_refresh_required_before_successor_write=true
 issue_lane_refresh_required=true
 dependency_graph_refresh_required=true
 recent_coordination_comment_refresh_required=true
@@ -42,6 +44,7 @@ The CLI reads one closed JSON object from standard input:
 {
   "marker": "VOID_COORDINATION_ROTATION_SNAPSHOT_EVIDENCE_V1",
   "version": 1,
+  "observed_at": "2026-10-01T19:30:00Z",
   "observed_main_sha": "<40-char lowercase SHA>",
   "chain": {
     "...": "VOID_COORDINATION_SUCCESSOR_CHAIN_V1 output"
@@ -64,6 +67,8 @@ The CLI reads one closed JSON object from standard input:
 ```
 
 Every PR entry must explicitly declare `state: "open"`; closed/merged PR evidence is rejected. GitHub UTC timestamps are accepted in their canonical second form (`...Z`) or canonical millisecond form (`...sssZ`). Open PR numbers must be unique. Each changed path must be repository-relative, normalized, and unique within the PR. Input is bounded to 4 MiB, at most 250 open PRs, and at most 500 changed paths per PR.
+
+The snapshot is explicitly point-in-time. `observed_at` must be canonical UTC, and neither the current-hub update timestamp nor any supplied PR update timestamp may postdate it. The packet still requires a fresh live reread immediately before Ada writes a successor.
 
 The live-dispatch policy is read from:
 
@@ -115,7 +120,7 @@ The supplied successor-chain evidence is structurally invalid.
 
 The packet records:
 
-- exact observed `main` SHA;
+- exact observation timestamp and observed `main` SHA;
 - SHA-256 content IDs for the exact validated live-dispatch policy, successor-chain receipt, and normalized open-PR evidence;
 - root/current coordination issue;
 - current hub comment and total-message counts;
