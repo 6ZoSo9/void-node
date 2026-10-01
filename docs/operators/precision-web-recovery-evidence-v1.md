@@ -22,7 +22,11 @@ The plan binds exact Git blobs and file SHA-256 values for:
 - `public/void-public-frontdoor-v1/index.html`.
 
 Preparation requires a clean repository and exact reviewed source blobs.
-The plan records the current repository HEAD/tree and this verifier's Git blob.
+All Git identity/object reads use the absolute reviewed `/usr/bin/git`
+executable with replacement refs disabled, repository/object/config/program
+override environment variables removed, fixed PATH/locale, and executable
+identity revalidation before/after each read. The plan records the current
+repository HEAD/tree and this verifier's Git blob.
 
 Unrelated later commits are not silently treated as the same plan. A new source
 generation requires a new content-addressed plan.

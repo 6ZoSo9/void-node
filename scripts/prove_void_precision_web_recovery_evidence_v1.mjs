@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_PRECISION_WEB_RECOVERY_AUTHORITY_V1,
@@ -99,6 +101,74 @@ function reId(value){
 }
 
 const plan=prepareVoidPrecisionWebRecoveryPlanV1();
+
+{
+  const hostileRoot=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-precision-web-recovery-git-boundary-"),
+  );
+  const fakeBin=path.join(hostileRoot,"bin");
+  const sentinel=path.join(hostileRoot,"fake-git-invoked");
+  fs.mkdirSync(fakeBin);
+  const fakeGit=path.join(fakeBin,"git");
+  fs.writeFileSync(
+    fakeGit,
+    "#!/bin/sh\nprintf 'invoked\\n' >> "+JSON.stringify(sentinel)+"\nexit 97\n",
+    {mode:0o755},
+  );
+  const keys=[
+    "PATH",
+    "HOME",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_KEY_0",
+    "GIT_CONFIG_VALUE_0",
+    "GIT_EXEC_PATH",
+    "GIT_SSH_COMMAND",
+  ];
+  const saved=new Map(
+    keys.map((key)=>[
+      key,
+      Object.prototype.hasOwnProperty.call(process.env,key)
+        ? process.env[key]
+        : undefined,
+    ]),
+  );
+  try{
+    process.env.PATH=fakeBin;
+    process.env.HOME=hostileRoot;
+    process.env.GIT_DIR=path.join(hostileRoot,"forged.git");
+    process.env.GIT_WORK_TREE=hostileRoot;
+    process.env.GIT_COMMON_DIR=path.join(hostileRoot,"common.git");
+    process.env.GIT_INDEX_FILE=path.join(hostileRoot,"index");
+    process.env.GIT_OBJECT_DIRECTORY=path.join(hostileRoot,"objects");
+    process.env.GIT_ALTERNATE_OBJECT_DIRECTORIES=path.join(hostileRoot,"alt-objects");
+    process.env.GIT_NAMESPACE="forged";
+    process.env.GIT_REPLACE_REF_BASE="refs/replace/forged";
+    process.env.GIT_CONFIG_PARAMETERS="'core.abbrev=1'";
+    process.env.GIT_CONFIG_COUNT="1";
+    process.env.GIT_CONFIG_KEY_0="core.abbrev";
+    process.env.GIT_CONFIG_VALUE_0="1";
+    process.env.GIT_EXEC_PATH=fakeBin;
+    process.env.GIT_SSH_COMMAND="false";
+    const hostilePlan=prepareVoidPrecisionWebRecoveryPlanV1();
+    assert.deepEqual(hostilePlan,plan);
+    assert.equal(fs.existsSync(sentinel),false);
+  }finally{
+    for(const [key,value] of saved){
+      if(value===undefined) delete process.env[key];
+      else process.env[key]=value;
+    }
+    fs.rmSync(hostileRoot,{recursive:true,force:true});
+  }
+}
 
 assert.equal(plan.marker,VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V1);
 assert.equal(plan.version,1);
@@ -269,6 +339,13 @@ for(const forbidden of [
   assert.equal(source.includes(forbidden),false,forbidden);
 }
 for(const required of [
+  'const GIT_EXECUTABLE="/usr/bin/git"',
+  '"--no-replace-objects"',
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_CONFIG_COUNT",
+  "GIT_EXEC_PATH",
+  "precision_web_git_executable_changed_during_read",
   "PrivateTmp=true",
   "ProtectSystem=strict",
   "ProtectHome=read-only",
@@ -285,6 +362,10 @@ for(const required of [
 
 console.log("VOID_PRECISION_WEB_RECOVERY_EVIDENCE_V1_PROOF_GREEN");
 console.log("current_source_generation_bound=true");
+console.log("reviewed_absolute_git_executable=true");
+console.log("git_replacement_refs_disabled=true");
+console.log("ambient_git_repository_and_config_overrides_ignored=true");
+console.log("hostile_path_git_substitution_rejected=true");
 console.log("adapter_8080_recovery_override_bound=true");
 console.log("composition_8082_strict_ready_contract_bound=true");
 console.log("frontdoor_8083_upstream_strict_ready_contract_bound=true");

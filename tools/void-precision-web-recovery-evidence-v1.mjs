@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +34,28 @@ export const VOID_PRECISION_WEB_RECOVERY_AUTHORITY_V1 = Object.freeze({
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const ROOT=path.resolve(HERE,"..");
 const HEX40=/^[0-9a-f]{40}$/u;
+const GIT_EXECUTABLE="/usr/bin/git";
+const GIT_REPOSITORY_ENV=Object.freeze([
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+  "GIT_REPLACE_REF_BASE",
+]);
+const GIT_PROGRAM_ENV=Object.freeze([
+  "GIT_EXEC_PATH",
+  "GIT_SSH",
+  "GIT_SSH_COMMAND",
+  "GIT_ASKPASS",
+  "SSH_ASKPASS",
+  "GIT_EXTERNAL_DIFF",
+  "GIT_PAGER",
+  "GIT_EDITOR",
+  "GIT_SEQUENCE_EDITOR",
+]);
 const PLAN_ID=/^voidpwrp1_[0-9a-f]{64}$/u;
 const EVIDENCE_ID=/^voidpwre1_[0-9a-f]{64}$/u;
 
@@ -115,14 +138,82 @@ function canonicalize(value){
 function canonicalJson(value){return JSON.stringify(canonicalize(value));}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
 
-function git(args,code,{encoding="utf8"}={}){
-  const result=spawnSync("git",["-C",ROOT,...args],{
-    encoding,
-    stdio:["ignore","pipe","pipe"],
-    env:{...process.env,GIT_OPTIONAL_LOCKS:"0",GIT_NO_LAZY_FETCH:"1"},
-    maxBuffer:4*1024*1024,
+function inspectGitExecutable(){
+  let canonicalPath;
+  let stat;
+  let bytes;
+  try{
+    canonicalPath=fs.realpathSync(GIT_EXECUTABLE);
+    stat=fs.statSync(canonicalPath);
+    bytes=fs.readFileSync(canonicalPath);
+  }catch{
+    fail("precision_web_git_executable_unavailable");
+  }
+  if(
+    !path.isAbsolute(canonicalPath)||
+    !stat.isFile()||
+    (stat.mode&0o111)===0
+  ) fail("precision_web_git_executable_invalid");
+  return Object.freeze({
+    path:canonicalPath,
+    sha256:sha256(bytes),
+    filesystem_identity:[
+      canonicalPath,
+      String(stat.dev),
+      String(stat.ino),
+      String(stat.size),
+      String(stat.mode&0o7777),
+    ].join("\0"),
   });
-  if(result.status!==0) fail(code);
+}
+
+function sameGitExecutable(left,right){
+  return (
+    left.path===right.path&&
+    left.sha256===right.sha256&&
+    left.filesystem_identity===right.filesystem_identity
+  );
+}
+
+function sanitizedGitEnv(){
+  const env={...process.env};
+  for(const key of GIT_REPOSITORY_ENV) delete env[key];
+  for(const key of GIT_PROGRAM_ENV) delete env[key];
+  delete env.GIT_CONFIG_PARAMETERS;
+  delete env.GIT_CONFIG_COUNT;
+  for(const key of Object.keys(env)){
+    if(/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
+  }
+  env.PATH="/usr/bin:/bin";
+  env.HOME="/nonexistent";
+  env.GIT_CONFIG_GLOBAL="/dev/null";
+  env.GIT_CONFIG_SYSTEM="/dev/null";
+  env.GIT_CONFIG_NOSYSTEM="1";
+  env.GIT_TERMINAL_PROMPT="0";
+  env.GIT_OPTIONAL_LOCKS="0";
+  env.GIT_NO_LAZY_FETCH="1";
+  env.LANG="C";
+  env.LC_ALL="C";
+  return env;
+}
+
+function git(args,code,{encoding="utf8"}={}){
+  const before=inspectGitExecutable();
+  const result=spawnSync(
+    before.path,
+    ["--no-replace-objects","-C",ROOT,...args],
+    {
+      encoding,
+      stdio:["ignore","pipe","pipe"],
+      env:sanitizedGitEnv(),
+      maxBuffer:4*1024*1024,
+    },
+  );
+  if(result.error||result.status!==0) fail(code);
+  const after=inspectGitExecutable();
+  if(!sameGitExecutable(before,after)){
+    fail("precision_web_git_executable_changed_during_read");
+  }
   return encoding===null?Buffer.from(result.stdout):String(result.stdout).trim();
 }
 
