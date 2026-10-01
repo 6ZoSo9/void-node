@@ -100,6 +100,8 @@ export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_AUTHORIT
     atomic_restart_transition_supported: true,
     atomic_restart_dormant_live_apply_only: true,
     atomic_restart_single_config_generation_required: true,
+    atomic_restart_configuration_digest_derived_from_gate_material: true,
+    atomic_restart_generation_id_derived_from_configuration_digest: true,
     non_atomic_multi_gate_transition_forbidden: true,
     claimed_selector_required_when_apply_live: true,
     full_runtime_required_when_apply_live: true,
