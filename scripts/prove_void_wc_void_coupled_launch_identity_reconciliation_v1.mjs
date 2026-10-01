@@ -152,6 +152,8 @@ for(const [path,sha] of Object.entries(
 
 for(const key of [
   "reviewed_source_blobs_verified",
+  "canonical_inputs_loaded_from_head_git_objects",
+  "verified_modules_loaded_from_head_git_objects",
   "repository_clean",
   "current_fixture_rederived",
   "commitment_digest_rederived",
@@ -168,6 +170,7 @@ for(const key of [
 ]) {
   assert.equal(artifact.verification[key],true,key);
 }
+assert.equal(artifact.verification.working_tree_module_execution,false);
 assert.equal(artifact.verification.classifier_execution_performed,false);
 assert.equal(artifact.verification.canonical_candidate_file_updated,false);
 assert.equal(artifact.verification.classifier_source_updated,false);
@@ -207,7 +210,16 @@ assert.doesNotMatch(source,/\bcurl\b|\bssh\b/u);
 assert.doesNotMatch(source,/eth_sendRawTransaction|eth_sendTransaction/u);
 assert.doesNotMatch(source,/new\s+Wallet\s*\(/u);
 assert.doesNotMatch(source,/git\s+(?:add|commit|push|merge|checkout|reset)/u);
-assert.match(source,/reviewed_blob=/u);
+assert.match(source,/\["show","HEAD:"\+relativePath\]/u);
+assert.match(source,/GIT_NO_LAZY_FETCH:"1"/u);
+assert.match(source,/GIT_TERMINAL_PROMPT:"0"/u);
+assert.match(source,/data:text\/javascript;base64/u);
+assert.match(source,/loadVerifiedHeadModulesV1/u);
+assert.doesNotMatch(source,/readFileSync/u);
+assert.doesNotMatch(
+  source,
+  /import\(\s*new URL\(\s*"\.\/void-wc-void-coupled-opening-v1\.mjs/u,
+);
 assert.match(source,/current_classifier_source_fixture_verified:true/u);
 assert.match(source,/candidate_classifier_atomic_source_update_required:true/u);
 assert.match(source,/classifier_execution_performed:false/u);
@@ -239,6 +251,9 @@ console.log(
 );
 console.log("reconciliation_id_rotated=true");
 console.log("wc_opening_state_id_rotated=true");
+console.log("canonical_inputs_loaded_from_head_git_objects=true");
+console.log("verified_modules_loaded_from_head_git_objects=true");
+console.log("working_tree_module_execution=false");
 console.log("derived_candidate_deep_frozen=true");
 console.log("classifier_execution_performed=false");
 console.log("atomic_candidate_classifier_proof_doc_update_required=true");
