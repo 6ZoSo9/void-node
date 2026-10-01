@@ -63,6 +63,9 @@ single-link `0600` regular-file custody and a bounded size, reads through that
 same descriptor, then requires stable dev/inode/size/mtime/ctime and path
 identity before using the bytes.
 
+The permanent proof also rejects a loose-mode preflight log, a hardlinked
+preflight log, and a log held under a non-private parent directory.
+
 The wrapper captures the preflight-log SHA-256 immediately after sealing the
 fresh preflight output, before source materialization or staging. After staging,
 both the still-present log bytes and the stage tool\'s reported

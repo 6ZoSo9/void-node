@@ -125,6 +125,44 @@ try {
     );
   }
 
+  {
+    const looseLog = path.join(tmp, "preflight-loose-mode.log");
+    fs.writeFileSync(looseLog, receipt, { mode: 0o600 });
+    fs.chmodSync(looseLog, 0o644);
+    const loose = run(
+      looseLog,
+      path.join(stageRoot, "preflight-loose-mode"),
+    );
+    assert.equal(loose.status, 2);
+    assert.match(loose.stderr, /preflight_log_mode_mismatch/u);
+  }
+
+  {
+    const hardlinkLog = path.join(tmp, "preflight-hardlink.log");
+    fs.linkSync(logPath, hardlinkLog);
+    const linked = run(
+      hardlinkLog,
+      path.join(stageRoot, "preflight-hardlink"),
+    );
+    assert.equal(linked.status, 2);
+    assert.match(linked.stderr, /preflight_log_hardlink_forbidden/u);
+    fs.unlinkSync(hardlinkLog);
+  }
+
+  {
+    const looseParent = path.join(tmp, "loose-preflight-parent");
+    fs.mkdirSync(looseParent, { mode: 0o700 });
+    fs.chmodSync(looseParent, 0o755);
+    const looseParentLog = path.join(looseParent, "preflight.log");
+    fs.writeFileSync(looseParentLog, receipt, { mode: 0o600 });
+    const held = run(
+      looseParentLog,
+      path.join(stageRoot, "preflight-loose-parent"),
+    );
+    assert.equal(held.status, 2);
+    assert.match(held.stderr, /preflight_log_parent_mode_mismatch/u);
+  }
+
   const out = path.join(stageRoot, LIVE_CONFIGURATION_SHA256);
   const first = run(logPath, out);
   assert.equal(first.status, 0, first.stderr);
@@ -469,6 +507,9 @@ console.log("wrapper_staged_bytes_rehashed=true");
 console.log("immutable_stage_source_execution_bound=true");
 console.log("descriptor_bound_preflight_log_read=true");
 console.log("private_preflight_log_custody_bound=true");
+console.log("preflight_log_loose_mode_rejected=true");
+console.log("preflight_log_hardlink_rejected=true");
+console.log("preflight_log_nonprivate_parent_rejected=true");
 console.log("preflight_log_digest_captured_before_staging=true");
 console.log("reviewed_git_boundary_bound=true");
 console.log("exact_head_workflow_bound=true");
