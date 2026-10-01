@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -335,23 +336,92 @@ function validatePrefixAuthority(authority, segSpan) {
   return authority;
 }
 
-function computeSemantics(root) {
-  const inputs = [SCANNER_REL, MANIFEST_SCHEMA_REL].map((relativePath) => {
-    const file = path.join(root, relativePath);
-    return {
-      path: relativePath,
-      sha256: hashBytes(fs.readFileSync(file)),
-    };
-  });
+function captureClassificationSemantics(root) {
+  const scannerFile = path.join(root, SCANNER_REL);
+  const schemaFile = path.join(root, MANIFEST_SCHEMA_REL);
+  const scannerBefore = statIdentity(scannerFile);
+  const schemaBefore = statIdentity(schemaFile);
+  const scannerBytes = fs.readFileSync(scannerFile);
+  const schemaBytes = fs.readFileSync(schemaFile);
+  const scannerAfter = statIdentity(scannerFile);
+  const schemaAfter = statIdentity(schemaFile);
+  if (
+    !sameStatIdentity(scannerBefore, scannerAfter) ||
+    !sameStatIdentity(schemaBefore, schemaAfter)
+  ) {
+    hold("classification_semantics_source_moved_during_capture");
+  }
+  const inputs = [
+    { path: SCANNER_REL, sha256: hashBytes(scannerBytes) },
+    { path: MANIFEST_SCHEMA_REL, sha256: hashBytes(schemaBytes) },
+  ];
   const body = {
     schema: "void_mainnet0_classification_semantics_v1",
     algorithm: "sha256_stable_json_file_digest_set_v1",
     inputs,
   };
   return Object.freeze({
-    ...body,
-    root: sha256Hex(Buffer.from(stableStringify(body), "utf8")),
+    semantics: Object.freeze({
+      ...body,
+      root: sha256Hex(Buffer.from(stableStringify(body), "utf8")),
+    }),
+    scanner_bytes: scannerBytes,
+    schema_bytes: schemaBytes,
   });
+}
+
+function computeSemantics(root) {
+  return captureClassificationSemantics(root).semantics;
+}
+
+async function loadVerifiedScannerRuntimeV1(capture) {
+  if (
+    !capture ||
+    !Buffer.isBuffer(capture.scanner_bytes) ||
+    capture.scanner_bytes.length < 1
+  ) {
+    hold("accepted_scanner_bytes_unavailable");
+  }
+  const sourceSha256 = hashBytes(capture.scanner_bytes);
+  if (sourceSha256 !== capture.semantics.inputs[0].sha256) {
+    hold("accepted_scanner_capture_digest_mismatch");
+  }
+
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-mainnet0-cartography-scanner-"),
+  );
+  fs.chmodSync(temp, 0o700);
+  const file = path.join(temp, "mainnet0_historical_cartography_v1.mjs");
+  try {
+    fs.writeFileSync(file, capture.scanner_bytes, {
+      flag: "wx",
+      mode: 0o400,
+    });
+    const verify = fs.readFileSync(file);
+    if (
+      verify.length !== capture.scanner_bytes.length ||
+      hashBytes(verify) !== sourceSha256
+    ) {
+      hold("accepted_scanner_private_materialization_mismatch");
+    }
+    fs.chmodSync(temp, 0o500);
+    const module = await import(pathToFileURL(file).href);
+    return Object.freeze({
+      module,
+      source_sha256: sourceSha256,
+      private_materialization: true,
+      worktree_imported: false,
+    });
+  } finally {
+    try {
+      if (fs.existsSync(temp)) {
+        fs.chmodSync(temp, 0o700);
+        fs.rmSync(temp, { recursive: true, force: true });
+      }
+    } catch {
+      // Cleanup-only: imported module authority is already byte-bound.
+    }
+  }
 }
 
 export function validateBaselineArtifactsV1(
@@ -361,6 +431,7 @@ export function validateBaselineArtifactsV1(
     repoRoot = ROOT,
     requireProductionIdentity = false,
     scannerMeta,
+    semanticsCapture = null,
   } = {},
 ) {
   const acceptance = structuredClone(acceptanceInput);
@@ -454,7 +525,9 @@ export function validateBaselineArtifactsV1(
     hold("prior_acceptance_manifest_binding_mismatch");
   }
 
-  const semantics = computeSemantics(path.resolve(repoRoot));
+  const semantics =
+    semanticsCapture?.semantics ||
+    computeSemantics(path.resolve(repoRoot));
   if (
     stableStringify(semantics) !==
       stableStringify(acceptance.classification_semantics)
@@ -1224,6 +1297,8 @@ export function extendCartographySourceV1({
 
 const ACCEPTANCE = readJson(path.join(ROOT, ACCEPTANCE_REL));
 const PRIOR_MANIFEST = readJson(path.join(ROOT, MANIFEST_REL));
+const PRODUCTION_SEMANTICS_CAPTURE =
+  captureClassificationSemantics(ROOT);
 const PRE_SCANNER_META = Object.freeze({
   MARKER: PRIOR_MANIFEST.marker,
   SCHEMA: PRIOR_MANIFEST.schema,
@@ -1238,9 +1313,12 @@ const PRODUCTION_BASELINE_PRE = validateBaselineArtifactsV1(
     repoRoot: ROOT,
     requireProductionIdentity: true,
     scannerMeta: PRE_SCANNER_META,
+    semanticsCapture: PRODUCTION_SEMANTICS_CAPTURE,
   },
 );
-const SCANNER = await import(pathToFileURL(path.join(ROOT, SCANNER_REL)).href);
+const SCANNER_EXECUTION =
+  await loadVerifiedScannerRuntimeV1(PRODUCTION_SEMANTICS_CAPTURE);
+const SCANNER = SCANNER_EXECUTION.module;
 for (const name of [
   "buildManifest",
   "classifyBlock",
@@ -1264,6 +1342,14 @@ if (
 
 export function productionBaselineV1() {
   return PRODUCTION_BASELINE_PRE;
+}
+
+export function acceptedScannerExecutionV1() {
+  return Object.freeze({
+    source_sha256: SCANNER_EXECUTION.source_sha256,
+    private_materialization: SCANNER_EXECUTION.private_materialization,
+    worktree_imported: SCANNER_EXECUTION.worktree_imported,
+  });
 }
 
 export function prepareAcceptedCartographyExtensionV1({
