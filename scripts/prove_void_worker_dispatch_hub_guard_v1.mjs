@@ -23,6 +23,14 @@ import {
 
 const PROOF_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1_PROOF_GREEN";
 const EVALUATION_ID = "sha256:" + "a".repeat(64);
+const PROOF_NOW_MS = Date.now();
+const EVALUATED_AT = new Date(PROOF_NOW_MS - 5 * 60_000).toISOString();
+const NEXT_REEVALUATION_AT =
+  new Date(PROOF_NOW_MS + 25 * 60_000).toISOString();
+const STALE_EVALUATED_AT =
+  new Date(PROOF_NOW_MS - 31 * 60_000).toISOString();
+const STALE_NEXT_REEVALUATION_AT =
+  new Date(PROOF_NOW_MS - 60_000).toISOString();
 
 assert.equal(CHAIN_MARKER, UPSTREAM_CHAIN_MARKER);
 assert.equal(DISPATCH_MARKER, UPSTREAM_DISPATCH_MARKER);
@@ -142,6 +150,9 @@ function dispatch(overrides = {}) {
     repository: "6ZoSo9/void-node",
     plan_issue: 1507,
     evaluation_id: EVALUATION_ID,
+    evaluated_at: EVALUATED_AT,
+    reevaluation_interval_minutes: 30,
+    next_reevaluation_at: NEXT_REEVALUATION_AT,
     continuous_execution_guaranteed: false,
     external_worker_invocation_required: true,
     source_mutation_authorized: false,
@@ -192,6 +203,8 @@ assert.equal(current.marker, MARKER);
 assert.equal(current.version, 1);
 assert.equal(current.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(current.chain_outcome, "CURRENT");
+assert.equal(current.dispatch_evidence_fresh, true);
+assert.equal(current.requires_fresh_dispatch_evidence, false);
 assert.equal(current.normal_dispatch_allowed, true);
 assert.equal(current.read_only_evidence_only, false);
 assert.equal(current.resolved_current_issue, 1507);
@@ -204,6 +217,23 @@ assert.equal(current.authority_granted, false);
 assert.equal(current.mutation_performed, false);
 assert.match(current.guard_id, /^sha256:[0-9a-f]{64}$/u);
 assert.equal(Object.isFrozen(current), true);
+
+const staleDispatchEvidence = evidence(
+  chain(),
+  dispatch({
+    evaluated_at: STALE_EVALUATED_AT,
+    next_reevaluation_at: STALE_NEXT_REEVALUATION_AT,
+  }),
+);
+const staleDispatch = evaluateWorkerDispatchHubGuardV1(
+  staleDispatchEvidence,
+  { liveChain: staleDispatchEvidence.chain },
+);
+assert.equal(staleDispatch.outcome, "HOLD_DISPATCH_EVIDENCE_EXPIRED");
+assert.equal(staleDispatch.normal_dispatch_allowed, false);
+assert.equal(staleDispatch.read_only_evidence_only, true);
+assert.equal(staleDispatch.dispatch_evidence_fresh, false);
+assert.equal(staleDispatch.requires_fresh_dispatch_evidence, true);
 
 const rotation = evaluateWorkerDispatchHubGuardV1(
   evidence(
@@ -372,6 +402,19 @@ expectRejected(
   () => evaluateWorkerDispatchHubGuardV1(
     evidence(
       chain(),
+      dispatch({
+        next_reevaluation_at:
+          new Date(PROOF_NOW_MS + 24 * 60_000).toISOString(),
+      }),
+    ),
+  ),
+  /reevaluation window is inconsistent/,
+);
+
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(
+    evidence(
+      chain(),
       dispatch({ evaluation_id: "not-a-content-id" }),
     ),
   ),
@@ -392,4 +435,6 @@ console.log("real_upstream_composition_green=true");
 console.log("retained_chain_alignment_held_until_live_recheck=true");
 console.log("fresh_live_chain_equality_required=true");
 console.log("caller_boolean_cannot_unlock_alignment=true");
+console.log("expired_dispatch_evidence_holds=true");
+console.log("dispatch_reevaluation_window_bound=true");
 console.log("normal_dispatch_grants_no_source_authority=true");
