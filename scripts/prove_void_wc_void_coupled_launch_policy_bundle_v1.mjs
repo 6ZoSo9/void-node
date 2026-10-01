@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -35,16 +36,50 @@ import {
   economicIntentTtlCapsPolicyIdV1,
 } from "../tools/void-economic-intent-ttl-caps-policy-v1.mjs";
 import {
-  VOID_ECONOMIC_SYSTEM_SPONSORED_POLICY_SCHEMA_V1,
-  economicSystemSponsoredPolicyIdV1,
-} from "../tools/void-economic-system-sponsored-anti-grief-policy-v1.mjs";
-import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT,
 } from "../tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs";
 
 const TOOL =
   "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
 const LAUNCH = VOID_WC_VOID_COUPLED_LAUNCH_ID_V1;
+const SPONSORED_POLICY_SCHEMA =
+  "void.economic-system-sponsored-anti-grief-policy.v1";
+
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  const keys = Object.keys(value).sort();
+  return (
+    "{" +
+    keys.map((key) => JSON.stringify(key) + ":" + canonicalJson(value[key]))
+      .join(",") +
+    "}"
+  );
+}
+
+function sponsoredPolicyId(value) {
+  const payload = {
+    schema: value.schema,
+    coupled_launch_id: value.coupled_launch_id,
+    intent_ttl_caps_policy_id: value.intent_ttl_caps_policy_id,
+    policy_generation: value.policy_generation,
+    policy_committed_at_ms: value.policy_committed_at_ms,
+    per_intent_sponsored_gas_limit: value.per_intent_sponsored_gas_limit,
+    per_identity_sponsored_gas_budget:
+      value.per_identity_sponsored_gas_budget,
+    global_sponsored_gas_budget: value.global_sponsored_gas_budget,
+    budget_exhaustion_action: value.budget_exhaustion_action,
+  };
+  return "sha256:" +
+    crypto.createHash("sha256").update(canonicalJson(payload)).digest("hex");
+}
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -108,7 +143,7 @@ function fixture() {
   ttl.policy_id = economicIntentTtlCapsPolicyIdV1(ttl);
 
   const sponsor = {
-    schema: VOID_ECONOMIC_SYSTEM_SPONSORED_POLICY_SCHEMA_V1,
+    schema: SPONSORED_POLICY_SCHEMA,
     policy_id: "sha256:" + "0".repeat(64),
     coupled_launch_id: LAUNCH,
     intent_ttl_caps_policy_id: ttl.policy_id,
@@ -122,7 +157,7 @@ function fixture() {
         .budget_exhaustion_action,
   };
   sponsor.policy_id =
-    economicSystemSponsoredPolicyIdV1(sponsor);
+    sponsoredPolicyId(sponsor);
 
   return {
     coupled_launch_id: LAUNCH,
@@ -152,7 +187,7 @@ function recomputeTtl(value) {
 }
 
 function recomputeSponsor(value) {
-  value.policy_id = economicSystemSponsoredPolicyIdV1(value);
+  value.policy_id = sponsoredPolicyId(value);
   return value;
 }
 
