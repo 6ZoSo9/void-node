@@ -72,6 +72,8 @@ function createFixture(root, { version, commit, portable }) {
   const topName = `void-node-${version}`;
   const releaseRoot = path.join(fixtureRoot, topName);
   ensureDir(releaseRoot);
+  fs.chmodSync(releaseRoot, 0o750);
+  const releaseRootMode = fs.lstatSync(releaseRoot).mode & 0o7777;
 
   const payload = path.join(releaseRoot, "bin", "payload");
   writeFile(payload, "#!/usr/bin/env bash\nprintf 'payload\\n'\n", 0o755);
@@ -171,6 +173,7 @@ function createFixture(root, { version, commit, portable }) {
     archive,
     checksums,
     manifest: manifestFile,
+    releaseRootMode,
   };
 }
 
@@ -398,6 +401,8 @@ function proveInstaller({
   );
   assert.match(first.output, /MATERIALIZE_ONLY_GREEN/u);
   assert.match(first.output, /materialized_release_durable=true/u);
+  assert.match(first.output, /materialize_parent_durable=true/u);
+  assert.match(first.output, /release_root_mode_bound=true/u);
   assert.match(first.output, /current_pointer_mutated=false/u);
   assert.match(first.output, /previous_pointer_mutated=false/u);
   assert.match(first.output, /stable_manager_published=false/u);
@@ -426,6 +431,11 @@ function proveInstaller({
     "stale materialize staging entry survived successful retry",
   );
   assertBoundary(harness, candidateDir);
+  assert.equal(
+    fs.lstatSync(candidateDir).mode & 0o7777,
+    fixture.releaseRootMode,
+    "new materialized candidate root mode must match verified extraction",
+  );
 
   const second = run(
     "bash",
@@ -434,6 +444,17 @@ function proveInstaller({
   );
   assert.match(second.output, /existing_materialized_release_exact=true/u);
   assert.match(second.output, /MATERIALIZE_ONLY_GREEN/u);
+  assertBoundary(harness, candidateDir);
+
+  const candidateRootMode = fs.lstatSync(candidateDir).mode & 0o7777;
+  fs.chmodSync(candidateDir, candidateRootMode === 0o700 ? 0o750 : 0o700);
+  expectMaterializeFailure(
+    installer,
+    fixture,
+    harness,
+    /existing release tree differs from verified candidate/u,
+  );
+  fs.chmodSync(candidateDir, candidateRootMode);
   assertBoundary(harness, candidateDir);
 
   const payload = path.join(candidateDir, "bin", "payload");
@@ -519,6 +540,8 @@ function proveInstaller({
 
   console.log(`${label}_initial_materialization_green=true`);
   console.log(`${label}_idempotent_exact_retry_green=true`);
+  console.log(`${label}_release_root_mode_preserved=true`);
+  console.log(`${label}_release_root_mode_drift_rejected=true`);
   console.log(`${label}_mode_drift_rejected=true`);
   console.log(`${label}_symlink_target_drift_rejected=true`);
   console.log(`${label}_extra_path_rejected=true`);
@@ -527,6 +550,61 @@ function proveInstaller({
   console.log(`${label}_stale_stage_symlink_recovered=true`);
   console.log(`${label}_pointer_and_external_sentinels_unchanged=true`);
   console.log(`${label}_retention_pruning_suppressed=true`);
+}
+
+function proveFreshParentCreation({
+  label,
+  installer,
+  fixture,
+  portable,
+  root,
+}) {
+  const base = path.join(root, `${label}-fresh-parent`);
+  const home = path.join(base, "home");
+  const installRoot = path.join(base, "new-a", "new-b", "install");
+  const binDir = path.join(base, "external-bin");
+  const configDir = path.join(base, "external-config");
+  const stateDir = path.join(base, "external-state");
+  const systemdDir = path.join(base, "external-systemd");
+  for (const directory of [home, binDir, configDir, stateDir, systemdDir]) {
+    ensureDir(directory);
+    writeFile(path.join(directory, "sentinel.txt"), `${label}\n`);
+  }
+  const harness = {
+    home,
+    installRoot,
+    releases: path.join(installRoot, "releases"),
+    binDir,
+    configDir,
+    stateDir,
+    systemdDir,
+  };
+  const result = run(
+    "bash",
+    materializeArgs(installer, fixture, harness, "install"),
+    { env: environment(harness) },
+  );
+  assert.match(result.output, /MATERIALIZE_ONLY_GREEN/u);
+  assert.match(result.output, /materialize_parent_durable=true/u);
+  assert.match(result.output, /materialized_release_durable=true/u);
+  const candidateDir = path.join(harness.releases, fixture.version);
+  assert.equal(fs.existsSync(candidateDir), true);
+  assert.equal(
+    fs.lstatSync(candidateDir).mode & 0o7777,
+    fixture.releaseRootMode,
+  );
+  assert.equal(fs.existsSync(path.join(installRoot, "current")), false);
+  assert.equal(fs.existsSync(path.join(installRoot, "previous")), false);
+  for (const directory of [binDir, configDir, stateDir, systemdDir]) {
+    assert.equal(
+      fs.readFileSync(path.join(directory, "sentinel.txt"), "utf8"),
+      `${label}\n`,
+    );
+  }
+  if (portable) {
+    assert.match(result.output, /host_node_required=false/u);
+  }
+  console.log(`${label}_fresh_parent_creation_durable_green=true`);
 }
 
 const root = fs.mkdtempSync(
@@ -559,9 +637,25 @@ try {
     harness: createHarness(root, "portable-harness"),
     portable: true,
   });
+  proveFreshParentCreation({
+    label: "standard",
+    installer: STANDARD,
+    fixture: standardFixture,
+    portable: false,
+    root,
+  });
+  proveFreshParentCreation({
+    label: "portable",
+    installer: PORTABLE,
+    fixture: portableFixture,
+    portable: true,
+    root,
+  });
 
   console.log(MARKER);
   console.log("materialized_release_durable=true");
+  console.log("materialize_parent_durable=true");
+  console.log("release_root_mode_bound=true");
   console.log("current_pointer_mutated=false");
   console.log("previous_pointer_mutated=false");
   console.log("stable_manager_published=false");

@@ -15,7 +15,7 @@ For `install` or `update` with `--materialize-only`, the installer may:
 - create exactly the verified `INSTALL_ROOT/releases/<version>` candidate when absent; or
 - reuse that candidate only after the existing tree exactly matches the newly verified extraction by repository-relative path, entry kind, file bytes, file/directory mode, and symlink target.
 
-For a new candidate, materialize-only first removes only its deterministic hidden `releases/.<version>.materialize-next` staging entry, copies the verified extraction into that same-filesystem staging directory, exact-compares it to the verified extraction, fsyncs the staged tree, then atomically renames the staged directory to `releases/<version>`. A stale staging symlink is unlinked rather than followed. Before success, every regular file in the final candidate is fsynced, candidate directories are fsynced bottom-up, and the `releases/` parent directory is fsynced. A successful result therefore reports `materialized_release_durable=true`.
+For a new candidate, materialize-only first durably creates any missing install-root / `releases/` directory chain, fsyncing each newly created directory and its parent. It then removes only its deterministic hidden `releases/.<version>.materialize-next` staging entry, copies the verified extraction as the staging root (preserving the verified root mode), exact-compares the root plus all descendants to the verified extraction, fsyncs the staged tree, then atomically renames the staged directory to `releases/<version>`. A stale staging symlink is unlinked rather than followed. Before success, every regular file in the final candidate is fsynced, candidate directories are fsynced bottom-up, and the `releases/` parent directory is fsynced. A successful result therefore reports both `materialize_parent_durable=true` and `materialized_release_durable=true`.
 
 ## Explicit non-mutations
 
@@ -34,7 +34,7 @@ Materialize-only exits before:
 
 ## Existing candidate rule
 
-Internal `RELEASE-CONTENTS-SHA256` verification alone is not sufficient for idempotent reuse because it does not prove directory shape, executable modes, or unlisted symlink/extra-file state. Materialize-only therefore compares the complete existing candidate tree against the freshly verified extraction and HOLDs on any mismatch.
+Internal `RELEASE-CONTENTS-SHA256` verification alone is not sufficient for idempotent reuse because it does not prove directory shape, the release-root mode, executable/directory modes, or unlisted symlink/extra-file state. Materialize-only therefore compares the complete existing candidate tree **including the candidate root itself** against the freshly verified extraction and HOLDs on any mismatch.
 
 ## Focused proof
 
@@ -46,7 +46,10 @@ The hermetic proof exercises both installers and verifies:
 
 - stale hidden staging evidence is safely replaced without following a symlink, then first materialization succeeds and reports durability;
 - exact `update --materialize-only` retry succeeds;
+- the verified release-root mode is preserved on first materialization;
+- release-root mode drift is rejected on idempotent reuse;
 - executable-mode drift is rejected;
+- fresh nested install-root / `releases/` parent creation exercises the durable-parent fsync path;
 - symlink-target drift is rejected;
 - an unexpected extra path is rejected;
 - `--enable` is rejected before mutation;

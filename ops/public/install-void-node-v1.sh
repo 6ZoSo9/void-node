@@ -50,7 +50,12 @@ def sha256_file(path):
 
 def snapshot(root):
     root=pathlib.Path(root)
-    out={}
+    root_metadata=root.lstat()
+    if root.is_symlink() or not root.is_dir():
+        raise SystemExit("materialized release root must be a real directory")
+    out={
+        ".": ("directory", stat.S_IMODE(root_metadata.st_mode)),
+    }
     for candidate in sorted(root.rglob("*"), key=lambda p: p.relative_to(root).as_posix()):
         rel=candidate.relative_to(root).as_posix()
         metadata=candidate.lstat()
@@ -74,6 +79,49 @@ if expected != observed:
     raise SystemExit(f"existing release tree differs from verified candidate: {preview}")
 print("existing_materialized_release_exact=true")
 PYMATERIALIZE
+}
+
+ensure_materialize_parent_durable(){
+  python3 - "$1" <<'PYPARENT'
+import os
+import pathlib
+import sys
+
+install_root=pathlib.Path(sys.argv[1])
+releases=install_root / "releases"
+missing=[]
+cursor=releases
+while not os.path.lexists(cursor):
+    missing.append(cursor)
+    parent=cursor.parent
+    if parent == cursor:
+        raise SystemExit("materialize install path has no existing ancestor")
+    cursor=parent
+
+def require_real_directory(path, label):
+    if os.path.lexists(path):
+        if os.path.islink(path) or not os.path.isdir(path):
+            raise SystemExit(f"{label} must be a real directory: {path}")
+
+require_real_directory(install_root, "install root")
+require_real_directory(releases, "releases root")
+os.makedirs(releases, exist_ok=True)
+require_real_directory(install_root, "install root")
+require_real_directory(releases, "releases root")
+
+def sync_directory(path):
+    fd=os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+for created in missing:
+    sync_directory(created)
+    sync_directory(created.parent)
+
+print("materialize_parent_durable=true")
+PYPARENT
 }
 
 fsync_materialized_release(){
@@ -438,7 +486,8 @@ print("manifest_build_binding_verified=true")
 PYBIND
 
 if test "$MATERIALIZE_ONLY" = 1; then
-  mkdir -p "$INSTALL_ROOT/releases"
+  ensure_materialize_parent_durable "$INSTALL_ROOT" ||
+    die "materialize install-root durability preparation failed"
 else
   mkdir -p "$INSTALL_ROOT/releases" "$BIN_DIR" "$CONFIG_DIR" "$STATE_DIR" "$SYSTEMD_DIR"
   chmod 700 "$INSTALL_ROOT" "$CONFIG_DIR" "$STATE_DIR" 2>/dev/null || true
@@ -461,8 +510,7 @@ if test "$MATERIALIZE_ONLY" = 1; then
       die "existing release directory does not exactly match verified candidate: $DEST"
     rm -rf "$EXTRACTED"
   else
-    mkdir "$MATERIALIZE_STAGE"
-    cp -a -- "$EXTRACTED/." "$MATERIALIZE_STAGE/"
+    cp -a -- "$EXTRACTED" "$MATERIALIZE_STAGE"
     verify_materialized_tree_matches "$EXTRACTED" "$MATERIALIZE_STAGE" ||
       {
         rm -rf -- "$MATERIALIZE_STAGE"
@@ -483,6 +531,8 @@ if test "$MATERIALIZE_ONLY" = 1; then
   say "version=$VERSION"
   say "release_dir=$DEST"
   say "materialized_release_durable=true"
+  say "materialize_parent_durable=true"
+  say "release_root_mode_bound=true"
   say "current_pointer_mutated=false"
   say "previous_pointer_mutated=false"
   say "stable_manager_published=false"
