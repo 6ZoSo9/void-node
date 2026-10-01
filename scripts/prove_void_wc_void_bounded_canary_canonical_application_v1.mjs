@@ -211,7 +211,17 @@ assert.throws(
     applicationPlanBytes: planBytes,
     applicationPlanFileSha256: sha256(planBytes),
   }),
-  /CANONICAL_APPLICATION_APPLIED_SOURCE_IDENTITY_MISMATCH/u,
+  /CANONICAL_APPLICATION_APPLIED_BRANCH_NOT_MAIN/u,
+);
+
+assert.throws(
+  () => verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
+    plan,
+    productionCandidate: JSON.parse(productionBytes.toString("utf8")),
+    coupledCandidate: JSON.parse(coupledBytes.toString("utf8")),
+    successorCandidate: successor,
+  }),
+  /CANONICAL_APPLICATION_PRODUCTION_TARGET_NOT_APPLIED/u,
 );
 
 {
@@ -273,6 +283,7 @@ for (const [key, value] of Object.entries(
     "canonical_classifier_reexecution",
     "exact_two_gate_source_delta",
     "reviewed_git_commit_required",
+    "canonical_main_application_required",
     "reviewed_git_executable_required",
     "ambient_git_overrides_ignored",
     "filesystem_read",
