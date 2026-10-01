@@ -450,7 +450,7 @@ export function decideBuyVoidPostgresActivationTransitionV1(
         configurationGenerationValue,
         toState,
       );
-    if (!configurationGeneration.ok) {
+    if (configurationGeneration.ok === false) {
       return Object.freeze({
         ok: false,
         status: "held",
