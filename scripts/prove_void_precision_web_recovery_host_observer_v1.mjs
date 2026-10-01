@@ -61,6 +61,27 @@ const hardening = {
   protect_system: false,
 };
 
+const processEnvironment = {
+  adapter: {
+    VOID_SEED_UPSTREAM: "http://127.0.0.1:4100",
+    VOID_ADAPTER_HOST: "127.0.0.1",
+    VOID_ADAPTER_PORT: "8080",
+  },
+  composition: {
+    VOID_COMPOSITION_HOST: "127.0.0.1",
+    VOID_COMPOSITION_PORT: "8082",
+    VOID_PUBLIC_GATEWAY_UPSTREAM: "http://127.0.0.1:8080",
+    VOID_NODE_UPSTREAM: "http://127.0.0.1:4100",
+    VOID_PUBLIC_NODE_LABEL: "Precision public seed",
+    VOID_PUBLIC_NETWORK_NAME: "Mainnet-0",
+  },
+  frontdoor: {
+    VOID_PUBLIC_FRONTDOOR_BIND: "127.0.0.1",
+    VOID_PUBLIC_FRONTDOOR_PORT: "8083",
+    VOID_PUBLIC_FRONTDOOR_UPSTREAM_PORT: "8082",
+  },
+};
+
 function service(name, pid, port, planSource, overrides = {}) {
   return {
     unit: units[name],
@@ -68,6 +89,7 @@ function service(name, pid, port, planSource, overrides = {}) {
     sub_state: "running",
     main_pid: pid,
     hardening: { ...hardening },
+    process_environment: { ...processEnvironment[name] },
     listener: {
       address: "127.0.0.1:" + port,
       pid,
@@ -475,6 +497,19 @@ expectRejected(
 }
 {
   const bad = collected();
+  bad.services.composition.process_environment.VOID_PUBLIC_NODE_LABEL =
+    "Alienware public seed";
+  expectRejected(
+    () => evaluateCollectedPrecisionWebObservationV1({
+      plan,
+      collected: bad,
+      trustedNowMs: PROOF_NOW_MS,
+    }),
+    /process_environment_mismatch:composition:VOID_PUBLIC_NODE_LABEL/,
+  );
+}
+{
+  const bad = collected();
   bad.services.frontdoor.process_source_sha256 = "e".repeat(64);
   expectRejected(
     () => evaluateCollectedPrecisionWebObservationV1({
@@ -566,6 +601,7 @@ console.log("running_source_digest_binding_proved=true");
 console.log("node_entry_script_argv1_binding_proved=true");
 console.log("observer_command_environment_isolated=true");
 console.log("precision_hardening_profile_required=true");
+console.log("service_process_environment_bound=true");
 console.log("adapter_composition_frontdoor_http_truth_bound=true");
 console.log("node_invocation_stability_required=true");
 console.log("tailscale_status_stability_required=true");
