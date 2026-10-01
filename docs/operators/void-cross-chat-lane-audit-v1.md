@@ -4,7 +4,7 @@ This read-only control audits a standalone development lane against the shared V
 
 ## Purpose
 
-A green result means the lane is using its exact standalone branch and repository, its remote-main reference is current, its dirty files are confined to its reserved paths, no shared worktree or open pull request owns those paths, and repeated process scans found no unapproved Git-capable worker.
+A green result means the lane is using its exact standalone branch and repository, its remote-main reference is current, the lane HEAD contains that exact current remote main, its dirty files are confined to its reserved paths, no shared worktree or open pull request owns those paths, and repeated process scans found no unapproved Git-capable worker.
 
 It is a collision-prevention check, not a distributed lock. Run it directly before edits, commits, pushes, rebases, or merges.
 
@@ -58,9 +58,9 @@ VOID_CROSS_CHAT_LANE_AUDIT_V1_HOLD
 node --experimental-strip-types scripts/prove_void_cross_chat_lane_audit_v1.ts
 ```
 
-The fixture proof covers one green case and six HOLD cases: shared-worktree overlap, pull-request overlap, stale remote main, a conflicting process, a dirty path outside the reservation, and a lane-branch mismatch.
+The fixture proof covers one green case and seven HOLD cases: shared-worktree overlap, pull-request overlap, stale remote main, a lane HEAD that does not contain the fresh remote main, a conflicting process, a dirty path outside the reservation, and a lane-branch mismatch.
 
-The dedicated cross-chat auditor GitHub Actions workflow runs this exact fixture proof whenever the auditor, this proof, or this operator contract changes.
+The dedicated cross-chat auditor GitHub Actions workflow runs this exact fixture proof whenever the auditor, this proof, or this operator contract changes. On pull requests it checks out the actual pull-request head SHA rather than GitHub's synthetic merge ref, so the fresh-main ancestry gate cannot be satisfied by CI's temporary merge commit.
 
 ## Mutation boundary
 

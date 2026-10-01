@@ -29,6 +29,7 @@ function fixture() {
   return {
     laneLocalMain: base,
     laneRemoteMain: base,
+    laneRemoteMainAncestorOfHead: true,
     lane: {
       path: laneRepo,
       branch: laneBranch,
@@ -137,6 +138,15 @@ try {
   assert.equal(staleHold.status, 1);
   assert.equal(staleHold.report.checks.laneRemoteMainExact, false);
 
+  const staleLaneHead = fixture();
+  staleLaneHead.laneRemoteMainAncestorOfHead = false;
+  const staleLaneHeadHold = runCase("stale-lane-head", staleLaneHead);
+  assert.equal(staleLaneHeadHold.status, 1);
+  assert.equal(
+    staleLaneHeadHold.report.checks.laneContainsRemoteMain,
+    false,
+  );
+
   const processConflict = fixture();
   processConflict.processScans[1].conflicts = [{
     pid: 4242,
@@ -161,9 +171,9 @@ try {
   assert.equal(branchHold.status, 1);
   assert.equal(branchHold.report.checks.laneBranchExact, false);
 
-  console.log("fixture_cases=7");
+  console.log("fixture_cases=8");
   console.log("green_cases=1");
-  console.log("hold_cases=6");
+  console.log("hold_cases=7");
   console.log("VOID_CROSS_CHAT_LANE_AUDIT_V1_PROOF_EXACT_GREEN");
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
