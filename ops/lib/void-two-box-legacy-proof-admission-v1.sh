@@ -55,6 +55,36 @@ void_two_box_validate_http_origin() {
   fi
 }
 
+void_two_box_validate_http_prefix() {
+  local name="${1:-origin}"
+  local value="${2:-}"
+  local expected_path="${3:-}"
+  [ -n "$value" ] || void_two_box_hold "missing explicit $name"
+  case "$value" in
+    *[\"\'\`\$\;\|\&\<\>\(\)\{\}\[\]\!]*|*[[:space:]]*|*"?"*|*"#"*)
+      void_two_box_hold "invalid $name syntax"
+      ;;
+  esac
+  case "$value" in
+    http://*|https://*) ;;
+    *) void_two_box_hold "invalid $name scheme" ;;
+  esac
+  local rest authority suffix port
+  rest="${value#*://}"
+  authority="${rest%%/*}"
+  suffix="${rest#"$authority"}"
+  if ! [[ "$authority" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*:[0-9]{1,5}$ ]]; then
+    void_two_box_hold "invalid $name authority"
+  fi
+  port="${authority##*:}"
+  if (( 10#$port < 1 || 10#$port > 65535 )); then
+    void_two_box_hold "invalid $name port"
+  fi
+  if [ "$suffix" != "$expected_path" ] && [ "$suffix" != "$expected_path/" ]; then
+    void_two_box_hold "invalid $name path"
+  fi
+}
+
 void_two_box_validate_loopback_origin() {
   local name="${1:-origin}"
   local value="${2:-}"
@@ -71,10 +101,10 @@ void_two_box_validate_loopback_origin() {
 
 void_two_box_origin_host() {
   local value="$1"
-  local rest hostport
+  local rest authority
   rest="${value#*://}"
-  hostport="${rest%/}"
-  printf '%s\n' "${hostport%:*}"
+  authority="${rest%%/*}"
+  printf '%s\n' "${authority%:*}"
 }
 
 void_two_box_require_mutation_confirmation() {
@@ -85,6 +115,21 @@ void_two_box_require_mutation_confirmation() {
   if [ "${CONFIRM_TWO_BOX_LEGACY_PROOF:-}" != "$expected" ]; then
     void_two_box_hold "confirmation required: CONFIRM_TWO_BOX_LEGACY_PROOF=$expected"
   fi
+}
+
+void_two_box_collect_remote_identity() {
+  local ssh_target="$1"
+  ssh -o BatchMode=yes -o ConnectTimeout=8 "$ssh_target" '
+set -euo pipefail
+cd "$HOME/dev/void-node"
+test "$(/usr/bin/git branch --show-current)" = main
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+printf "HEAD=%s\n" "$(/usr/bin/git rev-parse HEAD)"
+printf "HOST=%s\n" "$(/usr/bin/hostname)"
+printf "FQDN=%s\n" "$(/usr/bin/hostname -f 2>/dev/null || /usr/bin/hostname)"
+printf "TSIP=%s\n" "$(/usr/bin/tailscale ip -4 2>/dev/null | head -n1 || true)"
+printf "TSDNS=%s\n" "$(/usr/bin/tailscale status --json 2>/dev/null | /usr/bin/python3 -c '"'"'import json,sys; x=json.load(sys.stdin); print(str((x.get("Self") or {}).get("DNSName") or "").rstrip("."))'"'"' 2>/dev/null || true)"
+'
 }
 
 void_two_box_require_source_parity_and_bind_remote() {
@@ -101,17 +146,7 @@ void_two_box_require_source_parity_and_bind_remote() {
   [ -z "$local_dirty" ] || void_two_box_hold "local repository must be clean"
 
   local remote_meta
-  if ! remote_meta="$(ssh -o BatchMode=yes -o ConnectTimeout=8 "$ssh_target" '
-set -euo pipefail
-cd "$HOME/dev/void-node"
-test "$(git branch --show-current)" = main
-test -z "$(git status --porcelain=v1 --untracked-files=all)"
-printf "HEAD=%s\n" "$(git rev-parse HEAD)"
-printf "HOST=%s\n" "$(hostname)"
-printf "FQDN=%s\n" "$(hostname -f 2>/dev/null || hostname)"
-printf "TSIP=%s\n" "$(tailscale ip -4 2>/dev/null | head -n1 || true)"
-printf "TSDNS=%s\n" "$(tailscale status --json 2>/dev/null | python3 -c '"'"'import json,sys; x=json.load(sys.stdin); print(str((x.get("Self") or {}).get("DNSName") or "").rstrip("."))'"'"' 2>/dev/null || true)"
-')"; then
+  if ! remote_meta="$(void_two_box_collect_remote_identity "$ssh_target")"; then
     void_two_box_hold "remote source identity check failed"
   fi
 
