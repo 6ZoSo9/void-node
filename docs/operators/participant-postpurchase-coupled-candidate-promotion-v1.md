@@ -64,8 +64,12 @@ Promotion requires one saved receipt created by the merged
 
 The caller must provide:
 
-1. the absolute canonical receipt path; and
+1. the absolute canonical receipt path outside the source repository; and
 2. an independently reviewed exact raw-file SHA-256.
+
+Gitignored in-repository paths do not qualify as independent evidence custody.
+The generated promotion artifact must likewise use an absolute canonical path
+outside the source repository.
 
 The promotion tool does **not** perform a new network observation and does not
 pretend that a content hash authenticates who performed the observation. The
@@ -161,8 +165,8 @@ node tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs prep
   --output /absolute/participant-control-promotion.json
 ```
 
-The output is private evidence only. The canonical checked-in candidate is not
-modified.
+The output is private evidence only and must remain outside the source repository.
+The canonical checked-in candidate is not modified.
 
 ## Remaining application gate
 
