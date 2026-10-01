@@ -29,6 +29,8 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_AUTH
     canonical_head_candidate_bytes_required: true,
     reviewed_repository_generation_required: true,
     canonical_github_origin_required: true,
+    canonical_remote_main_read_required: true,
+    canonical_source_remote_read_only: true,
     reviewed_git_executable_required: true,
     ambient_git_overrides_ignored: true,
     git_replacement_objects_disabled: true,
@@ -43,7 +45,7 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_AUTH
     runtime_mutation: false,
     service_mutation: false,
     production_rpc_contact: false,
-    network_call: false,
+    production_network_call: false,
     credential_access: false,
     wallet_or_signer_access: false,
     private_key_access: false,
@@ -299,9 +301,8 @@ function sanitizedGitEnv() {
   return env;
 }
 
-function gitSafetyConfigArgs(workTree) {
-  return [
-    "-c", "core.worktree=" + workTree,
+function gitSafetyConfigArgs(workTree = null) {
+  const args = [
     "-c", "core.fsmonitor=false",
     "-c", "core.untrackedCache=false",
     "-c", "core.preloadIndex=false",
@@ -309,6 +310,10 @@ function gitSafetyConfigArgs(workTree) {
     "-c", "core.hooksPath=/dev/null",
     "-c", "core.attributesFile=/dev/null",
   ];
+  if (workTree) {
+    args.unshift("-c", "core.worktree=" + workTree);
+  }
+  return args;
 }
 
 function gitRun(args, code, { encoding = "utf8", allowFail = false } = {}) {
@@ -359,6 +364,46 @@ function canonicalRemote(value) {
     fail("PUBLIC_VERIFICATION_APPLICATION_CANONICAL_ORIGIN_REQUIRED");
   }
   return CANONICAL_REMOTE;
+}
+
+function canonicalRemoteGitText(args, code) {
+  const before = inspectGitExecutable();
+  const result = spawnSync(
+    before.path,
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(),
+      ...args,
+    ],
+    {
+      cwd: "/",
+      encoding: "utf8",
+      env: sanitizedGitEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 4 * 1024 * 1024,
+    },
+  );
+  const after = inspectGitExecutable();
+  if (!sameGitExecutable(before, after)) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_GIT_EXECUTABLE_CHANGED");
+  }
+  if (result.error || result.status !== 0) fail(code);
+  return String(result.stdout || "").trim();
+}
+
+function verifyCanonicalRemoteMain(expectedHead) {
+  if (!HEX40.test(String(expectedHead || ""))) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REMOTE_MAIN_EXPECTED_HEAD_INVALID");
+  }
+  const raw = canonicalRemoteGitText(
+    ["ls-remote", "--heads", CANONICAL_REMOTE, "refs/heads/main"],
+    "PUBLIC_VERIFICATION_APPLICATION_REMOTE_MAIN_UNAVAILABLE",
+  );
+  const match = raw.match(/^([0-9a-f]{40})\s+refs\/heads\/main$/u);
+  if (!match || match[1] !== expectedHead) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REMOTE_MAIN_MISMATCH");
+  }
+  return match[1];
 }
 
 function repositoryIdentity() {
@@ -1430,6 +1475,7 @@ export async function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplica
   if (repo.branch !== "main") {
     fail("PUBLIC_VERIFICATION_APPLICATION_APPLIED_BRANCH_NOT_MAIN");
   }
+  const canonicalRemoteMainSha = verifyCanonicalRemoteMain(repo.head);
   const ancestry = gitRun(
     [
       "merge-base",
@@ -1486,6 +1532,7 @@ export async function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplica
     application_base_head_sha: plan.application_base_head_sha,
     applied_head_sha: repo.head,
     applied_tree_sha: repo.tree,
+    canonical_remote_main_sha: canonicalRemoteMainSha,
     successor_candidate_git_blob_sha1: successor.blob_sha1,
     exact_upstream_semantic_replay_verified: true,
     exact_base_generation_replayed: true,

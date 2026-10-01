@@ -132,7 +132,8 @@ A plan is content-addressed for integrity, but its self-hash is **not semantic a
 1. reopens the plan's exact base commit/tree in a private detached Git view;
 2. re-executes merged #2260 from the exact public-read evidence, finalized-membership bytes, evaluation time, registry, publisher, and review confirmation;
 3. requires the rederived composition receipt, composition ID, state-root promotion ID, and final successor candidate to equal the plan exactly;
-4. only then checks that canonical current `main` contains that exact target successor blob and that the application/composition/classifier source lineage has not drifted.
+4. requires the local applied checkout to be branch `main` **and** requires a config-isolated, fixed-URL read of `https://github.com/6ZoSo9/void-node.git` to report that exact local HEAD as `refs/heads/main`;
+5. only then checks that canonical current `main` contains that exact target successor blob and that the application/composition/classifier source lineage has not drifted.
 
 A caller-created self-consistent plan cannot substitute for the upstream semantic evidence.
 
@@ -144,6 +145,8 @@ The finalized membership input is bounded to 1 MiB, matching the canonical #2193
 
 This lane is repository-source preparation and verification only.
 
-It performs no canonical source write, service/runtime mutation, production RPC call, network call for economic execution, credential/key/wallet/signer access, transaction construction/signing/submission/broadcast, Chain-2050 write, validator/governance/WC mutation, migration activation, public activation, token movement, or funds movement.
+Prepare remains network-free. Verify-applied performs one read-only, fixed-URL canonical GitHub `main` identity check for source provenance; that Git read is isolated from repository/global/system Git config and is not an economic/runtime network action.
+
+It performs no canonical source write, service/runtime mutation, production RPC call, production/economic network call, credential/key/wallet/signer access, transaction construction/signing/submission/broadcast, Chain-2050 write, validator/governance/WC mutation, migration activation, public activation, token movement, or funds movement.
 
 A green prepare result is not an applied source change. A green verify-applied result is still only `SOURCE_READY` source truth; it is not runtime activation.

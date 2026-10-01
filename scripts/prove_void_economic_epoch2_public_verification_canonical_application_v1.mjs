@@ -343,6 +343,8 @@ for (const [key, value] of Object.entries(
     "canonical_head_candidate_bytes_required",
     "reviewed_repository_generation_required",
     "canonical_github_origin_required",
+    "canonical_remote_main_read_required",
+    "canonical_source_remote_read_only",
     "reviewed_git_executable_required",
     "ambient_git_overrides_ignored",
     "git_replacement_objects_disabled",
@@ -805,6 +807,11 @@ for (const required of [
   'env.HOME = "/nonexistent"',
   '"--local", "--no-includes", "--get", "remote.origin.url"',
   "checkedGitSpawn",
+  "canonicalRemoteGitText",
+  "verifyCanonicalRemoteMain",
+  "PUBLIC_VERIFICATION_APPLICATION_REMOTE_MAIN_MISMATCH",
+  '"ls-remote", "--heads", CANONICAL_REMOTE, "refs/heads/main"',
+  "production_network_call",
   "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
   "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN",
   'process.env.GIT_OPTIONAL_LOCKS = "0"',
@@ -839,6 +846,8 @@ console.log("composition_reexecuted=true");
 console.log("exact_pr_head_checkout_required=true");
 console.log("git_config_execution_surfaces_isolated=true");
 console.log("hostile_fsmonitor_and_fake_git_not_executed=true");
+console.log("verify_applied_canonical_remote_main_required=true");
+console.log("canonical_remote_read_is_source_only=true");
 console.log("verify_applied_semantic_replay_required=true");
 console.log("detached_base_git_view_verified=true");
 console.log("self_hashed_forged_plan_rejected=true");
