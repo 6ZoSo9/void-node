@@ -281,24 +281,37 @@ function sameGitExecutable(left, right) {
   );
 }
 
+function minimalAuthorityEnv() {
+  return {
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    LANG: "C",
+    LC_ALL: "C",
+    PATH: "/usr/bin:/bin",
+  };
+}
+
 function sanitizedGitEnv() {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^GIT_/u.test(key) || key === "SSH_ASKPASS") delete env[key];
+  return minimalAuthorityEnv();
+}
+
+async function withMinimalAuthorityProcessEnv(fn) {
+  const saved = { ...process.env };
+  try {
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, minimalAuthorityEnv());
+    return await fn();
+  } finally {
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, saved);
   }
-  env.HOME = "/nonexistent";
-  env.XDG_CONFIG_HOME = "/nonexistent";
-  env.GIT_CONFIG_GLOBAL = "/dev/null";
-  env.GIT_CONFIG_SYSTEM = "/dev/null";
-  env.GIT_CONFIG_NOSYSTEM = "1";
-  env.GIT_ATTR_NOSYSTEM = "1";
-  env.GIT_OPTIONAL_LOCKS = "0";
-  env.GIT_TERMINAL_PROMPT = "0";
-  env.GIT_NO_REPLACE_OBJECTS = "1";
-  env.LANG = "C";
-  env.LC_ALL = "C";
-  env.PATH = "/usr/bin:/bin";
-  return env;
 }
 
 function gitSafetyConfigArgs(workTree = null) {
@@ -596,7 +609,7 @@ function repositoryGitDir() {
 
 function checkedSpawn(command, args, {
   cwd = "/",
-  env = sanitizedGitEnv(),
+  env = minimalAuthorityEnv(),
   code = "PUBLIC_VERIFICATION_APPLICATION_COMMAND_FAILED",
 } = {}) {
   const result = spawnSync(command, args, {
@@ -814,11 +827,7 @@ async function withReviewedComposition(repo, fn) {
       { code: "PUBLIC_VERIFICATION_APPLICATION_READONLY_LOCK_FAILED" },
     );
 
-    const hadOptionalLocks =
-      Object.prototype.hasOwnProperty.call(process.env, "GIT_OPTIONAL_LOCKS");
-    const priorOptionalLocks = process.env.GIT_OPTIONAL_LOCKS;
-    process.env.GIT_OPTIONAL_LOCKS = "0";
-    try {
+    return await withMinimalAuthorityProcessEnv(async () => {
       const compositionModule = await import(
         pathToFileURL(path.join(treeRoot, COMPOSITION_REL)).href +
           "?reviewed_head=" + repo.head
@@ -848,14 +857,11 @@ async function withReviewedComposition(repo, fn) {
         compositionBlob,
         classifierBlob,
       });
-    } finally {
-      if (hadOptionalLocks) process.env.GIT_OPTIONAL_LOCKS = priorOptionalLocks;
-      else delete process.env.GIT_OPTIONAL_LOCKS;
-    }
+    });
   } finally {
     if (fs.existsSync(treeRoot)) {
       spawnSync("/usr/bin/chmod", ["-R", "u+w", treeRoot], {
-        env: { PATH: "/usr/bin:/bin" },
+        env: minimalAuthorityEnv(),
         stdio: "ignore",
       });
     }
