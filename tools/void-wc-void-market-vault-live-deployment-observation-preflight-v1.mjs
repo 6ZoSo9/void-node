@@ -1343,47 +1343,210 @@ function readPrivateFile(file, expectedSha, label) {
   return bytes;
 }
 
-function writePrivateJson(file, value) {
+function sameDirectoryIdentity(stat, expected) {
+  return (
+    stat.isDirectory() &&
+    !stat.isSymbolicLink?.() &&
+    stat.dev === expected.dev &&
+    stat.ino === expected.ino
+  );
+}
+
+function writePrivateJsonBound(
+  file,
+  value,
+  { testOnlyAfterParentRevalidationBeforeCreate = null } = {},
+) {
   if (
     typeof file !== "string" ||
     !path.isAbsolute(file) ||
     path.resolve(file) !== file ||
-    !outsideRepository(file)
+    !outsideRepository(file) ||
+    process.platform !== "linux"
   ) {
     fail("live_deployment_preflight_output_path_invalid");
   }
   const parent = path.dirname(file);
+  const basename = path.basename(file);
+  if (
+    basename === "" ||
+    basename === "." ||
+    basename === ".." ||
+    basename.includes("/") ||
+    basename.includes("\\")
+  ) {
+    fail("live_deployment_preflight_output_basename_invalid");
+  }
   if (fs.realpathSync.native(parent) !== parent) {
     fail("live_deployment_preflight_output_parent_alias_forbidden");
   }
-  const parentStat = fs.lstatSync(parent);
+  const parentPathStat = fs.lstatSync(parent);
   if (
-    !parentStat.isDirectory() ||
-    parentStat.isSymbolicLink() ||
-    (parentStat.mode & 0o022) !== 0 ||
+    !parentPathStat.isDirectory() ||
+    parentPathStat.isSymbolicLink() ||
+    (parentPathStat.mode & 0o022) !== 0 ||
     (
       typeof process.getuid === "function" &&
-      parentStat.uid !== process.getuid()
+      parentPathStat.uid !== process.getuid()
     )
   ) {
     fail("live_deployment_preflight_output_parent_unsafe");
   }
+
   const bytes = Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
-  let fd;
+  let parentFd;
+  let fileFd;
+  let procFile;
+  let created = false;
   try {
-    fd = fs.openSync(
-      file,
+    parentFd = fs.openSync(
+      parent,
+      fs.constants.O_RDONLY |
+        Number(fs.constants.O_DIRECTORY || 0) |
+        Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    const parentFdStat = fs.fstatSync(parentFd);
+    if (
+      !sameDirectoryIdentity(parentFdStat, parentPathStat) ||
+      (parentFdStat.mode & 0o022) !== 0 ||
+      (
+        typeof process.getuid === "function" &&
+        parentFdStat.uid !== process.getuid()
+      )
+    ) {
+      fail("live_deployment_preflight_output_parent_descriptor_mismatch");
+    }
+
+    const parentBeforeCreate = fs.lstatSync(parent);
+    if (!sameDirectoryIdentity(parentBeforeCreate, parentFdStat)) {
+      fail("live_deployment_preflight_output_parent_changed_before_create");
+    }
+
+    if (testOnlyAfterParentRevalidationBeforeCreate !== null) {
+      if (typeof testOnlyAfterParentRevalidationBeforeCreate !== "function") {
+        fail("live_deployment_preflight_test_hook_invalid");
+      }
+      testOnlyAfterParentRevalidationBeforeCreate();
+    }
+
+    const procParent = "/proc/self/fd/" + String(parentFd);
+    procFile = path.join(procParent, basename);
+    fileFd = fs.openSync(
+      procFile,
       fs.constants.O_WRONLY |
         fs.constants.O_CREAT |
         fs.constants.O_EXCL |
         Number(fs.constants.O_NOFOLLOW || 0),
       0o600,
     );
-    fs.writeFileSync(fd, bytes);
-    fs.fsyncSync(fd);
-    fs.fchmodSync(fd, 0o600);
+    created = true;
+    fs.writeFileSync(fileFd, bytes);
+    fs.fchmodSync(fileFd, 0o600);
+    fs.fsyncSync(fileFd);
+
+    const createdStat = fs.fstatSync(fileFd);
+    if (
+      !createdStat.isFile() ||
+      createdStat.isSymbolicLink?.() ||
+      createdStat.nlink !== 1 ||
+      createdStat.size !== bytes.length ||
+      (createdStat.mode & 0o077) !== 0 ||
+      (
+        typeof process.getuid === "function" &&
+        createdStat.uid !== process.getuid()
+      )
+    ) {
+      fail("live_deployment_preflight_output_file_identity_invalid");
+    }
+
+    fs.fsyncSync(parentFd);
+
+    let parentAfter;
+    let outputAfter;
+    try {
+      parentAfter = fs.lstatSync(parent);
+      outputAfter = fs.lstatSync(file);
+    } catch {
+      parentAfter = null;
+      outputAfter = null;
+    }
+    if (
+      !parentAfter ||
+      !sameDirectoryIdentity(parentAfter, parentFdStat) ||
+      !outputAfter ||
+      !outputAfter.isFile() ||
+      outputAfter.isSymbolicLink() ||
+      outputAfter.dev !== createdStat.dev ||
+      outputAfter.ino !== createdStat.ino ||
+      outputAfter.nlink !== 1 ||
+      outputAfter.size !== createdStat.size
+    ) {
+      const primary =
+        new Error("live_deployment_preflight_output_parent_changed_during_write");
+      let cleanupError = null;
+      try {
+        if (created && procFile && fs.existsSync(procFile)) {
+          fs.unlinkSync(procFile);
+          fs.fsyncSync(parentFd);
+          created = false;
+        }
+      } catch (error) {
+        cleanupError = error;
+      }
+      if (cleanupError) {
+        throw new AggregateError(
+          [primary, cleanupError],
+          "live_deployment_preflight_output_drift_cleanup_failed",
+        );
+      }
+      throw primary;
+    }
   } finally {
-    if (fd !== undefined) fs.closeSync(fd);
+    if (fileFd !== undefined) fs.closeSync(fileFd);
+    if (parentFd !== undefined) fs.closeSync(parentFd);
+  }
+}
+
+function writePrivateJson(file, value) {
+  return writePrivateJsonBound(file, value);
+}
+
+export function testOnlyExerciseVoidWcVoidMarketVaultOutputParentReplacementV1() {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-market-vault-output-parent-race-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const parent = path.join(root, "output");
+  const replacement = path.join(root, "replacement");
+  const moved = path.join(root, "moved-original");
+  const file = path.join(parent, "receipt.json");
+  fs.mkdirSync(parent, { mode: 0o700 });
+  fs.mkdirSync(replacement, { mode: 0o700 });
+  let reason = null;
+  try {
+    try {
+      writePrivateJsonBound(
+        file,
+        { marker: "VOID_MARKET_VAULT_OUTPUT_PARENT_RACE_TEST_ONLY" },
+        {
+          testOnlyAfterParentRevalidationBeforeCreate() {
+            fs.renameSync(parent, moved);
+            fs.renameSync(replacement, parent);
+          },
+        },
+      );
+    } catch (error) {
+      reason = error instanceof Error ? error.message : String(error);
+    }
+    return Object.freeze({
+      marker: "VOID_MARKET_VAULT_OUTPUT_PARENT_RACE_TEST_ONLY_V1",
+      reason,
+      replacement_receipt_exists: fs.existsSync(path.join(parent, "receipt.json")),
+      original_receipt_exists: fs.existsSync(path.join(moved, "receipt.json")),
+      production_artifact_written: false,
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
