@@ -13,6 +13,7 @@ import {
   canonicalJson,
   collectReviewedNodePackageRuntimeV1,
   materializeReviewedNodePackageRuntimeV1,
+  readReviewedNodePackageRuntimeProfileV1,
   runReviewedNodePackageRuntimeV1,
   verifyMaterializedReviewedNodePackageRuntimeV1,
   verifyReviewedNodePackageRuntimeV1,
@@ -32,14 +33,28 @@ const expectedPackages=[
   "ws",
 ];
 
-const profile=collectReviewedNodePackageRuntimeV1({
-  rootPackages:["ethers"],
+const pinned=readReviewedNodePackageRuntimeProfileV1({
+  relativePath:"ops/security/reviewed-node-package-runtime-ethers-v1.json",
 });
+const profile=pinned.profile;
 const repeat=collectReviewedNodePackageRuntimeV1({
   rootPackages:["ethers"],
 });
 
 assert.equal(profile.marker,VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1);
+assert.equal(
+  pinned.profile_source.path,
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json",
+);
+assert.match(pinned.profile_source.git_blob_sha1,/^[0-9a-f]{40}$/u);
+assert.equal(
+  profile.profile_id,
+  "voidrnpr1_1492f01cb202c23ad68260655fa111544d3cc6d6c17a4aa07540e2665c7c9e6d",
+);
+assert.equal(
+  profile.packages_aggregate_sha256,
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73",
+);
 assert.equal(profile.version,1);
 assert.equal(profile.status,"REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE");
 assert.equal(profile.platform,"linux");
@@ -530,7 +545,9 @@ assert(
 );
 
 const encoded=Buffer.from(canonicalJson(profile),"utf8").toString("base64");
-console.log("VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1_BOOTSTRAP_GREEN");
+console.log("VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1_ENFORCEMENT_GREEN");
+console.log("reviewed_profile_pinned=true");
+console.log("reviewed_profile_git_blob_sha1="+pinned.profile_source.git_blob_sha1);
 console.log("root_package=ethers");
 console.log("package_count="+profile.package_count);
 console.log("packages_aggregate_sha256="+profile.packages_aggregate_sha256);
