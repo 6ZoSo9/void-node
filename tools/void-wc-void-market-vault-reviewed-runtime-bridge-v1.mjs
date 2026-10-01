@@ -150,35 +150,52 @@ function parseCli() {
 }
 
 const cli = parseCli();
-const input = directInput(cli.input);
-let result;
+let envelope;
 
-if (cli.operation === "verify_at_use") {
-  exactObject(
-    input,
-    ["artifact", "evaluation_time_utc"],
-    "MARKET_VAULT_REVIEWED_RUNTIME_VERIFY_INPUT_INVALID",
-  );
-  result = verifyWcVoidMarketVaultAtUseRevalidationV1({
-    artifact: input.artifact,
-    evaluation_time_utc: input.evaluation_time_utc,
-  });
-} else if (cli.operation === "classify_readiness") {
-  exactObject(
-    input,
-    ["candidate"],
-    "MARKET_VAULT_REVIEWED_RUNTIME_CLASSIFY_INPUT_INVALID",
-  );
-  result = classifyVoidWcVoidProductionReadinessV1(input.candidate);
-} else {
-  fail("MARKET_VAULT_REVIEWED_RUNTIME_OPERATION_INVALID");
+try {
+  const input = directInput(cli.input);
+  let result;
+
+  if (cli.operation === "verify_at_use") {
+    exactObject(
+      input,
+      ["artifact", "evaluation_time_utc"],
+      "MARKET_VAULT_REVIEWED_RUNTIME_VERIFY_INPUT_INVALID",
+    );
+    result = verifyWcVoidMarketVaultAtUseRevalidationV1({
+      artifact: input.artifact,
+      evaluation_time_utc: input.evaluation_time_utc,
+    });
+  } else if (cli.operation === "classify_readiness") {
+    exactObject(
+      input,
+      ["candidate"],
+      "MARKET_VAULT_REVIEWED_RUNTIME_CLASSIFY_INPUT_INVALID",
+    );
+    result = classifyVoidWcVoidProductionReadinessV1(input.candidate);
+  } else {
+    fail("MARKET_VAULT_REVIEWED_RUNTIME_OPERATION_INVALID");
+  }
+
+  envelope = {
+    marker: VOID_WC_VOID_MARKET_VAULT_REVIEWED_RUNTIME_BRIDGE_V1,
+    version: 1,
+    operation: cli.operation,
+    ok: true,
+    result,
+    error: null,
+  };
+} catch (error) {
+  const message =
+    error instanceof Error ? error.message : String(error);
+  envelope = {
+    marker: VOID_WC_VOID_MARKET_VAULT_REVIEWED_RUNTIME_BRIDGE_V1,
+    version: 1,
+    operation: cli.operation,
+    ok: false,
+    result: null,
+    error: message.slice(0, 512),
+  };
 }
-
-const envelope = {
-  marker: VOID_WC_VOID_MARKET_VAULT_REVIEWED_RUNTIME_BRIDGE_V1,
-  version: 1,
-  operation: cli.operation,
-  result,
-};
 
 process.stdout.write(JSON.stringify(envelope) + "\n");
