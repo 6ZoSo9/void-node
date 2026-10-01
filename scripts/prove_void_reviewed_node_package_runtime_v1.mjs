@@ -358,6 +358,21 @@ for(const required of [
   assert.equal(source.includes(required),true,required);
 }
 
+const workflow=fs.readFileSync(
+  ".github/workflows/void-reviewed-node-package-runtime-v1.yml",
+  "utf8",
+);
+assert(
+  workflow.includes(
+    "ref: ${{ github.event.pull_request.head.sha || github.sha }}",
+  ),
+  "focused workflow must check out exact PR head",
+);
+assert(
+  workflow.includes("persist-credentials: false"),
+  "focused workflow checkout credentials must remain disabled",
+);
+
 const encoded=Buffer.from(canonicalJson(profile),"utf8").toString("base64");
 console.log("VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1_BOOTSTRAP_GREEN");
 console.log("root_package=ethers");
@@ -369,6 +384,7 @@ console.log("materialized_lock_key_path_escape_rejected=true");
 console.log("local_git_fsmonitor_execution_blocked=true");
 console.log("ambient_git_environment_redirect_blocked=true");
 console.log("materialization_cleanup_failure_observable=true");
+console.log("exact_pr_head_ci_checkout=true");
 console.log("ambient_node_modules_execution_required=false");
 console.log("network_access=false");
 console.log("package_script_execution=false");
