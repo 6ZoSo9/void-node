@@ -87,6 +87,9 @@ A later reviewed Git source commit may apply the target candidate bytes.
 - branch `main`;
 - the plan base commit to be an ancestor of current main;
 - canonical origin identity `6ZoSo9/void-node`;
+- a config-isolated fixed-URL `ls-remote` of
+  `https://github.com/6ZoSo9/void-node.git` whose `refs/heads/main`
+  equals the exact local applied HEAD;
 - current coupled source to equal the exact planned target blob/bytes;
 - successor source to remain unchanged;
 - application/promotion/classifier/runtime-binding tool lineage unchanged; and
@@ -108,6 +111,8 @@ exact_one_gate_source_delta=true
 canonical_classifier_reexecution=true
 reviewed_git_commit_required=true
 canonical_main_application_required=true
+canonical_remote_main_read_required=true
+external_network_read=true
 
 repository_source_write=false
 runtime_or_rpc_write=false
