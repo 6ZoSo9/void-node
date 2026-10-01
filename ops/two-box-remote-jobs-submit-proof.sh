@@ -3,7 +3,16 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+MARKER="VOID_TWO_BOX_REMOTE_JOBS_EXPLICIT_TARGET_V1"
+: "${ALIEN:?set ALIEN to an explicit SSH target, for example user@host}"
+case "$ALIEN" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*)
+    echo "$MARKER HOLD: retired Alienware SSH target is forbidden" >&2
+    exit 2
+    ;;
+esac
+echo "$MARKER"
+echo "ssh_target=$ALIEN"
 OUT="${OUT:-/tmp/two-box-remote-jobs-submit-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 

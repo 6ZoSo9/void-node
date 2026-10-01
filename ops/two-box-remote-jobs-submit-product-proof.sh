@@ -3,8 +3,25 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
+MARKER="VOID_TWO_BOX_REMOTE_JOBS_EXPLICIT_TARGET_V1"
+: "${ALIEN:?set ALIEN to an explicit SSH target, for example user@host}"
+: "${REMOTE_NODE_BASE:?set REMOTE_NODE_BASE to the explicit remote node HTTP origin}"
+case "$ALIEN $REMOTE_NODE_BASE" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*)
+    echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
+case "$REMOTE_NODE_BASE" in
+  http://*|https://*) ;;
+  *)
+    echo "$MARKER HOLD: REMOTE_NODE_BASE must be an explicit HTTP(S) origin" >&2
+    exit 2
+    ;;
+esac
+echo "$MARKER"
+echo "ssh_target=$ALIEN"
+echo "remote_node_base=$REMOTE_NODE_BASE"
 OUT="${OUT:-/tmp/two-box-remote-jobs-submit-product-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 
