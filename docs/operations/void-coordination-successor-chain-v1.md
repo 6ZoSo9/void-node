@@ -17,7 +17,7 @@ COORDINATION_SUCCESSOR=#<positive issue number>
 CONTROL-PLANE ROTATION
 ```
 
-The resolver rejects multiple pointers, self-pointers, cycles, pull-request targets masquerading as issues, incomplete comment capture, and chains where a predecessor has a successor pointer but remains open. The final resolved issue must be open.
+The resolver rejects multiple pointers, self-pointers, cycles, pull-request targets masquerading as issues, duplicate comment IDs, incomplete comment capture, and chains where a predecessor has a successor pointer but remains open. The final resolved issue must be open. An invalid chain emits `dispatch_plan_issue_should_be=null` and cannot request a plan-issue update.
 
 The issue body is deliberately not scanned for a successor pointer because the control-plane body documents example syntax and historical rules; only comments are eligible live pointer evidence.
 
