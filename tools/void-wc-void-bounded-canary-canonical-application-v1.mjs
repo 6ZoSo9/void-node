@@ -139,15 +139,32 @@ function plain(value) {
 
 function exactObject(value, keys, code) {
   if (!plain(value)) fail(code);
-  const actual = Object.keys(value).sort();
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) fail(code);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actual = Reflect.ownKeys(descriptors);
+  if (actual.some((key) => typeof key !== "string")) fail(code);
+  const sorted = [...actual].sort();
   const expected = [...keys].sort();
   if (
-    actual.length !== expected.length ||
-    actual.some((key, index) => key !== expected[index])
+    sorted.length !== expected.length ||
+    sorted.some((key, index) => key !== expected[index])
   ) {
     fail(code);
   }
-  return value;
+  const out = Object.create(null);
+  for (const key of keys) {
+    const descriptor = descriptors[key];
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      fail(code);
+    }
+    out[key] = descriptor.value;
+  }
+  return Object.freeze(out);
 }
 
 function canonicalJson(value) {
