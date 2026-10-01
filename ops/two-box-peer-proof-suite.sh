@@ -3,9 +3,49 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-cd "$HOME/dev/void-node"
+ALIEN="${ALIEN:-}"
+LOCAL_BASE="${LOCAL_BASE:-}"
+REMOTE_BASE="${REMOTE_BASE:-}"
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+MARKER="VOID_TWO_BOX_LEGACY_PROOF_EXPLICIT_TARGET_V1"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+source "$SCRIPT_DIR/lib/void-two-box-legacy-proof-admission-v1.sh"
+void_two_box_validate_ssh_destination "${ALIEN:-}"
+void_two_box_validate_http_origin "LOCAL_BASE" "${LOCAL_BASE:-}"
+void_two_box_validate_http_origin "REMOTE_BASE" "${REMOTE_BASE:-}"
+void_two_box_guard_retired "${ALIEN:-}" "${LOCAL_BASE:-}" "${REMOTE_BASE:-}"
+void_two_box_require_mutation_confirmation "$0"
+void_two_box_require_source_parity_and_bind_remote "$ALIEN" "$REMOTE_BASE"
+void_two_box_require_origin_matches_local "LOCAL_BASE" "$LOCAL_BASE"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_BASE" "${REMOTE_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_BASE"
+export ALIEN REMOTE_BASE
+
+cd "$VOID_TWO_BOX_REPO_ROOT"
+
 WHO="${WHO:-zoso}"
 QUICK_MODE="${QUICK_MODE:-0}"
 JSON_MODE="${JSON_MODE:-0}"
