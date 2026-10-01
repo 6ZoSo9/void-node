@@ -997,6 +997,8 @@ for (const required of [
   "--allow-fs-read=",
   "--allow-child-process",
   "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_EXECUTION_FAILED",
+  "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_CHILD_ERROR",
+  "VOID_PARTICIPANT_POSTPURCHASE_REVIEWED_AUTHORITY_V1",
   "process.stdin.setEncoding",
   "for await (const chunk of process.stdin)",
   'runnerDir = path.join(parent, "runner")',
@@ -1037,6 +1039,7 @@ console.log("hostile_ambient_execution_env_ignored=true");
 console.log("reviewed_execution_symlink_boundary_green=true");
 console.log("reviewed_execution_chmod_descriptor_bound=true");
 console.log("permission_fenced_stdin_streaming=true");
+console.log("reviewed_authority_semantic_failure_preserved=true");
 console.log("reviewed_runner_outside_private_git_checkout=true");
 console.log("private_git_checkout_remains_clean=true");
 console.log("focused_workflow_trigger_symmetry_green=true");
