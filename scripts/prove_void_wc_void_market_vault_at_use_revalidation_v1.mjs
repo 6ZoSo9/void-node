@@ -231,6 +231,10 @@ assert.equal(
   VOID_WC_VOID_CURRENT_COUPLED_LAUNCH_VAULT_ID_V1,
 );
 assert.equal(artifact.compiled_identity_id,COMPILED_IDENTITY_EXPECTED.identity_id);
+assert.equal(
+  artifact.compiled_identity_acceptance.accepted_identity.identity_id,
+  COMPILED_IDENTITY_EXPECTED.identity_id,
+);
 assert.equal(artifact.market_vault_address,deployment.market_vault_address);
 assert.equal(artifact.market_vault_runtime_code_sha256,runtime.runtime_sha256);
 assert.equal(artifact.observed_head_block_number,"120");
@@ -335,6 +339,19 @@ await rejectsCollect(
 
 {
   const bad=structuredClone(artifact);
+  bad.compiled_identity_acceptance.accepted_identity.identity_json_sha256=
+    "0".repeat(64);
+  assert.throws(
+    ()=>verifyWcVoidMarketVaultAtUseRevalidationV1({
+      artifact:bad,
+      evaluation_time_utc:bad.collection_completed_at_utc,
+    }),
+    /WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_NOT_ACCEPTED/u,
+  );
+}
+
+{
+  const bad=structuredClone(artifact);
   bad.at_use_evidence_sha256="sha256:"+"f".repeat(64);
   assert.throws(
     ()=>verifyWcVoidMarketVaultAtUseRevalidationV1({
@@ -391,6 +408,8 @@ assert.doesNotMatch(source,/evaluation_time_utc.*collectWcVoid/u);
 assert.match(source,/head_block_timestamp_utc/u);
 assert.match(source,/AT_USE_HEAD_TIMESTAMP_STALE_AT_COLLECTION/u);
 assert.match(source,/importWcVoidMarketVaultRuntimeAttestationV1/u);
+assert.match(source,/reconstructWcVoidMarketVaultRuntimeV1/u);
+assert.match(source,/AT_USE_DEPLOYED_RUNTIME_RECONSTRUCTION_MISMATCH/u);
 assert.match(source,/attestWcVoidMarketVaultRuntimeV1/u);
 
 console.log("VOID_WC_VOID_MARKET_VAULT_AT_USE_REVALIDATION_V1_PROOF_GREEN");
