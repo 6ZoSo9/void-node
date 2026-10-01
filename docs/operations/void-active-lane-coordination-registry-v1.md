@@ -42,6 +42,14 @@ lane into a worker-wide idle state.
 - `.github/workflows/void-active-lane-coordination-registry-v1.yml` runs the
   proof and a live read-only capture for changes to this lane.
 
+Process-reference discovery is path-based rather than cwd-only. It recognizes a
+worktree when a process has its cwd, process root, executable, an absolute argv
+entry, or an open file descriptor inside that worktree. The registry emits only
+the PID/reason for argv and descriptor matches, not raw command-line or descriptor
+contents. This prevents a worker launched from another directory (for example,
+`git -C /path/to/lane ...` after it opens repository files, or a Node process
+given an absolute lane script path) from silently looking inactive.
+
 ## Collision check
 
 Run before creating a branch or worktree:
