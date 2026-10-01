@@ -14,6 +14,7 @@ import {
   WorkerDispatchHubGuardError,
   assertCanonicalMainCheckoutV1,
   assertFreshLiveChainMatchesV1,
+  assertStableCanonicalMainV1,
   assertFreshLiveDispatchMatchesV1,
   canonicalJson,
   evaluateWorkerDispatchHubGuardV1,
@@ -273,6 +274,13 @@ assert.equal(
   ),
   true,
 );
+assert.equal(
+  assertStableCanonicalMainV1(
+    REVIEWED_MAIN_SHA,
+    REVIEWED_MAIN_SHA,
+  ),
+  true,
+);
 expectRejected(
   () => parseCanonicalMainLsRemoteV1(""),
   /exactly one record/,
@@ -296,6 +304,13 @@ expectRejected(
     "d".repeat(40),
   ),
   /does not equal live canonical main/,
+);
+expectRejected(
+  () => assertStableCanonicalMainV1(
+    REVIEWED_MAIN_SHA,
+    "d".repeat(40),
+  ),
+  /canonical main changed during dispatch guard evaluation/,
 );
 
 const retainedCurrent = evaluateWorkerDispatchHubGuardV1(evidence());
@@ -645,6 +660,7 @@ console.log("fabricated_successor_dispatch_rejected=true");
 console.log("canonical_live_main_parser_green=true");
 console.log("canonical_git_environment_isolated=true");
 console.log("stale_local_head_rejected=true");
+console.log("main_generation_change_rejected=true");
 console.log("main_provenance_required_for_alignment=true");
 console.log("caller_boolean_cannot_unlock_alignment=true");
 console.log("expired_dispatch_evidence_holds=true");
