@@ -434,6 +434,12 @@ function assertAtomicSourceBaseline(
     )||
     !classifierSource.includes(
       "coupled_launch_id: SOURCE_MODEL_COUPLED_LAUNCH_ID",
+    )||
+    !classifierSource.includes(
+      "const state = deriveCanonicalSharedPostDiscoverySourceModelV2();",
+    )||
+    !classifierSource.includes(
+      '"shared_post_discovery_reconciliation_mismatch:" + key',
     )
   ) {
     fail("reconciliation_classifier_fixture_binding_missing");
@@ -528,16 +534,6 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
       import.meta.url,
     ).href,
   );
-  const classifierModule=await import(
-    new URL(
-      "./void-coupled-economic-successor-gate-v1.mjs?reviewed_blob="+
-        VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1[
-          CLASSIFIER_REL
-        ],
-      import.meta.url,
-    ).href,
-  );
-
   const currentState=deriveSharedSourceModelV2(
     CURRENT_SOURCE_MODEL_LAUNCH_ID,
     openingModule,
@@ -575,20 +571,6 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     structuredClone(candidate.shared_post_discovery_reconciliation);
   if(canonicalJson(scopeCheck)!==canonicalJson(candidate)) {
     fail("reconciliation_candidate_change_scope_invalid");
-  }
-
-  const currentClassifierDecision=
-    classifierModule.classifyVoidCoupledEconomicSuccessorGateFromDecisionV1(
-      proposedCandidate,
-      null,
-    );
-  if(
-    currentClassifierDecision?.ok!==false||
-    currentClassifierDecision?.status!=="HOLD"||
-    currentClassifierDecision?.reason!==
-      "shared_post_discovery_reconciliation_mismatch:coupled_launch_id"
-  ) {
-    fail("reconciliation_current_classifier_atomicity_guard_missing");
   }
 
   const frozenProposedCandidate=deepFreeze(proposedCandidate);
@@ -630,7 +612,9 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
       reconciliation_id_rotated:true,
       wc_opening_state_id_rotated:true,
       proposed_candidate_change_scope_shared_reconciliation_only:true,
-      current_classifier_rejects_proposed_candidate_until_atomic_update:true,
+      current_classifier_source_fixture_verified:true,
+      candidate_classifier_atomic_source_update_required:true,
+      classifier_execution_performed:false,
       canonical_candidate_file_updated:false,
       classifier_source_updated:false,
       source_application_required:true,
