@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs"
-      - "scripts/prove_void_wc_void_coupled-launch-policy-bundle-v1.mjs"
+      - "scripts/prove_void_wc_void_coupled_launch_policy_bundle_v1.mjs"
       - "docs/operators/wc-void-coupled-launch-policy-bundle-v1.md"
       - "tools/void-wc-void-opening-window-policy-v1.mjs"
       - "tools/void-wc-void-opening-concentration-sybil-policy-v1.mjs"
@@ -20,7 +20,7 @@ on:
       - main
     paths:
       - "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs"
-      - "scripts/prove_void_wc_void_coupled-launch-policy-bundle-v1.mjs"
+      - "scripts/prove_void_wc_void_coupled_launch_policy_bundle_v1.mjs"
       - "docs/operators/wc-void-coupled-launch-policy-bundle-v1.md"
       - "tools/void-wc-void-opening-window-policy-v1.mjs"
       - "tools/void-wc-void-opening-concentration-sybil-policy-v1.mjs"
@@ -53,4 +53,4 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - name: Prove coupled launch policy bundle
-        run: node scripts/prove_void_wc_void_coupled-launch-policy-bundle-v1.mjs
+        run: node scripts/prove_void_wc_void_coupled_launch_policy_bundle_v1.mjs
