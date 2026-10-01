@@ -378,7 +378,8 @@ function makeExecutionTreeReadOnly(root){
         continue;
       }
       if(stat.isFile()){
-        fs.chmodSync(file,0o400);
+        const executable=(Number(stat.mode)&0o111)!==0;
+        fs.chmodSync(file,executable?0o500:0o400);
         continue;
       }
       fail("OPENING_DURABLE_APPLICATION_REVIEWED_TREE_ENTRY_INVALID");
@@ -631,6 +632,16 @@ function buildReviewedExecutionRoot(repo){
     writePrivateSource(runnerFile,Buffer.from(runnerSource,"utf8"));
 
     makeExecutionTreeReadOnly(executionRoot);
+    const hardenedStatus=String(
+      gitRunPrivate(
+        executionRoot,
+        ["status","--porcelain=v1","--untracked-files=all"],
+        "OPENING_DURABLE_APPLICATION_PRIVATE_HARDENED_STATUS_UNAVAILABLE",
+      ).stdout||"",
+    ).trim();
+    if(hardenedStatus!==""){
+      fail("OPENING_DURABLE_APPLICATION_PRIVATE_HARDENING_CHANGED_GIT_STATE");
+    }
     reviewedExecutionCache=Object.freeze({
       head:repo.head,
       tree:repo.tree,
