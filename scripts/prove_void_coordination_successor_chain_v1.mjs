@@ -92,6 +92,19 @@ const successor = resolveCoordinationSuccessorChainRecordsV1({
   "1507": record(1507, "closed", 249, pointerBody),
   "1600": record(1600, "open", 10),
 });
+const headingPointer = resolveCoordinationSuccessorChainRecordsV1({
+  "1507": record(
+    1507,
+    "closed",
+    249,
+    [
+      "## CONTROL-PLANE ROTATION",
+      "COORDINATION_SUCCESSOR=#1600",
+    ].join("\n"),
+  ),
+  "1600": record(1600, "open", 10),
+});
+assert.equal(headingPointer.outcome, "SUCCESSOR_RESOLVED");
 assert.equal(successor.outcome, "SUCCESSOR_RESOLVED");
 assert.equal(successor.chain_valid, true);
 assert.equal(successor.rotation_required, false);
@@ -172,6 +185,20 @@ expectRejected(
 );
 
 expectRejected(
+  () => inspectCoordinationIssueV1(
+    {
+      number: 1507,
+      state: "open",
+      comments: 0,
+      updated_at: "2026-10-01T00:00:00Z",
+      pull_request: { url: "https://example.invalid/pull/1507" },
+    },
+    [],
+  ),
+  /must be an issue, not a pull request/,
+);
+
+expectRejected(
   () => resolveCoordinationSuccessorChainRecordsV1({
     "1507": record(
       1507,
@@ -227,6 +254,6 @@ console.log("successor_resolved_outcome=" + successor.outcome);
 console.log("open_predecessor_hold=true");
 console.log("cycle_rejected=true");
 console.log("ambiguous_pointer_rejected=true");
-console.log("complete_comment_capture_required=true");
+console.log("complete_comment_capture_required=true");\nconsole.log("markdown_rotation_heading_accepted=true");\nconsole.log("pull_request_target_rejected=true");
 console.log("authority_granted=false");
 console.log("mutation_performed=false");
