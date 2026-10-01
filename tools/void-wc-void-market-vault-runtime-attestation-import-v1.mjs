@@ -605,13 +605,6 @@ export function importWcVoidMarketVaultRuntimeAttestationV1(input) {
     minimum_confirmation_count:
       expected.minimum_confirmation_count.toString(),
     candidate_fields: candidateFields,
-  });
-
-  return Object.freeze({
-    ok: true,
-    ...body,
-    import_id:
-      "voidwcmvri1_" + sha256Text(canonicalJson(body)),
     production_candidate_binding_ready: false,
     production_candidate_binding_hold_reason:
       "fresh_live_head_and_preactivation_state_revalidation_required",
@@ -622,6 +615,13 @@ export function importWcVoidMarketVaultRuntimeAttestationV1(input) {
     market_activation_authorized: false,
     public_presale_activation_authorized: false,
     funds_movement_authorized: false,
+  });
+
+  return Object.freeze({
+    ok: true,
+    ...body,
+    import_id:
+      "voidwcmvri1_" + sha256Text(canonicalJson(body)),
     authority:
       VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_IMPORT_AUTHORITY_V1,
   });
