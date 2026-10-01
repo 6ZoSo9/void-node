@@ -698,8 +698,9 @@ assert(
   toolSource.includes("reviewed_source_main_not_ancestor_of_head"),
   "reviewed source ancestry HOLD missing",
 );
-assert(
-  toolSource.includes('"status", "--porcelain=v1", "--untracked-files=all"'),
+assert.match(
+  toolSource,
+  /function requireCleanRepositoryIdentity\(\)[\s\S]*?"status"[\s\S]*?"--porcelain=v1"[\s\S]*?"--untracked-files=all"[\s\S]*?repository_worktree_not_clean/u,
   "clean worktree enforcement missing",
 );
 assert(
