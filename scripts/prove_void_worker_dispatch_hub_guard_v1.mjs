@@ -375,5 +375,7 @@ console.log("repository_mismatch_rejected=true");
 console.log("authority_escalation_rejected=true");
 console.log("guard_id_deterministic=true");
 console.log("upstream_markers_bound=true");
-console.log("real_upstream_composition_green=true");\nconsole.log("retained_chain_alignment_held_until_live_recheck=true");\nconsole.log("fresh_live_chain_equality_required=true");
+console.log("real_upstream_composition_green=true");
+console.log("retained_chain_alignment_held_until_live_recheck=true");
+console.log("fresh_live_chain_equality_required=true");
 console.log("normal_dispatch_grants_no_source_authority=true");
