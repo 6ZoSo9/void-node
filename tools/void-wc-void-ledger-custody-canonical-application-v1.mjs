@@ -1212,49 +1212,67 @@ export function prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1(input){
   const coupled=headFile(COUPLED_REL,"COUPLED_SOURCE");
   const successor=headFile(SUCCESSOR_REL,"SUCCESSOR_SOURCE");
 
-  const reexecuted=buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({
-    candidate:coupled.value,
-    successorMigrationCandidate:successor.value,
-    ledgerPersistenceImportInput:importSource.value,
-    ledgerPersistenceImportInputFileSha256:importSource.sha256,
-    candidateFileSha256:coupled.sha256,
-    successorCandidateFileSha256:successor.sha256,
-    repositoryHeadSha:repo.head,
-    repositoryTreeSha:repo.tree,
-  });
-  if(canonicalJson(reexecuted)!==canonicalJson(receiptSource.value)){
-    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
-  }
-  if(
-    reexecuted.marker!==VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1||
-    reexecuted.canonical_candidate_file_updated!==false||
-    reexecuted.candidate_promotion_application_required!==true||
-    reexecuted.coupled_activation_ready!==false||
-    canonicalJson(reexecuted.authority)!==
-      canonicalJson(VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1)
-  ) fail("LEDGER_CUSTODY_APPLICATION_PROMOTION_CONTRACT_INVALID");
-
-  const productionBefore=classifyVoidWcVoidProductionReadinessV1(production.value);
-  const coupledBefore=classifyVoidCoupledEconomicSuccessorGateV1(coupled.value,successor.value);
-  if(
-    productionBefore?.status!=="HOLD"||
-    !productionBefore?.missing_gates?.includes("wc_ledger_persistence_verification_required")||
-    !productionBefore?.missing_gates?.includes("quote_reserve_custody_verification_required")
-  ) fail("LEDGER_CUSTODY_APPLICATION_PRODUCTION_PRESTATE_INVALID");
-  if(
-    coupledBefore?.status!=="HOLD"||
-    !coupledBefore?.missing_gates?.includes("wc_ledger_persistence_verification_required")||
-    !coupledBefore?.missing_gates?.includes("quote_reserve_custody_verification_required")
-  ) fail("LEDGER_CUSTODY_APPLICATION_COUPLED_PRESTATE_INVALID");
-
   const productionTarget=structuredClone(production.value);
   productionTarget.wc_ledger_persistence_verified=true;
   productionTarget.quote_reserve_custody_verified=true;
-  const coupledTarget=structuredClone(reexecuted.promoted_candidate);
-  assertTargetDelta(production.value,productionTarget,coupled.value,coupledTarget);
 
-  const productionAfter=classifyVoidWcVoidProductionReadinessV1(productionTarget);
-  const coupledAfter=classifyVoidCoupledEconomicSuccessorGateV1(coupledTarget,successor.value);
+  const reviewed=runReviewedAuthority(repo,{
+    operation:"prepare",
+    ledger_import_input:importSource.value,
+    ledger_import_input_file_sha256:importSource.sha256,
+    production_before:production.value,
+    production_after:productionTarget,
+    coupled_before:coupled.value,
+    successor:successor.value,
+    coupled_file_sha256:coupled.sha256,
+    successor_file_sha256:successor.sha256,
+    repository_head_sha:repo.head,
+    repository_tree_sha:repo.tree,
+  });
+  const reexecuted=reviewed.result.promotion;
+  if(
+    reviewed.result.promotion_contract_green!==true||
+    canonicalJson(reexecuted)!==canonicalJson(receiptSource.value)
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
+  }
+
+  const productionBefore=reviewed.result.production_before;
+  const productionAfter=reviewed.result.production_after;
+  const coupledBefore=reviewed.result.coupled_before;
+  const coupledAfter=reviewed.result.coupled_after;
+
+  if(
+    productionBefore?.status!=="HOLD"||
+    !productionBefore?.missing_gates?.includes(
+      "wc_ledger_persistence_verification_required"
+    )||
+    !productionBefore?.missing_gates?.includes(
+      "quote_reserve_custody_verification_required"
+    )
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_PRODUCTION_PRESTATE_INVALID");
+  }
+  if(
+    coupledBefore?.status!=="HOLD"||
+    !coupledBefore?.missing_gates?.includes(
+      "wc_ledger_persistence_verification_required"
+    )||
+    !coupledBefore?.missing_gates?.includes(
+      "quote_reserve_custody_verification_required"
+    )
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_COUPLED_PRESTATE_INVALID");
+  }
+
+  const coupledTarget=structuredClone(reexecuted.promoted_candidate);
+  assertTargetDelta(
+    production.value,
+    productionTarget,
+    coupled.value,
+    coupledTarget,
+  );
+
   const removed=[
     "wc_ledger_persistence_verification_required",
     "quote_reserve_custody_verification_required",
@@ -1265,14 +1283,18 @@ export function prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1(input){
       productionAfter.missing_gates,
       removeGates(productionBefore.missing_gates,removed),
     )
-  ) fail("LEDGER_CUSTODY_APPLICATION_PRODUCTION_POSTSTATE_INVALID");
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_PRODUCTION_POSTSTATE_INVALID");
+  }
   if(
     coupledAfter?.status!=="HOLD"||
     !sameStrings(
       coupledAfter.missing_gates,
       removeGates(coupledBefore.missing_gates,removed),
     )
-  ) fail("LEDGER_CUSTODY_APPLICATION_COUPLED_POSTSTATE_INVALID");
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_COUPLED_POSTSTATE_INVALID");
+  }
 
   const productionTargetBytes=prettyBytes(productionTarget);
   const coupledTargetBytes=prettyBytes(coupledTarget);
@@ -1295,6 +1317,19 @@ export function prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1(input){
       gitText(["rev-parse","HEAD:"+COUPLED_CLASSIFIER_REL],"LEDGER_CUSTODY_APPLICATION_COUPLED_CLASSIFIER_BLOB_UNAVAILABLE"),
     ledger_import_tool_git_blob_sha1:
       gitText(["rev-parse","HEAD:"+IMPORT_TOOL_REL],"LEDGER_CUSTODY_APPLICATION_IMPORT_TOOL_BLOB_UNAVAILABLE"),
+    reviewed_execution_module_git_blobs:
+      reviewed.binding.module_git_blobs,
+    reviewed_runtime_tool_git_blob_sha1:
+      reviewed.binding.runtime_tool_git_blob_sha1,
+    reviewed_runtime_profile_git_blob_sha1:
+      reviewed.binding.runtime_profile_git_blob_sha1,
+    reviewed_runtime_profile_id:
+      reviewed.binding.profile_id,
+    reviewed_runtime_packages_aggregate_sha256:
+      reviewed.binding.packages_aggregate_sha256,
+    reviewed_execution_permission_fenced:true,
+    reviewed_execution_ancestor_package_resolution_allowed:false,
+    reviewed_execution_network_isolation_provided:false,
     ledger_import_input_file_sha256:importSource.sha256,
     promotion_receipt_file_sha256:receiptSource.sha256,
     promotion_id:reexecuted.promotion_id,
@@ -1368,12 +1403,39 @@ export function verifyVoidWcVoidLedgerCustodyCanonicalApplicationStateV1({
     gitBlobSha1(successorBytes)!==plan.successor_source_git_blob_sha1
   ) fail("LEDGER_CUSTODY_APPLICATION_SUCCESSOR_SOURCE_DRIFT");
 
-  const p=classifyVoidWcVoidProductionReadinessV1(productionCandidate);
-  const c=classifyVoidCoupledEconomicSuccessorGateV1(coupledCandidate,successorCandidate);
+  const repo=repositoryIdentity();
+  const baseProduction=commitFile(
+    plan.application_base_head_sha,
+    PRODUCTION_REL,
+    "STATE_BASE_PRODUCTION",
+  );
+  const baseCoupled=commitFile(
+    plan.application_base_head_sha,
+    COUPLED_REL,
+    "STATE_BASE_COUPLED",
+  );
+  const reviewed=runReviewedAuthority(repo,{
+    operation:"classify",
+    production_before:baseProduction.value,
+    production_after:productionCandidate,
+    coupled_before:baseCoupled.value,
+    coupled_after:coupledCandidate,
+    successor:successorCandidate,
+  });
+  assertReviewedExecutionBinding(plan,reviewed.binding);
+  const decisions=reviewed.result;
   if(
-    canonicalJson(summary(p))!==canonicalJson(plan.production_after)||
-    canonicalJson(summary(c))!==canonicalJson(plan.coupled_after)
-  ) fail("LEDGER_CUSTODY_APPLICATION_CLASSIFIER_STATE_MISMATCH");
+    canonicalJson(summary(decisions.production_before))!==
+      canonicalJson(plan.production_before)||
+    canonicalJson(summary(decisions.production_after))!==
+      canonicalJson(plan.production_after)||
+    canonicalJson(summary(decisions.coupled_before))!==
+      canonicalJson(plan.coupled_before)||
+    canonicalJson(summary(decisions.coupled_after))!==
+      canonicalJson(plan.coupled_after)
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_CLASSIFIER_STATE_MISMATCH");
+  }
   return Object.freeze({
     ok:true,
     status:"LEDGER_CUSTODY_APPLICATION_STATE_VERIFIED_FINAL_ACTIVATION_HOLD",
@@ -1399,12 +1461,18 @@ export function verifyVoidWcVoidLedgerCustodyCanonicalApplicationV1({
   const plan=validatePlan(source.value);
   const repo=repositoryIdentity();
   if(repo.branch!=="main") fail("LEDGER_CUSTODY_APPLICATION_APPLIED_BRANCH_NOT_MAIN");
-  const ancestry=spawnSync(
-    GIT,
-    ["--no-replace-objects","-C",ROOT,"merge-base","--is-ancestor",plan.application_base_head_sha,repo.head],
-    {env:sanitizedGitEnv(),stdio:["ignore","ignore","ignore"]},
+  const remoteMain=canonicalRemoteMainHead();
+  if(remoteMain!==repo.head){
+    fail("LEDGER_CUSTODY_APPLICATION_APPLIED_HEAD_NOT_REMOTE_MAIN");
+  }
+  const ancestry=gitRun(
+    ["merge-base","--is-ancestor",plan.application_base_head_sha,repo.head],
+    "LEDGER_CUSTODY_APPLICATION_BASE_NOT_ANCESTOR",
+    {allowFail:true},
   );
-  if(ancestry.status!==0) fail("LEDGER_CUSTODY_APPLICATION_BASE_NOT_ANCESTOR");
+  if(ancestry.status!==0){
+    fail("LEDGER_CUSTODY_APPLICATION_BASE_NOT_ANCESTOR");
+  }
 
   const production=headFile(PRODUCTION_REL,"APPLIED_PRODUCTION");
   const coupled=headFile(COUPLED_REL,"APPLIED_COUPLED");
