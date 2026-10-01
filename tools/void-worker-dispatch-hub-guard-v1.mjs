@@ -5,7 +5,9 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
-import {\n  resolveCoordinationSuccessorChainLiveV1,\n} from "./void-coordination-successor-chain-v1.mjs";
+import {
+  resolveCoordinationSuccessorChainLiveV1,
+} from "./void-coordination-successor-chain-v1.mjs";
 
 export const MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1";
 export const EVIDENCE_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_EVIDENCE_V1";
@@ -216,7 +218,11 @@ function validateDispatch(raw) {
   return dispatch;
 }
 
-export function evaluateWorkerDispatchHubGuardV1(\n  rawEvidence,\n  { liveChainRevalidated = false } = {},\n) {\n  const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
+export function evaluateWorkerDispatchHubGuardV1(
+  rawEvidence,
+  { liveChainRevalidated = false } = {},
+) {
+  const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
   if (evidence.marker !== EVIDENCE_MARKER) {
     fail("evidence.marker mismatch");
   }
