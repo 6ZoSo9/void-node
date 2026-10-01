@@ -27,6 +27,8 @@ const COUPLED_CANDIDATE =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const EXPECTED_COUPLED_BLOB =
   "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+const EXPECTED_SHARED_V2_BLOB =
+  "bcfff9c2981e713a7053ff51a39145eb06b7238b";
 const EXPECTED_RECONCILIATION_ID =
   "sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba";
 
@@ -239,6 +241,10 @@ assert.equal(
 assert.equal(
   btcEvaluation.current_market_binding.shared_market_source_git_blob_sha1,
   EXPECTED_COUPLED_BLOB,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_v2_source_git_blob_sha1,
+  EXPECTED_SHARED_V2_BLOB,
 );
 assert.equal(
   btcEvaluation.current_market_binding.shared_market_reconciliation_id,
@@ -511,6 +517,7 @@ assert.equal(
   true,
 );
 assert.equal(source.includes(EXPECTED_COUPLED_BLOB), true);
+assert.equal(source.includes(EXPECTED_SHARED_V2_BLOB), true);
 assert.equal(source.includes("post_presale_unopened"), true);
 
 {
