@@ -57,7 +57,8 @@ That means the final promotion cannot be used to bypass:
 
 ## Applied lineage requirement
 
-The operator supplies one private lineage manifest with exactly six entries:
+The operator supplies one private manifest with exactly six application-plan
+entries:
 
 ```text
 economic_epoch2_public_verification
@@ -68,30 +69,39 @@ participant_postpurchase
 bounded_canary
 ```
 
-Every entry binds:
+Each entry contains:
 
-- a reviewed application plan ID;
-- the Git commit that applied the canonical transition;
-- a SHA-256 of the reviewed application receipt; and
-- `verified_applied=true`.
+- the lane name;
+- the absolute private application-plan path; and
+- an independently reviewed SHA-256 of the exact plan file.
 
-The CLI requires each applied commit to be an ancestor of the current clean
-repository HEAD.
+The final-promotion CLI does **not** trust a caller-supplied
+`verified_applied=true` boolean.
 
-It also inspects the exact first-parent commit delta and requires each lineage
-to have touched its required canonical candidate file:
+For each lane it loads the canonical application module from the current
+checkout and invokes that lane's exported `verify...CanonicalApplicationV1`
+function on the exact private plan bytes. Those existing verifiers independently
+bind the plan to canonical `main`, its application base ancestry, the exact
+target candidate Git blob/file SHA-256, and the reviewed application/promotion
+source lineage.
 
-| lane | required canonical path(s) |
+The six required verifier results are:
+
+| lane | required verified status |
 | --- | --- |
-| epoch-2 public verification | `ops/mainnet0/economic-evm-successor-migration-candidate-v1.json` |
-| market vault | `ops/mainnet0/wc-void-production-candidate-v1.json` |
-| ledger custody | production + coupled candidates |
-| durable opening | production + coupled candidates |
-| participant post-purchase | coupled candidate |
-| bounded canary | production + coupled candidates |
+| epoch-2 public verification | `EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_VERIFIED_SOURCE_READY` |
+| market vault | `MARKET_VAULT_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
+| ledger custody | `LEDGER_CUSTODY_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
+| durable opening | `OPENING_DURABLE_EVIDENCE_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
+| participant post-purchase | `PARTICIPANT_CONTROL_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
+| bounded canary | `CANONICAL_BOUNDED_CANARY_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
 
-The lineage manifest cannot create readiness. Canonical candidate state remains
-the authoritative input and must independently satisfy all non-final gates.
+The resulting private promotion artifact records each content-addressed
+application plan ID, plan SHA-256 and exact verified status.
+
+Canonical candidate state remains authoritative too: even six valid applied
+plans cannot create final readiness unless every non-final gate independently
+classifies GREEN in the current candidate files.
 
 ## Exact final source delta
 
@@ -154,16 +164,21 @@ Example shape only:
 [
   {
     "lane": "economic_epoch2_public_verification",
-    "application_plan_id": "reviewed-plan-id",
-    "applied_commit_sha": "40hex",
-    "application_receipt_sha256": "64hex",
-    "verified_applied": true
+    "application_plan_path": "/absolute/private/epoch2-application-plan.json",
+    "application_plan_file_sha256": "64hex"
   }
 ]
 ```
 
 The actual manifest must contain all six exact lanes and be a direct private
-regular file with no group/other permissions.
+regular file with no group/other permissions. Every referenced plan must also be
+an absolute direct private regular file outside the repository, with exact
+independently supplied SHA-256 bytes.
+
+The participant application verifier is intentionally loaded dynamically. On a
+generation where that canonical application module has not yet merged, the
+final promotion HOLDs with a missing-verifier error rather than weakening the
+dependency.
 
 ## CLI
 
