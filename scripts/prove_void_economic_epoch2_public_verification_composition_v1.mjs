@@ -427,7 +427,7 @@ await assert.rejects(
       expectedRegistryAddress:
         "0x3333333333333333333333333333333333333333",
     }),
-  /state_root_anchor_reviewed_membership_binding_mismatch|canonical_truth/u,
+  /state_root_anchor_admission_candidate_invalid|state_root_anchor_reviewed_membership_binding_mismatch/u,
 );
 
 await assert.rejects(
