@@ -4,14 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
-
-import {
-  verifyWcVoidMarketVaultAtUseRevalidationV1,
-} from "./void-wc-void-market-vault-at-use-revalidation-v1.mjs";
-import {
-  classifyVoidWcVoidProductionReadinessV1,
-} from "./void-wc-void-production-readiness-v1.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_PLAN_V1 =
   "VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_PLAN_V1";
@@ -25,12 +18,17 @@ export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_AUTHORITY_V1 =
     application_time_authority:false,
     canonical_head_candidate_required:true,
     reviewed_execution_source_required:true,
+    verified_modules_loaded_from_exact_git_objects:true,
+    ephemeral_verified_module_materialization:true,
     exact_five_field_source_delta:true,
     canonical_classifier_reexecution:true,
     canonical_main_application_required:true,
     canonical_remote_main_read_required:true,
     external_network_read:true,
     repository_source_write:false,
+    filesystem_read:true,
+    filesystem_write:true,
+    persistent_artifact_write:false,
     rpc_call:false,
     rpc_write:false,
     deployment:false,
@@ -256,6 +254,79 @@ function assertReviewedExecutionSource(repo){
   return Object.freeze({reviewed:Object.freeze(actual),tool_blob_sha1:toolBlob});
 }
 
+const REVIEWED_MODULE_PATHS=Object.freeze([
+  AT_USE_REL,
+  ATTEST_REL,
+  IMPORT_REL,
+  ACCEPTANCE_REL,
+  COMPILER_REL,
+  READINESS_REL,
+  ADAPTER_REVIEW_REL,
+  OPENING_REL,
+]);
+
+function reviewedModuleTempRoot(repo){
+  const raw=gitText(
+    ["rev-parse","--git-dir"],
+    "MARKET_VAULT_CANONICAL_GIT_DIR_UNAVAILABLE",
+  );
+  const gitDir=path.isAbsolute(raw)?raw:path.resolve(ROOT,raw);
+  const stat=fs.lstatSync(gitDir);
+  if(!stat.isDirectory()||stat.isSymbolicLink()){
+    fail("MARKET_VAULT_CANONICAL_GIT_DIR_INVALID");
+  }
+  const prefix=path.join(gitDir,"void-market-vault-canonical-reviewed-");
+  const temp=fs.mkdtempSync(prefix);
+  fs.chmodSync(temp,0o700);
+  return temp;
+}
+
+async function withReviewedExecutionModules(repo,fn){
+  const temp=reviewedModuleTempRoot(repo);
+  try{
+    for(const relativePath of REVIEWED_MODULE_PATHS){
+      const expected=
+        VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1[
+          relativePath
+        ];
+      const source=commitBytes(
+        repo.head,
+        relativePath,
+        "MARKET_VAULT_REVIEWED_MODULE_"+relativePath.replaceAll("/","_"),
+      );
+      if(source.blob!==expected){
+        fail("MARKET_VAULT_REVIEWED_MODULE_BLOB_MISMATCH:"+relativePath);
+      }
+      const destination=path.join(temp,relativePath);
+      fs.mkdirSync(path.dirname(destination),{recursive:true,mode:0o700});
+      fs.writeFileSync(destination,source.bytes,{flag:"wx",mode:0o600});
+      const written=fs.readFileSync(destination);
+      if(gitBlobSha1(written)!==expected){
+        fail("MARKET_VAULT_REVIEWED_MODULE_MATERIALIZATION_MISMATCH:"+relativePath);
+      }
+    }
+
+    const atUse=await import(
+      pathToFileURL(path.join(temp,AT_USE_REL)).href
+    );
+    const readiness=await import(
+      pathToFileURL(path.join(temp,READINESS_REL)).href
+    );
+    if(
+      typeof atUse.verifyWcVoidMarketVaultAtUseRevalidationV1!=="function"||
+      typeof readiness.classifyVoidWcVoidProductionReadinessV1!=="function"
+    ){
+      fail("MARKET_VAULT_REVIEWED_MODULE_EXPORT_MISSING");
+    }
+    return await fn(Object.freeze({
+      verifyAtUse:atUse.verifyWcVoidMarketVaultAtUseRevalidationV1,
+      classifyReadiness:readiness.classifyVoidWcVoidProductionReadinessV1,
+    }));
+  }finally{
+    fs.rmSync(temp,{recursive:true,force:true});
+  }
+}
+
 function productionCandidateAt(commit){
   const source=commitBytes(commit,PRODUCTION_REL,"MARKET_VAULT_PRODUCTION_CANDIDATE");
   let value;
@@ -397,7 +468,7 @@ function validatePlan(plan){
   return plan;
 }
 
-export function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
+export async function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
   exactObject(
     input,
     ["at_use_artifact_bytes","at_use_artifact_file_sha256"],
@@ -417,10 +488,13 @@ export function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
   if(typeof artifact.collection_completed_at_utc!=="string"){
     fail("MARKET_VAULT_CANONICAL_EVIDENCE_COLLECTION_TIME_MISSING");
   }
-  const verified=verifyWcVoidMarketVaultAtUseRevalidationV1({
-    artifact,
-    evaluation_time_utc:artifact.collection_completed_at_utc,
-  });
+  const result=await withReviewedExecutionModules(
+    repo,
+    async ({verifyAtUse,classifyReadiness})=>{
+      const verified=verifyAtUse({
+        artifact,
+        evaluation_time_utc:artifact.collection_completed_at_utc,
+      });
   if(
     verified?.ok!==true||
     verified?.status!=="MARKET_VAULT_AT_USE_EVIDENCE_VERIFIED_CURRENT"||
@@ -435,7 +509,7 @@ export function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
     verified.funds_movement_authorized!==false
   )fail("MARKET_VAULT_CANONICAL_EVIDENCE_INVALID");
 
-  const before=classifyVoidWcVoidProductionReadinessV1(production.value);
+  const before=classifyReadiness(production.value);
   if(
     before?.ok!==false||
     before.status!=="HOLD"||
@@ -444,7 +518,7 @@ export function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
   )fail("MARKET_VAULT_CANONICAL_CLASSIFIER_PRESTATE_INVALID");
 
   const target=targetFrom(production.value,verified);
-  const after=classifyVoidWcVoidProductionReadinessV1(target);
+  const after=classifyReadiness(target);
   if(
     after?.ok!==false||
     after.status!=="HOLD"||
@@ -500,23 +574,23 @@ export function prepareVoidWcVoidMarketVaultCanonicalApplicationV1(input){
       "voidwcmvcap1_"+sha256(Buffer.from(canonicalJson(material),"utf8")),
   });
   validatePlan(plan);
+  return plan;
+    },
+  );
 
   const afterRepo=repositoryIdentity();
   if(afterRepo.head!==repo.head||afterRepo.tree!==repo.tree){
     fail("MARKET_VAULT_CANONICAL_REPOSITORY_CHANGED_DURING_PREPARE");
   }
-  return plan;
+  return result;
 }
 
-export function verifyVoidWcVoidMarketVaultCanonicalApplicationStateV1({
-  plan,
-  productionCandidate,
-}={}){
+async function verifyStateWithClassifier(plan,productionCandidate,classifyReadiness){
   const reviewed=validatePlan(plan);
   if(canonicalJson(productionCandidate)!==canonicalJson(reviewed.production_target_candidate)){
     fail("MARKET_VAULT_CANONICAL_TARGET_NOT_APPLIED");
   }
-  const decision=classifyVoidWcVoidProductionReadinessV1(productionCandidate);
+  const decision=classifyReadiness(productionCandidate);
   if(canonicalJson(summarize(decision))!==canonicalJson(reviewed.production_after)){
     fail("MARKET_VAULT_CANONICAL_CLASSIFIER_STATE_MISMATCH");
   }
@@ -536,7 +610,20 @@ export function verifyVoidWcVoidMarketVaultCanonicalApplicationStateV1({
   });
 }
 
-export function verifyVoidWcVoidMarketVaultCanonicalApplicationV1({
+export async function verifyVoidWcVoidMarketVaultCanonicalApplicationStateV1({
+  plan,
+  productionCandidate,
+}={}){
+  const repo=repositoryIdentity();
+  assertReviewedExecutionSource(repo);
+  return await withReviewedExecutionModules(
+    repo,
+    async ({classifyReadiness})=>
+      await verifyStateWithClassifier(plan,productionCandidate,classifyReadiness),
+  );
+}
+
+export async function verifyVoidWcVoidMarketVaultCanonicalApplicationV1({
   application_plan_bytes,
   application_plan_file_sha256,
 }={}){
@@ -585,8 +672,13 @@ export function verifyVoidWcVoidMarketVaultCanonicalApplicationV1({
     canonicalJson(current.value)!==canonicalJson(plan.production_target_candidate)
   )fail("MARKET_VAULT_CANONICAL_APPLIED_TARGET_MISMATCH");
 
-  return verifyVoidWcVoidMarketVaultCanonicalApplicationStateV1({
-    plan,
-    productionCandidate:current.value,
-  });
+  return await withReviewedExecutionModules(
+    repo,
+    async ({classifyReadiness})=>
+      await verifyStateWithClassifier(
+        plan,
+        current.value,
+        classifyReadiness,
+      ),
+  );
 }
