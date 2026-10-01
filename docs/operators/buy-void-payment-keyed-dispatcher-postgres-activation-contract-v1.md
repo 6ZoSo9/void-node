@@ -220,16 +220,29 @@ whenever apply authority is on. There is no process-visible interval in which
 No other atomic jump is accepted. For example, dormant -> admission_armed and
 claimed_exclusive -> live_apply are both HOLDs in atomic-restart mode.
 
-For an atomic transition, the caller must supply one reviewed configuration
-generation identity (`voidbvpcg1_<sha256>`) and one exact configuration SHA-256.
-Each of the four inner gate values carries that same generation ID and digest.
-The contract rejects a missing generation, mixed generation IDs, mixed digests,
-or a gate value that does not match the target phase.
+For an atomic transition, the contract defines one canonical **logical gate
+configuration** material with marker
+`VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ATOMIC_CONFIGURATION_V1`.
+That material includes the exact parent/runtime environment names and the
+target values for the parent plus all four inner gates.
 
-The later host activation plan must still prove that the reviewed digest belongs
-to the exact systemd configuration bytes that will be installed and that the
-restart is the single runtime boundary; this source contract does not implement
-that mutation.
+The contract derives:
+
+```text
+configuration_sha256 = sha256(canonical logical gate material)
+generation_id = voidbvpcg1_<configuration_sha256>
+```
+
+Each of the four inner gate records must repeat that exact derived ID and digest.
+The contract rejects a missing generation, mixed generation IDs, mixed digests,
+wrong target values, **or a self-consistent caller-supplied digest that does not
+equal the digest rederived from the canonical gate material**.
+
+This logical SHA deliberately does not claim to hash a future systemd drop-in
+file. The later host activation preflight must separately prove that the exact
+staged systemd bytes express this same logical gate material, bind their own file
+SHA-256, and prove the restart is the single runtime boundary. This source
+contract still performs no host mutation.
 
 ## Invalid states
 
@@ -259,8 +272,8 @@ It binds:
 - inherited runtime source to reviewed main commit
   `eef17f65a8bd495d581df3b91d9a411a5402cde8`;
 - a squash-safe candidate-source review base at commit
-  `cc5e9790e02e188b3e3878fe7cc9c9a9dd11b376` and tree
-  `f06b9a1504050cb959a6e6a5197f5a15daa50c79`;
+  `c4614c49d79a6111c2590518ea4dda7863b14042` and tree
+  `69c505eb451ef0c3ae75963fd651d3cae635c780`;
 - exact Git blobs for the mounted parent/full-runtime/claimed/admitted source
   slice and the activation-contract source, with the activation-contract blob
   required to match the clean evaluated `HEAD`;

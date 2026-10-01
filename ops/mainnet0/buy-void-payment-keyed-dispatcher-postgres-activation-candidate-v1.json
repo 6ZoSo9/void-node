@@ -11,10 +11,10 @@
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts": "27045345cf48cacd2a5f2bc9330812579d0761a4",
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts": "1495c6dd21cfda1608ea29885d98617784a04bb0"
   },
-  "candidate_source_review_base_commit": "cc5e9790e02e188b3e3878fe7cc9c9a9dd11b376",
-  "candidate_source_review_base_tree": "f06b9a1504050cb959a6e6a5197f5a15daa50c79",
+  "candidate_source_review_base_commit": "c4614c49d79a6111c2590518ea4dda7863b14042",
+  "candidate_source_review_base_tree": "69c505eb451ef0c3ae75963fd651d3cae635c780",
   "reviewed_candidate_head_source_blobs": {
-    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts": "d06a265aa14e37b77a8309720a3c4e71c51971d7"
+    "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts": "4e5d9a633b05d9254424c2132fc6620b94ff3692"
   },
   "observed_readiness": {
     "parent_enabled": true,
@@ -56,7 +56,9 @@
     "full_runtime_required_when_apply_live": true,
     "admitted_runtime_required_when_apply_live": true,
     "staged_rollback_clears_apply_first": true,
-    "automatic_retry": false
+    "automatic_retry": false,
+    "atomic_restart_configuration_digest_derived_from_gate_material": true,
+    "atomic_restart_generation_id_derived_from_configuration_digest": true
   },
   "authority": {
     "source_candidate_only": true,
