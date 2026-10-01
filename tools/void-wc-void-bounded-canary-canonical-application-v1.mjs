@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -34,6 +34,8 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
     canonical_classifier_reexecution: true,
     exact_two_gate_source_delta: true,
     reviewed_git_commit_required: true,
+    reviewed_git_executable_required: true,
+    ambient_git_overrides_ignored: true,
     repository_source_write: false,
     filesystem_read: true,
     filesystem_write: false,
@@ -198,6 +200,45 @@ function prettyBytes(value) {
   return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
 }
 
+function inspectGitExecutable() {
+  let canonicalPath;
+  let stat;
+  let bytes;
+  try {
+    canonicalPath = fs.realpathSync(GIT);
+    stat = fs.statSync(canonicalPath);
+    bytes = fs.readFileSync(canonicalPath);
+  } catch {
+    fail("CANONICAL_APPLICATION_GIT_EXECUTABLE_UNAVAILABLE");
+  }
+  if (
+    !path.isAbsolute(canonicalPath) ||
+    !stat.isFile() ||
+    (stat.mode & 0o111) === 0
+  ) {
+    fail("CANONICAL_APPLICATION_GIT_EXECUTABLE_INVALID");
+  }
+  return Object.freeze({
+    path: canonicalPath,
+    sha256: sha256(bytes),
+    filesystem_identity: [
+      canonicalPath,
+      String(stat.dev),
+      String(stat.ino),
+      String(stat.size),
+      String(stat.mode & 0o7777),
+    ].join("\0"),
+  });
+}
+
+function sameGitExecutable(left, right) {
+  return (
+    left.path === right.path &&
+    left.sha256 === right.sha256 &&
+    left.filesystem_identity === right.filesystem_identity
+  );
+}
+
 function sanitizedGitEnv() {
   const env = { ...process.env };
   for (const key of [
@@ -223,43 +264,44 @@ function sanitizedGitEnv() {
   ]) {
     delete env[key];
   }
+  for (const key of Object.keys(env)) {
+    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
+  }
   env.GIT_CONFIG_NOSYSTEM = "1";
+  env.GIT_OPTIONAL_LOCKS = "0";
   env.GIT_TERMINAL_PROMPT = "0";
+  env.LANG = "C";
+  env.LC_ALL = "C";
+  env.PATH = "/usr/bin:/bin";
   return env;
 }
 
-function gitText(args, code) {
-  try {
-    return execFileSync(
-      GIT,
-      ["-C", ROOT, ...args],
-      {
-        encoding: "utf8",
-        env: sanitizedGitEnv(),
-        stdio: ["ignore", "pipe", "ignore"],
-        maxBuffer: MAX_BYTES + 1024,
-      },
-    ).trim();
-  } catch {
-    fail(code);
+function gitRun(args, code, { encoding = "utf8", maxBuffer = MAX_BYTES + 1024 } = {}) {
+  const before = inspectGitExecutable();
+  const result = spawnSync(
+    before.path,
+    ["--no-replace-objects", "-C", ROOT, ...args],
+    {
+      encoding,
+      env: sanitizedGitEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer,
+    },
+  );
+  if (result.error || result.status !== 0) fail(code);
+  const after = inspectGitExecutable();
+  if (!sameGitExecutable(before, after)) {
+    fail("CANONICAL_APPLICATION_GIT_EXECUTABLE_CHANGED_DURING_READ");
   }
+  return result.stdout;
+}
+
+function gitText(args, code) {
+  return String(gitRun(args, code)).trim();
 }
 
 function gitBytes(args, code) {
-  try {
-    return Buffer.from(execFileSync(
-      GIT,
-      ["-C", ROOT, ...args],
-      {
-        encoding: null,
-        env: sanitizedGitEnv(),
-        stdio: ["ignore", "pipe", "ignore"],
-        maxBuffer: MAX_BYTES + 1024,
-      },
-    ));
-  } catch {
-    fail(code);
-  }
+  return Buffer.from(gitRun(args, code, { encoding: null }));
 }
 
 function requireCleanRepository() {
@@ -582,18 +624,11 @@ function validatePlan(plan) {
 }
 
 function assertAncestor(ancestor, descendant, code) {
-  try {
-    execFileSync(
-      GIT,
-      ["-C", ROOT, "merge-base", "--is-ancestor", ancestor, descendant],
-      {
-        env: sanitizedGitEnv(),
-        stdio: ["ignore", "ignore", "ignore"],
-      },
-    );
-  } catch {
-    fail(code);
-  }
+  gitRun(
+    ["merge-base", "--is-ancestor", ancestor, descendant],
+    code,
+    { encoding: "utf8", maxBuffer: 1024 * 1024 },
+  );
 }
 
 function exactCandidateDelta(source, target, kind) {
