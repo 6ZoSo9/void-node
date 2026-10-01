@@ -4,15 +4,22 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
+  CANONICAL_GIT_URL,
+  CANONICAL_MAIN_REF,
   CHAIN_MARKER,
   DISPATCH_MARKER,
   EVIDENCE_MARKER,
+  LIVE_MAIN_QUERY_TIMEOUT_MS,
   MARKER,
   WorkerDispatchHubGuardError,
+  assertCanonicalMainCheckoutV1,
   assertFreshLiveChainMatchesV1,
+  assertStableCanonicalMainV1,
   assertFreshLiveDispatchMatchesV1,
   canonicalJson,
   evaluateWorkerDispatchHubGuardV1,
+  parseCanonicalMainLsRemoteV1,
+  reviewedGitEnvV1,
 } from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
 import {
   MARKER as UPSTREAM_CHAIN_MARKER,
@@ -33,9 +40,35 @@ const STALE_EVALUATED_AT =
   new Date(PROOF_NOW_MS - 31 * 60_000).toISOString();
 const STALE_NEXT_REEVALUATION_AT =
   new Date(PROOF_NOW_MS - 60_000).toISOString();
+const REVIEWED_MAIN_SHA = "c".repeat(40);
 
+assert.equal(CANONICAL_GIT_URL, "https://github.com/6ZoSo9/void-node.git");
+assert.equal(CANONICAL_MAIN_REF, "refs/heads/main");
+assert.equal(LIVE_MAIN_QUERY_TIMEOUT_MS, 15_000);
 assert.equal(CHAIN_MARKER, UPSTREAM_CHAIN_MARKER);
 assert.equal(DISPATCH_MARKER, UPSTREAM_DISPATCH_MARKER);
+
+const isolatedGitEnv = reviewedGitEnvV1({
+  GIT_DIR: "/tmp/attacker-git-dir",
+  GIT_WORK_TREE: "/tmp/attacker-work-tree",
+  GIT_CONFIG_GLOBAL: "/tmp/attacker-global",
+  GIT_CONFIG_SYSTEM: "/tmp/attacker-system",
+  GIT_SSL_NO_VERIFY: "true",
+  GIT_CONFIG_KEY_0: "url.fake.insteadOf",
+  GIT_CONFIG_VALUE_0: "https://github.com/",
+  PATH: "/tmp/attacker-bin",
+  PRESERVE_ME: "yes",
+});
+assert.equal(isolatedGitEnv.GIT_DIR, undefined);
+assert.equal(isolatedGitEnv.GIT_WORK_TREE, undefined);
+assert.equal(isolatedGitEnv.GIT_CONFIG_KEY_0, undefined);
+assert.equal(isolatedGitEnv.GIT_CONFIG_VALUE_0, undefined);
+assert.equal(isolatedGitEnv.GIT_CONFIG_GLOBAL, "/dev/null");
+assert.equal(isolatedGitEnv.GIT_CONFIG_SYSTEM, "/dev/null");
+assert.equal(isolatedGitEnv.GIT_CONFIG_NOSYSTEM, "1");
+assert.equal(isolatedGitEnv.GIT_SSL_NO_VERIFY, "false");
+assert.equal(isolatedGitEnv.PATH, "/usr/bin:/bin");
+assert.equal(isolatedGitEnv.PRESERVE_ME, "yes");
 
 const policyRaw = JSON.parse(
   readFileSync(
@@ -133,6 +166,7 @@ const actualAligned = evaluateWorkerDispatchHubGuardV1({
 }, {
   liveChain: actualCurrentChain,
   liveDispatch: actualDispatch,
+  reviewedMainSha: REVIEWED_MAIN_SHA,
 });
 assert.equal(actualAligned.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(actualAligned.normal_dispatch_allowed, true);
@@ -227,6 +261,58 @@ function expectRejected(operation, pattern) {
   );
 }
 
+assert.equal(
+  parseCanonicalMainLsRemoteV1(
+    REVIEWED_MAIN_SHA + "\trefs/heads/main\n",
+  ),
+  REVIEWED_MAIN_SHA,
+);
+assert.equal(
+  assertCanonicalMainCheckoutV1(
+    REVIEWED_MAIN_SHA,
+    REVIEWED_MAIN_SHA,
+  ),
+  true,
+);
+assert.equal(
+  assertStableCanonicalMainV1(
+    REVIEWED_MAIN_SHA,
+    REVIEWED_MAIN_SHA,
+  ),
+  true,
+);
+expectRejected(
+  () => parseCanonicalMainLsRemoteV1(""),
+  /exactly one record/,
+);
+expectRejected(
+  () => parseCanonicalMainLsRemoteV1(
+    REVIEWED_MAIN_SHA + "\trefs/heads/main\n"
+      + "d".repeat(40) + "\trefs/heads/main\n",
+  ),
+  /exactly one record/,
+);
+expectRejected(
+  () => parseCanonicalMainLsRemoteV1(
+    REVIEWED_MAIN_SHA + "\trefs/heads/not-main\n",
+  ),
+  /record is malformed/,
+);
+expectRejected(
+  () => assertCanonicalMainCheckoutV1(
+    REVIEWED_MAIN_SHA,
+    "d".repeat(40),
+  ),
+  /does not equal live canonical main/,
+);
+expectRejected(
+  () => assertStableCanonicalMainV1(
+    REVIEWED_MAIN_SHA,
+    "d".repeat(40),
+  ),
+  /canonical main changed during dispatch guard evaluation/,
+);
+
 const retainedCurrent = evaluateWorkerDispatchHubGuardV1(evidence());
 assert.equal(retainedCurrent.outcome, "HOLD_CHAIN_LIVENESS_UNPROVEN");
 assert.equal(retainedCurrent.normal_dispatch_allowed, false);
@@ -254,9 +340,19 @@ assert.equal(chainOnlyFresh.live_dispatch_revalidated, false);
 assert.equal(chainOnlyFresh.requires_fresh_dispatch_evidence, true);
 
 const currentEvidence = evidence();
+const mainUnproven = evaluateWorkerDispatchHubGuardV1(currentEvidence, {
+  liveChain: currentEvidence.chain,
+  liveDispatch: currentEvidence.dispatch,
+});
+assert.equal(mainUnproven.outcome, "HOLD_MAIN_PROVENANCE_UNPROVEN");
+assert.equal(mainUnproven.normal_dispatch_allowed, false);
+assert.equal(mainUnproven.live_main_revalidated, false);
+assert.equal(mainUnproven.requires_live_main_evidence, true);
+
 const current = evaluateWorkerDispatchHubGuardV1(currentEvidence, {
   liveChain: currentEvidence.chain,
   liveDispatch: currentEvidence.dispatch,
+  reviewedMainSha: REVIEWED_MAIN_SHA,
 });
 assert.equal(current.marker, MARKER);
 assert.equal(current.version, 1);
@@ -264,7 +360,10 @@ assert.equal(current.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(current.chain_outcome, "CURRENT");
 assert.equal(current.dispatch_evidence_fresh, true);
 assert.equal(current.live_dispatch_revalidated, true);
+assert.equal(current.live_main_revalidated, true);
+assert.equal(current.reviewed_main_sha, REVIEWED_MAIN_SHA);
 assert.equal(current.requires_fresh_dispatch_evidence, false);
+assert.equal(current.requires_live_main_evidence, false);
 assert.equal(current.normal_dispatch_allowed, true);
 assert.equal(current.read_only_evidence_only, false);
 assert.equal(current.resolved_current_issue, 1507);
@@ -341,6 +440,7 @@ const reboundSuccessor = evaluateWorkerDispatchHubGuardV1(
   {
     liveChain: resolvedSuccessorChain,
     liveDispatch: reboundSuccessorEvidence.dispatch,
+    reviewedMainSha: REVIEWED_MAIN_SHA,
   },
 );
 assert.equal(reboundSuccessor.outcome, "DISPATCH_HUB_ALIGNED");
@@ -366,6 +466,7 @@ const repeatedEvidence = evidence();
 const repeated = evaluateWorkerDispatchHubGuardV1(repeatedEvidence, {
   liveChain: repeatedEvidence.chain,
   liveDispatch: repeatedEvidence.dispatch,
+  reviewedMainSha: REVIEWED_MAIN_SHA,
 });
 assert.equal(repeated.guard_id, current.guard_id);
 assert.deepEqual(repeated, current);
@@ -556,6 +657,11 @@ console.log("dispatch_content_identity_rederived=true");
 console.log("canonical_repository_pinned=true");
 console.log("reviewed_head_dispatch_policy_reexecution=true");
 console.log("fabricated_successor_dispatch_rejected=true");
+console.log("canonical_live_main_parser_green=true");
+console.log("canonical_git_environment_isolated=true");
+console.log("stale_local_head_rejected=true");
+console.log("main_generation_change_rejected=true");
+console.log("main_provenance_required_for_alignment=true");
 console.log("caller_boolean_cannot_unlock_alignment=true");
 console.log("expired_dispatch_evidence_holds=true");
 console.log("dispatch_reevaluation_window_bound=true");
