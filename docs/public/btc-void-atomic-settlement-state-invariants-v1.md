@@ -15,11 +15,33 @@ Every settlement contract must bind to a freshly rederived
 request and exact `indicative_quote_id`; BTC and VOID settlement amounts must
 match the current quote result exactly.
 
-The contract also binds a content-addressed snapshot of the current shared
-`BTC_VOID` market policy: native BTC, satoshi units, VOID base asset, current
-settlement-source profile, current opening-settlement adapter configuration,
-and the current VOID market allocation. This source contract does not introduce
-a fixed WC→VOID redemption claim; WC/VOID pricing remains market-determined.
+The contract also binds a content-addressed snapshot of the **current V2**
+shared-market policy. Historical
+`void-shared-market-post-discovery-state-v1.mjs` is explicitly not production
+authority and is not imported by this evaluator.
+
+The V2 binding is anchored to the exact reviewed canonical coupled-candidate Git
+blob
+`d78bc88dd26c47921a54c081a79ceefc0d5abcee` and reconciliation ID
+`sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba`.
+It requires:
+
+- Chain 2050 / `mainnet0` / execution epoch 2;
+- canonical 18-decimal VoidToken
+  `0x470075b85352eb86f7d089fb9ba88945f12aad94`;
+- `btc_void_phase=post_presale_unopened`;
+- native BTC / satoshi quote semantics from `bitcoin-mainnet`;
+- zero protocol BTC quote seed;
+- 10,000,000 VOID planned BTC/VOID inventory;
+- V2's remaining 20,000,000 VOID unopened post-presale inventory accounting;
+- quote-reserve and VOID-reserve custody still unverified; and
+- inventory funding, market activation, presale activation, and funds authority
+  all false.
+
+BTC/VOID therefore no longer inherits the V1 shared-opening settlement adapter
+or V1 six-decimal/shared-closeout assumptions. This source contract also does
+not introduce a fixed WC→VOID redemption claim; WC/VOID pricing remains
+market-determined.
 
 For a terminal `btc_to_void` settlement, the trace must additionally carry a
 terminal binding whose reserve-recycling request is rederived through the
@@ -63,8 +85,10 @@ move liquidity, access a wallet or signer, construct or broadcast a
 transaction, sweep treasury proceeds, mutate WC, activate a market, or move
 funds.
 
-Bitcoin-regtest plus isolated Chain-2050 execution remains a separate
-post-merge acceptance gate before any inventory or liquidity authority.
+Bitcoin-regtest rehearsal and any later live Bitcoin-mainnet / Chain-2050
+execution remain separate reviewed gates before inventory, liquidity, or market
+authority. A source-level V2 policy binding is not evidence that BTC/VOID is
+funded or open.
 
 ## Proof
 
