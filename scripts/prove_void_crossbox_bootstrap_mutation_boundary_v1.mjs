@@ -119,7 +119,7 @@ try {
       path.join(fakeBin, command),
       `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\\n' "${command}:$*" >> "${VOID_TEST_COMMAND_LOG:?}"
+printf '%s\\n' "${command}:$*" >> "\${VOID_TEST_COMMAND_LOG:?}"
 exit 97
 `,
       { mode: 0o755 },
@@ -130,14 +130,14 @@ exit 97
     path.join(fakeBin, "ssh"),
     `#!/usr/bin/env bash
 set -euo pipefail
-printf 'ssh:%s\\n' "$*" >> "${VOID_TEST_COMMAND_LOG:?}"
-case "${VOID_TEST_SSH_MODE:-fail}" in
+printf 'ssh:%s\\n' "$*" >> "\${VOID_TEST_COMMAND_LOG:?}"
+case "\${VOID_TEST_SSH_MODE:-fail}" in
   head-mismatch)
     printf 'nimo-test\\n%s\\n' "0000000000000000000000000000000000000000"
     exit 0
     ;;
   local-host)
-    printf '%s\\n%s\\n' "${VOID_TEST_LOCAL_HOST:?}" "${VOID_TEST_LOCAL_HEAD:?}"
+    printf '%s\\n%s\\n' "\${VOID_TEST_LOCAL_HOST:?}" "\${VOID_TEST_LOCAL_HEAD:?}"
     exit 0
     ;;
   *)
