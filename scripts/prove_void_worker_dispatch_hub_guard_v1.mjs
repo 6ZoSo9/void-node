@@ -18,6 +18,7 @@ import {
   canonicalJson,
   evaluateWorkerDispatchHubGuardV1,
   parseCanonicalMainLsRemoteV1,
+  reviewedGitEnvV1,
 } from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
 import {
   MARKER as UPSTREAM_CHAIN_MARKER,
@@ -45,6 +46,28 @@ assert.equal(CANONICAL_MAIN_REF, "refs/heads/main");
 assert.equal(LIVE_MAIN_QUERY_TIMEOUT_MS, 15_000);
 assert.equal(CHAIN_MARKER, UPSTREAM_CHAIN_MARKER);
 assert.equal(DISPATCH_MARKER, UPSTREAM_DISPATCH_MARKER);
+
+const isolatedGitEnv = reviewedGitEnvV1({
+  GIT_DIR: "/tmp/attacker-git-dir",
+  GIT_WORK_TREE: "/tmp/attacker-work-tree",
+  GIT_CONFIG_GLOBAL: "/tmp/attacker-global",
+  GIT_CONFIG_SYSTEM: "/tmp/attacker-system",
+  GIT_SSL_NO_VERIFY: "true",
+  GIT_CONFIG_KEY_0: "url.fake.insteadOf",
+  GIT_CONFIG_VALUE_0: "https://github.com/",
+  PATH: "/tmp/attacker-bin",
+  PRESERVE_ME: "yes",
+});
+assert.equal(isolatedGitEnv.GIT_DIR, undefined);
+assert.equal(isolatedGitEnv.GIT_WORK_TREE, undefined);
+assert.equal(isolatedGitEnv.GIT_CONFIG_KEY_0, undefined);
+assert.equal(isolatedGitEnv.GIT_CONFIG_VALUE_0, undefined);
+assert.equal(isolatedGitEnv.GIT_CONFIG_GLOBAL, "/dev/null");
+assert.equal(isolatedGitEnv.GIT_CONFIG_SYSTEM, "/dev/null");
+assert.equal(isolatedGitEnv.GIT_CONFIG_NOSYSTEM, "1");
+assert.equal(isolatedGitEnv.GIT_SSL_NO_VERIFY, "false");
+assert.equal(isolatedGitEnv.PATH, "/usr/bin:/bin");
+assert.equal(isolatedGitEnv.PRESERVE_ME, "yes");
 
 const policyRaw = JSON.parse(
   readFileSync(
@@ -620,6 +643,7 @@ console.log("canonical_repository_pinned=true");
 console.log("reviewed_head_dispatch_policy_reexecution=true");
 console.log("fabricated_successor_dispatch_rejected=true");
 console.log("canonical_live_main_parser_green=true");
+console.log("canonical_git_environment_isolated=true");
 console.log("stale_local_head_rejected=true");
 console.log("main_provenance_required_for_alignment=true");
 console.log("caller_boolean_cannot_unlock_alignment=true");
