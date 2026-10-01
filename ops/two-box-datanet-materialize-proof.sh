@@ -3,7 +3,27 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+MARKER="VOID_TWO_BOX_DATANET_MATERIALIZE_EXPLICIT_TARGET_V1"
+
+if [ -z "${ALIEN:-}" ]; then
+  echo "$MARKER HOLD: missing explicit ALIEN" >&2
+  exit 2
+fi
+if [ -z "${REMOTE_BASE:-}" ]; then
+  echo "$MARKER HOLD: missing explicit REMOTE_BASE" >&2
+  exit 2
+fi
+
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$REMOTE_BASE" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
+
+export ALIEN REMOTE_BASE
+
 LOCAL_BASE="${LOCAL_BASE:-http://127.0.0.1:4100}"
 LIMIT="${LIMIT:-3}"
 WHO="${WHO:-zoso}"
@@ -28,7 +48,7 @@ git describe --tags --abbrev=0 2>/dev/null || true
 
 echo
 echo "=== [2] provenance diff before ==="
-LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-before.txt"
+ALIEN="$ALIEN" LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="$REMOTE_BASE" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-before.txt"
 
 python3 - "$OUT/provenance-diff-before.txt" <<'PY' > "$OUT/before.json"
 from pathlib import Path
@@ -70,7 +90,7 @@ PY
 
 echo
 echo "=== [3] bounded materialize apply ==="
-LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}" APPLY=1 LIMIT="$LIMIT" WHO="$WHO" bash ops/two-box-datanet-materialize-from-peer.sh | tee "$OUT/materialize.txt"
+ALIEN="$ALIEN" LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="$REMOTE_BASE" APPLY=1 LIMIT="$LIMIT" WHO="$WHO" bash ops/two-box-datanet-materialize-from-peer.sh | tee "$OUT/materialize.txt"
 
 python3 - "$OUT/materialize.txt" <<'PY' > "$OUT/materialize-summary.json"
 from pathlib import Path
@@ -131,7 +151,7 @@ PY
 
 echo
 echo "=== [4] provenance diff after ==="
-LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-after.txt"
+ALIEN="$ALIEN" LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}" REMOTE_BASE="$REMOTE_BASE" bash ops/two-box-datanet-provenance-diff.sh | tee "$OUT/provenance-diff-after.txt"
 
 python3 - "$OUT/provenance-diff-after.txt" <<'PY' > "$OUT/after.json"
 from pathlib import Path

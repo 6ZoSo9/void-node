@@ -3,9 +3,28 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+MARKER="VOID_TWO_BOX_DATANET_MATERIALIZE_EXPLICIT_TARGET_V1"
+
+if [ -z "${ALIEN:-}" ]; then
+  echo "$MARKER HOLD: missing explicit ALIEN" >&2
+  exit 2
+fi
+if [ -z "${REMOTE_BASE:-}" ]; then
+  echo "$MARKER HOLD: missing explicit REMOTE_BASE" >&2
+  exit 2
+fi
+
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$REMOTE_BASE" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
+
+export ALIEN REMOTE_BASE
+
 LOCAL_BASE="${LOCAL_BASE:-${PUBLIC_HTTP_BASE:-http://127.0.0.1:4100}}"
-REMOTE_BASE="${REMOTE_BASE:-http://100.122.79.39:4100}"
 OUT="${OUT:-/tmp/two-box-datanet-provenance-diff-$(date +%Y%m%d-%H%M%S)}"
 
 mkdir -p "$OUT"

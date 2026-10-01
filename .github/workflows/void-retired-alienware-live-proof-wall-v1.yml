@@ -1,0 +1,76 @@
+name: VOID retired Alienware live proof wall v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-retired-alienware-live-proof-wall-v1.yml"
+      - "ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh"
+      - "ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh"
+      - "ops/mainnet0/alienware-runtime-service-truth-guard.md"
+      - "ops/mainnet0/alienware-duplicate-service-disabled-closeout.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-retired-alienware-live-proof-wall-v1.yml"
+      - "ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh"
+      - "ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh"
+      - "ops/mainnet0/alienware-runtime-service-truth-guard.md"
+      - "ops/mainnet0/alienware-duplicate-service-disabled-closeout.md"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Shell syntax
+        run: |
+          bash -n ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh
+          bash -n ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh
+
+      - name: Static historical proofs
+        run: |
+          bash ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh
+          bash ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh
+
+      - name: Prove retired live-check wall
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker="VOID_RETIRED_ALIENWARE_LIVE_SERVICE_CHECK_HOLD_V1"
+
+          for proof in             ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh             ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh
+          do
+            set +e
+            output="$(LIVE_SERVICE_CHECK=1 bash "$proof" 2>&1)"
+            rc=$?
+            set -e
+
+            test "$rc" -eq 2
+            grep -F "$marker" <<<"$output" >/dev/null
+            grep -F "live_service_check_performed=false" <<<"$output" >/dev/null
+          done
+
+          if grep -F "systemctl --user is-active"             ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh             ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh
+          then
+            echo "retired Alienware proof regained live systemctl check" >&2
+            exit 1
+          fi
+
+          if grep -F "curl -fsS --max-time 15 http://127.0.0.1:4100"             ops/mainnet0/alienware-runtime-service-truth-guard-proof.sh             ops/mainnet0/alienware-duplicate-service-disabled-closeout-proof.sh
+          then
+            echo "retired Alienware proof regained live HTTP check" >&2
+            exit 1
+          fi
+
+          echo "VOID_RETIRED_ALIENWARE_LIVE_PROOF_WALL_V1_GREEN"
+
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

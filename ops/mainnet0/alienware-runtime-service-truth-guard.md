@@ -3,58 +3,79 @@
 artifact: VOID_ALIENWARE_RUNTIME_SERVICE_TRUTH_GUARD_V1
 result: guard_ready
 
-## Runtime truth
+Status: retired historical evidence
+Current authority: none
+Live service recheck: prohibited
 
-Alienware's live VOID runtime is:
+Alienware is permanently retired and is not part of the active operator fleet.
+This document preserves the service-selection history that closed an old
+DataNet cross-box incident. It does not describe current runtime truth and must
+not be used to infer the service state of Precision, Nimo, or Xiphos.
 
-void-node-live.service
+## Historical runtime truth
 
-The duplicate legacy service is:
+At the recorded Alienware checkpoint, the intended VOID user service was:
 
-void-node.service
+`void-node-live.service`
 
-## Why this guard exists
+The duplicate legacy service was:
 
-During the DataNet Store & Serve cross-box lane, Alienware repeatedly failed with port collisions on 4100 and 4700 because scripts restarted `void-node.service` while `void-node-live.service` already owned the live runtime ports.
+`void-node.service`
 
-The active process was proven to be under:
+## Why this guard existed
 
-app.slice/void-node-live.service
+During the DataNet Store & Serve cross-box lane, Alienware repeatedly failed with
+port collisions on 4100 and 4700 because scripts restarted `void-node.service`
+while `void-node-live.service` already owned the live runtime ports.
 
-The duplicate `void-node.service` path must not be used for Alienware live proofs unless it has been intentionally cleaned up or disabled first.
+The active process at that historical checkpoint was proven to be under:
 
-## Required proof behavior
+`app.slice/void-node-live.service`
 
-Store & Serve and future live runtime proofs must support:
+The duplicate `void-node.service` path was therefore not valid for that
+Alienware runtime.
 
-VOID_RUNTIME_SERVICE=void-node-live.service
+## Historical proof behavior
 
-They must not blindly restart:
+The Store & Serve proof supported:
 
-void-node.service
+`VOID_RUNTIME_SERVICE=void-node-live.service`
 
-The Store & Serve proof now includes:
+and carried marker:
 
-VOID_RUNTIME_SERVICE_GUARD_V1
+`VOID_RUNTIME_SERVICE_GUARD_V1`
 
-## Safe-runtime note
+Those facts remain historical evidence. They do not authorize a current service
+restart or service selection on any active machine.
 
-Alienware `void-node-live.service` requires the safe-runtime drop-in:
+## Historical safe-runtime note
 
-~/.config/systemd/user/void-node-live.service.d/96-public-safe-runtime-live.conf
+Alienware `void-node-live.service` used the safe-runtime drop-in:
 
-This drop-in keeps the live service responsive by disabling wrapper/hot-loop families.
+`~/.config/systemd/user/void-node-live.service.d/96-public-safe-runtime-live.conf`
 
-## Current closed lane
+This is retained only to explain the historical runtime configuration.
+
+## Retired live-check boundary
+
+The proof script is static/history-only. A nonzero `LIVE_SERVICE_CHECK` must
+fail closed with:
+
+`VOID_RETIRED_ALIENWARE_LIVE_SERVICE_CHECK_HOLD_V1`
+
+before any `systemctl`, `curl`, restart, service-state observation, or local
+runtime inference is attempted.
+
+## Historical closed lane
 
 DataNet Store & Serve closeout:
 
-VOID_DATANET_STORE_SERVE_LIVE_SERVICE_CROSSBOX_CLOSEOUT_GREEN
+`VOID_DATANET_STORE_SERVE_LIVE_SERVICE_CROSSBOX_CLOSEOUT_GREEN`
 
 Closeout commit:
 
-af8f3731
+`af8f3731`
 
 Closeout tag:
 
-ckpt-datanet-store-serve-live-service-crossbox-closeout-green-20260607-205029
+`ckpt-datanet-store-serve-live-service-crossbox-closeout-green-20260607-205029`
