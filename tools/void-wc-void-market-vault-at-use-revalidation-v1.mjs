@@ -599,6 +599,8 @@ export function verifyWcVoidMarketVaultAtUseRevalidationV1(input) {
       BigInt(VOID_WC_VOID_MARKET_VAULT_AT_USE_MAX_COLLECTION_SECONDS_V1*1000)||
     duration>
       BigInt(VOID_WC_VOID_MARKET_VAULT_AT_USE_MAX_COLLECTION_SECONDS_V1*1000)||
+    duration+999n<completed-started||
+    duration>completed-started+999n||
     validUntil!==headTimestamp+maxAge*1000n||
     completed>validUntil||
     headTimestamp>
