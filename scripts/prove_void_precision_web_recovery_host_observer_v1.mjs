@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  CANONICAL_MAIN_REF_URL_V1,
   DEFAULT_EXPECTED_HOSTNAME,
   MARKER,
   OBSERVATION_MARKER,
@@ -16,6 +17,7 @@ import {
   evaluateCollectedPrecisionWebObservationV1,
   findProcessSourceByDigestV1,
   observerCommandEnvV1,
+  parseCanonicalMainRefV1,
   parseSsListenersV1,
   parseSystemctlShowV1,
   requireExactLoopbackListenerV1,
@@ -107,6 +109,7 @@ function collected(overrides = {}) {
     marker: OBSERVATION_MARKER,
     version: 1,
     hostname: DEFAULT_EXPECTED_HOSTNAME,
+    canonical_main_sha: plan.source_head_sha,
     units: { ...units },
     services: {
       adapter: service(
@@ -174,6 +177,31 @@ assert.equal(
   "VOID_PRECISION_WEB_RECOVERY_HOST_OBSERVATION_V1",
 );
 assert.equal(DEFAULT_EXPECTED_HOSTNAME, "zoso-Precision-Tower-7810");
+assert.equal(
+  CANONICAL_MAIN_REF_URL_V1,
+  "https://api.github.com/repos/6ZoSo9/void-node/git/ref/heads/main",
+);
+assert.equal(
+  parseCanonicalMainRefV1({
+    ref:"refs/heads/main",
+    object:{type:"commit",sha:plan.source_head_sha},
+  }),
+  plan.source_head_sha,
+);
+expectRejected(
+  ()=>parseCanonicalMainRefV1({
+    ref:"refs/heads/not-main",
+    object:{type:"commit",sha:plan.source_head_sha},
+  }),
+  /canonical_main_ref_invalid/,
+);
+expectRejected(
+  ()=>parseCanonicalMainRefV1({
+    ref:"refs/heads/main",
+    object:{type:"commit",sha:"f".repeat(39)},
+  }),
+  /canonical_main_ref_invalid/,
+);
 assert.equal(OBSERVATION_MAX_AGE_MS, 300_000);
 assert.equal(OBSERVATION_MAX_FUTURE_SKEW_MS, 5_000);
 
@@ -218,6 +246,8 @@ assert.equal(
 );
 assert.equal(accepted.hostname, DEFAULT_EXPECTED_HOSTNAME);
 assert.equal(accepted.plan_id, plan.plan_id);
+assert.equal(accepted.canonical_main_sha,plan.source_head_sha);
+assert.equal(accepted.canonical_main_source_head_match,true);
 assert.match(accepted.recovery_evidence_id, /^voidpwre1_[0-9a-f]{64}$/u);
 assert.match(accepted.observation_id, /^voidpwro1_[0-9a-f]{64}$/u);
 assert.equal(accepted.live_host_observation_performed, false);
@@ -408,6 +438,14 @@ expectRejected(
   }),
   /precision_hostname_mismatch/,
 );
+expectRejected(
+  () => evaluateCollectedPrecisionWebObservationV1({
+    plan,
+    collected: collected({ canonical_main_sha: "f".repeat(40) }),
+    trustedNowMs: PROOF_NOW_MS,
+  }),
+  /canonical_main_source_head_mismatch/,
+);
 
 {
   const bad = collected();
@@ -593,7 +631,28 @@ expectRejected(
 }
 
 console.log(PROOF_MARKER);
+const observerSource=fs.readFileSync(
+  "tools/void-precision-web-recovery-host-observer-v1.mjs",
+  "utf8",
+);
+for(const required of [
+  "https://api.github.com/repos/6ZoSo9/void-node/git/ref/heads/main",
+  "parseCanonicalMainRefV1",
+  "canonical_main_source_head_mismatch",
+  "canonical_main_live_verification_mismatch",
+  "canonical_main_live_read_performed: true",
+]){
+  assert.equal(observerSource.includes(required),true,required);
+}
+assert.ok(
+  observerSource.indexOf("await readCanonicalMainShaV1()") <
+    observerSource.indexOf("readNodeInvocationId(units.node)"),
+  "canonical main must be verified before live host observation begins",
+);
+
 console.log("current_plan_bound=true");
+console.log("canonical_main_fixed_public_ref_bound=true");
+console.log("canonical_main_live_match_required=true");
 console.log("host_identity_bound=true");
 console.log("node_unit_identity_pinned=true");
 console.log("web_service_unit_identity_bound=true");
