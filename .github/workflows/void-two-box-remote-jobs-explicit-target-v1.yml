@@ -9,8 +9,6 @@ on:
       - "ops/two-box-remote-datanet-view-proof.sh"
       - "ops/two-box-network-peer-proof.sh"
       - "scripts/prove_void_two_box_network_peer_explicit_target_v1.mjs"
-      - "ops/two-box-network-peer-proof.sh"
-      - "scripts/prove_void_two_box_network_peer_explicit_target_v1.mjs"
       - "scripts/prove_void_two_box_remote_jobs_explicit_target_v1.mjs"
       - "docs/operators/void-two-box-remote-jobs-explicit-target-v1.md"
   push:
@@ -20,6 +18,8 @@ on:
       - "ops/two-box-remote-jobs-submit-proof.sh"
       - "ops/two-box-remote-jobs-submit-product-proof.sh"
       - "ops/two-box-remote-datanet-view-proof.sh"
+      - "ops/two-box-network-peer-proof.sh"
+      - "scripts/prove_void_two_box_network_peer_explicit_target_v1.mjs"
       - "scripts/prove_void_two_box_remote_jobs_explicit_target_v1.mjs"
       - "docs/operators/void-two-box-remote-jobs-explicit-target-v1.md"
 
