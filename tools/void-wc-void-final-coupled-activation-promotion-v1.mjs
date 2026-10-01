@@ -112,6 +112,23 @@ function sha256Text(value) {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+function prettyBytes(value) {
+  return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
+}
+
+function sha256Bytes(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function gitBlobSha1(value) {
+  const header = Buffer.from("blob " + String(value.length) + "\0", "utf8");
+  return crypto
+    .createHash("sha1")
+    .update(header)
+    .update(value)
+    .digest("hex");
+}
+
 function deepFreeze(value) {
   if (
     value === null ||
@@ -360,6 +377,9 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
     "FINAL_COUPLED_COMPOSITION_AUTHORITY_INVALID",
   );
 
+  const productionTargetBytes = prettyBytes(productionTarget);
+  const coupledTargetBytes = prettyBytes(coupledTarget);
+
   const material = Object.freeze({
     marker: VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
     version: 1,
@@ -372,6 +392,10 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
     coupled_source_sha256: sha256Text(canonicalJson(coupled_candidate)),
     successor_source_sha256:
       sha256Text(canonicalJson(successor_migration_candidate)),
+    production_target_file_sha256: sha256Bytes(productionTargetBytes),
+    production_target_git_blob_sha1: gitBlobSha1(productionTargetBytes),
+    coupled_target_file_sha256: sha256Bytes(coupledTargetBytes),
+    coupled_target_git_blob_sha1: gitBlobSha1(coupledTargetBytes),
     production_target_candidate: deepFreeze(productionTarget),
     coupled_target_candidate: deepFreeze(coupledTarget),
     successor_migration_candidate:
@@ -485,6 +509,74 @@ function verifyGitLineages(lineages, head) {
   }
 }
 
+function outsideRepository(file) {
+  const relative = path.relative(REPO_ROOT, file);
+  return (
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  );
+}
+
+function privateOutputParent(file) {
+  const parent = path.dirname(file);
+  const stat = fs.lstatSync(parent);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail("FINAL_COUPLED_OUTPUT_PARENT_NOT_DIRECT_DIRECTORY");
+  }
+  if (
+    typeof process.getuid === "function" &&
+    stat.uid !== process.getuid()
+  ) {
+    fail("FINAL_COUPLED_OUTPUT_PARENT_OWNER_MISMATCH");
+  }
+  if ((stat.mode & 0o022) !== 0) {
+    fail("FINAL_COUPLED_OUTPUT_PARENT_WRITABLE_BY_GROUP_OR_OTHER");
+  }
+}
+
+export function writeVoidWcVoidFinalCoupledActivationPromotionV1(
+  file,
+  promotion,
+) {
+  if (
+    typeof file !== "string" ||
+    !path.isAbsolute(file) ||
+    path.resolve(file) !== file ||
+    !outsideRepository(file)
+  ) {
+    fail("FINAL_COUPLED_OUTPUT_PATH_INVALID");
+  }
+  if (!plain(promotion) || promotion.marker !==
+    VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1) {
+    fail("FINAL_COUPLED_OUTPUT_PROMOTION_INVALID");
+  }
+  privateOutputParent(file);
+  if (fs.existsSync(file)) fail("FINAL_COUPLED_OUTPUT_ALREADY_EXISTS");
+  const bytes = prettyBytes(promotion);
+  fs.writeFileSync(file, bytes, {
+    flag: "wx",
+    mode: 0o600,
+  });
+  const stat = fs.lstatSync(file);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    (stat.mode & 0o777) !== 0o600
+  ) {
+    fail("FINAL_COUPLED_OUTPUT_IDENTITY_INVALID");
+  }
+  const persisted = fs.readFileSync(file);
+  if (!persisted.equals(bytes)) {
+    fail("FINAL_COUPLED_OUTPUT_BYTES_MISMATCH");
+  }
+  return Object.freeze({
+    output_path: file,
+    output_sha256: sha256Bytes(bytes),
+    output_bytes: bytes.length,
+  });
+}
+
 function readPrivateLineageFile(file) {
   if (!path.isAbsolute(file) || path.resolve(file) !== file) {
     fail("FINAL_COUPLED_LINEAGE_FILE_PATH_INVALID");
@@ -511,11 +603,15 @@ if (direct) {
     const { values } = parseArgs({
       options: {
         lineages: { type: "string" },
+        output: { type: "string" },
       },
       strict: true,
     });
-    if (!values.lineages) {
-      fail("usage: --lineages /absolute/private/applied-lineages.json");
+    if (!values.lineages || !values.output) {
+      fail(
+        "usage: --lineages /absolute/private/applied-lineages.json " +
+        "--output /absolute/private/final-coupled-promotion.json",
+      );
     }
     const repository = currentRepositoryIdentity();
     const lineages = readPrivateLineageFile(values.lineages);
@@ -528,12 +624,37 @@ if (direct) {
       applied_lineages: lineages,
     });
 
+    const persisted =
+      writeVoidWcVoidFinalCoupledActivationPromotionV1(
+        values.output,
+        result,
+      );
+
     console.log(VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1);
     console.log("status=" + result.status);
     console.log("repository_head_sha=" + repository.head);
     console.log("repository_tree_sha=" + repository.tree);
     console.log("promotion_id=" + result.promotion_id);
     console.log("composition_id=" + result.composition_id);
+    console.log(
+      "production_target_file_sha256=" +
+        result.production_target_file_sha256,
+    );
+    console.log(
+      "production_target_git_blob_sha1=" +
+        result.production_target_git_blob_sha1,
+    );
+    console.log(
+      "coupled_target_file_sha256=" +
+        result.coupled_target_file_sha256,
+    );
+    console.log(
+      "coupled_target_git_blob_sha1=" +
+        result.coupled_target_git_blob_sha1,
+    );
+    console.log("output_path=" + persisted.output_path);
+    console.log("output_sha256=" + persisted.output_sha256);
+    console.log("output_bytes=" + String(persisted.output_bytes));
     console.log("upstream_applied_lineage_count=" + String(lineages.length));
     console.log("production_target_status=source_ready");
     console.log("coupled_target_status=SOURCE_READY");
