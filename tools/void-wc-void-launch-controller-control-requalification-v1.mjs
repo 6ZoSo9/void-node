@@ -436,6 +436,72 @@ function assertSourceBindingCurrentV1(bindingValue) {
   });
 }
 
+function exactTypedDataV1(value) {
+  const typed = exactOwnDataObject(
+    value,
+    ["domain", "types", "value"],
+    "control_typed_data",
+  );
+  const domain = exactOwnDataObject(
+    typed.domain,
+    ["name", "version", "chainId", "salt"],
+    "control_typed_data_domain",
+  );
+  const types = exactOwnDataObject(
+    typed.types,
+    ["LaunchControllerControl"],
+    "control_typed_data_types",
+  );
+  const typeList = types.LaunchControllerControl;
+  if (!Array.isArray(typeList) || typeList.length !== 10) {
+    fail("control_typed_data_type_list_invalid");
+  }
+  const normalizedTypes = [];
+  const descriptors = Object.getOwnPropertyDescriptors(typeList);
+  for (let index = 0; index < typeList.length; index += 1) {
+    const descriptor = descriptors[String(index)];
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      fail("control_typed_data_type_entry_data_property_required");
+    }
+    normalizedTypes.push(
+      exactOwnDataObject(
+        descriptor.value,
+        ["name", "type"],
+        "control_typed_data_type_entry",
+      ),
+    );
+  }
+  const valueObject = exactOwnDataObject(
+    typed.value,
+    [
+      "execution_epoch",
+      "role_id",
+      "candidate_address",
+      "coupled_launch_id",
+      "compiled_identity_id",
+      "void_token",
+      "source_binding_sha256",
+      "nonce",
+      "issued_at_unix",
+      "expires_at_unix",
+    ],
+    "control_typed_data_value",
+  );
+  return Object.freeze({
+    domain: Object.freeze({ ...domain }),
+    types: Object.freeze({
+      LaunchControllerControl: Object.freeze(
+        normalizedTypes.map((entry) => Object.freeze({ ...entry })),
+      ),
+    }),
+    value: Object.freeze({ ...valueObject }),
+  });
+}
+
 function typedValue(challenge) {
   return {
     execution_epoch: challenge.execution_epoch,
@@ -625,10 +691,11 @@ function validateChallengeEnvelopeV1(value, nowUnix) {
   if (now < issued) fail("control_challenge_not_yet_valid");
   if (now >= expires) fail("control_challenge_expired");
 
+  const suppliedTypedData = exactTypedDataV1(envelope.typed_data);
   const expectedTypedData =
     voidWcVoidLaunchControllerControlTypedDataV1(challenge);
   if (
-    canonicalJson(envelope.typed_data) !==
+    canonicalJson(suppliedTypedData) !==
       canonicalJson(expectedTypedData)
   ) {
     fail("control_challenge_typed_data_mismatch");
