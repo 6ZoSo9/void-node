@@ -95,7 +95,7 @@ const APPLICATION_VERIFIERS = Object.freeze({
     export_name:
       "verifyVoidWcVoidMarketVaultCanonicalApplicationV1",
     expected_status:
-      "MARKET_VAULT_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+      "MARKET_VAULT_CANONICAL_APPLICATION_STATE_VERIFIED_FINAL_ACTIVATION_HOLD",
     argument_style: "snake",
   }),
   opening_durable: Object.freeze({
@@ -278,11 +278,47 @@ function authorityFalse(decision, keys, code) {
   }
 }
 
+function normalizeRepositoryBinding(value) {
+  if (!plain(value)) fail("FINAL_COUPLED_REPOSITORY_BINDING_INVALID");
+  const keys = Object.keys(value).sort();
+  const expected = [
+    "branch",
+    "head",
+    "origin",
+    "remote_head",
+    "tree",
+  ].sort();
+  exactStringArray(
+    keys,
+    expected,
+    "FINAL_COUPLED_REPOSITORY_BINDING_KEYS_INVALID",
+  );
+  if (
+    value.branch !== "main" ||
+    value.origin !== CANONICAL_REMOTE ||
+    typeof value.head !== "string" ||
+    !HEX40.test(value.head) ||
+    typeof value.tree !== "string" ||
+    !HEX40.test(value.tree) ||
+    value.remote_head !== value.head
+  ) {
+    fail("FINAL_COUPLED_REPOSITORY_BINDING_MISMATCH");
+  }
+  return Object.freeze({
+    branch: "main",
+    head: value.head,
+    origin: CANONICAL_REMOTE,
+    remote_head: value.remote_head,
+    tree: value.tree,
+  });
+}
+
 export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
   production_candidate,
   coupled_candidate,
   successor_migration_candidate,
   applied_lineages,
+  repository_identity,
 }) {
   if (
     !plain(production_candidate) ||
@@ -292,6 +328,7 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
     fail("FINAL_COUPLED_CANDIDATE_INPUT_INVALID");
   }
   const lineages = normalizeLineages(applied_lineages);
+  const repository = normalizeRepositoryBinding(repository_identity);
 
   if (
     production_candidate.status !== "hold" ||
@@ -429,6 +466,9 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
     "FINAL_COUPLED_COMPOSITION_AUTHORITY_INVALID",
   );
 
+  const productionSourceBytes = prettyBytes(production_candidate);
+  const coupledSourceBytes = prettyBytes(coupled_candidate);
+  const successorSourceBytes = prettyBytes(successor_migration_candidate);
   const productionTargetBytes = prettyBytes(productionTarget);
   const coupledTargetBytes = prettyBytes(coupledTarget);
 
@@ -439,11 +479,21 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
     chain_id: 2050,
     execution_epoch: 2,
     pair: "WC_VOID",
+    repository_head_sha: repository.head,
+    repository_tree_sha: repository.tree,
+    canonical_remote_url: repository.origin,
+    remote_main_sha: repository.remote_head,
     applied_lineages: lineages,
     production_source_sha256: sha256Text(canonicalJson(production_candidate)),
     coupled_source_sha256: sha256Text(canonicalJson(coupled_candidate)),
     successor_source_sha256:
       sha256Text(canonicalJson(successor_migration_candidate)),
+    production_source_file_sha256: sha256Bytes(productionSourceBytes),
+    production_source_git_blob_sha1: gitBlobSha1(productionSourceBytes),
+    coupled_source_file_sha256: sha256Bytes(coupledSourceBytes),
+    coupled_source_git_blob_sha1: gitBlobSha1(coupledSourceBytes),
+    successor_source_file_sha256: sha256Bytes(successorSourceBytes),
+    successor_source_git_blob_sha1: gitBlobSha1(successorSourceBytes),
     production_target_file_sha256: sha256Bytes(productionTargetBytes),
     production_target_git_blob_sha1: gitBlobSha1(productionTargetBytes),
     coupled_target_file_sha256: sha256Bytes(coupledTargetBytes),
@@ -526,6 +576,9 @@ function headJson(relativePath) {
     );
   } catch {
     fail("FINAL_COUPLED_CANONICAL_JSON_INVALID:" + relativePath);
+  }
+  if (!bytes.equals(prettyBytes(value))) {
+    fail("FINAL_COUPLED_CANONICAL_JSON_BYTES_NOT_PRETTY:" + relativePath);
   }
   return value;
 }
@@ -864,6 +917,7 @@ if (direct) {
       coupled_candidate: headJson(COUPLED_REL),
       successor_migration_candidate: headJson(SUCCESSOR_REL),
       applied_lineages: lineages,
+      repository_identity: repository,
     });
 
     const persisted =
