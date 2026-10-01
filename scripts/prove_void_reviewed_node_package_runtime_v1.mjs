@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import {
   VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1,
@@ -15,6 +16,8 @@ import {
   verifyMaterializedReviewedNodePackageRuntimeV1,
   verifyReviewedNodePackageRuntimeV1,
 } from "../tools/void-reviewed-node-package-runtime-v1.mjs";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 
 const expectedPackages=[
   "@adraffy/ens-normalize",
@@ -139,7 +142,7 @@ const destination=path.join(temp,"private-runtime");
 const gitConfig=(args,{check=true}={})=>{
   const result=spawnSync(
     "/usr/bin/git",
-    ["-C",path.resolve(path.dirname(new URL(import.meta.url).pathname),".."),"config","--local",...args],
+    ["-C",ROOT,"config","--local",...args],
     {encoding:"utf8",stdio:["ignore","pipe","pipe"]},
   );
   if(check&&result.status!==0){
@@ -233,6 +236,14 @@ try{
     destinationRoot:destination,
   });
   assert.equal(rechecked.ok,true);
+
+  assert.throws(
+    ()=>verifyMaterializedReviewedNodePackageRuntimeV1({
+      profile,
+      destinationRoot:ROOT,
+    }),
+    /reviewed_node_runtime_materialized_root_inside_repository/u,
+  );
 
   {
     const escaped=structuredClone(profile);
@@ -381,6 +392,7 @@ console.log("packages_aggregate_sha256="+profile.packages_aggregate_sha256);
 console.log("profile_id="+profile.profile_id);
 console.log("private_ethers_import_green=true");
 console.log("materialized_lock_key_path_escape_rejected=true");
+console.log("ambient_repository_node_modules_rejected=true");
 console.log("local_git_fsmonitor_execution_blocked=true");
 console.log("ambient_git_environment_redirect_blocked=true");
 console.log("materialization_cleanup_failure_observable=true");

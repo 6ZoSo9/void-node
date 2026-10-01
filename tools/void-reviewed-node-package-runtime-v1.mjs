@@ -840,12 +840,28 @@ function makeRemovableTree(root){
 export function verifyMaterializedReviewedNodePackageRuntimeV1({
   profile,
   destinationRoot,
+  repoRoot=ROOT,
 }={}){
   if(!plain(profile)) fail("reviewed_node_runtime_profile_required");
   validateProfileSelfIdentity(profile);
+  const repo=fs.realpathSync.native(repoRoot);
+  if(repo!==path.resolve(repoRoot)){
+    fail("reviewed_node_runtime_repo_root_not_canonical");
+  }
   const root=fs.realpathSync.native(destinationRoot);
   if(root!==path.resolve(destinationRoot)){
     fail("reviewed_node_runtime_materialized_root_alias");
+  }
+  const relativeToRepo=path.relative(repo,root);
+  if(
+    relativeToRepo===""||
+    (
+      relativeToRepo!==".."&&
+      !relativeToRepo.startsWith(".."+path.sep)&&
+      !path.isAbsolute(relativeToRepo)
+    )
+  ){
+    fail("reviewed_node_runtime_materialized_root_inside_repository");
   }
   const summaries=[];
   for(const row of profile.packages){
@@ -891,7 +907,9 @@ export function materializeReviewedNodePackageRuntimeV1({
       copyPackage(root,destinationRoot,row,inventory);
     }
     const verified=verifyMaterializedReviewedNodePackageRuntimeV1({
-      profile,destinationRoot,
+      profile,
+      destinationRoot,
+      repoRoot:root,
     });
     makeReadOnlyTree(path.join(destinationRoot,"node_modules"));
     return Object.freeze({

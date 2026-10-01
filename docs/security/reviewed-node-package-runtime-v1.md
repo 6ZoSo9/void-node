@@ -108,8 +108,12 @@ re-read stably and must still equal the collected member hash.
 
 The exported private-tree verifier first validates the profile's complete
 self-identity and lock-key path grammar before it traverses any caller-selected
-path. The copied dependency tree is then inventoried again and must equal the
-reviewed profile before the tree is made read-only. If materialization fails and
+path. It also requires the verified destination root to be strictly outside the
+declared repository root, so the ambient repository `node_modules` tree cannot
+receive a `PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED` result. Custom
+`repoRoot` materializations carry that same boundary into post-copy
+verification. The copied dependency tree is then inventoried again and must
+equal the reviewed profile before the tree is made read-only. If materialization fails and
 cleanup also fails, both failures are surfaced as
 `reviewed_node_runtime_cleanup_failed`; partial cleanup failure is never
 silently swallowed.
