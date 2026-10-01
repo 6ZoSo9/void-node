@@ -19,6 +19,8 @@ It never creates or edits the successor issue. Ada remains the single rollover w
 
 The snapshot deliberately does **not** claim that open pull requests are a complete ownership map.
 
+It also does not trust the successor resolver's `chain_valid` flag by itself. The snapshot rechecks the issue-number sequence, predecessor→successor links, predecessor closure, terminal state, message counts, rotation threshold, dispatch-plan issue relationship, hold-reason contract, and all negative authority fields before summarizing the chain.
+
 It always emits:
 
 ```text
@@ -113,6 +115,7 @@ The supplied successor-chain evidence is structurally invalid.
 The packet records:
 
 - exact observed `main` SHA;
+- SHA-256 content IDs for the exact validated live-dispatch policy, successor-chain receipt, and normalized open-PR evidence;
 - root/current coordination issue;
 - current hub comment and total-message counts;
 - chain outcome and rotation state;
@@ -162,7 +165,10 @@ The proof loads the real checked-in 15-worker policy and covers:
 - negative authority enforcement;
 - duplicate PR rejection;
 - unsafe path rejection; and
-- strict evidence schema.
+- strict evidence schema;
+- forged successor-link rejection;
+- invalid-chain hold-reason enforcement; and
+- content-addressed policy/chain/PR lineage.
 
 The focused workflow is also triggered by changes to the successor-chain tool, live-dispatch validator, or live-dispatch policy so upstream interface drift re-runs this proof.
 
