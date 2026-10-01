@@ -58,6 +58,8 @@ const COUPLED_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR_REL =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
+const CANONICAL_REMOTE =
+  "https://github.com/6ZoSo9/void-node.git";
 
 const APPLICATION_VERIFIERS = Object.freeze({
   bounded_canary: Object.freeze({
@@ -492,21 +494,40 @@ export function deriveVoidWcVoidFinalCoupledActivationPromotionV1({
 function git(args, code) {
   const result = spawnSync(
     "/usr/bin/git",
-    ["-C", REPO_ROOT, ...args],
+    ["--no-replace-objects", "-C", REPO_ROOT, ...args],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_NO_REPLACE_OBJECTS: "1",
+      },
     },
   );
   if (result.status !== 0) fail(code);
   return String(result.stdout || "").trim();
 }
 
-function readJson(relativePath) {
-  const bytes = fs.readFileSync(path.join(REPO_ROOT, relativePath));
-  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  return JSON.parse(text);
+function headJson(relativePath) {
+  const file = path.join(REPO_ROOT, relativePath);
+  const bytes = fs.readFileSync(file);
+  const expectedBlob = git(
+    ["rev-parse", "HEAD:" + relativePath],
+    "FINAL_COUPLED_HEAD_BLOB_UNAVAILABLE:" + relativePath,
+  );
+  if (!HEX40.test(expectedBlob) || gitBlobSha1(bytes) !== expectedBlob) {
+    fail("FINAL_COUPLED_WORKTREE_BLOB_DRIFT:" + relativePath);
+  }
+  let value;
+  try {
+    value = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    );
+  } catch {
+    fail("FINAL_COUPLED_CANONICAL_JSON_INVALID:" + relativePath);
+  }
+  return value;
 }
 
 function currentRepositoryIdentity() {
@@ -515,8 +536,20 @@ function currentRepositoryIdentity() {
     ["rev-parse", "HEAD^{tree}"],
     "FINAL_COUPLED_TREE_UNAVAILABLE",
   );
+  const branch = git(
+    ["branch", "--show-current"],
+    "FINAL_COUPLED_BRANCH_UNAVAILABLE",
+  );
+  const origin = git(
+    ["remote", "get-url", "origin"],
+    "FINAL_COUPLED_ORIGIN_UNAVAILABLE",
+  );
   if (!HEX40.test(head) || !HEX40.test(tree)) {
     fail("FINAL_COUPLED_REPOSITORY_IDENTITY_INVALID");
+  }
+  if (branch !== "main") fail("FINAL_COUPLED_BRANCH_NOT_MAIN");
+  if (origin !== CANONICAL_REMOTE) {
+    fail("FINAL_COUPLED_CANONICAL_REMOTE_MISMATCH");
   }
   if (
     git(
@@ -526,7 +559,34 @@ function currentRepositoryIdentity() {
   ) {
     fail("FINAL_COUPLED_WORKTREE_MUST_BE_CLEAN");
   }
-  return Object.freeze({ head, tree });
+  const remote = spawnSync(
+    "/usr/bin/git",
+    [
+      "ls-remote",
+      CANONICAL_REMOTE,
+      "refs/heads/main",
+    ],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_NO_REPLACE_OBJECTS: "1",
+        GIT_TERMINAL_PROMPT: "0",
+      },
+    },
+  );
+  if (remote.status !== 0) {
+    fail("FINAL_COUPLED_REMOTE_MAIN_UNAVAILABLE");
+  }
+  const remoteHead = String(remote.stdout || "")
+    .trim()
+    .split(/\s+/u)[0];
+  if (!HEX40.test(remoteHead) || remoteHead !== head) {
+    fail("FINAL_COUPLED_HEAD_NOT_REMOTE_MAIN");
+  }
+  return Object.freeze({ head, tree, branch, origin, remote_head: remoteHead });
 }
 
 function privateRegularFileBytes(file, label) {
@@ -700,6 +760,15 @@ function privateOutputParent(file) {
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     fail("FINAL_COUPLED_OUTPUT_PARENT_NOT_DIRECT_DIRECTORY");
   }
+  let real;
+  try {
+    real = fs.realpathSync.native(parent);
+  } catch {
+    fail("FINAL_COUPLED_OUTPUT_PARENT_REALPATH_UNAVAILABLE");
+  }
+  if (real !== parent) {
+    fail("FINAL_COUPLED_OUTPUT_PARENT_PATH_ALIAS_FORBIDDEN");
+  }
   if (
     typeof process.getuid === "function" &&
     stat.uid !== process.getuid()
@@ -730,19 +799,30 @@ export function writeVoidWcVoidFinalCoupledActivationPromotionV1(
   privateOutputParent(file);
   if (fs.existsSync(file)) fail("FINAL_COUPLED_OUTPUT_ALREADY_EXISTS");
   const bytes = prettyBytes(promotion);
-  fs.writeFileSync(file, bytes, {
-    flag: "wx",
-    mode: 0o600,
-  });
-  const stat = fs.lstatSync(file);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    (stat.mode & 0o777) !== 0o600
-  ) {
-    fail("FINAL_COUPLED_OUTPUT_IDENTITY_INVALID");
+  let fd;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        Number(fs.constants.O_NOFOLLOW || 0),
+      0o600,
+    );
+    fs.writeFileSync(fd, bytes);
+    fs.fsyncSync(fd);
+    fs.fchmodSync(fd, 0o600);
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || (stat.mode & 0o777) !== 0o600) {
+      fail("FINAL_COUPLED_OUTPUT_IDENTITY_INVALID");
+    }
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
-  const persisted = fs.readFileSync(file);
+  const persisted = privateRegularFileBytes(
+    file,
+    "FINAL_COUPLED_OUTPUT",
+  );
   if (!persisted.equals(bytes)) {
     fail("FINAL_COUPLED_OUTPUT_BYTES_MISMATCH");
   }
@@ -780,9 +860,9 @@ if (direct) {
       await verifyAppliedLineagePlans(lineageManifest);
 
     const result = deriveVoidWcVoidFinalCoupledActivationPromotionV1({
-      production_candidate: readJson(PRODUCTION_REL),
-      coupled_candidate: readJson(COUPLED_REL),
-      successor_migration_candidate: readJson(SUCCESSOR_REL),
+      production_candidate: headJson(PRODUCTION_REL),
+      coupled_candidate: headJson(COUPLED_REL),
+      successor_migration_candidate: headJson(SUCCESSOR_REL),
       applied_lineages: lineages,
     });
 
