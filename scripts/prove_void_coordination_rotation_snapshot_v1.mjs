@@ -165,7 +165,11 @@ assert.equal(ROTATION_THRESHOLD_TOTAL_MESSAGES, 250);
 assert.equal(ROTATION_WRITER_WORKER_ID, "ada");
 assert.equal(policyRaw.marker, LIVE_DISPATCH_POLICY_MARKER);
 assert.equal(policyRaw.plan_issue, 1507);
-assert.equal(policyRaw.workers.length, 15);
+assert.equal(Array.isArray(policyRaw.workers), true);
+assert.equal(policyRaw.workers.length > 0, true);
+const expectedScheduledWorkerIds = policyRaw.workers
+  .map((worker) => worker.id)
+  .sort((left, right) => left.localeCompare(right));
 
 const githubTimestampRotation = buildCoordinationRotationSnapshotV1(
   policyRaw,
@@ -213,8 +217,8 @@ assert.equal(rotation.rotation_required, true);
 assert.equal(rotation.policy_plan_issue, 1507);
 assert.equal(rotation.policy_plan_issue_matches_current, true);
 assert.equal(rotation.policy_plan_issue_rebind_required, false);
-assert.equal(rotation.scheduled_worker_count, 15);
-assert.equal(rotation.scheduled_workers.length, 15);
+assert.equal(rotation.scheduled_worker_count, expectedScheduledWorkerIds.length);
+assert.equal(rotation.scheduled_workers.length, expectedScheduledWorkerIds.length);
 assert.equal(
   rotation.scheduled_workers.every(
     (worker) =>
@@ -225,23 +229,7 @@ assert.equal(
 );
 assert.deepEqual(
   rotation.scheduled_workers.map((worker) => worker.id),
-  [
-    "ada",
-    "curly",
-    "darwin",
-    "dijkstra",
-    "feynman",
-    "grace",
-    "hopper",
-    "katherine",
-    "keller",
-    "lamarr",
-    "larry",
-    "moe",
-    "satoshi",
-    "shannon",
-    "turing",
-  ],
+  expectedScheduledWorkerIds,
 );
 assert.equal(rotation.open_pull_request_count, 2);
 assert.equal(rotation.open_pull_requests.every((pr) => pr.state === "open"), true);
@@ -642,7 +630,8 @@ expectRejected(
 console.log(PROOF_MARKER);
 console.log("rotation_preparation_ready=true");
 console.log("rotation_writer_worker_id=ada");
-console.log("scheduled_workers=15");
+console.log("scheduled_workers=" + String(expectedScheduledWorkerIds.length));
+console.log("scheduled_worker_ids=" + expectedScheduledWorkerIds.join(","));
 console.log("worker_authority_boundaries_retained=true");
 console.log("open_pr_ownership_scope_is_partial=true");
 console.log("issue_lane_refresh_required=true");

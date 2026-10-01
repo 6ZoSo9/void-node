@@ -9,7 +9,7 @@ Marker: `VOID_COORDINATION_ROTATION_SNAPSHOT_V1`
 This tool creates a **read-only rotation preparation snapshot**. It composes:
 
 - a `VOID_COORDINATION_SUCCESSOR_CHAIN_V1` result;
-- the checked-in validated 15-worker live-dispatch policy;
+- the checked-in validated live-dispatch worker policy;
 - an independently observed current `main` SHA; and
 - an explicit bounded open-pull-request census.
 
@@ -90,7 +90,7 @@ Requires:
 - policy repository equals chain repository;
 - checked-in policy `plan_issue` still equals the currently overdue hub.
 
-The packet then records the current hub counts, 15-worker roster, open PR census, and the exact fields Ada still must refresh manually.
+The packet then records the current hub counts, exact checked-in worker roster, open PR census, and the exact fields Ada still must refresh manually.
 
 `rotation_preparation_ready=true` is not successor creation authority.
 
@@ -126,7 +126,7 @@ The packet records:
 - current hub comment and total-message counts;
 - chain outcome and rotation state;
 - checked-in dispatch-policy issue identity;
-- all 15 scheduled workers with cohort, tracking issue, fallback lane/priority, sensitivity, exploration domains, and the policy's explicit worker authority boundary;
+- all scheduled workers from the validated checked-in policy with cohort, tracking issue, fallback lane/priority, sensitivity, exploration domains, and the policy's explicit worker authority boundary;
 - every supplied open PR with exact head/base, draft state, update timestamp, normalized changed paths, path count, and path-list SHA-256;
 - a suggested successor section guide matching #1507's rollover contract.
 
@@ -159,10 +159,10 @@ Output files are create-only and mode `0600`.
 node scripts/prove_void_coordination_rotation_snapshot_v1.mjs
 ```
 
-The proof loads the real checked-in 15-worker policy and covers:
+The proof loads the real checked-in worker policy and covers:
 
 - rotation preparation at the 250-message boundary and above;
-- exact roster composition;
+- exact roster identity/order and cardinality against the current validated checked-in policy;
 - deterministic open-PR/path normalization;
 - successor-resolved policy rebinding signal;
 - not-due state;
