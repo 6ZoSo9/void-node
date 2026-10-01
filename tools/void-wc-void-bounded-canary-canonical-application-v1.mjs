@@ -35,6 +35,8 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
     exact_two_gate_source_delta: true,
     reviewed_git_commit_required: true,
     canonical_main_application_required: true,
+    canonical_github_origin_required: true,
+    canonical_remote_main_read_required: true,
     reviewed_git_executable_required: true,
     ambient_git_overrides_ignored: true,
     repository_source_write: false,
@@ -64,6 +66,15 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GIT = "/usr/bin/git";
+const CANONICAL_REPOSITORY = "6ZoSo9/void-node";
+const CANONICAL_HTTPS_REMOTE =
+  "https://github.com/6ZoSo9/void-node.git";
+const CANONICAL_ORIGIN_FORMS = Object.freeze(new Set([
+  "https://github.com/6ZoSo9/void-node",
+  "https://github.com/6ZoSo9/void-node.git",
+  "git@github.com:6ZoSo9/void-node.git",
+  "ssh://git@github.com/6ZoSo9/void-node.git",
+]));
 const TOOL_REL =
   "tools/void-wc-void-bounded-canary-canonical-application-v1.mjs";
 const PROMOTION_TOOL_REL =
@@ -653,6 +664,34 @@ function assertAncestor(ancestor, descendant, code) {
   );
 }
 
+function verifyCanonicalRemoteMain(expectedHead) {
+  const origin = gitText(
+    ["remote", "get-url", "origin"],
+    "CANONICAL_APPLICATION_ORIGIN_URL_UNAVAILABLE",
+  );
+  if (!CANONICAL_ORIGIN_FORMS.has(origin)) {
+    fail("CANONICAL_APPLICATION_ORIGIN_NOT_CANONICAL");
+  }
+  const raw = gitText(
+    [
+      "ls-remote",
+      "--heads",
+      CANONICAL_HTTPS_REMOTE,
+      "refs/heads/main",
+    ],
+    "CANONICAL_APPLICATION_REMOTE_MAIN_UNAVAILABLE",
+  );
+  const match = raw.match(/^([0-9a-f]{40})\s+refs\/heads\/main$/u);
+  if (!match || match[1] !== expectedHead) {
+    fail("CANONICAL_APPLICATION_REMOTE_MAIN_MISMATCH");
+  }
+  return Object.freeze({
+    repository: CANONICAL_REPOSITORY,
+    origin_url: origin,
+    remote_main_sha: match[1],
+  });
+}
+
 function exactCandidateDelta(source, target, kind) {
   const reset = structuredClone(target);
   if (kind === "production") {
@@ -941,6 +980,7 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   ) {
     fail("CANONICAL_APPLICATION_APPLIED_BRANCH_NOT_MAIN");
   }
+  const canonicalRemote = verifyCanonicalRemoteMain(repository.head);
   assertAncestor(
     plan.application_base_head_sha,
     repository.head,
@@ -1015,6 +1055,9 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
       plan.semantic_promotion_file_sha256,
     application_base_head_sha: plan.application_base_head_sha,
     applied_branch: "main",
+    canonical_repository: canonicalRemote.repository,
+    canonical_origin_url: canonicalRemote.origin_url,
+    canonical_remote_main_sha: canonicalRemote.remote_main_sha,
     applied_repository_head_sha: repository.head,
     applied_repository_tree_sha: repository.tree,
     production_candidate_git_blob_sha1: production.blob_sha1,
