@@ -22,7 +22,7 @@ The two wrappers that also read public product surfaces require
 `REMOTE_NODE_BASE` explicitly as an HTTP(S) origin. They do not infer that origin
 from an SSH alias because SSH aliases are not guaranteed to be HTTP-resolvable.
 
-The retired Alienware IP and Funnel hostname are rejected even if supplied manually.
+The retired Alienware IP and Funnel hostname are rejected even if supplied manually; hostname matching is case-insensitive.
 
 The underlying `jobs-submit-e2e-proof.sh` is intended to run on the remote machine
 after SSH and is separately bound to that machine's loopback node and local evidence.
