@@ -792,6 +792,24 @@ if (direct) {
           String(result.unreviewed_gate_sources.length),
       );
       if (result.activation_ready === true) {
+        console.log("canonical_remote_url=" + result.canonical_remote_url);
+        console.log("repository_head_sha=" + result.repository_head_sha);
+        console.log("repository_tree_sha=" + result.repository_tree_sha);
+        console.log("remote_main_sha=" + result.remote_main_sha);
+        console.log(
+          "source_slice_manifest_sha256=" +
+            result.source_slice_manifest_sha256,
+        );
+        console.log("source_slice_count=" + String(result.source_slice_count));
+        console.log(
+          "preflight_wrapper_git_blob_sha1=" +
+            result.preflight_wrapper_git_blob_sha1,
+        );
+        console.log(
+          "preflight_tool_git_blob_sha1=" +
+            result.preflight_tool_git_blob_sha1,
+        );
+        console.log("reviewed_source_slice_green=true");
         console.log(
           "live_configuration_generation_id=" +
             result.live_configuration_generation_id,

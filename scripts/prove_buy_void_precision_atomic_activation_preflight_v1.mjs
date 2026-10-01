@@ -453,6 +453,18 @@ for (const forbidden of [
 ]) {
   assert.equal(toolSource.includes(forbidden), false, forbidden);
 }
+for (const required of [
+  '"canonical_remote_url=" + result.canonical_remote_url',
+  '"repository_head_sha=" + result.repository_head_sha',
+  '"repository_tree_sha=" + result.repository_tree_sha',
+  '"source_slice_manifest_sha256=" +',
+  '"source_slice_count=" + String(result.source_slice_count)',
+  '"preflight_wrapper_git_blob_sha1=" +',
+  '"preflight_tool_git_blob_sha1=" +',
+  '"reviewed_source_slice_green=true"',
+]) {
+  assert(toolSource.includes(required), required);
+}
 
 const wrapperSource = fs.readFileSync(
   "ops/precision/void_precision_buy_void_atomic_activation_preflight_v1.sh",
