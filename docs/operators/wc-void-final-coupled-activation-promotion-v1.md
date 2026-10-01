@@ -179,7 +179,8 @@ Example shape only:
 The actual manifest must contain all six exact lanes and be a direct private
 regular file with no group/other permissions. Every referenced plan must also be
 an absolute direct private regular file outside the repository, with exact
-independently supplied SHA-256 bytes.
+independently supplied SHA-256 bytes. The manifest and every plan are individually
+bounded to 16 MiB.
 
 The participant application verifier is intentionally loaded dynamically. On a
 generation where that canonical application module has not yet merged, the
