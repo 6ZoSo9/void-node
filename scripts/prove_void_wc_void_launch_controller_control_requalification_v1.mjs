@@ -264,6 +264,34 @@ await rejects(
   /control_source_binding_blob_invalid/u,
 );
 
+let typedGetterCalls = 0;
+const typedAccessor = structuredClone(challenge);
+Object.defineProperty(
+  typedAccessor.typed_data.value,
+  "compiled_identity_id",
+  {
+    enumerable: true,
+    get() {
+      typedGetterCalls += 1;
+      return challenge.challenge.compiled_identity_id;
+    },
+  },
+);
+await rejects(
+  () =>
+    verifyVoidWcVoidLaunchControllerControlSignatureV1({
+      challengeEnvelope: typedAccessor,
+      signatureEnvelope,
+      nowUnix: now + 1,
+    }),
+  /control_typed_data_value_data_property_required:compiled_identity_id/u,
+);
+assert.equal(
+  typedGetterCalls,
+  0,
+  "typed-data getter must not execute",
+);
+
 let getterCalls = 0;
 const accessorChallenge = {
   ...structuredClone(challenge),
@@ -478,6 +506,7 @@ console.log("wrong_signer_held_green=true");
 console.log("expired_challenge_held_green=true");
 console.log("source_drift_held_green=true");
 console.log("accessor_nonexecution_green=true");
+console.log("typed_data_accessor_nonexecution_green=true");
 console.log("cli_round_trip_green=true");\nconsole.log("live_evidence_outside_repository_green=true");
 console.log("role_binding_authorized=false");
 console.log("deployment_authorized=false");
