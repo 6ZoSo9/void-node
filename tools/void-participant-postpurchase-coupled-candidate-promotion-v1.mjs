@@ -47,6 +47,19 @@ export const VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
+
+function isInsideRepo(file) {
+  const relative = path.relative(REPO_ROOT, file);
+  return (
+    relative === ""
+    || (
+      relative !== ".."
+      && !relative.startsWith(".." + path.sep)
+      && !path.isAbsolute(relative)
+    )
+  );
+}
+
 const CANDIDATE_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR_REL =
@@ -811,6 +824,14 @@ export function readVoidParticipantPostpurchasePromotionSourcesV1({
   runtimeBindingFileSha256,
 } = {}) {
   if (
+    typeof runtimeBindingFile === "string"
+    && path.isAbsolute(runtimeBindingFile)
+    && path.resolve(runtimeBindingFile) === runtimeBindingFile
+    && isInsideRepo(runtimeBindingFile)
+  ) {
+    fail("runtime_binding_receipt_must_be_outside_repository");
+  }
+  if (
     typeof runtimeBindingFileSha256 !== "string"
     || !HEX64.test(runtimeBindingFileSha256)
   ) {
@@ -902,6 +923,9 @@ function canonicalOutputPath(file) {
     || path.resolve(file) !== file
   ) {
     fail("promotion_output_path_must_be_absolute_canonical");
+  }
+  if (isInsideRepo(file)) {
+    fail("promotion_output_must_be_outside_repository");
   }
   const parent = path.dirname(file);
   if (fs.realpathSync.native(parent) !== parent) {
