@@ -52,8 +52,12 @@ const MAX_CANONICAL_CANDIDATE_BYTES = 2 * 1024 * 1024;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const COUPLED_CANDIDATE_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const SHARED_MARKET_V2_REL =
+  "tools/void-shared-market-post-discovery-state-v2.mjs";
 const EXPECTED_COUPLED_CANDIDATE_GIT_BLOB_SHA1 =
   "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+const EXPECTED_SHARED_MARKET_V2_GIT_BLOB_SHA1 =
+  "bcfff9c2981e713a7053ff51a39145eb06b7238b";
 const CANONICAL_VOID_TOKEN =
   "0x470075b85352eb86f7d089fb9ba88945f12aad94";
 const TEN_MILLION_VOID_ATOMS = "10000000000000000000000000";
@@ -207,7 +211,25 @@ function gitBlobSha1(bytes) {
   return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
 }
 
+function requireReviewedBlob(relativePath, expected, label) {
+  let bytes;
+  try {
+    bytes = fs.readFileSync(path.join(ROOT, relativePath));
+  } catch {
+    fail(label + " unavailable");
+  }
+  if (bytes.length < 1 || gitBlobSha1(bytes) !== expected) {
+    fail(label + " source generation mismatch");
+  }
+  return bytes;
+}
+
 function readCanonicalSharedMarketV2Binding() {
+  requireReviewedBlob(
+    SHARED_MARKET_V2_REL,
+    EXPECTED_SHARED_MARKET_V2_GIT_BLOB_SHA1,
+    "shared-market v2",
+  );
   const file = path.join(ROOT, COUPLED_CANDIDATE_REL);
   let bytes;
   try {
@@ -318,6 +340,9 @@ function currentMarketPolicyPayload() {
     shared_market_profile: shared.profile,
     shared_market_source_path: shared.source_path,
     shared_market_source_git_blob_sha1: shared.source_git_blob_sha1,
+    shared_market_v2_source_path: SHARED_MARKET_V2_REL,
+    shared_market_v2_source_git_blob_sha1:
+      EXPECTED_SHARED_MARKET_V2_GIT_BLOB_SHA1,
     shared_market_reconciliation_id: shared.reconciliation_id,
     chain_id: shared.chain_id,
     network_identity: shared.network_identity,
@@ -669,6 +694,8 @@ export function evaluateBtcVoidAtomicSettlementTraceV1(raw) {
       shared_market_schema: marketPolicy.shared_market_schema,
       shared_market_source_git_blob_sha1:
         marketPolicy.shared_market_source_git_blob_sha1,
+      shared_market_v2_source_git_blob_sha1:
+        marketPolicy.shared_market_v2_source_git_blob_sha1,
       shared_market_reconciliation_id:
         marketPolicy.shared_market_reconciliation_id,
       chain_id: marketPolicy.chain_id,
