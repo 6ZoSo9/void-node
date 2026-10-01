@@ -213,6 +213,20 @@ The qualification input must be:
 
 Output is create-only private JSON outside the repository.
 
+On Linux the output parent is opened directly with
+`O_DIRECTORY|O_NOFOLLOW` and its fd dev/inode is bound to the reviewed parent
+pathname. The receipt is created through
+`/proc/self/fd/<parent-fd>/<basename>`, then the file and that exact retained
+directory are fsynced. Before success, the parent pathname and output pathname
+must still resolve to the retained directory/file identities.
+
+If the parent is renamed/replaced after admission, creation cannot be redirected
+into the replacement directory. Any receipt created through the retained
+original directory is removed through that same fd path, the retained directory
+is fsynced, and the operation fails closed. The focused proof performs this
+replacement deterministically in a temporary directory and requires both the
+replacement and moved-original directories to contain no receipt afterward.
+
 Example:
 
 ```bash
