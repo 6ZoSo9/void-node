@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs"
+      - "tools/void-wc-void-coupled-launch-policy-reviewed-core-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
       - "scripts/prove_void_wc_void_coupled_launch_policy_bundle_v1.mjs"
       - "docs/operators/wc-void-coupled-launch-policy-bundle-v1.md"
       - "tools/void-wc-void-opening-window-policy-v1.mjs"
@@ -21,6 +25,10 @@ on:
       - main
     paths:
       - "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs"
+      - "tools/void-wc-void-coupled-launch-policy-reviewed-core-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
       - "scripts/prove_void_wc_void_coupled_launch_policy_bundle_v1.mjs"
       - "docs/operators/wc-void-coupled-launch-policy-bundle-v1.md"
       - "tools/void-wc-void-opening-window-policy-v1.mjs"
