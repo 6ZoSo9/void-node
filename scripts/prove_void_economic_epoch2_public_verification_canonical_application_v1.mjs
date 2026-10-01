@@ -354,6 +354,7 @@ for (const [key, value] of Object.entries(
     "migration_classifier_reexecution",
     "reviewed_git_commit_required",
     "filesystem_read",
+    "private_temporary_filesystem_write",
   ]);
   assert.equal(value, trueKeys.has(key), key);
 }
