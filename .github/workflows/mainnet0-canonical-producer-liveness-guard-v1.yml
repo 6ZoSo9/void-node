@@ -21,8 +21,6 @@ on:
       - "ops/mainnet0-go-no-go-with-runtime.sh"
       - "ops/mainnet/mainnet0-crossbox-status-smoke.sh"
       - "Makefile"
-      - "ops/mainnet/mainnet0-crossbox-status-smoke.sh"
-      - "Makefile"
       - "scripts/prove_canonical_producer_no_empty_operator_contract_v1.mjs"
       - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
   push:
@@ -45,6 +43,8 @@ on:
       - ".env.example"
       - "ops/prove-main-runtime-autoprop.sh"
       - "ops/mainnet0-go-no-go-with-runtime.sh"
+      - "ops/mainnet/mainnet0-crossbox-status-smoke.sh"
+      - "Makefile"
       - "scripts/prove_canonical_producer_no_empty_operator_contract_v1.mjs"
       - ".github/workflows/mainnet0-canonical-producer-liveness-guard-v1.yml"
 
