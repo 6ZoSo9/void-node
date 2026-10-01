@@ -154,6 +154,14 @@ Downstream authority lanes must use the reviewed execution wrapper (or an
 equivalently strong confinement primitive) rather than directly invoking
 `node <entry>` against the materialized directory.
 
+The wrapper does **not** claim socket/network confinement across the supported
+Node 22/24/26 matrix. Node 22/24 permission fencing does not provide the same
+network permission controls available in later Node versions. Therefore
+`tool_network_access=false` describes this binder/materializer itself, while
+`execution_network_isolation_provided=false` is explicit for child execution.
+Any downstream lane that requires a no-network authority boundary must add and
+prove a stronger OS/runtime network sandbox of its own.
+
 ## Reviewed profile and enforcement
 
 The bootstrap matrix completed successfully on Node 22, 24, and 26 after:
@@ -178,7 +186,7 @@ and, with the final authority boundary that also excludes ambient dynamic-loader
 variables, has content ID:
 
 ```text
-voidrnpr1_1492f01cb202c23ad68260655fa111544d3cc6d6c17a4aa07540e2665c7c9e6d
+voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77
 ```
 
 Focused CI is no longer observational. Each Node 22/24/26 job:
@@ -223,7 +231,7 @@ ancestor_package_resolution_forbidden=true
 ambient_node_resolution_overrides_ignored=true
 ambient_dynamic_loader_overrides_ignored=true
 
-network_access=false
+tool_network_access=false\nexecution_network_isolation_provided=false
 npm_install_performed=false
 package_script_execution=false
 runtime_service_mutation=false
