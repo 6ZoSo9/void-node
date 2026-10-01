@@ -23,7 +23,6 @@ const POLICY_PATH = path.join(
 const PROOF_NOW_MS = Date.now();
 const EVALUATED_AT = new Date(PROOF_NOW_MS).toISOString();
 const FRESH_AT = new Date(PROOF_NOW_MS - 15 * 60_000).toISOString();
-const STALE_RUNNING_AT = new Date(PROOF_NOW_MS - 30 * 60_000 - 1_000).toISOString();
 const FRESH_FALLBACK_AT = new Date(PROOF_NOW_MS - 20 * 60 * 60_000).toISOString();
 const STALE_FALLBACK_AT = new Date(PROOF_NOW_MS - 12 * 24 * 60 * 60_000).toISOString();
 const NEXT_REEVALUATION_AT = new Date(PROOF_NOW_MS + 30 * 60_000).toISOString();
@@ -56,21 +55,22 @@ const expectedWorkerIds = [
   "moe",
   "satoshi",
   "shannon",
-  "turing",
 ];
 
 assert.equal(policy.marker, POLICY_MARKER);
 assert.equal(policy.version, 1);
 assert.equal(policy.plan_issue, 1507);
-assert.equal(policy.workers.length, 15);
-assert.equal(policy.composition.expected_worker_count, 15);
-assert.equal(policy.composition.base_worker_ids.length, 8);
+assert.equal(policy.workers.length, 14);
+assert.equal(policy.composition.expected_worker_count, 14);
+assert.equal(policy.composition.base_worker_ids.length, 7);
 assert.equal(policy.composition.exploration_extension_worker_ids.length, 3);
 assert.equal(policy.composition.supplemental_worker_ids.length, 4);
 assert.equal(policy.composition.base_worker_ids.includes("ren"), false);
+assert.equal(policy.composition.base_worker_ids.includes("turing"), false);
 assert.equal(policy.composition.supplemental_worker_ids.includes("feynman"), true);
 assert.equal(policy.workers.some((worker) => worker.id === "ren"), false);
 assert.equal(policy.workers.some((worker) => worker.id === "feynman"), true);
+assert.equal(policy.workers.some((worker) => worker.id === "turing"), false);
 assert.equal(policy.universal_fallback.tracking_issue, 1507);
 assert.deepEqual(
   policy.workers.map((worker) => worker.id).sort((a, b) => a.localeCompare(b)),
@@ -86,7 +86,7 @@ assert.equal(policy.noise_budget.automatic_merge_authority, false);
 assert.equal(Object.isFrozen(policy), true);
 assert.equal(Object.isFrozen(policy.workers), true);
 
-for (const workerId of ["larry", "curly", "satoshi", "turing", "ada", "feynman"]) {
+for (const workerId of ["larry", "curly", "satoshi", "ada", "feynman"]) {
   assert.equal(policy.workers.find((worker) => worker.id === workerId).tracking_issue, 1507);
 }
 
@@ -144,13 +144,6 @@ function evidence() {
     priority: "P1",
   });
   byId.get("satoshi").fallback = fallback({ progress_evidence_at: STALE_FALLBACK_AT });
-  byId.get("turing").primary = primary({
-    lane_id: "turing-first-contact-v1",
-    state: "RUNNING",
-    priority: "P1",
-    next_action: "Continue the exact First Contact lane.",
-    execution_evidence_at: STALE_RUNNING_AT,
-  });
   byId.get("ada").primary = primary({
     lane_id: "ada-coordination-freshness-v1",
     state: "BLOCKED_RED",
@@ -234,12 +227,12 @@ const result = evaluateWorkerLiveDispatchV1(policyRaw, evidence());
 assert.equal(result.marker, MARKER);
 assert.equal(result.version, 1);
 assert.equal(result.plan_issue, 1507);
-assert.equal(result.composition.base_worker_count, 8);
+assert.equal(result.composition.base_worker_count, 7);
 assert.equal(result.composition.exploration_extension_worker_count, 3);
 assert.equal(result.composition.supplemental_worker_count, 4);
 assert.deepEqual(result.composition.worker_ids, expectedWorkerIds);
-assert.equal(result.worker_count, 15);
-assert.equal(result.dispatch_count, 15);
+assert.equal(result.worker_count, 14);
+assert.equal(result.dispatch_count, 14);
 assert.equal(result.reevaluation_interval_minutes, 30);
 assert.equal(result.next_reevaluation_at, NEXT_REEVALUATION_AT);
 assert.deepEqual(result.workers_without_dispatch, []);
@@ -265,8 +258,6 @@ assert.equal(dispatchById.get("larry").requires_existing_authority, true);
 assert.equal(dispatchById.get("curly").decision, "CONTINUE_BOUNDED_FALLBACK_RESEARCH");
 assert.equal(dispatchById.get("moe").decision, "RUN_UNIVERSAL_EVIDENCE_REFRESH");
 assert.equal(dispatchById.get("satoshi").decision, "REFRESH_STALE_FALLBACK_EVIDENCE");
-assert.equal(dispatchById.get("turing").decision, "REFRESH_PRIMARY_EVIDENCE");
-assert.equal(dispatchById.get("turing").execution_evidence_fresh, false);
 assert.equal(dispatchById.get("ada").decision, "CONTINUE_BOUNDED_FALLBACK_RESEARCH");
 assert.equal(dispatchById.get("grace").decision, "CONTINUE_BOUNDED_FALLBACK_RESEARCH");
 assert.equal(dispatchById.get("lamarr").decision, "TAKE_PRIMARY_NEXT_ACTION");
@@ -350,6 +341,11 @@ assert.deepEqual(reorderedResult.dispatches, result.dispatches);
 }
 {
   const bad = evidence();
+  bad.workers[0].id = "turing";
+  expectRejected(() => evaluateWorkerLiveDispatchV1(policyRaw, bad), /unknown worker/);
+}
+{
+  const bad = evidence();
   bad.evaluated_at = "2000-01-01T00:00:00.000Z";
   expectRejected(
     () => evaluateWorkerLiveDispatchV1(policyRaw, bad),
@@ -394,7 +390,9 @@ console.log(PROOF_MARKER);
 console.log(`workers=${result.worker_count}`);
 console.log(`dispatches=${result.dispatch_count}`);
 console.log("plan_issue=1507");
-console.log("scheduled_worker_ids=larry,curly,moe,satoshi,turing,ada,grace,shannon,hopper,lamarr,darwin,dijkstra,katherine,keller,feynman");
+console.log("scheduled_worker_ids=larry,curly,moe,satoshi,ada,grace,shannon,hopper,lamarr,darwin,dijkstra,katherine,keller,feynman");
+console.log("turing_scheduled=false");
+console.log("disabled_turing_evidence_rejected=true");
 console.log("ren_scheduled=false");
 console.log("feynman_scheduled=true");
 console.log("workers_without_dispatch=0");
