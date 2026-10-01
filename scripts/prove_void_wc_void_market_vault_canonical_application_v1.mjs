@@ -711,6 +711,43 @@ for(const forbidden of [
 ]){
   assert.equal(source.includes(forbidden),false,forbidden);
 }
+const focusedWorkflow=fs.readFileSync(
+  ".github/workflows/void-wc-void-market-vault-canonical-application-v1.yml",
+  "utf8",
+);
+const workflowPrStart=focusedWorkflow.indexOf("  pull_request:\n");
+const workflowPushStart=focusedWorkflow.indexOf("  push:\n");
+const workflowPermissionsStart=focusedWorkflow.indexOf("\npermissions:\n");
+assert(
+  workflowPrStart>=0&&
+  workflowPushStart>workflowPrStart&&
+  workflowPermissionsStart>workflowPushStart,
+  "focused workflow trigger blocks must be present",
+);
+const workflowPrBlock=focusedWorkflow.slice(workflowPrStart,workflowPushStart);
+const workflowPushBlock=focusedWorkflow.slice(
+  workflowPushStart,
+  workflowPermissionsStart,
+);
+for(const dependency of [
+  "tools/void-reviewed-node-package-runtime-v1.mjs",
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json",
+  "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs",
+  "scripts/prove_void_reviewed_node_package_runtime_v1.mjs",
+]){
+  const token=`- "${dependency}"`;
+  assert.equal(
+    workflowPrBlock.split(token).length-1,
+    1,
+    "PR trigger mismatch: "+dependency,
+  );
+  assert.equal(
+    workflowPushBlock.split(token).length-1,
+    1,
+    "push trigger mismatch: "+dependency,
+  );
+}
+
 for(const required of [
   "withReviewedExecutionModules",
   "verified_modules_loaded_from_exact_git_objects:true",
@@ -741,6 +778,7 @@ console.log("reviewed_execution_modules_loaded_from_git_objects=true");
 console.log("git_config_isolated=true");
 console.log("hostile_fsmonitor_execution=false");
 console.log("reviewed_ethers_package_runtime_bound=true");
+console.log("reviewed_runtime_trigger_symmetry_green=true");
 console.log("permission_fenced_reviewed_execution=true");
 console.log("ancestor_package_resolution_forbidden=true");
 console.log("ambient_node_options_execution=false");
