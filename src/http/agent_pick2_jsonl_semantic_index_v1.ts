@@ -57,7 +57,11 @@ export type AgentPick2JsonlFileStampV1 = FileStampV1;
 
 type CompletionStateV1 = FileStampV1 & {
   initialized: boolean;
-  completed: Set<string>;
+  // Published completion states are copy-on-write. Once installed in the
+  // completions map, this Set is never mutated; later generations allocate a
+  // distinct Set before publication. Snapshot readers may therefore retain the
+  // exact ReadonlySet reference without cloning the full membership.
+  completed: ReadonlySet<string>;
   endedWithNewline: boolean;
 };
 
@@ -2833,7 +2837,9 @@ export class AgentPick2JsonlSemanticIndexV1 {
             mtimeNs: state.mtimeNs,
             ctimeNs: state.ctimeNs,
           },
-          completed: new Set(state.completed),
+          // Zero-copy snapshot membership. Completion states are published
+          // copy-on-write and never mutated after publication.
+          completed: state.completed,
         };
       });
       const generation =
@@ -3045,13 +3051,14 @@ export class AgentPick2JsonlSemanticIndexV1 {
       });
 
       if (!stable) return this.rebuildCompletion(file);
+      const nextCompleted = new Set(prior.completed);
+      for (const id of stable.value.additions) nextCompleted.add(id);
       const state: CompletionStateV1 = {
         ...stable.stamp,
         initialized: true,
-        completed: new Set(prior.completed),
+        completed: nextCompleted,
         endedWithNewline: stable.value.endedWithNewline,
       };
-      for (const id of stable.value.additions) state.completed.add(id);
       this.completions.set(file, state);
       return state;
     }
