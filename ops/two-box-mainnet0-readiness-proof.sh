@@ -13,6 +13,11 @@ hold(){
 
 [ -n "$CROSSBOX_SSH_TARGET" ] || hold "missing explicit CROSSBOX_SSH_TARGET (or legacy ALIEN)"
 
+if [[ "$CROSSBOX_SSH_TARGET" =~ [[:space:]] ]] || [[ "$CROSSBOX_SSH_TARGET" == -* ]] || \
+   [[ ! "$CROSSBOX_SSH_TARGET" =~ ^[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?$ ]]; then
+  hold "CROSSBOX_SSH_TARGET must be an explicit SSH alias or user@host, not an option or shell fragment"
+fi
+
 target_guard="$(printf '%s' "$CROSSBOX_SSH_TARGET" | tr '[:upper:]' '[:lower:]')"
 case "$target_guard" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)

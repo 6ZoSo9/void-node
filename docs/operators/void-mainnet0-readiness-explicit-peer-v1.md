@@ -12,14 +12,16 @@ also carried an unused `MAIN_BASE` default pointing at that same address.
 target through `CROSSBOX_SSH_TARGET`. The legacy `ALIEN` variable remains
 accepted only as an explicit compatibility alias; it has no default.
 
-The proof rejects target material containing:
+The proof accepts only a simple SSH alias/hostname or `user@host`. It rejects
+leading option syntax, whitespace/control characters, shell-fragment characters,
+and target material containing:
 
 - `100.122.79.39`
 - `zoso-alienware-aurora-r7.taila47fd.ts.net`
 - `alienware`
 
-Rejected or missing targets exit with status 2 before output-directory creation,
-local HTTP observation, or SSH.
+Rejected, malformed, or missing targets exit with status 2 before
+output-directory creation, local HTTP observation, or SSH.
 
 ## Validator-status stamper
 
