@@ -29,7 +29,7 @@ The current live-json guard passes for stub mode. The non-stub guard path expect
 2. Add an explicit plan-only validator admission shape that records validator0 public values without claiming active admission.
 3. Prove bootstrap sanity still passes.
 4. Prove validator admission sanity still passes.
-5. Prove Precision and Alienware both read the promoted config consistently.
+5. Prove Precision and one explicitly reviewed nonlocal current-fleet peer read the promoted config consistently. The selected peer must be Nimo or Xiphos; retired Alienware must not satisfy this gate.
 6. Only after the above, consider changing validator-status.current.yaml from blocked to a more specific staged/admission-ready state.
 
 ## Safety rule

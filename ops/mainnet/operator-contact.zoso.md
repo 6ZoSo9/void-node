@@ -10,12 +10,14 @@ public_contact_status: not published yet
 This operator record is for the solo Mainnet-0 bootstrap phase.
 
 The operator is responsible for:
-- running the Precision and Alienware nodes,
+- running and supervising the active operator fleet: Precision, Nimo, and Xiphos,
 - maintaining local monitoring,
 - reviewing validator admission state,
 - responding to checkpoint/finality incidents,
 - collecting incident bundles before making strong canonical claims,
 - keeping update safety, validator lifecycle, and readiness gates green.
+
+Alienware is retired and is not part of the active operator fleet.
 
 ## Admission status
 
