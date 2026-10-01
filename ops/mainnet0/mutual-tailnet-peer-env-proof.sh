@@ -6,16 +6,17 @@ set +o histexpand 2>/dev/null || true
 cd "$HOME/dev/void-node" || exit 1
 
 : "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
-TARGET_GUARD="$(printf '%s\n' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
+HTTP_PORT="${HTTP_PORT:-4100}"
+PRECISION_TS="${PRECISION_TS:-$(tailscale ip -4 2>/dev/null | head -n1)}"
+ALIEN_TS="${ALIEN_TS:-${ALIEN##*@}}"
+
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$ALIEN_TS" | tr '[:upper:]' '[:lower:]')"
 case "$TARGET_GUARD" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
     echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
     exit 2
     ;;
 esac
-HTTP_PORT="${HTTP_PORT:-4100}"
-PRECISION_TS="${PRECISION_TS:-$(tailscale ip -4 2>/dev/null | head -n1)}"
-ALIEN_TS="${ALIEN_TS:-${ALIEN##*@}}"
 
 PRECISION_BASE="http://${PRECISION_TS}:${HTTP_PORT}"
 ALIEN_BASE="http://${ALIEN_TS}:${HTTP_PORT}"
