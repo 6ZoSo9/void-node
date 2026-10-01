@@ -644,15 +644,28 @@ function gitRunPrivate(cwd, args, code, { allowFail = false } = {}) {
   return result;
 }
 
-function makeExecutionTreeReadOnly(root) {
+export function makeParticipantReviewedExecutionTreeReadOnlyV1(root) {
   function walk(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const file = path.join(dir, entry.name);
+      const stat = fs.lstatSync(file);
       if (entry.isDirectory()) {
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_DIRECTORY_IDENTITY_INVALID");
+        }
         walk(file);
         fs.chmodSync(file, 0o500);
-      } else {
+      } else if (entry.isSymbolicLink()) {
+        if (!stat.isSymbolicLink()) {
+          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_SYMLINK_IDENTITY_INVALID");
+        }
+      } else if (entry.isFile()) {
+        if (!stat.isFile() || stat.isSymbolicLink()) {
+          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_FILE_IDENTITY_INVALID");
+        }
         fs.chmodSync(file, 0o400);
+      } else {
+        fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_ENTRY_TYPE_UNSUPPORTED");
       }
     }
   }
@@ -660,14 +673,30 @@ function makeExecutionTreeReadOnly(root) {
   fs.chmodSync(root, 0o500);
 }
 
-function makeExecutionTreeRemovable(root) {
+export function makeParticipantReviewedExecutionTreeRemovableV1(root) {
   if (!fs.existsSync(root)) return;
   function walk(dir) {
     fs.chmodSync(dir, 0o700);
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const file = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(file);
-      else fs.chmodSync(file, 0o600);
+      const stat = fs.lstatSync(file);
+      if (entry.isDirectory()) {
+        if (!stat.isDirectory() || stat.isSymbolicLink()) {
+          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_DIRECTORY_IDENTITY_INVALID");
+        }
+        walk(file);
+      } else if (entry.isSymbolicLink()) {
+        if (!stat.isSymbolicLink()) {
+          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_SYMLINK_IDENTITY_INVALID");
+        }
+      } else if (entry.isFile()) {
+        if (!stat.isFile() || stat.isSymbolicLink()) {
+          fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_FILE_IDENTITY_INVALID");
+        }
+        fs.chmodSync(file, 0o600);
+      } else {
+        fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_ENTRY_TYPE_UNSUPPORTED");
+      }
     }
   }
   walk(root);
@@ -679,7 +708,7 @@ function cleanupReviewedExecutionCache() {
   if (!reviewedExecutionCache) return;
   const parent = reviewedExecutionCache.parent;
   try {
-    makeExecutionTreeRemovable(parent);
+    makeParticipantReviewedExecutionTreeRemovableV1(parent);
     fs.rmSync(parent, { recursive: true, force: true });
   } finally {
     reviewedExecutionCache = null;
@@ -842,7 +871,7 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
     ].join("\n");
     writePrivateSource(runnerFile, Buffer.from(runnerSource, "utf8"));
 
-    makeExecutionTreeReadOnly(executionRoot);
+    makeParticipantReviewedExecutionTreeReadOnlyV1(executionRoot);
     reviewedExecutionCache = Object.freeze({
       head: repo.head,
       bundle_id: reviewedExecution.reviewed_execution_bundle_id,
@@ -855,9 +884,14 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
     return reviewedExecutionCache;
   } catch (error) {
     try {
-      makeExecutionTreeRemovable(parent);
+      makeParticipantReviewedExecutionTreeRemovableV1(parent);
       fs.rmSync(parent, { recursive: true, force: true });
-    } catch {}
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "participant_reviewed_execution_cleanup_failed",
+      );
+    }
     throw error;
   }
 }
