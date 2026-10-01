@@ -90,7 +90,7 @@ The six required verifier results are:
 | lane | required verified status |
 | --- | --- |
 | epoch-2 public verification | `EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_VERIFIED_SOURCE_READY` |
-| market vault | `MARKET_VAULT_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
+| market vault | `MARKET_VAULT_CANONICAL_APPLICATION_STATE_VERIFIED_FINAL_ACTIVATION_HOLD` |
 | ledger custody | `LEDGER_CUSTODY_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
 | durable opening | `OPENING_DURABLE_EVIDENCE_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
 | participant post-purchase | `PARTICIPANT_CONTROL_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD` |
@@ -102,6 +102,12 @@ application plan ID, plan SHA-256 and exact verified status.
 Canonical candidate state remains authoritative too: even six valid applied
 plans cannot create final readiness unless every non-final gate independently
 classifies GREEN in the current candidate files.
+
+The promotion artifact also binds the exact canonical repository HEAD/tree,
+canonical HTTPS origin/remote-main identity, and raw file SHA-256 + Git blob
+SHA-1 identities for the production, coupled, and successor source candidates.
+The worktree bytes must equal the exact `HEAD:<path>` blobs and canonical
+two-space JSON bytes.
 
 ## Exact final source delta
 
