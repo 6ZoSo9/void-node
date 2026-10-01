@@ -314,6 +314,7 @@ function walkPackageDirectory(root,lockKey){
         fail("reviewed_node_runtime_dependency_symlink_forbidden:"+lockKey+":"+rel);
       }
       if(stat.isDirectory()){
+        if(entry.name==="node_modules") continue;
         walk(file,rel,depth+1);
         continue;
       }
