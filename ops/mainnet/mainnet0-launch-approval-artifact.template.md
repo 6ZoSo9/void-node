@@ -36,6 +36,7 @@ A future real approval artifact must be a separate file, not this template, and 
 - mutation_allowed_requested: REQUIRED
 - precision_ready_result: REQUIRED
 - crossbox_peer_target: REQUIRED
+- crossbox_peer_head_result: REQUIRED
 - crossbox_peer_ready_result: REQUIRED
 - precision_status_proof_log: REQUIRED
 - crossbox_peer_status_smoke_log: REQUIRED
