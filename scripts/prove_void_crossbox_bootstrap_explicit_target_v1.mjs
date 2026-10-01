@@ -36,8 +36,8 @@ for (const path of files) {
 
 const mutual = fs.readFileSync(files[0], "utf8");
 assert.ok(
-  mutual.includes('"$ALIEN" "$ALIEN_TS"'),
-  "mutual peer guard must include the ALIEN_TS override",
+  mutual.includes('"$ALIEN" "$ALIEN_TS" "$PRECISION_TS"'),
+  "mutual peer guard must include SSH, remote peer, and Precision coordinates",
 );
 const firstMutation = mutual.indexOf("systemctl --user");
 assert.ok(firstMutation > 0);
@@ -56,8 +56,16 @@ assert.equal(
 assert.ok(
   post.includes(': "${PREC_TS:?set PREC_TS to the explicit current Precision Tailnet address}"'),
 );
+assert.ok(
+  post.includes('"$ALIEN" "$PREC_TS"'),
+  "post-bootstrap guard must include both remote SSH and Precision Tailnet coordinates",
+);
 
 const tailnet = fs.readFileSync(files[1], "utf8");
+assert.ok(
+  tailnet.includes('"$ALIEN" "$TS_IP" "$PUBLIC_BASE"'),
+  "Tailnet HTTP guard must cover SSH target, local Tailnet IP, and public base override",
+);
 const ssh = fs.readFileSync(files[3], "utf8");
 assert.ok(tailnet.includes('echo "mutation=false"'));
 assert.ok(ssh.includes('echo "mutation=false"'));
