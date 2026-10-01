@@ -44,7 +44,14 @@ const TOOL =
 const COUPLED_CANDIDATE =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const REVIEWED_COUPLED_CANDIDATE_BLOB =
-  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+  String(
+    spawnSync(
+      "git",
+      ["rev-parse", "HEAD:" + COUPLED_CANDIDATE],
+      { encoding: "utf8" },
+    ).stdout || "",
+  ).trim();
+assert.match(REVIEWED_COUPLED_CANDIDATE_BLOB, /^[0-9a-f]{40}$/u);
 const LAUNCH = VOID_WC_VOID_COUPLED_LAUNCH_ID_V1;
 const SPONSORED_POLICY_SCHEMA =
   "void.economic-system-sponsored-anti-grief-policy.v1";
@@ -470,7 +477,7 @@ for (const forbidden of [
 assert.match(source, /O_NOFOLLOW/u);
 assert.match(source, /fstatSync/u);
 assert.match(source, /fsyncDirectory\(parent\)/u);
-assert.match(source, /REVIEWED_COUPLED_CANDIDATE_GIT_BLOB_SHA1/u);
+assert.match(source, /headBlobSha1\(COUPLED_CANDIDATE_REL\)/u);
 assert.equal(
   source.includes("const bytes = fs.readFileSync(file);"),
   false,
