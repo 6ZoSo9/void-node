@@ -8,6 +8,7 @@ import {
   EVIDENCE_MARKER,
   MARKER,
   WorkerDispatchHubGuardError,
+  assertFreshLiveChainMatchesV1,
   evaluateWorkerDispatchHubGuardV1,
 } from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
 import {
@@ -95,7 +96,7 @@ const actualAligned = evaluateWorkerDispatchHubGuardV1({
   chain: actualCurrentChain,
   dispatch: actualDispatch,
 }, {
-  liveChainRevalidated: true,
+  liveChain: actualCurrentChain,
 });
 assert.equal(actualAligned.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(actualAligned.normal_dispatch_allowed, true);
@@ -106,7 +107,7 @@ const actualRotationHold = evaluateWorkerDispatchHubGuardV1({
   chain: actualRotationChain,
   dispatch: actualDispatch,
 }, {
-  liveChainRevalidated: true,
+  liveChain: actualRotationChain,
 });
 assert.equal(actualRotationHold.outcome, "HOLD_ROTATION_REQUIRED");
 assert.equal(actualRotationHold.normal_dispatch_allowed, false);
@@ -176,8 +177,16 @@ assert.equal(retainedCurrent.normal_dispatch_allowed, false);
 assert.equal(retainedCurrent.live_chain_revalidated, false);
 assert.equal(retainedCurrent.requires_fresh_chain_evidence, true);
 
-const current = evaluateWorkerDispatchHubGuardV1(evidence(), {
-  liveChainRevalidated: true,
+const spoofedBoolean = evaluateWorkerDispatchHubGuardV1(
+  evidence(),
+  { liveChainRevalidated: true },
+);
+assert.equal(spoofedBoolean.outcome, "HOLD_CHAIN_LIVENESS_UNPROVEN");
+assert.equal(spoofedBoolean.normal_dispatch_allowed, false);
+
+const currentEvidence = evidence();
+const current = evaluateWorkerDispatchHubGuardV1(currentEvidence, {
+  liveChain: currentEvidence.chain,
 });
 assert.equal(current.marker, MARKER);
 assert.equal(current.version, 1);
@@ -227,17 +236,18 @@ assert.equal(stalePredecessor.read_only_evidence_only, true);
 assert.equal(stalePredecessor.resolved_current_issue, 1600);
 assert.equal(stalePredecessor.dispatch_plan_issue_observed, 1507);
 
+const resolvedSuccessorChain = chain({
+  current_issue: 1600,
+  outcome: "SUCCESSOR_RESOLVED",
+  dispatch_plan_issue_should_be: 1600,
+  plan_issue_update_required: true,
+});
 const reboundSuccessor = evaluateWorkerDispatchHubGuardV1(
   evidence(
-    chain({
-      current_issue: 1600,
-      outcome: "SUCCESSOR_RESOLVED",
-      dispatch_plan_issue_should_be: 1600,
-      plan_issue_update_required: true,
-    }),
+    resolvedSuccessorChain,
     dispatch({ plan_issue: 1600 }),
   ),
-  { liveChainRevalidated: true },
+  { liveChain: resolvedSuccessorChain },
 );
 assert.equal(reboundSuccessor.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(reboundSuccessor.normal_dispatch_allowed, true);
@@ -258,7 +268,10 @@ assert.equal(invalidChain.normal_dispatch_allowed, false);
 assert.equal(invalidChain.read_only_evidence_only, true);
 assert.equal(invalidChain.dispatch_plan_issue_should_be, null);
 
-const repeated = evaluateWorkerDispatchHubGuardV1(evidence(), { liveChainRevalidated: true });
+const repeatedEvidence = evidence();
+const repeated = evaluateWorkerDispatchHubGuardV1(repeatedEvidence, {
+  liveChain: repeatedEvidence.chain,
+});
 assert.equal(repeated.guard_id, current.guard_id);
 assert.deepEqual(repeated, current);
 
@@ -378,4 +391,5 @@ console.log("upstream_markers_bound=true");
 console.log("real_upstream_composition_green=true");
 console.log("retained_chain_alignment_held_until_live_recheck=true");
 console.log("fresh_live_chain_equality_required=true");
+console.log("caller_boolean_cannot_unlock_alignment=true");
 console.log("normal_dispatch_grants_no_source_authority=true");
