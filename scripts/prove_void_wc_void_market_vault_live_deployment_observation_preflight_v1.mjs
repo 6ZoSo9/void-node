@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 import {
@@ -562,6 +564,48 @@ for (const [options, expectedReason] of [
 }
 
 {
+  const original = fs.readFileSync(QUALIFICATION_TOOL);
+  const sentinel = path.join(
+    os.tmpdir(),
+    "void-live-preflight-unreviewed-qualification-" + String(process.pid),
+  );
+  try {
+    fs.rmSync(sentinel, { force: true });
+    const malicious = Buffer.concat([
+      Buffer.from(
+        'import { writeFileSync as __voidSentinelWrite } from "node:fs";\n' +
+          "__voidSentinelWrite(" +
+          JSON.stringify(sentinel) +
+          ', "executed\\n");\n',
+        "utf8",
+      ),
+      original,
+    ]);
+    fs.writeFileSync(QUALIFICATION_TOOL, malicious);
+    const f = fixture();
+    const result =
+      await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+        input(qualificationFixture(), f.transport),
+      );
+    assert.equal(result.ok, false);
+    if (result.ok) throw new Error("dirty qualification source unexpectedly green");
+    assert.equal(
+      result.reason,
+      "live_deployment_preflight_repository_identity_invalid",
+    );
+    assert.equal(f.calls.length, 0);
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "unreviewed qualification module executed before source admission",
+    );
+  } finally {
+    fs.writeFileSync(QUALIFICATION_TOOL, original);
+    fs.rmSync(sentinel, { force: true });
+  }
+}
+
+{
   const q = qualificationFixture();
   const substituted = "0x4444444444444444444444444444444444444444";
   q.settlement_executor.address = substituted;
@@ -582,6 +626,8 @@ for (const [key, expected] of Object.entries({
   exact_qualification_bytes_required: true,
   qualification_current_head_required: true,
   canonical_source_revalidation_required: true,
+  reviewed_qualification_contract_exact_head_execution: true,
+  private_reviewed_qualification_contract_materialization: true,
   explicit_deployer_recorded_not_authorized: true,
   explicit_inventory_source_recorded_not_authorized: true,
   canonical_chain_id: "2050",
@@ -625,6 +671,14 @@ for (const [key, expected] of Object.entries({
 }
 
 const source = fs.readFileSync(PREFLIGHT_TOOL, "utf8");
+assert.equal(
+  source.includes(
+    'from "./void-wc-void-market-vault-role-deployment-qualification-v1.mjs"',
+  ),
+  false,
+  "preflight must not statically execute qualification worktree module",
+);
+
 for (const forbidden of [
   "eth_sendRawTransaction",
   "eth_sendTransaction",
@@ -648,6 +702,8 @@ for (const required of [
   "O_NOFOLLOW",
   "GIT_CONFIG_GLOBAL",
   "core.fsmonitor=false",
+  "reviewedQualificationContract",
+  "live_deployment_preflight_qualification_contract_blob_mismatch",
   "qualification_current_head_required",
   "gas_limit_policy_selected: false",
   "fee_policy_selected: false",
@@ -659,6 +715,9 @@ console.log(
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1_PROOF_GREEN",
 );
 console.log("qualification_current_head_required=true");
+console.log("reviewed_qualification_contract_exact_head_execution=true");
+console.log("private_reviewed_qualification_contract_materialization=true");
+console.log("dirty_qualification_source_rejected_before_execution=true");
 console.log("qualification_id_rederived=true");
 console.log("canonical_roles_revalidated=true");
 console.log("loopback_http_only=true");
