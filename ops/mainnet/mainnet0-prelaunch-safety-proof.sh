@@ -50,16 +50,15 @@ echo "=== [5] validator live-admission dry-run proof ==="
 make mainnet0-validator-live-admission-dryrun-proof
 
 echo
-echo "=== [6] cross-box smoke ==="
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-if ssh -o BatchMode=yes -o ConnectTimeout=6 "$ALIEN" "true" >/dev/null 2>&1; then
-  echo "[ok] SSH to Alienware available; running cross-box status smoke"
-  make mainnet0-crossbox-status-smoke
-else
-  echo "[warn] SSH to Alienware not available from this node; running local status smoke fallback"
-  echo "[warn] Full cross-box smoke must still be run from Precision/coordinator before any live mutation"
-  make mainnet0-status-smoke
+echo "=== [6] required cross-box smoke ==="
+CROSSBOX_PEER="${VOID_MAINNET0_CROSSBOX_PEER:-}"
+if [ -z "$CROSSBOX_PEER" ]; then
+  echo "[ERR] crossbox_peer_required: set VOID_MAINNET0_CROSSBOX_PEER to the explicitly reviewed nonlocal fleet peer"
+  false
 fi
+echo "crossbox_peer=$CROSSBOX_PEER"
+echo "local_fallback_allowed=false"
+VOID_MAINNET0_CROSSBOX_PEER="$CROSSBOX_PEER" make mainnet0-crossbox-status-smoke
 
 echo
 echo "=== [7] summary ==="
@@ -70,6 +69,8 @@ print({
   "go_no_go": "fails_closed",
   "validator_live_admission": "blocked",
   "validator_live_admission_dryrun": "green",
+  "cross_box_peer_explicit": True,
+  "cross_box_local_fallback_allowed": False,
   "buy_void_hardstop": "green",
   "buy_void_claim_send": "blocked",
   "buy_void_payment_confirmed_no_void_send": "green",
