@@ -38,6 +38,7 @@ const updater=need("release/bin/void-node-update",[
   "restart_if_active",
   ".rollback.restart-witness-v1",
   "ROLLBACK_RESTART_ALREADY_SATISFIED",
+  "ROLLBACK_RESTART_WITNESS_CLEANED",
   "VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_SERVICE_RESTART",
   "escapes canonical releases directory",
   "downgrade refused",
@@ -259,6 +260,11 @@ exit 2
   if(fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("post-restart recovery replayed service restart twice");
   if(fs.existsSync(rollbackJournal)||fs.existsSync(rollbackRestartWitness))fail("post-restart recovery did not clear completed rollback journal and witness");
   pass("rollback-post-restart-crash-does-not-restart-twice");
+
+  fs.symlinkSync("active-"+crashAfterInvocation,rollbackRestartWitness);
+  const orphanWitnessRecovery=run(managerPath,["version"],{env:e,capture:true});
+  if(!orphanWitnessRecovery.includes("ROLLBACK_RESTART_WITNESS_CLEANED")||fs.existsSync(rollbackRestartWitness)||!orphanWitnessRecovery.includes(v3))fail("orphan restart witness cleanup after durable journal deletion failed");
+  pass("rollback-orphan-restart-witness-cleaned");
 
   run(managerPath,["rollback"],{env:e});
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("post-restart-dedupe rollback did not restore expected pointer pair");
