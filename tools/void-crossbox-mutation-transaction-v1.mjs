@@ -1127,6 +1127,19 @@ export function recordVoidCrossboxMutationPublishStartedV1(transaction,value){
   ){
     fail("publish_started_after_terminal_outcome");
   }
+  if(transaction.publish_no_effect.local||transaction.publish_no_effect.remote){
+    fail("publish_started_after_no_effect_forbidden");
+  }
+  for(const other of ["local","remote"]){
+    if(
+      other!==receipt.participant&&
+      transaction.publish_started[other]&&
+      !transaction.published[other]&&
+      !transaction.publish_no_effect[other]
+    ){
+      fail("publish_started_other_unresolved:"+other);
+    }
+  }
   return seal(
     setParticipantReceipt(
       transaction,
@@ -1164,7 +1177,7 @@ export function recordVoidCrossboxMutationPublishedV1(transaction,value){
   if(!transaction.publish_started[receipt.participant]){
     fail("publish_requires_started_witness");
   }
-  if(transaction.publish_no_effect[receipt.participant]){
+  if(transaction.publish_no_effect.local||transaction.publish_no_effect.remote){
     fail("publish_after_no_effect_forbidden");
   }
   return seal(
@@ -1175,6 +1188,9 @@ export function recordVoidCrossboxMutationPublishedV1(transaction,value){
 export function recordVoidCrossboxMutationVerifiedV1(transaction,value){
   validateBaseTransaction(transaction);
   if(transaction.phase!=="COMMITTING")fail("verify_phase_invalid");
+  if(transaction.publish_no_effect.local||transaction.publish_no_effect.remote){
+    fail("verify_after_no_effect_forbidden");
+  }
   const receipt=normalizedVerifyReceipt(transaction,value);
   if(!transaction.published[receipt.participant]){
     fail("verify_requires_publish_receipt");
@@ -1246,6 +1262,15 @@ export function recordVoidCrossboxMutationRestoreStartedV1(transaction,value){
   if(transaction.restored[receipt.participant]){
     fail("restore_started_after_restore");
   }
+  for(const other of ["local","remote"]){
+    if(
+      other!==receipt.participant&&
+      transaction.restore_started[other]&&
+      !transaction.restored[other]
+    ){
+      fail("restore_started_other_unresolved:"+other);
+    }
+  }
   return seal(
     setParticipantReceipt(
       transaction,
@@ -1311,29 +1336,34 @@ export function nextVoidCrossboxMutationRecoveryV1(transaction){
   }
   if(transaction.phase==="PREPARED")return "BEGIN_COMMIT";
   if(transaction.phase==="COMMITTING"){
-    if(!transaction.published.local){
-      if(transaction.publish_no_effect.local)return "BEGIN_ROLLBACK";
-      if(!transaction.publish_started.local)return "BEGIN_PUBLISH_LOCAL";
-      return "RECOVER_PUBLISH_LOCAL";
+    if(
+      transaction.publish_started.local&&
+      !transaction.published.local&&
+      !transaction.publish_no_effect.local
+    )return "RECOVER_PUBLISH_LOCAL";
+    if(
+      transaction.publish_started.remote&&
+      !transaction.published.remote&&
+      !transaction.publish_no_effect.remote
+    )return "RECOVER_PUBLISH_REMOTE";
+    if(transaction.publish_no_effect.local||transaction.publish_no_effect.remote){
+      return "BEGIN_ROLLBACK";
     }
-    if(!transaction.published.remote){
-      if(transaction.publish_no_effect.remote)return "BEGIN_ROLLBACK";
-      if(!transaction.publish_started.remote)return "BEGIN_PUBLISH_REMOTE";
-      return "RECOVER_PUBLISH_REMOTE";
-    }
+    if(!transaction.published.local)return "BEGIN_PUBLISH_LOCAL";
+    if(!transaction.published.remote)return "BEGIN_PUBLISH_REMOTE";
     if(!transaction.verified.local)return "VERIFY_LOCAL";
     if(!transaction.verified.remote)return "VERIFY_REMOTE";
     return "FINALIZE_COMMIT";
   }
   if(transaction.phase==="ROLLING_BACK"){
-    if(!transaction.restored.local){
-      if(!transaction.restore_started.local)return "BEGIN_RESTORE_LOCAL";
+    if(transaction.restore_started.local&&!transaction.restored.local){
       return "RECOVER_RESTORE_LOCAL";
     }
-    if(!transaction.restored.remote){
-      if(!transaction.restore_started.remote)return "BEGIN_RESTORE_REMOTE";
+    if(transaction.restore_started.remote&&!transaction.restored.remote){
       return "RECOVER_RESTORE_REMOTE";
     }
+    if(!transaction.restored.local)return "BEGIN_RESTORE_LOCAL";
+    if(!transaction.restored.remote)return "BEGIN_RESTORE_REMOTE";
     return "FINALIZE_RESTORE";
   }
   fail("transaction_recovery_state_invalid");

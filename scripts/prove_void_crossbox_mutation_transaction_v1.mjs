@@ -582,6 +582,13 @@ assert.equal(
   );
   assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"RECOVER_PUBLISH_LOCAL");
   assert.throws(
+    ()=>recordVoidCrossboxMutationPublishStartedV1(
+      tx,
+      publishStartedReceipt(tx,"remote"),
+    ),
+    /publish_started_other_unresolved:local/u,
+  );
+  assert.throws(
     ()=>beginVoidCrossboxMutationRollbackV1(
       tx,
       "crash after publish side effect before receipt",
@@ -617,6 +624,13 @@ assert.equal(
     publishNoEffectReceipt(tx,"local"),
   );
   assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"BEGIN_ROLLBACK");
+  assert.throws(
+    ()=>recordVoidCrossboxMutationPublishStartedV1(
+      tx,
+      publishStartedReceipt(tx,"remote"),
+    ),
+    /publish_started_after_no_effect_forbidden/u,
+  );
   tx=beginVoidCrossboxMutationRollbackV1(tx,"publish observed no-effect");
   assert.equal(tx.phase,"ROLLING_BACK");
   assert.equal(nextVoidCrossboxMutationRecoveryV1(tx),"BEGIN_RESTORE_LOCAL");
