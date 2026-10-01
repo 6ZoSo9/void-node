@@ -2,22 +2,11 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-
-import {
-  VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1,
-  VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_V1,
-  buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1,
-} from "./void-participant-postpurchase-coupled-candidate-promotion-v1.mjs";
-import {
-  classifyVoidCoupledEconomicSuccessorGateV1,
-} from "./void-coupled-economic-successor-gate-v1.mjs";
-import {
-  buildVoidParticipantPostpurchaseProductionRuntimeBindingV1,
-} from "./void-participant-postpurchase-production-runtime-binding-v1.mjs";
 
 export const VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_PLAN_V1 =
   "VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_PLAN_V1";
@@ -36,6 +25,13 @@ export const VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_AUTHORITY_V1 =
     reviewed_repository_generation_required: true,
     exact_one_gate_source_delta: true,
     canonical_classifier_reexecution: true,
+    reviewed_git_object_execution_required: true,
+    reviewed_package_runtime_required: true,
+    permission_fenced_execution_required: true,
+    ancestor_package_resolution_forbidden: true,
+    ambient_dynamic_loader_overrides_ignored: true,
+    execution_child_process_limited_to_reviewed_git: true,
+    execution_network_isolation_provided: false,
     reviewed_git_commit_required: true,
     canonical_main_application_required: true,
     canonical_remote_main_read_required: true,
@@ -79,9 +75,33 @@ const FINALITY_IMPORT_TOOL_REL =
   "tools/void-participant-postpurchase-finality-import-v1.mjs";
 const FINALITY_TOOL_REL =
   "tools/void-participant-postpurchase-finality-v1.mjs";
+const REVIEWED_RUNTIME_TOOL_REL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+
+const REVIEWED_EXECUTION_MODULE_RELS = Object.freeze([
+  "tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs",
+  "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs",
+  "tools/void-participant-postpurchase-finality-import-v1.mjs",
+  "tools/void-participant-postpurchase-finality-v1.mjs",
+  "tools/void-coupled-economic-successor-gate-v1.mjs",
+  "tools/void-economic-evm-successor-migration-v1.mjs",
+  "tools/void-economic-intent-ttl-caps-policy-v1.mjs",
+  "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs",
+  "tools/void-shared-market-post-discovery-state-v2.mjs",
+  "tools/void-wc-void-coupled-opening-v1.mjs",
+  "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs",
+  "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs",
+  "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs",
+  "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs",
+  "tools/void-wc-void-reverse-settlement-v1.mjs",
+  "tools/void-wc-void-public-quote-disclosure-v1.mjs",
+]);
 
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
+const REVIEWED_RUNTIME_PROFILE_ID = /^voidrnpr1_[0-9a-f]{64}$/u;
 const PLAN_ID = /^voidppca1_[0-9a-f]{64}$/u;
 const PROMOTION_ID = /^voidppccp1_[0-9a-f]{64}$/u;
 const APPLICATION_ID = /^voidppcaap1_[0-9a-f]{64}$/u;
@@ -119,6 +139,7 @@ const PLAN_KEYS = Object.freeze([
   "runtime_binding_tool_git_blob_sha1",
   "finality_import_tool_git_blob_sha1",
   "finality_tool_git_blob_sha1",
+  "reviewed_execution",
   "finality_input_file_sha256",
   "status_result_file_sha256",
   "delivery_receipt_result_file_sha256",
@@ -225,36 +246,40 @@ function gitBlobSha1(bytes) {
 }
 
 function sanitizedGitEnv() {
-  const env = { ...process.env, GIT_NO_REPLACE_OBJECTS: "1" };
-  for (const key of [
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_NAMESPACE",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_CONFIG",
-    "GIT_CONFIG_COUNT",
-  ]) {
-    delete env[key];
-  }
-  for (const key of Object.keys(env)) {
-    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
-  }
-  return env;
+  return {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
+  };
 }
 
-function gitRun(args, { allowFail = false, encoding = "utf8" } = {}) {
+const REVIEWED_GIT_CONFIG_ARGS = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
+
+function gitRun(args, { allowFail = false, encoding = "utf8", cwd = ROOT } = {}) {
   const result = spawnSync(
     GIT,
-    ["--no-replace-objects", "-C", ROOT, ...args],
+    ["--no-replace-objects", ...REVIEWED_GIT_CONFIG_ARGS, "-C", cwd, ...args],
     {
       env: sanitizedGitEnv(),
       encoding,
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 32 * 1024 * 1024,
+      timeout: 30_000,
     },
   );
   if (result.error) throw result.error;
