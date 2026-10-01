@@ -24,6 +24,34 @@ const files={
     "utf8",
   ),
   makefile:fs.readFileSync("Makefile","utf8"),
+  launchApprovalTemplate:fs.readFileSync(
+    "ops/mainnet/mainnet0-launch-approval-artifact.template.md",
+    "utf8",
+  ),
+  finalPath:fs.readFileSync(
+    "ops/mainnet/mainnet0-final-path.current.md",
+    "utf8",
+  ),
+  authorityFunding:fs.readFileSync(
+    "ops/mainnet/mainnet0-authority-funding-preflight.current.md",
+    "utf8",
+  ),
+  keyCeremonyRunbook:fs.readFileSync(
+    "ops/mainnet/mainnet0-key-ceremony-result-runbook.template.md",
+    "utf8",
+  ),
+  finalGonogo:fs.readFileSync(
+    "ops/mainnet/mainnet0-final-gonogo-map.current.md",
+    "utf8",
+  ),
+  launchApprovalPrep:fs.readFileSync(
+    "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md",
+    "utf8",
+  ),
+  blockers:fs.readFileSync(
+    "ops/mainnet/mainnet0-blockers.current.md",
+    "utf8",
+  ),
 };
 
 const retiredIp="100.122.79.39";
@@ -119,10 +147,65 @@ assert.match(
   /mainnet0-crossbox-status-smoke:\n\tbash ops\/mainnet\/mainnet0-crossbox-status-smoke\.sh/u,
 );
 
+const launchTruthDocs={
+  launchApprovalTemplate:files.launchApprovalTemplate,
+  finalPath:files.finalPath,
+  authorityFunding:files.authorityFunding,
+  keyCeremonyRunbook:files.keyCeremonyRunbook,
+  finalGonogo:files.finalGonogo,
+  launchApprovalPrep:files.launchApprovalPrep,
+  blockers:files.blockers,
+};
+
+for(const [name,source] of Object.entries(launchTruthDocs)) {
+  assert.match(source,/VOID_MAINNET0_CROSSBOX_PEER/u,name);
+  for(const forbidden of [
+    /Precision and Alienware/iu,
+    /Alienware node readiness/iu,
+    /Alienware readiness result/iu,
+    /passes on Alienware/iu,
+    /alienware_ready_result/iu,
+    /alienware_status_smoke_log/iu,
+  ]) {
+    assert.doesNotMatch(source,forbidden,name);
+  }
+}
+
+assert.match(files.launchApprovalTemplate,/crossbox_peer_target: REQUIRED/u);
+assert.match(files.launchApprovalTemplate,/crossbox_peer_ready_result: REQUIRED/u);
+assert.match(files.launchApprovalTemplate,/crossbox_peer_status_smoke_log: REQUIRED/u);
+assert.match(files.launchApprovalTemplate,/retired Alienware identity must be rejected/u);
+
+assert.match(
+  files.finalPath,
+  /Historical retired second-host checkpoint: ready=true, gap=0, txroot_live=1/u,
+);
+assert.match(
+  files.finalGonogo,
+  /Historical retired second-host readiness checkpoint is recorded/u,
+);
+assert.match(
+  files.blockers,
+  /Historical retired second-host readiness checkpoint is recorded/u,
+);
+assert.match(
+  files.authorityFunding,
+  /present-tense use requires fresh Precision readiness/u,
+);
+assert.match(
+  files.keyCeremonyRunbook,
+  /explicitly reviewed nonlocal current-fleet peer/u,
+);
+assert.match(
+  files.launchApprovalPrep,
+  /explicit reviewed cross-box peer target and readiness result/u,
+);
+
 console.log("VOID_MAINNET0_CROSSBOX_PEER_SAFETY_V1_GREEN");
 console.log("explicit_crossbox_peer_required=true");
 console.log("retired_alienware_default_removed=true");
 console.log("retired_alienware_identity_rejected=true");
+console.log("launch_truth_retired_host_requirements_removed=true");
 console.log("loopback_and_local_peer_rejected=true");
 console.log("distinct_remote_host_required=true");
 console.log("local_and_remote_repo_clean_required=true");

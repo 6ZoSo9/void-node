@@ -17,9 +17,9 @@ The initial OpsTreasury seed money step is complete; future money-moving steps r
 
 Current public-live-but-guarded posture:
 
-- Precision node readiness is green.
-- Alienware node readiness is green.
-- Cross-box status smoke is green.
+- Historical Precision readiness checkpoint is recorded.
+- Historical retired second-host readiness checkpoint is recorded.
+- Cross-box status smoke lineage is green; present-tense proof requires an explicit reviewed peer.
 - Update safety is green on Precision.
 - Validator lifecycle is green and fresh on Precision.
 - Operator/bootstrap validator runtime truth is green through epoch127.
@@ -46,7 +46,7 @@ Current public-live-but-guarded posture:
 Required before every major launch-adjacent change:
 
 - Run make mainnet0-status-proof on Precision.
-- Run make mainnet0-crossbox-status-smoke from Precision.
+- Run `VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-crossbox-status-smoke` from Precision with an explicitly reviewed nonlocal current-fleet peer.
 - Keep status file at public_mainnet0_live only while launch approval, seed proof, and cross-box proofs remain green.
 
 Definition of done:
@@ -75,7 +75,7 @@ Required work:
 2. Keep public active validator admission disabled unless a later guarded config/runtime/proof lane intentionally changes it.
 3. Prove live config represents candidate/waiting-only public registration.
 4. Prove runtime endpoints agree.
-5. Prove Precision and Alienware agree.
+5. Prove Precision and the explicitly selected current-fleet cross-box peer agree; retired Alienware is forbidden.
 6. Update validator-status/current status files only after proof.
 
 Definition of done:

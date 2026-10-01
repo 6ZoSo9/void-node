@@ -53,7 +53,7 @@ A future approval artifact must be a separate file and must include all of the f
 12. final go/no-go proof result,
 13. final public launch checklist proof result,
 14. Precision readiness result,
-15. Alienware readiness result,
+15. explicit reviewed cross-box peer target and readiness result,
 16. explicit statement that money-moving steps remain separately guarded,
 17. explicit statement that no credential material is included,
 18. operator timestamp and contact label,
@@ -68,9 +68,11 @@ Before any future artifact may approve launch:
 - mainnet0-final-gonogo-map-proof must pass,
 - mainnet0-launch-approval-plan-proof must pass,
 - mainnet0-final-public-launch-checklist-proof must pass,
-- mainnet0-status-smoke must pass,
+- mainnet0-status-smoke must pass on Precision,
+- `VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-crossbox-status-smoke` must pass with an explicitly reviewed nonlocal current-fleet peer,
 - validator lifecycle freshness must be under the allowed maximum,
-- Precision and Alienware must both be green,
+- Precision and the selected cross-box peer must both be green,
+- retired Alienware must be rejected as a cross-box target,
 - the future approval artifact must be separate from this prep document.
 
 ## Current conclusion
