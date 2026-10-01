@@ -262,6 +262,8 @@ const authorityTrue = new Set([
   "canonical_classifier_reexecution",
   "reviewed_git_commit_required",
   "canonical_main_application_required",
+  "canonical_remote_main_read_required",
+  "external_network_read",
   "filesystem_read",
 ]);
 for (const [key, value] of Object.entries(
@@ -500,6 +502,8 @@ for (const required of [
   "--no-replace-objects",
   "GIT_NO_REPLACE_OBJECTS",
   "canonicalRemote",
+  "canonicalRemoteMainHead",
+  "PARTICIPANT_CANONICAL_APPLIED_HEAD_NOT_REMOTE_MAIN",
   "assertWorktreeBlob",
 ]) {
   assert.equal(source.includes(required), true, required);
