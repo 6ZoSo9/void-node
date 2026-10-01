@@ -1571,7 +1571,11 @@ function usage() {
       "--output /abs/plan.json",
   );
   console.log(
-    "verify-applied --plan /abs/plan.json --plan-sha256 64hex",
+    "verify-applied --plan /abs/plan.json --plan-sha256 64hex " +
+      "--public-read-evidence /abs/file --public-read-sha256 64hex " +
+      "--public-read-evidence-id voide2pre1_... --evaluation-time-utc ... " +
+      "--state-root-membership /abs/file --membership-sha256 64hex " +
+      "--registry 0x... --publisher 0x... --confirmation ...",
   );
 }
 
@@ -1674,8 +1678,23 @@ async function main(argv) {
   }
 
   if (command === "verify-applied") {
-    if (!values.plan || !values["plan-sha256"]) {
-      fail("PUBLIC_VERIFICATION_APPLICATION_VERIFY_ARGUMENTS_MISSING");
+    const required = [
+      "plan",
+      "plan-sha256",
+      "public-read-evidence",
+      "public-read-sha256",
+      "public-read-evidence-id",
+      "evaluation-time-utc",
+      "state-root-membership",
+      "membership-sha256",
+      "registry",
+      "publisher",
+      "confirmation",
+    ];
+    for (const key of required) {
+      if (!values[key]) {
+        fail("PUBLIC_VERIFICATION_APPLICATION_VERIFY_ARGUMENT_MISSING:" + key);
+      }
     }
     const result =
       await verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1({
@@ -1685,10 +1704,29 @@ async function main(argv) {
           "PUBLIC_VERIFICATION_APPLICATION_PLAN_INPUT",
         ),
         application_plan_file_sha256: values["plan-sha256"],
+        public_read_evidence_bytes: readStableExternalFile(
+          path.resolve(values["public-read-evidence"]),
+          MAX_PUBLIC_READ_BYTES,
+          "PUBLIC_VERIFICATION_APPLICATION_VERIFY_PUBLIC_READ_FILE",
+        ),
+        public_read_evidence_file_sha256: values["public-read-sha256"],
+        public_read_evidence_id: values["public-read-evidence-id"],
+        evaluation_time_utc: values["evaluation-time-utc"],
+        state_root_membership_bytes: readStableExternalFile(
+          path.resolve(values["state-root-membership"]),
+          MAX_MEMBERSHIP_BYTES,
+          "PUBLIC_VERIFICATION_APPLICATION_VERIFY_MEMBERSHIP_FILE",
+        ),
+        state_root_membership_file_sha256: values["membership-sha256"],
+        expected_registry_address: values.registry,
+        expected_publisher_address: values.publisher,
+        review_confirmation: values.confirmation,
       });
     console.log(VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_V1);
     console.log("status=" + result.status);
     console.log("application_id=" + result.application_id);
+    console.log("exact_upstream_semantic_replay_verified=true");
+    console.log("exact_base_generation_replayed=true");
     console.log("successor_source_ready=true");
     console.log("migration_authorized=false");
     console.log("public_activation_authorized=false");
