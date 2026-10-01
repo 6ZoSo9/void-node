@@ -956,6 +956,11 @@ assert.deepEqual(pushPaths, pullPaths);
 assert.equal(new Set(pullPaths).size, pullPaths.length);
 
 const source = fs.readFileSync(TOOL, "utf8");
+assert.equal(
+  source.includes('fs.readFileSync(0,"utf8")'),
+  false,
+  "permission-fenced runner must not use fs.readFileSync(0)",
+);
 for (const forbidden of [
   "eth_sendRawTransaction",
   "eth_sendTransaction",
@@ -988,6 +993,8 @@ for (const required of [
   "--allow-fs-read=",
   "--allow-child-process",
   "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_EXECUTION_FAILED",
+  "process.stdin.setEncoding",
+  "for await (const chunk of process.stdin)",
   "makeParticipantReviewedExecutionTreeReadOnlyV1",
   "makeParticipantReviewedExecutionTreeRemovableV1",
   "O_NOFOLLOW",
@@ -1021,6 +1028,7 @@ console.log("execution_network_isolation_provided=false");
 console.log("hostile_ambient_execution_env_ignored=true");
 console.log("reviewed_execution_symlink_boundary_green=true");
 console.log("reviewed_execution_chmod_descriptor_bound=true");
+console.log("permission_fenced_stdin_streaming=true");
 console.log("focused_workflow_trigger_symmetry_green=true");
 console.log("raw_empty_catch_count=0");
 console.log("exact_one_gate_source_delta=true");
