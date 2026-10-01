@@ -257,6 +257,22 @@ for (const spec of scripts) {
 
 {
   const text = fs.readFileSync(
+    "ops/two-box-peer-proof-suite.sh",
+    "utf8",
+  );
+  assert.ok(
+    text.includes('cd "$VOID_TWO_BOX_REPO_ROOT"'),
+    "peer proof suite must execute from the checkout whose source parity was verified",
+  );
+  assert.equal(
+    text.includes('cd "$HOME/dev/void-node"'),
+    false,
+    "peer proof suite must not switch to an unverified local clone",
+  );
+}
+
+{
+  const text = fs.readFileSync(
     "ops/two-box-datanet-peer-path-proof.sh",
     "utf8",
   );
