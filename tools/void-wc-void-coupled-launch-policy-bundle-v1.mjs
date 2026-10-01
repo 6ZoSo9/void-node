@@ -382,7 +382,7 @@ function runReviewedCompiler(repo,raw,canonicalLaunchSource){
       'const request=JSON.parse(text);',
       'let envelope;',
       'try{',
-      '  const result=compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(request.raw,request.canonical_launch_source);',
+      '  const result=compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(request.raw,request.expected_launch_id);',
       '  envelope={ok:true,result,error:null};',
       '}catch(error){',
       '  envelope={ok:false,result:null,error:(error instanceof Error?error.message:String(error)).slice(0,512)};',
@@ -402,7 +402,10 @@ function runReviewedCompiler(repo,raw,canonicalLaunchSource){
       {
         cwd:runnerDir,
         env:privateNodeEnv(runnerDir),
-        input:JSON.stringify({raw,canonical_launch_source:canonicalLaunchSource}),
+        input:JSON.stringify({
+          raw,
+          expected_launch_id:canonicalLaunchSource.coupled_launch_id,
+        }),
         encoding:"utf8",
         stdio:["pipe","pipe","pipe"],
         maxBuffer:16*1024*1024,
@@ -482,23 +485,30 @@ function compileReviewed(raw,{requireCanonicalMain}){
     canonicalJson(reviewed.module_git_blobs)!==
       canonicalJson(closure.module_git_blobs)
   )fail("COUPLED_LAUNCH_POLICY_REVIEWED_MODULE_LINEAGE_DRIFT");
-  const result=reviewed.result;
+  const semantic=reviewed.result;
   if(
-    result.marker!==VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1||
-    result.schema!==VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1||
-    result.version!==1||
-    result.coupled_launch_id!==VOID_WC_VOID_COUPLED_LAUNCH_ID_V1||
-    canonicalJson(result.authority)!==
-      canonicalJson(VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1)||
-    canonicalJson(result.canonical_launch_source)!==
-      canonicalJson(launchSource)
-  )fail("COUPLED_LAUNCH_POLICY_REVIEWED_RESULT_BINDING_INVALID");
-  const body={...result};
-  delete body.bundle_id;
-  if(result.bundle_id!==digest(body)){
-    fail("COUPLED_LAUNCH_POLICY_REVIEWED_BUNDLE_ID_MISMATCH");
+    semantic.coupled_launch_id!==VOID_WC_VOID_COUPLED_LAUNCH_ID_V1||
+    "marker" in semantic||
+    "schema" in semantic||
+    "version" in semantic||
+    "bundle_id" in semantic||
+    "authority" in semantic||
+    "canonical_launch_source" in semantic
+  ){
+    fail("COUPLED_LAUNCH_POLICY_REVIEWED_SEMANTIC_RESULT_INVALID");
   }
-  return deepFreeze(result);
+  const body=Object.freeze({
+    marker:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
+    schema:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1,
+    version:1,
+    ...semantic,
+    canonical_launch_source:launchSource,
+    authority:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1,
+  });
+  return deepFreeze({
+    ...body,
+    bundle_id:digest(body),
+  });
 }
 
 export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw){
