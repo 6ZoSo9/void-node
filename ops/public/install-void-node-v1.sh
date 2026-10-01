@@ -76,6 +76,57 @@ print("existing_materialized_release_exact=true")
 PYMATERIALIZE
 }
 
+fsync_materialized_release(){
+  python3 - "$1" <<'PYFSYNC'
+import os
+import pathlib
+import sys
+
+root=pathlib.Path(sys.argv[1])
+if not root.is_dir() or root.is_symlink():
+    raise SystemExit("materialized release root must be a real directory")
+
+directories=[root]
+for candidate in sorted(root.rglob("*"), key=lambda p: p.relative_to(root).as_posix()):
+    metadata=candidate.lstat()
+    if candidate.is_symlink():
+        continue
+    if candidate.is_dir():
+        directories.append(candidate)
+        continue
+    if candidate.is_file():
+        fd=os.open(candidate, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        continue
+    raise SystemExit(
+        f"unsupported materialized release entry during fsync: "
+        f"{candidate.relative_to(root).as_posix()}"
+    )
+
+for directory in sorted(
+    directories,
+    key=lambda p: len(p.relative_to(root).parts),
+    reverse=True,
+):
+    fd=os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+parent_fd=os.open(root.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+try:
+    os.fsync(parent_fd)
+finally:
+    os.close(parent_fd)
+print("materialized_release_durable=true")
+PYFSYNC
+}
+
+
 install_stable_manager(){
   local control_dir="$INSTALL_ROOT/control"
   local manager_dir="$INSTALL_ROOT/bin"
@@ -388,7 +439,6 @@ PYBIND
 
 if test "$MATERIALIZE_ONLY" = 1; then
   mkdir -p "$INSTALL_ROOT/releases"
-  chmod 700 "$INSTALL_ROOT" 2>/dev/null || true
 else
   mkdir -p "$INSTALL_ROOT/releases" "$BIN_DIR" "$CONFIG_DIR" "$STATE_DIR" "$SYSTEMD_DIR"
   chmod 700 "$INSTALL_ROOT" "$CONFIG_DIR" "$STATE_DIR" 2>/dev/null || true
@@ -409,9 +459,12 @@ else
 fi
 
 if test "$MATERIALIZE_ONLY" = 1; then
+  fsync_materialized_release "$DEST" ||
+    die "materialized release durability sync failed: $DEST"
   say "$MARKER MATERIALIZE_ONLY_GREEN"
   say "version=$VERSION"
   say "release_dir=$DEST"
+  say "materialized_release_durable=true"
   say "current_pointer_mutated=false"
   say "previous_pointer_mutated=false"
   say "stable_manager_published=false"
