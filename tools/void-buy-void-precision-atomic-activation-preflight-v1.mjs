@@ -467,7 +467,9 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
       "branch",
       "head_sha",
       "remote_main_sha",
+      "canonical_remote_url",
       "reviewed_anchor_is_ancestor",
+      "reviewed_source_slice_green",
       "worktree_clean",
       "service_unit",
       "active_state",
@@ -486,7 +488,10 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
     typeof host.remote_main_sha !== "string" ||
     !/^[0-9a-f]{40}$/u.test(host.remote_main_sha) ||
     host.head_sha !== host.remote_main_sha ||
+    host.canonical_remote_url !==
+      "https://github.com/6ZoSo9/void-node.git" ||
     host.reviewed_anchor_is_ancestor !== true ||
+    host.reviewed_source_slice_green !== true ||
     host.worktree_clean !== true ||
     host.service_unit !== "void-node-live.service" ||
     host.active_state !== "active" ||
