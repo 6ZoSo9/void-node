@@ -2,6 +2,7 @@ name: VOID Epoch-2 public verification canonical application v1
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - ".github/workflows/void-economic-epoch2-public-verification-canonical-application-v1.yml"
       - "docs/operators/economic-epoch2-public-verification-canonical-application-v1.md"
