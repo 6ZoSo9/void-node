@@ -78,9 +78,9 @@ const SOURCE_BLOBS=Object.freeze({
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
   "tools/void-precision-web-recovery-evidence-v1.mjs":
-    "7a0e2653790ceabaaaa4dd6499968c9a3ed7bb1f",
+    "bca7d83c08607644058c4c3fe67f6be766d9fb3f",
   "docs/operators/precision-web-recovery-evidence-v1.md":
-    "8eabbfc22b571f5d95e1e9a7e8a9b27bae1d7346",
+    "7cc2a9eac3d6317fb779e8adbd2c62aa1d3bab8f",
   "public/void-public-frontdoor-v1/index.html":
     "19b09b0be6d8b7841855e0e86103f5fb0f56efac",
 });
