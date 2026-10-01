@@ -52,6 +52,10 @@ const files={
     "ops/mainnet/mainnet0-blockers.current.md",
     "utf8",
   ),
+  finalPublicChecklist:fs.readFileSync(
+    "ops/mainnet/mainnet0-final-public-launch-checklist.current.md",
+    "utf8",
+  ),
   goNoGo:fs.readFileSync(
     "ops/mainnet0-go-no-go-with-runtime.sh",
     "utf8",
@@ -71,6 +75,7 @@ const launchTruthPaths=[
   "ops/mainnet/mainnet0-final-gonogo-map.current.md",
   "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md",
   "ops/mainnet/mainnet0-blockers.current.md",
+  "ops/mainnet/mainnet0-final-public-launch-checklist.current.md",
 ];
 const prStart=files.workflow.indexOf("  pull_request:\n");
 const pushStart=files.workflow.indexOf("  push:\n");
@@ -194,6 +199,7 @@ const launchTruthDocs={
   finalGonogo:files.finalGonogo,
   launchApprovalPrep:files.launchApprovalPrep,
   blockers:files.blockers,
+  finalPublicChecklist:files.finalPublicChecklist,
 };
 
 for(const [name,source] of Object.entries(launchTruthDocs)) {
@@ -239,6 +245,15 @@ assert.match(
 assert.match(
   files.launchApprovalPrep,
   /explicit reviewed cross-box peer target, exact-head result, and readiness result/u,
+);
+
+assert.match(
+  files.finalPublicChecklist,
+  /present-tense cross-box evidence requires `VOID_MAINNET0_CROSSBOX_PEER`/u,
+);
+assert.doesNotMatch(
+  files.finalPublicChecklist,
+  /Alienware is a follower\/status-smoke box/iu,
 );
 
 console.log("VOID_MAINNET0_CROSSBOX_PEER_SAFETY_V1_GREEN");

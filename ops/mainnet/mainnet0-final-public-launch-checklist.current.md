@@ -26,7 +26,7 @@ money_step: ops_seed_complete_future_spend_guarded
 - Final checklist now preserves update-safety Prometheus-or-fallback, launch approval plan proof, and fail-closed go/no-go Prometheus-or-fallback sections.
 - Precision update-safety Prometheus timer is enabled and active.
 - Update-safety metric is durable on Precision.
-- Alienware is a follower/status-smoke box, not a Prometheus/node_exporter box.
+- Historical retired second-host status-smoke evidence is preserved; present-tense cross-box evidence requires `VOID_MAINNET0_CROSSBOX_PEER` set to an explicitly reviewed nonlocal current-fleet peer.
 - Validator runtime truth is green through epoch127.
 - Next guarded operator onboarding candidate is vault126 for epoch128 / expectedValidatorCount=127.
 - Public validator registration remains candidate/waiting only.
@@ -65,7 +65,7 @@ Before changing validator admission, Buy VOID fulfillment, authority, or treasur
 - rerun mainnet0-blockers-proof,
 - rerun mainnet0-final-path-proof,
 - rerun public release sanitization,
-- rerun cross-box status smoke,
+- rerun cross-box status smoke with `VOID_MAINNET0_CROSSBOX_PEER` set to an explicitly reviewed nonlocal current-fleet peer,
 - prove update-safety freshness on Precision,
 - write an explicit launch approval artifact,
 - only then run the final go/no-go bundle intentionally.

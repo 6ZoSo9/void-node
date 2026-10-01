@@ -20,6 +20,8 @@ on:
       - "ops/mainnet/mainnet0-final-gonogo-map.current.md"
       - "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md"
       - "ops/mainnet/mainnet0-blockers.current.md"
+      - "ops/mainnet/mainnet0-final-public-launch-checklist.current.md"
+      - "ops/mainnet/mainnet0-final-public-launch-checklist.current.md"
       - "Makefile"
   push:
     branches: [main]
