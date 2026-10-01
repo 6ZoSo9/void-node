@@ -234,6 +234,20 @@ function gitText(args, code) {
   return String(git(args, code).stdout || "").trim();
 }
 
+function canonicalOrigin(value) {
+  const accepted = new Set([
+    "https://github.com/6ZoSo9/void-node",
+    "https://github.com/6ZoSo9/void-node.git",
+    "git@github.com:6ZoSo9/void-node.git",
+    "ssh://git@github.com/6ZoSo9/void-node.git",
+  ]);
+  const origin = text(value);
+  if (!accepted.has(origin)) {
+    fail("live_deployment_preflight_repository_identity_invalid");
+  }
+  return CANONICAL_REMOTE;
+}
+
 function repositoryIdentity() {
   const head = gitText(["rev-parse", "HEAD"], "live_deployment_preflight_head_unavailable");
   const tree = gitText(
@@ -244,9 +258,11 @@ function repositoryIdentity() {
     ["status", "--porcelain=v1", "--untracked-files=all"],
     "live_deployment_preflight_status_unavailable",
   );
-  const origin = gitText(
-    ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
-    "live_deployment_preflight_origin_unavailable",
+  const origin = canonicalOrigin(
+    gitText(
+      ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
+      "live_deployment_preflight_origin_unavailable",
+    ),
   );
   const qualificationToolBlob = gitText(
     ["rev-parse", "HEAD:" + QUALIFICATION_TOOL_REL],
@@ -260,7 +276,6 @@ function repositoryIdentity() {
     !HEX40.test(head) ||
     !HEX40.test(tree) ||
     status !== "" ||
-    origin !== CANONICAL_REMOTE ||
     !HEX40.test(qualificationToolBlob) ||
     !HEX40.test(preflightToolBlob)
   ) {
