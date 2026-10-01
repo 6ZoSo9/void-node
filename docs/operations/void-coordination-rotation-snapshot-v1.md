@@ -19,7 +19,7 @@ It never creates or edits the successor issue. Ada remains the single rollover w
 
 The snapshot deliberately does **not** claim that open pull requests are a complete ownership map.
 
-It also does not trust the successor resolver's `chain_valid` flag by itself. The snapshot rechecks the issue-number sequence, predecessor→successor links, predecessor closure, terminal state, message counts, rotation threshold, dispatch-plan issue relationship, hold-reason contract, and all negative authority fields before summarizing the chain.
+It also does not trust the successor resolver's `chain_valid` flag by itself. The snapshot rechecks the issue-number sequence, predecessor→successor links, pointer-comment presence, predecessor closure, terminal state, message counts, rederived per-entry `rotation_required_here`, rotation threshold, dispatch-plan issue relationship, hold-reason contract, and all negative authority fields before summarizing the chain.
 
 It always emits:
 
@@ -62,7 +62,7 @@ The CLI reads one closed JSON object from standard input:
 }
 ```
 
-Open PR numbers must be unique. Each changed path must be repository-relative, normalized, and unique within the PR. Input is bounded to 4 MiB, at most 250 open PRs, and at most 500 changed paths per PR.
+Every PR entry must explicitly declare `state: "open"`; closed/merged PR evidence is rejected. Open PR numbers must be unique. Each changed path must be repository-relative, normalized, and unique within the PR. Input is bounded to 4 MiB, at most 250 open PRs, and at most 500 changed paths per PR.
 
 The live-dispatch policy is read from:
 
@@ -163,7 +163,7 @@ The proof loads the real checked-in 15-worker policy and covers:
 - invalid-chain HOLD;
 - stale policy issue HOLD;
 - negative authority enforcement;
-- duplicate PR rejection;
+- duplicate or non-open PR rejection;
 - unsafe path rejection; and
 - strict evidence schema;
 - forged successor-link rejection;
