@@ -32,7 +32,7 @@ ensure_private_direct_dir(){
       hold "${label}_parent_not_direct_directory"
     test "$(readlink -f "$parent")" = "$parent" ||
       hold "${label}_parent_alias_forbidden"
-    mkdir "$dir" || hold "${label}_create_failed"
+    mkdir -m 700 -- "$dir" || hold "${label}_create_failed"
   fi
 
   test "$(stat -c '%u' "$dir")" = "$(id -u)" ||
