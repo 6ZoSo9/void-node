@@ -132,6 +132,22 @@ Both receipts are required before commit can begin.
 
 ### Publish and verify
 
+Before any publication-side effect, the future executor must durably record a
+participant `publish_started` receipt. It binds the original prestate ID, exact
+target-state SHA-256, whether restart is expected, and the pre-restart
+`InvocationID` when applicable, while requiring
+`publication_performed=false`.
+
+Once that durable start exists,
+`nextVoidCrossboxMutationRecoveryV1(...)` returns
+`RECOVER_PUBLISH_<participant>`, not a blind publish instruction. Recovery
+must re-observe the participant first. If the exact intended state/restart is
+already present after a crash, it records the final publish receipt without
+repeating the side effect. If the exact original prestate and invocation are
+still present, it may record a `publish_no_effect` witness; that closes the
+ambiguous attempt and forces rollback rather than silently retrying the same
+transaction. An unresolved publish start cannot enter `ROLLING_BACK`.
+
 A publish receipt must match the intended participant state exactly.
 
 Immediately before publication, the live executor must re-observe the
@@ -155,8 +171,21 @@ Both participants must verify before `COMMITTED`.
 
 ### Rollback
 
-Rollback is explicit and content-addressed. Each participant must produce a
-restore receipt bound to its exact prestate ID.
+Rollback is explicit and content-addressed. Before any restore-side effect, the
+future executor must durably record `restore_started` for that participant.
+The start binds the exact prestate ID and, when a restart is required, the exact
+post-publication `InvocationID` from which rollback must begin.
+
+After that start is durable,
+`nextVoidCrossboxMutationRecoveryV1(...)` returns
+`RECOVER_RESTORE_<participant>`. If restoration/restart completed and the
+process crashed before the final restore receipt was persisted, recovery must
+observe the exact restored prestate and advanced InvocationID and record the
+receipt **without issuing a second blind restart**. If restoration had not yet
+occurred, the same observation step establishes what work remains.
+
+Each participant must ultimately produce a restore receipt bound to its exact
+prestate ID.
 
 Site-bundle restore additionally requires:
 
@@ -205,7 +234,16 @@ Both participants require restore receipts before `RESTORED`.
 - terminal committed/restored;
 - HOLD.
 
-The function never infers success from one participant alone.
+The function never infers success from one participant alone. Its publish and
+restore decisions deliberately distinguish:
+
+- `BEGIN_PUBLISH_*` from `RECOVER_PUBLISH_*`;
+- `BEGIN_RESTORE_*` from `RECOVER_RESTORE_*`; and
+- externally proven `publish_no_effect`, which yields `BEGIN_ROLLBACK`.
+
+That distinction is the durable crash seam: once a side-effect intent has been
+persisted, recovery observes before acting instead of inferring that a missing
+final receipt means the side effect never happened.
 
 ## Future live integration
 
@@ -219,9 +257,11 @@ durably on the two boxes and make actual publication/restart/recovery obey this
 state machine.
 
 That integration must stage both participants before publication, preserve
-exact prestates, fsync durable phase changes, recover idempotently after SSH or
-process loss, and keep Git checkpoint publication strictly after two-party
-commit.
+exact prestates, fsync every `publish_started` / `publish_no_effect` /
+`restore_started` journal transition **before** the corresponding live side
+effect, re-observe the host on every `RECOVER_*` action, recover idempotently
+after SSH/process/power loss, and keep Git checkpoint publication strictly
+after two-party commit.
 
 ## Authority boundary
 

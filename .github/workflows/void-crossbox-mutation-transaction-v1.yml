@@ -64,6 +64,12 @@ jobs:
           grep -F 'transaction_committed_state_invalid' "$tool" >/dev/null
           grep -F 'validator_checkpoint_tag_absence_recheck_required' "$tool" >/dev/null
           grep -F 'publish_restart_invocation_not_advanced' "$tool" >/dev/null
+          grep -F 'publish_started' "$tool" >/dev/null
+          grep -F 'publish_no_effect' "$tool" >/dev/null
+          grep -F 'restore_started' "$tool" >/dev/null
+          grep -F 'rollback_publish_start_unresolved' "$tool" >/dev/null
+          grep -F 'RECOVER_PUBLISH_LOCAL' "$tool" >/dev/null
+          grep -F 'RECOVER_RESTORE_LOCAL' "$tool" >/dev/null
 
           grep -F 'rollback-post' "$proof" >/dev/null 2>&1 || true
           grep -F 'A partial transaction is never GREEN.' "$doc" >/dev/null
