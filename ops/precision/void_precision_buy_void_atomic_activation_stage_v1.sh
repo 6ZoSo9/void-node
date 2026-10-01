@@ -64,6 +64,7 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/void-buy-void-stage.XXXXXX")"
 cleanup(){ rm -rf "$tmp"; }
 trap cleanup EXIT INT TERM
 preflight_log="$tmp/preflight.log"
+stage_log="$tmp/stage.log"
 
 say "=== FRESH ATOMIC PREFLIGHT ==="
 set +e
@@ -93,7 +94,34 @@ test "$(stat -Lc '%a' "$stage_root")" = "700" ||
 out_dir="$stage_root/$live_configuration_sha256"
 
 say "=== MATERIALIZE INACTIVE LIVE + ROLLBACK STAGE ==="
-node "$repo/$stage_tool_rel"   --preflight-log "$preflight_log"   --out-dir "$out_dir"   --active-dropin-dir "$active_dropin_dir"
+set +e
+node "$repo/$stage_tool_rel"   --preflight-log "$preflight_log"   --out-dir "$out_dir"   --active-dropin-dir "$active_dropin_dir" |
+  tee "$stage_log"
+stage_rc="${PIPESTATUS[0]}"
+set -e
+test "$stage_rc" -eq 0 ||
+  hold "inactive_stage_not_green"
+
+expected_preflight_log_sha256="$(
+  sha256sum "$preflight_log" | awk '{print $1}'
+)"
+staged_preflight_log_sha256="$(
+  awk -F= '
+    $1=="preflight_log_sha256" { value=$2 }
+    END { print value }
+  ' "$stage_log"
+)"
+[[ "$staged_preflight_log_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+  hold "staged_preflight_log_sha256_missing"
+test "$staged_preflight_log_sha256" = "$expected_preflight_log_sha256" ||
+  hold "staged_preflight_log_sha256_mismatch"
+grep -qx 'fresh_preflight_execution_proven=false' "$stage_log" ||
+  hold "stage_manifest_freshness_authority_mismatch"
+grep -qx 'manifest_is_preflight_authority=false' "$stage_log" ||
+  hold "stage_manifest_authority_mismatch"
+say "stage_binds_exact_fresh_preflight_log=true"
+say "stage_manifest_preflight_authority=false"
+say "wrapper_fresh_preflight_execution_proven=true"
 
 pid_after="$(systemctl --user show "$unit" -p MainPID --value)"
 inv_after="$(systemctl --user show "$unit" -p InvocationID --value)"
@@ -118,7 +146,10 @@ assert x.get("txroot_live") == 1
 ' || hold "readiness_not_green"
 
 say "staging_directory=$out_dir"
+say "preflight_log_sha256=$expected_preflight_log_sha256"
 say "preflight_credential_read_inside_reviewed_factory=true"
+say "wrapper_fresh_preflight_execution_proven=true"
+say "stage_manifest_preflight_authority=false"
 say "database_mutation=false"
 say "active_dropin_write=false"
 say "daemon_reload=false"
