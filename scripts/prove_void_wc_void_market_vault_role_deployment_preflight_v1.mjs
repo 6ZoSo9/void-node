@@ -221,6 +221,59 @@ for (const marker of [
   assert(cli.stdout.includes(marker), marker);
 }
 
+const workflow = fs.readFileSync(
+  ".github/workflows/void-wc-void-market-vault-role-deployment-preflight-v1.yml",
+  "utf8",
+);
+const workflowDependencies = [
+  ".github/workflows/void-wc-void-market-vault-role-deployment-preflight-v1.yml",
+  "docs/operators/wc-void-market-vault-role-deployment-preflight-v1.md",
+  "ops/mainnet0/wc-void-market-vault-role-deployment-preflight-v1.json",
+  "scripts/prove_void_wc_void_market_vault_role_deployment_preflight_v1.mjs",
+  "tools/void-wc-void-market-vault-role-deployment-preflight-v1.mjs",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+  "ops/mainnet0/chain2050-role-authority-sovereign-genesis-append-authorization-v1.json",
+  "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts",
+  "contracts/mainnet/WCVoidMarketVaultV2.sol",
+  "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
+];
+const prStart = workflow.indexOf("  pull_request:\n");
+const pushStart = workflow.indexOf("  push:\n");
+const permissionsStart = workflow.indexOf("\npermissions:\n");
+assert(prStart >= 0 && pushStart > prStart && permissionsStart > pushStart);
+const prBlock = workflow.slice(prStart, pushStart);
+const pushBlock = workflow.slice(pushStart, permissionsStart);
+for (const dependency of workflowDependencies) {
+  const token = '- "' + dependency + '"';
+  assert.equal(
+    prBlock.split(token).length - 1,
+    1,
+    "PR trigger mismatch: " + dependency,
+  );
+  assert.equal(
+    pushBlock.split(token).length - 1,
+    1,
+    "push trigger mismatch: " + dependency,
+  );
+}
+assert.match(workflow, /uses: actions\/checkout@[0-9a-f]{40}/u);
+assert.match(workflow, /uses: actions\/setup-node@[0-9a-f]{40}/u);
+assert.doesNotMatch(
+  workflow,
+  /uses: actions\/(?:checkout|setup-node)@v[0-9]/u,
+);
+assert.match(workflow, /persist-credentials:\s*false/u);
+assert.match(workflow, /fetch-depth:\s*0/u);
+for (const required of [
+  "node --check tools/void-wc-void-market-vault-role-deployment-preflight-v1.mjs",
+  "node --check scripts/prove_void_wc_void_market_vault_role_deployment_preflight_v1.mjs",
+  "node tools/void-wc-void-market-vault-role-deployment-preflight-v1.mjs",
+  "node scripts/prove_void_wc_void_market_vault_role_deployment_preflight_v1.mjs",
+]) {
+  assert(workflow.includes(required), required);
+}
+
 const source = fs.readFileSync(TOOL, "utf8");
 for (const forbidden of [
   "JsonRpcProvider(",
@@ -242,7 +295,7 @@ console.log(
 console.log("current_launch_identity_bound=true");
 console.log("current_compiled_identity_bound=true");
 console.log("current_settlement_executor_identity_bound=true");
-console.log("current_sovereign_closeout_identity_bound=true");
+console.log("current_sovereign_closeout_identity_bound=true");\nconsole.log("focused_workflow_self_enforcement_green=true");
 console.log("historical_launch_controller_authority=false");
 console.log("historical_launch_identity_rejected_green=true");
 console.log("historical_compiled_identity_rejected_green=true");
