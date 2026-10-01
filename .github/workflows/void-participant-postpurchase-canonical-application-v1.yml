@@ -2,7 +2,7 @@ name: VOID participant postpurchase canonical application v1
 
 on:
   pull_request:
-    paths:
+    paths: &paths
       - ".github/workflows/void-participant-postpurchase-canonical-application-v1.yml"
       - "docs/operators/participant-postpurchase-canonical-application-v1.md"
       - "scripts/prove_void_participant_postpurchase_canonical_application_v1.mjs"
@@ -11,25 +11,30 @@ on:
       - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
       - "tools/void-participant-postpurchase-finality-import-v1.mjs"
       - "tools/void-participant-postpurchase-finality-v1.mjs"
-      - "scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs"
       - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs"
+      - "scripts/prove_void_participant_postpurchase_coupled_candidate_promotion_v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/void-participant-postpurchase-canonical-application-v1.yml"
-      - "docs/operators/participant-postpurchase-canonical-application-v1.md"
-      - "scripts/prove_void_participant_postpurchase_canonical_application_v1.mjs"
-      - "tools/void-participant-postpurchase-canonical-application-v1.mjs"
-      - "tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs"
-      - "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs"
-      - "tools/void-participant-postpurchase-finality-import-v1.mjs"
-      - "tools/void-participant-postpurchase-finality-v1.mjs"
-      - "scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs"
-      - "tools/void-coupled-economic-successor-gate-v1.mjs"
-      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
-      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+    paths: *paths
 
 permissions:
   contents: read
@@ -37,7 +42,7 @@ permissions:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +57,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - name: Install locked dependencies
+      - name: Install exact locked dependencies without package scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Syntax
         run: |
@@ -60,9 +65,10 @@ jobs:
           node --check scripts/prove_void_participant_postpurchase_canonical_application_v1.mjs
       - name: Prove participant canonical application
         run: node scripts/prove_void_participant_postpurchase_canonical_application_v1.mjs
-      - name: Upstream participant provenance regressions
+      - name: Upstream participant and reviewed-runtime regressions
         run: |
           node scripts/prove_void_participant_postpurchase_production_runtime_binding_v1.mjs
           node scripts/prove_void_participant_postpurchase_coupled_candidate_promotion_v1.mjs
+          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
       - name: Diff hygiene
         run: git diff --check HEAD^..HEAD
