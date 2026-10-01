@@ -32,6 +32,8 @@
     "runtime_active_verified": false,
     "exact_genesis_bound": false,
     "production_validator_set_bound": false,
+    "production_validator_binding_source_path": null,
+    "production_validator_binding_evidence_sha256": null,
     "write_capability_classification": null,
     "independent_host_acceptance": false
   },
