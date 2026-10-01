@@ -365,7 +365,7 @@ if (!missingAtomicGeneration.ok) {
 }
 
 {
-  const mixed = structuredClone(atomicForwardGeneration);
+  const mixed = structuredClone(atomicForwardGeneration) as any;
   mixed.gates.admitted_guarded_runtime.configuration_sha256 =
     "6".repeat(64);
   const decision = decideBuyVoidPostgresActivationTransitionV1(
@@ -390,7 +390,7 @@ if (!missingAtomicGeneration.ok) {
   if (forged) {
     forged.configuration_sha256 = falseDigest;
     forged.generation_id = "voidbvpcg1_" + falseDigest;
-    for (const gate of Object.values(forged.gates)) {
+    for (const gate of Object.values(forged.gates) as any[]) {
       gate.configuration_sha256 = falseDigest;
       gate.generation_id = "voidbvpcg1_" + falseDigest;
     }
