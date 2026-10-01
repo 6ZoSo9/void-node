@@ -657,6 +657,8 @@ for (const required of [
   "--no-replace-objects",
   "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
   "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN",
+  'process.env.GIT_OPTIONAL_LOCKS = "0"',
+  "priorOptionalLocks",
   "detached_base_git_view_required",
   "applied_composition_reexecution_required",
   "exact_composition_execution_from_reviewed_head",
