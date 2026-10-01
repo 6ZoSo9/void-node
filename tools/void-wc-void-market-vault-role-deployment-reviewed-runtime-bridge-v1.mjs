@@ -14,6 +14,7 @@ const MAX_INPUT_BYTES=4*1024*1024;
 const ADDRESS=/^0x[0-9a-f]{40}$/u;
 const BYTES32=/^0x[0-9a-f]{64}$/u;
 const HEX=/^0x(?:[0-9a-f]{2})+$/u;
+const UINT=/^(0|[1-9][0-9]*)$/u;
 
 function fail(code){throw new Error(code);}
 
@@ -152,7 +153,11 @@ try{
       ["evidence","now_unix"],
       "ROLE_DEPLOYMENT_REVIEWED_RUNTIME_CONTROL_INPUT_INVALID",
     );
-    if(!Number.isSafeInteger(input.now_unix)||input.now_unix<=0){
+    if(
+      typeof input.now_unix!=="string"||
+      !UINT.test(input.now_unix)||
+      BigInt(input.now_unix)>(1n<<64n)-1n
+    ){
       fail("ROLE_DEPLOYMENT_REVIEWED_RUNTIME_CONTROL_TIME_INVALID");
     }
     result=await reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
