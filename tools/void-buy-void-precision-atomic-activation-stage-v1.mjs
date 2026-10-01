@@ -20,6 +20,8 @@ export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_AUTHORITY_V1 =
     manifest_is_preflight_authority: false,
     wrapper_fresh_preflight_required_for_operational_use: true,
     exact_preflight_log_sha256_binding_required: true,
+    descriptor_bound_preflight_log_read_required: true,
+    private_preflight_log_custody_required: true,
     exact_live_and_rollback_hash_binding_required: true,
     active_dropin_tree_overlap_forbidden: true,
     inactive_private_staging_write: true,
@@ -203,6 +205,86 @@ function fsyncRegularFile(filePath) {
   );
   try {
     fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+const MAX_PREFLIGHT_LOG_BYTES_V1 = 1024 * 1024;
+
+function descriptorIdentityV1(stat) {
+  return Object.freeze({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  });
+}
+
+function sameDescriptorIdentityV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtime_ns === right.mtime_ns &&
+    left.ctime_ns === right.ctime_ns
+  );
+}
+
+function readPrivatePreflightLogV1(filePath) {
+  if (!path.isAbsolute(filePath) || path.resolve(filePath) !== filePath) {
+    fail("preflight_log_path_invalid");
+  }
+  exactPrivateDirectory(path.dirname(filePath), "preflight_log_parent");
+
+  const fd = fs.openSync(
+    filePath,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const beforeStat = fs.fstatSync(fd, { bigint: true });
+    if (!beforeStat.isFile()) fail("preflight_log_not_direct_regular");
+    if (beforeStat.uid !== BigInt(currentUid())) {
+      fail("preflight_log_owner_mismatch");
+    }
+    if (beforeStat.nlink !== 1n) fail("preflight_log_hardlink_forbidden");
+    if ((Number(beforeStat.mode) & 0o777) !== 0o600) {
+      fail("preflight_log_mode_mismatch");
+    }
+    const size = Number(beforeStat.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size < 1 ||
+      size > MAX_PREFLIGHT_LOG_BYTES_V1
+    ) {
+      fail("preflight_log_size_invalid");
+    }
+
+    const before = descriptorIdentityV1(beforeStat);
+    const bytes = fs.readFileSync(fd);
+    if (bytes.length !== size) fail("preflight_log_short_or_growing_read");
+
+    const afterStat = fs.fstatSync(fd, { bigint: true });
+    const after = descriptorIdentityV1(afterStat);
+    if (!sameDescriptorIdentityV1(before, after)) {
+      fail("preflight_log_changed_during_read");
+    }
+
+    let pathStat;
+    try {
+      pathStat = fs.lstatSync(filePath, { bigint: true });
+    } catch {
+      fail("preflight_log_path_changed_during_read");
+    }
+    if (
+      pathStat.isSymbolicLink() ||
+      !pathStat.isFile() ||
+      !sameDescriptorIdentityV1(before, descriptorIdentityV1(pathStat))
+    ) {
+      fail("preflight_log_path_changed_during_read");
+    }
+    return bytes.toString("utf8");
   } finally {
     fs.closeSync(fd);
   }
@@ -493,12 +575,9 @@ if (direct) {
         fail(label + "_path_invalid");
       }
     }
-    const logStat = fs.lstatSync(logPath);
-    if (!logStat.isFile() || logStat.isSymbolicLink()) {
-      fail("preflight_log_not_direct_regular");
-    }
+    const preflightText = readPrivatePreflightLogV1(logPath);
     const result = stageVoidBuyVoidPrecisionAtomicActivationV1({
-      preflightText: fs.readFileSync(logPath, "utf8"),
+      preflightText,
       outDir,
       activeDropinDir,
     });

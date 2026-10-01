@@ -323,6 +323,13 @@ for (const required of [
   "fs.fsyncSync",
   "fsyncDirectory(parent)",
   "writeDurablePrivateFile",
+  "readPrivatePreflightLogV1",
+  "fs.constants.O_NOFOLLOW",
+  "fs.fstatSync(fd, { bigint: true })",
+  "preflight_log_hardlink_forbidden",
+  "preflight_log_changed_during_read",
+  "preflight_log_path_changed_during_read",
+  "MAX_PREFLIGHT_LOG_BYTES_V1",
   "const liveBytesSha256 = sha256(liveBytes)",
   "const rollbackBytesSha256 = sha256(rollbackBytes)",
   "private_stage_custody_required",
@@ -339,6 +346,12 @@ const parentFsyncAfterRenameAt =
 assert(durableTempFsyncAt >= 0);
 assert(publishRenameAt > durableTempFsyncAt);
 assert(parentFsyncAfterRenameAt > publishRenameAt);
+
+assert.equal(
+  toolSource.includes('fs.readFileSync(logPath, "utf8")'),
+  false,
+  "preflight log must not be validate-then-reopened by pathname",
+);
 
 const wrapperSource = fs.readFileSync(WRAPPER, "utf8");
 for (const forbidden of [
@@ -373,6 +386,8 @@ for (const required of [
   'ensure_private_direct_dir "$stage_root" "stage_root"',
   'exec "$bash_bin" --noprofile --norc',
   'unset BASH_ENV ENV NODE_OPTIONS NODE_PATH NPM_CONFIG_PREFIX npm_config_prefix',
+  'chmod 600 "$preflight_log"',
+  'preflight_log_private_custody=true',
   'test "$preflight_repository_head_sha" = "$head"',
   'test "$preflight_wrapper_git_blob_sha1" = "${source_blob[$preflight_wrapper_rel]}"',
   'test "$preflight_repository_tree_sha" = "$tree"',
@@ -445,6 +460,8 @@ console.log("private_stage_custody_verified=true");
 console.log("rendered_bytes_independently_hashed=true");
 console.log("wrapper_staged_bytes_rehashed=true");
 console.log("immutable_stage_source_execution_bound=true");
+console.log("descriptor_bound_preflight_log_read=true");
+console.log("private_preflight_log_custody_bound=true");
 console.log("reviewed_git_boundary_bound=true");
 console.log("exact_head_workflow_bound=true");
 console.log("durable_fsync_publication_verified=true");

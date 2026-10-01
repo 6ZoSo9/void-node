@@ -169,7 +169,14 @@ preflight_rc="${PIPESTATUS[0]}"
 set -e
 test "$preflight_rc" -eq 0 ||
   hold "fresh_atomic_preflight_not_green"
+chmod 600 "$preflight_log" ||
+  hold "preflight_log_private_mode_failed"
+test "$(stat -c '%u' "$preflight_log")" = "$(id -u)" ||
+  hold "preflight_log_owner_mismatch"
+test "$(stat -c '%a' "$preflight_log")" = "600" ||
+  hold "preflight_log_mode_mismatch"
 say "fresh_atomic_preflight_green=true"
+say "preflight_log_private_custody=true"
 
 live_configuration_sha256="$(
   awk -F= '

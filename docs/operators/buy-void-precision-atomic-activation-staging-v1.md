@@ -54,9 +54,16 @@ fresh_execution_proven=false
 manifest_is_preflight_authority=false
 ```
 
-Operationally, the Precision wrapper runs the reviewed preflight itself, hashes
-the exact captured log, requires the stage tool to report that same log hash,
-and emits:
+Operationally, the Precision wrapper runs the reviewed preflight itself inside
+its private temporary directory, seals the captured log to owner-only mode
+`0600`, hashes the exact captured log, and requires the stage tool to report
+that same log hash. The stage CLI opens that log once with
+`O_RDONLY|O_NOFOLLOW`, requires an owner-held `0700` parent, direct
+single-link `0600` regular-file custody and a bounded size, reads through that
+same descriptor, then requires stable dev/inode/size/mtime/ctime and path
+identity before using the bytes.
+
+The wrapper emits:
 
 ```text
 stage_binds_exact_fresh_preflight_log=true
@@ -179,6 +186,8 @@ inactive_staging_only=true
 wrapper_fresh_preflight_execution_proven=true
 stage_manifest_preflight_authority=false
 immutable_stage_source_execution=true
+descriptor_bound_preflight_log_read_required=true
+private_preflight_log_custody_required=true
 reviewed_git_source_boundary=true
 durable_fsync_publication_required=true
 private_stage_custody_required=true
