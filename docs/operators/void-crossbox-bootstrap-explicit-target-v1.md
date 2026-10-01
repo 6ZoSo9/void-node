@@ -27,12 +27,20 @@ compatibility; it means **remote SSH target**, not an active Alienware role.
 - `ops/post-bootstrap-crossbox-proof.sh`
 - `ops/tailscale-ssh-auth-preflight-proof.sh`
 
-Every script rejects a target containing the retired Alienware IP, Funnel name,
-or the word `alienware` before its first SSH action. The mutual-peer script
-also proves the guard occurs before its first systemd mutation.
+Every script rejects the retired Alienware IP, Funnel name, or the word
+`alienware` before its first SSH action. Guards cover all network coordinates
+that can redirect the proof, not only the SSH string:
 
-`ops/post-bootstrap-crossbox-proof.sh` additionally requires `PREC_TS`
-explicitly; it no longer embeds the historical Precision Tailnet address.
+- mutual peer: `ALIEN`, derived/overridden `ALIEN_TS`, and `PRECISION_TS`;
+- Tailnet HTTP: `ALIEN`, local `TS_IP`, and `PUBLIC_LOCAL_NODE_BASE`;
+- post-bootstrap: `ALIEN` and explicit `PREC_TS`;
+- SSH preflight: `ALIEN`.
+
+The mutual-peer script also proves the guard occurs before its first systemd
+mutation.
+
+`ops/post-bootstrap-crossbox-proof.sh` requires `PREC_TS` explicitly; it no
+longer embeds the historical Precision Tailnet address.
 
 ## Example
 
