@@ -321,8 +321,10 @@ function fixture(options = {}) {
     await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
       input(q, f.transport),
     );
+  if (!result.ok) {
+    throw new Error("green_fixture_hold:" + result.reason);
+  }
   assert.equal(result.ok, true);
-  if (!result.ok) throw new Error(result.reason);
   const preflight = result.preflight;
   assert.equal(
     preflight.marker,
