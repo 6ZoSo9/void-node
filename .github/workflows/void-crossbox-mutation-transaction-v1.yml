@@ -57,6 +57,9 @@ jobs:
           grep -F 'exact_prestate_restoration_required: true' "$tool" >/dev/null
           grep -F 'checkpoint_publish_after_two_party_commit_only: true' "$tool" >/dev/null
           grep -F 'manager_environment_restored' "$tool" >/dev/null
+          grep -F 'prestate_id_before_publish' "$tool" >/dev/null
+          grep -F 'publish_prestate_drift' "$tool" >/dev/null
+          grep -F 'validator_checkpoint_tag_absence_recheck_required' "$tool" >/dev/null
           grep -F 'publish_restart_invocation_not_advanced' "$tool" >/dev/null
 
           grep -F 'rollback-post' "$proof" >/dev/null 2>&1 || true
