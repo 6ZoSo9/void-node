@@ -147,6 +147,6 @@ This lane is repository-source preparation and verification only.
 
 Prepare remains network-free. Verify-applied performs one read-only, fixed-URL canonical GitHub `main` identity check for source provenance; that Git read is isolated from repository/global/system Git config and is not an economic/runtime network action.
 
-It performs no canonical source write, service/runtime mutation, production RPC call, production/economic network call, credential/key/wallet/signer access, transaction construction/signing/submission/broadcast, Chain-2050 write, validator/governance/WC mutation, migration activation, public activation, token movement, or funds movement.
+It performs private temporary filesystem writes only to materialize and remove the reviewed detached execution tree and create-only private CLI output. `repository_source_write=false`: it performs no canonical source write, service/runtime mutation, production RPC call, production/economic network call, credential/key/wallet/signer access, transaction construction/signing/submission/broadcast, Chain-2050 write, validator/governance/WC mutation, migration activation, public activation, token movement, or funds movement.
 
 A green prepare result is not an applied source change. A green verify-applied result is still only `SOURCE_READY` source truth; it is not runtime activation.
