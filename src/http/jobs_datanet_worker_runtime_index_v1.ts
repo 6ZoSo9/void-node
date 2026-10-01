@@ -87,6 +87,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private locallyDone = new Set<string>();
   private jobsAdmittedStamp: AgentPick2JsonlFileStampV1 | null = null;
   private jobsSourceRejected = false;
+  private jobsSourceRejectReason: string | null = null;
   private bytesReadTotal = 0;
 
   constructor(opts: {
@@ -134,6 +135,13 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
   private clearJobsSourceAuthorityV1(): void {
     this.jobsAdmittedStamp = null;
     this.jobsSourceRejected = false;
+    this.jobsSourceRejectReason = null;
+  }
+
+  private rejectJobsSourceV1(reason: string): void {
+    this.resetJobsGenerationV1();
+    this.jobsSourceRejected = true;
+    this.jobsSourceRejectReason = reason;
   }
 
   private admitJobsSourceV1(
@@ -155,6 +163,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
       // Keep the last admitted generation. A later B -> B observation must not
       // self-authorize a transition that already failed A -> B.
       this.jobsSourceRejected = true;
+      this.jobsSourceRejectReason = "jobs_unwitnessed_source_change";
       return false;
     }
     this.jobsAdmittedStamp = { ...current };
@@ -271,7 +280,8 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           ready: false,
           jobs: [],
           doneTruthHas: () => false,
-          holdReason: "jobs_unwitnessed_source_change",
+          holdReason:
+            this.jobsSourceRejectReason || "jobs_unwitnessed_source_change",
           scanComplete: false,
           bytesReadThisTick: 0,
           bytesReadTotal: this.bytesReadTotal,
@@ -476,7 +486,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
           Buffer.byteLength(jobId, "utf8") >
           VOID_JOBS_DATANET_WORKER_MAX_JOB_ID_UTF8_BYTES_V1
         ) {
-          this.resetJobsGenerationV1();
+          this.rejectJobsSourceV1("jobs_job_id_too_large");
           throw new Error(
             "VOID_JOBS_DATANET_WORKER_JOB_ID_TOO_LARGE " +
               `file=${input.jobsFile}`,
@@ -485,7 +495,7 @@ export class JobsDatanetWorkerRuntimeIndexV1 {
         if (this.jobsSeen.has(jobId)) continue;
         if (this.jobsSeen.size >= this.maxSeenJobIds) {
           const limit = this.maxSeenJobIds;
-          this.resetJobsGenerationV1();
+          this.rejectJobsSourceV1("jobs_seen_job_cardinality_hold");
           throw new Error(
             "VOID_JOBS_DATANET_WORKER_SEEN_JOB_CARDINALITY_HOLD " +
               `limit=${limit} file=${input.jobsFile}`,
