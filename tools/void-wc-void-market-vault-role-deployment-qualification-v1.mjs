@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -17,6 +18,11 @@ export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_AUTHORITY_V
     launch_controller_control_reverification: true,
     reviewed_control_execution_from_exact_git_objects: true,
     private_reviewed_source_materialization: true,
+    reviewed_package_runtime_required: true,
+    reviewed_package_bytes_verified: true,
+    private_reviewed_package_materialization: true,
+    ancestor_package_resolution_preempted: true,
+    ambient_node_package_bytes_forbidden: true,
     git_replacement_objects_disabled: true,
     settlement_executor_public_identity_rederivation: true,
     closeout_controller_public_identity_rederivation: true,
@@ -70,6 +76,14 @@ const CONTROL_REL =
   "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
 const PACKAGE_REL = "package.json";
 const PACKAGE_LOCK_REL = "package-lock.json";
+const REVIEWED_RUNTIME_TOOL_REL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_RUNTIME_PROFILE_ID =
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 =
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 
 export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1 =
   Object.freeze({
@@ -82,6 +96,10 @@ export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOB
     [CONTROL_REL]: "a17a6da5f85a740c5c38b0c4fb3377c7df05d270",
     [PACKAGE_REL]: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
     [PACKAGE_LOCK_REL]: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+    [REVIEWED_RUNTIME_TOOL_REL]:
+      "6475c3f18ffe566cf5f448ca1de4795391a6efde",
+    [REVIEWED_RUNTIME_PROFILE_REL]:
+      "87b650e28366acfea3d140ea7778f41f57e5b0c3",
   });
 
 const EXPECTED = Object.freeze({
@@ -295,6 +313,142 @@ function materializedBlob(treeRoot,relativePath,expectedBlob) {
   return bytes;
 }
 
+function writePrivateSource(file, bytes, mode = 0o400) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    mode,
+  );
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, mode);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function makePrivateTreeRemovable(root) {
+  if (!fs.existsSync(root)) return;
+  const stat = fs.lstatSync(root);
+  if (stat.isSymbolicLink()) return;
+  if (stat.isDirectory()) {
+    fs.chmodSync(root, 0o700);
+    for (const entry of fs.readdirSync(root)) {
+      makePrivateTreeRemovable(path.join(root, entry));
+    }
+  } else if (stat.isFile()) {
+    fs.chmodSync(root, 0o600);
+  }
+}
+
+async function withReviewedEthersPackageRoot(source, fn) {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-vault-role-reviewed-ethers-"),
+  );
+  fs.chmodSync(tempRoot, 0o700);
+  try {
+    const runtimeToolFile = path.join(tempRoot, "reviewed-node-runtime.mjs");
+    writePrivateSource(
+      runtimeToolFile,
+      source.bytes[REVIEWED_RUNTIME_TOOL_REL],
+      0o400,
+    );
+    const runtimeTool = await import(
+      pathToFileURL(runtimeToolFile).href +
+        "?blob=" +
+        source.dependency_git_blobs[REVIEWED_RUNTIME_TOOL_REL]
+    );
+    for (const name of [
+      "verifyReviewedNodePackageRuntimeV1",
+      "materializeReviewedNodePackageRuntimeV1",
+      "verifyMaterializedReviewedNodePackageRuntimeV1",
+    ]) {
+      if (typeof runtimeTool[name] !== "function") {
+        fail("reviewed_node_runtime_export_missing:" + name);
+      }
+    }
+
+    const profile = parseJsonBytes(
+      source.bytes[REVIEWED_RUNTIME_PROFILE_REL],
+      "reviewed_node_runtime_profile",
+    );
+    if (
+      profile.marker !== "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1" ||
+      profile.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE" ||
+      profile.version !== 1 ||
+      profile.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      profile.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 ||
+      canonicalJson(profile.root_packages) !== canonicalJson(["ethers"])
+    ) {
+      fail("reviewed_node_runtime_profile_invalid");
+    }
+
+    const verified = runtimeTool.verifyReviewedNodePackageRuntimeV1({
+      profile,
+      repoRoot: ROOT,
+    });
+    if (
+      verified?.ok !== true ||
+      verified.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      verified.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      verified.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256
+    ) {
+      fail("reviewed_node_runtime_profile_not_verified");
+    }
+
+    const runtimeRoot = path.join(tempRoot, "runtime");
+    const materialized =
+      runtimeTool.materializeReviewedNodePackageRuntimeV1({
+        profile,
+        repoRoot: ROOT,
+        destinationRoot: runtimeRoot,
+      });
+    if (
+      materialized?.ok !== true ||
+      materialized.status !==
+        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      materialized.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      materialized.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 ||
+      materialized.read_only_materialization !== true
+    ) {
+      fail("reviewed_node_runtime_materialization_invalid");
+    }
+
+    const reverified =
+      runtimeTool.verifyMaterializedReviewedNodePackageRuntimeV1({
+        profile,
+        repoRoot: ROOT,
+        destinationRoot: runtimeRoot,
+      });
+    if (
+      reverified?.ok !== true ||
+      reverified.status !==
+        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
+    ) {
+      fail("reviewed_node_runtime_materialization_reverification_failed");
+    }
+
+    return await fn(
+      Object.freeze({
+        runtimeRoot,
+        profile,
+        runtimeTool,
+      }),
+    );
+  } finally {
+    makePrivateTreeRemovable(tempRoot);
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 function reviewedControlEnv(treeRoot,gitDir) {
   return {
     PATH:"/usr/bin:/bin",
@@ -319,96 +473,146 @@ function restoreEnvironment(saved,keys) {
 }
 
 async function withReviewedControlReverifier(source,fn) {
-  const gitDir=repositoryGitDir();
-  const tempRoot=fs.mkdtempSync(
-    path.join(gitDir,"void-vault-role-reviewed-control-"),
+  return await withReviewedEthersPackageRoot(
+    source,
+    async ({ runtimeRoot }) => {
+      const gitDir=repositoryGitDir();
+      const treeRoot=path.join(runtimeRoot,"source");
+      const archive=path.join(runtimeRoot,"source.tar");
+      fs.mkdirSync(treeRoot,{mode:0o700});
+      try{
+        checkedSpawn(
+          GIT,
+          [
+            "--no-replace-objects",
+            "-C",ROOT,
+            "archive",
+            "--format=tar",
+            "--output="+archive,
+            source.source_head_sha,
+          ],
+          {code:"reviewed_control_git_archive_failed"},
+        );
+        checkedSpawn(
+          "/usr/bin/tar",
+          ["-xf",archive,"-C",treeRoot],
+          {code:"reviewed_control_git_archive_extract_failed"},
+        );
+        fs.unlinkSync(archive);
+
+        for(const [relativePath,expectedBlob] of Object.entries(
+          source.dependency_git_blobs,
+        )){
+          materializedBlob(treeRoot,relativePath,expectedBlob);
+        }
+        const controlExpected=
+          VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1[
+            CONTROL_REL
+          ];
+        materializedBlob(treeRoot,CONTROL_REL,controlExpected);
+
+        checkedSpawn(
+          "/usr/bin/chmod",
+          ["-R","a-w",treeRoot],
+          {code:"reviewed_control_readonly_lock_failed"},
+        );
+
+        const env=reviewedControlEnv(treeRoot,gitDir);
+        const keys=Object.keys(env);
+        const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+        Object.assign(process.env,env);
+        try{
+          const status=spawnSync(
+            GIT,
+            [
+              "--no-replace-objects",
+              "-c","core.fsmonitor=false",
+              "-c","core.hooksPath=/dev/null",
+              "-c","core.attributesFile=/dev/null",
+              "-c","core.untrackedCache=false",
+              "-c","core.preloadIndex=false",
+              "-c","submodule.recurse=false",
+              "-C",treeRoot,
+              "status","--porcelain=v1","--untracked-files=all",
+            ],
+            {
+              env,
+              encoding:"utf8",
+              stdio:["ignore","pipe","pipe"],
+              maxBuffer:4*1024*1024,
+            },
+          );
+          if(
+            status.error||
+            status.status!==0||
+            String(status.stdout||"").trim()!==""
+          )fail("reviewed_control_materialized_repository_not_clean");
+
+          const controlModule=await import(
+            pathToFileURL(path.join(treeRoot,CONTROL_REL)).href+
+              "?reviewed_blob="+controlExpected+
+              "&head="+source.source_head_sha
+          );
+          if(
+            typeof controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1!==
+              "function"
+          )fail("launch_controller_reverification_export_invalid");
+          return await fn(
+            controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
+          );
+        }finally{
+          restoreEnvironment(saved,keys);
+        }
+      } finally {
+        makePrivateTreeRemovable(treeRoot);
+      }
+    },
   );
-  fs.chmodSync(tempRoot,0o700);
-  const treeRoot=path.join(tempRoot,"tree");
-  const archive=path.join(tempRoot,"source.tar");
-  fs.mkdirSync(treeRoot,{mode:0o700});
-  try{
-    checkedSpawn(
-      GIT,
-      [
-        "--no-replace-objects",
-        "-C",ROOT,
-        "archive",
-        "--format=tar",
-        "--output="+archive,
-        source.source_head_sha,
-      ],
-      {code:"reviewed_control_git_archive_failed"},
-    );
-    checkedSpawn(
-      "/usr/bin/tar",
-      ["-xf",archive,"-C",treeRoot],
-      {code:"reviewed_control_git_archive_extract_failed"},
-    );
-    fs.unlinkSync(archive);
+}
 
-    for(const [relativePath,expectedBlob] of Object.entries(
-      source.dependency_git_blobs,
-    )){
-      materializedBlob(treeRoot,relativePath,expectedBlob);
-    }
-    const controlExpected=
-      VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1[
-        CONTROL_REL
-      ];
-    materializedBlob(treeRoot,CONTROL_REL,controlExpected);
-
-    checkedSpawn(
-      "/usr/bin/chmod",
-      ["-R","a-w",treeRoot],
-      {code:"reviewed_control_readonly_lock_failed"},
-    );
-
-    const env=reviewedControlEnv(treeRoot,gitDir);
-    const keys=Object.keys(env);
-    const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
-    Object.assign(process.env,env);
-    try{
-      const status=spawnSync(
-        GIT,
-        ["--no-replace-objects","-C",treeRoot,"status","--porcelain=v1","--untracked-files=all"],
-        {
-          env,
-          encoding:"utf8",
-          stdio:["ignore","pipe","pipe"],
-          maxBuffer:4*1024*1024,
-        },
+async function withReviewedEthersBridge(source, fn) {
+  return await withReviewedEthersPackageRoot(
+    source,
+    async ({ runtimeRoot }) => {
+      const sourceRoot = path.join(runtimeRoot, "source");
+      fs.mkdirSync(sourceRoot, { mode: 0o700 });
+      const bridgeFile = path.join(
+        sourceRoot,
+        "void-vault-role-reviewed-ethers-bridge.mjs",
       );
-      if(
-        status.error||
-        status.status!==0||
-        String(status.stdout||"").trim()!==""
-      )fail("reviewed_control_materialized_repository_not_clean");
-
-      const controlModule=await import(
-        pathToFileURL(path.join(treeRoot,CONTROL_REL)).href+
-          "?reviewed_blob="+controlExpected+
-          "&head="+source.source_head_sha
+      const bridgeSource = [
+        'import { AbiCoder, concat, keccak256 } from "ethers";',
+        'export function deriveDeploymentMaterial(types,values,creationHex){',
+        '  const encodedArgs=AbiCoder.defaultAbiCoder().encode(types,values);',
+        '  const deploymentDataHex=concat([creationHex,encodedArgs]);',
+        '  return {',
+        '    encoded_args_hex:encodedArgs,',
+        '    deployment_data_hex:deploymentDataHex,',
+        '    creation_keccak256:keccak256(creationHex),',
+        '    deployment_data_keccak256:keccak256(deploymentDataHex),',
+        '  };',
+        '}',
+        '',
+      ].join("\n");
+      writePrivateSource(
+        bridgeFile,
+        Buffer.from(bridgeSource, "utf8"),
+        0o400,
       );
-      if(
-        typeof controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1!==
-          "function"
-      )fail("launch_controller_reverification_export_invalid");
+      const bridge = await import(
+        pathToFileURL(bridgeFile).href +
+          "?sha256=" +
+          sha256(Buffer.from(bridgeSource, "utf8"))
+      );
+      if (typeof bridge.deriveDeploymentMaterial !== "function") {
+        fail("reviewed_ethers_bridge_export_invalid");
+      }
       return await fn(
-        controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
+        bridge.deriveDeploymentMaterial,
+        sha256(Buffer.from(bridgeSource, "utf8")),
       );
-    }finally{
-      restoreEnvironment(saved,keys);
-    }
-  }finally{
-    if(fs.existsSync(treeRoot)){
-      spawnSync("/usr/bin/chmod",["-R","u+w",treeRoot],{
-        env:{PATH:"/usr/bin:/bin"},
-        stdio:"ignore",
-      });
-    }
-    fs.rmSync(tempRoot,{recursive:true,force:true});
-  }
+    },
+  );
 }
 
 async function testOnlyYieldAfterSourceBinding() {
