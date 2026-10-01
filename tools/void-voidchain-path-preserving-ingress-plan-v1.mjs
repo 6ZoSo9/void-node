@@ -759,7 +759,6 @@ export function prepareVoidchainPathPreservingIngressPlanV1(input={}){
   writeExclusive(configPath,config);
   writeExclusive(unitPath,unit);
   writeExclusive(instructionPath,instructions);
-  fs.fsyncSync(fs.openSync(outputDir,"r"));
 
   const generatedFiles=Object.freeze({
     "cloudflared-config.yml":fileEntry(configPath),
