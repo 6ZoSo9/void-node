@@ -17,6 +17,7 @@ export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_AUTHORITY_V1 =
     evidence_fresh_at_collection_required:true,
     application_time_authority:false,
     canonical_head_candidate_required:true,
+    git_config_isolated:true,
     reviewed_execution_source_required:true,
     verified_modules_loaded_from_exact_git_objects:true,
     ephemeral_verified_module_materialization:true,
@@ -149,23 +150,44 @@ function exactObject(value,keys,code){
 }
 
 function gitEnv(){
-  const env={
+  return {
     PATH:"/usr/bin:/bin",
+    LANG:"C",
+    LC_ALL:"C",
     HOME:"/nonexistent",
     XDG_CONFIG_HOME:"/nonexistent",
     GIT_CONFIG_NOSYSTEM:"1",
     GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_ATTR_NOSYSTEM:"1",
     GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_OPTIONAL_LOCKS:"0",
     GIT_TERMINAL_PROMPT:"0",
     GIT_ASKPASS:"/bin/false",
   };
-  return env;
+}
+
+function gitSafetyConfigArgs(){
+  return [
+    "-c","core.worktree="+ROOT,
+    "-c","core.fsmonitor=false",
+    "-c","core.hooksPath=/dev/null",
+    "-c","core.attributesFile=/dev/null",
+    "-c","core.untrackedCache=false",
+    "-c","core.preloadIndex=false",
+    "-c","submodule.recurse=false",
+  ];
 }
 
 function gitRun(args,{encoding="utf8",allowFail=false}={}){
   const r=spawnSync(
     GIT,
-    ["--no-replace-objects","-C",ROOT,...args],
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(),
+      "-C",ROOT,
+      ...args,
+    ],
     {
       env:gitEnv(),
       encoding,
@@ -200,7 +222,7 @@ function repositoryIdentity(){
   );
   if(!HEX40.test(head)||!HEX40.test(tree))fail("MARKET_VAULT_CANONICAL_REPOSITORY_IDENTITY_INVALID");
   const origin=gitText(
-    ["config","--get","remote.origin.url"],
+    ["config","--local","--no-includes","--get","remote.origin.url"],
     "MARKET_VAULT_CANONICAL_ORIGIN_UNAVAILABLE",
   );
   if(![
