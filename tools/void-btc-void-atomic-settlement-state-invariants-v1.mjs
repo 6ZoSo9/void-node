@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
-import { pathToFileURL } from "node:url";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   quoteBtcVoidV1,
@@ -13,11 +15,11 @@ import {
   evaluateBtcVoidBuybackLotJournalTransitionV1,
 } from "./void-btc-void-buyback-lot-journal-transition-v1.mjs";
 import {
-  APPROVED_MARKETS,
-  SETTLEMENT_SOURCE_REQUIREMENTS,
-  VOID_MARKET_ALLOCATION_ATOMS,
-  inspectOpeningQuoteSettlementAdapterConfiguration,
-} from "./void-shared-market-post-discovery-state-v1.mjs";
+  VOID_SHARED_MARKET_EXECUTION_BINDING_V2,
+  VOID_SHARED_MARKET_POST_DISCOVERY_AUTHORITY_V2,
+  VOID_SHARED_MARKET_POST_DISCOVERY_SCHEMA_V2,
+  VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2,
+} from "./void-shared-market-post-discovery-state-v2.mjs";
 import {
   readBtcVoidBoundedStdinV1,
 } from "./void-btc-void-bounded-stdin-v1.mjs";
@@ -46,6 +48,18 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const MAX_EVENTS = 64;
 const MAX_STDIN_BYTES = 1_048_576;
+const MAX_CANONICAL_CANDIDATE_BYTES = 2 * 1024 * 1024;
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const COUPLED_CANDIDATE_REL =
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const EXPECTED_COUPLED_CANDIDATE_GIT_BLOB_SHA1 =
+  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+const CANONICAL_VOID_TOKEN =
+  "0x470075b85352eb86f7d089fb9ba88945f12aad94";
+const TEN_MILLION_VOID_ATOMS = "10000000000000000000000000";
+const TWENTY_MILLION_VOID_ATOMS = "20000000000000000000000000";
+const TWENTY_FIVE_MILLION_VOID_ATOMS = "25000000000000000000000000";
+const THIRTY_MILLION_VOID_ATOMS = "30000000000000000000000000";
 
 const TERMINAL_PHASES = new Set([
   "SETTLED",
@@ -187,37 +201,151 @@ function positiveDecimal(value, label, maximum) {
   return parsed;
 }
 
-function currentMarketPolicyPayload() {
-  const approved = APPROVED_MARKETS.BTC_VOID;
-  const settlement = SETTLEMENT_SOURCE_REQUIREMENTS.BTC_VOID;
-  const adapter = inspectOpeningQuoteSettlementAdapterConfiguration("BTC_VOID");
-  if (
-    approved?.quote_asset !== "BTC"
-    || approved?.base_asset !== "VOID"
-    || settlement?.source_domain !== "bitcoin-mainnet"
-    || settlement?.quote_asset_form !== "native"
-    || settlement?.quote_unit !== "satoshi"
-    || settlement?.quote_decimals !== 8
-  ) {
-    fail("current shared BTC_VOID market policy mismatch");
+function gitBlobSha1(bytes) {
+  if (!Buffer.isBuffer(bytes)) fail("canonical candidate bytes required");
+  const header = Buffer.from(`blob ${bytes.length}\0`, "utf8");
+  return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
+}
+
+function readCanonicalSharedMarketV2Binding() {
+  const file = path.join(ROOT, COUPLED_CANDIDATE_REL);
+  let bytes;
+  try {
+    bytes = fs.readFileSync(file);
+  } catch {
+    fail("canonical coupled candidate unavailable");
   }
+  if (
+    bytes.length < 2 ||
+    bytes.length > MAX_CANONICAL_CANDIDATE_BYTES ||
+    gitBlobSha1(bytes) !== EXPECTED_COUPLED_CANDIDATE_GIT_BLOB_SHA1
+  ) {
+    fail("canonical coupled candidate source generation mismatch");
+  }
+
+  let candidate;
+  try {
+    candidate = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    fail("canonical coupled candidate JSON invalid");
+  }
+  const shared = candidate?.shared_post_discovery_reconciliation;
+  if (
+    candidate?.marker !== "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1" ||
+    candidate?.version !== 1 ||
+    shared?.profile !== "canonical_source_model_fixture_v2" ||
+    shared?.source_model_fixture !== true ||
+    shared?.runtime_or_launch_evidence !== false ||
+    shared?.marker !== VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2 ||
+    shared?.schema !== VOID_SHARED_MARKET_POST_DISCOVERY_SCHEMA_V2 ||
+    shared?.chain_id !== VOID_SHARED_MARKET_EXECUTION_BINDING_V2.chain_id ||
+    shared?.network_identity !==
+      VOID_SHARED_MARKET_EXECUTION_BINDING_V2.network_identity ||
+    shared?.execution_epoch !==
+      VOID_SHARED_MARKET_EXECUTION_BINDING_V2.execution_epoch ||
+    shared?.void_token !== VOID_SHARED_MARKET_EXECUTION_BINDING_V2.void_token ||
+    shared?.void_token !== CANONICAL_VOID_TOKEN ||
+    shared?.void_token_decimals !==
+      VOID_SHARED_MARKET_EXECUTION_BINDING_V2.void_token_decimals ||
+    shared?.void_token_decimals !== 18 ||
+    shared?.btc_void_phase !== "post_presale_unopened" ||
+    shared?.btc_void_remains_post_presale !== true ||
+    shared?.shared_post_discovery_model_reconciled !== true ||
+    shared?.legacy_v1_six_decimal_void_atoms_authoritative !== false ||
+    shared?.all_markets_share_one_presale_closeout !== false ||
+    shared?.total_planned_void_inventory_atoms !== THIRTY_MILLION_VOID_ATOMS ||
+    shared?.unopened_post_presale_planned_void_inventory_atoms !==
+      TWENTY_MILLION_VOID_ATOMS ||
+    shared?.modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms !==
+      TWENTY_FIVE_MILLION_VOID_ATOMS ||
+    shared?.quote_reserve_custody_verified !== false ||
+    shared?.void_reserve_custody_verified !== false ||
+    shared?.market_activation_authority !== false ||
+    shared?.public_presale_activation_authority !== false ||
+    shared?.inventory_funding_authority !== false ||
+    shared?.funds_movement_authority !== false
+  ) {
+    fail("canonical shared-market v2 BTC_VOID policy mismatch");
+  }
+  sha256Id(shared.reconciliation_id, "shared reconciliation_id");
+
+  for (const [key, value] of Object.entries(
+    VOID_SHARED_MARKET_POST_DISCOVERY_AUTHORITY_V2,
+  )) {
+    const allowed = new Set(["source_only", "model_reconciliation_only"]);
+    if (value !== allowed.has(key)) {
+      fail("shared-market v2 authority mismatch");
+    }
+  }
+
+  return Object.freeze({
+    source_path: COUPLED_CANDIDATE_REL,
+    source_git_blob_sha1: EXPECTED_COUPLED_CANDIDATE_GIT_BLOB_SHA1,
+    profile: shared.profile,
+    reconciliation_id: shared.reconciliation_id,
+    marker: shared.marker,
+    schema: shared.schema,
+    chain_id: shared.chain_id,
+    network_identity: shared.network_identity,
+    execution_epoch: shared.execution_epoch,
+    void_token: shared.void_token,
+    void_token_decimals: shared.void_token_decimals,
+    btc_void_phase: shared.btc_void_phase,
+    btc_void_remains_post_presale: shared.btc_void_remains_post_presale,
+    total_planned_void_inventory_atoms:
+      shared.total_planned_void_inventory_atoms,
+    unopened_post_presale_planned_void_inventory_atoms:
+      shared.unopened_post_presale_planned_void_inventory_atoms,
+    modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms:
+      shared.modeled_protocol_side_void_after_wc_opening_before_post_presale_markets_atoms,
+    quote_reserve_custody_verified: shared.quote_reserve_custody_verified,
+    void_reserve_custody_verified: shared.void_reserve_custody_verified,
+    inventory_funding_authority: shared.inventory_funding_authority,
+    market_activation_authority: shared.market_activation_authority,
+    public_presale_activation_authority:
+      shared.public_presale_activation_authority,
+    funds_movement_authority: shared.funds_movement_authority,
+  });
+}
+
+function currentMarketPolicyPayload() {
+  const shared = readCanonicalSharedMarketV2Binding();
   return {
     schema: MARKET_POLICY_SCHEMA,
     pair: "BTC_VOID",
-    quote_asset: approved.quote_asset,
-    base_asset: approved.base_asset,
-    settlement_source_domain: settlement.source_domain,
-    quote_asset_form: settlement.quote_asset_form,
-    quote_unit: settlement.quote_unit,
-    quote_decimals: settlement.quote_decimals,
-    opening_settlement_adapter_contract_id: adapter.adapter_contract_id,
-    opening_settlement_adapter_configured: adapter.configured,
-    opening_settlement_adapter_independently_reviewed:
-      adapter.independently_reviewed,
-    void_market_allocation_atomic: VOID_MARKET_ALLOCATION_ATOMS.toString(),
+    shared_market_marker: shared.marker,
+    shared_market_schema: shared.schema,
+    shared_market_profile: shared.profile,
+    shared_market_source_path: shared.source_path,
+    shared_market_source_git_blob_sha1: shared.source_git_blob_sha1,
+    shared_market_reconciliation_id: shared.reconciliation_id,
+    chain_id: shared.chain_id,
+    network_identity: shared.network_identity,
+    execution_epoch: shared.execution_epoch,
+    void_token: shared.void_token,
+    void_token_decimals: shared.void_token_decimals,
+    btc_void_phase: shared.btc_void_phase,
+    btc_void_remains_post_presale: shared.btc_void_remains_post_presale,
+    quote_asset: "BTC",
+    base_asset: "VOID",
+    settlement_source_domain: "bitcoin-mainnet",
+    quote_asset_form: "native",
+    quote_unit: "satoshi",
+    quote_decimals: 8,
+    protocol_quote_seed_units: "0",
+    planned_btc_void_inventory_atoms: TEN_MILLION_VOID_ATOMS,
+    unopened_post_presale_planned_void_inventory_atoms:
+      shared.unopened_post_presale_planned_void_inventory_atoms,
+    quote_reserve_custody_verified: shared.quote_reserve_custody_verified,
+    void_reserve_custody_verified: shared.void_reserve_custody_verified,
+    inventory_funding_authority: shared.inventory_funding_authority,
+    market_activation_authority: shared.market_activation_authority,
+    public_presale_activation_authority:
+      shared.public_presale_activation_authority,
+    funds_movement_authority: shared.funds_movement_authority,
+    legacy_v1_shared_market_production_authority: false,
     wc_void_fixed_redemption_claim_created: false,
     wc_void_pricing_remains_market_determined: true,
-    activation_authority: false,
   };
 }
 
