@@ -41,6 +41,10 @@ import {
 
 const TOOL =
   "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
+const COUPLED_CANDIDATE =
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const REVIEWED_COUPLED_CANDIDATE_BLOB =
+  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
 const LAUNCH = VOID_WC_VOID_COUPLED_LAUNCH_ID_V1;
 const SPONSORED_POLICY_SCHEMA =
   "void.economic-system-sponsored-anti-grief-policy.v1";
@@ -207,6 +211,15 @@ assert.equal(
 );
 assert.match(result.bundle_id, /^sha256:[0-9a-f]{64}$/u);
 assert.equal(result.coupled_launch_id, LAUNCH);
+assert.deepEqual(result.canonical_launch_source, {
+  path: COUPLED_CANDIDATE,
+  git_blob_sha1: REVIEWED_COUPLED_CANDIDATE_BLOB,
+  file_sha256:
+    crypto.createHash("sha256")
+      .update(fs.readFileSync(COUPLED_CANDIDATE))
+      .digest("hex"),
+  coupled_launch_id: LAUNCH,
+});
 assert.equal(result.opening_window.opens_at_ms, 10000);
 assert.equal(result.opening_window.closes_at_ms, 20000);
 assert.equal(
@@ -352,6 +365,25 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const original = fs.readFileSync(COUPLED_CANDIDATE);
+  const candidate = JSON.parse(original.toString("utf8"));
+  candidate.shared_post_discovery_reconciliation.coupled_launch_id =
+    "sha256:" + "b".repeat(64);
+  try {
+    fs.writeFileSync(
+      COUPLED_CANDIDATE,
+      JSON.stringify(candidate, null, 2) + "\n",
+    );
+    assert.throws(
+      () => compileVoidWcVoidCoupledLaunchPolicyBundleV1(fixture()),
+      /COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_BLOB_MISMATCH/u,
+    );
+  } finally {
+    fs.writeFileSync(COUPLED_CANDIDATE, original);
+  }
+}
+
+{
   const tmp = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-coupled-launch-policy-bundle-"),
   );
@@ -386,6 +418,22 @@ for (const [key, value] of Object.entries(
     const persisted = JSON.parse(fs.readFileSync(output, "utf8"));
     assert.equal(persisted.bundle_id, result.bundle_id);
 
+    const alias = path.join(tmp, "input-alias.json");
+    fs.symlinkSync(input, alias);
+    const aliasRun = spawnSync(
+      process.execPath,
+      [
+        TOOL,
+        "--input",
+        alias,
+        "--output",
+        path.join(tmp, "alias-output.json"),
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(aliasRun.status, 2);
+    assert.match(aliasRun.stderr, /PATH_ALIAS_FORBIDDEN/u);
+
     const second = spawnSync(
       process.execPath,
       [
@@ -416,6 +464,15 @@ for (const forbidden of [
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.match(source, /O_NOFOLLOW/u);
+assert.match(source, /fstatSync/u);
+assert.match(source, /fsyncDirectory\(parent\)/u);
+assert.match(source, /REVIEWED_COUPLED_CANDIDATE_GIT_BLOB_SHA1/u);
+assert.equal(
+  source.includes("const bytes = fs.readFileSync(file);"),
+  false,
+  "private input must not reopen a validated pathname",
+);
 
 console.log("VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1_PROOF");
 console.log("explicit_opening_window_required=true");
@@ -424,6 +481,9 @@ console.log("explicit_minimum_real_wc_depth_required=true");
 console.log("explicit_ttl_and_outstanding_caps_required=true");
 console.log("explicit_sponsored_gas_budgets_required=true");
 console.log("all_policy_ids_content_addressed=true");
+console.log("canonical_coupled_launch_source_bound=true");
+console.log("private_input_descriptor_bound=true");
+console.log("private_output_directory_fsync_green=true");
 console.log("all_policy_commitments_precede_open=true");
 console.log("hidden_minimum_trade_amount_applied=false");
 console.log("production_values_selected_by_source=false");
