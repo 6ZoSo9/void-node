@@ -424,9 +424,9 @@ for (const forbidden of [
 }
 for (const required of [
   "withReviewedControlReverifier",
-  "reviewed_control_execution_from_exact_git_objects:true",
-  "private_reviewed_source_materialization:true",
-  "git_replacement_objects_disabled:true",
+  "reviewed_control_execution_from_exact_git_objects: true",
+  "private_reviewed_source_materialization: true",
+  "git_replacement_objects_disabled: true",
   "GIT_NO_REPLACE_OBJECTS",
   "--no-replace-objects",
   "reverifyVoidWcVoidLaunchControllerControlEvidenceV1",
