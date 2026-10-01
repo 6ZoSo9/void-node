@@ -77,6 +77,8 @@ jobs:
           grep -Fx 'current_quote_identity_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_shared_market_policy_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_shared_market_v2_canonical_source_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'shared_market_v2_source_drift_rejected=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'canonical_coupled_candidate_drift_rejected=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'historical_shared_market_v1_production_authority=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'btc_void_phase=post_presale_unopened' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'btc_void_inventory_funding_authority=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
