@@ -47,22 +47,27 @@ function clone(value) {
 }
 
 function lineages() {
-  const names = [
-    "bounded_canary",
-    "economic_epoch2_public_verification",
-    "ledger_custody",
-    "market_vault",
-    "opening_durable",
-    "participant_postpurchase",
-  ];
-  return names.map((lane, index) => ({
+  const statuses = {
+    bounded_canary:
+      "CANONICAL_BOUNDED_CANARY_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    economic_epoch2_public_verification:
+      "EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_VERIFIED_SOURCE_READY",
+    ledger_custody:
+      "LEDGER_CUSTODY_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    market_vault:
+      "MARKET_VAULT_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    opening_durable:
+      "OPENING_DURABLE_EVIDENCE_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+    participant_postpurchase:
+      "PARTICIPANT_CONTROL_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+  };
+  return Object.keys(statuses).sort().map((lane, index) => ({
     lane,
     application_plan_id:
       "void_application_plan_" + lane + "_v1",
-    applied_commit_sha:
-      String(index + 1).repeat(40),
-    application_receipt_sha256:
+    application_plan_file_sha256:
       String(index + 1).repeat(64),
+    verification_status: statuses[lane],
     verified_applied: true,
   }));
 }
@@ -115,7 +120,8 @@ for (const [key, value] of Object.entries(
   if (key === "source_promotion_only" ||
       key === "canonical_candidate_read" ||
       key === "git_application_lineage_read" ||
-      key === "candidate_copy_derivation") {
+      key === "candidate_copy_derivation" ||
+      key === "create_only_private_output") {
     assert.equal(value, true, key);
   } else {
     assert.equal(value, false, key);
