@@ -1271,6 +1271,112 @@ try {
     `reason=${seenOverflowReason}`,
   );
 
+  const sameStampJobsFile = path.join(
+    root,
+    "jobs-seen-cardinality-same-stamp.jsonl",
+  );
+  const sameStampReceiptsFile = path.join(
+    root,
+    "receipts-seen-cardinality-same-stamp.jsonl",
+  );
+  const sameStampJobStateFile = path.join(
+    root,
+    "job-state-seen-cardinality-same-stamp.jsonl",
+  );
+  fs.writeFileSync(sameStampReceiptsFile, "");
+  fs.writeFileSync(sameStampJobStateFile, "");
+  const sameStampRows = [
+    JSON.stringify({
+      job_id: "same_stamp_a",
+      status: "queued",
+      input: { plaintext: "a".repeat(1850) },
+    }),
+    JSON.stringify({
+      job_id: "same_stamp_b",
+      status: "queued",
+      input: { plaintext: "b".repeat(1850) },
+    }),
+    JSON.stringify({
+      job_id: "same_stamp_c",
+      status: "queued",
+      input: { plaintext: "c".repeat(1850) },
+    }),
+  ];
+  const firstTwoBytes = Buffer.byteLength(
+    sameStampRows[0] + "\n" + sameStampRows[1] + "\n",
+    "utf8",
+  );
+  const sameStampBytes = Buffer.byteLength(
+    sameStampRows.join("\n") + "\n",
+    "utf8",
+  );
+  assert(
+    firstTwoBytes < 4096 && sameStampBytes > 4096,
+    "seen-job-same-stamp-fixture-crosses-scan-boundary",
+    `first_two=${firstTwoBytes} total=${sameStampBytes}`,
+  );
+  fs.writeFileSync(sameStampJobsFile, sameStampRows.join("\n") + "\n");
+  const sameStampIndex = new JobsDatanetWorkerRuntimeIndexV1({
+    maxScanBytesPerTick: 4096,
+    maxJobsPerTick: 8,
+    maxSeenJobIds: 2,
+    maxSyncCompletionRebuildBytes: 1024 * 1024,
+    completionRebuildBackoffMs: 5,
+  });
+  const sameStampInput = {
+    jobsFile: sameStampJobsFile,
+    receiptsFile: sameStampReceiptsFile,
+    jobStateFile: sameStampJobStateFile,
+  };
+  const sameStampFirst = sameStampIndex.scan(sameStampInput);
+  assert(
+    sameStampFirst.ready === true &&
+      sameStampFirst.jobs.length === 2 &&
+      sameStampFirst.scanComplete === false,
+    "seen-job-same-stamp-first-chunk-admitted",
+    `ready=${sameStampFirst.ready} jobs=${sameStampFirst.jobs.length} complete=${sameStampFirst.scanComplete}`,
+  );
+  const staleSameStampJob = sameStampFirst.jobs[0]!.job;
+  for (const item of sameStampFirst.jobs) sameStampIndex.markDone(item.jobId);
+
+  let sameStampOverflowReason = "";
+  try {
+    sameStampIndex.scan(sameStampInput);
+  } catch (error) {
+    sameStampOverflowReason = String((error as Error)?.message || error);
+  }
+  assert(
+    sameStampOverflowReason.includes(
+      "VOID_JOBS_DATANET_WORKER_SEEN_JOB_CARDINALITY_HOLD",
+    ),
+    "seen-job-same-stamp-later-chunk-overflow-holds",
+    `reason=${sameStampOverflowReason}`,
+  );
+
+  let staleSameStampUseReason = "";
+  try {
+    void staleSameStampJob.status;
+  } catch (error) {
+    staleSameStampUseReason = String((error as Error)?.message || error);
+  }
+  assert(
+    staleSameStampUseReason.includes(
+      "VOID_JOBS_DATANET_WORKER_PENDING_USE_AUTHORITY_CHANGED",
+    ),
+    "seen-job-overflow-invalidates-earlier-same-stamp-job-proxy",
+    `reason=${staleSameStampUseReason}`,
+  );
+
+  const sameStampAfterHold = sameStampIndex.scan(sameStampInput);
+  assert(
+    sameStampAfterHold.ready === false &&
+      sameStampAfterHold.jobs.length === 0 &&
+      sameStampAfterHold.holdReason ===
+        "jobs_seen_job_cardinality_hold",
+    "seen-job-overflow-quarantines-current-generation",
+    `ready=${sameStampAfterHold.ready} jobs=${sameStampAfterHold.jobs.length} reason=${sameStampAfterHold.holdReason}`,
+  );
+
   const seenLongJobsFile = path.join(root, "jobs-seen-overlong-id.jsonl");
   const seenLongReceiptsFile = path.join(
     root,
@@ -1582,7 +1688,9 @@ try {
       ) &&
       helperSource.includes("VOID_JOBS_DATANET_WORKER_JOB_ID_TOO_LARGE") &&
       helperSource.includes('Buffer.byteLength(jobId, "utf8")') &&
-      helperSource.includes("this.jobsSeen.size >= this.maxSeenJobIds"),
+      helperSource.includes("this.jobsSeen.size >= this.maxSeenJobIds") &&
+      helperSource.includes("this.jobsSourceRejected = true") &&
+      helperSource.includes("jobs_seen_job_cardinality_hold"),
     "seen-job-cardinality-guard-source-present",
     "per-generation seen-job Set has bounded count and UTF-8 ID bytes",
   );
