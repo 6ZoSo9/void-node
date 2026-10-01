@@ -9,13 +9,15 @@ on:
       - "tools/void-btc-void-quote-math-v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
       - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
-      - "tools/void-shared-market-post-discovery-state-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
       - "scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs"
       - "scripts/prove_void_btc_void_quote_math_v1.mjs"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
       - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
-      - "scripts/prove_void_shared_market_post_discovery_state_v1.mjs"
+      - "scripts/prove_void_shared_market_post_discovery_state_v2.mjs"
       - "docs/public/btc-void-atomic-settlement-state-invariants-v1.md"
   push:
     branches: [main]
@@ -26,13 +28,15 @@ on:
       - "tools/void-btc-void-quote-math-v1.mjs"
       - "tools/void-btc-void-market-maker-reserve-policy-v1.mjs"
       - "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs"
-      - "tools/void-shared-market-post-discovery-state-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "scripts/lib/prove_void_btc_void_bounded_stdin_v1.mjs"
       - "scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs"
       - "scripts/prove_void_btc_void_quote_math_v1.mjs"
       - "scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs"
       - "scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs"
-      - "scripts/prove_void_shared_market_post_discovery_state_v1.mjs"
+      - "scripts/prove_void_shared_market_post_discovery_state_v2.mjs"
       - "docs/public/btc-void-atomic-settlement-state-invariants-v1.md"
 
 permissions:
@@ -66,12 +70,17 @@ jobs:
           node scripts/prove_void_btc_void_quote_math_v1.mjs
           node scripts/prove_void_btc_void_market_maker_reserve_policy_v1.mjs
           node scripts/prove_void_btc_void_buyback_lot_journal_transition_v1.mjs
-          node scripts/prove_void_shared_market_post_discovery_state_v1.mjs
+          node scripts/prove_void_shared_market_post_discovery_state_v2.mjs
           node scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs \
             | tee "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'VOID_BTC_VOID_ATOMIC_SETTLEMENT_CURRENT_STACK_V1_PROOF_GREEN' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_quote_identity_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_shared_market_policy_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'current_shared_market_v2_canonical_source_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'historical_shared_market_v1_production_authority=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'btc_void_phase=post_presale_unopened' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'btc_void_inventory_funding_authority=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'btc_void_market_activation_authority=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_reserve_policy_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_buyback_journal_decision_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'wc_void_fixed_redemption_introduced=false' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
