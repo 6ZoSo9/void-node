@@ -295,7 +295,9 @@ function materializeReviewedExecutionBundle() {
         if (fs.existsSync(candidate)) fs.chmodSync(candidate, 0o700);
       }
       fs.rmSync(root, { recursive: true, force: true });
-    } catch {}
+    } catch (cleanupError) {
+      void cleanupError;
+    }
     throw error;
   }
 }
@@ -318,7 +320,11 @@ function cleanupReviewedExecutionBundle(bundle) {
     }
   }
   for (const dir of dirs.sort((a, b) => a.length - b.length)) {
-    try { fs.chmodSync(dir, 0o700); } catch {}
+    try {
+      fs.chmodSync(dir, 0o700);
+    } catch (cleanupError) {
+      void cleanupError;
+    }
   }
   fs.rmSync(bundle.root, { recursive: true, force: true });
 }
