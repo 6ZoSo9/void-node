@@ -302,17 +302,17 @@ try{
   const globalConfig=path.join(hostileGitDir,"gitconfig");
   fs.writeFileSync(
     fakeGit,
-    "#!/bin/sh\\nprintf '%s\\n' fake-git > "+JSON.stringify(sentinel)+"\\nexit 91\\n",
+    "#!/bin/sh\nprintf '%s\n' fake-git > "+JSON.stringify(sentinel)+"\nexit 91\n",
     {mode:0o700},
   );
   fs.writeFileSync(
     fsmonitor,
-    "#!/bin/sh\\nprintf '%s\\n' fsmonitor >> "+JSON.stringify(sentinel)+"\\nexit 91\\n",
+    "#!/bin/sh\nprintf '%s\n' fsmonitor >> "+JSON.stringify(sentinel)+"\nexit 91\n",
     {mode:0o700},
   );
   fs.writeFileSync(
     globalConfig,
-    "[core]\\n  fsmonitor = "+fsmonitor+"\\n",
+    "[core]\n  fsmonitor = "+fsmonitor+"\n",
     {mode:0o600},
   );
   const hostileRun=spawnSync(
@@ -358,9 +358,9 @@ try{
     0,
     "hostile Git environment changed preflight execution: "+hostileRun.stderr,
   );
-  assert.match(
-    hostileRun.stdout,
-    new RegExp("preflight_id="+preflight.preflight_id+"(?:\\\\n|$)","u"),
+  assert.equal(
+    hostileRun.stdout.includes("preflight_id="+preflight.preflight_id+"\n"),
+    true,
     "hostile Git environment changed preflight identity",
   );
   assert.equal(
