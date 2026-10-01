@@ -10,7 +10,6 @@
     "installed_package_byte_inventory_required": true,
     "lockfile_closure_required": true,
     "market_activation": false,
-    "network_access": false,
     "npm_install_performed": false,
     "package_script_execution": false,
     "permission_fenced_execution": true,
@@ -28,7 +27,9 @@
     "transaction_signing": false,
     "transaction_submission": false,
     "wallet_or_signer_access": false,
-    "ambient_dynamic_loader_overrides_ignored": true
+    "ambient_dynamic_loader_overrides_ignored": true,
+    "tool_network_access": false,
+    "execution_network_isolation_provided": false
   },
   "marker": "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1",
   "package_count": 9,
@@ -198,7 +199,7 @@
   ],
   "packages_aggregate_sha256": "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73",
   "platform": "linux",
-  "profile_id": "voidrnpr1_1492f01cb202c23ad68260655fa111544d3cc6d6c17a4aa07540e2665c7c9e6d",
+  "profile_id": "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77",
   "root_packages": [
     "ethers"
   ],
