@@ -78,11 +78,11 @@ assert.equal(atThreshold.rotation_writer_worker_id, "ada");
 assert.equal(atThreshold.issue_creation_authorized, false);
 assert.equal(atThreshold.issue_close_authorized, false);
 
-const currentObserved = resolveCoordinationSuccessorChainRecordsV1({
+const overThreshold = resolveCoordinationSuccessorChainRecordsV1({
   "1507": record(1507, "open", 277),
 });
-assert.equal(currentObserved.outcome, "ROTATION_REQUIRED");
-assert.equal(currentObserved.chain[0].total_issue_messages, 278);
+assert.equal(overThreshold.outcome, "ROTATION_REQUIRED");
+assert.equal(overThreshold.chain[0].total_issue_messages, 278);
 
 const pointerBody = [
   "COORDINATION_SUCCESSOR=#1600",
@@ -222,7 +222,7 @@ console.log("rotation_threshold_total_messages=250");
 console.log("rotation_writer_worker_id=ada");
 console.log("below_threshold_outcome=" + below.outcome);
 console.log("threshold_outcome=" + atThreshold.outcome);
-console.log("observed_278_message_outcome=" + currentObserved.outcome);
+console.log("over_threshold_278_message_outcome=" + overThreshold.outcome);
 console.log("successor_resolved_outcome=" + successor.outcome);
 console.log("open_predecessor_hold=true");
 console.log("cycle_rejected=true");
