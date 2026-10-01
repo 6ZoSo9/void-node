@@ -10,11 +10,17 @@ import {fileURLToPath, pathToFileURL} from "node:url";
 
 const MARKER="VOID_NODE_RELEASE_UPDATE_V1";
 const ROLLBACK_TRANSACTION_MARKER="VOID_NODE_RELEASE_ROLLBACK_TRANSACTION_V1";
+const APPLY_TRANSACTION_MARKER="VOID_NODE_RELEASE_APPLY_TRANSACTION_V1";
+const APPLY_RESTORE_MARKER="VOID_NODE_RELEASE_APPLY_RESTORE_V1";
+const APPLY_TERMINAL_MARKER="VOID_NODE_RELEASE_APPLY_TERMINAL_V1";
+const APPLY_OPERATION_ID=/^[0-9a-f]{64}$/;
 const SYSTEMD_INVOCATION_ID=/^[0-9a-f]{32}$/;
 function fail(m,code=1){console.error(`ERROR: ${m}`);process.exit(code);}
 function say(m=""){console.log(m);}
 function shaBuffer(b){return crypto.createHash("sha256").update(b).digest("hex");}
 function shaFile(p){return crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");}
+function canonicalize(v){if(Array.isArray(v))return v.map(canonicalize);if(v&&typeof v==="object")return Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonicalize(v[k])]));return v;}
+function canonicalJson(v){return JSON.stringify(canonicalize(v));}
 function run(cmd,args,opt={}){
   const r=childProcess.spawnSync(cmd,args,{cwd:opt.cwd,env:{...process.env,...(opt.env||{})},encoding:"utf8",stdio:opt.capture?["ignore","pipe","pipe"]:"inherit",maxBuffer:128*1024*1024});
   if(r.error)throw r.error;
