@@ -55,7 +55,7 @@ function lineages() {
     ledger_custody:
       "LEDGER_CUSTODY_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
     market_vault:
-      "MARKET_VAULT_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
+      "MARKET_VAULT_CANONICAL_APPLICATION_STATE_VERIFIED_FINAL_ACTIVATION_HOLD",
     opening_durable:
       "OPENING_DURABLE_EVIDENCE_CANONICAL_APPLICATION_VERIFIED_FINAL_ACTIVATION_HOLD",
     participant_postpurchase:
@@ -70,6 +70,17 @@ function lineages() {
     verification_status: statuses[lane],
     verified_applied: true,
   }));
+}
+
+function repositoryIdentity() {
+  const head = "a".repeat(40);
+  return {
+    branch: "main",
+    head,
+    origin: "https://github.com/6ZoSo9/void-node.git",
+    remote_head: head,
+    tree: "b".repeat(40),
+  };
 }
 
 function readySuccessor() {
@@ -174,6 +185,7 @@ const promotion =
     coupled_candidate: coupledPre,
     successor_migration_candidate: successorReady,
     applied_lineages: lineages(),
+    repository_identity: repositoryIdentity(),
   });
 
 assert.equal(
@@ -182,6 +194,19 @@ assert.equal(
 );
 assert.match(promotion.promotion_id, /^voidwcfcap1_[0-9a-f]{64}$/u);
 assert.match(promotion.composition_id, /^sha256:[0-9a-f]{64}$/u);
+assert.equal(promotion.repository_head_sha, "a".repeat(40));
+assert.equal(promotion.repository_tree_sha, "b".repeat(40));
+assert.equal(
+  promotion.canonical_remote_url,
+  "https://github.com/6ZoSo9/void-node.git",
+);
+assert.equal(promotion.remote_main_sha, "a".repeat(40));
+assert.match(promotion.production_source_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(promotion.production_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.match(promotion.coupled_source_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(promotion.coupled_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
+assert.match(promotion.successor_source_file_sha256, /^[0-9a-f]{64}$/u);
+assert.match(promotion.successor_source_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.match(promotion.production_target_file_sha256, /^[0-9a-f]{64}$/u);
 assert.match(promotion.production_target_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.match(promotion.coupled_target_file_sha256, /^[0-9a-f]{64}$/u);
@@ -269,6 +294,7 @@ assert.throws(
       coupled_candidate: coupledPre,
       successor_migration_candidate: successorReady,
       applied_lineages: lineages(),
+      repository_identity: repositoryIdentity(),
     }),
   /FINAL_COUPLED_PRODUCTION_NONFINAL_GATES_REMAIN/u,
 );
@@ -286,6 +312,7 @@ assert.throws(
       },
       successor_migration_candidate: successorReady,
       applied_lineages: lineages(),
+      repository_identity: repositoryIdentity(),
     }),
   /FINAL_COUPLED_ECONOMIC_NONFINAL_GATES_REMAIN/u,
 );
@@ -297,6 +324,7 @@ assert.throws(
       coupled_candidate: coupledPre,
       successor_migration_candidate: successor,
       applied_lineages: lineages(),
+      repository_identity: repositoryIdentity(),
     }),
   /FINAL_COUPLED_SUCCESSOR_NOT_SOURCE_READY/u,
 );
@@ -309,6 +337,7 @@ assert.throws(
       coupled_candidate: coupledPre,
       successor_migration_candidate: successorReady,
       applied_lineages: missingLineage,
+      repository_identity: repositoryIdentity(),
     }),
   /FINAL_COUPLED_LINEAGE_COUNT_INVALID/u,
 );
@@ -325,6 +354,7 @@ assert.throws(
       coupled_candidate: coupledPre,
       successor_migration_candidate: successorReady,
       applied_lineages: unverifiedLineages,
+      repository_identity: repositoryIdentity(),
     }),
   /FINAL_COUPLED_LINEAGE_NOT_VERIFIED_APPLIED/u,
 );
