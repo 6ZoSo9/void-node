@@ -23,7 +23,6 @@ const POLICY_PATH = path.join(
 const PROOF_NOW_MS = Date.now();
 const EVALUATED_AT = new Date(PROOF_NOW_MS).toISOString();
 const FRESH_AT = new Date(PROOF_NOW_MS - 15 * 60_000).toISOString();
-const STALE_RUNNING_AT = new Date(PROOF_NOW_MS - 30 * 60_000 - 1_000).toISOString();
 const FRESH_FALLBACK_AT = new Date(PROOF_NOW_MS - 20 * 60 * 60_000).toISOString();
 const STALE_FALLBACK_AT = new Date(PROOF_NOW_MS - 12 * 24 * 60 * 60_000).toISOString();
 const NEXT_REEVALUATION_AT = new Date(PROOF_NOW_MS + 30 * 60_000).toISOString();
@@ -342,6 +341,11 @@ assert.deepEqual(reorderedResult.dispatches, result.dispatches);
 }
 {
   const bad = evidence();
+  bad.workers[0].id = "turing";
+  expectRejected(() => evaluateWorkerLiveDispatchV1(policyRaw, bad), /unknown worker/);
+}
+{
+  const bad = evidence();
   bad.evaluated_at = "2000-01-01T00:00:00.000Z";
   expectRejected(
     () => evaluateWorkerLiveDispatchV1(policyRaw, bad),
@@ -388,6 +392,7 @@ console.log(`dispatches=${result.dispatch_count}`);
 console.log("plan_issue=1507");
 console.log("scheduled_worker_ids=larry,curly,moe,satoshi,ada,grace,shannon,hopper,lamarr,darwin,dijkstra,katherine,keller,feynman");
 console.log("turing_scheduled=false");
+console.log("disabled_turing_evidence_rejected=true");
 console.log("ren_scheduled=false");
 console.log("feynman_scheduled=true");
 console.log("workers_without_dispatch=0");
