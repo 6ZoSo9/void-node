@@ -685,6 +685,23 @@ function assertParticipantReviewedSymlinkV1(file) {
   }
 }
 
+function makeParticipantReviewedRegularFileReadOnlyV1(file) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1) {
+      fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_FILE_DESCRIPTOR_INVALID");
+    }
+    const executable = (Number(stat.mode) & 0o111) !== 0;
+    fs.fchmodSync(fd, executable ? 0o500 : 0o400);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 export function makeParticipantReviewedExecutionTreeReadOnlyV1(root) {
   function walk(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -695,7 +712,7 @@ export function makeParticipantReviewedExecutionTreeReadOnlyV1(root) {
       } else if (entry.isSymbolicLink()) {
         assertParticipantReviewedSymlinkV1(file);
       } else if (entry.isFile()) {
-        fchmodParticipantReviewedRegularFileV1(file, 0o400);
+        makeParticipantReviewedRegularFileReadOnlyV1(file);
       } else {
         fail("PARTICIPANT_CANONICAL_EXECUTION_TREE_ENTRY_TYPE_UNSUPPORTED");
       }
