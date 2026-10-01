@@ -19,12 +19,17 @@ export const EVIDENCE_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_EVIDENCE_V1";
 export const CHAIN_MARKER = "VOID_COORDINATION_SUCCESSOR_CHAIN_V1";
 export const DISPATCH_MARKER = "VOID_WORKER_LIVE_DISPATCH_V1";
 export const CANONICAL_REPOSITORY = "6ZoSo9/void-node";
+export const CANONICAL_GIT_URL =
+  "https://github.com/6ZoSo9/void-node.git";
+export const CANONICAL_MAIN_REF = "refs/heads/main";
+export const LIVE_MAIN_QUERY_TIMEOUT_MS = 15_000;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GIT = "/usr/bin/git";
 const DISPATCH_POLICY_REL =
   "ops/coordination/worker-live-dispatch-policy-v1.json";
 const MAX_STDIN_BYTES = 2 * 1024 * 1024;
+const SHA1_PATTERN = /^[0-9a-f]{40}$/u;
 const SHA256_ID_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const CHAIN_OUTCOMES = new Set([
   "CURRENT",
@@ -162,7 +167,93 @@ function reviewedGitEnvV1() {
   return env;
 }
 
-function loadReviewedDispatchPolicyFromHeadV1() {
+export function parseCanonicalMainLsRemoteV1(raw) {
+  if (typeof raw !== "string") {
+    fail("canonical live-main ls-remote bytes must be text");
+  }
+  const lines = raw.split(/\r?\n/u).filter((line) => line.length > 0);
+  if (lines.length !== 1) {
+    fail("canonical live-main ls-remote must contain exactly one record");
+  }
+  const match = /^([0-9a-f]{40})\trefs\/heads\/main$/u.exec(lines[0]);
+  if (!match) {
+    fail("canonical live-main ls-remote record is malformed");
+  }
+  return match[1];
+}
+
+export function assertCanonicalMainCheckoutV1(localHead, liveMain) {
+  if (typeof localHead !== "string" || !SHA1_PATTERN.test(localHead)) {
+    fail("local HEAD must be a lowercase 40-character SHA-1");
+  }
+  if (typeof liveMain !== "string" || !SHA1_PATTERN.test(liveMain)) {
+    fail("live canonical main must be a lowercase 40-character SHA-1");
+  }
+  if (localHead !== liveMain) {
+    fail("local HEAD does not equal live canonical main");
+  }
+  return true;
+}
+
+function gitReadV1(args, { timeoutMs = 15_000 } = {}) {
+  const result = spawnSync(
+    GIT,
+    args,
+    {
+      encoding: "utf8",
+      maxBuffer: MAX_STDIN_BYTES,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: timeoutMs,
+      env: {
+        ...reviewedGitEnvV1(),
+        GIT_TERMINAL_PROMPT: "0",
+      },
+    },
+  );
+  if (result.error || result.status !== 0) {
+    return null;
+  }
+  return result.stdout;
+}
+
+function resolveCanonicalReviewedMainV1() {
+  const localHeadRaw = gitReadV1([
+    "--no-replace-objects",
+    "-C",
+    ROOT,
+    "rev-parse",
+    "--verify",
+    "HEAD^{commit}",
+  ]);
+  if (localHeadRaw === null) {
+    fail("local reviewed HEAD commit is unavailable");
+  }
+  const localHead = localHeadRaw.trim();
+  if (!SHA1_PATTERN.test(localHead)) {
+    fail("local reviewed HEAD commit is malformed");
+  }
+
+  const liveMainRaw = gitReadV1(
+    [
+      "ls-remote",
+      "--heads",
+      CANONICAL_GIT_URL,
+      CANONICAL_MAIN_REF,
+    ],
+    { timeoutMs: LIVE_MAIN_QUERY_TIMEOUT_MS },
+  );
+  if (liveMainRaw === null) {
+    fail("live canonical main metadata is unavailable");
+  }
+  const liveMain = parseCanonicalMainLsRemoteV1(liveMainRaw);
+  assertCanonicalMainCheckoutV1(localHead, liveMain);
+  return liveMain;
+}
+
+function loadReviewedDispatchPolicyAtCommitV1(commitSha) {
+  if (typeof commitSha !== "string" || !SHA1_PATTERN.test(commitSha)) {
+    fail("reviewed dispatch policy commit must be a lowercase 40-character SHA-1");
+  }
   const result = spawnSync(
     GIT,
     [
@@ -170,7 +261,7 @@ function loadReviewedDispatchPolicyFromHeadV1() {
       "-C",
       ROOT,
       "show",
-      "HEAD:" + DISPATCH_POLICY_REL,
+      commitSha + ":" + DISPATCH_POLICY_REL,
     ],
     {
       encoding: "utf8",
@@ -180,13 +271,13 @@ function loadReviewedDispatchPolicyFromHeadV1() {
     },
   );
   if (result.error || result.status !== 0) {
-    fail("reviewed live-dispatch policy HEAD object is unavailable");
+    fail("reviewed live-dispatch policy commit object is unavailable");
   }
   let policy;
   try {
     policy = JSON.parse(result.stdout);
   } catch {
-    fail("reviewed live-dispatch policy HEAD object is not valid JSON");
+    fail("reviewed live-dispatch policy commit object is not valid JSON");
   }
   if (policy?.repository !== CANONICAL_REPOSITORY) {
     fail("reviewed live-dispatch policy repository is not canonical");
@@ -353,7 +444,11 @@ function validateDispatch(raw, trustedNowMs) {
 
 export function evaluateWorkerDispatchHubGuardV1(
   rawEvidence,
-  { liveChain = null, liveDispatch = null } = {},
+  {
+    liveChain = null,
+    liveDispatch = null,
+    reviewedMainSha = null,
+  } = {},
 ) {
   const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
   if (evidence.marker !== EVIDENCE_MARKER) {
@@ -380,6 +475,10 @@ export function evaluateWorkerDispatchHubGuardV1(
       evidence.dispatch,
       liveDispatch,
     ) === true;
+  const liveMainRevalidated =
+    reviewedMainSha !== null
+    && typeof reviewedMainSha === "string"
+    && SHA1_PATTERN.test(reviewedMainSha);
 
   let outcome;
   let reason;
@@ -406,6 +505,10 @@ export function evaluateWorkerDispatchHubGuardV1(
     outcome = "HOLD_DISPATCH_LIVENESS_UNPROVEN";
     reason =
       "supplied dispatch was not freshly re-evaluated from the reviewed policy and worker evidence";
+  } else if (liveMainRevalidated !== true) {
+    outcome = "HOLD_MAIN_PROVENANCE_UNPROVEN";
+    reason =
+      "reviewed dispatch policy generation was not bound to live canonical main";
   } else {
     outcome = "DISPATCH_HUB_ALIGNED";
     reason =
@@ -432,11 +535,15 @@ export function evaluateWorkerDispatchHubGuardV1(
     dispatch_evidence_fresh: dispatchState.dispatchFresh,
     live_chain_revalidated: liveChainRevalidated === true,
     live_dispatch_revalidated: liveDispatchRevalidated === true,
+    reviewed_main_sha:
+      liveMainRevalidated === true ? reviewedMainSha : null,
+    live_main_revalidated: liveMainRevalidated === true,
     normal_dispatch_allowed: normalDispatchAllowed,
     read_only_evidence_only: !normalDispatchAllowed,
     requires_fresh_chain_evidence: liveChainRevalidated !== true,
     requires_fresh_dispatch_evidence:
       !dispatchState.dispatchFresh || liveDispatchRevalidated !== true,
+    requires_live_main_evidence: liveMainRevalidated !== true,
     external_worker_invocation_required: true,
     issue_creation_authorized: false,
     issue_close_authorized: false,
@@ -506,7 +613,10 @@ async function main() {
   if (dispatchEvidence.marker !== LIVE_DISPATCH_EVIDENCE_MARKER) {
     fail("evidence.dispatch_evidence.marker mismatch");
   }
-  const reviewedPolicy = loadReviewedDispatchPolicyFromHeadV1();
+  const reviewedMainSha = resolveCanonicalReviewedMainV1();
+  const reviewedPolicy = loadReviewedDispatchPolicyAtCommitV1(
+    reviewedMainSha,
+  );
   const liveDispatch = evaluateWorkerLiveDispatchV1(
     reviewedPolicy,
     dispatchEvidence,
@@ -519,6 +629,7 @@ async function main() {
   const result = evaluateWorkerDispatchHubGuardV1(evidence, {
     liveChain,
     liveDispatch,
+    reviewedMainSha,
   });
   const output = JSON.stringify(result, null, args.pretty ? 2 : 0) + "\n";
   if (args.outputPath) {
