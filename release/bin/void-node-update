@@ -156,10 +156,11 @@ function recoverRollbackPreparation(installRoot,paths){
 }
 function recoverRollbackTransaction(installRoot){
   const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths,installRoot);
-  if(!journal){
-    if(exists(paths.restartWitness)){readRollbackRestartWitness(paths);fs.unlinkSync(paths.restartWitness);fsyncDirectory(installRoot);say(`${MARKER}_ROLLBACK_RESTART_WITNESS_CLEANED`);}
-    return recoverRollbackPreparation(installRoot,paths);
+  if(!journal&&exists(paths.restartWitness)){
+    if(exists(paths.journalNext)||exists(paths.n1)||exists(paths.n2))fail("orphan rollback restart witness conflicts with rollback preparation artifacts");
+    readRollbackRestartWitness(paths);fs.unlinkSync(paths.restartWitness);fsyncDirectory(installRoot);say(`${MARKER}_ROLLBACK_RESTART_WITNESS_CLEANED`);return "rollback_restart_witness_cleaned";
   }
+  if(!journal)return recoverRollbackPreparation(installRoot,paths);
   requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);finalizeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return "rollback_committed";
 }
 function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.restartWitness,"restart witness");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
