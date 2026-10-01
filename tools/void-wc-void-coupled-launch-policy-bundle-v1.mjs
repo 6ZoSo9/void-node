@@ -71,6 +71,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
+export const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
+  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 const MAX_INPUT_BYTES = 1024 * 1024;
 const MAX_TRACKED_INTENTS = 1_000_000;
 const MAX_SIGNED_INTENT_GAS_LIMIT =
@@ -566,6 +568,9 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw) {
     input.coupled_launch_id,
     "COUPLED_LAUNCH_POLICY_BUNDLE_LAUNCH_ID_INVALID",
   );
+  if (launchId !== VOID_WC_VOID_COUPLED_LAUNCH_ID_V1) {
+    fail("COUPLED_LAUNCH_POLICY_BUNDLE_CANONICAL_LAUNCH_ID_MISMATCH");
+  }
   const generation = canonicalGeneration(
     input.bundle_generation,
     "COUPLED_LAUNCH_POLICY_BUNDLE_GENERATION_INVALID",
