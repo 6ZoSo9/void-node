@@ -44,6 +44,10 @@ function selectedFixture(url = "http://127.0.0.1:28545/") {
     runtime_active_verified: true,
     exact_genesis_bound: true,
     production_validator_set_bound: true,
+    production_validator_binding_source_path:
+      "ops/mainnet0/future-reviewed-production-validator-binding-v1.json",
+    production_validator_binding_evidence_sha256:
+      "3".repeat(64),
     write_capability_classification:
       "write_capable_not_authorized",
     independent_host_acceptance: true,
@@ -106,6 +110,13 @@ assert.throws(
   /production_epoch2_selected_evidence_incomplete/u,
 );
 
+const missingValidatorLineage = selectedFixture();
+missingValidatorLineage.selection.production_validator_binding_source_path = null;
+assert.throws(
+  () => validateProductionEpoch2RpcTargetV1(missingValidatorLineage),
+  /production_epoch2_selected_evidence_incomplete/u,
+);
+
 const forgedHold = structuredClone(target);
 forgedHold.selection.rpc_url = "http://127.0.0.1:28545/";
 assert.throws(
@@ -150,6 +161,7 @@ console.log("exact_downstream_consumer_set_bound=true");
 console.log("json_object_field_order_not_authority=true");
 console.log("synthetic_selected_contract_semantics_green=true");
 console.log("independent_host_acceptance_required=true");
+console.log("reviewed_production_validator_binding_lineage_required=true");
 console.log("transaction_authorized=false");
 console.log("authoritative_chain2050_write=false");
 console.log("migration_authorized=false");
