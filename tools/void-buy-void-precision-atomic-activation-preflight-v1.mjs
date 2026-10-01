@@ -176,6 +176,20 @@ function sameObject(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function sameRecordValues(left, right) {
+  if (!plain(left) || !plain(right)) return false;
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] &&
+        left[key] === right[key],
+    )
+  );
+}
+
 function normalizeGateState(value, label) {
   const record = exactKeys(value, GATE_KEYS, label);
   const out = {};
@@ -236,7 +250,7 @@ export function evaluateGateSourceInventoryV1(entries) {
     if (
       !expected ||
       entry.sha256 !== expected.sha256 ||
-      !sameObject(assignments, expected.assignments)
+      !sameRecordValues(assignments, expected.assignments)
     ) {
       unreviewed.push(
         Object.freeze({
