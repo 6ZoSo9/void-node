@@ -137,7 +137,11 @@ The content-addressed plan binds:
 - before/after classifier summaries; and
 - the one reviewed promoted gate.
 
-The tool never writes canonical source.
+The tool never writes canonical source. It does create and remove a private,
+content-verified temporary execution tree outside the repository; this is why
+the authority contract records `filesystem_write=true` together with
+`private_temporary_filesystem_write=true` and
+`repository_source_write=false`.
 
 ## Verify applied
 
@@ -190,6 +194,9 @@ canonical_remote_main_read_required=true
 external_network_read=true
 
 repository_source_write=false
+filesystem_read=true
+filesystem_write=true
+private_temporary_filesystem_write=true
 runtime_or_rpc_write=false
 credential_access=false
 wallet_or_signer_access=false
