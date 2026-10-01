@@ -431,10 +431,12 @@ function proveInstaller({
     "stale materialize staging entry survived successful retry",
   );
   assertBoundary(harness, candidateDir);
+  const verifiedExtractionRootMode =
+    fixture.releaseRootMode & ~process.umask() & 0o7777;
   assert.equal(
     fs.lstatSync(candidateDir).mode & 0o7777,
-    fixture.releaseRootMode,
-    "new materialized candidate root mode must match verified extraction",
+    verifiedExtractionRootMode,
+    "new materialized candidate root mode must match umask-adjusted verified extraction",
   );
 
   const second = run(
@@ -591,7 +593,7 @@ function proveFreshParentCreation({
   assert.equal(fs.existsSync(candidateDir), true);
   assert.equal(
     fs.lstatSync(candidateDir).mode & 0o7777,
-    fixture.releaseRootMode,
+    fixture.releaseRootMode & ~process.umask() & 0o7777,
   );
   assert.equal(fs.existsSync(path.join(installRoot, "current")), false);
   assert.equal(fs.existsSync(path.join(installRoot, "previous")), false);
