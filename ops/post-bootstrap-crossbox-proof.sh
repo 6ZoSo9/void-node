@@ -3,17 +3,43 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
-: "${PREC_TS:?set PREC_TS to the explicit current Precision Tailnet address}"
+MARKER="VOID_CROSSBOX_BOOTSTRAP_MUTATION_BOUNDARY_V1"
+ALIEN="${ALIEN:-}"
+PREC_TS="${PREC_TS:-}"
+
+hold(){
+  echo "$MARKER HOLD: $*" >&2
+  exit 2
+}
+
+valid_ssh_target(){
+  local target="$1"
+  [[ "$target" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+}
+
+valid_ipv4(){
+  local value="$1"
+  [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  local a b c d octet
+  IFS=. read -r a b c d <<<"$value"
+  for octet in "$a" "$b" "$c" "$d"; do
+    (( 10#$octet >= 0 && 10#$octet <= 255 )) || return 1
+  done
+}
+
+[ -n "$ALIEN" ] || hold "missing explicit ALIEN remote SSH target"
+[ -n "$PREC_TS" ] || hold "missing explicit PREC_TS"
+valid_ssh_target "$ALIEN" || hold "ALIEN must be a destination-only SSH alias or user@host"
+valid_ipv4 "$PREC_TS" || hold "PREC_TS must be a valid IPv4 address"
 
 TARGET_GUARD="$(printf '%s\n' "$ALIEN" "$PREC_TS" | tr '[:upper:]' '[:lower:]')"
 case "$TARGET_GUARD" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
-    echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
-    exit 2
+    hold "retired Alienware target is forbidden"
     ;;
 esac
 
+echo "marker=$MARKER"
 echo "=== remote host truth ==="
 ssh "$ALIEN" 'hostname'
 echo
