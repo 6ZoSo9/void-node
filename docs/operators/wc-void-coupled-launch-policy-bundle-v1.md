@@ -25,6 +25,17 @@ This bundle composes five existing policy families without replacing them:
 
 The result is one content-addressed launch-policy bundle.
 
+The bundle is bound to the canonical coupled-launch identity currently recorded
+by `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`:
+
+```text
+sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
+```
+
+A policy bundle for any other launch ID fails closed. The CI workflow tracks the
+canonical candidate path so a reviewed launch-identity change forces this
+compiler to be reconsidered.
+
 ## No source-selected defaults
 
 The compiler has no default launch values.
