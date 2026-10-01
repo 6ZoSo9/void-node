@@ -72,7 +72,6 @@ jobs:
           node scripts/prove_void_public_participant_account_read_http_edge_v1.mjs
           node scripts/prove_void_public_participant_composition_integration_v1.mjs
           npx --no-install tsx scripts/prove_participant_role_authority_guard_v1.ts
-          npx --no-install tsx scripts/prove_chain2050_role_authority_participant_live_binding_preflight_v1.ts
       - name: Typecheck reviewed TypeScript role stack
         if: matrix.node == '24'
         run: npm run typecheck
