@@ -14,10 +14,19 @@ export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1 =
 
 export const VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_AUTHORITY_V1 =
   Object.freeze({
-    fresh_green_preflight_receipt_required: true,
+    caller_supplied_preflight_text_required: true,
+    preflight_text_structural_validation_only: true,
+    fresh_preflight_execution_proven: false,
+    manifest_is_preflight_authority: false,
+    wrapper_fresh_preflight_required_for_operational_use: true,
+    exact_preflight_log_sha256_binding_required: true,
+    descriptor_bound_preflight_log_read_required: true,
+    private_preflight_log_custody_required: true,
     exact_live_and_rollback_hash_binding_required: true,
     active_dropin_tree_overlap_forbidden: true,
     inactive_private_staging_write: true,
+    durable_fsync_publication_required: true,
+    private_stage_custody_required: true,
     idempotent_exact_stage_reuse: true,
     active_dropin_write: false,
     daemon_reload: false,
@@ -154,6 +163,11 @@ function isWithin(candidate, parent) {
   );
 }
 
+function currentUid() {
+  if (typeof process.getuid !== "function") fail("staging_uid_unavailable");
+  return process.getuid();
+}
+
 function exactDirectory(input, label) {
   if (!path.isAbsolute(input) || path.resolve(input) !== input) {
     fail(label + "_not_absolute_normalized");
@@ -167,15 +181,148 @@ function exactDirectory(input, label) {
   return real;
 }
 
-function fileState(filePath) {
+function exactPrivateDirectory(input, label) {
+  const real = exactDirectory(input, label);
+  const stat = fs.lstatSync(real);
+  if (stat.uid !== currentUid()) fail(label + "_owner_mismatch");
+  if ((stat.mode & 0o777) !== 0o700) fail(label + "_mode_mismatch");
+  return real;
+}
+
+function fsyncDirectory(dir) {
+  const fd = fs.openSync(dir, "r");
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fsyncRegularFile(filePath) {
+  const fd = fs.openSync(
+    filePath,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+const MAX_PREFLIGHT_LOG_BYTES_V1 = 1024 * 1024;
+
+function descriptorIdentityV1(stat) {
+  return Object.freeze({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs),
+  });
+}
+
+function sameDescriptorIdentityV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtime_ns === right.mtime_ns &&
+    left.ctime_ns === right.ctime_ns
+  );
+}
+
+function readPrivatePreflightLogV1(filePath) {
+  if (!path.isAbsolute(filePath) || path.resolve(filePath) !== filePath) {
+    fail("preflight_log_path_invalid");
+  }
+  exactPrivateDirectory(path.dirname(filePath), "preflight_log_parent");
+
+  const fd = fs.openSync(
+    filePath,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const beforeStat = fs.fstatSync(fd, { bigint: true });
+    if (!beforeStat.isFile()) fail("preflight_log_not_direct_regular");
+    if (beforeStat.uid !== BigInt(currentUid())) {
+      fail("preflight_log_owner_mismatch");
+    }
+    if (beforeStat.nlink !== 1n) fail("preflight_log_hardlink_forbidden");
+    if ((Number(beforeStat.mode) & 0o777) !== 0o600) {
+      fail("preflight_log_mode_mismatch");
+    }
+    const size = Number(beforeStat.size);
+    if (
+      !Number.isSafeInteger(size) ||
+      size < 1 ||
+      size > MAX_PREFLIGHT_LOG_BYTES_V1
+    ) {
+      fail("preflight_log_size_invalid");
+    }
+
+    const before = descriptorIdentityV1(beforeStat);
+    const bytes = fs.readFileSync(fd);
+    if (bytes.length !== size) fail("preflight_log_short_or_growing_read");
+
+    const afterStat = fs.fstatSync(fd, { bigint: true });
+    const after = descriptorIdentityV1(afterStat);
+    if (!sameDescriptorIdentityV1(before, after)) {
+      fail("preflight_log_changed_during_read");
+    }
+
+    let pathStat;
+    try {
+      pathStat = fs.lstatSync(filePath, { bigint: true });
+    } catch {
+      fail("preflight_log_path_changed_during_read");
+    }
+    if (
+      pathStat.isSymbolicLink() ||
+      !pathStat.isFile() ||
+      !sameDescriptorIdentityV1(before, descriptorIdentityV1(pathStat))
+    ) {
+      fail("preflight_log_path_changed_during_read");
+    }
+    return bytes.toString("utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fileState(filePath, label) {
   const stat = fs.lstatSync(filePath);
   if (!stat.isFile() || stat.isSymbolicLink()) {
-    fail("staged_file_not_direct_regular:" + filePath);
+    fail(label + "_not_direct_regular");
   }
+  if (fs.realpathSync(filePath) !== filePath) {
+    fail(label + "_symlink_component_forbidden");
+  }
+  if (stat.uid !== currentUid()) fail(label + "_owner_mismatch");
+  if (stat.nlink !== 1) fail(label + "_hardlink_forbidden");
+  if ((stat.mode & 0o777) !== 0o600) fail(label + "_mode_mismatch");
   return {
     bytes: fs.readFileSync(filePath),
     mode: stat.mode & 0o777,
   };
+}
+
+function writeDurablePrivateFile(filePath, value, encoding = null) {
+  const fd = fs.openSync(
+    filePath,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    0o600,
+  );
+  try {
+    fs.writeFileSync(fd, value, encoding ? { encoding } : undefined);
+    fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export function deriveVoidBuyVoidPrecisionAtomicActivationStageV1(
@@ -192,10 +339,20 @@ export function deriveVoidBuyVoidPrecisionAtomicActivationStageV1(
     configuration_sha256: receipt.dormant_configuration_sha256,
     mode: "dormant_rollback",
   });
-  if (live.sha256 !== receipt.live_dropin_sha256) {
+  const liveBytes = Buffer.from(String(live.bytes), "utf8");
+  const rollbackBytes = Buffer.from(String(rollback.bytes), "utf8");
+  const liveBytesSha256 = sha256(liveBytes);
+  const rollbackBytesSha256 = sha256(rollbackBytes);
+  if (
+    live.sha256 !== liveBytesSha256 ||
+    liveBytesSha256 !== receipt.live_dropin_sha256
+  ) {
     fail("live_dropin_hash_mismatch");
   }
-  if (rollback.sha256 !== receipt.dormant_dropin_sha256) {
+  if (
+    rollback.sha256 !== rollbackBytesSha256 ||
+    rollbackBytesSha256 !== receipt.dormant_dropin_sha256
+  ) {
     fail("dormant_dropin_hash_mismatch");
   }
   return Object.freeze({ receipt, live, rollback });
@@ -212,7 +369,10 @@ export function stageVoidBuyVoidPrecisionAtomicActivationV1({
   if (!path.isAbsolute(outDir) || path.resolve(outDir) !== outDir) {
     fail("staging_output_not_absolute_normalized");
   }
-  const parent = exactDirectory(path.dirname(outDir), "staging_parent");
+  const parent = exactPrivateDirectory(
+    path.dirname(outDir),
+    "staging_parent",
+  );
   const active = exactDirectory(activeDropinDir, "active_dropin_dir");
   const candidate = path.join(parent, path.basename(outDir));
   if (isWithin(candidate, active) || isWithin(active, candidate)) {
@@ -224,11 +384,18 @@ export function stageVoidBuyVoidPrecisionAtomicActivationV1({
   const rollbackRel =
     "rollback/" + VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_DROPIN_BASENAME_V1;
 
+  const preflightLogSha256 = sha256(
+    Buffer.from(String(preflightText), "utf8"),
+  );
   const manifest = {
     marker: VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1,
     version: 1,
-    status: "STAGED_NOT_ACTIVATED",
+    status: "STAGED_BYTES_ONLY_NOT_PREFLIGHT_AUTHORITY",
     preflight: {
+      supplied_log_sha256: preflightLogSha256,
+      structural_validation_only: true,
+      fresh_execution_proven: false,
+      manifest_is_preflight_authority: false,
       status: derived.receipt.status,
       repository_head_sha: derived.receipt.repository_head_sha,
       repository_tree_sha: derived.receipt.repository_tree_sha,
@@ -268,26 +435,51 @@ export function stageVoidBuyVoidPrecisionAtomicActivationV1({
     Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8");
 
   const verifyExisting = () => {
-    const dir = exactDirectory(outDir, "existing_staging_output");
-    const liveState = fileState(path.join(dir, liveRel));
-    const rollbackState = fileState(path.join(dir, rollbackRel));
-    const manifestState = fileState(path.join(dir, "manifest.json"));
+    const dir = exactPrivateDirectory(
+      outDir,
+      "existing_staging_output",
+    );
+    const liveDir = exactPrivateDirectory(
+      path.join(dir, "live"),
+      "existing_live_directory",
+    );
+    const rollbackDir = exactPrivateDirectory(
+      path.join(dir, "rollback"),
+      "existing_rollback_directory",
+    );
+    const livePath = path.join(liveDir, path.basename(liveRel));
+    const rollbackPath =
+      path.join(rollbackDir, path.basename(rollbackRel));
+    const manifestPath = path.join(dir, "manifest.json");
+    const liveState = fileState(livePath, "existing_live_file");
+    const rollbackState =
+      fileState(rollbackPath, "existing_rollback_file");
+    const manifestState =
+      fileState(manifestPath, "existing_manifest_file");
     if (
-      liveState.mode !== 0o600 ||
-      rollbackState.mode !== 0o600 ||
-      manifestState.mode !== 0o600 ||
       !liveState.bytes.equals(Buffer.from(derived.live.bytes, "utf8")) ||
       !rollbackState.bytes.equals(Buffer.from(derived.rollback.bytes, "utf8")) ||
       !manifestState.bytes.equals(manifestBytes)
     ) {
       fail("existing_stage_identity_mismatch");
     }
+
+    fsyncRegularFile(livePath);
+    fsyncRegularFile(rollbackPath);
+    fsyncRegularFile(manifestPath);
+    fsyncDirectory(liveDir);
+    fsyncDirectory(rollbackDir);
+    fsyncDirectory(dir);
+    fsyncDirectory(parent);
+
     return {
       out_dir: dir,
       stage_reused: true,
       manifest_sha256: sha256(manifestBytes),
-      live_path: path.join(dir, liveRel),
-      rollback_path: path.join(dir, rollbackRel),
+      preflight_log_sha256: preflightLogSha256,
+      fresh_preflight_execution_proven: false,
+      live_path: livePath,
+      rollback_path: rollbackPath,
     };
   };
 
@@ -298,26 +490,50 @@ export function stageVoidBuyVoidPrecisionAtomicActivationV1({
   );
   try {
     fs.chmodSync(temp, 0o700);
-    for (const name of ["live", "rollback"]) {
-      fs.mkdirSync(path.join(temp, name), { mode: 0o700 });
-      fs.chmodSync(path.join(temp, name), 0o700);
-    }
-    fs.writeFileSync(
+    const liveDir = path.join(temp, "live");
+    const rollbackDir = path.join(temp, "rollback");
+    fs.mkdirSync(liveDir, { mode: 0o700 });
+    fs.chmodSync(liveDir, 0o700);
+    fs.mkdirSync(rollbackDir, { mode: 0o700 });
+    fs.chmodSync(rollbackDir, 0o700);
+
+    writeDurablePrivateFile(
       path.join(temp, liveRel),
       derived.live.bytes,
-      { encoding: "utf8", flag: "wx", mode: 0o600 },
+      "utf8",
     );
-    fs.writeFileSync(
+    writeDurablePrivateFile(
       path.join(temp, rollbackRel),
       derived.rollback.bytes,
-      { encoding: "utf8", flag: "wx", mode: 0o600 },
+      "utf8",
     );
-    fs.writeFileSync(
+    writeDurablePrivateFile(
       path.join(temp, "manifest.json"),
       manifestBytes,
-      { flag: "wx", mode: 0o600 },
     );
+
+    fsyncDirectory(liveDir);
+    fsyncDirectory(rollbackDir);
+    fsyncDirectory(temp);
+
+    if (
+      process.env
+        .VOID_BUY_VOID_STAGE_TEST_INTERRUPT_AFTER_DURABLE_TEMP === "1"
+    ) {
+      fail("test_interruption_after_durable_temp_before_rename");
+    }
+
     fs.renameSync(temp, outDir);
+
+    if (
+      process.env
+        .VOID_BUY_VOID_STAGE_TEST_INTERRUPT_AFTER_RENAME_BEFORE_PARENT_FSYNC ===
+      "1"
+    ) {
+      fail("test_interruption_after_rename_before_parent_fsync");
+    }
+
+    fsyncDirectory(parent);
   } catch (error) {
     fs.rmSync(temp, { recursive: true, force: true });
     throw error;
@@ -359,22 +575,24 @@ if (direct) {
         fail(label + "_path_invalid");
       }
     }
-    const logStat = fs.lstatSync(logPath);
-    if (!logStat.isFile() || logStat.isSymbolicLink()) {
-      fail("preflight_log_not_direct_regular");
-    }
+    const preflightText = readPrivatePreflightLogV1(logPath);
     const result = stageVoidBuyVoidPrecisionAtomicActivationV1({
-      preflightText: fs.readFileSync(logPath, "utf8"),
+      preflightText,
       outDir,
       activeDropinDir,
     });
     console.log(VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1);
-    console.log("status=STAGED_NOT_ACTIVATED");
+    console.log("status=STAGED_BYTES_ONLY_NOT_PREFLIGHT_AUTHORITY");
     console.log("out_dir=" + result.out_dir);
     console.log("stage_reused=" + String(result.stage_reused));
     console.log("live_path=" + result.live_path);
     console.log("rollback_path=" + result.rollback_path);
     console.log("manifest_sha256=" + result.manifest_sha256);
+    console.log(
+      "preflight_log_sha256=" + result.preflight_log_sha256,
+    );
+    console.log("fresh_preflight_execution_proven=false");
+    console.log("manifest_is_preflight_authority=false");
     console.log("active_dropin_write=false");
     console.log("daemon_reload=false");
     console.log("service_mutation=false");
