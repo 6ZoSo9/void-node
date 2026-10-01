@@ -27,7 +27,7 @@ Prepare consumes exact bytes plus independent SHA-256 values for:
 - the #2260 composition receipt;
 - the #2260 derived successor candidate.
 
-It also consumes the exact public-read evidence ID, evaluation time, registry address, publisher address, and #2260 review confirmation token.
+It also consumes the exact public-read evidence ID, evaluation time, registry address, publisher address, and #2260 review confirmation token. Those reviewed inputs and the exact #2260 composition receipt object are retained in the application plan so post-application replay can require equality rather than trusting summary IDs.
 
 Self-consistent caller-created receipt/candidate bytes are insufficient. Prepare re-executes #2260 from the upstream evidence set and requires exact semantic equality with both supplied artifacts.
 
@@ -42,9 +42,13 @@ The application tool binds:
 - the merged #2260 composition-tool Git blob; and
 - the canonical successor migration classifier Git blob.
 
-Git replacement-object semantics are disabled.
+Git replacement-object semantics are disabled. Authority Git reads use the reviewed absolute Git executable with a minimal explicit PATH/locale/HOME environment, global/system Git config disabled, repository/worktree/object/config-injection environment removed, and local execution-capable options such as fsmonitor/hooks plus ambient attributes disabled. The same minimal subprocess environment is used for reviewed-tree archive extraction and permission changes, so ambient dynamic-loader/tool/Node variables such as `LD_*`, `DYLD_*`, `TAR_OPTIONS`, `NODE_OPTIONS`, and `NODE_PATH` are not inherited. Historical composition replay temporarily receives that same minimal process environment before its reviewed modules are loaded. The canonical origin is read explicitly from local config with includes disabled. Focused pull-request CI checks out the exact PR head rather than GitHub's synthetic merge ref.
 
-To avoid "verified blob, mutable executed file" races, prepare materializes the exact reviewed HEAD tree through `git archive`, attaches it read-only to the repository object database, and executes #2260 plus the migration classifier from that reviewed tree. #2260 then performs its own exact reviewed-object execution for the public-read and state-root promotion dependencies.
+To avoid "verified blob, mutable executed file" races, prepare materializes the exact reviewed HEAD tree through `git archive` and executes #2260 plus the migration classifier from that reviewed tree. The materialization contains a private detached Git metadata view whose `HEAD` and index are pinned to the reviewed commit/tree and whose object database is read-only-linked through Git alternates to the canonical repository objects. It does **not** point its `.git` metadata at the moving canonical checkout.
+
+That distinction matters after application: current `main` may already contain the promoted successor candidate, while semantic replay must still execute #2260 against the original false-gate base generation. The detached base Git view makes that replay deterministic without checking out, resetting, or mutating the canonical repository.
+
+#2260 then performs its own exact reviewed-object execution for the public-read and state-root promotion dependencies.
 
 ## Exact source delta
 
@@ -106,15 +110,32 @@ node tools/void-economic-epoch2-public-verification-canonical-application-v1.mjs
 
 A later Git source change must be reviewed separately and set the canonical successor file to the plan's exact target bytes.
 
-After that reviewed commit is on canonical `main`:
+After that reviewed commit is on canonical `main`, verify-applied must be given the original reviewed upstream evidence again:
 
 ```bash
 node tools/void-economic-epoch2-public-verification-canonical-application-v1.mjs verify-applied \
   --plan /absolute/application-plan.json \
-  --plan-sha256 <64hex>
+  --plan-sha256 <64hex> \
+  --public-read-evidence /absolute/public-read.json \
+  --public-read-sha256 <64hex> \
+  --public-read-evidence-id voide2pre1_<64hex> \
+  --evaluation-time-utc <same-reviewed-UTC> \
+  --state-root-membership /absolute/membership.json \
+  --membership-sha256 <64hex> \
+  --registry 0x... \
+  --publisher 0x... \
+  --confirmation importReviewedRealFinalizedStateRootMembershipV1
 ```
 
-Verify-applied requires the plan base to be an ancestor, the canonical successor blob to equal the plan target exactly, and the application/composition/classifier source blobs to remain the reviewed versions.
+A plan is content-addressed for integrity, but its self-hash is **not semantic authority**. Verify-applied therefore:
+
+1. reopens the plan's exact base commit/tree in a private detached Git view;
+2. re-executes merged #2260 from the exact public-read evidence, finalized-membership bytes, evaluation time, registry, publisher, and review confirmation;
+3. requires the rederived composition receipt, composition ID, state-root promotion ID, and final successor candidate to equal the plan exactly;
+4. requires the local applied checkout to be branch `main` **and** requires a config-isolated, fixed-URL read of `https://github.com/6ZoSo9/void-node.git` to report that exact local HEAD as `refs/heads/main`;
+5. only then checks that canonical current `main` contains that exact target successor blob and that the application/composition/classifier source lineage has not drifted.
+
+A caller-created self-consistent plan cannot substitute for the upstream semantic evidence.
 
 ## Evidence size boundary
 
@@ -124,6 +145,8 @@ The finalized membership input is bounded to 1 MiB, matching the canonical #2193
 
 This lane is repository-source preparation and verification only.
 
-It performs no canonical source write, service/runtime mutation, production RPC call, network call for economic execution, credential/key/wallet/signer access, transaction construction/signing/submission/broadcast, Chain-2050 write, validator/governance/WC mutation, migration activation, public activation, token movement, or funds movement.
+Prepare remains network-free. Verify-applied performs one read-only, fixed-URL canonical GitHub `main` identity check for source provenance; that Git read is isolated from repository/global/system Git config and is not an economic/runtime network action.
+
+It performs private temporary filesystem writes only to materialize and remove the reviewed detached execution tree and create-only private CLI output. `repository_source_write=false`: it performs no canonical source write, service/runtime mutation, production RPC call, production/economic network call, credential/key/wallet/signer access, transaction construction/signing/submission/broadcast, Chain-2050 write, validator/governance/WC mutation, migration activation, public activation, token movement, or funds movement.
 
 A green prepare result is not an applied source change. A green verify-applied result is still only `SOURCE_READY` source truth; it is not runtime activation.
