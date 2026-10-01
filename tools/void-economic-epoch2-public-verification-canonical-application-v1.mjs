@@ -737,35 +737,44 @@ async function withReviewedComposition(repo, fn) {
       { code: "PUBLIC_VERIFICATION_APPLICATION_READONLY_LOCK_FAILED" },
     );
 
-    const compositionModule = await import(
-      pathToFileURL(path.join(treeRoot, COMPOSITION_REL)).href +
-        "?reviewed_head=" + repo.head
-    );
-    const classifierModule = await import(
-      pathToFileURL(path.join(treeRoot, CLASSIFIER_REL)).href +
-        "?reviewed_head=" + repo.head
-    );
-    if (
-      typeof compositionModule.composeVoidEconomicEpoch2PublicVerificationV1 !==
-        "function" ||
-      typeof classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1 !==
-        "function"
-    ) {
-      fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_EXPORTS_INVALID");
+    const hadOptionalLocks =
+      Object.prototype.hasOwnProperty.call(process.env, "GIT_OPTIONAL_LOCKS");
+    const priorOptionalLocks = process.env.GIT_OPTIONAL_LOCKS;
+    process.env.GIT_OPTIONAL_LOCKS = "0";
+    try {
+      const compositionModule = await import(
+        pathToFileURL(path.join(treeRoot, COMPOSITION_REL)).href +
+          "?reviewed_head=" + repo.head
+      );
+      const classifierModule = await import(
+        pathToFileURL(path.join(treeRoot, CLASSIFIER_REL)).href +
+          "?reviewed_head=" + repo.head
+      );
+      if (
+        typeof compositionModule.composeVoidEconomicEpoch2PublicVerificationV1 !==
+          "function" ||
+        typeof classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1 !==
+          "function"
+      ) {
+        fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_EXPORTS_INVALID");
+      }
+      return await fn({
+        compose:
+          compositionModule.composeVoidEconomicEpoch2PublicVerificationV1,
+        compositionMarker:
+          compositionModule.VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_V1,
+        compositionConfirmation:
+          compositionModule
+            .VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_CONFIRMATION_V1,
+        classify:
+          classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1,
+        compositionBlob,
+        classifierBlob,
+      });
+    } finally {
+      if (hadOptionalLocks) process.env.GIT_OPTIONAL_LOCKS = priorOptionalLocks;
+      else delete process.env.GIT_OPTIONAL_LOCKS;
     }
-    return await fn({
-      compose:
-        compositionModule.composeVoidEconomicEpoch2PublicVerificationV1,
-      compositionMarker:
-        compositionModule.VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_V1,
-      compositionConfirmation:
-        compositionModule
-          .VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_CONFIRMATION_V1,
-      classify:
-        classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1,
-      compositionBlob,
-      classifierBlob,
-    });
   } finally {
     if (fs.existsSync(treeRoot)) {
       spawnSync("/usr/bin/chmod", ["-R", "u+w", treeRoot], {
