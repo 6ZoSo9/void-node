@@ -524,6 +524,8 @@ const authorityTrue = new Set([
   "canonical_remote_main_read_required",
   "external_network_read",
   "filesystem_read",
+  "filesystem_write",
+  "private_temporary_filesystem_write",
 ]);
 for (const [key, value] of Object.entries(
   VOID_PARTICIPANT_POSTPURCHASE_CANONICAL_APPLICATION_AUTHORITY_V1,
