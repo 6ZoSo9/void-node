@@ -624,7 +624,11 @@ function exactCandidateDelta(source, target, kind) {
     reset.gates.bounded_canary_green = false;
   }
   if (canonicalJson(reset) !== canonicalJson(source)) {
-    fail("CANONICAL_APPLICATION_" + kind.toUpperCase() + "_CHANGE_SCOPE_INVALID");
+    fail(
+      kind === "production"
+        ? "CANONICAL_APPLICATION_PRODUCTION_CHANGE_SCOPE_INVALID"
+        : "CANONICAL_APPLICATION_COUPLED_CHANGE_SCOPE_INVALID",
+    );
   }
 }
 
