@@ -96,6 +96,23 @@ assert.equal(proposed.gates.coupled_activation_ready,false);
 assert.equal(proposed.authority.market_activation,false);
 assert.equal(proposed.authority.public_presale_activation,false);
 assert.equal(proposed.authority.funds_movement,false);
+assert.equal(Object.isFrozen(proposed),true);
+assert.equal(Object.isFrozen(proposed.gates),true);
+assert.equal(
+  Object.isFrozen(proposed.shared_post_discovery_reconciliation),
+  true,
+);
+assert.throws(
+  ()=>{ proposed.gates.bounded_canary_green=true; },
+  TypeError,
+);
+assert.throws(
+  ()=>{
+    proposed.shared_post_discovery_reconciliation.coupled_launch_id=
+      "sha256:"+"f".repeat(64);
+  },
+  TypeError,
+);
 
 assert.deepEqual(
   artifact.required_atomic_source_updates.map((item)=>item.path),
@@ -198,6 +215,7 @@ console.log(
 console.log("encoding_bridge_lossless=true");
 console.log("reconciliation_id_rotated=true");
 console.log("wc_opening_state_id_rotated=true");
+console.log("derived_candidate_deep_frozen=true");
 console.log("atomic_candidate_classifier_proof_doc_update_required=true");
 console.log("canonical_candidate_file_updated=false");
 console.log("classifier_source_updated=false");
