@@ -6,6 +6,7 @@ on:
       - ".github/workflows/void-mainnet0-crossbox-peer-safety-v1.yml"
       - "scripts/prove_void_mainnet0_crossbox_peer_safety_v1.mjs"
       - "ops/mainnet/mainnet0-crossbox-status-smoke.sh"
+      - "ops/mainnet0-go-no-go-with-runtime.sh"
       - "ops/mainnet/mainnet0-prelaunch-safety-proof.sh"
       - "ops/mainnet/mainnet0-validator-live-admission-final-preflight-proof.sh"
       - "ops/mainnet/mainnet0-status-runbook.md"
@@ -18,6 +19,7 @@ on:
       - "ops/mainnet/mainnet0-final-gonogo-map.current.md"
       - "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md"
       - "ops/mainnet/mainnet0-blockers.current.md"
+      - "ops/mainnet/mainnet0-final-public-launch-checklist.current.md"
       - "Makefile"
   push:
     branches: [main]
@@ -25,6 +27,7 @@ on:
       - ".github/workflows/void-mainnet0-crossbox-peer-safety-v1.yml"
       - "scripts/prove_void_mainnet0_crossbox_peer_safety_v1.mjs"
       - "ops/mainnet/mainnet0-crossbox-status-smoke.sh"
+      - "ops/mainnet0-go-no-go-with-runtime.sh"
       - "ops/mainnet/mainnet0-prelaunch-safety-proof.sh"
       - "ops/mainnet/mainnet0-validator-live-admission-final-preflight-proof.sh"
       - "ops/mainnet/mainnet0-status-runbook.md"
@@ -37,6 +40,7 @@ on:
       - "ops/mainnet/mainnet0-final-gonogo-map.current.md"
       - "ops/mainnet/mainnet0-launch-approval-artifact-prep.current.md"
       - "ops/mainnet/mainnet0-blockers.current.md"
+      - "ops/mainnet/mainnet0-final-public-launch-checklist.current.md"
       - "Makefile"
 
 permissions:
@@ -61,6 +65,7 @@ jobs:
       - name: Shell syntax
         run: |
           bash -n ops/mainnet/mainnet0-crossbox-status-smoke.sh
+          bash -n ops/mainnet0-go-no-go-with-runtime.sh
           bash -n ops/mainnet/mainnet0-prelaunch-safety-proof.sh
           bash -n ops/mainnet/mainnet0-validator-live-admission-final-preflight-proof.sh
       - name: Node syntax

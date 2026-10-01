@@ -39,9 +39,15 @@ echo
 echo "=== [1] required main runtime proposer proof ==="
 MODE=idle make prove-main-runtime-autoprop
 
+CROSSBOX_PEER="${VOID_MAINNET0_CROSSBOX_PEER:-}"
+if [ -z "$CROSSBOX_PEER" ]; then
+  echo "[ERR] crossbox_peer_required: set VOID_MAINNET0_CROSSBOX_PEER to an explicitly reviewed nonlocal current-fleet peer" >&2
+  exit 2
+fi
+
 echo
-echo "=== [2] required Alienware follower autostart proof ==="
-make prove-alienware-follower-autostart
+echo "=== [2] required current-fleet cross-box status smoke ==="
+VOID_MAINNET0_CROSSBOX_PEER="$CROSSBOX_PEER" make mainnet0-crossbox-status-smoke
 
 PRE="$(pick_first -name 'mainnet0-mainnet-exec-preflight.sh')"
 READINESS="$(pick_first -name 'mainnet0-launch-readiness.sh')"
@@ -58,4 +64,4 @@ run_if_found 5 "$READINESS"
 run_if_found 6 "$GONOGO"
 
 echo
-echo "[ok] mainnet0 runtime+follower wrapper passed"
+echo "[ok] mainnet0 runtime+crossbox wrapper passed"
