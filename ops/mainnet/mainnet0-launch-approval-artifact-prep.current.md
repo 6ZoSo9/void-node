@@ -53,7 +53,7 @@ A future approval artifact must be a separate file and must include all of the f
 12. final go/no-go proof result,
 13. final public launch checklist proof result,
 14. Precision readiness result,
-15. explicit reviewed cross-box peer target and readiness result,
+15. explicit reviewed cross-box peer target, exact-head result, and readiness result,
 16. explicit statement that money-moving steps remain separately guarded,
 17. explicit statement that no credential material is included,
 18. operator timestamp and contact label,
