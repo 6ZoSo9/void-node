@@ -51,12 +51,28 @@ assert.match(
   "snapshot-freshness workflow checkout must not persist credentials",
 );
 
+const pullRequestStart = workflowSource.indexOf("  pull_request:\n");
+const pushStart = workflowSource.indexOf("  push:\n");
+const workflowDispatchStart = workflowSource.indexOf("  workflow_dispatch:\n");
+assert(
+  pullRequestStart >= 0
+    && pushStart > pullRequestStart
+    && workflowDispatchStart > pushStart,
+  "snapshot-freshness workflow trigger blocks missing or reordered",
+);
+const pullRequestBlock = workflowSource.slice(pullRequestStart, pushStart);
+const pushBlock = workflowSource.slice(pushStart, workflowDispatchStart);
+const operatorDocTrigger =
+  '- "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"';
 assert.equal(
-  workflowSource.split(
-    '- "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"',
-  ).length - 1,
-  2,
-  "snapshot-freshness operator contract must trigger focused CI on PR and push",
+  pullRequestBlock.split(operatorDocTrigger).length - 1,
+  1,
+  "snapshot-freshness operator contract must trigger PR focused CI exactly once",
+);
+assert.equal(
+  pushBlock.split(operatorDocTrigger).length - 1,
+  1,
+  "snapshot-freshness operator contract must trigger push focused CI exactly once",
 );
 
 const { roster, state } = await loadCoordinationFiles({
