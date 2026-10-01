@@ -3,11 +3,35 @@ name: VOID Precision web recovery host observer v1
 on:
   pull_request:
     paths:
-      - ".github/workflows/void-precision-web-recovery-host-observer-v1.yml"\n      - "docs/operators/precision-web-recovery-host-observer-v1.md"\n      - "scripts/prove_void_precision_web_recovery_host_observer_v1.mjs"\n      - "tools/void-precision-web-recovery-host-observer-v1.mjs"\n      - "tools/void-precision-web-recovery-evidence-v1.mjs"\n      - "ops/public/public-seed-adapter-v1.mjs"\n      - "ops/public/run-public-seed-adapter-v1.sh"\n      - "ops/public/void-public-app-composition-gateway-v1.mjs"\n      - "ops/public/run-void-public-app-composition-gateway-v1.sh"\n      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"\n      - "ops/public/void-public-frontdoor-v1.mjs"\n      - "ops/public/void-public-frontdoor-cutover-v1.sh"\n      - "public/void-public-frontdoor-v1/index.html"
+      - ".github/workflows/void-precision-web-recovery-host-observer-v1.yml"
+      - "docs/operators/precision-web-recovery-host-observer-v1.md"
+      - "scripts/prove_void_precision_web_recovery_host_observer_v1.mjs"
+      - "tools/void-precision-web-recovery-host-observer-v1.mjs"
+      - "tools/void-precision-web-recovery-evidence-v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/run-public-seed-adapter-v1.sh"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "ops/public/void-public-frontdoor-cutover-v1.sh"
+      - "public/void-public-frontdoor-v1/index.html"
   push:
     branches: [main]
     paths:
-      - ".github/workflows/void-precision-web-recovery-host-observer-v1.yml"\n      - "docs/operators/precision-web-recovery-host-observer-v1.md"\n      - "scripts/prove_void_precision_web_recovery_host_observer_v1.mjs"\n      - "tools/void-precision-web-recovery-host-observer-v1.mjs"\n      - "tools/void-precision-web-recovery-evidence-v1.mjs"\n      - "ops/public/public-seed-adapter-v1.mjs"\n      - "ops/public/run-public-seed-adapter-v1.sh"\n      - "ops/public/void-public-app-composition-gateway-v1.mjs"\n      - "ops/public/run-void-public-app-composition-gateway-v1.sh"\n      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"\n      - "ops/public/void-public-frontdoor-v1.mjs"\n      - "ops/public/void-public-frontdoor-cutover-v1.sh"\n      - "public/void-public-frontdoor-v1/index.html"
+      - ".github/workflows/void-precision-web-recovery-host-observer-v1.yml"
+      - "docs/operators/precision-web-recovery-host-observer-v1.md"
+      - "scripts/prove_void_precision_web_recovery_host_observer_v1.mjs"
+      - "tools/void-precision-web-recovery-host-observer-v1.mjs"
+      - "tools/void-precision-web-recovery-evidence-v1.mjs"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/run-public-seed-adapter-v1.sh"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "ops/public/void-public-frontdoor-cutover-v1.sh"
+      - "public/void-public-frontdoor-v1/index.html"
 
 permissions:
   contents: read
