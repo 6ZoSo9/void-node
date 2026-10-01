@@ -1335,28 +1335,48 @@ function writeOutputExclusive(output, value, sourceDir) {
   }
   const parent = path.dirname(destination);
   if (!fs.existsSync(parent)) hold("output_parent_missing");
-  const parentReal = fs.realpathSync(parent);
   const sourceReal = fs.realpathSync(source);
-  if (pathInside(sourceReal, parentReal)) {
-    hold("output_path_overlaps_source");
-  }
-  const bytes = Buffer.from(stableStringify(value) + "\n", "utf8");
-  if (bytes.length > MAX_OUTPUT_BYTES) {
-    hold("extension_output_too_large", { bytes: bytes.length });
-  }
-  const fd = fs.openSync(
-    destination,
-    fs.constants.O_WRONLY |
-      fs.constants.O_CREAT |
-      fs.constants.O_EXCL |
-      fs.constants.O_NOFOLLOW,
-    0o600,
-  );
+
+  let parentFd;
   try {
+    parentFd = fs.openSync(
+      parent,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    hold("output_parent_not_admitted", {
+      parent,
+      code: error?.code || null,
+    });
+  }
+
+  let fd;
+  try {
+    const pinnedParent = "/proc/self/fd/" + parentFd;
+    const parentReal = fs.realpathSync(pinnedParent);
+    if (pathInside(sourceReal, parentReal)) {
+      hold("output_path_overlaps_source");
+    }
+    const bytes = Buffer.from(stableStringify(value) + "\n", "utf8");
+    if (bytes.length > MAX_OUTPUT_BYTES) {
+      hold("extension_output_too_large", { bytes: bytes.length });
+    }
+    fd = fs.openSync(
+      pinnedParent + "/" + path.basename(destination),
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
+      0o600,
+    );
     fs.writeFileSync(fd, bytes);
     fs.fsyncSync(fd);
+    fs.fsyncSync(parentFd);
   } finally {
-    fs.closeSync(fd);
+    if (fd !== undefined) fs.closeSync(fd);
+    fs.closeSync(parentFd);
   }
 }
 
