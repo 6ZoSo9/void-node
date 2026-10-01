@@ -207,6 +207,131 @@ export type BuyVoidPostgresActivationTransitionModeV1 =
   | "staged"
   | "atomic_restart";
 
+export type BuyVoidPostgresActivationAtomicGateV1 =
+  | "claimed_runtime"
+  | "full_runtime"
+  | "admitted_guarded_runtime"
+  | "full_runtime_apply";
+
+export type BuyVoidPostgresActivationConfigurationGenerationV1 = Readonly<{
+  generation_id: string;
+  configuration_sha256: string;
+  gates: Readonly<
+    Record<
+      BuyVoidPostgresActivationAtomicGateV1,
+      Readonly<{
+        value: "0" | "1";
+        generation_id: string;
+        configuration_sha256: string;
+      }>
+    >
+  >;
+}>;
+
+const ATOMIC_GATE_KEYS = Object.freeze([
+  "claimed_runtime",
+  "full_runtime",
+  "admitted_guarded_runtime",
+  "full_runtime_apply",
+] as const satisfies readonly BuyVoidPostgresActivationAtomicGateV1[]);
+
+const CONFIG_GENERATION_ID =
+  /^voidbvpcg1_[0-9a-f]{64}$/u;
+const CONFIG_SHA256 = /^[0-9a-f]{64}$/u;
+
+function validateAtomicConfigurationGenerationV1(
+  value: unknown,
+  expectedState: BuyVoidPostgresActivationGateStateV1,
+):
+  | Readonly<{
+      ok: true;
+      generation: BuyVoidPostgresActivationConfigurationGenerationV1;
+    }>
+  | Readonly<{ ok: false; reason: string }> {
+  const outer = exactOwnDataObject(
+    value,
+    ["generation_id", "configuration_sha256", "gates"],
+  );
+  if (
+    !outer ||
+    typeof outer.generation_id !== "string" ||
+    !CONFIG_GENERATION_ID.test(outer.generation_id) ||
+    typeof outer.configuration_sha256 !== "string" ||
+    !CONFIG_SHA256.test(outer.configuration_sha256)
+  ) {
+    return Object.freeze({
+      ok: false,
+      reason: "atomic_restart_configuration_generation_invalid",
+    });
+  }
+
+  const gates = exactOwnDataObject(outer.gates, ATOMIC_GATE_KEYS);
+  if (!gates) {
+    return Object.freeze({
+      ok: false,
+      reason: "atomic_restart_configuration_generation_invalid",
+    });
+  }
+
+  const normalized = {} as Record<
+    BuyVoidPostgresActivationAtomicGateV1,
+    Readonly<{
+      value: "0" | "1";
+      generation_id: string;
+      configuration_sha256: string;
+    }>
+  >;
+
+  for (const key of ATOMIC_GATE_KEYS) {
+    const gate = exactOwnDataObject(
+      gates[key],
+      ["value", "generation_id", "configuration_sha256"],
+    );
+    if (
+      !gate ||
+      (gate.value !== "0" && gate.value !== "1") ||
+      typeof gate.generation_id !== "string" ||
+      !CONFIG_GENERATION_ID.test(gate.generation_id) ||
+      typeof gate.configuration_sha256 !== "string" ||
+      !CONFIG_SHA256.test(gate.configuration_sha256)
+    ) {
+      return Object.freeze({
+        ok: false,
+        reason: "atomic_restart_configuration_generation_invalid",
+      });
+    }
+    if (
+      gate.generation_id !== outer.generation_id ||
+      gate.configuration_sha256 !== outer.configuration_sha256
+    ) {
+      return Object.freeze({
+        ok: false,
+        reason: "atomic_restart_mixed_configuration_generation",
+      });
+    }
+    if (gate.value !== expectedState[key]) {
+      return Object.freeze({
+        ok: false,
+        reason: "atomic_restart_configuration_gate_values_mismatch",
+      });
+    }
+    normalized[key] = Object.freeze({
+      value: gate.value,
+      generation_id: gate.generation_id,
+      configuration_sha256: gate.configuration_sha256,
+    });
+  }
+
+  return Object.freeze({
+    ok: true,
+    generation: Object.freeze({
+      generation_id: outer.generation_id,
+      configuration_sha256: outer.configuration_sha256,
+      gates: Object.freeze(normalized),
+    }),
+  });
+}
+
 export type BuyVoidPostgresActivationTransitionDecisionV1 =
   | Readonly<{
       ok: true;
@@ -222,6 +347,8 @@ export type BuyVoidPostgresActivationTransitionDecisionV1 =
       changed_gates: readonly string[];
       requires_process_restart: boolean;
       money_capable_after: boolean;
+      configuration_generation_id: string | null;
+      configuration_sha256: string | null;
     }>
   | Readonly<{
       ok: false;
@@ -236,6 +363,7 @@ export function decideBuyVoidPostgresActivationTransitionV1(
   fromValue: unknown,
   toValue: unknown,
   modeValue: unknown = "staged",
+  configurationGenerationValue: unknown = null,
 ): BuyVoidPostgresActivationTransitionDecisionV1 {
   const mode =
     modeValue === "staged" || modeValue === "atomic_restart"
@@ -285,6 +413,8 @@ export function decideBuyVoidPostgresActivationTransitionV1(
       changed_gates: Object.freeze([]),
       requires_process_restart: false,
       money_capable_after: to === "live_apply",
+      configuration_generation_id: null,
+      configuration_sha256: null,
     });
   }
 
@@ -301,12 +431,7 @@ export function decideBuyVoidPostgresActivationTransitionV1(
         to,
       });
     }
-    const expectedChanged = [
-      "claimed_runtime",
-      "full_runtime",
-      "admitted_guarded_runtime",
-      "full_runtime_apply",
-    ];
+    const expectedChanged = [...ATOMIC_GATE_KEYS];
     if (
       changed.length !== expectedChanged.length ||
       changed.some((key, index) => key !== expectedChanged[index])
@@ -320,6 +445,21 @@ export function decideBuyVoidPostgresActivationTransitionV1(
         to,
       });
     }
+    const configurationGeneration =
+      validateAtomicConfigurationGenerationV1(
+        configurationGenerationValue,
+        toState,
+      );
+    if (!configurationGeneration.ok) {
+      return Object.freeze({
+        ok: false,
+        status: "held",
+        mode,
+        reason: configurationGeneration.reason,
+        from,
+        to,
+      });
+    }
     return Object.freeze({
       ok: true,
       status: forward ? "atomic_forward" : "atomic_rollback",
@@ -329,6 +469,10 @@ export function decideBuyVoidPostgresActivationTransitionV1(
       changed_gates: Object.freeze([...changed]),
       requires_process_restart: true,
       money_capable_after: forward,
+      configuration_generation_id:
+        configurationGeneration.generation.generation_id,
+      configuration_sha256:
+        configurationGeneration.generation.configuration_sha256,
     });
   }
 
@@ -366,6 +510,8 @@ export function decideBuyVoidPostgresActivationTransitionV1(
     changed_gates: Object.freeze([...changed]),
     requires_process_restart: true,
     money_capable_after: to === "live_apply",
+    configuration_generation_id: null,
+    configuration_sha256: null,
   });
 }
 
