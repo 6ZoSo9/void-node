@@ -53,24 +53,31 @@ historical Alienware state.
 
 The operational collector performs only these classes of reads:
 
-1. prepare the exact current #2273 source plan from a clean repository;
-2. read `systemctl --user show` for the three web services;
-3. read the live node service `InvocationID` before and after observation;
-4. read `ss -H -ltnp` and prove exact listener/PID ownership;
-5. read the running service `/proc/<pid>/exe`, `cmdline`, cwd, and exact
+1. prepare the exact reviewed #2273 source plan from a clean repository;
+2. GET the fixed public GitHub API ref
+   `https://api.github.com/repos/6ZoSo9/void-node/git/ref/heads/main` with a
+   5-second deadline and 64 KiB ceiling, and require that commit SHA to equal
+   the plan's local `source_head_sha`;
+3. read `systemctl --user show` for the three web services;
+4. read the live node service `InvocationID` before and after observation;
+5. read `ss -H -ltnp` and prove exact listener/PID ownership;
+6. read the running service `/proc/<pid>/exe`, `cmdline`, cwd, and exact
    Node entry-script bytes; require the executable basename to be `node` or
    `nodejs`, require argv[1] to resolve to the actual entry script, and require
    that exact file's SHA-256 to match the source digest in the plan;
-6. GET three loopback JSON endpoints with a 5-second total request deadline and
+7. GET three loopback JSON endpoints with a 5-second total request deadline and
    256 KiB response ceiling;
-7. read Tailscale Serve and Funnel status JSON before and after the observation.
+8. read Tailscale Serve and Funnel status JSON before and after the observation.
 
 All external commands use fixed absolute executable paths and are checked for
-filesystem-identity stability before/after each read. The observer also strips
-dynamic-loader overrides and Tailscale socket/debug overrides, fixes
-`PATH=/usr/bin:/bin`, and pins user-systemd reads to the current UID's
-`/run/user/<uid>/bus` rather than trusting inherited D-Bus/runtime-directory
-coordinates.
+filesystem-identity stability before/after each read. Command subprocesses do
+**not** inherit the ambient process environment. They receive one explicit
+frozen allowlist containing only fixed PATH/locale/HOME/pager controls plus the
+current UID's `XDG_RUNTIME_DIR=/run/user/<uid>` and matching user-systemd D-Bus
+address. Dynamic-loader variables (`LD_PRELOAD`, `LD_AUDIT`,
+`LD_LIBRARY_PATH`, etc.), Node/Python loader options, Tailscale socket/debug
+overrides, editor hooks, and unrelated caller variables therefore cannot cross
+the subprocess boundary.
 
 ## Runtime facts required
 
@@ -169,6 +176,26 @@ Host observations are accepted only when:
 The operational collector creates the timestamp itself after all before/after
 reads.
 
+## Canonical-main admission
+
+Hosted CI proves the GitHub-ref response parser and mismatch behavior without
+making a live network request. The exported structural evaluator accepts a
+claimed `canonical_main_sha` only when it equals the reviewed plan HEAD, but it
+still returns `independent_host_acceptance=false`.
+
+The module-private live finalizer is reached only by the operational collector
+after the collector itself has fetched the fixed official GitHub main ref and
+proved:
+
+```text
+canonical_main_sha == plan.source_head_sha
+```
+
+The fixed GitHub ref read happens before systemd/listener/process observation.
+A stale local main, feature branch, detached non-main generation, or fork commit
+cannot therefore become live Precision acceptance merely because its reviewed
+web-source blobs happen to match.
+
 ## Output
 
 A successful live run emits:
@@ -176,6 +203,8 @@ A successful live run emits:
 ```text
 status=PRECISION_WEB_RECOVERY_HOST_OBSERVATION_ACCEPTED
 live_host_observation_performed=true
+canonical_main_live_read_performed=true
+canonical_main_live_match=true
 independent_host_acceptance=true
 ingress_activation_authorized=false
 service_mutation_authorized=false
