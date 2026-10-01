@@ -6,6 +6,7 @@ import {
   generateKeyPairSync,
 } from "node:crypto";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -20,6 +21,9 @@ import {
   VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
   buildVoidPublicOriginBindingExternalAcceptanceV1 as
     buildExternalAcceptanceRawV1,
+  readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1,
+  validateVoidPublicOriginBindingExternalAcceptanceReceiptV1,
+  verifyVoidPublicOriginBindingExternalAcceptanceSourceV1,
 } from "../tools/void-public-origin-binding-external-acceptance-v1.mjs";
 
 function sha256(value) {
@@ -28,6 +32,32 @@ function sha256(value) {
 
 function clone(value) {
   return structuredClone(value);
+}
+
+function canonicalize(value) {
+  if (
+    value === null
+    || typeof value === "string"
+    || typeof value === "boolean"
+    || (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value;
+  }
+  if (Array.isArray(value)) return value.map(canonicalize);
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonicalize(value[key])]),
+  );
+}
+
+function rehashReceipt(value) {
+  const copy = clone(value);
+  delete copy.receipt_id;
+  value.receipt_id =
+    "voidpora1_"+
+    sha256(Buffer.from(JSON.stringify(canonicalize(copy))));
+  return value;
 }
 
 const nowMs = Date.parse(
@@ -41,12 +71,29 @@ const noNodeClientTool = fileURLToPath(
     import.meta.url,
   ),
 );
+const repositoryHead = execFileSync(
+  "git",
+  ["rev-parse", "HEAD"],
+  { encoding: "utf8" },
+).trim();
 const sourceProvenance = Object.freeze({
-  repository_head: "a".repeat(40),
+  repository_head: repositoryHead,
   clean_main: true,
-  collector_sha256: "b".repeat(64),
-  directory_tool_sha256: "c".repeat(64),
-  handoff_tool_sha256: "d".repeat(64),
+  collector_sha256: sha256(
+    fs.readFileSync(
+      "tools/void-public-origin-binding-external-acceptance-v1.mjs",
+    ),
+  ),
+  directory_tool_sha256: sha256(
+    fs.readFileSync(
+      "tools/wc-public-opportunity-directory-v1.mjs",
+    ),
+  ),
+  handoff_tool_sha256: sha256(
+    fs.readFileSync(
+      "tools/wc-public-opportunity-handoff-v1.mjs",
+    ),
+  ),
 });
 const buildVoidPublicOriginBindingExternalAcceptanceV1 =
   (input) => buildExternalAcceptanceRawV1({
@@ -251,6 +298,10 @@ assert.equal(
 );
 assert.equal(evidence.status, "green");
 assert.equal(evidence.external_acceptance, true);
+assert.equal(
+  evidence.evidence_authentication,
+  "content_addressed_unsigned_v1",
+);
 assert.equal(evidence.source.clean_main, true);
 assert.equal(
   evidence.source.repository_head,
@@ -328,6 +379,213 @@ assert.equal(
   evidence.safety.funds_movement,
   false,
 );
+assert.match(
+  evidence.receipt_id,
+  /^voidpora1_[0-9a-f]{64}$/u,
+);
+assert.equal(
+  Buffer.from(
+    evidence.binding.artifact_base64,
+    "base64",
+  ).equals(bindingBytes),
+  true,
+);
+
+const receiptValidationOptions = {
+  expectedSourceProvenance: sourceProvenance,
+  verifyBinding: verifyEphemeral,
+  expectedFingerprint: fingerprint,
+  expectedTrustRegistrySha256: trustRegistrySha256,
+};
+assert.deepEqual(
+  validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+    clone(evidence),
+    receiptValidationOptions,
+  ),
+  evidence,
+);
+assert.deepEqual(
+  verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+    evidence.source,
+    { requireMainAncestor: false },
+  ),
+  evidence.source,
+);
+
+{
+  const badSource = {
+    ...evidence.source,
+    collector_sha256:"0".repeat(64),
+  };
+  assert.throws(
+    () =>
+      verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+        badSource,
+        {requireMainAncestor:false},
+      ),
+    /source hash mismatch: collector_sha256/u,
+  );
+}
+
+{
+  const bad = clone(evidence);
+  bad.receipt_id = "voidpora1_"+"0".repeat(64);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /receipt ID mismatch/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  bad.source.collector_sha256 = "0".repeat(64);
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /source provenance mismatch/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  const fakeArtifact = Buffer.from("{}\n","utf8");
+  const fakeSha = sha256(fakeArtifact);
+  bad.binding.artifact_base64 =
+    fakeArtifact.toString("base64");
+  bad.binding.artifact_sha256 = fakeSha;
+  for (const alias of bad.binding.aliases) {
+    alias.artifact_sha256 = fakeSha;
+  }
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /binding|public-origin|shape|identity/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  bad.handoff.public_copy_ready = false;
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /handoff contract invalid/u,
+  );
+}
+{
+  const bad = clone(evidence);
+  bad.safety.private_key_access = true;
+  rehashReceipt(bad);
+  assert.throws(
+    () =>
+      validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+        bad,
+        receiptValidationOptions,
+      ),
+    /safety mismatch: private_key_access/u,
+  );
+}
+
+{
+  const root = fs.mkdtempSync(
+    "/tmp/void-public-origin-acceptance-receipt-v1-",
+  );
+  const receiptFile = root+"/receipt.json";
+  try {
+    fs.writeFileSync(
+      receiptFile,
+      JSON.stringify(evidence,null,2)+"\n",
+      {mode:0o600},
+    );
+    assert.deepEqual(
+      readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+        receiptFile,
+        {
+          requireMainAncestor:false,
+          verifyBinding:verifyEphemeral,
+          expectedFingerprint:fingerprint,
+          expectedTrustRegistrySha256:
+            trustRegistrySha256,
+        },
+      ),
+      evidence,
+    );
+  } finally {
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
+
+{
+  const root = fs.mkdtempSync(
+    "/tmp/void-public-origin-acceptance-receipt-race-v1-",
+  );
+  const receiptFile = root+"/receipt.json";
+  const parkedFile = root+"/receipt.opened.json";
+  const replacementFile = root+"/replacement.json";
+  const originalReadSync = fs.readSync;
+  let swapped = false;
+  try {
+    fs.writeFileSync(
+      receiptFile,
+      JSON.stringify(evidence,null,2)+"\n",
+      {mode:0o600},
+    );
+    fs.writeFileSync(
+      replacementFile,
+      Buffer.alloc(600 * 1024, 0x78),
+      {mode:0o600},
+    );
+    fs.readSync = function(fd, buffer, offset, length, position) {
+      if (!swapped) {
+        swapped = true;
+        fs.renameSync(receiptFile, parkedFile);
+        fs.symlinkSync(replacementFile, receiptFile);
+      }
+      return originalReadSync(
+        fd,
+        buffer,
+        offset,
+        length,
+        position,
+      );
+    };
+    assert.throws(
+      () =>
+        readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+          receiptFile,
+          {
+            requireMainAncestor:false,
+            verifyBinding:verifyEphemeral,
+            expectedFingerprint:fingerprint,
+            expectedTrustRegistrySha256:
+              trustRegistrySha256,
+          },
+        ),
+      /receipt input file changed during read/u,
+    );
+    assert.equal(
+      swapped,
+      true,
+      "receipt replacement race hook did not execute",
+    );
+  } finally {
+    fs.readSync = originalReadSync;
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+}
 
 {
   assert.throws(
@@ -573,6 +831,20 @@ for (const required of [
   "sourceProvenance",
   "assertCollectorProvenanceStableV1(",
   "source generation changed during collection",
+  "validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(",
+  "readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(",
+  "O_NOFOLLOW",
+  "fstatSync(fd, { bigint: true })",
+  "receipt input file changed during read",
+  "verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(",
+  '"voidpora1_"+',
+  '"cat-file"',
+  '"merge-base"',
+  '"show"',
+  'command === "verify"',
+  '"offline_verification=true"',
+  '"external_request=false"',
+  '"bounded_git_child_process_execution=true"',
 ]) {
   assert.equal(
     source.includes(required),

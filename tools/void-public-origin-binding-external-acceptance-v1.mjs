@@ -54,6 +54,12 @@ const NO_NODE_CLIENT_TOOL = resolve(
   HERE,
   "void_public_earn_no_node_client_v1.mjs",
 );
+const COLLECTOR_REPO_PATH =
+  "tools/void-public-origin-binding-external-acceptance-v1.mjs";
+const DIRECTORY_REPO_PATH =
+  "tools/wc-public-opportunity-directory-v1.mjs";
+const HANDOFF_REPO_PATH =
+  "tools/wc-public-opportunity-handoff-v1.mjs";
 
 function fail(message) {
   throw new Error(message);
@@ -61,6 +67,93 @@ function fail(message) {
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+const EXTERNAL_ACCEPTANCE_RECEIPT_ID_V1 =
+  /^voidpora1_[0-9a-f]{64}$/u;
+const HEX64_V1 = /^[0-9a-f]{64}$/u;
+const HEX40_V1 = /^[0-9a-f]{40}$/u;
+
+function plainObjectV1(value) {
+  return (
+    value !== null
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function exactKeysV1(value, expected, label) {
+  if (!plainObjectV1(value)) {
+    fail(`${label} must be an object`);
+  }
+  const actual = Object.keys(value).sort();
+  const wanted = [...expected].sort();
+  if (
+    actual.length !== wanted.length
+    || actual.some((key, index) => key !== wanted[index])
+  ) {
+    fail(`${label} shape mismatch`);
+  }
+}
+
+function canonicalizeV1(value) {
+  if (
+    value === null
+    || typeof value === "string"
+    || typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeV1);
+  }
+  if (!plainObjectV1(value)) {
+    fail("external acceptance canonical JSON value is invalid");
+  }
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, canonicalizeV1(value[key])]),
+  );
+}
+
+function canonicalJsonV1(value) {
+  return JSON.stringify(canonicalizeV1(value));
+}
+
+function canonicalTimestampV1(value, label) {
+  if (typeof value !== "string") {
+    fail(`${label} timestamp is invalid`);
+  }
+  const parsed = new Date(value);
+  if (
+    !Number.isFinite(parsed.getTime())
+    || parsed.toISOString() !== value
+  ) {
+    fail(`${label} timestamp is invalid`);
+  }
+  return parsed.getTime();
+}
+
+function strictBase64V1(value, label) {
+  if (
+    typeof value !== "string"
+    || value.length < 4
+    || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
+      value,
+    )
+  ) {
+    fail(`${label} base64 is invalid`);
+  }
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.toString("base64") !== value) {
+    fail(`${label} base64 is invalid`);
+  }
+  return bytes;
 }
 
 function gitV1(args) {
@@ -76,6 +169,41 @@ function gitV1(args) {
       },
     },
   ).trim();
+}
+
+function gitBytesV1(args) {
+  return execFileSync(
+    "git",
+    args,
+    {
+      cwd: REPO_ROOT,
+      encoding: null,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        PATH: "/usr/bin:/bin",
+      },
+      maxBuffer: 8 * 1024 * 1024,
+    },
+  );
+}
+
+function gitSucceedsV1(args) {
+  try {
+    execFileSync(
+      "git",
+      args,
+      {
+        cwd: REPO_ROOT,
+        stdio: ["ignore", "ignore", "ignore"],
+        env: {
+          PATH: "/usr/bin:/bin",
+        },
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function regularSourceSha256V1(file, label) {
@@ -118,6 +246,84 @@ function liveCollectorProvenanceV1() {
       regularSourceSha256V1(DIRECTORY_TOOL, "directory"),
     handoff_tool_sha256:
       regularSourceSha256V1(HANDOFF_TOOL, "handoff"),
+  });
+}
+
+export function verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+  source,
+  {
+    requireMainAncestor = true,
+  } = {},
+) {
+  exactKeysV1(
+    source,
+    [
+      "repository_head",
+      "clean_main",
+      "collector_sha256",
+      "directory_tool_sha256",
+      "handoff_tool_sha256",
+    ],
+    "external acceptance source",
+  );
+  if (
+    source.clean_main !== true
+    || !HEX40_V1.test(source.repository_head)
+    || !HEX64_V1.test(source.collector_sha256)
+    || !HEX64_V1.test(source.directory_tool_sha256)
+    || !HEX64_V1.test(source.handoff_tool_sha256)
+  ) {
+    fail("external acceptance source contract invalid");
+  }
+  if (
+    !gitSucceedsV1([
+      "cat-file",
+      "-e",
+      `${source.repository_head}^{commit}`,
+    ])
+  ) {
+    fail("external acceptance source commit unavailable");
+  }
+  if (
+    requireMainAncestor
+    && !gitSucceedsV1([
+      "merge-base",
+      "--is-ancestor",
+      source.repository_head,
+      "main",
+    ])
+  ) {
+    fail("external acceptance source commit is not on main");
+  }
+  const expected = {
+    collector_sha256: sha256(
+      gitBytesV1([
+        "show",
+        `${source.repository_head}:${COLLECTOR_REPO_PATH}`,
+      ]),
+    ),
+    directory_tool_sha256: sha256(
+      gitBytesV1([
+        "show",
+        `${source.repository_head}:${DIRECTORY_REPO_PATH}`,
+      ]),
+    ),
+    handoff_tool_sha256: sha256(
+      gitBytesV1([
+        "show",
+        `${source.repository_head}:${HANDOFF_REPO_PATH}`,
+      ]),
+    ),
+  };
+  for (const [key, value] of Object.entries(expected)) {
+    if (source[key] !== value) {
+      fail(`external acceptance source hash mismatch: ${key}`);
+    }
+  }
+  return Object.freeze({
+    repository_head: source.repository_head,
+    clean_main: true,
+    ...expected,
   });
 }
 
@@ -210,6 +416,157 @@ function canonicalOutputPath(file) {
     if (error?.code !== "ENOENT") throw error;
   }
   return file;
+}
+
+function sameReceiptFileStampV1(left, right) {
+  return (
+    left.dev === right.dev
+    && left.ino === right.ino
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs
+  );
+}
+
+function readBoundedCanonicalReceiptBytesV1(rawFile) {
+  const parent = path.dirname(rawFile);
+  let realParent;
+  try {
+    realParent = fs.realpathSync.native(parent);
+  } catch {
+    fail("receipt input parent could not be canonicalized");
+  }
+  if (realParent !== parent) {
+    fail("receipt input parent must be canonical");
+  }
+
+  let fd;
+  try {
+    fd = fs.openSync(
+      rawFile,
+      fs.constants.O_RDONLY
+        | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+  } catch {
+    fail("receipt input file could not be opened safely");
+  }
+
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    let pathBefore;
+    try {
+      pathBefore = fs.lstatSync(rawFile, { bigint: true });
+    } catch {
+      fail("receipt input file changed during admission");
+    }
+    if (
+      !before.isFile()
+      || pathBefore.isSymbolicLink()
+      || !pathBefore.isFile()
+      || !sameReceiptFileStampV1(before, pathBefore)
+      || fs.realpathSync.native(rawFile) !== rawFile
+      || before.size < 2n
+      || before.size > BigInt(512 * 1024)
+    ) {
+      fail("receipt input file is invalid");
+    }
+
+    const size = Number(before.size);
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        size - offset,
+        offset,
+      );
+      if (count <= 0) {
+        fail("receipt input file changed during read");
+      }
+      offset += count;
+    }
+
+    const probe = Buffer.alloc(1);
+    if (fs.readSync(fd, probe, 0, 1, size) !== 0) {
+      fail("receipt input file grew during read");
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    let pathAfter;
+    try {
+      pathAfter = fs.lstatSync(rawFile, { bigint: true });
+    } catch {
+      fail("receipt input file changed during read");
+    }
+    let realAfter;
+    try {
+      realAfter = fs.realpathSync.native(rawFile);
+    } catch {
+      fail("receipt input file changed during read");
+    }
+    if (
+      pathAfter.isSymbolicLink()
+      || !pathAfter.isFile()
+      || !sameReceiptFileStampV1(before, after)
+      || !sameReceiptFileStampV1(after, pathAfter)
+      || realAfter !== rawFile
+    ) {
+      fail("receipt input file changed during read");
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+export function readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+  rawFile,
+  {
+    requireMainAncestor = true,
+    verifyBinding =
+      verifyReviewedVoidNodePublicOriginBindingV1,
+    expectedFingerprint =
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1,
+    expectedTrustRegistrySha256 =
+      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256,
+  } = {},
+) {
+  if (
+    typeof rawFile !== "string"
+    || !path.isAbsolute(rawFile)
+    || path.resolve(rawFile) !== rawFile
+  ) {
+    fail("receipt input path must be an absolute canonical path");
+  }
+  const value = strictUtf8Json(
+    readBoundedCanonicalReceiptBytesV1(rawFile),
+    "external acceptance receipt",
+  );
+  const receipt =
+    validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+      value,
+      {
+        verifyBinding,
+        expectedFingerprint,
+        expectedTrustRegistrySha256,
+      },
+    );
+  const verifiedSource =
+    verifyVoidPublicOriginBindingExternalAcceptanceSourceV1(
+      receipt.source,
+      {
+        requireMainAncestor,
+      },
+    );
+  if (
+    canonicalJsonV1(verifiedSource)
+      !== canonicalJsonV1(receipt.source)
+  ) {
+    fail("external acceptance source provenance mismatch");
+  }
+  return receipt;
 }
 
 function writePrivateJson(file, value) {
@@ -909,12 +1266,14 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
     expectedFingerprint,
   );
 
-  return Object.freeze({
+  const material={
     marker:
       VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1,
     version: 1,
     status: "green",
     external_acceptance: true,
+    evidence_authentication:
+      "content_addressed_unsigned_v1",
     collected_at: new Date(nowMs).toISOString(),
     source: Object.freeze({
       repository_head: sourceProvenance.repository_head,
@@ -936,6 +1295,8 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
         expectedTrustRegistrySha256,
     }),
     binding: Object.freeze({
+      artifact_base64:
+        aliasResults[0].body.toString("base64"),
       artifact_sha256:
         verifiedAliases[0].artifact_sha256,
       binding_sha256:
@@ -991,8 +1352,371 @@ export function buildVoidPublicOriginBindingExternalAcceptanceV1({
       validator_mutation: false,
       funds_movement: false,
     }),
+  };
+  const receipt=Object.freeze({
+    ...material,
+    receipt_id:
+      "voidpora1_"+
+      sha256(Buffer.from(canonicalJsonV1(material),"utf8")),
   });
+  return validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+    receipt,
+    {
+      expectedSourceProvenance: sourceProvenance,
+      verifyBinding,
+      expectedFingerprint,
+      expectedTrustRegistrySha256,
+    },
+  );
 }
+
+
+export function validateVoidPublicOriginBindingExternalAcceptanceReceiptV1(
+  receipt,
+  {
+    expectedSourceProvenance = null,
+    verifyBinding =
+      verifyReviewedVoidNodePublicOriginBindingV1,
+    expectedFingerprint =
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_FINGERPRINT_V1,
+    expectedTrustRegistrySha256 =
+      VOID_PUBLIC_NODE_IDENTITY_TRUST_REGISTRY_SHA256,
+  } = {},
+) {
+  exactKeysV1(
+    receipt,
+    [
+      "marker",
+      "version",
+      "status",
+      "external_acceptance",
+      "evidence_authentication",
+      "collected_at",
+      "source",
+      "coordinator",
+      "binding",
+      "directory",
+      "handoff",
+      "safety",
+      "receipt_id",
+    ],
+    "external acceptance receipt",
+  );
+  if (
+    receipt.marker !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1
+    || receipt.version !== 1
+    || receipt.status !== "green"
+    || receipt.external_acceptance !== true
+    || receipt.evidence_authentication !==
+      "content_addressed_unsigned_v1"
+    || !EXTERNAL_ACCEPTANCE_RECEIPT_ID_V1.test(
+      String(receipt.receipt_id || ""),
+    )
+  ) {
+    fail("external acceptance receipt contract invalid");
+  }
+
+  const collectedMs = canonicalTimestampV1(
+    receipt.collected_at,
+    "collected_at",
+  );
+
+  exactKeysV1(
+    receipt.source,
+    [
+      "repository_head",
+      "clean_main",
+      "collector_sha256",
+      "directory_tool_sha256",
+      "handoff_tool_sha256",
+    ],
+    "external acceptance source",
+  );
+  if (
+    receipt.source.clean_main !== true
+    || !HEX40_V1.test(receipt.source.repository_head)
+    || !HEX64_V1.test(receipt.source.collector_sha256)
+    || !HEX64_V1.test(receipt.source.directory_tool_sha256)
+    || !HEX64_V1.test(receipt.source.handoff_tool_sha256)
+  ) {
+    fail("external acceptance source contract invalid");
+  }
+  if (
+    expectedSourceProvenance !== null
+    && canonicalJsonV1(receipt.source)
+      !== canonicalJsonV1(expectedSourceProvenance)
+  ) {
+    fail("external acceptance source provenance mismatch");
+  }
+
+  exactKeysV1(
+    receipt.coordinator,
+    [
+      "base",
+      "node_id",
+      "public_key_fingerprint_sha256",
+      "trust_registry_sha256",
+    ],
+    "external acceptance coordinator",
+  );
+  if (
+    receipt.coordinator.base !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1
+    || receipt.coordinator.node_id !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
+    || receipt.coordinator.public_key_fingerprint_sha256 !==
+      expectedFingerprint
+    || receipt.coordinator.trust_registry_sha256 !==
+      expectedTrustRegistrySha256
+  ) {
+    fail("external acceptance coordinator contract invalid");
+  }
+
+  exactKeysV1(
+    receipt.binding,
+    [
+      "artifact_base64",
+      "artifact_sha256",
+      "binding_sha256",
+      "issued_at",
+      "expires_at",
+      "aliases",
+      "byte_identical_aliases",
+    ],
+    "external acceptance binding",
+  );
+  if (
+    typeof verifyBinding !== "function"
+    || !HEX64_V1.test(receipt.binding.artifact_sha256)
+    || !HEX64_V1.test(receipt.binding.binding_sha256)
+    || receipt.binding.byte_identical_aliases !== true
+    || !Array.isArray(receipt.binding.aliases)
+    || receipt.binding.aliases.length !==
+      VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS.length
+  ) {
+    fail("external acceptance binding contract invalid");
+  }
+  const issuedMs = canonicalTimestampV1(
+    receipt.binding.issued_at,
+    "binding issued_at",
+  );
+  const expiresMs = canonicalTimestampV1(
+    receipt.binding.expires_at,
+    "binding expires_at",
+  );
+  if (
+    expiresMs <= issuedMs
+    || collectedMs < issuedMs
+    || collectedMs >= expiresMs
+  ) {
+    fail("external acceptance binding time contract invalid");
+  }
+
+  const artifactBytes = strictBase64V1(
+    receipt.binding.artifact_base64,
+    "external acceptance binding artifact",
+  );
+  if (
+    artifactBytes.length < 2
+    || artifactBytes.length > MAX_ALIAS_BYTES
+    || sha256(artifactBytes) !== receipt.binding.artifact_sha256
+  ) {
+    fail("external acceptance binding artifact digest mismatch");
+  }
+  const bindingDocument = strictUtf8Json(
+    artifactBytes,
+    "external acceptance binding artifact",
+  );
+  const artifactVerified = verifyBinding(
+    bindingDocument,
+    {
+      expectedOrigin:
+        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
+      expectedNodeId:
+        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1,
+      nowMs: collectedMs,
+    },
+  );
+  if (
+    artifactVerified?.origin !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1
+    || artifactVerified?.node_id !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
+    || artifactVerified?.public_key_fingerprint_sha256 !==
+      expectedFingerprint
+    || artifactVerified?.trust_registry_sha256 !==
+      expectedTrustRegistrySha256
+    || artifactVerified?.binding_sha256 !==
+      receipt.binding.binding_sha256
+    || artifactVerified?.issued_at !== receipt.binding.issued_at
+    || artifactVerified?.expires_at !== receipt.binding.expires_at
+  ) {
+    fail("external acceptance signed binding verification mismatch");
+  }
+
+  for (
+    let index = 0;
+    index < VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS.length;
+    index += 1
+  ) {
+    const alias = receipt.binding.aliases[index];
+    const expectedPath =
+      VOID_NODE_PUBLIC_ORIGIN_BINDING_PATHS[index];
+    const expectedUrl = new URL(
+      expectedPath,
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1,
+    ).href;
+    exactKeysV1(
+      alias,
+      [
+        "path",
+        "url",
+        "http_status",
+        "bytes",
+        "artifact_sha256",
+        "binding_sha256",
+        "issued_at",
+        "expires_at",
+        "public_key_fingerprint_sha256",
+        "trust_registry_sha256",
+      ],
+      `external acceptance binding alias ${index}`,
+    );
+    if (
+      alias.path !== expectedPath
+      || alias.url !== expectedUrl
+      || alias.http_status !== 200
+      || !Number.isSafeInteger(alias.bytes)
+      || alias.bytes < 2
+      || alias.bytes > MAX_ALIAS_BYTES
+      || alias.artifact_sha256 !==
+        receipt.binding.artifact_sha256
+      || alias.binding_sha256 !==
+        receipt.binding.binding_sha256
+      || alias.issued_at !== receipt.binding.issued_at
+      || alias.expires_at !== receipt.binding.expires_at
+      || alias.public_key_fingerprint_sha256 !==
+        expectedFingerprint
+      || alias.trust_registry_sha256 !==
+        expectedTrustRegistrySha256
+    ) {
+      fail("external acceptance binding alias contract invalid");
+    }
+  }
+
+  exactKeysV1(
+    receipt.directory,
+    [
+      "marker",
+      "state",
+      "total",
+      "available",
+      "base",
+      "trusted",
+      "fixed_award_wc",
+    ],
+    "external acceptance directory",
+  );
+  if (
+    receipt.directory.marker !== DIRECTORY_MARKER
+    || receipt.directory.state !== "available"
+    || receipt.directory.total !== 1
+    || receipt.directory.available !== 1
+    || receipt.directory.base !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_BASE_V1
+    || receipt.directory.trusted !== true
+    || receipt.directory.fixed_award_wc !== 3
+  ) {
+    fail("external acceptance directory contract invalid");
+  }
+
+  exactKeysV1(
+    receipt.handoff,
+    [
+      "marker",
+      "state",
+      "account",
+      "public_copy_ready",
+      "trust_mode",
+      "trust_registry_sha256",
+      "binding_sha256",
+      "health_node_id",
+    ],
+    "external acceptance handoff",
+  );
+  if (
+    receipt.handoff.marker !== HANDOFF_MARKER
+    || receipt.handoff.state !== "ready"
+    || receipt.handoff.account !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCOUNT_V1
+    || receipt.handoff.public_copy_ready !== true
+    || receipt.handoff.trust_mode !==
+      "signed_public_origin_binding"
+    || receipt.handoff.trust_registry_sha256 !==
+      expectedTrustRegistrySha256
+    || receipt.handoff.binding_sha256 !==
+      receipt.binding.binding_sha256
+    || receipt.handoff.health_node_id !==
+      VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_NODE_ID_V1
+  ) {
+    fail("external acceptance handoff contract invalid");
+  }
+
+  const expectedSafety = Object.freeze({
+    read_only: true,
+    https_get_only: true,
+    directory_executed: true,
+    handoff_executed: true,
+    no_node_client_executed: true,
+    mutation_attempted: false,
+    ticket_issuance_attempted: false,
+    receipt_submission_attempted: false,
+    wc_award_attempted: false,
+    wallet_access_attempted: false,
+    settlement_attempted: false,
+    private_key_access: false,
+    signature_creation: false,
+    systemd_mutation: false,
+    service_restart: false,
+    transaction_submission: false,
+    validator_mutation: false,
+    funds_movement: false,
+  });
+  exactKeysV1(
+    receipt.safety,
+    Object.keys(expectedSafety),
+    "external acceptance safety",
+  );
+  for (const [key, expected] of Object.entries(expectedSafety)) {
+    if (receipt.safety[key] !== expected) {
+      fail(`external acceptance safety mismatch: ${key}`);
+    }
+  }
+
+  const material = structuredClone(receipt);
+  const receiptId = material.receipt_id;
+  delete material.receipt_id;
+  const expectedReceiptId =
+    "voidpora1_"+
+    sha256(
+      Buffer.from(
+        canonicalJsonV1(material),
+        "utf8",
+      ),
+    );
+  if (
+    receiptId !== expectedReceiptId
+    || !EXTERNAL_ACCEPTANCE_RECEIPT_ID_V1.test(
+      expectedReceiptId,
+    )
+  ) {
+    fail("external acceptance receipt ID mismatch");
+  }
+
+  return Object.freeze(structuredClone(receipt));
+}
+
 
 async function collectLiveV1({
   requestTimeoutMs,
@@ -1088,6 +1812,7 @@ function parseCli(argv) {
     args: argv,
     options: {
       output: { type: "string" },
+      input: { type: "string" },
       "request-timeout-ms": {
         type: "string",
         default: "5000",
@@ -1117,11 +1842,13 @@ function parseCli(argv) {
 
 function usage() {
   console.log(
-    "usage: node tools/void-public-origin-binding-external-acceptance-v1.mjs collect "
-      + "--output /absolute/evidence.json "
+    "usage: node tools/void-public-origin-binding-external-acceptance-v1.mjs "
+      + "collect --output /absolute/evidence.json "
       + "[--request-timeout-ms 5000] "
       + "[--alias-inactivity-timeout-ms 5000] "
-      + "[--alias-total-timeout-ms 15000]",
+      + "[--alias-total-timeout-ms 15000]\n"
+      + "   or: node tools/void-public-origin-binding-external-acceptance-v1.mjs "
+      + "verify --input /absolute/evidence.json",
   );
 }
 
@@ -1183,6 +1910,7 @@ if (direct) {
       console.log(
         VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1,
       );
+      console.log(`receipt_id=${evidence.receipt_id}`);
       console.log("status=green");
       console.log("external_acceptance=true");
       console.log(
@@ -1204,6 +1932,32 @@ if (direct) {
       console.log("ticket_issuance_attempted=false");
       console.log("private_key_access=false");
       console.log("service_restart=false");
+      console.log("funds_movement=false");
+    } else if (command === "verify") {
+      if (!values.input) {
+        fail("verify requires --input");
+      }
+      if (values.output) {
+        fail("verify does not accept --output");
+      }
+      const input = path.resolve(values.input);
+      if (input !== values.input) {
+        fail("receipt input path must be an absolute canonical path");
+      }
+      const receipt =
+        readVoidPublicOriginBindingExternalAcceptanceReceiptFileV1(
+          input,
+        );
+      console.log(
+        VOID_PUBLIC_ORIGIN_BINDING_EXTERNAL_ACCEPTANCE_V1,
+      );
+      console.log("status=green");
+      console.log(`receipt_id=${receipt.receipt_id}`);
+      console.log("offline_verification=true");
+      console.log("external_request=false");
+      console.log("bounded_git_child_process_execution=true");
+      console.log("runtime_mutation=false");
+      console.log("private_key_access=false");
       console.log("funds_movement=false");
     } else {
       usage();

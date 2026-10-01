@@ -115,18 +115,35 @@ They are **not executed**.
 
 ## Evidence receipt
 
-Successful collection writes one create-only mode-0600 JSON receipt containing:
+Successful collection writes one create-only mode-0600 JSON receipt with a
+closed V1 schema and content-derived identity:
+
+`voidpora1_<sha256(canonical-receipt-without-receipt_id)>`
+
+The receipt contains:
 
 - exact repository head and clean-main assertion;
 - SHA-256 of the collector, directory, and handoff tool bytes;
-- exact public origin/node/fingerprint;
-- raw alias artifact SHA-256;
-- canonical binding SHA-256;
+- exact public origin/node/fingerprint/trust-registry identity;
+- the already-public signed binding artifact once as canonical base64;
+- raw alias artifact SHA-256 and canonical binding SHA-256;
 - both alias URLs, byte counts, and validity timestamps;
 - directory availability summary;
 - handoff trust/public-copy-ready summary; and
 - explicit all-false mutation/key/signing/systemd/service/transaction/validator/
   funds authority facts.
+
+The validator decodes the embedded signed binding artifact, recomputes its raw
+SHA-256, reparses it with fatal UTF-8, reruns the reviewed Ed25519/trust
+verification at `collected_at`, and requires the resulting binding digest,
+validity window, fingerprint, and trust-registry generation to match the receipt.
+
+The receipt records
+`evidence_authentication=content_addressed_unsigned_v1`. Its receipt ID is a
+tamper-evident content identity, **not** an observer signature. Offline
+verification proves internal contract consistency, signed-origin authenticity,
+and exact source-generation provenance; it does not independently authenticate
+the human/machine identity that performed the external observation.
 
 The receipt contains no private key, capability token, wallet secret, or
 signature-creation authority.
@@ -147,6 +164,29 @@ Optional timeout controls remain timing-only:
 ```
 
 The total alias deadline must be at least the inactivity deadline.
+
+A saved receipt can be reverified without any network request:
+
+```bash
+node tools/void-public-origin-binding-external-acceptance-v1.mjs verify \
+  --input /absolute/external-acceptance.json
+```
+
+Offline verification uses bounded canonical-file admission and opens the receipt
+once with `O_NOFOLLOW`. File type and the 512 KiB ceiling are checked with
+`fstat` on that exact descriptor, the admitted byte count is read from the same
+descriptor, and descriptor/path generation identity is revalidated before the
+bytes are accepted. A concurrent rename, symlink replacement, truncation, or
+growth therefore HOLDs instead of redirecting verification to an unadmitted
+pathname generation. Verification then validates the closed receipt schema and
+content-derived ID, re-verifies the embedded signed binding, and reconstructs
+the recorded collector/directory/handoff source bytes directly from the
+recorded Git commit. Source reconstruction intentionally executes only
+bounded `git` child processes (`cat-file`, `merge-base`, and `show`) with
+constant repository paths and a restricted `PATH`; it does not execute the
+recorded source commit. The recorded source commit must be available and an
+ancestor of current `main`; re-pinning source hashes inside the JSON is not
+sufficient to pass.
 
 ## Authority boundary
 
@@ -177,10 +217,14 @@ node scripts/prove_wc_public_opportunity_handoff_public_origin_binding_v1.mjs
 ```
 
 CI uses an ephemeral signed binding and synthetic directory/handoff evidence for
-the successful collector-contract path, then runs the existing focused
-signed-origin handoff regression. It intentionally does not inherit the broader
-directory fixture suite. CI performs no external network access and never uses
-the production node key.
+the successful collector-contract path. It proves receipt-ID recomputation,
+closed-schema verification, Git source reconstruction, descriptor-bound bounded
+saved-file verification, a deterministic pathname-replacement/symlink race that
+must HOLD, and repinned tamper rejection for source hashes, binding artifact
+bytes/digests, copy-ready state, and authority flags. It then runs the existing
+focused signed-origin handoff regression. CI intentionally does not inherit the
+broader directory fixture suite, performs no external network access, and never
+uses the production node key.
 
 ## Production boundary
 
