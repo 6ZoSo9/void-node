@@ -15,7 +15,7 @@ export const DEFAULT_REPOSITORY = "6ZoSo9/void-node";
 const MAX_CHAIN_HOPS = 32;
 const MAX_COMMENT_PAGES = 100;
 const POINTER_PATTERN = /^COORDINATION_SUCCESSOR=#([1-9][0-9]*)$/u;
-const ROTATION_MARKER_LINE = "CONTROL-PLANE ROTATION";
+const ROTATION_MARKER_PATTERN = /^(?:#{1,6}\\s+)?CONTROL-PLANE ROTATION$/u;
 
 export class CoordinationSuccessorChainError extends Error {
   constructor(message) {
@@ -50,6 +50,9 @@ function requireIssue(value, label) {
     fail(label + " must be an object");
   }
   requirePositiveInteger(value.number, label + ".number");
+  if (Object.hasOwn(value, "pull_request")) {
+    fail(label + " must be an issue, not a pull request");
+  }
   if (!["open", "closed"].includes(value.state)) {
     fail(label + ".state must be open or closed");
   }
@@ -101,7 +104,7 @@ export function inspectCoordinationIssueV1(issueInput, commentsInput) {
       fail("one comment contains multiple coordination successor pointers");
     }
     if (pointerLines.length === 1) {
-      if (!lines.includes(ROTATION_MARKER_LINE)) {
+      if (!lines.some((line) => ROTATION_MARKER_PATTERN.test(line))) {
         fail("coordination successor pointer lacks CONTROL-PLANE ROTATION marker");
       }
       pointers.push({
