@@ -240,6 +240,52 @@ function repositoryIdentity({requireCanonicalMain=false}={}){
     tool_git_blob_sha1:toolObject.blob_sha1,
   });
 }
+function assertRepositoryStable(repo,{requireCanonicalMain=false}={}){
+  const status=gitText(
+    ["status","--porcelain=v1","--untracked-files=all"],
+    "COUPLED_LAUNCH_POLICY_FINAL_STATUS_UNAVAILABLE",
+    {allowEmpty:true},
+  );
+  const head=gitText(
+    ["rev-parse","HEAD"],
+    "COUPLED_LAUNCH_POLICY_FINAL_HEAD_UNAVAILABLE",
+  );
+  const tree=gitText(
+    ["rev-parse","HEAD^{tree}"],
+    "COUPLED_LAUNCH_POLICY_FINAL_TREE_UNAVAILABLE",
+  );
+  const branch=gitText(
+    ["branch","--show-current"],
+    "COUPLED_LAUNCH_POLICY_FINAL_BRANCH_UNAVAILABLE",
+    {allowEmpty:true},
+  );
+  const origin=canonicalOrigin(
+    gitText(
+      ["config","--local","--no-includes","--get","remote.origin.url"],
+      "COUPLED_LAUNCH_POLICY_FINAL_ORIGIN_UNAVAILABLE",
+    ),
+  );
+  const toolWork=fs.readFileSync(path.join(REPO_ROOT,TOOL_REL));
+  if(
+    status!==""||
+    head!==repo.head||
+    tree!==repo.tree||
+    branch!==repo.branch||
+    origin!==repo.origin||
+    gitBlobSha1(toolWork)!==repo.tool_git_blob_sha1
+  ){
+    fail("COUPLED_LAUNCH_POLICY_REPOSITORY_CHANGED_DURING_COMPILATION");
+  }
+  if(requireCanonicalMain){
+    const remoteMainSha=canonicalRemoteMainHead();
+    if(
+      remoteMainSha!==repo.head||
+      remoteMainSha!==repo.remote_main_sha
+    ){
+      fail("COUPLED_LAUNCH_POLICY_REMOTE_MAIN_CHANGED_DURING_COMPILATION");
+    }
+  }
+}
 
 function reviewedModuleClosure(commit){
   const pending=[CORE_REL];
@@ -481,6 +527,7 @@ function compileReviewed(raw,{requireCanonicalMain}){
   const closure=reviewedModuleClosure(repo.head);
   const launchSource=canonicalLaunchSource(repo,closure.module_git_blobs);
   const reviewed=runReviewedCompiler(repo,raw,launchSource);
+  assertRepositoryStable(repo,{requireCanonicalMain});
   if(
     canonicalJson(reviewed.module_git_blobs)!==
       canonicalJson(closure.module_git_blobs)
