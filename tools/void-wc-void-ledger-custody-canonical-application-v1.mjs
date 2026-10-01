@@ -268,6 +268,600 @@ function headFile(rel,label){
   }
   return commitFile(head,rel,label);
 }
+function commitBytes(commit,rel,label){
+  if(typeof commit!=="string"||!HEX40.test(commit)){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_COMMIT_INVALID");
+  }
+  const bytes=gitBytes(
+    ["show",commit+":"+rel],
+    "LEDGER_CUSTODY_APPLICATION_"+label+"_BYTES_UNAVAILABLE",
+  );
+  if(bytes.length<1||bytes.length>MAX_BYTES){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_BYTES_INVALID");
+  }
+  const blob=gitText(
+    ["rev-parse",commit+":"+rel],
+    "LEDGER_CUSTODY_APPLICATION_"+label+"_BLOB_UNAVAILABLE",
+  );
+  if(!HEX40.test(blob)||gitBlobSha1(bytes)!==blob){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_BLOB_MISMATCH");
+  }
+  return Object.freeze({
+    bytes:Buffer.from(bytes),
+    sha256:sha256(bytes),
+    blob_sha1:blob,
+  });
+}
+
+function privateNodeEnv(home){
+  return {
+    PATH:"/usr/bin:/bin",
+    LANG:"C",
+    LC_ALL:"C",
+    HOME:home,
+    XDG_CONFIG_HOME:home,
+    GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_ATTR_NOSYSTEM:"1",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_ASKPASS:"/bin/false",
+    GIT_CONFIG_COUNT:"6",
+    GIT_CONFIG_KEY_0:"core.fsmonitor",
+    GIT_CONFIG_VALUE_0:"false",
+    GIT_CONFIG_KEY_1:"core.hooksPath",
+    GIT_CONFIG_VALUE_1:"/dev/null",
+    GIT_CONFIG_KEY_2:"core.attributesFile",
+    GIT_CONFIG_VALUE_2:"/dev/null",
+    GIT_CONFIG_KEY_3:"core.untrackedCache",
+    GIT_CONFIG_VALUE_3:"false",
+    GIT_CONFIG_KEY_4:"core.preloadIndex",
+    GIT_CONFIG_VALUE_4:"false",
+    GIT_CONFIG_KEY_5:"submodule.recurse",
+    GIT_CONFIG_VALUE_5:"false",
+  };
+}
+
+function writePrivateSource(file,bytes,mode=0o400){
+  fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_WRONLY|
+      fs.constants.O_CREAT|
+      fs.constants.O_EXCL|
+      Number(fs.constants.O_NOFOLLOW||0),
+    mode,
+  );
+  try{
+    fs.writeFileSync(fd,bytes);
+    fs.fsyncSync(fd);
+    fs.fchmodSync(fd,mode);
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
+function gitRunPrivate(cwd,args,code,{allowFail=false}={}){
+  const result=spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-c","protocol.file.allow=always",
+      "-C",cwd,
+      ...args,
+    ],
+    {
+      env:sanitizedGitEnv(),
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      maxBuffer:MAX_BYTES+1024,
+      timeout:120_000,
+    },
+  );
+  if(result.error) throw result.error;
+  if(result.status!==0&&!allowFail) fail(code);
+  return result;
+}
+
+function fchmodReviewedDirectory(file,mode){
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_RDONLY|
+      Number(fs.constants.O_DIRECTORY||0)|
+      Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const stat=fs.fstatSync(fd);
+    if(!stat.isDirectory()){
+      fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_DIRECTORY_DESCRIPTOR_INVALID");
+    }
+    fs.fchmodSync(fd,mode);
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
+function fchmodReviewedRegularFile(file,mode){
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const stat=fs.fstatSync(fd);
+    if(!stat.isFile()){
+      fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_FILE_DESCRIPTOR_INVALID");
+    }
+    fs.fchmodSync(fd,mode);
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
+function makeExecutionTreeReadOnly(root){
+  const rootStat=fs.lstatSync(root);
+  if(rootStat.isSymbolicLink()||!rootStat.isDirectory()){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_TREE_ROOT_INVALID");
+  }
+  function walk(dir){
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      const relative=path.relative(root,file);
+      if(relative===".git"||relative.startsWith(".git"+path.sep)){
+        continue;
+      }
+      if(entry.isDirectory()){
+        walk(file);
+        fchmodReviewedDirectory(file,0o500);
+      }else if(entry.isSymbolicLink()){
+        const stat=fs.lstatSync(file);
+        if(!stat.isSymbolicLink()){
+          fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_SYMLINK_IDENTITY_INVALID");
+        }
+      }else if(entry.isFile()){
+        const stat=fs.lstatSync(file);
+        const executable=(Number(stat.mode)&0o111)!==0;
+        fchmodReviewedRegularFile(file,executable?0o500:0o400);
+      }else{
+        fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_TREE_ENTRY_INVALID");
+      }
+    }
+  }
+  walk(root);
+  fchmodReviewedDirectory(root,0o500);
+}
+
+function makeExecutionTreeRemovable(root){
+  if(!fs.existsSync(root)) return;
+  const rootStat=fs.lstatSync(root);
+  if(rootStat.isSymbolicLink()||!rootStat.isDirectory()){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_TREE_ROOT_INVALID");
+  }
+  fchmodReviewedDirectory(root,0o700);
+  function walk(dir){
+    for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+      const file=path.join(dir,entry.name);
+      const relative=path.relative(root,file);
+      if(relative===".git"||relative.startsWith(".git"+path.sep)){
+        continue;
+      }
+      if(entry.isDirectory()){
+        fchmodReviewedDirectory(file,0o700);
+        walk(file);
+      }else if(entry.isSymbolicLink()){
+        const stat=fs.lstatSync(file);
+        if(!stat.isSymbolicLink()){
+          fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_SYMLINK_IDENTITY_INVALID");
+        }
+      }else if(entry.isFile()){
+        fchmodReviewedRegularFile(file,0o600);
+      }else{
+        fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_TREE_ENTRY_INVALID");
+      }
+    }
+  }
+  walk(root);
+}
+
+function reviewedModuleClosure(commit){
+  const pending=[...REVIEWED_EXECUTION_ROOTS];
+  const seen=new Set();
+  const blobs=Object.create(null);
+  while(pending.length){
+    const rel=pending.pop();
+    if(seen.has(rel)) continue;
+    seen.add(rel);
+    const source=commitBytes(
+      commit,
+      rel,
+      "REVIEWED_MODULE_"+rel.replace(/[^A-Za-z0-9]+/gu,"_"),
+    );
+    blobs[rel]=source.blob_sha1;
+    const textValue=new TextDecoder("utf-8",{fatal:true}).decode(source.bytes);
+    const specs=[];
+    for(const re of [
+      /\bfrom\s+["']([^"']+)["']/gu,
+      /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu,
+      /\bimport\s+["']([^"']+)["']/gu,
+    ]){
+      let match;
+      while((match=re.exec(textValue))!==null) specs.push(match[1]);
+    }
+    for(const spec of specs){
+      if(spec.startsWith("node:")) continue;
+      if(spec==="ethers") continue;
+      if(!spec.startsWith(".")){
+        fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_BARE_IMPORT_FORBIDDEN:"+spec);
+      }
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(rel),spec),
+      );
+      if(!target.startsWith("tools/")||!target.endsWith(".mjs")){
+        fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_IMPORT_ESCAPE:"+target);
+      }
+      pending.push(target);
+    }
+    if(
+      textValue.includes("node:child_process")&&
+      rel!==PROMOTION_TOOL_REL
+    ){
+      fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_CHILD_PROCESS_SURFACE:"+rel);
+    }
+  }
+  return Object.freeze({
+    module_git_blobs:Object.freeze({...blobs}),
+    child_process_module:PROMOTION_TOOL_REL,
+  });
+}
+
+let reviewedExecutionCache=null;
+
+function cleanupReviewedExecutionCache(){
+  if(!reviewedExecutionCache) return;
+  const parent=reviewedExecutionCache.parent;
+  try{
+    makeExecutionTreeRemovable(parent);
+    fs.rmSync(parent,{recursive:true,force:true});
+  }finally{
+    reviewedExecutionCache=null;
+  }
+}
+process.once("exit",cleanupReviewedExecutionCache);
+
+function buildReviewedExecutionRoot(repo){
+  if(
+    reviewedExecutionCache&&
+    reviewedExecutionCache.head===repo.head&&
+    reviewedExecutionCache.tree===repo.tree
+  ){
+    return reviewedExecutionCache;
+  }
+  cleanupReviewedExecutionCache();
+  const closure=reviewedModuleClosure(repo.head);
+
+  const parent=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-ledger-custody-reviewed-"),
+  );
+  fs.chmodSync(parent,0o700);
+  try{
+    const bootstrapDir=path.join(parent,"bootstrap");
+    fs.mkdirSync(bootstrapDir,{mode:0o700});
+    const runtimeToolSource=commitBytes(
+      repo.head,
+      REVIEWED_RUNTIME_TOOL_REL,
+      "REVIEWED_RUNTIME_TOOL",
+    );
+    const runtimeToolFile=path.join(
+      bootstrapDir,
+      "void-reviewed-node-package-runtime-v1.mjs",
+    );
+    writePrivateSource(runtimeToolFile,runtimeToolSource.bytes);
+
+    const runtimeProfileSource=commitBytes(
+      repo.head,
+      REVIEWED_RUNTIME_PROFILE_REL,
+      "REVIEWED_RUNTIME_PROFILE",
+    );
+    const profileFile=path.join(bootstrapDir,"profile.json");
+    writePrivateSource(profileFile,runtimeProfileSource.bytes);
+
+    const executionRoot=path.join(parent,"execution");
+    const bootstrapFile=path.join(bootstrapDir,"bootstrap.mjs");
+    const bootstrapSource=[
+      'import fs from "node:fs";',
+      'import { materializeReviewedNodePackageRuntimeV1, verifyMaterializedReviewedNodePackageRuntimeV1 } from "./void-reviewed-node-package-runtime-v1.mjs";',
+      'process.stdin.setEncoding("utf8");',
+      'let requestText="";',
+      'for await (const chunk of process.stdin) requestText+=chunk;',
+      'const request=JSON.parse(requestText);',
+      'const profile=JSON.parse(fs.readFileSync(request.profile_file,"utf8"));',
+      'const result=request.action==="materialize"',
+      '  ? materializeReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root})',
+      '  : verifyMaterializedReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root});',
+      'process.stdout.write(JSON.stringify(result));',
+      '',
+    ].join("\n");
+    writePrivateSource(bootstrapFile,Buffer.from(bootstrapSource,"utf8"));
+
+    const bootstrap=spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [bootstrapFile],
+      {
+        cwd:bootstrapDir,
+        env:privateNodeEnv(bootstrapDir),
+        input:JSON.stringify({
+          action:"materialize",
+          profile_file:profileFile,
+          repo_root:ROOT,
+          destination_root:executionRoot,
+        }),
+        encoding:"utf8",
+        stdio:["pipe","pipe","pipe"],
+        maxBuffer:16*1024*1024,
+        timeout:120_000,
+      },
+    );
+    if(bootstrap.error||bootstrap.status!==0){
+      fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_RUNTIME_MATERIALIZATION_FAILED");
+    }
+    let materialized;
+    try{materialized=JSON.parse(String(bootstrap.stdout||""));}
+    catch{fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_RUNTIME_OUTPUT_INVALID");}
+    if(
+      materialized?.ok!==true||
+      materialized.status!=="PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"||
+      typeof materialized.profile_id!=="string"||
+      typeof materialized.packages_aggregate_sha256!=="string"||
+      !HEX64.test(materialized.packages_aggregate_sha256)||
+      materialized.read_only_materialization!==true
+    ){
+      fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_RUNTIME_INVALID");
+    }
+
+    gitRunPrivate(
+      executionRoot,
+      ["init","--quiet"],
+      "LEDGER_CUSTODY_APPLICATION_PRIVATE_GIT_INIT_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["fetch","--quiet","--no-tags","--depth=1",ROOT,repo.head],
+      "LEDGER_CUSTODY_APPLICATION_PRIVATE_GIT_FETCH_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["checkout","--quiet","--detach","FETCH_HEAD"],
+      "LEDGER_CUSTODY_APPLICATION_PRIVATE_GIT_CHECKOUT_FAILED",
+    );
+    const privateHead=String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse","HEAD"],
+        "LEDGER_CUSTODY_APPLICATION_PRIVATE_HEAD_UNAVAILABLE",
+      ).stdout||"",
+    ).trim();
+    const privateTree=String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse","HEAD^{tree}"],
+        "LEDGER_CUSTODY_APPLICATION_PRIVATE_TREE_UNAVAILABLE",
+      ).stdout||"",
+    ).trim();
+    if(privateHead!==repo.head||privateTree!==repo.tree){
+      fail("LEDGER_CUSTODY_APPLICATION_PRIVATE_GIT_IDENTITY_MISMATCH");
+    }
+
+    for(const [relativePath,expectedBlob] of Object.entries(closure.module_git_blobs)){
+      const privateFile=path.join(executionRoot,relativePath);
+      const actual=gitBlobSha1(fs.readFileSync(privateFile));
+      if(actual!==expectedBlob){
+        fail("LEDGER_CUSTODY_APPLICATION_PRIVATE_MODULE_BLOB_MISMATCH:"+relativePath);
+      }
+    }
+
+    const runnerDir=path.join(parent,"runner");
+    fs.mkdirSync(runnerDir,{mode:0o700});
+    const runnerFile=path.join(
+      runnerDir,
+      "ledger-custody-reviewed-runner-v1.mjs",
+    );
+    const promotionUrl=JSON.stringify(
+      "../execution/"+PROMOTION_TOOL_REL,
+    );
+    const productionUrl=JSON.stringify(
+      "../execution/"+PRODUCTION_CLASSIFIER_REL,
+    );
+    const coupledUrl=JSON.stringify(
+      "../execution/"+COUPLED_CLASSIFIER_REL,
+    );
+    const runnerSource=[
+      'import { buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1, VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1, VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1 } from '+promotionUrl+';',
+      'import { classifyVoidWcVoidProductionReadinessV1 } from '+productionUrl+';',
+      'import { classifyVoidCoupledEconomicSuccessorGateV1 } from '+coupledUrl+';',
+      'const MARKER='+JSON.stringify(REVIEWED_AUTHORITY_ENVELOPE_MARKER)+';',
+      'process.stdin.setEncoding("utf8");',
+      'let requestText="";',
+      'for await (const chunk of process.stdin) requestText+=chunk;',
+      'let operation="";',
+      'let envelope;',
+      'try{',
+      '  const request=JSON.parse(requestText);',
+      '  operation=String(request.operation||"");',
+      '  let result;',
+      '  if(operation==="prepare"){',
+      '    const promotion=buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1({candidate:request.coupled_before,successorMigrationCandidate:request.successor,ledgerPersistenceImportInput:request.ledger_import_input,ledgerPersistenceImportInputFileSha256:request.ledger_import_input_file_sha256,candidateFileSha256:request.coupled_file_sha256,successorCandidateFileSha256:request.successor_file_sha256,repositoryHeadSha:request.repository_head_sha,repositoryTreeSha:request.repository_tree_sha});',
+      '    const promotion_contract_green=promotion.marker===VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1&&promotion.canonical_candidate_file_updated===false&&promotion.candidate_promotion_application_required===true&&promotion.coupled_activation_ready===false&&JSON.stringify(promotion.authority)===JSON.stringify(VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1);',
+      '    result={promotion,promotion_contract_green,production_before:classifyVoidWcVoidProductionReadinessV1(request.production_before),production_after:classifyVoidWcVoidProductionReadinessV1(request.production_after),coupled_before:classifyVoidCoupledEconomicSuccessorGateV1(request.coupled_before,request.successor),coupled_after:classifyVoidCoupledEconomicSuccessorGateV1(promotion.promoted_candidate,request.successor)};',
+      '  }else if(operation==="classify"){',
+      '    result={production_before:classifyVoidWcVoidProductionReadinessV1(request.production_before),production_after:classifyVoidWcVoidProductionReadinessV1(request.production_after),coupled_before:classifyVoidCoupledEconomicSuccessorGateV1(request.coupled_before,request.successor),coupled_after:classifyVoidCoupledEconomicSuccessorGateV1(request.coupled_after,request.successor)};',
+      '  }else{throw new Error("ledger_custody_reviewed_operation_invalid");}',
+      '  envelope={marker:MARKER,version:1,operation,ok:true,result,error:null};',
+      '}catch(error){',
+      '  const message=error instanceof Error?error.message:String(error);',
+      '  envelope={marker:MARKER,version:1,operation,ok:false,result:null,error:message.slice(0,512)};',
+      '}',
+      'process.stdout.write(JSON.stringify(envelope));',
+      '',
+    ].join("\n");
+    writePrivateSource(runnerFile,Buffer.from(runnerSource,"utf8"));
+
+    makeExecutionTreeReadOnly(executionRoot);
+
+    const privateStatus=String(
+      gitRunPrivate(
+        executionRoot,
+        ["status","--porcelain=v1","--untracked-files=all"],
+        "LEDGER_CUSTODY_APPLICATION_PRIVATE_STATUS_UNAVAILABLE",
+      ).stdout||"",
+    ).trim();
+    if(privateStatus!==""){
+      fail("LEDGER_CUSTODY_APPLICATION_PRIVATE_WORKTREE_NOT_CLEAN");
+    }
+
+    reviewedExecutionCache=Object.freeze({
+      head:repo.head,
+      tree:repo.tree,
+      parent,
+      bootstrap_dir:bootstrapDir,
+      execution_root:executionRoot,
+      runner_file:runnerFile,
+      bootstrap_file:bootstrapFile,
+      profile_file:profileFile,
+      binding:Object.freeze({
+        module_git_blobs:closure.module_git_blobs,
+        runtime_tool_git_blob_sha1:runtimeToolSource.blob_sha1,
+        runtime_profile_git_blob_sha1:runtimeProfileSource.blob_sha1,
+        profile_id:materialized.profile_id,
+        packages_aggregate_sha256:materialized.packages_aggregate_sha256,
+        permission_fenced:true,
+        ancestor_package_resolution_allowed:false,
+        execution_network_isolation_provided:false,
+      }),
+    });
+    return reviewedExecutionCache;
+  }catch(error){
+    let cleanupError=null;
+    try{
+      makeExecutionTreeRemovable(parent);
+      fs.rmSync(parent,{recursive:true,force:true});
+    }catch(candidateCleanupError){
+      cleanupError=candidateCleanupError;
+    }
+    if(cleanupError!==null){
+      throw new AggregateError(
+        [error,cleanupError],
+        "ledger_custody_reviewed_execution_cleanup_failed",
+      );
+    }
+    throw error;
+  }
+}
+
+function verifyReviewedRuntimeTree(bundle){
+  const result=spawnSync(
+    fs.realpathSync.native(process.execPath),
+    [bundle.bootstrap_file],
+    {
+      cwd:bundle.bootstrap_dir,
+      env:privateNodeEnv(bundle.bootstrap_dir),
+      input:JSON.stringify({
+        action:"verify",
+        profile_file:bundle.profile_file,
+        repo_root:ROOT,
+        destination_root:bundle.execution_root,
+      }),
+      encoding:"utf8",
+      stdio:["pipe","pipe","pipe"],
+      maxBuffer:16*1024*1024,
+      timeout:120_000,
+    },
+  );
+  if(result.error||result.status!==0){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_RUNTIME_REVERIFY_FAILED");
+  }
+}
+
+function runReviewedAuthority(repo,request){
+  const bundle=buildReviewedExecutionRoot(repo);
+  verifyReviewedRuntimeTree(bundle);
+  const result=spawnSync(
+    fs.realpathSync.native(process.execPath),
+    [
+      "--permission",
+      "--allow-fs-read="+bundle.parent,
+      "--allow-child-process",
+      bundle.runner_file,
+    ],
+    {
+      cwd:bundle.bootstrap_dir,
+      env:privateNodeEnv(bundle.bootstrap_dir),
+      input:JSON.stringify(request),
+      encoding:"utf8",
+      stdio:["pipe","pipe","pipe"],
+      maxBuffer:64*1024*1024,
+      timeout:120_000,
+    },
+  );
+  if(result.error||result.status!==0){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_AUTHORITY_EXECUTION_FAILED");
+  }
+  let envelope;
+  try{envelope=JSON.parse(String(result.stdout||""));}
+  catch{fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_INVALID");}
+  exactObject(
+    envelope,
+    ["marker","version","operation","ok","result","error"],
+    "LEDGER_CUSTODY_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_SHAPE_INVALID",
+  );
+  if(
+    envelope.marker!==REVIEWED_AUTHORITY_ENVELOPE_MARKER||
+    envelope.version!==1||
+    envelope.operation!==String(request?.operation||"")||
+    typeof envelope.ok!=="boolean"
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+  }
+  if(envelope.ok===false){
+    if(
+      envelope.result!==null||
+      typeof envelope.error!=="string"||
+      envelope.error.length<1||
+      envelope.error.length>512
+    ){
+      fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_AUTHORITY_ERROR_OUTPUT_INVALID");
+    }
+    fail(envelope.error);
+  }
+  if(!plain(envelope.result)||envelope.error!==null){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_AUTHORITY_SUCCESS_OUTPUT_INVALID");
+  }
+  return Object.freeze({
+    result:envelope.result,
+    binding:bundle.binding,
+  });
+}
+
+function assertReviewedExecutionBinding(plan,binding){
+  if(
+    canonicalJson(plan.reviewed_execution_module_git_blobs)!==
+      canonicalJson(binding.module_git_blobs)||
+    plan.reviewed_runtime_tool_git_blob_sha1!==
+      binding.runtime_tool_git_blob_sha1||
+    plan.reviewed_runtime_profile_git_blob_sha1!==
+      binding.runtime_profile_git_blob_sha1||
+    plan.reviewed_runtime_profile_id!==binding.profile_id||
+    plan.reviewed_runtime_packages_aggregate_sha256!==
+      binding.packages_aggregate_sha256||
+    plan.reviewed_execution_permission_fenced!==true||
+    plan.reviewed_execution_ancestor_package_resolution_allowed!==false||
+    plan.reviewed_execution_network_isolation_provided!==false
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_REVIEWED_EXECUTION_LINEAGE_DRIFT");
+  }
+}
+
 function parseJsonBytes(bytes,expectedSha,label){
   if(!Buffer.isBuffer(bytes)||bytes.length<2||bytes.length>MAX_BYTES) fail(label+"_BYTES_INVALID");
   if(typeof expectedSha!=="string"||!HEX64.test(expectedSha)) fail(label+"_SHA256_INVALID");
