@@ -649,6 +649,13 @@ export function evaluateCollectedPrecisionWebObservationV1({
   if (collected.hostname !== DEFAULT_EXPECTED_HOSTNAME) {
     fail("precision_hostname_mismatch");
   }
+  const collectedUnits = requireObject(collected.units, "collected.units");
+  if (collectedUnits.node !== DEFAULT_UNITS.node) {
+    fail("node_unit_identity_mismatch");
+  }
+  for (const name of ["adapter", "composition", "frontdoor"]) {
+    requireUnitName(collectedUnits[name], "collected.units." + name);
+  }
   if (
     collected.node_invocation_id_before !==
       collected.node_invocation_id_after
@@ -675,6 +682,11 @@ export function evaluateCollectedPrecisionWebObservationV1({
       "collected.services." + name,
     );
     const spec = SERVICE_SPECS[name];
+    if (
+      observed.unit !== collectedUnits[name]
+    ) {
+      fail("service_unit_identity_mismatch:" + name);
+    }
     if (
       observed.active_state !== "active" ||
       observed.sub_state !== "running"
@@ -877,6 +889,9 @@ export async function collectPrecisionWebRecoveryObservationV1({
 } = {}) {
   const hostname = os.hostname();
   if (hostname !== DEFAULT_EXPECTED_HOSTNAME) fail("precision_hostname_mismatch");
+  if (units.node !== DEFAULT_UNITS.node) {
+    fail("node_unit_override_forbidden");
+  }
   const plan = prepareVoidPrecisionWebRecoveryPlanV1();
 
   const nodeInvocationBefore = readNodeInvocationId(units.node);
@@ -968,7 +983,6 @@ function parseArgs(argv) {
     if (flag === "--adapter-unit") args.units.adapter = value;
     else if (flag === "--composition-unit") args.units.composition = value;
     else if (flag === "--frontdoor-unit") args.units.frontdoor = value;
-    else if (flag === "--node-unit") args.units.node = value;
     else if (flag === "--output") args.outputPath = value;
     else fail("unknown argument:" + flag);
   }
