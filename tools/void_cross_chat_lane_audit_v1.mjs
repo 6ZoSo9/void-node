@@ -1134,11 +1134,24 @@ function collectLive(options) {
     head: git(options.laneRepo, ["rev-parse", "HEAD"]),
     dirtyPaths: dirtyPaths(options.laneRepo),
   };
+  const laneRemoteMainAncestorOfHead = execute(
+    "git",
+    [
+      "-C",
+      options.laneRepo,
+      "merge-base",
+      "--is-ancestor",
+      "refs/remotes/origin/main",
+      "HEAD",
+    ],
+    { allowFailure: true },
+  ).status === 0;
   const sharedWorktrees = collectSharedWorktrees(options);
   return {
     source: "live",
     laneLocalMain,
     laneRemoteMain,
+    laneRemoteMainAncestorOfHead,
     lane,
     sharedWorktrees,
     openPrs: collectOpenPrs(options),
@@ -1152,6 +1165,8 @@ function collectFixture(options) {
     source: "fixture",
     laneLocalMain: fixture.laneLocalMain,
     laneRemoteMain: fixture.laneRemoteMain,
+    laneRemoteMainAncestorOfHead:
+      fixture.laneRemoteMainAncestorOfHead,
     lane: fixture.lane,
     sharedWorktrees: fixture.sharedWorktrees ?? [],
     openPrs: fixture.openPrs ?? [],
@@ -1217,6 +1232,8 @@ function audit(options, evidence) {
 
   const checks = {
     laneRemoteMainExact: Boolean(evidence.laneLocalMain) && evidence.laneLocalMain === evidence.laneRemoteMain,
+    laneContainsRemoteMain:
+      evidence.laneRemoteMainAncestorOfHead === true,
     lanePathExact: path.resolve(evidence.lane.path) === options.laneRepo,
     laneBranchExact: evidence.lane.branch === options.laneBranch,
     laneDirtyReservedOnly: laneDirtyOutsideReserve.length === 0,
@@ -1239,6 +1256,8 @@ function audit(options, evidence) {
     base: {
       localRemoteMain: evidence.laneLocalMain,
       remoteMain: evidence.laneRemoteMain,
+      laneHeadContainsRemoteMain:
+        evidence.laneRemoteMainAncestorOfHead === true,
     },
     checks,
     sharedWorktreeCount: evidence.sharedWorktrees.length,
