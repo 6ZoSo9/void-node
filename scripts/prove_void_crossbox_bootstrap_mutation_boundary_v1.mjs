@@ -174,7 +174,9 @@ esac
   }
 
   function run(script, env) {
-    return childProcess.spawnSync("/usr/bin/bash", [script], {
+    const scriptPath = path.join(ROOT, script);
+    assert.ok(fs.existsSync(scriptPath), `${script}: script path missing`);
+    return childProcess.spawnSync("/usr/bin/bash", [scriptPath], {
       cwd: ROOT,
       env: { ...baseEnv, ...env },
       encoding: "utf8",
@@ -184,7 +186,11 @@ esac
   function expectHoldNoCommands(script, env, pattern) {
     resetLog();
     const result = run(script, env);
-    assert.equal(result.status, 2, `${script}: expected HOLD rc=2`);
+    assert.equal(
+      result.status,
+      2,
+      `${script}: expected HOLD rc=2; error=${String(result.error || "")}; stdout=${JSON.stringify(result.stdout || "")}; stderr=${JSON.stringify(result.stderr || "")}`,
+    );
     assert.match(
       (result.stdout || "") + (result.stderr || ""),
       pattern,
