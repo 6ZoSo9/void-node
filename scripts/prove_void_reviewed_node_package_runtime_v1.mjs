@@ -101,6 +101,17 @@ assert.equal(verified.profile_id,profile.profile_id);
   );
 }
 
+function makeWritable(root){
+  if(!fs.existsSync(root)) return;
+  const stat=fs.lstatSync(root);
+  if(stat.isDirectory()){
+    fs.chmodSync(root,0o700);
+    for(const name of fs.readdirSync(root)) makeWritable(path.join(root,name));
+  }else{
+    fs.chmodSync(root,0o600);
+  }
+}
+
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-reviewed-node-runtime-proof-"));
 const destination=path.join(temp,"private-runtime");
 try{
