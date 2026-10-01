@@ -23,7 +23,9 @@ Before any RPC call, the preflight requires:
 - qualification marker/version/status;
 - qualification source HEAD == preflight repository HEAD;
 - qualification source tree == current HEAD tree;
-- canonical GitHub origin;
+- canonical GitHub origin, accepting the normal HTTPS/SSH checkout spellings
+  for exactly `6ZoSo9/void-node` and normalizing them to
+  `https://github.com/6ZoSo9/void-node.git`;
 - reviewed main anchor ancestry;
 - exact current qualification-tool Git blob and filesystem bytes;
 - exact reviewed qualification dependency Git blobs and file SHA-256s;
@@ -41,6 +43,10 @@ Before any RPC call, the preflight requires:
 
 The preflight does not re-run the #2241 control signature/evidence ceremony.
 A new current-generation qualification must be generated first.
+
+An off-owner or otherwise noncanonical `remote.origin.url` fails before any RPC
+transport call. The proof exercises both GitHub's checkout URL without a
+`.git` suffix and the canonical `.git` form, plus an off-owner rejection.
 
 ## Operator selections
 
