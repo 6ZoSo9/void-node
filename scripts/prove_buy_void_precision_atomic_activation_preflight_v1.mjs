@@ -362,6 +362,14 @@ assert(
   wrapperSource.includes("preflight_tool_blob_mismatch"),
   "preflight tool mismatch HOLD missing",
 );
+assert(
+  wrapperSource.includes('systemctl --user show "$unit" -p FragmentPath --value'),
+  "base unit fragment gate inventory missing",
+);
+assert(
+  wrapperSource.includes('gate_source_paths=("$fragment_path" "${dropins[@]}")'),
+  "base fragment must precede drop-ins in gate source inventory",
+);
 for (const forbidden of [
   "systemctl --user daemon-reload",
   "systemctl --user restart",
@@ -445,6 +453,7 @@ console.log(
 );
 console.log("reviewed_gate_inventory_green=true");
 console.log("complete_gate_inventory_required_green=true");
+console.log("base_unit_gate_inventory_green=true");
 console.log("late_dormant_override_hold_green=true");
 console.log("credential_read_blocked_before_inventory_green=true");
 console.log("preflight_tool_blob_pin_green=true");
