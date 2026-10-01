@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +34,8 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1 =
     semantic_source_contract_generation_required: true,
     reviewed_dependency_closure_required: true,
     package_lock_generation_required: true,
+    reviewed_git_executable_required: true,
+    ambient_git_overrides_ignored: true,
     canonical_candidate_file_update: false,
     filesystem_read: true,
     filesystem_write: false,
@@ -63,6 +66,32 @@ const REVIEWED_SOURCE_COMMIT =
   "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
 const PROMOTION_TOOL_REL =
   "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
+const GIT_EXECUTABLE = "/usr/bin/git";
+const GIT_REPOSITORY_SELECTION_ENV = Object.freeze([
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_NAMESPACE",
+  "GIT_REPLACE_REF_BASE",
+]);
+const GIT_CONFIG_INJECTION_ENV = Object.freeze([
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_CONFIG_COUNT",
+]);
+const GIT_PROGRAM_OVERRIDE_ENV = Object.freeze([
+  "GIT_EXEC_PATH",
+  "GIT_SSH",
+  "GIT_SSH_COMMAND",
+  "GIT_ASKPASS",
+  "SSH_ASKPASS",
+  "GIT_EXTERNAL_DIFF",
+  "GIT_PAGER",
+  "GIT_EDITOR",
+  "GIT_SEQUENCE_EDITOR",
+]);
 const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   semantic_promotion_tool: Object.freeze({
     path: "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs",
@@ -352,30 +381,77 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function gitRun(args, code, { encoding = "utf8", maxBuffer = 4 * 1024 * 1024 } = {}) {
-  const env = { ...process.env, GIT_OPTIONAL_LOCKS: "0", LANG: "C", LC_ALL: "C" };
-  for (const key of [
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_REPLACE_REF_BASE",
-  ]) {
-    delete env[key];
+function inspectGitExecutableV1() {
+  let canonicalPath;
+  let stat;
+  let bytes;
+  try {
+    canonicalPath = fs.realpathSync(GIT_EXECUTABLE);
+    stat = fs.statSync(canonicalPath);
+    bytes = fs.readFileSync(canonicalPath);
+  } catch {
+    fail("BOUNDED_CANARY_GIT_EXECUTABLE_UNAVAILABLE");
   }
+  if (
+    !path.isAbsolute(canonicalPath)
+    || !stat.isFile()
+    || (stat.mode & 0o111) === 0
+  ) {
+    fail("BOUNDED_CANARY_GIT_EXECUTABLE_INVALID");
+  }
+  return Object.freeze({
+    path: canonicalPath,
+    sha256: sha256(bytes),
+    filesystem_identity: [
+      canonicalPath,
+      String(stat.dev),
+      String(stat.ino),
+      String(stat.size),
+      String(stat.mode & 0o7777),
+    ].join("\0"),
+  });
+}
+
+function sameGitExecutableIdentityV1(left, right) {
+  return (
+    left.path === right.path
+    && left.sha256 === right.sha256
+    && left.filesystem_identity === right.filesystem_identity
+  );
+}
+
+function sanitizedGitEnvV1(baseEnv = process.env) {
+  const env = { ...baseEnv };
+  for (const key of GIT_REPOSITORY_SELECTION_ENV) delete env[key];
+  for (const key of GIT_CONFIG_INJECTION_ENV) delete env[key];
+  for (const key of GIT_PROGRAM_OVERRIDE_ENV) delete env[key];
+  for (const key of Object.keys(env)) {
+    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
+  }
+  env.GIT_OPTIONAL_LOCKS = "0";
+  env.LANG = "C";
+  env.LC_ALL = "C";
+  env.PATH = "/usr/bin:/bin";
+  return env;
+}
+
+function gitRun(args, code, { encoding = "utf8", maxBuffer = 4 * 1024 * 1024 } = {}) {
+  const before = inspectGitExecutableV1();
   const result = spawnSync(
-    "git",
+    before.path,
     ["--no-replace-objects", "-C", REPO_ROOT, ...args],
     {
       encoding,
       maxBuffer,
       stdio: ["ignore", "pipe", "pipe"],
-      env,
+      env: sanitizedGitEnvV1(),
     },
   );
   if (result.error || result.status !== 0) fail(code);
+  const after = inspectGitExecutableV1();
+  if (!sameGitExecutableIdentityV1(before, after)) {
+    fail("BOUNDED_CANARY_GIT_EXECUTABLE_CHANGED_DURING_READ");
+  }
   return result.stdout;
 }
 

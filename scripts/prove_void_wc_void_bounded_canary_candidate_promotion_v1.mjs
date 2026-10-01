@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_WC_VOID_BOUNDED_CANARY_SEMANTIC_PROMOTION_AUTHORITY_V1,
@@ -345,6 +347,8 @@ for (const [key, value] of Object.entries(
     "semantic_source_contract_generation_required",
     "reviewed_dependency_closure_required",
     "package_lock_generation_required",
+    "reviewed_git_executable_required",
+    "ambient_git_overrides_ignored",
     "filesystem_read",
   ]);
   assert.equal(value, allowed.has(key), key);
@@ -447,6 +451,49 @@ for (const [key, value] of Object.entries(
 const repeat = promoteWcVoidBoundedCanaryCandidatesV1(requestWith(semantic));
 assert.equal(repeat.promotion_id, result.promotion_id);
 
+{
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "void-bounded-canary-git-boundary-"));
+  const fakeDir = path.join(temp, "fake-bin");
+  const sentinel = path.join(temp, "fake-git-invoked");
+  fs.mkdirSync(fakeDir);
+  const fakeGit = path.join(fakeDir, "git");
+  fs.writeFileSync(
+    fakeGit,
+    "#!/bin/sh\nprintf 'invoked\\n' >> " + JSON.stringify(sentinel) + "\nexit 91\n",
+    { mode: 0o755 },
+  );
+  const saved = new Map();
+  for (const key of [
+    "PATH",
+    "GIT_DIR",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_KEY_0",
+    "GIT_CONFIG_VALUE_0",
+    "GIT_EXEC_PATH",
+  ]) {
+    saved.set(key, Object.prototype.hasOwnProperty.call(process.env, key)
+      ? process.env[key]
+      : undefined);
+  }
+  try {
+    process.env.PATH = fakeDir;
+    process.env.GIT_DIR = path.join(temp, "forged.git");
+    process.env.GIT_CONFIG_COUNT = "1";
+    process.env.GIT_CONFIG_KEY_0 = "core.abbrev";
+    process.env.GIT_CONFIG_VALUE_0 = "1";
+    process.env.GIT_EXEC_PATH = fakeDir;
+    const hostile = promoteWcVoidBoundedCanaryCandidatesV1(requestWith(semantic));
+    assert.equal(hostile.promotion_id, result.promotion_id);
+    assert.equal(fs.existsSync(sentinel), false);
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 const source = fs.readFileSync(
   "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs",
   "utf8",
@@ -477,6 +524,11 @@ for (const required of [
   "semantic_market_vault_runtime_attestation",
   "participant_production_runtime_binding",
   "package-lock.json",
+  'const GIT_EXECUTABLE = "/usr/bin/git"',
+  "GIT_NAMESPACE",
+  "GIT_CONFIG_COUNT",
+  "GIT_EXEC_PATH",
+  "BOUNDED_CANARY_GIT_EXECUTABLE_CHANGED_DURING_READ",
   'promotedProduction.bounded_canary_green = true',
   'promotedCoupled.gates.bounded_canary_green = true',
   "coupled_activation_ready: false",
@@ -493,6 +545,9 @@ console.log("reviewed_source_generation_blob_pins_required=true");
 console.log("reviewed_dependency_closure_count=37");
 console.log("reviewed_dependency_closure_bound=true");
 console.log("package_dependency_state_bound=true");
+console.log("reviewed_git_executable_required=true");
+console.log("ambient_path_git_substitution_rejected=true");
+console.log("ambient_git_repository_and_config_overrides_ignored=true");
 console.log("semantic_canary_fresh_at_reviewed_evaluation=true");
 console.log("application_time_authority=false");
 console.log("exact_two_gate_candidate_delta=true");

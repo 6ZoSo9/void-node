@@ -24,8 +24,11 @@ closure used by semantic reverification and candidate classification. The
 reviewed closure is 37 exact Git blobs and includes the semantic verifier
 dependencies, coupled policy dependencies, participant/finality dependencies,
 and `package.json` / `package-lock.json` for the imported `ethers` state.
-Any drift in that closure fails closed. This avoids depending on deep Git
-history being present in a shallow CI checkout while still requiring exact
+Any drift in that closure fails closed. Repository reads use the absolute
+reviewed `/usr/bin/git` executable, reject executable identity changes during
+a read, and ignore ambient `PATH`, repository-selection, Git-config injection,
+and Git program-override environment variables. This avoids depending on deep
+Git history being present in a shallow CI checkout while still requiring exact
 reviewed source bytes.
 
 The three caller-supplied candidate byte strings must equal the corresponding
@@ -208,6 +211,8 @@ canonical_head_candidate_bytes_required=true
 semantic_source_contract_generation_required=true
 reviewed_dependency_closure_required=true
 package_lock_generation_required=true
+reviewed_git_executable_required=true
+ambient_git_overrides_ignored=true
 
 canonical_candidate_file_update=false
 filesystem_read=true
