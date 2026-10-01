@@ -182,6 +182,7 @@ function publishReceipt(transaction,participant,overrides={}){
   return {
     transaction_id:transaction.transaction_id,
     participant,
+    prestate_id_before_publish:prestateId(transaction,participant),
     published_state_sha256:
       transaction.kind==="site_bundle_peer_env"
         ?participant==="local"
@@ -390,6 +391,24 @@ assert.equal(
   rollback.state_id,
 );
 
+// Prestate must be re-observed immediately before publication so a stale
+// PREPARED receipt cannot overwrite concurrent operator changes.
+{
+  let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"local"));
+  tx=recordVoidCrossboxMutationPreparedV1(tx,prepareReceipt(tx,"remote"));
+  tx=beginVoidCrossboxMutationCommitV1(tx);
+  assert.throws(
+    ()=>recordVoidCrossboxMutationPublishedV1(
+      tx,
+      publishReceipt(tx,"local",{
+        prestate_id_before_publish:"sha256:"+"0".repeat(64),
+      }),
+    ),
+    /publish_prestate_drift/u,
+  );
+}
+
 // A restart for a previously active service must advance InvocationID.
 {
   let tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
@@ -479,7 +498,14 @@ validator=recordVoidCrossboxMutationVerifiedV1(
   verifyReceipt(validator,"remote",validatorPublishRemote),
 );
 assert.equal(validator.checkpoint_publish_allowed,false);
-validator=finalizeVoidCrossboxMutationCommittedV1(validator);
+assert.throws(
+  ()=>finalizeVoidCrossboxMutationCommittedV1(validator),
+  /validator_commit_options_shape|validator_checkpoint_tag_absence_recheck_required/u,
+);
+validator=finalizeVoidCrossboxMutationCommittedV1(
+  validator,
+  {checkpoint_tag_absent_verified:true},
+);
 assert.equal(validator.phase,"COMMITTED");
 assert.equal(validator.checkpoint_publish_allowed,true);
 assert.equal(nextVoidCrossboxMutationRecoveryV1(validator),"DONE_COMMITTED");
