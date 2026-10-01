@@ -3,7 +3,7 @@ set -Eeuo pipefail
 set +H
 
 MARKER="VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_WRAPPER_V1"
-EXPECTED_MAIN="74b5242dde224282de5b1b881d7d4cb942f00d48"
+REVIEWED_MAIN_ANCHOR="74b5242dde224282de5b1b881d7d4cb942f00d48"
 repo="${VOID_LIVE_REPO_ROOT:-$HOME/dev/void-node}"
 unit="void-node-live.service"
 tool="${1:-}"
@@ -23,13 +23,13 @@ say "database_connection_before_gate_inventory=false"
 say "transaction_broadcast=false"
 say "funds_movement=false"
 
-for cmd in git systemctl python3 node curl sha256sum mktemp; do
+for cmd in git systemctl python3 node curl sha256sum mktemp timeout awk; do
   command -v "$cmd" >/dev/null 2>&1 ||
     hold "required_command_missing:$cmd"
 done
 
 test -n "$tool" && test -f "$tool" || hold "preflight_tool_missing"
-expected_tool_blob="fafbace04f8427d526104d77dabadc99d34c6bf1"
+expected_tool_blob="c3abb7c19559413c0e46845244ac918f44967cbf"
 actual_tool_blob="$(git hash-object "$tool")"
 test "$actual_tool_blob" = "$expected_tool_blob" ||
   hold "preflight_tool_blob_mismatch"
@@ -45,9 +45,24 @@ test "$(git branch --show-current)" = "main" ||
 test -z "$(git status --porcelain=v1 --untracked-files=all)" ||
   hold "live_repo_dirty"
 head="$(git rev-parse HEAD)"
-test "$head" = "$EXPECTED_MAIN" ||
-  hold "live_repo_head_not_reviewed_main:$head"
+[[ "$head" =~ ^[0-9a-f]{40}$ ]] || hold "live_repo_head_invalid"
+
+remote_main="$(
+  timeout 15 git ls-remote --heads origin refs/heads/main |
+    awk 'NR==1 {print $1}'
+)"
+[[ "$remote_main" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "remote_main_identity_unavailable"
+test "$head" = "$remote_main" ||
+  hold "live_repo_head_not_remote_main:local=$head:remote=$remote_main"
+
+git merge-base --is-ancestor "$REVIEWED_MAIN_ANCHOR" "$head" ||
+  hold "reviewed_main_anchor_not_ancestor"
+
 say "live_repo_head=$head"
+say "remote_main_sha=$remote_main"
+say "reviewed_main_anchor_sha=$REVIEWED_MAIN_ANCHOR"
+say "reviewed_main_anchor_is_ancestor=true"
 say "live_repo_source_alignment_green=true"
 
 test "$(systemctl --user is-active "$unit")" = "active" ||
@@ -289,11 +304,11 @@ with open(sys.argv[2],'w',encoding='utf-8') as fh:
 PY
 say "postgres_requalification_green=true"
 
-python3 -   "$snapshot"   "$gate_sources_json"   "$configured_json"   "$process_json"   "$runtime_status_json"   "$pg_json"   "$repo" "$head" "$unit" "$pid" "$process_cwd" <<'PY'
+python3 -   "$snapshot"   "$gate_sources_json"   "$configured_json"   "$process_json"   "$runtime_status_json"   "$pg_json"   "$repo" "$head" "$remote_main" "$unit" "$pid" "$process_cwd" <<'PY'
 import json,sys
 
 (out_path,gate_path,configured_path,process_path,status_path,pg_path,
- repo,head,unit,pid,process_cwd)=sys.argv[1:]
+ repo,head,remote_main,unit,pid,process_cwd)=sys.argv[1:]
 snapshot={
  "marker":"VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1",
  "version":1,
@@ -302,6 +317,8 @@ snapshot={
    "repo_root":repo,
    "branch":"main",
    "head_sha":head,
+   "remote_main_sha":remote_main,
+   "reviewed_anchor_is_ancestor":True,
    "worktree_clean":True,
    "service_unit":unit,
    "active_state":"active",
