@@ -34,6 +34,7 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
     canonical_classifier_reexecution: true,
     exact_two_gate_source_delta: true,
     reviewed_git_commit_required: true,
+    canonical_main_application_required: true,
     reviewed_git_executable_required: true,
     ambient_git_overrides_ignored: true,
     repository_source_write: false,
@@ -932,6 +933,14 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   );
   const plan = validatePlan(planSource.value);
   const repository = headIdentity();
+  if (
+    gitText(
+      ["branch", "--show-current"],
+      "CANONICAL_APPLICATION_CURRENT_BRANCH_UNAVAILABLE",
+    ) !== "main"
+  ) {
+    fail("CANONICAL_APPLICATION_APPLIED_BRANCH_NOT_MAIN");
+  }
   assertAncestor(
     plan.application_base_head_sha,
     repository.head,
@@ -1005,6 +1014,7 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     semantic_promotion_file_sha256:
       plan.semantic_promotion_file_sha256,
     application_base_head_sha: plan.application_base_head_sha,
+    applied_branch: "main",
     applied_repository_head_sha: repository.head,
     applied_repository_tree_sha: repository.tree,
     production_candidate_git_blob_sha1: production.blob_sha1,
