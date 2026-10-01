@@ -1,0 +1,77 @@
+name: VOID Mainnet-0 readiness explicit peer v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-mainnet0-readiness-explicit-peer-v1.yml"
+      - "docs/operators/void-mainnet0-readiness-explicit-peer-v1.md"
+      - "ops/two-box-mainnet0-readiness-proof.sh"
+      - "ops/void-mainnet0-stamp-validator-status.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-mainnet0-readiness-explicit-peer-v1.yml"
+      - "docs/operators/void-mainnet0-readiness-explicit-peer-v1.md"
+      - "ops/two-box-mainnet0-readiness-proof.sh"
+      - "ops/void-mainnet0-stamp-validator-status.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Shell syntax
+        run: |
+          bash -n ops/two-box-mainnet0-readiness-proof.sh
+          bash -n ops/void-mainnet0-stamp-validator-status.sh
+
+      - name: Prove fail-closed remote target boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="ops/two-box-mainnet0-readiness-proof.sh"
+
+          set +e
+          output="$(bash "$proof" 2>&1)"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          grep -F "missing explicit CROSSBOX_SSH_TARGET" <<<"$output" >/dev/null
+
+          set +e
+          output="$(CROSSBOX_SSH_TARGET=zoso@100.122.79.39 bash "$proof" 2>&1)"
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          grep -F "retired Alienware target is forbidden" <<<"$output" >/dev/null
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          readiness=Path("ops/two-box-mainnet0-readiness-proof.sh").read_text()
+          stamp=Path("ops/void-mainnet0-stamp-validator-status.sh").read_text()
+
+          assert '${ALIEN:-zoso@100.122.79.39}' not in readiness
+          assert 'ssh "$ALIEN"' not in readiness
+          assert 'ssh "$CROSSBOX_SSH_TARGET"' in readiness
+          assert readiness.index('missing explicit CROSSBOX_SSH_TARGET') < readiness.index('mkdir -p "$OUT"')
+
+          assert '100.122.79.39' not in stamp
+          assert 'MAIN_BASE=' not in stamp
+
+          print("VOID_MAINNET0_READINESS_EXPLICIT_PEER_V1_GREEN")
+          print("ssh_performed=false")
+          print("runtime_observation_performed=false")
+          print("validator_mutation_performed=false")
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

@@ -3,9 +3,31 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+MARKER="VOID_TWO_BOX_MAINNET0_READINESS_PROOF_V1"
+CROSSBOX_SSH_TARGET="${CROSSBOX_SSH_TARGET:-${ALIEN:-}}"
+
+hold(){
+  echo "$MARKER HOLD: $*" >&2
+  exit 2
+}
+
+[ -n "$CROSSBOX_SSH_TARGET" ] || hold "missing explicit CROSSBOX_SSH_TARGET (or legacy ALIEN)"
+
+target_guard="$(printf '%s' "$CROSSBOX_SSH_TARGET" | tr '[:upper:]' '[:lower:]')"
+case "$target_guard" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    hold "retired Alienware target is forbidden"
+    ;;
+esac
+
 OUT="${OUT:-/tmp/two-box-mainnet0-readiness-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
+
+echo "marker=$MARKER"
+echo "crossbox_ssh_target=$CROSSBOX_SSH_TARGET"
+echo "explicit_remote_target=true"
+echo "retired_alienware_target=false"
+echo
 
 echo "=== [1] local baseline ==="
 git branch --show-current | tee "$OUT/local-branch.txt"
@@ -23,7 +45,7 @@ curl -fsS --max-time 10 http://127.0.0.1:4100/metrics/drift4 | tee "$OUT/local-d
 
 echo
 echo "=== [3] remote runtime truth ==="
-ssh "$ALIEN" '
+ssh "$CROSSBOX_SSH_TARGET" '
 set -euo pipefail
 curl -fsS --max-time 10 http://127.0.0.1:4100/__void/ready.json
 echo
