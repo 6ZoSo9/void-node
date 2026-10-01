@@ -82,6 +82,19 @@ const EXPECTED_GATE_SOURCES = Object.freeze({
   }),
 });
 
+const EXPECTED_GATE_WINNERS = Object.freeze({
+  VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED:
+    "70-buy-void-runtime-integration-v1.conf",
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED:
+    "94-buy-void-claimed-postgres-precision-reconcile-v1.conf",
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED:
+    "91-buy-void-payment-keyed-production-dormant-v1.conf",
+  VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED:
+    "94-buy-void-claimed-postgres-precision-reconcile-v1.conf",
+  VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED:
+    "91-buy-void-payment-keyed-production-dormant-v1.conf",
+});
+
 const EXPECTED_RUNTIME_STATUS = Object.freeze({
   full_runtime_policy_fingerprint_sha256:
     "b56c0abde0ea767711053a15975863ee012758c07907e729ca016f2a3190bd92",
@@ -258,10 +271,28 @@ export function evaluateGateSourceInventoryV1(entries) {
     }
   }
 
+  const winnerObject = Object.freeze(
+    Object.fromEntries(winners.entries()),
+  );
+  const reviewedBasenames = reviewed.map((entry) => entry.basename).sort();
+  const expectedBasenames = Object.keys(EXPECTED_GATE_SOURCES).sort();
+  const complete =
+    reviewedBasenames.length === expectedBasenames.length &&
+    reviewedBasenames.every(
+      (basename, index) => basename === expectedBasenames[index],
+    ) &&
+    Object.entries(EXPECTED_GATE_WINNERS).every(
+      ([name, basename]) =>
+        winnerObject[name]?.basename === basename &&
+        winnerObject[name]?.value ===
+          EXPECTED_GATE_SOURCES[basename].assignments[name],
+    );
+
   return Object.freeze({
     reviewed: Object.freeze(reviewed),
     unreviewed: Object.freeze(unreviewed),
-    winners: Object.freeze(Object.fromEntries(winners.entries())),
+    winners: winnerObject,
+    complete,
   });
 }
 
@@ -333,8 +364,8 @@ function validateRuntimeStatus(value) {
   );
   if (
     status.parent_enabled !== true ||
-    typeof status.root_dir !== "string" ||
-    !path.isAbsolute(status.root_dir) ||
+    status.root_dir !==
+      "/home/zoso/dev/void-node/data_a/buy_void_v1/runtime-integration-v1" ||
     status.full_runtime_enabled !== false ||
     status.full_runtime_apply_enabled !== false ||
     status.policy_configured !== true ||
@@ -480,15 +511,22 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
   }
 
   const inventory = evaluateGateSourceInventoryV1(root.gate_sources);
-  if (inventory.unreviewed.length !== 0) {
+  if (
+    inventory.unreviewed.length !== 0 ||
+    inventory.complete !== true
+  ) {
     return Object.freeze({
       marker:
         VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1,
       version: 1,
-      status: "HOLD_UNRECONCILED_GATE_ASSIGNMENT_SOURCES",
+      status:
+        inventory.unreviewed.length !== 0
+          ? "HOLD_UNRECONCILED_GATE_ASSIGNMENT_SOURCES"
+          : "HOLD_GATE_SOURCE_INVENTORY_INCOMPLETE",
       activation_ready: false,
       reviewed_gate_sources: inventory.reviewed,
       unreviewed_gate_sources: inventory.unreviewed,
+      gate_source_inventory_complete: inventory.complete,
       configured_gates: configured,
       process_gates: processState,
       credential_read_performed: false,
@@ -574,6 +612,7 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
       VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_REVIEWED_MAIN_V1,
     reviewed_gate_sources: inventory.reviewed,
     unreviewed_gate_sources: Object.freeze([]),
+    gate_source_inventory_complete: true,
     configured_gates: configured,
     process_gates: processState,
     live_configuration_generation_id: liveGeneration.generation_id,
@@ -590,7 +629,6 @@ export async function evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
     exact_live_and_rollback_bytes_required_before_apply: true,
     install_daemon_reload_restart_single_transaction_required: true,
     post_restart_status_requalification_required: true,
-    activation_authorized: false,
     runtime_gate_mutation_performed: false,
     service_mutation_performed: false,
     transaction_broadcast_performed: false,
@@ -644,6 +682,10 @@ if (direct) {
         "unreviewed_gate_source_count=" +
           String(inventory.unreviewed.length),
       );
+      console.log(
+        "gate_source_inventory_complete=" +
+          String(inventory.complete),
+      );
       for (const source of inventory.unreviewed) {
         console.log(
           "unreviewed_gate_source=" +
@@ -666,8 +708,16 @@ if (direct) {
       console.log("database_connection_performed=false");
       console.log("runtime_gate_mutation_performed=false");
       console.log("service_mutation_performed=false");
-      if (inventory.unreviewed.length !== 0) {
-        console.log("status=HOLD_UNRECONCILED_GATE_ASSIGNMENT_SOURCES");
+      if (
+        inventory.unreviewed.length !== 0 ||
+        inventory.complete !== true
+      ) {
+        console.log(
+          "status=" +
+            (inventory.unreviewed.length !== 0
+              ? "HOLD_UNRECONCILED_GATE_ASSIGNMENT_SOURCES"
+              : "HOLD_GATE_SOURCE_INVENTORY_INCOMPLETE"),
+        );
         process.exitCode = 2;
       } else {
         console.log("status=GATE_SOURCE_INVENTORY_GREEN");
