@@ -15,11 +15,17 @@ The promotion consumes exact bytes plus SHA-256 for:
 - the coupled-economic candidate; and
 - the economic-successor migration candidate.
 
-It also requires an explicit application timestamp.
+It does **not** accept an application timestamp as freshness authority.
 
-The semantic receipt must remain within its own reviewed validity window when
-the candidate promotion is prepared. A valid but expired semantic canary cannot
-be rebound later to make the canonical canary gate green.
+The semantic receipt must prove that its own reviewed
+`evaluation_time_utc` fell inside its composed observed/valid-until window.
+That establishes that the canary was fresh when the semantic evidence was
+verified. A later source-only candidate binding cannot manufacture or extend
+that live freshness by supplying a new clock value.
+
+Final/runtime activation must perform its own separately reviewed fresh
+preflight; this candidate promotion is durable evidence that the bounded canary
+was semantically green at its reviewed evaluation time.
 
 ## Semantic receipt verification
 
@@ -137,6 +143,13 @@ canonical_coupled_candidate_updated=false
 candidate_promotion_application_required=true
 ```
 
+The output records:
+
+```text
+semantic_canary_fresh_at_reviewed_evaluation=true
+application_time_authority=false
+```
+
 The promotion ID is:
 
 ```text
@@ -161,7 +174,7 @@ The final source transition will separately need to prove the final
 source_only_promotion=true
 exact_semantic_promotion_bytes_required=true
 exact_candidate_bytes_required=true
-semantic_canary_must_be_current_at_application=true
+semantic_canary_fresh_at_reviewed_evaluation_required=true
 canonical_classifier_reexecution=true
 exact_two_gate_candidate_delta=true
 
