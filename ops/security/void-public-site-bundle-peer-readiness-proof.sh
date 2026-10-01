@@ -12,7 +12,13 @@ hold(){
   exit 2
 }
 
+valid_ssh_target(){
+  local target="$1"
+  [[ "$target" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+}
+
 [ -n "$ALIEN" ] || hold "missing explicit ALIEN remote SSH target"
+valid_ssh_target "$ALIEN" || hold "invalid explicit ALIEN SSH target"
 target_guard="$(printf '%s' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
 case "$target_guard" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
