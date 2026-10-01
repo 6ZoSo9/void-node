@@ -911,6 +911,10 @@ export function extendCartographySourceV1({
     priorManifest.marker !== scanner.MARKER ||
     priorManifest.schema !== scanner.SCHEMA ||
     priorManifest.scanner_version !== scanner.SCANNER_VERSION ||
+    stableStringify(priorManifest.vocabulary) !==
+      stableStringify(scanner.VOCABULARY) ||
+    priorManifest.canonical_bytes_modified !== 0 ||
+    priorManifest.modern_validator_modified !== false ||
     priorManifest.unclassified_blocks !== 0 ||
     priorManifest.ambiguous_classifications !== 0 ||
     priorManifest.transition_gaps !== 0 ||
@@ -961,8 +965,11 @@ export function extendCartographySourceV1({
     [...scanner.VOCABULARY],
   );
   if (
+    priorManifest.historical_blocks_scanned !==
+      priorManifest.source.frozen_head + 1 ||
     priorPrefixAuthority.frozen_head !== priorManifest.source.frozen_head ||
-    priorPrefixAuthority.block_count !== priorManifest.historical_blocks_scanned
+    priorPrefixAuthority.block_count !== priorManifest.historical_blocks_scanned ||
+    priorPrefixAuthority.segment_count !== priorManifest.source.segment_count
   ) {
     hold("prior_prefix_manifest_height_mismatch");
   }
