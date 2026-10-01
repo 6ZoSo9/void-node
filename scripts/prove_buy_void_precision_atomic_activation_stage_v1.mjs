@@ -349,7 +349,20 @@ for (const forbidden of [
 ]) {
   assert.equal(wrapperSource.includes(forbidden), false, forbidden);
 }
+assert.equal(
+  wrapperSource.includes('mkdir -p "$HOME/.config/void" "$stage_root"'),
+  false,
+);
+assert(
+  wrapperSource.indexOf('test -d "$dir" && test ! -L "$dir"') >= 0,
+);
+assert(
+  wrapperSource.indexOf('test -d "$dir" && test ! -L "$dir"') <
+    wrapperSource.indexOf('chmod 700 "$dir"'),
+);
 for (const required of [
+  'ensure_private_direct_dir "$HOME/.config/void" "void_config_dir"',
+  'ensure_private_direct_dir "$stage_root" "stage_root"',
   'bash "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel"',
   '--active-dropin-dir "$active_dropin_dir"',
   'sha256sum "$preflight_log"',
