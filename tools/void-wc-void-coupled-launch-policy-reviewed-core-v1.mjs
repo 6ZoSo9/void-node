@@ -28,53 +28,12 @@ import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT,
 } from "./void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs";
 
-export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1 =
-  "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1";
-
-export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1 =
-  "void.wc-void-coupled-launch-policy-bundle.v1";
-
-export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1 =
-  Object.freeze({
-    source_policy_compilation_only: true,
-    explicit_reviewed_values_required: true,
-    canonical_launch_source_binding_required: true,
-    reviewed_git_object_execution_required: true,
-    reviewed_policy_module_closure_required: true,
-    permission_fenced_execution_required: true,
-    worktree_policy_execution_forbidden: true,
-    canonical_main_artifact_required: true,
-    canonical_remote_main_read_required: true,
-    git_config_isolated: true,
-    descriptor_bound_private_input: true,
-    reviewed_private_input_sha256_required: true,
-    create_only_private_output: true,
-    durable_output_directory_entry_required: true,
-    output_parent_directory_identity_bound: true,
-    private_temporary_filesystem_write: true,
-    production_values_selected_by_source: false,
-    runtime_enforcement_verified: false,
-    wall_clock_read: false,
-    runtime_mutation: false,
-    service_mutation: false,
-    wallet_or_signer_access: false,
-    private_key_access: false,
-    transaction_construction: false,
-    transaction_signing: false,
-    transaction_submission: false,
-    transaction_broadcast: false,
-    chain2050_write: false,
-    wc_ledger_write: false,
-    inventory_funding: false,
-    liquidity_movement: false,
-    market_activation: false,
-    public_presale_activation: false,
-    funds_movement: false,
-  });
+export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_SEMANTIC_CORE_V1 =
+  "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_SEMANTIC_CORE_V1";
 
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
-export const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
+const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 const MAX_TRACKED_INTENTS = 1_000_000;
 const MAX_SIGNED_INTENT_GAS_LIMIT =
@@ -595,7 +554,7 @@ function validateSponsor(raw, launchId, window, ttl) {
 
 export function compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(
   raw,
-  canonicalLaunchSource,
+  expectedLaunchId,
 ) {
   const input = exactObject(
     raw,
@@ -608,7 +567,7 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(
   );
   if (
     launchId !== VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 ||
-    launchId !== canonicalLaunchSource.coupled_launch_id
+    launchId !== expectedLaunchId
   ) {
     fail("COUPLED_LAUNCH_POLICY_BUNDLE_CANONICAL_LAUNCH_ID_MISMATCH");
   }
@@ -656,10 +615,7 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(
     fail("COUPLED_LAUNCH_POLICY_BUNDLE_COMMIT_ORDER_INVALID");
   }
 
-  const body = Object.freeze({
-    marker: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
-    schema: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1,
-    version: 1,
+  return deepFreeze({
     coupled_launch_id: launchId,
     bundle_generation: generation,
     bundle_committed_at_ms: bundleCommittedAt,
@@ -668,7 +624,6 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(
     minimum_depth_policy: depth,
     intent_ttl_caps_policy: ttl,
     sponsored_execution_policy: sponsor,
-    canonical_launch_source: canonicalLaunchSource,
     source_contract_ids: Object.freeze({
       concentration_sybil:
         VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT
@@ -691,12 +646,6 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(
     market_activation_authorized: false,
     public_presale_activation_authorized: false,
     funds_movement_authorized: false,
-    authority: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1,
-  });
-
-  return deepFreeze({
-    ...body,
-    bundle_id: digest(body),
   });
 }
 
