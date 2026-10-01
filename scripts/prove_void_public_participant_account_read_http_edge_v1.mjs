@@ -8,6 +8,9 @@ import {
   createVoidPublicParticipantSessionHttpV1,
 } from "../ops/public/void-public-participant-session-http-v1.mjs";
 import {
+  createVoidPublicParticipantSessionStateFileV1,
+} from "../ops/public/void-public-participant-session-state-file-v1.mjs";
+import {
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1,
   createVoidPublicParticipantAccountReadHttpEdgeV1,
 } from "../ops/public/void-public-participant-account-read-http-edge-v1.mjs";
@@ -24,6 +27,11 @@ const registryDir = path.join(temp, "registry");
 const registryFile = path.join(
   registryDir,
   "participant-login-bindings-v1.json",
+);
+const stateDir = path.join(temp, "state");
+const stateFile = path.join(
+  stateDir,
+  "account-read-edge-state-v1.json",
 );
 let clock = 1_800_000_000_000;
 let randomCounter = 0;
@@ -208,6 +216,8 @@ function edgeRequest(url, authorization, extra = {}) {
 try {
   fs.mkdirSync(registryDir, { mode: 0o700 });
   fs.chmodSync(registryDir, 0o700);
+  fs.mkdirSync(stateDir, { mode: 0o700 });
+  fs.chmodSync(stateDir, 0o700);
 
   const account = "participant-a";
   const otherAccount = "participant-b";
@@ -237,11 +247,16 @@ try {
   );
   fs.chmodSync(registryFile, 0o600);
 
+  const stateStore =
+    createVoidPublicParticipantSessionStateFileV1({
+      stateFile,
+    });
   const sessionHttp =
     createVoidPublicParticipantSessionHttpV1({
       bindingRegistryFile: registryFile,
       roleAuthority:
         createVoidParticipantRoleAuthoritySessionStubV1(),
+      stateStore,
       now: () => clock,
       randomBytes: deterministicBytes,
     });

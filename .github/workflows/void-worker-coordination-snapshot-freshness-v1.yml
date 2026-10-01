@@ -9,6 +9,11 @@ on:
       - "tools/void-worker-coordination-live-dispatch-v1.mjs"
       - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
       - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
+      - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
+      - "tools/void-coordination-successor-chain-v1.mjs"
+      - "tools/void-coordination-rotation-snapshot-v1.mjs"
+      - "scripts/prove_void_coordination_rotation_snapshot_v1.mjs"
+      - "docs/operations/void-coordination-rotation-snapshot-v1.md"
   push:
     branches:
       - main
@@ -19,6 +24,11 @@ on:
       - "tools/void-worker-coordination-live-dispatch-v1.mjs"
       - "scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs"
       - "scripts/prove_void_worker_coordination_live_dispatch_v1.mjs"
+      - "docs/operations/void-worker-coordination-snapshot-freshness-v1.md"
+      - "tools/void-coordination-successor-chain-v1.mjs"
+      - "tools/void-coordination-rotation-snapshot-v1.mjs"
+      - "scripts/prove_void_coordination_rotation_snapshot_v1.mjs"
+      - "docs/operations/void-coordination-rotation-snapshot-v1.md"
   workflow_dispatch:
 
 permissions:
@@ -33,6 +43,9 @@ jobs:
         node_major: [22, 24, 26]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node_major }}
@@ -42,10 +55,14 @@ jobs:
           node --check tools/void-worker-coordination-live-dispatch-v1.mjs
           node --check scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
           node --check scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
+          node --check tools/void-coordination-rotation-snapshot-v1.mjs
+          node --check scripts/prove_void_coordination_rotation_snapshot_v1.mjs
           node --check scripts/prove_void_worker_coordination_v3.mjs
       - name: Prove snapshot freshness
         run: node scripts/prove_void_worker_coordination_snapshot_freshness_v1.mjs
       - name: Prove live dispatch
         run: node scripts/prove_void_worker_coordination_live_dispatch_v1.mjs
+      - name: Prove rotation preparation snapshot
+        run: node scripts/prove_void_coordination_rotation_snapshot_v1.mjs
       - name: Prove complete Coordination V3 wall
         run: node scripts/prove_void_worker_coordination_v3.mjs

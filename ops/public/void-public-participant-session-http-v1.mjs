@@ -184,6 +184,9 @@ export function createVoidPublicParticipantSessionHttpV1({
   if (session.role_authority_required !== true) {
     fail("role_authority_adapter_required");
   }
+  if (session.state_store_durable !== true) {
+    fail("durable_state_store_required");
+  }
 
   const authorizeAccountRead = (authorization, accountRaw) => {
     const account = safeAccount(accountRaw);

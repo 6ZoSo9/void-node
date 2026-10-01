@@ -109,6 +109,8 @@ Exploration must reject:
 - `scripts/prove_void_worker_exploration_extension_v1.mjs` proves the checked-in composition and adversarial rejection behavior.
 - `.github/workflows/void-worker-exploration-extension-v1.yml` runs syntax, proof, and status validation on Node.js 22, 24, and 26.
 
+The workflow pins `actions/checkout` and `actions/setup-node` to immutable commit SHAs, checks out the actual pull-request head rather than GitHub's synthetic merge ref, and disables persisted checkout credentials. The proof enforces those CI provenance properties so they cannot silently regress to mutable major tags.
+
 ## Commands
 
 ```bash

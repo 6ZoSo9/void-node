@@ -3,20 +3,39 @@ set -euo pipefail
 set +H
 set +o histexpand 2>/dev/null || true
 
-cd "$HOME/dev/void-node" || exit 1
-
+MARKER="VOID_CROSSBOX_BOOTSTRAP_MUTATION_BOUNDARY_V1"
+LEGACY_MARKER="VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1"
+ROOT="${VOID_REPO:-$HOME/dev/void-node}"
+ALIEN="${ALIEN:-}"
 : "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+
+hold(){
+  echo "$MARKER HOLD: $*" >&2
+  exit 2
+}
+
+valid_ssh_target(){
+  local target="$1"
+  [[ "$target" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9._-]*$ ]]
+}
+
+[ -n "$ALIEN" ] || hold "missing explicit ALIEN remote SSH target"
+valid_ssh_target "$ALIEN" || hold "ALIEN must be a destination-only SSH alias or user@host"
+
 TARGET_GUARD="$(printf '%s\n' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
 case "$TARGET_GUARD" in
   *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
-    echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
-    exit 2
+    hold "retired Alienware target is forbidden"
     ;;
 esac
+
+cd "$ROOT" || hold "repository root unavailable"
+
 OUT="${OUT:-/tmp/tailscale-ssh-auth-preflight-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 
 echo "=== Tailscale SSH auth preflight proof ==="
+echo "marker=$MARKER"
 echo "mutation=false"
 echo "remote=$ALIEN"
 echo "out=$OUT"
@@ -26,10 +45,10 @@ echo "=== local ready ==="
 curl -fsS --max-time 8 http://127.0.0.1:4100/__void/ready.json > "$OUT/precision-ready.json"
 python3 - "$OUT/precision-ready.json" <<'PY'
 import json, sys
-j=json.load(open(sys.argv[1]))
-assert j.get("ready") is True, j
-assert int(j.get("gap", -1)) == 0, j
-assert int(j.get("txroot_live", 0)) == 1, j
+value=json.load(open(sys.argv[1]))
+assert value.get("ready") is True, value
+assert int(value.get("gap", -1)) == 0, value
+assert int(value.get("txroot_live", 0)) == 1, value
 print("[ok] Precision ready")
 PY
 
@@ -64,10 +83,10 @@ tail -n 1 "$OUT/remote-ssh-ready.txt" > "$OUT/remote-ready.json"
 
 python3 - "$OUT/remote-ready.json" <<'PY'
 import json, sys
-j=json.load(open(sys.argv[1]))
-assert j.get("ready") is True, j
-assert int(j.get("gap", -1)) == 0, j
-assert int(j.get("txroot_live", 0)) == 1, j
+value=json.load(open(sys.argv[1]))
+assert value.get("ready") is True, value
+assert int(value.get("gap", -1)) == 0, value
+assert int(value.get("txroot_live", 0)) == 1, value
 print("[ok] remote SSH auth usable and node ready")
 PY
 

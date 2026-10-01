@@ -1,0 +1,76 @@
+name: VOID Epoch-2 public verification composition v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-economic-epoch2-public-verification-composition-v1.yml"
+      - "docs/operators/economic-epoch2-public-verification-composition-v1.md"
+      - "scripts/prove_void_economic_epoch2_public_verification_composition_v1.mjs"
+      - "tools/void-economic-epoch2-public-verification-composition-v1.mjs"
+      - "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs"
+      - "tools/void-economic-epoch2-public-read-runtime-evidence-v1.mjs"
+      - "tools/void-economic-epoch2-public-state-root-anchor-import-promotion-v1.mjs"
+      - "tools/void-economic-epoch2-public-state-root-anchor-admission-v1.mjs"
+      - "tools/void-economic-epoch2-public-void-state-root-anchor-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/datanet-content-commitment-canonical-truth-admission-v1.mjs"
+      - "tools/datanet-content-commitment-compiler-profile-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-public-read-loopback-transport-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-economic-epoch2-public-verification-composition-v1.yml"
+      - "docs/operators/economic-epoch2-public-verification-composition-v1.md"
+      - "scripts/prove_void_economic_epoch2_public_verification_composition_v1.mjs"
+      - "tools/void-economic-epoch2-public-verification-composition-v1.mjs"
+      - "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs"
+      - "tools/void-economic-epoch2-public-read-runtime-evidence-v1.mjs"
+      - "tools/void-economic-epoch2-public-state-root-anchor-import-promotion-v1.mjs"
+      - "tools/void-economic-epoch2-public-state-root-anchor-admission-v1.mjs"
+      - "tools/void-economic-epoch2-public-void-state-root-anchor-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/datanet-content-commitment-canonical-truth-admission-v1.mjs"
+      - "tools/datanet-content-commitment-compiler-profile-v1.mjs"
+      - "ops/mainnet0/economic-epoch2-public-read-loopback-transport-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
+      - "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax
+        run: |
+          node --check tools/void-economic-epoch2-public-verification-composition-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_public_verification_composition_v1.mjs
+      - name: Prove canonical public-verification composition
+        run: node scripts/prove_void_economic_epoch2_public_verification_composition_v1.mjs
+      - name: Upstream canonical regressions
+        run: |
+          node scripts/prove_void_economic_epoch2_public_state_root_anchor_import_promotion_v1.mjs
+          node scripts/prove_void_economic_evm_successor_migration_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD

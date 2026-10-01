@@ -9,7 +9,6 @@
       "curly",
       "moe",
       "satoshi",
-      "turing",
       "ada",
       "grace",
       "shannon"
@@ -25,7 +24,7 @@
       "keller",
       "feynman"
     ],
-    "expected_worker_count": 15
+    "expected_worker_count": 14
   },
   "reevaluation": {
     "interval_minutes": 30,
@@ -121,22 +120,6 @@
         "market-proof-gaps"
       ],
       "authority_boundary": "Read-only native BTC/VOID market, reserve, and settlement-prerequisite research only. No wallet, signer, liquidity funding, market activation, transaction construction or broadcast, treasury action, or funds movement."
-    },
-    {
-      "id": "turing",
-      "name": "Turing",
-      "cohort": "specialist",
-      "tracking_issue": 1507,
-      "fallback_lane_id": "turing-agent-utility-research-v1",
-      "fallback_priority": "P2",
-      "sensitive": false,
-      "exploration_domains": [
-        "agent-discovery",
-        "first-contact-truth",
-        "capability-negotiation",
-        "outside-agent-usability"
-      ],
-      "authority_boundary": "Read-only AI-agent discovery, First Contact, capability-truth, and usability research only. No credential issuance, paid-work dispatch, Work Credit mutation, wallet, signer, transaction, deployment, or funds authority."
     },
     {
       "id": "ada",

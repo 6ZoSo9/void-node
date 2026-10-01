@@ -1,5 +1,12 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  realpathSync,
+  readdirSync,
+  readlinkSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -557,32 +564,117 @@ function parseArgs(argv) {
   return { command, ...values };
 }
 
+function processPathTouchesTargetV1(value, targetPath) {
+  const target = String(targetPath ?? "").replace(/\/+$/u, "");
+  if (!target || !target.startsWith("/")) {
+    fail("process reference target path must be absolute");
+  }
+  if (typeof value !== "string" || !value) return false;
+  const normalized = value.replace(/ \(deleted\)$/u, "");
+  return normalized === target || normalized.startsWith(`${target}/`);
+}
+
+export function processReferenceReasonsForSnapshotV1({
+  targetPath,
+  cwd = "",
+  root = "",
+  exe = "",
+  argv = [],
+  fdTargets = [],
+}) {
+  if (!Array.isArray(argv) || !Array.isArray(fdTargets)) {
+    fail("process reference argv/fdTargets must be arrays");
+  }
+  const touches = (value) =>
+    processPathTouchesTargetV1(value, targetPath);
+  const reasons = [];
+  if (touches(cwd)) reasons.push("cwd");
+  if (touches(root)) reasons.push("root");
+  if (touches(exe)) reasons.push("exe");
+  if (argv.some((item) => touches(item))) reasons.push("argv");
+  if (fdTargets.some((item) => touches(item))) reasons.push("fd");
+  return reasons.sort();
+}
+
 function processReferencesForPath(targetPath) {
   const references = [];
   let procEntries = [];
   try {
-    procEntries = run("find", [
-      "/proc",
-      "-mindepth", "1",
-      "-maxdepth", "1",
-      "-type", "d",
-      "-regex", "/proc/[0-9]+",
-      "-printf", "%f\n",
-    ], { check: false }).stdout.split("\n").filter(Boolean);
+    procEntries = readdirSync("/proc", { withFileTypes: true });
   } catch {
     return references;
   }
-  const prefix = `${targetPath.replace(/\/+$/, "")}/`;
-  for (const pid of procEntries) {
-    for (const linkName of ["cwd", "root", "exe"]) {
-      const link = `/proc/${pid}/${linkName}`;
+
+  for (const entry of procEntries) {
+    if (!entry.isDirectory() || !/^\d+$/u.test(entry.name)) continue;
+    const pid = Number.parseInt(entry.name, 10);
+    if (pid === process.pid) continue;
+    const procRoot = `/proc/${entry.name}`;
+    let cwd = "";
+    let root = "";
+    let exe = "";
+    let argv = [];
+    const fdTargets = [];
+
+    for (const [label, linkName] of [
+      ["cwd", "cwd"],
+      ["root", "root"],
+      ["exe", "exe"],
+    ]) {
       try {
-        const resolved = realpathSync(link);
-        if (resolved === targetPath || resolved.startsWith(prefix)) {
-          references.push(`pid=${pid}:${linkName}=${resolved}`);
-        }
+        const resolved = realpathSync(`${procRoot}/${linkName}`);
+        if (label === "cwd") cwd = resolved;
+        else if (label === "root") root = resolved;
+        else exe = resolved;
       } catch {
         // Process exited or link is unreadable.
+      }
+    }
+
+    try {
+      argv = readFileSync(`${procRoot}/cmdline`)
+        .toString("utf8")
+        .split("\0")
+        .filter(Boolean);
+    } catch {
+      // Process exited or cmdline is unreadable.
+    }
+
+    try {
+      for (const fd of readdirSync(`${procRoot}/fd`)) {
+        try {
+          const fdTarget = readlinkSync(`${procRoot}/fd/${fd}`);
+          if (processPathTouchesTargetV1(fdTarget, targetPath)) {
+            fdTargets.push(fdTarget);
+            break;
+          }
+        } catch {
+          // Descriptor disappeared or is unreadable.
+        }
+      }
+    } catch {
+      // Process exited or descriptor directory is unreadable.
+    }
+
+    const reasons = processReferenceReasonsForSnapshotV1({
+      targetPath,
+      cwd,
+      root,
+      exe,
+      argv,
+      fdTargets,
+    });
+    for (const reason of reasons) {
+      if (reason === "cwd") {
+        references.push(`pid=${pid}:cwd=${cwd}`);
+      } else if (reason === "root") {
+        references.push(`pid=${pid}:root=${root}`);
+      } else if (reason === "exe") {
+        references.push(`pid=${pid}:exe=${exe}`);
+      } else if (reason === "argv") {
+        references.push(`pid=${pid}:argv_path_reference`);
+      } else if (reason === "fd") {
+        references.push(`pid=${pid}:fd_path_reference`);
       }
     }
   }
