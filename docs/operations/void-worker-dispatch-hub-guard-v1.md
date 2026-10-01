@@ -100,7 +100,7 @@ Exit status is `0` only for `DISPATCH_HUB_ALIGNED`, `3` for a valid read-only HO
 node scripts/prove_void_worker_dispatch_hub_guard_v1.mjs
 ```
 
-The proof covers current-hub alignment, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, repository mismatch, authority escalation, and deterministic guard identity. It also imports the upstream successor-chain and live-dispatch marker exports, and the focused workflow is triggered by changes to either upstream tool so interface drift cannot silently bypass this proof.
+The proof covers current-hub alignment, rotation-required HOLD, stale-predecessor HOLD, resolved-successor alignment, invalid-chain HOLD, repository mismatch, authority escalation, and deterministic guard identity. It also executes the real merged successor-chain resolver and the real live-dispatch evaluator against the checked-in dispatch policy, then feeds those actual outputs through this guard. The focused workflow is triggered by changes to either upstream tool or that policy so interface drift cannot silently bypass composition proof.
 
 ## Relationship to #2258
 
