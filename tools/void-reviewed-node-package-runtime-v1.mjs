@@ -17,6 +17,9 @@ export const VOID_REVIEWED_NODE_PACKAGE_RUNTIME_AUTHORITY_V1 =
     installed_package_byte_inventory_required:true,
     private_dependency_materialization:true,
     post_copy_inventory_reverification:true,
+    permission_fenced_execution:true,
+    ancestor_package_resolution_forbidden:true,
+    ambient_node_resolution_overrides_ignored:true,
     reviewed_profile_head_binding:true,
     reviewed_profile_content_id_rederivation:true,
     network_access:false,
@@ -930,4 +933,140 @@ export function materializeReviewedNodePackageRuntimeV1({
     }
     throw error;
   }
+}
+
+
+function strictFileInside(root,file,code){
+  const base=fs.realpathSync.native(root);
+  if(base!==path.resolve(root)) fail(code+"_root_alias");
+  if(typeof file!=="string"||!path.isAbsolute(file)||path.resolve(file)!==file){
+    fail(code+"_path_invalid");
+  }
+  const relative=path.relative(base,file);
+  if(
+    relative===""||
+    relative===".."||
+    relative.startsWith(".."+path.sep)||
+    path.isAbsolute(relative)
+  ){
+    fail(code+"_path_escape");
+  }
+  let real;
+  let stat;
+  try{
+    real=fs.realpathSync.native(file);
+    stat=fs.lstatSync(file);
+  }catch{
+    fail(code+"_missing");
+  }
+  if(real!==file||!stat.isFile()||stat.isSymbolicLink()||stat.nlink!==1){
+    fail(code+"_file_invalid");
+  }
+  return file;
+}
+
+function reviewedNodeExecutionEnv(){
+  const env={...process.env};
+  for(const key of [
+    "NODE_PATH",
+    "NODE_OPTIONS",
+    "NPM_CONFIG_PREFIX",
+    "npm_config_prefix",
+  ]) delete env[key];
+  return env;
+}
+
+function reviewedNodeExecutable(){
+  let real;
+  let stat;
+  try{
+    real=fs.realpathSync.native(process.execPath);
+    stat=fs.statSync(real);
+  }catch{
+    fail("reviewed_node_runtime_node_executable_unavailable");
+  }
+  if(!path.isAbsolute(real)||!stat.isFile()||(stat.mode&0o111)===0){
+    fail("reviewed_node_runtime_node_executable_invalid");
+  }
+  return real;
+}
+
+export function runReviewedNodePackageRuntimeV1({
+  profile,
+  destinationRoot,
+  entryFile,
+  args=[],
+  repoRoot=ROOT,
+  allowFailure=false,
+  timeoutMs=20_000,
+}={}){
+  if(!plain(profile)) fail("reviewed_node_runtime_profile_required");
+  if(!Array.isArray(args)||args.some(value=>typeof value!=="string")){
+    fail("reviewed_node_runtime_execution_args_invalid");
+  }
+  if(typeof allowFailure!=="boolean"){
+    fail("reviewed_node_runtime_execution_allow_failure_invalid");
+  }
+  if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>120_000){
+    fail("reviewed_node_runtime_execution_timeout_invalid");
+  }
+  const verified=verifyMaterializedReviewedNodePackageRuntimeV1({
+    profile,
+    destinationRoot,
+    repoRoot,
+  });
+  if(
+    verified.ok!==true||
+    verified.status!=="PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
+  ){
+    fail("reviewed_node_runtime_execution_materialization_unverified");
+  }
+  const root=fs.realpathSync.native(destinationRoot);
+  strictFileInside(
+    root,
+    entryFile,
+    "reviewed_node_runtime_execution_entry",
+  );
+  const node=reviewedNodeExecutable();
+  const result=spawnSync(
+    node,
+    [
+      "--permission",
+      "--allow-fs-read="+root,
+      entryFile,
+      ...args,
+    ],
+    {
+      cwd:root,
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      timeout:timeoutMs,
+      maxBuffer:16*1024*1024,
+      env:reviewedNodeExecutionEnv(),
+    },
+  );
+  if(result.error){
+    fail("reviewed_node_runtime_execution_spawn_failed");
+  }
+  if(result.status!==0&&!allowFailure){
+    fail("reviewed_node_runtime_execution_failed");
+  }
+  return Object.freeze({
+    ok:result.status===0,
+    status:result.status===0
+      ?"PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_EXECUTION_GREEN"
+      :"PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_EXECUTION_FAILED_CLOSED",
+    exit_code:result.status,
+    signal:result.signal??null,
+    stdout:String(result.stdout||""),
+    stderr:String(result.stderr||""),
+    destination_root:root,
+    entry_file:entryFile,
+    permission_fenced:true,
+    allowed_fs_read_root:root,
+    ancestor_package_resolution_allowed:false,
+    ambient_node_resolution_overrides_ignored:true,
+    profile_id:profile.profile_id,
+    packages_aggregate_sha256:profile.packages_aggregate_sha256,
+  });
 }
