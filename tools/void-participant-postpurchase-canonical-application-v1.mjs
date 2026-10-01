@@ -804,7 +804,10 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
     const bootstrapSource = [
       'import fs from "node:fs";',
       'import { materializeReviewedNodePackageRuntimeV1, verifyMaterializedReviewedNodePackageRuntimeV1 } from "./void-reviewed-node-package-runtime-v1.mjs";',
-      'const request=JSON.parse(fs.readFileSync(0,"utf8"));',
+      'process.stdin.setEncoding("utf8");',
+      'let requestText="";',
+      'for await (const chunk of process.stdin) requestText+=chunk;',
+      'const request=JSON.parse(requestText);',
       'const profile=JSON.parse(fs.readFileSync(request.profile_file,"utf8"));',
       'const result=request.action==="materialize"',
       '  ? materializeReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root})',
