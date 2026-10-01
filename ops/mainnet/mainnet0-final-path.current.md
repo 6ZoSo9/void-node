@@ -11,9 +11,9 @@ operator_label: zoso
 
 - checkpoint: ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500
 - commit: 4c3aa800
-- Precision: ready=true, gap=0, txroot_live=1
-- Alienware: ready=true, gap=0, txroot_live=1
-- Cross-box status smoke: green
+- Historical Precision checkpoint: ready=true, gap=0, txroot_live=1
+- Historical retired second-host checkpoint: ready=true, gap=0, txroot_live=1
+- Historical cross-box status smoke: green
 - Validator runtime truth: epoch127
 - Validator count: 126
 - Total power: 126000000000000000000000
@@ -27,10 +27,10 @@ operator_label: zoso
 
 ## What is already green
 
-1. Precision and Alienware are synced to the same checkpoint.
+1. The May checkpoint recorded Precision and the retired second host at the same checkpoint; current cross-box agreement must be re-proven with an explicit peer.
 2. Validator runtime truth recovered through epoch127.
 3. Local 8545 recovery lane was repaired after vault125 admission.
-4. Status smoke passes on both boxes.
+4. Historical status smoke passed on both May checkpoint hosts; current cross-box smoke requires an explicitly reviewed peer.
 5. Buy VOID Base watcher config is present.
 6. Mainnet-0 public launch state is promoted and proof-backed.
 7. Dangerous live validator env is not set.
@@ -52,7 +52,7 @@ Mainnet-0 is public_mainnet0_live after explicit launch approval, live OpsTreasu
 
 Definition of done:
 - mainnet0-status-proof passes.
-- mainnet0-crossbox-status-smoke passes.
+- `VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-crossbox-status-smoke` passes with an explicitly reviewed nonlocal current-fleet peer.
 - public launch promotion proof remains green while validator/spend guardrails remain explicit.
 
 ### 2. Public validator admission path is not launched

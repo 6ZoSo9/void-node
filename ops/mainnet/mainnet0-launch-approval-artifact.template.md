@@ -35,9 +35,11 @@ A future real approval artifact must be a separate file, not this template, and 
 - launch_approval_requested: REQUIRED
 - mutation_allowed_requested: REQUIRED
 - precision_ready_result: REQUIRED
-- alienware_ready_result: REQUIRED
+- crossbox_peer_target: REQUIRED
+- crossbox_peer_head_result: REQUIRED
+- crossbox_peer_ready_result: REQUIRED
 - precision_status_proof_log: REQUIRED
-- alienware_status_smoke_log: REQUIRED
+- crossbox_peer_status_smoke_log: REQUIRED
 - update_safety_proof_log: REQUIRED
 - validator_lifecycle_freshness_result: REQUIRED
 - final_gonogo_proof_log: REQUIRED
@@ -72,9 +74,10 @@ Before a real approval artifact can be accepted:
 - mainnet0-final-gonogo-map-proof must pass.
 - mainnet0-final-public-launch-checklist-proof must pass.
 - mainnet0-public-release-hygiene-proof must pass.
-- buy-void-hardstop-proof must pass on Precision and Alienware.
-- mainnet0-status-smoke must pass on Alienware.
-- Precision and Alienware must both report ready=true, gap=0, txroot_live=1.
+- buy-void-hardstop-proof must pass on Precision.
+- mainnet0-crossbox-status-smoke must pass from Precision with `VOID_MAINNET0_CROSSBOX_PEER` set to an explicitly reviewed nonlocal current-fleet peer.
+- Precision and the selected cross-box peer must both report ready=true, gap=0, txroot_live=1.
+- The retired Alienware identity must be rejected as a cross-box peer.
 
 ## Current conclusion
 
