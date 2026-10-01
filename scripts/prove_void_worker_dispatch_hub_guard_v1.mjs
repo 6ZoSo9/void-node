@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   CHAIN_MARKER,
@@ -9,6 +10,8 @@ import {
   MARKER,
   WorkerDispatchHubGuardError,
   assertFreshLiveChainMatchesV1,
+  assertFreshLiveDispatchMatchesV1,
+  canonicalJson,
   evaluateWorkerDispatchHubGuardV1,
 } from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
 import {
@@ -22,7 +25,6 @@ import {
 } from "../tools/void-worker-coordination-live-dispatch-v1.mjs";
 
 const PROOF_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1_PROOF_GREEN";
-const EVALUATION_ID = "sha256:" + "a".repeat(64);
 const PROOF_NOW_MS = Date.now();
 const EVALUATED_AT = new Date(PROOF_NOW_MS - 5 * 60_000).toISOString();
 const NEXT_REEVALUATION_AT =
@@ -57,9 +59,9 @@ function upstreamCoordinationRecord(commentCount) {
   };
 }
 
-function actualUpstreamDispatch() {
+function actualUpstreamDispatchEvidence() {
   const evaluatedAt = new Date().toISOString();
-  return evaluateWorkerLiveDispatchV1(policyRaw, {
+  return {
     marker: UPSTREAM_DISPATCH_EVIDENCE_MARKER,
     version: 1,
     repository: policyRaw.repository,
@@ -83,7 +85,23 @@ function actualUpstreamDispatch() {
         progress_evidence_at: null,
       },
     })),
-  });
+  };
+}
+
+function dispatchContentId(material) {
+  return "sha256:" + crypto
+    .createHash("sha256")
+    .update(canonicalJson(material))
+    .digest("hex");
+}
+
+function recontentDispatch(value, overrides = {}) {
+  const { evaluation_id: _ignored, ...body } = structuredClone(value);
+  const material = { ...body, ...overrides };
+  return {
+    ...material,
+    evaluation_id: dispatchContentId(material),
+  };
 }
 
 const actualCurrentChain = resolveCoordinationSuccessorChainRecordsV1({
@@ -92,10 +110,18 @@ const actualCurrentChain = resolveCoordinationSuccessorChainRecordsV1({
 const actualRotationChain = resolveCoordinationSuccessorChainRecordsV1({
   "1507": upstreamCoordinationRecord(249),
 });
-const actualDispatch = actualUpstreamDispatch();
+const actualDispatchEvidence = actualUpstreamDispatchEvidence();
+const actualDispatch = evaluateWorkerLiveDispatchV1(
+  policyRaw,
+  actualDispatchEvidence,
+);
 
 assert.equal(
   assertFreshLiveChainMatchesV1(actualCurrentChain, actualCurrentChain),
+  true,
+);
+assert.equal(
+  assertFreshLiveDispatchMatchesV1(actualDispatch, actualDispatch),
   true,
 );
 const actualAligned = evaluateWorkerDispatchHubGuardV1({
@@ -103,8 +129,10 @@ const actualAligned = evaluateWorkerDispatchHubGuardV1({
   version: 1,
   chain: actualCurrentChain,
   dispatch: actualDispatch,
+  dispatch_evidence: actualDispatchEvidence,
 }, {
   liveChain: actualCurrentChain,
+  liveDispatch: actualDispatch,
 });
 assert.equal(actualAligned.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(actualAligned.normal_dispatch_allowed, true);
@@ -114,8 +142,10 @@ const actualRotationHold = evaluateWorkerDispatchHubGuardV1({
   version: 1,
   chain: actualRotationChain,
   dispatch: actualDispatch,
+  dispatch_evidence: actualDispatchEvidence,
 }, {
   liveChain: actualRotationChain,
+  liveDispatch: actualDispatch,
 });
 assert.equal(actualRotationHold.outcome, "HOLD_ROTATION_REQUIRED");
 assert.equal(actualRotationHold.normal_dispatch_allowed, false);
@@ -144,12 +174,15 @@ function chain(overrides = {}) {
 }
 
 function dispatch(overrides = {}) {
-  return {
+  const {
+    evaluation_id: forcedEvaluationId,
+    ...materialOverrides
+  } = overrides;
+  const material = {
     marker: DISPATCH_MARKER,
     version: 1,
     repository: "6ZoSo9/void-node",
     plan_issue: 1507,
-    evaluation_id: EVALUATION_ID,
     evaluated_at: EVALUATED_AT,
     reevaluation_interval_minutes: 30,
     next_reevaluation_at: NEXT_REEVALUATION_AT,
@@ -160,16 +193,28 @@ function dispatch(overrides = {}) {
     automatic_issue_or_pr_creation_authorized: false,
     automatic_merge_authorized: false,
     authority_granted: false,
-    ...overrides,
+    ...materialOverrides,
+  };
+  return {
+    ...material,
+    evaluation_id:
+      forcedEvaluationId === undefined
+        ? dispatchContentId(material)
+        : forcedEvaluationId,
   };
 }
 
-function evidence(chainValue = chain(), dispatchValue = dispatch()) {
+function evidence(
+  chainValue = chain(),
+  dispatchValue = dispatch(),
+  dispatchEvidenceValue = actualDispatchEvidence,
+) {
   return {
     marker: EVIDENCE_MARKER,
     version: 1,
     chain: chainValue,
     dispatch: dispatchValue,
+    dispatch_evidence: dispatchEvidenceValue,
   };
 }
 
@@ -195,15 +240,30 @@ const spoofedBoolean = evaluateWorkerDispatchHubGuardV1(
 assert.equal(spoofedBoolean.outcome, "HOLD_CHAIN_LIVENESS_UNPROVEN");
 assert.equal(spoofedBoolean.normal_dispatch_allowed, false);
 
+const chainOnlyFreshEvidence = evidence();
+const chainOnlyFresh = evaluateWorkerDispatchHubGuardV1(
+  chainOnlyFreshEvidence,
+  { liveChain: chainOnlyFreshEvidence.chain },
+);
+assert.equal(
+  chainOnlyFresh.outcome,
+  "HOLD_DISPATCH_LIVENESS_UNPROVEN",
+);
+assert.equal(chainOnlyFresh.normal_dispatch_allowed, false);
+assert.equal(chainOnlyFresh.live_dispatch_revalidated, false);
+assert.equal(chainOnlyFresh.requires_fresh_dispatch_evidence, true);
+
 const currentEvidence = evidence();
 const current = evaluateWorkerDispatchHubGuardV1(currentEvidence, {
   liveChain: currentEvidence.chain,
+  liveDispatch: currentEvidence.dispatch,
 });
 assert.equal(current.marker, MARKER);
 assert.equal(current.version, 1);
 assert.equal(current.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(current.chain_outcome, "CURRENT");
 assert.equal(current.dispatch_evidence_fresh, true);
+assert.equal(current.live_dispatch_revalidated, true);
 assert.equal(current.requires_fresh_dispatch_evidence, false);
 assert.equal(current.normal_dispatch_allowed, true);
 assert.equal(current.read_only_evidence_only, false);
@@ -272,12 +332,16 @@ const resolvedSuccessorChain = chain({
   dispatch_plan_issue_should_be: 1600,
   plan_issue_update_required: true,
 });
+const reboundSuccessorEvidence = evidence(
+  resolvedSuccessorChain,
+  dispatch({ plan_issue: 1600 }),
+);
 const reboundSuccessor = evaluateWorkerDispatchHubGuardV1(
-  evidence(
-    resolvedSuccessorChain,
-    dispatch({ plan_issue: 1600 }),
-  ),
-  { liveChain: resolvedSuccessorChain },
+  reboundSuccessorEvidence,
+  {
+    liveChain: resolvedSuccessorChain,
+    liveDispatch: reboundSuccessorEvidence.dispatch,
+  },
 );
 assert.equal(reboundSuccessor.outcome, "DISPATCH_HUB_ALIGNED");
 assert.equal(reboundSuccessor.normal_dispatch_allowed, true);
@@ -301,6 +365,7 @@ assert.equal(invalidChain.dispatch_plan_issue_should_be, null);
 const repeatedEvidence = evidence();
 const repeated = evaluateWorkerDispatchHubGuardV1(repeatedEvidence, {
   liveChain: repeatedEvidence.chain,
+  liveDispatch: repeatedEvidence.dispatch,
 });
 assert.equal(repeated.guard_id, current.guard_id);
 assert.deepEqual(repeated, current);
@@ -311,8 +376,34 @@ expectRejected(
       chain({ repository_scope: "6ZoSo9/other" }),
     ),
   ),
-  /repository mismatch/,
+  /canonical repository/,
 );
+
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(
+    evidence(
+      chain({ repository_scope: "6ZoSo9/other" }),
+      dispatch({ repository: "6ZoSo9/other" }),
+    ),
+  ),
+  /canonical repository/,
+);
+
+{
+  const contentBound = dispatch();
+  expectRejected(
+    () => evaluateWorkerDispatchHubGuardV1(
+      evidence(
+        chain(),
+        {
+          ...contentBound,
+          plan_issue: 1600,
+        },
+      ),
+    ),
+    /evaluation_id content identity mismatch/,
+  );
+}
 
 expectRejected(
   () => evaluateWorkerDispatchHubGuardV1(
@@ -390,6 +481,32 @@ expectRejected(
   /does not match fresh live resolution/,
 );
 
+const fabricatedSuccessorDispatch = recontentDispatch(
+  actualDispatch,
+  { plan_issue: 1600 },
+);
+expectRejected(
+  () => assertFreshLiveDispatchMatchesV1(
+    fabricatedSuccessorDispatch,
+    actualDispatch,
+  ),
+  /does not match fresh live evaluation/,
+);
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(
+    evidence(
+      resolvedSuccessorChain,
+      fabricatedSuccessorDispatch,
+      actualDispatchEvidence,
+    ),
+    {
+      liveChain: resolvedSuccessorChain,
+      liveDispatch: actualDispatch,
+    },
+  ),
+  /does not match fresh live evaluation/,
+);
+
 expectRejected(
   () => evaluateWorkerDispatchHubGuardV1({
     ...evidence(),
@@ -434,6 +551,11 @@ console.log("upstream_markers_bound=true");
 console.log("real_upstream_composition_green=true");
 console.log("retained_chain_alignment_held_until_live_recheck=true");
 console.log("fresh_live_chain_equality_required=true");
+console.log("fresh_live_dispatch_equality_required=true");
+console.log("dispatch_content_identity_rederived=true");
+console.log("canonical_repository_pinned=true");
+console.log("reviewed_head_dispatch_policy_reexecution=true");
+console.log("fabricated_successor_dispatch_rejected=true");
 console.log("caller_boolean_cannot_unlock_alignment=true");
 console.log("expired_dispatch_evidence_holds=true");
 console.log("dispatch_reevaluation_window_bound=true");
