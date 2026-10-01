@@ -24,16 +24,25 @@ Before any authority-bearing promotion module is loaded, the composition:
   `2dcf6544f373f828347434fd0c6d434334af1658` to be an ancestor of the
   evaluated HEAD;
 - requires `origin` to identify canonical `6ZoSo9/void-node`;
+- runs every Git identity/object read with `--no-replace-objects` and
+  `GIT_NO_REPLACE_OBJECTS=1`, so local `refs/replace/*` cannot alter commit,
+  tree, blob, ancestry, or `git show` semantics;
 - verifies exact `HEAD:<path>` Git blobs for the canonical migration
   candidate, loopback policy, both promotion sources, the migration classifier,
   state-root admission, anchor verifier, and canonical-truth dependencies;
 - hashes the actual worktree bytes using Git blob framing and requires every
-  loaded dependency to equal that reviewed blob, so local index flags cannot
-  hide source drift;
-- records exact HEAD/tree, composition-tool blob, dependency blobs, and
-  canonical source file SHA-256 values in the receipt; and
-- rechecks the source binding after composition so source drift during the run
-  cannot be silently accepted.
+  dependency to equal that reviewed blob, so local index flags cannot hide
+  source drift;
+- reads the reviewed dependency bytes directly from the Git objects, verifies
+  their Git blob IDs again, materializes the complete authority-module closure
+  into a private read-only temporary tree, and executes the public-read
+  promotion, canonical state-root importer, and migration classifier only from
+  that reviewed-object tree rather than from mutable worktree paths;
+- records exact HEAD/tree, composition-tool blob, dependency blobs, executed
+  reviewed-object SHA-256 identities, and canonical source file SHA-256 values
+  in the receipt; and
+- rechecks the source binding after composition and removes the private
+  execution bundle on both success and failure.
 
 The composition tool itself is not pinned to its pre-merge blob. Its exact
 current canonical blob is recorded in every receipt so squash-merged and later
@@ -151,6 +160,9 @@ the repository:
 source_only_composition=true
 canonical_git_source_binding_required=true
 exact_dependency_git_blobs_required=true
+git_replacement_objects_disabled=true
+exact_reviewed_git_object_execution_required=true
+private_readonly_execution_bundle=true
 public_read_promotion_reexecuted=true
 canonical_state_root_import_promotion_reexecuted=true
 migration_classifier_reexecuted=true
