@@ -16,12 +16,15 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_PREFLIGHT_AUTHORITY_V1 =
     exact_current_qualification_required: true,
     qualification_content_id_rederived: true,
     qualification_reexecution_performed: false,
+    private_qualification_input_descriptor_bound: true,
     loopback_rpc_required: true,
+    rpc_redirect_forbidden: true,
     read_only_rpc: true,
     operator_selected_public_deployer: true,
     operator_selected_public_inventory_source: true,
     stable_pending_nonce_required: true,
     coherent_block_observation_required: true,
+    block_bound_deployment_gas_estimate_required: true,
     bare_deployment_cost_observation: true,
     inventory_balance_observation: true,
 
@@ -402,6 +405,7 @@ export async function collectVoidWcVoidMarketVaultLiveDeploymentObservationsV1({
         data: reviewedQualification.deploymentData,
         value: "0x0",
       },
+      firstBlock.number,
     ]),
   ).toLowerCase();
   const gasEstimate = quantity(
@@ -558,6 +562,7 @@ export function makeHttpJsonRpcV1(rpcUrl, { timeoutMs = 5000 } = {}) {
     try {
       const response = await fetch(url, {
         method: "POST",
+        redirect: "error",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
@@ -596,6 +601,17 @@ export function makeHttpJsonRpcV1(rpcUrl, { timeoutMs = 5000 } = {}) {
   };
 }
 
+function sameFileStamp(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs &&
+    left.nlink === right.nlink
+  );
+}
+
 function readPrivateJson(file, expectedSha) {
   if (
     !path.isAbsolute(file) ||
@@ -616,18 +632,51 @@ function readPrivateJson(file, expectedSha) {
   if (fs.realpathSync.native(file) !== file) {
     fail("market_vault_live_preflight_input_alias_forbidden");
   }
-  const stat = fs.lstatSync(file);
+
+  const pathStat = fs.lstatSync(file);
   if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.nlink !== 1 ||
-    stat.size < 2 ||
-    stat.size > MAX_INPUT_BYTES ||
-    (stat.mode & 0o077) !== 0
+    !pathStat.isFile() ||
+    pathStat.isSymbolicLink() ||
+    pathStat.nlink !== 1 ||
+    pathStat.size < 2 ||
+    pathStat.size > MAX_INPUT_BYTES ||
+    (pathStat.mode & 0o077) !== 0
   ) {
     fail("market_vault_live_preflight_input_file_invalid");
   }
-  const bytes = fs.readFileSync(file);
+
+  let fd;
+  let before;
+  let bytes;
+  let after;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      before.dev !== pathStat.dev ||
+      before.ino !== pathStat.ino
+    ) {
+      fail("market_vault_live_preflight_input_descriptor_mismatch");
+    }
+    bytes = fs.readFileSync(fd);
+    after = fs.fstatSync(fd);
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+
+  const post = fs.lstatSync(file);
+  if (
+    bytes.length !== before.size ||
+    !sameFileStamp(before, after) ||
+    !sameFileStamp(before, post)
+  ) {
+    fail("market_vault_live_preflight_input_changed_during_read");
+  }
   if (sha256(bytes) !== expectedSha) {
     fail("market_vault_live_preflight_input_sha256_mismatch");
   }
