@@ -42,7 +42,10 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1 =
   Object.freeze({
     source_policy_compilation_only: true,
     explicit_reviewed_values_required: true,
+    canonical_launch_source_binding_required: true,
+    descriptor_bound_private_input: true,
     create_only_private_output: true,
+    durable_output_directory_entry_required: true,
     production_values_selected_by_source: false,
     runtime_enforcement_verified: false,
     wall_clock_read: false,
