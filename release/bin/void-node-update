@@ -104,12 +104,12 @@ function completeRollbackTransaction(installRoot,paths,journal,testInterrupt){
   }else fail("rollback transaction journal does not match canonical pointer state");
 }
 function serviceActive(){return managerAvailable()&&childProcess.spawnSync("systemctl",["--user","is-active","--quiet","void-node.service"]).status===0;}
-function finalizeRollbackTransaction(installRoot,paths,journal,testInterruptBeforeRestart,testInterruptAfterRestart=false){
+function finalizeRollbackTransaction(installRoot,paths,journal,testInterruptBeforeRestart,testInterruptAfterRestart=false,allowAlreadySatisfied=false){
   if(testInterruptBeforeRestart)fail("test interruption after rollback pointer publication before service restart");
   if(journal.restart_if_active){
     if(!managerAvailable())fail("rollback transaction requires systemd user manager to restore previously active service");
     const currentInvocation=serviceInvocationId();
-    if(serviceActive()&&currentInvocation&&currentInvocation!==journal.restart_before_invocation_id){
+    if(allowAlreadySatisfied&&serviceActive()&&currentInvocation&&currentInvocation!==journal.restart_before_invocation_id){
       say(`${MARKER}_ROLLBACK_RESTART_ALREADY_SATISFIED`);
     }else{
       run("systemctl",["--user","restart","void-node.service"]);
@@ -141,7 +141,11 @@ function recoverRollbackPreparation(installRoot,paths){
 function recoverRollbackTransaction(installRoot){
   const paths=rollbackPaths(installRoot),journal=readRollbackJournal(paths,installRoot);
   if(!journal)return recoverRollbackPreparation(installRoot,paths);
-  requireAbsent(paths.journalNext,"journal staging file");completeRollbackTransaction(installRoot,paths,journal,false);finalizeRollbackTransaction(installRoot,paths,journal,false);say(`${MARKER}_ROLLBACK_RECOVERED`);return "rollback_committed";
+  requireAbsent(paths.journalNext,"journal staging file");
+  const committedBeforeRecovery=pointerTarget(paths.cur,"current")===journal.old_previous&&pointerTarget(paths.prev,"previous")===journal.old_current;
+  completeRollbackTransaction(installRoot,paths,journal,false);
+  finalizeRollbackTransaction(installRoot,paths,journal,false,false,committedBeforeRecovery);
+  say(`${MARKER}_ROLLBACK_RECOVERED`);return "rollback_committed";
 }
 function requireCleanRollbackState(installRoot){const paths=rollbackPaths(installRoot);requireAbsent(paths.journal,"transaction journal");requireAbsent(paths.journalNext,"journal staging file");requireAbsent(paths.n1,"current staging link");requireAbsent(paths.n2,"previous staging link");}
 function swapRollback(installRoot,restart,restartBeforeInvocationId,testAllowFile){
