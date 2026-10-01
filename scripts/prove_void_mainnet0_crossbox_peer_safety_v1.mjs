@@ -46,6 +46,11 @@ assert.match(files.crossbox,/crossbox_peer_required/u);
 assert.match(files.crossbox,/crossbox_peer_retired/u);
 assert.match(files.crossbox,/crossbox_peer_loopback_forbidden/u);
 assert.match(files.crossbox,/crossbox_peer_local_host_forbidden/u);
+assert.match(files.crossbox,/crossbox_remote_resolved_to_local_host/u);
+assert.match(files.crossbox,/crossbox_local_repo_dirty/u);
+assert.match(files.crossbox,/crossbox_head_mismatch/u);
+assert.match(files.crossbox,/exact_head_match=true/u);
+assert.match(files.crossbox,/distinct_remote_host_verified=true/u);
 assert.match(files.crossbox,/local_fallback_allowed=false/u);
 assert.match(
   files.crossbox,
@@ -104,6 +109,9 @@ console.log("explicit_crossbox_peer_required=true");
 console.log("retired_alienware_default_removed=true");
 console.log("retired_alienware_identity_rejected=true");
 console.log("loopback_and_local_peer_rejected=true");
+console.log("distinct_remote_host_required=true");
+console.log("local_and_remote_repo_clean_required=true");
+console.log("exact_git_head_match_required=true");
 console.log("crossbox_ssh_failure_fails_closed=true");
 console.log("local_smoke_fallback_for_crossbox_forbidden=true");
 console.log("network_execution=false");
