@@ -44,9 +44,12 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1 =
     source_policy_compilation_only: true,
     explicit_reviewed_values_required: true,
     canonical_launch_source_binding_required: true,
+    git_config_isolated: true,
     descriptor_bound_private_input: true,
+    reviewed_private_input_sha256_required: true,
     create_only_private_output: true,
     durable_output_directory_entry_required: true,
+    output_parent_directory_identity_bound: true,
     production_values_selected_by_source: false,
     runtime_enforcement_verified: false,
     wall_clock_read: false,
@@ -70,6 +73,7 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1 =
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "..");
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
+const HEX64 = /^[0-9a-f]{64}$/u;
 const UINT = /^(0|[1-9][0-9]*)$/u;
 export const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
@@ -712,6 +716,12 @@ function headBlobSha1(relativePath) {
     "/usr/bin/git",
     [
       "--no-replace-objects",
+      "-c", "core.fsmonitor=false",
+      "-c", "core.hooksPath=/dev/null",
+      "-c", "core.attributesFile=/dev/null",
+      "-c", "core.untrackedCache=false",
+      "-c", "core.preloadIndex=false",
+      "-c", "submodule.recurse=false",
       "-C",
       REPO_ROOT,
       "rev-parse",
@@ -721,7 +731,12 @@ function headBlobSha1(relativePath) {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       env: {
-        ...process.env,
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+        HOME: "/nonexistent",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
         GIT_OPTIONAL_LOCKS: "0",
         GIT_NO_REPLACE_OBJECTS: "1",
       },
@@ -855,7 +870,7 @@ function canonicalLaunchSourceBinding() {
   });
 }
 
-function readPrivateJson(file, label) {
+function readPrivateJson(file, label, expectedSha256) {
   if (
     typeof file !== "string" ||
     !path.isAbsolute(file) ||
@@ -870,6 +885,16 @@ function readPrivateJson(file, label) {
     { maxBytes: MAX_INPUT_BYTES, requirePrivateOwner: true },
   );
   const bytes = source.bytes;
+  if (
+    typeof expectedSha256 !== "string" ||
+    !HEX64.test(expectedSha256)
+  ) {
+    fail(label + "_EXPECTED_SHA256_INVALID");
+  }
+  const actualSha256 = sha256Bytes(bytes);
+  if (actualSha256 !== expectedSha256) {
+    fail(label + "_SHA256_MISMATCH");
+  }
   let value;
   try {
     value = JSON.parse(
@@ -878,7 +903,11 @@ function readPrivateJson(file, label) {
   } catch {
     fail(label + "_JSON_INVALID");
   }
-  return Object.freeze({ bytes, value });
+  return Object.freeze({
+    bytes,
+    value,
+    sha256: actualSha256,
+  });
 }
 
 function writePrivateJson(file, value) {
@@ -895,58 +924,96 @@ function writePrivateJson(file, value) {
   if (realParent !== parent) {
     fail("COUPLED_LAUNCH_POLICY_OUTPUT_PARENT_ALIAS_FORBIDDEN");
   }
-  const parentStat = fs.lstatSync(parent);
-  if (
-    !parentStat.isDirectory() ||
-    parentStat.isSymbolicLink() ||
-    (
-      typeof process.getuid === "function" &&
-      parentStat.uid !== process.getuid()
-    ) ||
-    (parentStat.mode & 0o022) !== 0
-  ) {
-    fail("COUPLED_LAUNCH_POLICY_OUTPUT_PARENT_UNSAFE");
-  }
-  const bytes = prettyBytes(value);
-  let fd;
-  let createdStat;
+  let parentFd;
+  let parentIdentity;
   try {
-    fd = fs.openSync(
-      file,
-      fs.constants.O_WRONLY |
-        fs.constants.O_CREAT |
-        fs.constants.O_EXCL |
-        Number(fs.constants.O_NOFOLLOW || 0),
-      0o600,
+    parentFd = fs.openSync(
+      parent,
+      fs.constants.O_RDONLY | Number(fs.constants.O_DIRECTORY || 0),
     );
-    fs.writeFileSync(fd, bytes);
-    fs.fchmodSync(fd, 0o600);
-    fs.fsyncSync(fd);
-    createdStat = fs.fstatSync(fd);
+    const parentFdStat = fs.fstatSync(parentFd);
+    const parentPathStat = fs.lstatSync(parent);
+    if (
+      !parentFdStat.isDirectory() ||
+      parentPathStat.isSymbolicLink() ||
+      !parentPathStat.isDirectory() ||
+      parentFdStat.dev !== parentPathStat.dev ||
+      parentFdStat.ino !== parentPathStat.ino ||
+      (
+        typeof process.getuid === "function" &&
+        (
+          parentFdStat.uid !== process.getuid() ||
+          parentPathStat.uid !== process.getuid()
+        )
+      ) ||
+      (parentFdStat.mode & 0o022) !== 0 ||
+      (parentPathStat.mode & 0o022) !== 0
+    ) {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_PARENT_UNSAFE");
+    }
+    parentIdentity = Object.freeze({
+      dev: parentFdStat.dev,
+      ino: parentFdStat.ino,
+    });
+
+    const bytes = prettyBytes(value);
+    let fd;
+    let createdStat;
+    try {
+      fd = fs.openSync(
+        file,
+        fs.constants.O_WRONLY |
+          fs.constants.O_CREAT |
+          fs.constants.O_EXCL |
+          Number(fs.constants.O_NOFOLLOW || 0),
+        0o600,
+      );
+      fs.writeFileSync(fd, bytes);
+      fs.fchmodSync(fd, 0o600);
+      fs.fsyncSync(fd);
+      createdStat = fs.fstatSync(fd);
+    } finally {
+      if (fd !== undefined) fs.closeSync(fd);
+    }
+
+    fs.fsyncSync(parentFd);
+    const parentAfterFd = fs.fstatSync(parentFd);
+    const parentAfterPath = fs.lstatSync(parent);
+    if (
+      parentAfterFd.dev !== parentIdentity.dev ||
+      parentAfterFd.ino !== parentIdentity.ino ||
+      parentAfterPath.dev !== parentIdentity.dev ||
+      parentAfterPath.ino !== parentIdentity.ino ||
+      fs.realpathSync.native(parent) !== parent
+    ) {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_PARENT_CHANGED");
+    }
+
+    const persistedSource = readStableDirectFile(
+      file,
+      "COUPLED_LAUNCH_POLICY_OUTPUT",
+      { maxBytes: MAX_INPUT_BYTES, requirePrivateOwner: true },
+    );
+    if (
+      persistedSource.stat.dev !== createdStat.dev ||
+      persistedSource.stat.ino !== createdStat.ino ||
+      (persistedSource.stat.mode & 0o777) !== 0o600
+    ) {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_IDENTITY_INVALID");
+    }
+    if (!persistedSource.bytes.equals(bytes)) {
+      fail("COUPLED_LAUNCH_POLICY_OUTPUT_BYTES_MISMATCH");
+    }
+    return Object.freeze({
+      output_path: file,
+      output_sha256: sha256Bytes(bytes),
+      output_bytes: bytes.length,
+      parent_dev: parentIdentity.dev,
+      parent_ino: parentIdentity.ino,
+    });
   } finally {
-    if (fd !== undefined) fs.closeSync(fd);
+    if (parentFd !== undefined) fs.closeSync(parentFd);
   }
-  fsyncDirectory(parent);
-  const persistedSource = readStableDirectFile(
-    file,
-    "COUPLED_LAUNCH_POLICY_OUTPUT",
-    { maxBytes: MAX_INPUT_BYTES, requirePrivateOwner: true },
-  );
-  if (
-    persistedSource.stat.dev !== createdStat.dev ||
-    persistedSource.stat.ino !== createdStat.ino ||
-    (persistedSource.stat.mode & 0o777) !== 0o600
-  ) {
-    fail("COUPLED_LAUNCH_POLICY_OUTPUT_IDENTITY_INVALID");
-  }
-  if (!persistedSource.bytes.equals(bytes)) {
-    fail("COUPLED_LAUNCH_POLICY_OUTPUT_BYTES_MISMATCH");
-  }
-  return Object.freeze({
-    output_path: file,
-    output_sha256: sha256Bytes(bytes),
-    output_bytes: bytes.length,
-  });
 }
 
 const direct =
@@ -958,19 +1025,26 @@ if (direct) {
     const { values } = parseArgs({
       options: {
         input: { type: "string" },
+        "expected-input-sha256": { type: "string" },
         output: { type: "string" },
       },
       strict: true,
     });
-    if (!values.input || !values.output) {
+    if (
+      !values.input ||
+      !values["expected-input-sha256"] ||
+      !values.output
+    ) {
       fail(
         "usage: --input /absolute/private/launch-policy-input.json " +
+        "--expected-input-sha256 <64hex> " +
         "--output /absolute/private/launch-policy-bundle.json",
       );
     }
     const source = readPrivateJson(
       values.input,
       "COUPLED_LAUNCH_POLICY_INPUT",
+      values["expected-input-sha256"],
     );
     const result = compileVoidWcVoidCoupledLaunchPolicyBundleV1(source.value);
     const persisted = writePrivateJson(values.output, result);
@@ -993,6 +1067,7 @@ if (direct) {
       "sponsored_execution_policy_id=" +
         result.sponsored_execution_policy.policy_id,
     );
+    console.log("reviewed_input_sha256=" + source.sha256);
     console.log("output_path=" + persisted.output_path);
     console.log("output_sha256=" + persisted.output_sha256);
     console.log("output_bytes=" + String(persisted.output_bytes));
