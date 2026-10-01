@@ -65,7 +65,9 @@ unreviewed amount of Set/string memory.
 
 When a new distinct ID would exceed the configured bound, the worker:
 
-- clears its in-memory jobs-generation cursor/carry/seen/pending state; and
+- clears its in-memory jobs-generation cursor/carry/seen/pending state;
+- quarantines the currently admitted jobs source in this runtime-index instance,
+  so earlier pending job proxies from the same file stamp lose use authority; and
 - throws:
 
 ```text
@@ -82,9 +84,16 @@ VOID_JOBS_DATANET_WORKER_JOB_ID_TOO_LARGE
 
 before insertion.
 
-The same unchanged oversized generation will continue to HOLD if rescanned. The
-guard never evicts an older ID to make room, because eviction would destroy the
-exact duplicate/replay semantics that `jobsSeen` currently provides.
+The same unchanged oversized generation will continue to HOLD if rescanned. A
+runtime-index restart or an explicit source lifecycle reset is required before a
+new source can be reconsidered. The guard never evicts an older ID to make room,
+because eviction would destroy the exact duplicate/replay semantics that
+`jobsSeen` currently provides.
+
+The permanent proof also forces overflow on a later scan chunk while keeping the
+jobs file stamp unchanged. A job proxy returned from an earlier chunk must become
+unusable after the overflow, and the next scan must return a quarantined
+`jobs_seen_job_cardinality_hold` rather than resuming from the old source.
 
 ## What this does not solve
 
