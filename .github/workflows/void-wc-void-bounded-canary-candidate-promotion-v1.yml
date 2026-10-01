@@ -19,7 +19,7 @@ on:
     paths:
       - ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml"
       - "docs/operators/wc-void-bounded-canary-candidate-promotion-v1.md"
-      - "scripts/prove_void_wc_void_bounded-canary_candidate_promotion_v1.mjs"
+      - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
       - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
       - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
       - "tools/void-wc-void-production-readiness-v1.mjs"
