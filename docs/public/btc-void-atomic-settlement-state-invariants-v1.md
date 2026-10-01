@@ -20,9 +20,9 @@ shared-market policy. Historical
 `void-shared-market-post-discovery-state-v1.mjs` is explicitly not production
 authority and is not imported by this evaluator.
 
-The V2 binding is anchored to the exact reviewed canonical coupled-candidate Git
-blob
-`d78bc88dd26c47921a54c081a79ceefc0d5abcee` and reconciliation ID
+The V2 binding is anchored to the exact reviewed shared-market V2 source Git
+blob `bcfff9c2981e713a7053ff51a39145eb06b7238b`, canonical coupled-candidate
+Git blob `d78bc88dd26c47921a54c081a79ceefc0d5abcee`, and reconciliation ID
 `sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba`.
 It requires:
 
