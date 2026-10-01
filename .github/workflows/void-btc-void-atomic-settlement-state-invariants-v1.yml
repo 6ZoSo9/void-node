@@ -53,6 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 1
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -75,6 +76,10 @@ jobs:
             | tee "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'VOID_BTC_VOID_ATOMIC_SETTLEMENT_CURRENT_STACK_V1_PROOF_GREEN' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_quote_identity_rederived=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'exact_reviewed_execution_git_objects_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'private_readonly_execution_bundle=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'dirty_execution_source_rejected_before_load=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
+          grep -Fx 'hostile_git_environment_ignored=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_shared_market_policy_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'current_shared_market_v2_canonical_source_bound=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"
           grep -Fx 'shared_market_v2_source_drift_rejected=true' "$RUNNER_TEMP/btc-void-atomic-settlement.log"

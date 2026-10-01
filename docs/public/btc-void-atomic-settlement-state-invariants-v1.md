@@ -10,10 +10,16 @@ implementations already on `main`.
 ## Current-stack bindings
 
 Every settlement contract must bind to a freshly rederived
-`void.btc_void.indicative_quote.v1` from
-`tools/void-btc-void-quote-math-v1.mjs`. The contract carries the full quote
-request and exact `indicative_quote_id`; BTC and VOID settlement amounts must
-match the current quote result exactly.
+`void.btc_void.indicative_quote.v1` from the exact reviewed Git object for
+`tools/void-btc-void-quote-math-v1.mjs`. Quote math, reserve policy,
+buyback-journal transition, and bounded-stdin execution are no longer loaded
+from mutable worktree imports. The evaluator first requires a clean captured
+HEAD/tree, checks the exact HEAD Git blobs and checked-out bytes, disables Git
+replacement/config/environment redirection, copies the four reviewed module
+objects into a private read-only temporary module tree, and imports from that
+tree before any authority-bearing evaluation. The contract carries the full
+quote request and exact `indicative_quote_id`; BTC and VOID settlement amounts
+must match the current reviewed quote result exactly.
 
 The contract also binds a content-addressed snapshot of the **current V2**
 shared-market policy. Historical
@@ -95,6 +101,14 @@ funded or open.
 ```bash
 node scripts/prove_void_btc_void_atomic_settlement_state_invariants_v1.mjs
 ```
+
+The proof also launches a fresh child process with a deliberately dirty quote
+module carrying an execution sentinel. Import of the evaluator must HOLD before
+that unreviewed module executes. A second child uses a fake `git` on `PATH`
+plus hostile Git repository/object/config/program environment variables; the
+evaluator must still bind through the reviewed absolute Git executable and the
+fake executable must never run. Pull-request CI checks out the exact PR head
+rather than GitHub's synthetic merge commit.
 
 Expected marker:
 
