@@ -911,6 +911,7 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
       ),
     ).href;
     const runnerSource = [
+      'import { createHash } from "node:crypto";',
       'import { buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1, VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1 } from '+JSON.stringify(promotionUrl)+';',
       'import { buildVoidParticipantPostpurchaseProductionRuntimeBindingV1 } from '+JSON.stringify(runtimeBindingUrl)+';',
       'import { classifyVoidCoupledEconomicSuccessorGateV1 } from '+JSON.stringify(classifierUrl)+';',
@@ -926,7 +927,8 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
       '  let result;',
       '  if(operation==="prepare"){',
       '    const runtime_binding=buildVoidParticipantPostpurchaseProductionRuntimeBindingV1({finalityInput:request.finality_input,statusResult:request.status_result,deliveryReceiptResult:request.delivery_result,controlReceiptResult:request.control_result});',
-      '    const promotion=buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({candidate:request.coupled,successorMigrationCandidate:request.successor,runtimeBindingReceipt:runtime_binding,runtimeBindingFileSha256:request.runtime_binding_file_sha256,candidateFileSha256:request.coupled_file_sha256,successorCandidateFileSha256:request.successor_file_sha256,repositoryHeadSha:request.repository_head_sha,repositoryTreeSha:request.repository_tree_sha,candidateGitBlobSha1:request.coupled_git_blob_sha1,successorCandidateGitBlobSha1:request.successor_git_blob_sha1,classifierGitBlobSha1:request.classifier_git_blob_sha1,promotionToolGitBlobSha1:request.promotion_tool_git_blob_sha1});',
+      '    const runtime_binding_file_sha256=createHash("sha256").update(JSON.stringify(runtime_binding,null,2)+"\\n","utf8").digest("hex");',
+      '    const promotion=buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1({candidate:request.coupled,successorMigrationCandidate:request.successor,runtimeBindingReceipt:runtime_binding,runtimeBindingFileSha256:runtime_binding_file_sha256,candidateFileSha256:request.coupled_file_sha256,successorCandidateFileSha256:request.successor_file_sha256,repositoryHeadSha:request.repository_head_sha,repositoryTreeSha:request.repository_tree_sha,candidateGitBlobSha1:request.coupled_git_blob_sha1,successorCandidateGitBlobSha1:request.successor_git_blob_sha1,classifierGitBlobSha1:request.classifier_git_blob_sha1,promotionToolGitBlobSha1:request.promotion_tool_git_blob_sha1});',
       '    const before=classifyVoidCoupledEconomicSuccessorGateV1(request.coupled,request.successor);',
       '    const after=classifyVoidCoupledEconomicSuccessorGateV1(promotion.promoted_candidate,request.successor);',
       '    result={runtime_binding,promotion,promotion_authority:VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1,before,after};',
