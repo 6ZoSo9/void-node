@@ -178,6 +178,7 @@ try{
     /reviewed_node_runtime_materialized_inventory_mismatch/u,
   );
 }finally{
+  makeWritable(temp);
   fs.rmSync(temp,{recursive:true,force:true});
 }
 
