@@ -874,11 +874,13 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
       "participant-canonical-reviewed-runner-v1.mjs",
     );
     const runnerSource = [
-      'import fs from "node:fs";',
       'import { buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1, VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1 } from "../tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs";',
       'import { buildVoidParticipantPostpurchaseProductionRuntimeBindingV1 } from "../tools/void-participant-postpurchase-production-runtime-binding-v1.mjs";',
       'import { classifyVoidCoupledEconomicSuccessorGateV1 } from "../tools/void-coupled-economic-successor-gate-v1.mjs";',
-      'const request=JSON.parse(fs.readFileSync(0,"utf8"));',
+      'process.stdin.setEncoding("utf8");',
+      'let requestText="";',
+      'for await (const chunk of process.stdin) requestText+=chunk;',
+      'const request=JSON.parse(requestText);',
       'let result;',
       'if(request.operation==="prepare"){',
       '  const runtime_binding=buildVoidParticipantPostpurchaseProductionRuntimeBindingV1({finalityInput:request.finality_input,statusResult:request.status_result,deliveryReceiptResult:request.delivery_result,controlReceiptResult:request.control_result});',
