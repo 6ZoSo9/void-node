@@ -26,7 +26,7 @@ This does not execute Buy VOID fulfillment.
 - Key ceremony public artifact is gitleaks-clean.
 - VOIDKEY2 encrypted backup receipt is recorded.
 - Post-key-backup launch checklist is green.
-- Precision and Alienware are both ready.
+- Historical cross-box readiness evidence is recorded; present-tense use requires fresh Precision readiness plus `VOID_MAINNET0_CROSSBOX_PEER` set to an explicitly reviewed nonlocal current-fleet peer.
 - Launch remains NO-GO.
 
 ## Future authority-transfer preflight requirements

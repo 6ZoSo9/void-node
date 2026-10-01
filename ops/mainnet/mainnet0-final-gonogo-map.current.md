@@ -19,9 +19,9 @@ operator_label: zoso
 
 ## What is green
 
-- Precision node readiness is green.
-- Alienware node readiness is green.
-- Cross-box status smoke is green.
+- Historical Precision readiness checkpoint is recorded.
+- Historical retired second-host readiness checkpoint is recorded.
+- Cross-box status smoke lineage is green; present-tense proof requires an explicit reviewed peer.
 - Mainnet-0 current baseline pointer proof is green.
 - Current baseline pointer records 4c3aa800 / ckpt-mainnet0-public-launch-promotion-proof-green-20260524-071500 as the canonical public-live promotion baseline.
 - Product surface proof is green.
@@ -66,8 +66,8 @@ Candidate-only public registration is the intended Mainnet-0 posture; the blocke
 After GO_PUBLIC_MAINNET0, all of the following must remain true:
 
 1. mainnet0-current-baseline-proof passes on the intended launch commit.
-2. mainnet0-status-smoke passes on Precision and Alienware.
-3. mainnet0-crossbox-status-smoke passes.
+2. mainnet0-status-smoke passes on Precision.
+3. `VOID_MAINNET0_CROSSBOX_PEER=<ssh-alias-or-user@host> make mainnet0-crossbox-status-smoke` passes with an explicitly reviewed nonlocal current-fleet peer; retired Alienware is rejected.
 4. mainnet0-status-proof passes.
 5. mainnet0-blockers-proof passes.
 6. mainnet0-final-path-proof passes.
