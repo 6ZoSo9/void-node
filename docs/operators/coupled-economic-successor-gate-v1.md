@@ -91,9 +91,9 @@ result fields to match.
 Current source-model identities are:
 
 - reconciliation ID
-  `sha256:3c543d4b6e0d30e5c65e3a6a9588a71fc0929692cf3278e43933e14f134853c5`;
+  `sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba`;
 - WC opening state ID
-  `sha256:93ec2dd83d6b1d57c93c0456056ad0c5fa85f2d7d1188ad1b26aad604d24c88d`.
+  `sha256:fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621`.
 
 The fixture is explicitly marked `source_model_fixture=true` and
 `runtime_or_launch_evidence=false`. These identities prove the reviewed
