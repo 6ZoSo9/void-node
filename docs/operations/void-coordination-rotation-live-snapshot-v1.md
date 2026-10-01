@@ -14,7 +14,7 @@ One command captures:
 - exact per-PR head/base/draft/update identity before and after changed-file collection; and
 - every changed path for each open pull request.
 
-Only after all before/after identities agree does the wrapper call the canonical `VOID_COORDINATION_ROTATION_SNAPSHOT_V1` builder with the checked-in validated live-dispatch policy.
+Only after all before/after identities agree does the wrapper call the canonical `VOID_COORDINATION_ROTATION_SNAPSHOT_V1` builder. The live-dispatch policy is fetched from the exact captured remote `main` commit through GitHub's contents API, and its returned Git blob SHA is independently recomputed from the UTF-8 bytes before the policy is admitted.
 
 The result is still point-in-time evidence. Ada remains the single rollover writer.
 
@@ -59,6 +59,8 @@ node tools/void-coordination-rotation-live-snapshot-v1.mjs \
   --pretty
 ```
 
+`--policy` is a normalized **repository-relative path**, not a local trust override. The wrapper fetches that path at the exact captured remote-main SHA and verifies the Git blob identity before JSON parsing.
+
 Optional create-only output:
 
 ```bash
@@ -69,7 +71,7 @@ node tools/void-coordination-rotation-live-snapshot-v1.mjs \
 
 Output files are create-only and mode `0600`.
 
-The wrapper uses only `gh api` GET requests and reads the local checked-in policy. It does not fetch Git refs, checkout, reset, commit, push, create or close issues, post comments, or mutate scheduler/runtime state.
+The wrapper uses only `gh api` GET requests. It reads the canonical policy bytes from the exact captured remote-main commit rather than trusting the local checkout. It does not fetch Git refs, checkout, reset, commit, push, create or close issues, post comments, or mutate scheduler/runtime state.
 
 ## Output
 
@@ -78,6 +80,7 @@ The top-level live-capture receipt includes:
 - exact repository/root issue;
 - capture-completion timestamp;
 - exact stable main SHA;
+- canonical policy repository path and verified Git blob SHA;
 - exact open-PR count;
 - successor-chain outcome;
 - canonical snapshot outcome and snapshot ID;
@@ -120,7 +123,7 @@ The proof uses the real merged successor-chain resolver and real checked-in live
 - truncated changed-file evidence;
 - missing/duplicate PR captures;
 - unsafe paths;
-- repository/root mismatch; and
+- repository/root mismatch;\n- exact remote-main policy Git-blob binding and tamper rejection; and
 - deterministic live-capture identity.
 
 ## Relationship to #2258
