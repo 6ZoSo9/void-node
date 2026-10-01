@@ -586,7 +586,7 @@ for (const forbidden of [
 }
 for (const required of [
   "--no-replace-objects",
-  "git archive",
+  "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
   "exact_composition_execution_from_reviewed_head",
   "composeVoidEconomicEpoch2PublicVerificationV1",
   "PUBLIC_VERIFICATION_APPLICATION_COMPOSITION_RECEIPT_MISMATCH",
