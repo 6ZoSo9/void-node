@@ -314,6 +314,59 @@ await rejects(
   /control_source_binding_blob_invalid/u,
 );
 
+const forgedTreeChallenge = structuredClone(challenge);
+forgedTreeChallenge.source_binding.source_tree_sha =
+  "f".repeat(40);
+const {
+  source_binding_sha256: _oldBindingDigest,
+  ...forgedBindingMaterial
+} = forgedTreeChallenge.source_binding;
+forgedTreeChallenge.source_binding.source_binding_sha256 =
+  sha256(Buffer.from(canonicalJson(forgedBindingMaterial), "utf8"));
+forgedTreeChallenge.challenge.source_binding_sha256 =
+  "0x" + forgedTreeChallenge.source_binding.source_binding_sha256;
+forgedTreeChallenge.typed_data.value.source_binding_sha256 =
+  forgedTreeChallenge.challenge.source_binding_sha256;
+forgedTreeChallenge.typed_data_digest =
+  voidWcVoidLaunchControllerControlDigestV1(
+    forgedTreeChallenge.challenge,
+  );
+const forgedTreeIdMaterial = {
+  marker: forgedTreeChallenge.marker,
+  version: forgedTreeChallenge.version,
+  challenge: forgedTreeChallenge.challenge,
+  source_binding: forgedTreeChallenge.source_binding,
+  typed_data: forgedTreeChallenge.typed_data,
+};
+forgedTreeChallenge.challenge_id =
+  "voidwclcc1_" +
+  sha256(
+    Buffer.from(
+      canonicalJson(forgedTreeIdMaterial),
+      "utf8",
+    ),
+  );
+const forgedTreeSignature =
+  await fixtureWallet.signTypedData(
+    forgedTreeChallenge.typed_data.domain,
+    forgedTreeChallenge.typed_data.types,
+    forgedTreeChallenge.typed_data.value,
+  );
+const forgedTreeSignatureEnvelope =
+  buildVoidWcVoidLaunchControllerControlSignatureEnvelopeV1({
+    challengeId: forgedTreeChallenge.challenge_id,
+    signature: forgedTreeSignature,
+  });
+await rejects(
+  () =>
+    verifyVoidWcVoidLaunchControllerControlSignatureV1({
+      challengeEnvelope: forgedTreeChallenge,
+      signatureEnvelope: forgedTreeSignatureEnvelope,
+      nowUnix: now + 1,
+    }),
+  /control_reviewed_source_tree_mismatch/u,
+);
+
 let typedGetterCalls = 0;
 const typedAccessor = structuredClone(challenge);
 Object.defineProperty(
@@ -564,6 +617,7 @@ console.log("challenge_ttl_bounded_green=true");
 console.log("wrong_signer_held_green=true");
 console.log("expired_challenge_held_green=true");
 console.log("source_drift_held_green=true");
+console.log("forged_reviewed_source_tree_held_green=true");
 console.log("accessor_nonexecution_green=true");
 console.log("typed_data_accessor_nonexecution_green=true");
 console.log("cli_round_trip_green=true");
