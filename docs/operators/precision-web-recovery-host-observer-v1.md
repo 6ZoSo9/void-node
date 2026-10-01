@@ -39,10 +39,15 @@ frontdoor    void-public-frontdoor-v1.service
 node         void-node-live.service
 ```
 
-The four unit names may be overridden explicitly at invocation time. Overrides
-remain bounded to syntactically valid `.service` unit names.
+The three web-service unit names may be overridden explicitly at invocation
+time because the historical Precision recovery did not retain their exact names
+in checked-in evidence. Overrides remain bounded to syntactically valid
+`.service` unit names and each observed systemd snapshot must match the exact
+unit selected for that role.
 
-No unit name is inferred from process text or historical Alienware state.
+The node unit is not overrideable: node restart stability is always bound to
+`void-node-live.service`. No unit name is inferred from process text or
+historical Alienware state.
 
 ## Read-only observation wall
 
@@ -219,7 +224,6 @@ node tools/void-precision-web-recovery-host-observer-v1.mjs \
   --adapter-unit '<exact-adapter.service>' \
   --composition-unit '<exact-composition.service>' \
   --frontdoor-unit '<exact-frontdoor.service>' \
-  --node-unit 'void-node-live.service' \
   --pretty
 ```
 
@@ -234,8 +238,9 @@ node scripts/prove_void_precision_web_recovery_host_observer_v1.mjs
 The proof imports and executes the real merged #2273 plan/verifier, proves the
 systemd and `ss` parsers, binds the actual Node argv[1] entry-script bytes by
 SHA-256, proves command-environment isolation and local user-bus pinning, and
-falsifies host, listener, process-entry, executable, hardening, runtime-marker,
-stability, stale-time, and future-time failures.
+falsifies host, service-unit, pinned node-unit, listener, process-entry,
+executable, hardening, runtime-marker, stability, stale-time, and future-time
+failures.
 
 ## Relationship to #1614
 
