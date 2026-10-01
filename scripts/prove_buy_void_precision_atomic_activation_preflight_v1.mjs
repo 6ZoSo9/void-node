@@ -494,8 +494,28 @@ assert(
   "tool current-HEAD byte binding missing",
 );
 assert(
-  wrapperSource.includes("reviewed_source_slice_blob_mismatch"),
-  "reviewed dependency blob HOLD missing",
+  wrapperSource.includes("reviewed_source_slice_head_blob_mismatch"),
+  "reviewed dependency HEAD-blob HOLD missing",
+);
+assert(
+  wrapperSource.includes("reviewed_source_slice_filesystem_blob_mismatch"),
+  "reviewed dependency filesystem-byte HOLD missing",
+);
+assert(
+  wrapperSource.includes("GIT_CONFIG_GLOBAL=/dev/null"),
+  "remote Git global-config isolation missing",
+);
+assert(
+  wrapperSource.includes("GIT_CONFIG_NOSYSTEM=1"),
+  "remote Git system-config isolation missing",
+);
+assert(
+  wrapperSource.includes("GIT_TERMINAL_PROMPT=0"),
+  "remote Git interactive credential prompt must be disabled",
+);
+assert(
+  wrapperSource.includes("config --local --no-includes --get remote.origin.url"),
+  "raw local origin identity read missing",
 );
 assert(
   wrapperSource.includes("reviewed_source_slice_manifest_sha256"),
