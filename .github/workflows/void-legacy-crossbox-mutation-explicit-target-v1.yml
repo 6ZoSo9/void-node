@@ -104,8 +104,8 @@ jobs:
           assert 'applyVoidSiteBundlePeerEnvPersistenceV1' in site
           assert 'require_crossbox_source_parity' in site
           assert site.index('safe_peer "$REMOTE_PEER"') < site.index('confirmation token required')
-          assert site.index('confirmation token required') < site.index('require_crossbox_source_parity')
-          assert site.index('require_crossbox_source_parity') < site.index('write_local_dropin "$LOCAL_PEER"')
+          assert site.index('confirmation token required') < site.index('\\nrequire_crossbox_source_parity\\n')
+          assert site.index('\\nrequire_crossbox_source_parity\\n') < site.index('write_local_dropin "$LOCAL_PEER"')
           assert site.index('ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof') > site.index('write_remote_dropin "$REMOTE_PEER"')
           assert 'ALIEN="$ALIEN" make void-public-site-bundle-peer-readiness-proof' in site
 
@@ -121,8 +121,8 @@ jobs:
           assert 'vault name is unsafe' in validator
           assert 'publishValidatorCrossboxCloseoutV1' in validator
           assert 'require_crossbox_source_parity' in validator
-          assert validator.index('confirmation token required') < validator.index('require_crossbox_source_parity')
-          assert validator.index('require_crossbox_source_parity') < validator.index('mkdir -p "$LIVE_STAGE"')
+          assert validator.index('confirmation token required') < validator.index('\\nrequire_crossbox_source_parity\\n')
+          assert validator.index('\\nrequire_crossbox_source_parity\\n') < validator.index('mkdir -p "$LIVE_STAGE"')
           assert 'ssh "$ALIEN"' not in validator
           assert 'ssh "$CROSSBOX_SSH_TARGET"' in validator
           assert 'git status --porcelain=v1 --untracked-files=all' in validator
