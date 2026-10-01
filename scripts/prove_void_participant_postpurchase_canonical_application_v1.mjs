@@ -999,6 +999,9 @@ for (const required of [
   "PARTICIPANT_CANONICAL_REVIEWED_AUTHORITY_EXECUTION_FAILED",
   "process.stdin.setEncoding",
   "for await (const chunk of process.stdin)",
+  'runnerDir = path.join(parent, "runner")',
+  "allowed_fs_read_root: parent",
+  '"--allow-fs-read=" + bundle.allowed_fs_read_root',
   "makeParticipantReviewedExecutionTreeReadOnlyV1",
   "makeParticipantReviewedExecutionTreeRemovableV1",
   "makeParticipantReviewedRegularFileReadOnlyV1",
@@ -1034,6 +1037,8 @@ console.log("hostile_ambient_execution_env_ignored=true");
 console.log("reviewed_execution_symlink_boundary_green=true");
 console.log("reviewed_execution_chmod_descriptor_bound=true");
 console.log("permission_fenced_stdin_streaming=true");
+console.log("reviewed_runner_outside_private_git_checkout=true");
+console.log("private_git_checkout_remains_clean=true");
 console.log("focused_workflow_trigger_symmetry_green=true");
 console.log("raw_empty_catch_count=0");
 console.log("exact_one_gate_source_delta=true");
