@@ -152,11 +152,13 @@ for(const key of [
   "reconciliation_id_rotated",
   "wc_opening_state_id_rotated",
   "proposed_candidate_change_scope_shared_reconciliation_only",
-  "current_classifier_rejects_proposed_candidate_until_atomic_update",
+  "current_classifier_source_fixture_verified",
+  "candidate_classifier_atomic_source_update_required",
   "source_application_required",
 ]) {
   assert.equal(artifact.verification[key],true,key);
 }
+assert.equal(artifact.verification.classifier_execution_performed,false);
 assert.equal(artifact.verification.canonical_candidate_file_updated,false);
 assert.equal(artifact.verification.classifier_source_updated,false);
 
@@ -196,7 +198,13 @@ assert.doesNotMatch(source,/eth_sendRawTransaction|eth_sendTransaction/u);
 assert.doesNotMatch(source,/new\s+Wallet\s*\(/u);
 assert.doesNotMatch(source,/git\s+(?:add|commit|push|merge|checkout|reset)/u);
 assert.match(source,/reviewed_blob=/u);
-assert.match(source,/current_classifier_rejects_proposed_candidate_until_atomic_update:true/u);
+assert.match(source,/current_classifier_source_fixture_verified:true/u);
+assert.match(source,/candidate_classifier_atomic_source_update_required:true/u);
+assert.match(source,/classifier_execution_performed:false/u);
+assert.doesNotMatch(
+  source,
+  /classifyVoidCoupledEconomicSuccessorGateFromDecisionV1/u,
+);
 assert.match(source,/canonical_candidate_file_updated:false/u);
 assert.match(source,/classifier_source_updated:false/u);
 
@@ -216,6 +224,7 @@ console.log("encoding_bridge_lossless=true");
 console.log("reconciliation_id_rotated=true");
 console.log("wc_opening_state_id_rotated=true");
 console.log("derived_candidate_deep_frozen=true");
+console.log("classifier_execution_performed=false");
 console.log("atomic_candidate_classifier_proof_doc_update_required=true");
 console.log("canonical_candidate_file_updated=false");
 console.log("classifier_source_updated=false");
