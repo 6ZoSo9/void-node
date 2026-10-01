@@ -354,7 +354,7 @@ assert(inventoryPosition >= 0);
 assert(qualifierPosition > inventoryPosition);
 assert(
   wrapperSource.includes(
-    'expected_tool_blob="4b39fbf8eda9053d8bca0765fb1525e6af3491f3"',
+    'expected_tool_blob="fafbace04f8427d526104d77dabadc99d34c6bf1"',
   ),
   "preflight tool blob pin missing",
 );
