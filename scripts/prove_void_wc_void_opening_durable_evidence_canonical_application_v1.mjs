@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import process from "node:process";
 
 import {
   VOID_WC_VOID_OPENING_COMMITMENT_SCHEMA_V1,
@@ -44,6 +46,21 @@ import {
 
 const COUPLED="ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR="ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
+const PROMOTION_TOOL=
+  "tools/void-wc-void-opening-durable-evidence-candidate-promotion-v1.mjs";
+
+function git(args,{allowFail=false,env=process.env}={}){
+  const result=spawnSync(
+    "/usr/bin/git",
+    ["--no-replace-objects","-c","core.fsmonitor=false","-c","core.hooksPath=/dev/null","-c","core.attributesFile=/dev/null","-c","core.untrackedCache=false","-c","core.preloadIndex=false","-c","submodule.recurse=false",...args],
+    {cwd:process.cwd(),env,encoding:"utf8",stdio:["ignore","pipe","pipe"]},
+  );
+  if(result.error) throw result.error;
+  if(result.status!==0&&!allowFail){
+    throw new Error("proof_git_failed:"+args.join("_")+":"+String(result.stderr||""));
+  }
+  return result;
+}
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -345,6 +362,119 @@ try{
   }
 
   {
+    const sentinelDir=path.join(temp,"hostile-env");
+    fs.mkdirSync(sentinelDir,{mode:0o700});
+    const fsmonitor=path.join(sentinelDir,"fsmonitor.sh");
+    const localSentinel=path.join(sentinelDir,"local-fsmonitor-ran");
+    const globalSentinel=path.join(sentinelDir,"global-fsmonitor-ran");
+    fs.writeFileSync(
+      fsmonitor,
+      "#!/bin/sh\n: > \""+localSentinel.replaceAll("\\","\\\\").replaceAll('"','\\"')+"\"\nexit 0\n",
+      {mode:0o700},
+    );
+    const home=path.join(sentinelDir,"home");
+    fs.mkdirSync(home,{mode:0o700});
+    const globalMonitor=path.join(sentinelDir,"global-fsmonitor.sh");
+    fs.writeFileSync(
+      globalMonitor,
+      "#!/bin/sh\n: > \""+globalSentinel.replaceAll("\\","\\\\").replaceAll('"','\\"')+"\"\nexit 0\n",
+      {mode:0o700},
+    );
+    fs.writeFileSync(
+      path.join(home,".gitconfig"),
+      "[core]\n\tfsmonitor = "+globalMonitor+"\n",
+      {mode:0o600},
+    );
+
+    const previous={
+      HOME:process.env.HOME,
+      XDG_CONFIG_HOME:process.env.XDG_CONFIG_HOME,
+      GIT_CONFIG_GLOBAL:process.env.GIT_CONFIG_GLOBAL,
+      LD_DEBUG:process.env.LD_DEBUG,
+      LD_DEBUG_OUTPUT:process.env.LD_DEBUG_OUTPUT,
+      NODE_OPTIONS:process.env.NODE_OPTIONS,
+      NODE_PATH:process.env.NODE_PATH,
+    };
+    const loaderSentinel=path.join(sentinelDir,"loader");
+    try{
+      git(["config","--local","core.fsmonitor",fsmonitor]);
+      process.env.HOME=home;
+      process.env.XDG_CONFIG_HOME=home;
+      process.env.GIT_CONFIG_GLOBAL=path.join(home,".gitconfig");
+      process.env.LD_DEBUG="libs";
+      process.env.LD_DEBUG_OUTPUT=loaderSentinel;
+      process.env.NODE_OPTIONS="--trace-warnings";
+      process.env.NODE_PATH=path.join(sentinelDir,"fake-node-path");
+
+      const hostilePlan=
+        prepareVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1({
+          request_file:requestFile,
+          request_file_sha256:requestSha,
+          promotion_receipt_bytes:promotionBytes,
+          promotion_receipt_file_sha256:sha256(promotionBytes),
+        });
+      assert.equal(hostilePlan.application_plan_id,plan.application_plan_id);
+      assert.equal(fs.existsSync(localSentinel),false);
+      assert.equal(fs.existsSync(globalSentinel),false);
+      assert.equal(
+        fs.readdirSync(sentinelDir).some(name=>name.startsWith("loader.")),
+        false,
+      );
+    }finally{
+      git(["config","--local","--unset-all","core.fsmonitor"],{allowFail:true});
+      for(const [key,value] of Object.entries(previous)){
+        if(value===undefined) delete process.env[key];
+        else process.env[key]=value;
+      }
+    }
+  }
+
+  {
+    const original=fs.readFileSync(PROMOTION_TOOL);
+    try{
+      git(["update-index","--assume-unchanged",PROMOTION_TOOL]);
+      fs.writeFileSync(
+        PROMOTION_TOOL,
+        Buffer.concat([
+          original,
+          Buffer.from("\nthrow new Error(\"UNREVIEWED_WORKTREE_PROMOTION_EXECUTED\");\n"),
+        ]),
+      );
+      const hiddenWorktreePlan=
+        prepareVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1({
+          request_file:requestFile,
+          request_file_sha256:requestSha,
+          promotion_receipt_bytes:promotionBytes,
+          promotion_receipt_file_sha256:sha256(promotionBytes),
+        });
+      assert.equal(hiddenWorktreePlan.application_plan_id,plan.application_plan_id);
+    }finally{
+      fs.writeFileSync(PROMOTION_TOOL,original);
+      git(["update-index","--no-assume-unchanged",PROMOTION_TOOL],{allowFail:true});
+    }
+  }
+
+  {
+    const head=String(git(["rev-parse","HEAD"]).stdout||"").trim();
+    const parent=String(git(["rev-parse","HEAD^"]).stdout||"").trim();
+    assert.match(head,/^[0-9a-f]{40}$/u);
+    assert.match(parent,/^[0-9a-f]{40}$/u);
+    try{
+      git(["replace",head,parent]);
+      const replacementPlan=
+        prepareVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1({
+          request_file:requestFile,
+          request_file_sha256:requestSha,
+          promotion_receipt_bytes:promotionBytes,
+          promotion_receipt_file_sha256:sha256(promotionBytes),
+        });
+      assert.equal(replacementPlan.application_plan_id,plan.application_plan_id);
+    }finally{
+      git(["replace","-d",head],{allowFail:true});
+    }
+  }
+
+  {
     const changed=JSON.parse(fs.readFileSync(requestFile,"utf8"));
     changed.mode="abort";
     const changedBytes=prettyBytes(changed);
@@ -373,7 +503,15 @@ try{
       "exact_three_field_source_delta",
       "canonical_classifier_reexecution",
       "reviewed_git_commit_required",
+      "reviewed_git_object_execution_required",
+      "reviewed_package_runtime_required",
+      "permission_fenced_execution_required",
+      "minimal_git_environment_required",
+      "ambient_loader_tool_overrides_ignored",
+      "execution_child_process_limited_to_reviewed_git",
+      "private_temporary_filesystem_write",
       "filesystem_read",
+      "filesystem_write",
     ]);
     assert.equal(value,allowed.has(key),key);
   }
@@ -383,14 +521,19 @@ try{
     "utf8",
   );
   for(const forbidden of [
-    "writeFileSync","appendFileSync","renameSync","systemctl",
+    "appendFileSync","renameSync","systemctl",
     "eth_sendRawTransaction","eth_sendTransaction","new Wallet(",
   ]){
     assert.equal(source.includes(forbidden),false,forbidden);
   }
   for(const required of [
     "--no-replace-objects",
-    "prepareVoidWcVoidOpeningDurableEvidenceCandidatePromotionV1",
+    "core.fsmonitor=false",
+    "GIT_CONFIG_GLOBAL",
+    "reviewedModuleClosure",
+    "void-reviewed-node-package-runtime-v1.mjs",
+    "--permission",
+    "--allow-child-process",
     "OPENING_DURABLE_APPLICATION_PLAN_BASE_SOURCE_MISMATCH",
     "OPENING_DURABLE_APPLICATION_PRODUCTION_CHANGE_SCOPE_INVALID",
     "OPENING_DURABLE_APPLICATION_COUPLED_CHANGE_SCOPE_INVALID",
@@ -405,6 +548,12 @@ try{
   console.log("real_temp_claim_persistence_verified=true");
   console.log("real_temp_replay_persistence_verified=true");
   console.log("durable_promotion_reexecuted=true");
+  console.log("reviewed_git_object_execution=true");
+  console.log("reviewed_ethers_runtime=true");
+  console.log("permission_fenced_execution=true");
+  console.log("ambient_git_loader_overrides_ignored=true");
+  console.log("hidden_worktree_promotion_not_executed=true");
+  console.log("git_replacement_refs_ignored=true");
   console.log("canonical_source_prestates_bound=true");
   console.log("forged_application_plan_held=true");
   console.log("exact_three_field_delta_prepared=true");
