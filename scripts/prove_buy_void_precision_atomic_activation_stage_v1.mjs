@@ -361,10 +361,26 @@ assert(
     wrapperSource.indexOf('chmod 700 "$dir"'),
 );
 for (const required of [
+  'git_bin="/usr/bin/git"',
+  'node_bin="/usr/bin/node"',
+  '"$git_bin" --no-replace-objects -C "$repo"',
+  'GIT_CONFIG_GLOBAL=/dev/null',
+  'GIT_CONFIG_NOSYSTEM=1',
+  'config --local --no-includes --get remote.origin.url',
   'mkdir -m 700 -- "$dir"',
   'ensure_private_direct_dir "$HOME/.config/void" "void_config_dir"',
   'ensure_private_direct_dir "$stage_root" "stage_root"',
   'bash "$repo/$preflight_wrapper_rel" "$repo/$preflight_tool_rel"',
+  'test "$preflight_repository_head_sha" = "$head"',
+  'test "$preflight_repository_tree_sha" = "$tree"',
+  'repository_head_changed_after_preflight',
+  'reviewed_runtime="$tmp/reviewed-stage-runtime"',
+  'safe_git cat-file blob "$head:$rel"',
+  'reviewed_stage_tool="$reviewed_runtime/$(basename "$stage_tool_rel")"',
+  'immutable_stage_source_materialized=true',
+  'unset NODE_OPTIONS NODE_PATH NPM_CONFIG_PREFIX npm_config_prefix',
+  'unset LD_PRELOAD LD_LIBRARY_PATH',
+  'exec "$node_bin" "$reviewed_stage_tool"',
   '--active-dropin-dir "$active_dropin_dir"',
   'sha256sum "$preflight_log"',
   'test "$staged_preflight_log_sha256" = "$expected_preflight_log_sha256"',
@@ -379,6 +395,42 @@ for (const required of [
 ]) {
   assert(wrapperSource.includes(required), required);
 }
+assert.equal(
+  wrapperSource.includes('node "$repo/$stage_tool_rel"'),
+  false,
+  "worktree stage tool must not execute after preflight",
+);
+const preflightGreenAt = wrapperSource.indexOf(
+  'say "fresh_atomic_preflight_green=true"',
+);
+const immutableMaterializeAt = wrapperSource.indexOf(
+  'reviewed_runtime="$tmp/reviewed-stage-runtime"',
+);
+const immutableExecuteAt = wrapperSource.indexOf(
+  'exec "$node_bin" "$reviewed_stage_tool"',
+);
+assert(preflightGreenAt >= 0);
+assert(immutableMaterializeAt > preflightGreenAt);
+assert(immutableExecuteAt > immutableMaterializeAt);
+
+const workflowSource = fs.readFileSync(
+  ".github/workflows/buy-void-precision-atomic-activation-stage-v1.yml",
+  "utf8",
+);
+assert(
+  workflowSource.includes(
+    'ref: ${{ github.event.pull_request.head.sha || github.sha }}',
+  ),
+  "focused workflow must check out exact PR head",
+);
+assert.match(workflowSource, /persist-credentials:\s*false/u);
+assert.equal(
+  workflowSource.split(
+    '- "ops/precision/void_precision_buy_void_atomic_activation_preflight_v1.sh"',
+  ).length - 1,
+  2,
+  "preflight wrapper must trigger both PR and main focused workflows",
+);
 
 console.log("VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1_PROOF");
 console.log("live_dropin_sha256=" + LIVE_DROPIN_SHA256);
@@ -389,6 +441,9 @@ console.log("idempotent_exact_reuse_verified=true");
 console.log("private_stage_custody_verified=true");
 console.log("rendered_bytes_independently_hashed=true");
 console.log("wrapper_staged_bytes_rehashed=true");
+console.log("immutable_stage_source_execution_bound=true");
+console.log("reviewed_git_boundary_bound=true");
+console.log("exact_head_workflow_bound=true");
 console.log("durable_fsync_publication_verified=true");
 console.log("pre_rename_interruption_cleanup_verified=true");
 console.log("post_rename_reuse_redurability_verified=true");

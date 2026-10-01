@@ -76,6 +76,20 @@ The staging tool reuses the exact renderer exported by:
 tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs
 ```
 
+For operational Precision staging, the wrapper does **not** execute the stage
+tool from its mutable worktree pathname after the fresh preflight. It captures
+the exact clean repository HEAD/tree before preflight, requires the fresh
+preflight receipt to bind that same generation, rechecks HEAD/tree/worktree
+after preflight, then materializes the stage tool and renderer from those exact
+captured Git-object bytes into a private read-only temporary source directory.
+Only that immutable private stage tool is executed. Git reads use absolute
+`/usr/bin/git --no-replace-objects` with repository/config/object-selection
+overrides stripped, and the child Node execution strips ambient Node/dynamic
+loader overrides.
+
+The wrapper emits the exact stage-tool and renderer Git blobs so later evidence
+can bind the execution generation.
+
 It does not trust the renderer's reported digest by itself: it independently
 SHA-256 hashes the rendered live and rollback bytes and requires those hashes
 to equal both the renderer result and the fresh preflight receipt. The Precision
@@ -161,6 +175,8 @@ remain unchanged afterward, then rechecks node health and readiness.
 inactive_staging_only=true
 wrapper_fresh_preflight_execution_proven=true
 stage_manifest_preflight_authority=false
+immutable_stage_source_execution=true
+reviewed_git_source_boundary=true
 durable_fsync_publication_required=true
 private_stage_custody_required=true
 active_dropin_write=false
