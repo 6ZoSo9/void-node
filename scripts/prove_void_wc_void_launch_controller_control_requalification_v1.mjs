@@ -144,6 +144,18 @@ assert.equal(
 assert.equal(challenge.challenge.nonce, nonce);
 assert.equal(challenge.challenge.issued_at_unix, String(now));
 assert.equal(challenge.challenge.expires_at_unix, String(now + 300));
+assert.match(
+  challenge.source_binding.control_contract_git_blob_sha1,
+  /^[0-9a-f]{40}$/u,
+);
+assert.equal(
+  challenge.source_binding.source_blobs["package.json"],
+  "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+);
+assert.equal(
+  challenge.source_binding.source_blobs["package-lock.json"],
+  "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+);
 assert.equal(
   challenge.typed_data_digest,
   voidWcVoidLaunchControllerControlDigestV1(challenge.challenge),
@@ -542,6 +554,8 @@ console.log(
 );
 console.log("eip712_chain2050_control_signature_green=true");
 console.log("current_launch_source_binding_green=true");
+console.log("control_verifier_generation_bound_green=true");
+console.log("reviewed_package_generation_bound_green=true");
 console.log("source_head_ancestry_required=true");
 console.log("candidate_address_control_only=true");
 console.log("historical_launch_controller_current_authority=false");
