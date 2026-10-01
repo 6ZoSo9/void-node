@@ -75,6 +75,17 @@ assert.equal(
   "snapshot-freshness operator contract must trigger push focused CI exactly once",
 );
 
+assert.match(
+  workflowSource,
+  /node --check scripts\/prove_void_worker_coordination_live_dispatch_v1\.mjs/u,
+  "snapshot-freshness workflow must syntax-check the actual live-dispatch proof path",
+);
+assert.doesNotMatch(
+  workflowSource,
+  /prove_void_worker_coordination_live-dispatch-v1\.mjs/u,
+  "snapshot-freshness workflow must not reference the nonexistent hyphenated proof path",
+);
+
 const { roster, state } = await loadCoordinationFiles({
   rosterPath: ROSTER_PATH,
   statePath: STATE_PATH,
@@ -179,4 +190,5 @@ console.log("workflow_actions_commit_pinned=true");
 console.log("workflow_actual_pr_head_checkout=true");
 console.log("workflow_checkout_credentials_persisted=false");
 console.log("workflow_operator_contract_triggered=true");
+console.log("workflow_live_dispatch_proof_path_exact=true");
 console.log("authority_granted=false");
