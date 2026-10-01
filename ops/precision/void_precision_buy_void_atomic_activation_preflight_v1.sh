@@ -3,7 +3,7 @@ set -Eeuo pipefail
 set +H
 
 MARKER="VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_WRAPPER_V1"
-EXPECTED_MAIN="53c451727bdeb38b53381716a46502eaa8c71f90"
+EXPECTED_MAIN="74b5242dde224282de5b1b881d7d4cb942f00d48"
 repo="${VOID_LIVE_REPO_ROOT:-$HOME/dev/void-node}"
 unit="void-node-live.service"
 tool="${1:-}"
@@ -29,7 +29,7 @@ for cmd in git systemctl python3 node curl sha256sum mktemp; do
 done
 
 test -n "$tool" && test -f "$tool" || hold "preflight_tool_missing"
-expected_tool_blob="4b39fbf8eda9053d8bca0765fb1525e6af3491f3"
+expected_tool_blob="fafbace04f8427d526104d77dabadc99d34c6bf1"
 actual_tool_blob="$(git hash-object "$tool")"
 test "$actual_tool_blob" = "$expected_tool_blob" ||
   hold "preflight_tool_blob_mismatch"
