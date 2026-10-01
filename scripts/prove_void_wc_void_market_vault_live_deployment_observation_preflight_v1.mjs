@@ -973,4 +973,5 @@ console.log("token_transfer=false");
 console.log("chain2050_write=false");
 console.log("market_activation=false");
 console.log("public_presale_activation=false");
-console.log("canonical_main_postmerge_production_fixture_green=true");\nconsole.log("funds_movement=false");
+console.log("canonical_main_postmerge_production_fixture_green=true");
+console.log("funds_movement=false");
