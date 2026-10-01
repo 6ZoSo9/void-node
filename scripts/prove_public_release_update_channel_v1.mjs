@@ -36,7 +36,7 @@ const updater=need("release/bin/void-node-update",[
   "ROLLBACK_PREP_RECOVERED",
   "ROLLBACK_RECOVERED",
   "restart_if_active",
-  "restart_before_invocation_id",
+  ".rollback.restart-witness-v1",
   "ROLLBACK_RESTART_ALREADY_SATISFIED",
   "VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_SERVICE_RESTART",
   "escapes canonical releases directory",
@@ -153,7 +153,7 @@ exit 2
   const externalRollbackOutput=`${externalRollback.stdout}${externalRollback.stderr}`;
   if(externalRollback.status===0||!externalRollbackOutput.includes("previous release pointer escapes canonical releases directory"))fail("rollback accepted a previous pointer outside canonical releases");
   if(versionAt(installRoot)!==v2||fs.realpathSync(previousPointer)!==fs.realpathSync(externalPrevious))fail("external-pointer rejection mutated canonical rollback state");
-  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".rollback.restart-witness-v1",".current.update-next",".previous.update-next"]){
     if(fs.existsSync(path.join(installRoot,artifact)))fail(`external-pointer rejection left rollback artifact ${artifact}`);
   }
   fs.unlinkSync(previousPointer);fs.symlinkSync(historicalPrevious,previousPointer);
@@ -182,6 +182,7 @@ exit 2
   });
   if(interrupted.status===0||!`${interrupted.stdout}${interrupted.stderr}`.includes("test interruption after current rollback pointer publication"))fail("rollback interruption seam did not stop after current pointer publication");
   const rollbackJournal=path.join(installRoot,".rollback.update-transaction-v1.json");
+  const rollbackRestartWitness=path.join(installRoot,".rollback.restart-witness-v1");
   const previousNext=path.join(installRoot,".previous.update-next");
   if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v3||!fs.existsSync(rollbackJournal)||!fs.existsSync(previousNext))fail("interrupted rollback did not preserve the expected reconstructable partial state");
   pass("rollback-interruption-journal-preserved");
@@ -189,7 +190,7 @@ exit 2
   const recoveredRollback=run(managerPath,["rollback"],{env:e,capture:true});
   if(!recoveredRollback.includes("ROLLBACK_RECOVERED")||!recoveredRollback.includes("recovery_outcome=rollback_committed"))fail("stable manager did not classify committed rollback recovery");
   if(versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("committed rollback recovery was accidentally applied twice");
-  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".rollback.restart-witness-v1",".current.update-next",".previous.update-next"]){
     if(fs.existsSync(path.join(installRoot,artifact)))fail(`rollback recovery left transaction artifact ${artifact}`);
   }
   pass("stable-manager-committed-recovery-satisfies-rollback-once");
@@ -215,18 +216,20 @@ exit 2
   }
   const restartJournal=JSON.parse(fs.readFileSync(rollbackJournal,"utf8"));
   const restartWindowCurrent=versionAt(installRoot),restartWindowPrevious=previousVersion(installRoot);
-  if(restartJournal.schema_version!==2||restartJournal.restart_if_active!==true||restartJournal.restart_before_invocation_id!==invocationBefore||restartWindowCurrent!==v3||restartWindowPrevious!==v2){
+  if(restartJournal.schema_version!==1||restartJournal.restart_if_active!==true||restartWindowCurrent!==v3||restartWindowPrevious!==v2){
     throw new Error(
-      "restart-window interruption did not persist invocation-bound restart intent with completed pointer pair "+
-      `restart_if_active=${JSON.stringify(restartJournal.restart_if_active)} witness=${JSON.stringify(restartJournal.restart_before_invocation_id)} current=${restartWindowCurrent} previous=${restartWindowPrevious}`
+      "restart-window interruption did not persist restart intent with completed pointer pair "+
+      `restart_if_active=${JSON.stringify(restartJournal.restart_if_active)} current=${restartWindowCurrent} previous=${restartWindowPrevious}`
     );
   }
+  if(fs.existsSync(rollbackRestartWitness))fail("restart witness was created before the pre-restart interruption seam");
   if(fs.existsSync(restartLog))fail("service restart occurred before restart-window interruption");
   pass("rollback-restart-intent-journal-preserved");
 
   const managerUnavailableRecovery=run(managerPath,["version"],{env:e,capture:true,allowFail:true});
   const managerUnavailableOutput=`${managerUnavailableRecovery.stdout}${managerUnavailableRecovery.stderr}`;
   if(managerUnavailableRecovery.status===0||!managerUnavailableOutput.includes("requires systemd user manager")||!fs.existsSync(rollbackJournal))fail("restart obligation was lost while systemd manager was unavailable");
+  if(fs.existsSync(rollbackRestartWitness))fail("manager-unavailable recovery created a restart witness without observing systemd");
   if(fs.existsSync(restartLog))fail("systemd-unavailable recovery unexpectedly restarted service");
   pass("rollback-restart-obligation-held-without-systemd");
 
@@ -236,7 +239,7 @@ exit 2
   if(!restartRecovered.includes("ROLLBACK_RECOVERED")||!restartRecovered.includes("recovery_outcome=rollback_committed")||!restartRecovered.includes(v3))fail("restart-window recovery did not replay committed rollback transaction before dispatch");
   if(!fs.existsSync(restartLog)||fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("restart-window recovery did not restore previously active service after it became inactive");
   if(fs.readFileSync(invocationFile,"utf8").trim()!==invocationAfter||fs.readFileSync(activeFile,"utf8").trim()!=="1")fail("restart-window recovery did not publish a new active invocation witness");
-  if(fs.existsSync(rollbackJournal)||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("restart-window recovery did not finalize coherent pointer state");
+  if(fs.existsSync(rollbackJournal)||fs.existsSync(rollbackRestartWitness)||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("restart-window recovery did not finalize coherent pointer state and witness cleanup");
   pass("rollback-restart-intent-replayed-before-journal-cleanup");
 
   run(managerPath,["rollback"],{env:e});
@@ -250,11 +253,11 @@ exit 2
   const postRestartCrash=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{env:postRestartCrashEnv,capture:true,allowFail:true});
   const postRestartCrashOutput=`${postRestartCrash.stdout||""}${postRestartCrash.stderr||""}`;
   if(postRestartCrash.status===0||!postRestartCrashOutput.includes("test interruption after successful service restart before rollback journal cleanup"))fail("post-restart crash seam did not fire");
-  if(!fs.existsSync(rollbackJournal)||fs.readFileSync(restartLog,"utf8")!=="restart\n"||fs.readFileSync(invocationFile,"utf8").trim()!==crashAfterInvocation||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("post-restart crash did not preserve one completed restart plus committed rollback journal");
+  if(!fs.existsSync(rollbackJournal)||!fs.existsSync(rollbackRestartWitness)||fs.readlinkSync(rollbackRestartWitness)!=="active-"+crashBeforeInvocation||fs.readFileSync(restartLog,"utf8")!=="restart\n"||fs.readFileSync(invocationFile,"utf8").trim()!==crashAfterInvocation||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("post-restart crash did not preserve one completed restart plus committed rollback witness");
   const postRestartRecovered=run(managerPath,["version"],{env:{...postRestartCrashEnv,VOID_NODE_UPDATE_TEST_INTERRUPT_ROLLBACK_AFTER_SERVICE_RESTART:"0"},capture:true});
   if(!postRestartRecovered.includes("ROLLBACK_RESTART_ALREADY_SATISFIED")||!postRestartRecovered.includes("ROLLBACK_RECOVERED")||!postRestartRecovered.includes(v3))fail("post-restart recovery did not recognize already-satisfied invocation witness");
   if(fs.readFileSync(restartLog,"utf8")!=="restart\n")fail("post-restart recovery replayed service restart twice");
-  if(fs.existsSync(rollbackJournal))fail("post-restart recovery did not clear completed rollback journal");
+  if(fs.existsSync(rollbackJournal)||fs.existsSync(rollbackRestartWitness))fail("post-restart recovery did not clear completed rollback journal and witness");
   pass("rollback-post-restart-crash-does-not-restart-twice");
 
   run(managerPath,["rollback"],{env:e});
@@ -271,7 +274,7 @@ exit 2
   const prepRecovered=run(managerPath,["version"],{env:e,capture:true});
   if(!prepRecovered.includes("ROLLBACK_PREP_RECOVERED")||!prepRecovered.includes("recovery_outcome=rollback_aborted_before_publication")||!prepRecovered.includes(v2))fail("stable manager did not classify and continue after pre-journal rollback cleanup");
   if(versionAt(installRoot)!==v2||previousVersion(installRoot)!==v3)fail("pre-journal rollback recovery changed canonical pointers");
-  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".current.update-next",".previous.update-next"]){
+  for(const artifact of [".rollback.update-transaction-v1.json",".rollback.update-transaction-v1.json.next",".rollback.restart-witness-v1",".current.update-next",".previous.update-next"]){
     if(fs.existsSync(path.join(installRoot,artifact)))fail(`pre-journal rollback recovery left artifact ${artifact}`);
   }
   pass("stable-manager-recovered-prejournal-rollback");
