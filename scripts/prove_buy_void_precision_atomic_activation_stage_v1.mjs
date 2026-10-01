@@ -106,7 +106,7 @@ try {
   ].join("\n");
   fs.writeFileSync(logPath, receipt, { mode: 0o600 });
 
-  function run(log, out) {
+  function run(log, out, extraEnv = {}) {
     return spawnSync(
       process.execPath,
       [
@@ -118,15 +118,23 @@ try {
         "--active-dropin-dir",
         active,
       ],
-      { encoding: "utf8" },
+      {
+        encoding: "utf8",
+        env: { ...process.env, ...extraEnv },
+      },
     );
   }
 
   const out = path.join(stageRoot, LIVE_CONFIGURATION_SHA256);
   const first = run(logPath, out);
   assert.equal(first.status, 0, first.stderr);
-  assert.match(first.stdout, /status=STAGED_NOT_ACTIVATED/u);
+  assert.match(
+    first.stdout,
+    /status=STAGED_BYTES_ONLY_NOT_PREFLIGHT_AUTHORITY/u,
+  );
   assert.match(first.stdout, /stage_reused=false/u);
+  assert.match(first.stdout, /fresh_preflight_execution_proven=false/u);
+  assert.match(first.stdout, /manifest_is_preflight_authority=false/u);
   assert.match(first.stdout, /active_dropin_write=false/u);
   assert.match(first.stdout, /runtime_gate_mutation=false/u);
 
@@ -144,6 +152,11 @@ try {
   assert.equal(sha256(fs.readFileSync(livePath)), LIVE_DROPIN_SHA256);
   assert.equal(sha256(fs.readFileSync(rollbackPath)), DORMANT_DROPIN_SHA256);
   assert.equal(fs.statSync(out).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(path.join(out, "live")).mode & 0o777, 0o700);
+  assert.equal(
+    fs.statSync(path.join(out, "rollback")).mode & 0o777,
+    0o700,
+  );
   assert.equal(fs.statSync(livePath).mode & 0o777, 0o600);
   assert.equal(fs.statSync(rollbackPath).mode & 0o777, 0o600);
   assert.equal(fs.statSync(manifestPath).mode & 0o777, 0o600);
@@ -153,12 +166,30 @@ try {
     manifest.marker,
     "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1",
   );
-  assert.equal(manifest.status, "STAGED_NOT_ACTIVATED");
+  assert.equal(
+    manifest.status,
+    "STAGED_BYTES_ONLY_NOT_PREFLIGHT_AUTHORITY",
+  );
+  assert.equal(
+    manifest.preflight.supplied_log_sha256,
+    sha256(Buffer.from(receipt, "utf8")),
+  );
+  assert.equal(manifest.preflight.structural_validation_only, true);
+  assert.equal(manifest.preflight.fresh_execution_proven, false);
+  assert.equal(manifest.preflight.manifest_is_preflight_authority, false);
   assert.equal(manifest.preflight.live_dropin_sha256, LIVE_DROPIN_SHA256);
   assert.equal(
     manifest.preflight.dormant_dropin_sha256,
     DORMANT_DROPIN_SHA256,
   );
+  assert.equal(
+    manifest.authority.preflight_text_structural_validation_only,
+    true,
+  );
+  assert.equal(manifest.authority.fresh_preflight_execution_proven, false);
+  assert.equal(manifest.authority.manifest_is_preflight_authority, false);
+  assert.equal(manifest.authority.durable_fsync_publication_required, true);
+  assert.equal(manifest.authority.private_stage_custody_required, true);
   assert.equal(manifest.authority.active_dropin_write, false);
   assert.equal(manifest.authority.daemon_reload, false);
   assert.equal(manifest.authority.service_restart, false);
@@ -169,6 +200,83 @@ try {
   const second = run(logPath, out);
   assert.equal(second.status, 0, second.stderr);
   assert.match(second.stdout, /stage_reused=true/u);
+
+  {
+    const liveDir = path.join(out, "live");
+    const moved = path.join(out, "live.direct");
+    fs.renameSync(liveDir, moved);
+    fs.symlinkSync(moved, liveDir);
+    const symlinked = run(logPath, out);
+    assert.equal(symlinked.status, 2);
+    assert.match(
+      symlinked.stderr,
+      /existing_live_directory_not_direct_directory/u,
+    );
+    fs.unlinkSync(liveDir);
+    fs.renameSync(moved, liveDir);
+  }
+
+  {
+    const rollbackDir = path.join(out, "rollback");
+    fs.chmodSync(rollbackDir, 0o755);
+    const looseMode = run(logPath, out);
+    assert.equal(looseMode.status, 2);
+    assert.match(
+      looseMode.stderr,
+      /existing_rollback_directory_mode_mismatch/u,
+    );
+    fs.chmodSync(rollbackDir, 0o700);
+  }
+
+  {
+    const hardlink = path.join(tmp, "live-hardlink.conf");
+    fs.linkSync(livePath, hardlink);
+    const linked = run(logPath, out);
+    assert.equal(linked.status, 2);
+    assert.match(
+      linked.stderr,
+      /existing_live_file_hardlink_forbidden/u,
+    );
+    fs.unlinkSync(hardlink);
+  }
+
+  {
+    const interruptedBefore =
+      path.join(stageRoot, "interrupted-before-rename");
+    const interrupted = run(logPath, interruptedBefore, {
+      VOID_BUY_VOID_STAGE_TEST_INTERRUPT_AFTER_DURABLE_TEMP: "1",
+    });
+    assert.equal(interrupted.status, 2);
+    assert.match(
+      interrupted.stderr,
+      /test_interruption_after_durable_temp_before_rename/u,
+    );
+    assert.equal(fs.existsSync(interruptedBefore), false);
+    assert.equal(
+      fs.readdirSync(stageRoot).some(
+        (name) => name.startsWith(".interrupted-before-rename.tmp-"),
+      ),
+      false,
+    );
+  }
+
+  {
+    const interruptedAfter =
+      path.join(stageRoot, "interrupted-after-rename");
+    const interrupted = run(logPath, interruptedAfter, {
+      VOID_BUY_VOID_STAGE_TEST_INTERRUPT_AFTER_RENAME_BEFORE_PARENT_FSYNC:
+        "1",
+    });
+    assert.equal(interrupted.status, 2);
+    assert.match(
+      interrupted.stderr,
+      /test_interruption_after_rename_before_parent_fsync/u,
+    );
+    assert.equal(fs.existsSync(interruptedAfter), true);
+    const recovered = run(logPath, interruptedAfter);
+    assert.equal(recovered.status, 0, recovered.stderr);
+    assert.match(recovered.stdout, /stage_reused=true/u);
+  }
 
   const badReceiptPath = path.join(tmp, "bad-preflight.log");
   fs.writeFileSync(
@@ -211,6 +319,25 @@ for (const forbidden of [
 ]) {
   assert.equal(toolSource.includes(forbidden), false, forbidden);
 }
+for (const required of [
+  "fs.fsyncSync",
+  "fsyncDirectory(parent)",
+  "writeDurablePrivateFile",
+  "private_stage_custody_required",
+  "manifest_is_preflight_authority: false",
+  "VOID_BUY_VOID_STAGE_TEST_INTERRUPT_AFTER_DURABLE_TEMP",
+  "VOID_BUY_VOID_STAGE_TEST_INTERRUPT_AFTER_RENAME_BEFORE_PARENT_FSYNC",
+]) {
+  assert(toolSource.includes(required), required);
+}
+assert(
+  toolSource.indexOf("fsyncDirectory(temp)") <
+    toolSource.indexOf("fs.renameSync(temp, outDir)"),
+);
+assert(
+  toolSource.indexOf("fs.renameSync(temp, outDir)") <
+    toolSource.indexOf("fsyncDirectory(parent)"),
+);
 
 const wrapperSource = fs.readFileSync(WRAPPER, "utf8");
 for (const forbidden of [
@@ -234,7 +361,12 @@ console.log("VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_STAGE_V1_PROOF");
 console.log("live_dropin_sha256=" + LIVE_DROPIN_SHA256);
 console.log("dormant_dropin_sha256=" + DORMANT_DROPIN_SHA256);
 console.log("inactive_staging_write_verified=true");
+console.log("synthetic_receipt_preflight_authority=false");
 console.log("idempotent_exact_reuse_verified=true");
+console.log("private_stage_custody_verified=true");
+console.log("durable_fsync_publication_verified=true");
+console.log("pre_rename_interruption_cleanup_verified=true");
+console.log("post_rename_reuse_redurability_verified=true");
 console.log("tamper_rejection_verified=true");
 console.log("active_dropin_tree_rejection_verified=true");
 console.log("service_mutation=false");
