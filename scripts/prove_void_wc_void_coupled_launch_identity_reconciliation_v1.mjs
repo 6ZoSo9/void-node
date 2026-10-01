@@ -9,6 +9,8 @@ import {
   VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_VAULT_BYTES32_V1,
+  VOID_WC_VOID_RECONCILED_OPENING_STATE_ID_V1,
+  VOID_WC_VOID_RECONCILED_SHARED_STATE_ID_V1,
   deriveWcVoidCoupledLaunchIdentityV1,
   prepareWcVoidCoupledLaunchIdentityReconciliationV1,
 } from "../tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs";
@@ -69,8 +71,14 @@ assert.equal(
   proposedShared.coupled_launch_id,
   VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1,
 );
-assert.match(proposedShared.reconciliation_id,/^sha256:[0-9a-f]{64}$/u);
-assert.match(proposedShared.wc_opening_state_id,/^sha256:[0-9a-f]{64}$/u);
+assert.equal(
+  proposedShared.reconciliation_id,
+  VOID_WC_VOID_RECONCILED_SHARED_STATE_ID_V1,
+);
+assert.equal(
+  proposedShared.wc_opening_state_id,
+  VOID_WC_VOID_RECONCILED_OPENING_STATE_ID_V1,
+);
 assert.notEqual(
   proposedShared.reconciliation_id,
   artifact.current_source_fixture.reconciliation_id,
@@ -149,6 +157,8 @@ for(const key of [
   "commitment_digest_rederived",
   "opening_and_vault_encodings_lossless",
   "reconciled_shared_state_rederived",
+  "exact_reconciled_reconciliation_id_verified",
+  "exact_reconciled_opening_state_id_verified",
   "reconciliation_id_rotated",
   "wc_opening_state_id_rotated",
   "proposed_candidate_change_scope_shared_reconciliation_only",
@@ -221,6 +231,12 @@ console.log(
   "vault_bytes32_id="+VOID_WC_VOID_COUPLED_LAUNCH_VAULT_BYTES32_V1,
 );
 console.log("encoding_bridge_lossless=true");
+console.log(
+  "reconciled_reconciliation_id="+VOID_WC_VOID_RECONCILED_SHARED_STATE_ID_V1,
+);
+console.log(
+  "reconciled_opening_state_id="+VOID_WC_VOID_RECONCILED_OPENING_STATE_ID_V1,
+);
 console.log("reconciliation_id_rotated=true");
 console.log("wc_opening_state_id_rotated=true");
 console.log("derived_candidate_deep_frozen=true");
