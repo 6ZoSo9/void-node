@@ -2,21 +2,10 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-
-import {
-  buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1,
-  VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1,
-  VOID_WC_VOID_LEDGER_CUSTODY_COUPLED_CANDIDATE_PROMOTION_V1,
-} from "./void-wc-void-ledger-custody-coupled-candidate-promotion-v1.mjs";
-import {
-  classifyVoidWcVoidProductionReadinessV1,
-} from "./void-wc-void-production-readiness-v1.mjs";
-import {
-  classifyVoidCoupledEconomicSuccessorGateV1,
-} from "./void-coupled-economic-successor-gate-v1.mjs";
 
 export const VOID_WC_VOID_LEDGER_CUSTODY_CANONICAL_APPLICATION_PLAN_V1 =
   "VOID_WC_VOID_LEDGER_CUSTODY_CANONICAL_APPLICATION_PLAN_V1";
@@ -34,9 +23,17 @@ export const VOID_WC_VOID_LEDGER_CUSTODY_CANONICAL_APPLICATION_AUTHORITY_V1 =
     exact_four_field_source_delta:true,
     canonical_classifier_reexecution:true,
     reviewed_git_commit_required:true,
+    reviewed_git_object_execution_required:true,
+    reviewed_package_runtime_required:true,
+    permission_fenced_execution_required:true,
+    minimal_git_environment_required:true,
+    ambient_loader_tool_overrides_ignored:true,
+    execution_child_process_limited_to_reviewed_git:true,
+    execution_network_isolation_provided:false,
+    private_temporary_filesystem_write:true,
     repository_source_write:false,
     filesystem_read:true,
-    filesystem_write:false,
+    filesystem_write:true,
     rpc_call:false,
     production_ledger_read:false,
     production_ledger_write:false,
@@ -65,6 +62,17 @@ const PROMOTION_TOOL_REL=
 const PRODUCTION_CLASSIFIER_REL="tools/void-wc-void-production-readiness-v1.mjs";
 const COUPLED_CLASSIFIER_REL="tools/void-coupled-economic-successor-gate-v1.mjs";
 const IMPORT_TOOL_REL="tools/void-wc-void-ledger-persistence-import-v1.mjs";
+const REVIEWED_RUNTIME_TOOL_REL="tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL=
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_EXECUTION_ROOTS=Object.freeze([
+  PROMOTION_TOOL_REL,
+  PRODUCTION_CLASSIFIER_REL,
+  COUPLED_CLASSIFIER_REL,
+  IMPORT_TOOL_REL,
+]);
+const REVIEWED_AUTHORITY_ENVELOPE_MARKER=
+  "VOID_WC_VOID_LEDGER_CUSTODY_REVIEWED_AUTHORITY_V1";
 const PRODUCTION_REL="ops/mainnet0/wc-void-production-candidate-v1.json";
 const COUPLED_REL="ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR_REL="ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
@@ -87,6 +95,14 @@ const PLAN_KEYS=Object.freeze([
   "application_tool_git_blob_sha1","promotion_tool_git_blob_sha1",
   "production_classifier_git_blob_sha1","coupled_classifier_git_blob_sha1",
   "ledger_import_tool_git_blob_sha1",
+  "reviewed_execution_module_git_blobs",
+  "reviewed_runtime_tool_git_blob_sha1",
+  "reviewed_runtime_profile_git_blob_sha1",
+  "reviewed_runtime_profile_id",
+  "reviewed_runtime_packages_aggregate_sha256",
+  "reviewed_execution_permission_fenced",
+  "reviewed_execution_ancestor_package_resolution_allowed",
+  "reviewed_execution_network_isolation_provided",
   "ledger_import_input_file_sha256","promotion_receipt_file_sha256",
   "promotion_id","ledger_persistence_import_id",
   "production_candidate_path","production_source_git_blob_sha1",
@@ -142,41 +158,69 @@ function deepFreeze(v,seen=new WeakSet()){
   return Object.freeze(v);
 }
 function sanitizedGitEnv(){
-  const env={...process.env};
-  for(const key of Object.keys(env)){
-    if(
-      /^GIT_/u.test(key)||
-      key==="SSH_ASKPASS"
-    ) delete env[key];
-  }
-  env.GIT_CONFIG_NOSYSTEM="1";
-  env.GIT_OPTIONAL_LOCKS="0";
-  env.GIT_TERMINAL_PROMPT="0";
-  env.LANG="C";
-  env.LC_ALL="C";
-  env.PATH="/usr/bin:/bin";
-  return env;
+  return {
+    PATH:"/usr/bin:/bin",
+    LANG:"C",
+    LC_ALL:"C",
+    HOME:"/nonexistent",
+    XDG_CONFIG_HOME:"/nonexistent",
+    GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_ATTR_NOSYSTEM:"1",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_ASKPASS:"/bin/false",
+  };
 }
-function git(args,code,{encoding="utf8"}={}){
+const REVIEWED_GIT_CONFIG_ARGS=Object.freeze([
+  "-c","core.hooksPath=/dev/null",
+  "-c","core.attributesFile=/dev/null",
+  "-c","core.fsmonitor=false",
+  "-c","core.untrackedCache=false",
+  "-c","core.preloadIndex=false",
+  "-c","submodule.recurse=false",
+]);
+function gitRun(args,code,{encoding="utf8",allowFail=false,cwd=ROOT}={}){
   const result=spawnSync(
     GIT,
-    ["--no-replace-objects","-C",ROOT,...args],
-    {encoding,env:sanitizedGitEnv(),stdio:["ignore","pipe","pipe"],maxBuffer:MAX_BYTES+1024},
+    ["--no-replace-objects",...REVIEWED_GIT_CONFIG_ARGS,"-C",cwd,...args],
+    {
+      encoding,
+      env:sanitizedGitEnv(),
+      stdio:["ignore","pipe","pipe"],
+      maxBuffer:MAX_BYTES+1024,
+      timeout:120_000,
+    },
   );
-  if(result.error||result.status!==0) fail(code);
-  return result.stdout;
+  if(result.error) throw result.error;
+  if(result.status!==0&&!allowFail) fail(code);
+  return result;
 }
-function gitText(args,code){return String(git(args,code)).trim();}
+function git(args,code,{encoding="utf8"}={}){
+  return gitRun(args,code,{encoding}).stdout;
+}
+function gitText(args,code,{allowEmpty=false}={}){
+  const value=String(git(args,code)).trim();
+  if(!allowEmpty&&!value) fail(code);
+  return value;
+}
 function gitBytes(args,code){return Buffer.from(git(args,code,{encoding:null}));}
 function repositoryIdentity(){
   const status=gitText(
     ["status","--porcelain=v1","--untracked-files=all"],
     "LEDGER_CUSTODY_APPLICATION_REPOSITORY_STATUS_UNAVAILABLE",
+    {allowEmpty:true},
   );
   if(status!=="") fail("LEDGER_CUSTODY_APPLICATION_REPOSITORY_MUST_BE_CLEAN");
   const head=gitText(["rev-parse","HEAD"],"LEDGER_CUSTODY_APPLICATION_HEAD_UNAVAILABLE");
   const tree=gitText(["rev-parse","HEAD^{tree}"],"LEDGER_CUSTODY_APPLICATION_TREE_UNAVAILABLE");
-  const branch=gitText(["branch","--show-current"],"LEDGER_CUSTODY_APPLICATION_BRANCH_UNAVAILABLE");
+  const branch=gitText(
+    ["branch","--show-current"],
+    "LEDGER_CUSTODY_APPLICATION_BRANCH_UNAVAILABLE",
+    {allowEmpty:true},
+  );
   if(!HEX40.test(head)||!HEX40.test(tree)) fail("LEDGER_CUSTODY_APPLICATION_REPOSITORY_IDENTITY_INVALID");
   return Object.freeze({head,tree,branch});
 }
