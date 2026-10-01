@@ -203,6 +203,25 @@ in the envelope.
 
 ## Evidence authority
 
+A green evidence artifact is self-contained. It embeds:
+
+- the exact normalized challenge envelope;
+- the exact public signature envelope;
+- the source binding and typed-data digest;
+- the candidate address and current launch/vault/token identities; and
+- the challenge validity deadline.
+
+Its `voidwlcce1_...` identity is content-addressed over the signed proof
+material and authority posture, not the verifier's wall-clock observation time.
+Re-verifying the same still-valid artifact therefore derives the same evidence
+ID.
+
+A downstream consumer must call
+`reverifyVoidWcVoidLaunchControllerControlEvidenceV1(...)` (or an equivalent
+reviewed composition) at the **current evaluation time**. Re-verification reruns
+current source binding, challenge expiry, EIP-712 signer recovery and semantic
+cross-links. It does not trust the artifact's summary booleans.
+
 A green evidence artifact explicitly remains:
 
 ```text
@@ -216,4 +235,6 @@ funds_movement_authorized=false
 ```
 
 It does not authorize a systemd/runtime change, contract call, deployment,
-funding, transaction, or market action.
+funding, transaction, or market action. #2225 must additionally require the
+reverified candidate address to equal the separately selected launch-controller
+address before that later role/deployment lane can advance.
