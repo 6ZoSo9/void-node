@@ -45,6 +45,8 @@ const TOOL =
   "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
 const CORE =
   "tools/void-wc-void-coupled-launch-policy-reviewed-core-v1.mjs";
+const WORKFLOW =
+  ".github/workflows/void-wc-void-coupled-launch-policy-bundle-v1.yml";
 const POLICY_SOURCE =
   "tools/void-wc-void-opening-window-policy-v1.mjs";
 const COUPLED_CANDIDATE =
@@ -295,6 +297,7 @@ for (const [key, value] of Object.entries(
     key === "worktree_policy_execution_forbidden" ||
     key === "canonical_main_artifact_required" ||
     key === "canonical_remote_main_read_required" ||
+    key === "canonical_remote_main_external_network_read" ||
     key === "git_config_isolated" ||
     key === "descriptor_bound_private_input" ||
     key === "reviewed_private_input_sha256_required" ||
@@ -626,6 +629,52 @@ for (const [key, value] of Object.entries(
 
 const source = fs.readFileSync(TOOL, "utf8");
 const coreSource = fs.readFileSync(CORE, "utf8");
+const workflowSource = fs.readFileSync(WORKFLOW, "utf8");
+
+assert.equal(
+  source.includes("function canonicalLaunchSourceBinding()"),
+  false,
+  "stale worktree candidate-binding helper must not remain",
+);
+assert.equal(
+  source.includes("headBlobSha1("),
+  false,
+  "stale branch-local HEAD helper must not remain",
+);
+
+const testOnlyStart = source.indexOf(
+  "export function testOnlyCompileVoidWcVoidCoupledLaunchPolicyBundleV1",
+);
+const testOnlyEnd = source.indexOf("function outsideRepository(", testOnlyStart);
+assert(testOnlyStart >= 0 && testOnlyEnd > testOnlyStart);
+const testOnlyBlock = source.slice(testOnlyStart, testOnlyEnd);
+assert.equal(
+  testOnlyBlock.includes("bundle_id:digest"),
+  false,
+  "test-only wrapper must never mint a production bundle id",
+);
+assert.equal(
+  testOnlyBlock.includes(
+    "authority:VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1",
+  ),
+  false,
+  "test-only wrapper must never attach production authority",
+);
+
+const reviewedTriggerPaths = Object.keys(
+  result.canonical_launch_source.reviewed_policy_module_git_blobs,
+).sort();
+assert.equal(reviewedTriggerPaths.length, 11);
+for (const relativePath of reviewedTriggerPaths) {
+  const token = '      - "' + relativePath + '"';
+  const occurrences = workflowSource.split(token).length - 1;
+  assert.equal(
+    occurrences,
+    2,
+    "reviewed module must appear in both PR and main-push triggers: " +
+      relativePath,
+  );
+}
 for (const forbiddenAuthoritySurface of [
   '"VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1"',
   "bundle_id",
@@ -710,6 +759,9 @@ console.log("canonical_coupled_launch_source_bound=true");
 console.log("reviewed_git_object_policy_execution=true");
 console.log("reviewed_semantic_core_production_authority=false");
 console.log("reviewed_policy_module_count=11");
+console.log("reviewed_policy_trigger_closure_complete=true");
+console.log("test_only_production_shape_constructed=false");
+console.log("canonical_remote_main_external_network_read=true");
 console.log("permission_fenced_execution=true");
 console.log("hidden_worktree_policy_execution=false");
 console.log("production_artifact_from_feature_branch=false");
