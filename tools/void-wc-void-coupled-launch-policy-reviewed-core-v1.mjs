@@ -648,5 +648,3 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleCoreV1(
     funds_movement_authorized: false,
   });
 }
-
-
