@@ -16,11 +16,13 @@ The promotion consumes exact bytes plus SHA-256 for:
 - the economic-successor migration candidate.
 
 It also requires the caller to bind the request to the current clean repository
-HEAD and tree. The tool independently verifies those Git identities, requires
-reviewed source commit `c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71`
-to be an ancestor, and pins the exact reviewed Git blobs for the three
-candidate prestates, the semantic-promotion tool/proof, and the classifiers
-used to evaluate the candidates.
+HEAD and tree. The promotion records reviewed source commit
+`c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71` as the review-generation
+anchor and independently pins the exact Git blobs reviewed at that generation
+for the three candidate prestates, the semantic-promotion tool/proof, and the
+classifiers used to evaluate the candidates. This avoids depending on deep Git
+history being present in a shallow CI checkout while still requiring exact
+reviewed source bytes.
 
 The three caller-supplied candidate byte strings must equal the corresponding
 `git show HEAD:<path>` bytes exactly. A lookalike candidate with an unrelated
