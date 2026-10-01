@@ -354,9 +354,7 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     ledger.market_activation_authorized!==false||
     ledger.public_presale_activation_authorized!==false||
     ledger.funds_movement_authorized!==false||
-    "sha256:"+ledgerSource.sha256!==evidence.wc_ledger_custody_evidence_id||
-    ledger.total_settled_wc_units!==evidence.settled_wc_units||
-    ledger.expected_settlement_count!==1
+    "sha256:"+ledgerSource.sha256!==evidence.wc_ledger_custody_evidence_id
   ) fail("BOUNDED_CANARY_LEDGER_EVIDENCE_MISMATCH");
 
   const openingRequest=exactObject(
@@ -370,9 +368,9 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     !Array.isArray(openingRequest.commitments)||
     !Array.isArray(openingRequest.ledger_debits)||
     !Array.isArray(openingRequest.dispositions)||
-    openingRequest.commitments.length!==1||
-    openingRequest.ledger_debits.length!==1||
-    openingRequest.dispositions.length!==1
+    openingRequest.commitments.length<1||
+    openingRequest.ledger_debits.length<1||
+    openingRequest.dispositions.length<1
   ) fail("BOUNDED_CANARY_OPENING_REQUEST_V1_MISMATCH");
 
   const settlementSet=verifyWcVoidOpeningLedgerSettlementsV1(
@@ -381,7 +379,7 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     openingRequest.ledger_debits,
   );
   if(
-    settlementSet.settlement_count!==1||
+    settlementSet.settlement_count!==ledger.expected_settlement_count||
     settlementSet.total_settled_wc_units!==ledger.total_settled_wc_units||
     settlementSet.settlement_set_root!==ledger.settlement_set_root
   ) fail("BOUNDED_CANARY_LEDGER_OPENING_CROSSLINK_MISMATCH");
@@ -403,13 +401,27 @@ export function promoteWcVoidBoundedCanarySemanticV1(input){
     binding.binding_id!==evidence.opening_claim_binding_id||
     "sha256:"+claimSource.sha256!==
       evidence.opening_claim_binding_persistence_evidence_id||
-    binding.disposition_count!==1||
-    binding.transferred_void_atoms!==evidence.delivered_void_atoms||
     binding.refunded_wc_units!=="0"||
     binding.opening_claim_transfer_or_refund_binding_source_ready!==true||
-    binding.runtime_execution_ready!==false||
-    binding.dispositions[0]?.void_recipient!==participant.participant_address
+    binding.runtime_execution_ready!==false
   ) fail("BOUNDED_CANARY_OPENING_CLAIM_SEMANTIC_MISMATCH");
+
+  const participantDispositions=binding.dispositions.filter(
+    (row)=>row.void_recipient===participant.participant_address,
+  );
+  if(participantDispositions.length!==1){
+    fail("BOUNDED_CANARY_PARTICIPANT_DISPOSITION_MATCH_INVALID");
+  }
+  const participantDisposition=participantDispositions[0];
+  const participantSettlement=settlementSet.settlements.find(
+    (row)=>row.commitment_id===participantDisposition.commitment_id,
+  );
+  if(
+    !participantSettlement||
+    participantSettlement.settlement_id!==participantDisposition.settlement_id||
+    participantSettlement.amount_wc!==evidence.settled_wc_units||
+    participantDisposition.void_atoms!==evidence.delivered_void_atoms
+  ) fail("BOUNDED_CANARY_PARTICIPANT_SETTLEMENT_MATCH_INVALID");
 
   const before=initialWcVoidOpeningReplayStateV1(CURRENT_LAUNCH);
   const transition=deriveWcVoidOpeningReplayTransitionV1({
