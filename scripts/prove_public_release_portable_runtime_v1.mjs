@@ -70,7 +70,9 @@ const installer = needText("ops/public/install-void-node-portable-runtime-v1.sh"
   "VOID_NODE_STABLE_MANAGER_V1",
   'CONTROL_RUNTIME="$INSTALL_ROOT/control/runtime/bin/node"',
   "stable control runtime SHA mismatch",
+  ".rollback.restart-witness-v1",
   "recovery_outcome=rollback_committed",
+  "recovery_outcome=rollback_restart_witness_cleaned",
   'if test "${1:-}" = rollback; then shift; exec_control_rollback "$@"; fi',
   'if test "${1:-}" = update && test "${2:-}" = rollback; then shift 2; exec_control_rollback "$@"; fi',
 ]);
