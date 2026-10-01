@@ -823,11 +823,13 @@ assert.throws(
   const tree = path.join(tempRoot, "tree");
   const external = path.join(tempRoot, "external-sentinel.txt");
   const regular = path.join(tree, "regular.txt");
+  const executable = path.join(tree, "executable.sh");
   const link = path.join(tree, "absolute-link");
 
   fs.mkdirSync(tree, { mode: 0o700 });
   fs.writeFileSync(external, "sentinel\n", { mode: 0o600 });
   fs.writeFileSync(regular, "regular\n", { mode: 0o600 });
+  fs.writeFileSync(executable, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o700 });
   fs.symlinkSync(external, link);
 
   const beforeExternal = fs.statSync(external);
@@ -838,6 +840,7 @@ assert.throws(
   assert.equal(fs.lstatSync(link).isSymbolicLink(), true);
   assert.equal(fs.readlinkSync(link), external);
   assert.equal(fs.statSync(regular).mode & 0o777, 0o400);
+  assert.equal(fs.statSync(executable).mode & 0o777, 0o500);
   assert.equal(fs.statSync(external).mode & 0o777, beforeExternal.mode & 0o777);
   assert.deepEqual(fs.readFileSync(external), beforeExternalBytes);
 
@@ -846,6 +849,7 @@ assert.throws(
   assert.equal(fs.lstatSync(link).isSymbolicLink(), true);
   assert.equal(fs.readlinkSync(link), external);
   assert.equal(fs.statSync(regular).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(executable).mode & 0o777, 0o600);
   assert.equal(fs.statSync(external).mode & 0o777, beforeExternal.mode & 0o777);
   assert.deepEqual(fs.readFileSync(external), beforeExternalBytes);
 
@@ -997,6 +1001,7 @@ for (const required of [
   "for await (const chunk of process.stdin)",
   "makeParticipantReviewedExecutionTreeReadOnlyV1",
   "makeParticipantReviewedExecutionTreeRemovableV1",
+  "makeParticipantReviewedRegularFileReadOnlyV1",
   "O_NOFOLLOW",
   "O_DIRECTORY",
   "fstatSync",
