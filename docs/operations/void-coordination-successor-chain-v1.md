@@ -51,7 +51,7 @@ The live command uses authenticated `gh api` reads. For each issue it captures t
 
 ## Current observed boundary
 
-On 2026-10-01, read-only inspection of #1507 observed 277 comments, or 278 total issue messages, with no exact successor/rotation pointer. That state is `ROTATION_REQUIRED`; this document does not itself perform the rotation.
+During 2026-10-01 PR preparation, read-only inspection of #1507 already found the hub beyond the 250-message boundary with no exact successor/rotation pointer. The comment count continued to increase while this branch was being built, so this contract deliberately does not freeze a volatile count: any open terminal hub with at least 250 total issue messages and no successor pointer is `ROTATION_REQUIRED`. This document does not itself perform the rotation.
 
 ## Deterministic proof
 
