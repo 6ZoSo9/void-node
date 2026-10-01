@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 import {
   resolveCoordinationSuccessorChainLiveV1,
 } from "./void-coordination-successor-chain-v1.mjs";
+import {
+  evaluateWorkerLiveDispatchV1,
+} from "./void-worker-coordination-live-dispatch-v1.mjs";
 
 export const MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1";
 export const EVIDENCE_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_EVIDENCE_V1";
@@ -15,6 +18,8 @@ export const CHAIN_MARKER = "VOID_COORDINATION_SUCCESSOR_CHAIN_V1";
 export const DISPATCH_MARKER = "VOID_WORKER_LIVE_DISPATCH_V1";
 
 const MAX_STDIN_BYTES = 2 * 1024 * 1024;
+const DEFAULT_DISPATCH_POLICY_PATH =
+  "ops/coordination/worker-live-dispatch-policy-v1.json";
 const SHA256_ID_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const CHAIN_OUTCOMES = new Set([
   "CURRENT",
@@ -102,6 +107,18 @@ export function assertFreshLiveChainMatchesV1(suppliedChain, liveChain) {
   requireObject(liveChain, "live chain");
   if (canonicalJson(suppliedChain) !== canonicalJson(liveChain)) {
     fail("supplied successor chain does not match fresh live resolution");
+  }
+  return true;
+}
+
+export function assertRederivedDispatchMatchesV1(
+  suppliedDispatch,
+  rederivedDispatch,
+) {
+  requireObject(suppliedDispatch, "supplied dispatch");
+  requireObject(rederivedDispatch, "rederived dispatch");
+  if (canonicalJson(suppliedDispatch) !== canonicalJson(rederivedDispatch)) {
+    fail("supplied live dispatch does not match rederived dispatch output");
   }
   return true;
 }
@@ -262,7 +279,10 @@ function validateDispatch(raw, trustedNowMs) {
 
 export function evaluateWorkerDispatchHubGuardV1(
   rawEvidence,
-  { liveChain = null } = {},
+  {
+    liveChain = null,
+    rederivedDispatch = null,
+  } = {},
 ) {
   const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
   if (evidence.marker !== EVIDENCE_MARKER) {
@@ -282,6 +302,12 @@ export function evaluateWorkerDispatchHubGuardV1(
   const liveChainRevalidated =
     liveChain !== null
     && assertFreshLiveChainMatchesV1(evidence.chain, liveChain) === true;
+  const dispatchProvenanceRevalidated =
+    rederivedDispatch !== null
+    && assertRederivedDispatchMatchesV1(
+      evidence.dispatch,
+      rederivedDispatch,
+    ) === true;
 
   let outcome;
   let reason;
@@ -304,6 +330,10 @@ export function evaluateWorkerDispatchHubGuardV1(
     outcome = "HOLD_CHAIN_LIVENESS_UNPROVEN";
     reason =
       "aligned retained evidence was not revalidated against the live successor chain";
+  } else if (dispatchProvenanceRevalidated !== true) {
+    outcome = "HOLD_DISPATCH_PROVENANCE_UNPROVEN";
+    reason =
+      "supplied live dispatch output was not rederived from original evidence and current policy";
   } else {
     outcome = "DISPATCH_HUB_ALIGNED";
     reason = "live dispatch plan issue matches the freshly revalidated current coordination hub";
@@ -328,10 +358,14 @@ export function evaluateWorkerDispatchHubGuardV1(
     dispatch_next_reevaluation_at: dispatch.next_reevaluation_at,
     dispatch_evidence_fresh: dispatchState.dispatchFresh,
     live_chain_revalidated: liveChainRevalidated === true,
+    dispatch_provenance_revalidated:
+      dispatchProvenanceRevalidated === true,
     normal_dispatch_allowed: normalDispatchAllowed,
     read_only_evidence_only: !normalDispatchAllowed,
     requires_fresh_chain_evidence: liveChainRevalidated !== true,
     requires_fresh_dispatch_evidence: !dispatchState.dispatchFresh,
+    requires_dispatch_provenance_rederivation:
+      dispatchProvenanceRevalidated !== true,
     external_worker_invocation_required: true,
     issue_creation_authorized: false,
     issue_close_authorized: false,
@@ -365,7 +399,11 @@ async function readBoundedStdin() {
 }
 
 function parseArgs(argv) {
-  const args = { outputPath: null, pretty: false };
+  const args = {
+    outputPath: null,
+    policyPath: DEFAULT_DISPATCH_POLICY_PATH,
+    pretty: false,
+  };
   const remaining = [...argv];
   while (remaining.length > 0) {
     const flag = remaining.shift();
@@ -376,6 +414,7 @@ function parseArgs(argv) {
     const value = remaining.shift();
     if (!value || value.startsWith("--")) fail("missing value for " + flag);
     if (flag === "--output") args.outputPath = value;
+    else if (flag === "--policy") args.policyPath = value;
     else fail("unknown argument: " + flag);
   }
   return args;
@@ -385,6 +424,9 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const evidence = JSON.parse(await readBoundedStdin());
   const suppliedChain = validateChain(evidence.chain);
+  const dispatchEvidence = structuredClone(
+    requireObject(evidence.dispatch_evidence, "evidence.dispatch_evidence"),
+  );
   const trustedNowMs = Date.now();
   if (!Number.isSafeInteger(trustedNowMs)) fail("trusted current time is invalid");
   const suppliedDispatchState = validateDispatch(
@@ -395,12 +437,20 @@ async function main() {
   if (suppliedChain.repository_scope !== suppliedDispatch.repository) {
     fail("coordination chain and live dispatch repository mismatch");
   }
+  const policyRaw = JSON.parse(
+    await readFile(path.resolve(args.policyPath), "utf8"),
+  );
+  const rederivedDispatch = evaluateWorkerLiveDispatchV1(
+    policyRaw,
+    dispatchEvidence,
+  );
   const liveChain = resolveCoordinationSuccessorChainLiveV1(
     suppliedDispatch.repository,
     suppliedChain.root_issue,
   );
   const result = evaluateWorkerDispatchHubGuardV1(evidence, {
     liveChain,
+    rederivedDispatch,
   });
   const output = JSON.stringify(result, null, args.pretty ? 2 : 0) + "\n";
   if (args.outputPath) {
