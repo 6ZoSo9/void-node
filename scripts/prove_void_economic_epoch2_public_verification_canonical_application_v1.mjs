@@ -464,6 +464,16 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
   const fakeTarHook = path.join(hostile, "fake-tar-hook.sh");
   const hostileAttributes = path.join(hostile, "attributes");
   const hostileHome = path.join(hostile, "home");
+  const proofGitEnv = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    LANG: "C",
+    LC_ALL: "C",
+  };
   fs.mkdirSync(fakeBin, { recursive: true });
   fs.mkdirSync(hostileHome, { recursive: true });
   fs.writeFileSync(
@@ -504,7 +514,7 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
     const got = spawnSync(
       "/usr/bin/git",
       ["-C", repoRoot, "config", "--local", "--get-all", key],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      { encoding: "utf8", env: proofGitEnv, stdio: ["ignore", "pipe", "pipe"] },
     );
     priorLocal.set(
       key,
@@ -552,7 +562,7 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
       const set = spawnSync(
         "/usr/bin/git",
         ["-C", repoRoot, "config", "--local", "--replace-all", key, value],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        { encoding: "utf8", env: proofGitEnv, stdio: ["ignore", "pipe", "pipe"] },
       );
       assert.equal(set.status, 0, String(set.stderr || ""));
     }
@@ -605,13 +615,13 @@ assert.equal(repeat.application_plan_id, plan.application_plan_id);
       spawnSync(
         "/usr/bin/git",
         ["-C", repoRoot, "config", "--local", "--unset-all", key],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        { encoding: "utf8", env: proofGitEnv, stdio: ["ignore", "pipe", "pipe"] },
       );
       for (const value of values) {
         const restore = spawnSync(
           "/usr/bin/git",
           ["-C", repoRoot, "config", "--local", "--add", key, value],
-          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+          { encoding: "utf8", env: proofGitEnv, stdio: ["ignore", "pipe", "pipe"] },
         );
         assert.equal(restore.status, 0, String(restore.stderr || ""));
       }
