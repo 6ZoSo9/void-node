@@ -3,9 +3,41 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+ALIEN="${ALIEN:-}"
 RUNS="${RUNS:-2}"
-REMOTE_NODE_BASE="http://${ALIEN##*@}:4100"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-}"
+REMOTE_HELPER_BASE="${REMOTE_HELPER_BASE:-}"
+REMOTE_RELAYER_BASE="${REMOTE_RELAYER_BASE:-}"
+
+MARKER="VOID_TWO_BOX_PRODUCT_PARTICIPANT_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+require_explicit "REMOTE_HELPER_BASE" "${REMOTE_HELPER_BASE:-}"
+require_explicit "REMOTE_RELAYER_BASE" "${REMOTE_RELAYER_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE" "$REMOTE_HELPER_BASE" "$REMOTE_RELAYER_BASE"
+export ALIEN REMOTE_NODE_BASE REMOTE_HELPER_BASE REMOTE_RELAYER_BASE
+
 OUT_DIR="${OUT_DIR:-/tmp/two-box-remote-product-network-regression-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT_DIR"
 
@@ -14,7 +46,7 @@ jget() {
 }
 
 echo "=== [1] remote participant/product truth ==="
-ALIEN="$ALIEN" bash ops/two-box-participant-golden-path-proof.sh \
+ALIEN="$ALIEN" REMOTE_NODE_BASE="$REMOTE_NODE_BASE" REMOTE_HELPER_BASE="$REMOTE_HELPER_BASE" REMOTE_RELAYER_BASE="$REMOTE_RELAYER_BASE" bash ops/two-box-participant-golden-path-proof.sh \
   | tee "$OUT_DIR/participant-golden-path-proof.log"
 
 echo

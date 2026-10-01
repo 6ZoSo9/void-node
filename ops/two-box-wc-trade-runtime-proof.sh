@@ -6,7 +6,34 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+ALIEN="${ALIEN:-}"
+
+MARKER="VOID_TWO_BOX_PRODUCT_PARTICIPANT_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+guard_targets "$ALIEN"
+export ALIEN
+
 ACCOUNT="${ACCOUNT:-0xdf994e1b8c1ac9078c66892b589c8aa76c3be592}"
 OUT="${OUT:-/tmp/two-box-wc-trade-runtime-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"

@@ -3,13 +3,43 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+ALIEN="${ALIEN:-}"
 RUNS="${RUNS:-5}"
 ACCOUNT_BASE="${ACCOUNT_BASE:-remote-user-mixed-$(date +%Y%m%d-%H%M%S)}"
 WALLET="${WALLET:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266}"
-REMOTE_NODE_BASE="http://${ALIEN##*@}:4100"
-REMOTE_HELPER_BASE="http://${ALIEN##*@}:4312/workcredits/devnet"
-REMOTE_RELAYER_BASE="http://${ALIEN##*@}:4313/api/wc-relayer/v1"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-}"
+REMOTE_HELPER_BASE="${REMOTE_HELPER_BASE:-}"
+REMOTE_RELAYER_BASE="${REMOTE_RELAYER_BASE:-}"
+
+MARKER="VOID_TWO_BOX_PRODUCT_PARTICIPANT_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+require_explicit "REMOTE_HELPER_BASE" "${REMOTE_HELPER_BASE:-}"
+require_explicit "REMOTE_RELAYER_BASE" "${REMOTE_RELAYER_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE" "$REMOTE_HELPER_BASE" "$REMOTE_RELAYER_BASE"
+export ALIEN REMOTE_NODE_BASE REMOTE_HELPER_BASE REMOTE_RELAYER_BASE
+
 LOCAL_NODE_BASE="${LOCAL_NODE_BASE:-http://127.0.0.1:4100}"
 
 OUT_DIR="${OUT_DIR:-/tmp/two-box-peer-workload-proof-$(date +%Y%m%d-%H%M%S)}"

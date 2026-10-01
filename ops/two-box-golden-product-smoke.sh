@@ -3,7 +3,37 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+ALIEN="${ALIEN:-}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-}"
+REMOTE_BASE="${REMOTE_BASE:-$REMOTE_NODE_BASE}"
+
+MARKER="VOID_TWO_BOX_PRODUCT_PARTICIPANT_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE" "$REMOTE_BASE"
+export ALIEN REMOTE_NODE_BASE REMOTE_BASE
+
 OUT="${OUT:-/tmp/two-box-golden-product-smoke-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 
@@ -26,7 +56,7 @@ git rev-parse --short HEAD
 echo "--- remote latest tag ---"
 git describe --tags --abbrev=0 2>/dev/null || true
 echo "--- remote health ---"
-curl -fsS --max-time 8 "http://100.122.79.39:4100/health"
+curl -fsS --max-time 8 "$REMOTE_NODE_BASE/health"
 echo
 ' | tee "$OUT/remote.truth.txt"
 

@@ -3,8 +3,36 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-http://100.122.79.39:4100}"
+ALIEN="${ALIEN:-}"
+REMOTE_NODE_BASE="${REMOTE_NODE_BASE:-}"
+
+MARKER="VOID_TWO_BOX_PRODUCT_PARTICIPANT_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "REMOTE_NODE_BASE" "${REMOTE_NODE_BASE:-}"
+guard_targets "$ALIEN" "$REMOTE_NODE_BASE"
+export ALIEN REMOTE_NODE_BASE
+
 OUT="${OUT:-/tmp/two-box-remote-verify-redundancy-product-proof-$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
 
@@ -50,7 +78,7 @@ print(json.dumps({
 }, separators=(',', ':')))
 PY
 )"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-seed-submit.json
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST "$REMOTE_NODE_BASE/jobs/submit" --data "$BODY" > /tmp/vr-seed-submit.json
 cat /tmp/vr-seed-submit.json
 echo
 
@@ -66,7 +94,7 @@ export SEED_JOB_ID
 SEED_RECEIPT_ID=""
 SEED_DATASET_ID=""
 for i in $(seq 1 12); do
-  curl -fsS --max-time 15 "http://100.122.79.39:4100/__void/diag/jobs-and-datanet-worker-v1.json" > /tmp/vr-seed-worker-diag.json
+  curl -fsS --max-time 15 "$REMOTE_NODE_BASE/__void/diag/jobs-and-datanet-worker-v1.json" > /tmp/vr-seed-worker-diag.json
   SEED_RECEIPT_ID="$(python3 - /tmp/vr-seed-worker-diag.json <<'PY'
 import json, sys
 obj = json.load(open(sys.argv[1]))
@@ -119,7 +147,7 @@ fi
 
 echo
 echo "--- enable verify + redundancy and runner ---"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/config --data "$(python3 - "$ACCOUNT" <<'PY'
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST "$REMOTE_NODE_BASE/wc/runner/config" --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({
   "account": sys.argv[1],
@@ -135,7 +163,7 @@ print(json.dumps({
 }, separators=(',', ':')))
 PY
 )"
-curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/set --data "$(python3 - "$ACCOUNT" <<'PY'
+curl -fsS --max-time 15 -H 'content-type: application/json' -X POST "$REMOTE_NODE_BASE/wc/runner/set" --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({
   "account": sys.argv[1],
@@ -146,7 +174,7 @@ PY
 echo
 echo "--- wait until seeded dataset becomes selectable for verify ---"
 for i in $(seq 1 12); do
-  curl -fsS --max-time 15 "http://100.122.79.39:4100/wc/runner/status?account=$ACCOUNT" > /tmp/vr-preview-status.json || true
+  curl -fsS --max-time 15 "$REMOTE_NODE_BASE/wc/runner/status?account=$ACCOUNT" > /tmp/vr-preview-status.json || true
 
   PREVIEW_TASK="$(python3 - /tmp/vr-preview-status.json <<'PY'
 from pathlib import Path
@@ -192,7 +220,7 @@ fi
 
 echo "--- tick until verify observed ---"
 for i in $(seq 1 12); do
-  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/wc/runner/tick --data "$(python3 - "$ACCOUNT" <<'PY'
+  curl -fsS --max-time 15 -H 'content-type: application/json' -X POST "$REMOTE_NODE_BASE/wc/runner/tick" --data "$(python3 - "$ACCOUNT" <<'PY'
 import json, sys
 print(json.dumps({"account": sys.argv[1]}, separators=(',', ':')))
 PY
@@ -279,7 +307,7 @@ payload = {
 print(json.dumps(payload, separators=(',', ':')))
 PY
 )"
-curl -sS -i --max-time 15 -H 'content-type: application/json' -X POST http://100.122.79.39:4100/jobs/submit --data "$BODY" > /tmp/vr-redundancy-submit.http
+curl -sS -i --max-time 15 -H 'content-type: application/json' -X POST "$REMOTE_NODE_BASE/jobs/submit" --data "$BODY" > /tmp/vr-redundancy-submit.http
 echo "--- redundancy submit raw response ---"
 cat /tmp/vr-redundancy-submit.http || true
 echo

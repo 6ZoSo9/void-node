@@ -1,13 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/dev/void-node" || exit 1
-
 OUT="${OUT:-/tmp/datanet-demo-import-share-url-two-box-proof-$(date +%Y%m%d-%H%M%S)}"
 WHO="${WHO:-datanet-demo-share-url-two-box-proof}"
 PRECISION_LOCAL="${PRECISION_LOCAL:-http://127.0.0.1:4100}"
-PRECISION_TAILNET="${PRECISION_TAILNET:-http://100.122.245.125:4100}"
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+PRECISION_TAILNET="${PRECISION_TAILNET:-}"
+ALIEN="${ALIEN:-}"
+
+MARKER="VOID_TWO_BOX_PRODUCT_PARTICIPANT_EXPLICIT_TARGET_V1"
+
+require_explicit() {
+  local name="$1"
+  local value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "$MARKER HOLD: missing explicit $name" >&2
+    exit 2
+  fi
+}
+
+guard_targets() {
+  local guard
+  guard="$(printf '%s\n' "$@" | tr '[:upper:]' '[:lower:]')"
+  case "$guard" in
+    *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+      echo "$MARKER HOLD: retired Alienware target is forbidden" >&2
+      exit 2
+      ;;
+  esac
+}
+
+require_explicit "ALIEN" "${ALIEN:-}"
+require_explicit "PRECISION_TAILNET" "${PRECISION_TAILNET:-}"
+guard_targets "$ALIEN" "$PRECISION_TAILNET"
+export ALIEN PRECISION_TAILNET
+
+ROOT="${VOID_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+cd "$ROOT"
+
 
 HTML="public/demo/datanet/index.html"
 

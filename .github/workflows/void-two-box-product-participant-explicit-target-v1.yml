@@ -1,0 +1,112 @@
+name: VOID two-box product participant explicit target v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-two-box-product-participant-explicit-target-v1.yml"
+      - "docs/operators/void-two-box-product-participant-explicit-target-v1.md"
+      - "scripts/prove_void_two_box_product_participant_explicit_target_v1.mjs"
+      - "ops/two-box-wc-state-parity-proof.sh"
+      - "ops/two-box-wc-trade-runtime-proof.sh"
+      - "ops/two-box-product-ui-smoke.sh"
+      - "ops/two-box-redundancy-check-proof.sh"
+      - "ops/two-box-remote-product-network-regression-proof.sh"
+      - "ops/two-box-golden-product-smoke.sh"
+      - "ops/two-box-remote-consume-view-product-proof.sh"
+      - "ops/two-box-peer-workload-proof.sh"
+      - "ops/two-box-remote-consumer-fetch-product-proof.sh"
+      - "ops/two-box-participant-datanet-e2e-proof.sh"
+      - "ops/two-box-participant-overview-dataset-proof.sh"
+      - "ops/two-box-remote-participant-consume-view-proof.sh"
+      - "ops/two-box-participant-golden-path-proof.sh"
+      - "ops/two-box-remote-participant-open-by-id-proof.sh"
+      - "ops/two-box-cross-machine-datanet-lifecycle-proof.sh"
+      - "ops/two-box-cross-machine-participant-open-workflow-proof.sh"
+      - "ops/mainnet0/datanet-demo-import-share-url-two-box-proof.sh"
+      - "ops/two-box-remote-verify-redundancy-product-proof.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-two-box-product-participant-explicit-target-v1.yml"
+      - "docs/operators/void-two-box-product-participant-explicit-target-v1.md"
+      - "scripts/prove_void_two_box_product_participant_explicit_target_v1.mjs"
+      - "ops/two-box-wc-state-parity-proof.sh"
+      - "ops/two-box-wc-trade-runtime-proof.sh"
+      - "ops/two-box-product-ui-smoke.sh"
+      - "ops/two-box-redundancy-check-proof.sh"
+      - "ops/two-box-remote-product-network-regression-proof.sh"
+      - "ops/two-box-golden-product-smoke.sh"
+      - "ops/two-box-remote-consume-view-product-proof.sh"
+      - "ops/two-box-peer-workload-proof.sh"
+      - "ops/two-box-remote-consumer-fetch-product-proof.sh"
+      - "ops/two-box-participant-datanet-e2e-proof.sh"
+      - "ops/two-box-participant-overview-dataset-proof.sh"
+      - "ops/two-box-remote-participant-consume-view-proof.sh"
+      - "ops/two-box-participant-golden-path-proof.sh"
+      - "ops/two-box-remote-participant-open-by-id-proof.sh"
+      - "ops/two-box-cross-machine-datanet-lifecycle-proof.sh"
+      - "ops/two-box-cross-machine-participant-open-workflow-proof.sh"
+      - "ops/mainnet0/datanet-demo-import-share-url-two-box-proof.sh"
+      - "ops/two-box-remote-verify-redundancy-product-proof.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Shell syntax
+        run: |
+          bash -n ops/two-box-wc-state-parity-proof.sh
+          bash -n ops/two-box-wc-trade-runtime-proof.sh
+          bash -n ops/two-box-product-ui-smoke.sh
+          bash -n ops/two-box-redundancy-check-proof.sh
+          bash -n ops/two-box-remote-product-network-regression-proof.sh
+          bash -n ops/two-box-golden-product-smoke.sh
+          bash -n ops/two-box-remote-consume-view-product-proof.sh
+          bash -n ops/two-box-peer-workload-proof.sh
+          bash -n ops/two-box-remote-consumer-fetch-product-proof.sh
+          bash -n ops/two-box-participant-datanet-e2e-proof.sh
+          bash -n ops/two-box-participant-overview-dataset-proof.sh
+          bash -n ops/two-box-remote-participant-consume-view-proof.sh
+          bash -n ops/two-box-participant-golden-path-proof.sh
+          bash -n ops/two-box-remote-participant-open-by-id-proof.sh
+          bash -n ops/two-box-cross-machine-datanet-lifecycle-proof.sh
+          bash -n ops/two-box-cross-machine-participant-open-workflow-proof.sh
+          bash -n ops/mainnet0/datanet-demo-import-share-url-two-box-proof.sh
+          bash -n ops/two-box-remote-verify-redundancy-product-proof.sh
+      - name: Proof syntax
+        run: node --check scripts/prove_void_two_box_product_participant_explicit_target_v1.mjs
+      - name: Prove fail-closed explicit targets
+        run: node scripts/prove_void_two_box_product_participant_explicit_target_v1.mjs
+      - name: Diff hygiene
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test -n "$PR_BASE_SHA"
+            git diff --check "$PR_BASE_SHA...HEAD"
+          elif [[ "$EVENT_NAME" == "push" ]] && [[ -n "$PUSH_BEFORE_SHA" ]] && [[ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --check "$PUSH_BEFORE_SHA..$CURRENT_SHA"
+          else
+            git diff --check HEAD^..HEAD
+          fi
