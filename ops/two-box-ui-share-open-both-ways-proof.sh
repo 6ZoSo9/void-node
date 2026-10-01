@@ -19,6 +19,7 @@ void_two_box_validate_http_origin "PUBLIC_LOCAL_NODE_BASE" "${PUBLIC_LOCAL_NODE_
 void_two_box_guard_retired "${ALIEN:-}" "${REMOTE_NODE_BASE:-}" "${LOCAL_NODE_BASE:-}" "${PUBLIC_LOCAL_NODE_BASE:-}"
 void_two_box_require_mutation_confirmation "$0"
 void_two_box_require_source_parity_and_bind_remote "$ALIEN" "$REMOTE_NODE_BASE"
+void_two_box_require_origin_matches_local "PUBLIC_LOCAL_NODE_BASE" "$PUBLIC_LOCAL_NODE_BASE"
 
 require_explicit() {
   local name="$1"
