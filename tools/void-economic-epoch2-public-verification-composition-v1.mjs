@@ -542,6 +542,7 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     throw error;
   }
 
+  try {
   if (
     typeof publicReadModule.promoteVoidEconomicEpoch2PublicReadRuntimeV1 !==
       "function" ||
@@ -550,7 +551,6 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     typeof classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1 !==
       "function"
   ) {
-    cleanupReviewedExecutionBundle(executionBundle);
     fail("reviewed_execution_exports_invalid");
   }
 
@@ -677,7 +677,6 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
   }
 
   const executedReviewedFiles = executionBundle.files;
-  cleanupReviewedExecutionBundle(executionBundle);
 
   const sourceAfter = repositoryBindingV1();
   const sourceBeforeComparable = structuredClone(source);
@@ -752,6 +751,9 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     receipt,
     final_migration_candidate: deepFreeze(combined),
   });
+  } finally {
+    cleanupReviewedExecutionBundle(executionBundle);
+  }
 }
 
 function arg(name) {
