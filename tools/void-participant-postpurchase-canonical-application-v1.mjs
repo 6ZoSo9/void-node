@@ -1476,7 +1476,6 @@ export function prepareVoidParticipantPostpurchaseCanonicalApplicationV1(input) 
       control_result: controlSource.value,
       coupled: coupled.value,
       successor: successor.value,
-      runtime_binding_file_sha256: runtimeSource.sha256,
       coupled_file_sha256: coupled.sha256,
       successor_file_sha256: successor.sha256,
       repository_head_sha: repo.head,
