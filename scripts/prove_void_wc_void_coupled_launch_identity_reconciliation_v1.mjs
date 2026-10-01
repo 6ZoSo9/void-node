@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 import {
   VOID_WC_VOID_COUPLED_LAUNCH_DIGEST_HEX_V1,
+  VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_APPLIED_BLOBS_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_AUTHORITY_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_OPENING_ID_V1,
@@ -18,6 +19,11 @@ import {
 const result=await prepareWcVoidCoupledLaunchIdentityReconciliationV1();
 const artifact=result.artifact;
 const proposed=result.proposed_candidate;
+const applied=artifact.source_generation==="applied";
+assert.ok(
+  artifact.source_generation==="pre_application"||applied,
+  artifact.source_generation,
+);
 
 assert.equal(
   artifact.marker,
@@ -26,7 +32,9 @@ assert.equal(
 assert.equal(artifact.version,1);
 assert.equal(
   artifact.status,
-  "ATOMIC_SOURCE_RECONCILIATION_PREPARED_APPLICATION_REQUIRED",
+  applied
+    ?"CANONICAL_SOURCE_RECONCILIATION_APPLIED"
+    :"ATOMIC_SOURCE_RECONCILIATION_PREPARED_APPLICATION_REQUIRED",
 );
 assert.match(artifact.reconciliation_plan_id,/^voidwclir1_[0-9a-f]{64}$/u);
 
@@ -122,33 +130,41 @@ assert.throws(
   TypeError,
 );
 
+const expectedUpdatePaths=[
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+  "tools/void-coupled-economic-successor-gate-v1.mjs",
+  "scripts/prove_void_coupled_economic_successor_gate_v1.mjs",
+  "docs/operators/coupled-economic-successor-gate-v1.md",
+];
 assert.deepEqual(
   artifact.required_atomic_source_updates.map((item)=>item.path),
-  [
-    "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
-    "tools/void-coupled-economic-successor-gate-v1.mjs",
-    "scripts/prove_void_coupled_economic_successor_gate_v1.mjs",
-    "docs/operators/coupled-economic-successor-gate-v1.md",
-  ],
+  applied?[]:expectedUpdatePaths,
 );
 assert.deepEqual(
   artifact.downstream_real_evidence_blocked_until_application,
-  [
-    "opening_ledger_custody_evidence",
-    "opening_claim_replay_evidence",
-    "bounded_canary_evidence",
-    "market_vault_role_authorization",
-    "market_vault_deployment_attestation",
-    "final_coupled_activation",
-  ],
+  applied
+    ?[]
+    :[
+      "opening_ledger_custody_evidence",
+      "opening_claim_replay_evidence",
+      "bounded_canary_evidence",
+      "market_vault_role_authorization",
+      "market_vault_deployment_attestation",
+      "final_coupled_activation",
+    ],
 );
 
-for(const [path,sha] of Object.entries(
-  VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
-)) {
+const expectedBlobs=applied
+  ?VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_APPLIED_BLOBS_V1
+  :VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1;
+for(const [path,sha] of Object.entries(expectedBlobs)) {
   assert.equal(artifact.reviewed_source_blobs[path],sha);
   assert.match(sha,/^[0-9a-f]{40}$/u);
 }
+assert.deepEqual(
+  Object.keys(artifact.reviewed_source_blobs).sort(),
+  Object.keys(expectedBlobs).sort(),
+);
 
 for(const key of [
   "reviewed_source_blobs_verified",
@@ -163,17 +179,38 @@ for(const key of [
   "exact_reconciled_opening_state_id_verified",
   "reconciliation_id_rotated",
   "wc_opening_state_id_rotated",
-  "proposed_candidate_change_scope_shared_reconciliation_only",
-  "current_classifier_source_fixture_verified",
-  "candidate_classifier_atomic_source_update_required",
-  "source_application_required",
 ]) {
   assert.equal(artifact.verification[key],true,key);
 }
+assert.equal(
+  artifact.verification.pre_application_generation_verified,
+  !applied,
+);
+assert.equal(
+  artifact.verification.applied_source_generation_verified,
+  applied,
+);
+assert.equal(
+  artifact.verification.proposed_candidate_change_scope_shared_reconciliation_only,
+  !applied,
+);
+assert.equal(
+  artifact.verification.current_classifier_source_fixture_verified,
+  !applied,
+);
+assert.equal(
+  artifact.verification.applied_classifier_source_identity_verified,
+  applied,
+);
+assert.equal(
+  artifact.verification.candidate_classifier_atomic_source_update_required,
+  !applied,
+);
 assert.equal(artifact.verification.working_tree_module_execution,false);
 assert.equal(artifact.verification.classifier_execution_performed,false);
-assert.equal(artifact.verification.canonical_candidate_file_updated,false);
-assert.equal(artifact.verification.classifier_source_updated,false);
+assert.equal(artifact.verification.canonical_candidate_file_updated,applied);
+assert.equal(artifact.verification.classifier_source_updated,applied);
+assert.equal(artifact.verification.source_application_required,!applied);
 
 const mutatedCommitment=structuredClone(
   artifact.reviewed_coupled_launch_commitment,
@@ -220,8 +257,11 @@ assert.doesNotMatch(
   source,
   /import\(\s*new URL\(\s*"\.\/void-wc-void-coupled-opening-v1\.mjs/u,
 );
-assert.match(source,/current_classifier_source_fixture_verified:true/u);
-assert.match(source,/candidate_classifier_atomic_source_update_required:true/u);
+assert.match(source,/sourceGeneration="pre_application"/u);
+assert.match(source,/sourceGeneration="applied"/u);
+assert.match(source,/CANONICAL_SOURCE_RECONCILIATION_APPLIED/u);
+assert.match(source,/reconciliation_source_generation_unreviewed/u);
+assert.match(source,/applied_classifier_source_identity_verified:applied/u);
 assert.match(source,/classifier_execution_performed:false/u);
 assert.doesNotMatch(
   source,
@@ -255,10 +295,14 @@ console.log("canonical_inputs_loaded_from_head_git_objects=true");
 console.log("verified_modules_loaded_from_head_git_objects=true");
 console.log("working_tree_module_execution=false");
 console.log("derived_candidate_deep_frozen=true");
+console.log("source_generation="+artifact.source_generation);
 console.log("classifier_execution_performed=false");
-console.log("atomic_candidate_classifier_proof_doc_update_required=true");
-console.log("canonical_candidate_file_updated=false");
-console.log("classifier_source_updated=false");
+console.log(
+  "atomic_candidate_classifier_proof_doc_update_required="+String(!applied),
+);
+console.log("canonical_candidate_file_updated="+String(applied));
+console.log("classifier_source_updated="+String(applied));
+console.log("source_application_required="+String(!applied));
 console.log("deployment=false");
 console.log("role_authorization=false");
 console.log("funds_movement=false");
