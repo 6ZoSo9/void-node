@@ -36,11 +36,26 @@ for(const [name,source] of Object.entries({
   prelaunch:files.prelaunch,
   validator:files.validator,
 })) {
-  assert.doesNotMatch(source,new RegExp(retiredIp.replaceAll(".","\\.")),name);
   assert.doesNotMatch(source,/\bALIEN=/u,name);
   assert.doesNotMatch(source,/local status smoke fallback/iu,name);
   assert.match(source,new RegExp(explicitEnv),name);
 }
+
+for(const [name,source] of Object.entries({
+  prelaunch:files.prelaunch,
+  validator:files.validator,
+})) {
+  assert.doesNotMatch(source,new RegExp(retiredIp.replaceAll(".","\\.")),name);
+}
+
+assert.equal(
+  (files.crossbox.match(/100\.122\.79\.39/gu)??[]).length,
+  1,
+);
+assert.match(
+  files.crossbox,
+  /\*alienware\*\|\*100\.122\.79\.39\*\)\n\s+fail "crossbox_peer_retired"/u,
+);
 
 assert.match(files.crossbox,/crossbox_peer_required/u);
 assert.match(files.crossbox,/crossbox_peer_retired/u);
