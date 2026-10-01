@@ -115,7 +115,7 @@ echo
 
 echo "=== [2] run fresh remote publish + verify + redundancy flow ==="
 REMOTE_OUT="$(
-  ACCOUNT="$ACCOUNT" PLAINTEXT="$PLAINTEXT" ALIEN="$ALIEN" LOCAL_NODE_BASE="$LOCAL_NODE_BASE" REMOTE_NODE_BASE="$REMOTE_NODE_BASE" bash ops/two-box-remote-verify-redundancy-proof.sh
+  ACCOUNT="$ACCOUNT" PLAINTEXT="$PLAINTEXT" ALIEN="$ALIEN" LOCAL_NODE_BASE="$LOCAL_NODE_BASE" REMOTE_NODE_BASE="$REMOTE_NODE_BASE" CONFIRM_TWO_BOX_LEGACY_PROOF="runVoidTwoBoxLegacyProofV1:two-box-remote-verify-redundancy-proof.sh" bash ops/two-box-remote-verify-redundancy-proof.sh
 )"
 printf '%s\n' "$REMOTE_OUT" | tee "$OUT_DIR/remote-proof-output.log"
 
