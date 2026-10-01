@@ -52,14 +52,20 @@ The operational collector performs only these classes of reads:
 2. read `systemctl --user show` for the three web services;
 3. read the live node service `InvocationID` before and after observation;
 4. read `ss -H -ltnp` and prove exact listener/PID ownership;
-5. read the running service `/proc/<pid>/cmdline`, cwd, and candidate source
-   bytes to prove one exact running file matches the source digest in the plan;
+5. read the running service `/proc/<pid>/exe`, `cmdline`, cwd, and exact
+   Node entry-script bytes; require the executable basename to be `node` or
+   `nodejs`, require argv[1] to resolve to the actual entry script, and require
+   that exact file's SHA-256 to match the source digest in the plan;
 6. GET three loopback JSON endpoints with a 5-second total request deadline and
    256 KiB response ceiling;
 7. read Tailscale Serve and Funnel status JSON before and after the observation.
 
 All external commands use fixed absolute executable paths and are checked for
-filesystem-identity stability before/after each read.
+filesystem-identity stability before/after each read. The observer also strips
+dynamic-loader overrides and Tailscale socket/debug overrides, fixes
+`PATH=/usr/bin:/bin`, and pins user-systemd reads to the current UID's
+`/run/user/<uid>/bus` rather than trusting inherited D-Bus/runtime-directory
+coordinates.
 
 ## Runtime facts required
 
@@ -69,7 +75,7 @@ filesystem-identity stability before/after each read.
 active/running
 127.0.0.1:8080
 listener PID == systemd MainPID
-running source SHA-256 == current plan adapter source
+running Node argv[1] source SHA-256 == current plan adapter source
 /__void/adapter.json:
   adapter=void_public_seed_adapter
   version=1
@@ -83,7 +89,7 @@ running source SHA-256 == current plan adapter source
 active/running
 127.0.0.1:8082
 listener PID == systemd MainPID
-running source SHA-256 == current plan composition source
+running Node argv[1] source SHA-256 == current plan composition source
 /__void/public-app/network.json:
   ok=true
   marker=VOID_PUBLIC_APP_COMPOSITION_GATEWAY_V1
@@ -102,7 +108,7 @@ running source SHA-256 == current plan composition source
 active/running
 127.0.0.1:8083
 listener PID == systemd MainPID
-running source SHA-256 == current plan frontdoor source
+running Node argv[1] source SHA-256 == current plan frontdoor source
 /__void/frontdoor/status.json:
   marker=VOID_PUBLIC_FRONTDOOR_V1
   ready=true
@@ -226,9 +232,10 @@ node scripts/prove_void_precision_web_recovery_host_observer_v1.mjs
 ```
 
 The proof imports and executes the real merged #2273 plan/verifier, proves the
-systemd and `ss` parsers, binds process-source bytes by SHA-256, and falsifies
-host, listener, process-source, hardening, runtime-marker, stability, stale-time,
-and future-time failures.
+systemd and `ss` parsers, binds the actual Node argv[1] entry-script bytes by
+SHA-256, proves command-environment isolation and local user-bus pinning, and
+falsifies host, listener, process-entry, executable, hardening, runtime-marker,
+stability, stale-time, and future-time failures.
 
 ## Relationship to #1614
 
