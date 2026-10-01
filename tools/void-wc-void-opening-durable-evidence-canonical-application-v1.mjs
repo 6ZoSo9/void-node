@@ -224,6 +224,7 @@ function repositoryIdentity(){
   const branch=gitText(
     ["branch","--show-current"],
     "OPENING_DURABLE_APPLICATION_BRANCH_UNAVAILABLE",
+    {allowEmpty:true},
   );
   if(!HEX40.test(head)||!HEX40.test(tree)){
     fail("OPENING_DURABLE_APPLICATION_REPOSITORY_IDENTITY_INVALID");
