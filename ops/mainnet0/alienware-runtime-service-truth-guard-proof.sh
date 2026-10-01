@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/dev/void-node" || exit 1
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+if [ "${LIVE_SERVICE_CHECK:-0}" != "0" ]; then
+  echo "VOID_RETIRED_ALIENWARE_LIVE_SERVICE_CHECK_HOLD_V1 proof=alienware-runtime-service-truth-guard" >&2
+  echo "alienware_retired=true" >&2
+  echo "live_service_check_performed=false" >&2
+  exit 2
+fi
 
 DOC="ops/mainnet0/alienware-runtime-service-truth-guard.md"
 STORE_PROOF="ops/mainnet0/participant-datanet-store-serve-demo-proof.sh"
@@ -49,22 +57,14 @@ expect_grep "alienware dataset" "7e899e4ecdd34a9bf75b4ff7c592c678" "$CLOSEOUT_DO
 expect_grep "closeout service truth" "void-node-live.service" "$CLOSEOUT_DOC"
 
 echo
-echo "=== [4] optional live Alienware service check ==="
-if [ "${LIVE_SERVICE_CHECK:-0}" = "1" ]; then
-  systemctl --user is-active --quiet void-node-live.service
-  echo "[ok] void-node-live.service active"
-
-  if systemctl --user is-active --quiet void-node.service; then
-    echo "[fatal] duplicate void-node.service is active"
-    exit 1
-  fi
-  echo "[ok] duplicate void-node.service inactive"
-
-  curl -fsS --max-time 15 http://127.0.0.1:4100/__void/ready.json | grep -q '"ready":true'
-  echo "[ok] live ready endpoint responds"
-else
-  echo "[ok] LIVE_SERVICE_CHECK not requested"
-fi
+echo "=== [4] retired live-service boundary ==="
+expect_grep "retired historical status" "Status: retired historical evidence" "$DOC"
+expect_grep "no current authority" "Current authority: none" "$DOC"
+expect_grep "live service recheck prohibited" "Live service recheck: prohibited" "$DOC"
+echo "[ok] LIVE_SERVICE_CHECK permanently disabled for retired Alienware evidence"
 
 echo
 echo "VOID_ALIENWARE_RUNTIME_SERVICE_TRUTH_GUARD_GREEN"
+echo "historical_evidence_only=true"
+echo "current_runtime_authority=false"
+echo "live_service_check_performed=false"
