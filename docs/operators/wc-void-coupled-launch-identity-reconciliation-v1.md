@@ -79,15 +79,17 @@ reconciliation from the reviewed launch ID. It emits the exact replacement
 ## Atomic source transition
 
 Current classifier source also hardcodes the old source-model launch ID.
-Therefore the derived candidate intentionally remains incompatible with the
-current classifier. The preparation proves that the current classifier rejects
-the proposed candidate with:
+Therefore the candidate and classifier must move in the same reviewed source
+generation.
 
-```text
-shared_post_discovery_reconciliation_mismatch:coupled_launch_id
-```
+The preparation binds the exact classifier Git blob and verifies that its source
+still derives canonical shared-state expectations from the
+`sha256:aaaa...` constant and fails shared-state field mismatches. It does
+**not** execute the classifier, because claiming execution provenance would
+require independently binding the classifier's full transitive import graph.
 
-This is an atomicity guard, not a defect in the preparation.
+This source binding is the atomicity guard: the proposed candidate must not be
+applied while the classifier still derives the old fixture.
 
 A later application must update these four existing source surfaces as one
 reviewed generation:
