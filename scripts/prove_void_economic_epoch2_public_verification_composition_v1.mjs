@@ -307,6 +307,9 @@ const trueAuthorityKeys = new Set([
   "source_only_composition",
   "canonical_git_source_binding_required",
   "exact_dependency_git_blobs_required",
+  "git_replacement_objects_disabled",
+  "exact_reviewed_git_object_execution_required",
+  "private_readonly_execution_bundle",
   "public_read_promotion_reexecuted",
   "canonical_state_root_import_promotion_reexecuted",
   "migration_classifier_reexecuted",
@@ -356,6 +359,17 @@ assert.equal(
 );
 assert.equal(result.receipt.final_migration_classifier_status, "SOURCE_READY");
 assert.deepEqual(result.receipt.remaining_migration_gates, []);
+assert.equal(result.receipt.source_binding.git_replacement_objects_disabled, true);
+assert.equal(result.receipt.source_binding.exact_reviewed_git_object_execution_verified, true);
+assert.equal(result.receipt.source_binding.executed_reviewed_files.length, 10);
+for (const row of result.receipt.source_binding.executed_reviewed_files) {
+  assert.equal(
+    row.git_blob_sha1,
+    VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1[row.path],
+    row.path,
+  );
+  assert.match(row.file_sha256, /^[0-9a-f]{64}$/u);
+}
 assert.equal(
   result.final_migration_candidate.public_verification
     .public_balance_receipt_code_verification_ready,
@@ -470,6 +484,49 @@ await assert.rejects(
   }
 }
 
+{
+  const target =
+    VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_SOURCE_BLOBS_V1[
+      "tools/void-economic-epoch2-public-read-runtime-promotion-v1.mjs"
+    ];
+  const malicious = Buffer.from(
+    'throw new Error("GIT_REPLACE_OBJECT_EXECUTED");\n',
+    "utf8",
+  );
+  const hashed = spawnSync(
+    "/usr/bin/git",
+    ["hash-object", "-w", "--stdin"],
+    { cwd: process.cwd(), input: malicious, encoding: "utf8" },
+  );
+  assert.equal(hashed.status, 0, hashed.stderr || hashed.stdout);
+  const replacement = hashed.stdout.trim();
+  assert.match(replacement, /^[0-9a-f]{40}$/u);
+  const ref = "refs/replace/" + target;
+  const installed = spawnSync(
+    "/usr/bin/git",
+    ["update-ref", ref, replacement],
+    { cwd: process.cwd(), encoding: "utf8" },
+  );
+  assert.equal(installed.status, 0, installed.stderr || installed.stdout);
+  try {
+    const replaced = await composeVoidEconomicEpoch2PublicVerificationV1(
+      compositionInput(fresh),
+    );
+    assert.equal(replaced.receipt.composition_id, result.receipt.composition_id);
+    assert.equal(
+      replaced.receipt.source_binding.git_replacement_objects_disabled,
+      true,
+    );
+  } finally {
+    const removed = spawnSync(
+      "/usr/bin/git",
+      ["update-ref", "-d", ref],
+      { cwd: process.cwd(), encoding: "utf8" },
+    );
+    assert.equal(removed.status, 0, removed.stderr || removed.stdout);
+  }
+}
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-epoch2-public-verification-composition-"),
 );
@@ -569,6 +626,9 @@ for (const required of [
   "MAX_MEMBERSHIP_BYTES = 1024 * 1024",
   "merge-base",
   "--is-ancestor",
+  "--no-replace-objects",
+  "GIT_NO_REPLACE_OBJECTS",
+  "materializeReviewedExecutionBundle",
   "HEAD:",
   "canonical_origin_required",
   "dependency_worktree_blob_mismatch",
@@ -584,6 +644,9 @@ console.log(
 console.log("canonical_public_read_promotion_reexecuted=true");
 console.log("canonical_state_root_import_promotion_reexecuted=true");
 console.log("canonical_importer_1mib_membership_ceiling_inherited=true");
+console.log("git_replacement_objects_disabled=true");
+console.log("exact_reviewed_git_object_execution_green=true");
+console.log("git_replace_attack_held_green=true");
 console.log("independent_promotion_scoped_merge_verified=true");
 console.log("final_migration_classifier_status=SOURCE_READY");
 console.log("remaining_migration_gate_count=0");
