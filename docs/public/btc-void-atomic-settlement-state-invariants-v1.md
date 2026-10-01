@@ -107,8 +107,20 @@ module carrying an execution sentinel. Import of the evaluator must HOLD before
 that unreviewed module executes. A second child uses a fake `git` on `PATH`
 plus hostile Git repository/object/config/program environment variables; the
 evaluator must still bind through the reviewed absolute Git executable and the
-fake executable must never run. Pull-request CI checks out the exact PR head
-rather than GitHub's synthetic merge commit.
+fake executable must never run.
+
+Authority-bearing Git itself now runs with a minimal explicit subprocess
+environment rather than inherited `process.env`. Loader variables such as
+`LD_*` / `DYLD_*`, Node/tool overrides, and unrelated ambient process state
+therefore do not cross into the reviewed Git process. Every Git invocation also
+forces local executable/config features off: fsmonitor, hooks, ambient
+attributes, preload index, untracked cache, and submodule recursion.
+
+A third fresh-child adversary installs a repository-local `core.fsmonitor`
+sentinel and injects dynamic-loader debug variables into the parent Node process.
+The reviewed Git reads must still succeed without executing the fsmonitor and
+without producing loader output from Git. Pull-request CI checks out the exact
+PR head rather than GitHub's synthetic merge commit.
 
 Expected marker:
 
