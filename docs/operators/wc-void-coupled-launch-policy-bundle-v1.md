@@ -187,11 +187,19 @@ is not group/other writable.
 
 Private input is descriptor-bound with `O_NOFOLLOW` and stable
 device/inode/size/time checks so a validated pathname is not reopened later.
+The operator must also supply an independently reviewed SHA-256 for the exact
+input bytes; a pathname alone is never launch-policy authority.
 
-The output is create-only, mode `0600`, fsynced, and never overwritten. After
-the file is fsynced, the parent directory is fsynced and the persisted
-device/inode is rechecked, so a green result includes durable directory-entry
-publication rather than only buffered file bytes.
+Canonical Git source binding runs with system/global Git configuration disabled,
+replace refs disabled, hooks disabled, fsmonitor/untracked-cache/preload disabled,
+and a fixed minimal environment.
+
+The output is create-only, mode `0600`, fsynced, and never overwritten. Its
+parent directory is opened once, owner/mode/device/inode bound, fsynced through
+that descriptor after file creation, and revalidated against the pathname before
+success. The persisted output device/inode is also rechecked, so a green result
+includes durable directory-entry publication rather than only buffered file
+bytes.
 
 ## CLI
 
@@ -200,6 +208,7 @@ After the operator has independently reviewed every explicit value:
 ```bash
 node tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs \
   --input /absolute/private/launch-policy-input.json \
+  --expected-input-sha256 <64hex-reviewed-input-sha256> \
   --output /absolute/private/launch-policy-bundle.json
 ```
 
