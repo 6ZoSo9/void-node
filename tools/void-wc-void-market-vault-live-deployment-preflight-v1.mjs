@@ -50,6 +50,14 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
 const CHAIN_ID = 2050n;
 const VOID_TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
+const COUPLED_LAUNCH_ID =
+  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+const COMPILED_IDENTITY_ID =
+  "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a";
+const REVIEWED_RUNTIME_PROFILE_ID =
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 =
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 const OPENING_INVENTORY_ATOMS = 10000000000000000000000000n;
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
@@ -141,6 +149,7 @@ function validateQualification(qualification, sourceIdentity, nowUnix) {
       "QUALIFIED_DEPLOYMENT_PREPARATION_READY_NOT_AUTHORIZED" ||
     qualification.chain_id !== 2050 ||
     qualification.execution_epoch !== 2 ||
+    qualification.coupled_launch_id !== COUPLED_LAUNCH_ID ||
     !QUALIFICATION_ID.test(String(qualification.qualification_id || "")) ||
     qualification.qualification_id !== expectedQualificationId(qualification)
   ) {
@@ -169,6 +178,27 @@ function validateQualification(qualification, sourceIdentity, nowUnix) {
   ) {
     fail("market_vault_live_preflight_launch_controller_invalid");
   }
+  if (
+    qualification.role_separation?.all_addresses_nonzero !== true ||
+    qualification.role_separation?.all_addresses_distinct !== true ||
+    qualification.role_separation?.void_token_distinct_from_all_roles !== true ||
+    qualification.vault_identity?.canonical_void_token !== VOID_TOKEN ||
+    qualification.vault_identity?.accepted_compiled_identity_id !==
+      COMPILED_IDENTITY_ID ||
+    qualification.reviewed_package_runtime?.profile_id !==
+      REVIEWED_RUNTIME_PROFILE_ID ||
+    qualification.reviewed_package_runtime?.packages_aggregate_sha256 !==
+      REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 ||
+    qualification.reviewed_package_runtime?.reviewed_package_bytes_verified !==
+      true ||
+    qualification.reviewed_package_runtime
+      ?.ancestor_package_resolution_preempted !== true ||
+    qualification.reviewed_package_runtime
+      ?.execution_network_isolation_provided !== false
+  ) {
+    fail("market_vault_live_preflight_qualification_binding_invalid");
+  }
+
   const validUntil = unixValue(
     launch.valid_until_unix,
     "market_vault_live_preflight_qualification_expiry_invalid",
@@ -340,6 +370,7 @@ function balanceOfData(address) {
 export async function collectVoidWcVoidMarketVaultLiveDeploymentObservationsV1({
   rpc,
   qualification,
+  qualificationFileSha256,
   sourceIdentity,
   deployerAddress,
   inventorySourceAddress,
@@ -349,6 +380,12 @@ export async function collectVoidWcVoidMarketVaultLiveDeploymentObservationsV1({
     fail("market_vault_live_preflight_rpc_required");
   }
   const now = unixValue(nowUnix, "market_vault_live_preflight_now_invalid");
+  if (
+    typeof qualificationFileSha256 !== "string" ||
+    !HEX64.test(qualificationFileSha256)
+  ) {
+    fail("market_vault_live_preflight_qualification_file_sha256_invalid");
+  }
   const reviewedQualification = validateQualification(
     qualification,
     sourceIdentity,
@@ -473,6 +510,7 @@ export async function collectVoidWcVoidMarketVaultLiveDeploymentObservationsV1({
     }),
     qualification: Object.freeze({
       qualification_id: reviewedQualification.qualificationId,
+      qualification_file_sha256: qualificationFileSha256,
       source_head_sha: qualification.source_binding.source_head_sha,
       source_tree_sha: qualification.source_binding.source_tree_sha,
       launch_controller: reviewedQualification.launchController,
@@ -772,6 +810,7 @@ if (direct) {
       await collectVoidWcVoidMarketVaultLiveDeploymentObservationsV1({
         rpc,
         qualification,
+        qualificationFileSha256: String(values["qualification-sha256"]),
         sourceIdentity,
         deployerAddress: values.deployer,
         inventorySourceAddress: values["inventory-source"],
