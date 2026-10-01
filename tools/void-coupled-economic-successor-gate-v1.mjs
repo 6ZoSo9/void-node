@@ -379,7 +379,8 @@ function exactObject(value, keys, label) {
   return value;
 }
 
-const SOURCE_MODEL_COUPLED_LAUNCH_ID = "sha256:" + "a".repeat(64);
+const SOURCE_MODEL_COUPLED_LAUNCH_ID =
+  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 
 function sourceModelHash(digit) {
   return "sha256:" + String(digit).repeat(64);
