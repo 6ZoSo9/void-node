@@ -374,16 +374,216 @@ function seal(transaction){
   });
 }
 
+function validateStoredReceipt(
+  transaction,
+  bucket,
+  participant,
+  normalizer,
+){
+  const value=transaction[bucket][participant];
+  if(value===null)return null;
+  const normalized=normalizer(transaction,value);
+  if(canonical(normalized)!==canonical(value)){
+    fail(bucket+"_receipt_not_canonical:"+participant);
+  }
+  return normalized;
+}
+
 function validateBaseTransaction(transaction){
-  if(!transaction||transaction.marker!==VOID_CROSSBOX_MUTATION_TRANSACTION_V1){
+  exactObject(
+    transaction,
+    [
+      "marker",
+      "version",
+      "kind",
+      "source",
+      "prestate",
+      "intended",
+      "transaction_id",
+      "phase",
+      "prepared",
+      "published",
+      "verified",
+      "restored",
+      "rollback_reason",
+      "checkpoint_publish_allowed",
+      "authority",
+      "state_id",
+    ],
+    "transaction_shape_invalid",
+  );
+  if(transaction.marker!==VOID_CROSSBOX_MUTATION_TRANSACTION_V1){
     fail("transaction_marker_invalid");
   }
-  if(transaction.version!==1||!TX_ID.test(String(transaction.transaction_id||""))){
+  if(
+    transaction.version!==1||
+    !["site_bundle_peer_env","validator_truth_closeout"].includes(transaction.kind)
+  ){
     fail("transaction_identity_invalid");
   }
   if(!PHASES.has(transaction.phase)||!STATE_ID.test(String(transaction.state_id||""))){
     fail("transaction_state_invalid");
   }
+
+  const source=sourceBinding(transaction.source);
+  const prestate=normalizePrestate(transaction.kind,transaction.prestate,source);
+  const intended=transaction.kind==="site_bundle_peer_env"
+    ?siteIntended(transaction.intended)
+    :validatorIntended(transaction.intended);
+  if(
+    canonical(source)!==canonical(transaction.source)||
+    canonical(prestate)!==canonical(transaction.prestate)||
+    canonical(intended)!==canonical(transaction.intended)
+  ){
+    fail("transaction_intent_not_canonical");
+  }
+  const intentMaterial={
+    marker:VOID_CROSSBOX_MUTATION_TRANSACTION_V1,
+    version:1,
+    kind:transaction.kind,
+    source,
+    prestate,
+    intended,
+  };
+  const expectedTransactionId=
+    "voidxmtx1_"+sha256(Buffer.from(canonical(intentMaterial),"utf8"));
+  if(
+    !TX_ID.test(String(transaction.transaction_id||""))||
+    transaction.transaction_id!==expectedTransactionId
+  ){
+    fail("transaction_id_mismatch");
+  }
+
+  if(
+    canonical(transaction.authority)!==
+      canonical(VOID_CROSSBOX_MUTATION_TRANSACTION_AUTHORITY_V1)
+  ){
+    fail("transaction_authority_mismatch");
+  }
+  if(typeof transaction.checkpoint_publish_allowed!=="boolean"){
+    fail("transaction_checkpoint_flag_invalid");
+  }
+  if(
+    transaction.rollback_reason!==null&&
+    (
+      typeof transaction.rollback_reason!=="string"||
+      !transaction.rollback_reason||
+      transaction.rollback_reason.length>256||
+      /[\r\n\0]/u.test(transaction.rollback_reason)
+    )
+  ){
+    fail("transaction_rollback_reason_invalid");
+  }
+
+  for(const bucket of ["prepared","published","verified","restored"]){
+    exactObject(
+      transaction[bucket],
+      ["local","remote"],
+      "transaction_"+bucket+"_shape",
+    );
+  }
+  const prepared={
+    local:validateStoredReceipt(
+      transaction,"prepared","local",normalizedPrepareReceipt,
+    ),
+    remote:validateStoredReceipt(
+      transaction,"prepared","remote",normalizedPrepareReceipt,
+    ),
+  };
+  const published={
+    local:validateStoredReceipt(
+      transaction,"published","local",normalizedPublishReceipt,
+    ),
+    remote:validateStoredReceipt(
+      transaction,"published","remote",normalizedPublishReceipt,
+    ),
+  };
+  const verified={
+    local:validateStoredReceipt(
+      transaction,"verified","local",normalizedVerifyReceipt,
+    ),
+    remote:validateStoredReceipt(
+      transaction,"verified","remote",normalizedVerifyReceipt,
+    ),
+  };
+  const restored={
+    local:validateStoredReceipt(
+      transaction,"restored","local",normalizedRestoreReceipt,
+    ),
+    remote:validateStoredReceipt(
+      transaction,"restored","remote",normalizedRestoreReceipt,
+    ),
+  };
+
+  for(const participant of ["local","remote"]){
+    if(published[participant]&&!prepared[participant]){
+      fail("transaction_publish_without_prepare:"+participant);
+    }
+    if(verified[participant]&&!published[participant]){
+      fail("transaction_verify_without_publish:"+participant);
+    }
+  }
+
+  const bothPrepared=Boolean(prepared.local&&prepared.remote);
+  const bothPublished=Boolean(published.local&&published.remote);
+  const bothVerified=Boolean(verified.local&&verified.remote);
+  const bothRestored=Boolean(restored.local&&restored.remote);
+  const anyPublished=Boolean(published.local||published.remote);
+  const anyVerified=Boolean(verified.local||verified.remote);
+  const anyRestored=Boolean(restored.local||restored.remote);
+
+  switch(transaction.phase){
+    case "PREPARING":
+      if(
+        bothPrepared||anyPublished||anyVerified||anyRestored||
+        transaction.rollback_reason!==null||
+        transaction.checkpoint_publish_allowed!==false
+      )fail("transaction_preparing_state_invalid");
+      break;
+    case "PREPARED":
+      if(
+        !bothPrepared||anyPublished||anyVerified||anyRestored||
+        transaction.rollback_reason!==null||
+        transaction.checkpoint_publish_allowed!==false
+      )fail("transaction_prepared_state_invalid");
+      break;
+    case "COMMITTING":
+      if(
+        !bothPrepared||anyRestored||
+        transaction.rollback_reason!==null||
+        transaction.checkpoint_publish_allowed!==false
+      )fail("transaction_committing_state_invalid");
+      break;
+    case "COMMITTED":
+      if(
+        !bothPrepared||!bothPublished||!bothVerified||anyRestored||
+        transaction.rollback_reason!==null||
+        transaction.checkpoint_publish_allowed!==
+          (transaction.kind==="validator_truth_closeout")
+      )fail("transaction_committed_state_invalid");
+      break;
+    case "ROLLING_BACK":
+      if(
+        transaction.rollback_reason===null||
+        transaction.checkpoint_publish_allowed!==false
+      )fail("transaction_rolling_back_state_invalid");
+      break;
+    case "RESTORED":
+      if(
+        transaction.rollback_reason===null||!bothRestored||
+        transaction.checkpoint_publish_allowed!==false
+      )fail("transaction_restored_state_invalid");
+      break;
+    case "HOLD":
+      if(
+        transaction.rollback_reason===null||
+        transaction.checkpoint_publish_allowed!==false
+      )fail("transaction_hold_state_invalid");
+      break;
+    default:
+      fail("transaction_phase_invalid");
+  }
+
   const expected="voidxms1_"+sha256(
     Buffer.from(canonical(stateMaterial(transaction)),"utf8"),
   );
