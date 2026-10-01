@@ -884,16 +884,34 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
       }
     }
 
-    const runnerDir = path.join(executionRoot, ".runtime");
+    const runnerDir = path.join(parent, "runner");
     fs.mkdirSync(runnerDir, { mode: 0o700 });
     const runnerFile = path.join(
       runnerDir,
       "participant-canonical-reviewed-runner-v1.mjs",
     );
+    const promotionUrl = pathToFileURL(
+      path.join(
+        executionRoot,
+        "tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs",
+      ),
+    ).href;
+    const runtimeBindingUrl = pathToFileURL(
+      path.join(
+        executionRoot,
+        "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs",
+      ),
+    ).href;
+    const classifierUrl = pathToFileURL(
+      path.join(
+        executionRoot,
+        "tools/void-coupled-economic-successor-gate-v1.mjs",
+      ),
+    ).href;
     const runnerSource = [
-      'import { buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1, VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1 } from "../tools/void-participant-postpurchase-coupled-candidate-promotion-v1.mjs";',
-      'import { buildVoidParticipantPostpurchaseProductionRuntimeBindingV1 } from "../tools/void-participant-postpurchase-production-runtime-binding-v1.mjs";',
-      'import { classifyVoidCoupledEconomicSuccessorGateV1 } from "../tools/void-coupled-economic-successor-gate-v1.mjs";',
+      'import { buildVoidParticipantPostpurchaseCoupledCandidatePromotionV1, VOID_PARTICIPANT_POSTPURCHASE_COUPLED_CANDIDATE_PROMOTION_AUTHORITY_V1 } from '+JSON.stringify(promotionUrl)+';',
+      'import { buildVoidParticipantPostpurchaseProductionRuntimeBindingV1 } from '+JSON.stringify(runtimeBindingUrl)+';',
+      'import { classifyVoidCoupledEconomicSuccessorGateV1 } from '+JSON.stringify(classifierUrl)+';',
       'process.stdin.setEncoding("utf8");',
       'let requestText="";',
       'for await (const chunk of process.stdin) requestText+=chunk;',
@@ -918,6 +936,7 @@ function buildReviewedExecutionRoot(repo, reviewedExecution) {
       head: repo.head,
       bundle_id: reviewedExecution.reviewed_execution_bundle_id,
       parent,
+      allowed_fs_read_root: parent,
       execution_root: executionRoot,
       runner_file: runnerFile,
       bootstrap_file: bootstrapFile,
@@ -970,7 +989,7 @@ function runReviewedAuthority(repo, reviewedExecution, request) {
     node,
     [
       "--permission",
-      "--allow-fs-read=" + bundle.execution_root,
+      "--allow-fs-read=" + bundle.allowed_fs_read_root,
       "--allow-child-process",
       bundle.runner_file,
     ],
