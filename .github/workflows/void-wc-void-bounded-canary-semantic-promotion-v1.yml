@@ -78,7 +78,7 @@ jobs:
       - name: Upstream semantic regressions
         run: |
           node scripts/prove_void_wc_void_bounded_canary_evidence_v1.mjs
-          node scripts/prove_void_wc_void_market-vault-at-use-revalidation-v1.mjs
+          node scripts/prove_void_wc_void_market_vault_at_use_revalidation_v1.mjs
           node scripts/prove_void_wc_void_ledger_persistence_import_v1.mjs
           node scripts/prove_void_wc_void_opening_claim_binding_v1.mjs
           node scripts/prove_void_wc_void_opening_replay_protection_v1.mjs
