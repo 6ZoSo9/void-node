@@ -15,6 +15,9 @@ export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_AUTHORITY_V
     canonical_git_source_binding_required: true,
     actual_worktree_blob_binding_required: true,
     launch_controller_control_reverification: true,
+    reviewed_control_execution_from_exact_git_objects: true,
+    private_reviewed_source_materialization: true,
+    git_replacement_objects_disabled: true,
     settlement_executor_public_identity_rederivation: true,
     closeout_controller_public_identity_rederivation: true,
     role_separation_verification: true,
@@ -129,6 +132,9 @@ const GIT_OVERRIDE_NAMES = Object.freeze([
   "GIT_REPLACE_REF_BASE",
   "GIT_CONFIG",
   "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_REPLACE_REF_BASE",
 ]);
 
 function fail(reason) {
@@ -215,16 +221,27 @@ function rejectAmbientGitOverrides() {
 }
 
 function sanitizedGitEnv() {
-  const env = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+  const env = { ...process.env };
   for (const key of GIT_OVERRIDE_NAMES) delete env[key];
   for (const key of Object.keys(env)) {
     if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
   }
-  return env;
+  return {
+    ...env,
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+  };
 }
 
 function git(args, { allowFail = false } = {}) {
-  const result = spawnSync(GIT, ["-C", ROOT, ...args], {
+  const result = spawnSync(GIT, ["--no-replace-objects", "-C", ROOT, ...args], {
     env: sanitizedGitEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
@@ -239,6 +256,169 @@ function gitText(args, code, { allowEmpty = false } = {}) {
   const text = String(git(args).stdout || "").trim();
   if (!allowEmpty && !text) fail(code);
   return text;
+}
+
+function checkedSpawn(command,args,{env=sanitizedGitEnv(),cwd="/",code}={}) {
+  const result=spawnSync(command,args,{
+    cwd,
+    env,
+    encoding:"utf8",
+    stdio:["ignore","pipe","pipe"],
+    maxBuffer:64*1024*1024,
+  });
+  if(result.error||result.status!==0)fail(code||"reviewed_materialization_command_failed");
+  return result;
+}
+
+function repositoryGitDir() {
+  const raw=gitText(["rev-parse","--git-dir"],"repository_git_dir_unavailable");
+  const resolved=path.isAbsolute(raw)?raw:path.resolve(ROOT,raw);
+  const stat=fs.lstatSync(resolved);
+  if(!stat.isDirectory()||stat.isSymbolicLink())fail("repository_git_dir_invalid");
+  return fs.realpathSync.native(resolved);
+}
+
+function materializedBlob(treeRoot,relativePath,expectedBlob) {
+  const file=path.resolve(treeRoot,relativePath);
+  const relative=path.relative(treeRoot,file);
+  if(
+    relative===""||
+    relative===".."||
+    relative.startsWith(".."+path.sep)||
+    path.isAbsolute(relative)
+  )fail("reviewed_materialized_path_escape:"+relativePath);
+  const stat=fs.lstatSync(file);
+  if(stat.isSymbolicLink()||!stat.isFile())fail("reviewed_materialized_file_invalid:"+relativePath);
+  const bytes=fs.readFileSync(file);
+  if(gitBlobSha1(bytes)!==expectedBlob){
+    fail("reviewed_materialized_blob_mismatch:"+relativePath);
+  }
+  return bytes;
+}
+
+function reviewedControlEnv(treeRoot,gitDir) {
+  return {
+    PATH:"/usr/bin:/bin",
+    HOME:"/nonexistent",
+    XDG_CONFIG_HOME:"/nonexistent",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_ASKPASS:"/bin/false",
+    GIT_DIR:gitDir,
+    GIT_WORK_TREE:treeRoot,
+  };
+}
+
+function restoreEnvironment(saved,keys) {
+  for(const key of keys){
+    if(saved[key]===undefined)delete process.env[key];
+    else process.env[key]=saved[key];
+  }
+}
+
+async function withReviewedControlReverifier(source,fn) {
+  const gitDir=repositoryGitDir();
+  const tempRoot=fs.mkdtempSync(
+    path.join(gitDir,"void-vault-role-reviewed-control-"),
+  );
+  fs.chmodSync(tempRoot,0o700);
+  const treeRoot=path.join(tempRoot,"tree");
+  const archive=path.join(tempRoot,"source.tar");
+  fs.mkdirSync(treeRoot,{mode:0o700});
+  try{
+    checkedSpawn(
+      GIT,
+      [
+        "--no-replace-objects",
+        "-C",ROOT,
+        "archive",
+        "--format=tar",
+        "--output="+archive,
+        source.source_head_sha,
+      ],
+      {code:"reviewed_control_git_archive_failed"},
+    );
+    checkedSpawn(
+      "/usr/bin/tar",
+      ["-xf",archive,"-C",treeRoot],
+      {code:"reviewed_control_git_archive_extract_failed"},
+    );
+    fs.unlinkSync(archive);
+
+    for(const [relativePath,expectedBlob] of Object.entries(
+      source.dependency_git_blobs,
+    )){
+      materializedBlob(treeRoot,relativePath,expectedBlob);
+    }
+    const controlExpected=
+      VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1[
+        CONTROL_REL
+      ];
+    materializedBlob(treeRoot,CONTROL_REL,controlExpected);
+
+    checkedSpawn(
+      "/usr/bin/chmod",
+      ["-R","a-w",treeRoot],
+      {code:"reviewed_control_readonly_lock_failed"},
+    );
+
+    const env=reviewedControlEnv(treeRoot,gitDir);
+    const keys=Object.keys(env);
+    const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+    Object.assign(process.env,env);
+    try{
+      const status=spawnSync(
+        GIT,
+        ["--no-replace-objects","-C",treeRoot,"status","--porcelain=v1","--untracked-files=all"],
+        {
+          env,
+          encoding:"utf8",
+          stdio:["ignore","pipe","pipe"],
+          maxBuffer:4*1024*1024,
+        },
+      );
+      if(
+        status.error||
+        status.status!==0||
+        String(status.stdout||"").trim()!==""
+      )fail("reviewed_control_materialized_repository_not_clean");
+
+      const controlModule=await import(
+        pathToFileURL(path.join(treeRoot,CONTROL_REL)).href+
+          "?reviewed_blob="+controlExpected+
+          "&head="+source.source_head_sha
+      );
+      if(
+        typeof controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1!==
+          "function"
+      )fail("launch_controller_reverification_export_invalid");
+      return await fn(
+        controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
+      );
+    }finally{
+      restoreEnvironment(saved,keys);
+    }
+  }finally{
+    if(fs.existsSync(treeRoot)){
+      spawnSync("/usr/bin/chmod",["-R","u+w",treeRoot],{
+        env:{PATH:"/usr/bin:/bin"},
+        stdio:"ignore",
+      });
+    }
+    fs.rmSync(tempRoot,{recursive:true,force:true});
+  }
+}
+
+async function testOnlyYieldAfterSourceBinding() {
+  if(
+    process.env.VOID_TEST_VAULT_ROLE_QUALIFICATION_YIELD_AFTER_SOURCE_BINDING===
+      "1"
+  ){
+    await new Promise(resolve=>setTimeout(resolve,120));
+  }
 }
 
 function canonicalRemote(value) {
@@ -557,33 +737,16 @@ export async function qualifyVoidWcVoidMarketVaultRoleDeploymentV1(input) {
 
   const source = sourceBindingV1();
   const current = deriveCurrentRoleAndVaultSources(source);
+  await testOnlyYieldAfterSourceBinding();
 
-  const controlModule = await import(
-    pathToFileURL(path.join(ROOT, CONTROL_REL)).href +
-      "?blob=" +
-      VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1[
-        CONTROL_REL
-      ]
-  );
-  if (
-    typeof controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1 !==
-      "function"
-  ) {
-    fail("launch_controller_reverification_export_invalid");
-  }
-  const originalPath = process.env.PATH;
-  let control;
-  try {
-    process.env.PATH = "/usr/bin:/bin";
-    control =
-      await controlModule.reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+  const control=await withReviewedControlReverifier(
+    source,
+    async reverify=>
+      await reverify({
         evidence,
-        nowUnix: evaluation,
-      });
-  } finally {
-    if (originalPath === undefined) delete process.env.PATH;
-    else process.env.PATH = originalPath;
-  }
+        nowUnix:evaluation,
+      }),
+  );
   if (
     control?.status !== "CANDIDATE_CONTROL_VERIFIED_ROLE_NOT_AUTHORIZED" ||
     control?.evidence_reverified !== true ||
