@@ -611,6 +611,7 @@ export function compileVoidWcVoidCoupledLaunchPolicyBundleV1(raw) {
   }
 
   const body = Object.freeze({
+    marker: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
     schema: VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_SCHEMA_V1,
     version: 1,
     coupled_launch_id: launchId,
