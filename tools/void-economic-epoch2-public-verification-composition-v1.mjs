@@ -474,7 +474,7 @@ export async function composeVoidEconomicEpoch2PublicVerificationV1(input) {
     publicRead?.promotion?.authority?.source_promotion_only !== true ||
     publicRead?.promotion?.authority?.migration_authorized !== false ||
     publicRead?.promotion?.authority?.public_activation_authorized !== false ||
-    publicRead?.promotion?.authority?.funds_movement_authorized !== false
+    publicRead?.promotion?.authority?.funds_movement !== false
   ) {
     fail("public_read_promotion_invalid");
   }
