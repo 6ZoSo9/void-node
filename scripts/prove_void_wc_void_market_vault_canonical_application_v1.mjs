@@ -88,6 +88,12 @@ function canonical(value){
   throw new Error("invalid canonical value");
 }
 function hex(value){return "0x"+BigInt(value).toString(16);}
+function applicationPlanId(value){
+  const copy=structuredClone(value);
+  delete copy.application_plan_id;
+  return "voidwcmvcap1_"+
+    sha256(Buffer.from(canonical(copy),"utf8"));
+}
 
 const acceptance=JSON.parse(fs.readFileSync(
   "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
@@ -377,6 +383,21 @@ assert.equal(
   "MARKET_VAULT_CANONICAL_APPLICATION_STATE_VERIFIED_FINAL_ACTIVATION_HOLD",
 );
 assert.equal(state.coupled_activation_ready,false);
+
+{
+  const forged=structuredClone(plan);
+  forged.reviewed_source_blobs[
+    "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs"
+  ]="0".repeat(40);
+  forged.application_plan_id=applicationPlanId(forged);
+  await assert.rejects(
+    ()=>verifyVoidWcVoidMarketVaultCanonicalApplicationStateV1({
+      plan:forged,
+      productionCandidate:plan.production_target_candidate,
+    }),
+    /MARKET_VAULT_CANONICAL_REVIEWED_SOURCE_MANIFEST_MISMATCH/u,
+  );
+}
 
 for(const [key,value] of Object.entries(
   VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_AUTHORITY_V1,
