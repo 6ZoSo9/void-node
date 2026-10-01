@@ -16,13 +16,18 @@ That made a normal Make/operator invocation target a machine that no longer exis
 ## Contract
 
 All three wrappers now require the operator to provide `ALIEN` explicitly as the
-SSH target.
+SSH target. The value must be a simple SSH alias/hostname or `user@host`; values
+with whitespace, leading option syntax, or shell-fragment characters fail closed
+before `ssh` is invoked.
 
 The two wrappers that also read public product surfaces require
-`REMOTE_NODE_BASE` explicitly as an HTTP(S) origin. They do not infer that origin
-from an SSH alias because SSH aliases are not guaranteed to be HTTP-resolvable.
+`REMOTE_NODE_BASE` explicitly as a credential-free HTTP(S) origin. The origin
+may not contain a path, query, fragment, username, or password. They do not infer
+that origin from an SSH alias because SSH aliases are not guaranteed to be
+HTTP-resolvable.
 
-The retired Alienware IP and Funnel hostname are rejected even if supplied manually; hostname matching is case-insensitive.
+The retired Alienware IP and Funnel hostname are rejected even if supplied manually;
+hostname matching is case-insensitive.
 
 The underlying `jobs-submit-e2e-proof.sh` is intended to run on the remote machine
 after SSH and is separately bound to that machine's loopback node and local evidence.
