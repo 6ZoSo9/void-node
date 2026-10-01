@@ -1,0 +1,66 @@
+name: VOID WC/VOID bounded-canary candidate promotion v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml"
+      - "docs/operators/wc-void-bounded-canary-candidate-promotion-v1.md"
+      - "scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs"
+      - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-wc-void-bounded-canary-candidate-promotion-v1.yml"
+      - "docs/operators/wc-void-bounded-canary-candidate-promotion-v1.md"
+      - "scripts/prove_void_wc_void_bounded-canary_candidate_promotion_v1.mjs"
+      - "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs"
+      - "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax
+        run: |
+          node --check tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs
+          node --check scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
+      - name: Prove bounded-canary candidate promotion
+        run: node scripts/prove_void_wc_void_bounded_canary_candidate_promotion_v1.mjs
+      - name: Upstream classifier regressions
+        run: |
+          node scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs
+          node scripts/prove_void_wc_void_production_readiness_v1.mjs
+          node scripts/prove_void_coupled_economic_successor_gate_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
