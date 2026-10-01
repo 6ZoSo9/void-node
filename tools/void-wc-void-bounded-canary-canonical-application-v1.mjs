@@ -281,9 +281,15 @@ function headBlob(pathname, code) {
   return value;
 }
 
-function headFile(pathname, label) {
+function commitBlob(commit, pathname, code) {
+  const value = gitText(["rev-parse", commit + ":" + pathname], code);
+  if (!HEX40.test(value)) fail(code);
+  return value;
+}
+
+function commitFile(commit, pathname, label) {
   const bytes = gitBytes(
-    ["show", "HEAD:" + pathname],
+    ["show", commit + ":" + pathname],
     "CANONICAL_APPLICATION_" + label + "_BYTES_UNAVAILABLE",
   );
   if (bytes.length < 2 || bytes.length > MAX_BYTES) {
@@ -302,11 +308,16 @@ function headFile(pathname, label) {
     bytes,
     value,
     sha256: sha256(bytes),
-    blob_sha1: headBlob(
+    blob_sha1: commitBlob(
+      commit,
       pathname,
       "CANONICAL_APPLICATION_" + label + "_BLOB_UNAVAILABLE",
     ),
   });
+}
+
+function headFile(pathname, label) {
+  return commitFile("HEAD", pathname, label);
 }
 
 function parseJsonBytes(bytes, expectedSha, label) {
@@ -431,6 +442,121 @@ function validatePlan(plan) {
     VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1,
     "CANONICAL_APPLICATION_PLAN_AUTHORITY",
   );
+
+  if (
+    plan.reviewed_promotion_repository_head_sha !==
+      plan.application_base_head_sha ||
+    plan.reviewed_promotion_repository_tree_sha !==
+      plan.application_base_tree_sha
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_REVIEWED_BASE_MISMATCH");
+  }
+  const baseTree = gitText(
+    ["rev-parse", plan.application_base_head_sha + "^{tree}"],
+    "CANONICAL_APPLICATION_PLAN_BASE_TREE_UNAVAILABLE",
+  );
+  if (baseTree !== plan.application_base_tree_sha) {
+    fail("CANONICAL_APPLICATION_PLAN_BASE_TREE_MISMATCH");
+  }
+  if (
+    commitBlob(
+      plan.application_base_head_sha,
+      PROMOTION_TOOL_REL,
+      "CANONICAL_APPLICATION_PLAN_PROMOTION_TOOL_BLOB_UNAVAILABLE",
+    ) !== plan.candidate_promotion_tool_git_blob_sha1 ||
+    commitBlob(
+      plan.application_base_head_sha,
+      TOOL_REL,
+      "CANONICAL_APPLICATION_PLAN_TOOL_BLOB_UNAVAILABLE",
+    ) !== plan.canonical_application_tool_git_blob_sha1
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_TOOL_LINEAGE_MISMATCH");
+  }
+
+  const baseProduction = commitFile(
+    plan.application_base_head_sha,
+    PRODUCTION_REL,
+    "PLAN_BASE_PRODUCTION",
+  );
+  const baseCoupled = commitFile(
+    plan.application_base_head_sha,
+    COUPLED_REL,
+    "PLAN_BASE_COUPLED",
+  );
+  const baseSuccessor = commitFile(
+    plan.application_base_head_sha,
+    SUCCESSOR_REL,
+    "PLAN_BASE_SUCCESSOR",
+  );
+  if (
+    baseProduction.blob_sha1 !== plan.production_source_git_blob_sha1 ||
+    baseProduction.sha256 !== plan.production_source_file_sha256 ||
+    baseCoupled.blob_sha1 !== plan.coupled_source_git_blob_sha1 ||
+    baseCoupled.sha256 !== plan.coupled_source_file_sha256 ||
+    baseSuccessor.blob_sha1 !== plan.successor_git_blob_sha1 ||
+    baseSuccessor.sha256 !== plan.successor_file_sha256
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_BASE_SOURCE_MISMATCH");
+  }
+
+  const targetProductionBytes = prettyBytes(plan.production_target_candidate);
+  const targetCoupledBytes = prettyBytes(plan.coupled_target_candidate);
+  if (
+    sha256(targetProductionBytes) !== plan.production_target_file_sha256 ||
+    gitBlobSha1(targetProductionBytes) !== plan.production_target_git_blob_sha1 ||
+    sha256(targetCoupledBytes) !== plan.coupled_target_file_sha256 ||
+    gitBlobSha1(targetCoupledBytes) !== plan.coupled_target_git_blob_sha1
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_TARGET_IDENTITY_MISMATCH");
+  }
+  exactCandidateDelta(
+    baseProduction.value,
+    plan.production_target_candidate,
+    "production",
+  );
+  exactCandidateDelta(
+    baseCoupled.value,
+    plan.coupled_target_candidate,
+    "coupled",
+  );
+
+  const productionBefore =
+    classifyVoidWcVoidProductionReadinessV1(baseProduction.value);
+  const productionAfter =
+    classifyVoidWcVoidProductionReadinessV1(plan.production_target_candidate);
+  const coupledBefore =
+    classifyVoidCoupledEconomicSuccessorGateV1(
+      baseCoupled.value,
+      baseSuccessor.value,
+    );
+  const coupledAfter =
+    classifyVoidCoupledEconomicSuccessorGateV1(
+      plan.coupled_target_candidate,
+      baseSuccessor.value,
+    );
+  if (
+    canonicalJson(summarize(productionBefore)) !==
+      canonicalJson(plan.production_before) ||
+    canonicalJson(summarize(productionAfter)) !==
+      canonicalJson(plan.production_after) ||
+    canonicalJson(summarize(coupledBefore)) !==
+      canonicalJson(plan.coupled_before) ||
+    canonicalJson(summarize(coupledAfter)) !==
+      canonicalJson(plan.coupled_after) ||
+    !productionBefore.missing_gates.includes("bounded_canary_required") ||
+    !coupledBefore.missing_gates.includes("bounded_canary_required") ||
+    !sameStrings(
+      productionAfter.missing_gates,
+      minusOne(productionBefore.missing_gates, "bounded_canary_required"),
+    ) ||
+    !sameStrings(
+      coupledAfter.missing_gates,
+      minusOne(coupledBefore.missing_gates, "bounded_canary_required"),
+    )
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_CLASSIFIER_LINEAGE_MISMATCH");
+  }
+
   const digest = sha256(Buffer.from(canonicalJson(planWithoutId(plan)), "utf8"));
   if (plan.application_plan_id !== "voidwcbcap1_" + digest) {
     fail("CANONICAL_APPLICATION_PLAN_ID_MISMATCH");
