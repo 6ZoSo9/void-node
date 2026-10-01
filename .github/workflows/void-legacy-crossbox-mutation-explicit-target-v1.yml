@@ -1,0 +1,115 @@
+name: VOID legacy crossbox mutation explicit target v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-legacy-crossbox-mutation-explicit-target-v1.yml"
+      - "docs/operators/void-legacy-crossbox-mutation-explicit-target-v1.md"
+      - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
+      - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+      - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
+      - "ops/mainnet/validator-crossbox-closeout.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-legacy-crossbox-mutation-explicit-target-v1.yml"
+      - "docs/operators/void-legacy-crossbox-mutation-explicit-target-v1.md"
+      - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+      - "ops/mainnet/validator-crossbox-closeout.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Shell syntax
+        run: |
+          bash -n ops/security/void-site-bundle-peer-env-persistence-proof.sh
+          bash -n ops/security/void-public-site-bundle-auto-materialize-proof.sh
+          bash -n ops/security/void-public-site-bundle-peer-readiness-proof.sh
+          bash -n ops/mainnet/validator-crossbox-closeout.sh
+
+      - name: Prove fail-closed pre-mutation gates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          hold() {
+            local expected="$1"
+            shift
+            set +e
+            output="$("$@" 2>&1)"
+            rc=$?
+            set -e
+            test "$rc" -eq 2
+            grep -F "$expected" <<<"$output" >/dev/null
+          }
+
+          site="ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+          auto="ops/security/void-public-site-bundle-auto-materialize-proof.sh"
+          peer="ops/security/void-public-site-bundle-peer-readiness-proof.sh"
+          validator="ops/mainnet/validator-crossbox-closeout.sh"
+
+          hold "missing explicit ALIEN remote SSH target" bash "$site"
+
+          hold "retired Alienware target is forbidden"             env ALIEN=zoso@100.122.79.39               LOCAL_PEER=http://100.122.79.39:4100               REMOTE_PEER=http://203.0.113.11:4100               CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1               bash "$site"
+
+          hold "confirmation token required"             env ALIEN=operator@203.0.113.10               LOCAL_PEER=http://203.0.113.10:4100               REMOTE_PEER=http://203.0.113.11:4100               bash "$site"
+
+          hold "missing explicit ALIEN remote SSH target" bash "$auto"
+          hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$auto"
+
+          hold "missing explicit ALIEN remote SSH target" bash "$peer"
+          hold "retired Alienware target is forbidden" env ALIEN=zoso@100.122.79.39 bash "$peer"
+
+          hold "missing explicit CROSSBOX_SSH_TARGET"             bash "$validator" 2 vault-test
+
+          hold "retired Alienware target is forbidden"             env CROSSBOX_SSH_TARGET=zoso@100.122.79.39               CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT=publishValidatorCrossboxCloseoutV1               bash "$validator" 2 vault-test
+
+          hold "confirmation token required"             env CROSSBOX_SSH_TARGET=operator@203.0.113.10               bash "$validator" 2 vault-test
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          site=Path("ops/security/void-site-bundle-peer-env-persistence-proof.sh").read_text()
+          auto=Path("ops/security/void-public-site-bundle-auto-materialize-proof.sh").read_text()
+          peer=Path("ops/security/void-public-site-bundle-peer-readiness-proof.sh").read_text()
+          validator=Path("ops/mainnet/validator-crossbox-closeout.sh").read_text()
+
+          assert '${ALIEN:-zoso@100.122.79.39}' not in site
+          assert '${LOCAL_PEER:-http://100.122.79.39:4100}' not in site
+          assert 'applyVoidSiteBundlePeerEnvPersistenceV1' in site
+          assert site.index('confirmation token required') < site.index('mkdir -p "$(dirname "$LOCAL_DROPIN")"')
+          assert 'ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof' in site
+          assert 'ALIEN="$ALIEN" make void-public-site-bundle-peer-readiness-proof' in site
+
+          for child in (auto, peer):
+              assert '${ALIEN:-zoso@100.122.79.39}' not in child
+              assert 'missing explicit ALIEN remote SSH target' in child
+              assert 'retired Alienware target is forbidden' in child
+              assert child.index('missing explicit ALIEN remote SSH target') < child.index('mkdir -p "$OUT"')
+
+          assert '${ALIEN:-zoso@100.122.79.39}' not in validator
+          assert 'publishValidatorCrossboxCloseoutV1' in validator
+          assert validator.index('confirmation token required') < validator.index('mkdir -p "$LIVE_STAGE"')
+          assert 'ssh "$ALIEN"' not in validator
+          assert 'ssh "$CROSSBOX_SSH_TARGET"' in validator
+
+          print("VOID_LEGACY_CROSSBOX_MUTATION_EXPLICIT_TARGET_V1_GREEN")
+          print("runtime_mutation_performed=false")
+          print("ssh_performed=false")
+          print("git_tag_or_push_performed=false")
+          PY
+
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
