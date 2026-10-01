@@ -615,58 +615,36 @@ const direct =
 if (direct) {
   try {
     const args = process.argv.slice(2);
-    if (args.length !== 2 || args[0] !== "--snapshot") {
-      fail("usage: --snapshot /absolute/preflight-snapshot.json");
+    if (args.length !== 2) {
+      fail(
+        "usage: --gate-sources /absolute/gate-sources.json | " +
+          "--snapshot /absolute/preflight-snapshot.json",
+      );
     }
-    const snapshotPath = args[1];
-    if (
-      !path.isAbsolute(snapshotPath) ||
-      path.resolve(snapshotPath) !== snapshotPath
-    ) {
-      fail("snapshot_path_invalid");
-    }
-    const snapshot = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
-    const repoRoot = snapshot?.host?.repo_root;
-    if (typeof repoRoot !== "string" || !path.isAbsolute(repoRoot)) {
-      fail("snapshot_repo_root_invalid");
-    }
-    const contract = await loadActivationContract(repoRoot);
-    const result =
-      await evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
-        snapshot,
-        contract,
-      );
-    console.log(VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1);
-    console.log("status=" + result.status);
-    console.log("activation_ready=" + String(result.activation_ready));
-    console.log("activation_authorized=false");
-    console.log(
-      "unreviewed_gate_source_count=" +
-        String(result.unreviewed_gate_sources.length),
-    );
-    if (result.activation_ready === true) {
+
+    if (args[0] === "--gate-sources") {
+      const inputPath = args[1];
+      if (
+        !path.isAbsolute(inputPath) ||
+        path.resolve(inputPath) !== inputPath
+      ) {
+        fail("gate_sources_path_invalid");
+      }
+      const entries = JSON.parse(fs.readFileSync(inputPath, "utf8"));
+      const inventory = evaluateGateSourceInventoryV1(entries);
       console.log(
-        "live_configuration_generation_id=" +
-          result.live_configuration_generation_id,
+        VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1,
+      );
+      console.log("phase=gate_source_inventory");
+      console.log(
+        "reviewed_gate_source_count=" +
+          String(inventory.reviewed.length),
       );
       console.log(
-        "live_configuration_sha256=" +
-          result.live_configuration_sha256,
+        "unreviewed_gate_source_count=" +
+          String(inventory.unreviewed.length),
       );
-      console.log("live_dropin_sha256=" + result.live_dropin_sha256);
-      console.log(
-        "dormant_configuration_generation_id=" +
-          result.dormant_configuration_generation_id,
-      );
-      console.log(
-        "dormant_configuration_sha256=" +
-          result.dormant_configuration_sha256,
-      );
-      console.log(
-        "dormant_dropin_sha256=" + result.dormant_dropin_sha256,
-      );
-    } else {
-      for (const source of result.unreviewed_gate_sources) {
+      for (const source of inventory.unreviewed) {
         console.log(
           "unreviewed_gate_source=" +
             source.path +
@@ -684,14 +662,82 @@ if (direct) {
           );
         }
       }
+      console.log("credential_read_performed=false");
+      console.log("database_connection_performed=false");
+      console.log("runtime_gate_mutation_performed=false");
+      console.log("service_mutation_performed=false");
+      if (inventory.unreviewed.length !== 0) {
+        console.log("status=HOLD_UNRECONCILED_GATE_ASSIGNMENT_SOURCES");
+        process.exitCode = 2;
+      } else {
+        console.log("status=GATE_SOURCE_INVENTORY_GREEN");
+        console.log(
+          "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_GATE_SOURCE_INVENTORY_V1_GREEN",
+        );
+      }
+    } else if (args[0] === "--snapshot") {
+      const snapshotPath = args[1];
+      if (
+        !path.isAbsolute(snapshotPath) ||
+        path.resolve(snapshotPath) !== snapshotPath
+      ) {
+        fail("snapshot_path_invalid");
+      }
+      const snapshot = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+      const repoRoot = snapshot?.host?.repo_root;
+      if (typeof repoRoot !== "string" || !path.isAbsolute(repoRoot)) {
+        fail("snapshot_repo_root_invalid");
+      }
+      const contract = await loadActivationContract(repoRoot);
+      const result =
+        await evaluateVoidBuyVoidPrecisionAtomicActivationPreflightV1(
+          snapshot,
+          contract,
+        );
+      console.log(
+        VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1,
+      );
+      console.log("phase=full_preflight");
+      console.log("status=" + result.status);
+      console.log("activation_ready=" + String(result.activation_ready));
+      console.log("activation_authorized=false");
+      console.log(
+        "unreviewed_gate_source_count=" +
+          String(result.unreviewed_gate_sources.length),
+      );
+      if (result.activation_ready === true) {
+        console.log(
+          "live_configuration_generation_id=" +
+            result.live_configuration_generation_id,
+        );
+        console.log(
+          "live_configuration_sha256=" +
+            result.live_configuration_sha256,
+        );
+        console.log("live_dropin_sha256=" + result.live_dropin_sha256);
+        console.log(
+          "dormant_configuration_generation_id=" +
+            result.dormant_configuration_generation_id,
+        );
+        console.log(
+          "dormant_configuration_sha256=" +
+            result.dormant_configuration_sha256,
+        );
+        console.log(
+          "dormant_dropin_sha256=" + result.dormant_dropin_sha256,
+        );
+      }
+      console.log("runtime_gate_mutation_performed=false");
+      console.log("service_mutation_performed=false");
+      console.log("transaction_broadcast_performed=false");
+      console.log("funds_movement_performed=false");
+      console.log(
+        "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1_DONE",
+      );
+      if (result.activation_ready !== true) process.exitCode = 2;
+    } else {
+      fail("unknown_mode");
     }
-    console.log("runtime_gate_mutation_performed=false");
-    console.log("service_mutation_performed=false");
-    console.log("transaction_broadcast_performed=false");
-    console.log("funds_movement_performed=false");
-    console.log(
-      "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1_DONE",
-    );
   } catch (error) {
     console.error(
       "VOID_BUY_VOID_PRECISION_ATOMIC_ACTIVATION_PREFLIGHT_V1_HOLD",
