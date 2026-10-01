@@ -6,7 +6,7 @@ ROOT="${VOID_NODE_ROOT:-$HOME/dev/void-node}"
 SERVICE_DIR="$HOME/.config/systemd/user"
 SERVICE="$SERVICE_DIR/void-vps-public-seed-adapter.service"
 
-VOID_SEED_UPSTREAM="${VOID_SEED_UPSTREAM:-http://100.122.79.39:4100}"
+: "${VOID_SEED_UPSTREAM:?missing VOID_SEED_UPSTREAM (reviewed internal VOID HTTP origin)}"
 VOID_EARN_COORDINATOR_UPSTREAM="${VOID_EARN_COORDINATOR_UPSTREAM:-}"
 VOID_ADAPTER_HOST="${VOID_ADAPTER_HOST:-0.0.0.0}"
 VOID_ADAPTER_PORT="${VOID_ADAPTER_PORT:-8080}"
@@ -42,6 +42,14 @@ VOID_SEED_UPSTREAM="$(validate_http_origin "$VOID_SEED_UPSTREAM" 0)"
 VOID_EARN_COORDINATOR_UPSTREAM="$(
   validate_http_origin "$VOID_EARN_COORDINATOR_UPSTREAM" 1
 )"
+
+seed_upstream_lc="$(printf '%s' "$VOID_SEED_UPSTREAM" | tr '[:upper:]' '[:lower:]')"
+case "$seed_upstream_lc" in
+  http://100.122.79.39|http://100.122.79.39:*|http://zoso-alienware-aurora-r7.taila47fd.ts.net|http://zoso-alienware-aurora-r7.taila47fd.ts.net:*)
+    echo "HOLD: retired Alienware seed upstream is forbidden" >&2
+    exit 2
+    ;;
+esac
 
 case "$VOID_ADAPTER_HOST" in
   *$'\n'*|*$'\r'*|'')

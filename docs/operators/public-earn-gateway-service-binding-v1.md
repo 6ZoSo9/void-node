@@ -96,7 +96,17 @@ key, seed phrase, mnemonic, payment credential, treasury key, or validator key.
 
 ## VPS path
 
-The VPS installer and deploy wrapper now accept:
+The VPS installer and deploy wrapper require an explicit reviewed seed upstream:
+
+```text
+VOID_SEED_UPSTREAM=http://REVIEWED-INTERNAL-VOID-ORIGIN:4100
+```
+
+There is no fallback to the retired Alienware Tailnet address. The installer
+rejects the retired Alienware IP or hostname before writing the service unit or
+calling `systemctl`.
+
+The optional Public Earn coordinator binding remains:
 
 ```text
 VOID_EARN_COORDINATOR_UPSTREAM=http://PRIVATE-OR-TAILNET-COORDINATOR:4100
@@ -122,6 +132,7 @@ The proof checks:
 - shell syntax;
 - run-wrapper variable forwarding;
 - VPS unit and deploy-wrapper binding, including no `default.target` ordering back-edge;
+- explicit VPS seed-upstream selection with retired Alienware upstream rejection before unit/systemd mutation;
 - loopback-only local unit generation;
 - mode-600 unit permissions;
 - disabled-by-default behavior;
