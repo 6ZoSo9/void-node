@@ -1,19 +1,29 @@
 #!/usr/bin/env node
 
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   resolveCoordinationSuccessorChainLiveV1,
 } from "./void-coordination-successor-chain-v1.mjs";
+import {
+  EVIDENCE_MARKER as LIVE_DISPATCH_EVIDENCE_MARKER,
+  evaluateWorkerLiveDispatchV1,
+} from "./void-worker-coordination-live-dispatch-v1.mjs";
 
 export const MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_V1";
 export const EVIDENCE_MARKER = "VOID_WORKER_DISPATCH_HUB_GUARD_EVIDENCE_V1";
 export const CHAIN_MARKER = "VOID_COORDINATION_SUCCESSOR_CHAIN_V1";
 export const DISPATCH_MARKER = "VOID_WORKER_LIVE_DISPATCH_V1";
+export const CANONICAL_REPOSITORY = "6ZoSo9/void-node";
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const GIT = "/usr/bin/git";
+const DISPATCH_POLICY_REL =
+  "ops/coordination/worker-live-dispatch-policy-v1.json";
 const MAX_STDIN_BYTES = 2 * 1024 * 1024;
 const SHA256_ID_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const CHAIN_OUTCOMES = new Set([
@@ -106,11 +116,82 @@ export function assertFreshLiveChainMatchesV1(suppliedChain, liveChain) {
   return true;
 }
 
+export function assertFreshLiveDispatchMatchesV1(
+  suppliedDispatch,
+  liveDispatch,
+) {
+  requireObject(suppliedDispatch, "supplied dispatch");
+  requireObject(liveDispatch, "live dispatch");
+  if (canonicalJson(suppliedDispatch) !== canonicalJson(liveDispatch)) {
+    fail("supplied live dispatch does not match fresh live evaluation");
+  }
+  return true;
+}
+
 function contentId(value) {
   return "sha256:" + crypto
     .createHash("sha256")
     .update(canonicalJson(value))
     .digest("hex");
+}
+
+function reviewedGitEnvV1() {
+  const env = { ...process.env };
+  for (const key of [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_EXEC_PATH",
+  ]) {
+    delete env[key];
+  }
+  for (const key of Object.keys(env)) {
+    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
+  }
+  env.GIT_OPTIONAL_LOCKS = "0";
+  env.LANG = "C";
+  env.LC_ALL = "C";
+  env.PATH = "/usr/bin:/bin";
+  return env;
+}
+
+function loadReviewedDispatchPolicyFromHeadV1() {
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      "-C",
+      ROOT,
+      "show",
+      "HEAD:" + DISPATCH_POLICY_REL,
+    ],
+    {
+      encoding: "utf8",
+      maxBuffer: MAX_STDIN_BYTES,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: reviewedGitEnvV1(),
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("reviewed live-dispatch policy HEAD object is unavailable");
+  }
+  let policy;
+  try {
+    policy = JSON.parse(result.stdout);
+  } catch {
+    fail("reviewed live-dispatch policy HEAD object is not valid JSON");
+  }
+  if (policy?.repository !== CANONICAL_REPOSITORY) {
+    fail("reviewed live-dispatch policy repository is not canonical");
+  }
+  return policy;
 }
 
 function deepFreeze(value) {
@@ -128,6 +209,9 @@ function validateChain(raw) {
   }
   if (chain.version !== 1) fail("evidence.chain.version must equal 1");
   requireString(chain.repository_scope, "evidence.chain.repository_scope");
+  if (chain.repository_scope !== CANONICAL_REPOSITORY) {
+    fail("evidence.chain.repository_scope must equal canonical repository");
+  }
   requirePositiveInteger(chain.root_issue, "evidence.chain.root_issue");
   requirePositiveInteger(chain.current_issue, "evidence.chain.current_issue");
   if (!CHAIN_OUTCOMES.has(chain.outcome)) {
@@ -202,10 +286,17 @@ function validateDispatch(raw, trustedNowMs) {
   }
   if (dispatch.version !== 1) fail("evidence.dispatch.version must equal 1");
   requireString(dispatch.repository, "evidence.dispatch.repository");
+  if (dispatch.repository !== CANONICAL_REPOSITORY) {
+    fail("evidence.dispatch.repository must equal canonical repository");
+  }
   requirePositiveInteger(dispatch.plan_issue, "evidence.dispatch.plan_issue");
   requireString(dispatch.evaluation_id, "evidence.dispatch.evaluation_id");
   if (!SHA256_ID_PATTERN.test(dispatch.evaluation_id)) {
     fail("evidence.dispatch.evaluation_id must be sha256 content id");
+  }
+  const { evaluation_id: suppliedEvaluationId, ...dispatchMaterial } = dispatch;
+  if (contentId(dispatchMaterial) !== suppliedEvaluationId) {
+    fail("evidence.dispatch.evaluation_id content identity mismatch");
   }
 
   const evaluatedAtMs = requireIsoTimestamp(
@@ -262,7 +353,7 @@ function validateDispatch(raw, trustedNowMs) {
 
 export function evaluateWorkerDispatchHubGuardV1(
   rawEvidence,
-  { liveChain = null } = {},
+  { liveChain = null, liveDispatch = null } = {},
 ) {
   const evidence = structuredClone(requireObject(rawEvidence, "evidence"));
   if (evidence.marker !== EVIDENCE_MARKER) {
@@ -275,6 +366,7 @@ export function evaluateWorkerDispatchHubGuardV1(
   if (!Number.isSafeInteger(trustedNowMs)) fail("trusted current time is invalid");
   const dispatchState = validateDispatch(evidence.dispatch, trustedNowMs);
   const dispatch = dispatchState.dispatch;
+  requireObject(evidence.dispatch_evidence, "evidence.dispatch_evidence");
   if (chain.repository_scope !== dispatch.repository) {
     fail("coordination chain and live dispatch repository mismatch");
   }
@@ -282,6 +374,12 @@ export function evaluateWorkerDispatchHubGuardV1(
   const liveChainRevalidated =
     liveChain !== null
     && assertFreshLiveChainMatchesV1(evidence.chain, liveChain) === true;
+  const liveDispatchRevalidated =
+    liveDispatch !== null
+    && assertFreshLiveDispatchMatchesV1(
+      evidence.dispatch,
+      liveDispatch,
+    ) === true;
 
   let outcome;
   let reason;
@@ -304,9 +402,14 @@ export function evaluateWorkerDispatchHubGuardV1(
     outcome = "HOLD_CHAIN_LIVENESS_UNPROVEN";
     reason =
       "aligned retained evidence was not revalidated against the live successor chain";
+  } else if (liveDispatchRevalidated !== true) {
+    outcome = "HOLD_DISPATCH_LIVENESS_UNPROVEN";
+    reason =
+      "supplied dispatch was not freshly re-evaluated from the reviewed policy and worker evidence";
   } else {
     outcome = "DISPATCH_HUB_ALIGNED";
-    reason = "live dispatch plan issue matches the freshly revalidated current coordination hub";
+    reason =
+      "dispatch and successor chain both match their freshly revalidated live generations";
     normalDispatchAllowed = true;
   }
 
@@ -328,10 +431,12 @@ export function evaluateWorkerDispatchHubGuardV1(
     dispatch_next_reevaluation_at: dispatch.next_reevaluation_at,
     dispatch_evidence_fresh: dispatchState.dispatchFresh,
     live_chain_revalidated: liveChainRevalidated === true,
+    live_dispatch_revalidated: liveDispatchRevalidated === true,
     normal_dispatch_allowed: normalDispatchAllowed,
     read_only_evidence_only: !normalDispatchAllowed,
     requires_fresh_chain_evidence: liveChainRevalidated !== true,
-    requires_fresh_dispatch_evidence: !dispatchState.dispatchFresh,
+    requires_fresh_dispatch_evidence:
+      !dispatchState.dispatchFresh || liveDispatchRevalidated !== true,
     external_worker_invocation_required: true,
     issue_creation_authorized: false,
     issue_close_authorized: false,
@@ -395,12 +500,25 @@ async function main() {
   if (suppliedChain.repository_scope !== suppliedDispatch.repository) {
     fail("coordination chain and live dispatch repository mismatch");
   }
+  const dispatchEvidence = structuredClone(
+    requireObject(evidence.dispatch_evidence, "evidence.dispatch_evidence"),
+  );
+  if (dispatchEvidence.marker !== LIVE_DISPATCH_EVIDENCE_MARKER) {
+    fail("evidence.dispatch_evidence.marker mismatch");
+  }
+  const reviewedPolicy = loadReviewedDispatchPolicyFromHeadV1();
+  const liveDispatch = evaluateWorkerLiveDispatchV1(
+    reviewedPolicy,
+    dispatchEvidence,
+  );
+  assertFreshLiveDispatchMatchesV1(suppliedDispatch, liveDispatch);
   const liveChain = resolveCoordinationSuccessorChainLiveV1(
-    suppliedDispatch.repository,
+    CANONICAL_REPOSITORY,
     suppliedChain.root_issue,
   );
   const result = evaluateWorkerDispatchHubGuardV1(evidence, {
     liveChain,
+    liveDispatch,
   });
   const output = JSON.stringify(result, null, args.pretty ? 2 : 0) + "\n";
   if (args.outputPath) {
