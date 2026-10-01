@@ -88,12 +88,17 @@ re-derives the canonical V2 source-model fixture through
 exact content-addressed reconciliation and WC-opening identities plus canonical
 result fields to match.
 
-Current source-model identities are:
+Current reviewed source-model launch identity and derived identities are:
 
+- coupled launch ID
+  `sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`;
 - reconciliation ID
   `sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba`;
 - WC opening state ID
   `sha256:fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621`.
+
+The former `sha256:aaaa...` launch value was a source-model placeholder and
+is no longer accepted by the classifier.
 
 The fixture is explicitly marked `source_model_fixture=true` and
 `runtime_or_launch_evidence=false`. These identities prove the reviewed
