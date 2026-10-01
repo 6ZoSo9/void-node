@@ -188,7 +188,11 @@ exit 2
   const restartInterrupted=run(managerPath,["update","rollback","--install-root",installRoot,"--test-allow-file"],{env:restartWindowEnv,capture:true,allowFail:true});
   if(restartInterrupted.status===0||!`${restartInterrupted.stdout}${restartInterrupted.stderr}`.includes("test interruption after rollback pointer publication before service restart"))fail("restart-window rollback interruption seam did not fire");
   const restartJournal=JSON.parse(fs.readFileSync(rollbackJournal,"utf8"));
-  if(restartJournal.restart_if_active!==true||versionAt(installRoot)!==v3||previousVersion(installRoot)!==v2)fail("restart-window interruption did not persist restart intent with completed pointer pair");
+  const restartWindowCurrent=versionAt(installRoot),restartWindowPrevious=previousVersion(installRoot);
+  if(restartJournal.restart_if_active!==true||restartWindowCurrent!==v3||restartWindowPrevious!==v2)fail(
+    "restart-window interruption did not persist restart intent with completed pointer pair "+
+    `restart_if_active=${JSON.stringify(restartJournal.restart_if_active)} current=${restartWindowCurrent} previous=${restartWindowPrevious}`
+  );
   if(fs.existsSync(restartLog))fail("service restart occurred before restart-window interruption");
   pass("rollback-restart-intent-journal-preserved");
 
