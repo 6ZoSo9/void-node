@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -83,6 +82,13 @@ const HEX40=/^[0-9a-f]{40}$/u;
 const SHA256_HEX=/^[0-9a-f]{64}$/u;
 const SHA256_ID=/^sha256:[0-9a-f]{64}$/u;
 const BYTES32=/^0x[0-9a-f]{64}$/u;
+const MAX_HEAD_OBJECT_BYTES=2*1024*1024;
+const OFFLINE_GIT_ENV=Object.freeze({
+  ...process.env,
+  GIT_OPTIONAL_LOCKS:"0",
+  GIT_NO_LAZY_FETCH:"1",
+  GIT_TERMINAL_PROMPT:"0",
+});
 
 function fail(code) {
   throw new Error(code);
@@ -129,19 +135,99 @@ function git(args,code) {
     {
       encoding:"utf8",
       stdio:["ignore","pipe","pipe"],
-      env:{...process.env,GIT_OPTIONAL_LOCKS:"0"},
+      env:OFFLINE_GIT_ENV,
     },
   );
   if(result.status!==0) fail(code);
   return String(result.stdout||"").trim();
 }
 
-function readText(relativePath) {
-  return fs.readFileSync(path.join(ROOT,relativePath),"utf8");
+function gitBytes(args,code,maxBytes=MAX_HEAD_OBJECT_BYTES) {
+  const result=spawnSync(
+    "git",
+    ["-C",ROOT,...args],
+    {
+      encoding:null,
+      stdio:["ignore","pipe","pipe"],
+      env:OFFLINE_GIT_ENV,
+      maxBuffer:maxBytes+1,
+      timeout:10_000,
+    },
+  );
+  if(
+    result.status!==0||
+    !Buffer.isBuffer(result.stdout)||
+    result.stdout.length<1||
+    result.stdout.length>maxBytes
+  ) {
+    fail(code);
+  }
+  return Buffer.from(result.stdout);
 }
 
-function readJson(relativePath) {
-  return JSON.parse(readText(relativePath));
+function headBlobSha1(relativePath) {
+  const value=git(
+    ["rev-parse","HEAD:"+relativePath],
+    "reconciliation_source_blob_identity_failed:"+relativePath,
+  );
+  if(!HEX40.test(value)) {
+    fail("reconciliation_source_blob_identity_invalid:"+relativePath);
+  }
+  return value;
+}
+
+function readHeadBytes(relativePath) {
+  return gitBytes(
+    ["show","HEAD:"+relativePath],
+    "reconciliation_head_object_read_failed:"+relativePath,
+  );
+}
+
+function readHeadText(relativePath) {
+  return readHeadBytes(relativePath).toString("utf8");
+}
+
+function readHeadJson(relativePath) {
+  try {
+    return JSON.parse(readHeadText(relativePath));
+  } catch {
+    fail("reconciliation_head_json_invalid:"+relativePath);
+  }
+}
+
+function dataModuleUrl(bytes) {
+  if(!Buffer.isBuffer(bytes)||bytes.length<1) {
+    fail("reconciliation_module_bytes_invalid");
+  }
+  return "data:text/javascript;base64,"+bytes.toString("base64");
+}
+
+async function loadVerifiedHeadModulesV1() {
+  const openingBytes=readHeadBytes(OPENING_REL);
+  const sharedBytes=readHeadBytes(SHARED_STATE_REL);
+  const openingUrl=dataModuleUrl(openingBytes);
+
+  const sharedSource=sharedBytes.toString("utf8");
+  const openingSpecifier='"./void-wc-void-coupled-opening-v1.mjs"';
+  if(sharedSource.split(openingSpecifier).length-1!==1) {
+    fail("reconciliation_shared_module_opening_import_shape_invalid");
+  }
+  const rewrittenShared=sharedSource.replace(
+    openingSpecifier,
+    JSON.stringify(openingUrl),
+  );
+  const sharedUrl=dataModuleUrl(Buffer.from(rewrittenShared,"utf8"));
+
+  const openingModule=await import(openingUrl);
+  const sharedModule=await import(sharedUrl);
+  if(
+    typeof openingModule.wcVoidOpeningCommitmentIdV1!=="function"||
+    typeof openingModule.wcVoidOpeningSettlementIdV1!=="function"||
+    typeof sharedModule.reconcileSharedMarketPostDiscoveryStateV2!=="function"
+  ) {
+    fail("reconciliation_verified_module_exports_invalid");
+  }
+  return Object.freeze({openingModule,sharedModule});
 }
 
 function verifyReviewedSourceGenerationV1() {
@@ -159,10 +245,7 @@ function verifyReviewedSourceGenerationV1() {
   for(const [relativePath,expected] of Object.entries(
     VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1,
   )) {
-    const actual=git(
-      ["hash-object",path.join(ROOT,relativePath)],
-      "reconciliation_source_blob_hash_failed",
-    );
+    const actual=headBlobSha1(relativePath);
     if(actual!==expected) {
       fail("reconciliation_source_blob_mismatch:"+relativePath);
     }
@@ -490,12 +573,12 @@ function requiredAtomicSourceUpdatesV1() {
 
 export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
   const repository=verifyReviewedSourceGenerationV1();
-  const candidate=readJson(CANDIDATE_REL);
-  const identity=readJson(IDENTITY_REL);
-  const presaleSource=readText(PRESALE_REL);
-  const classifierSource=readText(CLASSIFIER_REL);
-  const classifierProof=readText(CLASSIFIER_PROOF_REL);
-  const classifierDoc=readText(CLASSIFIER_DOC_REL);
+  const candidate=readHeadJson(CANDIDATE_REL);
+  const identity=readHeadJson(IDENTITY_REL);
+  const presaleSource=readHeadText(PRESALE_REL);
+  const classifierSource=readHeadText(CLASSIFIER_REL);
+  const classifierProof=readHeadText(CLASSIFIER_PROOF_REL);
+  const classifierDoc=readHeadText(CLASSIFIER_DOC_REL);
 
   assertAtomicSourceBaseline(
     candidate,
@@ -520,24 +603,7 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     fail("reconciliation_reviewed_launch_identity_mismatch");
   }
 
-  const openingModule=await import(
-    new URL(
-      "./void-wc-void-coupled-opening-v1.mjs?reviewed_blob="+
-        VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1[
-          OPENING_REL
-        ],
-      import.meta.url,
-    ).href,
-  );
-  const sharedModule=await import(
-    new URL(
-      "./void-shared-market-post-discovery-state-v2.mjs?reviewed_blob="+
-        VOID_WC_VOID_COUPLED_LAUNCH_RECONCILIATION_EXPECTED_BLOBS_V1[
-          SHARED_STATE_REL
-        ],
-      import.meta.url,
-    ).href,
-  );
+  const {openingModule,sharedModule}=await loadVerifiedHeadModulesV1();
   const currentState=deriveSharedSourceModelV2(
     CURRENT_SOURCE_MODEL_LAUNCH_ID,
     openingModule,
@@ -612,6 +678,9 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     ]),
     verification:Object.freeze({
       reviewed_source_blobs_verified:true,
+      canonical_inputs_loaded_from_head_git_objects:true,
+      verified_modules_loaded_from_head_git_objects:true,
+      working_tree_module_execution:false,
       repository_clean:true,
       current_fixture_rederived:true,
       commitment_digest_rederived:true,
