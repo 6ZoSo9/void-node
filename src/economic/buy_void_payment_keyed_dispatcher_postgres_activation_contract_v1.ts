@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_CONTRACT_V1 =
   "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_CONTRACT_V1";
 
@@ -239,6 +241,76 @@ const CONFIG_GENERATION_ID =
   /^voidbvpcg1_[0-9a-f]{64}$/u;
 const CONFIG_SHA256 = /^[0-9a-f]{64}$/u;
 
+export const VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ATOMIC_CONFIGURATION_V1 =
+  "VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ATOMIC_CONFIGURATION_V1";
+
+export function buyVoidPostgresActivationConfigurationMaterialV1(
+  value: unknown,
+): string | null {
+  const state = normalizeBuyVoidPostgresActivationGateStateV1(value);
+  if (!state) return null;
+  return [
+    VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ATOMIC_CONFIGURATION_V1,
+    "version=1",
+    "parent_env=" +
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+        .parent_runtime,
+    "parent_value=" + state.parent_runtime,
+    "claimed_runtime_env=" +
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+        .claimed_runtime,
+    "claimed_runtime_value=" + state.claimed_runtime,
+    "full_runtime_env=" +
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+        .full_runtime,
+    "full_runtime_value=" + state.full_runtime,
+    "admitted_guarded_runtime_env=" +
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+        .admitted_guarded_runtime,
+    "admitted_guarded_runtime_value=" + state.admitted_guarded_runtime,
+    "full_runtime_apply_env=" +
+      VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ACTIVATION_ENVS_V1
+        .full_runtime_apply,
+    "full_runtime_apply_value=" + state.full_runtime_apply,
+    "",
+  ].join("\n");
+}
+
+export function deriveBuyVoidPostgresActivationConfigurationGenerationV1(
+  value: unknown,
+): BuyVoidPostgresActivationConfigurationGenerationV1 | null {
+  const state = normalizeBuyVoidPostgresActivationGateStateV1(value);
+  const material = buyVoidPostgresActivationConfigurationMaterialV1(state);
+  if (!state || material === null) return null;
+
+  const configurationSha256 = createHash("sha256")
+    .update(material, "utf8")
+    .digest("hex");
+  const generationId = "voidbvpcg1_" + configurationSha256;
+
+  const gates = {} as Record<
+    BuyVoidPostgresActivationAtomicGateV1,
+    Readonly<{
+      value: "0" | "1";
+      generation_id: string;
+      configuration_sha256: string;
+    }>
+  >;
+  for (const key of ATOMIC_GATE_KEYS) {
+    gates[key] = Object.freeze({
+      value: state[key],
+      generation_id: generationId,
+      configuration_sha256: configurationSha256,
+    });
+  }
+
+  return Object.freeze({
+    generation_id: generationId,
+    configuration_sha256: configurationSha256,
+    gates: Object.freeze(gates),
+  });
+}
+
 function validateAtomicConfigurationGenerationV1(
   value: unknown,
   expectedState: BuyVoidPostgresActivationGateStateV1,
@@ -319,6 +391,19 @@ function validateAtomicConfigurationGenerationV1(
       value: gate.value,
       generation_id: gate.generation_id,
       configuration_sha256: gate.configuration_sha256,
+    });
+  }
+
+  const derived =
+    deriveBuyVoidPostgresActivationConfigurationGenerationV1(expectedState);
+  if (
+    !derived ||
+    outer.configuration_sha256 !== derived.configuration_sha256 ||
+    outer.generation_id !== derived.generation_id
+  ) {
+    return Object.freeze({
+      ok: false,
+      reason: "atomic_restart_configuration_digest_mismatch",
     });
   }
 
