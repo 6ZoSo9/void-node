@@ -9,6 +9,7 @@ on:
       - "docs/operations/void-worker-dispatch-hub-guard-v1.md"
       - "tools/void-coordination-successor-chain-v1.mjs"
       - "tools/void-worker-coordination-live-dispatch-v1.mjs"
+      - "ops/coordination/worker-live-dispatch-policy-v1.json"
   push:
     branches:
       - main
@@ -19,6 +20,7 @@ on:
       - "docs/operations/void-worker-dispatch-hub-guard-v1.md"
       - "tools/void-coordination-successor-chain-v1.mjs"
       - "tools/void-worker-coordination-live-dispatch-v1.mjs"
+      - "ops/coordination/worker-live-dispatch-policy-v1.json"
 
 permissions:
   contents: read
