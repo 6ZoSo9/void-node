@@ -520,18 +520,18 @@ assert.equal(
   "eef17f65a8bd495d581df3b91d9a411a5402cde8",
 );
 assert.equal(
-  candidate.reviewed_candidate_generation_commit,
-  "73409836b0822d5cdcddc54735b08316c2406e45",
+  candidate.candidate_source_review_base_commit,
+  "cc5e9790e02e188b3e3878fe7cc9c9a9dd11b376",
 );
 assert.equal(
-  candidate.reviewed_candidate_generation_tree,
-  "dd6fc701d3e0a8bfb8ba43c9f80929ec4a1863e1",
+  candidate.candidate_source_review_base_tree,
+  "f06b9a1504050cb959a6e6a5197f5a15daa50c79",
 );
 assert.equal(
-  candidate.reviewed_candidate_generation_source_blobs[
+  candidate.reviewed_candidate_head_source_blobs[
     "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
   ],
-  "5317e9d1379b8837cb66f1655c89675f8bef7616",
+  "d06a265aa14e37b77a8309720a3c4e71c51971d7",
 );
 assert.deepEqual(
   candidate.activation_phase_order,
@@ -588,8 +588,8 @@ for (const marker of [
   "current_phase=dormant",
   "readiness_bound=true",
   "source_blobs_bound=true",
-  "reviewed_candidate_generation_commit=73409836b0822d5cdcddc54735b08316c2406e45",
-  "reviewed_candidate_generation_tree=dd6fc701d3e0a8bfb8ba43c9f80929ec4a1863e1",
+  "candidate_source_review_base_commit=cc5e9790e02e188b3e3878fe7cc9c9a9dd11b376",
+  "candidate_source_review_base_tree=f06b9a1504050cb959a6e6a5197f5a15daa50c79",
   "repository_head_sha=",
   "repository_tree_sha=",
   "activation_authorized=false",
@@ -695,8 +695,12 @@ assert(
   "reviewed source ancestry enforcement missing",
 );
 assert(
-  toolSource.includes("reviewed_source_main_not_ancestor_of_head"),
-  "reviewed source ancestry HOLD missing",
+  toolSource.includes("reviewed_inherited_source_main_not_ancestor_of_head"),
+  "reviewed inherited-source ancestry HOLD missing",
+);
+assert(
+  toolSource.includes("candidate_source_review_base_not_ancestor_of_head"),
+  "candidate source review-base ancestry HOLD missing",
 );
 assert.match(
   toolSource,
@@ -708,8 +712,19 @@ assert(
   "HEAD source blob verification missing",
 );
 assert(
-  toolSource.includes("reviewed_candidate_generation_tree_mismatch"),
-  "candidate generation tree verification missing",
+  toolSource.includes("candidate_source_review_base_tree_mismatch"),
+  "candidate source review-base tree verification missing",
+);
+assert(
+  toolSource.includes("head_candidate_source_blob_mismatch"),
+  "candidate clean-HEAD source blob verification missing",
+);
+assert.equal(
+  toolSource.includes(
+    "gitBlobAt(\n          value.candidate_source_review_base_commit,\n          relativePath",
+  ),
+  false,
+  "candidate source blob must not depend on its pre-change review-base blob",
 );
 assert.equal(
   toolSource.includes('"hash-object"'),
@@ -757,7 +772,8 @@ console.log("exact_own_data_state_green=true");
 console.log("readiness_fingerprints_bound_green=true");
 console.log("source_blob_identity_bound_green=true");
 console.log("reviewed_source_main_ancestry_green=true");
-console.log("reviewed_candidate_generation_commit_tree_green=true");
+console.log("candidate_source_review_base_and_head_blob_binding_green=true");
+console.log("candidate_review_base_blob_is_not_source_authority=true");
 console.log("clean_worktree_head_blob_verification_green=true");
 console.log("dirty_worktree_candidate_verification_held_green=true");
 console.log("mutable_worktree_hash_object_provenance=false");

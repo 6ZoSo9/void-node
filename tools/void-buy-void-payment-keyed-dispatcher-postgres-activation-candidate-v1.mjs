@@ -19,10 +19,10 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 
 const REVIEWED_INHERITED_SOURCE_MAIN_COMMIT =
   "eef17f65a8bd495d581df3b91d9a411a5402cde8";
-const REVIEWED_CANDIDATE_GENERATION_COMMIT =
-  "73409836b0822d5cdcddc54735b08316c2406e45";
-const REVIEWED_CANDIDATE_GENERATION_TREE =
-  "dd6fc701d3e0a8bfb8ba43c9f80929ec4a1863e1";
+const CANDIDATE_SOURCE_REVIEW_BASE_COMMIT =
+  "cc5e9790e02e188b3e3878fe7cc9c9a9dd11b376";
+const CANDIDATE_SOURCE_REVIEW_BASE_TREE =
+  "f06b9a1504050cb959a6e6a5197f5a15daa50c79";
 
 const EXPECTED_INHERITED_SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_runtime_integration_v1.ts":
@@ -39,9 +39,9 @@ const EXPECTED_INHERITED_SOURCE_BLOBS = Object.freeze({
     "1495c6dd21cfda1608ea29885d98617784a04bb0",
 });
 
-const EXPECTED_CANDIDATE_GENERATION_SOURCE_BLOBS = Object.freeze({
+const EXPECTED_CANDIDATE_HEAD_SOURCE_BLOBS = Object.freeze({
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts":
-    "5317e9d1379b8837cb66f1655c89675f8bef7616",
+    "d06a265aa14e37b77a8309720a3c4e71c51971d7",
 });
 
 const EXPECTED_READINESS = Object.freeze({
@@ -205,7 +205,7 @@ function requireCleanRepositoryIdentity() {
   });
 }
 
-function requireReviewedCommitAncestor(reviewedCommit) {
+function requireReviewedCommitAncestor(reviewedCommit, code) {
   const result = spawnSync(
     "git",
     ["-C", ROOT, "merge-base", "--is-ancestor", reviewedCommit, "HEAD"],
@@ -218,7 +218,7 @@ function requireReviewedCommitAncestor(reviewedCommit) {
     },
   );
   if (result.status !== 0) {
-    fail("reviewed_source_main_not_ancestor_of_head");
+    fail(code);
   }
 }
 
@@ -233,9 +233,9 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
     "status",
     "reviewed_inherited_source_main_commit",
     "reviewed_inherited_source_blobs",
-    "reviewed_candidate_generation_commit",
-    "reviewed_candidate_generation_tree",
-    "reviewed_candidate_generation_source_blobs",
+    "candidate_source_review_base_commit",
+    "candidate_source_review_base_tree",
+    "reviewed_candidate_head_source_blobs",
     "observed_readiness",
     "observed_gate_state",
     "activation_phase_order",
@@ -263,12 +263,12 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
     fail("reviewed_inherited_source_main_commit_invalid");
   }
   if (
-    value.reviewed_candidate_generation_commit
-      !== REVIEWED_CANDIDATE_GENERATION_COMMIT ||
-    value.reviewed_candidate_generation_tree
-      !== REVIEWED_CANDIDATE_GENERATION_TREE
+    value.candidate_source_review_base_commit
+      !== CANDIDATE_SOURCE_REVIEW_BASE_COMMIT ||
+    value.candidate_source_review_base_tree
+      !== CANDIDATE_SOURCE_REVIEW_BASE_TREE
   ) {
-    fail("reviewed_candidate_generation_identity_invalid");
+    fail("candidate_source_review_base_identity_invalid");
   }
 
   exactObject(
@@ -277,9 +277,9 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
     "reviewed_inherited_source_blobs",
   );
   exactObject(
-    value.reviewed_candidate_generation_source_blobs,
-    EXPECTED_CANDIDATE_GENERATION_SOURCE_BLOBS,
-    "reviewed_candidate_generation_source_blobs",
+    value.reviewed_candidate_head_source_blobs,
+    EXPECTED_CANDIDATE_HEAD_SOURCE_BLOBS,
+    "reviewed_candidate_head_source_blobs",
   );
 
   let repositoryIdentity = null;
@@ -287,17 +287,19 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
     repositoryIdentity = requireCleanRepositoryIdentity();
     requireReviewedCommitAncestor(
       value.reviewed_inherited_source_main_commit,
+      "reviewed_inherited_source_main_not_ancestor_of_head",
     );
     requireReviewedCommitAncestor(
-      value.reviewed_candidate_generation_commit,
+      value.candidate_source_review_base_commit,
+      "candidate_source_review_base_not_ancestor_of_head",
     );
     if (
       gitRevParse(
-        value.reviewed_candidate_generation_commit + "^{tree}",
-        "reviewed_candidate_generation_tree_unavailable",
-      ) !== value.reviewed_candidate_generation_tree
+        value.candidate_source_review_base_commit + "^{tree}",
+        "candidate_source_review_base_tree_unavailable",
+      ) !== value.candidate_source_review_base_tree
     ) {
-      fail("reviewed_candidate_generation_tree_mismatch");
+      fail("candidate_source_review_base_tree_mismatch");
     }
 
     for (const [relativePath, expectedBlob] of
@@ -316,20 +318,9 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
     }
 
     for (const [relativePath, expectedBlob] of
-      Object.entries(EXPECTED_CANDIDATE_GENERATION_SOURCE_BLOBS)) {
-      if (
-        gitBlobAt(
-          value.reviewed_candidate_generation_commit,
-          relativePath,
-        ) !== expectedBlob
-      ) {
-        fail(
-          "reviewed_candidate_generation_source_blob_mismatch:"
-            + relativePath,
-        );
-      }
+      Object.entries(EXPECTED_CANDIDATE_HEAD_SOURCE_BLOBS)) {
       if (gitBlobAt("HEAD", relativePath) !== expectedBlob) {
-        fail("head_candidate_generation_source_blob_mismatch:" + relativePath);
+        fail("head_candidate_source_blob_mismatch:" + relativePath);
       }
     }
   }
@@ -385,10 +376,10 @@ export function verifyVoidBuyVoidPostgresActivationCandidateV1(
     source_blobs_bound: true,
     reviewed_inherited_source_main_commit:
       value.reviewed_inherited_source_main_commit,
-    reviewed_candidate_generation_commit:
-      value.reviewed_candidate_generation_commit,
-    reviewed_candidate_generation_tree:
-      value.reviewed_candidate_generation_tree,
+    candidate_source_review_base_commit:
+      value.candidate_source_review_base_commit,
+    candidate_source_review_base_tree:
+      value.candidate_source_review_base_tree,
     repository_head_sha:
       repositoryIdentity?.repository_head_sha ?? null,
     repository_tree_sha:
@@ -423,12 +414,12 @@ if (direct) {
     console.log("readiness_bound=true");
     console.log("source_blobs_bound=true");
     console.log(
-      "reviewed_candidate_generation_commit="
-        + result.reviewed_candidate_generation_commit,
+      "candidate_source_review_base_commit="
+        + result.candidate_source_review_base_commit,
     );
     console.log(
-      "reviewed_candidate_generation_tree="
-        + result.reviewed_candidate_generation_tree,
+      "candidate_source_review_base_tree="
+        + result.candidate_source_review_base_tree,
     );
     console.log("repository_head_sha=" + result.repository_head_sha);
     console.log("repository_tree_sha=" + result.repository_tree_sha);
