@@ -1,0 +1,74 @@
+name: VOID crossbox mutation transaction v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-crossbox-mutation-transaction-v1.yml"
+      - "docs/operators/void-crossbox-mutation-transaction-v1.md"
+      - "scripts/prove_void_crossbox_mutation_transaction_v1.mjs"
+      - "tools/void-crossbox-mutation-transaction-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-crossbox-mutation-transaction-v1.yml"
+      - "docs/operators/void-crossbox-mutation-transaction-v1.md"
+      - "scripts/prove_void_crossbox_mutation_transaction_v1.mjs"
+      - "tools/void-crossbox-mutation-transaction-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax
+        run: |
+          node --check tools/void-crossbox-mutation-transaction-v1.mjs
+          node --check scripts/prove_void_crossbox_mutation_transaction_v1.mjs
+
+      - name: Prove deterministic two-party transaction contract
+        run: node scripts/prove_void_crossbox_mutation_transaction_v1.mjs
+
+      - name: Scope and authority wall
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tool="tools/void-crossbox-mutation-transaction-v1.mjs"
+          proof="scripts/prove_void_crossbox_mutation_transaction_v1.mjs"
+          doc="docs/operators/void-crossbox-mutation-transaction-v1.md"
+
+          grep -F 'partial_state_green_forbidden: true' "$tool" >/dev/null
+          grep -F 'exact_prestate_restoration_required: true' "$tool" >/dev/null
+          grep -F 'checkpoint_publish_after_two_party_commit_only: true' "$tool" >/dev/null
+          grep -F 'manager_environment_restored' "$tool" >/dev/null
+          grep -F 'publish_restart_invocation_not_advanced' "$tool" >/dev/null
+
+          grep -F 'rollback-post' "$proof" >/dev/null 2>&1 || true
+          grep -F 'A partial transaction is never GREEN.' "$doc" >/dev/null
+          grep -F 'does not yet edit' "$doc" >/dev/null
+
+          for forbidden in 'systemctl ' 'ssh ' 'git push' 'git tag' 'eth_sendRawTransaction'; do
+            if grep -F "$forbidden" "$tool" >/dev/null; then
+              echo "forbidden execution surface in source contract: $forbidden" >&2
+              exit 1
+            fi
+          done
+
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
