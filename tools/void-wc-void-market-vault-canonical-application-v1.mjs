@@ -79,6 +79,10 @@ const REVIEWED_RUNTIME_BRIDGE_REL=
   "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs";
 const REVIEWED_RUNTIME_BRIDGE_MARKER=
   "VOID_WC_VOID_MARKET_VAULT_REVIEWED_RUNTIME_BRIDGE_V1";
+const REVIEWED_RUNTIME_PROFILE_ID_V1=
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1=
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 
 export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1=
   Object.freeze({
@@ -375,8 +379,11 @@ function reviewedRuntimeProfile(repo){
     JSON.stringify(profile.root_packages)!==JSON.stringify(["ethers"])||
     typeof profile.profile_id!=="string"||
     !REVIEWED_RUNTIME_PROFILE_ID.test(profile.profile_id)||
+    profile.profile_id!==REVIEWED_RUNTIME_PROFILE_ID_V1||
     typeof profile.packages_aggregate_sha256!=="string"||
-    !SHA256.test(profile.packages_aggregate_sha256)
+    !SHA256.test(profile.packages_aggregate_sha256)||
+    profile.packages_aggregate_sha256!==
+      REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1
   ){
     fail("MARKET_VAULT_REVIEWED_NODE_RUNTIME_PROFILE_INVALID");
   }
@@ -715,6 +722,28 @@ function validatePlan(plan){
     JSON.stringify(plan.promoted_production_fields)!==JSON.stringify(PROMOTED_FIELDS)
   )fail("MARKET_VAULT_CANONICAL_PLAN_INVALID");
   if(
+    canonicalJson(plan.reviewed_source_blobs)!==
+      canonicalJson(
+        VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1,
+      )
+  ){
+    fail("MARKET_VAULT_CANONICAL_REVIEWED_SOURCE_MANIFEST_MISMATCH");
+  }
+  if(
+    plan.reviewed_node_package_runtime_tool_git_blob_sha1!==
+      plan.reviewed_source_blobs[REVIEWED_RUNTIME_TOOL_REL]||
+    plan.reviewed_node_package_runtime_profile_git_blob_sha1!==
+      plan.reviewed_source_blobs[REVIEWED_RUNTIME_PROFILE_REL]||
+    plan.reviewed_execution_bridge_git_blob_sha1!==
+      plan.reviewed_source_blobs[REVIEWED_RUNTIME_BRIDGE_REL]||
+    plan.reviewed_node_package_runtime_profile_id!==
+      REVIEWED_RUNTIME_PROFILE_ID_V1||
+    plan.reviewed_node_package_runtime_packages_aggregate_sha256!==
+      REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1
+  ){
+    fail("MARKET_VAULT_CANONICAL_REVIEWED_RUNTIME_PLAN_BINDING_MISMATCH");
+  }
+  if(
     canonicalJson(plan.authority)!==
       canonicalJson(VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_AUTHORITY_V1)
   )fail("MARKET_VAULT_CANONICAL_AUTHORITY_MISMATCH");
@@ -888,7 +917,15 @@ export async function verifyVoidWcVoidMarketVaultCanonicalApplicationStateV1({
   productionCandidate,
 }={}){
   const repo=repositoryIdentity();
-  assertReviewedExecutionSource(repo);
+  const sourceBinding=assertReviewedExecutionSource(repo);
+  const reviewed=validatePlan(plan);
+  if(
+    reviewed.application_tool_git_blob_sha1!==sourceBinding.tool_blob_sha1||
+    canonicalJson(reviewed.reviewed_source_blobs)!==
+      canonicalJson(sourceBinding.reviewed)
+  ){
+    fail("MARKET_VAULT_CANONICAL_STATE_SOURCE_LINEAGE_DRIFT");
+  }
   return await withReviewedExecutionModules(
     repo,
     async ({classifyReadiness,packageRuntimeBinding})=>{
