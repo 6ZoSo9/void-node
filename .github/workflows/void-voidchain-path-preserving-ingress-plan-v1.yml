@@ -1,0 +1,66 @@
+name: VOID voidchain.org path-preserving ingress plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-voidchain-path-preserving-ingress-plan-v1.yml"
+      - "docs/operators/voidchain-path-preserving-ingress-plan-v1.md"
+      - "scripts/prove_void_voidchain_path_preserving_ingress_plan_v1.mjs"
+      - "tools/void-voidchain-path-preserving-ingress-plan-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "scripts/prove_void_public_frontdoor_v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/run-public-seed-adapter-v1.sh"
+      - "tools/void-precision-web-recovery-evidence-v1.mjs"
+      - "docs/operators/precision-web-recovery-evidence-v1.md"
+      - "public/void-public-frontdoor-v1/index.html"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-voidchain-path-preserving-ingress-plan-v1.yml"
+      - "docs/operators/voidchain-path-preserving-ingress-plan-v1.md"
+      - "scripts/prove_void_voidchain_path_preserving_ingress_plan_v1.mjs"
+      - "tools/void-voidchain-path-preserving-ingress-plan-v1.mjs"
+      - "ops/public/void-public-frontdoor-v1.mjs"
+      - "scripts/prove_void_public_frontdoor_v1.mjs"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/run-void-public-app-composition-gateway-v1.sh"
+      - "ops/systemd/user/void-public-app-composition-gateway-v1.service.example"
+      - "ops/public/public-seed-adapter-v1.mjs"
+      - "ops/public/run-public-seed-adapter-v1.sh"
+      - "tools/void-precision-web-recovery-evidence-v1.mjs"
+      - "docs/operators/precision-web-recovery-evidence-v1.md"
+      - "public/void-public-frontdoor-v1/index.html"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax
+        run: |
+          node --check tools/void-voidchain-path-preserving-ingress-plan-v1.mjs
+          node --check scripts/prove_void_voidchain_path_preserving_ingress_plan_v1.mjs
+      - name: Prove inert path-preserving ingress plan
+        run: node scripts/prove_void_voidchain_path_preserving_ingress_plan_v1.mjs
+      - name: Frontdoor regression
+        run: node scripts/prove_void_public_frontdoor_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
