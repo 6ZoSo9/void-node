@@ -12,6 +12,8 @@ import { parseArgs } from "node:util";
 
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1 =
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1";
+export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1 =
+  "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1";
 
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1 =
   Object.freeze({
@@ -21,6 +23,12 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     canonical_source_revalidation_required: true,
     reviewed_qualification_contract_exact_head_execution: true,
     private_reviewed_qualification_contract_materialization: true,
+    canonical_main_branch_required: true,
+    canonical_remote_main_read_required: true,
+    canonical_remote_main_head_match_required: true,
+    canonical_remote_main_external_network_read: true,
+    caller_transport_injection_forbidden: true,
+    production_transport_internal_only: true,
     explicit_deployer_recorded_not_authorized: true,
     explicit_inventory_source_recorded_not_authorized: true,
     canonical_chain_id: "2050",
@@ -105,6 +113,26 @@ const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const MAX_DEPLOYMENT_GAS_ESTIMATE = 30_000_000n;
+const LIVE_MAIN_QUERY_TIMEOUT_MS = 15_000;
+
+export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1 =
+  Object.freeze({
+    test_only: true,
+    production_artifact_authorized: false,
+    production_preflight_id_emitted: false,
+    canonical_remote_main_required: false,
+    real_loopback_http_required: true,
+    caller_transport_injection_forbidden: true,
+    rpc_write: false,
+    transaction_construction: false,
+    transaction_signing: false,
+    transaction_broadcast: false,
+    deployment: false,
+    inventory_funding: false,
+    market_activation: false,
+    public_presale_activation: false,
+    funds_movement: false,
+  });
 
 function fail(code) {
   throw new Error(code);
@@ -246,11 +274,46 @@ function canonicalOrigin(value) {
   return CANONICAL_REMOTE;
 }
 
-function repositoryIdentity() {
+function canonicalRemoteMainHead() {
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      "-c", "http.sslVerify=true",
+      "ls-remote",
+      "--heads",
+      CANONICAL_REMOTE,
+      "refs/heads/main",
+    ],
+    {
+      cwd: "/",
+      env: gitEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 1024 * 1024,
+      timeout: LIVE_MAIN_QUERY_TIMEOUT_MS,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("live_deployment_preflight_remote_main_unavailable");
+  }
+  const raw = String(result.stdout || "").trim();
+  const match = raw.match(/^([0-9a-f]{40})\s+refs\/heads\/main$/u);
+  if (!match) {
+    fail("live_deployment_preflight_remote_main_invalid");
+  }
+  return match[1];
+}
+
+function repositoryIdentity({ requireCanonicalMain = false } = {}) {
   const head = gitText(["rev-parse", "HEAD"], "live_deployment_preflight_head_unavailable");
   const tree = gitText(
     ["rev-parse", "HEAD^{tree}"],
     "live_deployment_preflight_tree_unavailable",
+  );
+  const branch = gitText(
+    ["branch", "--show-current"],
+    "live_deployment_preflight_branch_unavailable",
   );
   const status = gitText(
     ["status", "--porcelain=v1", "--untracked-files=all"],
@@ -279,10 +342,24 @@ function repositoryIdentity() {
   ) {
     fail("live_deployment_preflight_repository_identity_invalid");
   }
+
+  let remoteMainSha = null;
+  if (requireCanonicalMain) {
+    if (branch !== "main") {
+      fail("live_deployment_preflight_canonical_main_branch_required");
+    }
+    remoteMainSha = canonicalRemoteMainHead();
+    if (remoteMainSha !== head) {
+      fail("live_deployment_preflight_remote_main_head_mismatch");
+    }
+  }
+
   return Object.freeze({
     head,
     tree,
+    branch,
     origin,
+    remote_main_sha: remoteMainSha,
     qualification_tool_git_blob_sha1: qualificationToolBlob,
     preflight_tool_git_blob_sha1: preflightToolBlob,
   });
@@ -833,8 +910,9 @@ function held(reason, detail = {}) {
   });
 }
 
-export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   input,
+  { requireCanonicalMain = false } = {},
 ) {
   let repo;
   let verifiedQualification;
@@ -842,7 +920,14 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
   let inventorySource;
   let rpcPolicy;
   try {
-    repo = repositoryIdentity();
+    if (
+      input &&
+      typeof input === "object" &&
+      Object.prototype.hasOwnProperty.call(input, "transport")
+    ) {
+      fail("live_deployment_preflight_transport_injection_forbidden");
+    }
+    repo = repositoryIdentity({ requireCanonicalMain });
     const qualificationContract = await reviewedQualificationContract(repo);
     verifiedQualification = verifyQualification(
       input?.qualification_bytes,
@@ -867,7 +952,7 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
   }
 
   const methods = [];
-  const transport = input?.transport || createHttpTransport(rpcPolicy);
+  const transport = createHttpTransport(rpcPolicy);
   const call = async (method, params) => {
     methods.push(method);
     return await transport({ method, params });
@@ -1004,7 +1089,10 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
       repository: Object.freeze({
         head_sha: repo.head,
         tree_sha: repo.tree,
+        branch: repo.branch,
         canonical_remote_url: repo.origin,
+        remote_main_sha: repo.remote_main_sha,
+        canonical_main_verified: requireCanonicalMain,
         preflight_tool_git_blob_sha1: repo.preflight_tool_git_blob_sha1,
       }),
       qualification: Object.freeze({
@@ -1086,6 +1174,57 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
         (error instanceof Error ? error.message : String(error)).slice(0, 240),
     });
   }
+}
+
+export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+  input,
+) {
+  return await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
+    input,
+    { requireCanonicalMain: true },
+  );
+}
+
+export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+  input,
+) {
+  const result =
+    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
+      input,
+      { requireCanonicalMain: false },
+    );
+  if (!result.ok) {
+    return Object.freeze({
+      ok: false,
+      marker:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+      version: 1,
+      status: "TEST_ONLY_HOLD",
+      reason: result.reason,
+      production_artifact_authorized: false,
+      production_preflight_id_emitted: false,
+      authority:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
+    });
+  }
+  const p = result.preflight;
+  return Object.freeze({
+    ok: true,
+    marker:
+      VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+    version: 1,
+    status: "TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN",
+    production_artifact_authorized: false,
+    production_preflight_id_emitted: false,
+    local_source_head_sha: p.repository.head_sha,
+    local_source_tree_sha: p.repository.tree_sha,
+    qualification_id: p.qualification.qualification_id,
+    rpc_methods_used: p.rpc.rpc_methods_used,
+    observation: p.observation,
+    sufficiency: p.sufficiency,
+    authority:
+      VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
+  });
 }
 
 function outsideRepository(file) {
