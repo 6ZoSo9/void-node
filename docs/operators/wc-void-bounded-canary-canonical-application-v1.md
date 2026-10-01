@@ -161,7 +161,8 @@ candidate source must not be changed until the actual semantic-promotion and
 ## Verify-applied
 
 After the reviewed candidate commit lands, run `verify-applied` from a clean
-descendant generation.
+canonical `main` generation. A feature branch may prove the target objects with the
+pure state verifier, but it cannot emit canonical applied lineage.
 
 Verification requires:
 
@@ -221,6 +222,7 @@ reviewed_repository_generation_required=true
 canonical_classifier_reexecution=true
 exact_two_gate_source_delta=true
 reviewed_git_commit_required=true
+canonical_main_application_required=true
 reviewed_git_executable_required=true
 ambient_git_overrides_ignored=true
 
