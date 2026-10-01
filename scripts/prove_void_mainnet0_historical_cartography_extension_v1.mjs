@@ -206,6 +206,22 @@ try {
     newFrozenHead: NEW_HEAD,
     sourceLabel: SOURCE_LABEL,
   });
+
+  {
+    const tampered = structuredClone(priorScan.manifest);
+    tampered.complete_scan_digest = "0".repeat(64);
+    expectHold(
+      () =>
+        extendCartographySourceV1({
+          priorManifest: tampered,
+          priorPrefixAuthority: authority,
+          sourceDir: prior.root,
+          newFrozenHead: NEW_HEAD,
+          sourceLabel: SOURCE_LABEL,
+        }),
+      /prior_manifest_integrity_mismatch/u,
+    );
+  }
   const full = scanner.scanHistoricalSource({
     sourceDir: prior.root,
     frozenHead: NEW_HEAD,
@@ -486,7 +502,7 @@ try {
   console.log("terminal_segment_boundary_recovered=true");
   console.log("suffix_digest_continued=true");
   console.log("combined_manifest_equals_fresh_full_scan=true");
-  console.log("closed_segment_mutation_rejected=true");
+  console.log("prior_manifest_tamper_rejected=true");\n  console.log("closed_segment_mutation_rejected=true");
   console.log("terminal_prefix_mutation_rejected=true");
   console.log("height_gap_rejected=true");
   console.log("unknown_shape_rejected=true");
