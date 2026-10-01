@@ -180,16 +180,49 @@ function repositoryIdentity(){
   if(!HEX40.test(head)||!HEX40.test(tree)) fail("LEDGER_CUSTODY_APPLICATION_REPOSITORY_IDENTITY_INVALID");
   return Object.freeze({head,tree,branch});
 }
-function headFile(rel,label){
-  const bytes=gitBytes(["show","HEAD:"+rel],"LEDGER_CUSTODY_APPLICATION_"+label+"_BYTES_UNAVAILABLE");
-  if(bytes.length<2||bytes.length>MAX_BYTES) fail("LEDGER_CUSTODY_APPLICATION_"+label+"_BYTES_INVALID");
+function commitFile(commit,rel,label){
+  if(typeof commit!=="string"||!HEX40.test(commit)){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_COMMIT_INVALID");
+  }
+  const bytes=gitBytes(
+    ["show",commit+":"+rel],
+    "LEDGER_CUSTODY_APPLICATION_"+label+"_BYTES_UNAVAILABLE",
+  );
+  if(bytes.length<2||bytes.length>MAX_BYTES){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_BYTES_INVALID");
+  }
   let value;
-  try{value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));}
-  catch{fail("LEDGER_CUSTODY_APPLICATION_"+label+"_JSON_INVALID");}
-  if(!plain(value)) fail("LEDGER_CUSTODY_APPLICATION_"+label+"_OBJECT_REQUIRED");
-  const blob=gitText(["rev-parse","HEAD:"+rel],"LEDGER_CUSTODY_APPLICATION_"+label+"_BLOB_UNAVAILABLE");
-  if(!HEX40.test(blob)||gitBlobSha1(bytes)!==blob) fail("LEDGER_CUSTODY_APPLICATION_"+label+"_BLOB_MISMATCH");
-  return Object.freeze({bytes,value,sha256:sha256(bytes),blob_sha1:blob});
+  try{
+    value=JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
+  }catch{
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_JSON_INVALID");
+  }
+  if(!plain(value)){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_OBJECT_REQUIRED");
+  }
+  const blob=gitText(
+    ["rev-parse",commit+":"+rel],
+    "LEDGER_CUSTODY_APPLICATION_"+label+"_BLOB_UNAVAILABLE",
+  );
+  if(!HEX40.test(blob)||gitBlobSha1(bytes)!==blob){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_BLOB_MISMATCH");
+  }
+  return Object.freeze({
+    bytes,
+    value,
+    sha256:sha256(bytes),
+    blob_sha1:blob,
+  });
+}
+function headFile(rel,label){
+  const head=gitText(
+    ["rev-parse","HEAD"],
+    "LEDGER_CUSTODY_APPLICATION_"+label+"_HEAD_UNAVAILABLE",
+  );
+  if(!HEX40.test(head)){
+    fail("LEDGER_CUSTODY_APPLICATION_"+label+"_HEAD_INVALID");
+  }
+  return commitFile(head,rel,label);
 }
 function parseJsonBytes(bytes,expectedSha,label){
   if(!Buffer.isBuffer(bytes)||bytes.length<2||bytes.length>MAX_BYTES) fail(label+"_BYTES_INVALID");
@@ -305,6 +338,142 @@ function validatePlan(plan){
   if("voidwclcca1_"+sha256(Buffer.from(canonicalJson(planBody(plan)),"utf8"))!==plan.application_plan_id){
     fail("LEDGER_CUSTODY_APPLICATION_PLAN_ID_MISMATCH");
   }
+
+  const baseTree=gitText(
+    ["rev-parse",plan.application_base_head_sha+"^{tree}"],
+    "LEDGER_CUSTODY_APPLICATION_PLAN_BASE_TREE_UNAVAILABLE",
+  );
+  if(baseTree!==plan.application_base_tree_sha){
+    fail("LEDGER_CUSTODY_APPLICATION_PLAN_BASE_TREE_MISMATCH");
+  }
+
+  for(const [rel,expectedBlob,code] of [
+    [
+      TOOL_REL,
+      plan.application_tool_git_blob_sha1,
+      "LEDGER_CUSTODY_APPLICATION_PLAN_APPLICATION_TOOL_BLOB_MISMATCH",
+    ],
+    [
+      PROMOTION_TOOL_REL,
+      plan.promotion_tool_git_blob_sha1,
+      "LEDGER_CUSTODY_APPLICATION_PLAN_PROMOTION_TOOL_BLOB_MISMATCH",
+    ],
+    [
+      PRODUCTION_CLASSIFIER_REL,
+      plan.production_classifier_git_blob_sha1,
+      "LEDGER_CUSTODY_APPLICATION_PLAN_PRODUCTION_CLASSIFIER_BLOB_MISMATCH",
+    ],
+    [
+      COUPLED_CLASSIFIER_REL,
+      plan.coupled_classifier_git_blob_sha1,
+      "LEDGER_CUSTODY_APPLICATION_PLAN_COUPLED_CLASSIFIER_BLOB_MISMATCH",
+    ],
+    [
+      IMPORT_TOOL_REL,
+      plan.ledger_import_tool_git_blob_sha1,
+      "LEDGER_CUSTODY_APPLICATION_PLAN_IMPORT_TOOL_BLOB_MISMATCH",
+    ],
+  ]){
+    const actual=gitText(
+      ["rev-parse",plan.application_base_head_sha+":"+rel],
+      code+"_UNAVAILABLE",
+    );
+    if(actual!==expectedBlob) fail(code);
+  }
+
+  const baseProduction=commitFile(
+    plan.application_base_head_sha,
+    PRODUCTION_REL,
+    "PLAN_BASE_PRODUCTION",
+  );
+  const baseCoupled=commitFile(
+    plan.application_base_head_sha,
+    COUPLED_REL,
+    "PLAN_BASE_COUPLED",
+  );
+  const baseSuccessor=commitFile(
+    plan.application_base_head_sha,
+    SUCCESSOR_REL,
+    "PLAN_BASE_SUCCESSOR",
+  );
+  if(
+    baseProduction.blob_sha1!==plan.production_source_git_blob_sha1||
+    baseProduction.sha256!==plan.production_source_file_sha256||
+    baseCoupled.blob_sha1!==plan.coupled_source_git_blob_sha1||
+    baseCoupled.sha256!==plan.coupled_source_file_sha256||
+    baseSuccessor.blob_sha1!==plan.successor_source_git_blob_sha1||
+    baseSuccessor.sha256!==plan.successor_source_file_sha256
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_PLAN_BASE_SOURCE_MISMATCH");
+  }
+
+  const expectedProductionFields=[
+    "quote_reserve_custody_verified",
+    "wc_ledger_persistence_verified",
+  ];
+  const expectedCoupledGates=[
+    "quote_reserve_custody_verified",
+    "wc_ledger_persistence_verified",
+  ];
+  if(
+    canonicalJson(plan.promoted_production_fields)!==
+      canonicalJson(expectedProductionFields)||
+    canonicalJson(plan.promoted_coupled_gates)!==
+      canonicalJson(expectedCoupledGates)
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_PLAN_PROMOTED_FIELDS_INVALID");
+  }
+
+  assertTargetDelta(
+    baseProduction.value,
+    plan.production_target_candidate,
+    baseCoupled.value,
+    plan.coupled_target_candidate,
+  );
+
+  const productionBefore=
+    classifyVoidWcVoidProductionReadinessV1(baseProduction.value);
+  const productionAfter=
+    classifyVoidWcVoidProductionReadinessV1(plan.production_target_candidate);
+  const coupledBefore=
+    classifyVoidCoupledEconomicSuccessorGateV1(
+      baseCoupled.value,
+      baseSuccessor.value,
+    );
+  const coupledAfter=
+    classifyVoidCoupledEconomicSuccessorGateV1(
+      plan.coupled_target_candidate,
+      baseSuccessor.value,
+    );
+  const removed=[
+    "wc_ledger_persistence_verification_required",
+    "quote_reserve_custody_verification_required",
+  ];
+  if(
+    canonicalJson(summary(productionBefore))!==
+      canonicalJson(plan.production_before)||
+    canonicalJson(summary(productionAfter))!==
+      canonicalJson(plan.production_after)||
+    canonicalJson(summary(coupledBefore))!==
+      canonicalJson(plan.coupled_before)||
+    canonicalJson(summary(coupledAfter))!==
+      canonicalJson(plan.coupled_after)||
+    productionBefore?.status!=="HOLD"||
+    productionAfter?.status!=="HOLD"||
+    coupledBefore?.status!=="HOLD"||
+    coupledAfter?.status!=="HOLD"||
+    !sameStrings(
+      productionAfter.missing_gates,
+      removeGates(productionBefore.missing_gates,removed),
+    )||
+    !sameStrings(
+      coupledAfter.missing_gates,
+      removeGates(coupledBefore.missing_gates,removed),
+    )
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_PLAN_CLASSIFIER_LINEAGE_MISMATCH");
+  }
+
   const productionTargetBytes=prettyBytes(plan.production_target_candidate);
   const coupledTargetBytes=prettyBytes(plan.coupled_target_candidate);
   if(
@@ -546,18 +715,39 @@ export function verifyVoidWcVoidLedgerCustodyCanonicalApplicationV1({
     successor.sha256!==plan.successor_source_file_sha256
   ) fail("LEDGER_CUSTODY_APPLICATION_SUCCESSOR_BLOB_DRIFT");
 
-  const appToolBlob=gitText(
-    ["rev-parse","HEAD:"+TOOL_REL],
-    "LEDGER_CUSTODY_APPLICATION_CURRENT_TOOL_BLOB_UNAVAILABLE",
-  );
-  const promotionToolBlob=gitText(
-    ["rev-parse","HEAD:"+PROMOTION_TOOL_REL],
-    "LEDGER_CUSTODY_APPLICATION_CURRENT_PROMOTION_TOOL_BLOB_UNAVAILABLE",
-  );
+  const currentToolBlobs=Object.freeze({
+    application:gitText(
+      ["rev-parse","HEAD:"+TOOL_REL],
+      "LEDGER_CUSTODY_APPLICATION_CURRENT_TOOL_BLOB_UNAVAILABLE",
+    ),
+    promotion:gitText(
+      ["rev-parse","HEAD:"+PROMOTION_TOOL_REL],
+      "LEDGER_CUSTODY_APPLICATION_CURRENT_PROMOTION_TOOL_BLOB_UNAVAILABLE",
+    ),
+    production_classifier:gitText(
+      ["rev-parse","HEAD:"+PRODUCTION_CLASSIFIER_REL],
+      "LEDGER_CUSTODY_APPLICATION_CURRENT_PRODUCTION_CLASSIFIER_BLOB_UNAVAILABLE",
+    ),
+    coupled_classifier:gitText(
+      ["rev-parse","HEAD:"+COUPLED_CLASSIFIER_REL],
+      "LEDGER_CUSTODY_APPLICATION_CURRENT_COUPLED_CLASSIFIER_BLOB_UNAVAILABLE",
+    ),
+    ledger_import:gitText(
+      ["rev-parse","HEAD:"+IMPORT_TOOL_REL],
+      "LEDGER_CUSTODY_APPLICATION_CURRENT_IMPORT_TOOL_BLOB_UNAVAILABLE",
+    ),
+  });
   if(
-    appToolBlob!==plan.application_tool_git_blob_sha1||
-    promotionToolBlob!==plan.promotion_tool_git_blob_sha1
-  ) fail("LEDGER_CUSTODY_APPLICATION_TOOL_LINEAGE_DRIFT");
+    currentToolBlobs.application!==plan.application_tool_git_blob_sha1||
+    currentToolBlobs.promotion!==plan.promotion_tool_git_blob_sha1||
+    currentToolBlobs.production_classifier!==
+      plan.production_classifier_git_blob_sha1||
+    currentToolBlobs.coupled_classifier!==
+      plan.coupled_classifier_git_blob_sha1||
+    currentToolBlobs.ledger_import!==plan.ledger_import_tool_git_blob_sha1
+  ){
+    fail("LEDGER_CUSTODY_APPLICATION_TOOL_LINEAGE_DRIFT");
+  }
 
   const state=verifyVoidWcVoidLedgerCustodyCanonicalApplicationStateV1({
     plan,
