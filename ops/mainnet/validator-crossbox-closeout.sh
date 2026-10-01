@@ -3,13 +3,32 @@ set -euo pipefail
 set +H
 set +o histexpand
 
+MARKER="VOID_VALIDATOR_CROSSBOX_CLOSEOUT_V1"
 EPOCH="${1:?usage: validator-crossbox-closeout.sh <epoch> <vaultName>}"
 VAULT="${2:?usage: validator-crossbox-closeout.sh <epoch> <vaultName>}"
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+CROSSBOX_SSH_TARGET="${CROSSBOX_SSH_TARGET:-${ALIEN:-}}"
+CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT="${CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT:-}"
 BASE="${BASE:-http://127.0.0.1:4100}"
-ROOT="$HOME/dev/void-node"
+ROOT="${VOID_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 RUNTIME="$ROOT/.runtime/validator_epoch_manifests"
 COMPARE_LATEST="$ROOT/.runtime/validator_truth_compare/latest.json"
+
+hold(){
+  echo "$MARKER HOLD: $*" >&2
+  exit 2
+}
+
+[ -n "$CROSSBOX_SSH_TARGET" ] || hold "missing explicit CROSSBOX_SSH_TARGET (or legacy ALIEN)"
+
+target_guard="$(printf '%s' "$CROSSBOX_SSH_TARGET" | tr '[:upper:]' '[:lower:]')"
+case "$target_guard" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    hold "retired Alienware target is forbidden"
+    ;;
+esac
+
+[ "$CONFIRM_VALIDATOR_CROSSBOX_CLOSEOUT" = "publishValidatorCrossboxCloseoutV1" ] \
+  || hold "confirmation token required"
 
 OUT_DIR="$(
 python3 - <<'PY' "$RUNTIME" "$VAULT" "$EPOCH"
@@ -30,8 +49,12 @@ LIVE_STAGE="$RUNTIME/upgrade-live-${VAULT}-final-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$LIVE_STAGE"
 
 echo "=== [1] using ==="
+echo "marker=$MARKER"
 echo "epoch=$EPOCH"
 echo "vault=$VAULT"
+echo "crossbox_ssh_target=$CROSSBOX_SSH_TARGET"
+echo "explicit_remote_target=true"
+echo "retired_alienware_target=false"
 echo "out_dir=$OUT_DIR"
 
 echo
@@ -95,13 +118,13 @@ curl -fsS "$BASE/__void/runtime/validator-truth/epoch/$EPOCH" | python3 -m json.
 echo
 echo "=== [7] sync Alien ==="
 REMOTE_DIR="/home/zoso/dev/void-node/.runtime/validator_epoch_manifests/import-from-precision-epoch${EPOCH}-$(date +%Y%m%d-%H%M%S)"
-ssh "$ALIEN" "mkdir -p '$REMOTE_DIR'"
-tar -C "$RUNTIME/verified-current" -cf - . | ssh "$ALIEN" "tar -C '$REMOTE_DIR' -xf -"
-ssh "$ALIEN" "rm -f /home/zoso/dev/void-node/.runtime/validator_epoch_manifests/verified-current && ln -s '$REMOTE_DIR' /home/zoso/dev/void-node/.runtime/validator_epoch_manifests/verified-current && systemctl --user restart void-node.service"
+ssh "$CROSSBOX_SSH_TARGET" "mkdir -p '$REMOTE_DIR'"
+tar -C "$RUNTIME/verified-current" -cf - . | ssh "$CROSSBOX_SSH_TARGET" "tar -C '$REMOTE_DIR' -xf -"
+ssh "$CROSSBOX_SSH_TARGET" "rm -f /home/zoso/dev/void-node/.runtime/validator_epoch_manifests/verified-current && ln -s '$REMOTE_DIR' /home/zoso/dev/void-node/.runtime/validator_epoch_manifests/verified-current && systemctl --user restart void-node.service"
 
 echo
 echo "=== [8] prove Alien ==="
-ssh "$ALIEN" "sleep 4; curl -fsS http://127.0.0.1:4100/__void/runtime/validator-truth/status | python3 -m json.tool | sed -n '1,110p'; echo; curl -fsS http://127.0.0.1:4100/__void/runtime/validator-truth/epoch/$EPOCH | python3 -m json.tool"
+ssh "$CROSSBOX_SSH_TARGET" "sleep 4; curl -fsS http://127.0.0.1:4100/__void/runtime/validator-truth/status | python3 -m json.tool | sed -n '1,110p'; echo; curl -fsS http://127.0.0.1:4100/__void/runtime/validator-truth/epoch/$EPOCH | python3 -m json.tool"
 
 echo
 echo "=== [9] tag checkpoint ==="
