@@ -3,9 +3,9 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-MARKER="VOID_CROSSBOX_BOOTSTRAP_MUTATION_BOUNDARY_V1"
-ALIEN="${ALIEN:-}"
-PREC_TS="${PREC_TS:-}"
+MARKER="VOID_CROSSBOX_BOOTSTRAP_MUTATION_BOUNDARY_V1"\nLEGACY_MARKER="VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1"
+ALIEN="${ALIEN:-}"\n: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+PREC_TS="${PREC_TS:-}"\n: "${PREC_TS:?set PREC_TS to the explicit current Precision Tailnet address}"
 
 hold(){
   echo "$MARKER HOLD: $*" >&2
