@@ -108,6 +108,16 @@ function sha256Text(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+function deepFreeze(value,seen=new WeakSet()) {
+  if(value===null||typeof value!=="object") return value;
+  if(seen.has(value)) return value;
+  seen.add(value);
+  for(const key of Reflect.ownKeys(value)) {
+    deepFreeze(value[key],seen);
+  }
+  return Object.freeze(value);
+}
+
 function git(args,code) {
   const result=spawnSync(
     "git",
@@ -581,6 +591,8 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     fail("reconciliation_current_classifier_atomicity_guard_missing");
   }
 
+  const frozenProposedCandidate=deepFreeze(proposedCandidate);
+
   const material=Object.freeze({
     marker:VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_V1,
     version:1,
@@ -598,7 +610,7 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
     launch_identity:launchIdentity,
     proposed_shared_post_discovery_reconciliation:reconciledShared,
     proposed_candidate_sha256:
-      sha256Text(canonicalJson(proposedCandidate)),
+      sha256Text(canonicalJson(frozenProposedCandidate)),
     required_atomic_source_updates:requiredAtomicSourceUpdatesV1(),
     downstream_real_evidence_blocked_until_application:Object.freeze([
       "opening_ledger_custody_evidence",
@@ -635,7 +647,7 @@ export async function prepareWcVoidCoupledLaunchIdentityReconciliationV1() {
 
   return Object.freeze({
     artifact,
-    proposed_candidate:Object.freeze(proposedCandidate),
+    proposed_candidate:frozenProposedCandidate,
   });
 }
 
