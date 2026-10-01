@@ -5,7 +5,14 @@ set +o histexpand 2>/dev/null || true
 
 cd "$HOME/dev/void-node" || exit 1
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
+: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
 HTTP_PORT="${HTTP_PORT:-4100}"
 TS_IP="${TS_IP:-$(tailscale ip -4 2>/dev/null | head -n1)}"
 PUBLIC_BASE="${PUBLIC_LOCAL_NODE_BASE:-http://${TS_IP}:${HTTP_PORT}}"
@@ -16,7 +23,7 @@ mkdir -p "$OUT"
 
 echo "=== tailnet HTTP public base proof ==="
 echo "mutation=false"
-echo "alien=$ALIEN"
+echo "remote=$ALIEN"
 echo "ts_ip=$TS_IP"
 echo "public_base=$PUBLIC_BASE"
 echo "dropin=$DROPIN"
@@ -62,7 +69,7 @@ print("[ok] local and tailnet ready are green")
 PY
 
 echo
-echo "=== [4] Alienware can reach Precision public base ==="
+echo "=== [4] remote peer can reach Precision public base ==="
 ssh "$ALIEN" "curl -fsS --max-time 8 '${PUBLIC_BASE}/__void/ready.json'" > "$OUT/alien-reaches-precision-ready.json"
 
 python3 - "$OUT/alien-reaches-precision-ready.json" <<'PY'
@@ -71,7 +78,7 @@ j=json.load(open(sys.argv[1]))
 assert j.get("ready") is True, j
 assert int(j.get("gap", -1)) == 0, j
 assert int(j.get("txroot_live", 0)) == 1, j
-print("[ok] Alienware can reach Precision tailnet HTTP")
+print("[ok] remote peer can reach Precision tailnet HTTP")
 PY
 
 echo
@@ -92,7 +99,7 @@ print(json.dumps({
   "public_base": sys.argv[2],
   "dropin": "98-tailnet-http.conf",
   "http_host": "0.0.0.0",
-  "alienware_can_reach_precision_http": True,
+  "remote_can_reach_precision_http": True,
   "participant_share_open_e2e": True,
   "buy_void_fulfillment": False,
   "validator_mutation": False,

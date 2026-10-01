@@ -3,8 +3,15 @@ set -euo pipefail
 set +H
 set +o histexpand
 
-ALIEN="${ALIEN:-zoso@100.122.79.39}"
-PREC_TS="${PREC_TS:-100.93.2.116}"
+: "${ALIEN:?set ALIEN to an explicit non-retired remote SSH target}"
+TARGET_GUARD="$(printf '%s\n' "$ALIEN" | tr '[:upper:]' '[:lower:]')"
+case "$TARGET_GUARD" in
+  *100.122.79.39*|*zoso-alienware-aurora-r7.taila47fd.ts.net*|*alienware*)
+    echo "VOID_CROSSBOX_BOOTSTRAP_EXPLICIT_TARGET_V1 HOLD: retired Alienware target is forbidden" >&2
+    exit 2
+    ;;
+esac
+: "${PREC_TS:?set PREC_TS to the explicit current Precision Tailnet address}"
 
 echo "=== remote host truth ==="
 ssh "$ALIEN" 'hostname'
