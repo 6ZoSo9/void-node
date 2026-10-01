@@ -10,7 +10,9 @@ import {
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_AUTHORITY_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_ID_V1,
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
-  compileVoidWcVoidCoupledLaunchPolicyBundleV1,
+  VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1,
+  compileVoidWcVoidCoupledLaunchPolicyBundleV1 as compileProductionBundle,
+  testOnlyCompileVoidWcVoidCoupledLaunchPolicyBundleV1 as compileVoidWcVoidCoupledLaunchPolicyBundleV1,
 } from "../tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
 import {
   VOID_WC_VOID_OPENING_WINDOW_SCHEMA_V1,
@@ -41,6 +43,10 @@ import {
 
 const TOOL =
   "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
+const CORE =
+  "tools/void-wc-void-coupled-launch-policy-reviewed-core-v1.mjs";
+const POLICY_SOURCE =
+  "tools/void-wc-void-opening-window-policy-v1.mjs";
 const COUPLED_CANDIDATE =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const REVIEWED_COUPLED_CANDIDATE_BLOB =
@@ -206,27 +212,56 @@ const result = compileVoidWcVoidCoupledLaunchPolicyBundleV1(fixture());
 
 assert.equal(
   result.marker,
-  VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
+  VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1,
 );
 assert.equal(
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1,
   "VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1",
 );
-assert.equal(
-  result.schema,
-  "void.wc-void-coupled-launch-policy-bundle.v1",
-);
-assert.match(result.bundle_id, /^sha256:[0-9a-f]{64}$/u);
+assert.equal(result.status, "TEST_ONLY_REVIEWED_SOURCE_COMPILATION_GREEN");
+assert.equal(result.production_artifact_authorized, false);
+assert.equal(result.production_bundle_id_emitted, false);
+assert.equal("bundle_id" in result, false);
 assert.equal(result.coupled_launch_id, LAUNCH);
-assert.deepEqual(result.canonical_launch_source, {
-  path: COUPLED_CANDIDATE,
-  git_blob_sha1: REVIEWED_COUPLED_CANDIDATE_BLOB,
-  file_sha256:
-    crypto.createHash("sha256")
-      .update(fs.readFileSync(COUPLED_CANDIDATE))
-      .digest("hex"),
-  coupled_launch_id: LAUNCH,
-});
+assert.equal(result.canonical_launch_source.path, COUPLED_CANDIDATE);
+assert.equal(
+  result.canonical_launch_source.git_blob_sha1,
+  REVIEWED_COUPLED_CANDIDATE_BLOB,
+);
+assert.equal(
+  result.canonical_launch_source.file_sha256,
+  crypto.createHash("sha256")
+    .update(fs.readFileSync(COUPLED_CANDIDATE))
+    .digest("hex"),
+);
+assert.equal(result.canonical_launch_source.coupled_launch_id, LAUNCH);
+assert.equal(result.canonical_launch_source.canonical_main_verified, false);
+assert.equal(result.canonical_launch_source.remote_main_sha, null);
+assert.equal(result.canonical_launch_source.permission_fenced_execution, true);
+assert.match(
+  result.canonical_launch_source.repository_head_sha,
+  /^[0-9a-f]{40}$/u,
+);
+assert.match(
+  result.canonical_launch_source.repository_tree_sha,
+  /^[0-9a-f]{40}$/u,
+);
+assert.equal(
+  result.canonical_launch_source.reviewed_policy_module_git_blobs[CORE] !==
+    undefined,
+  true,
+);
+assert.equal(
+  Object.keys(
+    result.canonical_launch_source.reviewed_policy_module_git_blobs,
+  ).length,
+  11,
+);
+
+assert.throws(
+  () => compileProductionBundle(fixture()),
+  /COUPLED_LAUNCH_POLICY_CANONICAL_MAIN_BRANCH_REQUIRED/u,
+);
 assert.equal(result.opening_window.opens_at_ms, 10000);
 assert.equal(result.opening_window.closes_at_ms, 20000);
 assert.equal(
@@ -254,12 +289,19 @@ for (const [key, value] of Object.entries(
     key === "source_policy_compilation_only" ||
     key === "explicit_reviewed_values_required" ||
     key === "canonical_launch_source_binding_required" ||
+    key === "reviewed_git_object_execution_required" ||
+    key === "reviewed_policy_module_closure_required" ||
+    key === "permission_fenced_execution_required" ||
+    key === "worktree_policy_execution_forbidden" ||
+    key === "canonical_main_artifact_required" ||
+    key === "canonical_remote_main_read_required" ||
     key === "git_config_isolated" ||
     key === "descriptor_bound_private_input" ||
     key === "reviewed_private_input_sha256_required" ||
     key === "create_only_private_output" ||
     key === "durable_output_directory_entry_required" ||
-    key === "output_parent_directory_identity_bound"
+    key === "output_parent_directory_identity_bound" ||
+    key === "private_temporary_filesystem_write"
   ) {
     assert.equal(value, true, key);
   } else {
@@ -389,10 +431,59 @@ for (const [key, value] of Object.entries(
     );
     assert.throws(
       () => compileVoidWcVoidCoupledLaunchPolicyBundleV1(fixture()),
-      /COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_BLOB_MISMATCH/u,
+      /COUPLED_LAUNCH_POLICY_REPOSITORY_MUST_BE_CLEAN|COUPLED_LAUNCH_POLICY_CANONICAL_SOURCE_BLOB_MISMATCH/u,
     );
   } finally {
     fs.writeFileSync(COUPLED_CANDIDATE, original);
+  }
+}
+
+{
+  const original = fs.readFileSync(POLICY_SOURCE);
+  const sentinel = path.join(
+    os.tmpdir(),
+    "void-coupled-launch-policy-unreviewed-executed-" + String(process.pid),
+  );
+  try {
+    fs.rmSync(sentinel, { force: true });
+    spawnSync(
+      "/usr/bin/git",
+      ["-C", process.cwd(), "update-index", "--assume-unchanged", POLICY_SOURCE],
+      { encoding: "utf8" },
+    );
+    const malicious = Buffer.concat([
+      Buffer.from(
+        'import { writeFileSync as __voidSentinelWrite } from "node:fs";\n' +
+          "__voidSentinelWrite(" +
+          JSON.stringify(sentinel) +
+          ', "executed\\n");\n',
+        "utf8",
+      ),
+      original,
+    ]);
+    fs.writeFileSync(POLICY_SOURCE, malicious);
+    const hidden = compileVoidWcVoidCoupledLaunchPolicyBundleV1(fixture());
+    assert.deepEqual(hidden.opening_window, result.opening_window);
+    assert.deepEqual(hidden.concentration_policy, result.concentration_policy);
+    assert.deepEqual(hidden.minimum_depth_policy, result.minimum_depth_policy);
+    assert.deepEqual(hidden.intent_ttl_caps_policy, result.intent_ttl_caps_policy);
+    assert.deepEqual(
+      hidden.sponsored_execution_policy,
+      result.sponsored_execution_policy,
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "hidden unreviewed policy worktree source executed",
+    );
+  } finally {
+    fs.writeFileSync(POLICY_SOURCE, original);
+    spawnSync(
+      "/usr/bin/git",
+      ["-C", process.cwd(), "update-index", "--no-assume-unchanged", POLICY_SOURCE],
+      { encoding: "utf8" },
+    );
+    fs.rmSync(sentinel, { force: true });
   }
 }
 
@@ -445,14 +536,16 @@ for (const [key, value] of Object.entries(
         inputSha256,
         "--output",
         output,
+        "--test-only",
       ],
       { encoding: "utf8" },
     );
     assert.equal(first.status, 0, first.stderr);
     assert.match(
       first.stdout,
-      /VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1_GREEN_NOT_ACTIVATED/u,
+      /VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1_TEST_ONLY_GREEN/u,
     );
+    assert.match(first.stdout, /production_artifact_authorized=false/u);
     assert.match(first.stdout, /values_selected_by_source=false/u);
     assert.match(first.stdout, /runtime_enforcement_verified=false/u);
     assert.match(
@@ -461,7 +554,33 @@ for (const [key, value] of Object.entries(
     );
     assert.equal(fs.statSync(output).mode & 0o777, 0o600);
     const persisted = JSON.parse(fs.readFileSync(output, "utf8"));
-    assert.equal(persisted.bundle_id, result.bundle_id);
+    assert.equal(
+      persisted.marker,
+      VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1,
+    );
+    assert.equal(persisted.production_artifact_authorized, false);
+    assert.equal("bundle_id" in persisted, false);
+
+    const productionOutput = path.join(tmp, "production-output.json");
+    const productionRun = spawnSync(
+      process.execPath,
+      [
+        TOOL,
+        "--input",
+        input,
+        "--expected-input-sha256",
+        inputSha256,
+        "--output",
+        productionOutput,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(productionRun.status, 2);
+    assert.match(
+      productionRun.stderr,
+      /COUPLED_LAUNCH_POLICY_CANONICAL_MAIN_BRANCH_REQUIRED/u,
+    );
+    assert.equal(fs.existsSync(productionOutput), false);
 
     const alias = path.join(tmp, "input-alias.json");
     fs.symlinkSync(input, alias);
@@ -491,6 +610,7 @@ for (const [key, value] of Object.entries(
         inputSha256,
         "--output",
         output,
+        "--test-only",
       ],
       { encoding: "utf8" },
     );
@@ -505,6 +625,28 @@ for (const [key, value] of Object.entries(
 }
 
 const source = fs.readFileSync(TOOL, "utf8");
+const coreSource = fs.readFileSync(CORE, "utf8");
+for (const forbiddenImport of [
+  "./void-wc-void-opening-window-policy-v1.mjs",
+  "./void-wc-void-opening-concentration-sybil-policy-v1.mjs",
+  "./void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs",
+  "./void-wc-void-opening-minimum-real-wc-depth-policy-v1.mjs",
+  "./void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs",
+  "./void-economic-intent-ttl-caps-policy-v1.mjs",
+  "./void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs",
+]) {
+  assert.equal(
+    source.includes('from "' + forbiddenImport + '"'),
+    false,
+    "parent compiler must not load mutable worktree policy module: " +
+      forbiddenImport,
+  );
+  assert.equal(
+    coreSource.includes('from "' + forbiddenImport + '"'),
+    true,
+    "reviewed core must carry policy import: " + forbiddenImport,
+  );
+}
 for (const forbidden of [
   "systemctl",
   "eth_sendRawTransaction",
@@ -523,7 +665,12 @@ assert.match(source, /parentFd/u);
 assert.match(source, /fsyncSync\(parentFd\)/u);
 assert.match(source, /parentAfterPath\.ino/u);
 assert.equal(source.includes("...process.env"), false);
-assert.match(source, /headBlobSha1\(COUPLED_CANDIDATE_REL\)/u);
+assert.match(source, /reviewedModuleClosure/u);
+assert.match(source, /--permission/u);
+assert.match(source, /canonicalRemoteMainHead/u);
+assert.match(source, /http\.sslVerify=true/u);
+assert.match(source, /COUPLED_LAUNCH_POLICY_TOOL_WORKTREE_DRIFT/u);
+assert.match(source, /testOnlyCompileVoidWcVoidCoupledLaunchPolicyBundleV1/u);
 assert.equal(
   source.includes("const bytes = fs.readFileSync(file);"),
   false,
@@ -538,6 +685,11 @@ console.log("explicit_ttl_and_outstanding_caps_required=true");
 console.log("explicit_sponsored_gas_budgets_required=true");
 console.log("all_policy_ids_content_addressed=true");
 console.log("canonical_coupled_launch_source_bound=true");
+console.log("reviewed_git_object_policy_execution=true");
+console.log("reviewed_policy_module_count=11");
+console.log("permission_fenced_execution=true");
+console.log("hidden_worktree_policy_execution=false");
+console.log("production_artifact_from_feature_branch=false");
 console.log("private_input_descriptor_bound=true");
 console.log("reviewed_private_input_sha256_required=true");
 console.log("git_config_isolated=true");
