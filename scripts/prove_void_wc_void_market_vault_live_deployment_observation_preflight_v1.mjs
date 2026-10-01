@@ -19,6 +19,7 @@ import {
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
   observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
   testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1,
+  testOnlyExerciseVoidWcVoidMarketVaultOutputParentReplacementV1,
   testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
 } from "../tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
 
@@ -756,6 +757,22 @@ await withFixture({}, async (f) => {
   assert.equal(result.reason, "live_deployment_preflight_role_binding_invalid");
 });
 
+{
+  const custody =
+    testOnlyExerciseVoidWcVoidMarketVaultOutputParentReplacementV1();
+  assert.equal(
+    custody.marker,
+    "VOID_MARKET_VAULT_OUTPUT_PARENT_RACE_TEST_ONLY_V1",
+  );
+  assert.equal(
+    custody.reason,
+    "live_deployment_preflight_output_parent_changed_during_write",
+  );
+  assert.equal(custody.replacement_receipt_exists, false);
+  assert.equal(custody.original_receipt_exists, false);
+  assert.equal(custody.production_artifact_written, false);
+}
+
 for (const [key, expected] of Object.entries({
   qualification_receipt_required: true,
   exact_qualification_bytes_required: true,
@@ -875,6 +892,11 @@ for (const required of [
   "eth_estimateGas",
   "eth_call",
   "O_NOFOLLOW",
+  "O_DIRECTORY",
+  '"/proc/self/fd/"',
+  "fs.fsyncSync(parentFd)",
+  "live_deployment_preflight_output_parent_changed_during_write",
+  "testOnlyExerciseVoidWcVoidMarketVaultOutputParentReplacementV1",
   "GIT_CONFIG_GLOBAL",
   "core.fsmonitor=false",
   "canonicalRemoteMainHead",
@@ -905,6 +927,9 @@ console.log("caller_transport_injection_forbidden=true");
 console.log("production_transport_internal_only=true");
 console.log("test_only_loopback_http_green=true");
 console.log("production_artifact_from_feature_branch=false");
+console.log("output_parent_directory_fd_bound=true");
+console.log("output_parent_replacement_redirect_rejected=true");
+console.log("output_drift_cleanup_verified=true");
 console.log("reviewed_qualification_contract_exact_head_execution=true");
 console.log("private_reviewed_qualification_contract_materialization=true");
 console.log("dirty_qualification_source_rejected_before_execution=true");
