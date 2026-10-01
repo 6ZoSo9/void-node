@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
+import * as guardModule from "../tools/void-worker-dispatch-hub-guard-v1.mjs";
 import {
   CANONICAL_GIT_URL,
   CANONICAL_MAIN_REF,
@@ -157,19 +158,30 @@ assert.equal(
   assertFreshLiveDispatchMatchesV1(actualDispatch, actualDispatch),
   true,
 );
-const actualAligned = evaluateWorkerDispatchHubGuardV1({
+const actualRetained = evaluateWorkerDispatchHubGuardV1({
   marker: EVIDENCE_MARKER,
   version: 1,
   chain: actualCurrentChain,
   dispatch: actualDispatch,
   dispatch_evidence: actualDispatchEvidence,
-}, {
-  liveChain: actualCurrentChain,
-  liveDispatch: actualDispatch,
-  reviewedMainSha: REVIEWED_MAIN_SHA,
 });
-assert.equal(actualAligned.outcome, "DISPATCH_HUB_ALIGNED");
-assert.equal(actualAligned.normal_dispatch_allowed, true);
+assert.equal(actualRetained.outcome, "HOLD_CHAIN_LIVENESS_UNPROVEN");
+assert.equal(actualRetained.normal_dispatch_allowed, false);
+
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1({
+    marker: EVIDENCE_MARKER,
+    version: 1,
+    chain: actualCurrentChain,
+    dispatch: actualDispatch,
+    dispatch_evidence: actualDispatchEvidence,
+  }, {
+    liveChain: actualCurrentChain,
+    liveDispatch: actualDispatch,
+    reviewedMainSha: REVIEWED_MAIN_SHA,
+  }),
+  /caller-supplied live revalidation is forbidden/,
+);
 
 const actualRotationHold = evaluateWorkerDispatchHubGuardV1({
   marker: EVIDENCE_MARKER,
@@ -177,9 +189,6 @@ const actualRotationHold = evaluateWorkerDispatchHubGuardV1({
   chain: actualRotationChain,
   dispatch: actualDispatch,
   dispatch_evidence: actualDispatchEvidence,
-}, {
-  liveChain: actualRotationChain,
-  liveDispatch: actualDispatch,
 });
 assert.equal(actualRotationHold.outcome, "HOLD_ROTATION_REQUIRED");
 assert.equal(actualRotationHold.normal_dispatch_allowed, false);
@@ -319,63 +328,48 @@ assert.equal(retainedCurrent.normal_dispatch_allowed, false);
 assert.equal(retainedCurrent.live_chain_revalidated, false);
 assert.equal(retainedCurrent.requires_fresh_chain_evidence, true);
 
-const spoofedBoolean = evaluateWorkerDispatchHubGuardV1(
-  evidence(),
-  { liveChainRevalidated: true },
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(
+    evidence(),
+    { liveChainRevalidated: true },
+  ),
+  /caller-supplied live revalidation is forbidden/,
 );
-assert.equal(spoofedBoolean.outcome, "HOLD_CHAIN_LIVENESS_UNPROVEN");
-assert.equal(spoofedBoolean.normal_dispatch_allowed, false);
 
 const chainOnlyFreshEvidence = evidence();
-const chainOnlyFresh = evaluateWorkerDispatchHubGuardV1(
-  chainOnlyFreshEvidence,
-  { liveChain: chainOnlyFreshEvidence.chain },
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(
+    chainOnlyFreshEvidence,
+    { liveChain: chainOnlyFreshEvidence.chain },
+  ),
+  /caller-supplied live revalidation is forbidden/,
 );
-assert.equal(
-  chainOnlyFresh.outcome,
-  "HOLD_DISPATCH_LIVENESS_UNPROVEN",
-);
-assert.equal(chainOnlyFresh.normal_dispatch_allowed, false);
-assert.equal(chainOnlyFresh.live_dispatch_revalidated, false);
-assert.equal(chainOnlyFresh.requires_fresh_dispatch_evidence, true);
 
 const currentEvidence = evidence();
-const mainUnproven = evaluateWorkerDispatchHubGuardV1(currentEvidence, {
-  liveChain: currentEvidence.chain,
-  liveDispatch: currentEvidence.dispatch,
-});
-assert.equal(mainUnproven.outcome, "HOLD_MAIN_PROVENANCE_UNPROVEN");
-assert.equal(mainUnproven.normal_dispatch_allowed, false);
-assert.equal(mainUnproven.live_main_revalidated, false);
-assert.equal(mainUnproven.requires_live_main_evidence, true);
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(currentEvidence, {
+    liveChain: currentEvidence.chain,
+    liveDispatch: currentEvidence.dispatch,
+  }),
+  /caller-supplied live revalidation is forbidden/,
+);
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(currentEvidence, {
+    liveChain: currentEvidence.chain,
+    liveDispatch: currentEvidence.dispatch,
+    reviewedMainSha: REVIEWED_MAIN_SHA,
+  }),
+  /caller-supplied live revalidation is forbidden/,
+);
 
-const current = evaluateWorkerDispatchHubGuardV1(currentEvidence, {
-  liveChain: currentEvidence.chain,
-  liveDispatch: currentEvidence.dispatch,
-  reviewedMainSha: REVIEWED_MAIN_SHA,
-});
-assert.equal(current.marker, MARKER);
-assert.equal(current.version, 1);
-assert.equal(current.outcome, "DISPATCH_HUB_ALIGNED");
-assert.equal(current.chain_outcome, "CURRENT");
-assert.equal(current.dispatch_evidence_fresh, true);
-assert.equal(current.live_dispatch_revalidated, true);
-assert.equal(current.live_main_revalidated, true);
-assert.equal(current.reviewed_main_sha, REVIEWED_MAIN_SHA);
-assert.equal(current.requires_fresh_dispatch_evidence, false);
-assert.equal(current.requires_live_main_evidence, false);
-assert.equal(current.normal_dispatch_allowed, true);
-assert.equal(current.read_only_evidence_only, false);
-assert.equal(current.resolved_current_issue, 1507);
-assert.equal(current.dispatch_plan_issue_should_be, 1507);
-assert.equal(current.dispatch_plan_issue_observed, 1507);
-assert.equal(current.source_mutation_authorized, false);
-assert.equal(current.runtime_mutation_authorized, false);
-assert.equal(current.scheduler_mutation_authorized, false);
-assert.equal(current.authority_granted, false);
-assert.equal(current.mutation_performed, false);
-assert.match(current.guard_id, /^sha256:[0-9a-f]{64}$/u);
-assert.equal(Object.isFrozen(current), true);
+assert.equal(
+  "LIVE_REVALIDATION_CAPABILITY" in guardModule,
+  false,
+);
+assert.equal(
+  "evaluateWorkerDispatchHubGuardLiveV1" in guardModule,
+  false,
+);
 
 const staleDispatchEvidence = evidence(
   chain(),
@@ -386,7 +380,6 @@ const staleDispatchEvidence = evidence(
 );
 const staleDispatch = evaluateWorkerDispatchHubGuardV1(
   staleDispatchEvidence,
-  { liveChain: staleDispatchEvidence.chain },
 );
 assert.equal(staleDispatch.outcome, "HOLD_DISPATCH_EVIDENCE_EXPIRED");
 assert.equal(staleDispatch.normal_dispatch_allowed, false);
@@ -437,15 +430,21 @@ const reboundSuccessorEvidence = evidence(
 );
 const reboundSuccessor = evaluateWorkerDispatchHubGuardV1(
   reboundSuccessorEvidence,
-  {
-    liveChain: resolvedSuccessorChain,
-    liveDispatch: reboundSuccessorEvidence.dispatch,
-    reviewedMainSha: REVIEWED_MAIN_SHA,
-  },
 );
-assert.equal(reboundSuccessor.outcome, "DISPATCH_HUB_ALIGNED");
-assert.equal(reboundSuccessor.normal_dispatch_allowed, true);
+assert.equal(reboundSuccessor.outcome, "HOLD_CHAIN_LIVENESS_UNPROVEN");
+assert.equal(reboundSuccessor.normal_dispatch_allowed, false);
 assert.equal(reboundSuccessor.resolved_current_issue, 1600);
+expectRejected(
+  () => evaluateWorkerDispatchHubGuardV1(
+    reboundSuccessorEvidence,
+    {
+      liveChain: resolvedSuccessorChain,
+      liveDispatch: reboundSuccessorEvidence.dispatch,
+      reviewedMainSha: REVIEWED_MAIN_SHA,
+    },
+  ),
+  /caller-supplied live revalidation is forbidden/,
+);
 
 const invalidChain = evaluateWorkerDispatchHubGuardV1(
   evidence(
@@ -463,13 +462,9 @@ assert.equal(invalidChain.read_only_evidence_only, true);
 assert.equal(invalidChain.dispatch_plan_issue_should_be, null);
 
 const repeatedEvidence = evidence();
-const repeated = evaluateWorkerDispatchHubGuardV1(repeatedEvidence, {
-  liveChain: repeatedEvidence.chain,
-  liveDispatch: repeatedEvidence.dispatch,
-  reviewedMainSha: REVIEWED_MAIN_SHA,
-});
-assert.equal(repeated.guard_id, current.guard_id);
-assert.deepEqual(repeated, current);
+const repeated = evaluateWorkerDispatchHubGuardV1(repeatedEvidence);
+assert.equal(repeated.guard_id, retainedCurrent.guard_id);
+assert.deepEqual(repeated, retainedCurrent);
 
 expectRejected(
   () => evaluateWorkerDispatchHubGuardV1(
@@ -605,7 +600,7 @@ expectRejected(
       liveDispatch: actualDispatch,
     },
   ),
-  /does not match fresh live evaluation/,
+  /caller-supplied live revalidation is forbidden/,
 );
 
 expectRejected(
@@ -640,10 +635,10 @@ expectRejected(
 );
 
 console.log(PROOF_MARKER);
-console.log("current_hub_aligned=true");
+console.log("pure_evaluator_never_unlocks_dispatch=true");
 console.log("rotation_required_holds=true");
 console.log("stale_predecessor_holds=true");
-console.log("resolved_successor_aligns=true");
+console.log("resolved_successor_retained_evidence_holds=true");
 console.log("invalid_chain_holds=true");
 console.log("repository_mismatch_rejected=true");
 console.log("authority_escalation_rejected=true");
@@ -663,6 +658,30 @@ console.log("stale_local_head_rejected=true");
 console.log("main_generation_change_rejected=true");
 console.log("main_provenance_required_for_alignment=true");
 console.log("caller_boolean_cannot_unlock_alignment=true");
+console.log("caller_live_objects_rejected=true");
+console.log("caller_reviewed_main_sha_rejected=true");
+console.log("operational_live_capability_private=true");
+console.log("normal_dispatch_requires_operational_live_resolution=true");
 console.log("expired_dispatch_evidence_holds=true");
 console.log("dispatch_reevaluation_window_bound=true");
+const source = readFileSync(
+  new URL("../tools/void-worker-dispatch-hub-guard-v1.mjs", import.meta.url),
+  "utf8",
+);
+assert.match(source,/const LIVE_REVALIDATION_CAPABILITY = Symbol\(/u);
+assert.match(source,/function evaluateWorkerDispatchHubGuardLiveV1\(/u);
+assert.match(source,/liveCapability: LIVE_REVALIDATION_CAPABILITY/u);
+assert.match(
+  source,
+  /const result = evaluateWorkerDispatchHubGuardLiveV1\(evidence,/u,
+);
+assert.doesNotMatch(
+  source,
+  /export function evaluateWorkerDispatchHubGuardLiveV1/u,
+);
+assert.doesNotMatch(
+  source,
+  /export const LIVE_REVALIDATION_CAPABILITY/u,
+);
+
 console.log("normal_dispatch_grants_no_source_authority=true");
