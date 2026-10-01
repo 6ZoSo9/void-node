@@ -479,7 +479,7 @@ try {
           candidateFileSha256:
             sha256(Buffer.from(JSON.stringify(badCandidate, null, 2) + "\n", "utf8")),
         }),
-      /promotion_candidate_prestate_invalid/u,
+      /promotion_candidate_git_blob_unbound/u,
     );
   }
 
@@ -495,7 +495,7 @@ try {
           candidateFileSha256:
             sha256(Buffer.from(JSON.stringify(badCandidate, null, 2) + "\n", "utf8")),
         }),
-      /promotion_candidate_prestate_classification_invalid/u,
+      /promotion_candidate_git_blob_unbound/u,
     );
   }
 
@@ -510,6 +510,7 @@ try {
   console.log("successor_candidate_path_fixed=true");
   console.log("repository_head_tree_bound=true");
   console.log("candidate_successor_classifier_tool_git_blobs_bound=true");
+  console.log("parsed_candidates_bound_to_claimed_git_blobs=true");
   console.log("dirty_worktree_rejected=true");
   console.log("false_valid_git_identity_rejected=true");
   console.log("exactly_one_candidate_gate_promoted=true");
