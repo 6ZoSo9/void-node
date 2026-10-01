@@ -104,7 +104,7 @@ assert.equal(hold.classification, "HOLD_NO_STABLE_SEED");
 for (const [name, mutate, expected] of [
   ["authority", (m) => { m.authority.wallet_authority = true; }, /wallet_authority/],
   ["tailnet", (m) => { m.private_tailnet_endpoints_published = true; }, /private tailnet/iu],
-  ["temporary", (m) => { m.sync_endpoints[0].temporary = true; }, /temporary=false/],
+  ["temporary", (m) => { m.sync_endpoints[0].temporary = true; }, /enabled and non-temporary/],
   ["transport", (m) => { m.sync_endpoints[0].transport = "http"; }, /must use HTTPS/],
   ["chain_type", (m) => { m.chain_id = "2050"; }, /network or chain mismatch/],
   ["extra_authority", (m) => { m.authority.future_authority = false; }, /authority keys mismatch/],
