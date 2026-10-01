@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -13,6 +14,37 @@ const PROOF_MARKER = "VOID_WORKER_COORDINATION_V3_PROOF_GREEN";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ROSTER_PATH = path.join(ROOT, "ops/coordination/worker-roster-v1.json");
 const STATE_PATH = path.join(ROOT, "ops/coordination/worker-coordination-state-v3.json");
+const WORKFLOW_PATH = path.join(
+  ROOT,
+  ".github/workflows/void-worker-coordination-v3.yml",
+);
+
+const workflowSource = fs.readFileSync(WORKFLOW_PATH, "utf8");
+assert.match(
+  workflowSource,
+  /uses: actions\/checkout@[0-9a-f]{40}/u,
+  "coordination V3 checkout action must be commit-pinned",
+);
+assert.match(
+  workflowSource,
+  /uses: actions\/setup-node@[0-9a-f]{40}/u,
+  "coordination V3 setup-node action must be commit-pinned",
+);
+assert.doesNotMatch(
+  workflowSource,
+  /uses: actions\/(?:checkout|setup-node)@v[0-9]/u,
+  "coordination V3 workflow must not use mutable action major tags",
+);
+assert.match(
+  workflowSource,
+  /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/u,
+  "coordination V3 workflow must check out the actual pull-request head",
+);
+assert.match(
+  workflowSource,
+  /persist-credentials:\s*false/u,
+  "coordination V3 workflow checkout must not persist credentials",
+);
 const CURRENT_MAIN = "fb5ee3593c3040921a09548d8da2f7d876321b85";
 const DEPLOYED_RUNTIME_PIN = "58443d5c615814152dac3a370ccda82e36083846";
 
@@ -202,4 +234,7 @@ console.log("semantic_invalidation_required=true");
 console.log("worker_wip_limits_enforced=true");
 console.log("source_mutation_performed=false");
 console.log("runtime_mutation_performed=false");
+console.log("workflow_actions_commit_pinned=true");
+console.log("workflow_actual_pr_head_checkout=true");
+console.log("workflow_checkout_credentials_persisted=false");
 console.log("authority_granted=false");
