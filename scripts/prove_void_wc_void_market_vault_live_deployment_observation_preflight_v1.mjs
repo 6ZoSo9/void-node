@@ -35,22 +35,38 @@ const INVENTORY_SOURCE =
 const OPENING_ATOMS = 10000000000000000000000000n;
 const HEAD_HASH = "0x" + "a".repeat(64);
 
+function gitEnv() {
+  return {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+}
+
 function gitText(args) {
   return execFileSync("/usr/bin/git", args, {
     cwd: process.cwd(),
     encoding: "utf8",
-    env: {
-      PATH: "/usr/bin:/bin",
-      LANG: "C",
-      LC_ALL: "C",
-      HOME: "/nonexistent",
-      XDG_CONFIG_HOME: "/nonexistent",
-      GIT_CONFIG_GLOBAL: "/dev/null",
-      GIT_CONFIG_SYSTEM: "/dev/null",
-      GIT_CONFIG_NOSYSTEM: "1",
-      GIT_NO_REPLACE_OBJECTS: "1",
-    },
+    env: gitEnv(),
   }).trim();
+}
+
+function setOrigin(value) {
+  execFileSync(
+    "/usr/bin/git",
+    ["config", "--local", "remote.origin.url", value],
+    {
+      cwd: process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitEnv(),
+    },
+  );
 }
 
 function sha256(value) {
@@ -399,6 +415,44 @@ function fixture(options = {}) {
     balanceCall.params[0].data,
     "0x70a08231" + "0".repeat(24) + INVENTORY_SOURCE.slice(2),
   );
+}
+
+{
+  const originalOrigin =
+    gitText(["config", "--local", "--get", "remote.origin.url"]);
+  try {
+    setOrigin("https://github.com/6ZoSo9/void-node.git");
+    const acceptedFixture = fixture();
+    const accepted =
+      await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+        input(qualificationFixture(), acceptedFixture.transport),
+      );
+    assert.equal(
+      accepted.ok,
+      true,
+      accepted.ok ? "" : accepted.reason,
+    );
+
+    setOrigin("https://github.com/not-void/void-node.git");
+    const hostileFixture = fixture();
+    const rejected =
+      await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+        input(qualificationFixture(), hostileFixture.transport),
+      );
+    assert.equal(rejected.ok, false);
+    if (rejected.ok) throw new Error("hostile origin unexpectedly accepted");
+    assert.equal(
+      rejected.reason,
+      "live_deployment_preflight_repository_identity_invalid",
+    );
+    assert.equal(
+      hostileFixture.calls.length,
+      0,
+      "hostile origin reached RPC transport before rejection",
+    );
+  } finally {
+    setOrigin(originalOrigin);
+  }
 }
 
 for (const [options, expectedReason] of [
