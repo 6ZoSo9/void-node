@@ -284,6 +284,8 @@ for (const [key, value] of Object.entries(
     "exact_two_gate_source_delta",
     "reviewed_git_commit_required",
     "canonical_main_application_required",
+    "canonical_github_origin_required",
+    "canonical_remote_main_read_required",
     "reviewed_git_executable_required",
     "ambient_git_overrides_ignored",
     "filesystem_read",
@@ -310,6 +312,8 @@ for (const forbidden of [
 for (const required of [
   "promoteWcVoidBoundedCanaryCandidatesV1",
   "--no-replace-objects",
+  "ls-remote",
+  "https://github.com/6ZoSo9/void-node.git",
   "CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ",
   "production_target_git_blob_sha1",
   "coupled_target_git_blob_sha1",
