@@ -17,7 +17,7 @@ import {
   buildCoordinationRotationSnapshotV1,
 } from "./void-coordination-rotation-snapshot-v1.mjs";
 
-export const MARKER = "VOID_COORDINATION_ROTATION_LIVE_SNAPSHOT_V1";
+export const MARKER = "VOID_COORDINATION_ROTATION_LIVE_SNAPSHOT_V1";\nexport const CANONICAL_POLICY_PATH =\n  "ops/coordination/worker-live-dispatch-policy-v1.json";
 
 const MAX_OPEN_PRS = 250;
 const MAX_CHANGED_PATHS_PER_PR = 500;
@@ -314,6 +314,9 @@ export function buildCoordinationRotationLiveSnapshotV1({
     policyPath,
     "policyPath",
   );
+  if (canonicalPolicyPath !== CANONICAL_POLICY_PATH) {
+    fail("policyPath must equal canonical live-dispatch policy path");
+  }
   const canonicalPolicyBlobSha = requireSha(
     policyBlobSha,
     "policyBlobSha",
@@ -577,7 +580,7 @@ function fetchPullRequestCapture(repository, summary) {
 export async function captureCoordinationRotationLiveSnapshotV1({
   repository = DEFAULT_REPOSITORY,
   rootIssue = DEFAULT_ROOT_ISSUE,
-  policyPath = "ops/coordination/worker-live-dispatch-policy-v1.json",
+  policyPath = CANONICAL_POLICY_PATH,
 } = {}) {
   const repo = requireRepository(repository);
   const root = requirePositiveInteger(rootIssue, "rootIssue");
@@ -585,6 +588,9 @@ export async function captureCoordinationRotationLiveSnapshotV1({
     policyPath,
     "policyPath",
   );
+  if (canonicalPolicyPath !== CANONICAL_POLICY_PATH) {
+    fail("policyPath must equal canonical live-dispatch policy path");
+  }
 
   const chainBefore = resolveCoordinationSuccessorChainLiveV1(repo, root);
   const mainBefore = fetchMainSha(repo);
