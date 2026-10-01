@@ -59,7 +59,7 @@ node tools/void-coordination-rotation-live-snapshot-v1.mjs \
   --pretty
 ```
 
-`--policy` is a normalized **repository-relative path**, not a local trust override. The wrapper fetches that path at the exact captured remote-main SHA and verifies the Git blob identity before JSON parsing.
+`--policy` is a normalized **repository-relative path**, not a local trust override, and V1 requires it to equal `ops/coordination/worker-live-dispatch-policy-v1.json`. The wrapper fetches that exact canonical path at the captured remote-main SHA and verifies the Git blob identity before JSON parsing.
 
 Optional create-only output:
 
