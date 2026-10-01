@@ -79,9 +79,17 @@ jobs:
             "whitespace" \
             "zoso@xiphos bad" \
             "must be an explicit SSH alias or user@host"
+          control_target="$(printf 'zoso@xiphos\\nbad')"
           assert_rejected_target \
             "control" \
-            
+            "$control_target" \
+            "must be an explicit SSH alias or user@host"
+          assert_rejected_target \
+            "shell-fragment" \
+            "zoso@xiphos;id" \
+            "must be an explicit SSH alias or user@host"
+
+          python3 - <<'PY'
           from pathlib import Path
 
           readiness=Path("ops/two-box-mainnet0-readiness-proof.sh").read_text()
@@ -92,80 +100,11 @@ jobs:
           assert 'ssh "$CROSSBOX_SSH_TARGET"' in readiness
           assert '[[ "$CROSSBOX_SSH_TARGET" =~ [[:space:]] ]]' in readiness
           assert '[[ "$CROSSBOX_SSH_TARGET" == -* ]]' in readiness
-          assert '^[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?
-          assert 'MAIN_BASE=' not in stamp
-
-          print("VOID_MAINNET0_READINESS_EXPLICIT_PEER_V1_GREEN")
-          print("ssh_performed=false")
-          print("runtime_observation_performed=false")
-          print("validator_mutation_performed=false")
-          PY
-
-      - name: Diff hygiene
-        run: git diff --check HEAD^..HEAD
-zoso@xiphos\nbad' \
-            "must be an explicit SSH alias or user@host"
-          assert_rejected_target \
-            "shell-fragment" \
-            "zoso@xiphos;id" \
-            "must be an explicit SSH alias or user@host"
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          readiness=Path("ops/two-box-mainnet0-readiness-proof.sh").read_text()
-          stamp=Path("ops/void-mainnet0-stamp-validator-status.sh").read_text()
-
-          assert '${ALIEN:-zoso@100.122.79.39}' not in readiness
-          assert 'ssh "$ALIEN"' not in readiness
-          assert 'ssh "$CROSSBOX_SSH_TARGET"' in readiness
-          assert readiness.index('missing explicit CROSSBOX_SSH_TARGET') < readiness.index('mkdir -p "$OUT"')
-
-          assert '100.122.79.39' not in stamp
-          assert 'MAIN_BASE=' not in stamp
-
-          print("VOID_MAINNET0_READINESS_EXPLICIT_PEER_V1_GREEN")
-          print("ssh_performed=false")
-          print("runtime_observation_performed=false")
-          print("validator_mutation_performed=false")
-          PY
-
-      - name: Diff hygiene
-        run: git diff --check HEAD^..HEAD
- in readiness
-          safe_guard = 'CROSSBOX_SSH_TARGET must be an explicit SSH alias or user@host, not an option or shell fragment'
-          for side_effect in ('mkdir -p "$OUT"', 'curl -fsS', 'ssh "$CROSSBOX_SSH_TARGET"'):
+          assert "^[A-Za-z0-9._-]+(@[A-Za-z0-9._-]+)?$" in readiness
+          safe_guard = "CROSSBOX_SSH_TARGET must be an explicit SSH alias or user@host, not an option or shell fragment"
+          for side_effect in ('mkdir -p "$OUT"', "curl -fsS", 'ssh "$CROSSBOX_SSH_TARGET"'):
               assert readiness.index(safe_guard) < readiness.index(side_effect)
-          assert readiness.index('missing explicit CROSSBOX_SSH_TARGET') < readiness.index(safe_guard)
-
-          assert '100.122.79.39' not in stamp
-          assert 'MAIN_BASE=' not in stamp
-
-          print("VOID_MAINNET0_READINESS_EXPLICIT_PEER_V1_GREEN")
-          print("ssh_performed=false")
-          print("runtime_observation_performed=false")
-          print("validator_mutation_performed=false")
-          PY
-
-      - name: Diff hygiene
-        run: git diff --check HEAD^..HEAD
-zoso@xiphos\nbad' \
-            "must be an explicit SSH alias or user@host"
-          assert_rejected_target \
-            "shell-fragment" \
-            "zoso@xiphos;id" \
-            "must be an explicit SSH alias or user@host"
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          readiness=Path("ops/two-box-mainnet0-readiness-proof.sh").read_text()
-          stamp=Path("ops/void-mainnet0-stamp-validator-status.sh").read_text()
-
-          assert '${ALIEN:-zoso@100.122.79.39}' not in readiness
-          assert 'ssh "$ALIEN"' not in readiness
-          assert 'ssh "$CROSSBOX_SSH_TARGET"' in readiness
-          assert readiness.index('missing explicit CROSSBOX_SSH_TARGET') < readiness.index('mkdir -p "$OUT"')
+          assert readiness.index("missing explicit CROSSBOX_SSH_TARGET") < readiness.index(safe_guard)
 
           assert '100.122.79.39' not in stamp
           assert 'MAIN_BASE=' not in stamp
