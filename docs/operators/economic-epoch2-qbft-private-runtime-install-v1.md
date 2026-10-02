@@ -48,7 +48,7 @@ Before filesystem mutation the installer requires:
   `disabled` or `not-found`; a pre-existing `static` unit with the same
   service name is a HOLD because it cannot be the not-yet-published reviewed
   unit;
-- no direct `*.wants` or `*.requires` enablement link exists;
+- no direct `*.wants` or `*.requires` enablement link exists under the reviewed operator user-unit directory;
 - any symlinked `.wants` or `.requires` directory is a HOLD rather than
   being skipped;
 - the final runtime root does not already exist; and
@@ -64,8 +64,10 @@ post-install observation must report exactly `static`. Any `disabled` or
 accepted installed state.
 
 `static` is recorded as the exact observed **unit-file state**. It is not
-treated as proof that the service cannot be started indirectly. Direct
-`.wants` / `.requires` enablement links are required absent, while
+treated as proof that the service cannot be started indirectly. The receipt
+field `operator_user_unit_dir_direct_enablement_links_absent=true` means
+direct `.wants` / `.requires` links were absent from the reviewed operator
+user-unit directory only; it does not claim a global systemd load-path census.
 `indirect_activation_absence_proven=false` remains explicit.
 
 ## Filesystem publication
@@ -104,8 +106,8 @@ Even in applied mode this installer does **not**:
 
 The installer performs no daemon reload and no activation. Read-only systemd
 inspection may resolve the unit file, but the service must remain inactive,
-the post-publication unit-file state must be exactly `static`, and direct-link
-absence must hold. The later activation ceremony owns any reload/start action.
+the post-publication unit-file state must be exactly `static`, and
+`operator_user_unit_dir_direct_enablement_links_absent=true` must hold. The later activation ceremony owns any reload/start action.
 The install receipt does not claim that every possible indirect systemd
 activation path is absent.
 
