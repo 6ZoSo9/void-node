@@ -10,12 +10,13 @@ import {
   validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1,
 } from "../tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs";
 import {
+  VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_STATUS_V1,
+  VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_V1,
   buildProductionEpoch2RpcSelectedDescriptorV1,
+  buildProductionEpoch2RpcTargetPromotionPreviewV1,
 } from "../tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs";
 import {
-  SELECTED_STATUS,
   productionEpoch2RpcUrlFingerprintV1,
-  validateProductionEpoch2RpcTargetV1,
 } from "../tools/void-production-epoch2-rpc-target-v1.mjs";
 
 function sha256(value) {
@@ -353,7 +354,7 @@ function compile({
   const planBytes = bytesFor(activationPlanValue);
   const receiptBytes = bytesFor(activationReceiptValue);
   const observationBytes = bytesFor(runtimeObservationValue);
-  return buildProductionEpoch2RpcSelectedDescriptorV1({
+  return buildProductionEpoch2RpcTargetPromotionPreviewV1({
     hold_target: structuredClone(holdTarget),
     activation_plan_bytes: planBytes,
     activation_plan_file_sha256: activationPlanExpectedSha,
@@ -366,20 +367,54 @@ function compile({
 }
 
 const compiled = compile();
-const evaluation = validateProductionEpoch2RpcTargetV1(compiled.candidate);
-assert.equal(evaluation.status, SELECTED_STATUS);
-assert.equal(evaluation.production_rpc_target_selected, true);
-assert.equal(evaluation.rpc_url, "http://127.0.0.1:18553/");
-assert.equal(evaluation.transaction_authorized, false);
-assert.equal(evaluation.authoritative_chain2050_write, false);
-assert.equal(evaluation.migration_authorized, false);
-assert.equal(evaluation.funds_movement, false);
+assert.equal(
+  compiled.preview.marker,
+  VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_V1,
+);
+assert.equal(
+  compiled.preview.status,
+  VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_STATUS_V1,
+);
+assert.match(
+  compiled.preview.preview_id,
+  /^voidpe2rpcprompreview1_[0-9a-f]{64}$/u,
+);
+assert.equal(compiled.preview.production_rpc_target_selected, false);
+assert.equal(compiled.preview.runtime_active_verified, false);
+assert.equal(compiled.preview.independent_host_acceptance, false);
+assert.equal(compiled.preview.live_observer_reexecuted, false);
+assert.equal(
+  compiled.preview.serialized_observation_structurally_verified,
+  true,
+);
+assert.equal(compiled.preview.selected_descriptor_emitted, false);
+assert.equal(
+  compiled.preview.proposed_rpc_url,
+  "http://127.0.0.1:18553/",
+);
+assert.equal(
+  compiled.preview.evidence.serialized_runtime_observation_id,
+  runtimeObservation.observation_id,
+);
+assert.equal(
+  compiled.preview.next_gate,
+  "fresh_live_observer_revalidation_or_capability_bound_apply_required",
+);
+assert.equal(Object.hasOwn(compiled, "candidate"), false);
+assert.equal(compiled.authority.source_preview_only, true);
+assert.equal(compiled.authority.source_candidate_only, false);
+assert.equal(compiled.authority.structural_evidence_only, true);
+assert.equal(compiled.authority.selected_target_authority, false);
+assert.equal(compiled.authority.live_observer_reexecution, false);
 assert.equal(compiled.authority.canonical_target_write, false);
 assert.equal(compiled.authority.rpc_call, false);
 assert.equal(compiled.authority.transaction_broadcast, false);
-assert.equal(
-  compiled.candidate.selection.runtime_observation_id,
-  runtimeObservation.observation_id,
+
+assert.throws(
+  () => buildProductionEpoch2RpcSelectedDescriptorV1({
+    hold_target: structuredClone(holdTarget),
+  }),
+  /production_epoch2_rpc_selected_descriptor_requires_live_revalidated_apply/u,
 );
 
 const badObservationId = structuredClone(runtimeObservation);
@@ -448,15 +483,40 @@ assert.throws(
   /production_epoch2_rpc_promotion_activation_plan_sha256_mismatch/u,
 );
 
+const compilerSource = fs.readFileSync(
+  "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs",
+  "utf8",
+);
+assert.equal(
+  compilerSource.includes('console.log("production_rpc_target_selected=true")'),
+  false,
+);
+assert.equal(
+  compilerSource.includes("status=SELECTED_DESCRIPTOR_CANDIDATE_COMPILED"),
+  false,
+);
+assert.equal(
+  compilerSource.includes(
+    "production_epoch2_rpc_selected_descriptor_requires_live_revalidated_apply",
+  ),
+  true,
+);
+
 console.log(
   "VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_COMPILER_V1_PROOF_GREEN",
 );
-console.log("selected_descriptor_compiles=true");
+console.log("serialized_observation_preview_only=true");
+console.log("synthetic_observation_selected_authority=false");
+console.log("selected_descriptor_export_fail_closed=true");
+console.log("production_rpc_target_selected=false");
+console.log("runtime_active_verified=false");
+console.log("independent_host_acceptance=false");
+console.log("live_observer_reexecuted=false");
 console.log("activation_lineage_revalidated=true");
 console.log("observation_id_recomputed=true");
 console.log("observation_activation_hash_binding_required=true");
-console.log("production_rpc_18553_exact=true");
-console.log("independent_host_acceptance_required=true");
+console.log("production_rpc_18553_proposed_exact=true");
+console.log("serialized_independent_acceptance_claim_structurally_checked=true");
 console.log("observation_promotion_authority_remains_false=true");
 console.log("authority_escalation_rejected=true");
 console.log("canonical_target_write=false");
