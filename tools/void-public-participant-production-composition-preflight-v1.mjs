@@ -70,7 +70,7 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
     "ops/public/void-public-participant-account-read-http-edge-v1.mjs":
       "583d2e61115916589e30239d1bf5451a525f2996",
     "ops/public/void-public-app-composition-gateway-v1.mjs":
-      "8df5b205b12462c660e95c28dfb1ec7f9e1acdd2",
+      "e97ce051405d5b19a363eaf0834838a0ecef3a10",
     "ops/public/void-public-participant-live-role-authority-v1.mjs":
       "5d39171d7c4145c6200225d18f37b401a8b7e022",
     "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs":
