@@ -135,7 +135,7 @@ function validatePreSign(value){
     text(candidate.value_wei)!=="0"||
     !/^[0-9]+$/.test(text(candidate.nonce))||
     !/^[1-9][0-9]*$/.test(text(candidate.gas_limit))||
-    !/^[1-9][0-9]*$/.test(text(candidate.max_fee_per_gas_wei))||
+    !/^(0|[1-9][0-9]*)$/.test(text(candidate.max_fee_per_gas_wei))||
     !/^[0-9]+$/.test(text(candidate.max_priority_fee_per_gas_wei))||
     !/^0x[0-9a-f]+$/.test(text(candidate.calldata))
   ){
