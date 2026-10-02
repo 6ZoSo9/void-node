@@ -44,18 +44,33 @@ Before filesystem mutation the installer requires:
 - canonical clean `main`;
 - exact host/role binding;
 - the validator service is not active or activating;
-- no systemd enable/link state exists;
+- before publishing the reviewed unit, `systemctl --user is-enabled` is only
+  `disabled` or `not-found` — a pre-existing `static` unit with the same
+  name is not accepted;
 - no `*.wants` or `*.requires` autostart link exists, including dangling
   symlinks;
+- any `.wants` / `.requires` entry itself must be a direct directory;
+  symlinked or non-directory dependency entries fail closed;
 - the final runtime root does not already exist; and
 - the final unit path does not already exist.
 
 The unit itself remains `Restart=no`.
 
-The generated validator unit intentionally has no `[Install]` section. Once
-the unit file is published, `systemctl --user is-enabled` may therefore
-report `static`. V1 treats `static` as non-enabled; explicit `.wants` and
-`.requires` autostart links remain forbidden.
+The generated validator unit intentionally has no `[Install]` section. The
+installer now proves that fact from the exact reviewed unit bytes before
+publication and again from the installed unit bytes after publication.
+
+Once that exact unit is published, `systemctl --user is-enabled` may report
+`static`. V1 accepts that **unit-file state** only after the no-`[Install]`
+identity is proven and direct `.wants` / `.requires` dependency links are
+absent. `static` is not described as systemd `disabled`; it is a distinct
+state for a unit that cannot be enabled through its own `[Install]` metadata.
+
+The existing receipt field `unit_enabled=false` is retained for schema
+compatibility and means this installer performed no enable action and accepted
+no direct enable/autostart link. It is not a serialization of the raw
+`systemctl is-enabled` string. The operator log records
+`post_unit_file_state=<disabled|not-found|static>` explicitly.
 
 ## Filesystem publication
 
@@ -92,8 +107,9 @@ Even in applied mode this installer does **not**:
 - authorize public activation.
 
 The installer performs no daemon reload and no activation. Read-only systemd
-inspection may resolve the unit file, but the unit must remain disabled and
-inactive; the later activation ceremony owns any reload/start action.
+inspection may resolve the unit file, but the service must remain inactive and
+must satisfy the bounded no-enable/no-direct-autostart-link contract above.
+The later activation ceremony owns any reload/start action.
 
 ## Exact applied confirmation
 
