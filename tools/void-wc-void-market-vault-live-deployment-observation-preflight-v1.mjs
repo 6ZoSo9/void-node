@@ -19,7 +19,11 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
   Object.freeze({
     qualification_receipt_required: true,
     exact_qualification_bytes_required: true,
-    qualification_current_head_required: true,
+    qualification_current_head_required: false,
+    qualification_source_head_ancestor_current_main_required: true,
+    qualification_source_tree_revalidation_required: true,
+    qualification_historical_reviewed_bytes_required: true,
+    qualification_current_reviewed_bytes_required: true,
     qualification_control_freshness_required: true,
     qualification_control_freshness_revalidation_required: true,
     production_wall_clock_evaluation_required: true,
@@ -581,6 +585,130 @@ function currentFileIdentity(relativePath, expectedBlob, code) {
   });
 }
 
+function historicalFileIdentity(commit, relativePath, expectedBlob, code) {
+  if (!HEX40.test(String(commit || "")) || !HEX40.test(String(expectedBlob || ""))) {
+    fail(code);
+  }
+  const object = git(
+    ["show", commit + ":" + relativePath],
+    code + "_bytes_unavailable",
+    { encoding: null },
+  );
+  const bytes = Buffer.from(object.stdout || Buffer.alloc(0));
+  const blob = gitText(
+    ["rev-parse", commit + ":" + relativePath],
+    code + "_blob_unavailable",
+  );
+  if (
+    bytes.length < 1 ||
+    bytes.length > 8 * 1024 * 1024 ||
+    blob !== expectedBlob ||
+    gitBlobSha1(bytes) !== expectedBlob
+  ) {
+    fail(code);
+  }
+  return Object.freeze({
+    git_blob_sha1: blob,
+    file_sha256: sha256Bytes(bytes),
+  });
+}
+
+function validateQualificationSourceGenerationV1(source, repo, contract) {
+  const sourceHead = String(source.source_head_sha || "");
+  const sourceTree = String(source.source_tree_sha || "");
+  if (!HEX40.test(sourceHead) || !HEX40.test(sourceTree)) {
+    fail("live_deployment_preflight_source_generation_mismatch");
+  }
+
+  const actualSourceTree = gitText(
+    ["rev-parse", sourceHead + "^{tree}"],
+    "live_deployment_preflight_source_tree_unavailable",
+  );
+  if (actualSourceTree !== sourceTree) {
+    fail("live_deployment_preflight_source_tree_mismatch");
+  }
+
+  const ancestor = git(
+    ["merge-base", "--is-ancestor", sourceHead, repo.head],
+    "live_deployment_preflight_source_head_ancestry_unavailable",
+    { allowFail: true },
+  );
+  if (ancestor.status !== 0) {
+    fail("live_deployment_preflight_source_head_not_ancestor_current_main");
+  }
+
+  const anchor = git(
+    ["merge-base", "--is-ancestor", source.reviewed_main_anchor, sourceHead],
+    "live_deployment_preflight_reviewed_anchor_not_ancestor",
+    { allowFail: true },
+  );
+  if (anchor.status !== 0) {
+    fail("live_deployment_preflight_reviewed_anchor_not_ancestor");
+  }
+
+  const historicalQualificationTool = historicalFileIdentity(
+    sourceHead,
+    QUALIFICATION_TOOL_REL,
+    source.qualification_tool_git_blob_sha1,
+    "live_deployment_preflight_historical_qualification_tool_drift",
+  );
+  if (
+    historicalQualificationTool.file_sha256 !==
+      source.qualification_tool_file_sha256
+  ) {
+    fail("live_deployment_preflight_historical_qualification_tool_sha256_mismatch");
+  }
+
+  if (
+    !plain(source.dependency_git_blobs) ||
+    !plain(source.dependency_file_sha256) ||
+    canonicalJson(source.dependency_git_blobs) !==
+      canonicalJson(contract.source_blobs)
+  ) {
+    fail("live_deployment_preflight_dependency_manifest_mismatch");
+  }
+  const dependencyKeys = Object.keys(contract.source_blobs).sort();
+  if (
+    Object.keys(source.dependency_file_sha256).sort().join("\n") !==
+      dependencyKeys.join("\n")
+  ) {
+    fail("live_deployment_preflight_dependency_sha_manifest_mismatch");
+  }
+  for (const relativePath of dependencyKeys) {
+    const expectedBlob = contract.source_blobs[relativePath];
+    const historical = historicalFileIdentity(
+      sourceHead,
+      relativePath,
+      expectedBlob,
+      "live_deployment_preflight_historical_dependency_drift:" + relativePath,
+    );
+    if (historical.file_sha256 !== source.dependency_file_sha256[relativePath]) {
+      fail(
+        "live_deployment_preflight_historical_dependency_sha_drift:" +
+        relativePath,
+      );
+    }
+    const current = currentFileIdentity(
+      relativePath,
+      expectedBlob,
+      "live_deployment_preflight_dependency_drift:" + relativePath,
+    );
+    if (current.file_sha256 !== source.dependency_file_sha256[relativePath]) {
+      fail("live_deployment_preflight_dependency_sha_drift:" + relativePath);
+    }
+  }
+
+  return Object.freeze({
+    source_head_sha: sourceHead,
+    source_tree_sha: sourceTree,
+    source_head_ancestor_current_main: true,
+    qualification_tool_historical_bytes_verified: true,
+    qualification_tool_current_bytes_verified: true,
+    dependency_historical_bytes_verified: true,
+    dependency_current_bytes_verified: true,
+  });
+}
+
 function parsePrettyQualification(bytes, expectedSha) {
   if (
     !Buffer.isBuffer(bytes) ||
@@ -665,8 +793,6 @@ function verifyQualification(
     "live_deployment_preflight_source_binding_shape_invalid",
   );
   if (
-    source.source_head_sha !== repo.head ||
-    source.source_tree_sha !== repo.tree ||
     source.canonical_remote_url !== CANONICAL_REMOTE ||
     source.qualification_tool_git_blob_sha1 !==
       repo.qualification_tool_git_blob_sha1 ||
@@ -675,14 +801,12 @@ function verifyQualification(
   ) {
     fail("live_deployment_preflight_source_generation_mismatch");
   }
-  const anchor = git(
-    ["merge-base", "--is-ancestor", source.reviewed_main_anchor, repo.head],
-    "live_deployment_preflight_reviewed_anchor_not_ancestor",
-    { allowFail: true },
+
+  const sourceGeneration = validateQualificationSourceGenerationV1(
+    source,
+    repo,
+    contract,
   );
-  if (anchor.status !== 0) {
-    fail("live_deployment_preflight_reviewed_anchor_not_ancestor");
-  }
 
   const qualificationToolIdentity = currentFileIdentity(
     QUALIFICATION_TOOL_REL,
@@ -694,34 +818,6 @@ function verifyQualification(
       source.qualification_tool_file_sha256
   ) {
     fail("live_deployment_preflight_qualification_tool_sha256_mismatch");
-  }
-
-  if (
-    !plain(source.dependency_git_blobs) ||
-    !plain(source.dependency_file_sha256) ||
-    canonicalJson(source.dependency_git_blobs) !==
-      canonicalJson(contract.source_blobs)
-  ) {
-    fail("live_deployment_preflight_dependency_manifest_mismatch");
-  }
-  const dependencyKeys = Object.keys(contract.source_blobs).sort();
-  if (
-    Object.keys(source.dependency_file_sha256).sort().join("\n") !==
-      dependencyKeys.join("\n")
-  ) {
-    fail("live_deployment_preflight_dependency_sha_manifest_mismatch");
-  }
-  for (const relativePath of dependencyKeys) {
-    const expectedBlob =
-      contract.source_blobs[relativePath];
-    const identity = currentFileIdentity(
-      relativePath,
-      expectedBlob,
-      "live_deployment_preflight_dependency_drift:" + relativePath,
-    );
-    if (identity.file_sha256 !== source.dependency_file_sha256[relativePath]) {
-      fail("live_deployment_preflight_dependency_sha_drift:" + relativePath);
-    }
   }
 
   const controlFreshness = validateQualificationControlFreshnessV1(
@@ -864,6 +960,7 @@ function verifyQualification(
     deployment_data_hex: deploymentHex,
     void_token: token,
     control_freshness: controlFreshness,
+    source_generation: sourceGeneration,
   });
 }
 
@@ -1274,7 +1371,18 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
         qualification_file_sha256:
           verifiedQualification.qualification_file_sha256,
         qualification_source_head_sha:
-          verifiedQualification.qualification.source_binding.source_head_sha,
+          verifiedQualification.source_generation.source_head_sha,
+        qualification_source_tree_sha:
+          verifiedQualification.source_generation.source_tree_sha,
+        qualification_source_head_ancestor_current_main:
+          verifiedQualification.source_generation
+            .source_head_ancestor_current_main,
+        qualification_historical_reviewed_bytes_verified:
+          verifiedQualification.source_generation
+            .dependency_historical_bytes_verified,
+        qualification_current_reviewed_bytes_verified:
+          verifiedQualification.source_generation
+            .dependency_current_bytes_verified,
         deployment_data_sha256:
           verifiedQualification.qualification.deployment_preparation
             .deployment_data_sha256,
