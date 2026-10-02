@@ -77,7 +77,7 @@ const candidate={
     max_fee_per_gas_wei:"3000000000",
     max_priority_fee_per_gas_wei:"1000000000",
     predicted_contract_address:predicted,
-    data,
+    unsigned_serialized_transaction:unsigned.unsignedSerialized.toLowerCase(),
     data_sha256:sha256(Buffer.from(data.slice(2),"hex")),
     data_keccak256:keccak256(data).toLowerCase(),
     unsigned_transaction_hash:signedParsed.unsignedHash.toLowerCase(),
@@ -132,6 +132,12 @@ const dependencies={
   validate_signing_authorization:()=>authorization,
   validate_signed_transaction:()=>signed,
 };
+assert.equal(Object.hasOwn(candidate.transaction,"data"),false);
+assert.equal(
+  candidate.transaction.unsigned_serialized_transaction,
+  unsigned.unsignedSerialized.toLowerCase(),
+);
+
 const evidence={
   unsigned_transaction_candidate:{},
   candidate_evidence:{},
