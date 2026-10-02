@@ -623,19 +623,19 @@ function reviewedSemanticExecution(repo, request) {
       "  loadProductionEpoch2RpcTargetV1,",
       "  productionEpoch2RpcUrlFingerprintV1,",
       "} from " + JSON.stringify(targetUrl) + ";",
-      "function plain(v){return v!==null&&typeof v===\\\"object\\\"&&!Array.isArray(v);}",
-      "function canonical(v){",
-      "  if(v===null)return \\"null\\";",
-      "  if(typeof v===\\\"string\\\")return JSON.stringify(v);",
-      "  if(typeof v===\\\"boolean\\\")return v?\\\"true\\":\\\"false\\";",
-      "  if(typeof v===\\\"number\\"&&Number.isSafeInteger(v))return String(v);",
-      "  if(Array.isArray(v))return \\"[\\"+v.map(canonical).join(\\\",\\")+\\\"]\\";",
-      "  if(plain(v))return \\"{\\"+Object.keys(v).sort().map(k=>JSON.stringify(k)+\\\":\\"+canonical(v[k])).join(\\\",\\")+\\\"}\\";",
-      "  throw new Error(\\\"canonical_value_invalid\\");",
-      "}",
-      "process.stdin.setEncoding(\\\"utf8\\");",
-      "let text=\\\"\\\";",
-      "for await(const chunk of process.stdin) text+=chunk;",
+      'function plain(v){return v!==null&&typeof v==="object"&&!Array.isArray(v);}',
+      'function canonical(v){',
+      '  if(v===null)return "null";',
+      '  if(typeof v==="string")return JSON.stringify(v);',
+      '  if(typeof v==="boolean")return v?"true":"false";',
+      '  if(typeof v==="number"&&Number.isSafeInteger(v))return String(v);',
+      '  if(Array.isArray(v))return "["+v.map(canonical).join(",")+"]";',
+      '  if(plain(v))return "{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+canonical(v[k])).join(",")+"}";',
+      '  throw new Error("canonical_value_invalid");',
+      '}',
+      'process.stdin.setEncoding("utf8");',
+      'let text="";',
+      'for await(const chunk of process.stdin) text+=chunk;',
       "try{",
       "  const q=JSON.parse(text);",
       "  const plan=compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({",
@@ -1098,7 +1098,11 @@ export function createPrivateOutputBoundV1(
     try {
       parentAfter = fs.lstatSync(parent);
       outputAfter = fs.lstatSync(file);
-    } catch {}
+    } catch (error) {
+      parentAfter = null;
+      outputAfter = null;
+      void error;
+    }
     if (
       !parentAfter ||
       !sameDirectoryIdentity(parentAfter, parentFdStat) ||
