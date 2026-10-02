@@ -385,7 +385,7 @@ export function validateVoidDatanetRegistryCandidateFreshRevalidationV1(
     fresh_credential_rebinding_required:true,
   };
   if(
-    !/^[1-9][0-9]{0,77}$/u.test(
+    !/^(0|[1-9][0-9]{0,77})$/u.test(
       expectedContinuity.candidate_maximum_gas_cost_wei,
     )
   ){
