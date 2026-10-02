@@ -39,6 +39,7 @@ export const VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1 =
     observation_first_restore_recovery: true,
     exact_prestate_restore_required: true,
     participant_receipt_persistence_required: true,
+    participant_receipt_before_transition_persistence: true,
     source_contract_authority_preserved: true,
     ssh_execution_adapter_required_for_remote: true,
     systemd_mutation_adapter_required_for_publish_restore: true,
@@ -433,6 +434,19 @@ async function persistParticipant(adapter,participant,bucket,receipt,transaction
   );
 }
 
+async function persistParticipantTransition(
+  persist,
+  adapter,
+  participant,
+  bucket,
+  receipt,
+  transaction,
+){
+  await persistParticipant(adapter,participant,bucket,receipt,transaction);
+  await persistTransition(persist,transaction);
+  return transaction;
+}
+
 function participantFromAction(action,suffix){
   if(action===suffix+"_LOCAL")return "local";
   if(action===suffix+"_REMOTE")return "remote";
@@ -607,8 +621,9 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
       const receipt=preparedReceipt(current,participant);
       await io.stage(participant,current,receipt);
       current=recordVoidCrossboxMutationPreparedV1(current,receipt);
-      await persistTransition(persist,current);
-      await persistParticipant(io,participant,"prepared",receipt,current);
+      await persistParticipantTransition(
+        persist,io,participant,"prepared",receipt,current,
+      );
       continue;
     }
 
@@ -622,8 +637,9 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
       const participant=participantFromAction(action,"BEGIN_PUBLISH");
       const started=publishStartedReceipt(current,participant);
       current=recordVoidCrossboxMutationPublishStartedV1(current,started);
-      await persistTransition(persist,current);
-      await persistParticipant(io,participant,"publish_started",started,current);
+      await persistParticipantTransition(
+        persist,io,participant,"publish_started",started,current,
+      );
       // Publication is intentionally outside a try/catch. If it succeeds and
       // the process dies before the final receipt, the durable state remains
       // RECOVER_PUBLISH_* and the next run must observe before acting.
@@ -633,8 +649,9 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
       );
       const receipt=publishReceipt(current,participant,observation);
       current=recordVoidCrossboxMutationPublishedV1(current,receipt);
-      await persistTransition(persist,current);
-      await persistParticipant(io,participant,"published",receipt,current);
+      await persistParticipantTransition(
+        persist,io,participant,"published",receipt,current,
+      );
       continue;
     }
 
@@ -654,13 +671,8 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
           current,
           recovered.receipt,
         );
-        await persistTransition(persist,current);
-        await persistParticipant(
-          io,
-          participant,
-          "published",
-          recovered.receipt,
-          current,
+        await persistParticipantTransition(
+          persist,io,participant,"published",recovered.receipt,current,
         );
         continue;
       }
@@ -669,8 +681,8 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
           current,
           recovered.receipt,
         );
-        await persistTransition(persist,current);
-        await persistParticipant(
+        await persistParticipantTransition(
+          persist,
           io,
           participant,
           "publish_no_effect",
@@ -686,13 +698,8 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
         );
         const receipt=publishReceipt(current,participant,completed);
         current=recordVoidCrossboxMutationPublishedV1(current,receipt);
-        await persistTransition(persist,current);
-        await persistParticipant(
-          io,
-          participant,
-          "published",
-          receipt,
-          current,
+        await persistParticipantTransition(
+          persist,io,participant,"published",receipt,current,
         );
         continue;
       }
@@ -721,8 +728,9 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
         continue;
       }
       current=recordVoidCrossboxMutationVerifiedV1(current,receipt);
-      await persistTransition(persist,current);
-      await persistParticipant(io,participant,"verified",receipt,current);
+      await persistParticipantTransition(
+        persist,io,participant,"verified",receipt,current,
+      );
       continue;
     }
 
@@ -745,8 +753,9 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
       const participant=participantFromAction(action,"BEGIN_RESTORE");
       const started=restoreStartedReceipt(current,participant);
       current=recordVoidCrossboxMutationRestoreStartedV1(current,started);
-      await persistTransition(persist,current);
-      await persistParticipant(io,participant,"restore_started",started,current);
+      await persistParticipantTransition(
+        persist,io,participant,"restore_started",started,current,
+      );
 
       let observation;
       if(current.published[participant]){
@@ -762,8 +771,9 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
       }
       const receipt=restoreReceipt(current,participant,observation);
       current=recordVoidCrossboxMutationRestoredV1(current,receipt);
-      await persistTransition(persist,current);
-      await persistParticipant(io,participant,"restored",receipt,current);
+      await persistParticipantTransition(
+        persist,io,participant,"restored",receipt,current,
+      );
       continue;
     }
 
@@ -799,8 +809,9 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
       }
       const receipt=restoreReceipt(current,participant,observation);
       current=recordVoidCrossboxMutationRestoredV1(current,receipt);
-      await persistTransition(persist,current);
-      await persistParticipant(io,participant,"restored",receipt,current);
+      await persistParticipantTransition(
+        persist,io,participant,"restored",receipt,current,
+      );
       continue;
     }
 
