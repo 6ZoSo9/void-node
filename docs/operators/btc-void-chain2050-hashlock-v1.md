@@ -74,8 +74,10 @@ and the swap remains nonexistent.
 - `sha256(preimage)` equals the bound hashlock.
 
 The contract writes terminal `Claimed` state before the outbound token
-transfer. A failed token transfer reverts the whole transaction, restoring the
-locked state.
+transfer. It then requires the contract's canonical-token balance to decrease
+by exactly the claimed amount. A false return or a lying `true` return with
+the wrong balance delta reverts the whole transaction, restoring the locked
+state.
 
 The `Claimed` event emits the exact 32-byte preimage so a later cross-rail
 observer can bind the Chain-2050 reveal to the Bitcoin redeem path.
@@ -89,7 +91,9 @@ observer can bind the Chain-2050 reveal to the Bitcoin redeem path.
 - current timestamp is greater than or equal to the refund deadline.
 
 The contract writes terminal `Refunded` state before the outbound token
-transfer. Failed token transfer rolls the transaction back to `Locked`.
+transfer and requires the contract's canonical-token balance to decrease by
+exactly the refunded amount. A false return or a lying `true` return with the
+wrong balance delta rolls the transaction back to `Locked`.
 
 Claim and refund are mutually exclusive. Any claim/refund replay after a
 terminal transition fails.
@@ -199,7 +203,10 @@ canonical token address and proves:
 - invalid/duplicate lock rejection;
 - funding-transfer rollback;
 - claim-transfer rollback;
-- refund-transfer rollback; and
+- refund-transfer rollback;
+- true-without-value funding rejection;
+- true-without-value claim rejection;
+- true-without-value refund rejection; and
 - absence of common admin/withdraw/upgrade selector surfaces.
 
 This is isolated test execution only.
