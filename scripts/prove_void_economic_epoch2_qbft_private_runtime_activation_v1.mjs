@@ -619,6 +619,16 @@ assert.equal(
   false,
   "activeScript must terminate with a real newline",
 );
+
+assert.ok(
+  controller.includes('\'cd "$repo"\''),
+  "remote activation preflight must enter repo before inline Node dependency resolution",
+);
+assert.ok(
+  controller.indexOf('\'cd "$repo"\'')<
+  controller.indexOf('node --input-type=module - "$key"'),
+  "repo cwd must be established before inline ethers identity derivation",
+);
 assert.ok(
   controller.indexOf("if(!args.apply)")<
   controller.indexOf("const remote=new RemoteLane()"),
