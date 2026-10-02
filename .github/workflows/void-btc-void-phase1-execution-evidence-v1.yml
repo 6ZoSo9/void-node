@@ -79,6 +79,15 @@ jobs:
           grep -F 'chain2050_receipts_replayed: false' "$tool" >/dev/null
           grep -F 'fee_envelope_execution_accounting_verified: false' "$tool" >/dev/null
           grep -F 'native_unit_execution_conservation_verified: false' "$tool" >/dev/null
+          grep -F 'preview_id: contentId("voidbtcp1preview1_", material)' "$tool" >/dev/null
+          if grep -F 'evidence_suite_id:' "$tool" >/dev/null; then
+            echo "authoritative evidence suite ID field must not be emitted by structural preview" >&2
+            exit 1
+          fi
+          if grep -F 'marker: VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1' "$tool" >/dev/null; then
+            echo "authoritative Phase-1 evidence marker must not be emitted by structural preview" >&2
+            exit 1
+          fi
           if grep -F 'PHASE1_EXECUTION_EVIDENCE_ADMITTED_NONPRODUCTION' "$tool" >/dev/null; then
             echo "authoritative execution-admission status must not be emitted by structural preview" >&2
             exit 1
