@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,9 @@ import {
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_PREVIEW_V1,
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
   deriveVoidWcVoidFinalCoupledActivationPromotionV1,
+  testOnlyExerciseVoidWcVoidFinalCoupledInputParentReplacementV1,
+  testOnlyExerciseVoidWcVoidFinalCoupledOutputParentReplacementV1,
+  testOnlyVoidWcVoidFinalCoupledGitIdentityV1,
   writeVoidWcVoidFinalCoupledActivationPromotionV1,
 } from "../tools/void-wc-void-final-coupled-activation-promotion-v1.mjs";
 import {
@@ -137,7 +141,14 @@ for (const [key, value] of Object.entries(
       key === "canonical_candidate_read" ||
       key === "git_application_lineage_read" ||
       key === "candidate_copy_derivation" ||
-      key === "create_only_private_output") {
+      key === "create_only_private_output" ||
+      key === "git_config_isolated" ||
+      key === "git_loader_environment_isolated" ||
+      key === "canonical_remote_tls_verification_required" ||
+      key === "private_input_descriptor_bound" ||
+      key === "private_input_parent_identity_bound" ||
+      key === "private_output_parent_fd_bound" ||
+      key === "private_output_exact_directory_fsync") {
     assert.equal(value, true, key);
   } else {
     assert.equal(value, false, key);
@@ -207,6 +218,16 @@ assert.equal(preview.authority.source_promotion_only, false);
 assert.equal(preview.authority.canonical_candidate_read, false);
 assert.equal(preview.authority.git_application_lineage_read, false);
 assert.equal(preview.authority.create_only_private_output, false);
+assert.equal(preview.authority.git_config_isolated, false);
+assert.equal(preview.authority.git_loader_environment_isolated, false);
+assert.equal(
+  preview.authority.canonical_remote_tls_verification_required,
+  false,
+);
+assert.equal(preview.authority.private_input_descriptor_bound, false);
+assert.equal(preview.authority.private_input_parent_identity_bound, false);
+assert.equal(preview.authority.private_output_parent_fd_bound, false);
+assert.equal(preview.authority.private_output_exact_directory_fsync, false);
 assert.match(preview.composition_id, /^sha256:[0-9a-f]{64}$/u);
 assert.equal(preview.repository_head_sha, "a".repeat(40));
 assert.equal(preview.repository_tree_sha, "b".repeat(40));
@@ -421,6 +442,147 @@ try {
   fs.rmSync(outRoot, { recursive: true, force: true });
 }
 
+{
+  const race =
+    testOnlyExerciseVoidWcVoidFinalCoupledInputParentReplacementV1();
+  assert.match(
+    String(race.reason || ""),
+    /FINAL_COUPLED_INPUT_PARENT_RACE_TEST_ONLY_PATH_CHANGED_DURING_READ/u,
+  );
+}
+
+{
+  const race =
+    testOnlyExerciseVoidWcVoidFinalCoupledOutputParentReplacementV1();
+  assert.match(
+    String(race.reason || ""),
+    /FINAL_COUPLED_OUTPUT_POSTWRITE_IDENTITY_INVALID/u,
+  );
+  assert.equal(race.replacement_output_exists, false);
+  assert.equal(race.original_output_exists, false);
+}
+
+{
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-final-coupled-git-adversary-"),
+  );
+  fs.chmodSync(temp, 0o700);
+  const localSentinel = path.join(temp, "local-fsmonitor-executed");
+  const globalSentinel = path.join(temp, "global-fsmonitor-executed");
+  const localFsmonitor = path.join(temp, "local-fsmonitor.sh");
+  const globalFsmonitor = path.join(temp, "global-fsmonitor.sh");
+  const globalConfig = path.join(temp, "global.gitconfig");
+  const loaderPrefix = path.join(temp, "ld-debug");
+
+  fs.writeFileSync(
+    localFsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(localSentinel) +
+      "\nexit 91\n",
+    { mode: 0o700 },
+  );
+  fs.writeFileSync(
+    globalFsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(globalSentinel) +
+      "\nexit 91\n",
+    { mode: 0o700 },
+  );
+  fs.writeFileSync(
+    globalConfig,
+    "[core]\n  fsmonitor = " + globalFsmonitor + "\n",
+    { mode: 0o600 },
+  );
+
+  const proofGitEnv = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+  const previous = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "--get", "core.fsmonitor"],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: proofGitEnv,
+    },
+  );
+  assert.ok(previous.status === 0 || previous.status === 1);
+  const previousValue =
+    previous.status === 0 ? String(previous.stdout || "").trim() : null;
+
+  const setLocal = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "core.fsmonitor", localFsmonitor],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: proofGitEnv,
+    },
+  );
+  assert.equal(setLocal.status, 0, String(setLocal.stderr || ""));
+
+  const saved = Object.fromEntries(
+    [
+      "GIT_CONFIG_GLOBAL",
+      "GIT_CONFIG_SYSTEM",
+      "LD_DEBUG",
+      "LD_DEBUG_OUTPUT",
+    ].map((key) => [key, process.env[key]]),
+  );
+  process.env.GIT_CONFIG_GLOBAL = globalConfig;
+  process.env.GIT_CONFIG_SYSTEM = globalConfig;
+  process.env.LD_DEBUG = "libs";
+  process.env.LD_DEBUG_OUTPUT = loaderPrefix;
+
+  try {
+    const identity = testOnlyVoidWcVoidFinalCoupledGitIdentityV1();
+    assert.match(identity.head, /^[0-9a-f]{40}$/u);
+    assert.match(identity.tree, /^[0-9a-f]{40}$/u);
+    assert.equal(identity.status, "");
+    assert.equal(fs.existsSync(localSentinel), false);
+    assert.equal(fs.existsSync(globalSentinel), false);
+    assert.equal(
+      fs.readdirSync(temp).some((name) => name.startsWith("ld-debug.")),
+      false,
+    );
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    const restore =
+      previousValue === null
+        ? spawnSync(
+            "/usr/bin/git",
+            ["-C", process.cwd(), "config", "--local", "--unset-all", "core.fsmonitor"],
+            {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              env: proofGitEnv,
+            },
+          )
+        : spawnSync(
+            "/usr/bin/git",
+            ["-C", process.cwd(), "config", "--local", "core.fsmonitor", previousValue],
+            {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              env: proofGitEnv,
+            },
+          );
+    assert.equal(restore.status, 0, String(restore.stderr || ""));
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 const source = fs.readFileSync(
   "tools/void-wc-void-final-coupled-activation-promotion-v1.mjs",
   "utf8",
@@ -430,6 +592,21 @@ for (const required of [
   "deriveVerifiedVoidWcVoidFinalCoupledActivationPromotionV1",
   "VERIFIED_SOURCE_PROMOTIONS.has(promotion)",
   "FINAL_COUPLED_STRUCTURAL_PREVIEW_NOT_SOURCE_VERIFIED",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_ATTR_NOSYSTEM",
+  "core.fsmonitor=false",
+  "core.hooksPath=/dev/null",
+  "core.attributesFile=/dev/null",
+  "core.untrackedCache=false",
+  "core.preloadIndex=false",
+  "submodule.recurse=false",
+  "http.sslVerify=true",
+  'cwd: "/"',
+  '"/proc/self/fd/"',
+  "fs.constants.O_DIRECTORY",
+  "privateRegularFileBytes",
+  "createPrivateOutputBoundV1",
 ]) {
   assert.equal(source.includes(required), true, required);
 }
@@ -462,6 +639,13 @@ console.log("exact_target_file_hashes_bound=true");
 console.log("synthetic_preview_cannot_mint_authoritative_promotion=true");
 console.log("synthetic_preview_authoritative_writer_rejected=true");
 console.log("verified_cli_private_capability_required=true");
+console.log("git_config_isolated=true");
+console.log("git_loader_environment_isolated=true");
+console.log("canonical_remote_tls_verification_required=true");
+console.log("private_input_descriptor_bound=true");
+console.log("private_input_parent_identity_bound=true");
+console.log("private_output_parent_fd_bound=true");
+console.log("private_output_exact_directory_fsync=true");
 console.log("composite_source_ready_proven=true");
 console.log("canonical_candidate_files_updated=false");
 console.log("runtime_activation_authorized=false");
