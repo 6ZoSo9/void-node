@@ -62,6 +62,15 @@ function validInput() {
       service_invocation_stable_during_observation: true,
       listener_stable_during_observation: true,
       activation_source_lineage_ancestor_current_main: true,
+      activation_plan_rederived_from_upstream: true,
+      activation_upstream: {
+        private_runtime_plan_file_sha256: "4".repeat(64),
+        bundle_set_receipt_file_sha256: "5".repeat(64),
+        start_admission_receipt_file_sha256: "6".repeat(64),
+        install_precision_file_sha256: "7".repeat(64),
+        install_nimo_file_sha256: "8".repeat(64),
+        install_xiphos_file_sha256: "9".repeat(64),
+      },
       rpc: {
         url: "http://127.0.0.1:18553/",
         chain_id_hex: "0x802",
@@ -107,7 +116,23 @@ assert.equal(
   observation.activation_lineage.source_lineage_ancestor_current_main,
   true,
 );
+assert.equal(
+  observation.activation_lineage.activation_plan_rederived_from_upstream,
+  true,
+);
+assert.equal(
+  observation.activation_lineage.private_runtime_plan_file_sha256,
+  "4".repeat(64),
+);
 assert.equal(observation.authority.activation_source_ancestry_required, true);
+assert.equal(
+  observation.authority.activation_plan_upstream_reexecution_required,
+  true,
+);
+assert.equal(
+  observation.authority.exact_upstream_activation_artifacts_required,
+  true,
+);
 assert.equal(observation.authority.private_output_parent_fd_bound, true);
 assert.equal(observation.authority.private_output_redirect_forbidden, true);
 assert.deepEqual(
@@ -171,6 +196,14 @@ rejected(
   /SERVICE_OR_LISTENER_INVALID/u,
 );
 rejected(
+  (v) => { v.host_observation.activation_plan_rederived_from_upstream = false; },
+  /SERVICE_OR_LISTENER_INVALID/u,
+);
+rejected(
+  (v) => { v.host_observation.activation_upstream.bundle_set_receipt_file_sha256 = "bad"; },
+  /ACTIVATION_UPSTREAM_INVALID/u,
+);
+rejected(
   (v) => { v.host_observation.observed_at_utc = "2029-12-31T23:59:59.000Z"; },
   /TIME_INVALID/u,
 );
@@ -218,6 +251,13 @@ for (const required of [
   '"--user", "show"',
   '"sport = :18553"',
   '"merge-base", "--is-ancestor"',
+  "compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1",
+  '"private-runtime-plan"',
+  '"bundle-set"',
+  '"install-precision"',
+  '"install-nimo"',
+  '"install-xiphos"',
+  '"start-admission"',
   '"/proc/self/fd/"',
   "fs.constants.O_DIRECTORY",
 ]) {
@@ -240,6 +280,8 @@ console.log("service_invocation_stable_during_observation=true");
 console.log("listener_stable_during_observation=true");
 console.log("activation_source_lineage_ancestor_current_main=true");
 console.log("activation_lineage_git_ancestry_execution_present=true");
+console.log("activation_plan_upstream_reexecution_required=true");
+console.log("exact_upstream_activation_artifacts_required=true");
 console.log("private_output_parent_fd_bound=true");
 console.log("private_output_redirect_forbidden=true");
 console.log("write_capability_classification=write_capable_not_authorized");
