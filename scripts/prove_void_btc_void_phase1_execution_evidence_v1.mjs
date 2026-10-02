@@ -6,8 +6,10 @@ import fs from "node:fs";
 
 import {
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1,
+  VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_V1,
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1,
   admitBtcVoidPhase1ExecutionEvidenceV1,
+  previewBtcVoidPhase1ExecutionEvidenceV1,
 } from "../tools/void-btc-void-phase1-execution-evidence-v1.mjs";
 
 const SOURCE_CONTRACTS = Object.freeze({
@@ -348,38 +350,55 @@ function expectReject(mutator, pattern) {
   assert.throws(() => admitBtcVoidPhase1ExecutionEvidenceV1(input), pattern);
 }
 
-const admitted = admitBtcVoidPhase1ExecutionEvidenceV1(suite());
+const preview = previewBtcVoidPhase1ExecutionEvidenceV1(suite());
+const legacyCall = admitBtcVoidPhase1ExecutionEvidenceV1(suite());
 
 assert.equal(
-  admitted.marker,
+  preview.marker,
+  VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_V1,
+);
+assert.notEqual(
+  preview.marker,
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1,
 );
 assert.equal(
-  admitted.status,
-  "PHASE1_EXECUTION_EVIDENCE_ADMITTED_NONPRODUCTION",
+  preview.status,
+  "PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_NOT_ADMITTED",
 );
-assert.match(admitted.evidence_suite_id, /^voidbtcp1ev1_[0-9a-f]{64}$/u);
-assert.equal(admitted.cases.length, 12);
+assert.match(preview.preview_id, /^voidbtcp1preview1_[0-9a-f]{64}$/u);
+assert.equal(Object.hasOwn(preview, "evidence_suite_id"), false);
+assert.equal(preview.cases.length, 12);
 assert.deepEqual(
-  admitted.cases.map((entry) => entry.kind).sort(),
+  preview.cases.map((entry) => entry.kind).sort(),
   [...CASES].sort(),
 );
+assert.equal(preview.coverage.structural_case_coverage_only, true);
 assert.equal(
-  admitted.coverage.bitcoin_regtest_execution_evidence_admitted,
+  preview.coverage.bitcoin_regtest_execution_evidence_admitted,
+  false,
+);
+assert.equal(
+  preview.coverage.isolated_chain2050_execution_evidence_admitted,
+  false,
+);
+assert.equal(preview.coverage.execution_provenance_verified, false);
+assert.equal(
+  preview.coverage.observer_receipts_required_for_execution_admission,
   true,
 );
 assert.equal(
-  admitted.coverage.isolated_chain2050_execution_evidence_admitted,
+  preview.coverage.atomic_source_model_not_treated_as_execution_evidence,
   true,
 );
-assert.equal(
-  admitted.coverage.atomic_source_model_not_treated_as_execution_evidence,
-  true,
-);
-assert.equal(admitted.coverage.production_authority_granted, false);
+assert.equal(preview.coverage.production_authority_granted, false);
 assert.deepEqual(
-  admitted.authority,
+  preview.authority,
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1,
+);
+assert.deepEqual(
+  legacyCall,
+  preview,
+  "legacy public admit call must be fail-safe structural preview only",
 );
 
 expectReject(
@@ -551,17 +570,29 @@ for (const required of [
   CHAIN2050_GENESIS,
   CHAIN2050_STATE_ROOT,
   "atomic_source_model_not_treated_as_execution_evidence",
+  "source_structural_preview_only: true",
+  "execution_evidence_admitted: false",
+  "observer_receipts_required_for_execution_admission: true",
   "bitcoin_mainnet_contact: false",
   "production_chain2050_contact: false",
 ]) {
   assert.equal(source.includes(required), true, required);
 }
+for (const forbiddenClaim of [
+  "PHASE1_EXECUTION_EVIDENCE_ADMITTED_NONPRODUCTION",
+  'evidence_suite_id: contentId("voidbtcp1ev1_"',
+]) {
+  assert.equal(source.includes(forbiddenClaim), false, forbiddenClaim);
+}
 
-console.log("VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1_PROOF_GREEN");
+console.log("VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_V1_PROOF_GREEN");
 console.log("required_case_count=12");
 console.log("bitcoin_regtest_identity_bound=true");
 console.log("isolated_chain2050_epoch2_identity_bound=true");
 console.log("source_only_atomic_trace_not_execution_evidence=true");
+console.log("structural_preview_only=true");
+console.log("execution_evidence_admitted=false");
+console.log("observer_receipts_required_for_execution_admission=true");
 console.log("trade_funded_fee_quote_bound=true");
 console.log("success_refund_rejection_restart_reorg_coverage=true");
 console.log("bitcoin_mainnet_contact=false");

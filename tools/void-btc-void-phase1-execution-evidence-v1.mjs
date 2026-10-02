@@ -7,9 +7,17 @@ import { fileURLToPath } from "node:url";
 export const VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1 =
   "VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1";
 
+export const VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_V1 =
+  "VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_V1";
+
 export const VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1 =
   Object.freeze({
-    source_evidence_admission_only: true,
+    source_evidence_admission_only: false,
+    source_structural_preview_only: true,
+    execution_evidence_admitted: false,
+    observer_receipts_consumed: false,
+    external_execution_provenance_verified: false,
+    observer_receipts_required_for_execution_admission: true,
     bitcoin_regtest_execution_performed: false,
     chain2050_isolated_execution_performed: false,
     bitcoin_mainnet_contact: false,
@@ -30,7 +38,7 @@ export const VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1 =
 const INPUT_SCHEMA =
   "void.btc_void.phase1_execution_evidence_suite_request.v1";
 const OUTPUT_SCHEMA =
-  "void.btc_void.phase1_execution_evidence_suite.v1";
+  "void.btc_void.phase1_execution_evidence_structural_preview.v1";
 const ATOMIC_MARKER =
   "VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIANTS_V1";
 const FEE_MARKER = "VOID_BTC_VOID_TRADE_FUNDED_FEES_V1";
@@ -683,7 +691,7 @@ function validateCase(raw) {
   return Object.freeze(value);
 }
 
-export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
+export function previewBtcVoidPhase1ExecutionEvidenceV1(input) {
   const request = exact(
     structuredClone(input),
     ["schema", "version", "source_contracts", "cases"],
@@ -738,9 +746,9 @@ export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
 
   const material = Object.freeze({
     schema: OUTPUT_SCHEMA,
-    marker: VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1,
+    marker: VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_V1,
     version: 1,
-    status: "PHASE1_EXECUTION_EVIDENCE_ADMITTED_NONPRODUCTION",
+    status: "PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_NOT_ADMITTED",
     source_contracts: REVIEWED_SOURCE,
     bitcoin_regtest_genesis_hash: BITCOIN_REGTEST_GENESIS,
     chain2050_epoch2_genesis_block_hash:
@@ -763,8 +771,11 @@ export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
       replay_rejected: true,
       restart_recovery: true,
       reorg_reconciliation: true,
-      bitcoin_regtest_execution_evidence_admitted: true,
-      isolated_chain2050_execution_evidence_admitted: true,
+      structural_case_coverage_only: true,
+      bitcoin_regtest_execution_evidence_admitted: false,
+      isolated_chain2050_execution_evidence_admitted: false,
+      execution_provenance_verified: false,
+      observer_receipts_required_for_execution_admission: true,
       atomic_source_model_not_treated_as_execution_evidence: true,
       production_authority_granted: false,
     }),
@@ -773,8 +784,12 @@ export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
 
   return Object.freeze({
     ...material,
-    evidence_suite_id: contentId("voidbtcp1ev1_", material),
+    preview_id: contentId("voidbtcp1preview1_", material),
   });
+}
+
+export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
+  return previewBtcVoidPhase1ExecutionEvidenceV1(input);
 }
 
 async function readBoundedStdin() {
@@ -804,7 +819,7 @@ async function main() {
   } catch {
     fail("phase1_stdin_json_invalid");
   }
-  const result = admitBtcVoidPhase1ExecutionEvidenceV1(input);
+  const result = previewBtcVoidPhase1ExecutionEvidenceV1(input);
   process.stdout.write(
     JSON.stringify(result, null, args.includes("--pretty") ? 2 : 0) + "\n",
   );
