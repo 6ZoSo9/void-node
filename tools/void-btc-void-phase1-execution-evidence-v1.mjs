@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1 =
   "VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1";
@@ -49,10 +51,23 @@ const REVIEWED_SOURCE = Object.freeze({
     "4fdc9c632b73a50dded72fd5493286667ca197c0",
   trade_funded_fees_tool_git_blob_sha1:
     "5aff99a441d4a0ffd441b6dd508aaa7988e4eb16",
+  quote_math_tool_git_blob_sha1:
+    "02be3da1718209db1603094c9654c7dc9d697c51",
   epoch2_successor_evidence_git_blob_sha1:
     "458528c7d1c3fe1db27643ee406e493606443c2f",
   client_neutral_state_manifest_git_blob_sha1:
     "fabe44a43ff188902779b36e6a84de9ba110de87",
+});
+
+const REVIEWED_ATOMIC_DEPENDENCIES = Object.freeze({
+  "tools/void-btc-void-quote-math-v1.mjs":
+    "02be3da1718209db1603094c9654c7dc9d697c51",
+  "tools/void-btc-void-market-maker-reserve-policy-v1.mjs":
+    "937e1b38cab34b36297f4320cc253a8e48f5a7e1",
+  "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs":
+    "63d347948f3dd0bded2f2f79fadafec8f0cf7838",
+  "tools/void-btc-void-bounded-stdin-v1.mjs":
+    "2026b9be59216b0c52cf4d978b7fc91b7f7592e1",
 });
 
 const REQUIRED_CASES = Object.freeze([
@@ -224,6 +239,16 @@ function validateAtomicEvaluation(value, direction) {
     binding.git_replacement_objects_disabled !== true
   ) {
     fail("phase1_atomic_source_binding_mismatch");
+  }
+  const dependencyBlobs = plain(
+    binding.dependency_git_blobs,
+    "phase1_atomic_dependency_blobs_invalid",
+  );
+  for (const [dependency, expectedBlob] of
+    Object.entries(REVIEWED_ATOMIC_DEPENDENCIES)) {
+    if (dependencyBlobs[dependency] !== expectedBlob) {
+      fail("phase1_atomic_dependency_blob_mismatch:" + dependency);
+    }
   }
   const invariants = plain(
     value.invariants,
@@ -692,6 +717,9 @@ export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
       ),
     ),
   ].sort();
+  if (atomicSourceHeads.length !== 1) {
+    fail("phase1_suite_mixed_atomic_source_generations");
+  }
 
   const material = Object.freeze({
     schema: OUTPUT_SCHEMA,
@@ -768,7 +796,7 @@ async function main() {
 
 if (
   process.argv[1] &&
-  import.meta.url === new URL("file://" + process.argv[1]).href
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   main().catch((error) => {
     process.stderr.write(String(error?.message || error) + "\n");
