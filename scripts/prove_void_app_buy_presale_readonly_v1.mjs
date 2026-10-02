@@ -56,7 +56,7 @@ for (const required of [
   "data-buy-submit",
   "disabled",
   "The Base USDC sender must be this exact same address.",
-  "No funds are sent by this page.",
+  "This page never sends funds or connects a wallet.",
   "WC / VOID market",
   "Earn Work Credits",
 ]) {
