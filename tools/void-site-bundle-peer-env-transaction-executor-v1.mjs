@@ -86,6 +86,14 @@ function sha256(bytes){
   return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
+function gitBlobSha1(value){
+  const bytes=Buffer.isBuffer(value)?value:Buffer.from(value);
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
 function same(left,right){
   return canonical(left)===canonical(right);
 }
