@@ -33,7 +33,9 @@ unless the response has the reviewed checkout-result schema, the returned VOID
 destination matches the submitted self-custody destination, the returned USDC
 amount matches the submitted amount exactly at six-decimal Base-USDC precision,
 the approved receiver remains canonical, and the returned safety object still
-states manual review with automatic fulfillment disabled.
+states manual review with automatic fulfillment disabled. All checkout JSON
+responses are additionally capped at 131,072 bytes and decoded as strict UTF-8
+before parsing; oversized, malformed, or non-JSON responses fail closed.
 
 ## Exchange/custody warning
 
