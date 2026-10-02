@@ -20,11 +20,17 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_AUTH
     exact_composition_receipt_required: true,
     exact_derived_candidate_required: true,
     composition_reexecution_required: true,
+    applied_composition_reexecution_required: true,
+    applied_exact_upstream_evidence_required: true,
+    external_plan_not_semantic_authority: true,
+    detached_base_git_view_required: true,
     composition_receipt_equality_required: true,
     derived_candidate_equality_required: true,
     canonical_head_candidate_bytes_required: true,
     reviewed_repository_generation_required: true,
     canonical_github_origin_required: true,
+    canonical_remote_main_read_required: true,
+    canonical_source_remote_read_only: true,
     reviewed_git_executable_required: true,
     ambient_git_overrides_ignored: true,
     git_replacement_objects_disabled: true,
@@ -35,11 +41,11 @@ export const VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_AUTH
     reviewed_git_commit_required: true,
     repository_source_write: false,
     filesystem_read: true,
-    filesystem_write: false,
+    private_temporary_filesystem_write: true,
     runtime_mutation: false,
     service_mutation: false,
     production_rpc_contact: false,
-    network_call: false,
+    production_network_call: false,
     credential_access: false,
     wallet_or_signer_access: false,
     private_key_access: false,
@@ -98,6 +104,33 @@ const INPUT_KEYS = Object.freeze([
   "derived_candidate_file_sha256",
 ]);
 
+const APPLIED_VERIFY_KEYS = Object.freeze([
+  "application_plan_bytes",
+  "application_plan_file_sha256",
+  "public_read_evidence_bytes",
+  "public_read_evidence_file_sha256",
+  "public_read_evidence_id",
+  "evaluation_time_utc",
+  "state_root_membership_bytes",
+  "state_root_membership_file_sha256",
+  "expected_registry_address",
+  "expected_publisher_address",
+  "review_confirmation",
+]);
+
+const SEMANTIC_REPLAY_KEYS = Object.freeze([
+  "plan",
+  "public_read_evidence_bytes",
+  "public_read_evidence_file_sha256",
+  "public_read_evidence_id",
+  "evaluation_time_utc",
+  "state_root_membership_bytes",
+  "state_root_membership_file_sha256",
+  "expected_registry_address",
+  "expected_publisher_address",
+  "review_confirmation",
+]);
+
 const PLAN_KEYS = Object.freeze([
   "marker",
   "version",
@@ -117,6 +150,7 @@ const PLAN_KEYS = Object.freeze([
   "target_candidate_file_sha256",
   "target_candidate",
   "composition_receipt_file_sha256",
+  "composition_receipt",
   "composition_id",
   "composition_source_head_sha",
   "composition_source_tree_sha",
@@ -125,6 +159,9 @@ const PLAN_KEYS = Object.freeze([
   "public_read_evidence_id",
   "evaluation_time_utc",
   "state_root_membership_file_sha256",
+  "expected_registry_address",
+  "expected_publisher_address",
+  "review_confirmation",
   "state_root_promotion_id",
   "promoted_public_verification_fields",
   "migration_before",
@@ -244,26 +281,65 @@ function sameGitExecutable(left, right) {
   );
 }
 
+function minimalAuthorityEnv() {
+  return {
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    LANG: "C",
+    LC_ALL: "C",
+    PATH: "/usr/bin:/bin",
+  };
+}
+
 function sanitizedGitEnv() {
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^GIT_/u.test(key) || key === "SSH_ASKPASS") delete env[key];
+  return minimalAuthorityEnv();
+}
+
+async function withMinimalAuthorityProcessEnv(fn) {
+  const saved = { ...process.env };
+  try {
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, minimalAuthorityEnv());
+    return await fn();
+  } finally {
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, saved);
   }
-  env.GIT_CONFIG_NOSYSTEM = "1";
-  env.GIT_OPTIONAL_LOCKS = "0";
-  env.GIT_TERMINAL_PROMPT = "0";
-  env.GIT_NO_REPLACE_OBJECTS = "1";
-  env.LANG = "C";
-  env.LC_ALL = "C";
-  env.PATH = "/usr/bin:/bin";
-  return env;
+}
+
+function gitSafetyConfigArgs(workTree = null) {
+  const args = [
+    "-c", "core.fsmonitor=false",
+    "-c", "core.untrackedCache=false",
+    "-c", "core.preloadIndex=false",
+    "-c", "submodule.recurse=false",
+    "-c", "core.hooksPath=/dev/null",
+    "-c", "core.attributesFile=/dev/null",
+  ];
+  if (workTree) {
+    args.unshift("-c", "core.worktree=" + workTree);
+  }
+  return args;
 }
 
 function gitRun(args, code, { encoding = "utf8", allowFail = false } = {}) {
   const before = inspectGitExecutable();
   const result = spawnSync(
     before.path,
-    ["--no-replace-objects", "-C", ROOT, ...args],
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(ROOT),
+      "-C",
+      ROOT,
+      ...args,
+    ],
     {
       encoding,
       env: sanitizedGitEnv(),
@@ -303,6 +379,46 @@ function canonicalRemote(value) {
   return CANONICAL_REMOTE;
 }
 
+function canonicalRemoteGitText(args, code) {
+  const before = inspectGitExecutable();
+  const result = spawnSync(
+    before.path,
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(),
+      ...args,
+    ],
+    {
+      cwd: "/",
+      encoding: "utf8",
+      env: sanitizedGitEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 4 * 1024 * 1024,
+    },
+  );
+  const after = inspectGitExecutable();
+  if (!sameGitExecutable(before, after)) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_GIT_EXECUTABLE_CHANGED");
+  }
+  if (result.error || result.status !== 0) fail(code);
+  return String(result.stdout || "").trim();
+}
+
+function verifyCanonicalRemoteMain(expectedHead) {
+  if (!HEX40.test(String(expectedHead || ""))) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REMOTE_MAIN_EXPECTED_HEAD_INVALID");
+  }
+  const raw = canonicalRemoteGitText(
+    ["ls-remote", "--heads", CANONICAL_REMOTE, "refs/heads/main"],
+    "PUBLIC_VERIFICATION_APPLICATION_REMOTE_MAIN_UNAVAILABLE",
+  );
+  const match = raw.match(/^([0-9a-f]{40})\s+refs\/heads\/main$/u);
+  if (!match || match[1] !== expectedHead) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REMOTE_MAIN_MISMATCH");
+  }
+  return match[1];
+}
+
 function repositoryIdentity() {
   const status = gitText(
     ["status", "--porcelain=v1", "--untracked-files=all"],
@@ -325,7 +441,7 @@ function repositoryIdentity() {
   );
   const remote = canonicalRemote(
     gitText(
-      ["config", "--get", "remote.origin.url"],
+      ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
       "PUBLIC_VERIFICATION_APPLICATION_ORIGIN_UNAVAILABLE",
     ),
   );
@@ -493,7 +609,7 @@ function repositoryGitDir() {
 
 function checkedSpawn(command, args, {
   cwd = "/",
-  env = sanitizedGitEnv(),
+  env = minimalAuthorityEnv(),
   code = "PUBLIC_VERIFICATION_APPLICATION_COMMAND_FAILED",
 } = {}) {
   const result = spawnSync(command, args, {
@@ -503,6 +619,38 @@ function checkedSpawn(command, args, {
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: MAX_BYTES + 1024,
   });
+  if (result.error || result.status !== 0) fail(code);
+  return result;
+}
+
+function checkedGitSpawn(
+  workTree,
+  args,
+  code,
+  { encoding = "utf8" } = {},
+) {
+  const before = inspectGitExecutable();
+  const result = spawnSync(
+    before.path,
+    [
+      "--no-replace-objects",
+      ...gitSafetyConfigArgs(workTree),
+      "-C",
+      workTree,
+      ...args,
+    ],
+    {
+      cwd: "/",
+      env: sanitizedGitEnv(),
+      encoding,
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: MAX_BYTES + 1024,
+    },
+  );
+  const after = inspectGitExecutable();
+  if (!sameGitExecutable(before, after)) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_GIT_EXECUTABLE_CHANGED");
+  }
   if (result.error || result.status !== 0) fail(code);
   return result;
 }
@@ -529,8 +677,113 @@ function materializedBlob(treeRoot, relativePath, expectedBlob) {
   return bytes;
 }
 
+function repositoryObjectDirectory() {
+  const raw = gitText(
+    ["rev-parse", "--git-path", "objects"],
+    "PUBLIC_VERIFICATION_APPLICATION_OBJECT_DIR_UNAVAILABLE",
+  );
+  const resolved = path.isAbsolute(raw) ? raw : path.resolve(ROOT, raw);
+  const stat = fs.lstatSync(resolved);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_OBJECT_DIR_INVALID");
+  }
+  return fs.realpathSync.native(resolved);
+}
+
+function privateGitText(treeRoot, args, code) {
+  const result = checkedGitSpawn(treeRoot, args, code);
+  const value = String(result.stdout || "").trim();
+  if (!value) fail(code);
+  return value;
+}
+
+function installDetachedReviewedGitView(treeRoot, repo) {
+  const gitDir = path.join(treeRoot, ".git");
+  const objectInfo = path.join(gitDir, "objects", "info");
+  fs.mkdirSync(objectInfo, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(gitDir, "refs"), { recursive: true, mode: 0o700 });
+
+  const config = [
+    "[core]",
+    "\trepositoryformatversion = 0",
+    "\tfilemode = true",
+    "\tbare = false",
+    "\tlogallrefupdates = false",
+    "[remote \"origin\"]",
+    "\turl = " + CANONICAL_REMOTE,
+    "",
+  ].join("\n");
+  fs.writeFileSync(path.join(gitDir, "config"), config, {
+    encoding: "utf8",
+    mode: 0o400,
+    flag: "wx",
+  });
+  fs.writeFileSync(path.join(gitDir, "HEAD"), repo.head + "\n", {
+    encoding: "utf8",
+    mode: 0o400,
+    flag: "wx",
+  });
+  fs.writeFileSync(
+    path.join(objectInfo, "alternates"),
+    repositoryObjectDirectory() + "\n",
+    { encoding: "utf8", mode: 0o400, flag: "wx" },
+  );
+
+  checkedGitSpawn(
+    treeRoot,
+    ["read-tree", repo.head],
+    "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_INDEX_FAILED",
+  );
+
+  if (
+    privateGitText(
+      treeRoot,
+      ["rev-parse", "HEAD"],
+      "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_HEAD_UNAVAILABLE",
+    ) !== repo.head ||
+    privateGitText(
+      treeRoot,
+      ["rev-parse", "HEAD^{tree}"],
+      "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_TREE_UNAVAILABLE",
+    ) !== repo.tree ||
+    canonicalRemote(
+      privateGitText(
+        treeRoot,
+        ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
+        "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_ORIGIN_UNAVAILABLE",
+      ),
+    ) !== repo.remote
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_IDENTITY_MISMATCH");
+  }
+
+  const clean = checkedGitSpawn(
+    treeRoot,
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    "PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_STATUS_FAILED",
+  );
+  if (String(clean.stdout || "").trim() !== "") {
+    fail("PUBLIC_VERIFICATION_APPLICATION_PRIVATE_REPOSITORY_NOT_CLEAN");
+  }
+}
+
 async function withReviewedComposition(repo, fn) {
-  const gitDir = repositoryGitDir();
+  if (
+    !repo ||
+    !HEX40.test(String(repo.head || "")) ||
+    !HEX40.test(String(repo.tree || "")) ||
+    canonicalRemote(repo.remote) !== CANONICAL_REMOTE
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_REPOSITORY_INVALID");
+  }
+  const actualTree = gitText(
+    ["rev-parse", repo.head + "^{tree}"],
+    "PUBLIC_VERIFICATION_APPLICATION_REVIEWED_TREE_UNAVAILABLE",
+  );
+  if (actualTree !== repo.tree) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_TREE_MISMATCH");
+  }
+
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-epoch2-public-application-reviewed-"),
   );
@@ -539,18 +792,15 @@ async function withReviewedComposition(repo, fn) {
   const archive = path.join(tempRoot, "source.tar");
   fs.mkdirSync(treeRoot, { mode: 0o700 });
   try {
-    checkedSpawn(
-      GIT,
+    checkedGitSpawn(
+      ROOT,
       [
-        "--no-replace-objects",
-        "-C",
-        ROOT,
         "archive",
         "--format=tar",
         "--output=" + archive,
         repo.head,
       ],
-      { code: "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED" },
+      "PUBLIC_VERIFICATION_APPLICATION_ARCHIVE_FAILED",
     );
     checkedSpawn(
       "/usr/bin/tar",
@@ -570,75 +820,48 @@ async function withReviewedComposition(repo, fn) {
     materializedBlob(treeRoot, COMPOSITION_REL, compositionBlob);
     materializedBlob(treeRoot, CLASSIFIER_REL, classifierBlob);
 
-    fs.writeFileSync(
-      path.join(treeRoot, ".git"),
-      "gitdir: " + gitDir + "\n",
-      { encoding: "utf8", mode: 0o400, flag: "wx" },
-    );
+    installDetachedReviewedGitView(treeRoot, repo);
     checkedSpawn(
       "/usr/bin/chmod",
       ["-R", "a-w", treeRoot],
       { code: "PUBLIC_VERIFICATION_APPLICATION_READONLY_LOCK_FAILED" },
     );
 
-    const clean = spawnSync(
-      GIT,
-      [
-        "--no-replace-objects",
-        "-C",
-        treeRoot,
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-      ],
-      {
-        env: sanitizedGitEnv(),
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-        maxBuffer: 4 * 1024 * 1024,
-      },
-    );
-    if (
-      clean.error ||
-      clean.status !== 0 ||
-      String(clean.stdout || "").trim() !== ""
-    ) {
-      fail("PUBLIC_VERIFICATION_APPLICATION_MATERIALIZED_REPOSITORY_NOT_CLEAN");
-    }
-
-    const compositionModule = await import(
-      pathToFileURL(path.join(treeRoot, COMPOSITION_REL)).href +
-        "?reviewed_head=" + repo.head
-    );
-    const classifierModule = await import(
-      pathToFileURL(path.join(treeRoot, CLASSIFIER_REL)).href +
-        "?reviewed_head=" + repo.head
-    );
-    if (
-      typeof compositionModule.composeVoidEconomicEpoch2PublicVerificationV1 !==
-        "function" ||
-      typeof classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1 !==
-        "function"
-    ) {
-      fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_EXPORTS_INVALID");
-    }
-    return await fn({
-      compose:
-        compositionModule.composeVoidEconomicEpoch2PublicVerificationV1,
-      compositionMarker:
-        compositionModule.VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_V1,
-      compositionConfirmation:
-        compositionModule
-          .VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_CONFIRMATION_V1,
-      classify:
-        classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1,
-      compositionBlob,
-      classifierBlob,
+    return await withMinimalAuthorityProcessEnv(async () => {
+      const compositionModule = await import(
+        pathToFileURL(path.join(treeRoot, COMPOSITION_REL)).href +
+          "?reviewed_head=" + repo.head
+      );
+      const classifierModule = await import(
+        pathToFileURL(path.join(treeRoot, CLASSIFIER_REL)).href +
+          "?reviewed_head=" + repo.head
+      );
+      if (
+        typeof compositionModule.composeVoidEconomicEpoch2PublicVerificationV1 !==
+          "function" ||
+        typeof classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1 !==
+          "function"
+      ) {
+        fail("PUBLIC_VERIFICATION_APPLICATION_REVIEWED_EXPORTS_INVALID");
+      }
+      return await fn({
+        compose:
+          compositionModule.composeVoidEconomicEpoch2PublicVerificationV1,
+        compositionMarker:
+          compositionModule.VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_V1,
+        compositionConfirmation:
+          compositionModule
+            .VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_COMPOSITION_CONFIRMATION_V1,
+        classify:
+          classifierModule.classifyVoidEconomicEvmSuccessorMigrationV1,
+        compositionBlob,
+        classifierBlob,
+      });
     });
   } finally {
     if (fs.existsSync(treeRoot)) {
       spawnSync("/usr/bin/chmod", ["-R", "u+w", treeRoot], {
-        env: { PATH: "/usr/bin:/bin" },
+        env: minimalAuthorityEnv(),
         stdio: "ignore",
       });
     }
@@ -696,6 +919,23 @@ function validatePlan(plan) {
     plan.reviewed_git_commit_required !== true ||
     plan.composition_source_head_sha !== plan.application_base_head_sha ||
     plan.composition_source_tree_sha !== plan.application_base_tree_sha ||
+    plan.composition_receipt?.status !==
+      "EPOCH2_PUBLIC_VERIFICATION_COMPOSED_SOURCE_READY" ||
+    plan.composition_receipt?.composition_id !== plan.composition_id ||
+    plan.composition_receipt?.source_binding?.source_head_sha !==
+      plan.application_base_head_sha ||
+    plan.composition_receipt?.source_binding?.source_tree_sha !==
+      plan.application_base_tree_sha ||
+    canonicalAddress(
+      plan.expected_registry_address,
+      "PUBLIC_VERIFICATION_APPLICATION_PLAN_REGISTRY_INVALID",
+    ) !== plan.expected_registry_address ||
+    canonicalAddress(
+      plan.expected_publisher_address,
+      "PUBLIC_VERIFICATION_APPLICATION_PLAN_PUBLISHER_INVALID",
+    ) !== plan.expected_publisher_address ||
+    typeof plan.review_confirmation !== "string" ||
+    plan.review_confirmation.length < 1 ||
     plan.target_candidate?.public_verification
       ?.public_balance_receipt_code_verification_evidence !==
       "ops/mainnet0/economic-epoch2-public-read-runtime-evidence-v1.json" ||
@@ -973,6 +1213,8 @@ export async function prepareVoidEconomicEpoch2PublicVerificationCanonicalApplic
       target_candidate_file_sha256: sha256(targetBytes),
       target_candidate: deepFreeze(structuredClone(derived.value)),
       composition_receipt_file_sha256: receipt.sha256,
+      composition_receipt:
+        deepFreeze(structuredClone(reexecuted.receipt)),
       composition_id: reexecuted.receipt.composition_id,
       composition_source_head_sha:
         reexecuted.receipt.source_binding.source_head_sha,
@@ -985,6 +1227,9 @@ export async function prepareVoidEconomicEpoch2PublicVerificationCanonicalApplic
       evaluation_time_utc: evaluationTime,
       state_root_membership_file_sha256:
         request.state_root_membership_file_sha256,
+      expected_registry_address: registry,
+      expected_publisher_address: publisher,
+      review_confirmation: request.review_confirmation,
       state_root_promotion_id:
         reexecuted.receipt.state_root.promotion_id,
       promoted_public_verification_fields: Object.freeze([
@@ -1019,12 +1264,11 @@ export async function prepareVoidEconomicEpoch2PublicVerificationCanonicalApplic
   return result;
 }
 
-export function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationStateV1({
+function verifyAppliedTargetStateV1({
   plan,
   successorCandidate,
   classifyMigration,
-} = {}) {
-  validatePlan(plan);
+}) {
   if (canonicalJson(successorCandidate) !== canonicalJson(plan.target_candidate)) {
     fail("PUBLIC_VERIFICATION_APPLICATION_TARGET_NOT_APPLIED");
   }
@@ -1061,20 +1305,183 @@ export function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationSt
   });
 }
 
-export async function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1({
-  application_plan_bytes,
-  application_plan_file_sha256,
-} = {}) {
+export async function reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1(input) {
+  const request = exactObject(
+    input,
+    SEMANTIC_REPLAY_KEYS,
+    "INVALID_PUBLIC_VERIFICATION_APPLICATION_SEMANTIC_REPLAY_INPUT_SHAPE",
+  );
+  const plan = validatePlan(request.plan);
+
+  parseJsonBytes(
+    request.public_read_evidence_bytes,
+    request.public_read_evidence_file_sha256,
+    "PUBLIC_VERIFICATION_APPLICATION_REPLAY_PUBLIC_READ_EVIDENCE",
+    MAX_PUBLIC_READ_BYTES,
+  );
+  if (
+    !EVIDENCE_ID.test(String(request.public_read_evidence_id || "")) ||
+    request.public_read_evidence_id !== plan.public_read_evidence_id ||
+    request.public_read_evidence_file_sha256 !==
+      plan.public_read_evidence_file_sha256
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REPLAY_PUBLIC_READ_BINDING_MISMATCH");
+  }
+
+  parseJsonBytes(
+    request.state_root_membership_bytes,
+    request.state_root_membership_file_sha256,
+    "PUBLIC_VERIFICATION_APPLICATION_REPLAY_STATE_ROOT_MEMBERSHIP",
+    MAX_MEMBERSHIP_BYTES,
+  );
+  if (
+    request.state_root_membership_file_sha256 !==
+      plan.state_root_membership_file_sha256
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REPLAY_MEMBERSHIP_BINDING_MISMATCH");
+  }
+
+  const evaluationTime = canonicalUtc(request.evaluation_time_utc);
+  if (evaluationTime !== plan.evaluation_time_utc) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REPLAY_EVALUATION_TIME_MISMATCH");
+  }
+  const registry = canonicalAddress(
+    request.expected_registry_address,
+    "PUBLIC_VERIFICATION_APPLICATION_REPLAY_REGISTRY_INVALID",
+  );
+  const publisher = canonicalAddress(
+    request.expected_publisher_address,
+    "PUBLIC_VERIFICATION_APPLICATION_REPLAY_PUBLISHER_INVALID",
+  );
+  if (
+    registry !== plan.expected_registry_address ||
+    publisher !== plan.expected_publisher_address ||
+    request.review_confirmation !== plan.review_confirmation
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_REPLAY_REVIEW_INPUT_MISMATCH");
+  }
+
+  const reviewedRepo = Object.freeze({
+    head: plan.application_base_head_sha,
+    tree: plan.application_base_tree_sha,
+    remote: plan.canonical_remote_url,
+  });
+
+  return await withReviewedComposition(reviewedRepo, async ({
+    compose,
+    compositionMarker,
+    compositionConfirmation,
+    classify,
+    compositionBlob,
+    classifierBlob,
+  }) => {
+    if (
+      compositionBlob !== plan.composition_tool_git_blob_sha1 ||
+      classifierBlob !== plan.migration_classifier_git_blob_sha1 ||
+      request.review_confirmation !== compositionConfirmation
+    ) {
+      fail("PUBLIC_VERIFICATION_APPLICATION_REPLAY_SOURCE_LINEAGE_MISMATCH");
+    }
+
+    const reexecuted = await compose({
+      publicReadEvidenceBytes: request.public_read_evidence_bytes,
+      expectedPublicReadEvidenceSha256:
+        request.public_read_evidence_file_sha256,
+      expectedPublicReadEvidenceId: request.public_read_evidence_id,
+      evaluationTimeUtc: evaluationTime,
+      stateRootMembershipBytes: request.state_root_membership_bytes,
+      expectedStateRootMembershipSha256:
+        request.state_root_membership_file_sha256,
+      expectedRegistryAddress: registry,
+      expectedPublisherAddress: publisher,
+      reviewConfirmation: request.review_confirmation,
+    });
+
+    if (
+      reexecuted?.receipt?.marker !== compositionMarker ||
+      reexecuted?.receipt?.status !==
+        "EPOCH2_PUBLIC_VERIFICATION_COMPOSED_SOURCE_READY" ||
+      reexecuted?.receipt?.composition_id !== plan.composition_id ||
+      reexecuted?.receipt?.state_root?.promotion_id !==
+        plan.state_root_promotion_id ||
+      reexecuted?.receipt?.source_binding?.source_head_sha !==
+        plan.application_base_head_sha ||
+      reexecuted?.receipt?.source_binding?.source_tree_sha !==
+        plan.application_base_tree_sha ||
+      canonicalJson(reexecuted.receipt) !==
+        canonicalJson(plan.composition_receipt) ||
+      canonicalJson(reexecuted.final_migration_candidate) !==
+        canonicalJson(plan.target_candidate)
+    ) {
+      fail("PUBLIC_VERIFICATION_APPLICATION_REPLAY_COMPOSITION_MISMATCH");
+    }
+
+    const state = verifyAppliedTargetStateV1({
+      plan,
+      successorCandidate: reexecuted.final_migration_candidate,
+      classifyMigration: classify,
+    });
+    return Object.freeze({
+      ok: true,
+      status:
+        "EPOCH2_PUBLIC_VERIFICATION_APPLICATION_PLAN_SEMANTICS_REVERIFIED",
+      application_plan_id: plan.application_plan_id,
+      composition_id: reexecuted.receipt.composition_id,
+      state_root_promotion_id: reexecuted.receipt.state_root.promotion_id,
+      public_read_evidence_id: plan.public_read_evidence_id,
+      exact_upstream_evidence_replayed: true,
+      exact_base_generation_replayed: true,
+      target_candidate_rederived: true,
+      successor_source_ready: true,
+      migration_authorized: false,
+      public_activation_authorized: false,
+      money_movement_authorized: false,
+      state,
+    });
+  });
+}
+
+export async function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1(input) {
+  const request = exactObject(
+    input,
+    APPLIED_VERIFY_KEYS,
+    "INVALID_PUBLIC_VERIFICATION_APPLICATION_VERIFY_INPUT_SHAPE",
+  );
   const source = parseJsonBytes(
-    application_plan_bytes,
-    application_plan_file_sha256,
+    request.application_plan_bytes,
+    request.application_plan_file_sha256,
     "PUBLIC_VERIFICATION_APPLICATION_PLAN_FILE",
   );
   const plan = validatePlan(source.value);
+  const semanticReplay =
+    await reverifyVoidEconomicEpoch2PublicVerificationPlanSemanticsV1({
+      plan,
+      public_read_evidence_bytes: request.public_read_evidence_bytes,
+      public_read_evidence_file_sha256:
+        request.public_read_evidence_file_sha256,
+      public_read_evidence_id: request.public_read_evidence_id,
+      evaluation_time_utc: request.evaluation_time_utc,
+      state_root_membership_bytes: request.state_root_membership_bytes,
+      state_root_membership_file_sha256:
+        request.state_root_membership_file_sha256,
+      expected_registry_address: request.expected_registry_address,
+      expected_publisher_address: request.expected_publisher_address,
+      review_confirmation: request.review_confirmation,
+    });
+  if (
+    semanticReplay?.ok !== true ||
+    semanticReplay?.status !==
+      "EPOCH2_PUBLIC_VERIFICATION_APPLICATION_PLAN_SEMANTICS_REVERIFIED" ||
+    semanticReplay.application_plan_id !== plan.application_plan_id
+  ) {
+    fail("PUBLIC_VERIFICATION_APPLICATION_SEMANTIC_REPLAY_INVALID");
+  }
+
   const repo = repositoryIdentity();
   if (repo.branch !== "main") {
     fail("PUBLIC_VERIFICATION_APPLICATION_APPLIED_BRANCH_NOT_MAIN");
   }
+  const canonicalRemoteMainSha = verifyCanonicalRemoteMain(repo.head);
   const ancestry = gitRun(
     [
       "merge-base",
@@ -1121,14 +1528,6 @@ export async function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplica
     if (current !== expectedBlob) fail(code);
   }
 
-  const state = await withReviewedComposition(repo, async ({ classify }) =>
-    verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationStateV1({
-      plan,
-      successorCandidate: successor.value,
-      classifyMigration: classify,
-    }),
-  );
-
   const material = Object.freeze({
     marker: VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_V1,
     version: 1,
@@ -1139,7 +1538,10 @@ export async function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplica
     application_base_head_sha: plan.application_base_head_sha,
     applied_head_sha: repo.head,
     applied_tree_sha: repo.tree,
+    canonical_remote_main_sha: canonicalRemoteMainSha,
     successor_candidate_git_blob_sha1: successor.blob_sha1,
+    exact_upstream_semantic_replay_verified: true,
+    exact_base_generation_replayed: true,
     exact_public_verification_source_application_verified: true,
     successor_source_ready: true,
     migration_authorized: false,
@@ -1153,7 +1555,7 @@ export async function verifyVoidEconomicEpoch2PublicVerificationCanonicalApplica
     application_id:
       "voide2pvcaa1_" +
       sha256(Buffer.from(canonicalJson(material), "utf8")),
-    state,
+    semantic_replay: semanticReplay,
   });
 }
 
@@ -1263,7 +1665,11 @@ function usage() {
       "--output /abs/plan.json",
   );
   console.log(
-    "verify-applied --plan /abs/plan.json --plan-sha256 64hex",
+    "verify-applied --plan /abs/plan.json --plan-sha256 64hex " +
+      "--public-read-evidence /abs/file --public-read-sha256 64hex " +
+      "--public-read-evidence-id voide2pre1_... --evaluation-time-utc ... " +
+      "--state-root-membership /abs/file --membership-sha256 64hex " +
+      "--registry 0x... --publisher 0x... --confirmation ...",
   );
 }
 
@@ -1366,8 +1772,23 @@ async function main(argv) {
   }
 
   if (command === "verify-applied") {
-    if (!values.plan || !values["plan-sha256"]) {
-      fail("PUBLIC_VERIFICATION_APPLICATION_VERIFY_ARGUMENTS_MISSING");
+    const required = [
+      "plan",
+      "plan-sha256",
+      "public-read-evidence",
+      "public-read-sha256",
+      "public-read-evidence-id",
+      "evaluation-time-utc",
+      "state-root-membership",
+      "membership-sha256",
+      "registry",
+      "publisher",
+      "confirmation",
+    ];
+    for (const key of required) {
+      if (!values[key]) {
+        fail("PUBLIC_VERIFICATION_APPLICATION_VERIFY_ARGUMENT_MISSING:" + key);
+      }
     }
     const result =
       await verifyVoidEconomicEpoch2PublicVerificationCanonicalApplicationV1({
@@ -1377,10 +1798,29 @@ async function main(argv) {
           "PUBLIC_VERIFICATION_APPLICATION_PLAN_INPUT",
         ),
         application_plan_file_sha256: values["plan-sha256"],
+        public_read_evidence_bytes: readStableExternalFile(
+          path.resolve(values["public-read-evidence"]),
+          MAX_PUBLIC_READ_BYTES,
+          "PUBLIC_VERIFICATION_APPLICATION_VERIFY_PUBLIC_READ_FILE",
+        ),
+        public_read_evidence_file_sha256: values["public-read-sha256"],
+        public_read_evidence_id: values["public-read-evidence-id"],
+        evaluation_time_utc: values["evaluation-time-utc"],
+        state_root_membership_bytes: readStableExternalFile(
+          path.resolve(values["state-root-membership"]),
+          MAX_MEMBERSHIP_BYTES,
+          "PUBLIC_VERIFICATION_APPLICATION_VERIFY_MEMBERSHIP_FILE",
+        ),
+        state_root_membership_file_sha256: values["membership-sha256"],
+        expected_registry_address: values.registry,
+        expected_publisher_address: values.publisher,
+        review_confirmation: values.confirmation,
       });
     console.log(VOID_ECONOMIC_EPOCH2_PUBLIC_VERIFICATION_CANONICAL_APPLICATION_V1);
     console.log("status=" + result.status);
     console.log("application_id=" + result.application_id);
+    console.log("exact_upstream_semantic_replay_verified=true");
+    console.log("exact_base_generation_replayed=true");
     console.log("successor_source_ready=true");
     console.log("migration_authorized=false");
     console.log("public_activation_authorized=false");

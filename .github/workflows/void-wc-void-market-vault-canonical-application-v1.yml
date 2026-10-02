@@ -22,6 +22,10 @@ on:
       - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
       - "package.json"
       - "package-lock.json"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
   push:
     branches: [main]
     paths:
@@ -44,6 +48,10 @@ on:
       - "scripts/prove_void_wc_void_production_readiness_v1.mjs"
       - "package.json"
       - "package-lock.json"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
 
 permissions:
   contents: read
@@ -59,6 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
@@ -70,11 +79,13 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-wc-void-market-vault-canonical-application-v1.mjs
+          node --check tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs
           node --check scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs
       - name: Prove market-vault canonical application
         run: node scripts/prove_void_wc_void_market_vault_canonical_application_v1.mjs
       - name: Upstream regressions
         run: |
+          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
           node scripts/prove_void_wc_void_market_vault_at_use_revalidation_v1.mjs
           node scripts/prove_void_wc_void_production_readiness_v1.mjs
       - name: Diff hygiene

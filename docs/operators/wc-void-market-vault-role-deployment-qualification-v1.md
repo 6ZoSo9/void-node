@@ -53,14 +53,27 @@ Before loading the #2241 verifier, the tool:
 - computes Git blob identities over the actual worktree bytes and requires them
   to match those reviewed blobs.
 
-Before #2241 reverification, the qualification then materializes the exact
-reviewed HEAD tree beneath the repository Git directory from Git object bytes,
-verifies the reviewed dependency blobs again, makes the materialized tree
-read-only, and executes the launch-controller control verifier from that
-private tree. The verifier receives a fixed Git context pointed at the
-materialized reviewed worktree and the canonical object database with
-replacement objects disabled. It therefore cannot execute a mutable
-worktree version that merely happened to pass an earlier blob check.
+Before #2241 reverification, the qualification also binds the exact reviewed
+Node package-runtime tool and reviewed `ethers` profile from current HEAD.
+The profile is verified against the locked installed package bytes and a private
+reviewed `ethers` package tree is materialized outside the repository.
+
+The exact reviewed HEAD source tree is then extracted beneath that same private
+runtime root from Git object bytes, reviewed dependency blobs are rechecked, and
+the launch-controller control verifier executes from that private tree. Its bare
+`ethers` import therefore resolves to the reviewed package closure before any
+ancestor repository package directory.
+
+The verifier receives a fixed Git context pointed at the private reviewed
+worktree and canonical object database with replacement objects disabled. It
+therefore cannot execute a mutable worktree version that merely happened to pass
+an earlier blob check, and it cannot silently substitute ambient repository
+`node_modules/ethers` bytes.
+
+The qualification's own ABI constructor encoding and keccak derivation likewise
+execute through a tiny private bridge under a separately verified/materialized
+reviewed `ethers` runtime root. The qualification receipt records the reviewed
+runtime-tool/profile Git blobs, profile ID, package aggregate and bridge SHA-256.
 
 The exact evaluated HEAD/tree, tool blob/file hash, dependency Git blobs, and
 dependency file hashes are recorded in the qualification receipt and rechecked
@@ -181,6 +194,11 @@ actual_worktree_blob_binding_required=true
 launch_controller_control_reverification=true
 reviewed_control_execution_from_exact_git_objects=true
 private_reviewed_source_materialization=true
+reviewed_package_runtime_required=true
+reviewed_package_bytes_verified=true
+private_reviewed_package_materialization=true
+ancestor_package_resolution_preempted=true
+ambient_node_package_bytes_forbidden=true
 git_replacement_objects_disabled=true
 settlement_executor_public_identity_rederivation=true
 closeout_controller_public_identity_rederivation=true
@@ -236,3 +254,8 @@ qualification result to remain unchanged, then exercises a deterministic
 change-and-restore race against the mutable worktree copy of the #2241 module.
 The qualification must still execute the reviewed Git-object materialization
 and return the same qualification ID.
+
+It also mutates the installed `node_modules/ethers/package.json` bytes and
+requires qualification to fail closed rather than re-materialize unreviewed
+package bytes. A hostile ambient `NODE_PATH` must not change the qualification
+identity.
