@@ -39,6 +39,10 @@ import {
   buildVoidDatanetRegistryUnsignedTransactionCandidateV1,
   validateVoidDatanetRegistryUnsignedTransactionCandidateV1,
 } from "../tools/void-datanet-registry-unsigned-transaction-candidate-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+  classifyVoidEconomicEpoch2RawTransactionDomainV1,
+} from "../tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -607,6 +611,7 @@ assert.equal(
 );
 assert.equal(candidate.verification.signature_absent,true);
 assert.equal(candidate.verification.eip1559_type2_serialization_exact,true);
+assert.equal(candidate.verification.epoch2_raw_transaction_domain_marker_exact,true);
 assert.equal(candidate.authority.transaction_construction,true);
 assert.equal(candidate.authority.signable_transaction_materialized,true);
 assert.equal(candidate.authority.local_candidate_file_write,true);
@@ -639,6 +644,20 @@ const parsedCandidate=Transaction.from(
 assert.equal(parsedCandidate.signature,null);
 assert.equal(parsedCandidate.type,2);
 assert.equal(parsedCandidate.chainId,2050n);
+assert.equal(
+  classifyVoidEconomicEpoch2RawTransactionDomainV1(parsedCandidate).ok,
+  true,
+);
+assert.deepEqual(
+  parsedCandidate.accessList,
+  [{
+    address:
+      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
+    storageKeys:[
+      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_storage_key,
+    ],
+  }],
+);
 assert.equal(parsedCandidate.nonce,0);
 assert.equal(parsedCandidate.to,null);
 assert.equal(parsedCandidate.value,0n);
@@ -650,6 +669,28 @@ assert.equal(
   parsedCandidate.unsignedHash.toLowerCase(),
   candidate.transaction.unsigned_transaction_hash,
 );
+
+{
+  const unmarked=Transaction.from({
+    type:2,
+    chainId:parsedCandidate.chainId,
+    nonce:parsedCandidate.nonce,
+    gasLimit:parsedCandidate.gasLimit,
+    maxFeePerGas:parsedCandidate.maxFeePerGas,
+    maxPriorityFeePerGas:parsedCandidate.maxPriorityFeePerGas,
+    to:parsedCandidate.to,
+    value:parsedCandidate.value,
+    data:parsedCandidate.data,
+    accessList:[],
+  });
+  const classification=
+    classifyVoidEconomicEpoch2RawTransactionDomainV1(unmarked);
+  assert.equal(classification.ok,false);
+  assert.equal(
+    classification.reason,
+    "epoch2_marker_entry_count_invalid",
+  );
+}
 
 {
   assert.throws(
