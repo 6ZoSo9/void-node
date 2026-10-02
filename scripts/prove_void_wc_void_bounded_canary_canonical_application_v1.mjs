@@ -673,6 +673,9 @@ for (const required of [
   "--allow-child-process",
   "CANONICAL_APPLICATION_TOOL_WORKTREE_DRIFT",
   "CANONICAL_APPLICATION_REVIEWED_EXECUTION_LINEAGE_DRIFT",
+  "assertPrivateExecutionStaticBinding",
+  "CANONICAL_APPLICATION_REVIEWED_PARENT_IDENTITY_DRIFT",
+  "CANONICAL_APPLICATION_REVIEWED_RUNNER",
   "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH",
   "--no-replace-objects",
   "canonicalRemoteGitText",
@@ -707,6 +710,7 @@ console.log("candidate_promotion_reexecuted=true");
 console.log("reviewed_git_object_execution_verified=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("permission_fenced_execution=true");
+console.log("private_execution_bytes_reverified_before_spawn=true");
 console.log("ancestor_package_resolution_allowed=false");
 console.log("hidden_worktree_authority_execution=false");
 console.log("parent_tool_worktree_binding_verified=true");
