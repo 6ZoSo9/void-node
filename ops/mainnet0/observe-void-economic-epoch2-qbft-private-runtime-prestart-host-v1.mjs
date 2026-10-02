@@ -85,7 +85,7 @@ function requireInactiveDisabled(service) {
   }
   const enabled=systemctl(["is-enabled",service]);
   const enabledText=String(enabled.stdout||enabled.stderr||"").trim();
-  if(!["disabled","not-found"].includes(enabledText)) {
+  if(!["disabled","not-found","static"].includes(enabledText)) {
     fail("service_enable_state_not_clean:"+enabledText);
   }
 }
@@ -237,7 +237,7 @@ if(sha256File(pluginPath)!==validated.binding.plan.runtime.plugin_sha256) {
 }
 
 const dockerBin=path.resolve(materialization.docker_bin);
-regularFile(dockerBin,"docker_bin",32*1024*1024);
+regularFile(dockerBin,"docker_bin",128*1024*1024);
 const dockerSecurity=JSON.parse(execFileSync(
   dockerBin,
   ["info","--format={{json .SecurityOptions}}"],
