@@ -45,6 +45,14 @@ const EXPECTED = Object.freeze({
   qbft_payload_sha256:
     "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
   validator_count: 3,
+  validator_evidence_rel:
+    "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+  validator_evidence_sha256:
+    "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b",
+  validator_evidence_id:
+    "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973",
+  validator_promotion_rel:
+    "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
 });
 
 const FORBIDDEN = Object.freeze({
@@ -109,6 +117,10 @@ const IDENTITY_KEYS = Object.freeze([
   "qbft_extra_data_file_sha256",
   "qbft_extra_data_payload_sha256",
   "validator_count",
+  "production_validator_binding_evidence_path",
+  "production_validator_binding_evidence_sha256",
+  "production_validator_binding_evidence_id",
+  "production_validator_binding_promotion_path",
 ]);
 const SELECTION_KEYS = Object.freeze([
   "production_rpc_target_selected",
@@ -222,6 +234,14 @@ function validateIdentity(identity) {
     qbft_extra_data_file_sha256: EXPECTED.qbft_file_sha256,
     qbft_extra_data_payload_sha256: EXPECTED.qbft_payload_sha256,
     validator_count: EXPECTED.validator_count,
+    production_validator_binding_evidence_path:
+      EXPECTED.validator_evidence_rel,
+    production_validator_binding_evidence_sha256:
+      EXPECTED.validator_evidence_sha256,
+    production_validator_binding_evidence_id:
+      EXPECTED.validator_evidence_id,
+    production_validator_binding_promotion_path:
+      EXPECTED.validator_promotion_rel,
   };
   deepEqualJson(identity, required, "reviewed_successor_identity");
 }
@@ -242,6 +262,42 @@ function verifyReviewedSourceFiles() {
     qbft.validator_count !== EXPECTED.validator_count
   ) {
     fail("production_epoch2_qbft_semantics_mismatch");
+  }
+
+  const validatorEvidenceBytes = fs.readFileSync(
+    path.join(ROOT, EXPECTED.validator_evidence_rel),
+  );
+  if (sha256(validatorEvidenceBytes) !== EXPECTED.validator_evidence_sha256) {
+    fail("production_epoch2_validator_evidence_sha256_mismatch");
+  }
+  const validatorEvidence = JSON.parse(
+    validatorEvidenceBytes.toString("utf8"),
+  );
+  if (
+    validatorEvidence.evidence_id !== EXPECTED.validator_evidence_id ||
+    validatorEvidence.chain_id !== EXPECTED.chain_id ||
+    validatorEvidence.execution_epoch !== EXPECTED.execution_epoch ||
+    validatorEvidence.production_qbft?.production_validator_set_bound !== true
+  ) {
+    fail("production_epoch2_validator_evidence_semantics_mismatch");
+  }
+
+  const promotion = JSON.parse(
+    fs.readFileSync(path.join(ROOT, EXPECTED.validator_promotion_rel), "utf8"),
+  );
+  if (
+    promotion.evidence?.evidence_file !== EXPECTED.validator_evidence_rel ||
+    promotion.evidence?.evidence_file_sha256 !== EXPECTED.validator_evidence_sha256 ||
+    promotion.evidence?.evidence_id !== EXPECTED.validator_evidence_id ||
+    promotion.verification?.production_validator_set_bound !== true ||
+    promotion.gates?.production_validator_set_bound !== true ||
+    promotion.gates?.offline_successor_equivalence_proven !== true ||
+    promotion.gates?.all_production_validators_epoch_domain_enforced !== true ||
+    promotion.gates?.cross_epoch_replay_protection_proven !== true ||
+    promotion.gates?.authoritative_chain2050_write !== false ||
+    promotion.gates?.migration_authorized !== false
+  ) {
+    fail("production_epoch2_validator_promotion_semantics_mismatch");
   }
 
   const contract = JSON.parse(
@@ -301,14 +357,10 @@ function validateSelectedSelection(selection, forbiddenValues) {
     selection.runtime_active_verified !== true ||
     selection.exact_genesis_bound !== true ||
     selection.production_validator_set_bound !== true ||
-    typeof selection.production_validator_binding_source_path !== "string" ||
-    !/^ops\/mainnet0\/[a-z0-9-]+\.json$/u.test(
-      selection.production_validator_binding_source_path,
-    ) ||
-    typeof selection.production_validator_binding_evidence_sha256 !== "string" ||
-    !/^[0-9a-f]{64}$/u.test(
-      selection.production_validator_binding_evidence_sha256,
-    ) ||
+    selection.production_validator_binding_source_path !==
+      EXPECTED.validator_evidence_rel ||
+    selection.production_validator_binding_evidence_sha256 !==
+      EXPECTED.validator_evidence_sha256 ||
     selection.write_capability_classification !==
       "write_capable_not_authorized" ||
     selection.independent_host_acceptance !== true
