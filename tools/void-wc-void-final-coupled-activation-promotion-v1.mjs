@@ -1,23 +1,11 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-
-import {
-  classifyVoidWcVoidProductionReadinessV1,
-} from "./void-wc-void-production-readiness-v1.mjs";
-import {
-  classifyVoidCoupledEconomicSuccessorGateV1,
-} from "./void-coupled-economic-successor-gate-v1.mjs";
-import {
-  classifyVoidEconomicEvmSuccessorMigrationV1,
-} from "./void-economic-evm-successor-migration-v1.mjs";
-import {
-  classifyVoidWcVoidCoupledLaunchReadinessV1,
-} from "./void-wc-void-coupled-launch-readiness-v1.mjs";
 
 export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1 =
   "VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1";
@@ -43,6 +31,13 @@ export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1 =
     private_input_parent_identity_bound: true,
     private_output_parent_fd_bound: true,
     private_output_exact_directory_fsync: true,
+    reviewed_execution_required: true,
+    exact_reviewed_repository_head_tree_required: true,
+    reviewed_authority_entry_blobs_required: true,
+    reviewed_package_runtime_required: true,
+    permission_fenced_reviewed_execution_required: true,
+    ancestor_package_resolution_allowed: false,
+    reviewed_execution_network_isolation_provided: false,
     canonical_candidate_write: false,
     filesystem_write_outside_private_output: false,
     runtime_mutation: false,
@@ -78,6 +73,11 @@ const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PREVIEW_AUTHORITY_V1 =
     private_input_parent_identity_bound: false,
     private_output_parent_fd_bound: false,
     private_output_exact_directory_fsync: false,
+    reviewed_execution_required: false,
+    exact_reviewed_repository_head_tree_required: false,
+    reviewed_authority_entry_blobs_required: false,
+    reviewed_package_runtime_required: false,
+    permission_fenced_reviewed_execution_required: false,
   });
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -90,6 +90,23 @@ const SUCCESSOR_REL =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const CANONICAL_REMOTE =
   "https://github.com/6ZoSo9/void-node.git";
+
+const REVIEWED_RUNTIME_TOOL_REL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_AUTHORITY_ENVELOPE_MARKER =
+  "VOID_WC_VOID_FINAL_COUPLED_REVIEWED_AUTHORITY_V1";
+const REVIEWED_CLASSIFIERS = Object.freeze({
+  production:
+    "tools/void-wc-void-production-readiness-v1.mjs",
+  coupled:
+    "tools/void-coupled-economic-successor-gate-v1.mjs",
+  successor:
+    "tools/void-economic-evm-successor-migration-v1.mjs",
+  composition:
+    "tools/void-wc-void-coupled-launch-readiness-v1.mjs",
+});
 
 const APPLICATION_VERIFIERS = Object.freeze({
   bounded_canary: Object.freeze({
@@ -149,6 +166,12 @@ const APPLICATION_VERIFIERS = Object.freeze({
 });
 const LINEAGE_NAMES =
   Object.freeze(Object.keys(APPLICATION_VERIFIERS).sort());
+const REVIEWED_AUTHORITY_ENTRY_RELS = Object.freeze(
+  [
+    ...Object.values(REVIEWED_CLASSIFIERS),
+    ...Object.values(APPLICATION_VERIFIERS).map((value) => value.module),
+  ].sort(),
+);
 const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SAFE_ID = /^[A-Za-z0-9._:-]{8,240}$/u;
