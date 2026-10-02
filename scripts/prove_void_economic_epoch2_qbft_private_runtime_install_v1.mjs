@@ -295,12 +295,20 @@ const runner=fs.readFileSync(
 );
 for(const required of [
   "explicit_confirmation_required",
-  "requireInactiveDisabled",
+  "requireInactiveUnitFileState",
   "service_state_not_clean_inactive",
   "service_enable_state_not_clean",
   '["inactive","unknown"]',
+  '{allowStatic:false}',
+  '{allowStatic:true}',
+  '["disabled","not-found"]',
   '["disabled","not-found","static"]',
+  "requireNoInstallSection",
+  "bundle_unit_install_section_forbidden",
+  "installed_unit_install_section_forbidden",
   "requireNoEnableLinks",
+  "service_dependency_dir_symlink_forbidden",
+  "service_dependency_dir_not_directory",
   "service_autostart_link_present",
   "runtime_root_already_exists",
   "void_state_base_invalid",
@@ -337,6 +345,9 @@ console.log("VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1_PROOF_GREEN");
 console.log("bundle_set_id_recomputed=true");
 console.log("exact_role_materialization_binding=true");
 console.log("inactive_precondition_required=true");
+console.log("preinstall_static_forbidden=true");
+console.log("postinstall_static_requires_no_install_section=true");
+console.log("dependency_directory_symlink_rejected=true");
 console.log("autostart_link_absence_required=true");
 console.log("atomic_runtime_and_unit_publish_with_rollback=true");
 console.log("daemon_reload=false");
