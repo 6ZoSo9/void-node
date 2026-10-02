@@ -43,10 +43,9 @@ Before filesystem mutation the installer requires:
 
 - canonical clean `main`;
 - exact host/role binding;
-- the validator service is not active or activating;
-- the service is inactive;
-- `systemctl --user is-enabled` reports one of the explicitly accepted
-  unit-file states: `disabled`, `not-found`, or `static`;
+- the validator service is inactive;
+- before publication, `systemctl --user is-enabled` may report
+  `disabled`, `not-found`, or `static`;
 - no direct `*.wants` or `*.requires` enablement link exists;
 - any symlinked `.wants` or `.requires` directory is a HOLD rather than
   being skipped;
@@ -55,9 +54,10 @@ Before filesystem mutation the installer requires:
 
 The unit itself remains `Restart=no`.
 
-The generated validator unit intentionally has no `[Install]` section. Once
-the unit file is published, `systemctl --user is-enabled` may therefore
-report `static`.
+The generated validator unit intentionally has no `[Install]` section.
+After the reviewed unit file is published, the post-install observation must
+report exactly `static`. Any `disabled` or `not-found` post-publication
+result is a HOLD rather than an alternate accepted installed state.
 
 `static` is recorded as the exact observed **unit-file state**. It is not
 treated as proof that the service cannot be started indirectly. Direct
@@ -99,10 +99,11 @@ Even in applied mode this installer does **not**:
 - authorize public activation.
 
 The installer performs no daemon reload and no activation. Read-only systemd
-inspection may resolve the unit file, but the service must remain inactive and
-the accepted unit-file state plus direct-link absence must remain stable. The
-later activation ceremony owns any reload/start action. The install receipt does
-not claim that every possible indirect systemd activation path is absent.
+inspection may resolve the unit file, but the service must remain inactive,
+the post-publication unit-file state must be exactly `static`, and direct-link
+absence must hold. The later activation ceremony owns any reload/start action.
+The install receipt does not claim that every possible indirect systemd
+activation path is absent.
 
 ## Exact applied confirmation
 
