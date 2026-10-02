@@ -89,9 +89,11 @@ for (const required of [
   "token.mint(address(vault), CAP);",
   "vm.prank(EXECUTOR);",
   "vault.settleVoid(LAUNCH, settlementId, recipient, amountAtoms);",
+  "snapshotGasLastCall(string calldata name)",
+  "executionGas = vm.snapshotGasLastCall(snapshotName);",
   "gasUsed = 21_000;",
   "callData[i] == bytes1(0) ? 4 : 16",
-  "conservativeTransactionGas = executionGas + intrinsicGas;",
+  "measuredTransactionGas = executionGas + intrinsicGas;",
   "gas_census_exceeds_signed_intent_max",
   "settle_void_first",
   "settle_void_subsequent",
@@ -121,7 +123,7 @@ for (const required of [
   "VoidEpoch2TokenV1",
   "WCVoidMarketVaultV2",
   "does not select",
-  "conservative",
+  "snapshotGasLastCall",
 ]) {
   need(doc, required, `doc:${required}`);
 }
@@ -131,12 +133,13 @@ for (const required of [
   "--use 0.8.24",
   "--evm-version paris",
   "--gas-report",
+  "FORGE_SNAPSHOT_EMIT=false",
   "-vvvv",
   "WCVoidMarketVaultV2GasCensus.t.sol",
   "settle_void_first_execution_gas",
-  "settle_void_first_conservative_tx_gas",
+  "settle_void_first_measured_tx_gas",
   "settle_void_subsequent_execution_gas",
-  "settle_void_subsequent_conservative_tx_gas",
+  "settle_void_subsequent_measured_tx_gas",
   EXPECTED_VAULT_BLOB,
   EXPECTED_TOKEN_BLOB,
 ]) {
