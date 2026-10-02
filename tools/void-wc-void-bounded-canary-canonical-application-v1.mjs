@@ -1126,11 +1126,22 @@ function runReviewedAuthority(repository, request) {
   try {
     verifyReviewedRuntimeTree(bundle);
     assertPrivateExecutionStaticBinding(bundle);
+    const reviewedGitExecutable =
+      fs.realpathSync.native(GIT);
+    const reviewedReadRoots = [
+      ...new Set([
+        bundle.parent,
+        GIT,
+        reviewedGitExecutable,
+      ]),
+    ];
     const result = spawnSync(
       fs.realpathSync.native(process.execPath),
       [
         "--permission",
-        "--allow-fs-read=" + bundle.parent,
+        ...reviewedReadRoots.map(
+          (value) => "--allow-fs-read=" + value,
+        ),
         "--allow-child-process",
         bundle.runner_file,
       ],
