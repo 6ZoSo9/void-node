@@ -288,6 +288,23 @@ for(const role of roles) {
   );
 }
 
+{
+  assert.throws(
+    ()=>buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"precision",
+      materialization:bundles.precision.materialization,
+      installed_at_utc:"2030-01-01T00:02:00.000Z",
+      installed_repo_head:"e".repeat(40),
+      unit_file_state:"disabled",
+      direct_enablement_links_absent:true,
+    }),
+    /install_unit_file_state_not_static/u,
+  );
+}
+
 assert.equal(
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_CONFIRMATION_V1,
   "installPrivateEpoch2QbftBundleV1",
@@ -307,6 +324,7 @@ for(const required of [
   "requireNoDirectEnablementLinks",
   "service_enablement_directory_symlink",
   "service_direct_enablement_link_present",
+  "install_post_unit_file_state_not_static",
   "post_indirect_activation_absence_proven=false",
   "runtime_root_already_exists",
   "void_state_base_invalid",
