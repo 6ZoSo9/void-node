@@ -211,6 +211,8 @@ for(const role of roles) {
     materialization:bundles[role].materialization,
     installed_at_utc:"2030-01-01T00:02:00.000Z",
     installed_repo_head:"e".repeat(40),
+    unit_file_state:"static",
+    direct_enablement_links_absent:true,
   });
   assert.equal(receipt.marker,VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1);
   assert.equal(receipt.status,"HOST_BUNDLE_INSTALLED_DAEMON_RELOAD_AND_START_HOLD");
@@ -218,7 +220,9 @@ for(const role of roles) {
   assert.equal(receipt.plan_id,plan.plan_id);
   assert.equal(receipt.bundle_set_id,bundleSet.bundle_set_id);
   assert.equal(receipt.materialization_id,binding.row.materialization_id);
-  assert.equal(receipt.post_install_state.unit_enabled,false);
+  assert.equal(receipt.post_install_state.unit_file_state,"static");
+  assert.equal(receipt.post_install_state.direct_enablement_links_absent,true);
+  assert.equal(receipt.post_install_state.indirect_activation_absence_proven,false);
   assert.equal(receipt.post_install_state.unit_active,false);
   assert.equal(receipt.post_install_state.daemon_reload_performed,false);
   assert.equal(receipt.post_install_state.service_start_performed,false);
@@ -295,13 +299,15 @@ const runner=fs.readFileSync(
 );
 for(const required of [
   "explicit_confirmation_required",
-  "requireInactiveDisabled",
+  "requireInactiveUnitFileState",
   "service_state_not_clean_inactive",
-  "service_enable_state_not_clean",
+  "service_unit_file_state_not_clean",
   '["inactive","unknown"]',
   '["disabled","not-found","static"]',
-  "requireNoEnableLinks",
-  "service_autostart_link_present",
+  "requireNoDirectEnablementLinks",
+  "service_enablement_directory_symlink",
+  "service_direct_enablement_link_present",
+  "post_indirect_activation_absence_proven=false",
   "runtime_root_already_exists",
   "void_state_base_invalid",
   "runtime_parent_scope_invalid",
