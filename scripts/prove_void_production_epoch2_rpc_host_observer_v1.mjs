@@ -176,6 +176,18 @@ function validInput() {
       exec_start_argv_sha256: "a".repeat(64),
       main_pid_argv_sha256: "a".repeat(64),
       main_pid_cgroup_service_bound: true,
+      docker_host_environment:
+        "DOCKER_HOST=unix:///run/user/" +
+        String(process.getuid()) +
+        "/docker.sock",
+      main_pid_docker_host_environment_sha256:
+        sha(Buffer.from(
+          "DOCKER_HOST=unix:///run/user/" +
+            String(process.getuid()) +
+            "/docker.sock",
+          "utf8",
+        )),
+      main_pid_docker_host_environment_verified: true,
       systemd_exec_start_matches_reviewed_contract: true,
       listener_address: "127.0.0.1",
       listener_port: 18553,
@@ -246,6 +258,16 @@ assert.equal(observation.service.invocation_stable_during_observation, true);
 assert.equal(observation.service.listener_stable_during_observation, true);
 assert.equal(observation.service.container_stable_during_observation, true);
 assert.equal(observation.service.service_container_contract_verified, true);
+assert.equal(
+  observation.service.main_pid_docker_host_environment_verified,
+  true,
+);
+assert.equal(
+  observation.service.docker_host_environment,
+  "DOCKER_HOST=unix:///run/user/" +
+    String(process.getuid()) +
+    "/docker.sock",
+);
 assert.equal(observation.service_container_listener_binding_verified, true);
 assert.equal(observation.container.container_id, validContainer.container_id);
 assert.deepEqual(
@@ -461,8 +483,13 @@ rejected(
 }
 
 {
+  const dockerHostEnvironment =
+    "DOCKER_HOST=unix:///run/user/" +
+    String(process.getuid()) +
+    "/docker.sock";
   const fragment = [
     "[Service]",
+    "Environment=" + dockerHostEnvironment,
     "ExecStart=/usr/bin/docker run --rm --name void-e2-qbft-precision-v1 image",
     "",
   ].join("\n");
@@ -482,9 +509,12 @@ rejected(
       fragment_text: fragment,
       main_pid_argv: argv,
       main_pid_cgroup: cgroup,
+      main_pid_environment: [dockerHostEnvironment, "PATH=/usr/bin:/bin"],
     });
   assert.equal(bound.ok, true);
   assert.equal(bound.main_pid_cgroup_service_bound, true);
+  assert.equal(bound.main_pid_docker_host_environment_verified, true);
+  assert.equal(bound.docker_host_environment, dockerHostEnvironment);
   assert.equal(bound.systemd_exec_start_matches_reviewed_contract, true);
   assert.equal(bound.exec_start_argv_sha256, bound.main_pid_argv_sha256);
 
@@ -493,6 +523,7 @@ rejected(
       fragment_text: fragment,
       main_pid_argv: [...argv.slice(0, -1), "other-image"],
       main_pid_cgroup: cgroup,
+      main_pid_environment: [dockerHostEnvironment],
     });
   assert.equal(wrongArgv.ok, false);
   assert.equal(
@@ -506,11 +537,29 @@ rejected(
       main_pid_argv: argv,
       main_pid_cgroup:
         "0::/user.slice/user-1000.slice/user@1000.service/app.slice/other.service\n",
+      main_pid_environment: [dockerHostEnvironment],
     });
   assert.equal(wrongCgroup.ok, false);
   assert.equal(
     wrongCgroup.reason,
     "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_MISMATCH",
+  );
+
+  const wrongDockerHost =
+    testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1({
+      fragment_text: fragment,
+      main_pid_argv: argv,
+      main_pid_cgroup: cgroup,
+      main_pid_environment: [
+        "DOCKER_HOST=unix:///run/user/" +
+          String(process.getuid()) +
+          "/other-docker.sock",
+      ],
+    });
+  assert.equal(wrongDockerHost.ok, false);
+  assert.equal(
+    wrongDockerHost.reason,
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_DOCKER_HOST_MISMATCH",
   );
 }
 
@@ -568,7 +617,9 @@ for (const required of [
   "testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1",
   "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ARGV_MISMATCH",
   "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_MISMATCH",
+  "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_DOCKER_HOST_MISMATCH",
   '"/proc/"',
+  '"/environ"',
   '"merge-base", "--is-ancestor"',
   "compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1",
   '"private-runtime-plan"',
@@ -598,6 +649,7 @@ console.log("canonical_main_stable_during_observation=true");
 console.log("service_invocation_stable_during_observation=true");
 console.log("systemd_main_pid_argv_bound_to_reviewed_exec_start=true");
 console.log("systemd_main_pid_cgroup_service_bound=true");
+console.log("systemd_main_pid_docker_host_environment_verified=true");
 console.log("listener_stable_during_observation=true");
 console.log("rootless_docker_daemon_verified=true");
 console.log("rootless_docker_container_identity_verified=true");
