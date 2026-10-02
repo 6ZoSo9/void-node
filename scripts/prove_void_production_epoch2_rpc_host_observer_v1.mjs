@@ -178,7 +178,7 @@ function validInput() {
       listener_stable_during_observation: true,
       container_stable_during_observation: true,
       service_container_contract_verified: true,
-      container: validContainer,
+      container: structuredClone(validContainer),
       activation_source_lineage_ancestor_current_main: true,
       activation_plan_rederived_from_upstream: true,
       activation_upstream: {
