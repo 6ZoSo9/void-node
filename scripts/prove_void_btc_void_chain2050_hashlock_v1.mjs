@@ -109,12 +109,12 @@ for (const forbidden of [
 
 assert.ok(
   source.indexOf("swap.state = SwapState.Claimed;") <
-    source.indexOf("_token().transfer(beneficiary"),
+    source.indexOf("token.transfer(beneficiary"),
   "claim terminal state must be written before outbound token transfer",
 );
 assert.ok(
   source.indexOf("swap.state = SwapState.Refunded;") <
-    source.indexOf("_token().transfer(refundAuthority"),
+    source.indexOf("token.transfer(refundAuthority"),
   "refund terminal state must be written before outbound token transfer",
 );
 
@@ -129,6 +129,9 @@ for (const name of [
   "test_failedFundingTransferRollsBackLockState",
   "test_failedClaimTransferRollsBackTerminalState",
   "test_failedRefundTransferRollsBackTerminalState",
+  "test_trueButNoFundingTransferFailsExactBalanceDelta",
+  "test_trueButNoClaimTransferFailsExactBalanceDelta",
+  "test_trueButNoRefundTransferFailsExactBalanceDelta",
   "test_noAdminOrWithdrawalSurface",
 ]) {
   assert.ok(tests.includes(name), name);
@@ -145,6 +148,9 @@ for (const required of [
   "refund_replay_accepted",
   "failed_claim_terminal_state_persisted",
   "failed_refund_terminal_state_persisted",
+  "false_funding_delta_accepted",
+  "false_claim_delta_accepted",
+  "false_refund_delta_accepted",
 ]) {
   assert.ok(tests.includes(required), required);
 }
@@ -198,6 +204,7 @@ console.log("refund_at_or_after_deadline=true");
 console.log("one_terminal_transition=true");
 console.log("terminal_state_before_token_transfer=true");
 console.log("failed_token_transfer_rolls_back_state=true");
+console.log("exact_funding_and_terminal_balance_deltas=true");
 console.log("admin_drain_absent=true");
 console.log("proxy_upgrade_path_absent=true");
 console.log("solc_profile=0.8.24_paris_optimizer_off");
