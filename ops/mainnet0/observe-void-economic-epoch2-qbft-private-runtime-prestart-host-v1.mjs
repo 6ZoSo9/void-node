@@ -77,32 +77,39 @@ function systemctl(args) {
     stdio:["ignore","pipe","pipe"],
   });
 }
-function requireInactiveDisabled(service) {
+function requireInactiveUnitFileState(service) {
   const active=systemctl(["is-active",service]);
   const activeText=String(active.stdout||active.stderr||"").trim();
   if(!["inactive","unknown"].includes(activeText)) {
     fail("service_state_not_clean_inactive:"+activeText);
   }
   const enabled=systemctl(["is-enabled",service]);
-  const enabledText=String(enabled.stdout||enabled.stderr||"").trim();
-  if(!["disabled","not-found","static"].includes(enabledText)) {
-    fail("service_enable_state_not_clean:"+enabledText);
+  const unitFileState=String(enabled.stdout||enabled.stderr||"").trim();
+  if(!["disabled","not-found","static"].includes(unitFileState)) {
+    fail("service_unit_file_state_not_clean:"+unitFileState);
   }
+  return {active_state:activeText,unit_file_state:unitFileState};
 }
-function requireNoAutostartLinks(unitDir,service) {
+function requireNoDirectEnablementLinks(unitDir,service) {
   for(const name of fs.readdirSync(unitDir)) {
     if(!name.endsWith(".wants")&&!name.endsWith(".requires")) continue;
     const dir=path.join(unitDir,name);
     const st=fs.lstatSync(dir);
-    if(st.isSymbolicLink()||!st.isDirectory()) continue;
+    if(st.isSymbolicLink()) {
+      fail("service_enablement_directory_symlink:"+name);
+    }
+    if(!st.isDirectory()) {
+      fail("service_enablement_directory_not_directory:"+name);
+    }
     const candidate=path.join(dir,service);
     try {
       fs.lstatSync(candidate);
-      fail("service_autostart_link_present:"+name);
+      fail("service_direct_enablement_link_present:"+name);
     } catch(error) {
       if(error?.code!=="ENOENT") throw error;
     }
   }
+  return true;
 }
 function portVacant(port) {
   const result=spawnSync("ss",["-ltnH","sport = :"+String(port)],{
@@ -227,8 +234,9 @@ const dataDir=canonicalDir(path.join(runtimeRoot,"data"),"installed_data");
 if(fs.readdirSync(dataDir).length!==0) fail("installed_data_not_empty");
 
 const unitDir=canonicalDir(path.dirname(unitPath),"systemd_user_dir");
-requireNoAutostartLinks(unitDir,materialization.service_name);
-requireInactiveDisabled(materialization.service_name);
+requireNoDirectEnablementLinks(unitDir,materialization.service_name);
+const initialUnitState=
+  requireInactiveUnitFileState(materialization.service_name);
 
 const pluginPath=path.resolve(materialization.files.plugin.path);
 regularFile(pluginPath,"plugin",64*1024*1024);
@@ -316,8 +324,15 @@ const finalIp=execFileSync(tailscaleBin,["ip","-4"],{
 if(finalIp.length!==1||finalIp[0]!==currentIp[0]) {
   fail("tailscale_ipv4_changed_during_observation");
 }
-requireNoAutostartLinks(unitDir,materialization.service_name);
-requireInactiveDisabled(materialization.service_name);
+requireNoDirectEnablementLinks(unitDir,materialization.service_name);
+const finalUnitState=
+  requireInactiveUnitFileState(materialization.service_name);
+if(
+  finalUnitState.unit_file_state!==initialUnitState.unit_file_state||
+  finalUnitState.active_state!==initialUnitState.active_state
+) {
+  fail("service_unit_state_changed_during_observation");
+}
 if(!portVacant(validated.binding.plan.runtime.p2p_port)) {
   fail("p2p_port_changed_during_observation");
 }
@@ -346,8 +361,9 @@ const facts={
   installed_systemd_unit_sha256_exact:true,
   installed_data_directory_empty:true,
   service_inactive:true,
-  service_disabled:true,
-  autostart_links_absent:true,
+  unit_file_state:finalUnitState.unit_file_state,
+  direct_enablement_links_absent:true,
+  indirect_activation_absence_proven:false,
   plugin_sha256_exact:true,
   besu_image_identity_exact:true,
   rootless_docker_verified:true,
