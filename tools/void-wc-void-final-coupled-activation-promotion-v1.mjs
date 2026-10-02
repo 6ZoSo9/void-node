@@ -200,6 +200,19 @@ function plain(value) {
   );
 }
 
+function exactObject(value, keys, code) {
+  if (!plain(value)) fail(code);
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  if (
+    actual.length !== expected.length ||
+    actual.some((key, index) => key !== expected[index])
+  ) {
+    fail(code);
+  }
+  return value;
+}
+
 function canonicalJson(value) {
   if (value === null) return "null";
   if (typeof value === "string") return JSON.stringify(value);
@@ -808,6 +821,68 @@ export function testOnlyVoidWcVoidFinalCoupledGitIdentityV1() {
   });
 }
 
+export function testOnlyExerciseVoidWcVoidFinalCoupledReviewedHistoryV1() {
+  const shallow = git(
+    ["rev-parse", "--is-shallow-repository"],
+    "FINAL_COUPLED_TEST_SHALLOW_STATE_UNAVAILABLE",
+  );
+  if (shallow !== "false") {
+    fail("FINAL_COUPLED_SOURCE_REPOSITORY_SHALLOW");
+  }
+  const head = git(
+    ["rev-parse", "HEAD"],
+    "FINAL_COUPLED_TEST_HISTORY_HEAD_UNAVAILABLE",
+  );
+  const parent = git(
+    ["rev-parse", "HEAD^"],
+    "FINAL_COUPLED_TEST_HISTORY_PARENT_UNAVAILABLE",
+  );
+  const parentTree = git(
+    ["rev-parse", parent + "^{tree}"],
+    "FINAL_COUPLED_TEST_HISTORY_PARENT_TREE_UNAVAILABLE",
+  );
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-final-coupled-history-test-"),
+  );
+  fs.chmodSync(root, 0o700);
+  try {
+    gitRunPrivate(
+      root,
+      ["init", "--quiet"],
+      "FINAL_COUPLED_TEST_HISTORY_INIT_FAILED",
+    );
+    gitRunPrivate(
+      root,
+      ["fetch", "--quiet", "--no-tags", REPO_ROOT, head],
+      "FINAL_COUPLED_TEST_HISTORY_FETCH_FAILED",
+    );
+    const privateParentTree = String(
+      gitRunPrivate(
+        root,
+        ["rev-parse", parent + "^{tree}"],
+        "FINAL_COUPLED_TEST_HISTORY_PRIVATE_PARENT_TREE_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    const ancestry = gitRunPrivate(
+      root,
+      ["merge-base", "--is-ancestor", parent, head],
+      "FINAL_COUPLED_TEST_HISTORY_ANCESTRY_FAILED",
+      { allowFail: true },
+    );
+    if (privateParentTree !== parentTree || ancestry.status !== 0) {
+      fail("FINAL_COUPLED_TEST_HISTORY_PRIVATE_LINEAGE_MISMATCH");
+    }
+    return Object.freeze({
+      source_repository_shallow: false,
+      historical_parent_commit_resolved: true,
+      historical_parent_tree_resolved: true,
+      historical_parent_ancestor_verified: true,
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function headJson(relativePath) {
   const file = path.join(REPO_ROOT, relativePath);
   const bytes = fs.readFileSync(file);
@@ -859,6 +934,13 @@ function currentRepositoryIdentity() {
     ) !== ""
   ) {
     fail("FINAL_COUPLED_WORKTREE_MUST_BE_CLEAN");
+  }
+  const shallow = git(
+    ["rev-parse", "--is-shallow-repository"],
+    "FINAL_COUPLED_SOURCE_REPOSITORY_SHALLOW_STATE_UNAVAILABLE",
+  );
+  if (shallow !== "false") {
+    fail("FINAL_COUPLED_SOURCE_REPOSITORY_SHALLOW");
   }
   const remote = spawnSync(
     GIT,
