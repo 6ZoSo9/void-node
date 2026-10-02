@@ -1,14 +1,23 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+import { parseArgs } from "node:util";
 
 import {
   VOID_CROSSBOX_MUTATION_TRANSACTION_AUTHORITY_V1,
+  VOID_CROSSBOX_MUTATION_TRANSACTION_CONFIRMATION_V1,
   beginVoidCrossboxMutationCommitV1,
   beginVoidCrossboxMutationRollbackV1,
   finalizeVoidCrossboxMutationCommittedV1,
   finalizeVoidCrossboxMutationRestoredV1,
   holdVoidCrossboxMutationTransactionV1,
   nextVoidCrossboxMutationRecoveryV1,
+  prepareVoidCrossboxMutationTransactionV1,
   recordVoidCrossboxMutationPreparedV1,
   recordVoidCrossboxMutationPublishNoEffectV1,
   recordVoidCrossboxMutationPublishStartedV1,
@@ -700,3 +709,409 @@ export const VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1 =
     restoreStartedReceipt,
     restoreReceipt,
   });
+
+
+const APPLY_CONFIRMATION="applyVoidSiteBundlePeerEnvPersistenceV1";
+const SSH="/usr/bin/ssh";
+const NODE=fs.realpathSync.native(process.execPath);
+const SAFE_PEER=/^https?:\/\/[A-Za-z0-9][A-Za-z0-9._-]*:4100$/u;
+const SAFE_DROPIN=/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+const SAFE_SSH=/^([A-Za-z0-9][A-Za-z0-9._-]*@)?[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+
+function targetDropinBytes(peer){
+  if(!SAFE_PEER.test(peer))fail("site_bundle_executor_peer_invalid");
+  return Buffer.from(
+    "[Service]\nEnvironment=VOID_SITE_BUNDLE_PEERS="+peer+"\n",
+    "utf8",
+  );
+}
+function minimalChildEnv(extra={}){
+  return {
+    PATH:"/usr/bin:/bin",
+    HOME:process.env.HOME||"",
+    LANG:"C",
+    LC_ALL:"C",
+    ...extra,
+  };
+}
+function validateRemoteTarget(target){
+  if(typeof target!=="string"||!SAFE_SSH.test(target)){
+    fail("site_bundle_executor_remote_target_invalid");
+  }
+  const lowered=target.toLowerCase();
+  if(
+    lowered.includes("100.122.79.39")||
+    lowered.includes("zoso-alienware-aurora-r7.taila47fd.ts.net")||
+    lowered.includes("alienware")
+  ){
+    fail("site_bundle_executor_retired_alienware_forbidden");
+  }
+  return target;
+}
+
+const PARTICIPANT_HELPER_SOURCE="\nimport crypto from \"node:crypto\";\nimport fs from \"node:fs\";\nimport os from \"node:os\";\nimport path from \"node:path\";\nimport { spawnSync } from \"node:child_process\";\n\nconst req=JSON.parse(\n  Buffer.from(process.env.VOID_REQUEST_B64||\"\",\"base64\").toString(\"utf8\"),\n);\nconst GIT=\"/usr/bin/git\";\nconst SYSTEMCTL=\"/usr/bin/systemctl\";\nconst CURL=\"/usr/bin/curl\";\nconst SLEEP=\"/usr/bin/sleep\";\nconst HOME=process.env.HOME||\"\";\nconst REPO=path.join(HOME,\"dev/void-node\");\nconst MANAGER_KEYS=[\n  \"VOID_SITE_BUNDLE_PEERS\",\n  \"VOID_DATANET_SITE_BUNDLE_PEERS\",\n  \"VOID_DATANET_PEERS\",\n  \"VOID_DRIFT_PEER\",\n];\nconst ORIGINS=new Set([\n  \"https://github.com/6ZoSo9/void-node\",\n  \"https://github.com/6ZoSo9/void-node.git\",\n  \"git@github.com:6ZoSo9/void-node.git\",\n  \"ssh://git@github.com/6ZoSo9/void-node.git\",\n]);\nconst TX=/^voidxmtx1_[0-9a-f]{64}$/u;\nconst DROPIN=/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;\nconst BUCKET=/^[a-z][a-z0-9_]{0,63}$/u;\n\nfunction fail(code){throw new Error(code);}\nfunction canonical(v){\n  if(v===null||typeof v!==\"object\")return JSON.stringify(v);\n  if(Array.isArray(v))return \"[\"+v.map(canonical).join(\",\")+\"]\";\n  return \"{\"+Object.keys(v).sort().map(k=>JSON.stringify(k)+\":\"+canonical(v[k])).join(\",\")+\"}\";\n}\nfunction same(a,b){return canonical(a)===canonical(b);}\nfunction sha(bytes){return crypto.createHash(\"sha256\").update(bytes).digest(\"hex\");}\nfunction run(file,args,{input=null,timeout=10000,allowFail=false}={}){\n  const result=spawnSync(file,args,{\n    env:{PATH:\"/usr/bin:/bin\",HOME,LANG:\"C\",LC_ALL:\"C\"},\n    input,\n    encoding:\"utf8\",\n    stdio:[\"pipe\",\"pipe\",\"pipe\"],\n    timeout,\n    maxBuffer:8*1024*1024,\n  });\n  if(result.error)throw result.error;\n  if(result.status!==0&&!allowFail){\n    fail(\"participant_command_failed:\"+path.basename(file)+\":\"+\n      String(result.stderr||\"\").trim().slice(0,180));\n  }\n  return result;\n}\nfunction git(args){\n  return run(\n    GIT,\n    [\n      \"--no-replace-objects\",\n      \"-c\",\"core.hooksPath=/dev/null\",\n      \"-c\",\"core.attributesFile=/dev/null\",\n      \"-c\",\"core.fsmonitor=false\",\n      \"-c\",\"core.untrackedCache=false\",\n      \"-c\",\"core.preloadIndex=false\",\n      \"-c\",\"submodule.recurse=false\",\n      \"-C\",REPO,\n      ...args,\n    ],\n  ).stdout.trim();\n}\nfunction ensureRepo(){\n  if(git([\"status\",\"--porcelain=v1\",\"--untracked-files=all\"])!==\"\"){\n    fail(\"participant_repository_dirty\");\n  }\n  const head=git([\"rev-parse\",\"HEAD\"]);\n  const branch=git([\"branch\",\"--show-current\"]);\n  const origin=git([\"config\",\"--local\",\"--no-includes\",\"--get\",\"remote.origin.url\"]);\n  if(!/^[0-9a-f]{40}$/u.test(head)||branch!==\"main\"||!ORIGINS.has(origin)){\n    fail(\"participant_repository_identity_invalid\");\n  }\n  return head;\n}\nfunction directDir(dir,{privateMode=false}={}){\n  fs.mkdirSync(dir,{recursive:true,mode:privateMode?0o700:0o755});\n  const real=fs.realpathSync.native(dir);\n  if(real!==dir)fail(\"participant_directory_alias:\"+dir);\n  const st=fs.lstatSync(dir);\n  if(!st.isDirectory()||st.isSymbolicLink())fail(\"participant_directory_invalid:\"+dir);\n  if(typeof process.getuid===\"function\"&&st.uid!==process.getuid()){\n    fail(\"participant_directory_owner_invalid:\"+dir);\n  }\n  if((st.mode&0o022)!==0)fail(\"participant_directory_writable_by_other:\"+dir);\n  return st;\n}\nfunction readDirectFile(file){\n  const fd=fs.openSync(file,fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0));\n  try{\n    const before=fs.fstatSync(fd);\n    if(!before.isFile()||before.nlink!==1)fail(\"participant_file_invalid:\"+file);\n    const bytes=Buffer.alloc(before.size);\n    let off=0;\n    while(off<bytes.length){\n      const n=fs.readSync(fd,bytes,off,bytes.length-off,off);\n      if(n<=0)fail(\"participant_file_short_read:\"+file);\n      off+=n;\n    }\n    const after=fs.fstatSync(fd);\n    for(const key of [\"dev\",\"ino\",\"size\",\"mtimeMs\",\"ctimeMs\"]){\n      if(before[key]!==after[key])fail(\"participant_file_changed:\"+file);\n    }\n    return {bytes,stat:after};\n  }finally{fs.closeSync(fd);}\n}\nfunction openBoundDir(dir){\n  const pathStat=directDir(dir);\n  const fd=fs.openSync(\n    dir,\n    fs.constants.O_RDONLY|\n      Number(fs.constants.O_DIRECTORY||0)|\n      Number(fs.constants.O_NOFOLLOW||0),\n  );\n  const fdStat=fs.fstatSync(fd);\n  if(!fdStat.isDirectory()||fdStat.dev!==pathStat.dev||fdStat.ino!==pathStat.ino){\n    fs.closeSync(fd);\n    fail(\"participant_directory_descriptor_mismatch:\"+dir);\n  }\n  return {fd,stat:fdStat};\n}\nfunction atomicWrite(dir,basename,bytes,mode){\n  const bound=openBoundDir(dir);\n  const tmp=\".void-xbox-\"+String(process.pid)+\"-\"+crypto.randomBytes(6).toString(\"hex\");\n  const procBase=\"/proc/self/fd/\"+String(bound.fd)+\"/\";\n  const tmpFile=procBase+tmp;\n  const finalFile=procBase+basename;\n  let fd;\n  try{\n    fd=fs.openSync(\n      tmpFile,\n      fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|\n        Number(fs.constants.O_NOFOLLOW||0),\n      mode,\n    );\n    fs.writeFileSync(fd,bytes);\n    fs.fchmodSync(fd,mode);\n    fs.fsyncSync(fd);\n    fs.closeSync(fd); fd=undefined;\n    fs.renameSync(tmpFile,finalFile);\n    fs.fsyncSync(bound.fd);\n    const after=fs.lstatSync(dir);\n    if(after.dev!==bound.stat.dev||after.ino!==bound.stat.ino){\n      fail(\"participant_directory_changed_during_write:\"+dir);\n    }\n  }finally{\n    if(fd!==undefined)fs.closeSync(fd);\n    try{fs.unlinkSync(tmpFile);}catch(error){\n      if(error?.code!==\"ENOENT\")throw error;\n    }\n    fs.closeSync(bound.fd);\n  }\n}\nfunction durableReceipt(dir,bucket,value){\n  if(!BUCKET.test(bucket))fail(\"participant_receipt_bucket_invalid\");\n  const bytes=Buffer.from(JSON.stringify(value,null,2)+\"\\n\",\"utf8\");\n  const file=path.join(dir,bucket+\".json\");\n  if(fs.existsSync(file)){\n    const existing=readDirectFile(file).bytes;\n    if(!existing.equals(bytes))fail(\"participant_receipt_conflict:\"+bucket);\n    return;\n  }\n  atomicWrite(dir,bucket+\".json\",bytes,0o600);\n}\nfunction dropinPath(){\n  if(!DROPIN.test(String(req.dropin_name||\"\")))fail(\"participant_dropin_name_invalid\");\n  return path.join(HOME,\".config/systemd/user/void-node.service.d\",req.dropin_name);\n}\nfunction dropinState(){\n  const file=dropinPath();\n  try{\n    const st=fs.lstatSync(file);\n    if(st.isSymbolicLink()||!st.isFile()||st.nlink!==1){\n      fail(\"participant_dropin_file_invalid\");\n    }\n    const {bytes,stat}=readDirectFile(file);\n    return {\n      exists:true,\n      sha256:sha(bytes),\n      mode:(stat.mode&0o7777).toString(8).padStart(4,\"0\"),\n    };\n  }catch(error){\n    if(error?.code===\"ENOENT\")return {exists:false,sha256:null,mode:null};\n    throw error;\n  }\n}\nfunction managerEnvironment(){\n  const out=Object.fromEntries(MANAGER_KEYS.map(k=>[k,null]));\n  const result=run(SYSTEMCTL,[\"--user\",\"show-environment\"]);\n  for(const line of result.stdout.split(\"\\n\")){\n    const at=line.indexOf(\"=\");\n    if(at<=0)continue;\n    const key=line.slice(0,at);\n    if(MANAGER_KEYS.includes(key))out[key]=line.slice(at+1);\n  }\n  return out;\n}\nfunction serviceState(){\n  const result=run(\n    SYSTEMCTL,\n    [\"--user\",\"show\",\"void-node.service\",\"--no-pager\",\n      \"-p\",\"ActiveState\",\"-p\",\"InvocationID\"],\n  );\n  const map={};\n  for(const line of result.stdout.trim().split(\"\\n\")){\n    const at=line.indexOf(\"=\");\n    if(at>0)map[line.slice(0,at)]=line.slice(at+1);\n  }\n  const state=String(map.ActiveState||\"\");\n  if(![\"active\",\"inactive\"].includes(state)){\n    fail(\"participant_service_transitional:\"+state);\n  }\n  const active=state===\"active\";\n  const invocation=String(map.InvocationID||\"\").toLowerCase();\n  if(active&&!/^[0-9a-f]{32}$/u.test(invocation)){\n    fail(\"participant_service_invocation_invalid\");\n  }\n  return {active,invocation_id:active?invocation:null};\n}\nfunction observation(){\n  return {\n    host:os.hostname().toLowerCase(),\n    repository_head_sha:ensureRepo(),\n    dropin:dropinState(),\n    manager_environment:managerEnvironment(),\n    service:serviceState(),\n  };\n}\nfunction txDir(){\n  if(!TX.test(String(req.transaction_id||\"\")))fail(\"participant_transaction_id_invalid\");\n  if(![\"local\",\"remote\"].includes(req.participant))fail(\"participant_role_invalid\");\n  const dir=path.join(\n    HOME,\n    \".local/state/void/crossbox-mutation-v1\",\n    req.transaction_id,\n    req.participant,\n  );\n  directDir(dir,{privateMode:true});\n  fs.chmodSync(dir,0o700);\n  return dir;\n}\nfunction assertPrestate(){\n  const current=observation();\n  if(!same(current,req.prestate))fail(\"participant_prestate_drift\");\n  return current;\n}\nfunction stage(){\n  const current=assertPrestate();\n  const dir=txDir();\n  if(req.prestate.dropin.exists){\n    const source=readDirectFile(dropinPath()).bytes;\n    if(sha(source)!==req.prestate.dropin.sha256){\n      fail(\"participant_prestate_backup_sha_mismatch\");\n    }\n    const backup=path.join(dir,\"dropin.prestate\");\n    if(fs.existsSync(backup)){\n      if(!readDirectFile(backup).bytes.equals(source)){\n        fail(\"participant_prestate_backup_conflict\");\n      }\n    }else{\n      atomicWrite(dir,\"dropin.prestate\",source,0o600);\n    }\n  }\n  const target=Buffer.from(req.target_bytes_base64,\"base64\");\n  if(target.length<1||sha(target)!==req.target_sha256){\n    fail(\"participant_target_bytes_invalid\");\n  }\n  const staged=path.join(dir,\"dropin.target\");\n  if(fs.existsSync(staged)){\n    if(!readDirectFile(staged).bytes.equals(target)){\n      fail(\"participant_target_stage_conflict\");\n    }\n  }else{\n    atomicWrite(dir,\"dropin.target\",target,0o600);\n  }\n  return current;\n}\nfunction clearManager(){\n  run(SYSTEMCTL,[\"--user\",\"unset-environment\",...MANAGER_KEYS]);\n}\nfunction restoreManager(values){\n  clearManager();\n  for(const key of MANAGER_KEYS){\n    const value=values[key];\n    if(value!==null){\n      run(SYSTEMCTL,[\"--user\",\"set-environment\",key+\"=\"+value]);\n    }\n  }\n}\nfunction waitReady(){\n  for(let i=0;i<25;i+=1){\n    const result=run(\n      CURL,\n      [\"-fsS\",\"--max-time\",\"3\",\"http://127.0.0.1:4100/__void/ready.json\"],\n      {allowFail:true,timeout:5000},\n    );\n    if(result.status===0){\n      try{\n        const j=JSON.parse(result.stdout);\n        if(j?.ready===true&&Number(j?.gap)===0&&Number(j?.txroot_live)===1){\n          return;\n        }\n      }catch(error){\n        if(!(error instanceof SyntaxError))throw error;\n      }\n    }\n    run(SLEEP,[\"1\"],{timeout:2000});\n  }\n  fail(\"participant_service_readiness_timeout\");\n}\nfunction publish(){\n  assertPrestate();\n  const dir=txDir();\n  const staged=readDirectFile(path.join(dir,\"dropin.target\")).bytes;\n  if(sha(staged)!==req.target_sha256)fail(\"participant_staged_target_sha_mismatch\");\n  const final=dropinPath();\n  const parent=path.dirname(final);\n  directDir(parent);\n  atomicWrite(parent,path.basename(final),staged,0o644);\n  clearManager();\n  run(SYSTEMCTL,[\"--user\",\"daemon-reload\"]);\n  if(req.restart_expected){\n    run(SYSTEMCTL,[\"--user\",\"restart\",\"void-node.service\"],{timeout:30000});\n    waitReady();\n  }\n  return observation();\n}\nfunction restore(){\n  const dir=txDir();\n  const final=dropinPath();\n  const parent=path.dirname(final);\n  directDir(parent);\n  if(req.prestate.dropin.exists){\n    const backup=readDirectFile(path.join(dir,\"dropin.prestate\")).bytes;\n    if(sha(backup)!==req.prestate.dropin.sha256){\n      fail(\"participant_restore_backup_sha_mismatch\");\n    }\n    atomicWrite(parent,path.basename(final),backup,Number.parseInt(req.prestate.dropin.mode,8));\n  }else{\n    const bound=openBoundDir(parent);\n    const proc=\"/proc/self/fd/\"+String(bound.fd)+\"/\"+path.basename(final);\n    try{\n      try{\n        const st=fs.lstatSync(proc);\n        if(st.isSymbolicLink()||!st.isFile())fail(\"participant_restore_target_invalid\");\n        fs.unlinkSync(proc);\n        fs.fsyncSync(bound.fd);\n      }catch(error){\n        if(error?.code!==\"ENOENT\")throw error;\n      }\n    }finally{fs.closeSync(bound.fd);}\n  }\n  restoreManager(req.prestate.manager_environment);\n  run(SYSTEMCTL,[\"--user\",\"daemon-reload\"]);\n  if(req.restart_expected){\n    run(SYSTEMCTL,[\"--user\",\"restart\",\"void-node.service\"],{timeout:30000});\n    waitReady();\n  }\n  return observation();\n}\n\nlet result;\nif(req.action===\"facts\")result=observation();\nelse if(req.action===\"stage\")result=stage();\nelse if(req.action===\"persist_receipt\"){\n  durableReceipt(txDir(),req.bucket,req.receipt);\n  result={persisted:true};\n}\nelse if(req.action===\"publish\")result=publish();\nelse if(req.action===\"restore\")result=restore();\nelse fail(\"participant_action_invalid\");\nprocess.stdout.write(JSON.stringify({ok:true,result,error:null}));\n";
+
+function participantRequest(remoteTarget,participant,request){
+  const encoded=Buffer.from(JSON.stringify(request),"utf8").toString("base64");
+  let result;
+  if(participant==="local"){
+    result=spawnSync(
+      NODE,
+      ["--input-type=module"],
+      {
+        env:minimalChildEnv({VOID_REQUEST_B64:encoded}),
+        input:PARTICIPANT_HELPER_SOURCE,
+        encoding:"utf8",
+        stdio:["pipe","pipe","pipe"],
+        timeout:120_000,
+        maxBuffer:16*1024*1024,
+      },
+    );
+  }else{
+    result=spawnSync(
+      SSH,
+      [
+        "-o","BatchMode=yes",
+        "-o","ConnectTimeout=6",
+        remoteTarget,
+        "env",
+        "VOID_REQUEST_B64="+encoded,
+        "node",
+        "--input-type=module",
+      ],
+      {
+        env:minimalChildEnv(),
+        input:PARTICIPANT_HELPER_SOURCE,
+        encoding:"utf8",
+        stdio:["pipe","pipe","pipe"],
+        timeout:120_000,
+        maxBuffer:16*1024*1024,
+      },
+    );
+  }
+  if(result.error)throw result.error;
+  if(result.status!==0){
+    fail(
+      "site_bundle_executor_participant_request_failed:"+participant+":"+
+      String(result.stderr||"").trim().slice(0,240),
+    );
+  }
+  let envelope;
+  try{envelope=JSON.parse(String(result.stdout||""));}
+  catch{fail("site_bundle_executor_participant_output_invalid:"+participant);}
+  if(envelope?.ok!==true||!Object.hasOwn(envelope,"result")){
+    fail(
+      "site_bundle_executor_participant_hold:"+participant+":"+
+      String(envelope?.error||"unknown"),
+    );
+  }
+  return envelope.result;
+}
+
+function targetFor(transaction,participant){
+  return participant==="local"
+    ?targetDropinBytes(transaction.intended.local_peer)
+    :targetDropinBytes(transaction.intended.remote_peer);
+}
+function makeLiveAdapter(remoteTarget){
+  return Object.freeze({
+    async observe(participant,transaction){
+      return participantRequest(remoteTarget,participant,{
+        action:"facts",
+        participant,
+        transaction_id:transaction.transaction_id,
+        dropin_name:transaction.intended.dropin_name,
+      });
+    },
+    async stage(participant,transaction){
+      const target=targetFor(transaction,participant);
+      return participantRequest(remoteTarget,participant,{
+        action:"stage",
+        participant,
+        transaction_id:transaction.transaction_id,
+        dropin_name:transaction.intended.dropin_name,
+        prestate:transaction.prestate[participant],
+        target_bytes_base64:target.toString("base64"),
+        target_sha256:targetSha(transaction,participant),
+      });
+    },
+    async persistParticipantReceipt(participant,bucket,receipt,transaction){
+      participantRequest(remoteTarget,participant,{
+        action:"persist_receipt",
+        participant,
+        transaction_id:transaction.transaction_id,
+        dropin_name:transaction.intended.dropin_name,
+        bucket,
+        receipt,
+      });
+    },
+    async publish(participant,transaction){
+      return participantRequest(remoteTarget,participant,{
+        action:"publish",
+        participant,
+        transaction_id:transaction.transaction_id,
+        dropin_name:transaction.intended.dropin_name,
+        prestate:transaction.prestate[participant],
+        target_sha256:targetSha(transaction,participant),
+        restart_expected:restartExpected(transaction,participant),
+      });
+    },
+    async restore(participant,transaction){
+      const started=transaction.restore_started[participant];
+      if(!started)fail("site_bundle_executor_restore_start_missing:"+participant);
+      return participantRequest(remoteTarget,participant,{
+        action:"restore",
+        participant,
+        transaction_id:transaction.transaction_id,
+        dropin_name:transaction.intended.dropin_name,
+        prestate:transaction.prestate[participant],
+        restart_expected:started.restart_expected,
+      });
+    },
+  });
+}
+
+function ensurePrivateStateRoot(root){
+  if(process.platform!=="linux")fail("site_bundle_executor_linux_required");
+  if(!path.isAbsolute(root)||path.resolve(root)!==root){
+    fail("site_bundle_executor_state_root_invalid");
+  }
+  fs.mkdirSync(root,{recursive:true,mode:0o700});
+  const real=fs.realpathSync.native(root);
+  if(real!==root)fail("site_bundle_executor_state_root_alias");
+  const st=fs.lstatSync(root);
+  if(
+    !st.isDirectory()||
+    st.isSymbolicLink()||
+    (st.mode&0o077)!==0||
+    (typeof process.getuid==="function"&&st.uid!==process.getuid())
+  ){
+    fail("site_bundle_executor_state_root_unsafe");
+  }
+  return st;
+}
+function journalPath(stateRoot,intent){
+  const id=sha256(Buffer.from(canonical(intent),"utf8"));
+  return path.join(stateRoot,"site-bundle-"+id+".json");
+}
+function readStableJournal(file){
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const before=fs.fstatSync(fd);
+    if(!before.isFile()||before.nlink!==1||before.size<2||before.size>8*1024*1024){
+      fail("site_bundle_executor_journal_invalid");
+    }
+    const bytes=Buffer.alloc(before.size);
+    let off=0;
+    while(off<bytes.length){
+      const n=fs.readSync(fd,bytes,off,bytes.length-off,off);
+      if(n<=0)fail("site_bundle_executor_journal_short_read");
+      off+=n;
+    }
+    const after=fs.fstatSync(fd);
+    for(const key of ["dev","ino","size","mtimeMs","ctimeMs"]){
+      if(before[key]!==after[key])fail("site_bundle_executor_journal_changed");
+    }
+    return JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(bytes));
+  }finally{fs.closeSync(fd);}
+}
+function writeDurableJournal(file,value){
+  const parent=path.dirname(file);
+  const parentPath=ensurePrivateStateRoot(parent);
+  const parentFd=fs.openSync(
+    parent,
+    fs.constants.O_RDONLY|
+      Number(fs.constants.O_DIRECTORY||0)|
+      Number(fs.constants.O_NOFOLLOW||0),
+  );
+  const parentStat=fs.fstatSync(parentFd);
+  if(parentStat.dev!==parentPath.dev||parentStat.ino!==parentPath.ino){
+    fs.closeSync(parentFd);
+    fail("site_bundle_executor_journal_parent_mismatch");
+  }
+  const bytes=Buffer.from(JSON.stringify(value,null,2)+"\n","utf8");
+  const basename=path.basename(file);
+  const tmp=basename+".tmp-"+String(process.pid)+"-"+crypto.randomBytes(6).toString("hex");
+  const procBase="/proc/self/fd/"+String(parentFd)+"/";
+  let fd;
+  try{
+    fd=fs.openSync(
+      procBase+tmp,
+      fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|
+        Number(fs.constants.O_NOFOLLOW||0),
+      0o600,
+    );
+    fs.writeFileSync(fd,bytes);
+    fs.fchmodSync(fd,0o600);
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);fd=undefined;
+    fs.renameSync(procBase+tmp,procBase+basename);
+    fs.fsyncSync(parentFd);
+  }finally{
+    if(fd!==undefined)fs.closeSync(fd);
+    try{fs.unlinkSync(procBase+tmp);}catch(error){
+      if(error?.code!=="ENOENT")throw error;
+    }
+    fs.closeSync(parentFd);
+  }
+  const persisted=readStableJournal(file);
+  if(canonical(persisted)!==canonical(value)){
+    fail("site_bundle_executor_journal_persist_mismatch");
+  }
+}
+function desiredIntent({remoteTarget,localPeer,remotePeer,dropinName}){
+  return Object.freeze({
+    remote_target:remoteTarget,
+    local_peer:localPeer,
+    remote_peer:remotePeer,
+    dropin_name:dropinName,
+  });
+}
+function assertResumeMatches(transaction,{localFacts,remoteFacts,localPeer,remotePeer,dropinName}){
+  if(
+    transaction.kind!=="site_bundle_peer_env"||
+    transaction.intended.local_peer!==localPeer||
+    transaction.intended.remote_peer!==remotePeer||
+    transaction.intended.dropin_name!==dropinName||
+    transaction.source.repository_head_sha!==localFacts.repository_head_sha||
+    transaction.source.repository_head_sha!==remoteFacts.repository_head_sha||
+    transaction.source.local_host!==localFacts.host||
+    transaction.source.remote_host!==remoteFacts.host
+  ){
+    fail("site_bundle_executor_resume_intent_or_source_mismatch");
+  }
+}
+async function directMain(){
+  const {values}=parseArgs({
+    options:{
+      remote:{type:"string"},
+      "local-peer":{type:"string"},
+      "remote-peer":{type:"string"},
+      "dropin-name":{type:"string",default:"97-site-bundle-peers.conf"},
+      confirmation:{type:"string"},
+      "state-root":{type:"string"},
+    },
+    strict:true,
+  });
+  const remoteTarget=validateRemoteTarget(String(values.remote||""));
+  const localPeer=String(values["local-peer"]||"");
+  const remotePeer=String(values["remote-peer"]||"");
+  const dropinName=String(values["dropin-name"]||"");
+  if(!SAFE_PEER.test(localPeer)||!SAFE_PEER.test(remotePeer)){
+    fail("site_bundle_executor_peer_invalid");
+  }
+  if(!SAFE_DROPIN.test(dropinName)){
+    fail("site_bundle_executor_dropin_name_invalid");
+  }
+  if(values.confirmation!==APPLY_CONFIRMATION){
+    fail("site_bundle_executor_confirmation_required");
+  }
+
+  const stateRoot=values["state-root"]
+    ?path.resolve(values["state-root"])
+    :path.join(os.homedir(),".local/state/void/crossbox-mutation-v1");
+  ensurePrivateStateRoot(stateRoot);
+
+  const provisionalId="voidxmtx1_"+"0".repeat(64);
+  const factsRequest=(participant)=>participantRequest(
+    remoteTarget,
+    participant,
+    {
+      action:"facts",
+      participant,
+      transaction_id:provisionalId,
+      dropin_name:dropinName,
+    },
+  );
+  const localFacts=factsRequest("local");
+  const remoteFacts=factsRequest("remote");
+  if(
+    localFacts.repository_head_sha!==remoteFacts.repository_head_sha||
+    localFacts.host===remoteFacts.host
+  ){
+    fail("site_bundle_executor_crossbox_source_parity_failed");
+  }
+
+  const intent=desiredIntent({remoteTarget,localPeer,remotePeer,dropinName});
+  const journal=journalPath(stateRoot,intent);
+  let transaction;
+  if(fs.existsSync(journal)){
+    transaction=readStableJournal(journal);
+    assertResumeMatches(
+      transaction,
+      {localFacts,remoteFacts,localPeer,remotePeer,dropinName},
+    );
+  }else{
+    const localTarget=targetDropinBytes(localPeer);
+    const remoteTargetBytes=targetDropinBytes(remotePeer);
+    transaction=prepareVoidCrossboxMutationTransactionV1({
+      kind:"site_bundle_peer_env",
+      source:{
+        repository_head_sha:localFacts.repository_head_sha,
+        local_host:localFacts.host,
+        remote_host:remoteFacts.host,
+      },
+      prestate:{local:localFacts,remote:remoteFacts},
+      intended:{
+        dropin_name:dropinName,
+        local_peer:localPeer,
+        remote_peer:remotePeer,
+        local_target_dropin_sha256:sha256(localTarget),
+        remote_target_dropin_sha256:sha256(remoteTargetBytes),
+        restart_if_active:{local:true,remote:true},
+      },
+      confirmation:VOID_CROSSBOX_MUTATION_TRANSACTION_CONFIRMATION_V1,
+    });
+    writeDurableJournal(journal,transaction);
+  }
+
+  const adapter=makeLiveAdapter(remoteTarget);
+  const persist=async(value)=>writeDurableJournal(journal,value);
+  let result;
+  try{
+    result=await driveVoidSiteBundlePeerEnvTransactionV1({
+      transaction,
+      adapter,
+      persist,
+    });
+  }catch(error){
+    let action="UNKNOWN";
+    try{action=nextVoidCrossboxMutationRecoveryV1(readStableJournal(journal));}
+    catch(recoveryError){
+      if(!(recoveryError instanceof Error))throw recoveryError;
+    }
+    console.error(VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1+" HOLD");
+    console.error("reason="+(error instanceof Error?error.message:String(error)));
+    console.error("journal="+journal);
+    console.error("recovery_action="+action);
+    process.exitCode=2;
+    return;
+  }
+
+  console.log(VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1);
+  console.log("transaction_id="+result.transaction.transaction_id);
+  console.log("state_id="+result.transaction.state_id);
+  console.log("phase="+result.transaction.phase);
+  console.log("terminal_action="+result.action);
+  console.log("journal="+journal);
+  console.log("validator_publication=false");
+  console.log("git_tag_or_push=false");
+  console.log("funds_movement=false");
+
+  if(result.action==="DONE_COMMITTED")process.exitCode=0;
+  else if(result.action==="DONE_RESTORED")process.exitCode=3;
+  else process.exitCode=2;
+}
+const direct=
+  process.argv[1]&&
+  import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href;
+if(direct){
+  directMain().catch((error)=>{
+    console.error(VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1+" HOLD");
+    console.error("reason="+(error instanceof Error?error.message:String(error)));
+    process.exitCode=2;
+  });
+}
