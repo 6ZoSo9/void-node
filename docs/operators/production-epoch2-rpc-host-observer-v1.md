@@ -65,6 +65,7 @@ A green live run additionally requires:
 - service `active/running` with a nonzero MainPID and InvocationID;
 - the same systemd unit/MainPID/InvocationID remains stable across the RPC observation window;
 - exact rootless Docker socket `unix:///run/user/<uid>/docker.sock`, owned by the current operator UID;
+- Docker daemon `/info` security options explicitly report rootless mode;
 - exact running container name `void-e2-qbft-precision-v1`;
 - exact reviewed Besu image reference plus a concrete `sha256:<image-id>`;
 - exact container user `0:0`, Besu entrypoint/arguments, reviewed bind mounts, `BESU_OPTS`, `--cap-drop=ALL`, and `no-new-privileges`;
@@ -139,8 +140,9 @@ node tools/void-production-epoch2-rpc-host-observer-v1.mjs \
 ```
 
 The observer performs one fixed canonical GitHub main identity read,
-read-only HTTP `GET /containers/void-e2-qbft-precision-v1/json` calls over the
-reviewed rootless Docker Unix socket, and loopback-only read RPC calls. It does
+read-only HTTP `GET /info` and
+`GET /containers/void-e2-qbft-precision-v1/json` calls over the reviewed
+rootless Docker Unix socket, and loopback-only read RPC calls. It does
 not invoke a Docker mutation endpoint or perform any service action.
 
 ## Authority boundary
