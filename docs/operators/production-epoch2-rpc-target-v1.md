@@ -132,11 +132,17 @@ reject a checked-in selected descriptor with
 Plausible-looking activation/observation IDs in JSON are not evidence by
 themselves.
 
-A later evidence-aware promotion lane must consume and semantically reverify the
-exact private QBFT activation receipt bytes plus a fresh independent host
-observation before it may write/select the production target. Only after that
-reviewed promotion exists should downstream consumers rebind and repeat fresh
-read-only preflights.
+The source-only evidence compiler
+`tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs`
+now consumes the exact private-QBFT activation plan/receipt plus an independent
+host-observation receipt, verifies their content-addressed bindings, and emits a
+selected-state candidate outside the repository. The compiler deliberately
+cannot write/select the canonical target.
+
+A separate reviewed apply lane is still required to consume that candidate,
+persist the promotion evidence, update the canonical target, and teach the
+canonical loader to reverify the checked-in promotion before downstream
+consumers rebind and repeat fresh read-only preflights.
 
 ## Why the WC/VOID preflight HOLD was correct
 
@@ -184,9 +190,8 @@ public_presale_activation=false
 funds_movement=false
 ```
 
-The next operational gate is to reuse the already-reviewed private QBFT
-lifecycle: locate or regenerate the three-host plan/bundles, perform inactive
-installation, obtain fresh start admission, and only then consider the separate
-explicit `startPrivateEpoch2QbftSuccessorV1` activation ceremony. After a
-green activation receipt, a fresh independent Precision host/RPC observation
-must still precede target selection. This contract alone cannot select one.
+The reviewed private-QBFT activation and independent Precision host/RPC
+observation now exist. The next operational gate is to run the source-only
+promotion compiler against those exact content-addressed artifacts, review its
+selected-state candidate, and then implement the separate evidence-aware apply
+lane. This contract and the compiler alone cannot select the canonical target.
