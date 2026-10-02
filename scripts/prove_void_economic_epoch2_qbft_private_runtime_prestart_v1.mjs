@@ -205,6 +205,8 @@ for(const [index,role] of roles.entries()) {
     materialization:materializations[role],
     installed_at_utc:"2030-01-01T00:02:00.000Z",
     installed_repo_head:INSTALL_HEAD,
+    unit_file_state:"static",
+    direct_enablement_links_absent:true,
   });
 
   const facts={
@@ -220,8 +222,9 @@ for(const [index,role] of roles.entries()) {
     installed_systemd_unit_sha256_exact:true,
     installed_data_directory_empty:true,
     service_inactive:true,
-    service_disabled:true,
-    autostart_links_absent:true,
+    unit_file_state:"static",
+    direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
     rootless_docker_verified:true,
@@ -432,8 +435,11 @@ for(const required of [
   "installed_bundle_set_bytes_mismatch",
   "installed_data_not_empty",
   "service_state_not_clean_inactive",
-  "service_enable_state_not_clean",
+  "service_unit_file_state_not_clean",
   '["disabled","not-found","static"]',
+  "service_enablement_directory_symlink",
+  "service_direct_enablement_link_present",
+  "service_unit_state_changed_during_observation",
   "rootless_docker_required",
   "p2p_port_not_vacant",
   "start_authorized=false",
@@ -486,7 +492,9 @@ console.log("validator_private_identity_revalidation_required=true");
 console.log("nodekey_bytes_emitted=false");
 console.log("nodekey_bytes_persisted=false");
 console.log("all_services_inactive=true");
-console.log("all_services_disabled=true");
+console.log("all_unit_file_states_observed=true");
+console.log("all_direct_enablement_links_absent=true");
+console.log("indirect_activation_absence_proven=false");
 console.log("service_start=false");
 console.log("systemd_reload=false");
 console.log("docker_mutation=false");
