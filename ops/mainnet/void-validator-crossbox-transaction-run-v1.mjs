@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   VOID_VALIDATOR_CROSSBOX_TRANSACTION_EXECUTOR_CONFIRMATION_V1,
@@ -117,7 +117,7 @@ function mkdirPrivate(dir) {
 
 function atomicWriteFile(file, bytes, mode = 0o600) {
   const dir = path.dirname(file);
-  mkdirPrivate(dir);
+  fs.mkdirSync(dir, { recursive: true });
   const tmp = file + ".next";
   try {
     fs.unlinkSync(tmp);
@@ -611,7 +611,7 @@ async function httpJson(base, suffix) {
 
 function atomicSymlink(linkPath, target) {
   const dir = path.dirname(linkPath);
-  mkdirPrivate(dir);
+  fs.mkdirSync(dir, { recursive: true });
   try {
     const st = fs.lstatSync(linkPath);
     if (!st.isSymbolicLink()) fail("validator_live_verified_current_collision");
@@ -701,10 +701,49 @@ function participantPrestateMatches(root, service, expected) {
   };
 }
 
-function participantIntendedMatches(observed, manifestSetSha) {
+function participantIntendedMatches(observed, manifestSetSha, stageDir) {
   return (
     observed.verified_current.exists === true &&
-    observed.verified_current.manifest_set_sha256 === manifestSetSha
+    observed.verified_current.manifest_set_sha256 === manifestSetSha &&
+    observed.verified_current.resolved_target === fs.realpathSync(stageDir)
+  );
+}
+
+function publishedObservationMatches(state, observed) {
+  const expectedActive = state.prestate.service.active;
+  if (
+    !participantIntendedMatches(
+      observed,
+      state.manifest_set_sha256,
+      state.stage_dir,
+    ) ||
+    observed.service.active !== expectedActive
+  ) {
+    return false;
+  }
+  if (!expectedActive) return observed.service.invocation_id === null;
+  return (
+    INVOCATION.test(String(state.publish_after_invocation_id || "")) &&
+    observed.service.invocation_id === state.publish_after_invocation_id
+  );
+}
+
+function restoredObservationMatches(state, observed) {
+  if (!filesRestoredFromObservation(state, observed)) return false;
+  const expectedRestart = Boolean(
+    state.publish_after_invocation_id && state.prestate.service.active,
+  );
+  if (!expectedRestart) {
+    return (
+      observed.service.active === state.prestate.service.active &&
+      observed.service.invocation_id === state.prestate.service.invocation_id
+    );
+  }
+  return (
+    observed.service.active === true &&
+    INVOCATION.test(String(state.restore_after_invocation_id || "")) &&
+    state.restore_after_invocation_id !== state.publish_after_invocation_id &&
+    observed.service.invocation_id === state.restore_after_invocation_id
   );
 }
 
@@ -811,7 +850,11 @@ function publishNoEffectReceipt(state, observed) {
 function performOrRecoverPublish(root, state, allowMutation) {
   const before = observeParticipant(root, state.service);
   const prestateExact = equalObservationPrestate(before, state.prestate);
-  const intended = participantIntendedMatches(before, state.manifest_set_sha256);
+  const intended = participantIntendedMatches(
+    before,
+    state.manifest_set_sha256,
+    state.stage_dir,
+  );
   const expectedActive = state.prestate.service.active;
 
   if (prestateExact) {
@@ -833,7 +876,13 @@ function performOrRecoverPublish(root, state, allowMutation) {
   }
 
   let current = observeParticipant(root, state.service);
-  if (!participantIntendedMatches(current, state.manifest_set_sha256)) {
+  if (
+    !participantIntendedMatches(
+      current,
+      state.manifest_set_sha256,
+      state.stage_dir,
+    )
+  ) {
     return {
       outcome: "HOLD",
       reason: "validator_live_publish_target_not_observed",
@@ -906,7 +955,7 @@ function participantRecoverPublish(root, request) {
   }
   if (state.phase === "PUBLISHED") {
     const observed = observeParticipant(root, state.service);
-    if (!participantIntendedMatches(observed, state.manifest_set_sha256)) {
+    if (!publishedObservationMatches(state, observed)) {
       return {
         outcome: "HOLD",
         reason: "validator_live_published_state_drift",
@@ -952,7 +1001,13 @@ async function participantVerify(root, request) {
   }
 
   const observed = observeParticipant(root, state.service);
-  if (!participantIntendedMatches(observed, state.manifest_set_sha256)) {
+  if (
+    !participantIntendedMatches(
+      observed,
+      state.manifest_set_sha256,
+      state.stage_dir,
+    )
+  ) {
     return {
       outcome: "MISMATCH",
       reason: "validator_live_verify_manifest_identity_mismatch",
@@ -1023,12 +1078,18 @@ function restoreReceiptFromObservation(state, observed, restartPerformed, before
   };
 }
 
-function filesRestored(root, state) {
-  const verified = verifiedCurrentDetail(root);
-  const shadow = shadowDetail(root);
+function filesRestoredFromObservation(state, observed) {
   return (
-    canonical(verified) === canonical(state.prestate.verified_current) &&
-    canonical(shadow) === canonical(state.prestate.shadow)
+    canonical(observed.verified_current) ===
+      canonical(state.prestate.verified_current) &&
+    canonical(observed.shadow) === canonical(state.prestate.shadow)
+  );
+}
+
+function filesRestored(root, state) {
+  return filesRestoredFromObservation(
+    state,
+    observeParticipant(root, state.service),
   );
 }
 
@@ -1043,6 +1104,7 @@ function performOrRecoverRestore(root, state, allowMutation) {
       const intended = participantIntendedMatches(
         observed,
         state.manifest_set_sha256,
+        state.stage_dir,
       );
       if (!intended) {
         return {
@@ -1137,19 +1199,23 @@ function participantRestore(root, request) {
   }
   if (started.phase === "RESTORED") {
     const observed = observeParticipant(root, started.service);
-    if (!filesRestored(root, started)) {
+    if (!restoredObservationMatches(started, observed)) {
       return {
         outcome: "HOLD",
         reason: "validator_live_restored_state_drift",
       };
     }
+    const restarted = Boolean(
+      started.publish_after_invocation_id &&
+      started.prestate.service.active,
+    );
     return {
       outcome: "RESTORED",
       receipt: restoreReceiptFromObservation(
         started,
         observed,
-        Boolean(started.publish_after_invocation_id && started.prestate.service.active),
-        started.publish_after_invocation_id,
+        restarted,
+        restarted ? started.publish_after_invocation_id : null,
       ),
     };
   }
@@ -1173,13 +1239,23 @@ function participantRecoverRestore(root, request) {
   }
   if (started.phase === "RESTORED") {
     const observed = observeParticipant(root, started.service);
+    if (!restoredObservationMatches(started, observed)) {
+      return {
+        outcome: "HOLD",
+        reason: "validator_live_restored_state_drift",
+      };
+    }
+    const restarted = Boolean(
+      started.publish_after_invocation_id &&
+      started.prestate.service.active,
+    );
     return {
       outcome: "RESTORED",
       receipt: restoreReceiptFromObservation(
         started,
         observed,
-        Boolean(started.publish_after_invocation_id && started.prestate.service.active),
-        started.publish_after_invocation_id,
+        restarted,
+        restarted ? started.publish_after_invocation_id : null,
       ),
     };
   }
@@ -1897,7 +1973,7 @@ async function main() {
 
 if (
   process.argv[1] &&
-  import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   main().catch((error) => {
     console.error(VOID_VALIDATOR_CROSSBOX_TRANSACTION_RUN_V1 + "_HOLD");
