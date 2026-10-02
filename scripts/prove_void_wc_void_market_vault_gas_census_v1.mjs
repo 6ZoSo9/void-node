@@ -63,6 +63,30 @@ assert.equal(
   EXPECTED_VAULT_SOURCE_SHA256,
 );
 assert.equal(
+  accepted?.compiler_profile?.semantic_version,
+  "0.8.24",
+);
+assert.equal(
+  accepted?.compiler_profile?.release,
+  "0.8.24+commit.e11b9ed9",
+);
+assert.equal(
+  accepted?.compiler_profile?.evm_version,
+  "paris",
+);
+assert.equal(
+  accepted?.compiler_profile?.optimizer_enabled,
+  false,
+);
+assert.equal(
+  accepted?.compiler_profile?.optimizer_runs,
+  200,
+);
+assert.equal(
+  accepted?.compiler_profile?.via_ir,
+  false,
+);
+assert.equal(
   holderManifest?.void_token?.successor_runtime_source_path,
   TOKEN,
 );
