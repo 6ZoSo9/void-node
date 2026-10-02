@@ -356,9 +356,13 @@ function startScript() {
   return [
     "set -Eeuo pipefail",
     "service="+bashLiteral(SERVICE),
+    'enabled="$(systemctl --user is-enabled "$service" 2>&1 || true)"',
+    'test "$enabled" = static || { printf \'HOLD:service_unit_file_state_not_static_before_explicit_start:%s\\n\' "$enabled" >&2; exit 2; }',
     'active="$(systemctl --user is-active "$service" 2>&1 || true)"',
     'case "$active" in inactive|unknown) ;; *) printf \'HOLD:service_already_active_before_explicit_start:%s\\n\' "$active" >&2; exit 2 ;; esac',
     'systemctl --user daemon-reload',
+    'enabled="$(systemctl --user is-enabled "$service" 2>&1 || true)"',
+    'test "$enabled" = static || { printf \'HOLD:service_unit_file_state_changed_during_daemon_reload:%s\\n\' "$enabled" >&2; exit 2; }',
     'active="$(systemctl --user is-active "$service" 2>&1 || true)"',
     'case "$active" in inactive|unknown) ;; *) printf \'HOLD:service_started_during_daemon_reload:%s\\n\' "$active" >&2; exit 2 ;; esac',
     'systemctl --user start "$service"',
