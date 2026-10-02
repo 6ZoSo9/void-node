@@ -19,7 +19,15 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
   Object.freeze({
     qualification_receipt_required: true,
     exact_qualification_bytes_required: true,
-    qualification_current_head_required: true,
+    qualification_current_head_required: false,
+    qualification_source_head_ancestor_current_main_required: true,
+    qualification_source_tree_revalidation_required: true,
+    qualification_historical_reviewed_bytes_required: true,
+    qualification_current_reviewed_bytes_required: true,
+    qualification_control_freshness_required: true,
+    qualification_control_freshness_revalidation_required: true,
+    production_wall_clock_evaluation_required: true,
+    production_wall_clock_monotonicity_required: true,
     canonical_source_revalidation_required: true,
     reviewed_qualification_contract_exact_head_execution: true,
     private_reviewed_qualification_contract_materialization: true,
@@ -117,6 +125,8 @@ const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const MAX_DEPLOYMENT_GAS_ESTIMATE = 30_000_000n;
 const LIVE_MAIN_QUERY_TIMEOUT_MS = 15_000;
+const MAX_UINT64 = (1n << 64n) - 1n;
+const TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX = "1800000020";
 
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1 =
   Object.freeze({
@@ -197,6 +207,75 @@ function quantity(value, code) {
     return BigInt(raw);
   } catch {
     fail(code);
+  }
+}
+
+function unixSeconds(value, code) {
+  const raw = text(value);
+  if (!/^(0|[1-9][0-9]*)$/u.test(raw) || raw.length > 20) fail(code);
+  try {
+    const parsed = BigInt(raw);
+    if (parsed < 0n || parsed > MAX_UINT64) fail(code);
+    return parsed;
+  } catch {
+    fail(code);
+  }
+}
+
+function validateQualificationControlFreshnessV1(
+  launchController,
+  evaluationTimeUnix,
+) {
+  if (!plain(launchController)) {
+    fail("live_deployment_preflight_launch_controller_invalid");
+  }
+  const verified = unixSeconds(
+    launchController.verified_at_unix,
+    "live_deployment_preflight_control_verified_time_invalid",
+  );
+  const reverified = unixSeconds(
+    launchController.reverified_at_unix,
+    "live_deployment_preflight_control_reverified_time_invalid",
+  );
+  const validUntil = unixSeconds(
+    launchController.valid_until_unix,
+    "live_deployment_preflight_control_valid_until_invalid",
+  );
+  const evaluation = unixSeconds(
+    evaluationTimeUnix,
+    "live_deployment_preflight_evaluation_time_invalid",
+  );
+  if (verified > reverified || reverified >= validUntil) {
+    fail("live_deployment_preflight_control_time_lineage_invalid");
+  }
+  if (evaluation < reverified) {
+    fail("live_deployment_preflight_evaluation_before_control_reverification");
+  }
+  if (evaluation >= validUntil) {
+    fail("live_deployment_preflight_launch_controller_control_expired");
+  }
+  return Object.freeze({
+    verified_at_unix: verified.toString(),
+    reverified_at_unix: reverified.toString(),
+    valid_until_unix: validUntil.toString(),
+    evaluation_time_unix: evaluation.toString(),
+  });
+}
+
+export function testOnlyEvaluateVoidWcVoidMarketVaultQualificationFreshnessV1(
+  input = {},
+) {
+  try {
+    const value = validateQualificationControlFreshnessV1(
+      input.launch_controller,
+      input.evaluation_time_unix,
+    );
+    return Object.freeze({ ok: true, ...value });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -506,6 +585,130 @@ function currentFileIdentity(relativePath, expectedBlob, code) {
   });
 }
 
+function historicalFileIdentity(commit, relativePath, expectedBlob, code) {
+  if (!HEX40.test(String(commit || "")) || !HEX40.test(String(expectedBlob || ""))) {
+    fail(code);
+  }
+  const object = git(
+    ["show", commit + ":" + relativePath],
+    code + "_bytes_unavailable",
+    { encoding: null },
+  );
+  const bytes = Buffer.from(object.stdout || Buffer.alloc(0));
+  const blob = gitText(
+    ["rev-parse", commit + ":" + relativePath],
+    code + "_blob_unavailable",
+  );
+  if (
+    bytes.length < 1 ||
+    bytes.length > 8 * 1024 * 1024 ||
+    blob !== expectedBlob ||
+    gitBlobSha1(bytes) !== expectedBlob
+  ) {
+    fail(code);
+  }
+  return Object.freeze({
+    git_blob_sha1: blob,
+    file_sha256: sha256Bytes(bytes),
+  });
+}
+
+function validateQualificationSourceGenerationV1(source, repo, contract) {
+  const sourceHead = String(source.source_head_sha || "");
+  const sourceTree = String(source.source_tree_sha || "");
+  if (!HEX40.test(sourceHead) || !HEX40.test(sourceTree)) {
+    fail("live_deployment_preflight_source_generation_mismatch");
+  }
+
+  const actualSourceTree = gitText(
+    ["rev-parse", sourceHead + "^{tree}"],
+    "live_deployment_preflight_source_tree_unavailable",
+  );
+  if (actualSourceTree !== sourceTree) {
+    fail("live_deployment_preflight_source_tree_mismatch");
+  }
+
+  const ancestor = git(
+    ["merge-base", "--is-ancestor", sourceHead, repo.head],
+    "live_deployment_preflight_source_head_ancestry_unavailable",
+    { allowFail: true },
+  );
+  if (ancestor.status !== 0) {
+    fail("live_deployment_preflight_source_head_not_ancestor_current_main");
+  }
+
+  const anchor = git(
+    ["merge-base", "--is-ancestor", source.reviewed_main_anchor, sourceHead],
+    "live_deployment_preflight_reviewed_anchor_not_ancestor",
+    { allowFail: true },
+  );
+  if (anchor.status !== 0) {
+    fail("live_deployment_preflight_reviewed_anchor_not_ancestor");
+  }
+
+  const historicalQualificationTool = historicalFileIdentity(
+    sourceHead,
+    QUALIFICATION_TOOL_REL,
+    source.qualification_tool_git_blob_sha1,
+    "live_deployment_preflight_historical_qualification_tool_drift",
+  );
+  if (
+    historicalQualificationTool.file_sha256 !==
+      source.qualification_tool_file_sha256
+  ) {
+    fail("live_deployment_preflight_historical_qualification_tool_sha256_mismatch");
+  }
+
+  if (
+    !plain(source.dependency_git_blobs) ||
+    !plain(source.dependency_file_sha256) ||
+    canonicalJson(source.dependency_git_blobs) !==
+      canonicalJson(contract.source_blobs)
+  ) {
+    fail("live_deployment_preflight_dependency_manifest_mismatch");
+  }
+  const dependencyKeys = Object.keys(contract.source_blobs).sort();
+  if (
+    Object.keys(source.dependency_file_sha256).sort().join("\n") !==
+      dependencyKeys.join("\n")
+  ) {
+    fail("live_deployment_preflight_dependency_sha_manifest_mismatch");
+  }
+  for (const relativePath of dependencyKeys) {
+    const expectedBlob = contract.source_blobs[relativePath];
+    const historical = historicalFileIdentity(
+      sourceHead,
+      relativePath,
+      expectedBlob,
+      "live_deployment_preflight_historical_dependency_drift:" + relativePath,
+    );
+    if (historical.file_sha256 !== source.dependency_file_sha256[relativePath]) {
+      fail(
+        "live_deployment_preflight_historical_dependency_sha_drift:" +
+        relativePath,
+      );
+    }
+    const current = currentFileIdentity(
+      relativePath,
+      expectedBlob,
+      "live_deployment_preflight_dependency_drift:" + relativePath,
+    );
+    if (current.file_sha256 !== source.dependency_file_sha256[relativePath]) {
+      fail("live_deployment_preflight_dependency_sha_drift:" + relativePath);
+    }
+  }
+
+  return Object.freeze({
+    source_head_sha: sourceHead,
+    source_tree_sha: sourceTree,
+    source_head_ancestor_current_main: true,
+    qualification_tool_historical_bytes_verified: true,
+    qualification_tool_current_bytes_verified: true,
+    dependency_historical_bytes_verified: true,
+    dependency_current_bytes_verified: true,
+  });
+}
+
 function parsePrettyQualification(bytes, expectedSha) {
   if (
     !Buffer.isBuffer(bytes) ||
@@ -533,7 +736,13 @@ function parsePrettyQualification(bytes, expectedSha) {
   return qualification;
 }
 
-function verifyQualification(bytes, expectedSha, repo, contract) {
+function verifyQualification(
+  bytes,
+  expectedSha,
+  repo,
+  contract,
+  evaluationTimeUnix,
+) {
   const q = parsePrettyQualification(bytes, expectedSha);
   exactObject(
     q,
@@ -584,8 +793,6 @@ function verifyQualification(bytes, expectedSha, repo, contract) {
     "live_deployment_preflight_source_binding_shape_invalid",
   );
   if (
-    source.source_head_sha !== repo.head ||
-    source.source_tree_sha !== repo.tree ||
     source.canonical_remote_url !== CANONICAL_REMOTE ||
     source.qualification_tool_git_blob_sha1 !==
       repo.qualification_tool_git_blob_sha1 ||
@@ -594,14 +801,12 @@ function verifyQualification(bytes, expectedSha, repo, contract) {
   ) {
     fail("live_deployment_preflight_source_generation_mismatch");
   }
-  const anchor = git(
-    ["merge-base", "--is-ancestor", source.reviewed_main_anchor, repo.head],
-    "live_deployment_preflight_reviewed_anchor_not_ancestor",
-    { allowFail: true },
+
+  const sourceGeneration = validateQualificationSourceGenerationV1(
+    source,
+    repo,
+    contract,
   );
-  if (anchor.status !== 0) {
-    fail("live_deployment_preflight_reviewed_anchor_not_ancestor");
-  }
 
   const qualificationToolIdentity = currentFileIdentity(
     QUALIFICATION_TOOL_REL,
@@ -615,34 +820,10 @@ function verifyQualification(bytes, expectedSha, repo, contract) {
     fail("live_deployment_preflight_qualification_tool_sha256_mismatch");
   }
 
-  if (
-    !plain(source.dependency_git_blobs) ||
-    !plain(source.dependency_file_sha256) ||
-    canonicalJson(source.dependency_git_blobs) !==
-      canonicalJson(contract.source_blobs)
-  ) {
-    fail("live_deployment_preflight_dependency_manifest_mismatch");
-  }
-  const dependencyKeys = Object.keys(contract.source_blobs).sort();
-  if (
-    Object.keys(source.dependency_file_sha256).sort().join("\n") !==
-      dependencyKeys.join("\n")
-  ) {
-    fail("live_deployment_preflight_dependency_sha_manifest_mismatch");
-  }
-  for (const relativePath of dependencyKeys) {
-    const expectedBlob =
-      contract.source_blobs[relativePath];
-    const identity = currentFileIdentity(
-      relativePath,
-      expectedBlob,
-      "live_deployment_preflight_dependency_drift:" + relativePath,
-    );
-    if (identity.file_sha256 !== source.dependency_file_sha256[relativePath]) {
-      fail("live_deployment_preflight_dependency_sha_drift:" + relativePath);
-    }
-  }
-
+  const controlFreshness = validateQualificationControlFreshnessV1(
+    q.launch_controller,
+    evaluationTimeUnix,
+  );
   const launchController = canonicalAddress(
     q.launch_controller?.address,
     "live_deployment_preflight_launch_controller_invalid",
@@ -778,6 +959,8 @@ function verifyQualification(bytes, expectedSha, repo, contract) {
     qualification_file_sha256: expectedSha,
     deployment_data_hex: deploymentHex,
     void_token: token,
+    control_freshness: controlFreshness,
+    source_generation: sourceGeneration,
   });
 }
 
@@ -958,7 +1141,11 @@ function held(reason, detail = {}) {
 
 async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   input,
-  { requireCanonicalMain = false } = {},
+  {
+    requireCanonicalMain = false,
+    evaluationTimeUnix = TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+    finalEvaluationTimeUnix = null,
+  } = {},
 ) {
   let repo;
   let verifiedQualification;
@@ -980,6 +1167,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       input?.qualification_file_sha256,
       repo,
       qualificationContract,
+      evaluationTimeUnix,
     );
     deployer = canonicalAddress(
       input?.deployer_address,
@@ -1121,6 +1309,42 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       });
     }
 
+    const finalEvaluation =
+      finalEvaluationTimeUnix === null
+        ? String(Math.floor(Date.now() / 1000))
+        : finalEvaluationTimeUnix;
+    try {
+      const finalFreshness = validateQualificationControlFreshnessV1(
+        verifiedQualification.qualification.launch_controller,
+        finalEvaluation,
+      );
+      if (
+        finalFreshness.verified_at_unix !==
+          verifiedQualification.control_freshness.verified_at_unix ||
+        finalFreshness.reverified_at_unix !==
+          verifiedQualification.control_freshness.reverified_at_unix ||
+        finalFreshness.valid_until_unix !==
+          verifiedQualification.control_freshness.valid_until_unix
+      ) {
+        return held("live_deployment_preflight_control_freshness_lineage_drift", {
+          rpc_methods_used: methods,
+        });
+      }
+      if (
+        BigInt(finalFreshness.evaluation_time_unix) <
+        BigInt(verifiedQualification.control_freshness.evaluation_time_unix)
+      ) {
+        return held("live_deployment_preflight_evaluation_time_regressed", {
+          rpc_methods_used: methods,
+        });
+      }
+    } catch (error) {
+      return held(
+        error instanceof Error ? error.message : String(error),
+        { rpc_methods_used: methods },
+      );
+    }
+
     const bareEstimatedCost = gasEstimate * gasPrice;
     const deployerBalanceSufficient = deployerBalance >= bareEstimatedCost;
     const inventoryBalanceSufficient =
@@ -1147,7 +1371,18 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
         qualification_file_sha256:
           verifiedQualification.qualification_file_sha256,
         qualification_source_head_sha:
-          verifiedQualification.qualification.source_binding.source_head_sha,
+          verifiedQualification.source_generation.source_head_sha,
+        qualification_source_tree_sha:
+          verifiedQualification.source_generation.source_tree_sha,
+        qualification_source_head_ancestor_current_main:
+          verifiedQualification.source_generation
+            .source_head_ancestor_current_main,
+        qualification_historical_reviewed_bytes_verified:
+          verifiedQualification.source_generation
+            .dependency_historical_bytes_verified,
+        qualification_current_reviewed_bytes_verified:
+          verifiedQualification.source_generation
+            .dependency_current_bytes_verified,
         deployment_data_sha256:
           verifiedQualification.qualification.deployment_preparation
             .deployment_data_sha256,
@@ -1227,7 +1462,11 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
 ) {
   return await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
     input,
-    { requireCanonicalMain: true },
+    {
+      requireCanonicalMain: true,
+      evaluationTimeUnix: String(Math.floor(Date.now() / 1000)),
+      finalEvaluationTimeUnix: null,
+    },
   );
 }
 
@@ -1237,7 +1476,16 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
   const result =
     await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       input,
-      { requireCanonicalMain: false },
+      {
+        requireCanonicalMain: false,
+        evaluationTimeUnix:
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+        finalEvaluationTimeUnix:
+          input?.final_evaluation_time_unix ??
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+      },
     );
   if (!result.ok) {
     return Object.freeze({
@@ -1265,6 +1513,16 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
     local_source_head_sha: p.repository.head_sha,
     local_source_tree_sha: p.repository.tree_sha,
     qualification_id: p.qualification.qualification_id,
+    qualification_source_head_sha:
+      p.qualification.qualification_source_head_sha,
+    qualification_source_tree_sha:
+      p.qualification.qualification_source_tree_sha,
+    qualification_source_head_ancestor_current_main:
+      p.qualification.qualification_source_head_ancestor_current_main,
+    qualification_historical_reviewed_bytes_verified:
+      p.qualification.qualification_historical_reviewed_bytes_verified,
+    qualification_current_reviewed_bytes_verified:
+      p.qualification.qualification_current_reviewed_bytes_verified,
     rpc_methods_used: p.rpc.rpc_methods_used,
     observation: p.observation,
     sufficiency: p.sufficiency,
