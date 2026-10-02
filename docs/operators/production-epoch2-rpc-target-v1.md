@@ -40,7 +40,13 @@ Any future selected target must bind the already-reviewed Epoch-2 successor:
 - genesis state root
   `0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2`;
 - exact client-neutral state manifest; and
-- exact reviewed QBFT production extra-data identity.
+- exact reviewed QBFT production extra-data identity; and
+- exact promoted production-successor equivalence evidence
+  `ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json`,
+  SHA-256
+  `5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b`,
+  evidence ID
+  `voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973`.
 
 The validator checks the current state-manifest and QBFT file bytes before
 accepting even the HOLD descriptor.
@@ -60,10 +66,17 @@ http://127.0.0.1:18552/  isolated/public-read successor replica
 The 18552 replica is useful read evidence. It is not a long-lived production
 write target and must not be silently promoted.
 
-The current QBFT extra-data evidence still records
-`production_validator_set_bound=false`. Therefore a future selected target
-must carry a separately reviewed validator-binding evidence path + SHA-256; an
-RPC URL or host-observation receipt alone cannot close that gate.
+The raw QBFT extra-data artifact predates the later promotion and still records
+`production_validator_set_bound=false`. The reviewed production-successor
+equivalence promotion subsequently establishes
+`production_validator_set_bound=true`, offline successor equivalence,
+production validator epoch-domain enforcement, and cross-epoch replay
+protection while retaining write/migration authority false.
+
+The target contract therefore binds that exact promoted evidence. A future
+selected runtime must cite the exact evidence path + SHA-256 above; a caller
+cannot substitute an arbitrary new file merely because it is under
+`ops/mainnet0/`.
 
 ## Selected-state contract
 
