@@ -114,7 +114,7 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
     user_unit_file_present:true,
     user_unit_file_mode:"0600",
     unit_file_state:unitFileState,
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
     indirect_activation_absence_proven:false,
     unit_active:false,
     daemon_reload_performed:false,
@@ -241,7 +241,7 @@ function validateStartAdmissionV1(
     nodekey_bytes_persisted:false,
     all_services_inactive:true,
     all_unit_file_states_observed:true,
-    all_direct_enablement_links_absent:true,
+    all_operator_user_unit_dir_direct_enablement_links_absent:true,
     indirect_activation_absence_proven:false,
     all_candidate_ports_vacant:true,
     service_start:false,
@@ -291,7 +291,7 @@ function validateStartAdmissionV1(
       row.validator_address!==host.validator_address||
       row.besu_public_key!==host.besu_public_key||
       row.unit_file_state!==install.post_install_state.unit_file_state||
-      row.direct_enablement_links_absent!==true||
+      row.operator_user_unit_dir_direct_enablement_links_absent!==true||
       row.indirect_activation_absence_proven!==false||
       row.unit_file_state!=="static"||
       !Number.isFinite(observedMs)||
@@ -364,7 +364,7 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       genesis_sha256:receipt.installed_hashes.genesis_sha256,
       static_nodes_sha256:receipt.installed_hashes.static_nodes_sha256,
       unit_file_state:receipt.post_install_state.unit_file_state,
-      direct_enablement_links_absent:true,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
       indirect_activation_absence_proven:false,
     }));
   }
@@ -447,7 +447,7 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       exact_nodekey_public_identity_required:true,
       nodekey_private_bytes_must_not_be_logged:true,
       unit_file_state_observation_required:true,
-      direct_enablement_links_absent_required:true,
+      operator_user_unit_dir_direct_enablement_links_absent_required:true,
       indirect_activation_absence_proven:false,
       service_inactive_required:true,
       unit_restart_no_required:true,
@@ -586,7 +586,7 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
     "role","hostname","install_receipt_id","materialization_id",
     "installed_repo_head","runtime_root","unit_install_path",
     "systemd_unit_sha256","genesis_sha256","static_nodes_sha256",
-    "unit_file_state","direct_enablement_links_absent",
+    "unit_file_state","operator_user_unit_dir_direct_enablement_links_absent",
     "indirect_activation_absence_proven",
   ];
   for(const role of ROLE_ORDER) {
@@ -604,7 +604,7 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
       row.unit_install_path!==
         "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service"||
       row.unit_file_state!=="static"||
-      row.direct_enablement_links_absent!==true||
+      row.operator_user_unit_dir_direct_enablement_links_absent!==true||
       row.indirect_activation_absence_proven!==false
     ) {
       throw new Error("activation_plan_install_row_invalid:"+role);
@@ -620,7 +620,7 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
     exact_nodekey_public_identity_required:true,
     nodekey_private_bytes_must_not_be_logged:true,
     unit_file_state_observation_required:true,
-    direct_enablement_links_absent_required:true,
+    operator_user_unit_dir_direct_enablement_links_absent_required:true,
     indirect_activation_absence_proven:false,
     service_inactive_required:true,
     unit_restart_no_required:true,
