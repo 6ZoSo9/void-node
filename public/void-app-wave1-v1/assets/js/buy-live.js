@@ -56,7 +56,7 @@ const strictJson = async (response) => {
       chunks.push(value);
     }
   } catch (error) {
-    try { await reader.cancel(); } catch (_cancelError) { /* bounded teardown best effort */ }
+    try { await reader.cancel(); } catch (_cancelError) { void _cancelError; }
     throw error;
   }
   const bytes = new Uint8Array(total);
