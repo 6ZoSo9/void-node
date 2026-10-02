@@ -2,6 +2,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 export const VOID_BTC_VOID_CHAIN2050_HASHLOCK_V1 =
@@ -14,6 +16,8 @@ export const VOID_SOLC_COMPILER_ENVIRONMENT_V1 =
 export const CONTRACT_PATH =
   "contracts/mainnet/BtcVoidHashlockSettlementV1.sol";
 export const CONTRACT_NAME = "BtcVoidHashlockSettlementV1";
+export const CANONICAL_VOID_TOKEN_SOURCE_PATH =
+  "contracts/epoch2/VoidEpoch2TokenV1.sol";
 export const SOLC_VERSION = "0.8.24";
 export const SOLC_RELEASE = "0.8.24+commit.e11b9ed9";
 export const EVM_VERSION = "paris";
@@ -22,7 +26,10 @@ export const CANONICAL_VOID_TOKEN =
 
 export const AUTHORITY = Object.freeze({
   source_and_compiler_proof_only: true,
-  compiler_execution_recorded: true,
+  canonical_git_source_required: true,
+  canonical_void_token_source_bound: true,
+  compiler_outputs_cross_checked: true,
+  compiler_execution_rederived: false,
   rpc_call: false,
   credential_access: false,
   wallet_or_signer_access: false,
@@ -39,6 +46,28 @@ export const AUTHORITY = Object.freeze({
   public_presale_activation: false,
   funds_movement: false,
 });
+
+const ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const GIT = "/usr/bin/git";
+const CANONICAL_REMOTE =
+  "https://github.com/6ZoSo9/void-node.git";
+const ACCEPTED_ORIGINS = new Set([
+  "https://github.com/6ZoSo9/void-node",
+  "https://github.com/6ZoSo9/void-node.git",
+  "git@github.com:6ZoSo9/void-node.git",
+  "ssh://git@github.com/6ZoSo9/void-node.git",
+]);
+const REVIEWED_GIT_CONFIG_ARGS = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
 
 const OUTPUT_SELECTION = [
   "abi",
@@ -121,6 +150,141 @@ export function canonicalJson(value) {
       .join(",") +
     "}"
   );
+}
+
+function gitEnv() {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+  };
+}
+
+function gitRun(args, label, { encoding = "utf8" } = {}) {
+  const result = spawnSync(
+    GIT,
+    ["--no-replace-objects", ...REVIEWED_GIT_CONFIG_ARGS, "-C", ROOT, ...args],
+    {
+      encoding,
+      env: gitEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 60_000,
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
+  if (result.error || result.status !== 0) fail(label);
+  return result;
+}
+
+function gitText(args, label) {
+  return String(gitRun(args, label).stdout || "").trim();
+}
+
+function repositoryIdentity() {
+  const head = gitText(["rev-parse", "HEAD"], "repository_head_unavailable");
+  const tree = gitText(["rev-parse", "HEAD^{tree}"], "repository_tree_unavailable");
+  const status = gitText(
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    "repository_status_unavailable",
+  );
+  const origin = gitText(
+    ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
+    "repository_origin_unavailable",
+  );
+  if (
+    !/^[0-9a-f]{40}$/u.test(head) ||
+    !/^[0-9a-f]{40}$/u.test(tree) ||
+    status !== "" ||
+    !ACCEPTED_ORIGINS.has(origin)
+  ) {
+    fail("repository_identity_invalid");
+  }
+  return Object.freeze({
+    head,
+    tree,
+    canonical_remote_url: CANONICAL_REMOTE,
+  });
+}
+
+function headFile(relativePath, label) {
+  const file = path.join(ROOT, relativePath);
+  const resolved = path.resolve(file);
+  if (resolved !== file || fs.realpathSync.native(file) !== file) {
+    fail(label + "_path_invalid");
+  }
+  const stat = fs.lstatSync(file);
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.size < 1) {
+    fail(label + "_worktree_file_invalid");
+  }
+  const bytes = fs.readFileSync(file);
+  const gitBytes = Buffer.from(
+    gitRun(["show", "HEAD:" + relativePath], label + "_head_bytes_unavailable", {
+      encoding: null,
+    }).stdout || Buffer.alloc(0),
+  );
+  const blob = gitText(
+    ["rev-parse", "HEAD:" + relativePath],
+    label + "_head_blob_unavailable",
+  );
+  if (
+    !/^[0-9a-f]{40}$/u.test(blob) ||
+    !bytes.equals(gitBytes) ||
+    gitBlobSha1(bytes) !== blob
+  ) {
+    fail(label + "_worktree_head_mismatch");
+  }
+  return Object.freeze({
+    path: relativePath,
+    bytes,
+    text: bytes.toString("utf8"),
+    sha256: sha256(bytes),
+    git_blob_sha1: blob,
+  });
+}
+
+function requireCanonicalSourceArgument(raw) {
+  const file = path.resolve(String(raw || ""));
+  const expected = path.join(ROOT, CONTRACT_PATH);
+  if (file !== expected || fs.realpathSync.native(file) !== expected) {
+    fail("source_path_must_be_canonical_contract");
+  }
+  return file;
+}
+
+export function validateCanonicalVoidTokenSourceText(sourceText) {
+  if (
+    typeof sourceText !== "string" ||
+    sourceText.length < 1 ||
+    sourceText.length > 1024 * 1024
+  ) {
+    fail("canonical_void_token_source_invalid");
+  }
+  for (const required of [
+    "function transfer(address to, uint256 amount) external returns (bool)",
+    "_transfer(msg.sender, to, amount);",
+    "function transferFrom(",
+    "allowance[from][msg.sender] = currentAllowance - amount;",
+    "_transfer(from, to, amount);",
+    "function _transfer(address from, address to, uint256 amount) private",
+    "balanceOf[from] = fromBalance - amount;",
+    "balanceOf[to] += amount;",
+    "emit Transfer(from, to, amount);",
+  ]) {
+    if (!sourceText.includes(required)) {
+      fail("canonical_void_token_transfer_semantics_mismatch", required);
+    }
+  }
+  return sourceText;
 }
 
 export function validateSourceText(sourceText) {
@@ -414,9 +578,7 @@ function parseCli(argv) {
       "output-b": { type: "string" },
       "environment-a": { type: "string" },
       "environment-b": { type: "string" },
-      "source-commit": { type: "string" },
-      "source-ref": { type: "string" },
-      "reviewed-at": { type: "string" },
+
     },
     strict: true,
     allowPositionals: false,
@@ -425,8 +587,16 @@ function parseCli(argv) {
 }
 
 function review(values) {
-  const sourceText = fs.readFileSync(values.source, "utf8");
+  requireCanonicalSourceArgument(values.source);
+  const repo = repositoryIdentity();
+  const contractSource = headFile(CONTRACT_PATH, "contract_source");
+  const tokenSource = headFile(
+    CANONICAL_VOID_TOKEN_SOURCE_PATH,
+    "canonical_void_token_source",
+  );
+  const sourceText = contractSource.text;
   validateSourceText(sourceText);
+  validateCanonicalVoidTokenSourceText(tokenSource.text);
 
   const exactInput = buildStandardJsonInput(sourceText);
   const suppliedInput = readJson(values.input, "standard_input");
@@ -461,17 +631,7 @@ function review(values) {
     "solcjs",
   );
 
-  const sourceCommit = String(values["source-commit"] || "");
-  const sourceRef = String(values["source-ref"] || "");
-  const reviewedAt = String(values["reviewed-at"] || "");
-  if (!/^[0-9a-f]{40}$/u.test(sourceCommit)) fail("source_commit_invalid");
-  if (!sourceRef || sourceRef.length > 240) fail("source_ref_invalid");
-  if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(reviewedAt) ||
-    !Number.isFinite(Date.parse(reviewedAt))
-  ) {
-    fail("reviewed_at_invalid");
-  }
+  const reviewedAt = new Date().toISOString();
 
   const material = Object.freeze({
     marker: VOID_BTC_VOID_CHAIN2050_HASHLOCK_COMPILER_IDENTITY_V1,
@@ -483,9 +643,17 @@ function review(values) {
       path: CONTRACT_PATH,
       name: CONTRACT_NAME,
       canonical_void_token: CANONICAL_VOID_TOKEN,
-      source_sha256: sha256(Buffer.from(sourceText, "utf8")),
-      source_git_blob_sha1: gitBlobSha1(sourceText),
-      source_bytes: Buffer.byteLength(sourceText, "utf8"),
+      source_sha256: contractSource.sha256,
+      source_git_blob_sha1: contractSource.git_blob_sha1,
+      source_bytes: contractSource.bytes.length,
+      canonical_void_token_source: Object.freeze({
+        path: CANONICAL_VOID_TOKEN_SOURCE_PATH,
+        source_sha256: tokenSource.sha256,
+        source_git_blob_sha1: tokenSource.git_blob_sha1,
+        source_bytes: tokenSource.bytes.length,
+        transfer_semantics_verified_source_only: true,
+        runtime_code_verified: false,
+      }),
     }),
     compiler: Object.freeze({
       version: SOLC_VERSION,
@@ -500,7 +668,8 @@ function review(values) {
         sha256(Buffer.from(canonicalJson(exactInput), "utf8")),
       output_a_sha256: sha256(outputABytes),
       output_b_sha256: sha256(outputBBytes),
-      compiler_outputs_reproduced: true,
+      compiler_outputs_cross_checked: true,
+      compiler_execution_rederived: false,
     }),
     artifacts: Object.freeze({
       creation_bytecode_bytes: a.creation_bytes,
@@ -518,8 +687,9 @@ function review(values) {
     }),
     source: Object.freeze({
       repository: "6ZoSo9/void-node",
-      source_commit: sourceCommit,
-      source_ref: sourceRef,
+      repository_head_sha: repo.head,
+      repository_tree_sha: repo.tree,
+      canonical_remote_url: repo.canonical_remote_url,
       reviewed_at_utc: reviewedAt,
     }),
     design: Object.freeze({
@@ -552,7 +722,8 @@ async function main() {
   const { command, values } = parseCli(process.argv.slice(2));
   if (command === "input") {
     if (!values.source || !values.out) fail("input_usage_invalid");
-    const sourceText = fs.readFileSync(values.source, "utf8");
+    requireCanonicalSourceArgument(values.source);
+    const sourceText = headFile(CONTRACT_PATH, "contract_source").text;
     writeNewJson(values.out, buildStandardJsonInput(sourceText));
     return;
   }
@@ -564,9 +735,6 @@ async function main() {
       "output-b",
       "environment-a",
       "environment-b",
-      "source-commit",
-      "source-ref",
-      "reviewed-at",
       "out",
     ]) {
       if (!values[key]) fail("review_usage_missing:" + key);
