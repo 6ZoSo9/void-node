@@ -214,7 +214,10 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     host.drop_in_paths !== "" ||
     host.listener_address !== "127.0.0.1" ||
     host.listener_port !== 18553 ||
-    host.listener_present !== true
+    host.listener_present !== true ||
+    host.canonical_main_stable_during_observation !== true ||
+    host.service_invocation_stable_during_observation !== true ||
+    host.listener_stable_during_observation !== true
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_SERVICE_OR_LISTENER_INVALID");
   }
@@ -267,7 +270,8 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
   const observedAt = String(host.observed_at_utc || "");
   if (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(observedAt) ||
-    !Number.isFinite(Date.parse(observedAt))
+    !Number.isFinite(Date.parse(observedAt)) ||
+    Date.parse(observedAt) < Date.parse(receipt.activated_at_utc)
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_TIME_INVALID");
   }
@@ -317,6 +321,8 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
       listener_address: "127.0.0.1",
       listener_port: 18553,
       listener_present: true,
+      invocation_stable_during_observation: true,
+      listener_stable_during_observation: true,
     }),
     rpc: Object.freeze({
       url: RPC_URL,
@@ -345,6 +351,7 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     production_validator_set_bound: true,
     independent_host_acceptance: true,
     target_descriptor_promotion_authorized: false,
+    canonical_main_stable_during_observation: true,
     observed_at_utc: observedAt,
     authority: VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
   });
@@ -603,7 +610,7 @@ async function liveRpcFacts() {
   const headHex = String(await rpcCall("eth_blockNumber", [])).toLowerCase();
   const peerHex = String(await rpcCall("net_peerCount", [])).toLowerCase();
   const validators =
-    await rpcCall("qbft_getValidatorsByBlockNumber", ["latest"]);
+    await rpcCall("qbft_getValidatorsByBlockNumber", [headHex]);
   const genesis = await rpcCall("eth_getBlockByNumber", ["0x0", false]);
   const head = await rpcCall("eth_getBlockByNumber", [headHex, false]);
   if (!plain(genesis) || !plain(head) || !Array.isArray(validators)) {
@@ -699,7 +706,19 @@ async function main() {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_EXTERNAL_SHA_MISMATCH");
   }
   const service = systemdFacts();
+  const listenerBefore = listenerPresent();
   const rpc = await liveRpcFacts();
+  const serviceAfter = systemdFacts();
+  const listenerAfter = listenerPresent();
+  const sourceAfter = repoIdentity();
+  if (
+    canonical(serviceAfter) !== canonical(service) ||
+    listenerBefore !== true ||
+    listenerAfter !== true ||
+    canonical(sourceAfter) !== canonical(source)
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OBSERVATION_GENERATION_MOVED");
+  }
   const observation = buildVoidProductionEpoch2RpcHostObservationV1({
     activation_plan_bytes: planBytes,
     activation_plan_file_sha256: values["activation-plan-sha256"],
@@ -711,7 +730,10 @@ async function main() {
       ...service,
       listener_address: "127.0.0.1",
       listener_port: 18553,
-      listener_present: listenerPresent(),
+      listener_present: listenerBefore,
+      canonical_main_stable_during_observation: true,
+      service_invocation_stable_during_observation: true,
+      listener_stable_during_observation: true,
       rpc,
       observed_at_utc: new Date().toISOString(),
     },
