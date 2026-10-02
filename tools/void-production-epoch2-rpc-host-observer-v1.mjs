@@ -1043,11 +1043,22 @@ function listenerPresent() {
     .some((line) => /\b127\.0\.0\.1:18553\b/u.test(line));
 }
 
-function normalizeDockerPortBindings(raw, code) {
+function normalizeDockerPortBindings(
+  raw,
+  code,
+  { allowUnbound = false } = {},
+) {
   if (!plain(raw)) fail(code + "_PORT_BINDINGS_INVALID");
   const rows = [];
   for (const containerPort of Object.keys(raw).sort()) {
     const bindings = raw[containerPort];
+    if (
+      allowUnbound &&
+      (bindings === null ||
+        (Array.isArray(bindings) && bindings.length === 0))
+    ) {
+      continue;
+    }
     if (!Array.isArray(bindings) || bindings.length !== 1) {
       fail(code + "_PORT_BINDING_CARDINALITY_INVALID");
     }
@@ -1094,6 +1105,7 @@ function normalizeDockerInspect(
   const livePorts = normalizeDockerPortBindings(
     inspect.NetworkSettings.Ports,
     "PRODUCTION_EPOCH2_RPC_OBSERVER_DOCKER_LIVE",
+    { allowUnbound: true },
   );
   const securityOptions = Array.isArray(inspect.HostConfig.SecurityOpt)
     ? inspect.HostConfig.SecurityOpt.map(String)
