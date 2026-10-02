@@ -36,6 +36,12 @@ activation receipt is not trusted by ID alone: the observer rebuilds the exact
 receipt from the plan plus its recorded activation observations and requires
 semantic equality with the supplied receipt.
 
+Every install-receipt repository generation plus the start-admission observed
+repository generation must be an ancestor of the current canonical main used
+for the observation. A valid historical activation lineage may therefore remain
+usable across later source-only commits, but an unrelated/noncanonical source
+generation cannot become production-host evidence.
+
 ## Fresh host observation
 
 A green live run additionally requires:
@@ -69,7 +75,12 @@ qbft_getValidatorsByBlockNumber
 ## Output
 
 The observer writes one create-only mode-0600 JSON receipt outside the
-repository and fsyncs the file and parent directory.
+repository. The output parent is retained with
+`O_DIRECTORY|O_NOFOLLOW`; creation occurs through the retained
+`/proc/self/fd/<parent-fd>/<basename>` generation, then the exact file and
+directory are fsynced and the public parent/file identities are rechecked.
+A same-UID parent rename/replacement therefore HOLDs and is cleaned up instead
+of redirecting an authority-bearing observation receipt.
 
 A green observation has:
 
@@ -105,6 +116,10 @@ loopback-only read RPC calls. It performs no service action.
 
 ```text
 observer_read_only=true
+activation_source_ancestry_required=true
+private_output_parent_fd_bound=true
+private_output_exact_directory_fsync=true
+private_output_redirect_forbidden=true
 service_action=false
 daemon_reload=false
 credential_access=false
