@@ -15,6 +15,8 @@ const SOURCE_CONTRACTS = Object.freeze({
     "4fdc9c632b73a50dded72fd5493286667ca197c0",
   trade_funded_fees_tool_git_blob_sha1:
     "5aff99a441d4a0ffd441b6dd508aaa7988e4eb16",
+  quote_math_tool_git_blob_sha1:
+    "02be3da1718209db1603094c9654c7dc9d697c51",
   epoch2_successor_evidence_git_blob_sha1:
     "458528c7d1c3fe1db27643ee406e493606443c2f",
   client_neutral_state_manifest_git_blob_sha1:
@@ -159,7 +161,16 @@ function atomicEvaluation(direction, finalPhase, terminal, seed) {
       settlement_tool_git_blob_sha1:
         SOURCE_CONTRACTS.atomic_settlement_tool_git_blob_sha1,
       git_executable_sha256: "1".repeat(64),
-      dependency_git_blobs: {},
+      dependency_git_blobs: {
+        "tools/void-btc-void-quote-math-v1.mjs":
+          "02be3da1718209db1603094c9654c7dc9d697c51",
+        "tools/void-btc-void-market-maker-reserve-policy-v1.mjs":
+          "937e1b38cab34b36297f4320cc253a8e48f5a7e1",
+        "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs":
+          "63d347948f3dd0bded2f2f79fadafec8f0cf7838",
+        "tools/void-btc-void-bounded-stdin-v1.mjs":
+          "2026b9be59216b0c52cf4d978b7fc91b7f7592e1",
+      },
       exact_reviewed_git_object_execution: true,
       private_readonly_execution_bundle: true,
       git_replacement_objects_disabled: true,
@@ -414,6 +425,41 @@ expectReject(
     input.source_contracts.atomic_settlement_tool_git_blob_sha1 = "0".repeat(40);
   },
   /phase1_source_contract_mismatch/u,
+);
+
+expectReject(
+  (input) => {
+    input.cases[1].atomic_evaluation.execution_source_binding.source_head_sha =
+      "c".repeat(40);
+    const value = input.cases[1].atomic_evaluation;
+    const material = structuredClone(value);
+    delete material.evaluation_id;
+    value.evaluation_id =
+      "sha256:" + sha256(Buffer.from(canonicalJson(material), "utf8"));
+    const caseMaterial = structuredClone(input.cases[1]);
+    delete caseMaterial.case_id;
+    input.cases[1].case_id =
+      contentId("voidbtcp1case1_", caseMaterial);
+  },
+  /phase1_suite_mixed_atomic_source_generations/u,
+);
+
+expectReject(
+  (input) => {
+    const evaluation = input.cases[0].atomic_evaluation;
+    evaluation.execution_source_binding.dependency_git_blobs[
+      "tools/void-btc-void-quote-math-v1.mjs"
+    ] = "0".repeat(40);
+    const material = structuredClone(evaluation);
+    delete material.evaluation_id;
+    evaluation.evaluation_id =
+      "sha256:" + sha256(Buffer.from(canonicalJson(material), "utf8"));
+    const caseMaterial = structuredClone(input.cases[0]);
+    delete caseMaterial.case_id;
+    input.cases[0].case_id =
+      contentId("voidbtcp1case1_", caseMaterial);
+  },
+  /phase1_atomic_dependency_blob_mismatch/u,
 );
 
 expectReject(
