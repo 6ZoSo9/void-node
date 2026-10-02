@@ -90,9 +90,9 @@ function requireInactiveUnitFileState(service) {
   }
   return {active_state:activeText,unit_file_state:enabledText};
 }
-function requireNoInstallSection(bytes,label) {
+function requireNoInstallSection(bytes,code) {
   if(/^[ \t]*\[Install\][ \t]*$/mu.test(bytes.toString("utf8"))) {
-    fail(label+"_install_section_forbidden");
+    fail(code);
   }
 }
 function requireNoAutostartLinks(unitDir,service) {
@@ -195,7 +195,10 @@ if((unitStat.mode&0o777)!==0o600) fail("installed_unit_mode_invalid");
 if(sha256File(unitPath)!==validated.receipt.installed_hashes.systemd_unit_sha256) {
   fail("installed_unit_sha256_mismatch");
 }
-requireNoInstallSection(fs.readFileSync(unitPath),"installed_unit");
+requireNoInstallSection(
+  fs.readFileSync(unitPath),
+  "installed_unit_install_section_forbidden",
+);
 
 const genesisPath=path.join(runtimeRoot,"genesis.json");
 const genesisEvidencePath=path.join(runtimeRoot,"genesis-evidence.json");
@@ -329,7 +332,21 @@ if(finalIp.length!==1||finalIp[0]!==currentIp[0]) {
   fail("tailscale_ipv4_changed_during_observation");
 }
 requireNoAutostartLinks(unitDir,materialization.service_name);
-requireInactiveDisabled(materialization.service_name);
+const finalUnitBytes=fs.readFileSync(unitPath);
+if(
+  crypto.createHash("sha256").update(finalUnitBytes).digest("hex")!==
+    validated.receipt.installed_hashes.systemd_unit_sha256
+) {
+  fail("installed_unit_changed_during_observation");
+}
+requireNoInstallSection(
+  finalUnitBytes,
+  "installed_unit_install_section_forbidden",
+);
+const serviceStateAfter=requireInactiveUnitFileState(materialization.service_name);
+if(serviceStateAfter.unit_file_state!==serviceState.unit_file_state) {
+  fail("service_unit_file_state_changed_during_observation");
+}
 if(!portVacant(validated.binding.plan.runtime.p2p_port)) {
   fail("p2p_port_changed_during_observation");
 }
