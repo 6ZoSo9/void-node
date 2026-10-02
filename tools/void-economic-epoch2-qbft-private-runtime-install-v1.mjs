@@ -240,7 +240,7 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
   if(unitFileState!=="static") {
     throw new Error("install_unit_file_state_not_static");
   }
-  if(input?.direct_enablement_links_absent!==true) {
+  if(input?.operator_user_unit_dir_direct_enablement_links_absent!==true) {
     throw new Error("install_direct_enablement_links_not_proven_absent");
   }
 
@@ -269,7 +269,7 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
       user_unit_file_present:true,
       user_unit_file_mode:"0600",
       unit_file_state:unitFileState,
-      direct_enablement_links_absent:true,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
       indirect_activation_absence_proven:false,
       unit_active:false,
       daemon_reload_performed:false,
