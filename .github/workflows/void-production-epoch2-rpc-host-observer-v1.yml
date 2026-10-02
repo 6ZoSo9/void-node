@@ -1,0 +1,54 @@
+name: VOID production Epoch-2 RPC host observer v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-production-epoch2-rpc-host-observer-v1.yml"
+      - "docs/operators/production-epoch2-rpc-host-observer-v1.md"
+      - "scripts/prove_void_production_epoch2_rpc_host_observer_v1.mjs"
+      - "tools/void-production-epoch2-rpc-host-observer-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs"
+      - "scripts/fixtures/void-datanet-registry-unsigned-candidate-fixture-v1.mjs"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-production-epoch2-rpc-host-observer-v1.yml"
+      - "docs/operators/production-epoch2-rpc-host-observer-v1.md"
+      - "scripts/prove_void_production_epoch2_rpc_host_observer_v1.mjs"
+      - "tools/void-production-epoch2-rpc-host-observer-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs"
+      - "scripts/fixtures/void-datanet-registry-unsigned-candidate-fixture-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24", "26"]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Syntax
+        run: |
+          node --check tools/void-production-epoch2-rpc-host-observer-v1.mjs
+          node --check scripts/prove_void_production_epoch2_rpc_host_observer_v1.mjs
+      - name: Prove observer contract
+        run: node scripts/prove_void_production_epoch2_rpc_host_observer_v1.mjs
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
