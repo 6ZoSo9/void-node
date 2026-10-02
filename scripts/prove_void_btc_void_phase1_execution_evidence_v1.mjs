@@ -360,11 +360,19 @@ assert.notEqual(
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1,
 );
 assert.equal(
+  Object.hasOwn(preview, "evidence_suite_id"),
+  false,
+);
+assert.equal(
+  Object.hasOwn(preview, "preview_id"),
+  true,
+);
+assert.equal(
   preview.status,
   "PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_NOT_EXECUTION_VERIFIED",
 );
 assert.match(
-  preview.evidence_suite_id,
+  preview.preview_id,
   /^voidbtcp1preview1_[0-9a-f]{64}$/u,
 );
 assert.equal(preview.cases.length, 12);
