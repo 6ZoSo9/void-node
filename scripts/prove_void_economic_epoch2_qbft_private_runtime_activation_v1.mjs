@@ -608,6 +608,17 @@ for(const forbidden of [
 ]) {
   assert.equal(controller.includes(forbidden),false,forbidden);
 }
+
+assert.equal(
+  controller.includes('].join("\\\\n");'),
+  false,
+  "generated shell scripts must use real newline separators",
+);
+assert.equal(
+  controller.includes('bashLiteral(SERVICE)+"\\\\n";'),
+  false,
+  "activeScript must terminate with a real newline",
+);
 assert.ok(
   controller.indexOf("if(!args.apply)")<
   controller.indexOf("const remote=new RemoteLane()"),
