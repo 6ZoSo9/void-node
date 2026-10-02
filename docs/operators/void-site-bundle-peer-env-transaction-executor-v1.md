@@ -12,6 +12,24 @@ This source lane makes the mutation crash/failure atomic at the transaction
 boundary. It does not execute the mutation in CI and does not grant runtime
 authority by being merged.
 
+## Reviewed transaction-contract execution
+
+The executor does not statically import the mutable worktree copy of
+`tools/void-crossbox-mutation-transaction-v1.mjs`.
+
+At module initialization it uses the reviewed absolute Git executable under a
+minimal config-isolated environment to capture the current HEAD and exact Git
+object bytes for that contract. The contract is dependency-closed here: its only
+module import is the builtin `node:crypto`. The executor therefore loads those
+exact reviewed bytes through an immutable `data:` module URL keyed by the Git
+blob identity and requires the exact reviewed export surface before binding the
+transaction API.
+
+The worktree contract path is not an execution authority. The focused proof
+hides a malicious top-level sentinel in that tracked path with
+`assume-unchanged`, imports the executor in a fresh Node process, and requires
+zero sentinel execution while the executor reports the exact HEAD contract blob.
+
 ## Current fleet topology contract
 
 The active fleet service is exactly:
@@ -141,6 +159,9 @@ The proof is hermetic. It uses fake participant adapters and proves:
 - ambiguous drift HOLD;
 - journal failure is not reinterpreted as rollback success;
 - participant receipt failure cannot advance the matching journal transition;
+- hidden mutable-worktree transaction-contract code cannot execute before source
+  authority is established;
+- exact HEAD transaction-contract Git-object execution and export-surface binding;
 - create-only/idempotent participant receipt replay;
 - private journal parent binding;
 - retired Alienware rejection;
@@ -152,7 +173,9 @@ The proof is hermetic. It uses fake participant adapters and proves:
 ## Authority boundary
 
 The committed source contains live-capable SSH/systemd adapter code, but this
-source/proof lane does not execute it.
+source/proof lane does not execute it. The transaction state machine consumed by
+that adapter is executed from exact reviewed Git-object bytes rather than the
+mutable repository worktree.
 
 No live SSH, daemon reload, service restart, runtime mutation, validator
 publication, Git tag/push, credentials, keys, wallets/signers, transactions,
