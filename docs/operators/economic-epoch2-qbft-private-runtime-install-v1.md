@@ -52,6 +52,11 @@ Before filesystem mutation the installer requires:
 
 The unit itself remains `Restart=no`.
 
+The generated validator unit intentionally has no `[Install]` section. Once
+the unit file is published, `systemctl --user is-enabled` may therefore
+report `static`. V1 treats `static` as non-enabled; explicit `.wants` and
+`.requires` autostart links remain forbidden.
+
 ## Filesystem publication
 
 The final runtime root is constrained to:
