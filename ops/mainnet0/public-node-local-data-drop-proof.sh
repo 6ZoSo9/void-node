@@ -19,6 +19,11 @@ grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_ROUTE_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DOC_V1" docs/public/public-node-local-data-drop.md
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED" ops/mainnet0/public-node-local-data-drop-import.sh
+OLD_FILTER_COUNT="$(grep -Foc '/^[a-zA-Z0-9._-]{1,160}$/' src/index.ts || true)"
+COLON_FILTER_COUNT="$(grep -Foc '/^[a-zA-Z0-9._:-]{1,160}$/' src/index.ts || true)"
+test "$OLD_FILTER_COUNT" = "0"
+test "$COLON_FILTER_COUNT" = "7"
+echo "local_data_drop_colon_filter_count=7"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" ops/mainnet0/public-node-local-data-drop-verify-object.sh
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_MANIFEST_V1_GREEN" ops/mainnet0/public-node-local-data-drop-verify-manifest.sh
 
