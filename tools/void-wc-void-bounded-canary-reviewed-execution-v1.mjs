@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
+
 import {
   VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1,
   VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1,
@@ -19,6 +21,9 @@ export const VOID_WC_VOID_BOUNDED_CANARY_REVIEWED_EXECUTION_V1 =
 
 function prettyBytes(value) {
   return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
+}
+function sha256(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function summarize(decision) {
@@ -46,8 +51,7 @@ export function executeVoidWcVoidBoundedCanaryReviewedV1(request) {
       repository_head_sha: request.repository_head_sha,
       repository_tree_sha: request.repository_tree_sha,
       semantic_promotion_bytes: semanticBytes,
-      semantic_promotion_file_sha256:
-        request.semantic_promotion_file_sha256_rederived,
+      semantic_promotion_file_sha256: sha256(semanticBytes),
       production_candidate_bytes:
         Buffer.from(request.production_candidate_base64, "base64"),
       production_candidate_file_sha256:
@@ -82,6 +86,7 @@ export function executeVoidWcVoidBoundedCanaryReviewedV1(request) {
       operation,
       semantic,
       semantic_pretty_base64: semanticBytes.toString("base64"),
+      semantic_file_sha256: sha256(semanticBytes),
       promotion,
       promotion_contract: Object.freeze({
         marker: VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1,
