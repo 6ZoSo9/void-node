@@ -788,7 +788,7 @@ export function previewBtcVoidPhase1ExecutionEvidenceV1(input) {
 
   return Object.freeze({
     ...material,
-    evidence_suite_id: contentId("voidbtcp1preview1_", material),
+    preview_id: contentId("voidbtcp1preview1_", material),
   });
 }
 
