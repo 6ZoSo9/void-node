@@ -226,8 +226,11 @@ for(const role of roles) {
     bundle_set_receipt:bundleSet,
     role,
     materialization:bundles[role].materialization,
-    installed_at_utc:"2030-01-01T00:02:00.000Z",
-    installed_repo_head:"e".repeat(40),
+    receipt_basis:"fresh_install",
+    observed_at_utc:"2030-01-01T00:02:00.000Z",
+    observed_repo_head:"e".repeat(40),
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
   });
 }
 
@@ -236,7 +239,7 @@ for(const [index,role] of roles.entries()) {
   const facts={
     repo_main_clean:true,
     final_revalidation_green:true,
-    installed_repo_head_ancestor:true,
+    install_receipt_observed_repo_head_ancestor:true,
     current_tailnet_ipv4_exact:true,
     current_enode_exact:true,
     installed_genesis_sha256_exact:true,
@@ -246,8 +249,9 @@ for(const [index,role] of roles.entries()) {
     installed_systemd_unit_sha256_exact:true,
     installed_data_directory_empty:true,
     service_inactive:true,
-    service_disabled:true,
-    autostart_links_absent:true,
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
     rootless_docker_verified:true,
@@ -357,6 +361,116 @@ assert.equal(activationPlan.activation.service_enable,false);
 assert.equal(activationPlan.activation.service_restart,false);
 assert.equal(activationPlan.activation.automatic_retry,false);
 assert.equal(
+  activationPlan.pre_start_revalidation.unit_file_state_observation_required,
+  true,
+);
+assert.equal(
+  activationPlan.pre_start_revalidation.operator_user_unit_dir_direct_enablement_links_absent_required,
+  true,
+);
+assert.equal(
+  activationPlan.pre_start_revalidation.indirect_activation_absence_proven,
+  false,
+);
+for(const row of activationPlan.install_receipts) {
+  assert.equal(row.receipt_basis,"fresh_install");
+  assert.equal(
+    row.install_receipt_observed_at_utc,
+    "2030-01-01T00:02:00.000Z",
+  );
+  assert.equal(row.install_receipt_observed_repo_head,"e".repeat(40));
+  assert.equal(Object.hasOwn(row,"installed_repo_head"),false);
+  assert.equal(row.unit_file_state,"static");
+  assert.equal(row.operator_user_unit_dir_direct_enablement_links_absent,true);
+  assert.equal(row.indirect_activation_absence_proven,false);
+}
+{
+  const reattestedInstallReceipts={
+    ...installReceipts,
+    nimo:buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"nimo",
+      materialization:bundles.nimo.materialization,
+      receipt_basis:"existing_runtime_read_only_reattestation",
+      observed_at_utc:"2030-01-01T00:02:30.000Z",
+      observed_repo_head:"e".repeat(40),
+      unit_file_state:"static",
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+    }),
+  };
+  assert.equal(
+    reattestedInstallReceipts.nimo.authority.runtime_root_write,
+    false,
+  );
+  assert.equal(
+    reattestedInstallReceipts.nimo.authority.service_unit_installation,
+    false,
+  );
+
+  const reattestedPrestartReceipts={
+    ...prestartReceipts,
+    nimo:buildVoidEconomicEpoch2QbftHostPrestartReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"nimo",
+      materialization:bundles.nimo.materialization,
+      install_receipt:reattestedInstallReceipts.nimo,
+      observed_repo_head:prestartReceipts.nimo.observed_repo_head,
+      observed_at_utc:prestartReceipts.nimo.observed_at_utc,
+      valid_until_utc:prestartReceipts.nimo.valid_until_utc,
+      facts:prestartReceipts.nimo.facts,
+    }),
+  };
+  assert.equal(
+    reattestedPrestartReceipts.nimo.install_receipt_basis,
+    "existing_runtime_read_only_reattestation",
+  );
+
+  const reattestedStartAdmission=
+    buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      evaluated_at_utc:"2030-01-01T00:04:00.000Z",
+      receipts:reattestedPrestartReceipts,
+    });
+
+  const reattestedActivationPlan=
+    compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      install_receipts:reattestedInstallReceipts,
+      start_admission_receipt:reattestedStartAdmission,
+      compiled_at_utc:ACTIVATION_COMPILED_AT,
+    });
+  assert.equal(
+    validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
+      reattestedActivationPlan,
+    ),
+    reattestedActivationPlan,
+  );
+  const nimoRow=reattestedActivationPlan.install_receipts.find(
+    (row)=>row.role==="nimo",
+  );
+  assert.equal(
+    nimoRow.receipt_basis,
+    "existing_runtime_read_only_reattestation",
+  );
+  assert.equal(
+    nimoRow.install_receipt_observed_at_utc,
+    "2030-01-01T00:02:30.000Z",
+  );
+  assert.equal(
+    nimoRow.install_receipt_observed_repo_head,
+    "e".repeat(40),
+  );
+}
+
+assert.equal(
   activationPlan.activation.rollback_stop_all_started_on_any_failure,
   true,
 );
@@ -424,6 +538,25 @@ for(const key of [
     /activation_plan_contract_mismatch/u,
   );
 }
+{
+  const bad=structuredClone(activationPlan);
+  bad.install_receipts[0].unit_file_state="disabled";
+  bad.activation_plan_id=rehashActivationPlan(bad);
+  assert.throws(
+    ()=>validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(bad),
+    /activation_plan_install_row_invalid:precision/u,
+  );
+}
+{
+  const bad=structuredClone(activationPlan);
+  bad.pre_start_revalidation.indirect_activation_absence_proven=true;
+  bad.activation_plan_id=rehashActivationPlan(bad);
+  assert.throws(
+    ()=>validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(bad),
+    /activation_plan_prestart_revalidation_mismatch:indirect_activation_absence_proven/u,
+  );
+}
+
 {
   const bad=structuredClone(installReceipts.nimo);
   bad.authority.service_start=true;
@@ -573,8 +706,20 @@ for(const required of [
   "nodekey_stdout=false",
   "rootless_docker_required",
   "service_not_clean_inactive",
-  "service_not_clean_disabled",
-  "disabled|not-found|static",
+  "service_unit_file_state_not_clean",
+  "service_unit_file_state_drift",
+  "service_unit_file_state_not_static_before_explicit_start",
+  "service_unit_file_state_changed_during_daemon_reload",
+  "service_enablement_directory_symlink_at_start_boundary",
+  "service_enablement_directory_not_directory_at_start_boundary",
+  "service_direct_enablement_link_present_at_start_boundary",
+  "check_direct_links",
+  "service_already_active_before_explicit_start",
+  "service_started_during_daemon_reload",
+  "service_enablement_directory_symlink",
+  "service_direct_enablement_link_present",
+  "operator_user_unit_dir_direct_enablement_links_absent=true",
+  "indirect_activation_absence_proven=false",
   "p2p_port_not_vacant",
   "precision_rpc_port_not_vacant",
   'rpcCall("eth_chainId",[])',
@@ -629,6 +774,7 @@ assert.ok(
   controller.indexOf('node --input-type=module - "$key"'),
   "repo cwd must be established before inline ethers identity derivation",
 );
+
 assert.ok(
   controller.indexOf("if(!args.apply)")<
   controller.indexOf("const remote=new RemoteLane()"),

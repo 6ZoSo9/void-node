@@ -1,0 +1,246 @@
+name: VOID BTC VOID Chain-2050 hashlock v1
+
+on:
+  pull_request:
+    paths:
+      - "contracts/mainnet/BtcVoidHashlockSettlementV1.sol"
+      - "test/mainnet/BtcVoidHashlockSettlementV1.t.sol"
+      - "tools/void-btc-void-chain2050-hashlock-v1.mjs"
+      - "scripts/prove_void_btc_void_chain2050_hashlock_v1.mjs"
+      - "docs/operators/btc-void-chain2050-hashlock-v1.md"
+      - ".github/workflows/void-btc-void-chain2050-hashlock-v1.yml"
+      - "contracts/epoch2/VoidEpoch2TokenV1.sol"
+  push:
+    branches: [main]
+    paths:
+      - "contracts/mainnet/BtcVoidHashlockSettlementV1.sol"
+      - "test/mainnet/BtcVoidHashlockSettlementV1.t.sol"
+      - "tools/void-btc-void-chain2050-hashlock-v1.mjs"
+      - "scripts/prove_void_btc_void_chain2050_hashlock_v1.mjs"
+      - "docs/operators/btc-void-chain2050-hashlock-v1.md"
+      - ".github/workflows/void-btc-void-chain2050-hashlock-v1.yml"
+      - "contracts/epoch2/VoidEpoch2TokenV1.sol"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-btc-void-chain2050-hashlock-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          node --check tools/void-btc-void-chain2050-hashlock-v1.mjs
+          node --check scripts/prove_void_btc_void_chain2050_hashlock_v1.mjs
+
+      - name: Prove source and semantic boundary
+        run: node scripts/prove_void_btc_void_chain2050_hashlock_v1.mjs
+
+      - name: Authority wall
+        run: |
+          set -euo pipefail
+          contract="contracts/mainnet/BtcVoidHashlockSettlementV1.sol"
+          tool="tools/void-btc-void-chain2050-hashlock-v1.mjs"
+
+          grep -F '0x470075B85352Eb86F7d089FB9ba88945f12AAd94' "$contract" >/dev/null
+          grep -F 'refundAuthority: msg.sender' "$contract" >/dev/null
+          grep -F 'preimage.length != 32' "$contract" >/dev/null
+          grep -F 'source_and_compiler_proof_only: true' "$tool" >/dev/null
+          grep -F 'compiler_execution_rederived: true' "$tool" >/dev/null
+          grep -F 'caller_supplied_compiler_artifacts_accepted: false' "$tool" >/dev/null
+          grep -F 'sha256:434803786cb17d2e37c48140bd986b0d7d366833bfe989ed6447cfe8bd200ef1' "$tool" >/dev/null
+          grep -F 'sha512-G5yUqjTUPc8Np74sCFwfsevhBPlUifUOfhYrgyu6CmYlC6feSw0YS6eZW47XDT23k3JYdKx5nJ+Q7whCEmNcoA==' "$tool" >/dev/null
+          grep -F 'contract_deployment: false' "$tool" >/dev/null
+          grep -F 'chain2050_write: false' "$tool" >/dev/null
+          grep -F 'funds_movement: false' "$tool" >/dev/null
+
+          for forbidden in             'delegatecall'             'selfdestruct'             'transferOwnership'             'function owner('             'function withdraw('             'function rescue('             'upgradeTo('             'function batch'; do
+            if grep -Fi "$forbidden" "$contract" >/dev/null; then
+              echo "forbidden contract surface: $forbidden" >&2
+              exit 1
+            fi
+          done
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  dual-compiler:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "22"
+
+      - name: Rederive exact dual-compiler identity
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/void-btc-void-chain2050-hashlock"
+          mkdir -p "$WORK"
+          chmod 700 "$WORK"
+
+          node tools/void-btc-void-chain2050-hashlock-v1.mjs \
+            rederive \
+            --source contracts/mainnet/BtcVoidHashlockSettlementV1.sol \
+            --out "$WORK/identity.json"
+
+          echo "WORK=$WORK" >> "$GITHUB_ENV"
+
+      - name: Verify exact rederived identity boundary
+        run: |
+          set -euo pipefail
+          IDENTITY="$WORK/identity.json" node - <<'NODE'
+          const fs = require("node:fs");
+          const value = JSON.parse(fs.readFileSync(process.env.IDENTITY, "utf8"));
+          const fail = (message) => { throw new Error(message); };
+
+          if (value.marker !==
+              "VOID_BTC_VOID_CHAIN2050_HASHLOCK_COMPILER_IDENTITY_V1") {
+            fail("marker");
+          }
+          if (value.status !==
+              "CHAIN2050_HASHLOCK_SOURCE_COMPILER_IDENTITY_GREEN_NOT_DEPLOYED") {
+            fail("status");
+          }
+          if (value.contract?.canonical_void_token !==
+              "0x470075b85352eb86f7d089fb9ba88945f12aad94") {
+            fail("token");
+          }
+          if (value.compiler?.compiler_outputs_cross_checked !== true ||
+              value.compiler?.compiler_execution_rederived !== true ||
+              value.compiler?.caller_supplied_compiler_artifacts_accepted !== false) {
+            fail("compiler_provenance");
+          }
+          if (value.compiler?.environment_a?.artifact_identity !==
+              "sha256:434803786cb17d2e37c48140bd986b0d7d366833bfe989ed6447cfe8bd200ef1" ||
+              value.compiler?.environment_a?.image_id_verified !== true ||
+              value.compiler?.environment_a?.execution_network_disabled !== true) {
+            fail("native_compiler_identity");
+          }
+          if (value.compiler?.environment_b?.artifact_identity !==
+              "npm-integrity:sha512-G5yUqjTUPc8Np74sCFwfsevhBPlUifUOfhYrgyu6CmYlC6feSw0YS6eZW47XDT23k3JYdKx5nJ+Q7whCEmNcoA==" ||
+              value.compiler?.environment_b?.package_tarball_sri_verified !== true ||
+              value.compiler?.environment_b?.direct_solidity_compile_c_api !== true ||
+              value.compiler?.environment_b?.package_dependencies_executed !== false ||
+              !/^[0-9a-f]{64}$/.test(
+                value.compiler?.environment_b?.soljson_sha256 || ""
+              )) {
+            fail("solcjs_compiler_identity");
+          }
+          if (value.contract?.canonical_void_token_source?.path !==
+              "contracts/epoch2/VoidEpoch2TokenV1.sol" ||
+              value.contract?.canonical_void_token_source?.
+                transfer_semantics_verified_source_only !== true ||
+              value.contract?.canonical_void_token_source?.
+                runtime_code_verified !== false) {
+            fail("token_source");
+          }
+          if (!/^[0-9a-f]{40}$/.test(value.source?.repository_head_sha || "") ||
+              !/^[0-9a-f]{40}$/.test(value.source?.repository_tree_sha || "") ||
+              value.source?.canonical_remote_url !==
+                "https://github.com/6ZoSo9/void-node.git" ||
+              Object.hasOwn(value.source, "reviewed_at_utc")) {
+            fail("source_git_identity");
+          }
+          for (const key of [
+            "creation_bytecode_sha256",
+            "runtime_bytecode_sha256",
+            "abi_sha256",
+            "method_identifiers_sha256",
+            "storage_layout_sha256",
+            "metadata_sha256",
+          ]) {
+            if (!/^[0-9a-f]{64}$/.test(value.artifacts?.[key] || "")) {
+              fail(key);
+            }
+          }
+          if (!/^voidbtvc2050h1_[0-9a-f]{64}$/.test(value.identity_id || "")) {
+            fail("identity_id");
+          }
+          if (value.authority?.compiler_execution_rederived !== true ||
+              value.authority?.caller_supplied_compiler_artifacts_accepted !== false ||
+              value.authority?.contract_deployment !== false ||
+              value.authority?.chain2050_write !== false ||
+              value.authority?.funds_movement !== false) {
+            fail("authority");
+          }
+
+          console.log("identity_id=" + value.identity_id);
+          console.log("compiler_execution_rederived=true");
+          console.log("reviewed_native_compiler_image_required=true");
+          console.log("reviewed_solcjs_package_sri_required=true");
+          console.log("caller_supplied_compiler_artifacts_accepted=false");
+          console.log("contract_deployment=false");
+          console.log("chain2050_write=false");
+          console.log("funds_movement=false");
+          NODE
+
+      - name: Preserve exact generated identity
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: void-btc-void-chain2050-hashlock-v1-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/void-btc-void-chain2050-hashlock/identity.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: git diff --check
+
+  foundry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Run isolated Foundry semantic suite
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -Eeuo pipefail
+
+          FOUNDRY_HOME="$RUNNER_TEMP/void-foundry-home"
+          FOUNDRY_OUT="$RUNNER_TEMP/void-foundry-out"
+          FOUNDRY_CACHE="$RUNNER_TEMP/void-foundry-cache"
+          FOUNDRY_PROJECT="$RUNNER_TEMP/void-btc-void-hashlock-foundry"
+
+          mkdir -p             "$FOUNDRY_HOME"             "$FOUNDRY_OUT"             "$FOUNDRY_CACHE"             "$FOUNDRY_PROJECT/contracts/mainnet"             "$FOUNDRY_PROJECT/test/mainnet"
+
+          install -m 0444             contracts/mainnet/BtcVoidHashlockSettlementV1.sol             "$FOUNDRY_PROJECT/contracts/mainnet/BtcVoidHashlockSettlementV1.sol"
+          install -m 0444             test/mainnet/BtcVoidHashlockSettlementV1.t.sol             "$FOUNDRY_PROJECT/test/mainnet/BtcVoidHashlockSettlementV1.t.sol"
+
+          cmp             contracts/mainnet/BtcVoidHashlockSettlementV1.sol             "$FOUNDRY_PROJECT/contracts/mainnet/BtcVoidHashlockSettlementV1.sol"
+          cmp             test/mainnet/BtcVoidHashlockSettlementV1.t.sol             "$FOUNDRY_PROJECT/test/mainnet/BtcVoidHashlockSettlementV1.t.sol"
+
+          docker pull "$FOUNDRY_IMAGE"
+          docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -v "$FOUNDRY_HOME:/foundry-home"             -v "$FOUNDRY_OUT:/foundry-out"             -v "$FOUNDRY_CACHE:/foundry-cache"             -v "$FOUNDRY_PROJECT:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             test             --root /proof             --contracts contracts             --match-path test/mainnet/BtcVoidHashlockSettlementV1.t.sol             --use 0.8.24             --evm-version paris             --out /foundry-out             --cache-path /foundry-cache             -vvv
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

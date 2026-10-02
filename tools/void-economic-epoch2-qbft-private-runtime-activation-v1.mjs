@@ -78,7 +78,12 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
     receipt.materialization_id!==row.materialization_id||
     receipt.role!==role||
     receipt.hostname!==plan.hosts.find((x)=>x.role===role).hostname||
-    !SHA40.test(String(receipt.installed_repo_head||""))||
+    ![
+      "fresh_install",
+      "existing_runtime_read_only_reattestation",
+    ].includes(String(receipt.receipt_basis||""))||
+    !Number.isFinite(Date.parse(String(receipt.observed_at_utc||"")))||
+    !SHA40.test(String(receipt.observed_repo_head||""))||
     receipt.runtime_root!==
       "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/"+role||
     receipt.unit_install_path!==
@@ -104,12 +109,18 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
     }
   }
 
+  const unitFileState=String(receipt.post_install_state?.unit_file_state||"");
+  if(unitFileState!=="static") {
+    throw new Error("install_unit_file_state_not_static:"+role);
+  }
   const expectedPost={
     runtime_root_present:true,
     data_directory_empty:true,
     user_unit_file_present:true,
     user_unit_file_mode:"0600",
-    unit_enabled:false,
+    unit_file_state:unitFileState,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     unit_active:false,
     daemon_reload_performed:false,
     service_start_performed:false,
@@ -130,9 +141,11 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
     }
   }
 
+  const installationPerformed=
+    receipt.receipt_basis==="fresh_install";
   const expectedAuthority={
-    runtime_root_write:true,
-    service_unit_installation:true,
+    runtime_root_write:installationPerformed,
+    service_unit_installation:installationPerformed,
     systemd_reload:false,
     service_enable:false,
     service_start:false,
@@ -234,7 +247,9 @@ function validateStartAdmissionV1(
     nodekey_bytes_emitted:false,
     nodekey_bytes_persisted:false,
     all_services_inactive:true,
-    all_services_disabled:true,
+    all_unit_file_states_observed:true,
+    all_operator_user_unit_dir_direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     all_candidate_ports_vacant:true,
     service_start:false,
     authoritative_chain2050_write:false,
@@ -282,6 +297,10 @@ function validateStartAdmissionV1(
       row.enode!==host.enode||
       row.validator_address!==host.validator_address||
       row.besu_public_key!==host.besu_public_key||
+      row.unit_file_state!==install.post_install_state.unit_file_state||
+      row.operator_user_unit_dir_direct_enablement_links_absent!==true||
+      row.indirect_activation_absence_proven!==false||
+      row.unit_file_state!=="static"||
       !Number.isFinite(observedMs)||
       !Number.isFinite(validMs)||
       observedMs>evaluatedMs||
@@ -345,12 +364,17 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       hostname:receipt.hostname,
       install_receipt_id:receipt.install_receipt_id,
       materialization_id:receipt.materialization_id,
-      installed_repo_head:receipt.installed_repo_head,
+      receipt_basis:receipt.receipt_basis,
+      install_receipt_observed_at_utc:receipt.observed_at_utc,
+      install_receipt_observed_repo_head:receipt.observed_repo_head,
       runtime_root:receipt.runtime_root,
       unit_install_path:receipt.unit_install_path,
       systemd_unit_sha256:receipt.installed_hashes.systemd_unit_sha256,
       genesis_sha256:receipt.installed_hashes.genesis_sha256,
       static_nodes_sha256:receipt.installed_hashes.static_nodes_sha256,
+      unit_file_state:receipt.post_install_state.unit_file_state,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
     }));
   }
 
@@ -431,7 +455,9 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       exact_tailnet_ipv4_binding:true,
       exact_nodekey_public_identity_required:true,
       nodekey_private_bytes_must_not_be_logged:true,
-      service_disabled_required:true,
+      unit_file_state_observation_required:true,
+      operator_user_unit_dir_direct_enablement_links_absent_required:true,
+      indirect_activation_absence_proven:false,
       service_inactive_required:true,
       unit_restart_no_required:true,
       p2p_port_vacant_required:true,
@@ -521,6 +547,13 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
       JSON.stringify(EXPECTED_VALIDATORS_V1)||
     activationPlan.rpc?.role!=="precision"||
     activationPlan.rpc?.url!=="http://127.0.0.1:18553/"||
+    JSON.stringify(activationPlan.rpc?.allowed_observation_methods)!==
+      JSON.stringify([
+        "eth_chainId",
+        "eth_blockNumber",
+        "net_peerCount",
+        "qbft_getValidatorsByBlockNumber",
+      ])||
     activationPlan.rpc?.transaction_methods_forbidden!==true||
     !START_ADMISSION_ID.test(String(activationPlan.start_admission_id||""))||
     !SHA40.test(String(activationPlan.start_admission_observed_repo_head||""))||
@@ -556,6 +589,71 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
       JSON.stringify(START_ORDER)
   ) {
     throw new Error("activation_plan_role_order_invalid");
+  }
+
+  const installRowKeys=[
+    "role","hostname","install_receipt_id","materialization_id",
+    "receipt_basis","install_receipt_observed_at_utc",
+    "install_receipt_observed_repo_head","runtime_root","unit_install_path",
+    "systemd_unit_sha256","genesis_sha256","static_nodes_sha256",
+    "unit_file_state","operator_user_unit_dir_direct_enablement_links_absent",
+    "indirect_activation_absence_proven",
+  ];
+  for(const role of ROLE_ORDER) {
+    const row=activationPlan.install_receipts.find((value)=>value.role===role);
+    exactKeys(row,installRowKeys,"activation_plan_install_row_"+role);
+    if(
+      !INSTALL_ID.test(String(row.install_receipt_id||""))||
+      !/^voide2qmat1_[0-9a-f]{64}$/u.test(String(row.materialization_id||""))||
+      ![
+        "fresh_install",
+        "existing_runtime_read_only_reattestation",
+      ].includes(String(row.receipt_basis||""))||
+      !Number.isFinite(
+        Date.parse(String(row.install_receipt_observed_at_utc||"")),
+      )||
+      !SHA40.test(String(row.install_receipt_observed_repo_head||""))||
+      !SHA256.test(String(row.systemd_unit_sha256||""))||
+      !SHA256.test(String(row.genesis_sha256||""))||
+      !SHA256.test(String(row.static_nodes_sha256||""))||
+      row.runtime_root!==
+        "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/"+role||
+      row.unit_install_path!==
+        "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service"||
+      row.unit_file_state!=="static"||
+      row.operator_user_unit_dir_direct_enablement_links_absent!==true||
+      row.indirect_activation_absence_proven!==false
+    ) {
+      throw new Error("activation_plan_install_row_invalid:"+role);
+    }
+  }
+
+  const expectedPreStart={
+    exact_installed_hashes:true,
+    exact_empty_data_directory:true,
+    exact_plugin_sha256:true,
+    exact_rootless_docker_identity:true,
+    exact_tailnet_ipv4_binding:true,
+    exact_nodekey_public_identity_required:true,
+    nodekey_private_bytes_must_not_be_logged:true,
+    unit_file_state_observation_required:true,
+    operator_user_unit_dir_direct_enablement_links_absent_required:true,
+    indirect_activation_absence_proven:false,
+    service_inactive_required:true,
+    unit_restart_no_required:true,
+    p2p_port_vacant_required:true,
+    precision_rpc_port_vacant_required:true,
+    repo_main_clean_and_descendant_required:true,
+  };
+  exactKeys(
+    activationPlan.pre_start_revalidation,
+    Object.keys(expectedPreStart),
+    "activation_plan_prestart_revalidation",
+  );
+  for(const [key,value] of Object.entries(expectedPreStart)) {
+    if(activationPlan.pre_start_revalidation[key]!==value) {
+      throw new Error("activation_plan_prestart_revalidation_mismatch:"+key);
+    }
   }
 
   const expectedAuthority={

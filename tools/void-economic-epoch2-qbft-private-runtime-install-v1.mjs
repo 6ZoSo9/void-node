@@ -13,6 +13,8 @@ export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1 =
   "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1";
 export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_CONFIRMATION_V1 =
   "installPrivateEpoch2QbftBundleV1";
+export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1 =
+  "reattestExistingPrivateEpoch2QbftBundleV1";
 
 const SHA256=/^[0-9a-f]{64}$/u;
 const SHA40=/^[0-9a-f]{40}$/u;
@@ -223,16 +225,32 @@ export function validateVoidEconomicEpoch2QbftHostInstallBindingV1(input) {
 
 export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
   const binding=validateVoidEconomicEpoch2QbftHostInstallBindingV1(input);
-  const installedAt=String(input?.installed_at_utc||"");
+  const receiptBasis=String(input?.receipt_basis||"");
   if(
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(installedAt)||
-    !Number.isFinite(Date.parse(installedAt))
+    ![
+      "fresh_install",
+      "existing_runtime_read_only_reattestation",
+    ].includes(receiptBasis)
   ) {
-    throw new Error("installed_at_utc_invalid");
+    throw new Error("install_receipt_basis_invalid");
   }
-  const installedRepoHead=String(input?.installed_repo_head||"");
-  if(!SHA40.test(installedRepoHead)) {
-    throw new Error("installed_repo_head_invalid");
+  const observedAt=String(input?.observed_at_utc||"");
+  if(
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(observedAt)||
+    !Number.isFinite(Date.parse(observedAt))
+  ) {
+    throw new Error("install_observed_at_utc_invalid");
+  }
+  const observedRepoHead=String(input?.observed_repo_head||"");
+  if(!SHA40.test(observedRepoHead)) {
+    throw new Error("install_observed_repo_head_invalid");
+  }
+  const unitFileState=String(input?.unit_file_state||"");
+  if(unitFileState!=="static") {
+    throw new Error("install_unit_file_state_not_static");
+  }
+  if(input?.operator_user_unit_dir_direct_enablement_links_absent!==true) {
+    throw new Error("install_direct_enablement_links_not_proven_absent");
   }
 
   const material={
@@ -244,8 +262,9 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
     materialization_id:binding.manifest.materialization_id,
     role:binding.role,
     hostname:binding.manifest.hostname,
-    installed_at_utc:installedAt,
-    installed_repo_head:installedRepoHead,
+    receipt_basis:receiptBasis,
+    observed_at_utc:observedAt,
+    observed_repo_head:observedRepoHead,
     runtime_root:binding.manifest.runtime_root,
     unit_install_path:binding.manifest.unit_install_path,
     installed_hashes:{
@@ -259,7 +278,9 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
       data_directory_empty:true,
       user_unit_file_present:true,
       user_unit_file_mode:"0600",
-      unit_enabled:false,
+      unit_file_state:unitFileState,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
       unit_active:false,
       daemon_reload_performed:false,
       service_start_performed:false,
@@ -270,8 +291,8 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
       funds_movement:false,
     },
     authority:{
-      runtime_root_write:true,
-      service_unit_installation:true,
+      runtime_root_write:receiptBasis==="fresh_install",
+      service_unit_installation:receiptBasis==="fresh_install",
       systemd_reload:false,
       service_enable:false,
       service_start:false,
