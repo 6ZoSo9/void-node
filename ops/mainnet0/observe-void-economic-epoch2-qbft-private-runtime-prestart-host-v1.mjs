@@ -248,7 +248,7 @@ if(sha256File(pluginPath)!==validated.binding.plan.runtime.plugin_sha256) {
 }
 
 const dockerBin=path.resolve(materialization.docker_bin);
-regularFile(dockerBin,"docker_bin",32*1024*1024);
+regularFile(dockerBin,"docker_bin",128*1024*1024);
 const dockerSecurity=JSON.parse(execFileSync(
   dockerBin,
   ["info","--format={{json .SecurityOptions}}"],
