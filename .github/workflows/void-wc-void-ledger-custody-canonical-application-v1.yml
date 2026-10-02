@@ -9,8 +9,28 @@ on:
       - "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs"
       - "tools/void-wc-void-ledger-custody-coupled-candidate-promotion-v1.mjs"
       - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-v1.mjs"
       - "tools/void-wc-void-production-readiness-v1.mjs"
       - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
@@ -23,8 +43,28 @@ on:
       - "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs"
       - "tools/void-wc-void-ledger-custody-coupled-candidate-promotion-v1.mjs"
       - "tools/void-wc-void-ledger-persistence-import-v1.mjs"
+      - "tools/void-wc-void-ledger-persistence-v1.mjs"
       - "tools/void-wc-void-production-readiness-v1.mjs"
       - "tools/void-coupled-economic-successor-gate-v1.mjs"
+      - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
+      - "scripts/prove_void_reviewed_node_package_runtime_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
@@ -35,7 +75,7 @@ permissions:
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -43,13 +83,14 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - name: Install locked dependencies
+      - name: Install exact locked dependencies without package scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Syntax
         run: |
@@ -57,8 +98,9 @@ jobs:
           node --check scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs
       - name: Prove ledger custody canonical application
         run: node scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs
-      - name: Upstream ledger/custody and classifier regressions
+      - name: Upstream ledger/custody, classifier, and reviewed-runtime regressions
         run: |
+          node scripts/prove_void_reviewed_node_package_runtime_v1.mjs
           node scripts/prove_void_wc_void_ledger_custody_coupled_candidate_promotion_v1.mjs
           node scripts/prove_void_wc_void_production_readiness_v1.mjs
           node scripts/prove_void_coupled_economic_successor_gate_v1.mjs
