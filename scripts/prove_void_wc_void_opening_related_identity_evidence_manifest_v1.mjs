@@ -413,6 +413,63 @@ assert.equal(
 }
 
 {
+  const alphaCluster = wcVoidOpeningRelatedIdentityClusterIdV1([
+    alpha.participant_id,
+  ]);
+  const betaCluster = wcVoidOpeningRelatedIdentityClusterIdV1([
+    beta.participant_id,
+  ]);
+  const crossEvidence = evidence({
+    clusterId: alphaCluster,
+    participants: [alpha.participant_id, beta.participant_id],
+    kind: "participant_opt_in_linkage_v1",
+    basis: "common_control",
+    text: "cross-cluster evidence fixture",
+  });
+  const betaBoundary = evidence({
+    clusterId: betaCluster,
+    participants: [beta.participant_id],
+    kind: "reviewed_cluster_boundary_evidence_v1",
+    basis: "distinct_cluster_boundary",
+    text: "beta boundary fixture",
+  });
+  rejects(
+    () => compileWcVoidOpeningRelatedIdentityEvidenceManifestV1(
+      request(
+        [
+          assignment(alpha, alphaCluster, crossEvidence.evidence_id),
+          assignment(beta, betaCluster, betaBoundary.evidence_id),
+        ],
+        [crossEvidence, betaBoundary],
+      ),
+    ),
+    "RELATED_IDENTITY_EVIDENCE_CLUSTER_ASSIGNMENT_MISMATCH",
+  );
+}
+
+{
+  const extra = evidence({
+    clusterId: commonCluster,
+    participants: [alpha.participant_id, beta.participant_id],
+    kind: "void_credential_control_linkage_v1",
+    basis: "common_control",
+    text: "unreferenced extra evidence fixture",
+  });
+  rejects(
+    () => compileWcVoidOpeningRelatedIdentityEvidenceManifestV1(
+      request(
+        [
+          assignment(alpha, commonCluster, commonEvidence.evidence_id),
+          assignment(beta, commonCluster, commonEvidence.evidence_id),
+        ],
+        [commonEvidence, extra],
+      ),
+    ),
+    "UNREFERENCED_RELATED_IDENTITY_EVIDENCE",
+  );
+}
+
+{
   let getterCalled = false;
   const badAssignment = assignment(
     alpha,
