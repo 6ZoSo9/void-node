@@ -709,7 +709,7 @@ await withFixture({}, async (f) => {
 
 await withFixture({}, async (f) => {
   const q = qualificationFixture();
-  q.source_binding.source_head_sha = "0".repeat(40);
+  q.source_binding.source_tree_sha = "0".repeat(40);
   q.qualification_id = qualificationId(q);
   const result =
     await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
@@ -717,7 +717,7 @@ await withFixture({}, async (f) => {
     );
   assert.equal(result.ok, false);
   assert.equal(f.calls.length, 0);
-  assert.equal(result.reason, "live_deployment_preflight_source_generation_mismatch");
+  assert.equal(result.reason, "live_deployment_preflight_source_tree_mismatch");
 });
 
 await withFixture({}, async (f) => {
@@ -794,7 +794,11 @@ await withFixture({}, async (f) => {
 for (const [key, expected] of Object.entries({
   qualification_receipt_required: true,
   exact_qualification_bytes_required: true,
-  qualification_current_head_required: true,
+  qualification_current_head_required: false,
+  qualification_source_head_ancestor_current_main_required: true,
+  qualification_source_tree_revalidation_required: true,
+  qualification_historical_reviewed_bytes_required: true,
+  qualification_current_reviewed_bytes_required: true,
   canonical_source_revalidation_required: true,
   reviewed_qualification_contract_exact_head_execution: true,
   private_reviewed_qualification_contract_materialization: true,
@@ -930,7 +934,10 @@ for (const required of [
   "TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN",
   "reviewedQualificationContract",
   "live_deployment_preflight_qualification_contract_blob_mismatch",
-  "qualification_current_head_required",
+  "qualification_source_head_ancestor_current_main_required",
+  "live_deployment_preflight_source_head_not_ancestor_current_main",
+  "live_deployment_preflight_source_tree_mismatch",
+  "historicalFileIdentity",
   "gas_limit_policy_selected: false",
   "fee_policy_selected: false",
 ]) {
@@ -940,7 +947,11 @@ for (const required of [
 console.log(
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1_PROOF_GREEN",
 );
-console.log("qualification_current_head_required=true");
+console.log("qualification_current_head_required=false");
+console.log("qualification_source_head_ancestor_current_main_required=true");
+console.log("qualification_source_tree_revalidation_required=true");
+console.log("qualification_historical_reviewed_bytes_required=true");
+console.log("qualification_current_reviewed_bytes_required=true");
 console.log("canonical_main_branch_required=true");
 console.log("canonical_remote_main_read_required=true");
 console.log("canonical_remote_main_head_match_required=true");
