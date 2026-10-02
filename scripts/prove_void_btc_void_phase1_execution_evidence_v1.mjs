@@ -6,6 +6,7 @@ import fs from "node:fs";
 
 import {
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1,
+  VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_PREVIEW_V1,
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1,
   admitBtcVoidPhase1ExecutionEvidenceV1,
 } from "../tools/void-btc-void-phase1-execution-evidence-v1.mjs";
@@ -348,37 +349,65 @@ function expectReject(mutator, pattern) {
   assert.throws(() => admitBtcVoidPhase1ExecutionEvidenceV1(input), pattern);
 }
 
-const admitted = admitBtcVoidPhase1ExecutionEvidenceV1(suite());
+const preview = admitBtcVoidPhase1ExecutionEvidenceV1(suite());
 
 assert.equal(
-  admitted.marker,
+  preview.marker,
+  VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_PREVIEW_V1,
+);
+assert.notEqual(
+  preview.marker,
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1,
 );
 assert.equal(
-  admitted.status,
-  "PHASE1_EXECUTION_EVIDENCE_ADMITTED_NONPRODUCTION",
+  preview.status,
+  "PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_NOT_EXECUTION_VERIFIED",
 );
-assert.match(admitted.evidence_suite_id, /^voidbtcp1ev1_[0-9a-f]{64}$/u);
-assert.equal(admitted.cases.length, 12);
+assert.match(
+  preview.evidence_suite_id,
+  /^voidbtcp1preview1_[0-9a-f]{64}$/u,
+);
+assert.equal(preview.cases.length, 12);
 assert.deepEqual(
-  admitted.cases.map((entry) => entry.kind).sort(),
+  preview.cases.map((entry) => entry.kind).sort(),
   [...CASES].sort(),
 );
 assert.equal(
-  admitted.coverage.bitcoin_regtest_execution_evidence_admitted,
-  true,
+  preview.coverage.bitcoin_regtest_execution_evidence_admitted,
+  false,
 );
 assert.equal(
-  admitted.coverage.isolated_chain2050_execution_evidence_admitted,
-  true,
+  preview.coverage.isolated_chain2050_execution_evidence_admitted,
+  false,
+);
+assert.equal(preview.coverage.raw_rpc_transcripts_replayed, false);
+assert.equal(preview.coverage.chain2050_receipts_replayed, false);
+assert.equal(
+  preview.coverage.restart_reorg_evidence_bytes_verified,
+  false,
 );
 assert.equal(
-  admitted.coverage.atomic_source_model_not_treated_as_execution_evidence,
+  preview.coverage.cross_rail_preimage_execution_rederived,
+  false,
+);
+assert.equal(
+  preview.coverage.fee_envelope_execution_accounting_verified,
+  false,
+);
+assert.equal(
+  preview.coverage.native_unit_execution_conservation_verified,
+  false,
+);
+assert.equal(
+  preview.coverage.atomic_source_model_not_treated_as_execution_evidence,
   true,
 );
-assert.equal(admitted.coverage.production_authority_granted, false);
+assert.equal(preview.coverage.production_authority_granted, false);
+assert.equal(preview.authority.structural_preview_only, true);
+assert.equal(preview.authority.execution_evidence_verified, false);
+assert.equal(preview.authority.authoritative_execution_admission, false);
 assert.deepEqual(
-  admitted.authority,
+  preview.authority,
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1,
 );
 
@@ -551,19 +580,32 @@ for (const required of [
   CHAIN2050_GENESIS,
   CHAIN2050_STATE_ROOT,
   "atomic_source_model_not_treated_as_execution_evidence",
+  "structural_preview_only: true",
+  "execution_evidence_verified: false",
+  "authoritative_execution_admission: false",
+  "bitcoin_regtest_execution_evidence_admitted: false",
+  "isolated_chain2050_execution_evidence_admitted: false",
+  "raw_rpc_transcripts_replayed: false",
+  "chain2050_receipts_replayed: false",
+  "fee_envelope_execution_accounting_verified: false",
+  "native_unit_execution_conservation_verified: false",
   "bitcoin_mainnet_contact: false",
   "production_chain2050_contact: false",
 ]) {
   assert.equal(source.includes(required), true, required);
 }
 
-console.log("VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1_PROOF_GREEN");
+console.log("VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_PREVIEW_V1_PROOF_GREEN");
 console.log("required_case_count=12");
-console.log("bitcoin_regtest_identity_bound=true");
-console.log("isolated_chain2050_epoch2_identity_bound=true");
+console.log("bitcoin_regtest_identity_claim_structurally_validated=true");
+console.log("isolated_chain2050_identity_claim_structurally_validated=true");
 console.log("source_only_atomic_trace_not_execution_evidence=true");
-console.log("trade_funded_fee_quote_bound=true");
-console.log("success_refund_rejection_restart_reorg_coverage=true");
+console.log("synthetic_suite_authoritative_execution_admission=false");
+console.log("raw_rpc_transcripts_replayed=false");
+console.log("chain2050_receipts_replayed=false");
+console.log("fee_envelope_execution_accounting_verified=false");
+console.log("native_unit_execution_conservation_verified=false");
+console.log("structural_case_coverage=true");
 console.log("bitcoin_mainnet_contact=false");
 console.log("production_chain2050_contact=false");
 console.log("wallet_or_signer_access=false");
