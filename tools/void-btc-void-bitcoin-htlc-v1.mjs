@@ -265,6 +265,7 @@ function materialFor(input) {
     ]),
     refund_spend_requirements: Object.freeze({
       transaction_nlocktime_at_least_refund_locktime: true,
+      transaction_locktime_type_must_match_refund_locktime_type: true,
       spending_input_sequence_must_not_equal_uint32_max: true,
       refund_pubkey_hash160_signature_required: true,
     }),
