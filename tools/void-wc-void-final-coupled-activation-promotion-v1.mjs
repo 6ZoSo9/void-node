@@ -376,12 +376,121 @@ function normalizeRepositoryBinding(value) {
   });
 }
 
+function normalizeReviewedSemantic(value, authorityBearing) {
+  const semantic = exactObject(
+    value,
+    [
+      "reviewed_execution_verified",
+      "successor_before",
+      "production_before",
+      "coupled_before",
+      "production_target",
+      "coupled_target",
+      "production_after",
+      "coupled_after",
+      "composition",
+    ],
+    "FINAL_COUPLED_REVIEWED_SEMANTIC_SHAPE_INVALID",
+  );
+  if (
+    semantic.reviewed_execution_verified !== authorityBearing ||
+    !plain(semantic.successor_before) ||
+    !plain(semantic.production_before) ||
+    !plain(semantic.coupled_before) ||
+    !plain(semantic.production_target) ||
+    !plain(semantic.coupled_target) ||
+    !plain(semantic.production_after) ||
+    !plain(semantic.coupled_after) ||
+    !plain(semantic.composition)
+  ) {
+    fail("FINAL_COUPLED_REVIEWED_SEMANTIC_INVALID");
+  }
+  return semantic;
+}
+
+function normalizeReviewedExecutionBinding(value, repository, authorityBearing) {
+  if (!authorityBearing) {
+    if (value !== null && value !== undefined) {
+      fail("FINAL_COUPLED_PREVIEW_REVIEWED_EXECUTION_FORBIDDEN");
+    }
+    return null;
+  }
+  const reviewed = exactObject(
+    value,
+    [
+      "reviewed_repository_head_sha",
+      "reviewed_repository_tree_sha",
+      "reviewed_runtime_tool_git_blob_sha1",
+      "reviewed_runtime_profile_git_blob_sha1",
+      "reviewed_runtime_profile_id",
+      "reviewed_runtime_packages_aggregate_sha256",
+      "reviewed_authority_entry_git_blobs",
+      "entire_reviewed_git_tree_bound",
+      "permission_fenced_execution",
+      "ancestor_package_resolution_allowed",
+      "execution_network_isolation_provided",
+      "reviewed_execution_bundle_id",
+    ],
+    "FINAL_COUPLED_REVIEWED_EXECUTION_SHAPE_INVALID",
+  );
+  if (
+    reviewed.reviewed_repository_head_sha !== repository.head ||
+    reviewed.reviewed_repository_tree_sha !== repository.tree ||
+    !HEX40.test(String(reviewed.reviewed_runtime_tool_git_blob_sha1 || "")) ||
+    !HEX40.test(String(reviewed.reviewed_runtime_profile_git_blob_sha1 || "")) ||
+    typeof reviewed.reviewed_runtime_profile_id !== "string" ||
+    !SAFE_ID.test(reviewed.reviewed_runtime_profile_id) ||
+    !HEX64.test(String(reviewed.reviewed_runtime_packages_aggregate_sha256 || "")) ||
+    reviewed.entire_reviewed_git_tree_bound !== true ||
+    reviewed.permission_fenced_execution !== true ||
+    reviewed.ancestor_package_resolution_allowed !== false ||
+    reviewed.execution_network_isolation_provided !== false
+  ) {
+    fail("FINAL_COUPLED_REVIEWED_EXECUTION_INVALID");
+  }
+  const blobs = exactObject(
+    reviewed.reviewed_authority_entry_git_blobs,
+    REVIEWED_AUTHORITY_ENTRY_RELS,
+    "FINAL_COUPLED_REVIEWED_ENTRY_BLOBS_SHAPE_INVALID",
+  );
+  for (const relativePath of REVIEWED_AUTHORITY_ENTRY_RELS) {
+    if (!HEX40.test(String(blobs[relativePath] || ""))) {
+      fail("FINAL_COUPLED_REVIEWED_ENTRY_BLOB_INVALID:" + relativePath);
+    }
+  }
+  const material = {
+    reviewed_repository_head_sha: reviewed.reviewed_repository_head_sha,
+    reviewed_repository_tree_sha: reviewed.reviewed_repository_tree_sha,
+    reviewed_runtime_tool_git_blob_sha1:
+      reviewed.reviewed_runtime_tool_git_blob_sha1,
+    reviewed_runtime_profile_git_blob_sha1:
+      reviewed.reviewed_runtime_profile_git_blob_sha1,
+    reviewed_runtime_profile_id: reviewed.reviewed_runtime_profile_id,
+    reviewed_runtime_packages_aggregate_sha256:
+      reviewed.reviewed_runtime_packages_aggregate_sha256,
+    reviewed_authority_entry_git_blobs: blobs,
+    entire_reviewed_git_tree_bound: true,
+    permission_fenced_execution: true,
+    ancestor_package_resolution_allowed: false,
+    execution_network_isolation_provided: false,
+  };
+  if (
+    reviewed.reviewed_execution_bundle_id !==
+    "sha256:" + sha256Text(canonicalJson(material))
+  ) {
+    fail("FINAL_COUPLED_REVIEWED_EXECUTION_ID_MISMATCH");
+  }
+  return deepFreeze(clone(reviewed));
+}
+
 function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
   production_candidate,
   coupled_candidate,
   successor_migration_candidate,
   applied_lineages,
   repository_identity,
+  reviewed_semantic,
+  reviewed_execution = null,
 }, verifiedSourceCapability = null) {
   const authorityBearing =
     verifiedSourceCapability === FINAL_COUPLED_VERIFIED_SOURCE_CAPABILITY;
@@ -394,6 +503,15 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
   }
   const lineages = normalizeLineages(applied_lineages);
   const repository = normalizeRepositoryBinding(repository_identity);
+  const semantic = normalizeReviewedSemantic(
+    reviewed_semantic,
+    authorityBearing,
+  );
+  const reviewedExecution = normalizeReviewedExecutionBinding(
+    reviewed_execution,
+    repository,
+    authorityBearing,
+  );
 
   if (
     production_candidate.status !== "hold" ||
@@ -408,8 +526,7 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
     fail("FINAL_COUPLED_ECONOMIC_PRESTATE_INVALID");
   }
 
-  const successorBefore =
-    classifyVoidEconomicEvmSuccessorMigrationV1(successor_migration_candidate);
+  const successorBefore = semantic.successor_before;
   if (
     successorBefore?.ok !== true ||
     successorBefore.status !== "SOURCE_READY"
@@ -426,8 +543,7 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
     "FINAL_COUPLED_SUCCESSOR_AUTHORITY_INVALID",
   );
 
-  const productionBefore =
-    classifyVoidWcVoidProductionReadinessV1(production_candidate);
+  const productionBefore = semantic.production_before;
   if (
     productionBefore?.ok !== false ||
     productionBefore.status !== "HOLD" ||
@@ -441,11 +557,7 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
     "FINAL_COUPLED_PRODUCTION_NONFINAL_GATES_REMAIN",
   );
 
-  const coupledBefore =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      coupled_candidate,
-      successor_migration_candidate,
-    );
+  const coupledBefore = semantic.coupled_before;
   if (
     coupledBefore?.ok !== false ||
     coupledBefore.status !== "HOLD" ||
@@ -467,6 +579,13 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
   coupledTarget.status = "SOURCE_READY";
   coupledTarget.gates.coupled_activation_ready = true;
 
+  if (
+    !same(semantic.production_target, productionTarget) ||
+    !same(semantic.coupled_target, coupledTarget)
+  ) {
+    fail("FINAL_COUPLED_REVIEWED_TARGET_DERIVATION_MISMATCH");
+  }
+
   const productionReverted = clone(productionTarget);
   productionReverted.status = "hold";
   productionReverted.coupled_activation_ready = false;
@@ -481,8 +600,7 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
     fail("FINAL_COUPLED_ECONOMIC_CHANGE_SCOPE_INVALID");
   }
 
-  const productionAfter =
-    classifyVoidWcVoidProductionReadinessV1(productionTarget);
+  const productionAfter = semantic.production_after;
   if (productionAfter?.ok !== true || productionAfter.status !== "SOURCE_READY") {
     fail("FINAL_COUPLED_PRODUCTION_TARGET_NOT_SOURCE_READY");
   }
@@ -492,11 +610,7 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
     "FINAL_COUPLED_PRODUCTION_AUTHORITY_INVALID",
   );
 
-  const coupledAfter =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      coupledTarget,
-      successor_migration_candidate,
-    );
+  const coupledAfter = semantic.coupled_after;
   if (coupledAfter?.ok !== true || coupledAfter.status !== "SOURCE_READY") {
     fail("FINAL_COUPLED_ECONOMIC_TARGET_NOT_SOURCE_READY");
   }
@@ -510,12 +624,7 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
     "FINAL_COUPLED_ECONOMIC_AUTHORITY_INVALID",
   );
 
-  const composed =
-    classifyVoidWcVoidCoupledLaunchReadinessV1({
-      production_candidate: productionTarget,
-      coupled_candidate: coupledTarget,
-      successor_migration_candidate,
-    });
+  const composed = semantic.composition;
   if (composed?.ok !== true || composed.status !== "SOURCE_READY") {
     fail("FINAL_COUPLED_COMPOSITION_NOT_SOURCE_READY");
   }
@@ -552,6 +661,7 @@ function deriveVoidWcVoidFinalCoupledActivationPromotionCoreV1({
     repository_tree_sha: repository.tree,
     canonical_remote_url: repository.origin,
     remote_main_sha: repository.remote_head,
+    reviewed_execution: reviewedExecution,
     applied_lineages: lineages,
     production_source_sha256: sha256Text(canonicalJson(production_candidate)),
     coupled_source_sha256: sha256Text(canonicalJson(coupled_candidate)),
