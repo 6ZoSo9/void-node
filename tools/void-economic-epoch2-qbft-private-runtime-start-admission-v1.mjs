@@ -13,6 +13,7 @@ export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_START_ADMISSION_V1 =
 
 const ROLES=["precision","nimo","xiphos"];
 const SHA40=/^[0-9a-f]{40}$/u;
+const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -97,6 +98,10 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
     ) {
       throw new Error("start_admission_identity_or_hash_binding_mismatch:"+role);
     }
+    const unitFileState=String(receipt?.facts?.unit_file_state||"");
+    if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
+      throw new Error("start_admission_unit_file_state_invalid:"+role);
+    }
     const expectedFacts={
       repo_main_clean:true,
       final_revalidation_green:true,
@@ -110,8 +115,9 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       installed_systemd_unit_sha256_exact:true,
       installed_data_directory_empty:true,
       service_inactive:true,
-      service_disabled:true,
-      autostart_links_absent:true,
+      unit_file_state:unitFileState,
+      direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
       plugin_sha256_exact:true,
       besu_image_identity_exact:true,
       rootless_docker_verified:true,
@@ -198,6 +204,9 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       enode:receipt.enode,
       validator_address:receipt.validator_address,
       besu_public_key:receipt.besu_public_key,
+      unit_file_state:unitFileState,
+      direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
     });
   }
 
@@ -229,7 +238,9 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       nodekey_bytes_emitted:false,
       nodekey_bytes_persisted:false,
       all_services_inactive:true,
-      all_services_disabled:true,
+      all_unit_file_states_observed:true,
+      all_direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
       all_candidate_ports_vacant:true,
       service_start:false,
       authoritative_chain2050_write:false,
