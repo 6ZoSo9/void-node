@@ -22,7 +22,7 @@ Each host observer requires:
 - inactive validator service;
 - exact observed unit-file state `static`, stable across the observation
   window;
-- no direct `*.wants` or `*.requires` enablement link;
+- no direct `*.wants` or `*.requires` enablement link under the reviewed operator user-unit directory;
 - symlinked `.wants` / `.requires` directories fail closed;
 - `indirect_activation_absence_proven=false` (this gate does not claim that
   every possible dependency/activation path is absent);
@@ -72,7 +72,7 @@ A green aggregate requires:
 - all three services inactive;
 - all three unit-file states observed as exactly `static` and carried into
   start admission;
-- all direct enablement links absent;
+- `operator_user_unit_dir_direct_enablement_links_absent=true` on all three hosts;
 - no claim that indirect activation absence is proven;
 - all candidate listener ports still vacant.
 
@@ -112,7 +112,7 @@ a separate explicit operator confirmation named
 
 The activation ceremony must still fail closed if admission expires or any
 installed/runtime fact changes before the actual start action. Immediately
-before the explicit start it rechecks that direct enablement links remain
-absent, the unit-file state is still `static`, and the service is still
+before the explicit start it rechecks that operator-user-unit-directory direct
+enablement links remain absent, the unit-file state is still `static`, and the service is still
 inactive. It performs `daemon-reload`, then rechecks all three conditions
 again before issuing `systemctl start`.
