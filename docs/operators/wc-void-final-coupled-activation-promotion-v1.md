@@ -109,6 +109,13 @@ SHA-1 identities for the production, coupled, and successor source candidates.
 The worktree bytes must equal the exact `HEAD:<path>` blobs and canonical
 two-space JSON bytes.
 
+Authority-bearing Git runs through the reviewed absolute Git executable under a
+minimal explicit environment: global/system config and ambient loader/tool
+variables are not inherited; replacement objects are disabled; local fsmonitor,
+hooks, ambient attributes, preload index, untracked cache and submodule recursion
+are forced off. The fixed canonical GitHub `ls-remote` runs outside repository
+discovery with TLS verification forced on.
+
 ## Exact final source delta
 
 Production candidate:
@@ -137,7 +144,13 @@ canonical files:
 - target Git blob SHA-1.
 
 The CLI writes one create-only private promotion artifact outside the repository
-with mode `0600`. An existing destination is never overwritten.
+with mode `0600`. An existing destination is never overwritten. Output creation
+is bound to a retained parent-directory descriptor and uses
+`/proc/self/fd/<dirfd>/<basename>` with `O_CREAT|O_EXCL|O_NOFOLLOW`; the exact
+file descriptor is fsynced and read back, the exact retained directory is
+fsynced, and parent/output inode identity is rechecked before success. Parent
+replacement therefore fails closed and the redirected file is removed from the
+original retained directory.
 
 ## Required poststate
 
@@ -182,6 +195,13 @@ an absolute direct private regular file outside the repository, with exact
 independently supplied SHA-256 bytes. The manifest and every plan are individually
 bounded to 16 MiB.
 
+Private input custody is descriptor-bound. The parent directory is opened as a
+direct `O_DIRECTORY|O_NOFOLLOW` descriptor, the file is opened through that
+retained directory via `/proc/self/fd/<dirfd>/<basename>`, bytes are read with
+an exact bounded loop, and before/after file identity plus parent/path identity
+must remain unchanged. A pathname swap cannot redirect the bytes after custody
+validation.
+
 The participant application verifier is intentionally loaded dynamically. On a
 generation where that canonical application module has not yet merged, the
 final promotion HOLDs with a missing-verifier error rather than weakening the
@@ -210,9 +230,10 @@ and completed the six application-verifier checks. The create-only writer also
 requires the exact in-process verified promotion object. A caller cannot turn a
 preview into reviewed output by merely changing marker/status fields.
 
-This closes the exported-library bypass without claiming to close the separate
-reviewed-execution/runtime provenance or lane-specific verifier-input blockers
-that still keep this PR Draft.
+This closes the exported-library bypass. The Git and private input/output custody
+boundaries are also hardened as described above. The separate immutable
+reviewed-execution/runtime provenance for authority-bearing classifiers and the
+six verify-applied modules still keeps this PR Draft.
 
 ## CLI
 
@@ -254,3 +275,9 @@ funds.
 ```bash
 node scripts/prove_void_wc_void_final_coupled_activation_promotion_v1.mjs
 ```
+
+The focused proof additionally installs hostile repository-local/global
+`core.fsmonitor` sentinels plus dynamic-loader debug variables and requires
+none to execute during Git authority reads. It also replaces a private input
+parent and a private output parent during the custody windows and requires both
+operations to fail closed without accepting redirected bytes/output.
