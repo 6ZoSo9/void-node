@@ -19,7 +19,8 @@ Each host observer requires:
 - exact current tailnet IPv4 and enode from the private plan;
 - exact installed genesis, static-peer file, and systemd unit hashes;
 - empty Besu data directory;
-- inactive and disabled validator service;
+- inactive and non-enabled validator service; `static` is accepted because
+  the generated unit intentionally has no `[Install]` section;
 - no `*.wants` or `*.requires` autostart link;
 - exact plugin hash;
 - pinned Besu image still present;

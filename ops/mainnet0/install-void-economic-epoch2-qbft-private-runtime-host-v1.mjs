@@ -93,7 +93,7 @@ function requireInactiveDisabled(service) {
   }
   const enabled=systemctl(["is-enabled",service]);
   const enabledText=String(enabled.stdout||enabled.stderr||"").trim();
-  if(!["disabled","not-found"].includes(enabledText)) {
+  if(!["disabled","not-found","static"].includes(enabledText)) {
     fail("service_enable_state_not_clean:"+enabledText);
   }
   return {active_state:activeText,enabled_state:enabledText};

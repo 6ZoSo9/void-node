@@ -574,6 +574,7 @@ for(const required of [
   "rootless_docker_required",
   "service_not_clean_inactive",
   "service_not_clean_disabled",
+  "disabled|not-found|static",
   "p2p_port_not_vacant",
   "precision_rpc_port_not_vacant",
   'rpcCall("eth_chainId",[])',

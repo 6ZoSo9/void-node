@@ -325,7 +325,7 @@ function hostPreflightScript(plan,activationPlan,role) {
     'active="$(systemctl --user is-active "$service" 2>&1 || true)"',
     'case "$active" in inactive|unknown) ;; *) hold service_not_clean_inactive ;; esac',
     'enabled="$(systemctl --user is-enabled "$service" 2>&1 || true)"',
-    'case "$enabled" in disabled|not-found) ;; *) hold service_not_clean_disabled ;; esac',
+    'case "$enabled" in disabled|not-found|static) ;; *) hold service_not_clean_disabled ;; esac',
     'for d in "$HOME/.config/systemd/user"/*.wants "$HOME/.config/systemd/user"/*.requires; do',
     '  test -d "$d" || continue',
     '  test ! -L "$d" || continue',
