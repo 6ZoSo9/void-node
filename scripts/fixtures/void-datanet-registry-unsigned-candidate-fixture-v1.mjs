@@ -96,13 +96,46 @@ export async function buildVoidDatanetRegistryUnsignedCandidateFixtureV1(){
     install_receipts:["precision","nimo","xiphos"].map((role,index)=>({
       role,
       hostname:["zoso-Precision-Tower-7810","Nimo","Xiphos"][index],
+      install_receipt_id:"voide2qinst1_"+String(index+1).repeat(64),
+      materialization_id:"voide2qmat1_"+String(index+4).repeat(64),
+      receipt_basis:"fresh_install",
+      install_receipt_observed_at_utc:
+        "2030-01-01T00:02:0"+String(index)+".000Z",
+      install_receipt_observed_repo_head:
+        ["c","d","e"][index].repeat(40),
+      runtime_root:
+        "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/"+role,
+      unit_install_path:
+        "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service",
+      systemd_unit_sha256:String(index+7).repeat(64),
+      genesis_sha256:["a","b","c"][index].repeat(64),
+      static_nodes_sha256:["d","e","f"][index].repeat(64),
+      unit_file_state:"static",
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
     })),
     start_sequence:[
       {step:1,role:"precision"},
       {step:2,role:"nimo"},
       {step:3,role:"xiphos"},
     ],
-    pre_start_revalidation:{exact_installed_hashes:true},
+    pre_start_revalidation:{
+      exact_installed_hashes:true,
+      exact_empty_data_directory:true,
+      exact_plugin_sha256:true,
+      exact_rootless_docker_identity:true,
+      exact_tailnet_ipv4_binding:true,
+      exact_nodekey_public_identity_required:true,
+      nodekey_private_bytes_must_not_be_logged:true,
+      unit_file_state_observation_required:true,
+      operator_user_unit_dir_direct_enablement_links_absent_required:true,
+      indirect_activation_absence_proven:false,
+      service_inactive_required:true,
+      unit_restart_no_required:true,
+      p2p_port_vacant_required:true,
+      precision_rpc_port_vacant_required:true,
+      repo_main_clean_and_descendant_required:true,
+    },
     activation:{
       authorized:false,
       required_confirmation:"startPrivateEpoch2QbftSuccessorV1",
