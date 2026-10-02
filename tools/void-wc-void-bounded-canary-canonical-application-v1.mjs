@@ -158,6 +158,7 @@ const PLAN_KEYS = Object.freeze([
   "reviewed_runtime_packages_aggregate_sha256",
   "reviewed_execution_permission_fenced",
   "reviewed_execution_ancestor_package_resolution_allowed",
+  "reviewed_execution_network_capable_modules",
   "reviewed_execution_network_isolation_provided",
   "production_candidate_path",
   "production_source_git_blob_sha1",
@@ -523,6 +524,7 @@ function reviewedModuleClosure(commit) {
   const pending = [REVIEWED_BRIDGE_REL];
   const seen = new Set();
   const blobs = Object.create(null);
+  const networkCapableModules = new Set();
   let bareEthers = false;
   while (pending.length) {
     const rel = pending.pop();
@@ -544,10 +546,12 @@ function reviewedModuleClosure(commit) {
         "node:net",
         "node:tls",
         "node:dgram",
-        "node:worker_threads",
       ].some((needle) => sourceText.includes(needle))
     ) {
-      fail("CANONICAL_APPLICATION_REVIEWED_NETWORK_SURFACE:" + rel);
+      networkCapableModules.add(rel);
+    }
+    if (sourceText.includes("node:worker_threads")) {
+      fail("CANONICAL_APPLICATION_REVIEWED_WORKER_SURFACE:" + rel);
     }
     if (/\bimport\s*\(/u.test(sourceText)) {
       fail("CANONICAL_APPLICATION_REVIEWED_DYNAMIC_IMPORT:" + rel);
@@ -593,6 +597,9 @@ function reviewedModuleClosure(commit) {
     module_git_blobs: Object.freeze({ ...blobs }),
     bare_ethers_required: true,
     child_process_module: PROMOTION_TOOL_REL,
+    network_capable_modules: Object.freeze(
+      [...networkCapableModules].sort(),
+    ),
   });
 }
 
@@ -933,6 +940,7 @@ function buildReviewedExecutionRoot(repository) {
         packages_aggregate_sha256: runtime.packages_aggregate_sha256,
         permission_fenced: true,
         ancestor_package_resolution_allowed: false,
+        network_capable_modules: closure.network_capable_modules,
         execution_network_isolation_provided: false,
       }),
     });
@@ -1048,6 +1056,8 @@ function assertReviewedExecutionBinding(plan, binding) {
       binding.packages_aggregate_sha256 ||
     plan.reviewed_execution_permission_fenced !== true ||
     plan.reviewed_execution_ancestor_package_resolution_allowed !== false ||
+    canonicalJson(plan.reviewed_execution_network_capable_modules) !==
+      canonicalJson(binding.network_capable_modules) ||
     plan.reviewed_execution_network_isolation_provided !== false
   ) {
     fail("CANONICAL_APPLICATION_REVIEWED_EXECUTION_LINEAGE_DRIFT");
@@ -1144,6 +1154,10 @@ function validatePlan(plan) {
     ) ||
     plan.reviewed_execution_permission_fenced !== true ||
     plan.reviewed_execution_ancestor_package_resolution_allowed !== false ||
+    !Array.isArray(plan.reviewed_execution_network_capable_modules) ||
+    plan.reviewed_execution_network_capable_modules.some(
+      (value) => typeof value !== "string" || !value.startsWith("tools/"),
+    ) ||
     plan.reviewed_execution_network_isolation_provided !== false ||
     plan.market_activation_authorized !== false ||
     plan.public_presale_activation_authorized !== false ||
@@ -1225,6 +1239,8 @@ function validatePlan(plan) {
   if (
     canonicalJson(plan.reviewed_execution_module_git_blobs) !==
       canonicalJson(expectedClosure.module_git_blobs) ||
+    canonicalJson(plan.reviewed_execution_network_capable_modules) !==
+      canonicalJson(expectedClosure.network_capable_modules) ||
     Object.values(plan.reviewed_execution_module_git_blobs)
       .some((value) => !HEX40.test(String(value)))
   ) {
@@ -1625,6 +1641,8 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
       reviewed.binding.packages_aggregate_sha256,
     reviewed_execution_permission_fenced: true,
     reviewed_execution_ancestor_package_resolution_allowed: false,
+    reviewed_execution_network_capable_modules:
+      reviewed.binding.network_capable_modules,
     reviewed_execution_network_isolation_provided: false,
     production_candidate_path: PRODUCTION_REL,
     production_source_git_blob_sha1: production.blob_sha1,
