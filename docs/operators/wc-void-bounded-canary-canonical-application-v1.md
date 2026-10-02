@@ -50,8 +50,14 @@ Prepare requires exact bytes + SHA-256 for:
 - the exact #2240 candidate-promotion receipt.
 
 The reviewed policy ID and semantic evaluation time are derived from the bounded-canary
-input. #2256 executes merged #2237 directly over this exact origin byte set and requires
-the resulting pretty-JSON semantic artifact to be byte-identical and semantically
+input. The application parent no longer imports #2237/#2240/classifier authority from
+the mutable worktree. It captures one clean HEAD/tree, recursively binds the complete
+reviewed relative-module closure to exact Git blobs, materializes the reviewed
+`ethers` package closure using the reviewed Node package-runtime profile, and runs
+semantic rederivation + #2240 candidate promotion + before/after classifiers only from
+a private detached exact-HEAD tree under the Node permission model.
+
+The resulting pretty-JSON semantic artifact must be byte-identical and semantically
 identical to the supplied semantic promotion. A self-consistent fabricated semantic
 receipt is therefore not sufficient.
 
@@ -75,6 +81,10 @@ The plan binds:
 - exact application-base HEAD and tree;
 - the exact #2240 promotion-tool Git blob;
 - the exact canonical-application-tool Git blob;
+- the complete reviewed authority-module Git-blob map;
+- reviewed Node package-runtime tool/profile Git blobs;
+- reviewed package-runtime profile ID + aggregate package SHA-256;
+- permission-fenced execution / ancestor-package-resolution facts;
 - source Git blob + file SHA-256 for both canonical candidates;
 - successor candidate Git blob + file SHA-256; and
 - exact target Git blob + file SHA-256 for both promoted candidates.
@@ -89,6 +99,41 @@ HEAD/tree generation, which is rechecked with clean-worktree state before an art
 is returned.
 
 A caller cannot alter a target object, recompute the plan ID, and retain validity.
+
+## Reviewed execution boundary
+
+The authority-bearing execution closure starts from
+`tools/void-wc-void-bounded-canary-reviewed-execution-v1.mjs` and is discovered
+recursively from exact HEAD Git-object bytes. Relative `.mjs` imports are included
+automatically. Bare package imports are forbidden except reviewed `ethers`.
+
+The exact reviewed Node package-runtime tool/profile is copied from the same HEAD,
+verifies the locked installed `ethers` bytes, and materializes them privately outside
+the repository. A private detached checkout of the exact application HEAD is then
+created beneath that package root. The private parent directory identity plus bootstrap,
+runtime-tool, profile, generated-runner, and every reviewed module byte identity are
+revalidated before package verification and again immediately before child spawn.
+The reviewed bridge executes there under `node --permission` with filesystem reads
+limited to the private reviewed root plus the exact reviewed Git executable path(s)
+needed by #2240's read-only provenance checks. Binary evidence inputs cross the parent/child
+JSON boundary only through an explicit base64 Buffer transport marker and are revived
+to Buffers before semantic rederivation; ordinary JSON serialization is not accepted
+as an evidence-byte substitute.
+Child process is enabled only because the reviewed #2240 promotion performs its own
+hardened read-only Git provenance checks.
+
+The parent application tool itself is also compared byte-for-byte by Git blob identity
+against `HEAD:tools/void-wc-void-bounded-canary-canonical-application-v1.mjs`
+before authority execution and again when repository stability is rechecked.
+
+The reviewed closure also records the exact sorted set of network-capable imported
+modules in the content-addressed plan. Those modules may expose live-observer functions
+that are not invoked by this evidence-only path. Their presence is therefore explicit
+lineage, not a claim of network isolation.
+
+Private temporary filesystem writes are therefore expected and explicitly recorded;
+`repository_source_write=false` remains true. The reviewed runtime does not claim a
+socket/network sandbox: `execution_network_isolation_provided=false`.
 
 ## Exact allowed source delta
 
@@ -119,7 +164,9 @@ All authority objects remain false.
 
 ## Classifier requirement
 
-Prepare reruns both canonical classifiers before and after the target delta.
+Prepare reruns both canonical classifiers before and after the target delta inside
+the same reviewed exact-HEAD execution environment used for semantic/promotion
+rederivation.
 
 The before states must be HOLD and contain
 `bounded_canary_required`.
@@ -194,7 +241,9 @@ network-free.
 Verification requires:
 
 - the application base is an ancestor of current HEAD;
-- the application tool and #2240 tool blobs have not drifted;
+- the application parent tool bytes match its current HEAD Git blob;
+- the application tool, #2240 tool, complete reviewed module closure, and reviewed
+  package-runtime lineage have not drifted;
 - both canonical candidate blobs/file SHA-256 values exactly equal the prepared
   target identities;
 - the successor candidate remains exactly the prepared source identity;
@@ -275,9 +324,17 @@ canonical_github_origin_required=true
 canonical_remote_main_read_required=true
 reviewed_git_executable_required=true
 ambient_git_overrides_ignored=true
+reviewed_git_object_execution_required=true
+reviewed_module_closure_required=true
+reviewed_package_runtime_required=true
+permission_fenced_execution_required=true
+ancestor_package_resolution_forbidden=true
+worktree_authority_execution_forbidden=true
+private_temporary_filesystem_write=true
+execution_network_isolation_provided=false
 
 repository_source_write=false
-filesystem_write=false
+filesystem_write=true
 runtime_mutation=false
 service_mutation=false
 rpc_call=false
@@ -307,7 +364,8 @@ node scripts/prove_void_wc_void_bounded_canary_canonical_application_v1.mjs
 ```
 
 The proof installs hostile repository-local and ambient global `core.fsmonitor`
-sentinels plus dynamic-loader debug variables, then re-enters the authority Git
-path. The expected branch HOLD must remain unchanged and no sentinel/loader output
-may be produced. This hardening does not by itself claim immutable execution-byte
-binding for the statically imported semantic/promotion/classifier modules.
+sentinels plus dynamic-loader debug variables, tampers with installed `ethers`
+bytes, hides an authority-module worktree mutation with `assume-unchanged`, and
+hides a parent-tool mutation the same way. Reviewed execution must fail closed on
+package drift, ignore mutable authority worktree bytes, reject parent-tool byte drift,
+and preserve the exact two-gate plan semantics.

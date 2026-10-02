@@ -28,6 +28,16 @@ const COUPLED =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
+const REVIEWED_BRIDGE =
+  "tools/void-wc-void-bounded-canary-reviewed-execution-v1.mjs";
+const HIDDEN_AUTHORITY_SOURCE =
+  "tools/void-participant-postpurchase-finality-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE = JSON.parse(
+  fs.readFileSync(
+    "ops/security/reviewed-node-package-runtime-ethers-v1.json",
+    "utf8",
+  ),
+);
 
 function canonicalJson(value) {
   if (value === null) return "null";
@@ -208,6 +218,38 @@ assert.equal(plan.market_activation_authorized, false);
 assert.equal(plan.public_presale_activation_authorized, false);
 assert.equal(plan.funds_movement_authorized, false);
 
+assert.equal(plan.reviewed_execution_permission_fenced, true);
+assert.equal(
+  plan.reviewed_execution_ancestor_package_resolution_allowed,
+  false,
+);
+assert.equal(
+  plan.reviewed_execution_network_isolation_provided,
+  false,
+);
+assert.equal(
+  plan.reviewed_execution_network_capable_modules.includes(
+    "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs",
+  ),
+  true,
+);
+assert.equal(
+  plan.reviewed_runtime_profile_id,
+  REVIEWED_RUNTIME_PROFILE.profile_id,
+);
+assert.equal(
+  plan.reviewed_runtime_packages_aggregate_sha256,
+  REVIEWED_RUNTIME_PROFILE.packages_aggregate_sha256,
+);
+assert.equal(
+  plan.reviewed_execution_module_git_blobs[REVIEWED_BRIDGE],
+  git("rev-parse", "HEAD:" + REVIEWED_BRIDGE),
+);
+assert.equal(
+  plan.reviewed_execution_module_git_blobs[HIDDEN_AUTHORITY_SOURCE],
+  git("rev-parse", "HEAD:" + HIDDEN_AUTHORITY_SOURCE),
+);
+
 const pure =
   verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
     plan,
@@ -225,6 +267,98 @@ assert.equal(
   pure.coupled.missing_gates.includes("bounded_canary_required"),
   false,
 );
+
+{
+  const packagePath = "node_modules/ethers/package.json";
+  const original = fs.readFileSync(packagePath);
+  try {
+    const text = original.toString("utf8");
+    fs.writeFileSync(
+      packagePath,
+      Buffer.from(
+        text.endsWith("\n")
+          ? text.slice(0, -1) + " \n"
+          : text + " ",
+        "utf8",
+      ),
+    );
+    assert.throws(
+      () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+        semanticPromotionBytes: semanticBytes,
+        semanticPromotionFileSha256: sha256(semanticBytes),
+        semanticPromotionRequest: semanticRequest,
+        candidatePromotionReceiptBytes: promotionBytes,
+        candidatePromotionReceiptFileSha256: sha256(promotionBytes),
+      }),
+      /CANONICAL_APPLICATION_REVIEWED_RUNTIME_/u,
+    );
+  } finally {
+    fs.writeFileSync(packagePath, original);
+  }
+}
+
+{
+  const original = fs.readFileSync(HIDDEN_AUTHORITY_SOURCE);
+  const sentinel = path.join(
+    os.tmpdir(),
+    "void-bounded-canary-hidden-authority-" + String(process.pid),
+  );
+  try {
+    fs.rmSync(sentinel, { force: true });
+    git("update-index", "--assume-unchanged", HIDDEN_AUTHORITY_SOURCE);
+    const malicious = Buffer.concat([
+      Buffer.from(
+        'import { writeFileSync as __voidSentinelWrite } from "node:fs";\n' +
+          "__voidSentinelWrite(" +
+          JSON.stringify(sentinel) +
+          ', "executed\\n");\n',
+        "utf8",
+      ),
+      original,
+    ]);
+    fs.writeFileSync(HIDDEN_AUTHORITY_SOURCE, malicious);
+    const hidden = prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+      semanticPromotionBytes: semanticBytes,
+      semanticPromotionFileSha256: sha256(semanticBytes),
+      semanticPromotionRequest: semanticRequest,
+      candidatePromotionReceiptBytes: promotionBytes,
+      candidatePromotionReceiptFileSha256: sha256(promotionBytes),
+    });
+    assert.equal(hidden.application_plan_id, plan.application_plan_id);
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "hidden unreviewed authority module executed",
+    );
+  } finally {
+    fs.writeFileSync(HIDDEN_AUTHORITY_SOURCE, original);
+    git("update-index", "--no-assume-unchanged", HIDDEN_AUTHORITY_SOURCE);
+    fs.rmSync(sentinel, { force: true });
+  }
+}
+
+{
+  const toolPath =
+    "tools/void-wc-void-bounded-canary-canonical-application-v1.mjs";
+  const original = fs.readFileSync(toolPath);
+  try {
+    git("update-index", "--assume-unchanged", toolPath);
+    fs.appendFileSync(toolPath, "\n// hidden parent-tool mutation\n");
+    assert.throws(
+      () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+        semanticPromotionBytes: semanticBytes,
+        semanticPromotionFileSha256: sha256(semanticBytes),
+        semanticPromotionRequest: semanticRequest,
+        candidatePromotionReceiptBytes: promotionBytes,
+        candidatePromotionReceiptFileSha256: sha256(promotionBytes),
+      }),
+      /CANONICAL_APPLICATION_TOOL_WORKTREE_DRIFT/u,
+    );
+  } finally {
+    fs.writeFileSync(toolPath, original);
+    git("update-index", "--no-assume-unchanged", toolPath);
+  }
+}
 
 const planBytes = prettyBytes(plan);
 assert.throws(
@@ -488,7 +622,15 @@ for (const [key, value] of Object.entries(
     "canonical_remote_main_read_required",
     "reviewed_git_executable_required",
     "ambient_git_overrides_ignored",
+    "reviewed_git_object_execution_required",
+    "reviewed_module_closure_required",
+    "reviewed_package_runtime_required",
+    "permission_fenced_execution_required",
+    "ancestor_package_resolution_forbidden",
+    "worktree_authority_execution_forbidden",
+    "private_temporary_filesystem_write",
     "filesystem_read",
+    "filesystem_write",
   ]);
   assert.equal(value, allowed.has(key), key);
 }
@@ -498,10 +640,6 @@ const source = fs.readFileSync(
   "utf8",
 );
 for (const forbidden of [
-  "writeFileSync",
-  "appendFileSync",
-  "renameSync",
-  "unlinkSync",
   "systemctl",
   "eth_sendRawTransaction",
   "eth_sendTransaction",
@@ -514,10 +652,35 @@ assert.equal(
   false,
   "authority Git environment must not inherit process.env",
 );
+for (const mutableImport of [
+  'from "./void-wc-void-bounded-canary-candidate-promotion-v1.mjs"',
+  'from "./void-wc-void-bounded-canary-semantic-promotion-v1.mjs"',
+  'from "./void-wc-void-production-readiness-v1.mjs"',
+  'from "./void-coupled-economic-successor-gate-v1.mjs"',
+]) {
+  assert.equal(
+    source.includes(mutableImport),
+    false,
+    "parent must not statically import authority module: " + mutableImport,
+  );
+}
 for (const required of [
-  "promoteWcVoidBoundedCanarySemanticV1",
+  "runReviewedAuthority",
+  "encodeReviewedTransportValue",
+  "__void_reviewed_buffer_v1",
+  "reviewedModuleClosure",
+  "materializeReviewedNodePackageRuntimeV1",
+  "verifyMaterializedReviewedNodePackageRuntimeV1",
+  "--permission",
+  "reviewedGitExecutable",
+  "--allow-fs-read=",
+  "--allow-child-process",
+  "CANONICAL_APPLICATION_TOOL_WORKTREE_DRIFT",
+  "CANONICAL_APPLICATION_REVIEWED_EXECUTION_LINEAGE_DRIFT",
+  "assertPrivateExecutionStaticBinding",
+  "CANONICAL_APPLICATION_REVIEWED_PARENT_IDENTITY_DRIFT",
+  "CANONICAL_APPLICATION_REVIEWED_RUNNER",
   "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH",
-  "promoteWcVoidBoundedCanaryCandidatesV1",
   "--no-replace-objects",
   "canonicalRemoteGitText",
   "GIT_CONFIG_GLOBAL",
@@ -548,6 +711,15 @@ console.log(
 console.log("semantic_promotion_reexecuted_from_exact_origin_inputs=true");
 console.log("fabricated_semantic_origin_held=true");
 console.log("candidate_promotion_reexecuted=true");
+console.log("reviewed_git_object_execution_verified=true");
+console.log("reviewed_child_buffer_transport_exact=true");
+console.log("reviewed_ethers_runtime_verified=true");
+console.log("permission_fenced_execution=true");
+console.log("reviewed_git_executable_child_read_allowed=true");
+console.log("private_execution_bytes_reverified_before_spawn=true");
+console.log("ancestor_package_resolution_allowed=false");
+console.log("hidden_worktree_authority_execution=false");
+console.log("parent_tool_worktree_binding_verified=true");
 console.log("canonical_source_prestates_bound=true");
 console.log("canonical_remote_config_isolated=true");
 console.log("minimal_git_subprocess_environment=true");
