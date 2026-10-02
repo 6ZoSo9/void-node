@@ -891,6 +891,598 @@ function currentRepositoryIdentity() {
   return Object.freeze({ head, tree, branch, origin, remote_head: remoteHead });
 }
 
+
+function commitBytes(commit, relativePath, label) {
+  if (!HEX40.test(String(commit || ""))) fail(label + "_COMMIT_INVALID");
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-C", REPO_ROOT,
+      "show", commit + ":" + relativePath,
+    ],
+    {
+      encoding: null,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitEnv(),
+      timeout: 60_000,
+      maxBuffer: 32 * 1024 * 1024,
+    },
+  );
+  if (result.error || result.status !== 0) fail(label + "_UNAVAILABLE");
+  const bytes = Buffer.from(result.stdout || Buffer.alloc(0));
+  const blob = git(
+    ["rev-parse", commit + ":" + relativePath],
+    label + "_BLOB_UNAVAILABLE",
+  );
+  if (
+    bytes.length < 1 ||
+    !HEX40.test(blob) ||
+    gitBlobSha1(bytes) !== blob
+  ) {
+    fail(label + "_GIT_OBJECT_INVALID");
+  }
+  return Object.freeze({
+    blob_sha1: blob,
+    file_sha256: sha256Bytes(bytes),
+    bytes,
+  });
+}
+
+function reviewedExecutionMetadata(repository) {
+  const entryBlobs = Object.create(null);
+  for (const relativePath of REVIEWED_AUTHORITY_ENTRY_RELS) {
+    entryBlobs[relativePath] = git(
+      ["rev-parse", repository.head + ":" + relativePath],
+      "FINAL_COUPLED_REVIEWED_ENTRY_BLOB_UNAVAILABLE:" + relativePath,
+    );
+    if (!HEX40.test(entryBlobs[relativePath])) {
+      fail("FINAL_COUPLED_REVIEWED_ENTRY_BLOB_INVALID:" + relativePath);
+    }
+  }
+  const runtimeTool = commitBytes(
+    repository.head,
+    REVIEWED_RUNTIME_TOOL_REL,
+    "FINAL_COUPLED_REVIEWED_RUNTIME_TOOL",
+  );
+  const profileSource = commitBytes(
+    repository.head,
+    REVIEWED_RUNTIME_PROFILE_REL,
+    "FINAL_COUPLED_REVIEWED_RUNTIME_PROFILE",
+  );
+  let profile;
+  try {
+    profile = JSON.parse(profileSource.bytes.toString("utf8"));
+  } catch {
+    fail("FINAL_COUPLED_REVIEWED_RUNTIME_PROFILE_JSON_INVALID");
+  }
+  if (
+    !plain(profile) ||
+    typeof profile.profile_id !== "string" ||
+    !SAFE_ID.test(profile.profile_id) ||
+    typeof profile.packages_aggregate_sha256 !== "string" ||
+    !HEX64.test(profile.packages_aggregate_sha256)
+  ) {
+    fail("FINAL_COUPLED_REVIEWED_RUNTIME_PROFILE_INVALID");
+  }
+  const material = {
+    reviewed_repository_head_sha: repository.head,
+    reviewed_repository_tree_sha: repository.tree,
+    reviewed_runtime_tool_git_blob_sha1: runtimeTool.blob_sha1,
+    reviewed_runtime_profile_git_blob_sha1: profileSource.blob_sha1,
+    reviewed_runtime_profile_id: profile.profile_id,
+    reviewed_runtime_packages_aggregate_sha256:
+      profile.packages_aggregate_sha256,
+    reviewed_authority_entry_git_blobs:
+      Object.freeze({ ...entryBlobs }),
+    entire_reviewed_git_tree_bound: true,
+    permission_fenced_execution: true,
+    ancestor_package_resolution_allowed: false,
+    execution_network_isolation_provided: false,
+  };
+  return Object.freeze({
+    ...material,
+    reviewed_execution_bundle_id:
+      "sha256:" + sha256Text(canonicalJson(material)),
+    runtime_tool_bytes: runtimeTool.bytes,
+    profile_bytes: profileSource.bytes,
+  });
+}
+
+function privateNodeEnv() {
+  return {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
+    NODE_OPTIONS: "",
+    NODE_PATH: "",
+  };
+}
+
+function writePrivateSource(file, bytes, mode = 0o400) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    mode,
+  );
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, mode);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function gitRunPrivate(cwd, args, code, { allowFail = false } = {}) {
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-c", "protocol.file.allow=always",
+      "-C", cwd,
+      ...args,
+    ],
+    {
+      env: gitEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: 60_000,
+    },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0 && !allowFail) fail(code);
+  return result;
+}
+
+function chmodReviewedDirectory(file, mode) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY |
+      Number(fs.constants.O_DIRECTORY || 0) |
+      Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    if (!fs.fstatSync(fd).isDirectory()) {
+      fail("FINAL_COUPLED_REVIEWED_DIRECTORY_DESCRIPTOR_INVALID");
+    }
+    fs.fchmodSync(fd, mode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function chmodReviewedRegularFile(file, mode, preserveExecutable = false) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1) {
+      fail("FINAL_COUPLED_REVIEWED_FILE_DESCRIPTOR_INVALID");
+    }
+    const targetMode =
+      preserveExecutable && (Number(stat.mode) & 0o111) !== 0
+        ? 0o500
+        : mode;
+    fs.fchmodSync(fd, targetMode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function makeReviewedExecutionTreeReadOnly(root) {
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(file);
+        chmodReviewedDirectory(file, 0o500);
+      } else if (entry.isSymbolicLink()) {
+        if (!fs.lstatSync(file).isSymbolicLink()) {
+          fail("FINAL_COUPLED_REVIEWED_SYMLINK_IDENTITY_INVALID");
+        }
+      } else if (entry.isFile()) {
+        chmodReviewedRegularFile(file, 0o400, true);
+      } else {
+        fail("FINAL_COUPLED_REVIEWED_ENTRY_TYPE_UNSUPPORTED");
+      }
+    }
+  }
+  walk(root);
+  chmodReviewedDirectory(root, 0o500);
+}
+
+function makeReviewedExecutionTreeRemovable(root) {
+  if (!fs.existsSync(root)) return;
+  function walk(dir) {
+    chmodReviewedDirectory(dir, 0o700);
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(file);
+      } else if (entry.isSymbolicLink()) {
+        if (!fs.lstatSync(file).isSymbolicLink()) {
+          fail("FINAL_COUPLED_REVIEWED_SYMLINK_IDENTITY_INVALID");
+        }
+      } else if (entry.isFile()) {
+        chmodReviewedRegularFile(file, 0o600, false);
+      } else {
+        fail("FINAL_COUPLED_REVIEWED_ENTRY_TYPE_UNSUPPORTED");
+      }
+    }
+  }
+  walk(root);
+}
+
+let reviewedExecutionCache = null;
+
+function cleanupReviewedExecutionCache() {
+  if (!reviewedExecutionCache) return;
+  const parent = reviewedExecutionCache.parent;
+  try {
+    makeReviewedExecutionTreeRemovable(parent);
+    fs.rmSync(parent, { recursive: true, force: true });
+  } finally {
+    reviewedExecutionCache = null;
+  }
+}
+
+process.once("exit", cleanupReviewedExecutionCache);
+
+function buildReviewedExecutionRoot(repository, reviewedExecution) {
+  normalizeReviewedExecutionBinding(
+    reviewedExecution,
+    repository,
+    true,
+  );
+  if (
+    reviewedExecutionCache &&
+    reviewedExecutionCache.head === repository.head &&
+    reviewedExecutionCache.bundle_id ===
+      reviewedExecution.reviewed_execution_bundle_id
+  ) {
+    return reviewedExecutionCache;
+  }
+  cleanupReviewedExecutionCache();
+
+  const parent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-final-coupled-reviewed-"),
+  );
+  fs.chmodSync(parent, 0o700);
+  try {
+    const bootstrapDir = path.join(parent, "bootstrap");
+    fs.mkdirSync(bootstrapDir, { mode: 0o700 });
+    const runtimeToolFile = path.join(
+      bootstrapDir,
+      "void-reviewed-node-package-runtime-v1.mjs",
+    );
+    writePrivateSource(
+      runtimeToolFile,
+      commitBytes(
+        repository.head,
+        REVIEWED_RUNTIME_TOOL_REL,
+        "FINAL_COUPLED_REVIEWED_RUNTIME_TOOL",
+      ).bytes,
+    );
+    const profileFile = path.join(bootstrapDir, "profile.json");
+    writePrivateSource(
+      profileFile,
+      commitBytes(
+        repository.head,
+        REVIEWED_RUNTIME_PROFILE_REL,
+        "FINAL_COUPLED_REVIEWED_RUNTIME_PROFILE",
+      ).bytes,
+    );
+
+    const executionRoot = path.join(parent, "execution");
+    const bootstrapFile = path.join(bootstrapDir, "bootstrap.mjs");
+    const bootstrapSource = [
+      'import fs from "node:fs";',
+      'import { materializeReviewedNodePackageRuntimeV1, verifyMaterializedReviewedNodePackageRuntimeV1 } from "./void-reviewed-node-package-runtime-v1.mjs";',
+      'process.stdin.setEncoding("utf8");',
+      'let requestText="";',
+      'for await (const chunk of process.stdin) requestText+=chunk;',
+      'const request=JSON.parse(requestText);',
+      'const profile=JSON.parse(fs.readFileSync(request.profile_file,"utf8"));',
+      'const result=request.action==="materialize"',
+      '  ? materializeReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root})',
+      '  : verifyMaterializedReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root});',
+      'process.stdout.write(JSON.stringify(result));',
+      '',
+    ].join("\n");
+    writePrivateSource(
+      bootstrapFile,
+      Buffer.from(bootstrapSource, "utf8"),
+    );
+    const bootstrap = spawnSync(
+      process.execPath,
+      [bootstrapFile],
+      {
+        cwd: bootstrapDir,
+        env: privateNodeEnv(),
+        input: JSON.stringify({
+          action: "materialize",
+          profile_file: profileFile,
+          repo_root: REPO_ROOT,
+          destination_root: executionRoot,
+        }),
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 120_000,
+      },
+    );
+    if (bootstrap.error || bootstrap.status !== 0) {
+      fail("FINAL_COUPLED_REVIEWED_RUNTIME_MATERIALIZATION_FAILED");
+    }
+
+    gitRunPrivate(
+      executionRoot,
+      ["init", "--quiet"],
+      "FINAL_COUPLED_PRIVATE_GIT_INIT_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["fetch", "--quiet", "--no-tags", "--depth=1", REPO_ROOT, repository.head],
+      "FINAL_COUPLED_PRIVATE_GIT_FETCH_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["checkout", "--quiet", "-B", "main", "FETCH_HEAD"],
+      "FINAL_COUPLED_PRIVATE_GIT_CHECKOUT_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["remote", "add", "origin", CANONICAL_REMOTE],
+      "FINAL_COUPLED_PRIVATE_GIT_ORIGIN_FAILED",
+    );
+    const privateHead = String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse", "HEAD"],
+        "FINAL_COUPLED_PRIVATE_GIT_HEAD_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    const privateTree = String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse", "HEAD^{tree}"],
+        "FINAL_COUPLED_PRIVATE_GIT_TREE_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    const privateBranch = String(
+      gitRunPrivate(
+        executionRoot,
+        ["branch", "--show-current"],
+        "FINAL_COUPLED_PRIVATE_GIT_BRANCH_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    if (
+      privateHead !== repository.head ||
+      privateTree !== repository.tree ||
+      privateBranch !== "main"
+    ) {
+      fail("FINAL_COUPLED_PRIVATE_GIT_IDENTITY_MISMATCH");
+    }
+    for (const [relativePath, expectedBlob] of Object.entries(
+      reviewedExecution.reviewed_authority_entry_git_blobs,
+    )) {
+      const blob = String(
+        gitRunPrivate(
+          executionRoot,
+          ["rev-parse", "HEAD:" + relativePath],
+          "FINAL_COUPLED_PRIVATE_ENTRY_BLOB_UNAVAILABLE",
+        ).stdout || "",
+      ).trim();
+      if (blob !== expectedBlob) {
+        fail("FINAL_COUPLED_PRIVATE_ENTRY_BLOB_MISMATCH:" + relativePath);
+      }
+    }
+
+    const verifierSpecs = Object.fromEntries(
+      Object.entries(APPLICATION_VERIFIERS).map(([lane, spec]) => [
+        lane,
+        {
+          ...spec,
+          module_url: pathToFileURL(
+            path.join(executionRoot, spec.module),
+          ).href,
+        },
+      ]),
+    );
+    const classifierUrls = Object.fromEntries(
+      Object.entries(REVIEWED_CLASSIFIERS).map(([name, relativePath]) => [
+        name,
+        pathToFileURL(path.join(executionRoot, relativePath)).href,
+      ]),
+    );
+    const runnerDir = path.join(parent, "runner");
+    fs.mkdirSync(runnerDir, { mode: 0o700 });
+    const runnerFile = path.join(
+      runnerDir,
+      "final-coupled-reviewed-runner-v1.mjs",
+    );
+    const runnerSource = [
+      'const MARKER=' + JSON.stringify(REVIEWED_AUTHORITY_ENVELOPE_MARKER) + ';',
+      'const VERIFIERS=' + JSON.stringify(verifierSpecs) + ';',
+      'const CLASSIFIERS=' + JSON.stringify(classifierUrls) + ';',
+      'const canonical=(v)=>{if(v===null||typeof v!=="object")return JSON.stringify(v);if(Array.isArray(v))return "["+v.map(canonical).join(",")+"]";return "{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+canonical(v[k])).join(",")+"}";};',
+      'process.stdin.setEncoding("utf8");',
+      'let requestText="";',
+      'for await (const chunk of process.stdin) requestText+=chunk;',
+      'let operation="";',
+      'let envelope;',
+      'try{',
+      '  const request=JSON.parse(requestText);',
+      '  operation=String(request.operation||"");',
+      '  if(operation!=="verify_and_classify")throw new Error("final_coupled_reviewed_operation_invalid");',
+      '  const lineages=[];',
+      '  for(const entry of request.lineages){',
+      '    const spec=VERIFIERS[entry.lane];',
+      '    if(!spec)throw new Error("final_coupled_reviewed_lane_invalid:"+entry.lane);',
+      '    const module=await import(spec.module_url);',
+      '    const verifier=module[spec.export_name];',
+      '    if(typeof verifier!=="function")throw new Error("final_coupled_reviewed_verifier_missing:"+entry.lane);',
+      '    const planBytes=Buffer.from(entry.application_plan_base64,"base64");',
+      '    const args=spec.argument_style==="camel"?{applicationPlanBytes:planBytes,applicationPlanFileSha256:entry.application_plan_file_sha256}:{application_plan_bytes:planBytes,application_plan_file_sha256:entry.application_plan_file_sha256};',
+      '    const result=await verifier(args);',
+      '    if(result?.ok!==true||result.status!==spec.expected_status||result.application_plan_id!==entry.application_plan_id)throw new Error("final_coupled_reviewed_verifier_result_invalid:"+entry.lane);',
+      '    lineages.push({lane:entry.lane,application_plan_id:entry.application_plan_id,application_plan_file_sha256:entry.application_plan_file_sha256,verification_status:result.status,verified_applied:true});',
+      '  }',
+      '  lineages.sort((a,b)=>a.lane.localeCompare(b.lane));',
+      '  const productionModule=await import(CLASSIFIERS.production);',
+      '  const coupledModule=await import(CLASSIFIERS.coupled);',
+      '  const successorModule=await import(CLASSIFIERS.successor);',
+      '  const compositionModule=await import(CLASSIFIERS.composition);',
+      '  const production=request.production_candidate;',
+      '  const coupled=request.coupled_candidate;',
+      '  const successor=request.successor_migration_candidate;',
+      '  const productionTarget=structuredClone(production);',
+      '  productionTarget.status="source_ready";',
+      '  productionTarget.coupled_activation_ready=true;',
+      '  const coupledTarget=structuredClone(coupled);',
+      '  coupledTarget.status="SOURCE_READY";',
+      '  coupledTarget.gates.coupled_activation_ready=true;',
+      '  const successorBefore=successorModule.classifyVoidEconomicEvmSuccessorMigrationV1(successor);',
+      '  const productionBefore=productionModule.classifyVoidWcVoidProductionReadinessV1(production);',
+      '  const coupledBefore=coupledModule.classifyVoidCoupledEconomicSuccessorGateV1(coupled,successor);',
+      '  const productionAfter=productionModule.classifyVoidWcVoidProductionReadinessV1(productionTarget);',
+      '  const coupledAfter=coupledModule.classifyVoidCoupledEconomicSuccessorGateV1(coupledTarget,successor);',
+      '  const composition=compositionModule.classifyVoidWcVoidCoupledLaunchReadinessV1({production_candidate:productionTarget,coupled_candidate:coupledTarget,successor_migration_candidate:successor});',
+      '  const semantic={reviewed_execution_verified:true,successor_before:successorBefore,production_before:productionBefore,coupled_before:coupledBefore,production_target:productionTarget,coupled_target:coupledTarget,production_after:productionAfter,coupled_after:coupledAfter,composition};',
+      '  envelope={marker:MARKER,version:1,operation,ok:true,result:{lineages,semantic},error:null};',
+      '}catch(error){',
+      '  const message=error instanceof Error?error.message:String(error);',
+      '  envelope={marker:MARKER,version:1,operation,ok:false,result:null,error:message.slice(0,768)};',
+      '}',
+      'process.stdout.write(JSON.stringify(envelope));',
+      '',
+    ].join("\n");
+    writePrivateSource(runnerFile, Buffer.from(runnerSource, "utf8"));
+
+    makeReviewedExecutionTreeReadOnly(executionRoot);
+    reviewedExecutionCache = Object.freeze({
+      head: repository.head,
+      bundle_id: reviewedExecution.reviewed_execution_bundle_id,
+      parent,
+      execution_root: executionRoot,
+      runner_file: runnerFile,
+      bootstrap_file: bootstrapFile,
+      profile_file: profileFile,
+      allowed_fs_read_root: parent,
+    });
+    return reviewedExecutionCache;
+  } catch (error) {
+    try {
+      makeReviewedExecutionTreeRemovable(parent);
+      fs.rmSync(parent, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "final_coupled_reviewed_execution_cleanup_failed",
+      );
+    }
+    throw error;
+  }
+}
+
+function verifyReviewedRuntimeTree(bundle) {
+  const result = spawnSync(
+    process.execPath,
+    [bundle.bootstrap_file],
+    {
+      cwd: path.dirname(bundle.bootstrap_file),
+      env: privateNodeEnv(),
+      input: JSON.stringify({
+        action: "verify",
+        profile_file: bundle.profile_file,
+        repo_root: REPO_ROOT,
+        destination_root: bundle.execution_root,
+      }),
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: 120_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("FINAL_COUPLED_REVIEWED_RUNTIME_REVERIFY_FAILED");
+  }
+}
+
+function runReviewedAuthority(repository, reviewedExecution, request) {
+  const bundle = buildReviewedExecutionRoot(repository, reviewedExecution);
+  verifyReviewedRuntimeTree(bundle);
+  const node = fs.realpathSync.native(process.execPath);
+  const result = spawnSync(
+    node,
+    [
+      "--permission",
+      "--allow-fs-read=" + bundle.allowed_fs_read_root,
+      "--allow-child-process",
+      bundle.runner_file,
+    ],
+    {
+      cwd: bundle.execution_root,
+      env: privateNodeEnv(),
+      input: JSON.stringify(request),
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      maxBuffer: 64 * 1024 * 1024,
+      timeout: 180_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_EXECUTION_FAILED");
+  }
+  let envelope;
+  try {
+    envelope = JSON.parse(String(result.stdout || ""));
+  } catch {
+    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+  }
+  if (
+    !plain(envelope) ||
+    envelope.marker !== REVIEWED_AUTHORITY_ENVELOPE_MARKER ||
+    envelope.version !== 1 ||
+    envelope.operation !== String(request?.operation || "") ||
+    typeof envelope.ok !== "boolean"
+  ) {
+    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+  }
+  if (envelope.ok !== true) {
+    if (
+      envelope.result !== null ||
+      typeof envelope.error !== "string" ||
+      envelope.error.length < 1
+    ) {
+      fail("FINAL_COUPLED_REVIEWED_AUTHORITY_ERROR_OUTPUT_INVALID");
+    }
+    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_CHILD_ERROR:" + envelope.error);
+  }
+  if (!plain(envelope.result) || envelope.error !== null) {
+    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_SUCCESS_OUTPUT_INVALID");
+  }
+  return envelope.result;
+}
+
 function sameDirectoryIdentity(left, right) {
   return (
     left.dev === right.dev &&
