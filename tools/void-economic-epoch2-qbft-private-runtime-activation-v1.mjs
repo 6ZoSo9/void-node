@@ -15,6 +15,7 @@ export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_CONFIRMATION_V
 
 const ROLE_ORDER=Object.freeze(["precision","nimo","xiphos"]);
 const START_ORDER=Object.freeze(["precision","nimo","xiphos"]);
+const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 const INSTALL_ID=/^voide2qinst1_[0-9a-f]{64}$/u;
 const START_ADMISSION_ID=/^voide2qsad1_[0-9a-f]{64}$/u;
 const PRESTART_ID=/^voide2qpre1_[0-9a-f]{64}$/u;
@@ -104,12 +105,18 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
     }
   }
 
+  const unitFileState=String(receipt.post_install_state?.unit_file_state||"");
+  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
+    throw new Error("install_unit_file_state_invalid:"+role);
+  }
   const expectedPost={
     runtime_root_present:true,
     data_directory_empty:true,
     user_unit_file_present:true,
     user_unit_file_mode:"0600",
-    unit_enabled:false,
+    unit_file_state:unitFileState,
+    direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     unit_active:false,
     daemon_reload_performed:false,
     service_start_performed:false,
@@ -234,7 +241,9 @@ function validateStartAdmissionV1(
     nodekey_bytes_emitted:false,
     nodekey_bytes_persisted:false,
     all_services_inactive:true,
-    all_services_disabled:true,
+    all_unit_file_states_observed:true,
+    all_direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     all_candidate_ports_vacant:true,
     service_start:false,
     authoritative_chain2050_write:false,
@@ -282,6 +291,10 @@ function validateStartAdmissionV1(
       row.enode!==host.enode||
       row.validator_address!==host.validator_address||
       row.besu_public_key!==host.besu_public_key||
+      row.unit_file_state!==install.post_install_state.unit_file_state||
+      row.direct_enablement_links_absent!==true||
+      row.indirect_activation_absence_proven!==false||
+      !INACTIVE_UNIT_FILE_STATES.has(String(row.unit_file_state||""))||
       !Number.isFinite(observedMs)||
       !Number.isFinite(validMs)||
       observedMs>evaluatedMs||
@@ -351,6 +364,9 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       systemd_unit_sha256:receipt.installed_hashes.systemd_unit_sha256,
       genesis_sha256:receipt.installed_hashes.genesis_sha256,
       static_nodes_sha256:receipt.installed_hashes.static_nodes_sha256,
+      unit_file_state:receipt.post_install_state.unit_file_state,
+      direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
     }));
   }
 
@@ -431,7 +447,9 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       exact_tailnet_ipv4_binding:true,
       exact_nodekey_public_identity_required:true,
       nodekey_private_bytes_must_not_be_logged:true,
-      service_disabled_required:true,
+      unit_file_state_observation_required:true,
+      direct_enablement_links_absent_required:true,
+      indirect_activation_absence_proven:false,
       service_inactive_required:true,
       unit_restart_no_required:true,
       p2p_port_vacant_required:true,
