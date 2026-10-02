@@ -144,7 +144,7 @@ export function verifyVoidDatanetRegistrySignedTransactionAgainstLineageWithDepe
     parsed.gasLimit!==BigInt(tx.gas_limit)||
     parsed.maxFeePerGas!==BigInt(tx.max_fee_per_gas_wei)||
     parsed.maxPriorityFeePerGas!==BigInt(tx.max_priority_fee_per_gas_wei)||
-    parsed.data.toLowerCase()!==tx.data||
+    parsed.unsignedSerialized.toLowerCase()!==tx.unsigned_serialized_transaction||
     parsed.hash?.toLowerCase()!==signed.signed_transaction_hash||
     parsed.unsignedHash.toLowerCase()!==signed.unsigned_transaction_hash
   ){
