@@ -6,6 +6,9 @@ import "../../contracts/epoch2/VoidEpoch2TokenV1.sol";
 
 interface VmWCVoidGasCensusV1 {
     function prank(address msgSender) external;
+    function snapshotGasLastCall(string calldata name)
+        external
+        returns (uint256 gasUsed);
 }
 
 abstract contract WCVoidMarketVaultV2GasCensusBase {
@@ -70,6 +73,7 @@ abstract contract WCVoidMarketVaultV2GasCensusBase {
     }
 
     function _measure(
+        string memory snapshotName,
         bytes32 settlementId,
         address recipient,
         uint256 amountAtoms
@@ -78,7 +82,7 @@ abstract contract WCVoidMarketVaultV2GasCensusBase {
         returns (
             uint256 executionGas,
             uint256 intrinsicGas,
-            uint256 conservativeTransactionGas
+            uint256 measuredTransactionGas
         )
     {
         bytes memory callData = abi.encodeCall(
@@ -87,19 +91,19 @@ abstract contract WCVoidMarketVaultV2GasCensusBase {
         );
         intrinsicGas = _intrinsicGas(callData);
 
-        // prank affects the next external call only. gasleft() itself does not
-        // consume that prank. The measured interval includes Solidity's CALL
-        // envelope as well as the callee execution, so adding transaction
-        // intrinsic gas intentionally gives a conservative upper envelope.
         vm.prank(EXECUTOR);
-        uint256 beforeGas = gasleft();
         vault.settleVoid(LAUNCH, settlementId, recipient, amountAtoms);
-        executionGas = beforeGas - gasleft();
 
-        conservativeTransactionGas = executionGas + intrinsicGas;
+        // Foundry reports the previous external call from the callee
+        // perspective, excluding this test contract's caller-side CALL
+        // envelope. This is the execution component relevant to an EOA
+        // transaction targeting settleVoid directly.
+        executionGas = vm.snapshotGasLastCall(snapshotName);
+        measuredTransactionGas = executionGas + intrinsicGas;
+
         require(executionGas > 0, "gas_census_execution_zero");
         require(
-            conservativeTransactionGas < SIGNED_INTENT_MAX_GAS,
+            measuredTransactionGas < SIGNED_INTENT_MAX_GAS,
             "gas_census_exceeds_signed_intent_max"
         );
     }
@@ -108,7 +112,7 @@ abstract contract WCVoidMarketVaultV2GasCensusBase {
         string memory prefix,
         uint256 executionGas,
         uint256 intrinsicGas,
-        uint256 conservativeTransactionGas
+        uint256 measuredTransactionGas
     ) internal {
         emit log_named_uint(
             string.concat(prefix, "_execution_gas"),
@@ -119,8 +123,8 @@ abstract contract WCVoidMarketVaultV2GasCensusBase {
             intrinsicGas
         );
         emit log_named_uint(
-            string.concat(prefix, "_conservative_tx_gas"),
-            conservativeTransactionGas
+            string.concat(prefix, "_measured_tx_gas"),
+            measuredTransactionGas
         );
         emit log_named_uint(
             string.concat(prefix, "_signed_intent_max_gas"),
@@ -136,8 +140,13 @@ contract WCVoidMarketVaultV2FirstSettlementGasCensusTest is
         (
             uint256 executionGas,
             uint256 intrinsicGas,
-            uint256 conservativeTransactionGas
-        ) = _measure(SETTLEMENT_A, RECIPIENT_A, 1 ether);
+            uint256 measuredTransactionGas
+        ) = _measure(
+            "settle_void_first",
+            SETTLEMENT_A,
+            RECIPIENT_A,
+            1 ether
+        );
 
         require(vault.settlementCount() == 1, "first_settlement_count_wrong");
         require(vault.isSettled(SETTLEMENT_A), "first_settlement_not_recorded");
@@ -150,7 +159,7 @@ contract WCVoidMarketVaultV2FirstSettlementGasCensusTest is
             "settle_void_first",
             executionGas,
             intrinsicGas,
-            conservativeTransactionGas
+            measuredTransactionGas
         );
     }
 }
@@ -162,9 +171,9 @@ contract WCVoidMarketVaultV2SubsequentSettlementGasCensusTest is
         super.setUp();
 
         // Foundry persists setUp state into the test snapshot, then executes
-        // the test call separately. This creates a true subsequent-settlement
-        // storage prestate without making the measured settlement ID/recipient
-        // already used.
+        // the test call separately. This creates a subsequent-settlement
+        // storage prestate while the measured test starts with a fresh
+        // transaction access set.
         vm.prank(EXECUTOR);
         vault.settleVoid(LAUNCH, SETTLEMENT_A, RECIPIENT_A, 1 ether);
 
@@ -176,8 +185,13 @@ contract WCVoidMarketVaultV2SubsequentSettlementGasCensusTest is
         (
             uint256 executionGas,
             uint256 intrinsicGas,
-            uint256 conservativeTransactionGas
-        ) = _measure(SETTLEMENT_B, RECIPIENT_B, 1 ether);
+            uint256 measuredTransactionGas
+        ) = _measure(
+            "settle_void_subsequent",
+            SETTLEMENT_B,
+            RECIPIENT_B,
+            1 ether
+        );
 
         require(
             vault.settlementCount() == 2,
@@ -196,7 +210,7 @@ contract WCVoidMarketVaultV2SubsequentSettlementGasCensusTest is
             "settle_void_subsequent",
             executionGas,
             intrinsicGas,
-            conservativeTransactionGas
+            measuredTransactionGas
         );
     }
 }
