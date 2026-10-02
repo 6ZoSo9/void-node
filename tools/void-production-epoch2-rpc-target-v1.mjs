@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -558,11 +559,31 @@ export function validateProductionEpoch2RpcTargetV1(value) {
   });
 }
 
-function reviewedGitEnvV1() {
+const REVIEWED_GIT_CONFIG_ARGS_V1 = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
+const REVIEWED_SELECTION_REQUIRED_MODULES_V1 = Object.freeze([
+  SELECTION_EVIDENCE_VERIFIER_REL,
+  "tools/void-production-epoch2-rpc-target-v1.mjs",
+  "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs",
+  "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs",
+  "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs",
+]);
+
+function reviewedGitEnvV1(home = "/nonexistent") {
   return {
     PATH: "/usr/bin:/bin",
-    HOME: "/nonexistent",
-    XDG_CONFIG_HOME: "/nonexistent",
+    HOME: home,
+    XDG_CONFIG_HOME: home,
     LANG: "C",
     LC_ALL: "C",
     GIT_CONFIG_GLOBAL: "/dev/null",
@@ -570,109 +591,415 @@ function reviewedGitEnvV1() {
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_ATTR_NOSYSTEM: "1",
     GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_LAZY_FETCH: "1",
     GIT_NO_REPLACE_OBJECTS: "1",
     GIT_TERMINAL_PROMPT: "0",
     GIT_ASKPASS: "/bin/false",
+    NODE_OPTIONS: "",
+    NODE_PATH: "",
   };
 }
-function requireSelectionEvidenceVerifierEntryBoundToHeadV1() {
-  const absolute = path.resolve(ROOT, SELECTION_EVIDENCE_VERIFIER_REL);
-  let st;
-  try {
-    st = fs.lstatSync(absolute);
-  } catch {
-    fail("production_epoch2_selection_evidence_verifier_entry_missing");
-  }
-  if (
-    st.isSymbolicLink() ||
-    !st.isFile() ||
-    fs.realpathSync(absolute) !== absolute ||
-    st.size < 1 ||
-    st.size > 4 * 1024 * 1024
-  ) {
-    fail("production_epoch2_selection_evidence_verifier_entry_invalid");
-  }
+function reviewedGitRunV1(
+  cwd,
+  args,
+  code,
+  { encoding = "utf8", prefix = [], allowFail = false, home = "/nonexistent" } = {},
+) {
   const result = spawnSync(
     GIT_EXECUTABLE,
     [
       "--no-replace-objects",
-      "-c", "core.hooksPath=/dev/null",
-      "-c", "core.attributesFile=/dev/null",
-      "-c", "core.fsmonitor=false",
-      "-c", "core.untrackedCache=false",
-      "-c", "submodule.recurse=false",
-      "-C", ROOT,
-      "show", "HEAD:" + SELECTION_EVIDENCE_VERIFIER_REL,
+      ...REVIEWED_GIT_CONFIG_ARGS_V1,
+      ...prefix,
+      "-C", cwd,
+      ...args,
     ],
     {
-      cwd: ROOT,
-      env: reviewedGitEnvV1(),
+      cwd: "/",
+      env: reviewedGitEnvV1(home),
+      encoding,
       stdio: ["ignore", "pipe", "pipe"],
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: 30_000,
+      maxBuffer: 32 * 1024 * 1024,
+      timeout: 120_000,
     },
   );
-  if (result.error || result.status !== 0) {
-    fail("production_epoch2_selection_evidence_verifier_git_object_unavailable");
-  }
-  const worktree = fs.readFileSync(absolute);
-  const reviewed = Buffer.from(result.stdout || Buffer.alloc(0));
-  if (!worktree.equals(reviewed)) {
-    fail("production_epoch2_selection_evidence_verifier_entry_bytes_mismatch");
-  }
-  return true;
+  if (result.error) throw result.error;
+  if (result.status !== 0 && !allowFail) fail(code);
+  return result;
 }
-
-function runSelectionEvidenceSemanticVerifierV1() {
-  requireSelectionEvidenceVerifierEntryBoundToHeadV1();
-  const result = spawnSync(
-    process.execPath,
-    [path.join(ROOT, SELECTION_EVIDENCE_VERIFIER_REL)],
-    {
-      cwd: ROOT,
-      env: reviewedGitEnvV1(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: 30_000,
-    },
+function reviewedGitTextV1(cwd, args, code, options = {}) {
+  return String(
+    reviewedGitRunV1(cwd, args, code, options).stdout || "",
+  ).trim();
+}
+function reviewedGitBytesV1(cwd, args, code, options = {}) {
+  return Buffer.from(
+    reviewedGitRunV1(
+      cwd,
+      args,
+      code,
+      { ...options, encoding: null },
+    ).stdout || Buffer.alloc(0),
   );
-  if (result.error || result.status !== 0) {
-    fail("production_epoch2_selection_evidence_semantic_reverification_failed");
+}
+function reviewedGitBlobSha1V1(bytes) {
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob " + String(bytes.length) + "\0", "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+function reviewedImportSpecifiersV1(source) {
+  const specs = new Set();
+  for (const pattern of [
+    /\bfrom\s+["']([^"']+)["']/gu,
+    /\bimport\s+["']([^"']+)["']/gu,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu,
+  ]) {
+    for (const match of source.matchAll(pattern)) specs.add(match[1]);
   }
-  let verified;
-  try {
-    verified = JSON.parse(String(result.stdout || "").trim());
-  } catch {
-    fail("production_epoch2_selection_evidence_semantic_verifier_output_invalid");
+  return [...specs];
+}
+function reviewedResolveRelativeModuleV1(fromRel, spec) {
+  let rel = path.posix.normalize(
+    path.posix.join(path.posix.dirname(fromRel), spec),
+  );
+  if (!rel.endsWith(".mjs") && !rel.endsWith(".js") && !rel.endsWith(".cjs")) {
+    rel += ".mjs";
   }
   if (
-    verified?.marker !==
-      "VOID_PRODUCTION_EPOCH2_RPC_SELECTION_EVIDENCE_VERIFIER_V1" ||
-    verified?.version !== 1 ||
-    verified?.verified !== true ||
-    verified?.activation_plan_sha256 !== SELECTION_EVIDENCE.activation_plan.sha256 ||
-    verified?.activation_receipt_sha256 !==
-      SELECTION_EVIDENCE.activation_receipt.sha256 ||
-    verified?.runtime_observation_sha256 !==
-      SELECTION_EVIDENCE.runtime_observation.sha256 ||
-    verified?.selected_candidate_sha256 !==
-      SELECTION_EVIDENCE.selected_candidate.sha256 ||
-    verified?.promotion_apply_admission_sha256 !==
-      SELECTION_EVIDENCE.promotion_apply_admission.sha256 ||
-    verified?.promotion_admission_id !== EXPECTED_PROMOTION_ADMISSION_ID ||
-    verified?.admission_source_head !== EXPECTED_PROMOTION_ADMITTED_MAIN_HEAD ||
-    verified?.selected_candidate_recompiled_from_exact_evidence !== true ||
-    verified?.promotion_admission_content_address_reverified !== true ||
-    verified?.historical_source_trees_reverified !== true ||
-    verified?.source_lineage_ancestry_reverified !== true ||
-    verified?.reviewed_execution_exact_head_git_object_bytes !== true ||
-    verified?.reviewed_execution_non_shallow_repository !== true ||
-    verified?.reviewed_execution_bare_package_runtime_absent !== true
+    rel.startsWith("../") ||
+    rel.startsWith("/") ||
+    rel.includes("\\0")
   ) {
-    fail("production_epoch2_selection_evidence_semantic_verifier_mismatch");
+    fail("production_epoch2_selection_private_import_outside_repo");
   }
-  return Object.freeze(verified);
+  return rel;
+}
+function reviewedSelectionClosureAtHeadV1(head) {
+  const queue = [SELECTION_EVIDENCE_VERIFIER_REL];
+  const seen = new Set();
+  const moduleBlobs = Object.create(null);
+  while (queue.length > 0) {
+    const rel = queue.shift();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+
+    const bytes = reviewedGitBytesV1(
+      ROOT,
+      ["show", head + ":" + rel],
+      "production_epoch2_selection_private_git_object_unavailable:" + rel,
+    );
+    if (bytes.length < 1 || bytes.length > 4 * 1024 * 1024) {
+      fail("production_epoch2_selection_private_module_size_invalid:" + rel);
+    }
+    const blob = reviewedGitTextV1(
+      ROOT,
+      ["rev-parse", head + ":" + rel],
+      "production_epoch2_selection_private_blob_unavailable:" + rel,
+    );
+    if (
+      !SHA40.test(blob) ||
+      reviewedGitBlobSha1V1(bytes) !== blob
+    ) {
+      fail("production_epoch2_selection_private_git_object_mismatch:" + rel);
+    }
+    moduleBlobs[rel] = blob;
+
+    if (!/\.(?:mjs|js|cjs)$/u.test(rel)) continue;
+    const source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    for (const spec of reviewedImportSpecifiersV1(source)) {
+      if (spec.startsWith("node:")) continue;
+      if (!spec.startsWith(".")) {
+        fail(
+          "production_epoch2_selection_private_bare_package_forbidden:" + spec,
+        );
+      }
+      queue.push(reviewedResolveRelativeModuleV1(rel, spec));
+    }
+  }
+
+  for (const required of REVIEWED_SELECTION_REQUIRED_MODULES_V1) {
+    if (!seen.has(required)) {
+      fail("production_epoch2_selection_private_module_missing:" + required);
+    }
+  }
+  return Object.freeze({
+    module_paths: Object.freeze([...seen].sort()),
+    module_git_blobs: Object.freeze({ ...moduleBlobs }),
+  });
+}
+function captureReviewedSelectionGenerationV1() {
+  const status = reviewedGitTextV1(
+    ROOT,
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    "production_epoch2_selection_private_status_unavailable",
+  );
+  if (status !== "") {
+    fail("production_epoch2_selection_private_worktree_must_be_clean");
+  }
+  const shallow = reviewedGitTextV1(
+    ROOT,
+    ["rev-parse", "--is-shallow-repository"],
+    "production_epoch2_selection_private_repo_shape_unavailable",
+  );
+  if (shallow !== "false") {
+    fail("production_epoch2_selection_private_repo_must_be_non_shallow");
+  }
+  const head = reviewedGitTextV1(
+    ROOT,
+    ["rev-parse", "HEAD"],
+    "production_epoch2_selection_private_head_unavailable",
+  );
+  const tree = reviewedGitTextV1(
+    ROOT,
+    ["rev-parse", "HEAD^{tree}"],
+    "production_epoch2_selection_private_tree_unavailable",
+  );
+  if (!SHA40.test(head) || !SHA40.test(tree)) {
+    fail("production_epoch2_selection_private_repo_identity_invalid");
+  }
+  const closure = reviewedSelectionClosureAtHeadV1(head);
+  if (
+    reviewedGitTextV1(
+      ROOT,
+      ["rev-parse", "HEAD"],
+      "production_epoch2_selection_private_final_head_unavailable",
+    ) !== head ||
+    reviewedGitTextV1(
+      ROOT,
+      ["rev-parse", "HEAD^{tree}"],
+      "production_epoch2_selection_private_final_tree_unavailable",
+    ) !== tree ||
+    reviewedGitTextV1(
+      ROOT,
+      ["status", "--porcelain=v1", "--untracked-files=all"],
+      "production_epoch2_selection_private_final_status_unavailable",
+    ) !== ""
+  ) {
+    fail("production_epoch2_selection_private_repository_changed_during_bind");
+  }
+  return Object.freeze({ head, tree, closure });
+}
+function readStablePrivateModuleV1(file, expectedBlob, code) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.nlink !== 1 || before.size < 1) {
+      fail(code + "_file_invalid");
+    }
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (count <= 0) fail(code + "_short_read");
+      offset += count;
+    }
+    const after = fs.fstatSync(fd);
+    for (const key of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
+      if (before[key] !== after[key]) fail(code + "_changed_during_read");
+    }
+    if (reviewedGitBlobSha1V1(bytes) !== expectedBlob) {
+      fail(code + "_git_blob_mismatch");
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+function assertPrivateSelectionTreeV1(bundle) {
+  const parent = fs.lstatSync(bundle.parent);
+  if (
+    !parent.isDirectory() ||
+    parent.isSymbolicLink() ||
+    parent.dev !== bundle.parent_identity.dev ||
+    parent.ino !== bundle.parent_identity.ino
+  ) {
+    fail("production_epoch2_selection_private_parent_identity_drift");
+  }
+  for (const [rel, blob] of Object.entries(bundle.module_git_blobs)) {
+    readStablePrivateModuleV1(
+      path.join(bundle.repo_root, rel),
+      blob,
+      "production_epoch2_selection_private_module_" +
+        rel.replace(/[^A-Za-z0-9]+/gu, "_"),
+    );
+  }
+  const privateHead = reviewedGitTextV1(
+    bundle.repo_root,
+    ["rev-parse", "HEAD"],
+    "production_epoch2_selection_private_checkout_head_unavailable",
+    { home: bundle.parent },
+  );
+  const privateTree = reviewedGitTextV1(
+    bundle.repo_root,
+    ["rev-parse", "HEAD^{tree}"],
+    "production_epoch2_selection_private_checkout_tree_unavailable",
+    { home: bundle.parent },
+  );
+  const privateStatus = reviewedGitTextV1(
+    bundle.repo_root,
+    ["status", "--porcelain=v1", "--untracked-files=all"],
+    "production_epoch2_selection_private_checkout_status_unavailable",
+    { home: bundle.parent },
+  );
+  if (
+    privateHead !== bundle.head ||
+    privateTree !== bundle.tree ||
+    privateStatus !== ""
+  ) {
+    fail("production_epoch2_selection_private_checkout_identity_drift");
+  }
+}
+function materializePrivateSelectionTreeV1(generation) {
+  const parent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-production-epoch2-selection-reviewed-"),
+  );
+  fs.chmodSync(parent, 0o700);
+  const parentStat = fs.lstatSync(parent);
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    fail("production_epoch2_selection_private_parent_invalid");
+  }
+  const repoRoot = path.join(parent, "repo");
+  fs.mkdirSync(repoRoot, { mode: 0o700 });
+  try {
+    reviewedGitRunV1(
+      repoRoot,
+      ["init", "--quiet"],
+      "production_epoch2_selection_private_git_init_failed",
+      { home: parent },
+    );
+    reviewedGitRunV1(
+      repoRoot,
+      ["fetch", "--quiet", "--no-tags", ROOT, generation.head],
+      "production_epoch2_selection_private_git_fetch_failed",
+      {
+        home: parent,
+        prefix: ["-c", "protocol.file.allow=always"],
+      },
+    );
+    reviewedGitRunV1(
+      repoRoot,
+      ["checkout", "--quiet", "--detach", "FETCH_HEAD"],
+      "production_epoch2_selection_private_git_checkout_failed",
+      { home: parent },
+    );
+    if (
+      reviewedGitTextV1(
+        repoRoot,
+        ["rev-parse", "--is-shallow-repository"],
+        "production_epoch2_selection_private_checkout_shape_unavailable",
+        { home: parent },
+      ) !== "false"
+    ) {
+      fail("production_epoch2_selection_private_checkout_must_be_non_shallow");
+    }
+    const bundle = Object.freeze({
+      parent,
+      parent_identity: Object.freeze({
+        dev: parentStat.dev,
+        ino: parentStat.ino,
+      }),
+      repo_root: repoRoot,
+      head: generation.head,
+      tree: generation.tree,
+      module_git_blobs: generation.closure.module_git_blobs,
+      module_paths: generation.closure.module_paths,
+    });
+    assertPrivateSelectionTreeV1(bundle);
+    return bundle;
+  } catch (error) {
+    fs.rmSync(parent, { recursive: true, force: true });
+    throw error;
+  }
+}
+function runSelectionEvidenceSemanticVerifierV1() {
+  const generation = captureReviewedSelectionGenerationV1();
+  const bundle = materializePrivateSelectionTreeV1(generation);
+  try {
+    assertPrivateSelectionTreeV1(bundle);
+    const verifierFile = path.join(
+      bundle.repo_root,
+      SELECTION_EVIDENCE_VERIFIER_REL,
+    );
+    const result = spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [
+        "--permission",
+        "--allow-fs-read=" + bundle.repo_root,
+        "--allow-child-process",
+        verifierFile,
+      ],
+      {
+        cwd: bundle.repo_root,
+        env: reviewedGitEnvV1(bundle.parent),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 120_000,
+      },
+    );
+    assertPrivateSelectionTreeV1(bundle);
+    const finalGeneration = captureReviewedSelectionGenerationV1();
+    if (
+      finalGeneration.head !== generation.head ||
+      finalGeneration.tree !== generation.tree ||
+      canonicalJson(finalGeneration.closure.module_git_blobs) !==
+        canonicalJson(generation.closure.module_git_blobs)
+    ) {
+      fail("production_epoch2_selection_private_source_generation_drift");
+    }
+    if (result.error || result.status !== 0) {
+      fail("production_epoch2_selection_evidence_semantic_reverification_failed");
+    }
+    let verified;
+    try {
+      verified = JSON.parse(String(result.stdout || "").trim());
+    } catch {
+      fail("production_epoch2_selection_evidence_semantic_verifier_output_invalid");
+    }
+    if (
+      verified?.marker !==
+        "VOID_PRODUCTION_EPOCH2_RPC_SELECTION_EVIDENCE_VERIFIER_V1" ||
+      verified?.version !== 1 ||
+      verified?.verified !== true ||
+      verified?.activation_plan_sha256 !==
+        SELECTION_EVIDENCE.activation_plan.sha256 ||
+      verified?.activation_receipt_sha256 !==
+        SELECTION_EVIDENCE.activation_receipt.sha256 ||
+      verified?.runtime_observation_sha256 !==
+        SELECTION_EVIDENCE.runtime_observation.sha256 ||
+      verified?.selected_candidate_sha256 !==
+        SELECTION_EVIDENCE.selected_candidate.sha256 ||
+      verified?.promotion_apply_admission_sha256 !==
+        SELECTION_EVIDENCE.promotion_apply_admission.sha256 ||
+      verified?.promotion_admission_id !== EXPECTED_PROMOTION_ADMISSION_ID ||
+      verified?.admission_source_head !== EXPECTED_PROMOTION_ADMITTED_MAIN_HEAD ||
+      verified?.selected_candidate_recompiled_from_exact_evidence !== true ||
+      verified?.promotion_admission_content_address_reverified !== true ||
+      verified?.historical_source_trees_reverified !== true ||
+      verified?.source_lineage_ancestry_reverified !== true ||
+      verified?.reviewed_execution_head !== generation.head ||
+      verified?.reviewed_execution_module_count !==
+        generation.closure.module_paths.length ||
+      verified?.reviewed_execution_exact_head_git_object_bytes !== true ||
+      verified?.reviewed_execution_non_shallow_repository !== true ||
+      verified?.reviewed_execution_bare_package_runtime_absent !== true
+    ) {
+      fail("production_epoch2_selection_evidence_semantic_verifier_mismatch");
+    }
+    return Object.freeze(verified);
+  } finally {
+    fs.rmSync(bundle.parent, { recursive: true, force: true });
+  }
 }
 
 function verifySelectedEvidencePacketV1(value, targetBytes) {
