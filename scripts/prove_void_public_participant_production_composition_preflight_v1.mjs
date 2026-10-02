@@ -418,8 +418,6 @@ try{
     "createServer(",
     "listen(",
     "fetch(",
-    "eth_sendRawTransaction",
-    "eth_sendTransaction",
     "new Wallet(",
     "systemctl",
     "writeFileSync",
@@ -427,6 +425,17 @@ try{
     "renameSync",
   ]){
     assert.equal(tool.includes(forbidden),false,forbidden);
+  }
+  for(const reviewedMutationRpc of [
+    "eth_sendRawTransaction",
+    "eth_sendTransaction",
+  ]){
+    assert.equal(
+      tool.includes('"' + reviewedMutationRpc + '"'),
+      true,
+      "preflight must explicitly forbid reviewed live-role mutation RPC: " +
+        reviewedMutationRpc,
+    );
   }
   assert.equal(
     tool.includes(
