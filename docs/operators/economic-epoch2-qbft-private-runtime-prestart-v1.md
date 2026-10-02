@@ -18,10 +18,14 @@ Each host observer requires:
 - clean `main`, descended from the plan and install receipt;
 - exact current tailnet IPv4 and enode from the private plan;
 - exact installed genesis, static-peer file, and systemd unit hashes;
+- the exact installed unit is re-read and must contain no `[Install]` section;
 - empty Besu data directory;
-- inactive and non-enabled validator service; `static` is accepted because
-  the generated unit intentionally has no `[Install]` section;
+- inactive validator service with unit-file state
+  `disabled`, `not-found`, or `static`; `static` is accepted only for
+  the exact reviewed no-`[Install]` unit;
 - no `*.wants` or `*.requires` autostart link;
+- any `.wants` / `.requires` entry itself must be a direct directory;
+  symlinked or non-directory dependency entries fail closed;
 - exact plugin hash;
 - pinned Besu image still present;
 - rootless Docker still bound to the operator user socket;
@@ -55,6 +59,14 @@ uses a five-minute validity window.
 Precision combines exactly one fresh receipt for each of Precision, Nimo, and
 Xiphos.
 
+The existing receipt fact `service_disabled=true` is retained for schema
+compatibility. In this contract it means the service is inactive, no enable
+operation or direct autostart link is present, and any observed `static`
+state belongs to the exact reviewed no-`[Install]` unit. It does **not** mean
+that the raw `systemctl is-enabled` output must be the literal word
+`disabled`. The host observer logs `service_unit_file_state=...`
+separately.
+
 A green aggregate requires:
 
 - exactly three roles;
@@ -65,7 +77,8 @@ A green aggregate requires:
 - every receipt fresh at the same evaluation instant;
 - no more than 120 seconds between the earliest and latest host observations;
 - all three validator private identities locally revalidated;
-- all three services inactive and disabled;
+- all three services inactive and satisfying the reviewed no-enable /
+  no-direct-autostart-link contract;
 - all candidate listener ports still vacant.
 
 The aggregate result is:
