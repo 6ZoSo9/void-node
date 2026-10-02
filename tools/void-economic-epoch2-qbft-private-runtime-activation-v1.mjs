@@ -15,7 +15,6 @@ export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_CONFIRMATION_V
 
 const ROLE_ORDER=Object.freeze(["precision","nimo","xiphos"]);
 const START_ORDER=Object.freeze(["precision","nimo","xiphos"]);
-const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 const INSTALL_ID=/^voide2qinst1_[0-9a-f]{64}$/u;
 const START_ADMISSION_ID=/^voide2qsad1_[0-9a-f]{64}$/u;
 const PRESTART_ID=/^voide2qpre1_[0-9a-f]{64}$/u;
@@ -106,8 +105,8 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
   }
 
   const unitFileState=String(receipt.post_install_state?.unit_file_state||"");
-  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
-    throw new Error("install_unit_file_state_invalid:"+role);
+  if(unitFileState!=="static") {
+    throw new Error("install_unit_file_state_not_static:"+role);
   }
   const expectedPost={
     runtime_root_present:true,
@@ -294,7 +293,7 @@ function validateStartAdmissionV1(
       row.unit_file_state!==install.post_install_state.unit_file_state||
       row.direct_enablement_links_absent!==true||
       row.indirect_activation_absence_proven!==false||
-      !INACTIVE_UNIT_FILE_STATES.has(String(row.unit_file_state||""))||
+      row.unit_file_state!=="static"||
       !Number.isFinite(observedMs)||
       !Number.isFinite(validMs)||
       observedMs>evaluatedMs||
