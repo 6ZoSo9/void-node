@@ -123,11 +123,20 @@ following are present:
   `write_capable_not_authorized`; and
 - independent host acceptance.
 
-Even that selected state grants no transaction, signing, submission,
-broadcast, Chain-2050 write, migration, market, presale, or funds authority.
+Even that selected-state **structure** grants no transaction, signing,
+submission, broadcast, migration, market, presale, or funds authority.
 
-Downstream consumers must separately rebind and repeat fresh read-only
-preflights after selection.
+More importantly, this v1 canonical loader is deliberately HOLD-only. It will
+reject a checked-in selected descriptor with
+`production_epoch2_selected_target_requires_evidence_aware_promotion`.
+Plausible-looking activation/observation IDs in JSON are not evidence by
+themselves.
+
+A later evidence-aware promotion lane must consume and semantically reverify the
+exact private QBFT activation receipt bytes plus a fresh independent host
+observation before it may write/select the production target. Only after that
+reviewed promotion exists should downstream consumers rebind and repeat fresh
+read-only preflights.
 
 ## Why the WC/VOID preflight HOLD was correct
 
@@ -147,7 +156,8 @@ node tools/void-production-epoch2-rpc-target-v1.mjs
 node scripts/prove_void_production_epoch2_rpc_target_v1.mjs
 ```
 
-The proof also constructs a synthetic selected-state object using the exact
+The structural validator proof also constructs a synthetic selected-state
+object using the exact
 reviewed `18553`/service identities plus fake content-addressed receipt IDs to
 exercise the future schema. It explicitly rejects an arbitrary alternate
 loopback port, wrong service identity, and missing activation lineage. The
