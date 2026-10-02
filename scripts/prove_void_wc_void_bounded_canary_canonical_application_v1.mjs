@@ -228,6 +228,12 @@ assert.equal(
   false,
 );
 assert.equal(
+  plan.reviewed_execution_network_capable_modules.includes(
+    "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs",
+  ),
+  true,
+);
+assert.equal(
   plan.reviewed_runtime_profile_id,
   REVIEWED_RUNTIME_PROFILE.profile_id,
 );
