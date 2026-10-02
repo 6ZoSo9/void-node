@@ -709,7 +709,7 @@ await withFixture({}, async (f) => {
 
 await withFixture({}, async (f) => {
   const q = qualificationFixture();
-  q.source_binding.source_head_sha = "0".repeat(40);
+  q.source_binding.source_tree_sha = "0".repeat(40);
   q.qualification_id = qualificationId(q);
   const result =
     await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
@@ -717,7 +717,7 @@ await withFixture({}, async (f) => {
     );
   assert.equal(result.ok, false);
   assert.equal(f.calls.length, 0);
-  assert.equal(result.reason, "live_deployment_preflight_source_generation_mismatch");
+  assert.equal(result.reason, "live_deployment_preflight_source_tree_mismatch");
 });
 
 await withFixture({}, async (f) => {
