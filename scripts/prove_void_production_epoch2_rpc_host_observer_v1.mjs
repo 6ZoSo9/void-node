@@ -10,6 +10,7 @@ import {
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1,
   buildVoidProductionEpoch2RpcHostObservationV1,
+  testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1,
 } from "../tools/void-production-epoch2-rpc-host-observer-v1.mjs";
 import {
   buildVoidDatanetRegistryUnsignedCandidateFixtureV1,
@@ -60,6 +61,7 @@ function validInput() {
       canonical_main_stable_during_observation: true,
       service_invocation_stable_during_observation: true,
       listener_stable_during_observation: true,
+      activation_source_lineage_ancestor_current_main: true,
       rpc: {
         url: "http://127.0.0.1:18553/",
         chain_id_hex: "0x802",
@@ -101,6 +103,13 @@ assert.equal(observation.target_descriptor_promotion_authorized, false);
 assert.equal(observation.canonical_main_stable_during_observation, true);
 assert.equal(observation.service.invocation_stable_during_observation, true);
 assert.equal(observation.service.listener_stable_during_observation, true);
+assert.equal(
+  observation.activation_lineage.source_lineage_ancestor_current_main,
+  true,
+);
+assert.equal(observation.authority.activation_source_ancestry_required, true);
+assert.equal(observation.authority.private_output_parent_fd_bound, true);
+assert.equal(observation.authority.private_output_redirect_forbidden, true);
 assert.deepEqual(
   observation.authority,
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
@@ -158,6 +167,10 @@ rejected(
   /SERVICE_OR_LISTENER_INVALID/u,
 );
 rejected(
+  (v) => { v.host_observation.activation_source_lineage_ancestor_current_main = false; },
+  /SERVICE_OR_LISTENER_INVALID/u,
+);
+rejected(
   (v) => { v.host_observation.observed_at_utc = "2029-12-31T23:59:59.000Z"; },
   /TIME_INVALID/u,
 );
@@ -173,6 +186,15 @@ rejected(
     /ACTIVATION_RECEIPT_REBUILD_MISMATCH/u,
   );
 }
+
+const parentRace =
+  testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1();
+assert.match(
+  String(parentRace.reason || ""),
+  /OUTPUT_PARENT_CHANGED_DURING_WRITE/u,
+);
+assert.equal(parentRace.replacement_output_exists, false);
+assert.equal(parentRace.original_output_exists, false);
 
 const source = fs.readFileSync(
   "tools/void-production-epoch2-rpc-host-observer-v1.mjs",
@@ -213,6 +235,9 @@ console.log("head_at_or_above_activation_floor=true");
 console.log("canonical_main_stable_during_observation=true");
 console.log("service_invocation_stable_during_observation=true");
 console.log("listener_stable_during_observation=true");
+console.log("activation_source_lineage_ancestor_current_main=true");
+console.log("private_output_parent_fd_bound=true");
+console.log("private_output_redirect_forbidden=true");
 console.log("write_capability_classification=write_capable_not_authorized");
 console.log("independent_host_acceptance=true");
 console.log("target_descriptor_promotion_authorized=false");
