@@ -103,12 +103,20 @@ const setFormEnabled = (enabled) => {
 const acknowledgements = () => Object.fromEntries(
   all('[data-buy-ack]').map((node) => [node.dataset.buyAck, Boolean(node.checked)])
 );
+const usdcAtoms = (value) => {
+  const raw = String(value ?? '').trim();
+  const match = /^(0|[1-9]\d*)(?:\.(\d{1,6}))?$/.exec(raw);
+  if (!match) return null;
+  const fraction = String(match[2] || '').padEnd(6, '0');
+  return BigInt(match[1]) * 1000000n + BigInt(fraction || '0');
+};
 const validAmount = () => {
   const raw = String(one('[data-buy-amount]')?.value || '').trim();
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(raw)) return false;
+  const atoms = usdcAtoms(raw);
+  if (atoms === null || atoms <= 0n) return false;
   const value = Number(raw);
   const cfg = currentSnapshot?.config;
-  return Number.isFinite(value) && value > 0 &&
+  return Number.isFinite(value) &&
     (!cfg || (value >= Number(cfg.min_usdc) && value <= Number(cfg.max_usdc)));
 };
 const validDestination = () => ADDRESS_RE.test(String(one('[data-buy-destination]')?.value || '').trim());
@@ -231,14 +239,39 @@ async function submitBuy(event) {
       signal: AbortSignal.timeout(10000),
     });
     const body = await strictJson(response);
-    if (!response.ok || body.ok !== true) {
+    if (
+      !response.ok ||
+      body.ok !== true ||
+      body.schema !== 'void_public_buy_void_checkout_request_result_v1'
+    ) {
       throw new Error(body.error || (Array.isArray(body.errors) ? body.errors.join(', ') : `HTTP ${response.status}`));
     }
     const request = body.request;
-    if (!request || String(request.receive_address || '').toLowerCase() !== CANONICAL_RECEIVER) {
-      throw new Error('returned request receiver mismatch');
+    if (!request || typeof request !== 'object' || Array.isArray(request)) {
+      throw new Error('returned request shape mismatch');
     }
     if (
+      !String(request.request_id || '').trim() ||
+      String(request.receive_address || '').toLowerCase() !== CANONICAL_RECEIVER ||
+      String(request.void_destination_address || '').toLowerCase() !== destination.toLowerCase()
+    ) {
+      throw new Error('returned request identity mismatch');
+    }
+    const returnedAmount = String(
+      request.requested_amount_usdc ?? request.usdc_amount ?? ''
+    ).trim();
+    const submittedAtoms = usdcAtoms(amount);
+    const returnedAtoms = usdcAtoms(returnedAmount);
+    if (
+      submittedAtoms === null ||
+      returnedAtoms === null ||
+      returnedAtoms !== submittedAtoms
+    ) {
+      throw new Error('returned request amount mismatch');
+    }
+    if (
+      request.safety?.automatic_fulfillment !== false ||
+      request.safety?.manual_review_required !== true ||
       request.payment_instructions?.do_not_send_from_exchange_or_pooled_custody !== true ||
       String(request.payment_instructions?.send_from || '').toLowerCase() !== destination.toLowerCase()
     ) {
@@ -247,7 +280,7 @@ async function submitBuy(event) {
     setText('[data-buy-result]', [
       'REQUEST CREATED — VERIFY BEFORE PAYMENT',
       `Request ID: ${request.request_id}`,
-      `Send exactly: ${request.requested_amount_usdc} USDC`,
+      `Send exactly: ${returnedAmount} USDC`,
       'Network: Base Mainnet (8453)',
       `USDC contract: ${CANONICAL_BASE_USDC}`,
       `Approved receiver: ${request.receive_address}`,
