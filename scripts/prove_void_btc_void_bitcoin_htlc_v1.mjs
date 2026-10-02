@@ -149,9 +149,9 @@ assert.throws(
   () =>
     parseVoidBtcVoidBitcoinHtlcV1({
       witness_script_hex:
-        EXPECTED_SCRIPT.slice(0, 8) +
+        EXPECTED_SCRIPT.slice(0, 10) +
         "aa" +
-        EXPECTED_SCRIPT.slice(10),
+        EXPECTED_SCRIPT.slice(12),
     }),
   /htlc_opcode_sha256_missing/u,
 );
