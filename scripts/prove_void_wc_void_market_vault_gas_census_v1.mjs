@@ -146,6 +146,15 @@ for (const required of [
   need(workflow, required, `workflow:${required}`);
 }
 
+
+for (const forbidden of ["--optimize", "--optimizer-runs"]) {
+  assert.equal(
+    workflow.includes(forbidden),
+    false,
+    `workflow must preserve optimizer-disabled profile: ${forbidden}`,
+  );
+}
+
 console.log("VOID_WC_VOID_MARKET_VAULT_GAS_CENSUS_V1_PROOF_GREEN");
 console.log(`vault_git_blob_sha1=${EXPECTED_VAULT_BLOB}`);
 console.log(`token_git_blob_sha1=${EXPECTED_TOKEN_BLOB}`);
