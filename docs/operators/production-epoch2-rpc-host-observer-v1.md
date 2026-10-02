@@ -69,7 +69,7 @@ A green live run additionally requires:
 - exact running container name `void-e2-qbft-precision-v1`;
 - exact reviewed Besu image reference plus a concrete `sha256:<image-id>`;
 - exact container user `0:0`, Besu entrypoint/arguments, reviewed bind mounts, `BESU_OPTS`, `--cap-drop=ALL`, and `no-new-privileges`;
-- exact configured **and live** Docker mappings, including `127.0.0.1:18553 -> 8545/tcp` and the reviewed Precision P2P mapping;
+- exact configured **and live host-published** Docker mappings, including `127.0.0.1:18553 -> 8545/tcp` and the reviewed Precision P2P mapping; unbound image-exposed ports may remain `null`, but any additional host-published port HOLDs;
 - the same normalized container ID/image/start generation remains stable across the RPC observation window;
 - loopback `127.0.0.1:18553` listener is present before and after the RPC observation;
 - local clean `main` and live GitHub `refs/heads/main` remain unchanged across the observation window;
