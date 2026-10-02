@@ -434,6 +434,11 @@ for(const required of [
   "service_state_not_clean_inactive",
   "service_enable_state_not_clean",
   '["disabled","not-found","static"]',
+  "requireNoInstallSection",
+  "installed_unit_install_section_forbidden",
+  "service_dependency_dir_symlink_forbidden",
+  "service_dependency_dir_not_directory",
+  "service_unit_file_state=",
   "rootless_docker_required",
   "p2p_port_not_vacant",
   "start_authorized=false",
@@ -486,7 +491,9 @@ console.log("validator_private_identity_revalidation_required=true");
 console.log("nodekey_bytes_emitted=false");
 console.log("nodekey_bytes_persisted=false");
 console.log("all_services_inactive=true");
-console.log("all_services_disabled=true");
+console.log("static_unit_state_requires_exact_no_install_unit=true");
+console.log("dependency_directory_symlink_rejected=true");
+console.log("all_services_activation_inert=true");
 console.log("service_start=false");
 console.log("systemd_reload=false");
 console.log("docker_mutation=false");
