@@ -13,6 +13,7 @@ import {
   VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_TEST_ONLY_V1,
   compileVoidWcVoidCoupledLaunchPolicyBundleV1 as compileProductionBundle,
   testOnlyCompileVoidWcVoidCoupledLaunchPolicyBundleV1 as compileVoidWcVoidCoupledLaunchPolicyBundleV1,
+  testOnlyVerifyVoidWcVoidCoupledLaunchPolicyPrivateExecutionBindingV1,
 } from "../tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs";
 import {
   VOID_WC_VOID_OPENING_WINDOW_SCHEMA_V1,
@@ -679,7 +680,6 @@ for (const forbiddenAuthoritySurface of [
   '"VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1"',
   "bundle_id",
   "canonical_launch_source",
-  "authority:",
 ]) {
   assert.equal(
     coreSource.includes(forbiddenAuthoritySurface),
@@ -688,10 +688,78 @@ for (const forbiddenAuthoritySurface of [
       forbiddenAuthoritySurface,
   );
 }
+assert.equal(
+  /(^|[^A-Za-z0-9_])["']?authority["']?\s*:/mu.test(coreSource),
+  false,
+  "reviewed semantic core must not define a standalone authority property",
+);
 assert.match(
   coreSource,
   /VOID_WC_VOID_COUPLED_LAUNCH_POLICY_SEMANTIC_CORE_V1/u,
 );
+
+{
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-coupled-launch-private-binding-proof-"),
+  );
+  const sourceRoot = path.join(temp, "source");
+  const runnerFile = path.join(temp, "runner.mjs");
+  const moduleRel = "tools/reviewed-fixture-v1.mjs";
+  const moduleFile = path.join(sourceRoot, moduleRel);
+  fs.mkdirSync(path.dirname(moduleFile), { recursive: true, mode: 0o700 });
+  const moduleBytes = Buffer.from("export const reviewedFixtureV1=true;\n", "utf8");
+  const runnerBytes = Buffer.from("process.stdout.write('green');\n", "utf8");
+  fs.writeFileSync(moduleFile, moduleBytes, { mode: 0o400 });
+  fs.writeFileSync(runnerFile, runnerBytes, { mode: 0o400 });
+  const parentStat = fs.lstatSync(temp);
+  const blobHeader = Buffer.from(
+    "blob " + String(moduleBytes.length) + "\0",
+    "utf8",
+  );
+  const binding = {
+    parent: temp,
+    parent_identity: { dev: parentStat.dev, ino: parentStat.ino },
+    source_root: sourceRoot,
+    runner_file: runnerFile,
+    runner_sha256:
+      crypto.createHash("sha256").update(runnerBytes).digest("hex"),
+    module_git_blobs: {
+      [moduleRel]:
+        crypto.createHash("sha1").update(blobHeader).update(moduleBytes).digest("hex"),
+    },
+  };
+  try {
+    assert.equal(
+      testOnlyVerifyVoidWcVoidCoupledLaunchPolicyPrivateExecutionBindingV1(
+        binding,
+      ),
+      true,
+    );
+
+    fs.chmodSync(runnerFile, 0o600);
+    fs.appendFileSync(runnerFile, "// tampered\n");
+    assert.throws(
+      () =>
+        testOnlyVerifyVoidWcVoidCoupledLaunchPolicyPrivateExecutionBindingV1(
+          binding,
+        ),
+      /COUPLED_LAUNCH_POLICY_PRIVATE_RUNNER_SHA256_MISMATCH/u,
+    );
+    fs.writeFileSync(runnerFile, runnerBytes, { mode: 0o400 });
+
+    fs.chmodSync(moduleFile, 0o600);
+    fs.appendFileSync(moduleFile, "// tampered\n");
+    assert.throws(
+      () =>
+        testOnlyVerifyVoidWcVoidCoupledLaunchPolicyPrivateExecutionBindingV1(
+          binding,
+        ),
+      /COUPLED_LAUNCH_POLICY_PRIVATE_MODULE_.*_GIT_BLOB_MISMATCH/u,
+    );
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
 for (const forbiddenImport of [
   "./void-wc-void-opening-window-policy-v1.mjs",
   "./void-wc-void-opening-concentration-sybil-policy-v1.mjs",
@@ -728,6 +796,8 @@ assert.match(source, /GIT_CONFIG_GLOBAL: "\/dev\/null"/u);
 assert.match(source, /core\.fsmonitor=false/u);
 assert.match(source, /expected-input-sha256/u);
 assert.match(source, /parentFd/u);
+assert.match(source, /assertPrivateReviewedCompilerBinding/u);
+assert.match(source, /COUPLED_LAUNCH_POLICY_PRIVATE_RUNNER/u);
 assert.match(source, /fsyncSync\(parentFd\)/u);
 assert.match(source, /\/proc\/self\/fd\//u);
 assert.match(source, /boundCreatePath/u);
