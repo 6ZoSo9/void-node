@@ -165,7 +165,7 @@ jobs:
           assert 'systemctl --user restart' not in site
           assert 'ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof' not in site
           assert site.index('unsafe REMOTE_READY_BASE') < site.index('confirmation token required')
-          assert site.index('confirmation token required') < site.index('"$NODE_BIN" "\${args[@]}"')
+          assert site.index('confirmation token required') < site.index('"$NODE_BIN" "${args[@]}"')
 
           for child in (auto, peer):
               assert '${ALIEN:-zoso@100.122.79.39}' not in child
