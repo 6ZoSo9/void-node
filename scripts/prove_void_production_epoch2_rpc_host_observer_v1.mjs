@@ -12,6 +12,7 @@ import {
   buildVoidProductionEpoch2RpcHostObservationV1,
   testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1,
   testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1,
+  testOnlyValidateVoidProductionEpoch2RpcDockerDaemonInfoV1,
 } from "../tools/void-production-epoch2-rpc-host-observer-v1.mjs";
 import {
   buildVoidDatanetRegistryUnsignedCandidateFixtureV1,
@@ -300,6 +301,19 @@ assert.deepEqual(
       },
     },
   };
+  assert.equal(
+    testOnlyValidateVoidProductionEpoch2RpcDockerDaemonInfoV1({
+      SecurityOptions: ["name=seccomp,profile=builtin", "name=rootless"],
+    }),
+    true,
+  );
+  assert.throws(
+    () => testOnlyValidateVoidProductionEpoch2RpcDockerDaemonInfoV1({
+      SecurityOptions: ["name=seccomp,profile=builtin"],
+    }),
+    /DOCKER_DAEMON_NOT_ROOTLESS/u,
+  );
+
   const normalized =
     testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1(
       inspect,
@@ -449,7 +463,9 @@ for (const required of [
   '"qbft_getValidatorsByBlockNumber"',
   '"--user", "show"',
   '"sport = :18553"',
+  '"/info"',
   '"/containers/"',
+  '"SecurityOptions"',
   '"NetworkSettings"',
   '"PortBindings"',
   "dockerContainerFacts",
@@ -484,6 +500,7 @@ console.log("head_at_or_above_activation_floor=true");
 console.log("canonical_main_stable_during_observation=true");
 console.log("service_invocation_stable_during_observation=true");
 console.log("listener_stable_during_observation=true");
+console.log("rootless_docker_daemon_verified=true");
 console.log("rootless_docker_container_identity_verified=true");
 console.log("service_container_listener_binding_verified=true");
 console.log("container_stable_during_observation=true");
