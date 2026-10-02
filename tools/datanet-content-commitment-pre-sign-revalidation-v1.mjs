@@ -24,7 +24,9 @@ export const VOID_DATANET_CONTENT_COMMITMENT_PRE_SIGN_REVALIDATION_AUTHORITY_V1 
   two_fresh_object_preflights_required: true,
   pending_nonce_stability_required: true,
   pending_gas_estimate_required: true,
-  pending_native_balance_required: true,
+  pending_native_balance_required: false,
+  pending_native_balance_observed: true,
+  exact_zero_fee_policy_required: true,
   explicit_bounded_fee_policy_required: true,
   unsigned_transaction_candidate_may_be_materialized: true,
   signing_authorized: false,
@@ -149,7 +151,7 @@ function normalizePolicy(input){
   );
   const maxFee=decimal(
     input.max_fee_per_gas_wei,
-    {positive:true,max:MAX_POLICY_FEE_WEI},
+    {max:MAX_POLICY_FEE_WEI},
   );
   const priority=decimal(
     input.max_priority_fee_per_gas_wei,
@@ -157,7 +159,7 @@ function normalizePolicy(input){
   );
   const maxTotal=decimal(
     input.max_total_gas_cost_wei,
-    {positive:true,max:MAX_POLICY_TOTAL_GAS_COST_WEI},
+    {max:MAX_POLICY_TOTAL_GAS_COST_WEI},
   );
   if(
     gasMultiplier===null||gasMultiplier<10_000n||
@@ -165,7 +167,10 @@ function normalizePolicy(input){
     feeMultiplier===null||feeMultiplier<10_000n||
     maxFee===null||
     priority===null||priority>maxFee||
-    maxTotal===null
+    maxTotal===null||
+    maxFee!==0n||
+    priority!==0n||
+    maxTotal!==0n
   ) return null;
 
   const rendered=hostname==="::1"?"[::1]":hostname;
@@ -420,7 +425,7 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       }));
       if(
         nonce===null||
-        gasPrice===null||gasPrice===0n||
+        gasPrice===null||
         estimate===null||estimate===0n||
         balance===null
       ){
@@ -444,6 +449,19 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
     if(secondDynamic===null){
       return held(
         "datanet_pre_sign_second_dynamic_observation_invalid",
+        {
+          rpc_url_fingerprint_sha256:policy.rpc_url_fingerprint_sha256,
+          rpc_methods_used:methods,
+        },
+      );
+    }
+
+    if(
+      firstDynamic.gasPrice!==0n||
+      secondDynamic.gasPrice!==0n
+    ){
+      return held(
+        "datanet_pre_sign_nonzero_gas_price_policy_drift",
         {
           rpc_url_fingerprint_sha256:policy.rpc_url_fingerprint_sha256,
           rpc_methods_used:methods,
@@ -514,9 +532,9 @@ export async function runDatanetContentCommitmentPreSignRevalidationAgainstFinge
       BPS,
     );
     if(
-      computedMaxFee===0n||
+      computedMaxFee!==0n||
       computedMaxFee>policy.max_fee_per_gas_wei||
-      policy.max_priority_fee_per_gas_wei>computedMaxFee
+      policy.max_priority_fee_per_gas_wei!==0n
     ){
       return held(
         "datanet_pre_sign_fee_exceeds_policy",
