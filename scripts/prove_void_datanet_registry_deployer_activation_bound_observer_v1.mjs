@@ -237,8 +237,11 @@ for(const role of roles){
     bundle_set_receipt:bundleSet,
     role,
     materialization:bundles[role].materialization,
-    installed_at_utc:"2030-01-01T00:02:00.000Z",
-    installed_repo_head:"e".repeat(40),
+    receipt_basis:"fresh_install",
+    observed_at_utc:"2030-01-01T00:02:00.000Z",
+    observed_repo_head:"e".repeat(40),
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
   });
 }
 
@@ -247,7 +250,7 @@ for(const [index,role] of roles.entries()){
   const facts={
     repo_main_clean:true,
     final_revalidation_green:true,
-    installed_repo_head_ancestor:true,
+    install_receipt_observed_repo_head_ancestor:true,
     current_tailnet_ipv4_exact:true,
     current_enode_exact:true,
     installed_genesis_sha256_exact:true,
@@ -257,8 +260,9 @@ for(const [index,role] of roles.entries()){
     installed_systemd_unit_sha256_exact:true,
     installed_data_directory_empty:true,
     service_inactive:true,
-    service_disabled:true,
-    autostart_links_absent:true,
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
     rootless_docker_verified:true,

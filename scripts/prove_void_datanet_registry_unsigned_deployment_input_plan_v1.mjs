@@ -56,7 +56,9 @@ const installRows=["precision","nimo","xiphos"].map((role,index)=>({
   ][index],
   install_receipt_id:"voide2qinst1_"+String(index+1).repeat(64),
   materialization_id:"voide2qmat1_"+String(index+4).repeat(64),
-  installed_repo_head:"a".repeat(40),
+  receipt_basis:"fresh_install",
+  install_receipt_observed_at_utc:"2030-01-01T00:02:00.000Z",
+  install_receipt_observed_repo_head:"a".repeat(40),
   runtime_root:
     "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/"+role,
   unit_install_path:
@@ -65,6 +67,9 @@ const installRows=["precision","nimo","xiphos"].map((role,index)=>({
   genesis_sha256:
     "6a074665f4e282ad02d1f96314509295a0b2c6c8645a04989fd1a4b3ad232941",
   static_nodes_sha256:String(index+7).repeat(64),
+  unit_file_state:"static",
+  operator_user_unit_dir_direct_enablement_links_absent:true,
+  indirect_activation_absence_proven:false,
 }));
 
 const activationPlanMaterial={
@@ -109,6 +114,20 @@ const activationPlanMaterial={
   ],
   pre_start_revalidation:{
     exact_installed_hashes:true,
+    exact_empty_data_directory:true,
+    exact_plugin_sha256:true,
+    exact_rootless_docker_identity:true,
+    exact_tailnet_ipv4_binding:true,
+    exact_nodekey_public_identity_required:true,
+    nodekey_private_bytes_must_not_be_logged:true,
+    unit_file_state_observation_required:true,
+    operator_user_unit_dir_direct_enablement_links_absent_required:true,
+    indirect_activation_absence_proven:false,
+    service_inactive_required:true,
+    unit_restart_no_required:true,
+    p2p_port_vacant_required:true,
+    precision_rpc_port_vacant_required:true,
+    repo_main_clean_and_descendant_required:true,
   },
   activation:{
     authorized:false,

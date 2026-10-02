@@ -23,6 +23,7 @@ import {
 } from "../tools/void-economic-epoch2-qbft-private-runtime-bundle-set-v1.mjs";
 import {
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_CONFIRMATION_V1,
+  VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1,
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1,
   buildVoidEconomicEpoch2QbftHostInstallReceiptV1,
   validateVoidEconomicEpoch2QbftHostInstallBindingV1,
@@ -209,8 +210,11 @@ for(const role of roles) {
     bundle_set_receipt:bundleSet,
     role,
     materialization:bundles[role].materialization,
-    installed_at_utc:"2030-01-01T00:02:00.000Z",
-    installed_repo_head:"e".repeat(40),
+    receipt_basis:"fresh_install",
+    observed_at_utc:"2030-01-01T00:02:00.000Z",
+    observed_repo_head:"e".repeat(40),
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
   });
   assert.equal(receipt.marker,VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1);
   assert.equal(receipt.status,"HOST_BUNDLE_INSTALLED_DAEMON_RELOAD_AND_START_HOLD");
@@ -218,12 +222,17 @@ for(const role of roles) {
   assert.equal(receipt.plan_id,plan.plan_id);
   assert.equal(receipt.bundle_set_id,bundleSet.bundle_set_id);
   assert.equal(receipt.materialization_id,binding.row.materialization_id);
-  assert.equal(receipt.post_install_state.unit_enabled,false);
+  assert.equal(receipt.post_install_state.unit_file_state,"static");
+  assert.equal(receipt.post_install_state.operator_user_unit_dir_direct_enablement_links_absent,true);
+  assert.equal(receipt.post_install_state.indirect_activation_absence_proven,false);
   assert.equal(receipt.post_install_state.unit_active,false);
   assert.equal(receipt.post_install_state.daemon_reload_performed,false);
   assert.equal(receipt.post_install_state.service_start_performed,false);
   assert.equal(receipt.post_install_state.docker_mutation,false);
   assert.equal(receipt.post_install_state.nodekey_content_read,false);
+  assert.equal(receipt.receipt_basis,"fresh_install");
+  assert.equal(receipt.observed_at_utc,"2030-01-01T00:02:00.000Z");
+  assert.equal(receipt.observed_repo_head,"e".repeat(40));
   assert.equal(receipt.authority.runtime_root_write,true);
   assert.equal(receipt.authority.service_unit_installation,true);
   for(const key of [
@@ -235,6 +244,45 @@ for(const role of roles) {
   ]) {
     assert.equal(receipt.authority[key],false,key);
   }
+}
+
+{
+  const reattested=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+    plan,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSet,
+    role:"precision",
+    materialization:bundles.precision.materialization,
+    receipt_basis:"existing_runtime_read_only_reattestation",
+    observed_at_utc:"2030-01-01T00:02:30.000Z",
+    observed_repo_head:"f".repeat(40),
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+  });
+  assert.equal(
+    reattested.receipt_basis,
+    "existing_runtime_read_only_reattestation",
+  );
+  assert.equal(reattested.observed_at_utc,"2030-01-01T00:02:30.000Z");
+  assert.equal(reattested.observed_repo_head,"f".repeat(40));
+  assert.equal(reattested.authority.runtime_root_write,false);
+  assert.equal(reattested.authority.service_unit_installation,false);
+}
+{
+  assert.throws(
+    ()=>buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"precision",
+      materialization:bundles.precision.materialization,
+      installed_at_utc:"2030-01-01T00:02:30.000Z",
+      installed_repo_head:"f".repeat(40),
+      unit_file_state:"static",
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+    }),
+    /install_receipt_basis_invalid/u,
+  );
 }
 
 {
@@ -284,9 +332,31 @@ for(const role of roles) {
   );
 }
 
+{
+  assert.throws(
+    ()=>buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"precision",
+      materialization:bundles.precision.materialization,
+      receipt_basis:"fresh_install",
+      observed_at_utc:"2030-01-01T00:02:00.000Z",
+      observed_repo_head:"e".repeat(40),
+      unit_file_state:"disabled",
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+    }),
+    /install_unit_file_state_not_static/u,
+  );
+}
+
 assert.equal(
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_CONFIRMATION_V1,
   "installPrivateEpoch2QbftBundleV1",
+);
+assert.equal(
+  VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1,
+  "reattestExistingPrivateEpoch2QbftBundleV1",
 );
 
 const runner=fs.readFileSync(
@@ -295,13 +365,40 @@ const runner=fs.readFileSync(
 );
 for(const required of [
   "explicit_confirmation_required",
-  "requireInactiveDisabled",
+  "reattest_explicit_confirmation_required",
+  "--reattest-existing",
+  "install_apply_and_reattest_mutually_exclusive",
+  "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1",
+  "verifyExistingInstalledRuntime",
+  "existing_runtime_membership_mismatch",
+  "existing_runtime_hash_mismatch",
+  "existing_unit_hash_mismatch",
+  "existing_data_not_empty",
+  "existing_runtime_read_only_reattestation",
+  'receipt_basis:"existing_runtime_read_only_reattestation"',
+  'receipt_basis:"fresh_install"',
+  "observed_at_utc",
+  "observed_repo_head",
+  "O_NOFOLLOW",
+  "fstatSync",
+  "runtime_filesystem_mutation=false",
+  "unit_filesystem_mutation=false",
+  "requireInactiveUnitFileState",
   "service_state_not_clean_inactive",
-  "service_enable_state_not_clean",
+  "service_unit_file_state_not_clean",
   '["inactive","unknown"]',
+  '{allowStatic:args.reattest_existing}',
+  '{allowStatic:true}',
+  '["disabled","not-found"]',
   '["disabled","not-found","static"]',
-  "requireNoEnableLinks",
-  "service_autostart_link_present",
+  "requireNoInstallSection",
+  "bundle_unit_install_section_forbidden",
+  "existing_unit_install_section_forbidden",
+  "requireNoDirectEnablementLinks",
+  "service_enablement_directory_symlink",
+  "service_direct_enablement_link_present",
+  "install_post_unit_file_state_not_static",
+  "post_indirect_activation_absence_proven=false",
   "runtime_root_already_exists",
   "void_state_base_invalid",
   "runtime_parent_scope_invalid",
@@ -318,6 +415,34 @@ for(const required of [
 ]) {
   assert.ok(runner.includes(required),required);
 }
+const reattestStart=runner.indexOf("if(args.reattest_existing) {");
+const freshInstallAbsenceGate=runner.indexOf(
+  'if(fs.existsSync(runtimeRoot)) fail("runtime_root_already_exists")',
+);
+const reattestExit=runner.indexOf("process.exit(0);",reattestStart);
+assert.ok(reattestStart>0,"reattest branch missing");
+assert.ok(
+  freshInstallAbsenceGate>reattestStart,
+  "reattest branch must precede fresh-install absence gate",
+);
+assert.ok(
+  reattestExit>reattestStart&&reattestExit<freshInstallAbsenceGate,
+  "reattest branch must exit before fresh-install mutation path",
+);
+assert.equal(
+  runner.split("verifyExistingInstalledRuntime({").length-1,
+  4,
+  "helper definition plus initial/final re-attestation and final fresh-install rebind required",
+);
+assert.ok(
+  runner.includes("fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0)"),
+  "descriptor-bound nofollow installed-file read required",
+);
+assert.ok(
+  runner.includes("fs.fstatSync(fd)"),
+  "descriptor identity must be revalidated around installed-file reads",
+);
+
 for(const forbidden of [
   '"daemon-reload"',
   '["start"',
@@ -337,6 +462,11 @@ console.log("VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1_PROOF_GREEN");
 console.log("bundle_set_id_recomputed=true");
 console.log("exact_role_materialization_binding=true");
 console.log("inactive_precondition_required=true");
+console.log("preinstall_static_forbidden=true");
+console.log("postinstall_static_requires_exact_no_install_unit=true");
+console.log("existing_runtime_read_only_reattestation=true");
+console.log("reattest_runtime_filesystem_mutation=false");
+console.log("reattest_unit_filesystem_mutation=false");
 console.log("autostart_link_absence_required=true");
 console.log("atomic_runtime_and_unit_publish_with_rollback=true");
 console.log("daemon_reload=false");
