@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
-import { resolve } from "node:path";
+import fs from "node:fs";
+import os from "node:os";
+import { join, resolve } from "node:path";
 
 import { proveBtcVoidBoundedStdinV1 } from "./lib/prove_void_btc_void_bounded_stdin_v1.mjs";
 import {
@@ -23,6 +26,30 @@ import {
 
 const MARKER =
   "VOID_BTC_VOID_ATOMIC_SETTLEMENT_CURRENT_STACK_V1_PROOF_GREEN";
+const COUPLED_CANDIDATE =
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const SHARED_V2_SOURCE =
+  "tools/void-shared-market-post-discovery-state-v2.mjs";
+const ATOMIC_TOOL =
+  "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs";
+const QUOTE_SOURCE =
+  "tools/void-btc-void-quote-math-v1.mjs";
+const EXPECTED_EXECUTION_BLOBS = Object.freeze({
+  "tools/void-btc-void-quote-math-v1.mjs":
+    "02be3da1718209db1603094c9654c7dc9d697c51",
+  "tools/void-btc-void-market-maker-reserve-policy-v1.mjs":
+    "937e1b38cab34b36297f4320cc253a8e48f5a7e1",
+  "tools/void-btc-void-buyback-lot-journal-transition-v1.mjs":
+    "63d347948f3dd0bded2f2f79fadafec8f0cf7838",
+  "tools/void-btc-void-bounded-stdin-v1.mjs":
+    "2026b9be59216b0c52cf4d978b7fc91b7f7592e1",
+});
+const EXPECTED_COUPLED_BLOB =
+  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+const EXPECTED_SHARED_V2_BLOB =
+  "bcfff9c2981e713a7053ff51a39145eb06b7238b";
+const EXPECTED_RECONCILIATION_ID =
+  "sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba";
 
 function contentId(value) {
   return `sha256:${crypto
@@ -216,12 +243,125 @@ assert.equal(btcEvaluation.marker, VOID_BTC_VOID_ATOMIC_SETTLEMENT_STATE_INVARIA
 assert.equal(btcEvaluation.final_phase, "SETTLED");
 assert.equal(btcEvaluation.terminal, true);
 assert.equal(btcEvaluation.direction, "btc_to_void");
+assert.match(
+  btcEvaluation.execution_source_binding.source_head_sha,
+  /^[0-9a-f]{40}$/u,
+);
+assert.match(
+  btcEvaluation.execution_source_binding.source_tree_sha,
+  /^[0-9a-f]{40}$/u,
+);
+assert.match(
+  btcEvaluation.execution_source_binding.settlement_tool_git_blob_sha1,
+  /^[0-9a-f]{40}$/u,
+);
+assert.match(
+  btcEvaluation.execution_source_binding.git_executable_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+assert.equal(
+  btcEvaluation.execution_source_binding.exact_reviewed_git_object_execution,
+  true,
+);
+assert.equal(
+  btcEvaluation.execution_source_binding.private_readonly_execution_bundle,
+  true,
+);
+assert.equal(
+  btcEvaluation.execution_source_binding.git_replacement_objects_disabled,
+  true,
+);
+for (const [relativePath, expectedBlob] of
+  Object.entries(EXPECTED_EXECUTION_BLOBS)) {
+  assert.equal(
+    btcEvaluation.execution_source_binding.dependency_git_blobs[relativePath],
+    expectedBlob,
+    relativePath,
+  );
+}
+assert.equal(
+  btcEvaluation.invariants.exact_reviewed_execution_git_objects_bound,
+  true,
+);
+assert.equal(
+  btcEvaluation.invariants.reviewed_execution_loaded_before_authority_evaluation,
+  true,
+);
 assert.equal(btcEvaluation.current_market_binding.pair, "BTC_VOID");
 assert.equal(
   btcEvaluation.current_market_binding.settlement_source_domain,
   "bitcoin-mainnet",
 );
 assert.equal(btcEvaluation.current_market_binding.quote_unit, "satoshi");
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_marker,
+  "VOID_SHARED_MARKET_POST_DISCOVERY_STATE_V2",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_schema,
+  "void.shared-market-post-discovery-state.v2",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_source_git_blob_sha1,
+  EXPECTED_COUPLED_BLOB,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_v2_source_git_blob_sha1,
+  EXPECTED_SHARED_V2_BLOB,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.shared_market_reconciliation_id,
+  EXPECTED_RECONCILIATION_ID,
+);
+assert.equal(btcEvaluation.current_market_binding.chain_id, 2050);
+assert.equal(btcEvaluation.current_market_binding.network_identity, "mainnet0");
+assert.equal(btcEvaluation.current_market_binding.execution_epoch, 2);
+assert.equal(
+  btcEvaluation.current_market_binding.void_token,
+  "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+);
+assert.equal(btcEvaluation.current_market_binding.void_token_decimals, 18);
+assert.equal(
+  btcEvaluation.current_market_binding.btc_void_phase,
+  "post_presale_unopened",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.btc_void_remains_post_presale,
+  true,
+);
+assert.equal(btcEvaluation.current_market_binding.protocol_quote_seed_units, "0");
+assert.equal(
+  btcEvaluation.current_market_binding.planned_btc_void_inventory_atoms,
+  "10000000000000000000000000",
+);
+assert.equal(
+  btcEvaluation.current_market_binding.quote_reserve_custody_verified,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.void_reserve_custody_verified,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.inventory_funding_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.market_activation_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.public_presale_activation_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.funds_movement_authority,
+  false,
+);
+assert.equal(
+  btcEvaluation.current_market_binding.legacy_v1_shared_market_production_authority,
+  false,
+);
 assert.equal(
   btcEvaluation.current_market_binding.wc_void_fixed_redemption_claim_created,
   false,
@@ -234,6 +374,23 @@ assert.equal(btcEvaluation.terminal_market_follow_on.journal_status, "CREATE");
 assert.match(
   btcEvaluation.terminal_market_follow_on.buyback_lot_plan_id,
   /^sha256:[0-9a-f]{64}$/u,
+);
+assert.equal(
+  btcEvaluation.invariants.current_shared_market_v2_canonical_source_bound,
+  true,
+);
+assert.equal(
+  btcEvaluation.invariants.historical_v1_shared_market_authority_rejected,
+  true,
+);
+assert.equal(
+  btcEvaluation.invariants.btc_void_post_presale_unopened_required,
+  true,
+);
+assert.equal(
+  btcEvaluation.invariants
+    .btc_void_inventory_funding_and_activation_authority_false,
+  true,
 );
 assert.equal(btcEvaluation.authority.source_only_evaluation, true);
 assert.equal(btcEvaluation.authority.bitcoin_regtest_executed, false);
@@ -410,6 +567,294 @@ assert.throws(
   /contract direction mismatch/u,
 );
 
+const source = fs.readFileSync(
+  "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
+  "utf8",
+);
+assert.equal(
+  source.includes("void-shared-market-post-discovery-state-v1.mjs"),
+  false,
+);
+assert.equal(
+  source.includes("void-shared-market-post-discovery-state-v2.mjs"),
+  true,
+);
+assert.equal(source.includes(EXPECTED_COUPLED_BLOB), true);
+assert.equal(source.includes(EXPECTED_SHARED_V2_BLOB), true);
+assert.equal(source.includes("post_presale_unopened"), true);
+assert.equal(
+  source.includes('from "./void-btc-void-quote-math-v1.mjs"'),
+  false,
+);
+assert.equal(
+  source.includes('from "./void-btc-void-market-maker-reserve-policy-v1.mjs"'),
+  false,
+);
+assert.equal(
+  source.includes('from "./void-btc-void-buyback-lot-journal-transition-v1.mjs"'),
+  false,
+);
+assert.equal(
+  source.includes('from "./void-btc-void-bounded-stdin-v1.mjs"'),
+  false,
+);
+assert.equal(source.includes('"--no-replace-objects"'), true);
+assert.equal(source.includes("const env = { ...process.env }"), false);
+assert.equal(source.includes('"core.fsmonitor=false"'), true);
+assert.equal(source.includes('"core.hooksPath=/dev/null"'), true);
+assert.equal(source.includes('"core.attributesFile=/dev/null"'), true);
+assert.equal(source.includes("GIT_ATTR_NOSYSTEM"), true);
+assert.equal(source.includes("materializeReviewedExecutionBundleV1"), true);
+assert.equal(source.includes("private_readonly_execution_bundle"), true);
+
+function assertFreshEvaluatorRejectsDirtySource(relativePath, label) {
+  const original = fs.readFileSync(relativePath);
+  try {
+    fs.writeFileSync(
+      relativePath,
+      Buffer.concat([original, Buffer.from(" ", "utf8")]),
+    );
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import(${JSON.stringify(new URL("../tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs", import.meta.url).href)}).then(()=>process.exit(0)).catch((error)=>{console.error(String(error?.message||error));process.exit(22);});`,
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
+      },
+    );
+    assert.notEqual(child.status, 0, label);
+    assert.match(
+      String(child.stdout || "") + String(child.stderr || ""),
+      /reviewed source repository must be clean|reviewed worktree source mismatch/u,
+      label,
+    );
+  } finally {
+    fs.writeFileSync(relativePath, original);
+  }
+}
+
+assertFreshEvaluatorRejectsDirtySource(
+  COUPLED_CANDIDATE,
+  "dirty coupled candidate must fail before evaluator load",
+);
+assertFreshEvaluatorRejectsDirtySource(
+  SHARED_V2_SOURCE,
+  "dirty shared-market v2 source must fail before evaluator load",
+);
+
+{
+  const original = fs.readFileSync(QUOTE_SOURCE);
+  const sentinel = join(
+    os.tmpdir(),
+    `void-btc-void-unreviewed-quote-executed-${process.pid}`,
+  );
+  try {
+    fs.rmSync(sentinel, { force: true });
+    const malicious = Buffer.concat([
+      Buffer.from(
+        `import fs from "node:fs";\nfs.writeFileSync(${JSON.stringify(sentinel)}, "executed\\n");\n`,
+        "utf8",
+      ),
+      original,
+    ]);
+    fs.writeFileSync(QUOTE_SOURCE, malicious);
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import(${JSON.stringify(new URL("../tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs", import.meta.url).href)}).then(()=>process.exit(0)).catch((error)=>{console.error(String(error?.message||error));process.exit(23);});`,
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
+      },
+    );
+    assert.notEqual(child.status, 0);
+    assert.match(
+      String(child.stdout || "") + String(child.stderr || ""),
+      /reviewed source repository must be clean|reviewed worktree source mismatch/u,
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "dirty quote module executed before provenance rejection",
+    );
+  } finally {
+    fs.writeFileSync(QUOTE_SOURCE, original);
+    fs.rmSync(sentinel, { force: true });
+  }
+}
+
+{
+  const temp = fs.mkdtempSync(
+    join(os.tmpdir(), "void-btc-void-hostile-git-env-"),
+  );
+  const fakeBin = join(temp, "bin");
+  const sentinel = join(temp, "fake-git-invoked");
+  fs.mkdirSync(fakeBin);
+  const fakeGit = join(fakeBin, "git");
+  fs.writeFileSync(
+    fakeGit,
+    "#!/bin/sh\nprintf 'invoked\\n' >> " +
+      JSON.stringify(sentinel) +
+      "\nexit 91\n",
+    { mode: 0o755 },
+  );
+  try {
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import(${JSON.stringify(new URL("../tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs", import.meta.url).href)}).then(()=>process.exit(0)).catch((error)=>{console.error(String(error?.message||error));process.exit(24);});`,
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          PATH: fakeBin,
+          GIT_DIR: join(temp, "fake.git"),
+          GIT_OBJECT_DIRECTORY: join(temp, "objects"),
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: join(temp, "alternates"),
+          GIT_CONFIG_COUNT: "1",
+          GIT_CONFIG_KEY_0: "core.abbrev",
+          GIT_CONFIG_VALUE_0: "1",
+          GIT_EXEC_PATH: fakeBin,
+        },
+      },
+    );
+    assert.equal(
+      child.status,
+      0,
+      String(child.stdout || "") + String(child.stderr || ""),
+    );
+    assert.equal(fs.existsSync(sentinel), false);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
+{
+  const temp = fs.mkdtempSync(
+    join(os.tmpdir(), "void-btc-void-local-git-loader-adversary-"),
+  );
+  const fsmonitorSentinel = join(temp, "fsmonitor-executed");
+  const fsmonitor = join(temp, "fsmonitor.sh");
+  const loaderPrefix = join(temp, "ld-debug");
+  fs.writeFileSync(
+    fsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(fsmonitorSentinel) +
+      "\nexit 91\n",
+    { mode: 0o755 },
+  );
+  const gitConfigEnv = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+  const previous = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "--get", "core.fsmonitor"],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitConfigEnv,
+    },
+  );
+  assert.ok(previous.status === 0 || previous.status === 1);
+  const previousValue = previous.status === 0
+    ? String(previous.stdout || "").trim()
+    : null;
+  const setResult = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "core.fsmonitor", fsmonitor],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitConfigEnv,
+    },
+  );
+  assert.equal(setResult.status, 0, String(setResult.stderr || ""));
+  try {
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        [
+          "process.env.LD_DEBUG='libs';",
+          "process.env.LD_DEBUG_OUTPUT=" + JSON.stringify(loaderPrefix) + ";",
+          "import(" +
+            JSON.stringify(
+              new URL(
+                "../tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
+                import.meta.url,
+              ).href,
+            ) +
+            ").then(()=>process.exit(0)).catch((error)=>{console.error(String(error?.message||error));process.exit(25);});",
+        ].join(""),
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env },
+      },
+    );
+    assert.equal(
+      child.status,
+      0,
+      String(child.stdout || "") + String(child.stderr || ""),
+    );
+    assert.equal(
+      fs.existsSync(fsmonitorSentinel),
+      false,
+      "repository-local core.fsmonitor executed during reviewed Git reads",
+    );
+    assert.equal(
+      fs.readdirSync(temp).some((name) => name.startsWith("ld-debug.")),
+      false,
+      "dynamic-loader variables crossed into reviewed Git subprocess",
+    );
+  } finally {
+    const restore = previousValue === null
+      ? spawnSync(
+          "/usr/bin/git",
+          ["-C", process.cwd(), "config", "--local", "--unset-all", "core.fsmonitor"],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            env: gitConfigEnv,
+          },
+        )
+      : spawnSync(
+          "/usr/bin/git",
+          ["-C", process.cwd(), "config", "--local", "core.fsmonitor", previousValue],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            env: gitConfigEnv,
+          },
+        );
+    assert.equal(restore.status, 0, String(restore.stderr || ""));
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 await proveBtcVoidBoundedStdinV1({
   cliPath: resolve(
     "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
@@ -420,7 +865,21 @@ await proveBtcVoidBoundedStdinV1({
 
 console.log(MARKER);
 console.log("current_quote_identity_rederived=true");
+console.log("exact_reviewed_execution_git_objects_bound=true");
+console.log("private_readonly_execution_bundle=true");
+console.log("dirty_execution_source_rejected_before_load=true");
+console.log("hostile_git_environment_ignored=true");
+console.log("minimal_git_subprocess_environment=true");
+console.log("repository_local_fsmonitor_ignored=true");
+console.log("dynamic_loader_git_injection_ignored=true");
 console.log("current_shared_market_policy_bound=true");
+console.log("current_shared_market_v2_canonical_source_bound=true");
+console.log("shared_market_v2_source_drift_rejected=true");
+console.log("canonical_coupled_candidate_drift_rejected=true");
+console.log("historical_shared_market_v1_production_authority=false");
+console.log("btc_void_phase=post_presale_unopened");
+console.log("btc_void_inventory_funding_authority=false");
+console.log("btc_void_market_activation_authority=false");
 console.log("current_reserve_policy_rederived=true");
 console.log("current_buyback_journal_decision_rederived=true");
 console.log("exact_event_replay_idempotent=true");

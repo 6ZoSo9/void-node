@@ -2,24 +2,11 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import {
-  VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1,
-  VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1,
-  promoteWcVoidBoundedCanaryCandidatesV1,
-} from "./void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
-import {
-  promoteWcVoidBoundedCanarySemanticV1,
-} from "./void-wc-void-bounded-canary-semantic-promotion-v1.mjs";
-import {
-  classifyVoidWcVoidProductionReadinessV1,
-} from "./void-wc-void-production-readiness-v1.mjs";
-import {
-  classifyVoidCoupledEconomicSuccessorGateV1,
-} from "./void-coupled-economic-successor-gate-v1.mjs";
 
 export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_PLAN_V1 =
   "VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_PLAN_V1";
@@ -45,9 +32,17 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
     canonical_remote_main_read_required: true,
     reviewed_git_executable_required: true,
     ambient_git_overrides_ignored: true,
+    reviewed_git_object_execution_required: true,
+    reviewed_module_closure_required: true,
+    reviewed_package_runtime_required: true,
+    permission_fenced_execution_required: true,
+    ancestor_package_resolution_forbidden: true,
+    worktree_authority_execution_forbidden: true,
+    private_temporary_filesystem_write: true,
+    execution_network_isolation_provided: false,
     repository_source_write: false,
     filesystem_read: true,
-    filesystem_write: false,
+    filesystem_write: true,
     runtime_mutation: false,
     service_mutation: false,
     rpc_call: false,
@@ -85,6 +80,15 @@ const TOOL_REL =
   "tools/void-wc-void-bounded-canary-canonical-application-v1.mjs";
 const PROMOTION_TOOL_REL =
   "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
+const REVIEWED_BRIDGE_REL =
+  "tools/void-wc-void-bounded-canary-reviewed-execution-v1.mjs";
+const REVIEWED_RUNTIME_TOOL_REL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_RUNTIME_PROFILE_ID = /^voidrnpr1_[0-9a-f]{64}$/u;
+const REVIEWED_EXECUTION_MARKER =
+  "VOID_WC_VOID_BOUNDED_CANARY_REVIEWED_EXECUTION_V1";
 const PRODUCTION_REL =
   "ops/mainnet0/wc-void-production-candidate-v1.json";
 const COUPLED_REL =
@@ -98,6 +102,14 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const PROMOTION_ID = /^voidwcbccp1_[0-9a-f]{64}$/u;
 const PLAN_ID = /^voidwcbcap1_[0-9a-f]{64}$/u;
 const MAX_BYTES = 64 * 1024 * 1024;
+const REVIEWED_GIT_CONFIG_ARGS = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
 
 const SEMANTIC_REQUEST_KEYS = Object.freeze([
   "reviewed_policy_id",
@@ -139,6 +151,15 @@ const PLAN_KEYS = Object.freeze([
   "application_base_tree_sha",
   "candidate_promotion_tool_git_blob_sha1",
   "canonical_application_tool_git_blob_sha1",
+  "reviewed_execution_module_git_blobs",
+  "reviewed_runtime_tool_git_blob_sha1",
+  "reviewed_runtime_profile_git_blob_sha1",
+  "reviewed_runtime_profile_id",
+  "reviewed_runtime_packages_aggregate_sha256",
+  "reviewed_execution_permission_fenced",
+  "reviewed_execution_ancestor_package_resolution_allowed",
+  "reviewed_execution_network_capable_modules",
+  "reviewed_execution_network_isolation_provided",
   "production_candidate_path",
   "production_source_git_blob_sha1",
   "production_source_file_sha256",
@@ -281,47 +302,29 @@ function sameGitExecutable(left, right) {
 }
 
 function sanitizedGitEnv() {
-  const env = { ...process.env };
-  for (const key of [
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_NAMESPACE",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_COUNT",
-    "GIT_EXEC_PATH",
-    "GIT_SSH",
-    "GIT_SSH_COMMAND",
-    "GIT_ASKPASS",
-    "SSH_ASKPASS",
-    "GIT_EXTERNAL_DIFF",
-    "GIT_PAGER",
-    "GIT_EDITOR",
-    "GIT_SEQUENCE_EDITOR",
-  ]) {
-    delete env[key];
-  }
-  for (const key of Object.keys(env)) {
-    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
-  }
-  env.GIT_CONFIG_NOSYSTEM = "1";
-  env.GIT_OPTIONAL_LOCKS = "0";
-  env.GIT_TERMINAL_PROMPT = "0";
-  env.LANG = "C";
-  env.LC_ALL = "C";
-  env.PATH = "/usr/bin:/bin";
-  return env;
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_ASKPASS: "/bin/false",
+  };
 }
 
 function gitRun(args, code, { encoding = "utf8", maxBuffer = MAX_BYTES + 1024 } = {}) {
   const before = inspectGitExecutable();
   const result = spawnSync(
     before.path,
-    ["--no-replace-objects", "-C", ROOT, ...args],
+    ["--no-replace-objects", ...REVIEWED_GIT_CONFIG_ARGS, "-C", ROOT, ...args],
     {
       encoding,
       env: sanitizedGitEnv(),
@@ -351,7 +354,12 @@ function canonicalRemoteGitText(args, code) {
   env.GIT_TERMINAL_PROMPT = "0";
   const result = spawnSync(
     before.path,
-    ["--no-replace-objects", ...args],
+    [
+      "--no-replace-objects",
+      "-c", "http.sslVerify=true",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      ...args,
+    ],
     {
       cwd: "/",
       encoding: "utf8",
@@ -396,7 +404,8 @@ function headIdentity() {
   if (!HEX40.test(head) || !HEX40.test(tree)) {
     fail("CANONICAL_APPLICATION_REPOSITORY_IDENTITY_INVALID");
   }
-  return Object.freeze({ head, tree });
+  const toolBlob = assertApplicationToolWorktreeBound({ head, tree });
+  return Object.freeze({ head, tree, tool_blob_sha1: toolBlob });
 }
 
 function assertHeadStable(expected) {
@@ -417,6 +426,12 @@ function assertHeadStable(expected) {
     ) !== ""
   ) {
     fail("CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ");
+  }
+  if (
+    assertApplicationToolWorktreeBound(expected) !==
+      expected.tool_blob_sha1
+  ) {
+    fail("CANONICAL_APPLICATION_TOOL_CHANGED_DURING_READ");
   }
 }
 
@@ -466,6 +481,738 @@ function commitFile(commit, pathname, label) {
 
 function headFile(pathname, label) {
   return commitFile("HEAD", pathname, label);
+}
+
+
+function commitBytes(commit, pathname, label) {
+  const bytes = gitBytes(
+    ["show", commit + ":" + pathname],
+    "CANONICAL_APPLICATION_" + label + "_BYTES_UNAVAILABLE",
+  );
+  if (bytes.length < 1 || bytes.length > MAX_BYTES) {
+    fail("CANONICAL_APPLICATION_" + label + "_BYTES_INVALID");
+  }
+  const blob = commitBlob(
+    commit,
+    pathname,
+    "CANONICAL_APPLICATION_" + label + "_BLOB_UNAVAILABLE",
+  );
+  if (gitBlobSha1(bytes) !== blob) {
+    fail("CANONICAL_APPLICATION_" + label + "_BLOB_MISMATCH");
+  }
+  return Object.freeze({
+    bytes: Buffer.from(bytes),
+    sha256: sha256(bytes),
+    blob_sha1: blob,
+  });
+}
+
+function assertApplicationToolWorktreeBound(repository) {
+  const expected = commitBytes(
+    repository.head,
+    TOOL_REL,
+    "APPLICATION_TOOL",
+  );
+  const actual = fs.readFileSync(path.join(ROOT, TOOL_REL));
+  if (gitBlobSha1(actual) !== expected.blob_sha1) {
+    fail("CANONICAL_APPLICATION_TOOL_WORKTREE_DRIFT");
+  }
+  return expected.blob_sha1;
+}
+
+function reviewedModuleClosure(commit) {
+  const pending = [REVIEWED_BRIDGE_REL];
+  const seen = new Set();
+  const blobs = Object.create(null);
+  const networkCapableModules = new Set();
+  let bareEthers = false;
+  while (pending.length) {
+    const rel = pending.pop();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const source = commitBytes(
+      commit,
+      rel,
+      "REVIEWED_MODULE_" + rel.replace(/[^A-Za-z0-9]+/gu, "_"),
+    );
+    blobs[rel] = source.blob_sha1;
+    const sourceText =
+      new TextDecoder("utf-8", { fatal: true }).decode(source.bytes);
+
+    if (
+      [
+        "node:http",
+        "node:https",
+        "node:net",
+        "node:tls",
+        "node:dgram",
+      ].some((needle) => sourceText.includes(needle))
+    ) {
+      networkCapableModules.add(rel);
+    }
+    if (sourceText.includes("node:worker_threads")) {
+      fail("CANONICAL_APPLICATION_REVIEWED_WORKER_SURFACE:" + rel);
+    }
+    if (/\bimport\s*\(/u.test(sourceText)) {
+      fail("CANONICAL_APPLICATION_REVIEWED_DYNAMIC_IMPORT:" + rel);
+    }
+    if (
+      sourceText.includes("node:child_process") &&
+      rel !== PROMOTION_TOOL_REL
+    ) {
+      fail("CANONICAL_APPLICATION_REVIEWED_CHILD_PROCESS_SURFACE:" + rel);
+    }
+
+    const specs = [];
+    for (const re of [
+      /\bfrom\s+["']([^"']+)["']/gu,
+      /\bimport\s+["']([^"']+)["']/gu,
+    ]) {
+      let match;
+      while ((match = re.exec(sourceText)) !== null) specs.push(match[1]);
+    }
+    for (const spec of specs) {
+      if (spec.startsWith("node:")) continue;
+      if (spec === "ethers") {
+        bareEthers = true;
+        continue;
+      }
+      if (!spec.startsWith(".")) {
+        fail("CANONICAL_APPLICATION_REVIEWED_BARE_IMPORT:" + spec);
+      }
+      let target = path.posix.normalize(
+        path.posix.join(path.posix.dirname(rel), spec),
+      );
+      if (!target.endsWith(".mjs")) target += ".mjs";
+      if (!target.startsWith("tools/") || target.includes("../")) {
+        fail("CANONICAL_APPLICATION_REVIEWED_IMPORT_ESCAPE:" + target);
+      }
+      pending.push(target);
+    }
+  }
+  if (!bareEthers) {
+    fail("CANONICAL_APPLICATION_REVIEWED_ETHERS_CLOSURE_MISSING");
+  }
+  return Object.freeze({
+    module_git_blobs: Object.freeze({ ...blobs }),
+    bare_ethers_required: true,
+    child_process_module: PROMOTION_TOOL_REL,
+    network_capable_modules: Object.freeze(
+      [...networkCapableModules].sort(),
+    ),
+  });
+}
+
+function encodeReviewedTransportValue(value) {
+  if (Buffer.isBuffer(value)) {
+    return Object.freeze({
+      __void_reviewed_buffer_v1: value.toString("base64"),
+    });
+  }
+  if (Array.isArray(value)) {
+    return value.map(encodeReviewedTransportValue);
+  }
+  if (plain(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [
+        key,
+        encodeReviewedTransportValue(child),
+      ]),
+    );
+  }
+  return value;
+}
+
+function privateNodeEnv(home) {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: home,
+    XDG_CONFIG_HOME: home,
+    LANG: "C",
+    LC_ALL: "C",
+    NODE_OPTIONS: "",
+    NODE_PATH: "",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+    GIT_CONFIG_COUNT: "6",
+    GIT_CONFIG_KEY_0: "core.fsmonitor",
+    GIT_CONFIG_VALUE_0: "false",
+    GIT_CONFIG_KEY_1: "core.hooksPath",
+    GIT_CONFIG_VALUE_1: "/dev/null",
+    GIT_CONFIG_KEY_2: "core.attributesFile",
+    GIT_CONFIG_VALUE_2: "/dev/null",
+    GIT_CONFIG_KEY_3: "core.untrackedCache",
+    GIT_CONFIG_VALUE_3: "false",
+    GIT_CONFIG_KEY_4: "core.preloadIndex",
+    GIT_CONFIG_VALUE_4: "false",
+    GIT_CONFIG_KEY_5: "submodule.recurse",
+    GIT_CONFIG_VALUE_5: "false",
+  };
+}
+
+function writePrivateSource(file, bytes, mode = 0o400) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    mode,
+  );
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, mode);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function readBoundPrivateRegularFile(
+  file,
+  { expectedSha256 = null, expectedGitBlobSha1 = null } = {},
+  code,
+) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.nlink !== 1 || before.size < 1) {
+      fail(code + "_FILE_INVALID");
+    }
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (count <= 0) fail(code + "_SHORT_READ");
+      offset += count;
+    }
+    const after = fs.fstatSync(fd);
+    for (const key of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
+      if (before[key] !== after[key]) fail(code + "_CHANGED_DURING_READ");
+    }
+    if (
+      expectedSha256 !== null &&
+      sha256(bytes) !== expectedSha256
+    ) {
+      fail(code + "_SHA256_MISMATCH");
+    }
+    if (
+      expectedGitBlobSha1 !== null &&
+      gitBlobSha1(bytes) !== expectedGitBlobSha1
+    ) {
+      fail(code + "_GIT_BLOB_MISMATCH");
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function gitRunPrivate(cwd, args, code, { allowFail = false } = {}) {
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-c", "protocol.file.allow=always",
+      "-C", cwd,
+      ...args,
+    ],
+    {
+      env: sanitizedGitEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: MAX_BYTES + 1024,
+      timeout: 120_000,
+    },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0 && !allowFail) fail(code);
+  return result;
+}
+
+function fchmodReviewedDirectory(file, mode) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY |
+      Number(fs.constants.O_DIRECTORY || 0) |
+      Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    if (!fs.fstatSync(fd).isDirectory()) {
+      fail("CANONICAL_APPLICATION_REVIEWED_DIRECTORY_INVALID");
+    }
+    fs.fchmodSync(fd, mode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fchmodReviewedRegularFile(file, mode) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1) {
+      fail("CANONICAL_APPLICATION_REVIEWED_FILE_INVALID");
+    }
+    fs.fchmodSync(fd, mode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function makeReviewedTreeReadOnly(root) {
+  const rootStat = fs.lstatSync(root);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    fail("CANONICAL_APPLICATION_REVIEWED_ROOT_INVALID");
+  }
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(file);
+        fchmodReviewedDirectory(file, 0o500);
+      } else if (entry.isSymbolicLink()) {
+        if (!fs.lstatSync(file).isSymbolicLink()) {
+          fail("CANONICAL_APPLICATION_REVIEWED_SYMLINK_INVALID");
+        }
+      } else if (entry.isFile()) {
+        const stat = fs.lstatSync(file);
+        const executable = (Number(stat.mode) & 0o111) !== 0;
+        fchmodReviewedRegularFile(file, executable ? 0o500 : 0o400);
+      } else {
+        fail("CANONICAL_APPLICATION_REVIEWED_ENTRY_INVALID");
+      }
+    }
+  }
+  walk(root);
+  fchmodReviewedDirectory(root, 0o500);
+}
+
+function makeReviewedTreeRemovable(root) {
+  if (!fs.existsSync(root)) return;
+  fchmodReviewedDirectory(root, 0o700);
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        fchmodReviewedDirectory(file, 0o700);
+        walk(file);
+      } else if (entry.isSymbolicLink()) {
+        if (!fs.lstatSync(file).isSymbolicLink()) {
+          fail("CANONICAL_APPLICATION_REVIEWED_SYMLINK_INVALID");
+        }
+      } else if (entry.isFile()) {
+        fchmodReviewedRegularFile(file, 0o600);
+      }
+    }
+  }
+  walk(root);
+}
+
+function buildReviewedExecutionRoot(repository) {
+  const closure = reviewedModuleClosure(repository.head);
+  const parent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-bounded-canary-reviewed-"),
+  );
+  fs.chmodSync(parent, 0o700);
+  const parentStat = fs.lstatSync(parent);
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    fail("CANONICAL_APPLICATION_REVIEWED_PARENT_INVALID");
+  }
+  const parentIdentity = Object.freeze({
+    dev: parentStat.dev,
+    ino: parentStat.ino,
+  });
+  try {
+    const bootstrapDir = path.join(parent, "bootstrap");
+    fs.mkdirSync(bootstrapDir, { mode: 0o700 });
+
+    const runtimeTool = commitBytes(
+      repository.head,
+      REVIEWED_RUNTIME_TOOL_REL,
+      "REVIEWED_RUNTIME_TOOL",
+    );
+    const runtimeProfile = commitBytes(
+      repository.head,
+      REVIEWED_RUNTIME_PROFILE_REL,
+      "REVIEWED_RUNTIME_PROFILE",
+    );
+    const runtimeToolFile =
+      path.join(bootstrapDir, "void-reviewed-node-package-runtime-v1.mjs");
+    const profileFile = path.join(bootstrapDir, "profile.json");
+    writePrivateSource(runtimeToolFile, runtimeTool.bytes);
+    writePrivateSource(profileFile, runtimeProfile.bytes);
+
+    const executionRoot = path.join(parent, "execution");
+    const bootstrapFile = path.join(bootstrapDir, "bootstrap.mjs");
+    const bootstrapSource = [
+      'import fs from "node:fs";',
+      'import { materializeReviewedNodePackageRuntimeV1, verifyMaterializedReviewedNodePackageRuntimeV1 } from "./void-reviewed-node-package-runtime-v1.mjs";',
+      'process.stdin.setEncoding("utf8");',
+      'let text="";',
+      'for await (const chunk of process.stdin) text+=chunk;',
+      'const request=JSON.parse(text);',
+      'const profile=JSON.parse(fs.readFileSync(request.profile_file,"utf8"));',
+      'const result=request.action==="materialize"',
+      '  ? materializeReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root})',
+      '  : verifyMaterializedReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root});',
+      'process.stdout.write(JSON.stringify(result));',
+      '',
+    ].join("\n");
+    const bootstrapBytes = Buffer.from(bootstrapSource, "utf8");
+    writePrivateSource(bootstrapFile, bootstrapBytes);
+
+    const materialize = spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [bootstrapFile],
+      {
+        cwd: bootstrapDir,
+        env: privateNodeEnv(bootstrapDir),
+        input: JSON.stringify({
+          action: "materialize",
+          profile_file: profileFile,
+          repo_root: ROOT,
+          destination_root: executionRoot,
+        }),
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 120_000,
+      },
+    );
+    if (materialize.error || materialize.status !== 0) {
+      fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_MATERIALIZATION_FAILED");
+    }
+    let runtime;
+    try {
+      runtime = JSON.parse(String(materialize.stdout || ""));
+    } catch {
+      fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_OUTPUT_INVALID");
+    }
+    if (
+      runtime?.ok !== true ||
+      runtime.status !== "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      !REVIEWED_RUNTIME_PROFILE_ID.test(String(runtime.profile_id || "")) ||
+      !HEX64.test(String(runtime.packages_aggregate_sha256 || "")) ||
+      runtime.read_only_materialization !== true
+    ) {
+      fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_INVALID");
+    }
+
+    gitRunPrivate(
+      executionRoot,
+      ["init", "--quiet"],
+      "CANONICAL_APPLICATION_PRIVATE_GIT_INIT_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["fetch", "--quiet", "--no-tags", "--depth=1", ROOT, repository.head],
+      "CANONICAL_APPLICATION_PRIVATE_GIT_FETCH_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["checkout", "--quiet", "--detach", "FETCH_HEAD"],
+      "CANONICAL_APPLICATION_PRIVATE_GIT_CHECKOUT_FAILED",
+    );
+    const privateHead = String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse", "HEAD"],
+        "CANONICAL_APPLICATION_PRIVATE_HEAD_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    const privateTree = String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse", "HEAD^{tree}"],
+        "CANONICAL_APPLICATION_PRIVATE_TREE_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    if (privateHead !== repository.head || privateTree !== repository.tree) {
+      fail("CANONICAL_APPLICATION_PRIVATE_GIT_IDENTITY_MISMATCH");
+    }
+
+    for (const [relativePath, expectedBlob] of
+      Object.entries(closure.module_git_blobs)) {
+      const actual = gitBlobSha1(
+        fs.readFileSync(path.join(executionRoot, relativePath)),
+      );
+      if (actual !== expectedBlob) {
+        fail(
+          "CANONICAL_APPLICATION_PRIVATE_MODULE_BLOB_MISMATCH:" +
+            relativePath,
+        );
+      }
+    }
+
+    const runnerDir = path.join(parent, "runner");
+    fs.mkdirSync(runnerDir, { mode: 0o700 });
+    const runnerFile =
+      path.join(runnerDir, "bounded-canary-reviewed-runner-v1.mjs");
+    const bridgeUrl = JSON.stringify(
+      pathToFileURL(path.join(executionRoot, REVIEWED_BRIDGE_REL)).href,
+    );
+    const runnerSource = [
+      'import { executeVoidWcVoidBoundedCanaryReviewedV1 } from ' +
+        bridgeUrl + ';',
+      'process.stdin.setEncoding("utf8");',
+      'let text="";',
+      'for await (const chunk of process.stdin) text+=chunk;',
+      'function revive(value){',
+      '  if(Array.isArray(value)) return value.map(revive);',
+      '  if(value&&typeof value==="object"){',
+      '    const keys=Object.keys(value);',
+      '    if(keys.length===1&&keys[0]==="__void_reviewed_buffer_v1"&&typeof value.__void_reviewed_buffer_v1==="string"){',
+      '      return Buffer.from(value.__void_reviewed_buffer_v1,"base64");',
+      '    }',
+      '    return Object.fromEntries(Object.entries(value).map(([key,child])=>[key,revive(child)]));',
+      '  }',
+      '  return value;',
+      '}',
+      'let envelope;',
+      'try{',
+      '  const request=revive(JSON.parse(text));',
+      '  const result=executeVoidWcVoidBoundedCanaryReviewedV1(request);',
+      '  envelope={ok:true,result,error:null};',
+      '}catch(error){',
+      '  envelope={ok:false,result:null,error:(error instanceof Error?error.message:String(error)).slice(0,512)};',
+      '}',
+      'process.stdout.write(JSON.stringify(envelope));',
+      '',
+    ].join("\n");
+    const runnerBytes = Buffer.from(runnerSource, "utf8");
+    writePrivateSource(runnerFile, runnerBytes);
+
+    makeReviewedTreeReadOnly(executionRoot);
+    const privateStatus = String(
+      gitRunPrivate(
+        executionRoot,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+        "CANONICAL_APPLICATION_PRIVATE_STATUS_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    if (privateStatus !== "") {
+      fail("CANONICAL_APPLICATION_PRIVATE_WORKTREE_NOT_CLEAN");
+    }
+
+    return Object.freeze({
+      parent,
+      parent_identity: parentIdentity,
+      bootstrap_dir: bootstrapDir,
+      bootstrap_file: bootstrapFile,
+      bootstrap_file_sha256: sha256(bootstrapBytes),
+      runtime_tool_file: runtimeToolFile,
+      runtime_tool_file_sha256: runtimeTool.sha256,
+      profile_file: profileFile,
+      profile_file_sha256: runtimeProfile.sha256,
+      execution_root: executionRoot,
+      runner_file: runnerFile,
+      runner_file_sha256: sha256(runnerBytes),
+      private_module_git_blobs: closure.module_git_blobs,
+      binding: Object.freeze({
+        module_git_blobs: closure.module_git_blobs,
+        runtime_tool_git_blob_sha1: runtimeTool.blob_sha1,
+        runtime_profile_git_blob_sha1: runtimeProfile.blob_sha1,
+        profile_id: runtime.profile_id,
+        packages_aggregate_sha256: runtime.packages_aggregate_sha256,
+        permission_fenced: true,
+        ancestor_package_resolution_allowed: false,
+        network_capable_modules: closure.network_capable_modules,
+        execution_network_isolation_provided: false,
+      }),
+    });
+  } catch (error) {
+    try {
+      makeReviewedTreeRemovable(parent);
+      fs.rmSync(parent, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "bounded_canary_reviewed_execution_cleanup_failed",
+      );
+    }
+    throw error;
+  }
+}
+
+function assertPrivateExecutionStaticBinding(bundle) {
+  const parentStat = fs.lstatSync(bundle.parent);
+  if (
+    !parentStat.isDirectory() ||
+    parentStat.isSymbolicLink() ||
+    parentStat.dev !== bundle.parent_identity.dev ||
+    parentStat.ino !== bundle.parent_identity.ino
+  ) {
+    fail("CANONICAL_APPLICATION_REVIEWED_PARENT_IDENTITY_DRIFT");
+  }
+  readBoundPrivateRegularFile(
+    bundle.bootstrap_file,
+    { expectedSha256: bundle.bootstrap_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_BOOTSTRAP",
+  );
+  readBoundPrivateRegularFile(
+    bundle.runtime_tool_file,
+    { expectedSha256: bundle.runtime_tool_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_RUNTIME_TOOL_PRIVATE",
+  );
+  readBoundPrivateRegularFile(
+    bundle.profile_file,
+    { expectedSha256: bundle.profile_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_RUNTIME_PROFILE_PRIVATE",
+  );
+  readBoundPrivateRegularFile(
+    bundle.runner_file,
+    { expectedSha256: bundle.runner_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_RUNNER",
+  );
+  for (const [relativePath, expectedBlob] of
+    Object.entries(bundle.private_module_git_blobs)) {
+    readBoundPrivateRegularFile(
+      path.join(bundle.execution_root, relativePath),
+      { expectedGitBlobSha1: expectedBlob },
+      "CANONICAL_APPLICATION_REVIEWED_PRIVATE_MODULE_" +
+        relativePath.replace(/[^A-Za-z0-9]+/gu, "_"),
+    );
+  }
+}
+
+function verifyReviewedRuntimeTree(bundle) {
+  assertPrivateExecutionStaticBinding(bundle);
+  const result = spawnSync(
+    fs.realpathSync.native(process.execPath),
+    [bundle.bootstrap_file],
+    {
+      cwd: bundle.bootstrap_dir,
+      env: privateNodeEnv(bundle.bootstrap_dir),
+      input: JSON.stringify({
+        action: "verify",
+        profile_file: bundle.profile_file,
+        repo_root: ROOT,
+        destination_root: bundle.execution_root,
+      }),
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: 120_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_REVERIFY_FAILED");
+  }
+}
+
+function runReviewedAuthority(repository, request) {
+  const bundle = buildReviewedExecutionRoot(repository);
+  try {
+    verifyReviewedRuntimeTree(bundle);
+    assertPrivateExecutionStaticBinding(bundle);
+    const reviewedGitExecutable =
+      fs.realpathSync.native(GIT);
+    const reviewedReadRoots = [
+      ...new Set([
+        bundle.parent,
+        GIT,
+        reviewedGitExecutable,
+      ]),
+    ];
+    const result = spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [
+        "--permission",
+        ...reviewedReadRoots.map(
+          (value) => "--allow-fs-read=" + value,
+        ),
+        "--allow-child-process",
+        bundle.runner_file,
+      ],
+      {
+        cwd: bundle.bootstrap_dir,
+        env: privateNodeEnv(bundle.bootstrap_dir),
+        input: JSON.stringify(encodeReviewedTransportValue(request)),
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: 120_000,
+      },
+    );
+    if (result.error || result.status !== 0) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_EXECUTION_FAILED");
+    }
+    let envelope;
+    try {
+      envelope = JSON.parse(String(result.stdout || ""));
+    } catch {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+    }
+    if (
+      !plain(envelope) ||
+      typeof envelope.ok !== "boolean" ||
+      !Object.hasOwn(envelope, "result") ||
+      !Object.hasOwn(envelope, "error")
+    ) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+    }
+    if (!envelope.ok) {
+      if (typeof envelope.error !== "string" || envelope.error.length < 1) {
+        fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_ERROR_INVALID");
+      }
+      fail(envelope.error);
+    }
+    if (!plain(envelope.result) || envelope.error !== null) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_RESULT_INVALID");
+    }
+    if (envelope.result.marker !== REVIEWED_EXECUTION_MARKER) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_MARKER_INVALID");
+    }
+    return Object.freeze({
+      result: envelope.result,
+      binding: bundle.binding,
+    });
+  } finally {
+    makeReviewedTreeRemovable(bundle.parent);
+    fs.rmSync(bundle.parent, { recursive: true, force: true });
+  }
+}
+
+function assertReviewedExecutionBinding(plan, binding) {
+  if (
+    canonicalJson(plan.reviewed_execution_module_git_blobs) !==
+      canonicalJson(binding.module_git_blobs) ||
+    plan.reviewed_runtime_tool_git_blob_sha1 !==
+      binding.runtime_tool_git_blob_sha1 ||
+    plan.reviewed_runtime_profile_git_blob_sha1 !==
+      binding.runtime_profile_git_blob_sha1 ||
+    plan.reviewed_runtime_profile_id !== binding.profile_id ||
+    plan.reviewed_runtime_packages_aggregate_sha256 !==
+      binding.packages_aggregate_sha256 ||
+    plan.reviewed_execution_permission_fenced !== true ||
+    plan.reviewed_execution_ancestor_package_resolution_allowed !== false ||
+    canonicalJson(plan.reviewed_execution_network_capable_modules) !==
+      canonicalJson(binding.network_capable_modules) ||
+    plan.reviewed_execution_network_isolation_provided !== false
+  ) {
+    fail("CANONICAL_APPLICATION_REVIEWED_EXECUTION_LINEAGE_DRIFT");
+  }
 }
 
 function parseJsonBytes(bytes, expectedSha, label) {
@@ -549,6 +1296,20 @@ function validatePlan(plan) {
     plan.coupled_status_remains_hold !== true ||
     plan.coupled_activation_ready !== false ||
     plan.reviewed_git_commit_required !== true ||
+    !plain(plan.reviewed_execution_module_git_blobs) ||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(
+      String(plan.reviewed_runtime_profile_id || ""),
+    ) ||
+    !HEX64.test(
+      String(plan.reviewed_runtime_packages_aggregate_sha256 || ""),
+    ) ||
+    plan.reviewed_execution_permission_fenced !== true ||
+    plan.reviewed_execution_ancestor_package_resolution_allowed !== false ||
+    !Array.isArray(plan.reviewed_execution_network_capable_modules) ||
+    plan.reviewed_execution_network_capable_modules.some(
+      (value) => typeof value !== "string" || !value.startsWith("tools/"),
+    ) ||
+    plan.reviewed_execution_network_isolation_provided !== false ||
     plan.market_activation_authorized !== false ||
     plan.public_presale_activation_authorized !== false ||
     plan.funds_movement_authorized !== false
@@ -575,6 +1336,8 @@ function validatePlan(plan) {
     "application_base_tree_sha",
     "candidate_promotion_tool_git_blob_sha1",
     "canonical_application_tool_git_blob_sha1",
+    "reviewed_runtime_tool_git_blob_sha1",
+    "reviewed_runtime_profile_git_blob_sha1",
     "production_source_git_blob_sha1",
     "production_target_git_blob_sha1",
     "coupled_source_git_blob_sha1",
@@ -619,6 +1382,50 @@ function validatePlan(plan) {
     ) !== plan.canonical_application_tool_git_blob_sha1
   ) {
     fail("CANONICAL_APPLICATION_PLAN_TOOL_LINEAGE_MISMATCH");
+  }
+
+  const expectedClosure = reviewedModuleClosure(
+    plan.application_base_head_sha,
+  );
+  if (
+    canonicalJson(plan.reviewed_execution_module_git_blobs) !==
+      canonicalJson(expectedClosure.module_git_blobs) ||
+    canonicalJson(plan.reviewed_execution_network_capable_modules) !==
+      canonicalJson(expectedClosure.network_capable_modules) ||
+    Object.values(plan.reviewed_execution_module_git_blobs)
+      .some((value) => !HEX40.test(String(value)))
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_REVIEWED_MODULE_CLOSURE_MISMATCH");
+  }
+  if (
+    commitBlob(
+      plan.application_base_head_sha,
+      REVIEWED_RUNTIME_TOOL_REL,
+      "CANONICAL_APPLICATION_PLAN_RUNTIME_TOOL_BLOB_UNAVAILABLE",
+    ) !== plan.reviewed_runtime_tool_git_blob_sha1 ||
+    commitBlob(
+      plan.application_base_head_sha,
+      REVIEWED_RUNTIME_PROFILE_REL,
+      "CANONICAL_APPLICATION_PLAN_RUNTIME_PROFILE_BLOB_UNAVAILABLE",
+    ) !== plan.reviewed_runtime_profile_git_blob_sha1
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_RUNTIME_LINEAGE_MISMATCH");
+  }
+  const runtimeProfile = commitFile(
+    plan.application_base_head_sha,
+    REVIEWED_RUNTIME_PROFILE_REL,
+    "PLAN_REVIEWED_RUNTIME_PROFILE",
+  );
+  if (
+    runtimeProfile.value?.marker !== "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1" ||
+    runtimeProfile.value?.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE" ||
+    runtimeProfile.value.profile_id !== plan.reviewed_runtime_profile_id ||
+    runtimeProfile.value.packages_aggregate_sha256 !==
+      plan.reviewed_runtime_packages_aggregate_sha256 ||
+    JSON.stringify(runtimeProfile.value.root_packages) !==
+      JSON.stringify(["ethers"])
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_RUNTIME_PROFILE_MISMATCH");
   }
 
   const baseProduction = commitFile(
@@ -668,34 +1475,57 @@ function validatePlan(plan) {
     "coupled",
   );
 
-  const productionBefore =
-    classifyVoidWcVoidProductionReadinessV1(baseProduction.value);
-  const productionAfter =
-    classifyVoidWcVoidProductionReadinessV1(plan.production_target_candidate);
-  const coupledBefore =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      baseCoupled.value,
-      baseSuccessor.value,
-    );
-  const coupledAfter =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      plan.coupled_target_candidate,
-      baseSuccessor.value,
-    );
+  const reviewedClassification = runReviewedAuthority(
+    Object.freeze({
+      head: plan.application_base_head_sha,
+      tree: plan.application_base_tree_sha,
+    }),
+    {
+      operation: "classify",
+      production_candidate: baseProduction.value,
+      coupled_candidate: baseCoupled.value,
+      successor_candidate: baseSuccessor.value,
+    },
+  );
+  assertReviewedExecutionBinding(plan, reviewedClassification.binding);
+  const classificationAfter = runReviewedAuthority(
+    Object.freeze({
+      head: plan.application_base_head_sha,
+      tree: plan.application_base_tree_sha,
+    }),
+    {
+      operation: "classify",
+      production_candidate: plan.production_target_candidate,
+      coupled_candidate: plan.coupled_target_candidate,
+      successor_candidate: baseSuccessor.value,
+    },
+  );
+  assertReviewedExecutionBinding(plan, classificationAfter.binding);
+  const reviewedProductionBefore =
+    reviewedClassification.result.production;
+  const reviewedProductionAfter =
+    classificationAfter.result.production;
+  const coupledBefore = reviewedClassification.result.coupled;
+  const coupledAfter = classificationAfter.result.coupled;
   if (
-    canonicalJson(summarize(productionBefore)) !==
+    canonicalJson(reviewedProductionBefore) !==
       canonicalJson(plan.production_before) ||
-    canonicalJson(summarize(productionAfter)) !==
+    canonicalJson(reviewedProductionAfter) !==
       canonicalJson(plan.production_after) ||
-    canonicalJson(summarize(coupledBefore)) !==
+    canonicalJson(coupledBefore) !==
       canonicalJson(plan.coupled_before) ||
-    canonicalJson(summarize(coupledAfter)) !==
+    canonicalJson(coupledAfter) !==
       canonicalJson(plan.coupled_after) ||
-    !productionBefore.missing_gates.includes("bounded_canary_required") ||
+    !reviewedProductionBefore.missing_gates.includes(
+      "bounded_canary_required"
+    ) ||
     !coupledBefore.missing_gates.includes("bounded_canary_required") ||
     !sameStrings(
-      productionAfter.missing_gates,
-      minusOne(productionBefore.missing_gates, "bounded_canary_required"),
+      reviewedProductionAfter.missing_gates,
+      minusOne(
+        reviewedProductionBefore.missing_gates,
+        "bounded_canary_required",
+      ),
     ) ||
     !sameStrings(
       coupledAfter.missing_gates,
@@ -801,18 +1631,6 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     SEMANTIC_REQUEST_KEYS,
     "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_INPUT_SHAPE_INVALID",
   );
-  const rederivedSemantic =
-    promoteWcVoidBoundedCanarySemanticV1(semanticRequest);
-  const rederivedSemanticBytes = prettyBytes(rederivedSemantic);
-  const rederivedSemanticSha256 = sha256(rederivedSemanticBytes);
-  if (
-    canonicalJson(rederivedSemantic) !== canonicalJson(semantic.value) ||
-    rederivedSemanticSha256 !== semantic.sha256 ||
-    !semantic.bytes.equals(rederivedSemanticBytes)
-  ) {
-    fail("CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH");
-  }
-
   const reviewedReceipt = parseJsonBytes(
     candidatePromotionReceiptBytes,
     candidatePromotionReceiptFileSha256,
@@ -836,24 +1654,47 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     "SUCCESSOR_SOURCE",
   );
 
-  const rederived = promoteWcVoidBoundedCanaryCandidatesV1({
+  const reviewed = runReviewedAuthority(repository, {
+    operation: "prepare",
+    semantic_promotion_request: semanticRequest,
     repository_head_sha: repository.head,
     repository_tree_sha: repository.tree,
-    semantic_promotion_bytes: rederivedSemanticBytes,
-    semantic_promotion_file_sha256: rederivedSemanticSha256,
-    production_candidate_bytes: production.bytes,
+    production_candidate_base64: production.bytes.toString("base64"),
     production_candidate_file_sha256: production.sha256,
-    coupled_candidate_bytes: coupled.bytes,
+    production_candidate: production.value,
+    coupled_candidate_base64: coupled.bytes.toString("base64"),
     coupled_candidate_file_sha256: coupled.sha256,
-    successor_candidate_bytes: successor.bytes,
+    coupled_candidate: coupled.value,
+    successor_candidate_base64: successor.bytes.toString("base64"),
     successor_candidate_file_sha256: successor.sha256,
+    successor_candidate: successor.value,
   });
+  const reviewedResult = reviewed.result;
+  if (reviewedResult.operation !== "prepare") {
+    fail("CANONICAL_APPLICATION_REVIEWED_PREPARE_OPERATION_INVALID");
+  }
+  const rederivedSemanticBytes = Buffer.from(
+    String(reviewedResult.semantic_pretty_base64 || ""),
+    "base64",
+  );
+  const rederivedSemanticSha256 = sha256(rederivedSemanticBytes);
+  if (
+    reviewedResult.semantic_file_sha256 !== rederivedSemanticSha256 ||
+    canonicalJson(reviewedResult.semantic) !== canonicalJson(semantic.value) ||
+    rederivedSemanticSha256 !== semantic.sha256 ||
+    !semantic.bytes.equals(rederivedSemanticBytes)
+  ) {
+    fail("CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH");
+  }
 
+  const rederived = reviewedResult.promotion;
   if (canonicalJson(rederived) !== canonicalJson(reviewedReceipt.value)) {
     fail("CANONICAL_APPLICATION_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
   }
   if (
-    rederived.marker !== VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1 ||
+    rederived.marker !== "VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1" ||
+    reviewedResult.promotion_contract?.marker !==
+      "VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1" ||
     rederived.status !==
       "BOUNDED_CANARY_CANDIDATE_PROMOTION_READY_FINAL_ACTIVATION_HOLD" ||
     rederived.coupled_launch_id !== CURRENT_LAUNCH ||
@@ -869,7 +1710,7 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   }
   exactAuthority(
     rederived.authority,
-    VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1,
+    reviewedResult.promotion_contract.authority,
     "CANONICAL_APPLICATION_PROMOTION_AUTHORITY",
   );
 
@@ -878,15 +1719,10 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   exactCandidateDelta(production.value, targetProduction, "production");
   exactCandidateDelta(coupled.value, targetCoupled, "coupled");
 
-  const productionBefore =
-    classifyVoidWcVoidProductionReadinessV1(production.value);
-  const productionAfter =
-    classifyVoidWcVoidProductionReadinessV1(targetProduction);
-  const coupledBefore =
-    classifyVoidCoupledEconomicSuccessorGateV1(coupled.value, successor.value);
-  const coupledAfter =
-    classifyVoidCoupledEconomicSuccessorGateV1(targetCoupled, successor.value);
-
+  const productionBefore = reviewedResult.production_before;
+  const productionAfter = reviewedResult.production_after;
+  const coupledBefore = reviewedResult.coupled_before;
+  const coupledAfter = reviewedResult.coupled_after;
   const expectedProductionMissing = minusOne(
     productionBefore.missing_gates || [],
     "bounded_canary_required",
@@ -912,11 +1748,7 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
 
   const productionTargetBytes = prettyBytes(targetProduction);
   const coupledTargetBytes = prettyBytes(targetCoupled);
-  const toolBlob = commitBlob(
-    repository.head,
-    TOOL_REL,
-    "CANONICAL_APPLICATION_TOOL_BLOB_UNAVAILABLE",
-  );
+  const toolBlob = repository.tool_blob_sha1;
   const promotionToolBlob = commitBlob(
     repository.head,
     PROMOTION_TOOL_REL,
@@ -948,6 +1780,21 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     application_base_tree_sha: repository.tree,
     candidate_promotion_tool_git_blob_sha1: promotionToolBlob,
     canonical_application_tool_git_blob_sha1: toolBlob,
+    reviewed_execution_module_git_blobs:
+      reviewed.binding.module_git_blobs,
+    reviewed_runtime_tool_git_blob_sha1:
+      reviewed.binding.runtime_tool_git_blob_sha1,
+    reviewed_runtime_profile_git_blob_sha1:
+      reviewed.binding.runtime_profile_git_blob_sha1,
+    reviewed_runtime_profile_id:
+      reviewed.binding.profile_id,
+    reviewed_runtime_packages_aggregate_sha256:
+      reviewed.binding.packages_aggregate_sha256,
+    reviewed_execution_permission_fenced: true,
+    reviewed_execution_ancestor_package_resolution_allowed: false,
+    reviewed_execution_network_capable_modules:
+      reviewed.binding.network_capable_modules,
+    reviewed_execution_network_isolation_provided: false,
     production_candidate_path: PRODUCTION_REL,
     production_source_git_blob_sha1: production.blob_sha1,
     production_source_file_sha256: production.sha256,
@@ -1008,17 +1855,25 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
     fail("CANONICAL_APPLICATION_COUPLED_TARGET_NOT_APPLIED");
   }
 
-  const productionDecision =
-    classifyVoidWcVoidProductionReadinessV1(productionCandidate);
-  const coupledDecision =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      coupledCandidate,
-      successorCandidate,
-    );
+  const reviewedDecision = runReviewedAuthority(
+    Object.freeze({
+      head: reviewed.application_base_head_sha,
+      tree: reviewed.application_base_tree_sha,
+    }),
+    {
+      operation: "classify",
+      production_candidate: productionCandidate,
+      coupled_candidate: coupledCandidate,
+      successor_candidate: successorCandidate,
+    },
+  );
+  assertReviewedExecutionBinding(reviewed, reviewedDecision.binding);
+  const productionDecision = reviewedDecision.result.production;
+  const coupledDecision = reviewedDecision.result.coupled;
   if (
-    canonicalJson(summarize(productionDecision)) !==
+    canonicalJson(productionDecision) !==
       canonicalJson(reviewed.production_after) ||
-    canonicalJson(summarize(coupledDecision)) !==
+    canonicalJson(coupledDecision) !==
       canonicalJson(reviewed.coupled_after) ||
     productionCandidate.bounded_canary_green !== true ||
     productionCandidate.coupled_activation_ready !== false ||
@@ -1030,8 +1885,8 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
     fail("CANONICAL_APPLICATION_APPLIED_CLASSIFIER_STATE_INVALID");
   }
   return Object.freeze({
-    production: summarize(productionDecision),
-    coupled: summarize(coupledDecision),
+    production: productionDecision,
+    coupled: coupledDecision,
   });
 }
 
@@ -1103,13 +1958,34 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     fail("CANONICAL_APPLICATION_APPLIED_SOURCE_IDENTITY_MISMATCH");
   }
 
-  const decisions =
-    verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
-      plan,
-      productionCandidate: production.value,
-      coupledCandidate: coupled.value,
-      successorCandidate: successor.value,
-    });
+  const reviewedApplied = runReviewedAuthority(
+    repository,
+    {
+      operation: "classify",
+      production_candidate: production.value,
+      coupled_candidate: coupled.value,
+      successor_candidate: successor.value,
+    },
+  );
+  assertReviewedExecutionBinding(plan, reviewedApplied.binding);
+  const decisions = Object.freeze({
+    production: reviewedApplied.result.production,
+    coupled: reviewedApplied.result.coupled,
+  });
+  if (
+    canonicalJson(decisions.production) !==
+      canonicalJson(plan.production_after) ||
+    canonicalJson(decisions.coupled) !==
+      canonicalJson(plan.coupled_after) ||
+    production.value.bounded_canary_green !== true ||
+    production.value.coupled_activation_ready !== false ||
+    production.value.status !== "hold" ||
+    coupled.value?.gates?.bounded_canary_green !== true ||
+    coupled.value?.gates?.coupled_activation_ready !== false ||
+    coupled.value.status !== "HOLD"
+  ) {
+    fail("CANONICAL_APPLICATION_APPLIED_CLASSIFIER_STATE_INVALID");
+  }
 
   const material = Object.freeze({
     marker: VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_V1,
