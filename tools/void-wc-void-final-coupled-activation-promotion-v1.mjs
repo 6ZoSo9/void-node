@@ -36,6 +36,13 @@ export const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_AUTHORITY_V1 =
     git_application_lineage_read: true,
     candidate_copy_derivation: true,
     create_only_private_output: true,
+    git_config_isolated: true,
+    git_loader_environment_isolated: true,
+    canonical_remote_tls_verification_required: true,
+    private_input_descriptor_bound: true,
+    private_input_parent_identity_bound: true,
+    private_output_parent_fd_bound: true,
+    private_output_exact_directory_fsync: true,
     canonical_candidate_write: false,
     filesystem_write_outside_private_output: false,
     runtime_mutation: false,
@@ -139,6 +146,15 @@ const HEX40 = /^[0-9a-f]{40}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SAFE_ID = /^[A-Za-z0-9._:-]{8,240}$/u;
 const MAX_PRIVATE_INPUT_BYTES = 16 * 1024 * 1024;
+const GIT = "/usr/bin/git";
+const REVIEWED_GIT_CONFIG_ARGS = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
 
 function fail(code) {
   throw new Error(code);
@@ -584,22 +600,72 @@ function deriveVerifiedVoidWcVoidFinalCoupledActivationPromotionV1(input) {
   );
 }
 
+function gitEnv() {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+  };
+}
+
 function git(args, code) {
   const result = spawnSync(
-    "/usr/bin/git",
-    ["--no-replace-objects", "-C", REPO_ROOT, ...args],
+    GIT,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-C", REPO_ROOT,
+      ...args,
+    ],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        GIT_OPTIONAL_LOCKS: "0",
-        GIT_NO_REPLACE_OBJECTS: "1",
-      },
+      env: gitEnv(),
+      timeout: 60_000,
+      maxBuffer: 16 * 1024 * 1024,
     },
   );
-  if (result.status !== 0) fail(code);
+  if (result.error || result.status !== 0) fail(code);
   return String(result.stdout || "").trim();
+}
+
+function canonicalOrigin(value) {
+  const accepted = new Set([
+    "https://github.com/6ZoSo9/void-node",
+    "https://github.com/6ZoSo9/void-node.git",
+    "git@github.com:6ZoSo9/void-node.git",
+    "ssh://git@github.com/6ZoSo9/void-node.git",
+  ]);
+  const origin = String(value || "").trim();
+  if (!accepted.has(origin)) {
+    fail("FINAL_COUPLED_CANONICAL_REMOTE_MISMATCH");
+  }
+  return CANONICAL_REMOTE;
+}
+
+export function testOnlyVoidWcVoidFinalCoupledGitIdentityV1() {
+  return Object.freeze({
+    head: git(["rev-parse", "HEAD"], "FINAL_COUPLED_TEST_HEAD_UNAVAILABLE"),
+    tree: git(
+      ["rev-parse", "HEAD^{tree}"],
+      "FINAL_COUPLED_TEST_TREE_UNAVAILABLE",
+    ),
+    status: git(
+      ["status", "--porcelain=v1", "--untracked-files=all"],
+      "FINAL_COUPLED_TEST_STATUS_UNAVAILABLE",
+    ),
+  });
 }
 
 function headJson(relativePath) {
@@ -636,17 +702,16 @@ function currentRepositoryIdentity() {
     ["branch", "--show-current"],
     "FINAL_COUPLED_BRANCH_UNAVAILABLE",
   );
-  const origin = git(
-    ["remote", "get-url", "origin"],
-    "FINAL_COUPLED_ORIGIN_UNAVAILABLE",
+  const origin = canonicalOrigin(
+    git(
+      ["remote", "get-url", "origin"],
+      "FINAL_COUPLED_ORIGIN_UNAVAILABLE",
+    ),
   );
   if (!HEX40.test(head) || !HEX40.test(tree)) {
     fail("FINAL_COUPLED_REPOSITORY_IDENTITY_INVALID");
   }
   if (branch !== "main") fail("FINAL_COUPLED_BRANCH_NOT_MAIN");
-  if (origin !== CANONICAL_REMOTE) {
-    fail("FINAL_COUPLED_CANONICAL_REMOTE_MISMATCH");
-  }
   if (
     git(
       ["status", "--porcelain=v1", "--untracked-files=all"],
@@ -656,21 +721,22 @@ function currentRepositoryIdentity() {
     fail("FINAL_COUPLED_WORKTREE_MUST_BE_CLEAN");
   }
   const remote = spawnSync(
-    "/usr/bin/git",
+    GIT,
     [
+      "--no-replace-objects",
+      "-c", "http.sslVerify=true",
+      ...REVIEWED_GIT_CONFIG_ARGS,
       "ls-remote",
       CANONICAL_REMOTE,
       "refs/heads/main",
     ],
     {
+      cwd: "/",
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
-        GIT_OPTIONAL_LOCKS: "0",
-        GIT_NO_REPLACE_OBJECTS: "1",
-        GIT_TERMINAL_PROMPT: "0",
-      },
+      env: gitEnv(),
+      timeout: 30_000,
+      maxBuffer: 1024 * 1024,
     },
   );
   if (remote.status !== 0) {
@@ -685,8 +751,18 @@ function currentRepositoryIdentity() {
   return Object.freeze({ head, tree, branch, origin, remote_head: remoteHead });
 }
 
-function privateRegularFileBytes(file, label) {
+function sameDirectoryIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.mode === right.mode
+  );
+}
+
+function openPrivateParent(file, label) {
   if (
+    process.platform !== "linux" ||
     typeof file !== "string" ||
     !path.isAbsolute(file) ||
     path.resolve(file) !== file ||
@@ -694,32 +770,170 @@ function privateRegularFileBytes(file, label) {
   ) {
     fail(label + "_PATH_INVALID");
   }
-  let real;
+  const parent = path.dirname(file);
+  const basename = path.basename(file);
+  if (
+    basename === "" ||
+    basename === "." ||
+    basename === ".." ||
+    basename.includes("/") ||
+    basename.includes("\\")
+  ) {
+    fail(label + "_BASENAME_INVALID");
+  }
+  let parentReal;
   try {
-    real = fs.realpathSync.native(file);
+    parentReal = fs.realpathSync.native(parent);
   } catch {
-    fail(label + "_PATH_UNAVAILABLE");
+    fail(label + "_PARENT_UNAVAILABLE");
   }
-  if (real !== file) fail(label + "_PATH_ALIAS_FORBIDDEN");
-  const stat = fs.lstatSync(file);
+  if (parentReal !== parent) {
+    fail(label + "_PARENT_ALIAS_FORBIDDEN");
+  }
+  const parentPathStat = fs.lstatSync(parent);
   if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.size < 2 ||
-    stat.size > MAX_PRIVATE_INPUT_BYTES
+    !parentPathStat.isDirectory() ||
+    parentPathStat.isSymbolicLink() ||
+    (typeof process.getuid === "function" &&
+      parentPathStat.uid !== process.getuid()) ||
+    (parentPathStat.mode & 0o022) !== 0
   ) {
-    fail(label + "_NOT_DIRECT_BOUNDED_REGULAR");
+    fail(label + "_PARENT_UNSAFE");
   }
-  if (
-    typeof process.getuid === "function" &&
-    stat.uid !== process.getuid()
-  ) {
-    fail(label + "_OWNER_MISMATCH");
+  const parentFd = fs.openSync(
+    parent,
+    fs.constants.O_RDONLY |
+      Number(fs.constants.O_DIRECTORY || 0) |
+      Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  const parentFdStat = fs.fstatSync(parentFd);
+  if (!sameDirectoryIdentity(parentFdStat, parentPathStat)) {
+    fs.closeSync(parentFd);
+    fail(label + "_PARENT_DESCRIPTOR_MISMATCH");
   }
-  if ((stat.mode & 0o077) !== 0) {
-    fail(label + "_PERMISSIONS_TOO_BROAD");
+  return Object.freeze({
+    parent,
+    basename,
+    parent_fd: parentFd,
+    parent_stat: parentFdStat,
+    proc_file: path.join("/proc/self/fd/" + String(parentFd), basename),
+  });
+}
+
+function privateRegularFileBytes(
+  file,
+  label,
+  { testOnlyAfterParentOpen = null } = {},
+) {
+  const opened = openPrivateParent(file, label);
+  let fd;
+  try {
+    if (testOnlyAfterParentOpen !== null) {
+      if (typeof testOnlyAfterParentOpen !== "function") {
+        fail(label + "_TEST_HOOK_INVALID");
+      }
+      testOnlyAfterParentOpen();
+    }
+    fd = fs.openSync(
+      opened.proc_file,
+      fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    const before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      before.size < 2 ||
+      before.size > MAX_PRIVATE_INPUT_BYTES ||
+      (typeof process.getuid === "function" &&
+        before.uid !== process.getuid()) ||
+      (before.mode & 0o077) !== 0
+    ) {
+      fail(label + "_NOT_DIRECT_BOUNDED_PRIVATE_REGULAR");
+    }
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (count <= 0) fail(label + "_SHORT_READ");
+      offset += count;
+    }
+    const after = fs.fstatSync(fd);
+    for (const key of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
+      if (before[key] !== after[key]) fail(label + "_CHANGED_DURING_READ");
+    }
+
+    let parentAfter;
+    let fileAfter;
+    try {
+      parentAfter = fs.lstatSync(opened.parent);
+      fileAfter = fs.lstatSync(file);
+    } catch (_error) {
+      fail(label + "_PATH_CHANGED_DURING_READ");
+    }
+    if (
+      !sameDirectoryIdentity(parentAfter, opened.parent_stat) ||
+      !fileAfter.isFile() ||
+      fileAfter.isSymbolicLink() ||
+      fileAfter.dev !== before.dev ||
+      fileAfter.ino !== before.ino ||
+      fileAfter.nlink !== before.nlink ||
+      fileAfter.size !== before.size
+    ) {
+      fail(label + "_PATH_CHANGED_DURING_READ");
+    }
+    return bytes;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+    fs.closeSync(opened.parent_fd);
   }
-  return fs.readFileSync(file);
+}
+
+export function testOnlyExerciseVoidWcVoidFinalCoupledInputParentReplacementV1() {
+  const root = fs.mkdtempSync(
+    path.join(
+      process.env.TMPDIR || "/tmp",
+      "void-final-coupled-input-race-",
+    ),
+  );
+  fs.chmodSync(root, 0o700);
+  const parent = path.join(root, "input");
+  const replacement = path.join(root, "replacement");
+  const moved = path.join(root, "moved-original");
+  fs.mkdirSync(parent, { mode: 0o700 });
+  fs.mkdirSync(replacement, { mode: 0o700 });
+  const file = path.join(parent, "lineages.json");
+  fs.writeFileSync(file, "{}\n", { mode: 0o600 });
+  fs.writeFileSync(
+    path.join(replacement, "lineages.json"),
+    "{\"replacement\":true}\n",
+    { mode: 0o600 },
+  );
+  let reason = null;
+  try {
+    try {
+      privateRegularFileBytes(
+        file,
+        "FINAL_COUPLED_INPUT_PARENT_RACE_TEST_ONLY",
+        {
+          testOnlyAfterParentOpen() {
+            fs.renameSync(parent, moved);
+            fs.renameSync(replacement, parent);
+          },
+        },
+      );
+    } catch (error) {
+      reason = error instanceof Error ? error.message : String(error);
+    }
+    return Object.freeze({ reason });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 function readPrivateLineagePlanManifest(file) {
@@ -855,29 +1069,157 @@ function outsideRepository(file) {
   );
 }
 
-function privateOutputParent(file) {
-  const parent = path.dirname(file);
-  const stat = fs.lstatSync(parent);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    fail("FINAL_COUPLED_OUTPUT_PARENT_NOT_DIRECT_DIRECTORY");
-  }
-  let real;
+function createPrivateOutputBoundV1(
+  file,
+  bytes,
+  { testOnlyAfterParentRevalidationBeforeCreate = null } = {},
+) {
+  const opened = openPrivateParent(file, "FINAL_COUPLED_OUTPUT");
+  let fileFd;
+  let created = false;
   try {
-    real = fs.realpathSync.native(parent);
-  } catch {
-    fail("FINAL_COUPLED_OUTPUT_PARENT_REALPATH_UNAVAILABLE");
+    const parentBefore = fs.lstatSync(opened.parent);
+    if (!sameDirectoryIdentity(parentBefore, opened.parent_stat)) {
+      fail("FINAL_COUPLED_OUTPUT_PARENT_CHANGED_BEFORE_CREATE");
+    }
+    if (testOnlyAfterParentRevalidationBeforeCreate !== null) {
+      if (typeof testOnlyAfterParentRevalidationBeforeCreate !== "function") {
+        fail("FINAL_COUPLED_OUTPUT_TEST_HOOK_INVALID");
+      }
+      testOnlyAfterParentRevalidationBeforeCreate();
+    }
+    fileFd = fs.openSync(
+      opened.proc_file,
+      fs.constants.O_RDWR |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        Number(fs.constants.O_NOFOLLOW || 0),
+      0o600,
+    );
+    created = true;
+    fs.writeFileSync(fileFd, bytes);
+    fs.fchmodSync(fileFd, 0o600);
+    fs.fsyncSync(fileFd);
+
+    const createdStat = fs.fstatSync(fileFd);
+    if (
+      !createdStat.isFile() ||
+      createdStat.nlink !== 1 ||
+      createdStat.size !== bytes.length ||
+      (createdStat.mode & 0o077) !== 0 ||
+      (typeof process.getuid === "function" &&
+        createdStat.uid !== process.getuid())
+    ) {
+      fail("FINAL_COUPLED_OUTPUT_IDENTITY_INVALID");
+    }
+
+    const rebound = Buffer.alloc(createdStat.size);
+    let offset = 0;
+    while (offset < rebound.length) {
+      const count = fs.readSync(
+        fileFd,
+        rebound,
+        offset,
+        rebound.length - offset,
+        offset,
+      );
+      if (count <= 0) fail("FINAL_COUPLED_OUTPUT_SHORT_READ");
+      offset += count;
+    }
+    if (!rebound.equals(bytes)) {
+      fail("FINAL_COUPLED_OUTPUT_BYTES_MISMATCH");
+    }
+
+    fs.fsyncSync(opened.parent_fd);
+
+    let parentAfter;
+    let outputAfter;
+    try {
+      parentAfter = fs.lstatSync(opened.parent);
+      outputAfter = fs.lstatSync(file);
+    } catch (_error) {
+      fail("FINAL_COUPLED_OUTPUT_POSTWRITE_IDENTITY_INVALID");
+    }
+    if (
+      !sameDirectoryIdentity(parentAfter, opened.parent_stat) ||
+      !outputAfter.isFile() ||
+      outputAfter.isSymbolicLink() ||
+      outputAfter.dev !== createdStat.dev ||
+      outputAfter.ino !== createdStat.ino ||
+      outputAfter.nlink !== 1 ||
+      outputAfter.size !== createdStat.size
+    ) {
+      fail("FINAL_COUPLED_OUTPUT_POSTWRITE_IDENTITY_INVALID");
+    }
+
+    return Object.freeze({
+      output_path: file,
+      output_sha256: sha256Bytes(bytes),
+      output_bytes: bytes.length,
+    });
+  } catch (primary) {
+    let cleanup = null;
+    try {
+      if (created && fs.existsSync(opened.proc_file)) {
+        fs.unlinkSync(opened.proc_file);
+        fs.fsyncSync(opened.parent_fd);
+        created = false;
+      }
+    } catch (error) {
+      cleanup = error;
+    }
+    if (cleanup !== null) {
+      throw new AggregateError(
+        [primary, cleanup],
+        "final_coupled_output_cleanup_failed",
+      );
+    }
+    throw primary;
+  } finally {
+    if (fileFd !== undefined) fs.closeSync(fileFd);
+    fs.closeSync(opened.parent_fd);
   }
-  if (real !== parent) {
-    fail("FINAL_COUPLED_OUTPUT_PARENT_PATH_ALIAS_FORBIDDEN");
-  }
-  if (
-    typeof process.getuid === "function" &&
-    stat.uid !== process.getuid()
-  ) {
-    fail("FINAL_COUPLED_OUTPUT_PARENT_OWNER_MISMATCH");
-  }
-  if ((stat.mode & 0o022) !== 0) {
-    fail("FINAL_COUPLED_OUTPUT_PARENT_WRITABLE_BY_GROUP_OR_OTHER");
+}
+
+export function testOnlyExerciseVoidWcVoidFinalCoupledOutputParentReplacementV1() {
+  const root = fs.mkdtempSync(
+    path.join(
+      process.env.TMPDIR || "/tmp",
+      "void-final-coupled-output-race-",
+    ),
+  );
+  fs.chmodSync(root, 0o700);
+  const parent = path.join(root, "output");
+  const replacement = path.join(root, "replacement");
+  const moved = path.join(root, "moved-original");
+  const file = path.join(parent, "promotion.json");
+  fs.mkdirSync(parent, { mode: 0o700 });
+  fs.mkdirSync(replacement, { mode: 0o700 });
+  let reason = null;
+  try {
+    try {
+      createPrivateOutputBoundV1(
+        file,
+        Buffer.from("{\"marker\":\"TEST_ONLY\"}\n", "utf8"),
+        {
+          testOnlyAfterParentRevalidationBeforeCreate() {
+            fs.renameSync(parent, moved);
+            fs.renameSync(replacement, parent);
+          },
+        },
+      );
+    } catch (error) {
+      reason = error instanceof Error ? error.message : String(error);
+    }
+    return Object.freeze({
+      reason,
+      replacement_output_exists:
+        fs.existsSync(path.join(parent, "promotion.json")),
+      original_output_exists:
+        fs.existsSync(path.join(moved, "promotion.json")),
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
@@ -901,41 +1243,7 @@ export function writeVoidWcVoidFinalCoupledActivationPromotionV1(
   ) {
     fail("FINAL_COUPLED_OUTPUT_PROMOTION_INVALID");
   }
-  privateOutputParent(file);
-  if (fs.existsSync(file)) fail("FINAL_COUPLED_OUTPUT_ALREADY_EXISTS");
-  const bytes = prettyBytes(promotion);
-  let fd;
-  try {
-    fd = fs.openSync(
-      file,
-      fs.constants.O_WRONLY |
-        fs.constants.O_CREAT |
-        fs.constants.O_EXCL |
-        Number(fs.constants.O_NOFOLLOW || 0),
-      0o600,
-    );
-    fs.writeFileSync(fd, bytes);
-    fs.fsyncSync(fd);
-    fs.fchmodSync(fd, 0o600);
-    const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || (stat.mode & 0o777) !== 0o600) {
-      fail("FINAL_COUPLED_OUTPUT_IDENTITY_INVALID");
-    }
-  } finally {
-    if (fd !== undefined) fs.closeSync(fd);
-  }
-  const persisted = privateRegularFileBytes(
-    file,
-    "FINAL_COUPLED_OUTPUT",
-  );
-  if (!persisted.equals(bytes)) {
-    fail("FINAL_COUPLED_OUTPUT_BYTES_MISMATCH");
-  }
-  return Object.freeze({
-    output_path: file,
-    output_sha256: sha256Bytes(bytes),
-    output_bytes: bytes.length,
-  });
+  return createPrivateOutputBoundV1(file, prettyBytes(promotion));
 }
 
 
