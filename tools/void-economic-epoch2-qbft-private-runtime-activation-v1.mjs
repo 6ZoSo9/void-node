@@ -538,6 +538,13 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
       JSON.stringify(EXPECTED_VALIDATORS_V1)||
     activationPlan.rpc?.role!=="precision"||
     activationPlan.rpc?.url!=="http://127.0.0.1:18553/"||
+    JSON.stringify(activationPlan.rpc?.allowed_observation_methods)!==
+      JSON.stringify([
+        "eth_chainId",
+        "eth_blockNumber",
+        "net_peerCount",
+        "qbft_getValidatorsByBlockNumber",
+      ])||
     activationPlan.rpc?.transaction_methods_forbidden!==true||
     !START_ADMISSION_ID.test(String(activationPlan.start_admission_id||""))||
     !SHA40.test(String(activationPlan.start_admission_observed_repo_head||""))||
@@ -573,6 +580,63 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
       JSON.stringify(START_ORDER)
   ) {
     throw new Error("activation_plan_role_order_invalid");
+  }
+
+  const installRowKeys=[
+    "role","hostname","install_receipt_id","materialization_id",
+    "installed_repo_head","runtime_root","unit_install_path",
+    "systemd_unit_sha256","genesis_sha256","static_nodes_sha256",
+    "unit_file_state","direct_enablement_links_absent",
+    "indirect_activation_absence_proven",
+  ];
+  for(const role of ROLE_ORDER) {
+    const row=activationPlan.install_receipts.find((value)=>value.role===role);
+    exactKeys(row,installRowKeys,"activation_plan_install_row_"+role);
+    if(
+      !INSTALL_ID.test(String(row.install_receipt_id||""))||
+      !/^voide2qmat1_[0-9a-f]{64}$/u.test(String(row.materialization_id||""))||
+      !SHA40.test(String(row.installed_repo_head||""))||
+      !SHA256.test(String(row.systemd_unit_sha256||""))||
+      !SHA256.test(String(row.genesis_sha256||""))||
+      !SHA256.test(String(row.static_nodes_sha256||""))||
+      row.runtime_root!==
+        "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/"+role||
+      row.unit_install_path!==
+        "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service"||
+      row.unit_file_state!=="static"||
+      row.direct_enablement_links_absent!==true||
+      row.indirect_activation_absence_proven!==false
+    ) {
+      throw new Error("activation_plan_install_row_invalid:"+role);
+    }
+  }
+
+  const expectedPreStart={
+    exact_installed_hashes:true,
+    exact_empty_data_directory:true,
+    exact_plugin_sha256:true,
+    exact_rootless_docker_identity:true,
+    exact_tailnet_ipv4_binding:true,
+    exact_nodekey_public_identity_required:true,
+    nodekey_private_bytes_must_not_be_logged:true,
+    unit_file_state_observation_required:true,
+    direct_enablement_links_absent_required:true,
+    indirect_activation_absence_proven:false,
+    service_inactive_required:true,
+    unit_restart_no_required:true,
+    p2p_port_vacant_required:true,
+    precision_rpc_port_vacant_required:true,
+    repo_main_clean_and_descendant_required:true,
+  };
+  exactKeys(
+    activationPlan.pre_start_revalidation,
+    Object.keys(expectedPreStart),
+    "activation_plan_prestart_revalidation",
+  );
+  for(const [key,value] of Object.entries(expectedPreStart)) {
+    if(activationPlan.pre_start_revalidation[key]!==value) {
+      throw new Error("activation_plan_prestart_revalidation_mismatch:"+key);
+    }
   }
 
   const expectedAuthority={
