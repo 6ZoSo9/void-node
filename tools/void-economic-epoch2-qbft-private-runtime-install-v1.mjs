@@ -20,7 +20,6 @@ const PLAN_ID=/^voide2qprp1_[0-9a-f]{64}$/u;
 const BUNDLE_SET_ID=/^voide2qbsv1_[0-9a-f]{64}$/u;
 const MATERIALIZATION_ID=/^voide2qmat1_[0-9a-f]{64}$/u;
 const ROLES=["precision","nimo","xiphos"];
-const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -236,8 +235,8 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
     throw new Error("installed_repo_head_invalid");
   }
   const unitFileState=String(input?.unit_file_state||"");
-  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
-    throw new Error("install_unit_file_state_invalid");
+  if(unitFileState!=="static") {
+    throw new Error("install_unit_file_state_not_static");
   }
   if(input?.direct_enablement_links_absent!==true) {
     throw new Error("install_direct_enablement_links_not_proven_absent");
