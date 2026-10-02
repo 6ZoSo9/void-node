@@ -2,6 +2,9 @@
 import {
   createVoidPublicParticipantReadSessionV1,
 } from "./void-public-participant-read-session-v1.mjs";
+import {
+  isVoidPublicParticipantSessionStateFileStoreV1,
+} from "./void-public-participant-session-state-file-v1.mjs";
 
 export const VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1 = Object.freeze({
   marker: "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1",
@@ -173,6 +176,9 @@ export function createVoidPublicParticipantSessionHttpV1({
 } = {}) {
   if (!roleAuthority) {
     fail("role_authority_adapter_required");
+  }
+  if (!isVoidPublicParticipantSessionStateFileStoreV1(stateStore)) {
+    fail("durable_state_store_required");
   }
   const session = createVoidPublicParticipantReadSessionV1({
     bindingRegistryFile,

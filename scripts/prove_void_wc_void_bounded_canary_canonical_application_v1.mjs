@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -27,6 +28,16 @@ const COUPLED =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
+const REVIEWED_BRIDGE =
+  "tools/void-wc-void-bounded-canary-reviewed-execution-v1.mjs";
+const HIDDEN_AUTHORITY_SOURCE =
+  "tools/void-participant-postpurchase-finality-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE = JSON.parse(
+  fs.readFileSync(
+    "ops/security/reviewed-node-package-runtime-ethers-v1.json",
+    "utf8",
+  ),
+);
 
 function canonicalJson(value) {
   if (value === null) return "null";
@@ -59,11 +70,29 @@ function prettyBytes(value) {
   return Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
 }
 
+function proofGitEnv() {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+}
+
 function git(...args) {
   return execFileSync(
     "/usr/bin/git",
     ["-C", process.cwd(), ...args],
-    { encoding: "utf8" },
+    {
+      encoding: "utf8",
+      env: proofGitEnv(),
+    },
   ).trim();
 }
 
@@ -189,6 +218,38 @@ assert.equal(plan.market_activation_authorized, false);
 assert.equal(plan.public_presale_activation_authorized, false);
 assert.equal(plan.funds_movement_authorized, false);
 
+assert.equal(plan.reviewed_execution_permission_fenced, true);
+assert.equal(
+  plan.reviewed_execution_ancestor_package_resolution_allowed,
+  false,
+);
+assert.equal(
+  plan.reviewed_execution_network_isolation_provided,
+  false,
+);
+assert.equal(
+  plan.reviewed_execution_network_capable_modules.includes(
+    "tools/void-participant-postpurchase-production-runtime-binding-v1.mjs",
+  ),
+  true,
+);
+assert.equal(
+  plan.reviewed_runtime_profile_id,
+  REVIEWED_RUNTIME_PROFILE.profile_id,
+);
+assert.equal(
+  plan.reviewed_runtime_packages_aggregate_sha256,
+  REVIEWED_RUNTIME_PROFILE.packages_aggregate_sha256,
+);
+assert.equal(
+  plan.reviewed_execution_module_git_blobs[REVIEWED_BRIDGE],
+  git("rev-parse", "HEAD:" + REVIEWED_BRIDGE),
+);
+assert.equal(
+  plan.reviewed_execution_module_git_blobs[HIDDEN_AUTHORITY_SOURCE],
+  git("rev-parse", "HEAD:" + HIDDEN_AUTHORITY_SOURCE),
+);
+
 const pure =
   verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
     plan,
@@ -207,6 +268,98 @@ assert.equal(
   false,
 );
 
+{
+  const packagePath = "node_modules/ethers/package.json";
+  const original = fs.readFileSync(packagePath);
+  try {
+    const text = original.toString("utf8");
+    fs.writeFileSync(
+      packagePath,
+      Buffer.from(
+        text.endsWith("\n")
+          ? text.slice(0, -1) + " \n"
+          : text + " ",
+        "utf8",
+      ),
+    );
+    assert.throws(
+      () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+        semanticPromotionBytes: semanticBytes,
+        semanticPromotionFileSha256: sha256(semanticBytes),
+        semanticPromotionRequest: semanticRequest,
+        candidatePromotionReceiptBytes: promotionBytes,
+        candidatePromotionReceiptFileSha256: sha256(promotionBytes),
+      }),
+      /CANONICAL_APPLICATION_REVIEWED_RUNTIME_/u,
+    );
+  } finally {
+    fs.writeFileSync(packagePath, original);
+  }
+}
+
+{
+  const original = fs.readFileSync(HIDDEN_AUTHORITY_SOURCE);
+  const sentinel = path.join(
+    os.tmpdir(),
+    "void-bounded-canary-hidden-authority-" + String(process.pid),
+  );
+  try {
+    fs.rmSync(sentinel, { force: true });
+    git("update-index", "--assume-unchanged", HIDDEN_AUTHORITY_SOURCE);
+    const malicious = Buffer.concat([
+      Buffer.from(
+        'import { writeFileSync as __voidSentinelWrite } from "node:fs";\n' +
+          "__voidSentinelWrite(" +
+          JSON.stringify(sentinel) +
+          ', "executed\\n");\n',
+        "utf8",
+      ),
+      original,
+    ]);
+    fs.writeFileSync(HIDDEN_AUTHORITY_SOURCE, malicious);
+    const hidden = prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+      semanticPromotionBytes: semanticBytes,
+      semanticPromotionFileSha256: sha256(semanticBytes),
+      semanticPromotionRequest: semanticRequest,
+      candidatePromotionReceiptBytes: promotionBytes,
+      candidatePromotionReceiptFileSha256: sha256(promotionBytes),
+    });
+    assert.equal(hidden.application_plan_id, plan.application_plan_id);
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "hidden unreviewed authority module executed",
+    );
+  } finally {
+    fs.writeFileSync(HIDDEN_AUTHORITY_SOURCE, original);
+    git("update-index", "--no-assume-unchanged", HIDDEN_AUTHORITY_SOURCE);
+    fs.rmSync(sentinel, { force: true });
+  }
+}
+
+{
+  const toolPath =
+    "tools/void-wc-void-bounded-canary-canonical-application-v1.mjs";
+  const original = fs.readFileSync(toolPath);
+  try {
+    git("update-index", "--assume-unchanged", toolPath);
+    fs.appendFileSync(toolPath, "\n// hidden parent-tool mutation\n");
+    assert.throws(
+      () => prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+        semanticPromotionBytes: semanticBytes,
+        semanticPromotionFileSha256: sha256(semanticBytes),
+        semanticPromotionRequest: semanticRequest,
+        candidatePromotionReceiptBytes: promotionBytes,
+        candidatePromotionReceiptFileSha256: sha256(promotionBytes),
+      }),
+      /CANONICAL_APPLICATION_TOOL_WORKTREE_DRIFT/u,
+    );
+  } finally {
+    fs.writeFileSync(toolPath, original);
+    git("update-index", "--no-assume-unchanged", toolPath);
+  }
+}
+
 const planBytes = prettyBytes(plan);
 assert.throws(
   () => verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
@@ -215,6 +368,123 @@ assert.throws(
   }),
   /CANONICAL_APPLICATION_APPLIED_BRANCH_NOT_MAIN/u,
 );
+
+{
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-bounded-canary-git-provenance-"),
+  );
+  const localSentinel = path.join(temp, "local-fsmonitor-executed");
+  const globalSentinel = path.join(temp, "global-fsmonitor-executed");
+  const localFsmonitor = path.join(temp, "local-fsmonitor.sh");
+  const globalFsmonitor = path.join(temp, "global-fsmonitor.sh");
+  const globalConfig = path.join(temp, "global.gitconfig");
+  const loaderPrefix = path.join(temp, "ld-debug");
+
+  fs.writeFileSync(
+    localFsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(localSentinel) +
+      "\nexit 91\n",
+    { mode: 0o700 },
+  );
+  fs.writeFileSync(
+    globalFsmonitor,
+    "#!/bin/sh\nprintf 'executed\\n' >> " +
+      JSON.stringify(globalSentinel) +
+      "\nexit 91\n",
+    { mode: 0o700 },
+  );
+  fs.writeFileSync(
+    globalConfig,
+    "[core]\n  fsmonitor = " + globalFsmonitor + "\n",
+    { mode: 0o600 },
+  );
+
+  const previous = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "--get", "core.fsmonitor"],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: proofGitEnv(),
+    },
+  );
+  assert.ok(previous.status === 0 || previous.status === 1);
+  const previousValue =
+    previous.status === 0 ? String(previous.stdout || "").trim() : null;
+
+  const setLocal = spawnSync(
+    "/usr/bin/git",
+    ["-C", process.cwd(), "config", "--local", "core.fsmonitor", localFsmonitor],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      env: proofGitEnv(),
+    },
+  );
+  assert.equal(setLocal.status, 0, String(setLocal.stderr || ""));
+
+  const saved = Object.fromEntries(
+    ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "LD_DEBUG", "LD_DEBUG_OUTPUT"]
+      .map((key) => [key, process.env[key]]),
+  );
+  process.env.GIT_CONFIG_GLOBAL = globalConfig;
+  process.env.GIT_CONFIG_SYSTEM = globalConfig;
+  process.env.LD_DEBUG = "libs";
+  process.env.LD_DEBUG_OUTPUT = loaderPrefix;
+
+  try {
+    assert.throws(
+      () => verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
+        applicationPlanBytes: planBytes,
+        applicationPlanFileSha256: sha256(planBytes),
+      }),
+      /CANONICAL_APPLICATION_APPLIED_BRANCH_NOT_MAIN/u,
+    );
+    assert.equal(
+      fs.existsSync(localSentinel),
+      false,
+      "repository-local core.fsmonitor executed during authority Git read",
+    );
+    assert.equal(
+      fs.existsSync(globalSentinel),
+      false,
+      "ambient global Git config executed during authority Git read",
+    );
+    assert.equal(
+      fs.readdirSync(temp).some((name) => name.startsWith("ld-debug.")),
+      false,
+      "dynamic-loader environment crossed into authority Git subprocess",
+    );
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    const restore =
+      previousValue === null
+        ? spawnSync(
+            "/usr/bin/git",
+            ["-C", process.cwd(), "config", "--local", "--unset-all", "core.fsmonitor"],
+            {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              env: proofGitEnv(),
+            },
+          )
+        : spawnSync(
+            "/usr/bin/git",
+            ["-C", process.cwd(), "config", "--local", "core.fsmonitor", previousValue],
+            {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              env: proofGitEnv(),
+            },
+          );
+    assert.equal(restore.status, 0, String(restore.stderr || ""));
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
 
 assert.throws(
   () => verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
@@ -352,7 +622,15 @@ for (const [key, value] of Object.entries(
     "canonical_remote_main_read_required",
     "reviewed_git_executable_required",
     "ambient_git_overrides_ignored",
+    "reviewed_git_object_execution_required",
+    "reviewed_module_closure_required",
+    "reviewed_package_runtime_required",
+    "permission_fenced_execution_required",
+    "ancestor_package_resolution_forbidden",
+    "worktree_authority_execution_forbidden",
+    "private_temporary_filesystem_write",
     "filesystem_read",
+    "filesystem_write",
   ]);
   assert.equal(value, allowed.has(key), key);
 }
@@ -362,10 +640,6 @@ const source = fs.readFileSync(
   "utf8",
 );
 for (const forbidden of [
-  "writeFileSync",
-  "appendFileSync",
-  "renameSync",
-  "unlinkSync",
   "systemctl",
   "eth_sendRawTransaction",
   "eth_sendTransaction",
@@ -373,14 +647,52 @@ for (const forbidden of [
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.equal(
+  source.includes("const env = { ...process.env }"),
+  false,
+  "authority Git environment must not inherit process.env",
+);
+for (const mutableImport of [
+  'from "./void-wc-void-bounded-canary-candidate-promotion-v1.mjs"',
+  'from "./void-wc-void-bounded-canary-semantic-promotion-v1.mjs"',
+  'from "./void-wc-void-production-readiness-v1.mjs"',
+  'from "./void-coupled-economic-successor-gate-v1.mjs"',
+]) {
+  assert.equal(
+    source.includes(mutableImport),
+    false,
+    "parent must not statically import authority module: " + mutableImport,
+  );
+}
 for (const required of [
-  "promoteWcVoidBoundedCanarySemanticV1",
+  "runReviewedAuthority",
+  "encodeReviewedTransportValue",
+  "__void_reviewed_buffer_v1",
+  "reviewedModuleClosure",
+  "materializeReviewedNodePackageRuntimeV1",
+  "verifyMaterializedReviewedNodePackageRuntimeV1",
+  "--permission",
+  "reviewedGitExecutable",
+  "--allow-fs-read=",
+  "--allow-child-process",
+  "CANONICAL_APPLICATION_TOOL_WORKTREE_DRIFT",
+  "CANONICAL_APPLICATION_REVIEWED_EXECUTION_LINEAGE_DRIFT",
+  "assertPrivateExecutionStaticBinding",
+  "CANONICAL_APPLICATION_REVIEWED_PARENT_IDENTITY_DRIFT",
+  "CANONICAL_APPLICATION_REVIEWED_RUNNER",
   "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH",
-  "promoteWcVoidBoundedCanaryCandidatesV1",
   "--no-replace-objects",
   "canonicalRemoteGitText",
   "GIT_CONFIG_GLOBAL",
   "GIT_CONFIG_SYSTEM",
+  "GIT_ATTR_NOSYSTEM",
+  "core.fsmonitor=false",
+  "core.hooksPath=/dev/null",
+  "core.attributesFile=/dev/null",
+  "core.untrackedCache=false",
+  "core.preloadIndex=false",
+  "submodule.recurse=false",
+  "http.sslVerify=true",
   "ls-remote",
   "https://github.com/6ZoSo9/void-node.git",
   "CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ",
@@ -399,8 +711,21 @@ console.log(
 console.log("semantic_promotion_reexecuted_from_exact_origin_inputs=true");
 console.log("fabricated_semantic_origin_held=true");
 console.log("candidate_promotion_reexecuted=true");
+console.log("reviewed_git_object_execution_verified=true");
+console.log("reviewed_child_buffer_transport_exact=true");
+console.log("reviewed_ethers_runtime_verified=true");
+console.log("permission_fenced_execution=true");
+console.log("reviewed_git_executable_child_read_allowed=true");
+console.log("private_execution_bytes_reverified_before_spawn=true");
+console.log("ancestor_package_resolution_allowed=false");
+console.log("hidden_worktree_authority_execution=false");
+console.log("parent_tool_worktree_binding_verified=true");
 console.log("canonical_source_prestates_bound=true");
 console.log("canonical_remote_config_isolated=true");
+console.log("minimal_git_subprocess_environment=true");
+console.log("repository_local_fsmonitor_ignored=true");
+console.log("ambient_global_git_config_ignored=true");
+console.log("dynamic_loader_git_injection_ignored=true");
 console.log("exact_two_gate_delta_prepared=true");
 console.log("forged_promotion_receipt_held=true");
 console.log("forged_application_plan_held=true");

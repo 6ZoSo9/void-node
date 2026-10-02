@@ -155,6 +155,13 @@ unmounted/unit-test use. That fallback reports:
 
 `state_store_durable=false`
 
+Production HTTP does not treat the public `durable` flag as sufficient
+authority. File-backed stores created by
+`createVoidPublicParticipantSessionStateFileV1(...)` are registered in a
+module-private `WeakSet`; `isVoidPublicParticipantSessionStateFileStoreV1`
+only verifies that factory identity. A custom store or spread clone cannot add
+itself to the reviewed set.
+
 The public HTTP contract reports the configured durability state and declares:
 
 `durable_state_store_required_for_production=true`

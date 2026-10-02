@@ -574,6 +574,7 @@ for(const required of [
   "rootless_docker_required",
   "service_not_clean_inactive",
   "service_not_clean_disabled",
+  "disabled|not-found|static",
   "p2p_port_not_vacant",
   "precision_rpc_port_not_vacant",
   'rpcCall("eth_chainId",[])',
@@ -607,6 +608,27 @@ for(const forbidden of [
 ]) {
   assert.equal(controller.includes(forbidden),false,forbidden);
 }
+
+assert.equal(
+  controller.includes('].join("\\\\n");'),
+  false,
+  "generated shell scripts must use real newline separators",
+);
+assert.equal(
+  controller.includes('bashLiteral(SERVICE)+"\\\\n";'),
+  false,
+  "activeScript must terminate with a real newline",
+);
+
+assert.ok(
+  controller.includes('\'cd "$repo"\''),
+  "remote activation preflight must enter repo before inline Node dependency resolution",
+);
+assert.ok(
+  controller.indexOf('\'cd "$repo"\'')<
+  controller.indexOf('node --input-type=module - "$key"'),
+  "repo cwd must be established before inline ethers identity derivation",
+);
 assert.ok(
   controller.indexOf("if(!args.apply)")<
   controller.indexOf("const remote=new RemoteLane()"),
