@@ -140,7 +140,7 @@
         },
         "max_fee_per_gas_wei": {
           "type": "string",
-          "pattern": "^[1-9][0-9]*$"
+          "pattern": "^(0|[1-9][0-9]*)$"
         },
         "max_priority_fee_per_gas_wei": {
           "type": "string",
