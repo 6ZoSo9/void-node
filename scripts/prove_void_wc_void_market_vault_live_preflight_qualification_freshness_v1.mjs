@@ -26,6 +26,8 @@ const SETTLEMENT = "0xc884f631c3881b8b672bfcbf019c856146cd7f73";
 const CLOSEOUT = "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b";
 const DEPLOYER = "0x2222222222222222222222222222222222222222";
 const INVENTORY_SOURCE = "0x3333333333333333333333333333333333333333";
+const HEAD_HASH = "0x" + "a".repeat(64);
+const OPENING_ATOMS = 10000000000000000000000000n;
 
 function gitEnv() {
   return {
@@ -234,7 +236,12 @@ function qualificationFixture({
   };
 }
 
-function input(qualification, rpcUrl, evaluationTimeUnix) {
+function input(
+  qualification,
+  rpcUrl,
+  evaluationTimeUnix,
+  finalEvaluationTimeUnix = evaluationTimeUnix,
+) {
   const bytes = prettyBytes(qualification);
   return {
     qualification_bytes: bytes,
@@ -245,7 +252,95 @@ function input(qualification, rpcUrl, evaluationTimeUnix) {
     request_timeout_ms: 1000,
     max_response_bytes: 65536,
     evaluation_time_unix: evaluationTimeUnix,
+    final_evaluation_time_unix: finalEvaluationTimeUnix,
   };
+}
+
+function balanceHex(value) {
+  return "0x" + BigInt(value).toString(16).padStart(64, "0");
+}
+
+async function withValidRpcFixture(callback) {
+  let rpcCalls = 0;
+  const server = http.createServer((request, response) => {
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    request.on("end", () => {
+      rpcCalls += 1;
+      let payload;
+      try {
+        payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        response.writeHead(400, { "Content-Type": "application/json" });
+        response.end("{}");
+        return;
+      }
+      let result;
+      switch (payload.method) {
+        case "eth_chainId":
+          result = "0x802";
+          break;
+        case "eth_blockNumber":
+          result = "0x64";
+          break;
+        case "eth_getBlockByNumber":
+          result = {
+            number: "0x64",
+            hash: HEAD_HASH,
+            timestamp: "0x100",
+          };
+          break;
+        case "eth_getTransactionCount":
+          result = payload.params?.[1] === "pending" ? "0x7" : "0x6";
+          break;
+        case "eth_getBalance":
+          result = "0x8ac7230489e80000";
+          break;
+        case "eth_gasPrice":
+          result = "0x3b9aca00";
+          break;
+        case "eth_estimateGas":
+          result = "0xf4240";
+          break;
+        case "eth_call":
+          result = balanceHex(OPENING_ATOMS + 123n);
+          break;
+        default:
+          response.writeHead(200, { "Content-Type": "application/json" });
+          response.end(JSON.stringify({
+            jsonrpc: "2.0",
+            id: payload.id,
+            error: { code: -32000, message: "unexpected_method" },
+          }));
+          return;
+      }
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: payload.id,
+        result,
+      }));
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  try {
+    const address = server.address();
+    assert(address && typeof address === "object");
+    return await callback({
+      rpc_url: "http://127.0.0.1:" + String(address.port) + "/",
+      rpcCalls: () => rpcCalls,
+    });
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
 }
 
 {
@@ -330,9 +425,61 @@ function input(qualification, rpcUrl, evaluationTimeUnix) {
   }
 }
 
+
+await withValidRpcFixture(async (fixture) => {
+  const q = qualificationFixture();
+  const callsBefore = fixture.rpcCalls();
+  const expiredAtMint =
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(
+        q,
+        fixture.rpc_url,
+        "1800000599",
+        "1800000600",
+      ),
+    );
+  assert.equal(expiredAtMint.ok, false);
+  assert.equal(
+    expiredAtMint.reason,
+    "live_deployment_preflight_launch_controller_control_expired",
+  );
+  assert.equal(expiredAtMint.production_preflight_id_emitted, false);
+  assert.equal(
+    fixture.rpcCalls() > callsBefore,
+    true,
+    "final freshness adversary did not traverse RPC observation",
+  );
+});
+
+await withValidRpcFixture(async (fixture) => {
+  const q = qualificationFixture();
+  const stillFresh =
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(
+        q,
+        fixture.rpc_url,
+        "1800000599",
+        "1800000599",
+      ),
+    );
+  assert.equal(
+    stillFresh.ok,
+    true,
+    stillFresh.ok ? "" : stillFresh.reason,
+  );
+  assert.equal(stillFresh.production_artifact_authorized, false);
+  assert.equal(stillFresh.production_preflight_id_emitted, false);
+  assert.equal(fixture.rpcCalls() > 0, true);
+});
+
 assert.equal(
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
     .qualification_control_freshness_required,
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
+    .qualification_control_freshness_revalidation_required,
   true,
 );
 assert.equal(
@@ -348,7 +495,13 @@ const source = fs.readFileSync(
 assert.ok(source.includes("String(Math.floor(Date.now() / 1000))"));
 assert.ok(source.includes("live_deployment_preflight_launch_controller_control_expired"));
 assert.ok(source.includes("evaluation_time_unix ??"));
+assert.ok(source.includes("final_evaluation_time_unix ??"));
+assert.ok(source.includes("finalEvaluationTimeUnix === null"));
 assert.ok(source.indexOf("verifyQualification(") < source.indexOf("createHttpTransport(rpcPolicy)"));
+assert.ok(
+  source.indexOf("finalEvaluationTimeUnix === null") <
+    source.indexOf("const material = Object.freeze"),
+);
 
 console.log("VOID_WC_VOID_MARKET_VAULT_LIVE_PREFLIGHT_QUALIFICATION_FRESHNESS_V1_PROOF_GREEN");
 console.log("production_wall_clock_noninjectable=true");
@@ -357,6 +510,9 @@ console.log("verified_reverified_expiry_ordering_required=true");
 console.log("evaluation_before_reverification_held=true");
 console.log("expiry_boundary_held=true");
 console.log("expired_qualification_zero_rpc_calls=true");
+console.log("fresh_before_rpc_expired_before_mint_held=true");
+console.log("freshness_revalidated_after_rpc=true");
+console.log("production_preflight_id_not_emitted_after_expiry=true");
 console.log("transaction_construction=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
