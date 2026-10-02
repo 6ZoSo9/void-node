@@ -365,9 +365,8 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       install_receipt_id:receipt.install_receipt_id,
       materialization_id:receipt.materialization_id,
       receipt_basis:receipt.receipt_basis,
-      receipt_observed_at_utc:receipt.observed_at_utc,
-      receipt_observed_repo_head:receipt.observed_repo_head,
-      installed_repo_head:receipt.observed_repo_head,
+      install_receipt_observed_at_utc:receipt.observed_at_utc,
+      install_receipt_observed_repo_head:receipt.observed_repo_head,
       runtime_root:receipt.runtime_root,
       unit_install_path:receipt.unit_install_path,
       systemd_unit_sha256:receipt.installed_hashes.systemd_unit_sha256,
@@ -594,8 +593,8 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
 
   const installRowKeys=[
     "role","hostname","install_receipt_id","materialization_id",
-    "receipt_basis","receipt_observed_at_utc","receipt_observed_repo_head",
-    "installed_repo_head","runtime_root","unit_install_path",
+    "receipt_basis","install_receipt_observed_at_utc",
+    "install_receipt_observed_repo_head","runtime_root","unit_install_path",
     "systemd_unit_sha256","genesis_sha256","static_nodes_sha256",
     "unit_file_state","operator_user_unit_dir_direct_enablement_links_absent",
     "indirect_activation_absence_proven",
@@ -610,10 +609,10 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
         "fresh_install",
         "existing_runtime_read_only_reattestation",
       ].includes(String(row.receipt_basis||""))||
-      !Number.isFinite(Date.parse(String(row.receipt_observed_at_utc||"")))||
-      !SHA40.test(String(row.receipt_observed_repo_head||""))||
-      row.installed_repo_head!==row.receipt_observed_repo_head||
-      !SHA40.test(String(row.installed_repo_head||""))||
+      !Number.isFinite(
+        Date.parse(String(row.install_receipt_observed_at_utc||"")),
+      )||
+      !SHA40.test(String(row.install_receipt_observed_repo_head||""))||
       !SHA256.test(String(row.systemd_unit_sha256||""))||
       !SHA256.test(String(row.genesis_sha256||""))||
       !SHA256.test(String(row.static_nodes_sha256||""))||

@@ -104,7 +104,7 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
     const expectedFacts={
       repo_main_clean:true,
       final_revalidation_green:true,
-      installed_repo_head_ancestor:true,
+      install_receipt_observed_repo_head_ancestor:true,
       current_tailnet_ipv4_exact:true,
       current_enode_exact:true,
       installed_genesis_sha256_exact:true,

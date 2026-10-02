@@ -234,9 +234,9 @@ function requireRepoDescendants(activationPlan,currentHead) {
   if(admissionCheck.status!==0) fail("start_admission_repo_head_not_ancestor");
   for(const row of activationPlan.install_receipts) {
     const result=run("git",[
-      "merge-base","--is-ancestor",row.installed_repo_head,currentHead,
+      "merge-base","--is-ancestor",row.install_receipt_observed_repo_head,currentHead,
     ],{allow_failure:true});
-    if(result.status!==0) fail("install_repo_head_not_ancestor:"+row.role);
+    if(result.status!==0) fail("install_receipt_observed_repo_head_not_ancestor:"+row.role);
   }
 }
 function hostPreflightScript(plan,activationPlan,role) {
@@ -256,7 +256,7 @@ function hostPreflightScript(plan,activationPlan,role) {
     "plugin="+bashLiteral("/home/zoso/Downloads/void-epoch2-raw-transaction-domain-plugin-v1.jar"),
     "key="+bashLiteral("/home/zoso/.local/share/void/epoch2-qbft-validator-identity-v1/"+role+"/nodekey"),
     "role="+bashLiteral(role),
-    "expected_head="+bashLiteral(install.installed_repo_head),
+    "expected_head="+bashLiteral(install.install_receipt_observed_repo_head),
     "expected_ip="+bashLiteral(host.tailscale_ipv4),
     "expected_genesis="+bashLiteral(install.genesis_sha256),
     "expected_static="+bashLiteral(install.static_nodes_sha256),

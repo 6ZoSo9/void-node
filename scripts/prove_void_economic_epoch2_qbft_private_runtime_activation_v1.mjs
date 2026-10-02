@@ -226,8 +226,9 @@ for(const role of roles) {
     bundle_set_receipt:bundleSet,
     role,
     materialization:bundles[role].materialization,
-    installed_at_utc:"2030-01-01T00:02:00.000Z",
-    installed_repo_head:"e".repeat(40),
+    receipt_basis:"fresh_install",
+    observed_at_utc:"2030-01-01T00:02:00.000Z",
+    observed_repo_head:"e".repeat(40),
     unit_file_state:"static",
     operator_user_unit_dir_direct_enablement_links_absent:true,
   });
@@ -238,7 +239,7 @@ for(const [index,role] of roles.entries()) {
   const facts={
     repo_main_clean:true,
     final_revalidation_green:true,
-    installed_repo_head_ancestor:true,
+    install_receipt_observed_repo_head_ancestor:true,
     current_tailnet_ipv4_exact:true,
     current_enode_exact:true,
     installed_genesis_sha256_exact:true,
@@ -372,6 +373,13 @@ assert.equal(
   false,
 );
 for(const row of activationPlan.install_receipts) {
+  assert.equal(row.receipt_basis,"fresh_install");
+  assert.equal(
+    row.install_receipt_observed_at_utc,
+    "2030-01-01T00:02:00.000Z",
+  );
+  assert.equal(row.install_receipt_observed_repo_head,"e".repeat(40));
+  assert.equal(Object.hasOwn(row,"installed_repo_head"),false);
   assert.equal(row.unit_file_state,"static");
   assert.equal(row.operator_user_unit_dir_direct_enablement_links_absent,true);
   assert.equal(row.indirect_activation_absence_proven,false);

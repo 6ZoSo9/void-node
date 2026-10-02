@@ -167,7 +167,7 @@ const planHost=validated.binding.plan_host;
 
 for(const ancestor of [
   validated.binding.plan.source_head,
-  validated.receipt.installed_repo_head,
+  validated.receipt.observed_repo_head,
 ]) {
   const result=spawnSync("git",["merge-base","--is-ancestor",ancestor,currentHead],{
     cwd:ROOT,
@@ -354,7 +354,7 @@ const validUntil=new Date(now.getTime()+5*60*1000);
 const facts={
   repo_main_clean:true,
   final_revalidation_green:true,
-  installed_repo_head_ancestor:true,
+  install_receipt_observed_repo_head_ancestor:true,
   current_tailnet_ipv4_exact:true,
   current_enode_exact:true,
   installed_genesis_sha256_exact:true,

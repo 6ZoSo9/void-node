@@ -210,8 +210,9 @@ for(const role of roles) {
     bundle_set_receipt:bundleSet,
     role,
     materialization:bundles[role].materialization,
-    installed_at_utc:"2030-01-01T00:02:00.000Z",
-    installed_repo_head:"e".repeat(40),
+    receipt_basis:"fresh_install",
+    observed_at_utc:"2030-01-01T00:02:00.000Z",
+    observed_repo_head:"e".repeat(40),
     unit_file_state:"static",
     operator_user_unit_dir_direct_enablement_links_absent:true,
   });
@@ -229,6 +230,9 @@ for(const role of roles) {
   assert.equal(receipt.post_install_state.service_start_performed,false);
   assert.equal(receipt.post_install_state.docker_mutation,false);
   assert.equal(receipt.post_install_state.nodekey_content_read,false);
+  assert.equal(receipt.receipt_basis,"fresh_install");
+  assert.equal(receipt.observed_at_utc,"2030-01-01T00:02:00.000Z");
+  assert.equal(receipt.observed_repo_head,"e".repeat(40));
   assert.equal(receipt.authority.runtime_root_write,true);
   assert.equal(receipt.authority.service_unit_installation,true);
   for(const key of [
@@ -240,6 +244,45 @@ for(const role of roles) {
   ]) {
     assert.equal(receipt.authority[key],false,key);
   }
+}
+
+{
+  const reattested=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+    plan,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSet,
+    role:"precision",
+    materialization:bundles.precision.materialization,
+    receipt_basis:"existing_runtime_read_only_reattestation",
+    observed_at_utc:"2030-01-01T00:02:30.000Z",
+    observed_repo_head:"f".repeat(40),
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+  });
+  assert.equal(
+    reattested.receipt_basis,
+    "existing_runtime_read_only_reattestation",
+  );
+  assert.equal(reattested.observed_at_utc,"2030-01-01T00:02:30.000Z");
+  assert.equal(reattested.observed_repo_head,"f".repeat(40));
+  assert.equal(reattested.authority.runtime_root_write,false);
+  assert.equal(reattested.authority.service_unit_installation,false);
+}
+{
+  assert.throws(
+    ()=>buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"precision",
+      materialization:bundles.precision.materialization,
+      installed_at_utc:"2030-01-01T00:02:30.000Z",
+      installed_repo_head:"f".repeat(40),
+      unit_file_state:"static",
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+    }),
+    /install_receipt_basis_invalid/u,
+  );
 }
 
 {
@@ -297,8 +340,9 @@ for(const role of roles) {
       bundle_set_receipt:bundleSet,
       role:"precision",
       materialization:bundles.precision.materialization,
-      installed_at_utc:"2030-01-01T00:02:00.000Z",
-      installed_repo_head:"e".repeat(40),
+      receipt_basis:"fresh_install",
+      observed_at_utc:"2030-01-01T00:02:00.000Z",
+      observed_repo_head:"e".repeat(40),
       unit_file_state:"disabled",
       operator_user_unit_dir_direct_enablement_links_absent:true,
     }),
@@ -331,6 +375,12 @@ for(const required of [
   "existing_unit_hash_mismatch",
   "existing_data_not_empty",
   "existing_runtime_read_only_reattestation",
+  'receipt_basis:"existing_runtime_read_only_reattestation"',
+  'receipt_basis:"fresh_install"',
+  "observed_at_utc",
+  "observed_repo_head",
+  "O_NOFOLLOW",
+  "fstatSync",
   "runtime_filesystem_mutation=false",
   "unit_filesystem_mutation=false",
   "requireInactiveUnitFileState",
@@ -378,6 +428,19 @@ assert.ok(
 assert.ok(
   reattestExit>reattestStart&&reattestExit<freshInstallAbsenceGate,
   "reattest branch must exit before fresh-install mutation path",
+);
+assert.equal(
+  runner.split("verifyExistingInstalledRuntime({").length-1,
+  4,
+  "helper definition plus initial/final re-attestation and final fresh-install rebind required",
+);
+assert.ok(
+  runner.includes("fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW"),
+  "descriptor-bound nofollow installed-file read required",
+);
+assert.ok(
+  runner.includes("fs.fstatSync(fd)"),
+  "descriptor identity must be revalidated around installed-file reads",
 );
 
 for(const forbidden of [

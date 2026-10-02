@@ -144,10 +144,22 @@ replace, rename or remove the runtime root or unit; does not run
 `daemon-reload`; does not enable/start a service; does not invoke Docker; and
 does not read the validator private key.
 
-The emitted install receipt is a state attestation for downstream admission.
-Its `installed_at_utc` value is the fresh re-attestation observation time in
-this mode; it is not a claim that filesystem installation happened at that
-instant.
+The emitted receipt is a state attestation for downstream admission. It
+content-binds one exact `receipt_basis`:
+
+- `fresh_install`; or
+- `existing_runtime_read_only_reattestation`.
+
+Both bases use neutral `observed_at_utc` and `observed_repo_head` fields.
+A read-only re-attestation records
+`authority.runtime_root_write=false` and
+`authority.service_unit_installation=false`; it does not claim a new
+filesystem installation.
+
+After the final inactive/static and direct-enablement-link observation, the
+runner rebinds exact installed membership/bytes/modes/data emptiness through
+descriptor-bound `O_NOFOLLOW` reads before receipt mint. Fresh installation
+uses the same final verifier after publication.
 
 ## Exact applied confirmation
 

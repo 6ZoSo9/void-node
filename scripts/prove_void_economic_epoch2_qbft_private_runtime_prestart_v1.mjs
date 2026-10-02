@@ -203,8 +203,9 @@ for(const [index,role] of roles.entries()) {
     bundle_set_receipt:bundleSet,
     role,
     materialization:materializations[role],
-    installed_at_utc:"2030-01-01T00:02:00.000Z",
-    installed_repo_head:INSTALL_HEAD,
+    receipt_basis:"fresh_install",
+    observed_at_utc:"2030-01-01T00:02:00.000Z",
+    observed_repo_head:INSTALL_HEAD,
     unit_file_state:"static",
     operator_user_unit_dir_direct_enablement_links_absent:true,
   });
@@ -212,7 +213,7 @@ for(const [index,role] of roles.entries()) {
   const facts={
     repo_main_clean:true,
     final_revalidation_green:true,
-    installed_repo_head_ancestor:true,
+    install_receipt_observed_repo_head_ancestor:true,
     current_tailnet_ipv4_exact:true,
     current_enode_exact:true,
     installed_genesis_sha256_exact:true,
@@ -256,6 +257,15 @@ for(const [index,role] of roles.entries()) {
     prestartReceipts[role],
   );
   assert.equal(prestartReceipts[role].start_authorized,false);
+  assert.equal(prestartReceipts[role].install_receipt_basis,"fresh_install");
+  assert.equal(
+    prestartReceipts[role].install_receipt_observed_repo_head,
+    INSTALL_HEAD,
+  );
+  assert.equal(
+    prestartReceipts[role].install_receipt_observed_at_utc,
+    "2030-01-01T00:02:00.000Z",
+  );
   assert.equal(
     prestartReceipts[role].authority.nodekey_content_read_for_identity_revalidation,
     true,
