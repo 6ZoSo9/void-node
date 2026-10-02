@@ -219,7 +219,7 @@ for (const required of [
   '"sport = :18553"',
   '"merge-base", "--is-ancestor"',
   '"/proc/self/fd/"',
-  '"O_DIRECTORY"',
+  "fs.constants.O_DIRECTORY",
 ]) {
   assert.ok(source.includes(required), required);
 }
