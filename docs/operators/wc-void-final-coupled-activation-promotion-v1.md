@@ -231,9 +231,41 @@ requires the exact in-process verified promotion object. A caller cannot turn a
 preview into reviewed output by merely changing marker/status fields.
 
 This closes the exported-library bypass. The Git and private input/output custody
-boundaries are also hardened as described above. The separate immutable
-reviewed-execution/runtime provenance for authority-bearing classifiers and the
-six verify-applied modules still keeps this PR Draft.
+boundaries are also hardened as described above.
+
+## Immutable reviewed execution
+
+Authority-bearing classifier and verify-applied execution runs only inside one
+private exact-generation checkout of the reviewed repository head.
+
+The execution boundary now requires:
+
+- the private checkout contains full local Git history required by historical
+  application-base ancestry and commit/blob reads; it is not a depth-1 clone;
+- all six verify-applied root modules are bound to their exact reviewed Git
+  blobs;
+- the four authority-bearing classifier roots are expanded through their
+  relative-module transitive closure and every closure module is Git-blob bound;
+- reviewed `ethers` package runtime bytes are materialized/verified through the
+  reviewed Node package-runtime profile;
+- generated bootstrap/runtime-profile/runner files are SHA-256 bound;
+- the private parent directory identity is retained;
+- bootstrap/runtime/profile/runner and reviewed module bytes are reopened with
+  `O_NOFOLLOW`, stable before/after descriptor identity and exact digest/blob
+  revalidation before package verification and again immediately before
+  authority spawn;
+- the same bindings are rechecked after the child returns;
+- there is no process-wide reviewed-execution cache; the private tree is torn
+  down immediately after the single authority execution;
+- Node permission fencing limits filesystem reads to the private reviewed root
+  and ancestor package resolution remains disabled.
+
+Permanent proof also mutates the generated runner and a reviewed module after
+initial binding and requires both mutations to HOLD before authority execution.
+
+The PR remains Draft until this repaired generation completes fresh exact-head
+CI and is non-force reconciled onto current main without changing its four owned
+source paths.
 
 ## CLI
 
