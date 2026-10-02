@@ -51,6 +51,14 @@ function gitText(args) {
   }).trim();
 }
 
+function gitBytes(args) {
+  return Buffer.from(execFileSync("/usr/bin/git", args, {
+    cwd: process.cwd(),
+    encoding: null,
+    env: gitEnv(),
+  }));
+}
+
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -74,24 +82,29 @@ function qualificationId(value) {
     sha256(Buffer.from(canonicalJson(material), "utf8"));
 }
 
-function sourceBinding() {
+function sourceBinding(ref = "HEAD") {
+  const sourceHead = gitText(["rev-parse", ref]);
   const dependencyFileSha = {};
+  const dependencyGitBlobs = {};
   for (const relativePath of Object.keys(
     VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1,
   )) {
-    dependencyFileSha[relativePath] = sha256(fs.readFileSync(relativePath));
+    const bytes = gitBytes(["show", sourceHead + ":" + relativePath]);
+    dependencyFileSha[relativePath] = sha256(bytes);
+    dependencyGitBlobs[relativePath] =
+      gitText(["rev-parse", sourceHead + ":" + relativePath]);
   }
+  const qualificationToolBytes =
+    gitBytes(["show", sourceHead + ":" + QUALIFICATION_TOOL]);
   return {
-    source_head_sha: gitText(["rev-parse", "HEAD"]),
-    source_tree_sha: gitText(["rev-parse", "HEAD^{tree}"]),
+    source_head_sha: sourceHead,
+    source_tree_sha: gitText(["rev-parse", sourceHead + "^{tree}"]),
     canonical_remote_url: "https://github.com/6ZoSo9/void-node.git",
     reviewed_main_anchor: "2dcf6544f373f828347434fd0c6d434334af1658",
     qualification_tool_git_blob_sha1:
-      gitText(["rev-parse", "HEAD:" + QUALIFICATION_TOOL]),
-    qualification_tool_file_sha256: sha256(fs.readFileSync(QUALIFICATION_TOOL)),
-    dependency_git_blobs: structuredClone(
-      VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1,
-    ),
+      gitText(["rev-parse", sourceHead + ":" + QUALIFICATION_TOOL]),
+    qualification_tool_file_sha256: sha256(qualificationToolBytes),
+    dependency_git_blobs: dependencyGitBlobs,
     dependency_file_sha256: dependencyFileSha,
   };
 }
@@ -100,6 +113,7 @@ function qualificationFixture({
   verified = "1800000000",
   reverified = "1800000010",
   validUntil = "1800000600",
+  sourceRef = "HEAD",
 } = {}) {
   const deploymentDataHex = "0x60006000556001600055";
   const deploymentBytes = Buffer.from(deploymentDataHex.slice(2), "hex");
@@ -130,12 +144,12 @@ function qualificationFixture({
     chain_id: 2050,
     execution_epoch: 2,
     coupled_launch_id: COUPLED_LAUNCH_ID,
-    source_binding: sourceBinding(),
+    source_binding: sourceBinding(sourceRef),
     launch_controller: {
       address: LAUNCH_CONTROLLER,
       evidence_id: "voidwlcce1_" + "1".repeat(64),
       evidence_file_sha256: "2".repeat(64),
-      evidence_source_head_sha: gitText(["rev-parse", "HEAD"]),
+      evidence_source_head_sha: gitText(["rev-parse", sourceRef]),
       evidence_source_binding_sha256: "3".repeat(64),
       verified_at_unix: verified,
       reverified_at_unix: reverified,
@@ -426,6 +440,75 @@ async function withValidRpcFixture(callback) {
 }
 
 
+const ANCESTOR_SOURCE_REF = "HEAD^";
+const ANCESTOR_SOURCE_HEAD = gitText(["rev-parse", ANCESTOR_SOURCE_REF]);
+const CURRENT_HEAD = gitText(["rev-parse", "HEAD"]);
+assert.notEqual(
+  ANCESTOR_SOURCE_HEAD,
+  CURRENT_HEAD,
+  "ancestor qualification test requires distinct generations",
+);
+
+await withValidRpcFixture(async (fixture) => {
+  const q = qualificationFixture({ sourceRef: ANCESTOR_SOURCE_REF });
+  const result =
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(
+        q,
+        fixture.rpc_url,
+        "1800000599",
+        "1800000599",
+      ),
+    );
+  assert.equal(result.ok, true, result.ok ? "" : result.reason);
+  assert.equal(result.qualification_source_head_sha, ANCESTOR_SOURCE_HEAD);
+  assert.equal(result.qualification_source_head_ancestor_current_main, true);
+  assert.equal(result.qualification_historical_reviewed_bytes_verified, true);
+  assert.equal(result.qualification_current_reviewed_bytes_verified, true);
+  assert.equal(result.production_artifact_authorized, false);
+  assert.equal(result.production_preflight_id_emitted, false);
+  assert.equal(fixture.rpcCalls() > 0, true);
+});
+
+{
+  const q = qualificationFixture({ sourceRef: ANCESTOR_SOURCE_REF });
+  q.source_binding.source_tree_sha = "0".repeat(40);
+  q.qualification_id = qualificationId(q);
+  let rpcCalls = 0;
+  const server = http.createServer((_request, response) => {
+    rpcCalls += 1;
+    response.writeHead(500, { "Content-Type": "application/json" });
+    response.end("{}");
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+  try {
+    const address = server.address();
+    assert(address && typeof address === "object");
+    const held =
+      await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+        input(
+          q,
+          "http://127.0.0.1:" + String(address.port) + "/",
+          "1800000599",
+          "1800000599",
+        ),
+      );
+    assert.equal(held.ok, false);
+    assert.equal(held.reason, "live_deployment_preflight_source_tree_mismatch");
+    assert.equal(rpcCalls, 0, "forged source tree reached RPC");
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  }
+}
+
 await withValidRpcFixture(async (fixture) => {
   const q = qualificationFixture();
   const callsBefore = fixture.rpcCalls();
@@ -498,6 +581,31 @@ await withValidRpcFixture(async (fixture) => {
 
 assert.equal(
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
+    .qualification_current_head_required,
+  false,
+);
+assert.equal(
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
+    .qualification_source_head_ancestor_current_main_required,
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
+    .qualification_source_tree_revalidation_required,
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
+    .qualification_historical_reviewed_bytes_required,
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
+    .qualification_current_reviewed_bytes_required,
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
     .qualification_control_freshness_required,
   true,
 );
@@ -523,6 +631,10 @@ const source = fs.readFileSync(
 );
 assert.ok(source.includes("String(Math.floor(Date.now() / 1000))"));
 assert.ok(source.includes("live_deployment_preflight_launch_controller_control_expired"));
+assert.ok(source.includes("live_deployment_preflight_source_head_not_ancestor_current_main"));
+assert.ok(source.includes("live_deployment_preflight_source_tree_mismatch"));
+assert.ok(source.includes("historicalFileIdentity"));
+assert.ok(source.includes("dependency_historical_bytes_verified"));
 assert.ok(source.includes("evaluation_time_unix ??"));
 assert.ok(source.includes("final_evaluation_time_unix ??"));
 assert.ok(source.includes("finalEvaluationTimeUnix === null"));
@@ -538,6 +650,13 @@ assert.ok(
 );
 
 console.log("VOID_WC_VOID_MARKET_VAULT_LIVE_PREFLIGHT_QUALIFICATION_FRESHNESS_V1_PROOF_GREEN");
+console.log("qualification_current_head_required=false");
+console.log("qualification_source_head_ancestor_current_main_required=true");
+console.log("qualification_source_tree_revalidation_required=true");
+console.log("qualification_historical_reviewed_bytes_required=true");
+console.log("qualification_current_reviewed_bytes_required=true");
+console.log("ancestor_qualification_with_unchanged_reviewed_bytes_green=true");
+console.log("forged_historical_source_tree_zero_rpc_calls=true");
 console.log("production_wall_clock_noninjectable=true");
 console.log("test_only_evaluation_time_injection=true");
 console.log("verified_reverified_expiry_ordering_required=true");
