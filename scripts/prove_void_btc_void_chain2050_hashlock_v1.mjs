@@ -139,7 +139,7 @@ for (const required of [
   "vm.prank(FUNDER)",
   "vm.prank(BENEFICIARY)",
   "vm.warp(deadline)",
-  "hex\"11\"",
+  "bytes memory shortPreimage = hex\"11\";",
   "duplicate_swap_accepted",
   "claim_replay_accepted",
   "refund_replay_accepted",
