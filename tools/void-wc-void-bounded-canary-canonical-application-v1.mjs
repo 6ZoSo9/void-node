@@ -475,6 +475,578 @@ function headFile(pathname, label) {
   return commitFile("HEAD", pathname, label);
 }
 
+
+function commitBytes(commit, pathname, label) {
+  const bytes = gitBytes(
+    ["show", commit + ":" + pathname],
+    "CANONICAL_APPLICATION_" + label + "_BYTES_UNAVAILABLE",
+  );
+  if (bytes.length < 1 || bytes.length > MAX_BYTES) {
+    fail("CANONICAL_APPLICATION_" + label + "_BYTES_INVALID");
+  }
+  const blob = commitBlob(
+    commit,
+    pathname,
+    "CANONICAL_APPLICATION_" + label + "_BLOB_UNAVAILABLE",
+  );
+  if (gitBlobSha1(bytes) !== blob) {
+    fail("CANONICAL_APPLICATION_" + label + "_BLOB_MISMATCH");
+  }
+  return Object.freeze({
+    bytes: Buffer.from(bytes),
+    sha256: sha256(bytes),
+    blob_sha1: blob,
+  });
+}
+
+function assertApplicationToolWorktreeBound(repository) {
+  const expected = commitBytes(
+    repository.head,
+    TOOL_REL,
+    "APPLICATION_TOOL",
+  );
+  const actual = fs.readFileSync(path.join(ROOT, TOOL_REL));
+  if (gitBlobSha1(actual) !== expected.blob_sha1) {
+    fail("CANONICAL_APPLICATION_TOOL_WORKTREE_DRIFT");
+  }
+  return expected.blob_sha1;
+}
+
+function reviewedModuleClosure(commit) {
+  const pending = [REVIEWED_BRIDGE_REL];
+  const seen = new Set();
+  const blobs = Object.create(null);
+  let bareEthers = false;
+  while (pending.length) {
+    const rel = pending.pop();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const source = commitBytes(
+      commit,
+      rel,
+      "REVIEWED_MODULE_" + rel.replace(/[^A-Za-z0-9]+/gu, "_"),
+    );
+    blobs[rel] = source.blob_sha1;
+    const sourceText =
+      new TextDecoder("utf-8", { fatal: true }).decode(source.bytes);
+
+    if (
+      [
+        "node:http",
+        "node:https",
+        "node:net",
+        "node:tls",
+        "node:dgram",
+        "node:worker_threads",
+      ].some((needle) => sourceText.includes(needle))
+    ) {
+      fail("CANONICAL_APPLICATION_REVIEWED_NETWORK_SURFACE:" + rel);
+    }
+    if (/\bimport\s*\(/u.test(sourceText)) {
+      fail("CANONICAL_APPLICATION_REVIEWED_DYNAMIC_IMPORT:" + rel);
+    }
+    if (
+      sourceText.includes("node:child_process") &&
+      rel !== PROMOTION_TOOL_REL
+    ) {
+      fail("CANONICAL_APPLICATION_REVIEWED_CHILD_PROCESS_SURFACE:" + rel);
+    }
+
+    const specs = [];
+    for (const re of [
+      /\bfrom\s+["']([^"']+)["']/gu,
+      /\bimport\s+["']([^"']+)["']/gu,
+    ]) {
+      let match;
+      while ((match = re.exec(sourceText)) !== null) specs.push(match[1]);
+    }
+    for (const spec of specs) {
+      if (spec.startsWith("node:")) continue;
+      if (spec === "ethers") {
+        bareEthers = true;
+        continue;
+      }
+      if (!spec.startsWith(".")) {
+        fail("CANONICAL_APPLICATION_REVIEWED_BARE_IMPORT:" + spec);
+      }
+      let target = path.posix.normalize(
+        path.posix.join(path.posix.dirname(rel), spec),
+      );
+      if (!target.endsWith(".mjs")) target += ".mjs";
+      if (!target.startsWith("tools/") || target.includes("../")) {
+        fail("CANONICAL_APPLICATION_REVIEWED_IMPORT_ESCAPE:" + target);
+      }
+      pending.push(target);
+    }
+  }
+  if (!bareEthers) {
+    fail("CANONICAL_APPLICATION_REVIEWED_ETHERS_CLOSURE_MISSING");
+  }
+  return Object.freeze({
+    module_git_blobs: Object.freeze({ ...blobs }),
+    bare_ethers_required: true,
+    child_process_module: PROMOTION_TOOL_REL,
+  });
+}
+
+function privateNodeEnv(home) {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: home,
+    XDG_CONFIG_HOME: home,
+    LANG: "C",
+    LC_ALL: "C",
+    NODE_OPTIONS: "",
+    NODE_PATH: "",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+    GIT_CONFIG_COUNT: "6",
+    GIT_CONFIG_KEY_0: "core.fsmonitor",
+    GIT_CONFIG_VALUE_0: "false",
+    GIT_CONFIG_KEY_1: "core.hooksPath",
+    GIT_CONFIG_VALUE_1: "/dev/null",
+    GIT_CONFIG_KEY_2: "core.attributesFile",
+    GIT_CONFIG_VALUE_2: "/dev/null",
+    GIT_CONFIG_KEY_3: "core.untrackedCache",
+    GIT_CONFIG_VALUE_3: "false",
+    GIT_CONFIG_KEY_4: "core.preloadIndex",
+    GIT_CONFIG_VALUE_4: "false",
+    GIT_CONFIG_KEY_5: "submodule.recurse",
+    GIT_CONFIG_VALUE_5: "false",
+  };
+}
+
+function writePrivateSource(file, bytes, mode = 0o400) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    mode,
+  );
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, mode);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function gitRunPrivate(cwd, args, code, { allowFail = false } = {}) {
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-c", "protocol.file.allow=always",
+      "-C", cwd,
+      ...args,
+    ],
+    {
+      env: sanitizedGitEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: MAX_BYTES + 1024,
+      timeout: 120_000,
+    },
+  );
+  if (result.error) throw result.error;
+  if (result.status !== 0 && !allowFail) fail(code);
+  return result;
+}
+
+function fchmodReviewedDirectory(file, mode) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY |
+      Number(fs.constants.O_DIRECTORY || 0) |
+      Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    if (!fs.fstatSync(fd).isDirectory()) {
+      fail("CANONICAL_APPLICATION_REVIEWED_DIRECTORY_INVALID");
+    }
+    fs.fchmodSync(fd, mode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fchmodReviewedRegularFile(file, mode) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1) {
+      fail("CANONICAL_APPLICATION_REVIEWED_FILE_INVALID");
+    }
+    fs.fchmodSync(fd, mode);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function makeReviewedTreeReadOnly(root) {
+  const rootStat = fs.lstatSync(root);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    fail("CANONICAL_APPLICATION_REVIEWED_ROOT_INVALID");
+  }
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(file);
+        fchmodReviewedDirectory(file, 0o500);
+      } else if (entry.isSymbolicLink()) {
+        if (!fs.lstatSync(file).isSymbolicLink()) {
+          fail("CANONICAL_APPLICATION_REVIEWED_SYMLINK_INVALID");
+        }
+      } else if (entry.isFile()) {
+        const stat = fs.lstatSync(file);
+        const executable = (Number(stat.mode) & 0o111) !== 0;
+        fchmodReviewedRegularFile(file, executable ? 0o500 : 0o400);
+      } else {
+        fail("CANONICAL_APPLICATION_REVIEWED_ENTRY_INVALID");
+      }
+    }
+  }
+  walk(root);
+  fchmodReviewedDirectory(root, 0o500);
+}
+
+function makeReviewedTreeRemovable(root) {
+  if (!fs.existsSync(root)) return;
+  fchmodReviewedDirectory(root, 0o700);
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        fchmodReviewedDirectory(file, 0o700);
+        walk(file);
+      } else if (entry.isSymbolicLink()) {
+        if (!fs.lstatSync(file).isSymbolicLink()) {
+          fail("CANONICAL_APPLICATION_REVIEWED_SYMLINK_INVALID");
+        }
+      } else if (entry.isFile()) {
+        fchmodReviewedRegularFile(file, 0o600);
+      }
+    }
+  }
+  walk(root);
+}
+
+function buildReviewedExecutionRoot(repository) {
+  const closure = reviewedModuleClosure(repository.head);
+  const parent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-bounded-canary-reviewed-"),
+  );
+  fs.chmodSync(parent, 0o700);
+  try {
+    const bootstrapDir = path.join(parent, "bootstrap");
+    fs.mkdirSync(bootstrapDir, { mode: 0o700 });
+
+    const runtimeTool = commitBytes(
+      repository.head,
+      REVIEWED_RUNTIME_TOOL_REL,
+      "REVIEWED_RUNTIME_TOOL",
+    );
+    const runtimeProfile = commitBytes(
+      repository.head,
+      REVIEWED_RUNTIME_PROFILE_REL,
+      "REVIEWED_RUNTIME_PROFILE",
+    );
+    const runtimeToolFile =
+      path.join(bootstrapDir, "void-reviewed-node-package-runtime-v1.mjs");
+    const profileFile = path.join(bootstrapDir, "profile.json");
+    writePrivateSource(runtimeToolFile, runtimeTool.bytes);
+    writePrivateSource(profileFile, runtimeProfile.bytes);
+
+    const executionRoot = path.join(parent, "execution");
+    const bootstrapFile = path.join(bootstrapDir, "bootstrap.mjs");
+    const bootstrapSource = [
+      'import fs from "node:fs";',
+      'import { materializeReviewedNodePackageRuntimeV1, verifyMaterializedReviewedNodePackageRuntimeV1 } from "./void-reviewed-node-package-runtime-v1.mjs";',
+      'process.stdin.setEncoding("utf8");',
+      'let text="";',
+      'for await (const chunk of process.stdin) text+=chunk;',
+      'const request=JSON.parse(text);',
+      'const profile=JSON.parse(fs.readFileSync(request.profile_file,"utf8"));',
+      'const result=request.action==="materialize"',
+      '  ? materializeReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root})',
+      '  : verifyMaterializedReviewedNodePackageRuntimeV1({profile,repoRoot:request.repo_root,destinationRoot:request.destination_root});',
+      'process.stdout.write(JSON.stringify(result));',
+      '',
+    ].join("\n");
+    writePrivateSource(bootstrapFile, Buffer.from(bootstrapSource, "utf8"));
+
+    const materialize = spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [bootstrapFile],
+      {
+        cwd: bootstrapDir,
+        env: privateNodeEnv(bootstrapDir),
+        input: JSON.stringify({
+          action: "materialize",
+          profile_file: profileFile,
+          repo_root: ROOT,
+          destination_root: executionRoot,
+        }),
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 120_000,
+      },
+    );
+    if (materialize.error || materialize.status !== 0) {
+      fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_MATERIALIZATION_FAILED");
+    }
+    let runtime;
+    try {
+      runtime = JSON.parse(String(materialize.stdout || ""));
+    } catch {
+      fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_OUTPUT_INVALID");
+    }
+    if (
+      runtime?.ok !== true ||
+      runtime.status !== "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      !REVIEWED_RUNTIME_PROFILE_ID.test(String(runtime.profile_id || "")) ||
+      !HEX64.test(String(runtime.packages_aggregate_sha256 || "")) ||
+      runtime.read_only_materialization !== true
+    ) {
+      fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_INVALID");
+    }
+
+    gitRunPrivate(
+      executionRoot,
+      ["init", "--quiet"],
+      "CANONICAL_APPLICATION_PRIVATE_GIT_INIT_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["fetch", "--quiet", "--no-tags", "--depth=1", ROOT, repository.head],
+      "CANONICAL_APPLICATION_PRIVATE_GIT_FETCH_FAILED",
+    );
+    gitRunPrivate(
+      executionRoot,
+      ["checkout", "--quiet", "--detach", "FETCH_HEAD"],
+      "CANONICAL_APPLICATION_PRIVATE_GIT_CHECKOUT_FAILED",
+    );
+    const privateHead = String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse", "HEAD"],
+        "CANONICAL_APPLICATION_PRIVATE_HEAD_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    const privateTree = String(
+      gitRunPrivate(
+        executionRoot,
+        ["rev-parse", "HEAD^{tree}"],
+        "CANONICAL_APPLICATION_PRIVATE_TREE_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    if (privateHead !== repository.head || privateTree !== repository.tree) {
+      fail("CANONICAL_APPLICATION_PRIVATE_GIT_IDENTITY_MISMATCH");
+    }
+
+    for (const [relativePath, expectedBlob] of
+      Object.entries(closure.module_git_blobs)) {
+      const actual = gitBlobSha1(
+        fs.readFileSync(path.join(executionRoot, relativePath)),
+      );
+      if (actual !== expectedBlob) {
+        fail(
+          "CANONICAL_APPLICATION_PRIVATE_MODULE_BLOB_MISMATCH:" +
+            relativePath,
+        );
+      }
+    }
+
+    const runnerDir = path.join(parent, "runner");
+    fs.mkdirSync(runnerDir, { mode: 0o700 });
+    const runnerFile =
+      path.join(runnerDir, "bounded-canary-reviewed-runner-v1.mjs");
+    const bridgeUrl = JSON.stringify(
+      pathToFileURL(path.join(executionRoot, REVIEWED_BRIDGE_REL)).href,
+    );
+    const runnerSource = [
+      'import { executeVoidWcVoidBoundedCanaryReviewedV1 } from ' +
+        bridgeUrl + ';',
+      'process.stdin.setEncoding("utf8");',
+      'let text="";',
+      'for await (const chunk of process.stdin) text+=chunk;',
+      'let envelope;',
+      'try{',
+      '  const request=JSON.parse(text);',
+      '  const result=executeVoidWcVoidBoundedCanaryReviewedV1(request);',
+      '  envelope={ok:true,result,error:null};',
+      '}catch(error){',
+      '  envelope={ok:false,result:null,error:(error instanceof Error?error.message:String(error)).slice(0,512)};',
+      '}',
+      'process.stdout.write(JSON.stringify(envelope));',
+      '',
+    ].join("\n");
+    writePrivateSource(runnerFile, Buffer.from(runnerSource, "utf8"));
+
+    makeReviewedTreeReadOnly(executionRoot);
+    const privateStatus = String(
+      gitRunPrivate(
+        executionRoot,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+        "CANONICAL_APPLICATION_PRIVATE_STATUS_UNAVAILABLE",
+      ).stdout || "",
+    ).trim();
+    if (privateStatus !== "") {
+      fail("CANONICAL_APPLICATION_PRIVATE_WORKTREE_NOT_CLEAN");
+    }
+
+    return Object.freeze({
+      parent,
+      bootstrap_dir: bootstrapDir,
+      bootstrap_file: bootstrapFile,
+      profile_file: profileFile,
+      execution_root: executionRoot,
+      runner_file: runnerFile,
+      binding: Object.freeze({
+        module_git_blobs: closure.module_git_blobs,
+        runtime_tool_git_blob_sha1: runtimeTool.blob_sha1,
+        runtime_profile_git_blob_sha1: runtimeProfile.blob_sha1,
+        profile_id: runtime.profile_id,
+        packages_aggregate_sha256: runtime.packages_aggregate_sha256,
+        permission_fenced: true,
+        ancestor_package_resolution_allowed: false,
+        execution_network_isolation_provided: false,
+      }),
+    });
+  } catch (error) {
+    try {
+      makeReviewedTreeRemovable(parent);
+      fs.rmSync(parent, { recursive: true, force: true });
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "bounded_canary_reviewed_execution_cleanup_failed",
+      );
+    }
+    throw error;
+  }
+}
+
+function verifyReviewedRuntimeTree(bundle) {
+  const result = spawnSync(
+    fs.realpathSync.native(process.execPath),
+    [bundle.bootstrap_file],
+    {
+      cwd: bundle.bootstrap_dir,
+      env: privateNodeEnv(bundle.bootstrap_dir),
+      input: JSON.stringify({
+        action: "verify",
+        profile_file: bundle.profile_file,
+        repo_root: ROOT,
+        destination_root: bundle.execution_root,
+      }),
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: 120_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("CANONICAL_APPLICATION_REVIEWED_RUNTIME_REVERIFY_FAILED");
+  }
+}
+
+function runReviewedAuthority(repository, request) {
+  const bundle = buildReviewedExecutionRoot(repository);
+  try {
+    verifyReviewedRuntimeTree(bundle);
+    const result = spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [
+        "--permission",
+        "--allow-fs-read=" + bundle.parent,
+        "--allow-child-process",
+        bundle.runner_file,
+      ],
+      {
+        cwd: bundle.bootstrap_dir,
+        env: privateNodeEnv(bundle.bootstrap_dir),
+        input: JSON.stringify(request),
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: 120_000,
+      },
+    );
+    if (result.error || result.status !== 0) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_EXECUTION_FAILED");
+    }
+    let envelope;
+    try {
+      envelope = JSON.parse(String(result.stdout || ""));
+    } catch {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+    }
+    if (
+      !plain(envelope) ||
+      typeof envelope.ok !== "boolean" ||
+      !Object.hasOwn(envelope, "result") ||
+      !Object.hasOwn(envelope, "error")
+    ) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+    }
+    if (!envelope.ok) {
+      if (typeof envelope.error !== "string" || envelope.error.length < 1) {
+        fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_ERROR_INVALID");
+      }
+      fail(envelope.error);
+    }
+    if (!plain(envelope.result) || envelope.error !== null) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_RESULT_INVALID");
+    }
+    if (envelope.result.marker !== REVIEWED_EXECUTION_MARKER) {
+      fail("CANONICAL_APPLICATION_REVIEWED_AUTHORITY_MARKER_INVALID");
+    }
+    return Object.freeze({
+      result: envelope.result,
+      binding: bundle.binding,
+    });
+  } finally {
+    makeReviewedTreeRemovable(bundle.parent);
+    fs.rmSync(bundle.parent, { recursive: true, force: true });
+  }
+}
+
+function assertReviewedExecutionBinding(plan, binding) {
+  if (
+    canonicalJson(plan.reviewed_execution_module_git_blobs) !==
+      canonicalJson(binding.module_git_blobs) ||
+    plan.reviewed_runtime_tool_git_blob_sha1 !==
+      binding.runtime_tool_git_blob_sha1 ||
+    plan.reviewed_runtime_profile_git_blob_sha1 !==
+      binding.runtime_profile_git_blob_sha1 ||
+    plan.reviewed_runtime_profile_id !== binding.profile_id ||
+    plan.reviewed_runtime_packages_aggregate_sha256 !==
+      binding.packages_aggregate_sha256 ||
+    plan.reviewed_execution_permission_fenced !== true ||
+    plan.reviewed_execution_ancestor_package_resolution_allowed !== false ||
+    plan.reviewed_execution_network_isolation_provided !== false
+  ) {
+    fail("CANONICAL_APPLICATION_REVIEWED_EXECUTION_LINEAGE_DRIFT");
+  }
+}
+
 function parseJsonBytes(bytes, expectedSha, label) {
   if (!Buffer.isBuffer(bytes) || bytes.length < 2 || bytes.length > MAX_BYTES) {
     fail(label + "_BYTES_INVALID");
