@@ -48,9 +48,15 @@ Before publication, the executor observes both participants and captures:
 Both participants stage their target drop-in before either participant
 publishes.
 
-The coordinator durably journals the reviewed #2278 transaction state before
-each publish or restore side effect. Participant receipts are create-only and
-durable.
+Participant receipts are create-only and durable. For every transition that
+has a participant receipt, the receipt is persisted first and the matching
+canonical journal transition advances only after that receipt succeeds. This
+prevents a journal from permanently outrunning required per-host audit evidence.
+
+The reviewed #2278 canonical journal still advances before every actual publish
+or restore side effect. A crash after a receipt but before journal advancement is
+safe because replay re-derives the same receipt and the participant store is
+create-only/idempotent.
 
 The durable journal filename is content-addressed over an intent containing:
 
@@ -134,7 +140,8 @@ The proof is hermetic. It uses fake participant adapters and proves:
 - bounded partial publish/restore completion;
 - ambiguous drift HOLD;
 - journal failure is not reinterpreted as rollback success;
-- create-only participant receipts;
+- participant receipt failure cannot advance the matching journal transition;
+- create-only/idempotent participant receipt replay;
 - private journal parent binding;
 - retired Alienware rejection;
 - `void-node-live.service` source binding;
