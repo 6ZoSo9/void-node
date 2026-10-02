@@ -417,6 +417,8 @@ export function compileWcVoidOpeningRelatedIdentityEvidenceManifestV1(raw) {
   const seenCommitments = new Set();
   const seenParticipants = new Set();
   const clusterParticipants = new Map();
+  const participantCluster = new Map();
+  const referencedEvidenceIds = new Set();
   let ambiguousParticipantCount = 0;
 
   const canonicalAssignments = assignments.map((rawAssignment) => {
@@ -461,6 +463,8 @@ export function compileWcVoidOpeningRelatedIdentityEvidenceManifestV1(raw) {
 
     seenCommitments.add(value.commitment_id);
     seenParticipants.add(value.participant_id);
+    participantCluster.set(value.participant_id, value.cluster_id);
+    referencedEvidenceIds.add(value.evidence_id);
     if (value.ambiguous) ambiguousParticipantCount += 1;
     const current = clusterParticipants.get(value.cluster_id) || [];
     current.push(value.participant_id);
@@ -480,6 +484,17 @@ export function compileWcVoidOpeningRelatedIdentityEvidenceManifestV1(raw) {
     seenParticipants.size !== eligibility.eligible_participant_count
   ) {
     fail("RELATED_IDENTITY_ASSIGNMENT_BIJECTION_INCOMPLETE");
+  }
+
+  for (const evidence of evidenceDocs) {
+    if (!referencedEvidenceIds.has(evidence.evidence_id)) {
+      fail("UNREFERENCED_RELATED_IDENTITY_EVIDENCE");
+    }
+    for (const participantId of evidence.subject_participant_ids) {
+      if (participantCluster.get(participantId) !== evidence.cluster_id) {
+        fail("RELATED_IDENTITY_EVIDENCE_CLUSTER_ASSIGNMENT_MISMATCH");
+      }
+    }
   }
 
   const clusterIds = [...clusterParticipants.keys()].sort(compareText);
