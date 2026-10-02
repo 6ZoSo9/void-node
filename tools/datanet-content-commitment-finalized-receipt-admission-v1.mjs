@@ -322,7 +322,7 @@ function transactionSummary(candidate){
     text(candidate.value_wei)!=="0"||
     !DECIMAL.test(nonce)||
     !/^[1-9][0-9]*$/.test(gasLimit)||
-    !/^[1-9][0-9]*$/.test(maxFee)||
+    !/^(0|[1-9][0-9]*)$/.test(maxFee)||
     !DECIMAL.test(priority)||
     BigInt(priority)>BigInt(maxFee)||
     !/^0x(?:[0-9a-f]{2})+$/.test(calldata)
