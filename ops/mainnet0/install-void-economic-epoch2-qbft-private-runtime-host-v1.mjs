@@ -101,9 +101,9 @@ function requireInactiveUnitFileState(service,{allowStatic=false}={}) {
   }
   return {active_state:activeText,unit_file_state:enabledText};
 }
-function requireNoInstallSection(bytes,label) {
+function requireNoInstallSection(bytes,code) {
   if(/^[ \t]*\[Install\][ \t]*$/mu.test(bytes.toString("utf8"))) {
-    fail(label+"_install_section_forbidden");
+    fail(code);
   }
 }
 function requireNoEnableLinks(unitDir,service) {
@@ -143,7 +143,10 @@ function validateBundleBytes(bundle,binding) {
   if(bundle.systemd_unit_raw.toString("utf8").includes("\nRestart=on-failure\n")) {
     fail("bundle_unit_auto_restart_forbidden");
   }
-  requireNoInstallSection(bundle.systemd_unit_raw,"bundle_unit");
+  requireNoInstallSection(
+    bundle.systemd_unit_raw,
+    "bundle_unit_install_section_forbidden",
+  );
   return {genesisSha,staticSha,unitSha};
 }
 
@@ -336,7 +339,10 @@ try {
   unitPublished=true;
 
   requireNoEnableLinks(unitDir,binding.manifest.service_name);
-  requireNoInstallSection(fs.readFileSync(unitPath),"installed_unit");
+  requireNoInstallSection(
+    fs.readFileSync(unitPath),
+    "installed_unit_install_section_forbidden",
+  );
   const postState=requireInactiveUnitFileState(
     binding.manifest.service_name,
     {allowStatic:true},
