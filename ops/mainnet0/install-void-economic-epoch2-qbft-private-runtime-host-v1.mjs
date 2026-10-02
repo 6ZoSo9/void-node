@@ -147,9 +147,53 @@ function requireNoInstallSection(bytes,code) {
     fail(code);
   }
 }
+function stableOwnedFileBytes(file,expectedMode,label,maxBytes=MAX_JSON) {
+  const resolved=regularFile(file,label,maxBytes);
+  const pathBefore=fs.lstatSync(resolved);
+  const fd=fs.openSync(
+    resolved,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try {
+    const before=fs.fstatSync(fd);
+    if(
+      !before.isFile()||
+      before.nlink!==1||
+      (typeof process.getuid==="function"&&before.uid!==process.getuid())||
+      (before.mode&0o777)!==expectedMode||
+      before.size<1||
+      before.size>maxBytes
+    ) {
+      fail(label+"_descriptor_identity_invalid");
+    }
+    const bytes=Buffer.alloc(before.size);
+    let offset=0;
+    while(offset<bytes.length) {
+      const count=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);
+      if(count<=0) fail(label+"_short_read");
+      offset+=count;
+    }
+    const after=fs.fstatSync(fd);
+    for(const key of ["dev","ino","size","mtimeMs","ctimeMs"]) {
+      if(before[key]!==after[key]) fail(label+"_changed_during_read");
+    }
+    const pathAfter=fs.lstatSync(resolved);
+    if(
+      pathAfter.isSymbolicLink()||
+      pathAfter.dev!==before.dev||
+      pathAfter.ino!==before.ino||
+      pathBefore.dev!==before.dev||
+      pathBefore.ino!==before.ino
+    ) {
+      fail(label+"_path_identity_changed");
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 function requireExactBytes(file,expected,label,maxBytes=MAX_JSON) {
-  regularFile(file,label,maxBytes);
-  const actual=fs.readFileSync(file);
+  const actual=stableOwnedFileBytes(file,0o600,label,maxBytes);
   if(!actual.equals(expected)) fail(label+"_bytes_mismatch");
 }
 function verifyExistingInstalledRuntime({
@@ -196,9 +240,13 @@ function verifyExistingInstalledRuntime({
   requireOwnedMode(data,0o700,"existing_data");
   if(fs.readdirSync(data).length!==0) fail("existing_data_not_empty");
 
+  const genesisBytes=
+    stableOwnedFileBytes(genesis,0o600,"existing_genesis");
+  const staticNodesBytes=
+    stableOwnedFileBytes(staticNodes,0o600,"existing_static_nodes");
   if(
-    sha256(fs.readFileSync(genesis))!==hashes.genesisSha||
-    sha256(fs.readFileSync(staticNodes))!==hashes.staticSha
+    sha256(genesisBytes)!==hashes.genesisSha||
+    sha256(staticNodesBytes)!==hashes.staticSha
   ) {
     fail("existing_runtime_hash_mismatch");
   }
@@ -214,9 +262,8 @@ function verifyExistingInstalledRuntime({
   );
   requireExactBytes(bundleSet,bundleSetRaw,"existing_bundle_set");
 
-  regularFile(unitPath,"existing_unit",256*1024);
-  requireOwnedMode(unitPath,0o600,"existing_unit");
-  const unitBytes=fs.readFileSync(unitPath);
+  const unitBytes=
+    stableOwnedFileBytes(unitPath,0o600,"existing_unit",256*1024);
   if(sha256(unitBytes)!==hashes.unitSha) fail("existing_unit_hash_mismatch");
   requireNoInstallSection(unitBytes,"existing_unit_install_section_forbidden");
 
@@ -355,14 +402,22 @@ if(args.reattest_existing) {
   if(postState.unit_file_state!=="static") {
     fail("reattest_unit_file_state_changed:"+postState.unit_file_state);
   }
+  verifyExistingInstalledRuntime({
+    runtimeRoot,
+    unitPath,
+    bundle,
+    bundleSetRaw:bundleSetFile.raw,
+    hashes,
+  });
   const receipt=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
     plan:planFile.value,
     plan_file_sha256:planFileSha,
     bundle_set_receipt:bundleSetFile.value,
     role:args.role,
     materialization:bundle.materialization,
-    installed_at_utc:new Date().toISOString(),
-    installed_repo_head:currentHead,
+    receipt_basis:"existing_runtime_read_only_reattestation",
+    observed_at_utc:new Date().toISOString(),
+    observed_repo_head:currentHead,
     unit_file_state:postState.unit_file_state,
     operator_user_unit_dir_direct_enablement_links_absent:true,
   });
@@ -472,7 +527,7 @@ try {
 
   writeNew(unitStage,bundle.systemd_unit_raw,0o600);
 
-  const installedAt=new Date().toISOString();
+  const observedAt=new Date().toISOString();
 
   fs.renameSync(runtimeStage,runtimeRoot);
   runtimePublished=true;
@@ -488,14 +543,13 @@ try {
     fail("install_post_unit_file_state_not_static:"+postState.unit_file_state);
   }
 
-  if(
-    sha256(fs.readFileSync(path.join(runtimeRoot,"genesis.json")))!==hashes.genesisSha||
-    sha256(fs.readFileSync(path.join(runtimeRoot,"static-nodes.json")))!==hashes.staticSha||
-    sha256(fs.readFileSync(unitPath))!==hashes.unitSha||
-    fs.readdirSync(path.join(runtimeRoot,"data")).length!==0
-  ) {
-    fail("post_install_hash_or_data_check_failed");
-  }
+  verifyExistingInstalledRuntime({
+    runtimeRoot,
+    unitPath,
+    bundle,
+    bundleSetRaw:bundleSetFile.raw,
+    hashes,
+  });
 
   const receipt=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
     plan:planFile.value,
@@ -503,8 +557,9 @@ try {
     bundle_set_receipt:bundleSetFile.value,
     role:args.role,
     materialization:bundle.materialization,
-    installed_at_utc:installedAt,
-    installed_repo_head:currentHead,
+    receipt_basis:"fresh_install",
+    observed_at_utc:observedAt,
+    observed_repo_head:currentHead,
     unit_file_state:postState.unit_file_state,
     operator_user_unit_dir_direct_enablement_links_absent:true,
   });
