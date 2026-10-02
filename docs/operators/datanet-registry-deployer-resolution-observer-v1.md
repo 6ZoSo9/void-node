@@ -57,12 +57,13 @@ an exact source-bound production RPC target from:
 
 `ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json`
 
-There is deliberately **no default RPC**. The historical epoch-1 archive
-`http://127.0.0.1:8545/` and isolated proof RPCs are explicitly forbidden as
-production deployer-resolution authority.
+There is deliberately **no default RPC**. The reviewed source-bound target is
+`http://127.0.0.1:18553/`. The historical epoch-1 archive
+`http://127.0.0.1:8545/` and isolated proof RPCs remain explicitly forbidden
+as production deployer-resolution authority.
 
-If `VOID_CHAIN2050_RPC_URL` is supplied, it must exactly equal the reviewed
-source-bound target. A missing target or mismatch HOLDs before any RPC call.
+If `VOID_CHAIN2050_RPC_URL` is supplied, it must exactly equal `18553`.
+A missing target or mismatch HOLDs before any RPC call.
 
 The live evidence is not source truth until separately reviewed and bound into
 the repository.

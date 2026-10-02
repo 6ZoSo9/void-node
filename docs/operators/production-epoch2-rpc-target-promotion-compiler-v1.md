@@ -7,9 +7,12 @@ Marker: `VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_COMPILER_V1`
 This is the source-only evidence compiler for the production Chain-2050
 Epoch-2 RPC target.
 
-The canonical target remains HOLD until a separately reviewed apply lane
-consumes a compiled candidate. This compiler does not edit
-`ops/mainnet0/production-epoch2-rpc-target-v1.json`.
+This compiler is the retained **pre-selection** evidence compiler. It does not
+edit `ops/mainnet0/production-epoch2-rpc-target-v1.json`.
+
+The canonical target is now selected through the separately reviewed promotion
+manifest. Direct live compiler use therefore intentionally HOLDs once canonical
+state is no longer the pre-selection HOLD descriptor.
 
 It consumes three exact external evidence artifacts:
 
@@ -129,8 +132,7 @@ funds_movement=false
 
 ## Next gate
 
-After this compiler is merged, run it on Precision against the exact activation
-artifacts and a fresh accepted host-observation receipt. Review the generated
-candidate and its SHA-256. Only then should a separate evidence-aware apply
-lane be implemented to update the canonical target and teach the canonical
-loader to reverify the checked-in promotion evidence.
+The real production candidate was compiled and admitted before canonical
+selection. This tool remains for regression/provenance proof of that transition;
+downstream consumers should now use the canonical selected target and repeat
+fresh read-only preflights rather than rerun promotion.
