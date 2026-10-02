@@ -14,6 +14,8 @@ contract BtcVoidHashlockMockTokenV1 {
     mapping(address => mapping(address => uint256)) public allowance;
     bool public failTransfer;
     bool public failTransferFrom;
+    bool public skipTransfer;
+    bool public skipTransferFrom;
 
     function mint(address to, uint256 amount) external {
         balanceOf[to] += amount;
@@ -32,8 +34,17 @@ contract BtcVoidHashlockMockTokenV1 {
         failTransferFrom = value;
     }
 
+    function setSkipTransfer(bool value) external {
+        skipTransfer = value;
+    }
+
+    function setSkipTransferFrom(bool value) external {
+        skipTransferFrom = value;
+    }
+
     function transfer(address to, uint256 amount) external returns (bool) {
         if (failTransfer) return false;
+        if (skipTransfer) return true;
         uint256 balance = balanceOf[msg.sender];
         require(balance >= amount, "mock: balance");
         unchecked {
@@ -48,6 +59,7 @@ contract BtcVoidHashlockMockTokenV1 {
         returns (bool)
     {
         if (failTransferFrom) return false;
+        if (skipTransferFrom) return true;
         uint256 allowed = allowance[from][msg.sender];
         require(allowed >= amount, "mock: allowance");
         uint256 balance = balanceOf[from];
@@ -456,6 +468,77 @@ contract BtcVoidHashlockSettlementV1Test {
             settlement.stateOf(SWAP_A) ==
                 BtcVoidHashlockSettlementV1.SwapState.Locked,
             "failed_refund_terminal_state_persisted"
+        );
+    }
+
+    function test_trueButNoFundingTransferFailsExactBalanceDelta() public {
+        BtcVoidHashlockSettlementV1 settlement = _deploy();
+        _token().setSkipTransferFrom(true);
+        _approve(settlement, AMOUNT);
+
+        bool ok = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_A, _hashlock(), BENEFICIARY, AMOUNT, START + 1000)
+            )
+        );
+        _assert(!ok, "false_funding_delta_accepted");
+        _assert(
+            settlement.stateOf(SWAP_A) ==
+                BtcVoidHashlockSettlementV1.SwapState.None,
+            "false_funding_delta_state_persisted"
+        );
+        _assert(_token().balanceOf(address(settlement)) == 0, "false_funding_balance");
+    }
+
+    function test_trueButNoClaimTransferFailsExactBalanceDelta() public {
+        BtcVoidHashlockSettlementV1 settlement = _deploy();
+        _lock(settlement, SWAP_A, START + 1000);
+        _token().setSkipTransfer(true);
+
+        bool ok = _callAs(
+            BENEFICIARY,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.claim,
+                (SWAP_A, _preimageBytes())
+            )
+        );
+        _assert(!ok, "false_claim_delta_accepted");
+        _assert(
+            settlement.stateOf(SWAP_A) ==
+                BtcVoidHashlockSettlementV1.SwapState.Locked,
+            "false_claim_delta_state_persisted"
+        );
+        _assert(
+            _token().balanceOf(address(settlement)) == AMOUNT,
+            "false_claim_delta_balance"
+        );
+    }
+
+    function test_trueButNoRefundTransferFailsExactBalanceDelta() public {
+        BtcVoidHashlockSettlementV1 settlement = _deploy();
+        uint256 deadline = START + 1000;
+        _lock(settlement, SWAP_A, deadline);
+        vm.warp(deadline);
+        _token().setSkipTransfer(true);
+
+        bool ok = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.refund, (SWAP_A))
+        );
+        _assert(!ok, "false_refund_delta_accepted");
+        _assert(
+            settlement.stateOf(SWAP_A) ==
+                BtcVoidHashlockSettlementV1.SwapState.Locked,
+            "false_refund_delta_state_persisted"
+        );
+        _assert(
+            _token().balanceOf(address(settlement)) == AMOUNT,
+            "false_refund_delta_balance"
         );
     }
 
