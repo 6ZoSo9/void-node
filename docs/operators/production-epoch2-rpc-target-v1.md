@@ -156,13 +156,19 @@ and independently checks historical Git tree identities and ancestor lineage.
 Any packet-byte change HOLDs before `evidence_aware_selection_verified=true`
 can be returned.
 
-Before the verifier child is started, the parent loader also requires the
-verifier entry file to equal its exact `HEAD` Git-object bytes. The trusted
-verifier recursively walks every relative static import in the semantic
-execution closure and requires each worktree module to equal its exact
-`HEAD:<path>` object. The verifier rejects shallow repositories and any bare
-third-party package import on this path; the reviewed closure is therefore
-executed only from exact committed repository bytes plus Node built-ins.
+Before the verifier child is started, the parent loader captures one clean,
+non-shallow HEAD/tree and discovers the verifier's full relative executable
+closure from exact `HEAD:<path>` Git-object bytes. Bare third-party imports are
+forbidden on this path.
+
+The loader then creates a private full-history detached checkout at that exact
+HEAD outside the repository worktree. Every reviewed module in that private tree
+is rebound to its captured Git-blob identity immediately before execution and
+again after the child exits. The verifier process runs from that private checkout
+under the Node permission model with filesystem reads limited to the private tree
+and child-process allowance only for its reviewed absolute-Git provenance reads.
+Hidden or `assume-unchanged` worktree mutations therefore cannot become
+execution authority for selection verification.
 
 The earlier compiler and apply-admission lanes remain pre-selection proof tools;
 they cannot themselves write/select the canonical target.
