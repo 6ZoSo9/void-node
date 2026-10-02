@@ -19,6 +19,10 @@ const TARGET_REL =
   "ops/mainnet0/production-epoch2-rpc-target-v1.json";
 const PUBLIC_READ_CONTRACT_REL =
   "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json";
+const ACTIVATION_CONTRACT_REL =
+  "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs";
+const ACTIVATION_RUNNER_REL =
+  "ops/precision/void-precision-epoch2-qbft-private-runtime-activate-v1.mjs";
 
 const EXPECTED = Object.freeze({
   chain_id: 2050,
@@ -322,6 +326,37 @@ function verifyReviewedSourceFiles() {
     fail("production_epoch2_validator_promotion_semantics_mismatch");
   }
 
+  const activationContract = fs.readFileSync(
+    path.join(ROOT, ACTIVATION_CONTRACT_REL),
+    "utf8",
+  );
+  for (const exact of [
+    'url:"http://127.0.0.1:18553/"',
+    'marker:"VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_RECEIPT_V1"',
+    'status:"PRIVATE_QBFT_RUNTIME_ACTIVE_TRANSACTION_AND_MIGRATION_HOLD"',
+    'authoritative_chain2050_write:true',
+    'transaction_broadcast:false',
+    'funds_movement:false',
+  ]) {
+    if (!activationContract.includes(exact)) {
+      fail("production_epoch2_activation_contract_drift");
+    }
+  }
+
+  const activationRunner = fs.readFileSync(
+    path.join(ROOT, ACTIVATION_RUNNER_REL),
+    "utf8",
+  );
+  for (const exact of [
+    'const SERVICE="void-economic-epoch2-qbft-validator-v1.service";',
+    '"http://127.0.0.1:18553/"',
+    'first_possible_authoritative_block_production_step=2',
+  ]) {
+    if (!activationRunner.includes(exact)) {
+      fail("production_epoch2_activation_runner_drift");
+    }
+  }
+
   const contract = JSON.parse(
     fs.readFileSync(path.join(ROOT, PUBLIC_READ_CONTRACT_REL), "utf8"),
   );
@@ -478,9 +513,16 @@ export function loadProductionEpoch2RpcTargetV1() {
   const value = JSON.parse(
     fs.readFileSync(path.join(ROOT, TARGET_REL), "utf8"),
   );
+  const evaluation = validateProductionEpoch2RpcTargetV1(value);
+  if (evaluation.status !== HOLD_STATUS) {
+    fail("production_epoch2_selected_target_requires_evidence_aware_promotion");
+  }
   return Object.freeze({
     value,
-    evaluation: validateProductionEpoch2RpcTargetV1(value),
+    evaluation: Object.freeze({
+      ...evaluation,
+      evidence_aware_selection_verified: false,
+    }),
   });
 }
 
@@ -503,6 +545,7 @@ if (
     console.log("rpc_url=" + String(evaluation.rpc_url));
     console.log("historical_epoch1_8545_forbidden=true");
     console.log("isolated_18550_18551_18552_forbidden=true");
+    console.log("evidence_aware_selection_verified=false");
     console.log("rpc_call=false");
     console.log("transaction_authorized=false");
     console.log("authoritative_chain2050_write=false");
