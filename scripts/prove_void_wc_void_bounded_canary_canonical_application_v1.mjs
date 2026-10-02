@@ -666,6 +666,8 @@ for (const mutableImport of [
 }
 for (const required of [
   "runReviewedAuthority",
+  "encodeReviewedTransportValue",
+  "__void_reviewed_buffer_v1",
   "reviewedModuleClosure",
   "materializeReviewedNodePackageRuntimeV1",
   "verifyMaterializedReviewedNodePackageRuntimeV1",
@@ -708,6 +710,7 @@ console.log("semantic_promotion_reexecuted_from_exact_origin_inputs=true");
 console.log("fabricated_semantic_origin_held=true");
 console.log("candidate_promotion_reexecuted=true");
 console.log("reviewed_git_object_execution_verified=true");
+console.log("reviewed_child_buffer_transport_exact=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("permission_fenced_execution=true");
 console.log("private_execution_bytes_reverified_before_spawn=true");
