@@ -5,20 +5,8 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-
-import {
-  EXPECTED_VALIDATORS_V1,
-  buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1,
-  compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1,
-  validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1,
-} from "./void-economic-epoch2-qbft-private-runtime-activation-v1.mjs";
-import {
-  HOLD_STATUS,
-  loadProductionEpoch2RpcTargetV1,
-  productionEpoch2RpcUrlFingerprintV1,
-} from "./void-production-epoch2-rpc-target-v1.mjs";
 
 export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1 =
   "VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1";
@@ -30,6 +18,10 @@ export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1 =
     activation_lineage_rederived: true,
     activation_plan_upstream_reexecution_required: true,
     exact_upstream_activation_artifacts_required: true,
+    reviewed_git_object_execution_required: true,
+    private_reviewed_execution_tree_required: true,
+    reviewed_execution_bytes_rebound_before_and_after: true,
+    worktree_semantic_import_forbidden: true,
     systemd_read_only: true,
     listener_read_only: true,
     rpc_read_only: true,
@@ -63,6 +55,25 @@ const TOOL_REL = "tools/void-production-epoch2-rpc-host-observer-v1.mjs";
 const GIT = "/usr/bin/git";
 const SYSTEMCTL = "/usr/bin/systemctl";
 const SS = "/usr/bin/ss";
+const TAR = "/usr/bin/tar";
+const HOLD_STATUS = "HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED";
+const ACTIVATION_REL =
+  "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs";
+const TARGET_REL = "tools/void-production-epoch2-rpc-target-v1.mjs";
+const REVIEWED_EXECUTION_PATHS = Object.freeze([
+  ACTIVATION_REL,
+  "tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs",
+  TARGET_REL,
+  "ops/mainnet0/production-epoch2-rpc-target-v1.json",
+  "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json",
+  "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
+  "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json",
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+  "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
+  "ops/precision/void-precision-epoch2-qbft-private-runtime-activate-v1.mjs",
+]);
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
 const ORIGINS = new Set([
   "https://github.com/6ZoSo9/void-node",
@@ -135,37 +146,6 @@ function quantity(value, code) {
 function same(left, right) {
   return canonical(left) === canonical(right);
 }
-function rebuildReceipt(plan, receipt) {
-  validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(plan);
-  if (
-    !plain(receipt) ||
-    receipt.marker !==
-      "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_RECEIPT_V1" ||
-    receipt.status !==
-      "PRIVATE_QBFT_RUNTIME_ACTIVE_TRANSACTION_AND_MIGRATION_HOLD"
-  ) {
-    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_RECEIPT_INVALID");
-  }
-  const o = receipt.observations;
-  const rebuilt = buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1({
-    activation_plan: plan,
-    activated_at_utc: receipt.activated_at_utc,
-    observed: {
-      validators: receipt.validators,
-      precision_only_block_number: o?.precision_only_block_number,
-      after_nimo_block_number: o?.after_nimo_block_number,
-      after_nimo_peer_count: o?.after_nimo_peer_count,
-      after_xiphos_block_number: o?.after_xiphos_block_number,
-      after_xiphos_peer_count: o?.after_xiphos_peer_count,
-      chain_id_hex: receipt.chain_id_hex,
-      started_roles: receipt.started_roles,
-    },
-  });
-  if (!same(rebuilt, receipt)) {
-    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_RECEIPT_REBUILD_MISMATCH");
-  }
-  return rebuilt;
-}
 function validSource(s) {
   return (
     plain(s) &&
@@ -191,15 +171,27 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     input.activation_receipt_file_sha256,
     "PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_RECEIPT",
   );
-  const plan =
-    validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(p.value);
-  const receipt = rebuildReceipt(plan, r.value);
-
-  const target = loadProductionEpoch2RpcTargetV1();
-  const identity = target.value.reviewed_successor_identity;
+  const reviewed = input.reviewed_semantic;
   if (
-    target.evaluation.status !== HOLD_STATUS ||
-    target.evaluation.production_rpc_target_selected !== false ||
+    !plain(reviewed) ||
+    reviewed.reviewed_execution_verified !== true ||
+    !plain(reviewed.activation_plan) ||
+    !plain(reviewed.activation_receipt) ||
+    !plain(reviewed.target_value) ||
+    !Array.isArray(reviewed.expected_validators) ||
+    reviewed.target_status !== HOLD_STATUS ||
+    reviewed.target_selected !== false ||
+    !HEX64.test(String(reviewed.rpc_url_fingerprint_sha256 || "")) ||
+    !same(reviewed.activation_plan, p.value) ||
+    !same(reviewed.activation_receipt, r.value)
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_SEMANTIC_INVALID");
+  }
+  const plan = reviewed.activation_plan;
+  const receipt = reviewed.activation_receipt;
+  const targetValue = reviewed.target_value;
+  const identity = targetValue.reviewed_successor_identity;
+  if (
     identity?.prospective_production_rpc_url !== RPC_URL ||
     identity?.prospective_production_service_unit !== SERVICE
   ) {
@@ -262,7 +254,9 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     !Number.isSafeInteger(rpc.peer_count) ||
     rpc.peer_count < 2 ||
     JSON.stringify([...validators].sort()) !==
-      JSON.stringify([...EXPECTED_VALIDATORS_V1].sort())
+      JSON.stringify(
+        reviewed.expected_validators.map((v) => String(v).toLowerCase()).sort(),
+      )
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_RPC_IDENTITY_MISMATCH");
   }
@@ -307,11 +301,11 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     execution_epoch: 2,
     source_binding: Object.freeze({ ...source }),
     target_descriptor: Object.freeze({
-      status: target.evaluation.status,
+      status: reviewed.target_status,
       production_rpc_target_selected: false,
       prospective_rpc_url: RPC_URL,
       rpc_url_fingerprint_sha256:
-        productionEpoch2RpcUrlFingerprintV1(RPC_URL),
+        reviewed.rpc_url_fingerprint_sha256,
       prospective_service_unit: SERVICE,
       production_validator_binding_evidence_path:
         identity.production_validator_binding_evidence_path,
@@ -319,6 +313,16 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
         identity.production_validator_binding_evidence_sha256,
       production_validator_binding_evidence_id:
         identity.production_validator_binding_evidence_id,
+    }),
+    reviewed_semantic_execution: Object.freeze({
+      source_head_sha: reviewed.reviewed_source_head_sha,
+      source_tree_sha: reviewed.reviewed_source_tree_sha,
+      reviewed_execution_verified: true,
+      private_reviewed_execution_tree: true,
+      reviewed_execution_bytes_rebound_before_and_after: true,
+      worktree_semantic_import: false,
+      reviewed_execution_manifest_sha256:
+        reviewed.reviewed_execution_manifest_sha256,
     }),
     activation_lineage: Object.freeze({
       activation_plan_id: plan.activation_plan_id,
