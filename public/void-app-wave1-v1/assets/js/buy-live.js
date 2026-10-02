@@ -9,6 +9,7 @@ const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const MAX_BUY_JSON_BYTES = 131072;
 let requestSerial = 0;
 let currentSnapshot = null;
+let readinessPending = false;
 let submitBusy = false;
 
 const currentRoute = () => location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0] || 'home';
@@ -89,6 +90,18 @@ const fetchJson = async (path) => {
   if (!response.ok) throw new Error(`${path} HTTP ${response.status}`);
   return strictJson(response);
 };
+const canonicalFiniteNumber = (value, { min = null, max = null } = {}) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  if (min !== null && value < min) return null;
+  if (max !== null && value > max) return null;
+  return value;
+};
+const canonicalUsdcLimitAtoms = (value) => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
+  const raw = String(value);
+  if (!/^(0|[1-9]\d*)(?:\.\d{1,6})?$/.test(raw)) return null;
+  return usdcAtoms(raw);
+};
 const validateSnapshot = (config, status, sale) => {
   if (config.marker !== BUY_MARKER || config.schema !== 'void_public_buy_void_config_v1') {
     throw new Error('checkout config identity mismatch');
@@ -102,8 +115,21 @@ const validateSnapshot = (config, status, sale) => {
   if (config.payment_chain_id !== 8453 || config.delivery_chain_id !== 2050) {
     throw new Error('presale chain identity mismatch');
   }
-  if (Number(config.price_usdc_per_void) !== 0.5 || Number(config.rate_void_per_usdc) !== 2) {
+  if (
+    config.price_usdc_per_void !== '0.50' ||
+    config.rate_void_per_usdc !== '2'
+  ) {
     throw new Error('presale price policy mismatch');
+  }
+  const minUsdcAtoms = canonicalUsdcLimitAtoms(config.min_usdc);
+  const maxUsdcAtoms = canonicalUsdcLimitAtoms(config.max_usdc);
+  if (
+    minUsdcAtoms === null ||
+    maxUsdcAtoms === null ||
+    minUsdcAtoms <= 0n ||
+    maxUsdcAtoms < minUsdcAtoms
+  ) {
+    throw new Error('presale request limit policy mismatch');
   }
   if (
     config.request_method !== 'POST' ||
@@ -124,12 +150,29 @@ const validateSnapshot = (config, status, sale) => {
   ) {
     throw new Error('Buy VOID sale-state identity mismatch');
   }
-  for (const key of ['pool_void_total', 'remaining_void', 'raised_usdc_so_far', 'progress_pct']) {
-    if (!Number.isFinite(Number(sale[key])) || Number(sale[key]) < 0) {
-      throw new Error(`invalid sale-state field: ${key}`);
-    }
+  const poolVoidTotal = canonicalFiniteNumber(sale.pool_void_total, { min: 0 });
+  const remainingVoid = canonicalFiniteNumber(sale.remaining_void, { min: 0 });
+  const raisedUsdc = canonicalFiniteNumber(sale.raised_usdc_so_far, { min: 0 });
+  const progressPct = canonicalFiniteNumber(sale.progress_pct, { min: 0, max: 100 });
+  if (
+    poolVoidTotal === null ||
+    remainingVoid === null ||
+    raisedUsdc === null ||
+    progressPct === null ||
+    poolVoidTotal <= 0 ||
+    remainingVoid > poolVoidTotal
+  ) {
+    throw new Error('invalid sale-state accounting');
   }
-  return { config, status, sale };
+  return {
+    config: {
+      ...config,
+      min_usdc_atoms: minUsdcAtoms,
+      max_usdc_atoms: maxUsdcAtoms,
+    },
+    status,
+    sale,
+  };
 };
 const isOpen = (snapshot) =>
   snapshot.config.requests_enabled === true &&
@@ -137,7 +180,7 @@ const isOpen = (snapshot) =>
   snapshot.config.receiver_binding_green === true &&
   snapshot.status.request_intake_ready === true &&
   snapshot.sale.sold_out === false &&
-  Number(snapshot.sale.remaining_void) > 0;
+  snapshot.sale.remaining_void > 0;
 
 const setFormEnabled = (enabled) => {
   all('[data-buy-amount], [data-buy-destination], [data-buy-ack]').forEach((node) => {
@@ -159,10 +202,14 @@ const validAmount = () => {
   const raw = String(one('[data-buy-amount]')?.value || '').trim();
   const atoms = usdcAtoms(raw);
   if (atoms === null || atoms <= 0n) return false;
-  const value = Number(raw);
   const cfg = currentSnapshot?.config;
-  return Number.isFinite(value) &&
-    (!cfg || (value >= Number(cfg.min_usdc) && value <= Number(cfg.max_usdc)));
+  if (!cfg) return false;
+  return (
+    typeof cfg.min_usdc_atoms === 'bigint' &&
+    typeof cfg.max_usdc_atoms === 'bigint' &&
+    atoms >= cfg.min_usdc_atoms &&
+    atoms <= cfg.max_usdc_atoms
+  );
 };
 const validDestination = () => ADDRESS_RE.test(String(one('[data-buy-destination]')?.value || '').trim());
 function updateSubmit() {
@@ -176,13 +223,14 @@ function updateSubmit() {
     'sender_equals_void_destination',
     'no_automatic_fulfillment',
   ].every((key) => acks[key] === true);
-  button.disabled = submitBusy || !currentSnapshot || !isOpen(currentSnapshot) ||
+  button.disabled = readinessPending || submitBusy ||
+    !currentSnapshot || !isOpen(currentSnapshot) ||
     !validAmount() || !validDestination() || !allAcknowledged;
 }
 const renderSnapshot = (snapshot) => {
   const { config, status, sale } = snapshot;
   const open = isOpen(snapshot);
-  const soldOut = sale.sold_out === true || Number(sale.remaining_void) <= 0;
+  const soldOut = sale.sold_out === true || sale.remaining_void <= 0;
   setText('[data-buy-price]', `$${Number(config.price_usdc_per_void).toFixed(2)} / VOID`);
   setText('[data-buy-pool-total]', `${format(sale.pool_void_total)} VOID`);
   setText('[data-buy-pool-remaining]', `${format(sale.remaining_void)} VOID`);
@@ -232,6 +280,8 @@ const renderError = (error) => {
 async function loadBuy() {
   if (currentRoute() !== 'buy' || !one('[data-buy-view]')) return;
   const serial = ++requestSerial;
+  readinessPending = true;
+  currentSnapshot = null;
   setChip('[data-buy-state-chip]', 'info', 'Checking presale');
   setText('[data-buy-result]', 'Checking live presale readiness. Do not send funds.');
   setFormEnabled(false);
@@ -243,15 +293,22 @@ async function loadBuy() {
     ]);
     if (serial !== requestSerial) return;
     currentSnapshot = validateSnapshot(config, status, sale);
+    readinessPending = false;
     renderSnapshot(currentSnapshot);
   } catch (error) {
     if (serial !== requestSerial) return;
+    readinessPending = false;
     renderError(error);
   }
 }
 async function submitBuy(event) {
   event.preventDefault();
-  if (submitBusy || !currentSnapshot || !isOpen(currentSnapshot)) return;
+  if (
+    readinessPending ||
+    submitBusy ||
+    !currentSnapshot ||
+    !isOpen(currentSnapshot)
+  ) return;
   updateSubmit();
   const button = one('[data-buy-submit]');
   if (!button || button.disabled) return;
