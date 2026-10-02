@@ -5,7 +5,8 @@ RUN_PORT="${RUN_PORT:-4150}"
 BASE="${BASE:-http://127.0.0.1:${RUN_PORT}}"
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 OUT="/tmp/public-node-local-data-drop-v1-proof-$STAMP"
-mkdir -p "$OUT/data"
+install -d -m 700 "$OUT/data"
+test "$(stat -c '%a' "$OUT/data")" = "700"
 
 openssl genpkey -algorithm ED25519 -out "$OUT/nodeA.key" >/dev/null 2>&1
 chmod 600 "$OUT/nodeA.key"
