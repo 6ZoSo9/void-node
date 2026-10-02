@@ -345,7 +345,7 @@ function hostPreflightScript(plan,activationPlan,role) {
     "printf '%s\\\\n' nodekey_stdout=false",
     "printf '%s\\\\n' service_inactive=true",
     'printf \'unit_file_state=%s\\\\n\' "$enabled"',
-    "printf '%s\\\\n' direct_enablement_links_absent=true",
+    "printf '%s\\\\n' operator_user_unit_dir_direct_enablement_links_absent=true",
     "printf '%s\\\\n' indirect_activation_absence_proven=false",
     "printf '%s\\\\n' data_empty=true",
     "printf '%s\\\\n' p2p_port_vacant=true",
