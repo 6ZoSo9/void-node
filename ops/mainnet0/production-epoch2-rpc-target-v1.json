@@ -24,13 +24,20 @@
     "production_validator_binding_evidence_path": "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
     "production_validator_binding_evidence_sha256": "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b",
     "production_validator_binding_evidence_id": "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973",
-    "production_validator_binding_promotion_path": "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json"
+    "production_validator_binding_promotion_path": "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
+    "private_runtime_activation_contract_path": "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs",
+    "private_runtime_activation_runner_path": "ops/precision/void-precision-epoch2-qbft-private-runtime-activate-v1.mjs",
+    "prospective_production_rpc_url": "http://127.0.0.1:18553/",
+    "prospective_production_service_unit": "void-economic-epoch2-qbft-validator-v1.service"
   },
   "selection": {
     "production_rpc_target_selected": false,
     "rpc_url": null,
     "rpc_url_fingerprint_sha256": null,
     "service_unit": null,
+    "activation_plan_id": null,
+    "activation_receipt_id": null,
+    "activation_receipt_sha256": null,
     "runtime_observation_id": null,
     "runtime_observation_sha256": null,
     "runtime_active_verified": false,
