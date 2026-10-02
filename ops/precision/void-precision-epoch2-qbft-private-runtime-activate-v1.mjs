@@ -272,6 +272,7 @@ function hostPreflightScript(plan,activationPlan,role) {
     'test "$(git -C "$repo" branch --show-current)" = main || hold repo_not_main',
     'test -z "$(git -C "$repo" status --porcelain=v1 --untracked-files=all)" || hold repo_dirty',
     'git -C "$repo" merge-base --is-ancestor "$expected_head" HEAD || hold repo_head_not_descendant',
+    'cd "$repo"',
     "",
     'test "$(tailscale ip -4 2>/dev/null | sed -n \'1p\')" = "$expected_ip" || hold tailnet_ip_mismatch',
     'test -d "$runtime" && test ! -L "$runtime" || hold runtime_root_invalid',
