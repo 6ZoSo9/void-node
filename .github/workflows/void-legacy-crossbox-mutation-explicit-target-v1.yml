@@ -6,6 +6,8 @@ on:
       - ".github/workflows/void-legacy-crossbox-mutation-explicit-target-v1.yml"
       - "docs/operators/void-legacy-crossbox-mutation-explicit-target-v1.md"
       - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+      - "tools/void-site-bundle-peer-env-transaction-executor-v1.mjs"
+      - "scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs"
       - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
       - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
       - "ops/mainnet/validator-crossbox-closeout.sh"
@@ -15,6 +17,8 @@ on:
       - ".github/workflows/void-legacy-crossbox-mutation-explicit-target-v1.yml"
       - "docs/operators/void-legacy-crossbox-mutation-explicit-target-v1.md"
       - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+      - "tools/void-site-bundle-peer-env-transaction-executor-v1.mjs"
+      - "scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs"
       - "ops/security/void-public-site-bundle-auto-materialize-proof.sh"
       - "ops/security/void-public-site-bundle-peer-readiness-proof.sh"
       - "ops/mainnet/validator-crossbox-closeout.sh"
@@ -35,6 +39,8 @@ jobs:
       - name: Shell syntax
         run: |
           bash -n ops/security/void-site-bundle-peer-env-persistence-proof.sh
+          node --check tools/void-site-bundle-peer-env-transaction-executor-v1.mjs
+          node --check scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs
           bash -n ops/security/void-public-site-bundle-auto-materialize-proof.sh
           bash -n ops/security/void-public-site-bundle-peer-readiness-proof.sh
           bash -n ops/mainnet/validator-crossbox-closeout.sh
@@ -64,13 +70,57 @@ jobs:
           local_peer="http://203.0.113.10:4100"
           remote_peer="http://203.0.113.11:4100"
 
-          hold "missing explicit ALIEN remote SSH target" bash "$site"
-          hold "invalid explicit ALIEN SSH target"             env ALIEN=-F@host                 LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
-          hold "unsafe LOCAL_PEER"             env ALIEN="$valid_alien" LOCAL_PEER=http://bad/path:4100                 REMOTE_PEER="$remote_peer"                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
-          hold "unsafe REMOTE_PEER"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer"                 REMOTE_PEER=http://bad/path:4100                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
-          hold "unsafe DROPIN_NAME"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 DROPIN_NAME=../../evil.conf                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
-          hold "retired Alienware target is forbidden"             env ALIEN=zoso@100.122.79.39                 LOCAL_PEER=http://203.0.113.10:4100                 REMOTE_PEER=http://203.0.113.11:4100                 CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1                 bash "$site"
-          hold "confirmation token required"             env ALIEN="$valid_alien" LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer"                 bash "$site"
+          local_ready="http://127.0.0.1:4100"
+          remote_ready="http://127.0.0.1:4101"
+
+          hold "missing explicit CROSSBOX_SSH_TARGET" bash "$site"
+          hold "invalid explicit CROSSBOX_SSH_TARGET" \
+            env CROSSBOX_SSH_TARGET=-F@host \
+                LOCAL_PEER="$local_peer" REMOTE_PEER="$remote_peer" \
+                LOCAL_READY_BASE="$local_ready" REMOTE_READY_BASE="$remote_ready" \
+                CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1 \
+                bash "$site"
+          hold "unsafe LOCAL_PEER" \
+            env CROSSBOX_SSH_TARGET="$valid_alien" LOCAL_PEER=http://bad/path:4100 \
+                REMOTE_PEER="$remote_peer" \
+                LOCAL_READY_BASE="$local_ready" REMOTE_READY_BASE="$remote_ready" \
+                CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1 \
+                bash "$site"
+          hold "unsafe REMOTE_PEER" \
+            env CROSSBOX_SSH_TARGET="$valid_alien" LOCAL_PEER="$local_peer" \
+                REMOTE_PEER=http://bad/path:4100 \
+                LOCAL_READY_BASE="$local_ready" REMOTE_READY_BASE="$remote_ready" \
+                CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1 \
+                bash "$site"
+          hold "unsafe LOCAL_READY_BASE" \
+            env CROSSBOX_SSH_TARGET="$valid_alien" LOCAL_PEER="$local_peer" \
+                REMOTE_PEER="$remote_peer" LOCAL_READY_BASE=http://127.0.0.1:4199 \
+                REMOTE_READY_BASE="$remote_ready" \
+                CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1 \
+                bash "$site"
+          hold "unsafe REMOTE_READY_BASE" \
+            env CROSSBOX_SSH_TARGET="$valid_alien" LOCAL_PEER="$local_peer" \
+                REMOTE_PEER="$remote_peer" LOCAL_READY_BASE="$local_ready" \
+                REMOTE_READY_BASE=http://localhost:4101 \
+                CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1 \
+                bash "$site"
+          hold "unsafe DROPIN_NAME" \
+            env CROSSBOX_SSH_TARGET="$valid_alien" LOCAL_PEER="$local_peer" \
+                REMOTE_PEER="$remote_peer" LOCAL_READY_BASE="$local_ready" \
+                REMOTE_READY_BASE="$remote_ready" DROPIN_NAME=../../evil.conf \
+                CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1 \
+                bash "$site"
+          hold "retired Alienware target is forbidden" \
+            env CROSSBOX_SSH_TARGET=zoso@100.122.79.39 \
+                LOCAL_PEER=http://203.0.113.10:4100 \
+                REMOTE_PEER=http://203.0.113.11:4101 \
+                LOCAL_READY_BASE="$local_ready" REMOTE_READY_BASE="$remote_ready" \
+                CONFIRM_SITE_BUNDLE_PEER_ENV_PERSISTENCE=applyVoidSiteBundlePeerEnvPersistenceV1 \
+                bash "$site"
+          hold "confirmation token required" \
+            env CROSSBOX_SSH_TARGET="$valid_alien" LOCAL_PEER="$local_peer" \
+                REMOTE_PEER="$remote_peer" LOCAL_READY_BASE="$local_ready" \
+                REMOTE_READY_BASE="$remote_ready" bash "$site"
 
           hold "missing explicit ALIEN remote SSH target" bash "$auto"
           hold "invalid explicit ALIEN SSH target" env ALIEN=-F@host bash "$auto"
@@ -97,17 +147,25 @@ jobs:
 
           assert '${ALIEN:-zoso@100.122.79.39}' not in site
           assert '${LOCAL_PEER:-http://100.122.79.39:4100}' not in site
-          assert 'valid_ssh_target "$ALIEN" || hold "invalid explicit ALIEN SSH target"' in site
+          assert 'CROSSBOX_SSH_TARGET="${CROSSBOX_SSH_TARGET:-${ALIEN:-}}"' in site
+          assert 'valid_ssh_target "$CROSSBOX_SSH_TARGET" ||' in site
           assert 'safe_peer "$LOCAL_PEER" || hold "unsafe LOCAL_PEER"' in site
           assert 'safe_peer "$REMOTE_PEER" || hold "unsafe REMOTE_PEER"' in site
+          assert 'safe_ready_base "$LOCAL_READY_BASE" || hold "unsafe LOCAL_READY_BASE"' in site
+          assert 'safe_ready_base "$REMOTE_READY_BASE" || hold "unsafe REMOTE_READY_BASE"' in site
           assert 'safe_dropin_name "$DROPIN_NAME" || hold "unsafe DROPIN_NAME"' in site
           assert 'applyVoidSiteBundlePeerEnvPersistenceV1' in site
-          assert 'require_crossbox_source_parity' in site
-          assert site.index('safe_peer "$REMOTE_PEER"') < site.index('confirmation token required')
-          assert site.index('confirmation token required') < site.rindex('require_crossbox_source_parity')
-          assert site.rindex('require_crossbox_source_parity') < site.index('write_local_dropin "$LOCAL_PEER"')
-          assert site.index('ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof') > site.index('write_remote_dropin "$REMOTE_PEER"')
-          assert 'ALIEN="$ALIEN" make void-public-site-bundle-peer-readiness-proof' in site
+          assert 'void-site-bundle-peer-env-transaction-executor-v1.mjs' in site
+          assert '--local-ready-base "$LOCAL_READY_BASE"' in site
+          assert '--remote-ready-base "$REMOTE_READY_BASE"' in site
+          assert 'live_service_unit=void-node-live.service' in site
+          assert 'postcommit_site_bundle_functionality_verified=false' in site
+          assert 'write_local_dropin' not in site
+          assert 'write_remote_dropin' not in site
+          assert 'systemctl --user restart' not in site
+          assert 'ALIEN="$ALIEN" make void-public-site-bundle-auto-materialize-proof' not in site
+          assert site.index('unsafe REMOTE_READY_BASE') < site.index('confirmation token required')
+          assert site.index('confirmation token required') < site.index('"$NODE_BIN" "\${args[@]}"')
 
           for child in (auto, peer):
               assert '${ALIEN:-zoso@100.122.79.39}' not in child
@@ -138,6 +196,9 @@ jobs:
           print("ssh_performed=false")
           print("git_tag_or_push_performed=false")
           PY
+
+      - name: Prove crash-atomic site-bundle transaction executor
+        run: node scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs
 
       - name: Diff hygiene
         run: git diff --check HEAD^..HEAD
