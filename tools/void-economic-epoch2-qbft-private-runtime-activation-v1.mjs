@@ -78,7 +78,12 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
     receipt.materialization_id!==row.materialization_id||
     receipt.role!==role||
     receipt.hostname!==plan.hosts.find((x)=>x.role===role).hostname||
-    !SHA40.test(String(receipt.installed_repo_head||""))||
+    ![
+      "fresh_install",
+      "existing_runtime_read_only_reattestation",
+    ].includes(String(receipt.receipt_basis||""))||
+    !Number.isFinite(Date.parse(String(receipt.observed_at_utc||"")))||
+    !SHA40.test(String(receipt.observed_repo_head||""))||
     receipt.runtime_root!==
       "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/"+role||
     receipt.unit_install_path!==
@@ -136,9 +141,11 @@ function validateInstallReceiptV1(receipt,role,plan,bundleSet) {
     }
   }
 
+  const installationPerformed=
+    receipt.receipt_basis==="fresh_install";
   const expectedAuthority={
-    runtime_root_write:true,
-    service_unit_installation:true,
+    runtime_root_write:installationPerformed,
+    service_unit_installation:installationPerformed,
     systemd_reload:false,
     service_enable:false,
     service_start:false,
@@ -357,7 +364,10 @@ export function compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(inpu
       hostname:receipt.hostname,
       install_receipt_id:receipt.install_receipt_id,
       materialization_id:receipt.materialization_id,
-      installed_repo_head:receipt.installed_repo_head,
+      receipt_basis:receipt.receipt_basis,
+      receipt_observed_at_utc:receipt.observed_at_utc,
+      receipt_observed_repo_head:receipt.observed_repo_head,
+      installed_repo_head:receipt.observed_repo_head,
       runtime_root:receipt.runtime_root,
       unit_install_path:receipt.unit_install_path,
       systemd_unit_sha256:receipt.installed_hashes.systemd_unit_sha256,
@@ -584,6 +594,7 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
 
   const installRowKeys=[
     "role","hostname","install_receipt_id","materialization_id",
+    "receipt_basis","receipt_observed_at_utc","receipt_observed_repo_head",
     "installed_repo_head","runtime_root","unit_install_path",
     "systemd_unit_sha256","genesis_sha256","static_nodes_sha256",
     "unit_file_state","operator_user_unit_dir_direct_enablement_links_absent",
@@ -595,6 +606,13 @@ export function validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
     if(
       !INSTALL_ID.test(String(row.install_receipt_id||""))||
       !/^voide2qmat1_[0-9a-f]{64}$/u.test(String(row.materialization_id||""))||
+      ![
+        "fresh_install",
+        "existing_runtime_read_only_reattestation",
+      ].includes(String(row.receipt_basis||""))||
+      !Number.isFinite(Date.parse(String(row.receipt_observed_at_utc||"")))||
+      !SHA40.test(String(row.receipt_observed_repo_head||""))||
+      row.installed_repo_head!==row.receipt_observed_repo_head||
       !SHA40.test(String(row.installed_repo_head||""))||
       !SHA256.test(String(row.systemd_unit_sha256||""))||
       !SHA256.test(String(row.genesis_sha256||""))||
