@@ -24,6 +24,7 @@ assert.equal(loaded.evaluation.marker, VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1);
 assert.equal(loaded.evaluation.status, HOLD_STATUS);
 assert.equal(loaded.evaluation.production_rpc_target_selected, false);
 assert.equal(loaded.evaluation.rpc_url, null);
+assert.equal(loaded.evaluation.evidence_aware_selection_verified, false);
 assert.equal(loaded.evaluation.transaction_authorized, false);
 assert.equal(loaded.evaluation.authoritative_chain2050_write, false);
 
@@ -200,6 +201,8 @@ console.log("independent_host_acceptance_required=true");
 console.log("reviewed_production_validator_binding_lineage_required=true");
 console.log("promoted_validator_evidence_exactly_bound=true");
 console.log("private_qbft_activation_lineage_required=true");
+console.log("canonical_loader_hold_only=true");
+console.log("selected_target_requires_future_evidence_aware_promotion=true");
 console.log("production_rpc_18553_exact=true");
 console.log("production_service_unit_exact=true");
 console.log("transaction_authorized=false");
