@@ -149,6 +149,21 @@ const activationReceipt=
     },
   });
 
+const zeroFeeRuntime=JSON.parse(fs.readFileSync(
+  "ops/mainnet0/economic-epoch2-besu-raw-transaction-validator-runtime-evidence-v1.json",
+  "utf8",
+));
+assert.equal(
+  zeroFeeRuntime.status,
+  "BESU_RAW_TRANSACTION_EPOCH_DOMAIN_RUNTIME_GREEN",
+);
+assert.equal(zeroFeeRuntime.positive_case.transaction_type,"0x2");
+assert.equal(zeroFeeRuntime.positive_case.chain_id,2050);
+assert.equal(zeroFeeRuntime.positive_case.exact_marker_readback,true);
+assert.equal(zeroFeeRuntime.positive_case.effective_gas_price_atoms,"0");
+assert.equal(zeroFeeRuntime.positive_case.sender_native_balance_before_atoms,"0");
+assert.equal(zeroFeeRuntime.positive_case.sender_native_balance_after_atoms,"0");
+
 const identity=JSON.parse(fs.readFileSync(
   "ops/mainnet0/datanet-content-commitment-compiled-identity-v1.json",
   "utf8",
@@ -219,20 +234,24 @@ const deploymentPlan=buildVoidDatanetRegistryUnsignedDeploymentInputPlanV1({
   compiled_identity:identity,
 });
 
-async function observeWithBalance(balanceHex){
+async function observeWithBalance(
+  balanceHex,
+  priorityHex="0x0",
+  baseFeeHex="0x0",
+){
   const blockHash="0x"+"6".repeat(64);
   const replies=[
     "0x802",
     "0x3",
-    {number:"0x3",hash:blockHash,baseFeePerGas:"0x0"},
+    {number:"0x3",hash:blockHash,baseFeePerGas:baseFeeHex},
     "0x0",
     balanceHex,
     "0x0",
     "0x",
     "0xf4240",
+    priorityHex,
     "0x0",
-    "0x0",
-    {number:"0x3",hash:blockHash,baseFeePerGas:"0x0"},
+    {number:"0x3",hash:blockHash,baseFeePerGas:baseFeeHex},
   ];
   let at=0;
   const requests=[];
@@ -265,7 +284,7 @@ async function observeWithBalance(balanceHex){
   return result;
 }
 
-const greenObserver=await observeWithBalance("0xde0b6b3a7640000");
+const greenObserver=await observeWithBalance("0x0");
 assert.equal(greenObserver.ok,true);
 assert.equal(greenObserver.status,"read_only_fee_gas_funding_green");
 assert.equal(greenObserver.observation.deployment_gas_estimate,"1000000");
@@ -286,7 +305,7 @@ assert.equal(
 );
 assert.equal(
   greenObserver.observation.maximum_deployment_gas_cost_wei,
-  "3600000000000000",
+  "0",
 );
 assert.equal(greenObserver.observation.minimum_additional_funding_wei,"0");
 assert.equal(greenObserver.observation.deployer_funding_sufficient,true);
@@ -310,28 +329,27 @@ assert.equal(greenPacket.authority.deployer_funding,false);
 assert.equal(greenPacket.authority.transaction_submission,false);
 assert.equal(greenPacket.authority.chain2050_mutation,false);
 
-const holdObserver=await observeWithBalance("0x0");
-assert.equal(holdObserver.ok,true);
-assert.equal(holdObserver.status,"read_only_fee_gas_funding_hold");
+const feeDriftObserver=await observeWithBalance("0x0","0x1");
+assert.equal(feeDriftObserver.ok,true);
+assert.equal(feeDriftObserver.status,"read_only_fee_gas_funding_hold");
+assert.equal(feeDriftObserver.observation.minimum_additional_funding_wei,"0");
+assert.equal(feeDriftObserver.observation.deployer_funding_sufficient,true);
 assert.equal(
-  holdObserver.observation.minimum_additional_funding_wei,
-  "3600000000000000",
+  feeDriftObserver.observation.fee_caps_sufficient_for_observation,
+  false,
 );
-assert.equal(holdObserver.observation.deployer_funding_sufficient,false);
-const holdPacket=buildVoidDatanetRegistryDeploymentFeeFundingPacketV1({
+const feeDriftPacket=buildVoidDatanetRegistryDeploymentFeeFundingPacketV1({
   deployment_input_plan:deploymentPlan,
-  observer_result:holdObserver,
+  observer_result:feeDriftObserver,
 });
 assert.equal(
-  holdPacket.status,
+  feeDriftPacket.status,
   "READ_ONLY_DEPLOYMENT_FEE_GAS_FUNDING_HOLD",
 );
-assert.equal(holdPacket.decision.deployer_balance_sufficient,false);
-assert.equal(
-  holdPacket.decision.minimum_additional_funding_wei,
-  "3600000000000000",
-);
-assert.equal(holdPacket.decision.deployer_funding_authorized,false);
+assert.equal(feeDriftPacket.decision.fee_caps_sufficient,false);
+assert.equal(feeDriftPacket.decision.deployer_balance_sufficient,true);
+assert.equal(feeDriftPacket.decision.minimum_additional_funding_wei,"0");
+assert.equal(feeDriftPacket.decision.deployer_funding_authorized,false);
 
 {
   const bad=structuredClone(greenObserver);
@@ -396,10 +414,12 @@ console.log("read_only_rpc_method_count=11");
 console.log("zero_base_fee_supported=true");
 console.log("zero_priority_fee_supported=true");
 console.log("gas_limit_multiplier_bps=12000");
-console.log("max_fee_per_gas_wei=3000000000");
-console.log("max_priority_fee_per_gas_wei=1000000000");
-console.log("funding_deficit_exact=true");
-console.log("funding_shortfall_remains_hold=true");
+console.log("max_fee_per_gas_wei=0");
+console.log("max_priority_fee_per_gas_wei=0");
+console.log("marked_type2_zero_fee_runtime_proven=true");
+console.log("zero_native_balance_deployer_supported=true");
+console.log("native_funding_required=false");
+console.log("nonzero_fee_observation_remains_hold=true");
 console.log("deployer_funding=false");
 console.log("signable_transaction_construction=false");
 console.log("transaction_signing=false");
