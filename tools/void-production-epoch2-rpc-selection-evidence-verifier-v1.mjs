@@ -243,9 +243,9 @@ function worktreeRegularBytes(rel, code) {
 function importSpecifiers(source) {
   const specs = new Set();
   for (const pattern of [
-    /\\bfrom\\s+["']([^"']+)["']/gu,
-    /\\bimport\\s+["']([^"']+)["']/gu,
-    /\\bimport\\s*\\(\\s*["']([^"']+)["']\\s*\\)/gu,
+    /\bfrom\s+["']([^"']+)["']/gu,
+    /\bimport\s+["']([^"']+)["']/gu,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu,
   ]) {
     for (const match of source.matchAll(pattern)) specs.add(match[1]);
   }

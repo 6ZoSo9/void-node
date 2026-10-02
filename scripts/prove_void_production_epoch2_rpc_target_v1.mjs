@@ -79,6 +79,10 @@ assert.equal(
 );
 
 const reviewedClosure = verifyReviewedSelectionEvidenceExecutionClosureV1();
+assert.ok(
+  reviewedClosure.module_count > 1,
+  "reviewed execution closure must contain transitive modules",
+);
 assert.equal(reviewedClosure.non_shallow_repository, true);
 assert.equal(reviewedClosure.exact_head_git_object_bytes, true);
 assert.equal(reviewedClosure.bare_package_runtime_absent, true);
