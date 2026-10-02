@@ -1686,17 +1686,25 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
     fail("CANONICAL_APPLICATION_COUPLED_TARGET_NOT_APPLIED");
   }
 
-  const productionDecision =
-    classifyVoidWcVoidProductionReadinessV1(productionCandidate);
-  const coupledDecision =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      coupledCandidate,
-      successorCandidate,
-    );
+  const reviewedDecision = runReviewedAuthority(
+    Object.freeze({
+      head: reviewed.application_base_head_sha,
+      tree: reviewed.application_base_tree_sha,
+    }),
+    {
+      operation: "classify",
+      production_candidate: productionCandidate,
+      coupled_candidate: coupledCandidate,
+      successor_candidate: successorCandidate,
+    },
+  );
+  assertReviewedExecutionBinding(reviewed, reviewedDecision.binding);
+  const productionDecision = reviewedDecision.result.production;
+  const coupledDecision = reviewedDecision.result.coupled;
   if (
-    canonicalJson(summarize(productionDecision)) !==
+    canonicalJson(productionDecision) !==
       canonicalJson(reviewed.production_after) ||
-    canonicalJson(summarize(coupledDecision)) !==
+    canonicalJson(coupledDecision) !==
       canonicalJson(reviewed.coupled_after) ||
     productionCandidate.bounded_canary_green !== true ||
     productionCandidate.coupled_activation_ready !== false ||
@@ -1708,8 +1716,8 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
     fail("CANONICAL_APPLICATION_APPLIED_CLASSIFIER_STATE_INVALID");
   }
   return Object.freeze({
-    production: summarize(productionDecision),
-    coupled: summarize(coupledDecision),
+    production: productionDecision,
+    coupled: coupledDecision,
   });
 }
 
@@ -1781,13 +1789,34 @@ export function verifyVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     fail("CANONICAL_APPLICATION_APPLIED_SOURCE_IDENTITY_MISMATCH");
   }
 
-  const decisions =
-    verifyVoidWcVoidBoundedCanaryCanonicalApplicationStateV1({
-      plan,
-      productionCandidate: production.value,
-      coupledCandidate: coupled.value,
-      successorCandidate: successor.value,
-    });
+  const reviewedApplied = runReviewedAuthority(
+    repository,
+    {
+      operation: "classify",
+      production_candidate: production.value,
+      coupled_candidate: coupled.value,
+      successor_candidate: successor.value,
+    },
+  );
+  assertReviewedExecutionBinding(plan, reviewedApplied.binding);
+  const decisions = Object.freeze({
+    production: reviewedApplied.result.production,
+    coupled: reviewedApplied.result.coupled,
+  });
+  if (
+    canonicalJson(decisions.production) !==
+      canonicalJson(plan.production_after) ||
+    canonicalJson(decisions.coupled) !==
+      canonicalJson(plan.coupled_after) ||
+    production.value.bounded_canary_green !== true ||
+    production.value.coupled_activation_ready !== false ||
+    production.value.status !== "hold" ||
+    coupled.value?.gates?.bounded_canary_green !== true ||
+    coupled.value?.gates?.coupled_activation_ready !== false ||
+    coupled.value.status !== "HOLD"
+  ) {
+    fail("CANONICAL_APPLICATION_APPLIED_CLASSIFIER_STATE_INVALID");
+  }
 
   const material = Object.freeze({
     marker: VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_V1,
