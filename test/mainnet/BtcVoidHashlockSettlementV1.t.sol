@@ -180,10 +180,14 @@ contract BtcVoidHashlockSettlementV1Test {
         );
         _assert(!otherOk, "non_beneficiary_claim_accepted");
 
+        bytes memory shortPreimage = hex"11";
         bool shortOk = _callAs(
             BENEFICIARY,
             address(settlement),
-            abi.encodeCall(BtcVoidHashlockSettlementV1.claim, (SWAP_A, hex"11"))
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.claim,
+                (SWAP_A, shortPreimage)
+            )
         );
         _assert(!shortOk, "short_preimage_accepted");
 
