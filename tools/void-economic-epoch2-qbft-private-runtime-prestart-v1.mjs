@@ -74,8 +74,8 @@ export function validateVoidEconomicEpoch2QbftInstallReceiptV1(input) {
     installed_at_utc:receipt.installed_at_utc,
     installed_repo_head:receipt.installed_repo_head,
     unit_file_state:receipt.post_install_state?.unit_file_state,
-    direct_enablement_links_absent:
-      receipt.post_install_state?.direct_enablement_links_absent,
+    operator_user_unit_dir_direct_enablement_links_absent:
+      receipt.post_install_state?.operator_user_unit_dir_direct_enablement_links_absent,
   });
   if(canonicalJson(rebuilt)!==canonicalJson(receipt)) {
     throw new Error("install_receipt_rebuild_mismatch:"+input.role);
@@ -125,7 +125,7 @@ export function buildVoidEconomicEpoch2QbftHostPrestartReceiptV1(input) {
     installed_data_directory_empty:true,
     service_inactive:true,
     unit_file_state:unitFileState,
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
     indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
@@ -258,7 +258,7 @@ export function validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(receipt) {
     installed_data_directory_empty:true,
     service_inactive:true,
     unit_file_state:unitFileState,
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
     indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
