@@ -13,6 +13,9 @@ import {
   verifyDatanetContentCommitmentObjectPreflightAgainstFingerprintV1,
   verifyDatanetContentCommitmentPreparationAuthorityAgainstFingerprintV1,
 } from "./datanet-content-commitment-object-preflight-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "./void-economic-epoch2-raw-transaction-domain-v1.mjs";
 
 export const VOID_DATANET_CONTENT_COMMITMENT_OBJECT_PREFLIGHT_OBSERVER_V1 =
   "VOID_DATANET_CONTENT_COMMITMENT_OBJECT_PREFLIGHT_OBSERVER_V1";
@@ -227,8 +230,18 @@ function held(reason,options={}){
     ...(options.detail?{detail:options.detail}:{}),
   };
 }
-function viewCall(contract,name,args=[]){
-  return {to:contract,data:VIEWS.encodeFunctionData(name,args)};
+function viewCall(contract,name,args=[],caller){
+  const marker=VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1;
+  return {
+    from:caller,
+    to:contract,
+    data:VIEWS.encodeFunctionData(name,args),
+    value:"0x0",
+    accessList:[{
+      address:marker.marker_address,
+      storageKeys:[marker.marker_storage_key],
+    }],
+  };
 }
 function decodeUint(name,raw){
   const data=bytes(raw);
@@ -352,31 +365,31 @@ export async function observeDatanetContentCommitmentObjectPreflightAgainstFinge
 
     const registryVersion=decodeUint(
       "registryVersion",
-      await call("eth_call",[viewCall(registry,"registryVersion"),headTag]),
+      await call("eth_call",[viewCall(registry,"registryVersion",[],publisher),headTag]),
     );
     const maxObjectBytes=decodeUint(
       "maxObjectBytes",
-      await call("eth_call",[viewCall(registry,"maxObjectBytes"),headTag]),
+      await call("eth_call",[viewCall(registry,"maxObjectBytes",[],publisher),headTag]),
     );
     const observedPublisher=decodeAddress(
       "publisher",
-      await call("eth_call",[viewCall(registry,"publisher"),headTag]),
+      await call("eth_call",[viewCall(registry,"publisher",[],publisher),headTag]),
     );
     const observedPredecessor=decodeAddress(
       "predecessor",
-      await call("eth_call",[viewCall(registry,"predecessor"),headTag]),
+      await call("eth_call",[viewCall(registry,"predecessor",[],publisher),headTag]),
     );
     const committedA=decodeBool(
       "isCommitted",
       await call("eth_call",[
-        viewCall(registry,"isCommitted",["0x"+objectId]),
+        viewCall(registry,"isCommitted",["0x"+objectId],publisher),
         headTag,
       ]),
     );
     const committedB=decodeBool(
       "isCommitted",
       await call("eth_call",[
-        viewCall(registry,"isCommitted",["0x"+objectId]),
+        viewCall(registry,"isCommitted",["0x"+objectId],publisher),
         headTag,
       ]),
     );
