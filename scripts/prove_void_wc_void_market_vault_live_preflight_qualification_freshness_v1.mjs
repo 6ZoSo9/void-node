@@ -472,6 +472,30 @@ await withValidRpcFixture(async (fixture) => {
   assert.equal(fixture.rpcCalls() > 0, true);
 });
 
+await withValidRpcFixture(async (fixture) => {
+  const q = qualificationFixture();
+  const regressed =
+    await testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+      input(
+        q,
+        fixture.rpc_url,
+        "1800000500",
+        "1800000499",
+      ),
+    );
+  assert.equal(regressed.ok, false);
+  assert.equal(
+    regressed.reason,
+    "live_deployment_preflight_evaluation_time_regressed",
+  );
+  assert.equal(regressed.production_preflight_id_emitted, false);
+  assert.equal(
+    fixture.rpcCalls() > 0,
+    true,
+    "clock regression adversary did not traverse RPC observation",
+  );
+});
+
 assert.equal(
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
     .qualification_control_freshness_required,
@@ -487,6 +511,11 @@ assert.equal(
     .production_wall_clock_evaluation_required,
   true,
 );
+assert.equal(
+  VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1
+    .production_wall_clock_monotonicity_required,
+  true,
+);
 
 const source = fs.readFileSync(
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs",
@@ -497,6 +526,7 @@ assert.ok(source.includes("live_deployment_preflight_launch_controller_control_e
 assert.ok(source.includes("evaluation_time_unix ??"));
 assert.ok(source.includes("final_evaluation_time_unix ??"));
 assert.ok(source.includes("finalEvaluationTimeUnix === null"));
+assert.ok(source.includes("live_deployment_preflight_evaluation_time_regressed"));
 assert.ok(source.indexOf("verifyQualification(") < source.indexOf("createHttpTransport(rpcPolicy)"));
 assert.ok(
   source.indexOf("finalEvaluationTimeUnix === null") <
@@ -512,6 +542,8 @@ console.log("expiry_boundary_held=true");
 console.log("expired_qualification_zero_rpc_calls=true");
 console.log("fresh_before_rpc_expired_before_mint_held=true");
 console.log("freshness_revalidated_after_rpc=true");
+console.log("production_wall_clock_monotonicity_required=true");
+console.log("wall_clock_regression_after_rpc_held=true");
 console.log("production_preflight_id_not_emitted_after_expiry=true");
 console.log("transaction_construction=false");
 console.log("transaction_signing=false");
