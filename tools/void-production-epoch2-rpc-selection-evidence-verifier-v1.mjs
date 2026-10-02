@@ -297,7 +297,7 @@ export function verifyReviewedSelectionEvidenceExecutionClosureV1() {
       fail("production_epoch2_selection_reviewed_module_bytes_mismatch:" + rel);
     }
 
-    if (!/\\.(?:mjs|js|cjs)$/u.test(rel)) continue;
+    if (!/\.(?:mjs|js|cjs)$/u.test(rel)) continue;
     const source = worktree.toString("utf8");
     for (const spec of importSpecifiers(source)) {
       if (spec.startsWith(".")) {
