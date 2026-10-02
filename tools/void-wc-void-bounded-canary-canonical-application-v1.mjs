@@ -42,7 +42,7 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
     execution_network_isolation_provided: false,
     repository_source_write: false,
     filesystem_read: true,
-    filesystem_write: false,
+    filesystem_write: true,
     runtime_mutation: false,
     service_mutation: false,
     rpc_call: false,
