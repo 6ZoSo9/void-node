@@ -76,7 +76,18 @@ transaction nLockTime type (height vs timestamp) matches refund_locktime
 spending input nSequence != 0xffffffff
 ```
 
-The source result records both requirements but does not build a transaction.
+The source result records these requirements but does not build a transaction.
+
+It also explicitly records:
+
+```text
+live_bitcoin_chain_context_verified=false
+refund_locktime_future_at_funding_verified=false
+asymmetric_cross_chain_timeout_margin_verified=false
+```
+
+Those facts require later live/regtest chain observation plus the cross-rail timeout
+planner. Merely encoding a valid CLTV number is not a safety proof.
 
 ## Witness item shapes
 
