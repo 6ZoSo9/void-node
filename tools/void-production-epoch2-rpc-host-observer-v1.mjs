@@ -1163,6 +1163,27 @@ export function testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1(
   });
 }
 
+function validateDockerDaemonInfo(info) {
+  const securityOptions = Array.isArray(info?.SecurityOptions)
+    ? info.SecurityOptions.map(String)
+    : [];
+  if (
+    !plain(info) ||
+    !securityOptions.some((value) =>
+      value.toLowerCase().includes("rootless")
+    )
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_DOCKER_DAEMON_NOT_ROOTLESS");
+  }
+  return true;
+}
+
+export function testOnlyValidateVoidProductionEpoch2RpcDockerDaemonInfoV1(
+  info,
+) {
+  return validateDockerDaemonInfo(info);
+}
+
 function dockerGetJson(socketPath, requestPath) {
   return new Promise((resolve, reject) => {
     const request = http.request(
@@ -1246,6 +1267,8 @@ async function dockerContainerFacts(expected, service, precisionInstall) {
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_DOCKER_SOCKET_IDENTITY_INVALID");
   }
+  const daemonInfo = await dockerGetJson(socketPath, "/info");
+  validateDockerDaemonInfo(daemonInfo);
   const inspect = await dockerGetJson(
     socketPath,
     "/containers/" + encodeURIComponent(expected.container_name) + "/json",
