@@ -10,6 +10,13 @@ import { parseArgs } from "node:util";
 
 export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1 =
   "VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1";
+export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_V1 =
+  "VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_V1";
+
+const VERIFIED_SOURCE_CAPABILITY = Symbol(
+  "VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_VERIFIED_SOURCE_V1",
+);
+const VERIFIED_SOURCE_OBSERVATIONS = new WeakSet();
 
 export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1 =
   Object.freeze({
@@ -53,6 +60,34 @@ export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1 =
     private_output_exact_directory_fsync: true,
     private_output_redirect_forbidden: true,
     target_descriptor_promotion: false,
+  });
+
+const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_AUTHORITY_V1 =
+  Object.freeze({
+    structural_preview_only: true,
+    canonical_main_live_read: false,
+    activation_lineage_rederived: false,
+    reviewed_git_object_execution: false,
+    systemd_observation_performed: false,
+    docker_observation_performed: false,
+    rpc_observation_performed: false,
+    independent_host_acceptance: false,
+    target_descriptor_promotion: false,
+    runtime_mutation: false,
+    service_action: false,
+    docker_mutation: false,
+    rpc_write: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    private_key_access: false,
+    transaction_construction: false,
+    transaction_signing: false,
+    transaction_submission: false,
+    transaction_broadcast: false,
+    validator_mutation: false,
+    deployment: false,
+    activation: false,
+    funds_movement: false,
   });
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -275,7 +310,12 @@ function validateContainerObservation(container, expected) {
   return Object.freeze({ ...container });
 }
 
-export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
+function buildVoidProductionEpoch2RpcHostObservationCoreV1(
+  input,
+  verifiedSourceCapability = null,
+) {
+  const authorityBearing =
+    verifiedSourceCapability === VERIFIED_SOURCE_CAPABILITY;
   if (!plain(input)) fail("PRODUCTION_EPOCH2_RPC_OBSERVER_INPUT_INVALID");
 
   const p = parseBytes(
@@ -424,9 +464,13 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
   }
 
   const material = Object.freeze({
-    marker: VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1,
+    marker: authorityBearing
+      ? VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1
+      : VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_V1,
     version: 1,
-    status: "PRODUCTION_EPOCH2_RPC_HOST_OBSERVATION_ACCEPTED",
+    status: authorityBearing
+      ? "PRODUCTION_EPOCH2_RPC_HOST_OBSERVATION_ACCEPTED"
+      : "PRODUCTION_EPOCH2_RPC_HOST_OBSERVATION_PREVIEW_NOT_SOURCE_VERIFIED",
     hostname: host.hostname,
     chain_id: 2050,
     execution_epoch: 2,
@@ -545,19 +589,41 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     write_capability_classification: "write_capable_not_authorized",
     exact_genesis_bound: true,
     production_validator_set_bound: true,
-    independent_host_acceptance: true,
+    independent_host_acceptance: authorityBearing,
     target_descriptor_promotion_authorized: false,
-    canonical_main_stable_during_observation: true,
+    canonical_main_stable_during_observation: authorityBearing,
     observed_at_utc: observedAt,
-    authority: VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
+    authority: authorityBearing
+      ? VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1
+      : VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_AUTHORITY_V1,
   });
 
-  return Object.freeze({
-    ...material,
-    observation_id:
-      "voidpe2rpcobs1_" +
-      sha256(Buffer.from(canonical(material), "utf8")),
-  });
+  const result = authorityBearing
+    ? Object.freeze({
+        ...material,
+        observation_id:
+          "voidpe2rpcobs1_" +
+          sha256(Buffer.from(canonical(material), "utf8")),
+      })
+    : Object.freeze({
+        ...material,
+        preview_id:
+          "voidpe2rpcobspreview1_" +
+          sha256(Buffer.from(canonical(material), "utf8")),
+      });
+  if (authorityBearing) VERIFIED_SOURCE_OBSERVATIONS.add(result);
+  return result;
+}
+
+export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
+  return buildVoidProductionEpoch2RpcHostObservationCoreV1(input);
+}
+
+function buildVerifiedVoidProductionEpoch2RpcHostObservationV1(input) {
+  return buildVoidProductionEpoch2RpcHostObservationCoreV1(
+    input,
+    VERIFIED_SOURCE_CAPABILITY,
+  );
 }
 
 function gitEnv() {
@@ -1796,7 +1862,7 @@ async function main() {
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OBSERVATION_GENERATION_MOVED");
   }
-  const observation = buildVoidProductionEpoch2RpcHostObservationV1({
+  const observation = buildVerifiedVoidProductionEpoch2RpcHostObservationV1({
     activation_plan_bytes: planBytes,
     activation_plan_file_sha256: values["activation-plan-sha256"],
     activation_receipt_bytes: receiptBytes,
@@ -1831,6 +1897,9 @@ async function main() {
       observed_at_utc: new Date().toISOString(),
     },
   });
+  if (!VERIFIED_SOURCE_OBSERVATIONS.has(observation)) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_VERIFIED_SOURCE_REQUIRED");
+  }
   const output = path.resolve(values.output);
   const written = createPrivateOutputBoundV1(output, observation);
   console.log(VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1);
