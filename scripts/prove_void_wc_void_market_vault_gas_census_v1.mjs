@@ -59,7 +59,7 @@ assert.equal(
   EXPECTED_VAULT_ID,
 );
 assert.equal(
-  accepted?.accepted_identity?.contract_source_sha256,
+  accepted?.source?.contract_source_sha256,
   EXPECTED_VAULT_SOURCE_SHA256,
 );
 assert.equal(
