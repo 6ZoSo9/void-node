@@ -50,6 +50,13 @@ production bundle marker, authority object, canonical-source claim, or
 checks, can assemble and content-address the production-shaped bundle. The
 reviewed module Git-blob manifest is embedded in `canonical_launch_source`.
 
+Before the permission-fenced child starts, the compiler revalidates the private
+execution parent directory identity, the generated runner SHA-256, and every
+materialized reviewed module against its captured Git blob. Read-only file modes
+are defense-in-depth only; they are not treated as a same-UID integrity boundary.
+The proof directly mutates the runner and one reviewed private module and requires
+the binding verifier to HOLD before execution.
+
 This deliberately binds the bundle to one reviewed source generation without
 hard-pinning unrelated candidate gate fields. Reviewed gate promotions may
 change the candidate blob while keeping the same coupled-launch identity, but a
@@ -276,7 +283,9 @@ node scripts/prove_void_wc_void_coupled_launch_policy_bundle_v1.mjs
 
 The proof also hides a malicious worktree edit to one imported policy module
 behind Git's assume-unchanged bit. Compilation must still use the exact Git-object
-module closure and the malicious sentinel must never execute. The feature-branch
-production CLI path must HOLD before creating an output, while `--test-only`
-continues to exercise descriptor-bound input and create-only durable output
-custody.
+module closure and the malicious sentinel must never execute. It separately
+materializes a private reviewed fixture, proves the original runner/module binding,
+then tampers with the runner and a reviewed module and requires SHA/blob mismatch
+HOLDs. The feature-branch production CLI path must HOLD before creating an output,
+while `--test-only` continues to exercise descriptor-bound input and create-only
+durable output custody.
