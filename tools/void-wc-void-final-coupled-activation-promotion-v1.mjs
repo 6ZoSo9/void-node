@@ -1131,20 +1131,55 @@ function makeReviewedExecutionTreeRemovable(root) {
   walk(root);
 }
 
-let reviewedExecutionCache = null;
-
-function cleanupReviewedExecutionCache() {
-  if (!reviewedExecutionCache) return;
-  const parent = reviewedExecutionCache.parent;
-  try {
-    makeReviewedExecutionTreeRemovable(parent);
-    fs.rmSync(parent, { recursive: true, force: true });
-  } finally {
-    reviewedExecutionCache = null;
+function reviewedClassifierClosure(commit) {
+  const pending = [...Object.values(REVIEWED_CLASSIFIERS)];
+  const seen = new Set();
+  const blobs = Object.create(null);
+  while (pending.length) {
+    const relativePath = pending.pop();
+    if (seen.has(relativePath)) continue;
+    seen.add(relativePath);
+    const source = commitBytes(
+      commit,
+      relativePath,
+      "FINAL_COUPLED_REVIEWED_CLASSIFIER_" +
+        relativePath.replace(/[^A-Za-z0-9]+/gu, "_"),
+    );
+    blobs[relativePath] = source.blob_sha1;
+    const sourceText =
+      new TextDecoder("utf-8", { fatal: true }).decode(source.bytes);
+    if (/\bimport\s*\(/u.test(sourceText)) {
+      fail("FINAL_COUPLED_REVIEWED_CLASSIFIER_DYNAMIC_IMPORT:" + relativePath);
+    }
+    const specs = [];
+    for (const re of [
+      /\bfrom\s+["']([^"']+)["']/gu,
+      /\bimport\s+["']([^"']+)["']/gu,
+    ]) {
+      let match;
+      while ((match = re.exec(sourceText)) !== null) specs.push(match[1]);
+    }
+    for (const spec of specs) {
+      if (spec.startsWith("node:") || spec === "ethers") continue;
+      if (!spec.startsWith(".")) {
+        fail("FINAL_COUPLED_REVIEWED_CLASSIFIER_BARE_IMPORT:" + spec);
+      }
+      let target = path.posix.normalize(
+        path.posix.join(path.posix.dirname(relativePath), spec),
+      );
+      if (!/\.(?:mjs|json)$/u.test(target)) target += ".mjs";
+      if (
+        target.startsWith("../") ||
+        target.includes("/../") ||
+        (!target.startsWith("tools/") && !target.startsWith("ops/"))
+      ) {
+        fail("FINAL_COUPLED_REVIEWED_CLASSIFIER_IMPORT_ESCAPE:" + target);
+      }
+      pending.push(target);
+    }
   }
+  return Object.freeze({ ...blobs });
 }
-
-process.once("exit", cleanupReviewedExecutionCache);
 
 function buildReviewedExecutionRoot(repository, reviewedExecution) {
   normalizeReviewedExecutionBinding(
@@ -1152,15 +1187,6 @@ function buildReviewedExecutionRoot(repository, reviewedExecution) {
     repository,
     true,
   );
-  if (
-    reviewedExecutionCache &&
-    reviewedExecutionCache.head === repository.head &&
-    reviewedExecutionCache.bundle_id ===
-      reviewedExecution.reviewed_execution_bundle_id
-  ) {
-    return reviewedExecutionCache;
-  }
-  cleanupReviewedExecutionCache();
 
   const parent = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-final-coupled-reviewed-"),
@@ -1173,23 +1199,19 @@ function buildReviewedExecutionRoot(repository, reviewedExecution) {
       bootstrapDir,
       "void-reviewed-node-package-runtime-v1.mjs",
     );
-    writePrivateSource(
-      runtimeToolFile,
-      commitBytes(
-        repository.head,
-        REVIEWED_RUNTIME_TOOL_REL,
-        "FINAL_COUPLED_REVIEWED_RUNTIME_TOOL",
-      ).bytes,
+    const runtimeToolSource = commitBytes(
+      repository.head,
+      REVIEWED_RUNTIME_TOOL_REL,
+      "FINAL_COUPLED_REVIEWED_RUNTIME_TOOL",
     );
+    writePrivateSource(runtimeToolFile, runtimeToolSource.bytes);
     const profileFile = path.join(bootstrapDir, "profile.json");
-    writePrivateSource(
-      profileFile,
-      commitBytes(
-        repository.head,
-        REVIEWED_RUNTIME_PROFILE_REL,
-        "FINAL_COUPLED_REVIEWED_RUNTIME_PROFILE",
-      ).bytes,
+    const profileSource = commitBytes(
+      repository.head,
+      REVIEWED_RUNTIME_PROFILE_REL,
+      "FINAL_COUPLED_REVIEWED_RUNTIME_PROFILE",
     );
+    writePrivateSource(profileFile, profileSource.bytes);
 
     const executionRoot = path.join(parent, "execution");
     const bootstrapFile = path.join(bootstrapDir, "bootstrap.mjs");
@@ -1207,9 +1229,10 @@ function buildReviewedExecutionRoot(repository, reviewedExecution) {
       'process.stdout.write(JSON.stringify(result));',
       '',
     ].join("\n");
+    const bootstrapBytes = Buffer.from(bootstrapSource, "utf8");
     writePrivateSource(
       bootstrapFile,
-      Buffer.from(bootstrapSource, "utf8"),
+      bootstrapBytes,
     );
     const bootstrap = spawnSync(
       process.execPath,
@@ -1240,7 +1263,7 @@ function buildReviewedExecutionRoot(repository, reviewedExecution) {
     );
     gitRunPrivate(
       executionRoot,
-      ["fetch", "--quiet", "--no-tags", "--depth=1", REPO_ROOT, repository.head],
+      ["fetch", "--quiet", "--no-tags", REPO_ROOT, repository.head],
       "FINAL_COUPLED_PRIVATE_GIT_FETCH_FAILED",
     );
     gitRunPrivate(
@@ -1281,8 +1304,13 @@ function buildReviewedExecutionRoot(repository, reviewedExecution) {
     ) {
       fail("FINAL_COUPLED_PRIVATE_GIT_IDENTITY_MISMATCH");
     }
+    const classifierClosure = reviewedClassifierClosure(repository.head);
+    const privateModuleBlobs = Object.freeze({
+      ...classifierClosure,
+      ...reviewedExecution.reviewed_authority_entry_git_blobs,
+    });
     for (const [relativePath, expectedBlob] of Object.entries(
-      reviewedExecution.reviewed_authority_entry_git_blobs,
+      privateModuleBlobs,
     )) {
       const blob = String(
         gitRunPrivate(
@@ -1375,20 +1403,36 @@ function buildReviewedExecutionRoot(repository, reviewedExecution) {
       'process.stdout.write(JSON.stringify(envelope));',
       '',
     ].join("\n");
-    writePrivateSource(runnerFile, Buffer.from(runnerSource, "utf8"));
+    const runnerBytes = Buffer.from(runnerSource, "utf8");
+    writePrivateSource(runnerFile, runnerBytes);
 
     makeReviewedExecutionTreeReadOnly(executionRoot);
-    reviewedExecutionCache = Object.freeze({
+    const parentStat = fs.lstatSync(parent);
+    if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+      fail("FINAL_COUPLED_REVIEWED_PARENT_INVALID");
+    }
+    return Object.freeze({
       head: repository.head,
       bundle_id: reviewedExecution.reviewed_execution_bundle_id,
       parent,
+      parent_identity: Object.freeze({
+        dev: parentStat.dev,
+        ino: parentStat.ino,
+        uid: parentStat.uid,
+        mode: parentStat.mode,
+      }),
       execution_root: executionRoot,
       runner_file: runnerFile,
+      runner_file_sha256: sha256Bytes(runnerBytes),
       bootstrap_file: bootstrapFile,
+      bootstrap_file_sha256: sha256Bytes(bootstrapBytes),
+      runtime_tool_file: runtimeToolFile,
+      runtime_tool_file_sha256: runtimeToolSource.file_sha256,
       profile_file: profileFile,
+      profile_file_sha256: profileSource.file_sha256,
+      private_module_git_blobs: privateModuleBlobs,
       allowed_fs_read_root: parent,
     });
-    return reviewedExecutionCache;
   } catch (error) {
     try {
       makeReviewedExecutionTreeRemovable(parent);
