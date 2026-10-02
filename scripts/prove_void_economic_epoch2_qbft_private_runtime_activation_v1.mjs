@@ -445,6 +445,25 @@ for(const key of [
   );
 }
 {
+  const bad=structuredClone(activationPlan);
+  bad.install_receipts[0].unit_file_state="disabled";
+  bad.activation_plan_id=rehashActivationPlan(bad);
+  assert.throws(
+    ()=>validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(bad),
+    /activation_plan_install_row_invalid:precision/u,
+  );
+}
+{
+  const bad=structuredClone(activationPlan);
+  bad.pre_start_revalidation.indirect_activation_absence_proven=true;
+  bad.activation_plan_id=rehashActivationPlan(bad);
+  assert.throws(
+    ()=>validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(bad),
+    /activation_plan_prestart_revalidation_mismatch:indirect_activation_absence_proven/u,
+  );
+}
+
+{
   const bad=structuredClone(installReceipts.nimo);
   bad.authority.service_start=true;
   bad.install_receipt_id=rehashInstallReceipt(bad);
