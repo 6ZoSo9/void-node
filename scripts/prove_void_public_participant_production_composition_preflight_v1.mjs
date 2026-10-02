@@ -17,6 +17,9 @@ import {
   createVoidPublicParticipantAccountReadHttpEdgeV1,
 } from "../ops/public/void-public-participant-account-read-http-edge-v1.mjs";
 import {
+  testOnlyLoadVoidPublicParticipantLiveRoleRuntimeV1,
+} from "../ops/public/void-public-participant-live-role-authority-v1.mjs";
+import {
   VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_AUTHORITY_V1,
   VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_PREFLIGHT_V1,
   VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1,
@@ -205,6 +208,11 @@ try{
   assert.equal(edgeStatus.body.money_movement_authority,false);
   assert.equal(edgeStatus.body.production_route_mounted,false);
 
+  const compiledRuntime=
+    await testOnlyLoadVoidPublicParticipantLiveRoleRuntimeV1();
+  assert.equal(compiledRuntime.compiled_binding_factory_loaded,true);
+  assert.equal(compiledRuntime.compiled_session_adapter_factory_loaded,true);
+
   const preflight=
     buildVoidPublicParticipantProductionCompositionPreflightV1();
   assert.equal(
@@ -214,7 +222,7 @@ try{
   assert.equal(preflight.version,1);
   assert.equal(
     preflight.status,
-    "PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_WIRING_HOLD",
+    "PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BOUND_HOST_LIFECYCLE_HOLD",
   );
   assert.match(preflight.preflight_id,/^voidppcp1_[0-9a-f]{64}$/u);
   assert.match(preflight.repository_head_sha,/^[0-9a-f]{40}$/u);
@@ -233,15 +241,17 @@ try{
     "account_read_projection_contract_bound",
     "account_read_edge_contract_bound",
     "live_role_authority_contract_bound",
+    "live_role_bridge_contract_bound",
+    "compiled_security_runtime_contract_bound",
     "composition_gateway_contract_bound",
     "composition_activation_default_off",
     "composition_shared_session_instance_bound",
   ]){
     assert.equal(preflight[key],true,key);
   }
-  assert.equal(preflight.composition_role_authority_injection_present,false);
-  assert.equal(preflight.composition_durable_state_injection_present,false);
-  assert.equal(preflight.source_composition_ready,false);
+  assert.equal(preflight.composition_role_authority_injection_present,true);
+  assert.equal(preflight.composition_durable_state_injection_present,true);
+  assert.equal(preflight.source_composition_ready,true);
   assert.equal(preflight.production_session_issuance,false);
   assert.equal(preflight.public_session_route_mount_authorized,false);
   assert.equal(preflight.runtime_activation_authorized,false);
@@ -257,14 +267,14 @@ try{
   assert.equal(preflight.funds_movement,false);
   assert.equal(
     preflight.next_gate,
-    "wire_live_role_authority_and_durable_state_store_into_composition",
+    "designated_host_participant_composition_configuration_startup_restart_rollback_preflight",
   );
 
   assert.equal(
     Object.keys(
       VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1,
     ).length,
-    10,
+    12,
   );
   for(const sha of Object.values(
     VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1,
@@ -286,6 +296,8 @@ try{
       "git_identity_revalidated",
       "durable_session_contract_review",
       "role_authority_contract_review",
+      "live_role_bridge_contract_review",
+      "compiled_security_runtime_contract_review",
       "participant_http_contract_review",
       "account_read_contract_review",
       "composition_gateway_contract_review",
@@ -381,13 +393,21 @@ try{
     gateway,
     /createVoidPublicParticipantSessionHttpV1\(\{\s*bindingRegistryFile:/u,
   );
-  assert.doesNotMatch(
+  assert.match(
     gateway,
-    /createVoidPublicParticipantSessionHttpV1\(\{[\s\S]{0,300}\broleAuthority\s*:/u,
+    /createVoidPublicParticipantSessionHttpV1\(\{[\s\S]{0,400}\broleAuthority\s*:/u,
   );
-  assert.doesNotMatch(
+  assert.match(
     gateway,
-    /createVoidPublicParticipantSessionHttpV1\(\{[\s\S]{0,300}\bstateStore\s*:/u,
+    /createVoidPublicParticipantSessionHttpV1\(\{[\s\S]{0,400}\bstateStore\s*:/u,
+  );
+  assert.match(
+    gateway,
+    /createVoidPublicParticipantLiveRoleAuthorityV1\(\{\s*rpcUrl:\s*PARTICIPANT_ROLE_RPC_URL/u,
+  );
+  assert.match(
+    gateway,
+    /createVoidPublicParticipantSessionStateFileV1\(\{\s*stateFile:\s*PARTICIPANT_SESSION_STATE_FILE/u,
   );
 
   const tool=fs.readFileSync(
@@ -430,12 +450,14 @@ try{
   console.log("fake_git_or_fsmonitor_execution=false");
   console.log("merged_durable_session_contract_bound=true");
   console.log("merged_live_role_source_contract_bound=true");
+  console.log("compiled_live_role_runtime_exports_loaded=true");
+  console.log("live_role_bridge_contract_bound=true");
   console.log("hermetic_durable_role_bound_session_http_green=true");
   console.log("account_read_edge_shared_session_contract_green=true");
   console.log("composition_activation_default_off=true");
-  console.log("composition_role_authority_injection_present=false");
-  console.log("composition_durable_state_injection_present=false");
-  console.log("source_composition_ready=false");
+  console.log("composition_role_authority_injection_present=true");
+  console.log("composition_durable_state_injection_present=true");
+  console.log("source_composition_ready=true");
   console.log("production_session_issuance=false");
   console.log("public_session_route_mount_authorized=false");
   console.log("runtime_activation_authorized=false");
