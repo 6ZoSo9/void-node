@@ -26,7 +26,8 @@ if [ -z "$OBJECT_ID" ]; then
   OBJECT_ID="${HASH}-${SAFE:-object.bin}"
 fi
 
-if ! printf '%s' "$OBJECT_ID" | grep -Eq '^[A-Za-z0-9._:-]{1,160}
+if [ "${#OBJECT_ID}" -lt 1 ] || [ "${#OBJECT_ID}" -gt 160 ] ||
+   printf '%s' "$OBJECT_ID" | grep -q '[^A-Za-z0-9._:-]'; then
   echo "[fail] invalid object id: $OBJECT_ID" >&2
   exit 2
 fi
