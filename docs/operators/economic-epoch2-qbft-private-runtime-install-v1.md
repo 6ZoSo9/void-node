@@ -161,6 +161,8 @@ runner rebinds exact installed membership/bytes/modes/data emptiness through
 descriptor-bound `O_NOFOLLOW` reads before receipt mint. Fresh installation
 uses the same final verifier after publication.
 
+Legacy receipts that use `installed_at_utc` / `installed_repo_head` without an explicit `receipt_basis` are rejected rather than reinterpreted.
+
 ## Exact applied confirmation
 
 The source tool defaults to plan-only mode. Applied filesystem installation
