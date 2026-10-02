@@ -71,8 +71,9 @@ export function validateVoidEconomicEpoch2QbftInstallReceiptV1(input) {
     bundle_set_receipt:input.bundle_set_receipt,
     role:input.role,
     materialization:input.materialization,
-    installed_at_utc:receipt.installed_at_utc,
-    installed_repo_head:receipt.installed_repo_head,
+    receipt_basis:receipt.receipt_basis,
+    observed_at_utc:receipt.observed_at_utc,
+    observed_repo_head:receipt.observed_repo_head,
     unit_file_state:receipt.post_install_state?.unit_file_state,
     operator_user_unit_dir_direct_enablement_links_absent:
       receipt.post_install_state?.operator_user_unit_dir_direct_enablement_links_absent,
@@ -157,6 +158,11 @@ export function buildVoidEconomicEpoch2QbftHostPrestartReceiptV1(input) {
     bundle_set_id:validated.binding.bundle_set_receipt.bundle_set_id,
     materialization_id:validated.binding.manifest.materialization_id,
     install_receipt_id:validated.receipt.install_receipt_id,
+    install_receipt_basis:validated.receipt.receipt_basis,
+    install_receipt_observed_repo_head:
+      validated.receipt.observed_repo_head,
+    install_receipt_observed_at_utc:
+      validated.receipt.observed_at_utc,
     observed_repo_head:head,
     observed_at_utc:observedAt,
     valid_until_utc:validUntil,
