@@ -1505,6 +1505,101 @@ function assertReviewedExecutionStaticBinding(bundle) {
   }
 }
 
+export function testOnlyExerciseVoidWcVoidFinalCoupledReviewedBindingMutationV1() {
+  const parent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-final-coupled-binding-test-"),
+  );
+  fs.chmodSync(parent, 0o700);
+  try {
+    const bootstrapDir = path.join(parent, "bootstrap");
+    const runnerDir = path.join(parent, "runner");
+    const executionRoot = path.join(parent, "execution");
+    fs.mkdirSync(bootstrapDir, { mode: 0o700 });
+    fs.mkdirSync(runnerDir, { mode: 0o700 });
+    fs.mkdirSync(path.join(executionRoot, "tools"), {
+      recursive: true,
+      mode: 0o700,
+    });
+
+    const bootstrapFile = path.join(bootstrapDir, "bootstrap.mjs");
+    const runtimeToolFile = path.join(bootstrapDir, "runtime.mjs");
+    const profileFile = path.join(bootstrapDir, "profile.json");
+    const runnerFile = path.join(runnerDir, "runner.mjs");
+    const moduleRel = "tools/test-reviewed-module.mjs";
+    const moduleFile = path.join(executionRoot, moduleRel);
+
+    const bootstrapBytes = Buffer.from("export default 1;\n", "utf8");
+    const runtimeBytes = Buffer.from("export default 2;\n", "utf8");
+    const profileBytes = Buffer.from('{"profile":"test"}\n', "utf8");
+    const runnerBytes = Buffer.from("export default 3;\n", "utf8");
+    const moduleBytes = Buffer.from("export default 4;\n", "utf8");
+
+    writePrivateSource(bootstrapFile, bootstrapBytes);
+    writePrivateSource(runtimeToolFile, runtimeBytes);
+    writePrivateSource(profileFile, profileBytes);
+    writePrivateSource(runnerFile, runnerBytes);
+    writePrivateSource(moduleFile, moduleBytes);
+
+    const parentStat = fs.lstatSync(parent);
+    const bundle = Object.freeze({
+      parent,
+      parent_identity: Object.freeze({
+        dev: parentStat.dev,
+        ino: parentStat.ino,
+        uid: parentStat.uid,
+        mode: parentStat.mode,
+      }),
+      execution_root: executionRoot,
+      bootstrap_file: bootstrapFile,
+      bootstrap_file_sha256: sha256Bytes(bootstrapBytes),
+      runtime_tool_file: runtimeToolFile,
+      runtime_tool_file_sha256: sha256Bytes(runtimeBytes),
+      profile_file: profileFile,
+      profile_file_sha256: sha256Bytes(profileBytes),
+      runner_file: runnerFile,
+      runner_file_sha256: sha256Bytes(runnerBytes),
+      private_module_git_blobs: Object.freeze({
+        [moduleRel]: gitBlobSha1(moduleBytes),
+      }),
+    });
+
+    assertReviewedExecutionStaticBinding(bundle);
+
+    fs.chmodSync(runnerFile, 0o600);
+    fs.writeFileSync(runnerFile, "export default 30;\n");
+    fs.chmodSync(runnerFile, 0o400);
+    let runnerReason = null;
+    try {
+      assertReviewedExecutionStaticBinding(bundle);
+    } catch (error) {
+      runnerReason = error instanceof Error ? error.message : String(error);
+    }
+
+    fs.chmodSync(runnerFile, 0o600);
+    fs.writeFileSync(runnerFile, runnerBytes);
+    fs.chmodSync(runnerFile, 0o400);
+    assertReviewedExecutionStaticBinding(bundle);
+
+    fs.chmodSync(moduleFile, 0o600);
+    fs.writeFileSync(moduleFile, "export default 40;\n");
+    fs.chmodSync(moduleFile, 0o400);
+    let moduleReason = null;
+    try {
+      assertReviewedExecutionStaticBinding(bundle);
+    } catch (error) {
+      moduleReason = error instanceof Error ? error.message : String(error);
+    }
+
+    return Object.freeze({
+      initial_binding_green: true,
+      runner_mutation_reason: runnerReason,
+      module_mutation_reason: moduleReason,
+    });
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
+  }
+}
+
 function verifyReviewedRuntimeTree(bundle) {
   assertReviewedExecutionStaticBinding(bundle);
   const result = spawnSync(
