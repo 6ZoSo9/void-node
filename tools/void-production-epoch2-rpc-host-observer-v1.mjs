@@ -217,7 +217,8 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     host.listener_present !== true ||
     host.canonical_main_stable_during_observation !== true ||
     host.service_invocation_stable_during_observation !== true ||
-    host.listener_stable_during_observation !== true
+    host.listener_stable_during_observation !== true ||
+    host.activation_source_lineage_ancestor_current_main !== true
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_SERVICE_OR_LISTENER_INVALID");
   }
@@ -307,6 +308,7 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
       activation_receipt_rederived: true,
       activation_floor_block_number:
         receipt.observations.after_xiphos_block_number,
+      source_lineage_ancestor_current_main: true,
     }),
     service: Object.freeze({
       service_unit: SERVICE,
@@ -468,6 +470,40 @@ function repoIdentity() {
     remote_main_sha: head,
     canonical_main_live_match: true,
   });
+}
+function gitCommitIsAncestor(commit, descendant) {
+  if (!HEX40.test(String(commit || "")) || !HEX40.test(String(descendant || ""))) {
+    return false;
+  }
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      "-c", "core.hooksPath=/dev/null",
+      "-c", "core.attributesFile=/dev/null",
+      "-c", "core.fsmonitor=false",
+      "-c", "core.untrackedCache=false",
+      "-c", "core.preloadIndex=false",
+      "-c", "submodule.recurse=false",
+      "-C", ROOT,
+      "merge-base", "--is-ancestor", commit, descendant,
+    ],
+    {
+      env: gitEnv(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30_000,
+    },
+  );
+  if (result.error) throw result.error;
+  return result.status === 0;
+}
+function activationSourceLineageAncestor(plan, currentHead) {
+  const commits = [
+    plan.start_admission_observed_repo_head,
+    ...plan.install_receipts.map((row) => row.installed_repo_head),
+  ];
+  return commits.every((commit) => gitCommitIsAncestor(commit, currentHead));
 }
 function readStable(file, label) {
   if (!path.isAbsolute(file) || path.resolve(file) !== file) {
@@ -637,31 +673,205 @@ async function liveRpcFacts() {
     validators,
   });
 }
-function createPrivateOutput(file, value) {
-  if (!path.isAbsolute(file) || path.resolve(file) !== file) {
+function sameDirectoryIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.mode === right.mode
+  );
+}
+function outsideRepository(file) {
+  const relative = path.relative(ROOT, file);
+  return (
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  );
+}
+export function createPrivateOutputBoundV1(
+  file,
+  value,
+  { testOnlyAfterParentRevalidationBeforeCreate = null } = {},
+) {
+  if (
+    process.platform !== "linux" ||
+    !path.isAbsolute(file) ||
+    path.resolve(file) !== file ||
+    !outsideRepository(file)
+  ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_PATH_INVALID");
   }
   const parent = path.dirname(file);
-  if (fs.realpathSync.native(parent) !== parent || fs.existsSync(file)) {
-    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_CUSTODY_INVALID");
+  const basename = path.basename(file);
+  if (
+    basename === "" ||
+    basename === "." ||
+    basename === ".." ||
+    basename.includes("/") ||
+    basename.includes("\\")
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_BASENAME_INVALID");
   }
+  if (fs.realpathSync.native(parent) !== parent) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_PARENT_ALIAS");
+  }
+  const parentPathStat = fs.lstatSync(parent);
+  if (
+    !parentPathStat.isDirectory() ||
+    parentPathStat.isSymbolicLink() ||
+    (parentPathStat.mode & 0o022) !== 0 ||
+    (
+      typeof process.getuid === "function" &&
+      parentPathStat.uid !== process.getuid()
+    )
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_PARENT_UNSAFE");
+  }
+
   const bytes = pretty(value);
-  const fd = fs.openSync(
-    file,
-    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL |
-      Number(fs.constants.O_NOFOLLOW || 0),
-    0o600,
-  );
+  let parentFd;
+  let fileFd;
+  let procFile;
+  let created = false;
   try {
-    fs.writeFileSync(fd, bytes);
-    fs.fchmodSync(fd, 0o600);
-    fs.fsyncSync(fd);
+    parentFd = fs.openSync(
+      parent,
+      fs.constants.O_RDONLY |
+        Number(fs.constants.O_DIRECTORY || 0) |
+        Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    const parentFdStat = fs.fstatSync(parentFd);
+    if (
+      !sameDirectoryIdentity(parentFdStat, parentPathStat) ||
+      (parentFdStat.mode & 0o022) !== 0 ||
+      (
+        typeof process.getuid === "function" &&
+        parentFdStat.uid !== process.getuid()
+      )
+    ) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_PARENT_DESCRIPTOR_MISMATCH");
+    }
+    const parentBefore = fs.lstatSync(parent);
+    if (!sameDirectoryIdentity(parentBefore, parentFdStat)) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_PARENT_CHANGED_BEFORE_CREATE");
+    }
+    if (testOnlyAfterParentRevalidationBeforeCreate !== null) {
+      if (typeof testOnlyAfterParentRevalidationBeforeCreate !== "function") {
+        fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_TEST_HOOK_INVALID");
+      }
+      testOnlyAfterParentRevalidationBeforeCreate();
+    }
+
+    procFile = path.join("/proc/self/fd/" + String(parentFd), basename);
+    fileFd = fs.openSync(
+      procFile,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        Number(fs.constants.O_NOFOLLOW || 0),
+      0o600,
+    );
+    created = true;
+    fs.writeFileSync(fileFd, bytes);
+    fs.fchmodSync(fileFd, 0o600);
+    fs.fsyncSync(fileFd);
+    const createdStat = fs.fstatSync(fileFd);
+    if (
+      !createdStat.isFile() ||
+      createdStat.nlink !== 1 ||
+      createdStat.size !== bytes.length ||
+      (createdStat.mode & 0o077) !== 0 ||
+      (
+        typeof process.getuid === "function" &&
+        createdStat.uid !== process.getuid()
+      )
+    ) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_FILE_IDENTITY_INVALID");
+    }
+    fs.fsyncSync(parentFd);
+
+    let parentAfter = null;
+    let outputAfter = null;
+    try {
+      parentAfter = fs.lstatSync(parent);
+      outputAfter = fs.lstatSync(file);
+    } catch {}
+    if (
+      !parentAfter ||
+      !sameDirectoryIdentity(parentAfter, parentFdStat) ||
+      !outputAfter ||
+      !outputAfter.isFile() ||
+      outputAfter.isSymbolicLink() ||
+      outputAfter.dev !== createdStat.dev ||
+      outputAfter.ino !== createdStat.ino ||
+      outputAfter.nlink !== 1 ||
+      outputAfter.size !== createdStat.size
+    ) {
+      const primary = new Error(
+        "PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_PARENT_CHANGED_DURING_WRITE",
+      );
+      let cleanup = null;
+      try {
+        if (created && procFile && fs.existsSync(procFile)) {
+          fs.unlinkSync(procFile);
+          fs.fsyncSync(parentFd);
+          created = false;
+        }
+      } catch (error) {
+        cleanup = error;
+      }
+      if (cleanup) {
+        throw new AggregateError(
+          [primary, cleanup],
+          "PRODUCTION_EPOCH2_RPC_OBSERVER_OUTPUT_DRIFT_CLEANUP_FAILED",
+        );
+      }
+      throw primary;
+    }
+    return Object.freeze({ sha256: sha256(bytes), bytes: bytes.length });
   } finally {
-    fs.closeSync(fd);
+    if (fileFd !== undefined) fs.closeSync(fileFd);
+    if (parentFd !== undefined) fs.closeSync(parentFd);
   }
-  const dfd = fs.openSync(parent, fs.constants.O_RDONLY);
-  try { fs.fsyncSync(dfd); } finally { fs.closeSync(dfd); }
-  return Object.freeze({ sha256: sha256(bytes), bytes: bytes.length });
+}
+export function testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1() {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-production-rpc-observer-output-race-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const parent = path.join(root, "output");
+  const replacement = path.join(root, "replacement");
+  const moved = path.join(root, "moved-original");
+  const file = path.join(parent, "observation.json");
+  fs.mkdirSync(parent, { mode: 0o700 });
+  fs.mkdirSync(replacement, { mode: 0o700 });
+  let reason = null;
+  try {
+    try {
+      createPrivateOutputBoundV1(
+        file,
+        { marker: "VOID_PRODUCTION_EPOCH2_RPC_OUTPUT_PARENT_RACE_TEST_ONLY" },
+        {
+          testOnlyAfterParentRevalidationBeforeCreate() {
+            fs.renameSync(parent, moved);
+            fs.renameSync(replacement, parent);
+          },
+        },
+      );
+    } catch (error) {
+      reason = error instanceof Error ? error.message : String(error);
+    }
+    return Object.freeze({
+      reason,
+      replacement_output_exists:
+        fs.existsSync(path.join(parent, "observation.json")),
+      original_output_exists:
+        fs.existsSync(path.join(moved, "observation.json")),
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 async function main() {
@@ -705,6 +915,16 @@ async function main() {
       sha256(receiptBytes) !== values["activation-receipt-sha256"]) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_EXTERNAL_SHA_MISMATCH");
   }
+  const parsedPlan = parseBytes(
+    planBytes,
+    values["activation-plan-sha256"],
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_CLI_PLAN",
+  ).value;
+  const sourceLineageAncestor =
+    activationSourceLineageAncestor(parsedPlan, source.head);
+  if (!sourceLineageAncestor) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_NOT_ANCESTOR");
+  }
   const service = systemdFacts();
   const listenerBefore = listenerPresent();
   const rpc = await liveRpcFacts();
@@ -734,12 +954,13 @@ async function main() {
       canonical_main_stable_during_observation: true,
       service_invocation_stable_during_observation: true,
       listener_stable_during_observation: true,
+      activation_source_lineage_ancestor_current_main: sourceLineageAncestor,
       rpc,
       observed_at_utc: new Date().toISOString(),
     },
   });
   const output = path.resolve(values.output);
-  const written = createPrivateOutput(output, observation);
+  const written = createPrivateOutputBoundV1(output, observation);
   console.log(VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1);
   console.log("status=" + observation.status);
   console.log("observation_id=" + observation.observation_id);
