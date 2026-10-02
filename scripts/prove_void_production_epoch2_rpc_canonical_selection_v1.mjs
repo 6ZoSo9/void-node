@@ -81,6 +81,27 @@ assert.equal(
   loaded.promotion.admitted_main_head,
   "ac352fe966c8737a8e143475d28f85f80c0a096f",
 );
+assert.equal(loaded.promotion.evidence_packet.checked_in_evidence_verified, true);
+assert.equal(
+  loaded.promotion.evidence_packet.exact_evidence_semantics_reexecuted,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.selected_candidate_recompiled_from_exact_evidence,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.promotion_admission_content_address_reverified,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.historical_source_trees_reverified,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.source_lineage_ancestry_reverified,
+  true,
+);
 for (const sourceCommit of [
   checkedInAdmission.current_source.head,
   ...checkedInAdmission.source_lineage_ancestor_commits,
@@ -228,6 +249,9 @@ console.log("promotion_admission_id=" + promotion.admission.promotion_admission_
 console.log("promotion_admission_sha256=" + promotion.admission.receipt_sha256);
 console.log("central_target_and_datanet_resolver_atomic=true");
 console.log("evidence_aware_selection_verified=true");
+console.log("exact_evidence_semantics_reexecuted=true");
+console.log("selected_candidate_recompiled_from_exact_evidence=true");
+console.log("promotion_admission_content_address_reverified=true");
 console.log("checked_in_evidence_packet_verified=true");
 console.log("checked_in_evidence_source_history_ancestor_current_head=true");
 console.log("historical_epoch1_8545_forbidden=true");

@@ -8,6 +8,11 @@ on:
       - "ops/mainnet0/production-epoch2-rpc-target-promotion-v1.json"
       - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "tools/void-production-epoch2-rpc-target-v1.mjs"
+      - "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs"
+      - "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs"
+      - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "scripts/prove_void_production_epoch2_rpc_target_v1.mjs"
       - "scripts/prove_void_production_epoch2_rpc_canonical_selection_v1.mjs"
       - "ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json"
@@ -26,6 +31,11 @@ on:
       - "ops/mainnet0/production-epoch2-rpc-target-promotion-v1.json"
       - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "tools/void-production-epoch2-rpc-target-v1.mjs"
+      - "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs"
+      - "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs"
+      - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "scripts/prove_void_production_epoch2_rpc_target_v1.mjs"
       - "scripts/prove_void_production_epoch2_rpc_canonical_selection_v1.mjs"
       - "ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json"
@@ -59,6 +69,7 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-production-epoch2-rpc-target-v1.mjs
+          node --check tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs
           node --check scripts/prove_void_production_epoch2_rpc_target_v1.mjs
           node --check scripts/prove_void_production_epoch2_rpc_canonical_selection_v1.mjs
           node --check scripts/prove_datanet_registry_deployer_resolution_target_v1.mjs
