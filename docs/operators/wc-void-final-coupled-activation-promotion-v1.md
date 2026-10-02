@@ -240,6 +240,9 @@ private exact-generation checkout of the reviewed repository head.
 
 The execution boundary now requires:
 
+- the source repository itself is non-shallow; a shallow operator clone HOLDs
+  before authority-bearing reviewed execution because missing historical
+  application-base objects cannot be reconstructed from absent local history;
 - the private checkout contains full local Git history required by historical
   application-base ancestry and commit/blob reads; it is not a depth-1 clone;
 - all six verify-applied root modules are bound to their exact reviewed Git
