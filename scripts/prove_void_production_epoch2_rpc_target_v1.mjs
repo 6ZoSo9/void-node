@@ -45,9 +45,9 @@ function selectedFixture(url = "http://127.0.0.1:28545/") {
     exact_genesis_bound: true,
     production_validator_set_bound: true,
     production_validator_binding_source_path:
-      "ops/mainnet0/future-reviewed-production-validator-binding-v1.json",
+      "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
     production_validator_binding_evidence_sha256:
-      "3".repeat(64),
+      "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b",
     write_capability_classification:
       "write_capable_not_authorized",
     independent_host_acceptance: true,
@@ -117,6 +117,14 @@ assert.throws(
   /production_epoch2_selected_evidence_incomplete/u,
 );
 
+const wrongValidatorDigest = selectedFixture();
+wrongValidatorDigest.selection.production_validator_binding_evidence_sha256 =
+  "0".repeat(64);
+assert.throws(
+  () => validateProductionEpoch2RpcTargetV1(wrongValidatorDigest),
+  /production_epoch2_selected_evidence_incomplete/u,
+);
+
 const forgedHold = structuredClone(target);
 forgedHold.selection.rpc_url = "http://127.0.0.1:28545/";
 assert.throws(
@@ -162,6 +170,7 @@ console.log("json_object_field_order_not_authority=true");
 console.log("synthetic_selected_contract_semantics_green=true");
 console.log("independent_host_acceptance_required=true");
 console.log("reviewed_production_validator_binding_lineage_required=true");
+console.log("promoted_validator_evidence_exactly_bound=true");
 console.log("transaction_authorized=false");
 console.log("authoritative_chain2050_write=false");
 console.log("migration_authorized=false");
