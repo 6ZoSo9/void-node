@@ -327,6 +327,7 @@ for(const [key,value] of Object.entries(
 )){
   const trueKeys=new Set([
     "reviewed_transaction_contract_required",
+    "reviewed_transaction_contract_git_object_execution",
     "durable_transition_before_publish_side_effect",
     "durable_transition_before_restore_side_effect",
     "observation_first_publish_recovery",
