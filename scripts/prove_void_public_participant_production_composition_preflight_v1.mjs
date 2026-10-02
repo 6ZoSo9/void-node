@@ -274,7 +274,7 @@ try{
     Object.keys(
       VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1,
     ).length,
-    12,
+    17,
   );
   for(const sha of Object.values(
     VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1,
