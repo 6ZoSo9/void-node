@@ -85,6 +85,10 @@ for (const required of [
   "request.safety?.automatic_fulfillment !== false",
   "request.safety?.manual_review_required !== true",
   "usdcAtoms",
+  "MAX_BUY_JSON_BYTES = 131072",
+  "response.body?.getReader?.()",
+  "Buy VOID response exceeds byte limit",
+  "new TextDecoder('utf-8', { fatal: true })",
   "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5",
   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
 ]) {
@@ -126,6 +130,8 @@ console.log(`participant_price_occurrences=${canonicalPrice.displayCount}`);
 console.log(`price_policy_one_unit_falsification=${driftedPrice}`);
 console.log("live_readiness_required=1");
 console.log("request_creation_activation_gated=1");
+console.log("response_body_max_bytes=131072");
+console.log("returned_request_intent_bound=1");
 console.log("exchange_custody_loss_warning=1");
 console.log("wallet_or_signer_access=0");
 console.log("browser_fund_send=0");
