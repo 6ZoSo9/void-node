@@ -385,6 +385,10 @@ function buildVoidProductionEpoch2RpcHostObservationCoreV1(
     host.listener_stable_during_observation !== true ||
     host.container_stable_during_observation !== true ||
     host.service_container_contract_verified !== true ||
+    host.systemd_exec_start_matches_reviewed_contract !== true ||
+    host.main_pid_cgroup_service_bound !== true ||
+    !HEX64.test(String(host.exec_start_argv_sha256 || "")) ||
+    host.main_pid_argv_sha256 !== host.exec_start_argv_sha256 ||
     host.activation_source_lineage_ancestor_current_main !== true ||
     host.activation_plan_rederived_from_upstream !== true
   ) {
@@ -531,6 +535,10 @@ function buildVoidProductionEpoch2RpcHostObservationCoreV1(
       main_pid: String(host.main_pid),
       invocation_id: host.invocation_id,
       drop_in_paths: "",
+      exec_start_argv_sha256: host.exec_start_argv_sha256,
+      main_pid_argv_sha256: host.main_pid_argv_sha256,
+      main_pid_cgroup_service_bound: true,
+      systemd_exec_start_matches_reviewed_contract: true,
       runtime_active_verified: true,
       listener_address: "127.0.0.1",
       listener_port: 18553,
@@ -1055,6 +1063,114 @@ function parseStableJson(bytes, label) {
   if (!plain(value)) fail(label + "_JSON_NOT_OBJECT");
   return value;
 }
+function reviewedExecStartArgv(fragmentBytes) {
+  let fragmentText;
+  try {
+    fragmentText =
+      new TextDecoder("utf-8", { fatal: true }).decode(fragmentBytes);
+  } catch {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_FRAGMENT_TEXT_INVALID");
+  }
+  const lines =
+    fragmentText.split("\n").filter((line) => line.startsWith("ExecStart="));
+  if (lines.length !== 1) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_EXEC_START_CARDINALITY_INVALID");
+  }
+  const raw = lines[0].slice("ExecStart=".length);
+  const argv = raw.split(" ");
+  if (
+    argv.length < 3 ||
+    argv.some((value) => value.length < 1 || /[\0\r\n\t]/u.test(value)) ||
+    !path.isAbsolute(argv[0])
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_EXEC_START_INVALID");
+  }
+  return Object.freeze(argv);
+}
+
+function validateSystemdInvocationEvidence(
+  fragmentBytes,
+  mainPidArgv,
+  mainPidCgroup,
+) {
+  const expected = reviewedExecStartArgv(fragmentBytes);
+  if (
+    !Array.isArray(mainPidArgv) ||
+    mainPidArgv.some((value) => typeof value !== "string") ||
+    canonical(mainPidArgv) !== canonical(expected)
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ARGV_MISMATCH");
+  }
+  const cgroup = String(mainPidCgroup || "");
+  const serviceBound = cgroup.split("\n").some((line) => {
+    const first = line.indexOf(":");
+    const second = first < 0 ? -1 : line.indexOf(":", first + 1);
+    const cgroupPath = second < 0 ? "" : line.slice(second + 1);
+    return (
+      cgroupPath.endsWith("/" + SERVICE) ||
+      cgroupPath.includes("/" + SERVICE + "/")
+    );
+  });
+  if (!serviceBound) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_MISMATCH");
+  }
+  const expectedSha =
+    sha256(Buffer.from(expected.join("\0") + "\0", "utf8"));
+  const observedSha =
+    sha256(Buffer.from(mainPidArgv.join("\0") + "\0", "utf8"));
+  if (expectedSha !== observedSha) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ARGV_SHA_MISMATCH");
+  }
+  return Object.freeze({
+    exec_start_argv_sha256: expectedSha,
+    main_pid_argv_sha256: observedSha,
+    main_pid_cgroup_service_bound: true,
+    systemd_exec_start_matches_reviewed_contract: true,
+  });
+}
+
+export function testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1(
+  input,
+) {
+  try {
+    const value = validateSystemdInvocationEvidence(
+      Buffer.from(String(input?.fragment_text || ""), "utf8"),
+      input?.main_pid_argv,
+      input?.main_pid_cgroup,
+    );
+    return Object.freeze({ ok: true, ...value });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function readProcInvocation(mainPid) {
+  const pid = String(mainPid || "");
+  if (!/^[1-9][0-9]*$/u.test(pid)) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_INVALID");
+  }
+  const cmdline = fs.readFileSync("/proc/" + pid + "/cmdline");
+  if (cmdline.length < 2 || cmdline.length > 1024 * 1024) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CMDLINE_INVALID");
+  }
+  const argv = cmdline.toString("utf8").split("\0");
+  if (argv.at(-1) === "") argv.pop();
+  if (argv.length < 1 || argv.some((value) => value.length < 1)) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CMDLINE_INVALID");
+  }
+  const cgroup = fs.readFileSync("/proc/" + pid + "/cgroup", "utf8");
+  if (cgroup.length < 1 || cgroup.length > 1024 * 1024) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_INVALID");
+  }
+  return Object.freeze({
+    argv: Object.freeze(argv),
+    cgroup,
+  });
+}
+
 function systemdFacts() {
   const result = spawnSync(
     SYSTEMCTL,
@@ -1085,15 +1201,23 @@ function systemdFacts() {
     fragment,
     "PRODUCTION_EPOCH2_RPC_OBSERVER_FRAGMENT",
   );
+  const mainPid = String(map.MainPID || "");
+  const proc = readProcInvocation(mainPid);
+  const invocation = validateSystemdInvocationEvidence(
+    fragmentBytes,
+    proc.argv,
+    proc.cgroup,
+  );
   return Object.freeze({
     service_unit: SERVICE,
     active_state: String(map.ActiveState || ""),
     sub_state: String(map.SubState || ""),
-    main_pid: String(map.MainPID || ""),
+    main_pid: mainPid,
     invocation_id: String(map.InvocationID || "").toLowerCase(),
     fragment_path: fragment,
     fragment_file_sha256: sha256(fragmentBytes),
     drop_in_paths: String(map.DropInPaths || ""),
+    ...invocation,
   });
 }
 function listenerPresent() {
@@ -1364,7 +1488,8 @@ async function dockerContainerFacts(expected, service, precisionInstall) {
   }
   return normalizeDockerInspect(inspect, expected, {
     socket_owner_uid: before.uid,
-    systemd_exec_start_matches_reviewed_contract: true,
+    systemd_exec_start_matches_reviewed_contract:
+      service.systemd_exec_start_matches_reviewed_contract === true,
   });
 }
 function rpcCall(method, params = []) {
@@ -1803,19 +1928,6 @@ async function main() {
     "PRODUCTION_EPOCH2_RPC_OBSERVER_CLI_RECEIPT",
   ).value;
 
-  const rederivedPlan =
-    compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
-      plan: privateRuntimePlan,
-      plan_file_sha256: values["private-runtime-plan-sha256"],
-      bundle_set_receipt: bundleSet,
-      install_receipts: installReceipts,
-      start_admission_receipt: startAdmission,
-      compiled_at_utc: parsedPlan.compiled_at_utc,
-    });
-  if (!same(rederivedPlan, parsedPlan)) {
-    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_PLAN_REDERIVATION_MISMATCH");
-  }
-
   const reviewedSemantic = reviewedSemanticExecution(source, {
     private_runtime_plan: privateRuntimePlan,
     private_runtime_plan_file_sha256: values["private-runtime-plan-sha256"],
@@ -1826,10 +1938,14 @@ async function main() {
     activation_receipt: parsedReceipt,
     rpc_url: RPC_URL,
   });
+  const rederivedPlan = reviewedSemantic.activation_plan;
+  if (!same(rederivedPlan, parsedPlan)) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_PLAN_REDERIVATION_MISMATCH");
+  }
 
   const sourceLineageAncestor =
     activationSourceLineageAncestor(
-      parsedPlan,
+      rederivedPlan,
       privateRuntimePlan,
       source.head,
     );
@@ -1837,12 +1953,12 @@ async function main() {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_NOT_ANCESTOR");
   }
   const precisionInstall =
-    parsedPlan.install_receipts.find((row) => row?.role === "precision");
+    rederivedPlan.install_receipts.find((row) => row?.role === "precision");
   if (!plain(precisionInstall)) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_PRECISION_INSTALL_MISSING");
   }
   const expectedContainer =
-    reviewedPrecisionContainerContract(reviewedSemantic, parsedPlan);
+    reviewedPrecisionContainerContract(reviewedSemantic, rederivedPlan);
   const service = systemdFacts();
   const containerBefore =
     await dockerContainerFacts(expectedContainer, service, precisionInstall);
