@@ -603,6 +603,26 @@ function reviewedModuleClosure(commit) {
   });
 }
 
+function encodeReviewedTransportValue(value) {
+  if (Buffer.isBuffer(value)) {
+    return Object.freeze({
+      __void_reviewed_buffer_v1: value.toString("base64"),
+    });
+  }
+  if (Array.isArray(value)) {
+    return value.map(encodeReviewedTransportValue);
+  }
+  if (plain(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [
+        key,
+        encodeReviewedTransportValue(child),
+      ]),
+    );
+  }
+  return value;
+}
+
 function privateNodeEnv(home) {
   return {
     PATH: "/usr/bin:/bin",
@@ -958,9 +978,20 @@ function buildReviewedExecutionRoot(repository) {
       'process.stdin.setEncoding("utf8");',
       'let text="";',
       'for await (const chunk of process.stdin) text+=chunk;',
+      'function revive(value){',
+      '  if(Array.isArray(value)) return value.map(revive);',
+      '  if(value&&typeof value==="object"){',
+      '    const keys=Object.keys(value);',
+      '    if(keys.length===1&&keys[0]==="__void_reviewed_buffer_v1"&&typeof value.__void_reviewed_buffer_v1==="string"){',
+      '      return Buffer.from(value.__void_reviewed_buffer_v1,"base64");',
+      '    }',
+      '    return Object.fromEntries(Object.entries(value).map(([key,child])=>[key,revive(child)]));',
+      '  }',
+      '  return value;',
+      '}',
       'let envelope;',
       'try{',
-      '  const request=JSON.parse(text);',
+      '  const request=revive(JSON.parse(text));',
       '  const result=executeVoidWcVoidBoundedCanaryReviewedV1(request);',
       '  envelope={ok:true,result,error:null};',
       '}catch(error){',
@@ -1106,7 +1137,7 @@ function runReviewedAuthority(repository, request) {
       {
         cwd: bundle.bootstrap_dir,
         env: privateNodeEnv(bundle.bootstrap_dir),
-        input: JSON.stringify(request),
+        input: JSON.stringify(encodeReviewedTransportValue(request)),
         encoding: "utf8",
         stdio: ["pipe", "pipe", "pipe"],
         maxBuffer: 64 * 1024 * 1024,
