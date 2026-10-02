@@ -13,6 +13,7 @@ import {
   testOnlyExerciseVoidWcVoidFinalCoupledInputParentReplacementV1,
   testOnlyExerciseVoidWcVoidFinalCoupledOutputParentReplacementV1,
   testOnlyExerciseVoidWcVoidFinalCoupledReviewedBindingMutationV1,
+  testOnlyExerciseVoidWcVoidFinalCoupledReviewedHistoryV1,
   testOnlyVoidWcVoidFinalCoupledGitIdentityV1,
   writeVoidWcVoidFinalCoupledActivationPromotionV1,
 } from "../tools/void-wc-void-final-coupled-activation-promotion-v1.mjs";
@@ -483,6 +484,15 @@ try {
 }
 
 {
+  const history =
+    testOnlyExerciseVoidWcVoidFinalCoupledReviewedHistoryV1();
+  assert.equal(history.source_repository_shallow, false);
+  assert.equal(history.historical_parent_commit_resolved, true);
+  assert.equal(history.historical_parent_tree_resolved, true);
+  assert.equal(history.historical_parent_ancestor_verified, true);
+}
+
+{
   const temp = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-final-coupled-git-adversary-"),
   );
@@ -632,6 +642,9 @@ for (const required of [
   "testOnlyExerciseVoidWcVoidFinalCoupledReviewedBindingMutationV1",
   "FINAL_COUPLED_REVIEWED_PARENT_IDENTITY_DRIFT",
   "FINAL_COUPLED_REVIEWED_PRIVATE_MODULE_BLOB_MISMATCH",
+  "FINAL_COUPLED_SOURCE_REPOSITORY_SHALLOW",
+  '"--is-shallow-repository"',
+  "testOnlyExerciseVoidWcVoidFinalCoupledReviewedHistoryV1",
 ]) {
   assert.equal(source.includes(required), true, required);
 }
@@ -682,6 +695,8 @@ console.log("private_input_parent_identity_bound=true");
 console.log("private_output_parent_fd_bound=true");
 console.log("private_output_exact_directory_fsync=true");
 console.log("reviewed_execution_full_history_required=true");
+console.log("source_repository_non_shallow_required=true");
+console.log("historical_application_base_private_resolution_green=true");
 console.log("reviewed_execution_process_cache=false");
 console.log("reviewed_classifier_transitive_closure_bound=true");
 console.log("reviewed_static_binding_revalidated_before_spawn=true");
