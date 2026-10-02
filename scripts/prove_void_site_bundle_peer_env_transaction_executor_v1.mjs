@@ -566,6 +566,56 @@ for(const [key,value] of Object.entries(
   );
 }
 
+{
+  const internal =
+    VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1;
+  assert.equal(
+    internal.canonicalReadyBase("http://127.0.0.1:4100","local"),
+    "http://127.0.0.1:4100",
+  );
+  assert.equal(
+    internal.canonicalReadyBase("http://127.0.0.1:4101","remote"),
+    "http://127.0.0.1:4101",
+  );
+  assert.equal(
+    internal.canonicalReadyBase("http://127.0.0.1:4102","remote"),
+    "http://127.0.0.1:4102",
+  );
+  for(const invalid of [
+    "http://127.0.0.1:4103",
+    "http://localhost:4100",
+    "https://127.0.0.1:4100",
+    "http://0.0.0.0:4100",
+  ]){
+    assert.throws(
+      ()=>internal.canonicalReadyBase(invalid,"remote"),
+      /ready_base_invalid/u,
+    );
+  }
+
+  const baseIntent={
+    remoteTarget:"nimo",
+    localPeer:"http://peer-a.example:4100",
+    remotePeer:"http://peer-b.example:4101",
+    dropinName:"97-site-bundle-peers.conf",
+    localReadyBase:"http://127.0.0.1:4100",
+    remoteReadyBase:"http://127.0.0.1:4101",
+  };
+  const first=internal.desiredIntent(baseIntent);
+  const second=internal.desiredIntent({
+    ...baseIntent,
+    remoteReadyBase:"http://127.0.0.1:4102",
+  });
+  assert.equal(first.service_unit,"void-node-live.service");
+  assert.equal(first.local_ready_base,"http://127.0.0.1:4100");
+  assert.equal(first.remote_ready_base,"http://127.0.0.1:4101");
+  assert.notEqual(
+    internal.journalPath("/tmp/void-site-bundle-proof",first),
+    internal.journalPath("/tmp/void-site-bundle-proof",second),
+    "readiness topology must alter durable journal identity",
+  );
+}
+
 const source=fs.readFileSync(
   "tools/void-site-bundle-peer-env-transaction-executor-v1.mjs",
   "utf8",
@@ -573,6 +623,7 @@ const source=fs.readFileSync(
 for(const forbidden of [
   "git push",
   "git tag",
+  '"void-node.service"',
   "eth_sendRawTransaction",
   "new Wallet(",
   "validator-runtime-truth-publish",
@@ -591,7 +642,12 @@ for(const required of [
   'const SYSTEMCTL="/usr/bin/systemctl"',
   '"--user","unset-environment"',
   '"--user","daemon-reload"',
-  '"--user","restart","void-node.service"',
+  '"--user","restart",SERVICE',
+  'const SERVICE=\\"void-node-live.service\\"',
+  'READY_BASE+\\"/__void/ready.json\\"',
+  '"local-ready-base"',
+  '"remote-ready-base"',
+  "site_bundle_executor_competing_nonterminal_journal",
   '"/proc/self/fd/"',
   "writeDurableJournal",
   "participant_prestate_drift",
@@ -638,6 +694,11 @@ console.log("restore_partial_crash_completed_without_blind_restart=true");
 console.log("ambiguous_recovery_holds=true");
 console.log("journal_failure_not_reinterpreted=true");
 console.log("live_adapter_reviewed_absolute_primitives=true");
+console.log("live_service_unit=void-node-live.service");
+console.log("explicit_loopback_readiness_topology_required=true");
+console.log("readiness_topology_bound_to_journal_identity=true");
+console.log("competing_nonterminal_journal_forbidden=true");
+console.log("current_fleet_peer_ports_4100_4101_4102_allowed=true");
 console.log("participant_receipts_create_only_idempotent=true");
 console.log("private_journal_parent_fd_bound=true");
 console.log("retired_alienware_forbidden=true");
