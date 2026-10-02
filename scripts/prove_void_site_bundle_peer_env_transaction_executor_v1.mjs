@@ -147,6 +147,7 @@ class FakeAdapter{
     this.restoreCount={local:0,remote:0};
     this.recoverRestoreCount={local:0,remote:0};
     this.participantReceipts=[];
+    this.failParticipantReceiptOnce=new Set();
     this.failPublishAfterEffect=new Set();
     this.failPublishBeforeEffect=new Set();
     this.failPublishPartialAfterDropin=new Set();
@@ -166,6 +167,11 @@ class FakeAdapter{
     this.stageCount[participant]+=1;
   }
   async persistParticipantReceipt(participant,bucket,receipt){
+    const key=participant+":"+bucket;
+    if(this.failParticipantReceiptOnce.has(key)){
+      this.failParticipantReceiptOnce.delete(key);
+      throw new Error("simulated_participant_receipt_failure:"+key);
+    }
     this.participantReceipts.push({participant,bucket,receipt:clone(receipt)});
   }
   async observe(participant){
@@ -284,6 +290,7 @@ for(const [key,value] of Object.entries(
     "observation_first_restore_recovery",
     "exact_prestate_restore_required",
     "participant_receipt_persistence_required",
+    "participant_receipt_before_transition_persistence",
     "source_contract_authority_preserved",
     "ssh_execution_adapter_required_for_remote",
     "systemd_mutation_adapter_required_for_publish_restore",
@@ -351,6 +358,45 @@ for(const [key,value] of Object.entries(
   assert.equal(adapter.publishCount.local,1);
   assert.equal(resumed.transaction.published.local.restart_after_invocation_id,
     "2".repeat(32));
+}
+
+// Failure of the required participant receipt after a publish side effect must
+// not advance the canonical journal past publish_started. Recovery recreates the
+// same create-only receipt and completes without republishing.
+{
+  const tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  const journal=memoryJournal(tx);
+  const adapter=new FakeAdapter(tx);
+  adapter.failParticipantReceiptOnce.add("local:published");
+
+  await assert.rejects(
+    ()=>driveVoidSiteBundlePeerEnvTransactionV1({
+      transaction:tx,
+      adapter,
+      persist:journal.persist,
+    }),
+    /simulated_participant_receipt_failure:local:published/u,
+  );
+  assert.equal(
+    nextVoidCrossboxMutationRecoveryV1(journal.current),
+    "RECOVER_PUBLISH_LOCAL",
+  );
+  assert.equal(journal.current.published.local,null);
+  assert.equal(adapter.publishCount.local,1);
+
+  const resumed=await driveVoidSiteBundlePeerEnvTransactionV1({
+    transaction:journal.current,
+    adapter,
+    persist:journal.persist,
+  });
+  assert.equal(resumed.action,"DONE_COMMITTED");
+  assert.equal(adapter.publishCount.local,1);
+  assert.equal(
+    adapter.participantReceipts.filter(
+      (row)=>row.participant==="local"&&row.bucket==="published",
+    ).length,
+    1,
+  );
 }
 
 // Crash after the target drop-in was published but before manager environment
@@ -650,6 +696,7 @@ for(const required of [
   "site_bundle_executor_competing_nonterminal_journal",
   '"/proc/self/fd/"',
   "writeDurableJournal",
+  "persistParticipantTransition",
   "participant_prestate_drift",
   "participant_create_only_conflict",
   "recover_publish",
@@ -693,6 +740,7 @@ console.log("restore_crash_observed_without_duplicate_restore=true");
 console.log("restore_partial_crash_completed_without_blind_restart=true");
 console.log("ambiguous_recovery_holds=true");
 console.log("journal_failure_not_reinterpreted=true");
+console.log("participant_receipt_failure_blocks_journal_advance=true");
 console.log("live_adapter_reviewed_absolute_primitives=true");
 console.log("live_service_unit=void-node-live.service");
 console.log("explicit_loopback_readiness_topology_required=true");
