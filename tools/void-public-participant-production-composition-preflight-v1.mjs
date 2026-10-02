@@ -83,6 +83,16 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
       "5d263d9fd7319f6c536cb6b469d08f7e2a9a41ae",
     "src/security/chain2050_role_authority_live_rpc_binding_v1.ts":
       "f0e2bcac5440542a03ed7b4da7724077fb475a8a",
+    "src/security/chain2050_role_authority_contract_projection_v1.ts":
+      "fc11badd6ceb7a0da7285a812e9e559361501993",
+    "src/security/chain2050_role_authority_read_adapter_v1.ts":
+      "1b1747cef01d38cf447e6b5a6a80bb54736244fd",
+    "src/security/chain2050_role_authority_record_v1.ts":
+      "3a02bb236e68d28844d72c8cc26cbcb0cd13ab7a",
+    "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts":
+      "fe4ebdee01063171c0f5bfee5e36a521870ff17b",
+    "src/security/chain2050_role_authority_registry_v1.ts":
+      "9bfe04f38ac2672f1151395c85a22b017e61ac25",
   });
 
 function fail(code){throw new Error(code);}
