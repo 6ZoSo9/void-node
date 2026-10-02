@@ -5,10 +5,154 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import {
+
+const REVIEWED_TX_CONTRACT_REL_V1 =
+  "tools/void-crossbox-mutation-transaction-v1.mjs";
+const REVIEWED_EXECUTOR_ROOT_V1 =
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const REVIEWED_GIT_V1 = "/usr/bin/git";
+const REVIEWED_GIT_CONFIG_V1 = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
+const REVIEWED_TX_EXPORTS_V1 = Object.freeze([
+  "VOID_CROSSBOX_MUTATION_TRANSACTION_AUTHORITY_V1",
+  "VOID_CROSSBOX_MUTATION_TRANSACTION_CONFIRMATION_V1",
+  "VOID_CROSSBOX_MUTATION_TRANSACTION_V1",
+  "beginVoidCrossboxMutationCommitV1",
+  "beginVoidCrossboxMutationRollbackV1",
+  "finalizeVoidCrossboxMutationCommittedV1",
+  "finalizeVoidCrossboxMutationRestoredV1",
+  "holdVoidCrossboxMutationTransactionV1",
+  "nextVoidCrossboxMutationRecoveryV1",
+  "prepareVoidCrossboxMutationTransactionV1",
+  "recordVoidCrossboxMutationPreparedV1",
+  "recordVoidCrossboxMutationPublishNoEffectV1",
+  "recordVoidCrossboxMutationPublishStartedV1",
+  "recordVoidCrossboxMutationPublishedV1",
+  "recordVoidCrossboxMutationRestoreStartedV1",
+  "recordVoidCrossboxMutationRestoredV1",
+  "recordVoidCrossboxMutationVerifiedV1",
+].sort());
+
+function reviewedTransactionGitEnvV1(){
+  return {
+    PATH:"/usr/bin:/bin",
+    HOME:"/nonexistent",
+    XDG_CONFIG_HOME:"/nonexistent",
+    LANG:"C",
+    LC_ALL:"C",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_ATTR_NOSYSTEM:"1",
+    GIT_NO_REPLACE_OBJECTS:"1",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_ASKPASS:"/bin/false",
+  };
+}
+
+function reviewedTransactionGitV1(args,code,{encoding="utf8"}={}){
+  const result=spawnSync(
+    REVIEWED_GIT_V1,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_V1,
+      "-C",REVIEWED_EXECUTOR_ROOT_V1,
+      ...args,
+    ],
+    {
+      cwd:"/",
+      env:reviewedTransactionGitEnvV1(),
+      encoding,
+      stdio:["ignore","pipe","pipe"],
+      maxBuffer:8*1024*1024,
+      timeout:30_000,
+    },
+  );
+  if(result.error||result.status!==0)fail(code);
+  return result.stdout;
+}
+
+async function loadReviewedTransactionContractV1(){
+  const head=String(
+    reviewedTransactionGitV1(
+      ["rev-parse","HEAD"],
+      "site_bundle_executor_reviewed_contract_head_unavailable",
+    )||"",
+  ).trim();
+  if(!/^[0-9a-f]{40}$/u.test(head)){
+    fail("site_bundle_executor_reviewed_contract_head_invalid");
+  }
+  const blob=String(
+    reviewedTransactionGitV1(
+      ["rev-parse",head+":"+REVIEWED_TX_CONTRACT_REL_V1],
+      "site_bundle_executor_reviewed_contract_blob_unavailable",
+    )||"",
+  ).trim();
+  if(!/^[0-9a-f]{40}$/u.test(blob)){
+    fail("site_bundle_executor_reviewed_contract_blob_invalid");
+  }
+  const bytes=Buffer.from(
+    reviewedTransactionGitV1(
+      ["show",head+":"+REVIEWED_TX_CONTRACT_REL_V1],
+      "site_bundle_executor_reviewed_contract_bytes_unavailable",
+      {encoding:null},
+    )||Buffer.alloc(0),
+  );
+  if(bytes.length<1||bytes.length>8*1024*1024||gitBlobSha1(bytes)!==blob){
+    fail("site_bundle_executor_reviewed_contract_bytes_invalid");
+  }
+  const source=new TextDecoder("utf-8",{fatal:true}).decode(bytes);
+  const imports=[
+    ...source.matchAll(/\bfrom\s+["']([^"']+)["']/gu),
+    ...source.matchAll(/\bimport\s+["']([^"']+)["']/gu),
+  ].map((match)=>match[1]);
+  if(
+    imports.some((spec)=>spec!=="node:crypto")||
+    /\bimport\s*\(/u.test(source)
+  ){
+    fail("site_bundle_executor_reviewed_contract_import_surface_invalid");
+  }
+  const moduleUrl=
+    "data:text/javascript;base64,"+bytes.toString("base64")+
+    "#void-reviewed-git-blob="+blob;
+  const loaded=await import(moduleUrl);
+  const actual=Object.keys(loaded).sort();
+  if(
+    actual.length!==REVIEWED_TX_EXPORTS_V1.length||
+    actual.some((name,index)=>name!==REVIEWED_TX_EXPORTS_V1[index])
+  ){
+    fail("site_bundle_executor_reviewed_contract_export_surface_invalid");
+  }
+  for(const name of REVIEWED_TX_EXPORTS_V1){
+    if(
+      name.startsWith("VOID_")
+        ? loaded[name]===undefined
+        : typeof loaded[name]!=="function"
+    ){
+      fail("site_bundle_executor_reviewed_contract_export_invalid:"+name);
+    }
+  }
+  return Object.freeze({
+    module:loaded,
+    head,
+    git_blob_sha1:blob,
+  });
+}
+
+const REVIEWED_TX_CONTRACT_V1 =
+  await loadReviewedTransactionContractV1();
+
+const {
   VOID_CROSSBOX_MUTATION_TRANSACTION_AUTHORITY_V1,
   VOID_CROSSBOX_MUTATION_TRANSACTION_CONFIRMATION_V1,
   beginVoidCrossboxMutationCommitV1,
@@ -25,7 +169,7 @@ import {
   recordVoidCrossboxMutationRestoreStartedV1,
   recordVoidCrossboxMutationRestoredV1,
   recordVoidCrossboxMutationVerifiedV1,
-} from "./void-crossbox-mutation-transaction-v1.mjs";
+} = REVIEWED_TX_CONTRACT_V1.module;
 
 export const VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1 =
   "VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1";
@@ -847,6 +991,12 @@ export const VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1 =
     desiredIntent,
     journalPath,
     coordinatorSourceIdentity,
+    reviewedTransactionContractBinding:Object.freeze({
+      head:REVIEWED_TX_CONTRACT_V1.head,
+      git_blob_sha1:REVIEWED_TX_CONTRACT_V1.git_blob_sha1,
+      relative_path:REVIEWED_TX_CONTRACT_REL_V1,
+      execution_surface:"immutable_data_url_from_exact_git_object",
+    }),
   });
 
 
