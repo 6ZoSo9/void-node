@@ -114,7 +114,8 @@ created beneath that package root. The private parent directory identity plus bo
 runtime-tool, profile, generated-runner, and every reviewed module byte identity are
 revalidated before package verification and again immediately before child spawn.
 The reviewed bridge executes there under `node --permission` with filesystem reads
-limited to the private reviewed root. Binary evidence inputs cross the parent/child
+limited to the private reviewed root plus the exact reviewed Git executable path(s)
+needed by #2240's read-only provenance checks. Binary evidence inputs cross the parent/child
 JSON boundary only through an explicit base64 Buffer transport marker and are revived
 to Buffers before semantic rederivation; ordinary JSON serialization is not accepted
 as an evidence-byte substitute.
