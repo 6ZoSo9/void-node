@@ -6,6 +6,7 @@ const BUY_MARKER = 'VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1';
 const CANONICAL_RECEIVER = '0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5';
 const CANONICAL_BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+const MAX_BUY_JSON_BYTES = 131072;
 let requestSerial = 0;
 let currentSnapshot = null;
 let submitBusy = false;
@@ -33,8 +34,47 @@ const format = (value, maximumFractionDigits = 6) => {
 const strictJson = async (response) => {
   const type = String(response.headers.get('content-type') || '').toLowerCase();
   if (!type.includes('application/json')) throw new Error('non-JSON Buy VOID response');
-  const body = await response.json();
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('invalid Buy VOID response');
+  const declared = Number(response.headers.get('content-length') || '0');
+  if (Number.isFinite(declared) && declared > MAX_BUY_JSON_BYTES) {
+    throw new Error('Buy VOID response exceeds byte limit');
+  }
+  const reader = response.body?.getReader?.();
+  if (!reader) throw new Error('Buy VOID response stream unavailable');
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array) || value.byteLength === 0) {
+        throw new Error('invalid Buy VOID response stream');
+      }
+      total += value.byteLength;
+      if (total > MAX_BUY_JSON_BYTES) {
+        throw new Error('Buy VOID response exceeds byte limit');
+      }
+      chunks.push(value);
+    }
+  } catch (error) {
+    try { await reader.cancel(); } catch (_cancelError) { /* bounded teardown best effort */ }
+    throw error;
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  let body;
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    body = JSON.parse(text);
+  } catch {
+    throw new Error('invalid Buy VOID JSON response');
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error('invalid Buy VOID response');
+  }
   return body;
 };
 const fetchJson = async (path) => {
