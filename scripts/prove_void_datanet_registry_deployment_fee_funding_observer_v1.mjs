@@ -235,6 +235,7 @@ async function observeWithBalance(balanceHex){
     {number:"0x3",hash:blockHash,baseFeePerGas:"0x0"},
   ];
   let at=0;
+  const requests=[];
   const result=await observeVoidDatanetRegistryDeploymentFeeFundingV1({
     rpc_url:PRIVATE_SUCCESSOR_RPC_V1,
     activation_plan:activationPlan,
@@ -245,9 +246,22 @@ async function observeWithBalance(balanceHex){
     publisher_address:binding.publisher_address,
     predecessor_address:binding.predecessor_address,
     compiled_identity:identity,
-    transport:async()=>replies[at++],
+    transport:async(request)=>{
+      requests.push(request);
+      return replies[at++];
+    },
   });
   assert.equal(at,11);
+  assert.equal(requests[7].method,"eth_estimateGas");
+  assert.deepEqual(
+    requests[7].params[0].accessList,
+    [{
+      address:"0x0000000000000000000000000000000000002050",
+      storageKeys:[
+        "0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7",
+      ],
+    }],
+  );
   return result;
 }
 

@@ -10,6 +10,9 @@ import {
   buildVoidDatanetRegistryUnsignedDeploymentInputPlanV1,
   validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1,
 } from "./void-datanet-registry-unsigned-deployment-input-plan-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "./void-economic-epoch2-raw-transaction-domain-v1.mjs";
 
 export const VOID_DATANET_REGISTRY_DEPLOYMENT_FEE_FUNDING_OBSERVER_V1 =
   "VOID_DATANET_REGISTRY_DEPLOYMENT_FEE_FUNDING_OBSERVER_V1";
@@ -252,11 +255,19 @@ export async function observeVoidDatanetRegistryDeploymentFeeFundingV1(input){
       return held("fee_funding_nonce_balance_or_vacancy_drift",methods);
     }
 
+    const marker=
+      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1;
     const estimate=quantity(await call("eth_estimateGas",[
       {
         from:deployer,
         data:plan.deployment_inputs.creation_data,
         value:"0x0",
+        accessList:[
+          {
+            address:marker.marker_address,
+            storageKeys:[marker.marker_storage_key],
+          },
+        ],
       },
       headTag,
     ]));
