@@ -69,13 +69,11 @@ The harness impersonates only public fixture addresses through the Foundry
 
 ## Gas definitions
 
-`execution_gas` is measured with `gasleft()` around the direct
-settlement-executor call into `WCVoidMarketVaultV2.settleVoid`.
-
-That interval includes Solidity's external CALL envelope in the test harness.
-A real EOA transaction does not have that exact caller-side CALL overhead, so
-the census intentionally treats the result conservatively rather than as a
-minimal transaction estimate.
+`execution_gas` is returned by Foundry's `snapshotGasLastCall(...)` cheatcode
+for the direct settlement-executor call into `WCVoidMarketVaultV2.settleVoid`.
+The cheatcode reports the previous call from the callee perspective, excluding
+the test contract's caller-side CALL envelope. The focused workflow disables
+snapshot-file emission, so this remains an in-memory observation.
 
 `intrinsic_gas` is calculated under the Paris transaction schedule as:
 
@@ -87,10 +85,11 @@ minimal transaction estimate.
 
 No access list is assumed.
 
-`conservative_tx_gas = execution_gas + intrinsic_gas`.
+`measured_tx_gas = execution_gas + intrinsic_gas`.
 
-Because the measured execution already includes internal caller CALL overhead,
-this sum is intentionally an upper envelope, not a claim of exact minimal gas.
+For the exact observed calldata and source generation this gives the measured
+transaction gas envelope without adding an arbitrary policy margin. #2364 must
+choose any production safety margin separately after this evidence is pinned.
 
 Both observations must remain below the existing signed-intent maximum:
 
@@ -107,14 +106,15 @@ The first hosted run is observational. It emits:
 
 - `settle_void_first_execution_gas`;
 - `settle_void_first_intrinsic_gas`;
-- `settle_void_first_conservative_tx_gas`;
+- `settle_void_first_measured_tx_gas`;
 - `settle_void_subsequent_execution_gas`;
 - `settle_void_subsequent_intrinsic_gas`;
-- `settle_void_subsequent_conservative_tx_gas`.
+- `settle_void_subsequent_measured_tx_gas`.
 
 After those values are observed, a later commit in this same lane may pin the
-exact measurement evidence and add an explicit reviewed ceiling. Until that
-happens, #2364 must not infer a production gas budget from this source alone.
+exact measurement evidence. Any production safety margin or sponsored-gas
+budget remains a separate #2364 policy decision. Until the measurement is
+pinned, #2364 must not infer a production gas budget from this source alone.
 
 ## Authority
 
