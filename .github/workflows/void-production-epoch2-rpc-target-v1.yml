@@ -71,6 +71,9 @@ jobs:
           node --check tools/void-production-epoch2-rpc-target-v1.mjs
           node --check tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs
           node --check scripts/prove_void_production_epoch2_rpc_target_v1.mjs
+      - name: Prove reviewed selection evidence directly
+        run: node tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs
+
       - name: Prove production Epoch-2 RPC target contract
         run: |
           node tools/void-production-epoch2-rpc-target-v1.mjs
