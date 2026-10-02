@@ -114,6 +114,12 @@ const REVIEWED_EXECUTION_PATHS = Object.freeze([
   "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
   "ops/precision/void-precision-epoch2-qbft-private-runtime-activate-v1.mjs",
 ]);
+const HISTORICAL_ACTIVATION_EXECUTION_PATHS = Object.freeze([
+  ACTIVATION_REL,
+  "tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs",
+]);
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
 const ORIGINS = new Set([
   "https://github.com/6ZoSo9/void-node",
@@ -348,6 +354,12 @@ function buildVoidProductionEpoch2RpcHostObservationCoreV1(
   const plan = reviewed.activation_plan;
   const receipt = reviewed.activation_receipt;
   const targetValue = reviewed.target_value;
+  if (
+    reviewed.reviewed_activation_source_head_sha !==
+      plan.start_admission_observed_repo_head
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_BINDING_INVALID");
+  }
   const expectedContainer =
     reviewedPrecisionContainerContract(reviewed, plan);
   const identity = targetValue.reviewed_successor_identity;
@@ -365,7 +377,13 @@ function buildVoidProductionEpoch2RpcHostObservationCoreV1(
     !plain(host) ||
     reviewed.reviewed_source_head_sha !== source.head ||
     reviewed.reviewed_source_tree_sha !== source.tree ||
-    !HEX64.test(String(reviewed.reviewed_execution_manifest_sha256 || ""))
+    !HEX64.test(String(reviewed.reviewed_execution_manifest_sha256 || "")) ||
+    !HEX40.test(String(reviewed.reviewed_activation_source_head_sha || "")) ||
+    !HEX40.test(String(reviewed.reviewed_activation_source_tree_sha || "")) ||
+    !HEX64.test(
+      String(reviewed.reviewed_activation_execution_manifest_sha256 || ""),
+    ) ||
+    reviewed.reviewed_activation_source_ancestor_current_main !== true
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_SOURCE_OR_HOST_INVALID");
   }
@@ -506,6 +524,13 @@ function buildVoidProductionEpoch2RpcHostObservationCoreV1(
       worktree_semantic_import: false,
       reviewed_execution_manifest_sha256:
         reviewed.reviewed_execution_manifest_sha256,
+      activation_source_head_sha:
+        reviewed.reviewed_activation_source_head_sha,
+      activation_source_tree_sha:
+        reviewed.reviewed_activation_source_tree_sha,
+      activation_execution_manifest_sha256:
+        reviewed.reviewed_activation_execution_manifest_sha256,
+      activation_source_ancestor_current_main: true,
     }),
     activation_lineage: Object.freeze({
       activation_plan_id: plan.activation_plan_id,
@@ -768,9 +793,12 @@ function commitIdentity(head, relativePath) {
     file_sha256: sha256(bytes),
   });
 }
-function reviewedExecutionManifest(head) {
+function reviewedExecutionManifest(
+  head,
+  paths = REVIEWED_EXECUTION_PATHS,
+) {
   const files = Object.fromEntries(
-    REVIEWED_EXECUTION_PATHS.map((relativePath) => {
+    paths.map((relativePath) => {
       const identity = commitIdentity(head, relativePath);
       return [relativePath, Object.freeze({
         git_blob_sha1: identity.git_blob_sha1,
@@ -810,25 +838,53 @@ function privateChildEnv(home) {
     NODE_PATH: "",
   };
 }
-function reviewedSemanticExecution(repo, request) {
-  const manifest = reviewedExecutionManifest(repo.head);
+function reviewedSemanticExecution(
+  repo,
+  request,
+  activationSourceHead,
+) {
+  if (
+    !HEX40.test(String(activationSourceHead || "")) ||
+    !gitCommitIsAncestor(activationSourceHead, repo.head)
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_NOT_ANCESTOR");
+  }
+  const currentManifest =
+    reviewedExecutionManifest(repo.head, REVIEWED_EXECUTION_PATHS);
+  const activationManifest =
+    reviewedExecutionManifest(
+      activationSourceHead,
+      HISTORICAL_ACTIVATION_EXECUTION_PATHS,
+    );
+  const activationSourceTree = gitText(
+    ["rev-parse", activationSourceHead + "^{tree}"],
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_TREE_UNAVAILABLE",
+  );
+  if (!HEX40.test(activationSourceTree)) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_TREE_INVALID");
+  }
+
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-production-epoch2-rpc-reviewed-"),
   );
   fs.chmodSync(root, 0o700);
-  const sourceRoot = path.join(root, "source");
+  const currentSourceRoot = path.join(root, "current-source");
+  const activationSourceRoot = path.join(root, "activation-source");
   const runnerRoot = path.join(root, "runner");
-  const archive = path.join(root, "source.tar");
-  fs.mkdirSync(sourceRoot, { mode: 0o700 });
+  const currentArchive = path.join(root, "current-source.tar");
+  const activationArchive = path.join(root, "activation-source.tar");
+  fs.mkdirSync(currentSourceRoot, { mode: 0o700 });
+  fs.mkdirSync(activationSourceRoot, { mode: 0o700 });
   fs.mkdirSync(runnerRoot, { mode: 0o700 });
-  try {
+
+  function archiveReviewedSource(head, archive, destination, code) {
     gitRaw(
-      ["archive", "--format=tar", "--output=" + archive, repo.head],
-      "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_ARCHIVE_FAILED",
+      ["archive", "--format=tar", "--output=" + archive, head],
+      code + "_ARCHIVE_FAILED",
     );
     const tar = spawnSync(
       TAR,
-      ["-xf", archive, "-C", sourceRoot],
+      ["-xf", archive, "-C", destination],
       {
         cwd: "/",
         env: privateChildEnv(runnerRoot),
@@ -838,13 +894,34 @@ function reviewedSemanticExecution(repo, request) {
       },
     );
     if (tar.error || tar.status !== 0) {
-      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_ARCHIVE_EXTRACT_FAILED");
+      fail(code + "_ARCHIVE_EXTRACT_FAILED");
     }
     fs.unlinkSync(archive);
-    verifyReviewedTree(sourceRoot, manifest);
+  }
 
-    const activationUrl = pathToFileURL(path.join(sourceRoot, ACTIVATION_REL)).href;
-    const targetUrl = pathToFileURL(path.join(sourceRoot, TARGET_REL)).href;
+  try {
+    archiveReviewedSource(
+      repo.head,
+      currentArchive,
+      currentSourceRoot,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_CURRENT_SOURCE",
+    );
+    archiveReviewedSource(
+      activationSourceHead,
+      activationArchive,
+      activationSourceRoot,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE",
+    );
+
+    verifyReviewedTree(currentSourceRoot, currentManifest);
+    verifyReviewedTree(activationSourceRoot, activationManifest);
+
+    const activationUrl = pathToFileURL(
+      path.join(activationSourceRoot, ACTIVATION_REL),
+    ).href;
+    const targetUrl = pathToFileURL(
+      path.join(currentSourceRoot, TARGET_REL),
+    ).href;
     const runnerSource = [
       "import {",
       "  EXPECTED_VALIDATORS_V1,",
@@ -913,7 +990,8 @@ function reviewedSemanticExecution(repo, request) {
       "  process.stdout.write(JSON.stringify({ok:false,result:null,error:(error instanceof Error?error.message:String(error)).slice(0,512)}));",
       "}",
       "",
-    ].join("\\n");
+    ].join("\n");
+
     const runnerFile = path.join(runnerRoot, "reviewed-semantic-runner-v1.mjs");
     const runnerBytes = Buffer.from(runnerSource, "utf8");
     const runnerFd = fs.openSync(
@@ -930,7 +1008,8 @@ function reviewedSemanticExecution(repo, request) {
       fs.closeSync(runnerFd);
     }
 
-    verifyReviewedTree(sourceRoot, manifest);
+    verifyReviewedTree(currentSourceRoot, currentManifest);
+    verifyReviewedTree(activationSourceRoot, activationManifest);
     const reboundRunner = readStable(
       runnerFile,
       "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_RUNNER",
@@ -957,9 +1036,20 @@ function reviewedSemanticExecution(repo, request) {
       },
     );
     if (result.error || result.status !== 0) {
-      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_EXECUTION_FAILED");
+      const detail = String(result.stderr || "")
+        .trim()
+        .replace(/\s+/gu, " ")
+        .slice(0, 256);
+      fail(
+        "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_EXECUTION_FAILED:" +
+        String(result.status ?? "error") +
+        ":" +
+        (detail || "no_stderr"),
+      );
     }
-    verifyReviewedTree(sourceRoot, manifest);
+
+    verifyReviewedTree(currentSourceRoot, currentManifest);
+    verifyReviewedTree(activationSourceRoot, activationManifest);
     const reboundRunnerAfter = readStable(
       runnerFile,
       "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_RUNNER_AFTER",
@@ -985,12 +1075,23 @@ function reviewedSemanticExecution(repo, request) {
         String(envelope?.error || "unknown"),
       );
     }
+
+    const combinedManifest = Object.freeze({
+      current_source_manifest_sha256: currentManifest.manifest_sha256,
+      activation_source_manifest_sha256: activationManifest.manifest_sha256,
+    });
     return Object.freeze({
       ...envelope.result,
       reviewed_execution_verified: true,
       reviewed_source_head_sha: repo.head,
       reviewed_source_tree_sha: repo.tree,
-      reviewed_execution_manifest_sha256: manifest.manifest_sha256,
+      reviewed_execution_manifest_sha256:
+        sha256(Buffer.from(canonical(combinedManifest), "utf8")),
+      reviewed_activation_source_head_sha: activationSourceHead,
+      reviewed_activation_source_tree_sha: activationSourceTree,
+      reviewed_activation_execution_manifest_sha256:
+        activationManifest.manifest_sha256,
+      reviewed_activation_source_ancestor_current_main: true,
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -1027,9 +1128,17 @@ function activationSourceLineageAncestor(plan, privateRuntimePlan, currentHead) 
   const commits = [
     privateRuntimePlan.source_head,
     plan.start_admission_observed_repo_head,
-    ...plan.install_receipts.map((row) => row.installed_repo_head),
+    ...plan.install_receipts.map(
+      (row) =>
+        row.install_receipt_observed_repo_head ??
+        row.installed_repo_head,
+    ),
   ];
-  return commits.every((commit) => gitCommitIsAncestor(commit, currentHead));
+  return commits.every(
+    (commit) =>
+      HEX40.test(String(commit || "")) &&
+      gitCommitIsAncestor(commit, currentHead),
+  );
 }
 function readStable(file, label) {
   if (!path.isAbsolute(file) || path.resolve(file) !== file) {
@@ -1998,16 +2107,28 @@ async function main() {
     "PRODUCTION_EPOCH2_RPC_OBSERVER_CLI_RECEIPT",
   ).value;
 
-  const reviewedSemantic = reviewedSemanticExecution(source, {
-    private_runtime_plan: privateRuntimePlan,
-    private_runtime_plan_file_sha256: values["private-runtime-plan-sha256"],
-    bundle_set: bundleSet,
-    install_receipts: installReceipts,
-    start_admission: startAdmission,
-    activation_plan: parsedPlan,
-    activation_receipt: parsedReceipt,
-    rpc_url: RPC_URL,
-  });
+  const activationSourceHead =
+    String(parsedPlan.start_admission_observed_repo_head || "");
+  if (
+    !HEX40.test(activationSourceHead) ||
+    !gitCommitIsAncestor(activationSourceHead, source.head)
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_NOT_ANCESTOR");
+  }
+  const reviewedSemantic = reviewedSemanticExecution(
+    source,
+    {
+      private_runtime_plan: privateRuntimePlan,
+      private_runtime_plan_file_sha256: values["private-runtime-plan-sha256"],
+      bundle_set: bundleSet,
+      install_receipts: installReceipts,
+      start_admission: startAdmission,
+      activation_plan: parsedPlan,
+      activation_receipt: parsedReceipt,
+      rpc_url: RPC_URL,
+    },
+    activationSourceHead,
+  );
   const rederivedPlan = reviewedSemantic.activation_plan;
   if (!same(rederivedPlan, parsedPlan)) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_PLAN_REDERIVATION_MISMATCH");
