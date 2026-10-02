@@ -263,10 +263,17 @@ function materialFor(input) {
       "",
       "witness_script",
     ]),
+    redeem_spend_requirements: Object.freeze({
+      compressed_pubkey_required_for_standard_segwit_v0_relay: true,
+      minimal_if_selector_must_be_01: true,
+      redeem_pubkey_hash160_signature_required: true,
+    }),
     refund_spend_requirements: Object.freeze({
       transaction_nlocktime_at_least_refund_locktime: true,
       transaction_locktime_type_must_match_refund_locktime_type: true,
       spending_input_sequence_must_not_equal_uint32_max: true,
+      compressed_pubkey_required_for_standard_segwit_v0_relay: true,
+      minimal_if_selector_must_be_empty_vector: true,
       refund_pubkey_hash160_signature_required: true,
     }),
     script_network_neutral: true,
