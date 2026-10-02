@@ -20,13 +20,21 @@ any RPC call.
 
 This gate does not invent new gas or fee policy.
 
-It reuses the existing bounded Chain-2050 deployment policy:
+It reuses the canonical Epoch-2 metered zero-gas-price execution model and
+keeps the reviewed 20% gas-limit safety buffer:
 
 ```text
 gas_limit_multiplier_bps=12000
-max_fee_per_gas_wei=3000000000
-max_priority_fee_per_gas_wei=1000000000
+max_fee_per_gas_wei=0
+max_priority_fee_per_gas_wei=0
+native_gas_economic_charge_atoms=0
+participant_native_gas_balance_required=false
 ```
+
+The zero-fee selection is not inferred from one live sample. It is already
+proven by the committed Besu raw-transaction validator runtime evidence: a
+correctly marked EIP-1559/type-2 transaction from a zero-native-balance sender
+was accepted and mined with effective gas price zero.
 
 The gas limit is:
 
@@ -34,21 +42,18 @@ The gas limit is:
 ceil(eth_estimateGas × 12000 / 10000)
 ```
 
-The conservative fee-cap requirement is:
+The exact fee requirement is fail-closed:
 
 ```text
-2 × observed_base_fee + observed_priority_fee <= max_fee_per_gas
-observed_priority_fee <= max_priority_fee_per_gas
+observed_base_fee = 0
+observed_priority_fee = 0
+max_fee_per_gas = 0
+max_priority_fee_per_gas = 0
 ```
 
-The maximum native deployment-gas requirement is:
-
-```text
-proposed_gas_limit × max_fee_per_gas
-```
-
-The observed deployer balance is compared against that amount. Any deficit is
-reported exactly; no funding action is performed.
+Any nonzero live fee observation remains HOLD. Under the zero-fee model the
+maximum native deployment-gas cost is exactly zero, so a zero-native-balance
+deployer is sufficient. No funding action is performed.
 
 ## Private zero-fee compatibility
 
@@ -60,8 +65,10 @@ and the private runtime allows zero minimum gas price. Therefore an observed
 priority-fee suggestion of zero is valid in this lane and is not treated as an
 error.
 
-The policy caps remain the same; zero observed fees do not widen authority or
-reduce the conservative maximum-cost calculation.
+The exact zero-fee envelope matches the production execution model. It does not
+widen authority: gas remains metered, the 120% gas-limit buffer remains, the
+Epoch-2 signed access-list marker remains mandatory, and any nonzero live fee
+observation fails closed.
 
 ## Exact read-only RPC sequence
 
@@ -84,18 +91,19 @@ block floor and the predicted registry address to remain vacant.
 
 ## Result states
 
-A green packet requires both:
+A green packet requires:
 
-- reviewed fee caps sufficient for the current observation; and
-- deployer balance sufficient for the conservative maximum gas cost.
+- observed base fee exactly zero;
+- observed priority fee exactly zero; and
+- deployer balance sufficient for the exact zero maximum gas cost.
 
-A fee-cap or balance shortfall remains:
+A fee-policy drift remains:
 
 `READ_ONLY_DEPLOYMENT_FEE_GAS_FUNDING_HOLD`
 
-with an exact `minimum_additional_funding_wei`.
+with `minimum_additional_funding_wei=0`.
 
-Funding is never automatic.
+Native funding is not required by this execution model and is never automatic.
 
 ## Authority boundary
 
@@ -117,5 +125,6 @@ This lane does not:
 If the fee/funding packet is green, the next gate is a fresh read-only
 pre-sign revalidation before any signable transaction construction.
 
-If funding is short, the next gate is separate explicit gas-funding review,
-followed by a new read-only observation. This observer never moves the funding.
+If live fees are nonzero, the next gate is a separate zero-fee execution-policy
+drift review followed by a new read-only observation. This observer never moves
+funds.

@@ -52,7 +52,7 @@ function rehashCandidateRevalidation(value){
 function feeReplies({
   head=5n,
   hashDigit="8",
-  balance="0xde0b6b3a7640000",
+  balance="0x0",
   estimate="0x100000",
 }={}){
   const headHex="0x"+BigInt(head).toString(16);
@@ -136,6 +136,14 @@ const revalidationResult=
   });
 assert.equal(at,11);
 assert.equal(revalidationResult.ok,true);
+assert.equal(
+  revalidationResult.receipt.continuity.candidate_maximum_gas_cost_wei,
+  "0",
+);
+assert.equal(
+  revalidationResult.fresh_fee_funding_packet.observation.deployer_balance_wei,
+  "0",
+);
 
 const freshBinding=buildBinding(
   fixture,
