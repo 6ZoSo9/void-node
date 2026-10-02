@@ -38,7 +38,10 @@ Neither entrypoint can emit:
 - an `evidence_suite_id` with the former admission meaning; or
 - true Bitcoin-regtest / isolated Chain-2050 execution-admission flags.
 
-The preview uses `voidbtcp1preview1_<sha256>`.
+The preview uses `voidbtcp1preview1_<sha256>`. The returned preview and all
+nested case/evidence objects are recursively frozen so in-process mutation
+cannot detach the visible object from the ID minted over its validated
+structure.
 
 ## What the preview still validates
 

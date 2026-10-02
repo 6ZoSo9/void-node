@@ -400,6 +400,18 @@ assert.deepEqual(
   preview,
   "legacy public admit call must be fail-safe structural preview only",
 );
+assert.equal(Object.isFrozen(preview), true);
+assert.equal(Object.isFrozen(preview.cases), true);
+assert.equal(Object.isFrozen(preview.cases[0]), true);
+assert.equal(Object.isFrozen(preview.cases[0].bitcoin_observation), true);
+assert.throws(
+  () => {
+    preview.cases[0].bitcoin_observation.network = "main";
+  },
+  TypeError,
+  "content-addressed preview must reject nested post-mint mutation",
+);
+assert.equal(preview.cases[0].bitcoin_observation.network, "regtest");
 
 expectReject(
   (input) => {
@@ -573,6 +585,7 @@ for (const required of [
   "source_structural_preview_only: true",
   "execution_evidence_admitted: false",
   "observer_receipts_required_for_execution_admission: true",
+  "deepFreeze",
   "bitcoin_mainnet_contact: false",
   "production_chain2050_contact: false",
 ]) {
@@ -593,6 +606,7 @@ console.log("source_only_atomic_trace_not_execution_evidence=true");
 console.log("structural_preview_only=true");
 console.log("execution_evidence_admitted=false");
 console.log("observer_receipts_required_for_execution_admission=true");
+console.log("content_addressed_preview_recursively_frozen=true");
 console.log("trade_funded_fee_quote_bound=true");
 console.log("success_refund_rejection_restart_reorg_coverage=true");
 console.log("bitcoin_mainnet_contact=false");

@@ -135,6 +135,12 @@ function exact(value, keys, code) {
   return value;
 }
 
+function deepFreeze(value) {
+  if (value === null || typeof value !== "object") return value;
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.isFrozen(value) ? value : Object.freeze(value);
+}
+
 function canonicalJson(value) {
   if (value === null) return "null";
   if (typeof value === "string" || typeof value === "boolean") {
@@ -688,7 +694,7 @@ function validateCase(raw) {
   if (value.case_id !== contentId("voidbtcp1case1_", material)) {
     fail("phase1_case_id_mismatch");
   }
-  return Object.freeze(value);
+  return deepFreeze(value);
 }
 
 export function previewBtcVoidPhase1ExecutionEvidenceV1(input) {
@@ -782,7 +788,7 @@ export function previewBtcVoidPhase1ExecutionEvidenceV1(input) {
     authority: VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1,
   });
 
-  return Object.freeze({
+  return deepFreeze({
     ...material,
     preview_id: contentId("voidbtcp1preview1_", material),
   });
