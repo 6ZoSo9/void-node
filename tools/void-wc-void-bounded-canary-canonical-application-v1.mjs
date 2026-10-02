@@ -1135,6 +1135,16 @@ function validatePlan(plan) {
     plan.coupled_status_remains_hold !== true ||
     plan.coupled_activation_ready !== false ||
     plan.reviewed_git_commit_required !== true ||
+    !plain(plan.reviewed_execution_module_git_blobs) ||
+    !REVIEWED_RUNTIME_PROFILE_ID.test(
+      String(plan.reviewed_runtime_profile_id || ""),
+    ) ||
+    !HEX64.test(
+      String(plan.reviewed_runtime_packages_aggregate_sha256 || ""),
+    ) ||
+    plan.reviewed_execution_permission_fenced !== true ||
+    plan.reviewed_execution_ancestor_package_resolution_allowed !== false ||
+    plan.reviewed_execution_network_isolation_provided !== false ||
     plan.market_activation_authorized !== false ||
     plan.public_presale_activation_authorized !== false ||
     plan.funds_movement_authorized !== false
@@ -1161,6 +1171,8 @@ function validatePlan(plan) {
     "application_base_tree_sha",
     "candidate_promotion_tool_git_blob_sha1",
     "canonical_application_tool_git_blob_sha1",
+    "reviewed_runtime_tool_git_blob_sha1",
+    "reviewed_runtime_profile_git_blob_sha1",
     "production_source_git_blob_sha1",
     "production_target_git_blob_sha1",
     "coupled_source_git_blob_sha1",
@@ -1205,6 +1217,48 @@ function validatePlan(plan) {
     ) !== plan.canonical_application_tool_git_blob_sha1
   ) {
     fail("CANONICAL_APPLICATION_PLAN_TOOL_LINEAGE_MISMATCH");
+  }
+
+  const expectedClosure = reviewedModuleClosure(
+    plan.application_base_head_sha,
+  );
+  if (
+    canonicalJson(plan.reviewed_execution_module_git_blobs) !==
+      canonicalJson(expectedClosure.module_git_blobs) ||
+    Object.values(plan.reviewed_execution_module_git_blobs)
+      .some((value) => !HEX40.test(String(value)))
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_REVIEWED_MODULE_CLOSURE_MISMATCH");
+  }
+  if (
+    commitBlob(
+      plan.application_base_head_sha,
+      REVIEWED_RUNTIME_TOOL_REL,
+      "CANONICAL_APPLICATION_PLAN_RUNTIME_TOOL_BLOB_UNAVAILABLE",
+    ) !== plan.reviewed_runtime_tool_git_blob_sha1 ||
+    commitBlob(
+      plan.application_base_head_sha,
+      REVIEWED_RUNTIME_PROFILE_REL,
+      "CANONICAL_APPLICATION_PLAN_RUNTIME_PROFILE_BLOB_UNAVAILABLE",
+    ) !== plan.reviewed_runtime_profile_git_blob_sha1
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_RUNTIME_LINEAGE_MISMATCH");
+  }
+  const runtimeProfile = commitFile(
+    plan.application_base_head_sha,
+    REVIEWED_RUNTIME_PROFILE_REL,
+    "PLAN_REVIEWED_RUNTIME_PROFILE",
+  );
+  if (
+    runtimeProfile.value?.marker !== "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1" ||
+    runtimeProfile.value?.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE" ||
+    runtimeProfile.value.profile_id !== plan.reviewed_runtime_profile_id ||
+    runtimeProfile.value.packages_aggregate_sha256 !==
+      plan.reviewed_runtime_packages_aggregate_sha256 ||
+    JSON.stringify(runtimeProfile.value.root_packages) !==
+      JSON.stringify(["ethers"])
+  ) {
+    fail("CANONICAL_APPLICATION_PLAN_RUNTIME_PROFILE_MISMATCH");
   }
 
   const baseProduction = commitFile(
@@ -1254,34 +1308,56 @@ function validatePlan(plan) {
     "coupled",
   );
 
-  const productionBefore =
-    classifyVoidWcVoidProductionReadinessV1(baseProduction.value);
-  const productionAfter =
-    classifyVoidWcVoidProductionReadinessV1(plan.production_target_candidate);
-  const coupledBefore =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      baseCoupled.value,
-      baseSuccessor.value,
-    );
-  const coupledAfter =
-    classifyVoidCoupledEconomicSuccessorGateV1(
-      plan.coupled_target_candidate,
-      baseSuccessor.value,
-    );
+  const reviewedClassification = runReviewedAuthority(
+    Object.freeze({
+      head: plan.application_base_head_sha,
+      tree: plan.application_base_tree_sha,
+    }),
+    {
+      operation: "classify",
+      production_candidate: baseProduction.value,
+      coupled_candidate: baseCoupled.value,
+      successor_candidate: baseSuccessor.value,
+    },
+  );
+  assertReviewedExecutionBinding(plan, reviewedClassification.binding);
+  const productionBefore = reviewedClassification.result.production;
+  const productionAfter = runReviewedAuthority(
+    Object.freeze({
+      head: plan.application_base_head_sha,
+      tree: plan.application_base_tree_sha,
+    }),
+    {
+      operation: "classify",
+      production_candidate: plan.production_target_candidate,
+      coupled_candidate: plan.coupled_target_candidate,
+      successor_candidate: baseSuccessor.value,
+    },
+  );
+  assertReviewedExecutionBinding(plan, productionAfter.binding);
+  const coupledBefore = productionBefore.coupled;
+  const coupledAfter = productionAfter.result.coupled;
+  const reviewedProductionBefore = productionBefore.production;
+  const reviewedProductionAfter = productionAfter.result.production;
   if (
-    canonicalJson(summarize(productionBefore)) !==
+    canonicalJson(reviewedProductionBefore) !==
       canonicalJson(plan.production_before) ||
-    canonicalJson(summarize(productionAfter)) !==
+    canonicalJson(reviewedProductionAfter) !==
       canonicalJson(plan.production_after) ||
-    canonicalJson(summarize(coupledBefore)) !==
+    canonicalJson(coupledBefore) !==
       canonicalJson(plan.coupled_before) ||
-    canonicalJson(summarize(coupledAfter)) !==
+    canonicalJson(coupledAfter) !==
       canonicalJson(plan.coupled_after) ||
-    !productionBefore.missing_gates.includes("bounded_canary_required") ||
+    !reviewedProductionBefore.missing_gates.includes(
+      "bounded_canary_required"
+    ) ||
     !coupledBefore.missing_gates.includes("bounded_canary_required") ||
     !sameStrings(
-      productionAfter.missing_gates,
-      minusOne(productionBefore.missing_gates, "bounded_canary_required"),
+      reviewedProductionAfter.missing_gates,
+      minusOne(
+        reviewedProductionBefore.missing_gates,
+        "bounded_canary_required",
+      ),
     ) ||
     !sameStrings(
       coupledAfter.missing_gates,
