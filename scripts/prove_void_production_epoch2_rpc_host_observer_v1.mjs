@@ -217,6 +217,9 @@ for (const required of [
   '"qbft_getValidatorsByBlockNumber"',
   '"--user", "show"',
   '"sport = :18553"',
+  '"merge-base", "--is-ancestor"',
+  '"/proc/self/fd/"',
+  '"O_DIRECTORY"',
 ]) {
   assert.ok(source.includes(required), required);
 }
@@ -236,6 +239,7 @@ console.log("canonical_main_stable_during_observation=true");
 console.log("service_invocation_stable_during_observation=true");
 console.log("listener_stable_during_observation=true");
 console.log("activation_source_lineage_ancestor_current_main=true");
+console.log("activation_lineage_git_ancestry_execution_present=true");
 console.log("private_output_parent_fd_bound=true");
 console.log("private_output_redirect_forbidden=true");
 console.log("write_capability_classification=write_capable_not_authorized");
