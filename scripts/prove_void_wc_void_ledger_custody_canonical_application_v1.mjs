@@ -282,6 +282,53 @@ const plan=prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1({
 });
 
 {
+  const cache=_internal.testOnlyReviewedExecutionCacheSnapshotV1();
+  assert.notEqual(cache,null);
+  assert.equal(fs.existsSync(cache.runner_file),true);
+  fs.chmodSync(cache.runner_file,0o600);
+  fs.appendFileSync(cache.runner_file,"\n// hostile cached runner mutation\n");
+  assert.throws(
+    ()=>prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1({
+      ledger_import_input_bytes:inputBytes,
+      ledger_import_input_file_sha256:sha256(inputBytes),
+      promotion_receipt_bytes:promotionBytes,
+      promotion_receipt_file_sha256:sha256(promotionBytes),
+    }),
+    /LEDGER_CUSTODY_APPLICATION_REVIEWED_RUNNER_SHA256_MISMATCH/u,
+  );
+  _internal.testOnlyClearReviewedExecutionCacheV1();
+}
+
+{
+  const rebuilt=prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1({
+    ledger_import_input_bytes:inputBytes,
+    ledger_import_input_file_sha256:sha256(inputBytes),
+    promotion_receipt_bytes:promotionBytes,
+    promotion_receipt_file_sha256:sha256(promotionBytes),
+  });
+  assert.equal(rebuilt.application_plan_id,plan.application_plan_id);
+  const cache=_internal.testOnlyReviewedExecutionCacheSnapshotV1();
+  assert.notEqual(cache,null);
+  assert.equal(cache.private_module_paths.length>0,true);
+  const moduleFile=path.join(
+    cache.execution_root,
+    cache.private_module_paths[0],
+  );
+  fs.chmodSync(moduleFile,0o600);
+  fs.appendFileSync(moduleFile,"\n// hostile cached module mutation\n");
+  assert.throws(
+    ()=>prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1({
+      ledger_import_input_bytes:inputBytes,
+      ledger_import_input_file_sha256:sha256(inputBytes),
+      promotion_receipt_bytes:promotionBytes,
+      promotion_receipt_file_sha256:sha256(promotionBytes),
+    }),
+    /LEDGER_CUSTODY_APPLICATION_REVIEWED_PRIVATE_MODULE_.*_GIT_BLOB_MISMATCH/u,
+  );
+  _internal.testOnlyClearReviewedExecutionCacheV1();
+}
+
+{
   const toolPath =
     "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs";
   const original = fs.readFileSync(toolPath);
@@ -711,6 +758,10 @@ for(const required of [
   "reviewedModuleClosure",
   "makeVoidWcVoidLedgerCustodyReviewedTreeReadOnlyV1",
   "makeVoidWcVoidLedgerCustodyReviewedTreeRemovableV1",
+  "readBoundPrivateRegularFile",
+  "assertPrivateExecutionStaticBinding",
+  "LEDGER_CUSTODY_APPLICATION_REVIEWED_RUNNER",
+  "testOnlyReviewedExecutionCacheSnapshotV1",
   "O_NOFOLLOW",
   "O_DIRECTORY",
   "fstatSync",
@@ -744,6 +795,9 @@ console.log("candidate_promotion_reexecuted=true");
 console.log("reviewed_git_object_execution_verified=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("permission_fenced_execution=true");
+console.log("private_execution_bytes_reverified_before_spawn=true");
+console.log("cached_runner_tamper_held=true");
+console.log("cached_module_tamper_held=true");
 console.log("reviewed_execution_symlink_boundary_green=true");
 console.log("reviewed_execution_hardlink_rejected=true");
 console.log("reviewed_execution_chmod_descriptor_bound=true");
