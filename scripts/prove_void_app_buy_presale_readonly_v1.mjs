@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import vm from "node:vm";
 
 const viewsPath = "public/void-app-wave1-v1/assets/js/views.js";
 const clientPath = "public/void-app-wave1-v1/assets/js/buy-live.js";
@@ -74,8 +75,14 @@ for (const required of [
   "config.receiver_binding_green === true",
   "snapshot.status.request_intake_ready === true",
   "snapshot.sale.sold_out === false",
-  "Number(snapshot.sale.remaining_void) > 0",
+  "snapshot.sale.remaining_void > 0",
   "typeof sale.sold_out !== 'boolean'",
+  "typeof value !== 'number'",
+  "config.price_usdc_per_void !== '0.50'",
+  "config.rate_void_per_usdc !== '2'",
+  "readinessPending || submitBusy",
+  "readinessPending = true",
+  "currentSnapshot = null",
   "ack_self_custody",
   "ack_request_before_payment",
   "ack_sender_equals_void_destination",
@@ -125,12 +132,226 @@ assert.doesNotThrow(() => {
 });
 new Function(client);
 
+const submitButton = { disabled: true };
+const amountInput = { value: "10", disabled: false };
+const destinationInput = {
+  value: "0x1111111111111111111111111111111111111111",
+  disabled: false,
+};
+const ackNames = [
+  "self_custody",
+  "base_native_usdc",
+  "request_before_payment",
+  "sender_equals_void_destination",
+  "no_automatic_fulfillment",
+];
+const ackNodes = ackNames.map((name) => ({
+  dataset: { buyAck: name },
+  checked: true,
+  disabled: false,
+}));
+const buyViewNode = {};
+const fetchCalls = [];
+const sandbox = {
+  console,
+  location: { hash: "#/buy" },
+  window: { addEventListener() {} },
+  document: {
+    querySelector(selector) {
+      if (selector === "[data-buy-submit]") return submitButton;
+      if (selector === "[data-buy-amount]") return amountInput;
+      if (selector === "[data-buy-destination]") return destinationInput;
+      if (selector === "[data-buy-view]") return buyViewNode;
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "[data-buy-ack]") return ackNodes;
+      if (
+        selector ===
+        "[data-buy-amount], [data-buy-destination], [data-buy-ack]"
+      ) {
+        return [amountInput, destinationInput, ...ackNodes];
+      }
+      return [];
+    },
+    addEventListener() {},
+    getElementById() { return null; },
+  },
+  MutationObserver: class {
+    observe() {}
+  },
+  setTimeout() { return 0; },
+  clearTimeout() {},
+  queueMicrotask() {},
+  fetch: async (...args) => {
+    fetchCalls.push(args);
+    throw new Error("unexpected_fetch");
+  },
+  AbortSignal: globalThis.AbortSignal,
+  TextDecoder: globalThis.TextDecoder,
+  Uint8Array: globalThis.Uint8Array,
+};
+const instrumentedClient = client + `
+;globalThis.__voidBuyTestV1 = {
+  validateSnapshot,
+  isOpen,
+  updateSubmit,
+  submitBuy,
+  setState(snapshot, pending, busy) {
+    currentSnapshot = snapshot;
+    readinessPending = pending;
+    submitBusy = busy;
+  },
+  setReadinessPending(value) {
+    readinessPending = value;
+  },
+};
+`;
+vm.runInNewContext(instrumentedClient, sandbox, {
+  filename: clientPath,
+});
+const buyTest = sandbox.__voidBuyTestV1;
+assert.ok(buyTest);
+
+const validConfig = {
+  marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
+  schema: "void_public_buy_void_config_v1",
+  receive_address: "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5",
+  usdc_contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  payment_chain_id: 8453,
+  delivery_chain_id: 2050,
+  price_usdc_per_void: "0.50",
+  rate_void_per_usdc: "2",
+  min_usdc: 1,
+  max_usdc: 500,
+  request_method: "POST",
+  request_route: "/__void/buy-void/request",
+  request_before_payment_required: true,
+  payment_sender_must_equal_void_destination: true,
+  do_not_send_from_exchange: true,
+  requests_enabled: true,
+  payment_ready: true,
+  receiver_binding_green: true,
+  automatic_fulfillment: false,
+};
+const validStatus = {
+  schema: "void_public_buy_void_status_v1",
+  ok: true,
+  request_intake_ready: true,
+};
+const validSale = {
+  schema: "void_buy_void_sale_state_v1",
+  ok: true,
+  sold_out: false,
+  pool_void_total: 10000000,
+  remaining_void: 9999998,
+  raised_usdc_so_far: 1,
+  progress_pct: 0.00002,
+};
+
+const validSnapshot = buyTest.validateSnapshot(
+  structuredClone(validConfig),
+  structuredClone(validStatus),
+  structuredClone(validSale),
+);
+assert.equal(buyTest.isOpen(validSnapshot), true);
+
+for (const malformed of [
+  true,
+  [1],
+  null,
+  "1",
+  " 1",
+  "1e0",
+]) {
+  const sale = structuredClone(validSale);
+  sale.remaining_void = malformed;
+  assert.throws(
+    () => buyTest.validateSnapshot(
+      structuredClone(validConfig),
+      structuredClone(validStatus),
+      sale,
+    ),
+    /invalid sale-state accounting/u,
+    `remaining_void must reject ${JSON.stringify(malformed)}`,
+  );
+}
+for (const [key, malformed] of [
+  ["price_usdc_per_void", 0.5],
+  ["price_usdc_per_void", "5e-1"],
+  ["price_usdc_per_void", " 0.50"],
+  ["rate_void_per_usdc", 2],
+  ["rate_void_per_usdc", "2.0"],
+]) {
+  const config = structuredClone(validConfig);
+  config[key] = malformed;
+  assert.throws(
+    () => buyTest.validateSnapshot(
+      config,
+      structuredClone(validStatus),
+      structuredClone(validSale),
+    ),
+    /presale price policy mismatch/u,
+    `${key} must reject ${JSON.stringify(malformed)}`,
+  );
+}
+for (const [key, malformed] of [
+  ["min_usdc", "1"],
+  ["min_usdc", true],
+  ["max_usdc", [500]],
+  ["max_usdc", null],
+  ["max_usdc", 1e-7],
+]) {
+  const config = structuredClone(validConfig);
+  config[key] = malformed;
+  assert.throws(
+    () => buyTest.validateSnapshot(
+      config,
+      structuredClone(validStatus),
+      structuredClone(validSale),
+    ),
+    /presale request limit policy mismatch/u,
+    `${key} must reject ${JSON.stringify(malformed)}`,
+  );
+}
+
+buyTest.setState(validSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "fresh OPEN snapshot may enable submit");
+
+buyTest.setReadinessPending(true);
+buyTest.updateSubmit();
+assert.equal(
+  submitButton.disabled,
+  true,
+  "refresh/readiness pending must disable submit even with stale OPEN snapshot",
+);
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(
+  fetchCalls.length,
+  0,
+  "readiness-pending submit must not POST a Buy request",
+);
+
+buyTest.setReadinessPending(false);
+buyTest.updateSubmit();
+assert.equal(
+  submitButton.disabled,
+  false,
+  "submit may re-enable only after readiness pending is cleared",
+);
+
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
 console.log(`canonical_price_occurrences=${canonicalPrice.occurrenceCount}`);
 console.log(`participant_price_occurrences=${canonicalPrice.displayCount}`);
 console.log(`price_policy_one_unit_falsification=${driftedPrice}`);
 console.log("live_readiness_required=1");
+console.log("sale_snapshot_strict_numeric_types=1");
+console.log("canonical_price_rate_strings_required=1");
+console.log("usdc_limits_bigint_atom_bound=1");
+console.log("refresh_pending_submit_disabled=1");
+console.log("refresh_pending_post_count=0");
 console.log("request_creation_activation_gated=1");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
