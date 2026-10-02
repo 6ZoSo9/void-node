@@ -137,10 +137,11 @@ contract BtcVoidHashlockSettlementV1Test {
         uint256 deadline
     ) internal {
         _approve(settlement, AMOUNT);
+        bytes32 hashlock = _hashlock();
         vm.prank(FUNDER);
         settlement.lock(
             swapId,
-            _hashlock(),
+            hashlock,
             BENEFICIARY,
             AMOUNT,
             deadline
