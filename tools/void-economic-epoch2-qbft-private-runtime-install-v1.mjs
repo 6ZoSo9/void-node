@@ -20,6 +20,7 @@ const PLAN_ID=/^voide2qprp1_[0-9a-f]{64}$/u;
 const BUNDLE_SET_ID=/^voide2qbsv1_[0-9a-f]{64}$/u;
 const MATERIALIZATION_ID=/^voide2qmat1_[0-9a-f]{64}$/u;
 const ROLES=["precision","nimo","xiphos"];
+const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -234,6 +235,13 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
   if(!SHA40.test(installedRepoHead)) {
     throw new Error("installed_repo_head_invalid");
   }
+  const unitFileState=String(input?.unit_file_state||"");
+  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
+    throw new Error("install_unit_file_state_invalid");
+  }
+  if(input?.direct_enablement_links_absent!==true) {
+    throw new Error("install_direct_enablement_links_not_proven_absent");
+  }
 
   const material={
     marker:VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1,
@@ -259,7 +267,9 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
       data_directory_empty:true,
       user_unit_file_present:true,
       user_unit_file_mode:"0600",
-      unit_enabled:false,
+      unit_file_state:unitFileState,
+      direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
       unit_active:false,
       daemon_reload_performed:false,
       service_start_performed:false,
