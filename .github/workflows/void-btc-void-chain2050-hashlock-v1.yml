@@ -64,6 +64,10 @@ jobs:
           grep -F 'refundAuthority: msg.sender' "$contract" >/dev/null
           grep -F 'preimage.length != 32' "$contract" >/dev/null
           grep -F 'source_and_compiler_proof_only: true' "$tool" >/dev/null
+          grep -F 'compiler_execution_rederived: true' "$tool" >/dev/null
+          grep -F 'caller_supplied_compiler_artifacts_accepted: false' "$tool" >/dev/null
+          grep -F 'sha256:434803786cb17d2e37c48140bd986b0d7d366833bfe989ed6447cfe8bd200ef1' "$tool" >/dev/null
+          grep -F 'sha512-G5yUqjTUPc8Np74sCFwfsevhBPlUifUOfhYrgyu6CmYlC6feSw0YS6eZW47XDT23k3JYdKx5nJ+Q7whCEmNcoA==' "$tool" >/dev/null
           grep -F 'contract_deployment: false' "$tool" >/dev/null
           grep -F 'chain2050_write: false' "$tool" >/dev/null
           grep -F 'funds_movement: false' "$tool" >/dev/null
@@ -93,70 +97,23 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Build exact Standard JSON input
+      - name: Rederive exact dual-compiler identity
         run: |
           set -euo pipefail
           WORK="$RUNNER_TEMP/void-btc-void-chain2050-hashlock"
           mkdir -p "$WORK"
           chmod 700 "$WORK"
 
-          node tools/void-btc-void-chain2050-hashlock-v1.mjs             input             --source contracts/mainnet/BtcVoidHashlockSettlementV1.sol             --out "$WORK/input.json"
+          node tools/void-btc-void-chain2050-hashlock-v1.mjs \
+            rederive \
+            --source contracts/mainnet/BtcVoidHashlockSettlementV1.sol \
+            --out "$WORK/identity.json"
 
           echo "WORK=$WORK" >> "$GITHUB_ENV"
 
-      - name: Compile with native solc 0.8.24
-        env:
-          SOLC_IMAGE: ethereum/solc:0.8.24
+      - name: Verify exact rederived identity boundary
         run: |
           set -euo pipefail
-          docker pull "$SOLC_IMAGE"
-
-          VERSION="$(docker run --rm "$SOLC_IMAGE" --version)"
-          printf '%s\n' "$VERSION"
-          printf '%s\n' "$VERSION" | grep -F '0.8.24+commit.e11b9ed9'
-          IMAGE_ID="$(docker image inspect "$SOLC_IMAGE" --format='{{.Id}}')"
-
-          docker run --rm -i "$SOLC_IMAGE" --standard-json             < "$WORK/input.json"             > "$WORK/output-native.json"
-
-          VERSION="$VERSION" IMAGE_ID="$IMAGE_ID" node - <<'NODE'             > "$WORK/environment-native.json"
-          const value = {
-            marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
-            compiler_release: "0.8.24+commit.e11b9ed9",
-            kind: "native-container",
-            implementation: "ethereum-solc-native-linux-amd64",
-            version_output: process.env.VERSION,
-            artifact_identity: process.env.IMAGE_ID,
-          };
-          process.stdout.write(JSON.stringify(value, null, 2) + "\n");
-          NODE
-
-      - name: Compile with solc-js 0.8.24
-        run: |
-          set -euo pipefail
-          VERSION="$(npx --yes --package=solc@0.8.24 solcjs --version)"
-          printf '%s\n' "$VERSION"
-          printf '%s\n' "$VERSION" | grep -F '0.8.24+commit.e11b9ed9'
-          INTEGRITY="$(npm view solc@0.8.24 dist.integrity --json | tr -d '"')"
-
-          npx --yes --package=solc@0.8.24 solcjs --standard-json             < "$WORK/input.json"             > "$WORK/output-solcjs.json"
-
-          VERSION="$VERSION" INTEGRITY="$INTEGRITY" node - <<'NODE'             > "$WORK/environment-solcjs.json"
-          const value = {
-            marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
-            compiler_release: "0.8.24+commit.e11b9ed9",
-            kind: "solcjs",
-            implementation: "solc-js-emscripten",
-            version_output: process.env.VERSION,
-            artifact_identity: "npm-integrity:" + process.env.INTEGRITY,
-          };
-          process.stdout.write(JSON.stringify(value, null, 2) + "\n");
-          NODE
-
-      - name: Review exact dual-compiler identity
-        run: |
-          set -euo pipefail
-          node tools/void-btc-void-chain2050-hashlock-v1.mjs             review             --source contracts/mainnet/BtcVoidHashlockSettlementV1.sol             --input "$WORK/input.json"             --output-a "$WORK/output-native.json"             --output-b "$WORK/output-solcjs.json"             --environment-a "$WORK/environment-native.json"             --environment-b "$WORK/environment-solcjs.json"             --out "$WORK/identity.json"
-
           IDENTITY="$WORK/identity.json" node - <<'NODE'
           const fs = require("node:fs");
           const value = JSON.parse(fs.readFileSync(process.env.IDENTITY, "utf8"));
@@ -175,17 +132,28 @@ jobs:
             fail("token");
           }
           if (value.compiler?.compiler_outputs_cross_checked !== true ||
-              value.compiler?.compiler_execution_rederived !== false) {
+              value.compiler?.compiler_execution_rederived !== true ||
+              value.compiler?.caller_supplied_compiler_artifacts_accepted !== false) {
             fail("compiler_provenance");
+          }
+          if (value.compiler?.environment_a?.artifact_identity !==
+              "sha256:434803786cb17d2e37c48140bd986b0d7d366833bfe989ed6447cfe8bd200ef1" ||
+              value.compiler?.environment_a?.image_id_verified !== true ||
+              value.compiler?.environment_a?.execution_network_disabled !== true) {
+            fail("native_compiler_identity");
+          }
+          if (value.compiler?.environment_b?.artifact_identity !==
+              "npm-integrity:sha512-G5yUqjTUPc8Np74sCFwfsevhBPlUifUOfhYrgyu6CmYlC6feSw0YS6eZW47XDT23k3JYdKx5nJ+Q7whCEmNcoA==" ||
+              value.compiler?.environment_b?.package_tarball_sri_verified !== true ||
+              value.compiler?.environment_b?.direct_solidity_compile_c_api !== true ||
+              value.compiler?.environment_b?.package_dependencies_executed !== false ||
+              !/^[0-9a-f]{64}$/.test(
+                value.compiler?.environment_b?.soljson_sha256 || ""
+              )) {
+            fail("solcjs_compiler_identity");
           }
           if (value.contract?.canonical_void_token_source?.path !==
               "contracts/epoch2/VoidEpoch2TokenV1.sol" ||
-              !/^[0-9a-f]{64}$/.test(
-                value.contract?.canonical_void_token_source?.source_sha256 || ""
-              ) ||
-              !/^[0-9a-f]{40}$/.test(
-                value.contract?.canonical_void_token_source?.source_git_blob_sha1 || ""
-              ) ||
               value.contract?.canonical_void_token_source?.
                 transfer_semantics_verified_source_only !== true ||
               value.contract?.canonical_void_token_source?.
@@ -195,15 +163,9 @@ jobs:
           if (!/^[0-9a-f]{40}$/.test(value.source?.repository_head_sha || "") ||
               !/^[0-9a-f]{40}$/.test(value.source?.repository_tree_sha || "") ||
               value.source?.canonical_remote_url !==
-                "https://github.com/6ZoSo9/void-node.git") {
+                "https://github.com/6ZoSo9/void-node.git" ||
+              Object.hasOwn(value.source, "reviewed_at_utc")) {
             fail("source_git_identity");
-          }
-          if (value.artifacts?.storage_slot_zero_label !== "_swaps") {
-            fail("storage");
-          }
-          if (value.artifacts?.link_references_absent !== true ||
-              value.artifacts?.immutable_references_absent !== true) {
-            fail("references");
           }
           for (const key of [
             "creation_bytecode_sha256",
@@ -220,25 +182,19 @@ jobs:
           if (!/^voidbtvc2050h1_[0-9a-f]{64}$/.test(value.identity_id || "")) {
             fail("identity_id");
           }
-          if (value.authority?.contract_deployment !== false ||
+          if (value.authority?.compiler_execution_rederived !== true ||
+              value.authority?.caller_supplied_compiler_artifacts_accepted !== false ||
+              value.authority?.contract_deployment !== false ||
               value.authority?.chain2050_write !== false ||
               value.authority?.funds_movement !== false) {
             fail("authority");
           }
 
           console.log("identity_id=" + value.identity_id);
-          console.log(
-            "creation_bytecode_sha256=" +
-              value.artifacts.creation_bytecode_sha256
-          );
-          console.log(
-            "runtime_bytecode_sha256=" +
-              value.artifacts.runtime_bytecode_sha256
-          );
-          console.log("compiler_outputs_cross_checked=true");
-          console.log("compiler_execution_rederived=false");
-          console.log("canonical_git_source_bound=true");
-          console.log("canonical_void_token_source_bound=true");
+          console.log("compiler_execution_rederived=true");
+          console.log("reviewed_native_compiler_image_required=true");
+          console.log("reviewed_solcjs_package_sri_required=true");
+          console.log("caller_supplied_compiler_artifacts_accepted=false");
           console.log("contract_deployment=false");
           console.log("chain2050_write=false");
           console.log("funds_movement=false");

@@ -11,6 +11,10 @@ import {
   CONTRACT_NAME,
   CONTRACT_PATH,
   EVM_VERSION,
+  REVIEWED_NATIVE_SOLC_IMAGE,
+  REVIEWED_NATIVE_SOLC_IMAGE_ID,
+  REVIEWED_SOLCJS_PACKAGE_SRI,
+  REVIEWED_SOLCJS_TARBALL_URL,
   SOLC_RELEASE,
   SOLC_VERSION,
   VOID_BTC_VOID_CHAIN2050_HASHLOCK_COMPILER_IDENTITY_V1,
@@ -18,6 +22,7 @@ import {
   buildStandardJsonInput,
   validateCanonicalVoidTokenSourceText,
   validateSourceText,
+  validateVoidBtcVoidChain2050CompilerEnvironmentV1,
 } from "../tools/void-btc-void-chain2050-hashlock-v1.mjs";
 
 const TEST_PATH = "test/mainnet/BtcVoidHashlockSettlementV1.t.sol";
@@ -58,6 +63,19 @@ assert.equal(
 assert.equal(SOLC_VERSION, "0.8.24");
 assert.equal(SOLC_RELEASE, "0.8.24+commit.e11b9ed9");
 assert.equal(EVM_VERSION, "paris");
+assert.equal(REVIEWED_NATIVE_SOLC_IMAGE, "ethereum/solc:0.8.24");
+assert.equal(
+  REVIEWED_NATIVE_SOLC_IMAGE_ID,
+  "sha256:434803786cb17d2e37c48140bd986b0d7d366833bfe989ed6447cfe8bd200ef1",
+);
+assert.equal(
+  REVIEWED_SOLCJS_PACKAGE_SRI,
+  "sha512-G5yUqjTUPc8Np74sCFwfsevhBPlUifUOfhYrgyu6CmYlC6feSw0YS6eZW47XDT23k3JYdKx5nJ+Q7whCEmNcoA==",
+);
+assert.equal(
+  REVIEWED_SOLCJS_TARBALL_URL,
+  "https://registry.npmjs.org/solc/-/solc-0.8.24.tgz",
+);
 assert.equal(
   CANONICAL_VOID_TOKEN,
   "0x470075b85352eb86f7d089fb9ba88945f12aad94",
@@ -185,7 +203,21 @@ for (const required of [
   'layout.storage[0]?.label !== "_swaps"',
   "unexpected_link_or_immutable_references",
   "compiler_outputs_cross_checked: true",
-  "compiler_execution_rederived: false",
+  "compiler_execution_rederived: true",
+  "caller_supplied_compiler_artifacts_accepted: false",
+  "REVIEWED_NATIVE_SOLC_IMAGE_ID",
+  "REVIEWED_SOLCJS_PACKAGE_SRI",
+  '"--network=none"',
+  '"--pull=never"',
+  "package_tarball_sri_verified: true",
+  "solc-js-emscripten-direct-soljson",
+  'cwrap("solidity_compile","string",["string","number","number"])',
+  'NODE_PATH: ""',
+  'NODE_OPTIONS: ""',
+  "fs.mkdtempSync",
+  "fs.rmSync",
+  'if (command === "rederive")',
+  "caller_produced_compiler_artifacts_not_authoritative",
   "source_path_must_be_canonical_contract",
   '"rev-parse", "HEAD"',
   '"rev-parse", "HEAD^{tree}"',
@@ -205,7 +237,15 @@ assert.deepEqual(AUTHORITY, {
   canonical_git_source_required: true,
   canonical_void_token_source_bound: true,
   compiler_outputs_cross_checked: true,
-  compiler_execution_rederived: false,
+  compiler_execution_rederived: true,
+  caller_supplied_compiler_artifacts_accepted: false,
+  reviewed_native_compiler_image_required: true,
+  reviewed_solcjs_package_sri_required: true,
+  compiler_artifact_network_access: true,
+  temporary_compiler_workspace_write: true,
+  native_compiler_execution_network_disabled: true,
+  solcjs_direct_compiler_core_execution: true,
+  solcjs_package_dependencies_executed: false,
   rpc_call: false,
   credential_access: false,
   wallet_or_signer_access: false,
@@ -223,6 +263,72 @@ assert.deepEqual(AUTHORITY, {
   funds_movement: false,
 });
 
+const nativeEnvironment = {
+  marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+  compiler_release: SOLC_RELEASE,
+  kind: "native-container",
+  implementation: "ethereum-solc-native-linux-amd64",
+  version_output: "Version: " + SOLC_RELEASE + ".Linux.g++",
+  artifact_identity: REVIEWED_NATIVE_SOLC_IMAGE_ID,
+  image_id_verified: true,
+  execution_network_disabled: true,
+};
+assert.doesNotThrow(() =>
+  validateVoidBtcVoidChain2050CompilerEnvironmentV1(
+    nativeEnvironment,
+    "native-container",
+  )
+);
+assert.throws(
+  () =>
+    validateVoidBtcVoidChain2050CompilerEnvironmentV1(
+      { ...nativeEnvironment, artifact_identity: "sha256:" + "0".repeat(64) },
+      "native-container",
+    ),
+  /native_compiler_environment_unreviewed/u,
+);
+
+const solcjsEnvironment = {
+  marker: "VOID_SOLC_COMPILER_ENVIRONMENT_V1",
+  compiler_release: SOLC_RELEASE,
+  kind: "solcjs",
+  implementation: "solc-js-emscripten-direct-soljson",
+  version_output: SOLC_RELEASE + ".Emscripten.clang",
+  artifact_identity: "npm-integrity:" + REVIEWED_SOLCJS_PACKAGE_SRI,
+  package_tarball_sri_verified: true,
+  direct_solidity_compile_c_api: true,
+  package_dependencies_executed: false,
+  soljson_sha256: "1".repeat(64),
+};
+assert.doesNotThrow(() =>
+  validateVoidBtcVoidChain2050CompilerEnvironmentV1(
+    solcjsEnvironment,
+    "solcjs",
+  )
+);
+assert.throws(
+  () =>
+    validateVoidBtcVoidChain2050CompilerEnvironmentV1(
+      {
+        ...solcjsEnvironment,
+        artifact_identity: "npm-integrity:sha512-forged",
+      },
+      "solcjs",
+    ),
+  /solcjs_compiler_environment_unreviewed/u,
+);
+
+for (const forbiddenToolSurface of [
+  '"output-a"',
+  '"output-b"',
+  '"environment-a"',
+  '"environment-b"',
+  "reviewed_at_utc",
+  "new Date().toISOString()",
+]) {
+  assert.equal(tool.includes(forbiddenToolSurface), false, forbiddenToolSurface);
+}
+
 assert.ok(!fs.existsSync(DOC_PATH) || fs.statSync(DOC_PATH).isFile());
 
 console.log("VOID_BTC_VOID_CHAIN2050_HASHLOCK_V1_PROOF_GREEN");
@@ -231,7 +337,12 @@ console.log("canonical_void_token_bound=true");
 console.log("canonical_void_token_source_bound=true");
 console.log("canonical_git_source_bound=true");
 console.log("compiler_outputs_cross_checked=true");
-console.log("compiler_execution_rederived=false");
+console.log("compiler_execution_rederived=true");
+console.log("caller_supplied_compiler_artifacts_accepted=false");
+console.log("reviewed_native_compiler_image_required=true");
+console.log("reviewed_solcjs_package_sri_required=true");
+console.log("solcjs_package_dependencies_executed=false");
+console.log("compiler_identity_id_deterministic=true");
 console.log("funding_caller_refund_authority=true");
 console.log("exact_32_byte_sha256_preimage=true");
 console.log("claim_strictly_before_refund_deadline=true");

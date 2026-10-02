@@ -165,17 +165,40 @@ The review tool now binds source provenance before accepting compiler outputs:
 - this source proof does **not** claim live token runtime-code equality:
   `canonical_token_runtime_verified=false`.
 
-Hosted CI compiles the exact settlement source twice:
+The identity tool itself now rederives both compiler executions from the exact
+canonical HEAD-bound Standard JSON input. It no longer accepts caller-produced
+compiler outputs or environment JSON as authority.
 
-1. native `ethereum/solc:0.8.24`;
-2. `solc-js@0.8.24`.
+Native lane:
 
-The current identity tool cross-checks those two supplied compiler execution
-artifacts and records `compiler_outputs_cross_checked=true`, but deliberately
-records `compiler_execution_rederived=false`. Therefore the identity is now
-source-authoritative but is **not yet standalone compiler-execution authority**;
-closing that last provenance boundary requires the review tool itself to execute
-or otherwise cryptographically rederive both compiler environments.
+1. pull the public `ethereum/solc:0.8.24` tag using an empty private Docker
+   config;
+2. require its local image ID to equal the already-reviewed
+   `sha256:434803786cb17d2e37c48140bd986b0d7d366833bfe989ed6447cfe8bd200ef1`;
+3. run the compiler by that exact image ID with `--pull=never` and
+   `--network=none`.
+
+solc-js lane:
+
+1. fetch only the npm registry metadata for `solc@0.8.24`;
+2. require the reviewed package SRI
+   `sha512-G5yUqjTUPc8Np74sCFwfsevhBPlUifUOfhYrgyu6CmYlC6feSw0YS6eZW47XDT23k3JYdKx5nJ+Q7whCEmNcoA==`;
+3. download the exact tarball and independently recompute that SHA-512 SRI
+   **before extracting or executing package code**;
+4. extract only `package/package.json` and `package/soljson.js` into a
+   private temporary root;
+5. execute only the verified `soljson.js` compiler core directly through
+   Solidity's `solidity_compile` C API. None of the npm package's seven
+   JavaScript dependencies are installed or executed.
+
+The two independently executed outputs must still agree exactly on bytecode,
+ABI, method identifiers, storage layout, and metadata. The resulting identity
+records `compiler_execution_rederived=true` and
+`caller_supplied_compiler_artifacts_accepted=false`.
+
+The identity material contains no wall-clock review timestamp. Identical
+repository HEAD/tree, source bytes, reviewed compiler artifacts, and compiler
+outputs therefore reproduce the same `identity_id`.
 
 The review requires exact agreement for:
 
