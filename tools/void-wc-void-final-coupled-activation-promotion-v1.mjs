@@ -1721,10 +1721,9 @@ function readPrivateLineagePlanManifest(file) {
   );
 }
 
-async function verifyAppliedLineagePlans(manifest) {
-  const verified = [];
+function loadAppliedLineagePlanInputs(manifest) {
+  const inputs = [];
   for (const entry of manifest) {
-    const spec = APPLICATION_VERIFIERS[entry.lane];
     const planBytes = privateRegularFileBytes(
       entry.application_plan_path,
       "FINAL_COUPLED_APPLICATION_PLAN:" + entry.lane,
@@ -1748,48 +1747,17 @@ async function verifyAppliedLineagePlans(manifest) {
     ) {
       fail("FINAL_COUPLED_APPLICATION_PLAN_ID_INVALID:" + entry.lane);
     }
-
-    const modulePath = path.join(REPO_ROOT, spec.module);
-    if (!fs.existsSync(modulePath)) {
-      fail("FINAL_COUPLED_APPLICATION_VERIFIER_MISSING:" + entry.lane);
-    }
-    const module = await import(pathToFileURL(modulePath).href);
-    const verifier = module[spec.export_name];
-    if (typeof verifier !== "function") {
-      fail("FINAL_COUPLED_APPLICATION_VERIFIER_EXPORT_MISSING:" + entry.lane);
-    }
-    const args =
-      spec.argument_style === "camel"
-        ? {
-            applicationPlanBytes: planBytes,
-            applicationPlanFileSha256:
-              entry.application_plan_file_sha256,
-          }
-        : {
-            application_plan_bytes: planBytes,
-            application_plan_file_sha256:
-              entry.application_plan_file_sha256,
-          };
-    const result = await verifier(args);
-    if (
-      result?.ok !== true ||
-      result.status !== spec.expected_status ||
-      result.application_plan_id !== plan.application_plan_id
-    ) {
-      fail("FINAL_COUPLED_APPLICATION_VERIFY_RESULT_INVALID:" + entry.lane);
-    }
-    verified.push(
+    inputs.push(
       Object.freeze({
         lane: entry.lane,
         application_plan_id: plan.application_plan_id,
         application_plan_file_sha256:
           entry.application_plan_file_sha256,
-        verification_status: result.status,
-        verified_applied: true,
+        application_plan_base64: planBytes.toString("base64"),
       }),
     );
   }
-  return normalizeLineages(verified);
+  return Object.freeze(inputs);
 }
 
 function outsideRepository(file) {
@@ -2001,16 +1969,34 @@ if (direct) {
     const repository = currentRepositoryIdentity();
     const lineageManifest =
       readPrivateLineagePlanManifest(values.lineages);
-    const lineages =
-      await verifyAppliedLineagePlans(lineageManifest);
+    const lineageInputs =
+      loadAppliedLineagePlanInputs(lineageManifest);
+    const productionCandidate = headJson(PRODUCTION_REL);
+    const coupledCandidate = headJson(COUPLED_REL);
+    const successorCandidate = headJson(SUCCESSOR_REL);
+    const reviewedExecution = reviewedExecutionMetadata(repository);
+    const reviewedAuthority = runReviewedAuthority(
+      repository,
+      reviewedExecution,
+      {
+        operation: "verify_and_classify",
+        lineages: lineageInputs,
+        production_candidate: productionCandidate,
+        coupled_candidate: coupledCandidate,
+        successor_migration_candidate: successorCandidate,
+      },
+    );
+    const lineages = normalizeLineages(reviewedAuthority.lineages);
 
     const result =
       deriveVerifiedVoidWcVoidFinalCoupledActivationPromotionV1({
-        production_candidate: headJson(PRODUCTION_REL),
-        coupled_candidate: headJson(COUPLED_REL),
-        successor_migration_candidate: headJson(SUCCESSOR_REL),
+        production_candidate: productionCandidate,
+        coupled_candidate: coupledCandidate,
+        successor_migration_candidate: successorCandidate,
         applied_lineages: lineages,
         repository_identity: repository,
+        reviewed_semantic: reviewedAuthority.semantic,
+        reviewed_execution: reviewedExecution,
       });
 
     const persisted =
