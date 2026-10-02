@@ -387,6 +387,10 @@ function buildVoidProductionEpoch2RpcHostObservationCoreV1(
     host.service_container_contract_verified !== true ||
     host.systemd_exec_start_matches_reviewed_contract !== true ||
     host.main_pid_cgroup_service_bound !== true ||
+    host.main_pid_docker_host_environment_verified !== true ||
+    host.docker_host_environment !==
+      "DOCKER_HOST=" + expectedContainer.docker_host ||
+    !HEX64.test(String(host.main_pid_docker_host_environment_sha256 || "")) ||
     !HEX64.test(String(host.exec_start_argv_sha256 || "")) ||
     host.main_pid_argv_sha256 !== host.exec_start_argv_sha256 ||
     host.activation_source_lineage_ancestor_current_main !== true ||
@@ -538,6 +542,10 @@ function buildVoidProductionEpoch2RpcHostObservationCoreV1(
       exec_start_argv_sha256: host.exec_start_argv_sha256,
       main_pid_argv_sha256: host.main_pid_argv_sha256,
       main_pid_cgroup_service_bound: true,
+      docker_host_environment: host.docker_host_environment,
+      main_pid_docker_host_environment_sha256:
+        host.main_pid_docker_host_environment_sha256,
+      main_pid_docker_host_environment_verified: true,
       systemd_exec_start_matches_reviewed_contract: true,
       runtime_active_verified: true,
       listener_address: "127.0.0.1",
@@ -1088,12 +1096,38 @@ function reviewedExecStartArgv(fragmentBytes) {
   return Object.freeze(argv);
 }
 
+function reviewedDockerHostEnvironment(fragmentBytes) {
+  let fragmentText;
+  try {
+    fragmentText =
+      new TextDecoder("utf-8", { fatal: true }).decode(fragmentBytes);
+  } catch {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_FRAGMENT_TEXT_INVALID");
+  }
+  const lines = fragmentText
+    .split("\n")
+    .filter((line) => line.startsWith("Environment=DOCKER_HOST="));
+  if (lines.length !== 1) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_DOCKER_HOST_ENV_CARDINALITY_INVALID");
+  }
+  const value = lines[0].slice("Environment=".length);
+  const expected =
+    "DOCKER_HOST=unix:///run/user/" + String(process.getuid()) + "/docker.sock";
+  if (value !== expected) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_DOCKER_HOST_ENV_INVALID");
+  }
+  return value;
+}
+
 function validateSystemdInvocationEvidence(
   fragmentBytes,
   mainPidArgv,
   mainPidCgroup,
+  mainPidEnvironment,
 ) {
   const expected = reviewedExecStartArgv(fragmentBytes);
+  const expectedDockerHostEnvironment =
+    reviewedDockerHostEnvironment(fragmentBytes);
   if (
     !Array.isArray(mainPidArgv) ||
     mainPidArgv.some((value) => typeof value !== "string") ||
@@ -1114,6 +1148,20 @@ function validateSystemdInvocationEvidence(
   if (!serviceBound) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_MISMATCH");
   }
+  if (
+    !Array.isArray(mainPidEnvironment) ||
+    mainPidEnvironment.some((value) => typeof value !== "string")
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ENVIRONMENT_INVALID");
+  }
+  const dockerHostEntries =
+    mainPidEnvironment.filter((value) => value.startsWith("DOCKER_HOST="));
+  if (
+    dockerHostEntries.length !== 1 ||
+    dockerHostEntries[0] !== expectedDockerHostEnvironment
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_DOCKER_HOST_MISMATCH");
+  }
   const expectedSha =
     sha256(Buffer.from(expected.join("\0") + "\0", "utf8"));
   const observedSha =
@@ -1125,6 +1173,10 @@ function validateSystemdInvocationEvidence(
     exec_start_argv_sha256: expectedSha,
     main_pid_argv_sha256: observedSha,
     main_pid_cgroup_service_bound: true,
+    docker_host_environment: expectedDockerHostEnvironment,
+    main_pid_docker_host_environment_sha256:
+      sha256(Buffer.from(expectedDockerHostEnvironment, "utf8")),
+    main_pid_docker_host_environment_verified: true,
     systemd_exec_start_matches_reviewed_contract: true,
   });
 }
@@ -1137,6 +1189,7 @@ export function testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1(
       Buffer.from(String(input?.fragment_text || ""), "utf8"),
       input?.main_pid_argv,
       input?.main_pid_cgroup,
+      input?.main_pid_environment,
     );
     return Object.freeze({ ok: true, ...value });
   } catch (error) {
@@ -1165,9 +1218,22 @@ function readProcInvocation(mainPid) {
   if (cgroup.length < 1 || cgroup.length > 1024 * 1024) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_INVALID");
   }
+  const environ = fs.readFileSync("/proc/" + pid + "/environ");
+  if (environ.length < 2 || environ.length > 1024 * 1024) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ENVIRONMENT_INVALID");
+  }
+  const environment = environ.toString("utf8").split("\0");
+  if (environment.at(-1) === "") environment.pop();
+  if (
+    environment.length < 1 ||
+    environment.some((value) => value.length < 1)
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ENVIRONMENT_INVALID");
+  }
   return Object.freeze({
     argv: Object.freeze(argv),
     cgroup,
+    environment: Object.freeze(environment),
   });
 }
 
@@ -1207,6 +1273,7 @@ function systemdFacts() {
     fragmentBytes,
     proc.argv,
     proc.cgroup,
+    proc.environment,
   );
   return Object.freeze({
     service_unit: SERVICE,
@@ -1447,7 +1514,10 @@ async function dockerContainerFacts(expected, service, precisionInstall) {
     service.active_state !== "active" ||
     service.sub_state !== "running" ||
     service.fragment_path !== precisionInstall.unit_install_path ||
-    service.fragment_file_sha256 !== precisionInstall.systemd_unit_sha256
+    service.fragment_file_sha256 !== precisionInstall.systemd_unit_sha256 ||
+    service.main_pid_docker_host_environment_verified !== true ||
+    service.docker_host_environment !==
+      "DOCKER_HOST=" + expected.docker_host
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_SERVICE_CONTAINER_BINDING_INVALID");
   }
