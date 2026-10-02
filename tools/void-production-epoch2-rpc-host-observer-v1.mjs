@@ -24,8 +24,13 @@ export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1 =
     worktree_semantic_import_forbidden: true,
     systemd_read_only: true,
     listener_read_only: true,
+    rootless_docker_read_only: true,
+    container_inspection_read_only: true,
+    service_container_listener_binding_required: true,
+    container_generation_stable_required: true,
     rpc_read_only: true,
     service_action: false,
+    docker_mutation: false,
     daemon_reload: false,
     credential_access: false,
     wallet_or_signer_access: false,
@@ -158,6 +163,115 @@ function validSource(s) {
   );
 }
 
+function reviewedPrecisionContainerContract(reviewed, activationPlan) {
+  const privatePlan = reviewed?.private_runtime_plan;
+  if (
+    !plain(privatePlan) ||
+    privatePlan.marker !==
+      "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_PLAN_V1" ||
+    privatePlan.status !== "PRIVATE_QBFT_RUNTIME_PLAN_READY_ACTIVATION_HOLD" ||
+    !plain(privatePlan.runtime) ||
+    typeof privatePlan.runtime.besu_image !== "string" ||
+    !Array.isArray(privatePlan.hosts)
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_PRIVATE_RUNTIME_PLAN_INVALID");
+  }
+  const precisionHost =
+    privatePlan.hosts.find((row) => row?.role === "precision");
+  const precisionInstall =
+    activationPlan.install_receipts.find((row) => row?.role === "precision");
+  if (
+    !plain(precisionHost) ||
+    !plain(precisionInstall) ||
+    precisionHost.hostname !== "zoso-Precision-Tower-7810" ||
+    precisionHost.container_name !== "void-e2-qbft-precision-v1" ||
+    precisionHost.service_name !== SERVICE ||
+    precisionHost.rpc?.enabled !== true ||
+    precisionHost.rpc?.host_publish !== "127.0.0.1:18553:8545/tcp" ||
+    precisionHost.rpc?.loopback_url !== RPC_URL ||
+    !Array.isArray(precisionHost.besu_args) ||
+    precisionHost.besu_args.length < 1
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_PRECISION_RUNTIME_CONTRACT_INVALID");
+  }
+  const runtimeRoot = String(precisionInstall.runtime_root || "");
+  const suffix =
+    "/.local/share/void/epoch2-qbft-private-runtime-v1/precision";
+  if (!runtimeRoot.endsWith(suffix)) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_RUNTIME_ROOT_INVALID");
+  }
+  const home = runtimeRoot.slice(0, -suffix.length);
+  if (!path.isAbsolute(home) || path.resolve(home) !== home) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_HOME_INVALID");
+  }
+  const expectedDockerHost =
+    "unix:///run/user/" + String(process.getuid()) + "/docker.sock";
+  const binds = [
+    path.join(home, precisionHost.nodekey_path_relative) +
+      ":/key/nodekey:ro",
+    runtimeRoot + "/genesis.json:/config/genesis.json:ro",
+    runtimeRoot + "/static-nodes.json:/config/static-nodes.json:ro",
+    path.join(home, precisionHost.plugin_path_relative) +
+      ":/plugins/void-epoch2-raw-transaction-domain-plugin-v1.jar:ro",
+    runtimeRoot + "/data:/data",
+  ];
+  const p2p = String(precisionHost.p2p?.host_publish || "")
+    .match(/^([^:]+):([0-9]+):([0-9]+)\/tcp$/u);
+  if (!p2p || p2p[3] !== "30313") {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_P2P_PUBLISH_INVALID");
+  }
+  return Object.freeze({
+    docker_host: expectedDockerHost,
+    container_name: precisionHost.container_name,
+    image_reference: privatePlan.runtime.besu_image,
+    entrypoint: Object.freeze(["/opt/besu/bin/besu"]),
+    command: Object.freeze([...precisionHost.besu_args]),
+    binds: Object.freeze([...binds].sort()),
+    port_bindings: Object.freeze([
+      Object.freeze({
+        container_port: "30313/tcp",
+        host_ip: p2p[1],
+        host_port: p2p[2],
+      }),
+      Object.freeze({
+        container_port: "8545/tcp",
+        host_ip: "127.0.0.1",
+        host_port: "18553",
+      }),
+    ]),
+  });
+}
+
+function validateContainerObservation(container, expected) {
+  if (
+    !plain(container) ||
+    container.docker_host !== expected.docker_host ||
+    container.container_name !== expected.container_name ||
+    !/^[0-9a-f]{64}$/u.test(String(container.container_id || "")) ||
+    container.image_reference !== expected.image_reference ||
+    !/^sha256:[0-9a-f]{64}$/u.test(String(container.image_id || "")) ||
+    container.running !== true ||
+    typeof container.started_at_utc !== "string" ||
+    container.started_at_utc.length < 20 ||
+    container.auto_remove !== true ||
+    container.user !== "0:0" ||
+    canonical(container.entrypoint) !== canonical(expected.entrypoint) ||
+    canonical(container.command) !== canonical(expected.command) ||
+    canonical([...(container.binds || [])].sort()) !==
+      canonical(expected.binds) ||
+    canonical(container.port_bindings) !== canonical(expected.port_bindings) ||
+    container.besu_plugins_env_verified !== true ||
+    container.cap_drop_all !== true ||
+    container.no_new_privileges !== true ||
+    container.rootless_security_verified !== true ||
+    container.docker_socket_owner_uid !== String(process.getuid()) ||
+    container.systemd_exec_start_matches_reviewed_contract !== true
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_CONTAINER_IDENTITY_INVALID");
+  }
+  return Object.freeze({ ...container });
+}
+
 export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
   if (!plain(input)) fail("PRODUCTION_EPOCH2_RPC_OBSERVER_INPUT_INVALID");
 
@@ -177,6 +291,7 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     reviewed.reviewed_execution_verified !== true ||
     !plain(reviewed.activation_plan) ||
     !plain(reviewed.activation_receipt) ||
+    !plain(reviewed.private_runtime_plan) ||
     !plain(reviewed.target_value) ||
     !Array.isArray(reviewed.expected_validators) ||
     reviewed.target_status !== HOLD_STATUS ||
@@ -190,6 +305,8 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
   const plan = reviewed.activation_plan;
   const receipt = reviewed.activation_receipt;
   const targetValue = reviewed.target_value;
+  const expectedContainer =
+    reviewedPrecisionContainerContract(reviewed, plan);
   const identity = targetValue.reviewed_successor_identity;
   if (
     identity?.prospective_production_rpc_url !== RPC_URL ||
@@ -223,6 +340,8 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     host.canonical_main_stable_during_observation !== true ||
     host.service_invocation_stable_during_observation !== true ||
     host.listener_stable_during_observation !== true ||
+    host.container_stable_during_observation !== true ||
+    host.service_container_contract_verified !== true ||
     host.activation_source_lineage_ancestor_current_main !== true ||
     host.activation_plan_rederived_from_upstream !== true
   ) {
@@ -238,6 +357,9 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_UNIT_IDENTITY_MISMATCH");
   }
+
+  const container =
+    validateContainerObservation(host.container, expectedContainer);
 
   const rpc = host.rpc;
   const validators = Array.isArray(rpc?.validators)
@@ -368,7 +490,33 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
       listener_present: true,
       invocation_stable_during_observation: true,
       listener_stable_during_observation: true,
+      container_stable_during_observation: true,
+      service_container_contract_verified: true,
     }),
+    container: Object.freeze({
+      docker_host: container.docker_host,
+      container_name: container.container_name,
+      container_id: container.container_id,
+      image_reference: container.image_reference,
+      image_id: container.image_id,
+      running: true,
+      started_at_utc: container.started_at_utc,
+      auto_remove: true,
+      user: container.user,
+      entrypoint: Object.freeze([...container.entrypoint]),
+      command: Object.freeze([...container.command]),
+      binds: Object.freeze([...container.binds]),
+      port_bindings: Object.freeze(
+        container.port_bindings.map((row) => Object.freeze({ ...row })),
+      ),
+      besu_plugins_env_verified: true,
+      cap_drop_all: true,
+      no_new_privileges: true,
+      rootless_security_verified: true,
+      docker_socket_owner_uid: container.docker_socket_owner_uid,
+      systemd_exec_start_matches_reviewed_contract: true,
+    }),
+    service_container_listener_binding_verified: true,
     rpc: Object.freeze({
       url: RPC_URL,
       chain_id_hex: "0x802",
@@ -667,6 +815,7 @@ function reviewedSemanticExecution(repo, request) {
       "  if(target.evaluation.status!==HOLD_STATUS||target.evaluation.production_rpc_target_selected!==false) throw new Error(\\\"target_not_hold\\");",
       "  const result={",
       "    activation_plan:plan,",
+      "    private_runtime_plan:q.private_runtime_plan,",
       "    activation_receipt:receipt,",
       "    expected_validators:[...EXPECTED_VALIDATORS_V1],",
       "    target_value:target.value,",
