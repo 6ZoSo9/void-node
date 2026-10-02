@@ -58,17 +58,30 @@ but before artifact mint, and a backward wall-clock step after RPC.
 A qualification is current only while all of these are simultaneously true
 through the **entire observation and artifact-mint boundary**:
 
-1. its exact source head/tree still equal canonical current main;
-2. its reviewed qualification/dependency bytes still match;
-3. its launch-controller proof-of-control window has not expired at observation
+1. its recorded source head is a Git ancestor of canonical current main;
+2. its recorded source tree is re-derived exactly from that historical source
+   head;
+3. the historical qualification tool + reviewed dependency bytes match the
+   recorded blob/SHA-256 manifest;
+4. current canonical main still carries those exact same reviewed
+   qualification/dependency bytes;
+5. its launch-controller proof-of-control window has not expired at observation
    start; and
-4. that same control window remains unexpired after RPC revalidation immediately
+6. that same control window remains unexpired after RPC revalidation immediately
    before artifact mint.
+
+Unrelated merges therefore do not invalidate a still-fresh qualification merely
+because the repository HEAD changed. Any change to an authority-bearing reviewed
+qualification/dependency byte still fails closed.
+
+The production observer itself must still be clean local `main` equal to live
+GitHub `refs/heads/main`; only the **qualification's historical source
+generation** is allowed to be an ancestor.
 
 If the control window expires before the production RPC/deployer/inventory
 observation is ready, create a new challenge, obtain a fresh offline control
-signature, verify new control evidence, and generate a new current-head
-qualification. Do not extend or rewrite the old artifact.
+signature, verify new control evidence, and generate a new qualification. Do
+not extend or rewrite the old artifact.
 
 This freshness wall does not authorize deployer selection, transaction
 construction/signing/broadcast, deployment, inventory funding, market/presale
