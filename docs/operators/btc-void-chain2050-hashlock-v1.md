@@ -153,10 +153,29 @@ The compiler proof uses the same reviewed profile as the WC/VOID vault:
 - literal source metadata;
 - IPFS bytecode metadata hash.
 
-Hosted CI compiles the exact source twice:
+The review tool now binds source provenance before accepting compiler outputs:
+
+- repository HEAD and tree are derived with the hardened absolute-Git/config-isolated boundary;
+- the worktree settlement source must equal exact `HEAD:contracts/mainnet/BtcVoidHashlockSettlementV1.sol` bytes and Git blob;
+- caller-supplied source commit/ref authority is not accepted;
+- `contracts/epoch2/VoidEpoch2TokenV1.sol` is also exact-HEAD byte/blob bound;
+- the canonical token source is checked for the ordinary bool-returning
+  `transfer` / `transferFrom` / exact-balance-update semantics the settlement
+  relies on;
+- this source proof does **not** claim live token runtime-code equality:
+  `canonical_token_runtime_verified=false`.
+
+Hosted CI compiles the exact settlement source twice:
 
 1. native `ethereum/solc:0.8.24`;
 2. `solc-js@0.8.24`.
+
+The current identity tool cross-checks those two supplied compiler execution
+artifacts and records `compiler_outputs_cross_checked=true`, but deliberately
+records `compiler_execution_rederived=false`. Therefore the identity is now
+source-authoritative but is **not yet standalone compiler-execution authority**;
+closing that last provenance boundary requires the review tool itself to execute
+or otherwise cryptographically rederive both compiler environments.
 
 The review requires exact agreement for:
 
