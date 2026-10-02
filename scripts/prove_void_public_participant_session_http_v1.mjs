@@ -13,6 +13,7 @@ import {
 } from "./lib/void_participant_role_authority_session_stub_v1.mjs";
 import {
   createVoidPublicParticipantSessionStateFileV1,
+  isVoidPublicParticipantSessionStateFileStoreV1,
 } from "../ops/public/void-public-participant-session-state-file-v1.mjs";
 
 const MARKER = "VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1_PROOF_GREEN";
@@ -129,6 +130,27 @@ try {
     });
   assert.equal(stateStore.durable, true);
   assert.equal(stateStore.bearer_token_persisted, false);
+  assert.equal(
+    isVoidPublicParticipantSessionStateFileStoreV1(stateStore),
+    true,
+  );
+
+  const forgedDurableStore = Object.freeze({ ...stateStore });
+  assert.equal(
+    isVoidPublicParticipantSessionStateFileStoreV1(forgedDurableStore),
+    false,
+  );
+  assert.throws(
+    () => createVoidPublicParticipantSessionHttpV1({
+      bindingRegistryFile: registryFile,
+      roleAuthority,
+      stateStore: forgedDurableStore,
+      now: () => clock,
+      randomBytes: deterministicBytes,
+    }),
+    /durable_state_store_required/,
+    "session HTTP accepted forged durable-state-store shape",
+  );
 
   const adapter = createVoidPublicParticipantSessionHttpV1({
     bindingRegistryFile: registryFile,

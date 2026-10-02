@@ -15,6 +15,7 @@ import {
   VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE_V1,
   VOID_PUBLIC_PARTICIPANT_SESSION_STATE_STORE_V1,
   createVoidPublicParticipantSessionStateFileV1,
+  isVoidPublicParticipantSessionStateFileStoreV1,
 } from "../ops/public/void-public-participant-session-state-file-v1.mjs";
 
 const MARKER =
@@ -139,6 +140,9 @@ function memorylessSession(file) {
   });
   assert.equal(store.durable, true);
   assert.equal(session.state_store_durable, true);
+  assert.equal(isVoidPublicParticipantSessionStateFileStoreV1(store), true);
+  const forgedStore = Object.freeze({ ...store });
+  assert.equal(isVoidPublicParticipantSessionStateFileStoreV1(forgedStore), false);
   return { store, session };
 }
 
@@ -786,6 +790,8 @@ try {
   console.log("fatal_utf8_state_parse=true");
   console.log("async_logout_authorization_race_closed=true");
   console.log("durable_state_store_required_for_production=true");
+  console.log("reviewed_durable_store_factory_identity=true");
+  console.log("spread_clone_factory_identity=false");
   console.log("production_route_mounted=false");
   console.log("wallet_private_key_access=false");
   console.log("signing_authority=false");

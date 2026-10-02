@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +13,11 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_AUTHORITY_V1 =
     source_only_preflight: true,
     git_repository_identity_read: true,
     exact_head_source_blob_binding: true,
+    reviewed_git_executable_required: true,
+    minimal_git_environment_required: true,
+    git_override_state_ignored: true,
+    captured_commit_source_reads_required: true,
+    git_identity_revalidated: true,
     durable_session_contract_review: true,
     role_authority_contract_review: true,
     participant_http_contract_review: true,
@@ -38,15 +44,25 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_AUTHORITY_V1 =
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const HEX40=/^[0-9a-f]{40}$/u;
+const GIT_EXECUTABLE="/usr/bin/git";
+const MAX_GIT_BUFFER=16*1024*1024;
+const REVIEWED_GIT_CONFIG_ARGS=Object.freeze([
+  "-c","core.hooksPath=/dev/null",
+  "-c","core.attributesFile=/dev/null",
+  "-c","core.fsmonitor=false",
+  "-c","core.untrackedCache=false",
+  "-c","core.preloadIndex=false",
+  "-c","submodule.recurse=false",
+]);
 
 export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
   Object.freeze({
     "ops/public/void-public-participant-session-state-file-v1.mjs":
-      "d5da8b40963c7d5c7f0c832ba4b9a7b3a2b40621",
+      "260b1ced7eebe2385a514c66edeebff287be54e7",
     "ops/public/void-public-participant-read-session-v1.mjs":
       "00fea49e1da53975deba78b69f5776537f6899e8",
     "ops/public/void-public-participant-session-http-v1.mjs":
-      "f2c1d2cc3ea3d20737af834e51f60654fa951162",
+      "43106ae5ba4af7cd82ec66bc4729d0f6767211cf",
     "ops/public/void-public-participant-account-read-projection-v1.mjs":
       "985ac993f59d9bfc4f0650853f142bfd398b9e18",
     "ops/public/void-public-participant-account-read-http-edge-v1.mjs":
@@ -65,21 +81,87 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
 
 function fail(code){throw new Error(code);}
 
-function git(args,code){
+function inspectGitExecutableV1(){
+  let canonicalPath;
+  let stat;
+  let bytes;
   try{
-    return execFileSync(
-      "git",
-      ["-C",ROOT,...args],
-      {
-        encoding:"utf8",
-        stdio:["ignore","pipe","ignore"],
-        env:{...process.env,GIT_OPTIONAL_LOCKS:"0",GIT_NO_LAZY_FETCH:"1"},
-        maxBuffer:16*1024*1024,
-      },
-    ).trimEnd();
+    canonicalPath=fs.realpathSync(GIT_EXECUTABLE);
+    stat=fs.statSync(canonicalPath);
+    bytes=fs.readFileSync(canonicalPath);
   }catch{
-    fail(code);
+    fail("participant_composition_git_executable_unavailable");
   }
+  if(
+    !path.isAbsolute(canonicalPath)||
+    !stat.isFile()||
+    (stat.mode&0o111)===0
+  ){
+    fail("participant_composition_git_executable_invalid");
+  }
+  return Object.freeze({
+    path:canonicalPath,
+    sha256:crypto.createHash("sha256").update(bytes).digest("hex"),
+    filesystem_identity:[
+      canonicalPath,
+      String(stat.dev),
+      String(stat.ino),
+      String(stat.size),
+      String(stat.mode&0o7777),
+    ].join("\0"),
+  });
+}
+
+function sameGitExecutableV1(left,right){
+  return (
+    left.path===right.path&&
+    left.sha256===right.sha256&&
+    left.filesystem_identity===right.filesystem_identity
+  );
+}
+
+function reviewedGitEnvV1(){
+  return {
+    PATH:"/usr/bin:/bin",
+    HOME:"/nonexistent",
+    XDG_CONFIG_HOME:"/nonexistent",
+    LANG:"C",
+    LC_ALL:"C",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_CONFIG_SYSTEM:"/dev/null",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_ATTR_NOSYSTEM:"1",
+    GIT_TERMINAL_PROMPT:"0",
+    GIT_OPTIONAL_LOCKS:"0",
+    GIT_NO_LAZY_FETCH:"1",
+    GIT_NO_REPLACE_OBJECTS:"1",
+  };
+}
+
+function git(args,code){
+  const before=inspectGitExecutableV1();
+  const result=spawnSync(
+    before.path,
+    [
+      "--no-replace-objects",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "-C",ROOT,
+      ...args,
+    ],
+    {
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      env:reviewedGitEnvV1(),
+      maxBuffer:MAX_GIT_BUFFER,
+      timeout:60_000,
+    },
+  );
+  if(result.error||result.status!==0) fail(code);
+  const after=inspectGitExecutableV1();
+  if(!sameGitExecutableV1(before,after)){
+    fail("participant_composition_git_executable_changed_during_read");
+  }
+  return String(result.stdout).trimEnd();
 }
 
 function canonical(value){
@@ -116,16 +198,35 @@ function requireCleanReviewedHeadV1(){
     VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1,
   )){
     const blob=git(
-      ["rev-parse","HEAD:"+relativePath],
+      ["rev-parse",head+":"+relativePath],
       "participant_composition_source_blob_unavailable:"+relativePath,
     );
     if(blob!==expectedBlob){
       fail("participant_composition_source_blob_mismatch:"+relativePath);
     }
     sources[relativePath]=git(
-      ["show","HEAD:"+relativePath],
+      ["show",head+":"+relativePath],
       "participant_composition_source_read_failed:"+relativePath,
     );
+  }
+  if(
+    git(
+      ["status","--porcelain=v1","--untracked-files=all"],
+      "participant_composition_repository_final_status_unavailable",
+    )!==""
+  ){
+    fail("participant_composition_repository_changed_during_review");
+  }
+  const finalHead=git(
+    ["rev-parse","HEAD"],
+    "participant_composition_final_head_unavailable",
+  );
+  const finalTree=git(
+    ["rev-parse","HEAD^{tree}"],
+    "participant_composition_final_tree_unavailable",
+  );
+  if(finalHead!==head||finalTree!==tree){
+    fail("participant_composition_repository_changed_during_review");
   }
   return Object.freeze({
     repository_head_sha:head,
@@ -166,6 +267,9 @@ function inspectDurableSessionStateV1(text){
     "parent_dev_inode_custody_retained: true",
     "installed_inode_bound_to_fsynced_descriptor: true",
     "installed_content_revalidated_after_parent_fsync: true",
+    "REVIEWED_SESSION_STATE_FILE_STORES_V1 = new WeakSet()",
+    "isVoidPublicParticipantSessionStateFileStoreV1",
+    "REVIEWED_SESSION_STATE_FILE_STORES_V1.add(store)",
   ],"participant_composition_durable_state_contract_invalid");
   return true;
 }
@@ -216,6 +320,9 @@ function inspectSessionHttpV1(text){
     "stateStore,",
     "if (!roleAuthority)",
     "role_authority_adapter_required",
+    "isVoidPublicParticipantSessionStateFileStoreV1",
+    "if (!isVoidPublicParticipantSessionStateFileStoreV1(stateStore))",
+    'fail("durable_state_store_required")',
   ],"participant_composition_session_http_contract_invalid");
   return true;
 }
