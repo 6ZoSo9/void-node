@@ -85,7 +85,7 @@ function systemctl(args) {
     stdio:["ignore","pipe","pipe"],
   });
 }
-function requireInactiveDisabled(service) {
+function requireInactiveUnitFileState(service,{allowStatic=false}={}) {
   const active=systemctl(["is-active",service]);
   const activeText=String(active.stdout||active.stderr||"").trim();
   if(!["inactive","unknown"].includes(activeText)) {
@@ -93,17 +93,30 @@ function requireInactiveDisabled(service) {
   }
   const enabled=systemctl(["is-enabled",service]);
   const enabledText=String(enabled.stdout||enabled.stderr||"").trim();
-  if(!["disabled","not-found","static"].includes(enabledText)) {
+  const accepted=allowStatic
+    ? ["disabled","not-found","static"]
+    : ["disabled","not-found"];
+  if(!accepted.includes(enabledText)) {
     fail("service_enable_state_not_clean:"+enabledText);
   }
-  return {active_state:activeText,enabled_state:enabledText};
+  return {active_state:activeText,unit_file_state:enabledText};
+}
+function requireNoInstallSection(bytes,label) {
+  if(/^[ \t]*\[Install\][ \t]*$/mu.test(bytes.toString("utf8"))) {
+    fail(label+"_install_section_forbidden");
+  }
 }
 function requireNoEnableLinks(unitDir,service) {
   for(const name of fs.readdirSync(unitDir)) {
     if(!name.endsWith(".wants")&&!name.endsWith(".requires")) continue;
     const dir=path.join(unitDir,name);
     const st=fs.lstatSync(dir);
-    if(st.isSymbolicLink()||!st.isDirectory()) continue;
+    if(st.isSymbolicLink()) {
+      fail("service_dependency_dir_symlink_forbidden:"+name);
+    }
+    if(!st.isDirectory()) {
+      fail("service_dependency_dir_not_directory:"+name);
+    }
     const candidate=path.join(dir,service);
     try {
       fs.lstatSync(candidate);
@@ -130,6 +143,7 @@ function validateBundleBytes(bundle,binding) {
   if(bundle.systemd_unit_raw.toString("utf8").includes("\nRestart=on-failure\n")) {
     fail("bundle_unit_auto_restart_forbidden");
   }
+  requireNoInstallSection(bundle.systemd_unit_raw,"bundle_unit");
   return {genesisSha,staticSha,unitSha};
 }
 
@@ -187,7 +201,10 @@ if(unitPath!==expectedUnitPath) fail("unit_install_path_mismatch");
 
 const unitDir=canonicalDir(path.dirname(unitPath),"systemd_user_dir");
 requireNoEnableLinks(unitDir,binding.manifest.service_name);
-const preState=requireInactiveDisabled(binding.manifest.service_name);
+const preState=requireInactiveUnitFileState(
+  binding.manifest.service_name,
+  {allowStatic:false},
+);
 
 if(fs.existsSync(runtimeRoot)) fail("runtime_root_already_exists");
 if(fs.existsSync(unitPath)) fail("unit_path_already_exists");
@@ -204,7 +221,7 @@ console.log("materialization_id="+binding.manifest.materialization_id);
 console.log("runtime_root="+runtimeRoot);
 console.log("unit_install_path="+unitPath);
 console.log("pre_active_state="+preState.active_state);
-console.log("pre_enabled_state="+preState.enabled_state);
+console.log("pre_unit_file_state="+preState.unit_file_state);
 console.log("daemon_reload=false");
 console.log("service_enable=false");
 console.log("service_start=false");
@@ -319,7 +336,11 @@ try {
   unitPublished=true;
 
   requireNoEnableLinks(unitDir,binding.manifest.service_name);
-  const postState=requireInactiveDisabled(binding.manifest.service_name);
+  requireNoInstallSection(fs.readFileSync(unitPath),"installed_unit");
+  const postState=requireInactiveUnitFileState(
+    binding.manifest.service_name,
+    {allowStatic:true},
+  );
 
   if(
     sha256(fs.readFileSync(path.join(runtimeRoot,"genesis.json")))!==hashes.genesisSha||
@@ -334,7 +355,7 @@ try {
   outputPublished=true;
 
   console.log("post_active_state="+postState.active_state);
-  console.log("post_enabled_state="+postState.enabled_state);
+  console.log("post_unit_file_state="+postState.unit_file_state);
   console.log("runtime_root_present=true");
   console.log("user_unit_file_present=true");
   console.log("data_directory_empty=true");
