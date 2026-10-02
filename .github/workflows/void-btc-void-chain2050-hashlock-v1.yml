@@ -60,7 +60,7 @@ jobs:
           contract="contracts/mainnet/BtcVoidHashlockSettlementV1.sol"
           tool="tools/void-btc-void-chain2050-hashlock-v1.mjs"
 
-          grep -F '0x470075b85352eb86f7d089fb9ba88945f12aad94' "$contract" >/dev/null
+          grep -F '0x470075B85352Eb86F7d089FB9ba88945f12AAd94' "$contract" >/dev/null
           grep -F 'refundAuthority: msg.sender' "$contract" >/dev/null
           grep -F 'preimage.length != 32' "$contract" >/dev/null
           grep -F 'source_and_compiler_proof_only: true' "$tool" >/dev/null

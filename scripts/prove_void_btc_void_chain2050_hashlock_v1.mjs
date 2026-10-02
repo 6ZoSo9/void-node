@@ -69,7 +69,7 @@ assert.equal(input.settings.metadata.useLiteralContent, true);
 
 for (const required of [
   "address public constant voidToken =",
-  "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+  "0x470075B85352Eb86F7d089FB9ba88945f12AAd94",
   "mapping(bytes32 => Swap) private _swaps;",
   "refundAuthority: msg.sender",
   "token.transferFrom(",

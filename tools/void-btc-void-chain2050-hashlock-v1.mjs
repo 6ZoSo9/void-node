@@ -133,7 +133,7 @@ export function validateSourceText(sourceText) {
   }
   for (const required of [
     "contract BtcVoidHashlockSettlementV1",
-    "0x470075b85352eb86f7d089fb9ba88945f12aad94",
+    "0x470075B85352Eb86F7d089FB9ba88945f12AAd94",
     "mapping(bytes32 => Swap) private _swaps;",
     "function lock(",
     "refundAuthority: msg.sender",
