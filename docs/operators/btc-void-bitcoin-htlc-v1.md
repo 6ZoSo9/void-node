@@ -72,6 +72,7 @@ builder must additionally bind:
 
 ```text
 transaction.nLockTime >= refund_locktime
+transaction nLockTime type (height vs timestamp) matches refund_locktime
 spending input nSequence != 0xffffffff
 ```
 
