@@ -184,6 +184,9 @@ public_presale_activation=false
 funds_movement=false
 ```
 
-The next operational gate is a separately reviewed real production successor
-runtime and a fresh independent host observation. This contract alone cannot
-select one.
+The next operational gate is to reuse the already-reviewed private QBFT
+lifecycle: locate or regenerate the three-host plan/bundles, perform inactive
+installation, obtain fresh start admission, and only then consider the separate
+explicit `startPrivateEpoch2QbftSuccessorV1` activation ceremony. After a
+green activation receipt, a fresh independent Precision host/RPC observation
+must still precede target selection. This contract alone cannot select one.
