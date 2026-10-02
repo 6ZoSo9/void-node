@@ -133,6 +133,16 @@ function exact(value, keys, code) {
   return value;
 }
 
+function deepFreeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const key of Reflect.ownKeys(value)) {
+    deepFreeze(value[key]);
+  }
+  return Object.freeze(value);
+}
+
 function canonicalJson(value) {
   if (value === null) return "null";
   if (typeof value === "string" || typeof value === "boolean") {
@@ -686,7 +696,7 @@ function validateCase(raw) {
   if (value.case_id !== contentId("voidbtcp1case1_", material)) {
     fail("phase1_case_id_mismatch");
   }
-  return Object.freeze(value);
+  return deepFreeze(value);
 }
 
 export function previewBtcVoidPhase1ExecutionEvidenceV1(input) {
@@ -742,7 +752,7 @@ export function previewBtcVoidPhase1ExecutionEvidenceV1(input) {
     fail("phase1_suite_mixed_atomic_source_trees");
   }
 
-  const material = Object.freeze({
+  const material = deepFreeze({
     schema: OUTPUT_SCHEMA,
     marker: VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_PREVIEW_V1,
     version: 1,
@@ -786,7 +796,7 @@ export function previewBtcVoidPhase1ExecutionEvidenceV1(input) {
     authority: VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1,
   });
 
-  return Object.freeze({
+  return deepFreeze({
     ...material,
     preview_id: contentId("voidbtcp1preview1_", material),
   });
