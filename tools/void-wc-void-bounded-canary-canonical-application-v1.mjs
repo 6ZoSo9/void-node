@@ -98,6 +98,14 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const PROMOTION_ID = /^voidwcbccp1_[0-9a-f]{64}$/u;
 const PLAN_ID = /^voidwcbcap1_[0-9a-f]{64}$/u;
 const MAX_BYTES = 64 * 1024 * 1024;
+const REVIEWED_GIT_CONFIG_ARGS = Object.freeze([
+  "-c", "core.hooksPath=/dev/null",
+  "-c", "core.attributesFile=/dev/null",
+  "-c", "core.fsmonitor=false",
+  "-c", "core.untrackedCache=false",
+  "-c", "core.preloadIndex=false",
+  "-c", "submodule.recurse=false",
+]);
 
 const SEMANTIC_REQUEST_KEYS = Object.freeze([
   "reviewed_policy_id",
@@ -281,47 +289,29 @@ function sameGitExecutable(left, right) {
 }
 
 function sanitizedGitEnv() {
-  const env = { ...process.env };
-  for (const key of [
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_NAMESPACE",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_COUNT",
-    "GIT_EXEC_PATH",
-    "GIT_SSH",
-    "GIT_SSH_COMMAND",
-    "GIT_ASKPASS",
-    "SSH_ASKPASS",
-    "GIT_EXTERNAL_DIFF",
-    "GIT_PAGER",
-    "GIT_EDITOR",
-    "GIT_SEQUENCE_EDITOR",
-  ]) {
-    delete env[key];
-  }
-  for (const key of Object.keys(env)) {
-    if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/u.test(key)) delete env[key];
-  }
-  env.GIT_CONFIG_NOSYSTEM = "1";
-  env.GIT_OPTIONAL_LOCKS = "0";
-  env.GIT_TERMINAL_PROMPT = "0";
-  env.LANG = "C";
-  env.LC_ALL = "C";
-  env.PATH = "/usr/bin:/bin";
-  return env;
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_ASKPASS: "/bin/false",
+  };
 }
 
 function gitRun(args, code, { encoding = "utf8", maxBuffer = MAX_BYTES + 1024 } = {}) {
   const before = inspectGitExecutable();
   const result = spawnSync(
     before.path,
-    ["--no-replace-objects", "-C", ROOT, ...args],
+    ["--no-replace-objects", ...REVIEWED_GIT_CONFIG_ARGS, "-C", ROOT, ...args],
     {
       encoding,
       env: sanitizedGitEnv(),
@@ -351,7 +341,12 @@ function canonicalRemoteGitText(args, code) {
   env.GIT_TERMINAL_PROMPT = "0";
   const result = spawnSync(
     before.path,
-    ["--no-replace-objects", ...args],
+    [
+      "--no-replace-objects",
+      "-c", "http.sslVerify=true",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      ...args,
+    ],
     {
       cwd: "/",
       encoding: "utf8",

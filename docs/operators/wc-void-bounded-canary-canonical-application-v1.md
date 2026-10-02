@@ -79,10 +79,14 @@ The plan binds:
 - successor candidate Git blob + file SHA-256; and
 - exact target Git blob + file SHA-256 for both promoted candidates.
 
-Plan validation re-reads the exact base commit from Git. Git execution uses the
-reviewed executable path, disables replacement objects, strips repository/program/config
-override environment, and pins every source read to one captured HEAD/tree generation.
-The generation and clean-worktree state are rechecked before an artifact is returned.
+Plan validation re-reads the exact base commit from Git. Authority-bearing Git
+uses the reviewed executable path under a minimal explicit subprocess environment;
+it does not inherit ambient process loader/tool state. Global/system Git config is
+disabled, replacement objects are disabled, and every local read forces
+`core.fsmonitor=false`, hooks/ambient attributes off, untracked-cache/preload-index
+off, and submodule recursion off. Every source read remains pinned to one captured
+HEAD/tree generation, which is rechecked with clean-worktree state before an artifact
+is returned.
 
 A caller cannot alter a target object, recompute the plan ID, and retain validity.
 
@@ -179,9 +183,11 @@ pure state verifier, but it cannot emit canonical applied lineage.
 The final verifier also requires `origin` to identify
 `6ZoSo9/void-node` and performs a read-only `git ls-remote` against the fixed
 canonical HTTPS repository. That fixed-URL remote read does not use repository
-discovery and runs with global/system Git config disabled, interactive prompting
-disabled, and replacement objects disabled, so repository-local URL rewrites,
-HTTP/TLS relaxations, and transport helpers cannot redirect the canonical check.
+discovery and runs with the same minimal environment, global/system Git config
+disabled, interactive prompting disabled, replacement objects disabled, local
+execution/cache features fenced, and `http.sslVerify=true`. Repository-local URL
+rewrites, ambient loader/config injection, TLS relaxation, or transport helpers
+therefore cannot redirect the canonical check.
 The returned `refs/heads/main` SHA must equal local HEAD. Prepare itself remains
 network-free.
 
@@ -299,3 +305,9 @@ Focused verification:
 ```bash
 node scripts/prove_void_wc_void_bounded_canary_canonical_application_v1.mjs
 ```
+
+The proof installs hostile repository-local and ambient global `core.fsmonitor`
+sentinels plus dynamic-loader debug variables, then re-enters the authority Git
+path. The expected branch HOLD must remain unchanged and no sentinel/loader output
+may be produced. This hardening does not by itself claim immutable execution-byte
+binding for the statically imported semantic/promotion/classifier modules.
