@@ -21,6 +21,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     exact_qualification_bytes_required: true,
     qualification_current_head_required: true,
     qualification_control_freshness_required: true,
+    qualification_control_freshness_revalidation_required: true,
     production_wall_clock_evaluation_required: true,
     canonical_source_revalidation_required: true,
     reviewed_qualification_contract_exact_head_execution: true,
@@ -722,7 +723,7 @@ function verifyQualification(
     }
   }
 
-  validateQualificationControlFreshnessV1(
+  const controlFreshness = validateQualificationControlFreshnessV1(
     q.launch_controller,
     evaluationTimeUnix,
   );
@@ -861,6 +862,7 @@ function verifyQualification(
     qualification_file_sha256: expectedSha,
     deployment_data_hex: deploymentHex,
     void_token: token,
+    control_freshness: controlFreshness,
   });
 }
 
@@ -1044,6 +1046,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   {
     requireCanonicalMain = false,
     evaluationTimeUnix = TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+    finalEvaluationTimeUnix = null,
   } = {},
 ) {
   let repo;
@@ -1208,6 +1211,34 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       });
     }
 
+    const finalEvaluation =
+      finalEvaluationTimeUnix === null
+        ? String(Math.floor(Date.now() / 1000))
+        : finalEvaluationTimeUnix;
+    try {
+      const finalFreshness = validateQualificationControlFreshnessV1(
+        verifiedQualification.qualification.launch_controller,
+        finalEvaluation,
+      );
+      if (
+        finalFreshness.verified_at_unix !==
+          verifiedQualification.control_freshness.verified_at_unix ||
+        finalFreshness.reverified_at_unix !==
+          verifiedQualification.control_freshness.reverified_at_unix ||
+        finalFreshness.valid_until_unix !==
+          verifiedQualification.control_freshness.valid_until_unix
+      ) {
+        return held("live_deployment_preflight_control_freshness_lineage_drift", {
+          rpc_methods_used: methods,
+        });
+      }
+    } catch (error) {
+      return held(
+        error instanceof Error ? error.message : String(error),
+        { rpc_methods_used: methods },
+      );
+    }
+
     const bareEstimatedCost = gasEstimate * gasPrice;
     const deployerBalanceSufficient = deployerBalance >= bareEstimatedCost;
     const inventoryBalanceSufficient =
@@ -1317,6 +1348,7 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
     {
       requireCanonicalMain: true,
       evaluationTimeUnix: String(Math.floor(Date.now() / 1000)),
+      finalEvaluationTimeUnix: null,
     },
   );
 }
@@ -1330,6 +1362,10 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
       {
         requireCanonicalMain: false,
         evaluationTimeUnix:
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+        finalEvaluationTimeUnix:
+          input?.final_evaluation_time_unix ??
           input?.evaluation_time_unix ??
           TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
       },
