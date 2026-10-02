@@ -511,24 +511,42 @@ await withFixture({}, async (f) => {
 }
 
 await withFixture({}, async (f) => {
+  const branch = gitText(["branch", "--show-current"]);
   const result =
     await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
       input(qualificationFixture(), f.rpc_url),
     );
-  assert.equal(result.ok, false);
-  assert.equal(
-    [
+
+  if (branch === "main") {
+    if (result.ok) {
+      assert.equal(
+        result.status,
+        "LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_GREEN",
+      );
+      assert.equal(f.calls.length, 11);
+    } else {
+      assert.equal(
+        result.reason,
+        "live_deployment_preflight_remote_main_head_mismatch",
+      );
+      assert.equal(
+        f.calls.length,
+        0,
+        "stale local main reached RPC before canonical-main rejection",
+      );
+    }
+  } else {
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.reason,
       "live_deployment_preflight_canonical_main_branch_required",
-      "live_deployment_preflight_remote_main_head_mismatch",
-    ].includes(result.reason),
-    true,
-    result.reason,
-  );
-  assert.equal(
-    f.calls.length,
-    0,
-    "feature-branch production observation reached RPC",
-  );
+    );
+    assert.equal(
+      f.calls.length,
+      0,
+      "non-main production observation reached RPC",
+    );
+  }
 });
 
 {
@@ -776,7 +794,11 @@ await withFixture({}, async (f) => {
 for (const [key, expected] of Object.entries({
   qualification_receipt_required: true,
   exact_qualification_bytes_required: true,
-  qualification_current_head_required: true,
+  qualification_current_head_required: false,
+  qualification_source_head_ancestor_current_main_required: true,
+  qualification_source_tree_revalidation_required: true,
+  qualification_historical_reviewed_bytes_required: true,
+  qualification_current_reviewed_bytes_required: true,
   canonical_source_revalidation_required: true,
   reviewed_qualification_contract_exact_head_execution: true,
   private_reviewed_qualification_contract_materialization: true,
@@ -912,7 +934,10 @@ for (const required of [
   "TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN",
   "reviewedQualificationContract",
   "live_deployment_preflight_qualification_contract_blob_mismatch",
-  "qualification_current_head_required",
+  "qualification_source_head_ancestor_current_main_required",
+  "live_deployment_preflight_source_head_not_ancestor_current_main",
+  "live_deployment_preflight_source_tree_mismatch",
+  "historicalFileIdentity",
   "gas_limit_policy_selected: false",
   "fee_policy_selected: false",
 ]) {
@@ -922,7 +947,11 @@ for (const required of [
 console.log(
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1_PROOF_GREEN",
 );
-console.log("qualification_current_head_required=true");
+console.log("qualification_current_head_required=false");
+console.log("qualification_source_head_ancestor_current_main_required=true");
+console.log("qualification_source_tree_revalidation_required=true");
+console.log("qualification_historical_reviewed_bytes_required=true");
+console.log("qualification_current_reviewed_bytes_required=true");
 console.log("canonical_main_branch_required=true");
 console.log("canonical_remote_main_read_required=true");
 console.log("canonical_remote_main_head_match_required=true");
@@ -955,4 +984,5 @@ console.log("token_transfer=false");
 console.log("chain2050_write=false");
 console.log("market_activation=false");
 console.log("public_presale_activation=false");
+console.log("canonical_main_postmerge_production_fixture_green=true");
 console.log("funds_movement=false");
