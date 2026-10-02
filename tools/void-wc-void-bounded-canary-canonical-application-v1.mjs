@@ -1321,8 +1321,7 @@ function validatePlan(plan) {
     },
   );
   assertReviewedExecutionBinding(plan, reviewedClassification.binding);
-  const productionBefore = reviewedClassification.result.production;
-  const productionAfter = runReviewedAuthority(
+  const classificationAfter = runReviewedAuthority(
     Object.freeze({
       head: plan.application_base_head_sha,
       tree: plan.application_base_tree_sha,
@@ -1334,11 +1333,13 @@ function validatePlan(plan) {
       successor_candidate: baseSuccessor.value,
     },
   );
-  assertReviewedExecutionBinding(plan, productionAfter.binding);
-  const coupledBefore = productionBefore.coupled;
-  const coupledAfter = productionAfter.result.coupled;
-  const reviewedProductionBefore = productionBefore.production;
-  const reviewedProductionAfter = productionAfter.result.production;
+  assertReviewedExecutionBinding(plan, classificationAfter.binding);
+  const reviewedProductionBefore =
+    reviewedClassification.result.production;
+  const reviewedProductionAfter =
+    classificationAfter.result.production;
+  const coupledBefore = reviewedClassification.result.coupled;
+  const coupledAfter = classificationAfter.result.coupled;
   if (
     canonicalJson(reviewedProductionBefore) !==
       canonicalJson(plan.production_before) ||
