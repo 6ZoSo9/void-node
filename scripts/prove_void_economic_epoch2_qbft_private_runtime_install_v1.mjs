@@ -368,7 +368,7 @@ for(const required of [
   "reattest_explicit_confirmation_required",
   "--reattest-existing",
   "install_apply_and_reattest_mutually_exclusive",
-  "reattestExistingPrivateEpoch2QbftBundleV1",
+  "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1",
   "verifyExistingInstalledRuntime",
   "existing_runtime_membership_mismatch",
   "existing_runtime_hash_mismatch",
