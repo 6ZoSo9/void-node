@@ -14,8 +14,14 @@ supplied:
 - a role-authority adapter; and
 - a durable session-state store.
 
-A memory-only fallback is not accepted by this HTTP surface. It intentionally
-stops before Wallet or Earn projection.
+A memory-only fallback is not accepted by this HTTP surface. A caller also
+cannot satisfy the production boundary by supplying a shape-compatible custom
+store that merely declares `durable=true`: the HTTP constructor requires the
+runtime identity of an instance created by the reviewed
+`createVoidPublicParticipantSessionStateFileV1(...)` factory. A spread clone
+of a real store is rejected.
+
+It intentionally stops before Wallet or Earn projection.
 
 ## Exact routes
 
@@ -100,9 +106,14 @@ This check occurs before any participant HTTP route can be served. The status
 surface therefore reports `durable_state_store=true` for every successfully
 constructed session-HTTP instance.
 
-The reviewed durable implementation persists session-token SHA-256 only; bearer
-token bytes, wallet keys, signing authority, Work Credit authority, validator
-authority, and money-movement authority remain absent.
+The reviewed durable implementation persists session-token SHA-256 only. Factory
+identity is tracked through a module-private `WeakSet`; the exported verifier
+can test membership but cannot add arbitrary objects to it. This keeps the
+generic lower-level read-session store interface available for tests while the
+production HTTP surface accepts only the reviewed durable file-store factory.
+
+Bearer token bytes, wallet keys, signing authority, Work Credit authority,
+validator authority, and money-movement authority remain absent.
 
 ## Internal authorization hook
 

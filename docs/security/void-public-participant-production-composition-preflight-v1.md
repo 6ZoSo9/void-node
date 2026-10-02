@@ -56,6 +56,20 @@ The preflight reads source through Git object identity and never imports or
 executes the composition gateway. This is important because the gateway is a
 listener-bearing runtime module.
 
+Those Git reads are themselves provenance-bound. The preflight uses the reviewed
+absolute Git executable, revalidates its filesystem identity and SHA-256 around
+each read, supplies a minimal explicit environment rather than inherited
+`process.env`, disables replacement objects plus hooks/attributes/fsmonitor,
+untracked-cache/preload-index, and submodule recursion, and ignores caller
+repository/worktree/index/object/config/program overrides. It captures one clean
+HEAD/tree, reads every reviewed source from that exact captured commit, then
+requires the repository to remain clean at the same HEAD/tree before returning.
+
+The focused proof runs the same preflight under a hostile fake-`git` PATH,
+repository/object/config/replacement overrides, and a global fsmonitor sentinel.
+The preflight identity must remain identical and neither hostile executable may
+run.
+
 Any change to those reviewed blobs requires a new reviewed preflight generation.
 
 ## Durable session contract
@@ -79,8 +93,15 @@ installed_content_revalidated_after_parent_fsync=true
 Wallet/private-key/signing/transaction/Work-Credit/validator/Chain-2050-write
 and money authority remain false.
 
-The proof also instantiates this store only in a disposable mode-0700 temporary
-directory and verifies the session HTTP layer reports a durable state store.
+The production HTTP layer does not trust the public `durable=true` field by
+itself. The reviewed file-store factory registers each created store in a
+module-private `WeakSet`, and the HTTP constructor requires that factory
+identity. A shape-identical spread clone of a real store is not registered and
+must fail closed.
+
+The proof also instantiates the real store only in a disposable mode-0700
+temporary directory, rejects a forged durable-store clone, and verifies the
+session HTTP layer reports a durable state store.
 
 ## Role-authority contract
 
@@ -122,7 +143,9 @@ production_route_mounted=false
 
 The focused proof additionally proves that a valid role-authority adapter with
 no durable state store is rejected; role authority alone cannot fall back to the
-read-session memory store.
+read-session memory store. It also proves that an object with the same public
+store shape and `durable=true`, but without reviewed factory identity, is
+rejected before session HTTP construction.
 
 The account-read path uses the exact same session HTTP instance and remains
 limited to `participant.account.read.v1`.

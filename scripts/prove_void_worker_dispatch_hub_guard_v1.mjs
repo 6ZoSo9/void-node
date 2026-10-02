@@ -100,13 +100,28 @@ const policyRaw = JSON.parse(
   ),
 );
 
-function upstreamCoordinationRecord(commentCount) {
+function upstreamPredecessorRecord() {
   return {
     issue: {
       number: 1507,
+      state: "closed",
+      comments: 1,
+      updated_at: "2026-10-01T00:00:00Z",
+    },
+    comments: [{
+      id: 1,
+      body: "CONTROL-PLANE ROTATION\nCOORDINATION_SUCCESSOR=#2313",
+    }],
+  };
+}
+
+function upstreamCurrentRecord(commentCount) {
+  return {
+    issue: {
+      number: 2313,
       state: "open",
       comments: commentCount,
-      updated_at: "2026-10-01T00:00:00Z",
+      updated_at: "2026-10-01T00:05:00Z",
     },
     comments: Array.from({ length: commentCount }, (_, index) => ({
       id: index + 1,
@@ -161,16 +176,22 @@ function recontentDispatch(value, overrides = {}) {
 }
 
 const actualCurrentChain = resolveCoordinationSuccessorChainRecordsV1({
-  "1507": upstreamCoordinationRecord(248),
+  "1507": upstreamPredecessorRecord(),
+  "2313": upstreamCurrentRecord(248),
 });
 const actualRotationChain = resolveCoordinationSuccessorChainRecordsV1({
-  "1507": upstreamCoordinationRecord(249),
+  "1507": upstreamPredecessorRecord(),
+  "2313": upstreamCurrentRecord(249),
 });
 const actualDispatchEvidence = actualUpstreamDispatchEvidence();
 const actualDispatch = evaluateWorkerLiveDispatchV1(
   policyRaw,
   actualDispatchEvidence,
 );
+assert.equal(actualCurrentChain.root_issue, 1507);
+assert.equal(actualCurrentChain.current_issue, 2313);
+assert.equal(actualCurrentChain.dispatch_plan_issue_should_be, 2313);
+assert.equal(actualDispatch.plan_issue, 2313);
 
 assert.equal(
   assertFreshLiveChainMatchesV1(actualCurrentChain, actualCurrentChain),
