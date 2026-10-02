@@ -206,7 +206,7 @@ for(const [index,role] of roles.entries()) {
     installed_at_utc:"2030-01-01T00:02:00.000Z",
     installed_repo_head:INSTALL_HEAD,
     unit_file_state:"static",
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
   });
 
   const facts={
@@ -223,7 +223,7 @@ for(const [index,role] of roles.entries()) {
     installed_data_directory_empty:true,
     service_inactive:true,
     unit_file_state:"static",
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
     indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
@@ -516,7 +516,7 @@ console.log("nodekey_bytes_emitted=false");
 console.log("nodekey_bytes_persisted=false");
 console.log("all_services_inactive=true");
 console.log("all_unit_file_states_observed=true");
-console.log("all_direct_enablement_links_absent=true");
+console.log("all_operator_user_unit_dir_direct_enablement_links_absent=true");
 console.log("indirect_activation_absence_proven=false");
 console.log("service_start=false");
 console.log("systemd_reload=false");
