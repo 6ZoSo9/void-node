@@ -20,6 +20,8 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     qualification_receipt_required: true,
     exact_qualification_bytes_required: true,
     qualification_current_head_required: true,
+    qualification_control_freshness_required: true,
+    production_wall_clock_evaluation_required: true,
     canonical_source_revalidation_required: true,
     reviewed_qualification_contract_exact_head_execution: true,
     private_reviewed_qualification_contract_materialization: true,
@@ -117,6 +119,8 @@ const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const MAX_DEPLOYMENT_GAS_ESTIMATE = 30_000_000n;
 const LIVE_MAIN_QUERY_TIMEOUT_MS = 15_000;
+const MAX_UINT64 = (1n << 64n) - 1n;
+const TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX = "1800000020";
 
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1 =
   Object.freeze({
@@ -197,6 +201,75 @@ function quantity(value, code) {
     return BigInt(raw);
   } catch {
     fail(code);
+  }
+}
+
+function unixSeconds(value, code) {
+  const raw = text(value);
+  if (!/^(0|[1-9][0-9]*)$/u.test(raw) || raw.length > 20) fail(code);
+  try {
+    const parsed = BigInt(raw);
+    if (parsed < 0n || parsed > MAX_UINT64) fail(code);
+    return parsed;
+  } catch {
+    fail(code);
+  }
+}
+
+function validateQualificationControlFreshnessV1(
+  launchController,
+  evaluationTimeUnix,
+) {
+  if (!plain(launchController)) {
+    fail("live_deployment_preflight_launch_controller_invalid");
+  }
+  const verified = unixSeconds(
+    launchController.verified_at_unix,
+    "live_deployment_preflight_control_verified_time_invalid",
+  );
+  const reverified = unixSeconds(
+    launchController.reverified_at_unix,
+    "live_deployment_preflight_control_reverified_time_invalid",
+  );
+  const validUntil = unixSeconds(
+    launchController.valid_until_unix,
+    "live_deployment_preflight_control_valid_until_invalid",
+  );
+  const evaluation = unixSeconds(
+    evaluationTimeUnix,
+    "live_deployment_preflight_evaluation_time_invalid",
+  );
+  if (verified > reverified || reverified >= validUntil) {
+    fail("live_deployment_preflight_control_time_lineage_invalid");
+  }
+  if (evaluation < reverified) {
+    fail("live_deployment_preflight_evaluation_before_control_reverification");
+  }
+  if (evaluation >= validUntil) {
+    fail("live_deployment_preflight_launch_controller_control_expired");
+  }
+  return Object.freeze({
+    verified_at_unix: verified.toString(),
+    reverified_at_unix: reverified.toString(),
+    valid_until_unix: validUntil.toString(),
+    evaluation_time_unix: evaluation.toString(),
+  });
+}
+
+export function testOnlyEvaluateVoidWcVoidMarketVaultQualificationFreshnessV1(
+  input = {},
+) {
+  try {
+    const value = validateQualificationControlFreshnessV1(
+      input.launch_controller,
+      input.evaluation_time_unix,
+    );
+    return Object.freeze({ ok: true, ...value });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -533,7 +606,13 @@ function parsePrettyQualification(bytes, expectedSha) {
   return qualification;
 }
 
-function verifyQualification(bytes, expectedSha, repo, contract) {
+function verifyQualification(
+  bytes,
+  expectedSha,
+  repo,
+  contract,
+  evaluationTimeUnix,
+) {
   const q = parsePrettyQualification(bytes, expectedSha);
   exactObject(
     q,
@@ -643,6 +722,10 @@ function verifyQualification(bytes, expectedSha, repo, contract) {
     }
   }
 
+  validateQualificationControlFreshnessV1(
+    q.launch_controller,
+    evaluationTimeUnix,
+  );
   const launchController = canonicalAddress(
     q.launch_controller?.address,
     "live_deployment_preflight_launch_controller_invalid",
@@ -958,7 +1041,10 @@ function held(reason, detail = {}) {
 
 async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   input,
-  { requireCanonicalMain = false } = {},
+  {
+    requireCanonicalMain = false,
+    evaluationTimeUnix = TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+  } = {},
 ) {
   let repo;
   let verifiedQualification;
@@ -980,6 +1066,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       input?.qualification_file_sha256,
       repo,
       qualificationContract,
+      evaluationTimeUnix,
     );
     deployer = canonicalAddress(
       input?.deployer_address,
@@ -1227,7 +1314,10 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
 ) {
   return await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
     input,
-    { requireCanonicalMain: true },
+    {
+      requireCanonicalMain: true,
+      evaluationTimeUnix: String(Math.floor(Date.now() / 1000)),
+    },
   );
 }
 
@@ -1237,7 +1327,12 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
   const result =
     await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       input,
-      { requireCanonicalMain: false },
+      {
+        requireCanonicalMain: false,
+        evaluationTimeUnix:
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+      },
     );
   if (!result.ok) {
     return Object.freeze({
