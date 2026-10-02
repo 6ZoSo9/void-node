@@ -639,7 +639,7 @@ for(const required of [
   "ambiguous publish recovery observation",
   "ambiguous restore recovery observation",
   'const SSH="/usr/bin/ssh"',
-  'const SYSTEMCTL="/usr/bin/systemctl"',
+  'const SYSTEMCTL=\\\"/usr/bin/systemctl\\\";',
   '"--user","unset-environment"',
   '"--user","daemon-reload"',
   '"--user","restart",SERVICE',
