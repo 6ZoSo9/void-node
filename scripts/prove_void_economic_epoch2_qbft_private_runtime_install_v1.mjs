@@ -23,6 +23,7 @@ import {
 } from "../tools/void-economic-epoch2-qbft-private-runtime-bundle-set-v1.mjs";
 import {
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_CONFIRMATION_V1,
+  VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1,
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1,
   buildVoidEconomicEpoch2QbftHostInstallReceiptV1,
   validateVoidEconomicEpoch2QbftHostInstallBindingV1,
@@ -309,6 +310,10 @@ assert.equal(
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_CONFIRMATION_V1,
   "installPrivateEpoch2QbftBundleV1",
 );
+assert.equal(
+  VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1,
+  "reattestExistingPrivateEpoch2QbftBundleV1",
+);
 
 const runner=fs.readFileSync(
   "ops/mainnet0/install-void-economic-epoch2-qbft-private-runtime-host-v1.mjs",
@@ -316,11 +321,29 @@ const runner=fs.readFileSync(
 );
 for(const required of [
   "explicit_confirmation_required",
+  "reattest_explicit_confirmation_required",
+  "--reattest-existing",
+  "install_apply_and_reattest_mutually_exclusive",
+  "reattestExistingPrivateEpoch2QbftBundleV1",
+  "verifyExistingInstalledRuntime",
+  "existing_runtime_membership_mismatch",
+  "existing_runtime_hash_mismatch",
+  "existing_unit_hash_mismatch",
+  "existing_data_not_empty",
+  "existing_runtime_read_only_reattestation",
+  "runtime_filesystem_mutation=false",
+  "unit_filesystem_mutation=false",
   "requireInactiveUnitFileState",
   "service_state_not_clean_inactive",
   "service_unit_file_state_not_clean",
   '["inactive","unknown"]',
+  '{allowStatic:args.reattest_existing}',
+  '{allowStatic:true}',
+  '["disabled","not-found"]',
   '["disabled","not-found","static"]',
+  "requireNoInstallSection",
+  "bundle_unit_install_section_forbidden",
+  "existing_unit_install_section_forbidden",
   "requireNoDirectEnablementLinks",
   "service_enablement_directory_symlink",
   "service_direct_enablement_link_present",
@@ -342,6 +365,21 @@ for(const required of [
 ]) {
   assert.ok(runner.includes(required),required);
 }
+const reattestStart=runner.indexOf("if(args.reattest_existing) {");
+const freshInstallAbsenceGate=runner.indexOf(
+  'if(fs.existsSync(runtimeRoot)) fail("runtime_root_already_exists")',
+);
+const reattestExit=runner.indexOf("process.exit(0);",reattestStart);
+assert.ok(reattestStart>0,"reattest branch missing");
+assert.ok(
+  freshInstallAbsenceGate>reattestStart,
+  "reattest branch must precede fresh-install absence gate",
+);
+assert.ok(
+  reattestExit>reattestStart&&reattestExit<freshInstallAbsenceGate,
+  "reattest branch must exit before fresh-install mutation path",
+);
+
 for(const forbidden of [
   '"daemon-reload"',
   '["start"',
@@ -361,6 +399,11 @@ console.log("VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1_PROOF_GREEN");
 console.log("bundle_set_id_recomputed=true");
 console.log("exact_role_materialization_binding=true");
 console.log("inactive_precondition_required=true");
+console.log("preinstall_static_forbidden=true");
+console.log("postinstall_static_requires_exact_no_install_unit=true");
+console.log("existing_runtime_read_only_reattestation=true");
+console.log("reattest_runtime_filesystem_mutation=false");
+console.log("reattest_unit_filesystem_mutation=false");
 console.log("autostart_link_absence_required=true");
 console.log("atomic_runtime_and_unit_publish_with_rollback=true");
 console.log("daemon_reload=false");
