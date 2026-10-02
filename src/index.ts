@@ -58586,7 +58586,7 @@ APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { /
   fs.mkdirSync(receiptDir, { recursive: true });
 
   const safeNames = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+    .filter((name:any) => /^[a-zA-Z0-9._:-]{1,160}$/.test(String(name)));
 
   const weighted_records = safeNames
     .map((name:any) => {
@@ -58687,7 +58687,7 @@ APP.get("/public-node/real-data-import-lane-status.json", (_req:any, res:any) =>
   };
 
   const safeNames = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+    .filter((name:any) => /^[a-zA-Z0-9._:-]{1,160}$/.test(String(name)));
 
   const records = safeNames.map((name:any) => {
     const objectId = String(name);
@@ -58790,7 +58790,7 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
   fs.mkdirSync(receiptDir, { recursive: true });
 
   const objects = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
+    .filter((name:any) => /^[a-zA-Z0-9._:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
       const objectId = String(name);
       const filePath = path.join(dropDir, objectId);
@@ -58967,7 +58967,7 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
   fs.mkdirSync(receiptDir, { recursive: true });
 
   const objects = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
+    .filter((name:any) => /^[a-zA-Z0-9._:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
       const filePath = path.join(dropDir, name);
       const st = fs.statSync(filePath);
@@ -59045,7 +59045,7 @@ APP.get("/public-node/local-data-drop/proof/:sha256.json", (req:any, res:any) =>
   fs.mkdirSync(dropDir, { recursive: true });
   fs.mkdirSync(receiptDir, { recursive: true });
 
-  const names = fs.readdirSync(dropDir).filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+  const names = fs.readdirSync(dropDir).filter((name:any) => /^[a-zA-Z0-9._:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const objectId = String(name);
     const filePath = path.join(dropDir, objectId);
@@ -59099,7 +59099,7 @@ APP.get("/public-node/local-data-drop/by-sha256/:sha256", (req:any, res:any) => 
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   fs.mkdirSync(dropDir, { recursive: true });
 
-  const names = fs.readdirSync(dropDir).filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+  const names = fs.readdirSync(dropDir).filter((name:any) => /^[a-zA-Z0-9._:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const filePath = path.join(dropDir, String(name));
     if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) continue;
@@ -59121,7 +59121,7 @@ APP.get("/public-node/local-data-drop/:objectId", (req:any, res:any) => { // VOI
   const fs = require("fs");
   const path = require("path");
   const objectId = String(req.params.objectId || "");
-  if (!/^[a-zA-Z0-9._-]{1,160}$/.test(objectId)) {
+  if (!/^[a-zA-Z0-9._:-]{1,160}$/.test(objectId)) {
     return res.status(400).json({ error: "invalid_object_id", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1" });
   }
 
