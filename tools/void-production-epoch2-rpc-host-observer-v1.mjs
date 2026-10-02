@@ -48,6 +48,10 @@ export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1 =
     inventory_funding: false,
     liquidity_movement: false,
     funds_movement: false,
+    activation_source_ancestry_required: true,
+    private_output_parent_fd_bound: true,
+    private_output_exact_directory_fsync: true,
+    private_output_redirect_forbidden: true,
     target_descriptor_promotion: false,
   });
 
