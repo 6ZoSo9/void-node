@@ -414,27 +414,23 @@ try{
     "tools/void-public-participant-production-composition-preflight-v1.mjs",
     "utf8",
   );
-  for(const forbidden of [
+  for(const reviewedForbiddenSurface of [
     "createServer(",
     "listen(",
     "fetch(",
-    "new Wallet(",
-    "systemctl",
-    "writeFileSync",
-    "appendFileSync",
-    "renameSync",
-  ]){
-    assert.equal(tool.includes(forbidden),false,forbidden);
-  }
-  for(const reviewedMutationRpc of [
     "eth_sendRawTransaction",
     "eth_sendTransaction",
+    "new Wallet(",
+    "systemctl",
+    "writeFileSync(",
+    "appendFileSync(",
+    "renameSync(",
   ]){
     assert.equal(
-      tool.includes('"' + reviewedMutationRpc + '"'),
+      tool.includes('"' + reviewedForbiddenSurface + '"'),
       true,
-      "preflight must explicitly forbid reviewed live-role mutation RPC: " +
-        reviewedMutationRpc,
+      "preflight must explicitly forbid reviewed live-role surface: " +
+        reviewedForbiddenSurface,
     );
   }
   assert.equal(
