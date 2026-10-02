@@ -200,7 +200,13 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
 
   const source = input.source_binding;
   const host = input.host_observation;
-  if (!validSource(source) || !plain(host)) {
+  if (
+    !validSource(source) ||
+    !plain(host) ||
+    reviewed.reviewed_source_head_sha !== source.head ||
+    reviewed.reviewed_source_tree_sha !== source.tree ||
+    !HEX64.test(String(reviewed.reviewed_execution_manifest_sha256 || ""))
+  ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_SOURCE_OR_HOST_INVALID");
   }
   if (
@@ -507,6 +513,254 @@ function repoIdentity() {
     remote_main_sha: head,
     canonical_main_live_match: true,
   });
+}
+function commitIdentity(head, relativePath) {
+  const bytes = gitBytes(
+    ["show", head + ":" + relativePath],
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_BYTES_UNAVAILABLE:" + relativePath,
+  );
+  if (bytes.length < 1 || bytes.length > MAX_FILE) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_BYTES_INVALID:" + relativePath);
+  }
+  const blob = gitText(
+    ["rev-parse", head + ":" + relativePath],
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_BLOB_UNAVAILABLE:" + relativePath,
+  );
+  if (!HEX40.test(blob) || gitBlob(bytes) !== blob) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_BLOB_MISMATCH:" + relativePath);
+  }
+  return Object.freeze({
+    path: relativePath,
+    git_blob_sha1: blob,
+    file_sha256: sha256(bytes),
+  });
+}
+function reviewedExecutionManifest(head) {
+  const files = Object.fromEntries(
+    REVIEWED_EXECUTION_PATHS.map((relativePath) => {
+      const identity = commitIdentity(head, relativePath);
+      return [relativePath, Object.freeze({
+        git_blob_sha1: identity.git_blob_sha1,
+        file_sha256: identity.file_sha256,
+      })];
+    }),
+  );
+  return Object.freeze({
+    files: Object.freeze(files),
+    manifest_sha256:
+      sha256(Buffer.from(canonical(files), "utf8")),
+  });
+}
+function verifyReviewedTree(root, manifest) {
+  for (const [relativePath, expected] of Object.entries(manifest.files)) {
+    const file = path.join(root, relativePath);
+    const bytes = readStable(
+      file,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_TREE:" + relativePath,
+    );
+    if (
+      sha256(bytes) !== expected.file_sha256 ||
+      gitBlob(bytes) !== expected.git_blob_sha1
+    ) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_TREE_DRIFT:" + relativePath);
+    }
+  }
+}
+function privateChildEnv(home) {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: home,
+    XDG_CONFIG_HOME: home,
+    LANG: "C",
+    LC_ALL: "C",
+    NODE_OPTIONS: "",
+    NODE_PATH: "",
+  };
+}
+function reviewedSemanticExecution(repo, request) {
+  const manifest = reviewedExecutionManifest(repo.head);
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-production-epoch2-rpc-reviewed-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const sourceRoot = path.join(root, "source");
+  const runnerRoot = path.join(root, "runner");
+  const archive = path.join(root, "source.tar");
+  fs.mkdirSync(sourceRoot, { mode: 0o700 });
+  fs.mkdirSync(runnerRoot, { mode: 0o700 });
+  try {
+    gitRaw(
+      ["archive", "--format=tar", "--output=" + archive, repo.head],
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_ARCHIVE_FAILED",
+    );
+    const tar = spawnSync(
+      TAR,
+      ["-xf", archive, "-C", sourceRoot],
+      {
+        cwd: "/",
+        env: privateChildEnv(runnerRoot),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 60_000,
+      },
+    );
+    if (tar.error || tar.status !== 0) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_ARCHIVE_EXTRACT_FAILED");
+    }
+    fs.unlinkSync(archive);
+    verifyReviewedTree(sourceRoot, manifest);
+
+    const activationUrl = pathToFileURL(path.join(sourceRoot, ACTIVATION_REL)).href;
+    const targetUrl = pathToFileURL(path.join(sourceRoot, TARGET_REL)).href;
+    const runnerSource = [
+      "import {",
+      "  EXPECTED_VALIDATORS_V1,",
+      "  buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1,",
+      "  compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1,",
+      "} from " + JSON.stringify(activationUrl) + ";",
+      "import {",
+      "  HOLD_STATUS,",
+      "  loadProductionEpoch2RpcTargetV1,",
+      "  productionEpoch2RpcUrlFingerprintV1,",
+      "} from " + JSON.stringify(targetUrl) + ";",
+      "function plain(v){return v!==null&&typeof v===\\\"object\\\"&&!Array.isArray(v);}",
+      "function canonical(v){",
+      "  if(v===null)return \\"null\\";",
+      "  if(typeof v===\\\"string\\\")return JSON.stringify(v);",
+      "  if(typeof v===\\\"boolean\\\")return v?\\\"true\\":\\\"false\\";",
+      "  if(typeof v===\\\"number\\"&&Number.isSafeInteger(v))return String(v);",
+      "  if(Array.isArray(v))return \\"[\\"+v.map(canonical).join(\\\",\\")+\\\"]\\";",
+      "  if(plain(v))return \\"{\\"+Object.keys(v).sort().map(k=>JSON.stringify(k)+\\\":\\"+canonical(v[k])).join(\\\",\\")+\\\"}\\";",
+      "  throw new Error(\\\"canonical_value_invalid\\");",
+      "}",
+      "process.stdin.setEncoding(\\\"utf8\\");",
+      "let text=\\\"\\\";",
+      "for await(const chunk of process.stdin) text+=chunk;",
+      "try{",
+      "  const q=JSON.parse(text);",
+      "  const plan=compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({",
+      "    plan:q.private_runtime_plan,",
+      "    plan_file_sha256:q.private_runtime_plan_file_sha256,",
+      "    bundle_set_receipt:q.bundle_set,",
+      "    install_receipts:q.install_receipts,",
+      "    start_admission_receipt:q.start_admission,",
+      "    compiled_at_utc:q.activation_plan.compiled_at_utc,",
+      "  });",
+      "  if(canonical(plan)!==canonical(q.activation_plan)) throw new Error(\\\"activation_plan_rederivation_mismatch\\");",
+      "  const o=q.activation_receipt.observations;",
+      "  const receipt=buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1({",
+      "    activation_plan:plan,",
+      "    activated_at_utc:q.activation_receipt.activated_at_utc,",
+      "    observed:{",
+      "      validators:q.activation_receipt.validators,",
+      "      precision_only_block_number:o?.precision_only_block_number,",
+      "      after_nimo_block_number:o?.after_nimo_block_number,",
+      "      after_nimo_peer_count:o?.after_nimo_peer_count,",
+      "      after_xiphos_block_number:o?.after_xiphos_block_number,",
+      "      after_xiphos_peer_count:o?.after_xiphos_peer_count,",
+      "      chain_id_hex:q.activation_receipt.chain_id_hex,",
+      "      started_roles:q.activation_receipt.started_roles,",
+      "    },",
+      "  });",
+      "  if(canonical(receipt)!==canonical(q.activation_receipt)) throw new Error(\\\"activation_receipt_rederivation_mismatch\\");",
+      "  const target=loadProductionEpoch2RpcTargetV1();",
+      "  if(target.evaluation.status!==HOLD_STATUS||target.evaluation.production_rpc_target_selected!==false) throw new Error(\\\"target_not_hold\\");",
+      "  const result={",
+      "    activation_plan:plan,",
+      "    activation_receipt:receipt,",
+      "    expected_validators:[...EXPECTED_VALIDATORS_V1],",
+      "    target_value:target.value,",
+      "    target_status:target.evaluation.status,",
+      "    target_selected:target.evaluation.production_rpc_target_selected,",
+      "    rpc_url_fingerprint_sha256:productionEpoch2RpcUrlFingerprintV1(q.rpc_url),",
+      "  };",
+      "  process.stdout.write(JSON.stringify({ok:true,result,error:null}));",
+      "}catch(error){",
+      "  process.stdout.write(JSON.stringify({ok:false,result:null,error:(error instanceof Error?error.message:String(error)).slice(0,512)}));",
+      "}",
+      "",
+    ].join("\\n");
+    const runnerFile = path.join(runnerRoot, "reviewed-semantic-runner-v1.mjs");
+    const runnerBytes = Buffer.from(runnerSource, "utf8");
+    const runnerFd = fs.openSync(
+      runnerFile,
+      fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL |
+        Number(fs.constants.O_NOFOLLOW || 0),
+      0o400,
+    );
+    try {
+      fs.writeFileSync(runnerFd, runnerBytes);
+      fs.fchmodSync(runnerFd, 0o400);
+      fs.fsyncSync(runnerFd);
+    } finally {
+      fs.closeSync(runnerFd);
+    }
+
+    verifyReviewedTree(sourceRoot, manifest);
+    const reboundRunner = readStable(
+      runnerFile,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_RUNNER",
+    );
+    if (sha256(reboundRunner) !== sha256(runnerBytes)) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_RUNNER_DRIFT");
+    }
+
+    const result = spawnSync(
+      fs.realpathSync.native(process.execPath),
+      [
+        "--permission",
+        "--allow-fs-read=" + root,
+        runnerFile,
+      ],
+      {
+        cwd: runnerRoot,
+        env: privateChildEnv(runnerRoot),
+        input: JSON.stringify(request),
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 32 * 1024 * 1024,
+        timeout: 60_000,
+      },
+    );
+    if (result.error || result.status !== 0) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_EXECUTION_FAILED");
+    }
+    verifyReviewedTree(sourceRoot, manifest);
+    const reboundRunnerAfter = readStable(
+      runnerFile,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_RUNNER_AFTER",
+    );
+    if (sha256(reboundRunnerAfter) !== sha256(runnerBytes)) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_RUNNER_DRIFT_AFTER");
+    }
+
+    let envelope;
+    try {
+      envelope = JSON.parse(String(result.stdout || ""));
+    } catch {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_OUTPUT_INVALID");
+    }
+    if (
+      !plain(envelope) ||
+      envelope.ok !== true ||
+      !plain(envelope.result) ||
+      envelope.error !== null
+    ) {
+      fail(
+        "PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_SEMANTIC_HOLD:" +
+        String(envelope?.error || "unknown"),
+      );
+    }
+    return Object.freeze({
+      ...envelope.result,
+      reviewed_execution_verified: true,
+      reviewed_source_head_sha: repo.head,
+      reviewed_source_tree_sha: repo.tree,
+      reviewed_execution_manifest_sha256: manifest.manifest_sha256,
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 function gitCommitIsAncestor(commit, descendant) {
   if (!HEX40.test(String(commit || "")) || !HEX40.test(String(descendant || ""))) {
