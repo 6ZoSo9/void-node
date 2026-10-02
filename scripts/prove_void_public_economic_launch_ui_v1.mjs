@@ -40,7 +40,7 @@ for (const token of [
   'config.requests_enabled === true',
   'snapshot.status.request_intake_ready === true',
   'snapshot.sale.sold_out === false',
-  'Number(snapshot.sale.remaining_void) > 0',
+  'snapshot.sale.remaining_void > 0',
   'payment_sender_must_equal_void_destination',
   'do_not_send_from_exchange',
   'do_not_send_from_exchange_or_pooled_custody',
