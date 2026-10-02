@@ -314,6 +314,7 @@ assert.deepEqual(
     /DOCKER_DAEMON_NOT_ROOTLESS/u,
   );
 
+  inspect.NetworkSettings.Ports["8546/tcp"] = null;
   const normalized =
     testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1(
       inspect,
@@ -322,6 +323,19 @@ assert.deepEqual(
     );
   assert.equal(normalized.container_id, validContainer.container_id);
   assert.deepEqual(normalized.port_bindings, expectedContainer.port_bindings);
+
+  const extraPublished = structuredClone(inspect);
+  extraPublished.NetworkSettings.Ports["8546/tcp"] = [
+    { HostIp: "127.0.0.1", HostPort: "18554" },
+  ];
+  assert.throws(
+    () => testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1(
+      extraPublished,
+      expectedContainer,
+      process.getuid(),
+    ),
+    /DOCKER_RUNTIME_CONTRACT_INVALID/u,
+  );
 
   const wrongPort = structuredClone(inspect);
   wrongPort.NetworkSettings.Ports["8545/tcp"][0].HostPort = "18552";
