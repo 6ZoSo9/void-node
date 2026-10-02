@@ -148,6 +148,10 @@ voidwclcca1_<sha256(canonical plan material)>
 
 Plan validation re-reads the exact application-base commit and independently
 re-proves the source identities, four-field delta and classifier transition.
+The executing parent application file is also compared to its exact captured
+HEAD Git blob before authority-bearing preparation and on the final repository
+generation recheck; a hidden `assume-unchanged` parent edit therefore cannot
+silently orchestrate a reviewed child under different parent semantics.
 Recomputing a forged plan ID around an unrelated target change is therefore
 insufficient.
 
@@ -174,7 +178,10 @@ canonical `main` generation.
 The verifier requires:
 
 - current branch is `main`;
-- local HEAD equals config-isolated fixed-URL canonical GitHub remote `main`;
+- local HEAD equals the fixed canonical GitHub remote `main`;
+- that remote-main read executes from `/`, outside repository discovery, with
+  global/system config disabled, replacement objects disabled, ambient loader/tool
+  overrides absent, and `http.sslVerify=true`;
 - application base remains an ancestor of current main;
 - production and coupled HEAD blobs equal the exact target identities;
 - successor candidate remains the exact prepared source identity;
@@ -245,3 +252,9 @@ Focused proof:
 ```bash
 node scripts/prove_void_wc_void_ledger_custody_canonical_application_v1.mjs
 ```
+
+The focused proof also hides a parent-tool worktree mutation with
+`assume-unchanged` and requires fail-closed before preparation. A second
+adversary installs repository-local URL-rewrite and TLS-relaxation config; the
+canonical remote-main lookup must remain identical because that lookup does not
+consult repository-local config.
