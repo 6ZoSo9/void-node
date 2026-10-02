@@ -23,18 +23,23 @@ VOID_PUBLIC_PARTICIPANT_COMPOSITION_ACTIVE=1
 
 However, those facts do not yet make the route production-ready.
 
-The current gateway constructs the session HTTP object with only:
+The current source wiring now constructs the reviewed live role-authority path
+and branded durable session-state store, then injects both into the participant
+session HTTP object before sharing that exact session instance with the account
+read edge. The source-level composition requirement is therefore satisfied.
 
-```js
-createVoidPublicParticipantSessionHttpV1({
-  bindingRegistryFile: PARTICIPANT_BINDING_REGISTRY_FILE,
-})
+The gateway remains default-off behind:
+
+```text
+VOID_PUBLIC_PARTICIPANT_COMPOSITION_ACTIVE=0
 ```
 
-The merged session HTTP contract now fails closed unless both a role-authority
-adapter and a durable state store are supplied. Therefore the current gateway,
-which injects neither, correctly remains a composition wiring HOLD before any
-participant route can mount.
+and the current preflight intentionally reports
+`PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BOUND_HOST_LIFECYCLE_HOLD`.
+The remaining gate is not missing source composition; it is designated-host
+lifecycle evidence for the installed reviewed build, exact private paths and
+role-RPC configuration, startup/restart behavior, durability/rollback, public
+route reachability, and explicit production activation authority.
 
 ## Exact reviewed source generation
 
