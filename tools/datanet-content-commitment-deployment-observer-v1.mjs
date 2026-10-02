@@ -8,6 +8,9 @@ import {
 import {
   verifyDatanetContentCommitmentDeploymentObservationV1,
 } from "./datanet-content-commitment-deployment-attestation-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "./void-economic-epoch2-raw-transaction-domain-v1.mjs";
 
 export const VOID_DATANET_CONTENT_COMMITMENT_DEPLOYMENT_OBSERVER_V1 =
   "VOID_DATANET_CONTENT_COMMITMENT_DEPLOYMENT_OBSERVER_V1";
@@ -251,10 +254,17 @@ function held(reason,options={}){
     ...(options.detail?{detail:options.detail}:{}),
   };
 }
-function viewCall(contract,name){
+function viewCall(contract,name,caller){
+  const marker=VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1;
   return {
+    from:caller,
     to:contract,
     data:VIEWS.encodeFunctionData(name),
+    value:"0x0",
+    accessList:[{
+      address:marker.marker_address,
+      storageKeys:[marker.marker_storage_key],
+    }],
   };
 }
 function decodeAddress(name,raw){
@@ -356,7 +366,10 @@ export async function observeDatanetContentCommitmentDeploymentV1(input){
       "publisher",
       "predecessor",
     ]){
-      viewRaw[name]=await call("eth_call",[viewCall(contract,name),headTag]);
+      viewRaw[name]=await call(
+        "eth_call",
+        [viewCall(contract,name,publisher),headTag],
+      );
     }
 
     const blockB=await call("eth_getBlockByNumber",[headTag,false]);
