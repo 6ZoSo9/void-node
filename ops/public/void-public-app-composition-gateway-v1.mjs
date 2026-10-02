@@ -18,9 +18,6 @@ import {
   createVoidPublicParticipantSessionStateFileV1,
 } from "./void-public-participant-session-state-file-v1.mjs";
 import {
-  createVoidPublicParticipantLiveRoleAuthorityV1,
-} from "./void-public-participant-live-role-authority-v1.mjs";
-import {
   createVoidPublicParticipantAccountReadHttpEdgeV1,
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1,
 } from "./void-public-participant-account-read-http-edge-v1.mjs";
@@ -314,6 +311,9 @@ if (PARTICIPANT_COMPOSITION_ACTIVE) {
     );
   }
 
+  const {
+    createVoidPublicParticipantLiveRoleAuthorityV1,
+  } = await import("./void-public-participant-live-role-authority-v1.mjs");
   const participantLiveRole =
     await createVoidPublicParticipantLiveRoleAuthorityV1({
       rpcUrl: PARTICIPANT_ROLE_RPC_URL,
