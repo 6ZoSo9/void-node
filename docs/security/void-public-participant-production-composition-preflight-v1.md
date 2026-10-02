@@ -192,6 +192,13 @@ The enabled branch then:
 The live-role bridge does not accept caller-supplied observer, binding, source,
 admit, or revalidate functions.
 
+The gateway also defers importing the live-role bridge until composition is
+explicitly enabled **and** all three required configuration values are present.
+Therefore the default-off public gateway does not load the Chain-2050 live RPC
+observer or its reviewed `ethers` dependency merely by starting the ordinary
+public composition process. Enabled participant composition still fails closed
+if that reviewed dependency/runtime is unavailable.
+
 The focused source proof builds the reviewed TypeScript runtime first and proves
 that both compiled factories are loadable. The preflight Git-binds the complete
 eight-file role-authority TypeScript closure plus the live RPC observer,
@@ -234,11 +241,9 @@ runtime was built from the exact reviewed source generation before activation.
 
 ## Next gate
 
-The next source change must wire reviewed live-role authority and the durable
-state store into the composition gateway while preserving default-off behavior.
+The source wiring is now present while the environment gate remains default-off.
 
-After source wiring is reviewed, a **separate designated-host lifecycle
-preflight** must still prove:
+A **separate designated-host lifecycle preflight** must still prove:
 
 - exact live role-authority RPC/binding configuration;
 - exact production login-binding registry path/custody;
