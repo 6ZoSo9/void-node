@@ -102,6 +102,38 @@ const parsed = parseVoidBtcVoidBitcoinHtlcV1({
 });
 assert.deepEqual(parsed, built);
 
+const swappedRoles = buildVoidBtcVoidBitcoinHtlcV1({
+  ...VECTOR,
+  redeem_pubkey_hash160: VECTOR.refund_pubkey_hash160,
+  refund_pubkey_hash160: VECTOR.redeem_pubkey_hash160,
+});
+assert.notEqual(swappedRoles.witness_script_hex, built.witness_script_hex);
+assert.notEqual(
+  swappedRoles.witness_script_sha256,
+  built.witness_script_sha256,
+);
+assert.notEqual(
+  swappedRoles.p2wsh_witness_program_hex,
+  built.p2wsh_witness_program_hex,
+);
+assert.notEqual(swappedRoles.htlc_id, built.htlc_id);
+
+const parsedSwappedRoles = parseVoidBtcVoidBitcoinHtlcV1({
+  witness_script_hex: swappedRoles.witness_script_hex,
+});
+assert.equal(
+  parsedSwappedRoles.redeem_pubkey_hash160,
+  VECTOR.refund_pubkey_hash160,
+);
+assert.equal(
+  parsedSwappedRoles.refund_pubkey_hash160,
+  VECTOR.redeem_pubkey_hash160,
+);
+assert.equal(
+  parsedSwappedRoles.witness_script_hex,
+  swappedRoles.witness_script_hex,
+);
+
 const timestampLock = buildVoidBtcVoidBitcoinHtlcV1({
   ...VECTOR,
   refund_locktime: 500_000_000,
@@ -252,6 +284,7 @@ console.log("p2wsh_script_pubkey_bytes=34");
 console.log("exact_32_byte_preimage_guard=true");
 console.log("sha256_hashlock_bound=true");
 console.log("redeem_refund_roles_distinct=true");
+console.log("redeem_refund_role_swap_changes_script_identity=true");
 console.log("cltv_minimal_script_number_roundtrip=true");
 console.log("p2wsh_witness_program_sha256_bound=true");
 console.log("transaction_construction=false");
