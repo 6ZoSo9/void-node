@@ -247,6 +247,31 @@ contract BtcVoidHashlockSettlementV1Test {
         _assert(_token().balanceOf(address(settlement)) == 0, "escrow_empty");
     }
 
+    function _assertSwapBExact(
+        BtcVoidHashlockSettlementV1 settlement,
+        bytes32 expectedHashlock,
+        uint256 expectedDeadline
+    ) internal view {
+        (
+            bytes32 hashlock,
+            address beneficiary,
+            address refundAuthority,
+            uint256 amountAtoms,
+            uint256 refundAfterUnix,
+            BtcVoidHashlockSettlementV1.SwapState state
+        ) = settlement.getSwap(SWAP_B);
+
+        _assert(hashlock == expectedHashlock, "swap_b_hashlock_changed");
+        _assert(beneficiary == OTHER, "swap_b_beneficiary_changed");
+        _assert(refundAuthority == FUNDER, "swap_b_refund_authority_changed");
+        _assert(amountAtoms == AMOUNT, "swap_b_amount_changed");
+        _assert(refundAfterUnix == expectedDeadline, "swap_b_deadline_changed");
+        _assert(
+            state == BtcVoidHashlockSettlementV1.SwapState.Locked,
+            "swap_b_state_changed"
+        );
+    }
+
     function test_twoLiveSwapsRemainStateAndEscrowIsolated() public {
         BtcVoidHashlockSettlementV1 settlement = _deploy();
         uint256 deadlineA = START + 1000;
@@ -281,53 +306,17 @@ contract BtcVoidHashlockSettlementV1Test {
             "two_swap_funder_debit"
         );
 
-        (
-            bytes32 beforeHashlockB,
-            address beforeBeneficiaryB,
-            address beforeRefundAuthorityB,
-            uint256 beforeAmountB,
-            uint256 beforeDeadlineB,
-            BtcVoidHashlockSettlementV1.SwapState beforeStateB
-        ) = settlement.getSwap(SWAP_B);
+        _assertSwapBExact(settlement, hashlockB, deadlineB);
 
         vm.prank(BENEFICIARY);
         settlement.claim(SWAP_A, _preimageBytes());
-
-        (
-            bytes32 afterHashlockB,
-            address afterBeneficiaryB,
-            address afterRefundAuthorityB,
-            uint256 afterAmountB,
-            uint256 afterDeadlineB,
-            BtcVoidHashlockSettlementV1.SwapState afterStateB
-        ) = settlement.getSwap(SWAP_B);
 
         _assert(
             settlement.stateOf(SWAP_A) ==
                 BtcVoidHashlockSettlementV1.SwapState.Claimed,
             "swap_a_not_claimed"
         );
-        _assert(beforeHashlockB == afterHashlockB, "swap_b_hashlock_changed");
-        _assert(
-            beforeBeneficiaryB == afterBeneficiaryB,
-            "swap_b_beneficiary_changed"
-        );
-        _assert(
-            beforeRefundAuthorityB == afterRefundAuthorityB,
-            "swap_b_refund_authority_changed"
-        );
-        _assert(beforeAmountB == afterAmountB, "swap_b_amount_changed");
-        _assert(beforeDeadlineB == afterDeadlineB, "swap_b_deadline_changed");
-        _assert(
-            beforeStateB == BtcVoidHashlockSettlementV1.SwapState.Locked &&
-                afterStateB == BtcVoidHashlockSettlementV1.SwapState.Locked,
-            "swap_b_state_changed"
-        );
-        _assert(afterHashlockB == hashlockB, "swap_b_hashlock_wrong");
-        _assert(afterBeneficiaryB == OTHER, "swap_b_beneficiary_wrong");
-        _assert(afterRefundAuthorityB == FUNDER, "swap_b_refund_authority_wrong");
-        _assert(afterAmountB == AMOUNT, "swap_b_amount_wrong");
-        _assert(afterDeadlineB == deadlineB, "swap_b_deadline_wrong");
+        _assertSwapBExact(settlement, hashlockB, deadlineB);
         _assert(
             _token().balanceOf(address(settlement)) == AMOUNT,
             "swap_a_claim_consumed_swap_b_escrow"
