@@ -229,7 +229,7 @@ for(const role of roles) {
     installed_at_utc:"2030-01-01T00:02:00.000Z",
     installed_repo_head:"e".repeat(40),
     unit_file_state:"static",
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
   });
 }
 
@@ -249,7 +249,7 @@ for(const [index,role] of roles.entries()) {
     installed_data_directory_empty:true,
     service_inactive:true,
     unit_file_state:"static",
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
     indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
@@ -364,7 +364,7 @@ assert.equal(
   true,
 );
 assert.equal(
-  activationPlan.pre_start_revalidation.direct_enablement_links_absent_required,
+  activationPlan.pre_start_revalidation.operator_user_unit_dir_direct_enablement_links_absent_required,
   true,
 );
 assert.equal(
@@ -373,7 +373,7 @@ assert.equal(
 );
 for(const row of activationPlan.install_receipts) {
   assert.equal(row.unit_file_state,"static");
-  assert.equal(row.direct_enablement_links_absent,true);
+  assert.equal(row.operator_user_unit_dir_direct_enablement_links_absent,true);
   assert.equal(row.indirect_activation_absence_proven,false);
 }
 assert.equal(
@@ -624,7 +624,7 @@ for(const required of [
   "service_started_during_daemon_reload",
   "service_enablement_directory_symlink",
   "service_direct_enablement_link_present",
-  "direct_enablement_links_absent=true",
+  "operator_user_unit_dir_direct_enablement_links_absent=true",
   "indirect_activation_absence_proven=false",
   "p2p_port_not_vacant",
   "precision_rpc_port_not_vacant",
