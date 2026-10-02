@@ -85,33 +85,39 @@ function systemctl(args) {
     stdio:["ignore","pipe","pipe"],
   });
 }
-function requireInactiveDisabled(service) {
+function requireInactiveUnitFileState(service) {
   const active=systemctl(["is-active",service]);
   const activeText=String(active.stdout||active.stderr||"").trim();
   if(!["inactive","unknown"].includes(activeText)) {
     fail("service_state_not_clean_inactive:"+activeText);
   }
   const enabled=systemctl(["is-enabled",service]);
-  const enabledText=String(enabled.stdout||enabled.stderr||"").trim();
-  if(!["disabled","not-found","static"].includes(enabledText)) {
-    fail("service_enable_state_not_clean:"+enabledText);
+  const unitFileState=String(enabled.stdout||enabled.stderr||"").trim();
+  if(!["disabled","not-found","static"].includes(unitFileState)) {
+    fail("service_unit_file_state_not_clean:"+unitFileState);
   }
-  return {active_state:activeText,enabled_state:enabledText};
+  return {active_state:activeText,unit_file_state:unitFileState};
 }
-function requireNoEnableLinks(unitDir,service) {
+function requireNoDirectEnablementLinks(unitDir,service) {
   for(const name of fs.readdirSync(unitDir)) {
     if(!name.endsWith(".wants")&&!name.endsWith(".requires")) continue;
     const dir=path.join(unitDir,name);
     const st=fs.lstatSync(dir);
-    if(st.isSymbolicLink()||!st.isDirectory()) continue;
+    if(st.isSymbolicLink()) {
+      fail("service_enablement_directory_symlink:"+name);
+    }
+    if(!st.isDirectory()) {
+      fail("service_enablement_directory_not_directory:"+name);
+    }
     const candidate=path.join(dir,service);
     try {
       fs.lstatSync(candidate);
-      fail("service_autostart_link_present:"+name);
+      fail("service_direct_enablement_link_present:"+name);
     } catch(error) {
       if(error?.code!=="ENOENT") throw error;
     }
   }
+  return true;
 }
 function writeNew(file,bytes,mode) {
   fs.writeFileSync(file,bytes,{flag:"wx",mode});
@@ -186,8 +192,8 @@ const expectedUnitPath=path.join(
 if(unitPath!==expectedUnitPath) fail("unit_install_path_mismatch");
 
 const unitDir=canonicalDir(path.dirname(unitPath),"systemd_user_dir");
-requireNoEnableLinks(unitDir,binding.manifest.service_name);
-const preState=requireInactiveDisabled(binding.manifest.service_name);
+requireNoDirectEnablementLinks(unitDir,binding.manifest.service_name);
+const preState=requireInactiveUnitFileState(binding.manifest.service_name);
 
 if(fs.existsSync(runtimeRoot)) fail("runtime_root_already_exists");
 if(fs.existsSync(unitPath)) fail("unit_path_already_exists");
@@ -204,7 +210,9 @@ console.log("materialization_id="+binding.manifest.materialization_id);
 console.log("runtime_root="+runtimeRoot);
 console.log("unit_install_path="+unitPath);
 console.log("pre_active_state="+preState.active_state);
-console.log("pre_enabled_state="+preState.enabled_state);
+console.log("pre_unit_file_state="+preState.unit_file_state);
+console.log("pre_direct_enablement_links_absent=true");
+console.log("pre_indirect_activation_absence_proven=false");
 console.log("daemon_reload=false");
 console.log("service_enable=false");
 console.log("service_start=false");
@@ -298,28 +306,14 @@ try {
   writeNew(unitStage,bundle.systemd_unit_raw,0o600);
 
   const installedAt=new Date().toISOString();
-  const receipt=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
-    plan:planFile.value,
-    plan_file_sha256:planFileSha,
-    bundle_set_receipt:bundleSetFile.value,
-    role:args.role,
-    materialization:bundle.materialization,
-    installed_at_utc:installedAt,
-    installed_repo_head:currentHead,
-  });
-  writeNew(
-    outputStage,
-    Buffer.from(JSON.stringify(receipt,null,2)+"\n"),
-    0o600,
-  );
 
   fs.renameSync(runtimeStage,runtimeRoot);
   runtimePublished=true;
   fs.renameSync(unitStage,unitPath);
   unitPublished=true;
 
-  requireNoEnableLinks(unitDir,binding.manifest.service_name);
-  const postState=requireInactiveDisabled(binding.manifest.service_name);
+  requireNoDirectEnablementLinks(unitDir,binding.manifest.service_name);
+  const postState=requireInactiveUnitFileState(binding.manifest.service_name);
 
   if(
     sha256(fs.readFileSync(path.join(runtimeRoot,"genesis.json")))!==hashes.genesisSha||
@@ -330,11 +324,29 @@ try {
     fail("post_install_hash_or_data_check_failed");
   }
 
+  const receipt=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+    plan:planFile.value,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSetFile.value,
+    role:args.role,
+    materialization:bundle.materialization,
+    installed_at_utc:installedAt,
+    installed_repo_head:currentHead,
+    unit_file_state:postState.unit_file_state,
+    direct_enablement_links_absent:true,
+  });
+  writeNew(
+    outputStage,
+    Buffer.from(JSON.stringify(receipt,null,2)+"\n"),
+    0o600,
+  );
   fs.renameSync(outputStage,output);
   outputPublished=true;
 
   console.log("post_active_state="+postState.active_state);
-  console.log("post_enabled_state="+postState.enabled_state);
+  console.log("post_unit_file_state="+postState.unit_file_state);
+  console.log("post_direct_enablement_links_absent=true");
+  console.log("post_indirect_activation_absence_proven=false");
   console.log("runtime_root_present=true");
   console.log("user_unit_file_present=true");
   console.log("data_directory_empty=true");
