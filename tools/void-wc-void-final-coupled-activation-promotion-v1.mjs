@@ -1447,7 +1447,66 @@ function buildReviewedExecutionRoot(repository, reviewedExecution) {
   }
 }
 
+function assertReviewedExecutionStaticBinding(bundle) {
+  const parent = fs.lstatSync(bundle.parent);
+  if (
+    !parent.isDirectory() ||
+    parent.isSymbolicLink() ||
+    parent.dev !== bundle.parent_identity.dev ||
+    parent.ino !== bundle.parent_identity.ino ||
+    parent.uid !== bundle.parent_identity.uid ||
+    parent.mode !== bundle.parent_identity.mode
+  ) {
+    fail("FINAL_COUPLED_REVIEWED_PARENT_IDENTITY_DRIFT");
+  }
+
+  for (const [file, expectedSha256, label] of [
+    [
+      bundle.bootstrap_file,
+      bundle.bootstrap_file_sha256,
+      "FINAL_COUPLED_REVIEWED_BOOTSTRAP_PRIVATE",
+    ],
+    [
+      bundle.runtime_tool_file,
+      bundle.runtime_tool_file_sha256,
+      "FINAL_COUPLED_REVIEWED_RUNTIME_TOOL_PRIVATE",
+    ],
+    [
+      bundle.profile_file,
+      bundle.profile_file_sha256,
+      "FINAL_COUPLED_REVIEWED_PROFILE_PRIVATE",
+    ],
+    [
+      bundle.runner_file,
+      bundle.runner_file_sha256,
+      "FINAL_COUPLED_REVIEWED_RUNNER_PRIVATE",
+    ],
+  ]) {
+    const bytes = privateRegularFileBytes(file, label);
+    if (sha256Bytes(bytes) !== expectedSha256) {
+      fail(label + "_SHA256_MISMATCH");
+    }
+  }
+
+  for (const [relativePath, expectedBlob] of Object.entries(
+    bundle.private_module_git_blobs,
+  )) {
+    const bytes = privateRegularFileBytes(
+      path.join(bundle.execution_root, relativePath),
+      "FINAL_COUPLED_REVIEWED_PRIVATE_MODULE_" +
+        relativePath.replace(/[^A-Za-z0-9]+/gu, "_"),
+    );
+    if (gitBlobSha1(bytes) !== expectedBlob) {
+      fail(
+        "FINAL_COUPLED_REVIEWED_PRIVATE_MODULE_BLOB_MISMATCH:" +
+          relativePath,
+      );
+    }
+  }
+}
+
 function verifyReviewedRuntimeTree(bundle) {
+  assertReviewedExecutionStaticBinding(bundle);
   const result = spawnSync(
     process.execPath,
     [bundle.bootstrap_file],
@@ -1469,62 +1528,70 @@ function verifyReviewedRuntimeTree(bundle) {
   if (result.error || result.status !== 0) {
     fail("FINAL_COUPLED_REVIEWED_RUNTIME_REVERIFY_FAILED");
   }
+  assertReviewedExecutionStaticBinding(bundle);
 }
 
 function runReviewedAuthority(repository, reviewedExecution, request) {
   const bundle = buildReviewedExecutionRoot(repository, reviewedExecution);
-  verifyReviewedRuntimeTree(bundle);
-  const node = fs.realpathSync.native(process.execPath);
-  const result = spawnSync(
-    node,
-    [
-      "--permission",
-      "--allow-fs-read=" + bundle.allowed_fs_read_root,
-      "--allow-child-process",
-      bundle.runner_file,
-    ],
-    {
-      cwd: bundle.execution_root,
-      env: privateNodeEnv(),
-      input: JSON.stringify(request),
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
-      maxBuffer: 64 * 1024 * 1024,
-      timeout: 180_000,
-    },
-  );
-  if (result.error || result.status !== 0) {
-    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_EXECUTION_FAILED");
-  }
-  let envelope;
   try {
-    envelope = JSON.parse(String(result.stdout || ""));
-  } catch {
-    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_OUTPUT_INVALID");
-  }
-  if (
-    !plain(envelope) ||
-    envelope.marker !== REVIEWED_AUTHORITY_ENVELOPE_MARKER ||
-    envelope.version !== 1 ||
-    envelope.operation !== String(request?.operation || "") ||
-    typeof envelope.ok !== "boolean"
-  ) {
-    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_OUTPUT_INVALID");
-  }
-  if (envelope.ok !== true) {
-    if (
-      envelope.result !== null ||
-      typeof envelope.error !== "string" ||
-      envelope.error.length < 1
-    ) {
-      fail("FINAL_COUPLED_REVIEWED_AUTHORITY_ERROR_OUTPUT_INVALID");
+    verifyReviewedRuntimeTree(bundle);
+    assertReviewedExecutionStaticBinding(bundle);
+    const node = fs.realpathSync.native(process.execPath);
+    const result = spawnSync(
+      node,
+      [
+        "--permission",
+        "--allow-fs-read=" + bundle.allowed_fs_read_root,
+        "--allow-child-process",
+        bundle.runner_file,
+      ],
+      {
+        cwd: bundle.execution_root,
+        env: privateNodeEnv(),
+        input: JSON.stringify(request),
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: 180_000,
+      },
+    );
+    assertReviewedExecutionStaticBinding(bundle);
+    if (result.error || result.status !== 0) {
+      fail("FINAL_COUPLED_REVIEWED_AUTHORITY_EXECUTION_FAILED");
     }
-    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_CHILD_ERROR:" + envelope.error);
+    let envelope;
+    try {
+      envelope = JSON.parse(String(result.stdout || ""));
+    } catch {
+      fail("FINAL_COUPLED_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+    }
+    if (
+      !plain(envelope) ||
+      envelope.marker !== REVIEWED_AUTHORITY_ENVELOPE_MARKER ||
+      envelope.version !== 1 ||
+      envelope.operation !== String(request?.operation || "") ||
+      typeof envelope.ok !== "boolean"
+    ) {
+      fail("FINAL_COUPLED_REVIEWED_AUTHORITY_OUTPUT_INVALID");
+    }
+    if (envelope.ok !== true) {
+      if (
+        envelope.result !== null ||
+        typeof envelope.error !== "string" ||
+        envelope.error.length < 1
+      ) {
+        fail("FINAL_COUPLED_REVIEWED_AUTHORITY_ERROR_OUTPUT_INVALID");
+      }
+      fail("FINAL_COUPLED_REVIEWED_AUTHORITY_CHILD_ERROR:" + envelope.error);
+    }
+    if (!plain(envelope.result) || envelope.error !== null) {
+      fail("FINAL_COUPLED_REVIEWED_AUTHORITY_SUCCESS_OUTPUT_INVALID");
+    }
+    return envelope.result;
+  } finally {
+    makeReviewedExecutionTreeRemovable(bundle.parent);
+    fs.rmSync(bundle.parent, { recursive: true, force: true });
   }
-  if (!plain(envelope.result) || envelope.error !== null) {
-    fail("FINAL_COUPLED_REVIEWED_AUTHORITY_SUCCESS_OUTPUT_INVALID");
-  }
-  return envelope.result;
 }
 
 function sameDirectoryIdentity(left, right) {
