@@ -2,24 +2,11 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import {
-  VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1,
-  VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1,
-  promoteWcVoidBoundedCanaryCandidatesV1,
-} from "./void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
-import {
-  promoteWcVoidBoundedCanarySemanticV1,
-} from "./void-wc-void-bounded-canary-semantic-promotion-v1.mjs";
-import {
-  classifyVoidWcVoidProductionReadinessV1,
-} from "./void-wc-void-production-readiness-v1.mjs";
-import {
-  classifyVoidCoupledEconomicSuccessorGateV1,
-} from "./void-coupled-economic-successor-gate-v1.mjs";
 
 export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_PLAN_V1 =
   "VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_PLAN_V1";
@@ -45,6 +32,14 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANONICAL_APPLICATION_AUTHORITY_V1 =
     canonical_remote_main_read_required: true,
     reviewed_git_executable_required: true,
     ambient_git_overrides_ignored: true,
+    reviewed_git_object_execution_required: true,
+    reviewed_module_closure_required: true,
+    reviewed_package_runtime_required: true,
+    permission_fenced_execution_required: true,
+    ancestor_package_resolution_forbidden: true,
+    worktree_authority_execution_forbidden: true,
+    private_temporary_filesystem_write: true,
+    execution_network_isolation_provided: false,
     repository_source_write: false,
     filesystem_read: true,
     filesystem_write: false,
@@ -85,6 +80,15 @@ const TOOL_REL =
   "tools/void-wc-void-bounded-canary-canonical-application-v1.mjs";
 const PROMOTION_TOOL_REL =
   "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
+const REVIEWED_BRIDGE_REL =
+  "tools/void-wc-void-bounded-canary-reviewed-execution-v1.mjs";
+const REVIEWED_RUNTIME_TOOL_REL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_RUNTIME_PROFILE_ID = /^voidrnpr1_[0-9a-f]{64}$/u;
+const REVIEWED_EXECUTION_MARKER =
+  "VOID_WC_VOID_BOUNDED_CANARY_REVIEWED_EXECUTION_V1";
 const PRODUCTION_REL =
   "ops/mainnet0/wc-void-production-candidate-v1.json";
 const COUPLED_REL =
@@ -147,6 +151,14 @@ const PLAN_KEYS = Object.freeze([
   "application_base_tree_sha",
   "candidate_promotion_tool_git_blob_sha1",
   "canonical_application_tool_git_blob_sha1",
+  "reviewed_execution_module_git_blobs",
+  "reviewed_runtime_tool_git_blob_sha1",
+  "reviewed_runtime_profile_git_blob_sha1",
+  "reviewed_runtime_profile_id",
+  "reviewed_runtime_packages_aggregate_sha256",
+  "reviewed_execution_permission_fenced",
+  "reviewed_execution_ancestor_package_resolution_allowed",
+  "reviewed_execution_network_isolation_provided",
   "production_candidate_path",
   "production_source_git_blob_sha1",
   "production_source_file_sha256",
