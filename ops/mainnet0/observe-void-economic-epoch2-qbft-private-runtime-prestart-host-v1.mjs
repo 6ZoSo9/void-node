@@ -237,6 +237,9 @@ const unitDir=canonicalDir(path.dirname(unitPath),"systemd_user_dir");
 requireNoDirectEnablementLinks(unitDir,materialization.service_name);
 const initialUnitState=
   requireInactiveUnitFileState(materialization.service_name);
+if(initialUnitState.unit_file_state!=="static") {
+  fail("prestart_unit_file_state_not_static:"+initialUnitState.unit_file_state);
+}
 
 const pluginPath=path.resolve(materialization.files.plugin.path);
 regularFile(pluginPath,"plugin",64*1024*1024);
