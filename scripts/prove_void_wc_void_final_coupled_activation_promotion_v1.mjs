@@ -128,6 +128,44 @@ function readyCoupledPreFinal() {
   return value;
 }
 
+function structuralSemantic(productionCandidate, coupledCandidate, successorCandidate) {
+  const productionTarget = clone(productionCandidate);
+  productionTarget.status = "source_ready";
+  productionTarget.coupled_activation_ready = true;
+
+  const coupledTarget = clone(coupledCandidate);
+  coupledTarget.status = "SOURCE_READY";
+  coupledTarget.gates.coupled_activation_ready = true;
+
+  return {
+    reviewed_execution_verified: false,
+    successor_before:
+      classifyVoidEconomicEvmSuccessorMigrationV1(successorCandidate),
+    production_before:
+      classifyVoidWcVoidProductionReadinessV1(productionCandidate),
+    coupled_before:
+      classifyVoidCoupledEconomicSuccessorGateV1(
+        coupledCandidate,
+        successorCandidate,
+      ),
+    production_target: productionTarget,
+    coupled_target: coupledTarget,
+    production_after:
+      classifyVoidWcVoidProductionReadinessV1(productionTarget),
+    coupled_after:
+      classifyVoidCoupledEconomicSuccessorGateV1(
+        coupledTarget,
+        successorCandidate,
+      ),
+    composition:
+      classifyVoidWcVoidCoupledLaunchReadinessV1({
+        production_candidate: productionTarget,
+        coupled_candidate: coupledTarget,
+        successor_migration_candidate: successorCandidate,
+      }),
+  };
+}
+
 assert.equal(
   VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1,
   "VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PROMOTION_V1",
@@ -209,6 +247,8 @@ const preview =
     successor_migration_candidate: successorReady,
     applied_lineages: lineages(),
     repository_identity: repositoryIdentity(),
+    reviewed_semantic:
+      structuralSemantic(productionPre, coupledPre, successorReady),
   });
 
 assert.equal(
@@ -337,6 +377,14 @@ assert.throws(
       successor_migration_candidate: successorReady,
       applied_lineages: lineages(),
       repository_identity: repositoryIdentity(),
+      reviewed_semantic: structuralSemantic(
+        {
+          ...productionPre,
+          bounded_canary_green: false,
+        },
+        coupledPre,
+        successorReady,
+      ),
     }),
   /FINAL_COUPLED_PRODUCTION_NONFINAL_GATES_REMAIN/u,
 );
@@ -355,6 +403,17 @@ assert.throws(
       successor_migration_candidate: successorReady,
       applied_lineages: lineages(),
       repository_identity: repositoryIdentity(),
+      reviewed_semantic: structuralSemantic(
+        productionPre,
+        {
+          ...coupledPre,
+          gates: {
+            ...coupledPre.gates,
+            participant_post_purchase_voidtoken_control_ready: false,
+          },
+        },
+        successorReady,
+      ),
     }),
   /FINAL_COUPLED_ECONOMIC_NONFINAL_GATES_REMAIN/u,
 );
@@ -367,6 +426,8 @@ assert.throws(
       successor_migration_candidate: successor,
       applied_lineages: lineages(),
       repository_identity: repositoryIdentity(),
+      reviewed_semantic:
+        structuralSemantic(productionPre, coupledPre, successor),
     }),
   /FINAL_COUPLED_SUCCESSOR_NOT_SOURCE_READY/u,
 );
@@ -380,6 +441,8 @@ assert.throws(
       successor_migration_candidate: successorReady,
       applied_lineages: missingLineage,
       repository_identity: repositoryIdentity(),
+      reviewed_semantic:
+        structuralSemantic(productionPre, coupledPre, successorReady),
     }),
   /FINAL_COUPLED_LINEAGE_COUNT_INVALID/u,
 );
@@ -397,6 +460,8 @@ assert.throws(
       successor_migration_candidate: successorReady,
       applied_lineages: unverifiedLineages,
       repository_identity: repositoryIdentity(),
+      reviewed_semantic:
+        structuralSemantic(productionPre, coupledPre, successorReady),
     }),
   /FINAL_COUPLED_LINEAGE_NOT_VERIFIED_APPLIED/u,
 );
