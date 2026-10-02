@@ -27,7 +27,7 @@ assert.equal(loaded.evaluation.rpc_url, null);
 assert.equal(loaded.evaluation.transaction_authorized, false);
 assert.equal(loaded.evaluation.authoritative_chain2050_write, false);
 
-function selectedFixture(url = "http://127.0.0.1:28545/") {
+function selectedFixture(url = "http://127.0.0.1:18553/") {
   const value = structuredClone(target);
   value.status = SELECTED_STATUS;
   value.selection = {
@@ -36,7 +36,13 @@ function selectedFixture(url = "http://127.0.0.1:28545/") {
     rpc_url_fingerprint_sha256:
       productionEpoch2RpcUrlFingerprintV1(url),
     service_unit:
-      "void-economic-epoch2-production-rpc-v1.service",
+      "void-economic-epoch2-qbft-validator-v1.service",
+    activation_plan_id:
+      "voide2qactp1_" + "4".repeat(64),
+    activation_receipt_id:
+      "voide2qactr1_" + "5".repeat(64),
+    activation_receipt_sha256:
+      "6".repeat(64),
     runtime_observation_id:
       "voidpe2rpcobs1_" + "1".repeat(64),
     runtime_observation_sha256:
@@ -62,7 +68,7 @@ const synthetic = validateProductionEpoch2RpcTargetV1(
 );
 assert.equal(synthetic.status, SELECTED_STATUS);
 assert.equal(synthetic.production_rpc_target_selected, true);
-assert.equal(synthetic.rpc_url, "http://127.0.0.1:28545/");
+assert.equal(synthetic.rpc_url, "http://127.0.0.1:18553/");
 assert.equal(synthetic.transaction_authorized, false);
 assert.equal(synthetic.authoritative_chain2050_write, false);
 assert.equal(synthetic.funds_movement, false);
@@ -90,9 +96,16 @@ assert.throws(
 
 assert.throws(
   () => validateProductionEpoch2RpcTargetV1(
-    selectedFixture("http://127.0.0.1:28545"),
+    selectedFixture("http://127.0.0.1:18553"),
   ),
   /production_epoch2_rpc_url_not_canonical_loopback/u,
+);
+
+assert.throws(
+  () => validateProductionEpoch2RpcTargetV1(
+    selectedFixture("http://127.0.0.1:28545/"),
+  ),
+  /production_epoch2_selected_evidence_incomplete/u,
 );
 
 const badGenesis = selectedFixture();
@@ -101,6 +114,21 @@ badGenesis.reviewed_successor_identity.genesis_file_sha256 =
 assert.throws(
   () => validateProductionEpoch2RpcTargetV1(badGenesis),
   /reviewed_successor_identity_mismatch/u,
+);
+
+const wrongService = selectedFixture();
+wrongService.selection.service_unit =
+  "void-economic-epoch2-production-rpc-v1.service";
+assert.throws(
+  () => validateProductionEpoch2RpcTargetV1(wrongService),
+  /production_epoch2_selected_evidence_incomplete/u,
+);
+
+const missingActivationReceipt = selectedFixture();
+missingActivationReceipt.selection.activation_receipt_id = null;
+assert.throws(
+  () => validateProductionEpoch2RpcTargetV1(missingActivationReceipt),
+  /production_epoch2_selected_evidence_incomplete/u,
 );
 
 const incomplete = selectedFixture();
@@ -171,6 +199,9 @@ console.log("synthetic_selected_contract_semantics_green=true");
 console.log("independent_host_acceptance_required=true");
 console.log("reviewed_production_validator_binding_lineage_required=true");
 console.log("promoted_validator_evidence_exactly_bound=true");
+console.log("private_qbft_activation_lineage_required=true");
+console.log("production_rpc_18553_exact=true");
+console.log("production_service_unit_exact=true");
 console.log("transaction_authorized=false");
 console.log("authoritative_chain2050_write=false");
 console.log("migration_authorized=false");
