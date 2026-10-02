@@ -5,6 +5,16 @@ Marker: `VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1`
 This lane establishes the request-first public checkout for the first real
 Base USDC → native VOID fulfillment.
 
+The broader payment policy also allowlists native Ethereum Mainnet USDC
+(chain ID `1`, contract
+`0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`) and Base Mainnet native USDC
+(chain ID `8453`, contract
+`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`). **That dual-chain allowlist
+does not mean both rails are currently active.** This checkout remains Base-only
+until the Ethereum receiver, receipt verification, finality, and request-path
+gates are separately activated. Participants must not send Ethereum USDC until
+the live checkout explicitly marks the Ethereum rail OPEN.
+
 ## Bound values
 
 - Base Mainnet chain ID: `8453`
