@@ -403,7 +403,8 @@ function headIdentity() {
   if (!HEX40.test(head) || !HEX40.test(tree)) {
     fail("CANONICAL_APPLICATION_REPOSITORY_IDENTITY_INVALID");
   }
-  return Object.freeze({ head, tree });
+  const toolBlob = assertApplicationToolWorktreeBound({ head, tree });
+  return Object.freeze({ head, tree, tool_blob_sha1: toolBlob });
 }
 
 function assertHeadStable(expected) {
@@ -424,6 +425,12 @@ function assertHeadStable(expected) {
     ) !== ""
   ) {
     fail("CANONICAL_APPLICATION_REPOSITORY_CHANGED_DURING_READ");
+  }
+  if (
+    assertApplicationToolWorktreeBound(expected) !==
+      expected.tool_blob_sha1
+  ) {
+    fail("CANONICAL_APPLICATION_TOOL_CHANGED_DURING_READ");
   }
 }
 
