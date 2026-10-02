@@ -225,6 +225,11 @@ export function validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(receipt) {
     !BUNDLE_SET_ID.test(String(receipt.bundle_set_id||""))||
     !MATERIALIZATION_ID.test(String(receipt.materialization_id||""))||
     !INSTALL_ID.test(String(receipt.install_receipt_id||""))||
+    ![
+      "fresh_install",
+      "existing_runtime_read_only_reattestation",
+    ].includes(String(receipt.install_receipt_basis||""))||
+    !SHA40_ID.test(String(receipt.install_receipt_observed_repo_head||""))||
     !SHA40_ID.test(String(receipt.observed_repo_head||""))||
     !ADDRESS.test(String(receipt.validator_address||""))||
     !PUBLIC_KEY.test(String(receipt.besu_public_key||""))||
@@ -235,11 +240,15 @@ export function validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(receipt) {
     throw new Error("prestart_receipt_contract_mismatch");
   }
 
+  const installObservedMs=
+    Date.parse(String(receipt.install_receipt_observed_at_utc||""));
   const observedMs=Date.parse(String(receipt.observed_at_utc||""));
   const validMs=Date.parse(String(receipt.valid_until_utc||""));
   if(
+    !Number.isFinite(installObservedMs)||
     !Number.isFinite(observedMs)||
     !Number.isFinite(validMs)||
+    installObservedMs>observedMs||
     validMs<=observedMs||
     validMs-observedMs>10*60*1000
   ) {
