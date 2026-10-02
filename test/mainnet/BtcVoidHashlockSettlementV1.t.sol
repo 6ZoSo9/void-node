@@ -78,7 +78,7 @@ contract BtcVoidHashlockSettlementV1Test {
         VmBtcVoidHashlockV1(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     address internal constant TOKEN =
-        0x470075b85352eb86f7d089fb9ba88945f12aad94;
+        0x470075B85352Eb86F7d089FB9ba88945f12AAd94;
     address internal constant FUNDER = address(0xF00D);
     address internal constant BENEFICIARY = address(0xBEEF);
     address internal constant OTHER = address(0xCAFE);
