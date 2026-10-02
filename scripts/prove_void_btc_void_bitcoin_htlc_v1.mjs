@@ -47,6 +47,9 @@ assert.equal(built.p2wsh_version, 0);
 assert.equal(built.p2wsh_witness_program_hex, EXPECTED_WITNESS_SHA256);
 assert.equal(built.p2wsh_script_pubkey_hex, EXPECTED_P2WSH_SCRIPT_PUBKEY);
 assert.equal(built.p2wsh_script_pubkey_bytes, 34);
+assert.equal(built.live_bitcoin_chain_context_verified, false);
+assert.equal(built.refund_locktime_future_at_funding_verified, false);
+assert.equal(built.asymmetric_cross_chain_timeout_margin_verified, false);
 assert.match(built.htlc_id, /^voidbtchtlc1_[0-9a-f]{64}$/u);
 assert.deepEqual(
   built.redeem_witness_items,
@@ -224,6 +227,9 @@ for (const required of [
   "bitcoin_mainnet_contact: false",
   "transaction_construction: false",
   "transaction_signing: false",
+  "live_bitcoin_chain_context_verified: false",
+  "refund_locktime_future_at_funding_verified: false",
+  "asymmetric_cross_chain_timeout_margin_verified: false",
   "transaction_broadcast: false",
 ]) {
   assert.equal(source.includes(required), true, required);
