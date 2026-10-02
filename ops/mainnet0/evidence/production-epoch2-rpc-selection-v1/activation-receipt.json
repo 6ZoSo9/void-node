@@ -1,0 +1,60 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_RECEIPT_V1",
+  "version": 1,
+  "status": "PRIVATE_QBFT_RUNTIME_ACTIVE_TRANSACTION_AND_MIGRATION_HOLD",
+  "activation_plan_id": "voide2qactp1_d2c34dccdd0fe4e46fae7da36853f5bbc8f6b0598900a0d4a6510e1fdff9eb3b",
+  "plan_id": "voide2qprp1_d7dde95603129b3a05b6c60845ddfc10462edb1d3ef2a85962fc6c50196c6227",
+  "bundle_set_id": "voide2qbsv1_d7478ac0c0cd669cdad2675dff67df63870bb693e7bc0d2837c14fa0f33f2f2e",
+  "start_admission_id": "voide2qsad1_34dc2f6564d892d77628934c3e0421f69cac6dcc96c5906c72d907792a6b04ba",
+  "activated_at_utc": "2026-10-02T13:47:20.236Z",
+  "chain_id": 2050,
+  "chain_id_hex": "0x802",
+  "execution_epoch": 2,
+  "consensus": "QBFT",
+  "validator_count": 3,
+  "required_quorum": 2,
+  "byzantine_fault_tolerance": 0,
+  "validators": [
+    "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+    "0x02f967953386188397b992c208239d3a25180db6",
+    "0x461bf06270d9d28962f7570182c061b828799b66"
+  ],
+  "started_roles": [
+    "precision",
+    "nimo",
+    "xiphos"
+  ],
+  "observations": {
+    "precision_only_block_number": "0",
+    "after_nimo_block_number": "1",
+    "after_nimo_peer_count": 1,
+    "after_xiphos_block_number": "2",
+    "after_xiphos_peer_count": 2,
+    "chain_progression_proven": true,
+    "exact_validator_set_proven": true,
+    "two_of_three_quorum_proven": true,
+    "all_three_validator_services_active": true
+  },
+  "authority": {
+    "systemd_reload": true,
+    "service_enable": false,
+    "service_start": true,
+    "service_stop_on_failure_only": true,
+    "docker_mutation": true,
+    "private_key_access": true,
+    "private_key_content_exported": false,
+    "private_key_stdout": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": true,
+    "validator_set_mutation": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "next_gate": "datanet_registry_deployer_live_nonce_balance_and_create_address_vacancy_observation_on_private_successor_rpc",
+  "activation_receipt_id": "voide2qactr1_914e3bf88df083fef1a3c52aea6f1eb53ad2458d5559db01a6a83f0088928174"
+}

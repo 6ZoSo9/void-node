@@ -4,6 +4,7 @@ Marker: `VOID_MAINNET0_CURRENT_TRUTH_MAP_V1`
 
 Reviewed: 2026-09-25.
 DataNet deployer-resolution subsection refreshed: 2026-09-30.
+Production Epoch-2 RPC target subsection refreshed: 2026-10-02.
 
 ## Purpose
 
@@ -113,17 +114,23 @@ For present-tense claims use this precedence:
 - The first live DataNet deployer-resolution attempt correctly HOLDed after only
   `eth_chainId`. That attempt exposed a stale Precision-runner default to the
   historical `127.0.0.1:8545` epoch-1/private execution surface. The source
-  correction is now merged: the runner has **no default RPC**, reads the reviewed
-  `VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1` artifact, and HOLDs
-  before any RPC call while its status remains
-  `HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED`. The production target is
-  still unselected (`rpc_url=null`); `127.0.0.1:8545` and the isolated
-  `18550`/`18551`/`18552` proof RPCs are explicitly forbidden as production
-  deployer-resolution authority. This HOLD is specifically about RPC-target
-  selection: the successor migration candidate already records
-  `production_validator_set_bound=true`, which does not select or authorize a
-  deployer-resolution RPC. Selecting a real production epoch-2 target remains a
-  separate reviewed gate.
+  correction remains in force: the runner has **no default RPC** and reads the
+  reviewed `VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1` artifact.
+  The selected production Epoch-2 RPC is `http://127.0.0.1:18553/`, with
+  canonical source status `PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY`, bound by
+  the accepted independent host observation, candidate SHA-256
+  `305ed03eebe49b992db76c21ffd8930e9b6d07ed4a97984cf0e48f33a9df63dd`,
+  promotion admission
+  `voidpe2rpctapply1_f76ce9f3d147a6097910947e3a8735664ff81bea07d1940ebdb663102589b040`,
+  and source-promotion manifest
+  `voidpe2rpctprom1_754cf0701f226a8ac47375757a42aa5dc328110ac89346c699b05565813b382f`.
+  The reviewed successor remains `production_validator_set_bound=true`.
+  The historical `127.0.0.1:8545` archive and isolated
+  `18550`/`18551`/`18552` proof RPCs remain explicitly forbidden as
+  production deployer-resolution authority. Selection does not authorize
+  deployment, transaction construction/signing/submission/broadcast, migration,
+  public activation, or funds movement; downstream consumers must repeat fresh
+  read-only preflights against `18553` before any later authority gate.
 - The epoch-2 bounded submission **source core** now binds signed intents to
   execution epoch 2 and requires atomic replay-digest consumption before source
   admission. This does not open a public submission route or authorize RPC,
