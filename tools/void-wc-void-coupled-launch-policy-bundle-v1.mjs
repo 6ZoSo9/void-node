@@ -364,6 +364,79 @@ function writePrivateSource(file,bytes){
     fs.fsyncSync(fd);
   }finally{fs.closeSync(fd);}
 }
+function readBoundPrivateRegularFile(
+  file,
+  {expectedSha256=null,expectedGitBlobSha1=null}={},
+  code,
+){
+  const fd=fs.openSync(
+    file,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try{
+    const before=fs.fstatSync(fd);
+    if(!before.isFile()||before.nlink!==1||before.size<1){
+      fail(code+"_FILE_INVALID");
+    }
+    const bytes=Buffer.alloc(before.size);
+    let offset=0;
+    while(offset<bytes.length){
+      const count=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);
+      if(count<=0)fail(code+"_SHORT_READ");
+      offset+=count;
+    }
+    const after=fs.fstatSync(fd);
+    for(const key of ["dev","ino","size","mtimeMs","ctimeMs"]){
+      if(before[key]!==after[key])fail(code+"_CHANGED_DURING_READ");
+    }
+    if(expectedSha256!==null&&sha256Bytes(bytes)!==expectedSha256){
+      fail(code+"_SHA256_MISMATCH");
+    }
+    if(
+      expectedGitBlobSha1!==null&&
+      gitBlobSha1(bytes)!==expectedGitBlobSha1
+    ){
+      fail(code+"_GIT_BLOB_MISMATCH");
+    }
+    return bytes;
+  }finally{
+    fs.closeSync(fd);
+  }
+}
+
+function assertPrivateReviewedCompilerBinding(binding){
+  const parentStat=fs.lstatSync(binding.parent);
+  if(
+    !parentStat.isDirectory()||
+    parentStat.isSymbolicLink()||
+    parentStat.dev!==binding.parent_identity.dev||
+    parentStat.ino!==binding.parent_identity.ino
+  ){
+    fail("COUPLED_LAUNCH_POLICY_PRIVATE_PARENT_IDENTITY_DRIFT");
+  }
+  readBoundPrivateRegularFile(
+    binding.runner_file,
+    {expectedSha256:binding.runner_sha256},
+    "COUPLED_LAUNCH_POLICY_PRIVATE_RUNNER",
+  );
+  for(const [relativePath,expectedBlob] of
+    Object.entries(binding.module_git_blobs)){
+    readBoundPrivateRegularFile(
+      path.join(binding.source_root,relativePath),
+      {expectedGitBlobSha1:expectedBlob},
+      "COUPLED_LAUNCH_POLICY_PRIVATE_MODULE_"+
+        relativePath.replace(/[^A-Za-z0-9]+/gu,"_"),
+    );
+  }
+  return true;
+}
+
+export function testOnlyVerifyVoidWcVoidCoupledLaunchPolicyPrivateExecutionBindingV1(
+  binding,
+){
+  return assertPrivateReviewedCompilerBinding(binding);
+}
+
 function makePrivateTreeReadOnly(root){
   const dirs=[];
   const stack=[root];
@@ -410,6 +483,14 @@ function runReviewedCompiler(repo,raw,canonicalLaunchSource){
     path.join(os.tmpdir(),"void-coupled-launch-policy-reviewed-"),
   );
   fs.chmodSync(parent,0o700);
+  const parentStat=fs.lstatSync(parent);
+  if(!parentStat.isDirectory()||parentStat.isSymbolicLink()){
+    fail("COUPLED_LAUNCH_POLICY_PRIVATE_PARENT_INVALID");
+  }
+  const parentIdentity=Object.freeze({
+    dev:parentStat.dev,
+    ino:parentStat.ino,
+  });
   const sourceRoot=path.join(parent,"source");
   const runnerDir=path.join(parent,"runner");
   fs.mkdirSync(sourceRoot,{mode:0o700});
@@ -437,8 +518,18 @@ function runReviewedCompiler(repo,raw,canonicalLaunchSource){
       'process.stdout.write(JSON.stringify(envelope));',
       '',
     ].join("\n");
-    writePrivateSource(runnerFile,Buffer.from(runnerSource,"utf8"));
+    const runnerBytes=Buffer.from(runnerSource,"utf8");
+    writePrivateSource(runnerFile,runnerBytes);
     makePrivateTreeReadOnly(sourceRoot);
+    const privateBinding=Object.freeze({
+      parent,
+      parent_identity:parentIdentity,
+      source_root:sourceRoot,
+      runner_file:runnerFile,
+      runner_sha256:sha256Bytes(runnerBytes),
+      module_git_blobs:closure.module_git_blobs,
+    });
+    assertPrivateReviewedCompilerBinding(privateBinding);
     const result=spawnSync(
       fs.realpathSync.native(process.execPath),
       [
