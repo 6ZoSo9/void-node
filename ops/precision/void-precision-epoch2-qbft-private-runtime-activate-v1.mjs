@@ -273,6 +273,7 @@ function hostPreflightScript(plan,activationPlan,role) {
     'test "$(git -C "$repo" branch --show-current)" = main || hold repo_not_main',
     'test -z "$(git -C "$repo" status --porcelain=v1 --untracked-files=all)" || hold repo_dirty',
     'git -C "$repo" merge-base --is-ancestor "$expected_head" HEAD || hold repo_head_not_descendant',
+    'cd "$repo"',
     "",
     'test "$(tailscale ip -4 2>/dev/null | sed -n \'1p\')" = "$expected_ip" || hold tailnet_ip_mismatch',
     'test -d "$runtime" && test ! -L "$runtime" || hold runtime_root_invalid',
@@ -350,7 +351,7 @@ function hostPreflightScript(plan,activationPlan,role) {
     "printf '%s\\\\n' data_empty=true",
     "printf '%s\\\\n' p2p_port_vacant=true",
     "",
-  ].join("\\n");
+  ].join("\n");
 }
 function startScript() {
   return [
@@ -384,7 +385,7 @@ function startScript() {
     'systemctl --user status --no-pager "$service" >&2 || true',
     "exit 2",
     "",
-  ].join("\\n");
+  ].join("\n");
 }
 function stopScript() {
   return [
@@ -397,10 +398,10 @@ function stopScript() {
     "done",
     "exit 2",
     "",
-  ].join("\\n");
+  ].join("\n");
 }
 function activeScript() {
-  return "systemctl --user is-active --quiet "+bashLiteral(SERVICE)+"\\n";
+  return "systemctl --user is-active --quiet "+bashLiteral(SERVICE)+"\n";
 }
 function rpcCall(method,params=[]) {
   const payload=JSON.stringify({jsonrpc:"2.0",id:1,method,params});
