@@ -40,6 +40,8 @@ assert.equal(built.hash_function, "SHA256");
 assert.equal(built.required_preimage_bytes, 32);
 assert.equal(built.refund_locktime, 500);
 assert.equal(built.refund_locktime_type, "block_height");
+assert.equal(built.refund_locktime_finality_clock, "next_block_height");
+assert.equal(built.timestamp_locktime_value_is_unix_epoch_seconds, false);
 assert.equal(built.witness_script_hex, EXPECTED_SCRIPT);
 assert.equal(built.witness_script_bytes, 97);
 assert.equal(built.witness_script_sha256, EXPECTED_WITNESS_SHA256);
@@ -138,7 +140,12 @@ const timestampLock = buildVoidBtcVoidBitcoinHtlcV1({
   ...VECTOR,
   refund_locktime: 500_000_000,
 });
-assert.equal(timestampLock.refund_locktime_type, "unix_timestamp");
+assert.equal(timestampLock.refund_locktime_type, "block_time");
+assert.equal(
+  timestampLock.refund_locktime_finality_clock,
+  "median_time_past_bip113",
+);
+assert.equal(timestampLock.timestamp_locktime_value_is_unix_epoch_seconds, true);
 assert.equal(
   parseVoidBtcVoidBitcoinHtlcV1({
     witness_script_hex: timestampLock.witness_script_hex,
@@ -275,6 +282,7 @@ for (const required of [
   "transaction_nlocktime_at_least_refund_locktime: true",
   "compressed_pubkey_required_for_standard_segwit_v0_relay: true",
   "minimal_if_selector_must_be_01: true",
+  "median_time_past_bip113",
   "transaction_locktime_type_must_match_refund_locktime_type: true",
   "spending_input_sequence_must_not_equal_uint32_max: true",
   "minimal_if_selector_must_be_empty_vector: true",
