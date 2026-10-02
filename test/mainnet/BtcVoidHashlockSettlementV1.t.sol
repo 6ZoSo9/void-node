@@ -4,9 +4,17 @@ pragma solidity ^0.8.24;
 import "../../contracts/mainnet/BtcVoidHashlockSettlementV1.sol";
 
 interface VmBtcVoidHashlockV1 {
+    struct Log {
+        bytes32[] topics;
+        bytes data;
+        address emitter;
+    }
+
     function etch(address target, bytes calldata code) external;
     function prank(address sender) external;
     function warp(uint256 timestamp) external;
+    function recordLogs() external;
+    function getRecordedLogs() external returns (Log[] memory logs);
 }
 
 contract BtcVoidHashlockMockTokenV1 {
@@ -89,6 +97,8 @@ contract BtcVoidHashlockSettlementV1Test {
     bytes32 internal constant SWAP_B = keccak256("btc-void:swap:b");
     bytes32 internal constant PREIMAGE =
         0x1111111111111111111111111111111111111111111111111111111111111111;
+    bytes32 internal constant PREIMAGE_B =
+        0x2222222222222222222222222222222222222222222222222222222222222222;
 
     function _assert(bool condition, string memory reason) internal pure {
         require(condition, reason);
@@ -104,6 +114,18 @@ contract BtcVoidHashlockSettlementV1Test {
 
     function _preimageBytes() internal pure returns (bytes memory) {
         return abi.encodePacked(PREIMAGE);
+    }
+
+    function _preimageBytes(bytes32 preimage)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(preimage);
+    }
+
+    function _hashlock(bytes32 preimage) internal pure returns (bytes32) {
+        return sha256(abi.encodePacked(preimage));
     }
 
     function _deploy()
@@ -223,6 +245,155 @@ contract BtcVoidHashlockSettlementV1Test {
         );
         _assert(_token().balanceOf(BENEFICIARY) == AMOUNT, "beneficiary_paid");
         _assert(_token().balanceOf(address(settlement)) == 0, "escrow_empty");
+    }
+
+    function test_twoLiveSwapsRemainStateAndEscrowIsolated() public {
+        BtcVoidHashlockSettlementV1 settlement = _deploy();
+        uint256 deadlineA = START + 1000;
+        uint256 deadlineB = START + 2000;
+        bytes32 hashlockA = _hashlock(PREIMAGE);
+        bytes32 hashlockB = _hashlock(PREIMAGE_B);
+
+        _approve(settlement, AMOUNT * 2);
+        vm.prank(FUNDER);
+        settlement.lock(
+            SWAP_A,
+            hashlockA,
+            BENEFICIARY,
+            AMOUNT,
+            deadlineA
+        );
+        vm.prank(FUNDER);
+        settlement.lock(
+            SWAP_B,
+            hashlockB,
+            OTHER,
+            AMOUNT,
+            deadlineB
+        );
+
+        _assert(
+            _token().balanceOf(address(settlement)) == AMOUNT * 2,
+            "two_swap_escrow"
+        );
+        _assert(
+            _token().balanceOf(FUNDER) == 1_000 ether - (AMOUNT * 2),
+            "two_swap_funder_debit"
+        );
+
+        (
+            bytes32 beforeHashlockB,
+            address beforeBeneficiaryB,
+            address beforeRefundAuthorityB,
+            uint256 beforeAmountB,
+            uint256 beforeDeadlineB,
+            BtcVoidHashlockSettlementV1.SwapState beforeStateB
+        ) = settlement.getSwap(SWAP_B);
+
+        vm.prank(BENEFICIARY);
+        settlement.claim(SWAP_A, _preimageBytes());
+
+        (
+            bytes32 afterHashlockB,
+            address afterBeneficiaryB,
+            address afterRefundAuthorityB,
+            uint256 afterAmountB,
+            uint256 afterDeadlineB,
+            BtcVoidHashlockSettlementV1.SwapState afterStateB
+        ) = settlement.getSwap(SWAP_B);
+
+        _assert(
+            settlement.stateOf(SWAP_A) ==
+                BtcVoidHashlockSettlementV1.SwapState.Claimed,
+            "swap_a_not_claimed"
+        );
+        _assert(beforeHashlockB == afterHashlockB, "swap_b_hashlock_changed");
+        _assert(
+            beforeBeneficiaryB == afterBeneficiaryB,
+            "swap_b_beneficiary_changed"
+        );
+        _assert(
+            beforeRefundAuthorityB == afterRefundAuthorityB,
+            "swap_b_refund_authority_changed"
+        );
+        _assert(beforeAmountB == afterAmountB, "swap_b_amount_changed");
+        _assert(beforeDeadlineB == afterDeadlineB, "swap_b_deadline_changed");
+        _assert(
+            beforeStateB == BtcVoidHashlockSettlementV1.SwapState.Locked &&
+                afterStateB == BtcVoidHashlockSettlementV1.SwapState.Locked,
+            "swap_b_state_changed"
+        );
+        _assert(afterHashlockB == hashlockB, "swap_b_hashlock_wrong");
+        _assert(afterBeneficiaryB == OTHER, "swap_b_beneficiary_wrong");
+        _assert(afterRefundAuthorityB == FUNDER, "swap_b_refund_authority_wrong");
+        _assert(afterAmountB == AMOUNT, "swap_b_amount_wrong");
+        _assert(afterDeadlineB == deadlineB, "swap_b_deadline_wrong");
+        _assert(
+            _token().balanceOf(address(settlement)) == AMOUNT,
+            "swap_a_claim_consumed_swap_b_escrow"
+        );
+        _assert(_token().balanceOf(BENEFICIARY) == AMOUNT, "swap_a_payout_wrong");
+        _assert(_token().balanceOf(OTHER) == 0, "swap_b_beneficiary_paid_early");
+
+        vm.warp(deadlineB);
+        vm.prank(FUNDER);
+        settlement.refund(SWAP_B);
+
+        _assert(
+            settlement.stateOf(SWAP_B) ==
+                BtcVoidHashlockSettlementV1.SwapState.Refunded,
+            "swap_b_not_refunded"
+        );
+        _assert(_token().balanceOf(address(settlement)) == 0, "final_escrow_not_zero");
+        _assert(_token().balanceOf(OTHER) == 0, "swap_b_beneficiary_paid");
+        _assert(
+            _token().balanceOf(FUNDER) == 1_000 ether - AMOUNT,
+            "swap_b_refund_wrong"
+        );
+    }
+
+    function test_claimedEventExposesExactPreimageEvidence() public {
+        BtcVoidHashlockSettlementV1 settlement = _deploy();
+        bytes32 hashlock = _hashlock(PREIMAGE);
+        _lock(settlement, SWAP_A, START + 1000);
+
+        vm.recordLogs();
+        vm.prank(BENEFICIARY);
+        settlement.claim(SWAP_A, _preimageBytes());
+
+        VmBtcVoidHashlockV1.Log[] memory logs = vm.getRecordedLogs();
+        _assert(logs.length == 1, "claimed_log_count");
+        _assert(logs[0].emitter == address(settlement), "claimed_emitter");
+        _assert(logs[0].topics.length == 4, "claimed_topic_count");
+        _assert(
+            logs[0].topics[0] ==
+                keccak256(
+                    "Claimed(bytes32,address,bytes32,bytes32,uint256,uint256)"
+                ),
+            "claimed_topic0"
+        );
+        _assert(logs[0].topics[1] == SWAP_A, "claimed_swap_id");
+        _assert(
+            logs[0].topics[2] == bytes32(uint256(uint160(BENEFICIARY))),
+            "claimed_beneficiary"
+        );
+        _assert(logs[0].topics[3] == hashlock, "claimed_hashlock");
+
+        (
+            bytes32 emittedPreimage,
+            uint256 emittedAmount,
+            uint256 emittedClaimedAt
+        ) = abi.decode(logs[0].data, (bytes32, uint256, uint256));
+
+        _assert(emittedPreimage == PREIMAGE, "claimed_preimage");
+        _assert(emittedPreimage != PREIMAGE_B, "claimed_preimage_substitution");
+        _assert(emittedAmount == AMOUNT, "claimed_amount");
+        _assert(emittedClaimedAt == START, "claimed_timestamp");
+        _assert(
+            keccak256(logs[0].data) ==
+                keccak256(abi.encode(PREIMAGE, AMOUNT, START)),
+            "claimed_data_identity"
+        );
     }
 
     function test_claimAtDeadlineFailsAndRefundAtDeadlineSucceeds() public {
