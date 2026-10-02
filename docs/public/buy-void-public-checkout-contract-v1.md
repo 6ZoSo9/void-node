@@ -22,6 +22,19 @@ The receiver is source-bound. An environment receiver may be absent or match
 the bound receiver exactly; a different environment receiver causes a
 fail-closed checkout hold.
 
+## Self-custody and exchange-wallet loss warning
+
+**SELF-CUSTODY ONLY. VOID is not listed on any exchange. Do not send USDC from
+an exchange, pooled-custody account, bridge, or payment processor that obscures
+the sender.** The Base USDC sender address is bound as the native VOID
+destination identity. If a custodian sends on the participant's behalf, VOID
+may be delivered to an address the participant does not control. VOID cannot
+recover those funds. Treat exchange/custodial sends as lost.
+
+The participant UI must display this warning before request creation and again
+with any returned payment instructions. The self-custody acknowledgement is
+required before a request can be created.
+
 Request intake is fail-closed by default. Source defaults
 `VOID_BUY_REQUESTS_ENABLED=0`; an explicit `VOID_BUY_REQUESTS_ENABLED=1`
 activation is required for the coupled presale/WC launch ceremony. Until then,
