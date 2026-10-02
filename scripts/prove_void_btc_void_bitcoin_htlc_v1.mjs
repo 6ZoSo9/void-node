@@ -63,6 +63,11 @@ assert.equal(
 );
 assert.equal(
   built.refund_spend_requirements
+    .transaction_locktime_type_must_match_refund_locktime_type,
+  true,
+);
+assert.equal(
+  built.refund_spend_requirements
     .spending_input_sequence_must_not_equal_uint32_max,
   true,
 );
@@ -193,6 +198,7 @@ for (const required of [
   "required_preimage_bytes: 32",
   "p2wsh_version: 0",
   "transaction_nlocktime_at_least_refund_locktime: true",
+  "transaction_locktime_type_must_match_refund_locktime_type: true",
   "spending_input_sequence_must_not_equal_uint32_max: true",
   "bitcoin_mainnet_contact: false",
   "transaction_construction: false",
