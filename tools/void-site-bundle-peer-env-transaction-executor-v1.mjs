@@ -177,6 +177,8 @@ export const VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1 =
 export const VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1 =
   Object.freeze({
     reviewed_transaction_contract_required: true,
+    reviewed_transaction_contract_git_object_execution: true,
+    mutable_worktree_transaction_contract_execution: false,
     durable_transition_before_publish_side_effect: true,
     durable_transition_before_restore_side_effect: true,
     observation_first_publish_recovery: true,
