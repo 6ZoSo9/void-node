@@ -143,11 +143,15 @@ class FakeAdapter{
     };
     this.stageCount={local:0,remote:0};
     this.publishCount={local:0,remote:0};
+    this.recoverPublishCount={local:0,remote:0};
     this.restoreCount={local:0,remote:0};
+    this.recoverRestoreCount={local:0,remote:0};
     this.participantReceipts=[];
     this.failPublishAfterEffect=new Set();
     this.failPublishBeforeEffect=new Set();
+    this.failPublishPartialAfterDropin=new Set();
     this.failRestoreAfterEffect=new Set();
+    this.failRestorePartialAfterDropin=new Set();
     this.publishInvocations={local:"2".repeat(32),remote:null};
     this.restoreInvocations={local:"3".repeat(32),remote:null};
   }
@@ -174,6 +178,20 @@ class FakeAdapter{
     if(this.failPublishBeforeEffect.has(participant)){
       throw new Error("simulated_publish_before_effect:"+participant);
     }
+    if(this.failPublishPartialAfterDropin.has(participant)){
+      this.failPublishPartialAfterDropin.delete(participant);
+      this.observations[participant]={
+        ...targetObservation(
+          tx,
+          participant,
+          tx.prestate[participant].service.invocation_id,
+        ),
+        manager_environment:clone(
+          tx.prestate[participant].manager_environment,
+        ),
+      };
+      throw new Error("simulated_publish_partial_after_dropin:"+participant);
+    }
     this.observations[participant]=targetObservation(
       tx,
       participant,
@@ -185,10 +203,31 @@ class FakeAdapter{
     }
     return this.observe(participant);
   }
+  async recoverPublish(participant,tx){
+    this.recoverPublishCount[participant]+=1;
+    this.observations[participant]=targetObservation(
+      tx,
+      participant,
+      this.publishInvocations[participant],
+    );
+    return this.observe(participant);
+  }
   async restore(participant,tx){
     this.restoreCount[participant]+=1;
     assert.ok(tx.restore_started[participant]);
     assert.equal(tx.restored[participant],null);
+    if(this.failRestorePartialAfterDropin.has(participant)){
+      this.failRestorePartialAfterDropin.delete(participant);
+      this.observations[participant]={
+        ...restoredObservation(
+          tx,
+          participant,
+          tx.restore_started[participant].restart_before_invocation_id,
+        ),
+        manager_environment:manager(),
+      };
+      throw new Error("simulated_restore_partial_after_dropin:"+participant);
+    }
     this.observations[participant]=restoredObservation(
       tx,
       participant,
@@ -198,6 +237,15 @@ class FakeAdapter{
       this.failRestoreAfterEffect.delete(participant);
       throw new Error("simulated_restore_after_effect:"+participant);
     }
+    return this.observe(participant);
+  }
+  async recoverRestore(participant,tx){
+    this.recoverRestoreCount[participant]+=1;
+    this.observations[participant]=restoredObservation(
+      tx,
+      participant,
+      this.restoreInvocations[participant],
+    );
     return this.observe(participant);
   }
 }
@@ -305,6 +353,55 @@ for(const [key,value] of Object.entries(
     "2".repeat(32));
 }
 
+// Crash after the target drop-in was published but before manager environment
+// clear/restart. Recovery recognizes only the bounded prestate->target partial
+// lattice, completes the remaining work once, and never reissues the initial
+// publish operation.
+{
+  const tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  const journal=memoryJournal(tx);
+  const adapter=new FakeAdapter(tx);
+  adapter.failPublishPartialAfterDropin.add("local");
+
+  await assert.rejects(
+    ()=>driveVoidSiteBundlePeerEnvTransactionV1({
+      transaction:tx,
+      adapter,
+      persist:journal.persist,
+    }),
+    /simulated_publish_partial_after_dropin:local/u,
+  );
+  assert.equal(
+    nextVoidCrossboxMutationRecoveryV1(journal.current),
+    "RECOVER_PUBLISH_LOCAL",
+  );
+  assert.equal(adapter.publishCount.local,1);
+
+  const resumed=await driveVoidSiteBundlePeerEnvTransactionV1({
+    transaction:journal.current,
+    adapter,
+    persist:journal.persist,
+  });
+  assert.equal(resumed.action,"DONE_COMMITTED");
+  assert.equal(adapter.publishCount.local,1);
+  assert.equal(adapter.recoverPublishCount.local,1);
+}
+
+// A partial publish with unrelated manager-environment drift is not a bounded
+// recovery state and therefore HOLDs instead of overwriting newer state.
+{
+  const tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  const partial={
+    ...targetObservation(tx,"local",tx.prestate.local.service.invocation_id),
+    manager_environment:manager({VOID_DRIFT_PEER:"foreign-change"}),
+  };
+  assert.equal(
+    VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1
+      .recoverablePublishPartial(tx,"local",partial),
+    false,
+  );
+}
+
 // Remote publish attempt has no effect. Recovery records no-effect, enters
 // rollback, then local restore crashes after its restart. A second recovery
 // observes restored state and must not restart local again.
@@ -354,6 +451,50 @@ for(const [key,value] of Object.entries(
   assert.equal(adapter.restoreCount.remote,0);
   assert.equal(resumed.transaction.restored.local.dropin_restored,true);
   assert.equal(resumed.transaction.restored.local.manager_environment_restored,true);
+}
+
+// Crash after rollback restored the drop-in but before manager environment
+// restoration/restart. Recovery completes the bounded partial restore without
+// reissuing the original restore operation.
+{
+  const tx=prepareVoidCrossboxMutationTransactionV1(siteInput());
+  const journal=memoryJournal(tx);
+  const adapter=new FakeAdapter(tx);
+  adapter.failPublishBeforeEffect.add("remote");
+
+  await assert.rejects(
+    ()=>driveVoidSiteBundlePeerEnvTransactionV1({
+      transaction:tx,
+      adapter,
+      persist:journal.persist,
+    }),
+    /simulated_publish_before_effect:remote/u,
+  );
+  adapter.failPublishBeforeEffect.delete("remote");
+  adapter.failRestorePartialAfterDropin.add("local");
+
+  await assert.rejects(
+    ()=>driveVoidSiteBundlePeerEnvTransactionV1({
+      transaction:journal.current,
+      adapter,
+      persist:journal.persist,
+    }),
+    /simulated_restore_partial_after_dropin:local/u,
+  );
+  assert.equal(
+    nextVoidCrossboxMutationRecoveryV1(journal.current),
+    "RECOVER_RESTORE_LOCAL",
+  );
+  assert.equal(adapter.restoreCount.local,1);
+
+  const resumed=await driveVoidSiteBundlePeerEnvTransactionV1({
+    transaction:journal.current,
+    adapter,
+    persist:journal.persist,
+  });
+  assert.equal(resumed.action,"DONE_RESTORED");
+  assert.equal(adapter.restoreCount.local,1);
+  assert.equal(adapter.recoverRestoreCount.local,1);
 }
 
 // Ambiguous state after a persisted publish intent becomes HOLD; it is never
@@ -454,7 +595,11 @@ for(const required of [
   '"/proc/self/fd/"',
   "writeDurableJournal",
   "participant_prestate_drift",
-  "participant_receipt_conflict",
+  "participant_create_only_conflict",
+  "recover_publish",
+  "recover_restore",
+  "participant_publish_partial_drift",
+  "participant_restore_partial_drift",
   "site_bundle_executor_retired_alienware_forbidden",
   "applyVoidSiteBundlePeerEnvPersistenceV1",
 ]){
@@ -485,9 +630,11 @@ console.log("VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1_PROOF_GREEN");
 console.log("happy_path_two_party_commit=true");
 console.log("publish_intent_persisted_before_side_effect=true");
 console.log("publish_crash_observed_without_duplicate_publish=true");
+console.log("publish_partial_crash_completed_without_blind_restart=true");
 console.log("publish_no_effect_forces_rollback=true");
 console.log("restore_intent_persisted_before_side_effect=true");
 console.log("restore_crash_observed_without_duplicate_restore=true");
+console.log("restore_partial_crash_completed_without_blind_restart=true");
 console.log("ambiguous_recovery_holds=true");
 console.log("journal_failure_not_reinterpreted=true");
 console.log("live_adapter_reviewed_absolute_primitives=true");
