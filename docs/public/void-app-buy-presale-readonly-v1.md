@@ -28,6 +28,13 @@ Request creation retains the reviewed acknowledgements for self-custody, Base
 native USDC, request-before-payment, sender/destination identity, and the
 fulfillment boundary.
 
+Before displaying returned payment instructions, the browser also fails closed
+unless the response has the reviewed checkout-result schema, the returned VOID
+destination matches the submitted self-custody destination, the returned USDC
+amount matches the submitted amount exactly at six-decimal Base-USDC precision,
+the approved receiver remains canonical, and the returned safety object still
+states manual review with automatic fulfillment disabled.
+
 ## Exchange/custody warning
 
 SELF-CUSTODY ONLY. VOID is not listed on any exchange. The Base USDC sender
