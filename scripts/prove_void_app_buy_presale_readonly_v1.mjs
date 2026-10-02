@@ -79,6 +79,12 @@ for (const required of [
   "ack_sender_equals_void_destination",
   "do_not_send_from_exchange_or_pooled_custody",
   "VOID cannot recover exchange/custodial sends",
+  "body.schema !== 'void_public_buy_void_checkout_request_result_v1'",
+  "request.void_destination_address",
+  "returned request amount mismatch",
+  "request.safety?.automatic_fulfillment !== false",
+  "request.safety?.manual_review_required !== true",
+  "usdcAtoms",
   "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5",
   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
 ]) {
