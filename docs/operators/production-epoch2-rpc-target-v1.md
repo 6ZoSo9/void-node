@@ -134,15 +134,21 @@ themselves.
 
 The source-only evidence compiler
 `tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs`
-now consumes the exact private-QBFT activation plan/receipt plus an independent
-host-observation receipt, verifies their content-addressed bindings, and emits a
-selected-state candidate outside the repository. The compiler deliberately
-cannot write/select the canonical target.
+consumes the exact private-QBFT activation plan/receipt plus serialized
+host-observation bytes and validates their content-addressed structural
+relationships. It emits only a content-addressed promotion **preview**.
 
-A separate reviewed apply lane is still required to consume that candidate,
-persist the promotion evidence, update the canonical target, and teach the
-canonical loader to reverify the checked-in promotion before downstream
-consumers rebind and repeat fresh read-only preflights.
+Serialized observation JSON cannot mint a selected-state descriptor. The preview
+always carries `production_rpc_target_selected=false`,
+`runtime_active_verified=false`, `independent_host_acceptance=false`, and
+`live_observer_reexecuted=false`.
+
+A separate reviewed apply lane must rerun/rebind the live host observer
+immediately before canonical mutation (or consume an in-process
+capability-bound observer result), then persist promotion evidence, update the
+canonical target, and teach the canonical loader to reverify the checked-in
+promotion before downstream consumers rebind and repeat fresh read-only
+preflights.
 
 ## Why the WC/VOID preflight HOLD was correct
 
@@ -191,7 +197,8 @@ funds_movement=false
 ```
 
 The reviewed private-QBFT activation and independent Precision host/RPC
-observation now exist. The next operational gate is to run the source-only
-promotion compiler against those exact content-addressed artifacts, review its
-selected-state candidate, and then implement the separate evidence-aware apply
-lane. This contract and the compiler alone cannot select the canonical target.
+observation now exist. The source-only compiler may be run against those exact
+content-addressed artifacts to produce a structural preview, but that preview is
+not production selection evidence. The next authority-bearing gate is the
+separate evidence-aware apply lane with fresh live observer revalidation. This
+contract and the compiler alone cannot select the canonical target.
