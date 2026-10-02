@@ -90,7 +90,10 @@ compressed_pubkey
 witness_script
 ```
 
-The `01` item selects the `OP_IF` redeem branch.
+The `01` item selects the `OP_IF` redeem branch and is the exact
+minimal-IF true selector used by this contract. Later spend construction must
+supply a compressed 33-byte public key for standard SegWit v0 relay/mining
+policy.
 
 Refund path:
 
@@ -101,7 +104,9 @@ compressed_pubkey
 witness_script
 ```
 
-The empty vector selects the `OP_ELSE` refund branch.
+The empty vector selects the `OP_ELSE` refund branch and is the exact
+minimal-IF false selector. The refund signature path likewise requires a
+compressed 33-byte public key for standard SegWit v0 relay/mining policy.
 
 This source lane does not create or validate signatures.
 
