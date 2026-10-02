@@ -53,6 +53,32 @@ for the observation. A valid historical activation lineage may therefore remain
 usable across later source-only commits, but an unrelated/noncanonical source
 generation cannot become production-host evidence.
 
+### Historical activation source generation
+
+Activation evidence is interpreted by the exact repository generation that
+produced the activation plan, not retroactively by whatever activation-receipt
+schema exists on current `main`.
+
+The observer takes
+`activation_plan.start_admission_observed_repo_head` as the activation-source
+generation and requires that exact commit to be an ancestor of canonical current
+`main`. It then creates two separately content-bound reviewed execution trees:
+
+1. the historical activation source tree, used only to rederive the supplied
+   private-QBFT activation plan and activation receipt; and
+2. the canonical current source tree, used to load and verify the current
+   production Epoch-2 RPC target contract.
+
+Both trees are extracted from Git objects, their reviewed dependency bytes are
+rebound before and after execution, and the historical source head/tree plus its
+execution-manifest SHA-256 are recorded in the observation receipt.
+
+This preserves immutable historical activation evidence across later receipt
+schema migrations. It does not grandfather unrelated history: the historical
+activation head, private-plan source head, start-admission head, and each
+install-receipt generation must all remain ancestors of canonical current
+`main`.
+
 ## Fresh host observation
 
 A green live run additionally requires:
