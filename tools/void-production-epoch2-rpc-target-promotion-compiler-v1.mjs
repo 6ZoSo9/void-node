@@ -10,7 +10,6 @@ import {
 } from "./void-datanet-registry-deployer-activation-bound-observer-v1.mjs";
 import {
   HOLD_STATUS,
-  SELECTED_STATUS,
   VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1,
   loadProductionEpoch2RpcTargetV1,
   productionEpoch2RpcUrlFingerprintV1,
@@ -19,6 +18,10 @@ import {
 
 export const VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_COMPILER_V1 =
   "VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_COMPILER_V1";
+export const VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_V1 =
+  "VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_V1";
+export const VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_STATUS_V1 =
+  "PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_STRUCTURALLY_VERIFIED_NOT_LIVE_BOUND";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RPC_URL = "http://127.0.0.1:18553/";
@@ -31,7 +34,11 @@ const UINT = /^(0|[1-9][0-9]*)$/u;
 const OBSERVATION_ID = /^voidpe2rpcobs1_[0-9a-f]{64}$/u;
 
 const AUTHORITY = Object.freeze({
-  source_candidate_only: true,
+  source_preview_only: true,
+  source_candidate_only: false,
+  structural_evidence_only: true,
+  selected_target_authority: false,
+  live_observer_reexecution: false,
   canonical_target_write: false,
   rpc_call: false,
   service_action: false,
@@ -111,7 +118,7 @@ function recomputeObservationId(observation) {
   }
   return observedId;
 }
-function verifyObservationV1({
+function verifySerializedObservationV1({
   observation,
   observation_file_sha256,
   activation_plan,
@@ -251,7 +258,7 @@ function verifyObservationV1({
   });
 }
 
-export function buildProductionEpoch2RpcSelectedDescriptorV1(input) {
+export function buildProductionEpoch2RpcTargetPromotionPreviewV1(input) {
   if (!plain(input)) fail("production_epoch2_rpc_promotion_input_invalid");
 
   const holdTarget = structuredClone(input.hold_target);
@@ -299,7 +306,7 @@ export function buildProductionEpoch2RpcSelectedDescriptorV1(input) {
       activationReceipt,
     );
 
-  const verifiedObservation = verifyObservationV1({
+  const structuralObservation = verifySerializedObservationV1({
     observation: runtimeObservation,
     observation_file_sha256: observationSha,
     activation_plan: validatedActivation.activation_plan,
@@ -309,51 +316,21 @@ export function buildProductionEpoch2RpcSelectedDescriptorV1(input) {
     hold_target: holdTarget,
   });
 
-  const selected = structuredClone(holdTarget);
-  selected.status = SELECTED_STATUS;
-  selected.selection = {
-    production_rpc_target_selected: true,
-    rpc_url: RPC_URL,
-    rpc_url_fingerprint_sha256:
+  const material = Object.freeze({
+    marker: VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_V1,
+    version: 1,
+    status: VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_STATUS_V1,
+    chain_id: 2050,
+    execution_epoch: 2,
+    production_rpc_target_selected: false,
+    runtime_active_verified: false,
+    independent_host_acceptance: false,
+    live_observer_reexecuted: false,
+    serialized_observation_structurally_verified: true,
+    proposed_rpc_url: RPC_URL,
+    proposed_rpc_url_fingerprint_sha256:
       productionEpoch2RpcUrlFingerprintV1(RPC_URL),
-    service_unit: SERVICE,
-    activation_plan_id:
-      validatedActivation.activation_plan.activation_plan_id,
-    activation_receipt_id:
-      validatedActivation.activation_receipt.activation_receipt_id,
-    activation_receipt_sha256: activationReceiptSha,
-    runtime_observation_id: verifiedObservation.observation_id,
-    runtime_observation_sha256: observationSha,
-    runtime_active_verified: true,
-    exact_genesis_bound: true,
-    production_validator_set_bound: true,
-    production_validator_binding_source_path:
-      holdTarget.reviewed_successor_identity
-        .production_validator_binding_evidence_path,
-    production_validator_binding_evidence_sha256:
-      holdTarget.reviewed_successor_identity
-        .production_validator_binding_evidence_sha256,
-    write_capability_classification: "write_capable_not_authorized",
-    independent_host_acceptance: true,
-  };
-  selected.next_gate =
-    "downstream_consumers_must_rebind_and_repeat_fresh_read_only_preflights";
-
-  const evaluation = validateProductionEpoch2RpcTargetV1(selected);
-  if (
-    evaluation.status !== SELECTED_STATUS ||
-    evaluation.production_rpc_target_selected !== true ||
-    evaluation.rpc_url !== RPC_URL ||
-    evaluation.transaction_authorized !== false ||
-    evaluation.authoritative_chain2050_write !== false ||
-    evaluation.migration_authorized !== false ||
-    evaluation.funds_movement !== false
-  ) {
-    fail("production_epoch2_rpc_promotion_selected_validation_failed");
-  }
-
-  return Object.freeze({
-    candidate: Object.freeze(selected),
+    proposed_service_unit: SERVICE,
     evidence: Object.freeze({
       activation_plan_id:
         validatedActivation.activation_plan.activation_plan_id,
@@ -361,14 +338,42 @@ export function buildProductionEpoch2RpcSelectedDescriptorV1(input) {
       activation_receipt_id:
         validatedActivation.activation_receipt.activation_receipt_id,
       activation_receipt_file_sha256: activationReceiptSha,
-      runtime_observation_id: verifiedObservation.observation_id,
-      runtime_observation_file_sha256: observationSha,
+      serialized_runtime_observation_id:
+        structuralObservation.observation_id,
+      serialized_runtime_observation_file_sha256: observationSha,
+      production_validator_binding_source_path:
+        holdTarget.reviewed_successor_identity
+          .production_validator_binding_evidence_path,
+      production_validator_binding_evidence_sha256:
+        holdTarget.reviewed_successor_identity
+          .production_validator_binding_evidence_sha256,
+    }),
+    write_capability_classification: "write_capable_not_authorized",
+    selected_descriptor_emitted: false,
+    canonical_target_write: false,
+    next_gate:
+      "fresh_live_observer_revalidation_or_capability_bound_apply_required",
+    authority: AUTHORITY,
+  });
+
+  return Object.freeze({
+    preview: Object.freeze({
+      ...material,
+      preview_id:
+        "voidpe2rpcprompreview1_" +
+        sha256(Buffer.from(canonical(material), "utf8")),
     }),
     authority: AUTHORITY,
   });
 }
 
-function writeCandidateOutsideRepository(output, candidate) {
+export function buildProductionEpoch2RpcSelectedDescriptorV1() {
+  fail(
+    "production_epoch2_rpc_selected_descriptor_requires_live_revalidated_apply",
+  );
+}
+
+function writePreviewOutsideRepository(output, preview) {(output, candidate) {
   const absolute = path.resolve(output);
   if (absolute === ROOT || absolute.startsWith(ROOT + path.sep)) {
     fail("production_epoch2_rpc_promotion_output_inside_repository_forbidden");
@@ -386,7 +391,7 @@ function writeCandidateOutsideRepository(output, candidate) {
     fail("production_epoch2_rpc_promotion_output_inside_repository_forbidden");
   }
   const physicalOutput = path.join(parentReal, path.basename(absolute));
-  const bytes = Buffer.from(JSON.stringify(candidate, null, 2) + "\n", "utf8");
+  const bytes = Buffer.from(JSON.stringify(preview, null, 2) + "\n", "utf8");
   const fd = fs.openSync(
     physicalOutput,
     fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
@@ -451,7 +456,7 @@ async function main() {
   );
 
   const { value: holdTarget } = loadProductionEpoch2RpcTargetV1();
-  const compiled = buildProductionEpoch2RpcSelectedDescriptorV1({
+  const compiled = buildProductionEpoch2RpcTargetPromotionPreviewV1({
     hold_target: holdTarget,
     activation_plan_bytes: activationPlanBytes,
     activation_plan_file_sha256: values["activation-plan-sha256"],
@@ -463,23 +468,34 @@ async function main() {
       values["runtime-observation-sha256"],
   });
 
-  const written = writeCandidateOutsideRepository(
+  const written = writePreviewOutsideRepository(
     values.output,
-    compiled.candidate,
+    compiled.preview,
   );
 
   console.log(VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_COMPILER_V1);
-  console.log("status=SELECTED_DESCRIPTOR_CANDIDATE_COMPILED");
-  console.log("production_rpc_target_selected=true");
-  console.log("rpc_url=" + compiled.candidate.selection.rpc_url);
-  console.log("activation_plan_id=" + compiled.evidence.activation_plan_id);
   console.log(
-    "activation_receipt_id=" + compiled.evidence.activation_receipt_id,
+    "status=" + VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_STATUS_V1,
+  );
+  console.log("preview_id=" + compiled.preview.preview_id);
+  console.log("production_rpc_target_selected=false");
+  console.log("runtime_active_verified=false");
+  console.log("independent_host_acceptance=false");
+  console.log("live_observer_reexecuted=false");
+  console.log("selected_descriptor_emitted=false");
+  console.log("proposed_rpc_url=" + compiled.preview.proposed_rpc_url);
+  console.log(
+    "activation_plan_id=" + compiled.preview.evidence.activation_plan_id,
   );
   console.log(
-    "runtime_observation_id=" + compiled.evidence.runtime_observation_id,
+    "activation_receipt_id=" +
+      compiled.preview.evidence.activation_receipt_id,
   );
-  console.log("candidate_sha256=" + written.sha256);
+  console.log(
+    "serialized_runtime_observation_id=" +
+      compiled.preview.evidence.serialized_runtime_observation_id,
+  );
+  console.log("preview_sha256=" + written.sha256);
   console.log("canonical_target_write=false");
   console.log("rpc_call=false");
   console.log("service_action=false");
