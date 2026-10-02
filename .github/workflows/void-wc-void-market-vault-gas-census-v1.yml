@@ -93,9 +93,9 @@ jobs:
 
           grep -F "settle_void_first_execution_gas" "$LOG"
           grep -F "settle_void_first_intrinsic_gas" "$LOG"
-          grep -F "settle_void_first_conservative_tx_gas" "$LOG"
+          grep -F "settle_void_first_measured_tx_gas" "$LOG"
           grep -F "settle_void_subsequent_execution_gas" "$LOG"
           grep -F "settle_void_subsequent_intrinsic_gas" "$LOG"
-          grep -F "settle_void_subsequent_conservative_tx_gas" "$LOG"
+          grep -F "settle_void_subsequent_measured_tx_gas" "$LOG"
 
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
