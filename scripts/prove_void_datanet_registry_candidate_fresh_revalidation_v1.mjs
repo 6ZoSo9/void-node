@@ -48,7 +48,7 @@ function feeReplies({
   head=5n,
   hashDigit="8",
   pending="0x0",
-  balance="0xde0b6b3a7640000",
+  balance="0x0",
   estimate="0x100000",
   priority="0x0",
 }={}){
@@ -191,6 +191,14 @@ assert.equal(
   true,
 );
 assert.equal(
+  green.receipt.continuity.candidate_maximum_gas_cost_wei,
+  "0",
+);
+assert.equal(
+  green.fresh_fee_funding_packet.observation.deployer_balance_wei,
+  "0",
+);
+assert.equal(
   green.receipt.continuity.fresh_credential_rebinding_required,
   true,
 );
@@ -215,22 +223,16 @@ assert.equal(
   assert.equal(held.reason,"candidate_revalidation_live_candidate_mismatch");
 }
 {
-  const candidateGas=BigInt(candidate.transaction.gas_limit);
-  const maxFee=BigInt(candidate.transaction.max_fee_per_gas_wei);
-  const candidateCost=candidateGas*maxFee;
-  const lowerEstimate=candidateGas/2n;
-  const freshProposed=(lowerEstimate*12000n+9999n)/10000n;
-  const freshCost=freshProposed*maxFee;
-  assert.ok(freshCost<candidateCost);
-  const insufficientForCandidate=(freshCost+candidateCost)/2n;
   const held=await runWithReplies(feeReplies({
     head:6n,
     hashDigit:"a",
-    estimate:"0x"+lowerEstimate.toString(16),
-    balance:"0x"+insufficientForCandidate.toString(16),
+    priority:"0x1",
   }));
   assert.equal(held.ok,false);
-  assert.equal(held.reason,"candidate_revalidation_live_candidate_mismatch");
+  assert.equal(
+    held.reason,
+    "candidate_revalidation_fresh_fee_or_funding_not_green",
+  );
 }
 {
   const badBinding=structuredClone(priorBinding);
