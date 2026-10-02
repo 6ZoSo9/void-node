@@ -277,7 +277,7 @@ function verifyReviewedSourceFiles() {
     validatorEvidence.evidence_id !== EXPECTED.validator_evidence_id ||
     validatorEvidence.chain_id !== EXPECTED.chain_id ||
     validatorEvidence.execution_epoch !== EXPECTED.execution_epoch ||
-    validatorEvidence.production_qbft?.production_validator_set_bound !== true
+    validatorEvidence.consensus?.production_validator_set_bound !== true
   ) {
     fail("production_epoch2_validator_evidence_semantics_mismatch");
   }
