@@ -15,6 +15,12 @@ import {
   VOID_PUBLIC_PARTICIPANT_SESSION_HTTP_V1,
 } from "./void-public-participant-session-http-v1.mjs";
 import {
+  createVoidPublicParticipantSessionStateFileV1,
+} from "./void-public-participant-session-state-file-v1.mjs";
+import {
+  createVoidPublicParticipantLiveRoleAuthorityV1,
+} from "./void-public-participant-live-role-authority-v1.mjs";
+import {
   createVoidPublicParticipantAccountReadHttpEdgeV1,
   VOID_PUBLIC_PARTICIPANT_ACCOUNT_READ_HTTP_EDGE_V1,
 } from "./void-public-participant-account-read-http-edge-v1.mjs";
@@ -286,20 +292,42 @@ const PARTICIPANT_COMPOSITION_ACTIVE =
 const PARTICIPANT_BINDING_REGISTRY_FILE = String(
   process.env.VOID_PUBLIC_PARTICIPANT_BINDING_REGISTRY_FILE || "",
 ).trim();
+const PARTICIPANT_ROLE_RPC_URL = String(
+  process.env.VOID_PUBLIC_PARTICIPANT_ROLE_RPC_URL || "",
+).trim();
+const PARTICIPANT_SESSION_STATE_FILE = String(
+  process.env.VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE || "",
+).trim();
 const PARTICIPANT_REQUEST_MAX_BODY_BYTES = 8 * 1024;
 
 let PARTICIPANT_SESSION_HTTP = null;
 let PARTICIPANT_ACCOUNT_READ_EDGE = null;
 
 if (PARTICIPANT_COMPOSITION_ACTIVE) {
-  if (!PARTICIPANT_BINDING_REGISTRY_FILE) {
+  if (
+    !PARTICIPANT_BINDING_REGISTRY_FILE ||
+    !PARTICIPANT_ROLE_RPC_URL ||
+    !PARTICIPANT_SESSION_STATE_FILE
+  ) {
     throw new Error(
-      "participant composition requires binding registry file",
+      "participant composition requires binding registry, role RPC, and durable session state",
     );
   }
+
+  const participantLiveRole =
+    await createVoidPublicParticipantLiveRoleAuthorityV1({
+      rpcUrl: PARTICIPANT_ROLE_RPC_URL,
+    });
+  const participantStateStore =
+    createVoidPublicParticipantSessionStateFileV1({
+      stateFile: PARTICIPANT_SESSION_STATE_FILE,
+    });
+
   PARTICIPANT_SESSION_HTTP =
     createVoidPublicParticipantSessionHttpV1({
       bindingRegistryFile: PARTICIPANT_BINDING_REGISTRY_FILE,
+      roleAuthority: participantLiveRole.roleAuthority,
+      stateStore: participantStateStore,
     });
   PARTICIPANT_ACCOUNT_READ_EDGE =
     createVoidPublicParticipantAccountReadHttpEdgeV1({
