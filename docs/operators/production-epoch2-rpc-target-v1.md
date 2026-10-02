@@ -156,6 +156,14 @@ and independently checks historical Git tree identities and ancestor lineage.
 Any packet-byte change HOLDs before `evidence_aware_selection_verified=true`
 can be returned.
 
+Before the verifier child is started, the parent loader also requires the
+verifier entry file to equal its exact `HEAD` Git-object bytes. The trusted
+verifier recursively walks every relative static import in the semantic
+execution closure and requires each worktree module to equal its exact
+`HEAD:<path>` object. The verifier rejects shallow repositories and any bare
+third-party package import on this path; the reviewed closure is therefore
+executed only from exact committed repository bytes plus Node built-ins.
+
 The earlier compiler and apply-admission lanes remain pre-selection proof tools;
 they cannot themselves write/select the canonical target.
 

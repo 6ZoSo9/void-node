@@ -51,6 +51,7 @@ const SELECTION_EVIDENCE = Object.freeze({
 });
 const SELECTION_EVIDENCE_VERIFIER_REL =
   "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs";
+const GIT_EXECUTABLE = "/usr/bin/git";
 const PUBLIC_READ_CONTRACT_REL =
   "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json";
 const ACTIVATION_CONTRACT_REL =
@@ -557,27 +558,79 @@ export function validateProductionEpoch2RpcTargetV1(value) {
   });
 }
 
+function reviewedGitEnvV1() {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+  };
+}
+function requireSelectionEvidenceVerifierEntryBoundToHeadV1() {
+  const absolute = path.resolve(ROOT, SELECTION_EVIDENCE_VERIFIER_REL);
+  let st;
+  try {
+    st = fs.lstatSync(absolute);
+  } catch {
+    fail("production_epoch2_selection_evidence_verifier_entry_missing");
+  }
+  if (
+    st.isSymbolicLink() ||
+    !st.isFile() ||
+    fs.realpathSync(absolute) !== absolute ||
+    st.size < 1 ||
+    st.size > 4 * 1024 * 1024
+  ) {
+    fail("production_epoch2_selection_evidence_verifier_entry_invalid");
+  }
+  const result = spawnSync(
+    GIT_EXECUTABLE,
+    [
+      "--no-replace-objects",
+      "-c", "core.hooksPath=/dev/null",
+      "-c", "core.attributesFile=/dev/null",
+      "-c", "core.fsmonitor=false",
+      "-c", "core.untrackedCache=false",
+      "-c", "submodule.recurse=false",
+      "-C", ROOT,
+      "show", "HEAD:" + SELECTION_EVIDENCE_VERIFIER_REL,
+    ],
+    {
+      cwd: ROOT,
+      env: reviewedGitEnvV1(),
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 30_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("production_epoch2_selection_evidence_verifier_git_object_unavailable");
+  }
+  const worktree = fs.readFileSync(absolute);
+  const reviewed = Buffer.from(result.stdout || Buffer.alloc(0));
+  if (!worktree.equals(reviewed)) {
+    fail("production_epoch2_selection_evidence_verifier_entry_bytes_mismatch");
+  }
+  return true;
+}
+
 function runSelectionEvidenceSemanticVerifierV1() {
+  requireSelectionEvidenceVerifierEntryBoundToHeadV1();
   const result = spawnSync(
     process.execPath,
     [path.join(ROOT, SELECTION_EVIDENCE_VERIFIER_REL)],
     {
       cwd: ROOT,
-      env: {
-        PATH: "/usr/bin:/bin",
-        HOME: "/nonexistent",
-        XDG_CONFIG_HOME: "/nonexistent",
-        LANG: "C",
-        LC_ALL: "C",
-        GIT_CONFIG_GLOBAL: "/dev/null",
-        GIT_CONFIG_SYSTEM: "/dev/null",
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_ATTR_NOSYSTEM: "1",
-        GIT_OPTIONAL_LOCKS: "0",
-        GIT_NO_REPLACE_OBJECTS: "1",
-        GIT_TERMINAL_PROMPT: "0",
-        GIT_ASKPASS: "/bin/false",
-      },
+      env: reviewedGitEnvV1(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 8 * 1024 * 1024,
@@ -612,7 +665,10 @@ function runSelectionEvidenceSemanticVerifierV1() {
     verified?.selected_candidate_recompiled_from_exact_evidence !== true ||
     verified?.promotion_admission_content_address_reverified !== true ||
     verified?.historical_source_trees_reverified !== true ||
-    verified?.source_lineage_ancestry_reverified !== true
+    verified?.source_lineage_ancestry_reverified !== true ||
+    verified?.reviewed_execution_exact_head_git_object_bytes !== true ||
+    verified?.reviewed_execution_non_shallow_repository !== true ||
+    verified?.reviewed_execution_bare_package_runtime_absent !== true
   ) {
     fail("production_epoch2_selection_evidence_semantic_verifier_mismatch");
   }
@@ -703,6 +759,13 @@ function verifySelectedEvidencePacketV1(value, targetBytes) {
       semantic.historical_source_trees_reverified,
     source_lineage_ancestry_reverified:
       semantic.source_lineage_ancestry_reverified,
+    verifier_entry_git_object_bound: true,
+    reviewed_execution_exact_head_git_object_bytes:
+      semantic.reviewed_execution_exact_head_git_object_bytes,
+    reviewed_execution_non_shallow_repository:
+      semantic.reviewed_execution_non_shallow_repository,
+    reviewed_execution_bare_package_runtime_absent:
+      semantic.reviewed_execution_bare_package_runtime_absent,
   });
 }
 

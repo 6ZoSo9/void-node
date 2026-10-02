@@ -14,6 +14,7 @@ import {
 import {
   SELECTION_EVIDENCE_PACKET_V1,
   verifyProductionEpoch2RpcSelectionEvidencePacketV1,
+  verifyReviewedSelectionEvidenceExecutionClosureV1,
 } from "../tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs";
 
 const target = JSON.parse(
@@ -60,6 +61,37 @@ assert.equal(
   loaded.promotion.evidence_packet.source_lineage_ancestry_reverified,
   true,
 );
+assert.equal(
+  loaded.promotion.evidence_packet.verifier_entry_git_object_bound,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.reviewed_execution_exact_head_git_object_bytes,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.reviewed_execution_non_shallow_repository,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.reviewed_execution_bare_package_runtime_absent,
+  true,
+);
+
+const reviewedClosure = verifyReviewedSelectionEvidenceExecutionClosureV1();
+assert.equal(reviewedClosure.non_shallow_repository, true);
+assert.equal(reviewedClosure.exact_head_git_object_bytes, true);
+assert.equal(reviewedClosure.bare_package_runtime_absent, true);
+for (const required of [
+  "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs",
+  "tools/void-production-epoch2-rpc-target-v1.mjs",
+  "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs",
+  "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs",
+  "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs",
+]) {
+  assert.equal(reviewedClosure.module_paths.includes(required), true, required);
+}
 
 function evidencePacketInput() {
   return {
@@ -319,6 +351,10 @@ console.log("promotion_admission_content_address_reverified=true");
 console.log("historical_source_trees_reverified=true");
 console.log("source_lineage_ancestry_reverified=true");
 console.log("evidence_packet_tamper_adversaries_green=true");
+console.log("verifier_entry_git_object_bound=true");
+console.log("reviewed_execution_exact_head_git_object_bytes=true");
+console.log("reviewed_execution_non_shallow_repository=true");
+console.log("reviewed_execution_bare_package_runtime_absent=true");
 console.log("promotion_manifest_content_addressed=true");
 console.log("promotion_admission_exactly_pinned=true");
 console.log("production_rpc_18553_exact=true");

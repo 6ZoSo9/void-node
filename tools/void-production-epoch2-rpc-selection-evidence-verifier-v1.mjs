@@ -21,6 +21,16 @@ const GIT = "/usr/bin/git";
 const SHA40 = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const TARGET_REL = "ops/mainnet0/production-epoch2-rpc-target-v1.json";
+const REVIEWED_ENTRY_REL =
+  "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs";
+const REQUIRED_REVIEWED_MODULES = Object.freeze([
+  REVIEWED_ENTRY_REL,
+  "tools/void-production-epoch2-rpc-target-v1.mjs",
+  "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs",
+  "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs",
+  "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs",
+  "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs",
+]);
 const EVIDENCE_DIR =
   "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1";
 
@@ -192,6 +202,133 @@ function gitText(args, code) {
   if (result.error || result.status !== 0) fail(code);
   return String(result.stdout || "").trim();
 }
+function gitBytes(args, code) {
+  const result = spawnSync(
+    GIT,
+    [
+      "--no-replace-objects",
+      "-c", "core.hooksPath=/dev/null",
+      "-c", "core.attributesFile=/dev/null",
+      "-c", "core.fsmonitor=false",
+      "-c", "core.untrackedCache=false",
+      "-c", "submodule.recurse=false",
+      "-C", ROOT,
+      ...args,
+    ],
+    {
+      cwd: ROOT,
+      env: gitEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 30_000,
+    },
+  );
+  if (result.error || result.status !== 0) fail(code);
+  return Buffer.from(result.stdout || Buffer.alloc(0));
+}
+function worktreeRegularBytes(rel, code) {
+  const absolute = path.resolve(ROOT, rel);
+  if (!absolute.startsWith(ROOT + path.sep)) fail(code + "_outside_repo");
+  let st;
+  try {
+    st = fs.lstatSync(absolute);
+  } catch {
+    fail(code + "_missing");
+  }
+  if (st.isSymbolicLink() || !st.isFile()) fail(code + "_not_regular");
+  if (fs.realpathSync(absolute) !== absolute) fail(code + "_not_canonical");
+  if (st.size < 1 || st.size > 4 * 1024 * 1024) fail(code + "_size_invalid");
+  return fs.readFileSync(absolute);
+}
+function importSpecifiers(source) {
+  const specs = new Set();
+  for (const pattern of [
+    /\\bfrom\\s+["']([^"']+)["']/gu,
+    /\\bimport\\s+["']([^"']+)["']/gu,
+    /\\bimport\\s*\\(\\s*["']([^"']+)["']\\s*\\)/gu,
+  ]) {
+    for (const match of source.matchAll(pattern)) specs.add(match[1]);
+  }
+  return [...specs];
+}
+function resolveRelativeModule(fromRel, spec) {
+  const rel = path.posix.normalize(
+    path.posix.join(path.posix.dirname(fromRel), spec),
+  );
+  if (
+    rel.startsWith("../") ||
+    rel.startsWith("/") ||
+    rel.includes("\\0")
+  ) {
+    fail("production_epoch2_selection_reviewed_import_outside_repo");
+  }
+  return rel;
+}
+export function verifyReviewedSelectionEvidenceExecutionClosureV1() {
+  const shallow = gitText(
+    ["rev-parse", "--is-shallow-repository"],
+    "production_epoch2_selection_reviewed_repo_shape_unavailable",
+  );
+  if (shallow !== "false") {
+    fail("production_epoch2_selection_reviewed_repo_must_be_non_shallow");
+  }
+  const head = gitText(
+    ["rev-parse", "HEAD"],
+    "production_epoch2_selection_reviewed_head_unavailable",
+  );
+  if (!SHA40.test(head)) fail("production_epoch2_selection_reviewed_head_invalid");
+
+  const queue = [REVIEWED_ENTRY_REL];
+  const seen = new Set();
+  while (queue.length > 0) {
+    const rel = queue.shift();
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+
+    const worktree = worktreeRegularBytes(
+      rel,
+      "production_epoch2_selection_reviewed_module",
+    );
+    const reviewed = gitBytes(
+      ["show", "HEAD:" + rel],
+      "production_epoch2_selection_reviewed_git_object_unavailable",
+    );
+    if (!worktree.equals(reviewed)) {
+      fail("production_epoch2_selection_reviewed_module_bytes_mismatch:" + rel);
+    }
+
+    if (!/\\.(?:mjs|js|cjs)$/u.test(rel)) continue;
+    const source = worktree.toString("utf8");
+    for (const spec of importSpecifiers(source)) {
+      if (spec.startsWith(".")) {
+        queue.push(resolveRelativeModule(rel, spec));
+        continue;
+      }
+      if (!spec.startsWith("node:")) {
+        fail(
+          "production_epoch2_selection_reviewed_bare_package_runtime_forbidden:" +
+          spec,
+        );
+      }
+    }
+  }
+
+  for (const required of REQUIRED_REVIEWED_MODULES) {
+    if (!seen.has(required)) {
+      fail("production_epoch2_selection_reviewed_module_missing:" + required);
+    }
+  }
+
+  return Object.freeze({
+    head,
+    module_paths: Object.freeze([...seen].sort()),
+    module_count: seen.size,
+    non_shallow_repository: true,
+    exact_head_git_object_bytes: true,
+    bare_package_runtime_absent: true,
+  });
+}
+
 function gitAncestor(ancestor, descendant, code) {
   if (!SHA40.test(String(ancestor || "")) ||
       !SHA40.test(String(descendant || ""))) {
@@ -241,6 +378,8 @@ function expectedLineage(plan, observation) {
 
 export function verifyProductionEpoch2RpcSelectionEvidencePacketV1(input) {
   if (!plain(input)) fail("production_epoch2_selection_evidence_input_invalid");
+  const reviewedExecution =
+    verifyReviewedSelectionEvidenceExecutionClosureV1();
 
   const targetBytes = input.target_bytes;
   const candidateBytes = input.selected_candidate_bytes;
@@ -495,6 +634,14 @@ export function verifyProductionEpoch2RpcSelectionEvidencePacketV1(input) {
     promotion_admission_content_address_reverified: true,
     historical_source_trees_reverified: true,
     source_lineage_ancestry_reverified: true,
+    reviewed_execution_head: reviewedExecution.head,
+    reviewed_execution_module_count: reviewedExecution.module_count,
+    reviewed_execution_exact_head_git_object_bytes:
+      reviewedExecution.exact_head_git_object_bytes,
+    reviewed_execution_non_shallow_repository:
+      reviewedExecution.non_shallow_repository,
+    reviewed_execution_bare_package_runtime_absent:
+      reviewedExecution.bare_package_runtime_absent,
   });
 }
 

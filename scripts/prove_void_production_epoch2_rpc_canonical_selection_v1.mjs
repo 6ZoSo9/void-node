@@ -102,6 +102,18 @@ assert.equal(
   loaded.promotion.evidence_packet.source_lineage_ancestry_reverified,
   true,
 );
+assert.equal(
+  loaded.promotion.evidence_packet.verifier_entry_git_object_bound,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.reviewed_execution_exact_head_git_object_bytes,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.reviewed_execution_non_shallow_repository,
+  true,
+);
 for (const sourceCommit of [
   checkedInAdmission.current_source.head,
   ...checkedInAdmission.source_lineage_ancestor_commits,
@@ -252,6 +264,7 @@ console.log("evidence_aware_selection_verified=true");
 console.log("exact_evidence_semantics_reexecuted=true");
 console.log("selected_candidate_recompiled_from_exact_evidence=true");
 console.log("promotion_admission_content_address_reverified=true");
+console.log("reviewed_execution_git_object_bound=true");
 console.log("checked_in_evidence_packet_verified=true");
 console.log("checked_in_evidence_source_history_ancestor_current_head=true");
 console.log("historical_epoch1_8545_forbidden=true");
