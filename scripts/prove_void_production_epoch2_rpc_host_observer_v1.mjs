@@ -14,6 +14,7 @@ import {
   testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1,
   testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1,
   testOnlyValidateVoidProductionEpoch2RpcDockerDaemonInfoV1,
+  testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1,
 } from "../tools/void-production-epoch2-rpc-host-observer-v1.mjs";
 import {
   buildVoidDatanetRegistryUnsignedCandidateFixtureV1,
@@ -172,6 +173,10 @@ function validInput() {
       main_pid: "4242",
       invocation_id: "1".repeat(32),
       drop_in_paths: "",
+      exec_start_argv_sha256: "a".repeat(64),
+      main_pid_argv_sha256: "a".repeat(64),
+      main_pid_cgroup_service_bound: true,
+      systemd_exec_start_matches_reviewed_contract: true,
       listener_address: "127.0.0.1",
       listener_port: 18553,
       listener_present: true,
@@ -451,7 +456,61 @@ rejected(
   input.activation_receipt_file_sha256 = sha(input.activation_receipt_bytes);
   assert.throws(
     () => buildVoidProductionEpoch2RpcHostObservationV1(input),
-    /ACTIVATION_RECEIPT_REBUILD_MISMATCH/u,
+    /PRODUCTION_EPOCH2_RPC_OBSERVER_REVIEWED_SEMANTIC_INVALID/u,
+  );
+}
+
+{
+  const fragment = [
+    "[Service]",
+    "ExecStart=/usr/bin/docker run --rm --name void-e2-qbft-precision-v1 image",
+    "",
+  ].join("\n");
+  const argv = [
+    "/usr/bin/docker",
+    "run",
+    "--rm",
+    "--name",
+    "void-e2-qbft-precision-v1",
+    "image",
+  ];
+  const cgroup =
+    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/" +
+    "void-economic-epoch2-qbft-validator-v1.service\n";
+  const bound =
+    testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1({
+      fragment_text: fragment,
+      main_pid_argv: argv,
+      main_pid_cgroup: cgroup,
+    });
+  assert.equal(bound.ok, true);
+  assert.equal(bound.main_pid_cgroup_service_bound, true);
+  assert.equal(bound.systemd_exec_start_matches_reviewed_contract, true);
+  assert.equal(bound.exec_start_argv_sha256, bound.main_pid_argv_sha256);
+
+  const wrongArgv =
+    testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1({
+      fragment_text: fragment,
+      main_pid_argv: [...argv.slice(0, -1), "other-image"],
+      main_pid_cgroup: cgroup,
+    });
+  assert.equal(wrongArgv.ok, false);
+  assert.equal(
+    wrongArgv.reason,
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ARGV_MISMATCH",
+  );
+
+  const wrongCgroup =
+    testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1({
+      fragment_text: fragment,
+      main_pid_argv: argv,
+      main_pid_cgroup:
+        "0::/user.slice/user-1000.slice/user@1000.service/app.slice/other.service\n",
+    });
+  assert.equal(wrongCgroup.ok, false);
+  assert.equal(
+    wrongCgroup.reason,
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_MISMATCH",
   );
 }
 
@@ -477,6 +536,14 @@ for (const forbidden of [
 ]) {
   assert.equal(source.includes(forbidden), false, forbidden);
 }
+assert.equal(
+  source.includes(
+    "\n    compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({",
+  ),
+  false,
+  "live CLI must not execute activation compiler outside reviewed child",
+);
+
 for (const required of [
   '"eth_chainId"',
   '"eth_blockNumber"',
@@ -498,6 +565,10 @@ for (const required of [
   "PRODUCTION_EPOCH2_RPC_OBSERVER_VERIFIED_SOURCE_REQUIRED",
   "container_stable_during_observation",
   "service_container_contract_verified",
+  "testOnlyValidateVoidProductionEpoch2RpcSystemdInvocationV1",
+  "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_ARGV_MISMATCH",
+  "PRODUCTION_EPOCH2_RPC_OBSERVER_MAIN_PID_CGROUP_MISMATCH",
+  '"/proc/"',
   '"merge-base", "--is-ancestor"',
   "compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1",
   '"private-runtime-plan"',
@@ -525,6 +596,8 @@ console.log("peer_count_minimum_two=true");
 console.log("head_at_or_above_activation_floor=true");
 console.log("canonical_main_stable_during_observation=true");
 console.log("service_invocation_stable_during_observation=true");
+console.log("systemd_main_pid_argv_bound_to_reviewed_exec_start=true");
+console.log("systemd_main_pid_cgroup_service_bound=true");
 console.log("listener_stable_during_observation=true");
 console.log("rootless_docker_daemon_verified=true");
 console.log("rootless_docker_container_identity_verified=true");
