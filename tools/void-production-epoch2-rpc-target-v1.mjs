@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 export const VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1 =
@@ -48,6 +49,8 @@ const SELECTION_EVIDENCE = Object.freeze({
       "ad5aa3b0a99e967207ff63c3040d3b9786e3f1345769298c25a19eed20477ac5",
   }),
 });
+const SELECTION_EVIDENCE_VERIFIER_REL =
+  "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs";
 const PUBLIC_READ_CONTRACT_REL =
   "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json";
 const ACTIVATION_CONTRACT_REL =
@@ -554,6 +557,68 @@ export function validateProductionEpoch2RpcTargetV1(value) {
   });
 }
 
+function runSelectionEvidenceSemanticVerifierV1() {
+  const result = spawnSync(
+    process.execPath,
+    [path.join(ROOT, SELECTION_EVIDENCE_VERIFIER_REL)],
+    {
+      cwd: ROOT,
+      env: {
+        PATH: "/usr/bin:/bin",
+        HOME: "/nonexistent",
+        XDG_CONFIG_HOME: "/nonexistent",
+        LANG: "C",
+        LC_ALL: "C",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_SYSTEM: "/dev/null",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_ATTR_NOSYSTEM: "1",
+        GIT_OPTIONAL_LOCKS: "0",
+        GIT_NO_REPLACE_OBJECTS: "1",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_ASKPASS: "/bin/false",
+      },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: 30_000,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail("production_epoch2_selection_evidence_semantic_reverification_failed");
+  }
+  let verified;
+  try {
+    verified = JSON.parse(String(result.stdout || "").trim());
+  } catch {
+    fail("production_epoch2_selection_evidence_semantic_verifier_output_invalid");
+  }
+  if (
+    verified?.marker !==
+      "VOID_PRODUCTION_EPOCH2_RPC_SELECTION_EVIDENCE_VERIFIER_V1" ||
+    verified?.version !== 1 ||
+    verified?.verified !== true ||
+    verified?.activation_plan_sha256 !== SELECTION_EVIDENCE.activation_plan.sha256 ||
+    verified?.activation_receipt_sha256 !==
+      SELECTION_EVIDENCE.activation_receipt.sha256 ||
+    verified?.runtime_observation_sha256 !==
+      SELECTION_EVIDENCE.runtime_observation.sha256 ||
+    verified?.selected_candidate_sha256 !==
+      SELECTION_EVIDENCE.selected_candidate.sha256 ||
+    verified?.promotion_apply_admission_sha256 !==
+      SELECTION_EVIDENCE.promotion_apply_admission.sha256 ||
+    verified?.promotion_admission_id !== EXPECTED_PROMOTION_ADMISSION_ID ||
+    verified?.admission_source_head !== EXPECTED_PROMOTION_ADMITTED_MAIN_HEAD ||
+    verified?.selected_candidate_recompiled_from_exact_evidence !== true ||
+    verified?.promotion_admission_content_address_reverified !== true ||
+    verified?.historical_source_trees_reverified !== true ||
+    verified?.source_lineage_ancestry_reverified !== true
+  ) {
+    fail("production_epoch2_selection_evidence_semantic_verifier_mismatch");
+  }
+  return Object.freeze(verified);
+}
+
 function verifySelectedEvidencePacketV1(value, targetBytes) {
   const loaded = {};
   for (const [name, spec] of Object.entries(SELECTION_EVIDENCE)) {
@@ -619,6 +684,8 @@ function verifySelectedEvidencePacketV1(value, targetBytes) {
     fail("production_epoch2_selection_evidence_semantics_mismatch");
   }
 
+  const semantic = runSelectionEvidenceSemanticVerifierV1();
+
   return Object.freeze({
     activation_plan_sha256: SELECTION_EVIDENCE.activation_plan.sha256,
     activation_receipt_sha256: SELECTION_EVIDENCE.activation_receipt.sha256,
@@ -627,6 +694,15 @@ function verifySelectedEvidencePacketV1(value, targetBytes) {
     promotion_apply_admission_sha256:
       SELECTION_EVIDENCE.promotion_apply_admission.sha256,
     checked_in_evidence_verified: true,
+    exact_evidence_semantics_reexecuted: true,
+    selected_candidate_recompiled_from_exact_evidence:
+      semantic.selected_candidate_recompiled_from_exact_evidence,
+    promotion_admission_content_address_reverified:
+      semantic.promotion_admission_content_address_reverified,
+    historical_source_trees_reverified:
+      semantic.historical_source_trees_reverified,
+    source_lineage_ancestry_reverified:
+      semantic.source_lineage_ancestry_reverified,
   });
 }
 

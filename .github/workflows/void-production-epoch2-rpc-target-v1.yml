@@ -10,6 +10,11 @@ on:
       - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "scripts/prove_void_production_epoch2_rpc_target_v1.mjs"
       - "tools/void-production-epoch2-rpc-target-v1.mjs"
+      - "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs"
+      - "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs"
+      - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json"
       - "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json"
       - "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json"
@@ -28,6 +33,11 @@ on:
       - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "scripts/prove_void_production_epoch2_rpc_target_v1.mjs"
       - "tools/void-production-epoch2-rpc-target-v1.mjs"
+      - "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs"
+      - "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs"
+      - "tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs"
+      - "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/**"
       - "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json"
       - "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json"
       - "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json"
@@ -59,6 +69,7 @@ jobs:
       - name: Syntax
         run: |
           node --check tools/void-production-epoch2-rpc-target-v1.mjs
+          node --check tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs
           node --check scripts/prove_void_production_epoch2_rpc_target_v1.mjs
       - name: Prove production Epoch-2 RPC target contract
         run: |

@@ -123,8 +123,10 @@ Even that selected-state **structure** grants no transaction, signing,
 submission, broadcast, migration, market, presale, or funds authority.
 
 The canonical loader now requires evidence-aware selected state. It validates
-the selected descriptor structurally and then requires the exact checked-in
-`ops/mainnet0/production-epoch2-rpc-target-promotion-v1.json` manifest.
+the selected descriptor structurally, requires the exact checked-in
+`ops/mainnet0/production-epoch2-rpc-target-promotion-v1.json` manifest, and
+then independently re-executes the checked-in selection evidence packet before
+selected state can load.
 
 That manifest pins:
 
@@ -138,6 +140,21 @@ That manifest pins:
   `ad5aa3b0a99e967207ff63c3040d3b9786e3f1345769298c25a19eed20477ac5`; and
 - source-promotion manifest ID
   `voidpe2rpctprom1_754cf0701f226a8ac47375757a42aa5dc328110ac89346c699b05565813b382f`.
+
+The exact reviewable packet is stored under
+`ops/mainnet0/evidence/production-epoch2-rpc-selection-v1/` and contains the
+activation plan, activation receipt, accepted runtime observation, selected
+candidate, and authoritative promotion-apply-admission receipt.
+
+The loader invokes the source-only
+`void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs` in a separate
+Node process. That verifier reruns the existing promotion compiler over the exact
+activation/observation bytes, requires the recompiled candidate to equal both
+the packet candidate and canonical target byte-for-byte, reruns the apply-
+admission input validator, recomputes the authoritative admission content ID,
+and independently checks historical Git tree identities and ancestor lineage.
+Any packet-byte change HOLDs before `evidence_aware_selection_verified=true`
+can be returned.
 
 The earlier compiler and apply-admission lanes remain pre-selection proof tools;
 they cannot themselves write/select the canonical target.

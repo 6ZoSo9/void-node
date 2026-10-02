@@ -11,6 +11,10 @@ import {
   productionEpoch2RpcUrlFingerprintV1,
   validateProductionEpoch2RpcTargetV1,
 } from "../tools/void-production-epoch2-rpc-target-v1.mjs";
+import {
+  SELECTION_EVIDENCE_PACKET_V1,
+  verifyProductionEpoch2RpcSelectionEvidencePacketV1,
+} from "../tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs";
 
 const target = JSON.parse(
   fs.readFileSync(
@@ -35,6 +39,79 @@ assert.equal(
 );
 assert.equal(loaded.evaluation.transaction_authorized, false);
 assert.equal(loaded.evaluation.authoritative_chain2050_write, false);
+assert.equal(loaded.promotion.evidence_packet.checked_in_evidence_verified, true);
+assert.equal(
+  loaded.promotion.evidence_packet.exact_evidence_semantics_reexecuted,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.selected_candidate_recompiled_from_exact_evidence,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.promotion_admission_content_address_reverified,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.historical_source_trees_reverified,
+  true,
+);
+assert.equal(
+  loaded.promotion.evidence_packet.source_lineage_ancestry_reverified,
+  true,
+);
+
+function evidencePacketInput() {
+  return {
+    target_bytes: fs.readFileSync(
+      "ops/mainnet0/production-epoch2-rpc-target-v1.json",
+    ),
+    selected_candidate_bytes: fs.readFileSync(
+      SELECTION_EVIDENCE_PACKET_V1.selected_candidate.path,
+    ),
+    activation_plan_bytes: fs.readFileSync(
+      SELECTION_EVIDENCE_PACKET_V1.activation_plan.path,
+    ),
+    activation_receipt_bytes: fs.readFileSync(
+      SELECTION_EVIDENCE_PACKET_V1.activation_receipt.path,
+    ),
+    runtime_observation_bytes: fs.readFileSync(
+      SELECTION_EVIDENCE_PACKET_V1.runtime_observation.path,
+    ),
+    promotion_apply_admission_bytes: fs.readFileSync(
+      SELECTION_EVIDENCE_PACKET_V1.promotion_apply_admission.path,
+    ),
+  };
+}
+
+const verifiedPacket =
+  verifyProductionEpoch2RpcSelectionEvidencePacketV1(evidencePacketInput());
+assert.equal(verifiedPacket.verified, true);
+assert.equal(
+  verifiedPacket.selected_candidate_recompiled_from_exact_evidence,
+  true,
+);
+assert.equal(
+  verifiedPacket.promotion_admission_content_address_reverified,
+  true,
+);
+
+for (const [key, pattern] of [
+  ["activation_plan_bytes", /production_epoch2_selection_activation_plan_sha256_mismatch/u],
+  ["activation_receipt_bytes", /production_epoch2_selection_activation_receipt_sha256_mismatch/u],
+  ["runtime_observation_bytes", /production_epoch2_selection_runtime_observation_sha256_mismatch/u],
+  ["selected_candidate_bytes", /production_epoch2_selection_selected_candidate_sha256_mismatch/u],
+  ["promotion_apply_admission_bytes", /production_epoch2_selection_promotion_apply_admission_sha256_mismatch/u],
+]) {
+  const bad = evidencePacketInput();
+  bad[key] = Buffer.from(bad[key]);
+  bad[key][0] ^= 0x01;
+  assert.throws(
+    () => verifyProductionEpoch2RpcSelectionEvidencePacketV1(bad),
+    pattern,
+    key,
+  );
+}
 
 function holdFixture() {
   const value = structuredClone(target);
@@ -236,6 +313,12 @@ console.log("reviewed_production_validator_binding_lineage_required=true");
 console.log("promoted_validator_evidence_exactly_bound=true");
 console.log("private_qbft_activation_lineage_required=true");
 console.log("canonical_loader_selected_evidence_aware=true");
+console.log("checked_in_evidence_semantics_reexecuted=true");
+console.log("selected_candidate_recompiled_from_exact_evidence=true");
+console.log("promotion_admission_content_address_reverified=true");
+console.log("historical_source_trees_reverified=true");
+console.log("source_lineage_ancestry_reverified=true");
+console.log("evidence_packet_tamper_adversaries_green=true");
 console.log("promotion_manifest_content_addressed=true");
 console.log("promotion_admission_exactly_pinned=true");
 console.log("production_rpc_18553_exact=true");
