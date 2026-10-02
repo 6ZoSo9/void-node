@@ -551,11 +551,13 @@ function buyView() {
             </div>
           </div>
           <dl class="buy-facts">
-            <div><dt>Network</dt><dd>Base Mainnet · 8453</dd></div>
+            <div><dt>Current launch rail</dt><dd>Base Mainnet · 8453</dd></div>
             <div><dt>Asset</dt><dd>Native USDC</dd></div>
-            <div><dt>USDC contract</dt><dd class="mono" data-buy-usdc-contract>—</dd></div>
+            <div><dt>Base USDC contract</dt><dd class="mono" data-buy-usdc-contract>—</dd></div>
+            <div><dt>Ethereum USDC</dt><dd>APPROVED · NOT ACTIVE YET</dd></div>
             <div><dt>Approved receiver</dt><dd class="mono" data-buy-receiver>Hidden until verified</dd></div>
             <div><dt>VOID chain</dt><dd>2050</dd></div>
+            <div><dt>Ethereum contract</dt><dd class="mono">0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</dd></div>
             <div><dt>Exchange/custody</dt><dd class="buy-danger-copy">NOT SUPPORTED</dd></div>
           </dl>
         </section>
@@ -573,6 +575,13 @@ function buyView() {
             <div class="activity-row"><div class="activity-copy"><strong>Pricing</strong><small>Pool price discovery; no fixed WC→VOID redemption rate.</small></div><div class="activity-value">Market</div></div>
             <div class="activity-row"><div class="activity-copy"><strong>Trading</strong><small>No trade button is exposed until the reviewed market runtime is live.</small></div><div class="activity-value">HOLD</div></div>
             <div class="activity-row"><div class="activity-copy"><strong>Launch order</strong><small>Presale activation remains the immediate gate; WC/VOID can follow its bounded activation ceremony.</small></div><div class="activity-value">Prepared</div></div>
+          </div>
+          <div class="alert alert--warning">
+            <span class="alert__icon">!</span>
+            <div class="alert__copy">
+              <strong>Do not send Ethereum USDC yet</strong>
+              <p>Ethereum mainnet native USDC is policy-approved, but the current purchase-request flow accepts Base only. Ethereum must not be used until this page explicitly marks the Ethereum rail OPEN.</p>
+            </div>
           </div>
           <p class="panel-link-row"><a href="#/market">Open WC / VOID launch status →</a></p>
         </section>
