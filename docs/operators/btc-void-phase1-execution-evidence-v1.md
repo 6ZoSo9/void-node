@@ -158,11 +158,13 @@ The preview validator reads one bounded JSON suite from stdin:
 node tools/void-btc-void-phase1-execution-evidence-v1.mjs --pretty < phase1-suite.json
 ```
 
-A structurally valid result has a preview-only content-addressed ID:
+A structurally valid result has only a `preview_id`:
 
 ```text
 voidbtcp1preview1_<sha256>
 ```
+
+It does not emit the former authoritative-looking `evidence_suite_id` field.
 
 ## Authority
 
