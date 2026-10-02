@@ -207,6 +207,28 @@ assert.throws(
   () =>
     parseVoidBtcVoidBitcoinHtlcV1({
       witness_script_hex:
+        EXPECTED_SCRIPT.slice(0, 6) +
+        "1f" +
+        EXPECTED_SCRIPT.slice(8),
+    }),
+  /htlc_preimage_size_guard_invalid/u,
+);
+
+assert.throws(
+  () =>
+    parseVoidBtcVoidBitcoinHtlcV1({
+      witness_script_hex:
+        EXPECTED_SCRIPT.slice(0, 6) +
+        "21" +
+        EXPECTED_SCRIPT.slice(8),
+    }),
+  /htlc_preimage_size_guard_invalid/u,
+);
+
+assert.throws(
+  () =>
+    parseVoidBtcVoidBitcoinHtlcV1({
+      witness_script_hex:
         EXPECTED_SCRIPT.slice(0, 10) +
         "aa" +
         EXPECTED_SCRIPT.slice(12),
@@ -282,6 +304,8 @@ console.log("VOID_BTC_VOID_BITCOIN_HTLC_V1_PROOF_GREEN");
 console.log("witness_script_bytes=97");
 console.log("p2wsh_script_pubkey_bytes=34");
 console.log("exact_32_byte_preimage_guard=true");
+console.log("encoded_preimage_size_31_rejected=true");
+console.log("encoded_preimage_size_33_rejected=true");
 console.log("sha256_hashlock_bound=true");
 console.log("redeem_refund_roles_distinct=true");
 console.log("redeem_refund_role_swap_changes_script_identity=true");
