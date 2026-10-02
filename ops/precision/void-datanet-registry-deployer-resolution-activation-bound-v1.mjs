@@ -87,7 +87,9 @@ for(const ancestor of [
   binding.activation_plan_id
     ?activationPlan.value.start_admission_observed_repo_head
     :null,
-  ...activationPlan.value.install_receipts.map((x)=>x.install_receipt_observed_repo_head),
+  ...activationPlan.value.install_receipts.map(
+    (x)=>x.install_receipt_observed_repo_head??x.installed_repo_head,
+  ),
 ]){
   if(!ancestor) throw new Error("activation_lineage_repo_head_missing");
   const result=spawnSync("git",["merge-base","--is-ancestor",ancestor,repoHead],{
