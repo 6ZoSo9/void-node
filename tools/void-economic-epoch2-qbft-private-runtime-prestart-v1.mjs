@@ -21,6 +21,7 @@ const ADDRESS=/^0x[0-9a-f]{40}$/u;
 const PUBLIC_KEY=/^0x04[0-9a-f]{128}$/u;
 const ENODE=/^enode:\/\/[0-9a-f]{128}@[0-9.]+:30313$/u;
 const ROLES=["precision","nimo","xiphos"];
+const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -73,6 +74,9 @@ export function validateVoidEconomicEpoch2QbftInstallReceiptV1(input) {
     materialization:input.materialization,
     installed_at_utc:receipt.installed_at_utc,
     installed_repo_head:receipt.installed_repo_head,
+    unit_file_state:receipt.post_install_state?.unit_file_state,
+    direct_enablement_links_absent:
+      receipt.post_install_state?.direct_enablement_links_absent,
   });
   if(canonicalJson(rebuilt)!==canonicalJson(receipt)) {
     throw new Error("install_receipt_rebuild_mismatch:"+input.role);
@@ -104,6 +108,10 @@ export function buildVoidEconomicEpoch2QbftHostPrestartReceiptV1(input) {
   if(!SHA40.test(head)) throw new Error("observed_repo_head_invalid");
 
   const planHost=validated.binding.plan_host;
+  const unitFileState=String(input?.facts?.unit_file_state||"");
+  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
+    throw new Error("prestart_unit_file_state_invalid:"+role);
+  }
   const expectedFacts={
     repo_main_clean:true,
     final_revalidation_green:true,
@@ -117,8 +125,9 @@ export function buildVoidEconomicEpoch2QbftHostPrestartReceiptV1(input) {
     installed_systemd_unit_sha256_exact:true,
     installed_data_directory_empty:true,
     service_inactive:true,
-    service_disabled:true,
-    autostart_links_absent:true,
+    unit_file_state:unitFileState,
+    direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
     rootless_docker_verified:true,
@@ -232,6 +241,10 @@ export function validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(receipt) {
     throw new Error("prestart_receipt_freshness_invalid");
   }
 
+  const unitFileState=String(receipt?.facts?.unit_file_state||"");
+  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
+    throw new Error("prestart_receipt_unit_file_state_invalid:"+receipt.role);
+  }
   const expectedFacts={
     repo_main_clean:true,
     final_revalidation_green:true,
@@ -245,8 +258,9 @@ export function validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(receipt) {
     installed_systemd_unit_sha256_exact:true,
     installed_data_directory_empty:true,
     service_inactive:true,
-    service_disabled:true,
-    autostart_links_absent:true,
+    unit_file_state:unitFileState,
+    direct_enablement_links_absent:true,
+    indirect_activation_absence_proven:false,
     plugin_sha256_exact:true,
     besu_image_identity_exact:true,
     rootless_docker_verified:true,
