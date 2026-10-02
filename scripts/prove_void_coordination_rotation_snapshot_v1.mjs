@@ -27,7 +27,15 @@ const POLICY_PATH = path.join(
   ROOT,
   "ops/coordination/worker-live-dispatch-policy-v1.json",
 );
-const policyRaw = JSON.parse(fs.readFileSync(POLICY_PATH, "utf8"));
+const currentPolicyRaw = JSON.parse(fs.readFileSync(POLICY_PATH, "utf8"));
+const policyRaw = structuredClone(currentPolicyRaw);
+policyRaw.plan_issue = 1507;
+if (policyRaw.universal_fallback.tracking_issue === 2313) {
+  policyRaw.universal_fallback.tracking_issue = 1507;
+}
+for (const worker of policyRaw.workers) {
+  if (worker.tracking_issue === 2313) worker.tracking_issue = 1507;
+}
 const MAIN = "a".repeat(40);
 
 function expectRejected(operation, pattern) {
@@ -163,6 +171,8 @@ assert.equal(
 );
 assert.equal(ROTATION_THRESHOLD_TOTAL_MESSAGES, 250);
 assert.equal(ROTATION_WRITER_WORKER_ID, "ada");
+assert.equal(currentPolicyRaw.marker, LIVE_DISPATCH_POLICY_MARKER);
+assert.equal(currentPolicyRaw.plan_issue, 2313);
 assert.equal(policyRaw.marker, LIVE_DISPATCH_POLICY_MARKER);
 assert.equal(policyRaw.plan_issue, 1507);
 assert.equal(Array.isArray(policyRaw.workers), true);
@@ -170,6 +180,41 @@ assert.equal(policyRaw.workers.length > 0, true);
 const expectedScheduledWorkerIds = policyRaw.workers
   .map((worker) => worker.id)
   .sort((left, right) => left.localeCompare(right));
+
+const currentPolicyCurrentHub = buildCoordinationRotationSnapshotV1(
+  currentPolicyRaw,
+  evidence({
+    chainValue: chain({
+      current_issue: 2313,
+      outcome: "SUCCESSOR_RESOLVED",
+      rotation_required: false,
+      chain_issue_numbers: [1507, 2313],
+      chain: [
+        terminalIssue({
+          number: 1507,
+          state: "closed",
+          comments: 1,
+          totalMessages: 2,
+          successor: 2313,
+          rotationRequired: false,
+        }),
+        terminalIssue({
+          number: 2313,
+          comments: 10,
+          totalMessages: 11,
+          rotationRequired: false,
+        }),
+      ],
+      dispatch_plan_issue_should_be: 2313,
+      plan_issue_update_required: true,
+    }),
+  }),
+);
+assert.equal(currentPolicyCurrentHub.outcome, "SUCCESSOR_ALREADY_RESOLVED");
+assert.equal(currentPolicyCurrentHub.resolved_current_issue, 2313);
+assert.equal(currentPolicyCurrentHub.policy_plan_issue, 2313);
+assert.equal(currentPolicyCurrentHub.policy_plan_issue_matches_current, true);
+assert.equal(currentPolicyCurrentHub.policy_plan_issue_rebind_required, false);
 
 const githubTimestampRotation = buildCoordinationRotationSnapshotV1(
   policyRaw,
