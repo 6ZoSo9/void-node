@@ -10,7 +10,7 @@ Coordination V3 stores a reviewed point-in-time lane snapshot. Live GitHub facts
 
 The snapshot-freshness helper makes that boundary machine-readable. It does not replace the V3 validator, the V1 Red/Amber/Green collision registry, or live GitHub inspection. It consumes the checked-in V3 roster/state plus an independently observed current `main` SHA and reports whether the snapshot's source anchor still matches that observation.
 
-The companion live-dispatch evaluator closes the separate non-idle assignment gap. It composes all 15 current scheduled workers, validates one bounded fallback for every worker, consumes a closed live-evidence packet, and emits exactly one deterministic dispatch recommendation per worker. It does not invoke workers or grant source, merge, deployment, scheduler, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority.
+The companion live-dispatch evaluator closes the separate non-idle assignment gap. It composes all 14 currently enabled scheduled workers, validates one bounded fallback for every worker, consumes a closed live-evidence packet, and emits exactly one deterministic dispatch recommendation per worker. It does not invoke workers or grant source, merge, deployment, scheduler, credential, wallet, signer, Work Credit, validator, transaction, treasury, liquidity, or funds authority.
 
 ## Snapshot truth boundary
 
@@ -40,7 +40,7 @@ Ren is deliberately not part of the externally scheduled/hourly worker set. Ren 
 
 Turing is also not part of the current enabled scheduler composition. The September 20 archived-route repair preserved task enabled states while rerouting 14 active task prompts; Turing's historical `nullfeed-site` task remained disabled because that repository is archived. Live scheduler state explicitly overrides the older blanket 15-worker claim. The policy therefore models 14 enabled workers and does not grant authority to re-enable Turing. A newer direct ZoSo instruction may separately reassign and enable that slot.
 
-The policy currently requires exactly 14 unique enabled scheduled workers and exactly one worker-specific bounded fallback per worker. Every fallback has a tracking issue, ranked exploration domains, a sensitivity classification, and an explicit negative authority boundary. The live coordination plan is issue #1507; historical references to archived #1182 remain historical evidence only.
+The policy currently requires exactly 14 unique enabled scheduled workers and exactly one worker-specific bounded fallback per worker. Every fallback has a tracking issue, ranked exploration domains, a sensitivity classification, and an explicit negative authority boundary. The current checked-in live-routing snapshot is issue #2313. Operational hub validation still starts from the stable successor-chain root #1507 and dynamically requires the resolver's current issue to equal the dispatch `plan_issue`; after any future rotation, stale predecessor policy therefore HOLDs until this snapshot is deliberately refreshed. Historical references to archived #1182 remain historical evidence only.
 
 Fallback coverage is unconditional. A worker keeps its fallback definition even while its primary specialty is active. Worker roles are first-look specialties rather than permanent exclusive identities: when the specialty is blocked, parked, adequately occupied, requires unavailable authority, or has no meaningful safe action, the worker may fall through to the highest-value genuinely unowned Green or bounded Amber source-only work and should return to the specialty when it becomes the highest-value actionable lane again.
 
@@ -55,7 +55,7 @@ The policy preserves the existing noise limits:
 
 ## Control-plane comment discipline
 
-Issue #1507 is a live state index, not an hourly worker transcript. Routine `STARTED`, heartbeat, `still blocked`, `no change`, and CI-poll comments do not belong there. Detailed attributable execution evidence belongs on the worker's lane issue or relevant pull request. A #1507 comment is appropriate only when ownership, blockers, collision state, dependencies, lifecycle, reassignment, or the authoritative priority queue materially changes; one consolidated material update is preferred over separate start/result chatter.
+The resolved current coordination hub (#2313 at this generation) is a live state index, not an hourly worker transcript. Routine `STARTED`, heartbeat, `still blocked`, `no change`, and CI-poll comments do not belong there. Detailed attributable execution evidence belongs on the worker's lane issue or relevant pull request. A current-hub comment is appropriate only when ownership, blockers, collision state, dependencies, lifecycle, reassignment, or the authoritative priority queue materially changes; one consolidated material update is preferred over separate start/result chatter. Resolve the hub from root #1507 rather than assuming #2313 remains current forever.
 
 ## Thirty-minute liveness contract
 
@@ -114,7 +114,7 @@ The optional output file is create-only and mode `0600`.
 
 ## Run live dispatch
 
-The live evidence packet is read from standard input. It must use marker `VOID_WORKER_LIVE_DISPATCH_EVIDENCE_V1`, exact closed schemas, the exact 15-worker scheduled set, canonical timestamps, a current-main SHA, normalized primary states/collisions, and bounded fallback evidence.
+The live evidence packet is read from standard input. It must use marker `VOID_WORKER_LIVE_DISPATCH_EVIDENCE_V1`, exact closed schemas, the exact 14-worker currently enabled scheduled set, canonical timestamps, a current-main SHA, normalized primary states/collisions, and bounded fallback evidence.
 
 ```bash
 node tools/void-worker-coordination-live-dispatch-v1.mjs --pretty \

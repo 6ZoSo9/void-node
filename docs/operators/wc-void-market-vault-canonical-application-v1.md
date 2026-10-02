@@ -83,21 +83,67 @@ Before either executes, the tool requires a clean repository and binds exact
 - `package-lock.json`.
 
 Git replacement objects and Git configuration injection are disabled for the
-source reads.
+source reads. Authority-bearing repository Git commands run with a minimal fixed
+environment, null global/system config, and explicit command-line overrides for
+`core.fsmonitor=false`, hooks, ambient attributes, untracked cache, preload
+index and submodule recursion. Canonical origin is read from repository-local
+config with includes disabled.
 
-The reviewed module files are then copied from exact Git-object bytes into a
-private, uniquely named temporary directory under the repository Git directory.
-The at-use verifier and production classifier execute from those copied
-reviewed bytes and their copied relative dependencies, not from mutable
-worktree module paths.
+The reviewed market-vault module closure contains two bare `ethers` imports.
+Pinning `package.json` / `package-lock.json` proves dependency metadata but
+does not prove the package bytes Node executes.
 
-The temporary module tree is removed after execution.
+The application therefore also binds the exact reviewed package-runtime tool
+and reviewed `ethers` profile from current HEAD:
+
+```text
+tools/void-reviewed-node-package-runtime-v1.mjs
+ops/security/reviewed-node-package-runtime-ethers-v1.json
+```
+
+It re-verifies the reviewed profile against the current locked installation,
+materializes the verified 9-package `ethers` closure into a new private tree
+outside the repository, then copies the same reviewed market-vault module blobs
+plus the reviewed bridge:
+
+```text
+tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs
+```
+
+under that same private execution root.
+
+Only the bridge is executed. It exposes two operations:
+
+- `verify_at_use`: invoke the reviewed market-vault at-use verifier;
+- `classify_readiness`: invoke the reviewed production-readiness classifier.
+
+Execution uses `runReviewedNodePackageRuntimeV1(...)`, which re-verifies the
+private package tree immediately before every child run, enables the Node
+permission model, grants filesystem-read permission only to the private
+materialization root, removes ambient Node and dynamic-loader overrides, and
+prevents ancestor `node_modules` fallback.
+
+The parent application retains all five-field candidate-delta logic. The child
+returns JSON-safe verifier/classifier results only.
+
+Every private source/input file is create-only and read-only. The complete
+temporary reviewed runtime is removed after execution.
 
 Accordingly the authority contract reports:
 
 ```text
 verified_modules_loaded_from_exact_git_objects=true
 ephemeral_verified_module_materialization=true
+reviewed_package_runtime_required=true
+reviewed_package_bytes_verified=true
+private_reviewed_package_materialization=true
+permission_fenced_reviewed_execution=true
+ancestor_package_resolution_forbidden=true
+ambient_node_resolution_overrides_ignored=true
+ambient_dynamic_loader_overrides_ignored=true
+
+execution_network_isolation_provided=false
+
 filesystem_read=true
 filesystem_write=true
 persistent_artifact_write=false
@@ -202,6 +248,9 @@ The content-addressed plan binds:
 - exact base HEAD/tree;
 - exact application-tool Git blob;
 - exact reviewed execution dependency blobs;
+- reviewed package-runtime tool/profile Git blobs;
+- reviewed package profile ID + package aggregate SHA-256;
+- reviewed bridge Git blob and permission-fenced execution boundary;
 - exact at-use artifact SHA-256 / revalidation identity;
 - evidence collection and validity times;
 - source candidate Git blob/SHA-256;
@@ -217,9 +266,9 @@ A later reviewed source commit may apply the prepared candidate bytes.
 
 `verifyVoidWcVoidMarketVaultCanonicalApplicationV1(...)` requires:
 
-- clean repository;
+- clean repository, checked without executing repository-local fsmonitor/hooks;
 - branch exactly `main`;
-- canonical GitHub origin;
+- canonical GitHub origin read from local config with includes disabled;
 - fixed-URL remote `refs/heads/main` equal to local HEAD;
 - application base commit still an ancestor;
 - application base tree unchanged;
@@ -242,6 +291,11 @@ funds_movement_authorized=false
 
 No RPC is made by this source-application tool. The RPC observations are inside
 the already-collected #2227 artifact.
+
+The reviewed Node package runtime is an execution-byte / package-resolution
+boundary, not a cross-version network sandbox. Its child execution explicitly
+records `execution_network_isolation_provided=false`; this application does
+not upgrade that claim.
 
 No deployment, role grant, credential/private-key access, wallet/signer use,
 transaction construction/signing/submission/broadcast, Chain-2050 write,

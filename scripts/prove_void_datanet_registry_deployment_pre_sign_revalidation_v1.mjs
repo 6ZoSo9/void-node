@@ -432,10 +432,38 @@ assert.equal(
   assert.equal(at,0);
 }
 {
-  const held=await runFresh({
+  const zeroBalanceGreen=await runFresh({
     head:4,
     hashDigit:"7",
     balance:"0x0",
+  });
+  assert.equal(zeroBalanceGreen.ok,true);
+  assert.equal(
+    zeroBalanceGreen.fresh_fee_funding_packet.status,
+    "READ_ONLY_DEPLOYMENT_FEE_GAS_FUNDING_GREEN",
+  );
+  assert.equal(
+    zeroBalanceGreen.fresh_fee_funding_packet.observation.deployer_balance_wei,
+    "0",
+  );
+  assert.equal(
+    zeroBalanceGreen.fresh_fee_funding_packet.observation.maximum_deployment_gas_cost_wei,
+    "0",
+  );
+  assert.equal(
+    zeroBalanceGreen.fresh_fee_funding_packet.observation.minimum_additional_funding_wei,
+    "0",
+  );
+  assert.equal(
+    zeroBalanceGreen.fresh_fee_funding_packet.observation.deployer_funding_sufficient,
+    true,
+  );
+}
+{
+  const held=await runFresh({
+    head:4,
+    hashDigit:"7",
+    priority:"0x1",
   });
   assert.equal(held.ok,false);
   assert.equal(
