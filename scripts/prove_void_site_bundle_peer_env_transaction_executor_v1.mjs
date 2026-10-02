@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   VOID_CROSSBOX_MUTATION_TRANSACTION_CONFIRMATION_V1,
@@ -14,6 +18,45 @@ import {
   VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1,
   driveVoidSiteBundlePeerEnvTransactionV1,
 } from "../tools/void-site-bundle-peer-env-transaction-executor-v1.mjs";
+
+function proofGit(args){
+  const result=spawnSync(
+    "/usr/bin/git",
+    [
+      "--no-replace-objects",
+      "-c","core.hooksPath=/dev/null",
+      "-c","core.attributesFile=/dev/null",
+      "-c","core.fsmonitor=false",
+      "-c","core.untrackedCache=false",
+      "-c","core.preloadIndex=false",
+      "-c","submodule.recurse=false",
+      "-C",process.cwd(),
+      ...args,
+    ],
+    {
+      encoding:"utf8",
+      stdio:["ignore","pipe","pipe"],
+      env:{
+        PATH:"/usr/bin:/bin",
+        HOME:"/nonexistent",
+        XDG_CONFIG_HOME:"/nonexistent",
+        LANG:"C",
+        LC_ALL:"C",
+        GIT_CONFIG_GLOBAL:"/dev/null",
+        GIT_CONFIG_SYSTEM:"/dev/null",
+        GIT_CONFIG_NOSYSTEM:"1",
+        GIT_ATTR_NOSYSTEM:"1",
+        GIT_NO_REPLACE_OBJECTS:"1",
+        GIT_OPTIONAL_LOCKS:"0",
+        GIT_TERMINAL_PROMPT:"0",
+      },
+      timeout:30_000,
+      maxBuffer:8*1024*1024,
+    },
+  );
+  assert.equal(result.status,0,String(result.stderr||""));
+  return String(result.stdout||"").trim();
+}
 
 function canonical(value){
   if(value===null||typeof value!=="object")return JSON.stringify(value);
@@ -662,6 +705,87 @@ for(const [key,value] of Object.entries(
   );
 }
 
+{
+  const contractPath="tools/void-crossbox-mutation-transaction-v1.mjs";
+  const executorPath=
+    "tools/void-site-bundle-peer-env-transaction-executor-v1.mjs";
+  const original=fs.readFileSync(contractPath);
+  const sentinel=path.join(
+    os.tmpdir(),
+    "void-site-bundle-unreviewed-contract-"+String(process.pid),
+  );
+  const expectedHead=proofGit(["rev-parse","HEAD"]);
+  const expectedBlob=proofGit(["rev-parse","HEAD:"+contractPath]);
+  const executorUrl=pathToFileURL(path.resolve(executorPath)).href;
+  try{
+    fs.rmSync(sentinel,{force:true});
+    proofGit(["update-index","--assume-unchanged",contractPath]);
+    const malicious=Buffer.concat([
+      Buffer.from(
+        'import { writeFileSync as __voidSentinelWrite } from "node:fs";\n'+
+        "__voidSentinelWrite("+
+        JSON.stringify(sentinel)+
+        ', "executed\\n");\n',
+        "utf8",
+      ),
+      original,
+    ]);
+    fs.writeFileSync(contractPath,malicious);
+    const child=spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        [
+          "import(" + JSON.stringify(executorUrl) + ")",
+          ".then((m)=>{",
+          "const b=m.VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1.reviewedTransactionContractBinding;",
+          "if(!b||b.head!=="+JSON.stringify(expectedHead)+"||b.git_blob_sha1!=="+JSON.stringify(expectedBlob)+"||b.execution_surface!==\"immutable_data_url_from_exact_git_object\")process.exit(19);",
+          "})",
+          ".catch((error)=>{console.error(String(error?.stack||error));process.exit(18);});",
+        ].join(""),
+      ],
+      {
+        cwd:process.cwd(),
+        encoding:"utf8",
+        stdio:["ignore","pipe","pipe"],
+        env:{...process.env},
+        timeout:60_000,
+        maxBuffer:8*1024*1024,
+      },
+    );
+    assert.equal(
+      child.status,
+      0,
+      String(child.stdout||"")+String(child.stderr||""),
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "unreviewed transaction-contract worktree bytes executed",
+    );
+  }finally{
+    fs.writeFileSync(contractPath,original);
+    proofGit(["update-index","--no-assume-unchanged",contractPath]);
+    fs.rmSync(sentinel,{force:true});
+  }
+}
+
+const expectedContractBlob=proofGit([
+  "rev-parse",
+  "HEAD:tools/void-crossbox-mutation-transaction-v1.mjs",
+]);
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1
+    .reviewedTransactionContractBinding.git_blob_sha1,
+  expectedContractBlob,
+);
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1
+    .reviewedTransactionContractBinding.execution_surface,
+  "immutable_data_url_from_exact_git_object",
+);
+
 const source=fs.readFileSync(
   "tools/void-site-bundle-peer-env-transaction-executor-v1.mjs",
   "utf8",
@@ -705,9 +829,19 @@ for(const required of [
   "participant_restore_partial_drift",
   "site_bundle_executor_retired_alienware_forbidden",
   "applyVoidSiteBundlePeerEnvPersistenceV1",
+  "data:text/javascript;base64,",
+  "loadReviewedTransactionContractV1",
+  "site_bundle_executor_reviewed_contract_bytes_invalid",
 ]){
   assert.equal(source.includes(required),true,required);
 }
+assert.equal(
+  source.includes(
+    'from "./void-crossbox-mutation-transaction-v1.mjs"',
+  ),
+  false,
+  "executor must not statically import mutable transaction contract",
+);
 assert.equal(
   VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1
     .validator_publication,
@@ -728,6 +862,16 @@ assert.equal(
     .funds_movement,
   false,
 );
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1
+    .reviewed_transaction_contract_git_object_execution,
+  true,
+);
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1
+    .mutable_worktree_transaction_contract_execution,
+  false,
+);
 
 console.log("VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1_PROOF_GREEN");
 console.log("happy_path_two_party_commit=true");
@@ -741,6 +885,9 @@ console.log("restore_partial_crash_completed_without_blind_restart=true");
 console.log("ambiguous_recovery_holds=true");
 console.log("journal_failure_not_reinterpreted=true");
 console.log("participant_receipt_failure_blocks_journal_advance=true");
+console.log("reviewed_transaction_contract_git_object_execution=true");
+console.log("mutable_worktree_transaction_contract_execution=false");
+console.log("hidden_transaction_contract_worktree_execution=false");
 console.log("live_adapter_reviewed_absolute_primitives=true");
 console.log("live_service_unit=void-node-live.service");
 console.log("explicit_loopback_readiness_topology_required=true");
