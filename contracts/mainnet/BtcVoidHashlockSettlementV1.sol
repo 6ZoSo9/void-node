@@ -151,10 +151,22 @@ contract BtcVoidHashlockSettlementV1 {
         uint256 amountAtoms = swap.amountAtoms;
         bytes32 hashlock = swap.hashlock;
 
+        IBtcVoidCanonicalVoidTokenV1 token = _token();
+        uint256 balanceBefore = token.balanceOf(address(this));
+        if (balanceBefore < amountAtoms) {
+            revert TokenBalanceDeltaMismatch(amountAtoms, balanceBefore);
+        }
+
         swap.state = SwapState.Claimed;
 
-        bool transferred = _token().transfer(beneficiary, amountAtoms);
+        bool transferred = token.transfer(beneficiary, amountAtoms);
         if (!transferred) revert TokenTransferFailed();
+
+        uint256 balanceAfter = token.balanceOf(address(this));
+        uint256 expectedBalance = balanceBefore - amountAtoms;
+        if (balanceAfter != expectedBalance) {
+            revert TokenBalanceDeltaMismatch(expectedBalance, balanceAfter);
+        }
 
         emit Claimed(
             swapId,
@@ -179,10 +191,22 @@ contract BtcVoidHashlockSettlementV1 {
         address refundAuthority = swap.refundAuthority;
         uint256 amountAtoms = swap.amountAtoms;
 
+        IBtcVoidCanonicalVoidTokenV1 token = _token();
+        uint256 balanceBefore = token.balanceOf(address(this));
+        if (balanceBefore < amountAtoms) {
+            revert TokenBalanceDeltaMismatch(amountAtoms, balanceBefore);
+        }
+
         swap.state = SwapState.Refunded;
 
-        bool transferred = _token().transfer(refundAuthority, amountAtoms);
+        bool transferred = token.transfer(refundAuthority, amountAtoms);
         if (!transferred) revert TokenTransferFailed();
+
+        uint256 balanceAfter = token.balanceOf(address(this));
+        uint256 expectedBalance = balanceBefore - amountAtoms;
+        if (balanceAfter != expectedBalance) {
+            revert TokenBalanceDeltaMismatch(expectedBalance, balanceAfter);
+        }
 
         emit Refunded(
             swapId,
