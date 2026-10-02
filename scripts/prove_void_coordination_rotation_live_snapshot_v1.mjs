@@ -152,18 +152,28 @@ function record(number, state, commentCount, lastBody = null) {
 }
 
 function rotationChain() {
+  const predecessorPointer = [
+    "## CONTROL-PLANE ROTATION",
+    "COORDINATION_SUCCESSOR=#2313",
+  ].join("\n");
   return resolveCoordinationSuccessorChainRecordsV1({
-    "1507": record(1507, "open", 349),
+    "1507": record(1507, "closed", 1, predecessorPointer),
+    "2313": record(2313, "open", 349),
   });
 }
 
 function successorChain() {
-  const pointer = [
+  const predecessorPointer = [
+    "## CONTROL-PLANE ROTATION",
+    "COORDINATION_SUCCESSOR=#2313",
+  ].join("\n");
+  const currentPointer = [
     "## CONTROL-PLANE ROTATION",
     "COORDINATION_SUCCESSOR=#2400",
   ].join("\n");
   return resolveCoordinationSuccessorChainRecordsV1({
-    "1507": record(1507, "closed", 349, pointer),
+    "1507": record(1507, "closed", 1, predecessorPointer),
+    "2313": record(2313, "closed", 1, currentPointer),
     "2400": {
       issue: {
         number: 2400,
@@ -252,6 +262,9 @@ assert.equal(ready.marker, MARKER);
 assert.equal(ready.version, 1);
 assert.equal(ready.repository, "6ZoSo9/void-node");
 assert.equal(ready.root_issue, 1507);
+assert.equal(ready.snapshot.resolved_current_issue, 2313);
+assert.equal(ready.snapshot.policy_plan_issue, 2313);
+assert.equal(ready.snapshot.policy_plan_issue_matches_current, true);
 assert.equal(ready.captured_at, CAPTURED_AT);
 assert.equal(ready.main_sha, MAIN);
 assert.equal(ready.policy_path, POLICY_REPOSITORY_PATH);
