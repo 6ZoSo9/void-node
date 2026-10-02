@@ -13,7 +13,6 @@ export const VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_START_ADMISSION_V1 =
 
 const ROLES=["precision","nimo","xiphos"];
 const SHA40=/^[0-9a-f]{40}$/u;
-const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -99,8 +98,8 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       throw new Error("start_admission_identity_or_hash_binding_mismatch:"+role);
     }
     const unitFileState=String(receipt?.facts?.unit_file_state||"");
-    if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
-      throw new Error("start_admission_unit_file_state_invalid:"+role);
+    if(unitFileState!=="static") {
+      throw new Error("start_admission_unit_file_state_not_static:"+role);
     }
     const expectedFacts={
       repo_main_clean:true,
