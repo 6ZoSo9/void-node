@@ -10,13 +10,16 @@ import {
   buildVoidDatanetRegistryUnsignedDeploymentInputPlanV1,
   validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1,
 } from "./void-datanet-registry-unsigned-deployment-input-plan-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "./void-economic-epoch2-raw-transaction-domain-v1.mjs";
 
 export const VOID_DATANET_REGISTRY_DEPLOYMENT_FEE_FUNDING_OBSERVER_V1 =
   "VOID_DATANET_REGISTRY_DEPLOYMENT_FEE_FUNDING_OBSERVER_V1";
 
 export const GAS_LIMIT_MULTIPLIER_BPS_V1="12000";
-export const MAX_FEE_PER_GAS_WEI_V1="3000000000";
-export const MAX_PRIORITY_FEE_PER_GAS_WEI_V1="1000000000";
+export const MAX_FEE_PER_GAS_WEI_V1="0";
+export const MAX_PRIORITY_FEE_PER_GAS_WEI_V1="0";
 
 const ADDRESS=/^0x[0-9a-f]{40}$/u;
 const HASH=/^0x[0-9a-f]{64}$/u;
@@ -252,11 +255,19 @@ export async function observeVoidDatanetRegistryDeploymentFeeFundingV1(input){
       return held("fee_funding_nonce_balance_or_vacancy_drift",methods);
     }
 
+    const marker=
+      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1;
     const estimate=quantity(await call("eth_estimateGas",[
       {
         from:deployer,
         data:plan.deployment_inputs.creation_data,
         value:"0x0",
+        accessList:[
+          {
+            address:marker.marker_address,
+            storageKeys:[marker.marker_storage_key],
+          },
+        ],
       },
       headTag,
     ]));
@@ -368,7 +379,7 @@ export async function observeVoidDatanetRegistryDeploymentFeeFundingV1(input){
       next_gate:
         feeCapsSufficient&&deficit===0n
           ?"fresh_read_only_pre_sign_revalidation_before_signable_transaction_construction"
-          :"separate_review_of_fee_cap_or_deployer_gas_funding_then_repeat_read_only_observation",
+          :"separate_zero_fee_execution_policy_drift_review_then_repeat_read_only_observation",
     };
   }catch(error){
     return held("fee_funding_rpc_failed",methods,{
@@ -549,7 +560,7 @@ export function buildVoidDatanetRegistryDeploymentFeeFundingPacketV1(input){
       gas_estimate_observed:true,
       gas_limit_120pct_derived:true,
       fee_caps_source:
-        "existing_bounded_mainnet0_fee_envelope_reused_as_candidate_cap",
+        "epoch2_metered_zero_gas_price_v1_exact_zero_fee_envelope",
       fee_caps_sufficient:expectedFeeCaps,
       deployer_balance_sufficient:expectedFunding,
       minimum_additional_funding_wei:expectedDeficit.toString(10),
@@ -561,7 +572,7 @@ export function buildVoidDatanetRegistryDeploymentFeeFundingPacketV1(input){
       chain2050_write_authorized:false,
       next_gate:green
         ?"fresh_read_only_pre_sign_revalidation_before_signable_transaction_construction"
-        :"separate_fee_cap_or_deployer_gas_funding_review_then_repeat_read_only_observation",
+        :"separate_zero_fee_execution_policy_drift_review_then_repeat_read_only_observation",
     },
     authority:{
       read_only_rpc:true,

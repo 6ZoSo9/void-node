@@ -1,18 +1,18 @@
-# BTC/VOID Phase-1 execution evidence admission v1
+# BTC/VOID Phase-1 execution evidence structural preview v1
 
 Marker:
 
-`VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_V1`
+`VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_PREVIEW_V1`
 
 Status:
 
-`PHASE1_EXECUTION_EVIDENCE_ADMITTED_NONPRODUCTION`
+`PHASE1_EXECUTION_EVIDENCE_STRUCTURAL_PREVIEW_NOT_EXECUTION_VERIFIED`
 
 ## Purpose
 
 Merged BTC/VOID source invariants prove the settlement state machine, current
-market-policy binding, integer conservation, replay/terminal rules, and
-trade-funded fee policy. Those source proofs deliberately report:
+market-policy binding, replay/terminal rules, and source-only fee policy. Those
+source proofs deliberately report:
 
 ```text
 bitcoin_regtest_executed=false
@@ -21,10 +21,20 @@ chain2050_execution_performed=false
 
 They are not execution evidence.
 
-This contract defines the admission boundary for issue #2330. A later execution
-harness must produce independent Bitcoin Core regtest and isolated Chain-2050
-readback observations. This verifier binds those observations to the reviewed
-source-model evaluation and fee quote without granting production authority.
+This contract now serves only as a **structural preview / schema normalizer** for
+issue #2330. It validates the closed 12-case shape, reviewed source identities,
+content-addressed claim objects, regtest/isolated-2050 identity literals, and
+cross-object references.
+
+It does **not** prove that Bitcoin Core or an isolated Chain-2050 client produced
+the supplied observations. In particular it does not replay raw RPC transcript
+bytes, Chain-2050 receipt bytes, restart/reorg evidence bytes, executed
+cross-rail preimages, fee-envelope arithmetic, or native-unit conservation.
+
+Therefore caller-supplied or synthetic suites can produce only the preview
+marker/status. Authoritative Phase-1 execution admission remains reserved for a
+later #2330 execution harness/observer boundary that independently rederives
+those semantics from exact evidence bytes.
 
 ## Reviewed source bindings
 
@@ -44,9 +54,9 @@ All 12 admitted cases must come from one atomic source HEAD **and one source
 tree**. Mixing source generations or source trees in one Phase-1 suite fails
 closed.
 
-## Bitcoin execution identity
+## Bitcoin observation claim shape
 
-Every case requires an independent Bitcoin observation with:
+Every preview case requires a structurally valid Bitcoin observation claim with:
 
 - marker `VOID_BITCOIN_REGTEST_EXECUTION_OBSERVATION_V1`;
 - `network=regtest`;
@@ -58,11 +68,11 @@ Every case requires an independent Bitcoin observation with:
 - explicit proof that no Bitcoin mainnet contact or mainnet transaction
   occurred.
 
-The observation itself is content-addressed as `voidbtcp1btc1_<sha256>`.
+The observation claim is content-addressed as `voidbtcp1btc1_<sha256>`. This proves only internal content identity; the referenced raw RPC transcript is not replayed by this preview.
 
-## Isolated Chain-2050 identity
+## Isolated Chain-2050 observation claim shape
 
-Every case requires a separate isolated execution observation with:
+Every preview case requires a separate structurally valid isolated Chain-2050 observation claim with:
 
 - marker `VOID_CHAIN2050_ISOLATED_EXECUTION_OBSERVATION_V1`;
 - `chain_id=2050`;
@@ -77,12 +87,11 @@ Every case requires a separate isolated execution observation with:
 - `production_rpc_contact=false` /
   `authoritative_production_write=false`.
 
-The Phase-1 environment may perform isolated test writes. Those writes are not
-production Chain-2050 authority.
+The later Phase-1 environment may perform isolated test writes. This preview only validates the claimed observation shape and does not verify receipt bytes or prove that a write occurred. Those future test writes are not production Chain-2050 authority.
 
-## Required suite coverage
+## Required structural suite coverage
 
-One suite must contain exactly one content-addressed case for each:
+One structural preview must contain exactly one content-addressed claim for each:
 
 1. `btc_to_void_success`
 2. `void_to_btc_success`
@@ -97,20 +106,13 @@ One suite must contain exactly one content-addressed case for each:
 11. `restart_recovery`
 12. `reorg_reconciliation`
 
-Success cases require the reviewed atomic evaluation to reach `SETTLED`.
-Refund cases require `REFUNDED`. Rejection cases cannot present a settled
-atomic evaluation and must include independent rejection evidence proving no
-terminal value effect.
+Success claim objects must pair with a source-only atomic evaluation that reports `SETTLED`; refund claims pair with `REFUNDED`; rejection claims cannot pair with a settled evaluation and must carry the closed rejection-evidence shape. These are consistency checks, not proof that the rail events occurred.
 
-Restart evidence requires durable-state reload with the same contract identity
-and zero duplicate terminal effects.
-
-Reorg evidence requires an observed bounded regtest reorg, invalidation of the
-orphaned observation, canonical reconfirmation, and no double settlement.
+Restart and reorg objects are likewise structural claims. Their `evidence_sha256` values are syntax/content references only; this preview does not consume or verify the referenced evidence bytes.
 
 ## Cross-rail binding
 
-Each case content-addresses one cross-rail binding tying together:
+Each case content-addresses one structural cross-rail binding tying together:
 
 - atomic settlement contract ID;
 - hashlock/preimage domain;
@@ -118,10 +120,9 @@ Each case content-addresses one cross-rail binding tying together:
 - isolated Chain-2050 observation ID; and
 - reviewed trade-funded fee quote ID.
 
-The binding explicitly records that the source-only atomic evaluation is not
-execution evidence. The independent rail observations are required in addition.
+The binding explicitly records that the source-only atomic evaluation is not execution evidence. `same_preimage_domain=true` and the hashlock are claim fields here; this preview does not rederive them from executed rail artifacts.
 
-## Deliberate first-slice boundary
+## Deliberate preview boundary
 
 This source slice does **not**:
 
@@ -129,43 +130,72 @@ This source slice does **not**:
 - invoke Chain-2050 RPC;
 - construct, sign, submit, or broadcast a transaction;
 - access wallets, signers, private keys, or credentials;
+- replay or verify raw Bitcoin RPC transcript bytes;
+- replay or verify Chain-2050 receipt/state evidence bytes;
+- verify restart/reorg/rejection evidence bytes;
+- rederive cross-rail preimage/hashlock execution;
+- rederive executed fee-envelope accounting;
+- prove native-unit execution conservation;
 - reserve production BTC/VOID inventory;
 - contact Bitcoin mainnet;
 - contact production Chain-2050;
 - seed liquidity or treasury funds; or
 - activate the BTC/VOID market or presale.
 
-A later #2330 harness/action must execute the actual test cases and feed its
-readback receipts into this verifier.
+A later #2330 harness/action must execute the actual test cases and produce
+reviewed observer receipts/evidence bytes. A later authority-bearing admission
+step must independently rederive those receipts before any
+`...EXECUTION_EVIDENCE_ADMITTED...` marker/status is allowed.
 
-The verifier therefore reports evidence admission, not execution performed by
-the verifier itself.
+The current API intentionally produces a structural preview only, even when every
+claim object is internally consistent and content-addressed.
 
 ## CLI
 
-The verifier reads one bounded JSON suite from stdin:
+The preview validator reads one bounded JSON suite from stdin:
 
 ```bash
 node tools/void-btc-void-phase1-execution-evidence-v1.mjs --pretty < phase1-suite.json
 ```
 
-A valid result has a content-addressed ID:
+A structurally valid result has only a `preview_id`:
 
 ```text
-voidbtcp1ev1_<sha256>
+voidbtcp1preview1_<sha256>
 ```
+
+It does not emit the former authoritative-looking `evidence_suite_id` field.
+
+The returned preview graph is recursively frozen after validation and before it
+is exposed to callers. The outer preview, cases array, each case, and nested
+observation/binding objects are immutable in-process. This preserves the
+content-addressed claim that `preview_id` identifies the visible returned
+structure: a caller cannot mutate a nested field after mint while retaining the
+same preview ID.
 
 ## Authority
 
-The emitted authority object keeps all of these false:
+The emitted authority object explicitly states:
 
-- Bitcoin regtest execution performed by the verifier;
-- isolated Chain-2050 execution performed by the verifier;
-- Bitcoin mainnet contact;
-- production Chain-2050 contact;
-- wallet/signer/private-key access;
-- transaction construction/signing/broadcast;
-- production inventory reservation;
-- production liquidity/treasury action;
-- market/presale activation; and
-- production funds movement.
+- `structural_preview_only=true`;
+- `source_evidence_structural_validation_only=true`;
+- `execution_evidence_verified=false`;
+- `authoritative_execution_admission=false`.
+
+Coverage additionally keeps these false:
+
+- Bitcoin regtest execution evidence admitted;
+- isolated Chain-2050 execution evidence admitted;
+- raw RPC transcripts replayed;
+- Chain-2050 receipts replayed;
+- restart/reorg evidence bytes verified;
+- cross-rail preimage execution rederived;
+- executed fee-envelope accounting verified;
+- native-unit execution conservation verified; and
+- production authority granted.
+
+The existing production safety boundary also remains false for Bitcoin mainnet
+contact, production Chain-2050 contact, wallet/signer/private-key access,
+transaction construction/signing/broadcast, production inventory reservation,
+liquidity/treasury action, market/presale activation, and production funds
+movement.
