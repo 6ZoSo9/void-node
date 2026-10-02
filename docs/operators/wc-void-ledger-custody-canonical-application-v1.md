@@ -65,6 +65,35 @@ This reviewed Node boundary does **not** claim cross-version network isolation:
 `execution_network_isolation_provided=false`. The reviewed authority closure
 contains no network observation step in this source-only lane.
 
+### Cached reviewed-tree custody
+
+The private reviewed execution tree may be reused only for the same exact HEAD
+and tree, but cache reuse is not accepted as an integrity proof by itself.
+
+At materialization the application retains the private parent directory device
+and inode plus exact static bindings for:
+
+- generated bootstrap bytes (SHA-256);
+- reviewed package-runtime tool bytes (SHA-256);
+- reviewed runtime-profile bytes (SHA-256);
+- generated authority-runner bytes (SHA-256); and
+- every reviewed authority module (exact Git-blob SHA-1).
+
+On every cached use those files are reopened with `O_NOFOLLOW`; each must be a
+single-link direct regular file, its descriptor metadata must remain stable
+across the read, and its expected SHA-256 or Git-blob identity must match.
+The retained parent directory device/inode must also still match.
+
+This complete static binding is checked before reviewed package-runtime
+verification and then checked again immediately before the authority child is
+spawned. A same-UID replacement or chmod-and-edit of the cached runner or any
+reviewed module therefore fails closed rather than being trusted because the
+tree was valid when first materialized.
+
+The focused proof permanently mutates both a cached generated runner and a
+cached reviewed module after first materialization and requires the next
+authority call to reject each mutation before reviewed execution.
+
 ## Exact source delta
 
 The prepared production target changes only:
