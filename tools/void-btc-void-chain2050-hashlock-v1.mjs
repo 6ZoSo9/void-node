@@ -144,6 +144,7 @@ export function validateSourceText(sourceText) {
     "swap.state = SwapState.Claimed;",
     "function refund(bytes32 swapId)",
     "swap.state = SwapState.Refunded;",
+    "uint256 expectedBalance = balanceBefore - amountAtoms;",
     "function getSwap(bytes32 swapId)",
   ]) {
     if (!sourceText.includes(required)) {
@@ -525,6 +526,8 @@ function review(values) {
       fixed_single_contract_runtime: true,
       per_swap_deployment_required: false,
       funding_caller_is_refund_authority: true,
+      exact_funding_balance_delta_required: true,
+      exact_terminal_balance_delta_required: true,
       exact_32_byte_sha256_preimage_required: true,
       claim_strictly_before_refund_deadline: true,
       refund_at_or_after_deadline: true,
