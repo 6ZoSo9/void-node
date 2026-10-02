@@ -435,7 +435,7 @@ assert.equal(
   "helper definition plus initial/final re-attestation and final fresh-install rebind required",
 );
 assert.ok(
-  runner.includes("fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW"),
+  runner.includes("fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0)"),
   "descriptor-bound nofollow installed-file read required",
 );
 assert.ok(
