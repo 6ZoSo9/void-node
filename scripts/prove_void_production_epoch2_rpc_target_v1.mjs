@@ -402,7 +402,7 @@ for (const marker of [
   "assertPrivateSelectionTreeV1",
   "--permission",
   "--allow-child-process",
-  "production_epoch2_selection_private_git_blob_mismatch",
+  "production_epoch2_selection_private_git_object_mismatch",
   "production_epoch2_selection_private_source_generation_drift",
 ]) {
   assert.equal(targetSource.includes(marker), true, marker);
