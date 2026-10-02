@@ -71,6 +71,13 @@ const VOID_WC_VOID_FINAL_COUPLED_ACTIVATION_PREVIEW_AUTHORITY_V1 =
     canonical_candidate_read: false,
     git_application_lineage_read: false,
     create_only_private_output: false,
+    git_config_isolated: false,
+    git_loader_environment_isolated: false,
+    canonical_remote_tls_verification_required: false,
+    private_input_descriptor_bound: false,
+    private_input_parent_identity_bound: false,
+    private_output_parent_fd_bound: false,
+    private_output_exact_directory_fsync: false,
   });
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
