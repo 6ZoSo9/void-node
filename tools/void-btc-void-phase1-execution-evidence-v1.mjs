@@ -68,6 +68,10 @@ const REVIEWED_ATOMIC_DEPENDENCIES = Object.freeze({
     "63d347948f3dd0bded2f2f79fadafec8f0cf7838",
   "tools/void-btc-void-bounded-stdin-v1.mjs":
     "2026b9be59216b0c52cf4d978b7fc91b7f7592e1",
+  "tools/void-shared-market-post-discovery-state-v2.mjs":
+    "bcfff9c2981e713a7053ff51a39145eb06b7238b",
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json":
+    "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
 });
 
 const REQUIRED_CASES = Object.freeze([
@@ -720,6 +724,17 @@ export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
   if (atomicSourceHeads.length !== 1) {
     fail("phase1_suite_mixed_atomic_source_generations");
   }
+  const atomicSourceTrees = [
+    ...new Set(
+      cases.map(
+        (entry) =>
+          entry.atomic_evaluation.execution_source_binding.source_tree_sha,
+      ),
+    ),
+  ].sort();
+  if (atomicSourceTrees.length !== 1) {
+    fail("phase1_suite_mixed_atomic_source_trees");
+  }
 
   const material = Object.freeze({
     schema: OUTPUT_SCHEMA,
@@ -733,6 +748,7 @@ export function admitBtcVoidPhase1ExecutionEvidenceV1(input) {
     chain2050_epoch2_genesis_state_root:
       CHAIN2050_EPOCH2_GENESIS_STATE_ROOT,
     atomic_source_head_shas: Object.freeze(atomicSourceHeads),
+    atomic_source_tree_shas: Object.freeze(atomicSourceTrees),
     cases: Object.freeze(cases),
     coverage: Object.freeze({
       btc_to_void_success: true,
