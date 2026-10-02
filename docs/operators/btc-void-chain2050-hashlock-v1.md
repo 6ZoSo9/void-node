@@ -193,6 +193,10 @@ canonical token address and proves:
 - beneficiary-only claim;
 - exact 32-byte preimage requirement;
 - wrong-preimage rejection;
+- two simultaneously live swaps retain independent state/roles/amount/deadline
+  and exact aggregate escrow through claim/refund transitions;
+- exact decoded `Claimed` event evidence, including emitter, swap ID,
+  beneficiary, hashlock, revealed 32-byte preimage, amount, and claim timestamp;
 - strict claim-before-deadline boundary;
 - refund-at-deadline boundary;
 - refund-authority enforcement;
