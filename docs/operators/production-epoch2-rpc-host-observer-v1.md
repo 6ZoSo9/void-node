@@ -26,15 +26,26 @@ not accepted.
 ## Required activation lineage
 
 The observer consumes exact external bytes plus independently supplied SHA-256
-values for:
+values for the same activation lineage used by the reviewed activation runner:
 
-1. the reviewed private-QBFT activation plan;
-2. the activation receipt produced by the reviewed activation controller.
+1. private QBFT runtime plan;
+2. bundle-set receipt;
+3. Precision install receipt;
+4. Nimo install receipt;
+5. Xiphos install receipt;
+6. start-admission receipt;
+7. compiled activation plan;
+8. activation receipt produced by the reviewed activation controller.
 
-The activation plan is validated by the existing activation contract. The
-activation receipt is not trusted by ID alone: the observer rebuilds the exact
-receipt from the plan plus its recorded activation observations and requires
-semantic equality with the supplied receipt.
+The observer re-executes
+`compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(...)` from the
+first six artifacts using the compiled timestamp recorded in the supplied
+activation plan, then requires exact semantic equality with that plan. A
+caller-created self-consistent activation-plan ID is therefore insufficient.
+
+The activation receipt is likewise not trusted by ID alone: the observer
+rebuilds the exact receipt from the rederived plan plus its recorded activation
+observations and requires semantic equality with the supplied receipt.
 
 Every install-receipt repository generation plus the start-admission observed
 repository generation must be an ancestor of the current canonical main used
@@ -102,6 +113,18 @@ activation plan/receipt files are available:
 
 ```bash
 node tools/void-production-epoch2-rpc-host-observer-v1.mjs \
+  --private-runtime-plan /absolute/private-runtime-plan.json \
+  --private-runtime-plan-sha256 <64hex> \
+  --bundle-set /absolute/bundle-set-receipt.json \
+  --bundle-set-sha256 <64hex> \
+  --install-precision /absolute/install-precision.json \
+  --install-precision-sha256 <64hex> \
+  --install-nimo /absolute/install-nimo.json \
+  --install-nimo-sha256 <64hex> \
+  --install-xiphos /absolute/install-xiphos.json \
+  --install-xiphos-sha256 <64hex> \
+  --start-admission /absolute/start-admission.json \
+  --start-admission-sha256 <64hex> \
   --activation-plan /absolute/activation-plan.json \
   --activation-plan-sha256 <64hex> \
   --activation-receipt /absolute/activation-receipt.json \
@@ -116,6 +139,8 @@ loopback-only read RPC calls. It performs no service action.
 
 ```text
 observer_read_only=true
+activation_plan_upstream_reexecution_required=true
+exact_upstream_activation_artifacts_required=true
 activation_source_ancestry_required=true
 private_output_parent_fd_bound=true
 private_output_exact_directory_fsync=true
