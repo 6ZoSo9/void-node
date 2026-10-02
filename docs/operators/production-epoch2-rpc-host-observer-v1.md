@@ -90,6 +90,25 @@ net_peerCount
 qbft_getValidatorsByBlockNumber
 ```
 
+## Source-authority boundary
+
+The exported pure builder is intentionally non-authoritative. Caller-supplied
+synthetic source/service/container/RPC facts can produce only:
+
+```text
+marker=VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_V1
+status=PRODUCTION_EPOCH2_RPC_HOST_OBSERVATION_PREVIEW_NOT_SOURCE_VERIFIED
+independent_host_acceptance=false
+```
+
+Only the direct live CLI holds the module-private verified-source capability.
+After canonical-main binding, reviewed semantic reexecution, systemd observation,
+rootless-Docker observation, listener/RPC reads, and generation-stability
+rechecks, that path may mint the authoritative
+`VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1` object. Persistence additionally
+requires the exact in-process object to be present in the module-private verified
+observation WeakSet.
+
 ## Output
 
 The observer writes one create-only mode-0600 JSON receipt outside the
