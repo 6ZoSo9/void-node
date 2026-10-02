@@ -13,7 +13,9 @@ The browser reads `/__void/buy-void/config.json`,
 `/__void/buy-void/status.json`, and `/__void/buy-void/sale-state.json`.
 The request form remains disabled unless request intake, payment readiness,
 receiver binding, request-intake readiness, and remaining verified inventory
-are all green.
+are all green. A readiness refresh immediately enters an explicit pending state,
+invalidates the previously accepted snapshot, and keeps Submit disabled until a
+newly fetched snapshot passes the complete OPEN contract.
 
 The participant-visible policy price remains mechanically bound to the
 canonical `VOID_BUY_PRICE_USDC_PER_VOID` default in `src/index.ts`.
@@ -33,7 +35,14 @@ unless the response has the reviewed checkout-result schema, the returned VOID
 destination matches the submitted self-custody destination, the returned USDC
 amount matches the submitted amount exactly at six-decimal Base-USDC precision,
 the approved receiver remains canonical, and the returned safety object still
-states manual review with automatic fulfillment disabled. All checkout JSON
+states manual review with automatic fulfillment disabled.
+
+The live snapshot is type-closed rather than coercion-based. Canonical price/rate
+policy values must remain the reviewed decimal strings (`0.50` and `2`);
+request limits must be finite numeric JSON values representable exactly at six
+USDC decimals; sale accounting must be finite numeric JSON values in the
+reviewed non-negative domains. Booleans, arrays, null, padded/blank strings,
+exponent strings, and other coercible values cannot open the form. All checkout JSON
 responses are additionally capped at 131,072 bytes and decoded as strict UTF-8
 before parsing; oversized, malformed, or non-JSON responses fail closed.
 
