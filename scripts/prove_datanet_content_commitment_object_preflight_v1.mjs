@@ -470,7 +470,7 @@ function input(transport,override={}){
     assert.equal(call.params[1],"0x6f");
     const envelope=call.params[0];
     assert.equal(envelope.from,PUBLISHER);
-    assert.equal(envelope.to,REGISTRY);
+    assert.equal(envelope.to,CONTRACT);
     assert.equal(envelope.value,"0x0");
     assert.deepEqual(
       envelope.accessList,
