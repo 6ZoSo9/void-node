@@ -20,7 +20,11 @@
     "qbft_extra_data_path": "ops/mainnet0/economic-epoch2-qbft-production-extra-data-v1.json",
     "qbft_extra_data_file_sha256": "c4a98142cc09ddc2c2a2036ffe5a59a1f7e06ff4b213a2d09f39d20bb698adee",
     "qbft_extra_data_payload_sha256": "3449e754ec65555e90ea70cdf830f4a8a18946ee5b6221fcf5ad1a748a98c181",
-    "validator_count": 3
+    "validator_count": 3,
+    "production_validator_binding_evidence_path": "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+    "production_validator_binding_evidence_sha256": "5006aa32a298c0fbcea6395e75201af66fedacde5b664ac953699dfb2f0c061b",
+    "production_validator_binding_evidence_id": "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973",
+    "production_validator_binding_promotion_path": "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json"
   },
   "selection": {
     "production_rpc_target_selected": false,
