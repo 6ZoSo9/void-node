@@ -19,9 +19,13 @@ Each host observer requires:
 - exact current tailnet IPv4 and enode from the private plan;
 - exact installed genesis, static-peer file, and systemd unit hashes;
 - empty Besu data directory;
-- inactive and non-enabled validator service; `static` is accepted because
-  the generated unit intentionally has no `[Install]` section;
-- no `*.wants` or `*.requires` autostart link;
+- inactive validator service;
+- exact observed unit-file state in `disabled`, `not-found`, or `static`,
+  stable across the observation window;
+- no direct `*.wants` or `*.requires` enablement link;
+- symlinked `.wants` / `.requires` directories fail closed;
+- `indirect_activation_absence_proven=false` (this gate does not claim that
+  every possible dependency/activation path is absent);
 - exact plugin hash;
 - pinned Besu image still present;
 - rootless Docker still bound to the operator user socket;
@@ -65,7 +69,10 @@ A green aggregate requires:
 - every receipt fresh at the same evaluation instant;
 - no more than 120 seconds between the earliest and latest host observations;
 - all three validator private identities locally revalidated;
-- all three services inactive and disabled;
+- all three services inactive;
+- all three exact unit-file states observed and carried into start admission;
+- all direct enablement links absent;
+- no claim that indirect activation absence is proven;
 - all candidate listener ports still vacant.
 
 The aggregate result is:
