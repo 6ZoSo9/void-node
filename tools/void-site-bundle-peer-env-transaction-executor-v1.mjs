@@ -155,7 +155,7 @@ function managerCleared(value){
 function observationShape(value,participant){
   if(
     !plain(value)||
-    value.host!==undefined&&typeof value.host!=="string"||
+    typeof value.host!=="string"||
     typeof value.repository_head_sha!=="string"||
     !plain(value.dropin)||
     typeof value.dropin.exists!=="boolean"||
@@ -206,6 +206,7 @@ function targetStateObserved(transaction,participant,observation){
   const prestate=transaction.prestate[participant];
   const expectedRestart=restartExpected(transaction,participant);
   if(
+    observation.host!==transaction.prestate[participant].host||
     observation.repository_head_sha!==transaction.source.repository_head_sha||
     observation.dropin.exists!==true||
     observation.dropin.sha256!==targetSha(transaction,participant)||
@@ -236,6 +237,7 @@ function restoredStateObserved(
   observationShape(observation,participant);
   const prestate=transaction.prestate[participant];
   if(
+    observation.host!==prestate.host||
     observation.repository_head_sha!==transaction.source.repository_head_sha||
     !sameDropin(observation.dropin,prestate.dropin)||
     !same(observation.manager_environment,prestate.manager_environment)||
@@ -578,22 +580,23 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
 
     if(action==="VERIFY_LOCAL"||action==="VERIFY_REMOTE"){
       const participant=participantFromAction(action,"VERIFY");
-      let observation;
+      let receipt;
       try{
-        observation=observationShape(
+        const observation=observationShape(
           await io.observe(participant,current),
           participant,
         );
-        const receipt=verifyReceipt(current,participant,observation);
-        current=recordVoidCrossboxMutationVerifiedV1(current,receipt);
-        await persistTransition(persist,current);
-        await persistParticipant(io,participant,"verified",receipt,current);
+        receipt=verifyReceipt(current,participant,observation);
       }catch(error){
         const reason=("verification failed for "+participant+": "+
           (error instanceof Error?error.message:String(error))).slice(0,256);
         current=beginVoidCrossboxMutationRollbackV1(current,reason);
         await persistTransition(persist,current);
+        continue;
       }
+      current=recordVoidCrossboxMutationVerifiedV1(current,receipt);
+      await persistTransition(persist,current);
+      await persistParticipant(io,participant,"verified",receipt,current);
       continue;
     }
 
