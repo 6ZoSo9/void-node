@@ -115,7 +115,7 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       installed_data_directory_empty:true,
       service_inactive:true,
       unit_file_state:unitFileState,
-      direct_enablement_links_absent:true,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
       indirect_activation_absence_proven:false,
       plugin_sha256_exact:true,
       besu_image_identity_exact:true,
@@ -204,7 +204,7 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       validator_address:receipt.validator_address,
       besu_public_key:receipt.besu_public_key,
       unit_file_state:unitFileState,
-      direct_enablement_links_absent:true,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
       indirect_activation_absence_proven:false,
     });
   }
@@ -238,7 +238,7 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       nodekey_bytes_persisted:false,
       all_services_inactive:true,
       all_unit_file_states_observed:true,
-      all_direct_enablement_links_absent:true,
+      all_operator_user_unit_dir_direct_enablement_links_absent:true,
       indirect_activation_absence_proven:false,
       all_candidate_ports_vacant:true,
       service_start:false,
