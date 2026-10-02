@@ -275,6 +275,54 @@ for(const [index,role] of roles.entries()) {
 }
 
 {
+  const reattestedInstall=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+    plan,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSet,
+    role:"precision",
+    materialization:materializations.precision,
+    receipt_basis:"existing_runtime_read_only_reattestation",
+    observed_at_utc:"2030-01-01T00:02:30.000Z",
+    observed_repo_head:INSTALL_HEAD,
+    unit_file_state:"static",
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+  });
+  assert.equal(reattestedInstall.authority.runtime_root_write,false);
+  assert.equal(reattestedInstall.authority.service_unit_installation,false);
+
+  const reattestedPrestart=
+    buildVoidEconomicEpoch2QbftHostPrestartReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"precision",
+      materialization:materializations.precision,
+      install_receipt:reattestedInstall,
+      observed_repo_head:INSTALL_HEAD,
+      observed_at_utc:"2030-01-01T00:03:30.000Z",
+      valid_until_utc:"2030-01-01T00:08:30.000Z",
+      facts:prestartReceipts.precision.facts,
+    });
+  assert.equal(
+    validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(reattestedPrestart),
+    reattestedPrestart,
+  );
+  assert.equal(
+    reattestedPrestart.install_receipt_basis,
+    "existing_runtime_read_only_reattestation",
+  );
+  assert.equal(
+    reattestedPrestart.install_receipt_observed_at_utc,
+    "2030-01-01T00:02:30.000Z",
+  );
+  assert.equal(
+    reattestedPrestart.install_receipt_observed_repo_head,
+    INSTALL_HEAD,
+  );
+  assert.equal(reattestedPrestart.start_authorized,false);
+}
+
+{
   const badFacts={
     ...prestartReceipts.precision.facts,
     unit_file_state:"disabled",

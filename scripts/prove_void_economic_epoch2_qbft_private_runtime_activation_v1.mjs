@@ -384,6 +384,92 @@ for(const row of activationPlan.install_receipts) {
   assert.equal(row.operator_user_unit_dir_direct_enablement_links_absent,true);
   assert.equal(row.indirect_activation_absence_proven,false);
 }
+{
+  const reattestedInstallReceipts={
+    ...installReceipts,
+    nimo:buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"nimo",
+      materialization:bundles.nimo.materialization,
+      receipt_basis:"existing_runtime_read_only_reattestation",
+      observed_at_utc:"2030-01-01T00:02:30.000Z",
+      observed_repo_head:"e".repeat(40),
+      unit_file_state:"static",
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+    }),
+  };
+  assert.equal(
+    reattestedInstallReceipts.nimo.authority.runtime_root_write,
+    false,
+  );
+  assert.equal(
+    reattestedInstallReceipts.nimo.authority.service_unit_installation,
+    false,
+  );
+
+  const reattestedPrestartReceipts={
+    ...prestartReceipts,
+    nimo:buildVoidEconomicEpoch2QbftHostPrestartReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"nimo",
+      materialization:bundles.nimo.materialization,
+      install_receipt:reattestedInstallReceipts.nimo,
+      observed_repo_head:prestartReceipts.nimo.observed_repo_head,
+      observed_at_utc:prestartReceipts.nimo.observed_at_utc,
+      valid_until_utc:prestartReceipts.nimo.valid_until_utc,
+      facts:prestartReceipts.nimo.facts,
+    }),
+  };
+  assert.equal(
+    reattestedPrestartReceipts.nimo.install_receipt_basis,
+    "existing_runtime_read_only_reattestation",
+  );
+
+  const reattestedStartAdmission=
+    buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      evaluated_at_utc:"2030-01-01T00:04:00.000Z",
+      receipts:reattestedPrestartReceipts,
+    });
+
+  const reattestedActivationPlan=
+    compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      install_receipts:reattestedInstallReceipts,
+      start_admission_receipt:reattestedStartAdmission,
+      compiled_at_utc:ACTIVATION_COMPILED_AT,
+    });
+  assert.equal(
+    validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
+      reattestedActivationPlan,
+    ),
+    reattestedActivationPlan,
+  );
+  const nimoRow=reattestedActivationPlan.install_receipts.find(
+    (row)=>row.role==="nimo",
+  );
+  assert.equal(
+    nimoRow.receipt_basis,
+    "existing_runtime_read_only_reattestation",
+  );
+  assert.equal(
+    nimoRow.install_receipt_observed_at_utc,
+    "2030-01-01T00:02:30.000Z",
+  );
+  assert.equal(
+    nimoRow.install_receipt_observed_repo_head,
+    "e".repeat(40),
+  );
+}
+
 assert.equal(
   activationPlan.activation.rollback_stop_all_started_on_any_failure,
   true,
