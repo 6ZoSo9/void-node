@@ -69916,7 +69916,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned Base or Ethereum USDC purchase rail, self-custody wallet requirements, and the participant wallet that would receive VOID.">?</span></h2>
+              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the current Base native USDC checkout rail, the separately approved-but-not-active Ethereum native USDC policy rail, self-custody requirements, and the participant wallet that would receive VOID.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -69947,14 +69947,14 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects Mainnet-0 funding safety rules: Base or Ethereum native USDC only, participant-page initiation only, and no exchange or custodial sends.">?</span></h2>
+              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects Mainnet-0 funding safety rules: current checkout is Base native USDC; Ethereum native USDC is policy-approved but not active until explicitly marked OPEN; participant-page initiation only; no exchange or custodial sends.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip" style="margin-top:6px">
             <div class="mini">
               <div class="k">Asset</div>
               <div class="v">USDC</div>
-              <div class="s">Base or Ethereum native USDC only</div>
+              <div class="s">Base native USDC now · Ethereum rail pending activation</div>
             </div>
             <div class="mini">
               <div class="k">Flow</div>
@@ -69978,7 +69978,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel buy-handoff-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the Base or Ethereum native USDC Buy VOID flow. This does not claim payment or send VOID; it records delivery wallet truth and policy checks.">?</span></h2>
+            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the current Base native USDC checkout and the separately approved Ethereum policy rail. Ethereum is not active until explicitly marked OPEN. This does not claim payment or send VOID.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
@@ -70019,8 +70019,8 @@ a{color:#93c5fd;text-decoration:none}
         <div class="action-rail" style="margin-top:10px">
           <button class="btn btn-primary" id="buyDraftCreateBtn" type="button"><!-- VOID_BUY_CREATE_GUIDED_REQUEST_BUTTON_V1 -->Create Guided Buy Request</button>
         </div>
-        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base or Ethereum USDC.</div>
-        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base or Ethereum native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
+        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base native USDC. Do not send Ethereum USDC until the Ethereum rail is explicitly marked OPEN.</div>
+        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Current checkout: Base native USDC only • Ethereum native USDC is policy-approved but NOT ACTIVE yet • do not send Ethereum USDC until explicitly marked OPEN • create a Buy VOID request first • use a self-custody wallet • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
         <div class="hero-note" id="buyFulfillmentTxRefWarning" style="margin-top:10px"><!-- VOID_BUY_EXPLICIT_TXREF_FULFILLMENT_V1 --><b>No automatic VOID delivery:</b> a Buy VOID request, payment reference, or payment confirmation is not fulfillment. VOID is delivered only after operator verification records an explicit VOID tx ref.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
@@ -72494,7 +72494,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const buyWalletState = executionWalletAddr
       ? (executionWalletUnlocked ? "Ready" : "Stored")
       : "Missing";
-    setText("buyRailStatus", "Base/Ethereum USDC");
+    setText("buyRailStatus", "Base USDC · Ethereum pending");
     setText("buyWalletAddr", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyWalletState", buyWalletState);
     setText("buyWalletVoid", executionWalletVoidText);
@@ -72507,8 +72507,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "buyPathNote",
       executionWalletAddr
-        ? ("Base or Ethereum native USDC only • start from this participant page • use your own self-custody wallet only • do not send from Coinbase, Binance, Robinhood, or any exchange/custodial account • blind direct deposits are not supported.")
-        : "Base or Ethereum native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
+        ? ("Current checkout: Base native USDC only • Ethereum native USDC is policy-approved but NOT ACTIVE until explicitly marked OPEN • use your own self-custody wallet only • do not send from Coinbase, Binance, Robinhood, or any exchange/custodial account • blind direct deposits are not supported.")
+        : "Current checkout: Base native USDC only • Ethereum native USDC is policy-approved but NOT ACTIVE until explicitly marked OPEN • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
     );
 
     const buyHandoffReady = !!executionWalletAddr;
@@ -72517,22 +72517,24 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       delivery_wallet: executionWalletAddr || null,
       execution_wallet_unlocked: !!executionWalletUnlocked,
       current_void_balance: executionWalletVoidText,
-      accepted_asset: "base_or_ethereum_native_usdc",
-      accepted_assets: ["base_native_usdc", "ethereum_native_usdc"],
-      accepted_chains: ["base", "ethereum"],
+      accepted_asset: "base_native_usdc_current_checkout",
+      accepted_assets_policy: ["base_native_usdc", "ethereum_native_usdc"],
+      accepted_chains_policy: ["base", "ethereum"],
+      current_checkout_chain: "base",
+      ethereum_mainnet_usdc_status: "policy_approved_activation_pending",
       initiation: "participant_page_only",
       blind_direct_deposits: "blocked",
       exchange_or_custodial_wallet_sends: "blocked",
       status: buyHandoffReady ? "ready_for_buy_void_fulfillment_lane" : "missing_execution_wallet"
     };
 
-    setText("buyPlanRail", "Base/Ethereum USDC");
+    setText("buyPlanRail", "Base now · Ethereum pending");
     setText("buyPlanDelivery", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyPlanState", buyHandoffReady ? "Ready" : "Missing");
     setText(
       "buyPlanSummary",
       buyHandoffReady
-        ? ("Buy VOID participant preflight is ready. After an operator verifies the real Base or Ethereum USDC transaction hash, VOID delivery should target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
+        ? ("Buy VOID participant preflight is ready for the current Base native USDC checkout. Ethereum native USDC remains policy-approved but not active until explicitly marked OPEN. After verified payment, VOID delivery should target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
         : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
     );
     setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));
