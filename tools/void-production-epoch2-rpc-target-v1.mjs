@@ -17,6 +17,37 @@ const ROOT = path.resolve(
 );
 const TARGET_REL =
   "ops/mainnet0/production-epoch2-rpc-target-v1.json";
+const PROMOTION_REL =
+  "ops/mainnet0/production-epoch2-rpc-target-promotion-v1.json";
+const SELECTION_EVIDENCE_DIR =
+  "ops/mainnet0/evidence/production-epoch2-rpc-selection-v1";
+const SELECTION_EVIDENCE = Object.freeze({
+  activation_plan: Object.freeze({
+    path: SELECTION_EVIDENCE_DIR + "/activation-plan.json",
+    sha256:
+      "86128119c45197b04dd127986349c42c971a4287739864f44a50c0e6dc386a7f",
+  }),
+  activation_receipt: Object.freeze({
+    path: SELECTION_EVIDENCE_DIR + "/activation-receipt.json",
+    sha256:
+      "1a9837b42bf20439d939f54ca8bd9c3a81d91d7a8cf83ddd54f58929fc2f5e13",
+  }),
+  runtime_observation: Object.freeze({
+    path: SELECTION_EVIDENCE_DIR + "/runtime-observation.json",
+    sha256:
+      "cd1630a9742b49f55e6bfed2b4c0344e4b7a994307f8945f1e5404d2eb681d32",
+  }),
+  selected_candidate: Object.freeze({
+    path: SELECTION_EVIDENCE_DIR + "/selected-candidate.json",
+    sha256:
+      "305ed03eebe49b992db76c21ffd8930e9b6d07ed4a97984cf0e48f33a9df63dd",
+  }),
+  promotion_apply_admission: Object.freeze({
+    path: SELECTION_EVIDENCE_DIR + "/promotion-apply-admission.json",
+    sha256:
+      "ad5aa3b0a99e967207ff63c3040d3b9786e3f1345769298c25a19eed20477ac5",
+  }),
+});
 const PUBLIC_READ_CONTRACT_REL =
   "ops/mainnet0/economic-epoch2-public-read-runtime-contract-v1.json";
 const ACTIVATION_CONTRACT_REL =
@@ -99,6 +130,21 @@ const CONSUMERS = Object.freeze([
   "wc_void_market_vault_live_deployment_observation",
   "future_buy_void_and_economic_submission",
 ]);
+
+const PROMOTION_MARKER =
+  "VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_V1";
+const PROMOTION_STATUS =
+  "PRODUCTION_EPOCH2_RPC_TARGET_SOURCE_PROMOTION_ACCEPTED";
+const EXPECTED_SELECTED_TARGET_SHA256 =
+  "305ed03eebe49b992db76c21ffd8930e9b6d07ed4a97984cf0e48f33a9df63dd";
+const EXPECTED_PROMOTION_ADMISSION_ID =
+  "voidpe2rpctapply1_f76ce9f3d147a6097910947e3a8735664ff81bea07d1940ebdb663102589b040";
+const EXPECTED_PROMOTION_ADMISSION_SHA256 =
+  "ad5aa3b0a99e967207ff63c3040d3b9786e3f1345769298c25a19eed20477ac5";
+const EXPECTED_PROMOTION_ADMITTED_MAIN_HEAD =
+  "ac352fe966c8737a8e143475d28f85f80c0a096f";
+const PROMOTION_ID = /^voidpe2rpctprom1_[0-9a-f]{64}$/u;
+const SHA40 = /^[0-9a-f]{40}$/u;
 
 const TOP_KEYS = Object.freeze([
   "marker",
@@ -508,21 +554,248 @@ export function validateProductionEpoch2RpcTargetV1(value) {
   });
 }
 
+function verifySelectedEvidencePacketV1(value, targetBytes) {
+  const loaded = {};
+  for (const [name, spec] of Object.entries(SELECTION_EVIDENCE)) {
+    const bytes = fs.readFileSync(path.join(ROOT, spec.path));
+    if (sha256(bytes) !== spec.sha256) {
+      fail("production_epoch2_selection_evidence_sha256_mismatch:" + name);
+    }
+    loaded[name] = Object.freeze({
+      bytes,
+      value: JSON.parse(bytes.toString("utf8")),
+    });
+  }
+
+  if (!loaded.selected_candidate.bytes.equals(targetBytes)) {
+    fail("production_epoch2_selection_candidate_target_bytes_mismatch");
+  }
+
+  const plan = loaded.activation_plan.value;
+  const receipt = loaded.activation_receipt.value;
+  const observation = loaded.runtime_observation.value;
+  const admission = loaded.promotion_apply_admission.value;
+
+  if (
+    plan.activation_plan_id !== value.selection.activation_plan_id ||
+    receipt.activation_plan_id !== value.selection.activation_plan_id ||
+    receipt.activation_receipt_id !== value.selection.activation_receipt_id ||
+    observation.observation_id !== value.selection.runtime_observation_id ||
+    observation.activation_lineage?.activation_plan_id !==
+      value.selection.activation_plan_id ||
+    observation.activation_lineage?.activation_plan_file_sha256 !==
+      SELECTION_EVIDENCE.activation_plan.sha256 ||
+    observation.activation_lineage?.activation_receipt_id !==
+      value.selection.activation_receipt_id ||
+    observation.activation_lineage?.activation_receipt_file_sha256 !==
+      SELECTION_EVIDENCE.activation_receipt.sha256 ||
+    admission.marker !==
+      "VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_APPLY_ADMISSION_V1" ||
+    admission.promotion_admission_id !== EXPECTED_PROMOTION_ADMISSION_ID ||
+    admission.candidate_sha256 !== EXPECTED_SELECTED_TARGET_SHA256 ||
+    admission.current_source?.head !== EXPECTED_PROMOTION_ADMITTED_MAIN_HEAD ||
+    admission.current_source?.remote_main_sha !==
+      EXPECTED_PROMOTION_ADMITTED_MAIN_HEAD ||
+    admission.current_source?.canonical_main_live_match !== true ||
+    admission.source_lineage_ancestor_current_main !== true ||
+    admission.evidence?.activation_plan_id !==
+      value.selection.activation_plan_id ||
+    admission.evidence?.activation_plan_file_sha256 !==
+      SELECTION_EVIDENCE.activation_plan.sha256 ||
+    admission.evidence?.activation_receipt_id !==
+      value.selection.activation_receipt_id ||
+    admission.evidence?.activation_receipt_file_sha256 !==
+      SELECTION_EVIDENCE.activation_receipt.sha256 ||
+    admission.evidence?.runtime_observation_id !==
+      value.selection.runtime_observation_id ||
+    admission.evidence?.runtime_observation_file_sha256 !==
+      SELECTION_EVIDENCE.runtime_observation.sha256 ||
+    admission.canonical_target_write !== false ||
+    admission.authority?.repository_write !== false ||
+    admission.authority?.transaction_broadcast !== false ||
+    admission.authority?.migration_authorized !== false ||
+    admission.authority?.funds_movement !== false
+  ) {
+    fail("production_epoch2_selection_evidence_semantics_mismatch");
+  }
+
+  return Object.freeze({
+    activation_plan_sha256: SELECTION_EVIDENCE.activation_plan.sha256,
+    activation_receipt_sha256: SELECTION_EVIDENCE.activation_receipt.sha256,
+    runtime_observation_sha256: SELECTION_EVIDENCE.runtime_observation.sha256,
+    selected_candidate_sha256: SELECTION_EVIDENCE.selected_candidate.sha256,
+    promotion_apply_admission_sha256:
+      SELECTION_EVIDENCE.promotion_apply_admission.sha256,
+    checked_in_evidence_verified: true,
+  });
+}
+
+function verifySelectedPromotionV1(value, targetBytes) {
+  const evidencePacket = verifySelectedEvidencePacketV1(value, targetBytes);
+  const promotionBytes = fs.readFileSync(path.join(ROOT, PROMOTION_REL));
+  const promotion = JSON.parse(promotionBytes.toString("utf8"));
+  exactKeys(
+    promotion,
+    [
+      "marker",
+      "version",
+      "status",
+      "chain_id",
+      "execution_epoch",
+      "selected_rpc_url",
+      "selected_service_unit",
+      "candidate",
+      "admission",
+      "downstream_rebind_required",
+      "authority",
+      "next_gate",
+      "promotion_id",
+    ],
+    "production_epoch2_rpc_promotion",
+  );
+  exactKeys(
+    promotion.candidate,
+    [
+      "path",
+      "file_sha256",
+      "status",
+      "activation_plan_id",
+      "activation_receipt_id",
+      "activation_receipt_sha256",
+      "runtime_observation_id",
+      "runtime_observation_sha256",
+    ],
+    "production_epoch2_rpc_promotion_candidate",
+  );
+  exactKeys(
+    promotion.admission,
+    [
+      "marker",
+      "promotion_admission_id",
+      "receipt_sha256",
+      "admitted_main_head",
+      "source_lineage_ancestor_current_main",
+      "canonical_target_write",
+      "repository_write",
+      "transaction_broadcast",
+      "migration_authorized",
+      "funds_movement",
+    ],
+    "production_epoch2_rpc_promotion_admission",
+  );
+  const expectedAuthority = {
+    source_only: true,
+    rpc_call: false,
+    service_action: false,
+    docker_mutation: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    private_key_access: false,
+    transaction_construction: false,
+    transaction_signing: false,
+    transaction_submission: false,
+    transaction_broadcast: false,
+    authoritative_chain2050_write: false,
+    validator_mutation: false,
+    migration_authorized: false,
+    market_activation: false,
+    public_presale_activation: false,
+    funds_movement: false,
+  };
+  exactKeys(
+    promotion.authority,
+    Object.keys(expectedAuthority),
+    "production_epoch2_rpc_promotion_authority",
+  );
+  const material = structuredClone(promotion);
+  const promotionId = String(material.promotion_id || "");
+  delete material.promotion_id;
+
+  if (
+    promotion.marker !== PROMOTION_MARKER ||
+    promotion.version !== 1 ||
+    promotion.status !== PROMOTION_STATUS ||
+    promotion.chain_id !== EXPECTED.chain_id ||
+    promotion.execution_epoch !== EXPECTED.execution_epoch ||
+    promotion.selected_rpc_url !== EXPECTED.prospective_rpc_url ||
+    promotion.selected_service_unit !== EXPECTED.prospective_service_unit ||
+    promotion.candidate?.path !== TARGET_REL ||
+    promotion.candidate?.file_sha256 !== EXPECTED_SELECTED_TARGET_SHA256 ||
+    promotion.candidate?.file_sha256 !== sha256(targetBytes) ||
+    promotion.candidate?.status !== SELECTED_STATUS ||
+    promotion.candidate?.activation_plan_id !==
+      value.selection.activation_plan_id ||
+    promotion.candidate?.activation_receipt_id !==
+      value.selection.activation_receipt_id ||
+    promotion.candidate?.activation_receipt_sha256 !==
+      value.selection.activation_receipt_sha256 ||
+    promotion.candidate?.runtime_observation_id !==
+      value.selection.runtime_observation_id ||
+    promotion.candidate?.runtime_observation_sha256 !==
+      value.selection.runtime_observation_sha256 ||
+    promotion.admission?.marker !==
+      "VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_APPLY_ADMISSION_V1" ||
+    promotion.admission?.promotion_admission_id !==
+      EXPECTED_PROMOTION_ADMISSION_ID ||
+    promotion.admission?.receipt_sha256 !==
+      EXPECTED_PROMOTION_ADMISSION_SHA256 ||
+    promotion.admission?.admitted_main_head !==
+      EXPECTED_PROMOTION_ADMITTED_MAIN_HEAD ||
+    !SHA40.test(String(promotion.admission?.admitted_main_head || "")) ||
+    promotion.admission?.source_lineage_ancestor_current_main !== true ||
+    promotion.admission?.canonical_target_write !== false ||
+    promotion.admission?.repository_write !== false ||
+    promotion.admission?.transaction_broadcast !== false ||
+    promotion.admission?.migration_authorized !== false ||
+    promotion.admission?.funds_movement !== false ||
+    promotion.downstream_rebind_required !== true ||
+    canonicalJson(promotion.authority) !== canonicalJson(expectedAuthority) ||
+    promotion.next_gate !==
+      "downstream_consumers_must_rebind_and_repeat_fresh_read_only_preflights" ||
+    !PROMOTION_ID.test(promotionId) ||
+    promotionId !==
+      "voidpe2rpctprom1_" +
+      sha256(Buffer.from(canonicalJson(material), "utf8"))
+  ) {
+    fail("production_epoch2_selected_promotion_evidence_mismatch");
+  }
+
+  return Object.freeze({
+    promotion_id: promotionId,
+    promotion_file_sha256: sha256(promotionBytes),
+    promotion_admission_id: promotion.admission.promotion_admission_id,
+    promotion_admission_sha256: promotion.admission.receipt_sha256,
+    admitted_main_head: promotion.admission.admitted_main_head,
+    evidence_packet: evidencePacket,
+  });
+}
+
 export function loadProductionEpoch2RpcTargetV1() {
   verifyReviewedSourceFiles();
-  const value = JSON.parse(
-    fs.readFileSync(path.join(ROOT, TARGET_REL), "utf8"),
-  );
+  const targetBytes = fs.readFileSync(path.join(ROOT, TARGET_REL));
+  const value = JSON.parse(targetBytes.toString("utf8"));
   const evaluation = validateProductionEpoch2RpcTargetV1(value);
-  if (evaluation.status !== HOLD_STATUS) {
-    fail("production_epoch2_selected_target_requires_evidence_aware_promotion");
+  if (evaluation.status === HOLD_STATUS) {
+    return Object.freeze({
+      value,
+      evaluation: Object.freeze({
+        ...evaluation,
+        evidence_aware_selection_verified: false,
+      }),
+      promotion: null,
+    });
   }
+  if (evaluation.status !== SELECTED_STATUS) {
+    fail("production_epoch2_rpc_target_status_invalid");
+  }
+  const promotion = verifySelectedPromotionV1(value, targetBytes);
   return Object.freeze({
     value,
     evaluation: Object.freeze({
       ...evaluation,
-      evidence_aware_selection_verified: false,
+      evidence_aware_selection_verified: true,
     }),
+    promotion,
   });
 }
 
@@ -545,7 +818,10 @@ if (
     console.log("rpc_url=" + String(evaluation.rpc_url));
     console.log("historical_epoch1_8545_forbidden=true");
     console.log("isolated_18550_18551_18552_forbidden=true");
-    console.log("evidence_aware_selection_verified=false");
+    console.log(
+      "evidence_aware_selection_verified=" +
+        String(evaluation.evidence_aware_selection_verified),
+    );
     console.log("rpc_call=false");
     console.log("transaction_authorized=false");
     console.log("authoritative_chain2050_write=false");

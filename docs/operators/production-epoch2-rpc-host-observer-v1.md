@@ -163,8 +163,12 @@ write_capability_classification=write_capable_not_authorized
 target_descriptor_promotion_authorized=false
 ```
 
-This receipt is evidence for a later, separately reviewed evidence-aware target
-promotion. It is not itself production-target selection.
+This receipt was the independent evidence input to the separately reviewed
+evidence-aware target promotion. It is not itself production-target selection.
+
+After canonical target selection, the live observer CLI is intentionally a
+pre-selection-only path and may HOLD because the target is no longer in the
+HOLD descriptor state. That is not evidence that the selected runtime failed.
 
 ## Live usage
 

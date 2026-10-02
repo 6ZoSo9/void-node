@@ -5,100 +5,220 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "marker","version","status","chain_id","execution_epoch","purpose",
-    "production_execution_layer","forbidden_as_production_resolution_targets",
-    "selected_deployer","selected_publisher","authority","next_gate"
+    "marker",
+    "version",
+    "status",
+    "chain_id",
+    "execution_epoch",
+    "purpose",
+    "production_execution_layer",
+    "forbidden_as_production_resolution_targets",
+    "selected_deployer",
+    "selected_publisher",
+    "authority",
+    "next_gate"
   ],
   "properties": {
-    "marker": {"const":"VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1"},
-    "version": {"const":1},
-    "status": {"const":"HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED"},
-    "chain_id": {"const":2050},
-    "execution_epoch": {"const":2},
-    "purpose": {"const":"bind_the_only_rpc_target_allowed_for_live_datanet_registry_deployer_resolution"},
+    "marker": {
+      "const": "VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY"
+    },
+    "chain_id": {
+      "const": 2050
+    },
+    "execution_epoch": {
+      "const": 2
+    },
+    "purpose": {
+      "const": "bind_the_only_rpc_target_allowed_for_live_datanet_registry_deployer_resolution"
+    },
     "production_execution_layer": {
-      "type":"object",
-      "additionalProperties":false,
-      "required":[
-        "client","client_version","production_rpc_target_selected","rpc_url",
-        "rpc_url_fingerprint_sha256","runtime_active_verified","exact_genesis_bound",
-        "production_validator_set_bound","migration_authorized","public_activation_authorized"
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client",
+        "client_version",
+        "production_rpc_target_selected",
+        "rpc_url",
+        "rpc_url_fingerprint_sha256",
+        "runtime_active_verified",
+        "exact_genesis_bound",
+        "production_validator_set_bound",
+        "migration_authorized",
+        "public_activation_authorized"
       ],
-      "properties":{
-        "client":{"const":"Besu"},
-        "client_version":{"const":"26.8.1"},
-        "production_rpc_target_selected":{"const":false},
-        "rpc_url":{"type":"null"},
-        "rpc_url_fingerprint_sha256":{"type":"null"},
-        "runtime_active_verified":{"const":false},
-        "exact_genesis_bound":{"const":false},
-        "production_validator_set_bound":{"const":false},
-        "migration_authorized":{"const":false},
-        "public_activation_authorized":{"const":false}
+      "properties": {
+        "client": {
+          "const": "Besu"
+        },
+        "client_version": {
+          "const": "26.8.1"
+        },
+        "production_rpc_target_selected": {
+          "const": true
+        },
+        "rpc_url": {
+          "const": "http://127.0.0.1:18553/"
+        },
+        "rpc_url_fingerprint_sha256": {
+          "const": "795cf5eb7058632084b66d9cb831e1c7f91db76544a24d145512f71b1932f642"
+        },
+        "runtime_active_verified": {
+          "const": true
+        },
+        "exact_genesis_bound": {
+          "const": true
+        },
+        "production_validator_set_bound": {
+          "const": true
+        },
+        "migration_authorized": {
+          "const": false
+        },
+        "public_activation_authorized": {
+          "const": false
+        }
       }
     },
-    "forbidden_as_production_resolution_targets":{
-      "type":"object",
-      "additionalProperties":false,
-      "required":[
-        "legacy_epoch1_archive_rpc","isolated_successor_equivalence_rpc",
-        "isolated_besu_free_gas_rpc","isolated_besu_nonce_continuity_rpc","rationale"
+    "forbidden_as_production_resolution_targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legacy_epoch1_archive_rpc",
+        "isolated_successor_equivalence_rpc",
+        "isolated_besu_free_gas_rpc",
+        "isolated_besu_nonce_continuity_rpc",
+        "rationale"
       ],
-      "properties":{
-        "legacy_epoch1_archive_rpc":{"const":"http://127.0.0.1:8545/"},
-        "isolated_successor_equivalence_rpc":{"const":"http://127.0.0.1:18550/"},
-        "isolated_besu_free_gas_rpc":{"const":"http://127.0.0.1:18551/"},
-        "isolated_besu_nonce_continuity_rpc":{"const":"http://127.0.0.1:18552/"},
-        "rationale":{"const":"historical_or_isolated_proof_surfaces_do_not_acquire_production_authority"}
+      "properties": {
+        "legacy_epoch1_archive_rpc": {
+          "const": "http://127.0.0.1:8545/"
+        },
+        "isolated_successor_equivalence_rpc": {
+          "const": "http://127.0.0.1:18550/"
+        },
+        "isolated_besu_free_gas_rpc": {
+          "const": "http://127.0.0.1:18551/"
+        },
+        "isolated_besu_nonce_continuity_rpc": {
+          "const": "http://127.0.0.1:18552/"
+        },
+        "rationale": {
+          "const": "historical_or_isolated_proof_surfaces_do_not_acquire_production_authority"
+        }
       }
     },
-    "selected_deployer":{
-      "type":"object",
-      "additionalProperties":false,
-      "required":["address","credential_id"],
-      "properties":{
-        "address":{"const":"0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb"},
-        "credential_id":{"const":"datanet-content-commitment-registry-deployer-wallet-v1"}
-      }
-    },
-    "selected_publisher":{
-      "type":"object",
-      "additionalProperties":false,
-      "required":["address","credential_id"],
-      "properties":{
-        "address":{"const":"0x926aa1d35824e6957fae1a05510e6cc6a0d57be6"},
-        "credential_id":{"const":"datanet-content-commitment-publisher-wallet-v1"}
-      }
-    },
-    "authority":{
-      "type":"object",
-      "additionalProperties":false,
-      "required":[
-        "source_only","rpc_call","filesystem_secret_read","credential_access",
-        "wallet_access","private_key_access","deployer_funding",
-        "transaction_construction","transaction_signing","transaction_submission",
-        "transaction_broadcast","deployment","chain2050_mutation","funds_action",
-        "migration_authorized","public_activation_authorized"
+    "selected_deployer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "credential_id"
       ],
-      "properties":{
-        "source_only":{"const":true},
-        "rpc_call":{"const":false},
-        "filesystem_secret_read":{"const":false},
-        "credential_access":{"const":false},
-        "wallet_access":{"const":false},
-        "private_key_access":{"const":false},
-        "deployer_funding":{"const":false},
-        "transaction_construction":{"const":false},
-        "transaction_signing":{"const":false},
-        "transaction_submission":{"const":false},
-        "transaction_broadcast":{"const":false},
-        "deployment":{"const":false},
-        "chain2050_mutation":{"const":false},
-        "funds_action":{"const":false},
-        "migration_authorized":{"const":false},
-        "public_activation_authorized":{"const":false}
+      "properties": {
+        "address": {
+          "const": "0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb"
+        },
+        "credential_id": {
+          "const": "datanet-content-commitment-registry-deployer-wallet-v1"
+        }
       }
     },
-    "next_gate":{"const":"review_and_bind_exact_production_epoch2_loopback_rpc_target_after_runtime_authority_prerequisites"}
+    "selected_publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "credential_id"
+      ],
+      "properties": {
+        "address": {
+          "const": "0x926aa1d35824e6957fae1a05510e6cc6a0d57be6"
+        },
+        "credential_id": {
+          "const": "datanet-content-commitment-publisher-wallet-v1"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_only",
+        "rpc_call",
+        "filesystem_secret_read",
+        "credential_access",
+        "wallet_access",
+        "private_key_access",
+        "deployer_funding",
+        "transaction_construction",
+        "transaction_signing",
+        "transaction_submission",
+        "transaction_broadcast",
+        "deployment",
+        "chain2050_mutation",
+        "funds_action",
+        "migration_authorized",
+        "public_activation_authorized"
+      ],
+      "properties": {
+        "source_only": {
+          "const": true
+        },
+        "rpc_call": {
+          "const": false
+        },
+        "filesystem_secret_read": {
+          "const": false
+        },
+        "credential_access": {
+          "const": false
+        },
+        "wallet_access": {
+          "const": false
+        },
+        "private_key_access": {
+          "const": false
+        },
+        "deployer_funding": {
+          "const": false
+        },
+        "transaction_construction": {
+          "const": false
+        },
+        "transaction_signing": {
+          "const": false
+        },
+        "transaction_submission": {
+          "const": false
+        },
+        "transaction_broadcast": {
+          "const": false
+        },
+        "deployment": {
+          "const": false
+        },
+        "chain2050_mutation": {
+          "const": false
+        },
+        "funds_action": {
+          "const": false
+        },
+        "migration_authorized": {
+          "const": false
+        },
+        "public_activation_authorized": {
+          "const": false
+        }
+      }
+    },
+    "next_gate": {
+      "const": "run_fresh_read_only_datanet_deployer_resolution_against_selected_production_epoch2_rpc"
+    }
   }
 }
