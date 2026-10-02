@@ -31,8 +31,8 @@ const candidate={
   value_wei:"0",
   calldata:"0x1234",
   gas_limit:"60000",
-  max_fee_per_gas_wei:"2000000000",
-  max_priority_fee_per_gas_wei:"1000000000",
+  max_fee_per_gas_wei:"0",
+  max_priority_fee_per_gas_wei:"0",
 };
 const candidateFingerprint=sha256(canonicalJson(candidate));
 
