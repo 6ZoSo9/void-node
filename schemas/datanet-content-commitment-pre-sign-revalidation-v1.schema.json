@@ -94,11 +94,11 @@
     },
     "first_gas_price_wei": {
       "type": "string",
-      "pattern": "^[1-9][0-9]*$"
+      "pattern": "^(0|[1-9][0-9]*)$"
     },
     "final_gas_price_wei": {
       "type": "string",
-      "pattern": "^[1-9][0-9]*$"
+      "pattern": "^(0|[1-9][0-9]*)$"
     },
     "first_estimated_gas": {
       "type": "string",
@@ -118,7 +118,7 @@
     },
     "computed_max_gas_cost_wei": {
       "type": "string",
-      "pattern": "^[1-9][0-9]*$"
+      "pattern": "^(0|[1-9][0-9]*)$"
     },
     "unsigned_transaction_candidate": {
       "type": "object",
@@ -167,7 +167,7 @@
         },
         "max_fee_per_gas_wei": {
           "type": "string",
-          "pattern": "^[1-9][0-9]*$"
+          "pattern": "^(0|[1-9][0-9]*)$"
         },
         "max_priority_fee_per_gas_wei": {
           "type": "string",
