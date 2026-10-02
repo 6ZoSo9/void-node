@@ -511,24 +511,42 @@ await withFixture({}, async (f) => {
 }
 
 await withFixture({}, async (f) => {
+  const branch = gitText(["branch", "--show-current"]);
   const result =
     await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
       input(qualificationFixture(), f.rpc_url),
     );
-  assert.equal(result.ok, false);
-  assert.equal(
-    [
+
+  if (branch === "main") {
+    if (result.ok) {
+      assert.equal(
+        result.status,
+        "LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_GREEN",
+      );
+      assert.equal(f.calls.length, 11);
+    } else {
+      assert.equal(
+        result.reason,
+        "live_deployment_preflight_remote_main_head_mismatch",
+      );
+      assert.equal(
+        f.calls.length,
+        0,
+        "stale local main reached RPC before canonical-main rejection",
+      );
+    }
+  } else {
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.reason,
       "live_deployment_preflight_canonical_main_branch_required",
-      "live_deployment_preflight_remote_main_head_mismatch",
-    ].includes(result.reason),
-    true,
-    result.reason,
-  );
-  assert.equal(
-    f.calls.length,
-    0,
-    "feature-branch production observation reached RPC",
-  );
+    );
+    assert.equal(
+      f.calls.length,
+      0,
+      "non-main production observation reached RPC",
+    );
+  }
 });
 
 {
@@ -955,4 +973,5 @@ console.log("token_transfer=false");
 console.log("chain2050_write=false");
 console.log("market_activation=false");
 console.log("public_presale_activation=false");
+console.log("canonical_main_postmerge_production_fixture_green=true");
 console.log("funds_movement=false");
