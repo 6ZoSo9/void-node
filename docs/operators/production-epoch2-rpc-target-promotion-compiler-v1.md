@@ -2,78 +2,88 @@
 
 Marker: `VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_COMPILER_V1`
 
+Preview marker:
+`VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_V1`
+
 ## Purpose
 
-This is the source-only evidence compiler for the production Chain-2050
-Epoch-2 RPC target.
+This source-only compiler validates the structural consistency of the evidence
+bundle that would be required for a future production Chain-2050 Epoch-2 RPC
+selection.
 
-The canonical target remains HOLD until a separately reviewed apply lane
-consumes a compiled candidate. This compiler does not edit
+It does **not** select a production RPC target and does not emit a selected-state
+descriptor from serialized caller-supplied evidence.
+
+The canonical target remains HOLD until a separately reviewed apply lane either:
+
+1. re-runs/rebinds the live production host observer immediately before canonical
+   mutation; or
+2. consumes an in-process, module-private capability-bound observation produced by
+   that observer.
+
+This compiler does not edit
 `ops/mainnet0/production-epoch2-rpc-target-v1.json`.
 
-It consumes three exact external evidence artifacts:
+## Inputs
+
+The compiler consumes three exact serialized evidence artifacts:
 
 1. the private-QBFT activation plan;
 2. the green private-QBFT activation receipt; and
-3. the independent production host/RPC observation.
+3. a production host/RPC observation receipt.
 
-Each artifact is supplied with an independent SHA-256 value. The CLI reads the
-exact bytes and rejects any mismatch before semantic evaluation.
+Each artifact is supplied with an independent SHA-256 value. Exact bytes and
+content IDs are checked before structural evaluation.
 
-## Activation lineage
+## What the serialized checks prove
 
 Activation lineage is revalidated through
 `validateVoidEconomicEpoch2PrivateActivationReceiptForDatanetV1(...)`.
 
-That path supports both the current receipt schema and the one narrow,
-content-addressed legacy production ceremony that predates the receipt-basis
-migration. It does not provide generic legacy acceptance.
+The serialized host observation must remain content-addressed by its
+`voidpe2rpcobs1_<sha256>` ID and must be internally consistent with:
 
-The host observation must bind the same activation plan ID, activation-plan
-file SHA-256, activation receipt ID, and activation-receipt file SHA-256.
-
-## Host observation requirements
-
-The observation receipt must remain content-addressed by its
-`voidpe2rpcobs1_<sha256>` ID and must report:
-
-- canonical live `main` source binding;
-- accepted independent Precision host observation;
-- exact `http://127.0.0.1:18553/` RPC;
-- exact `void-economic-epoch2-qbft-validator-v1.service`;
-- active/running runtime and listener binding;
-- reviewed Besu image identity;
-- exact reviewed genesis hash and state root;
-- at least two peers;
-- exact validator-set verification;
+- canonical-main-shaped source binding;
+- the exact reviewed Precision `18553` / service identity;
+- the supplied activation plan and receipt IDs/digests;
+- exact reviewed successor genesis and validator bindings;
+- at least two peers and the expected validator set;
 - head at or above the activation floor;
-- `write_capable_not_authorized`;
-- exact genesis and production-validator bindings;
-- independent host acceptance; and
-- no transaction, migration, presale, funds, or target-promotion authority
-  in the observation itself.
+- the observation's claimed `write_capable_not_authorized` classification; and
+- no transaction, migration, presale, funds, or target-promotion authority.
 
-The compiler recomputes the observation ID after removing only
-`observation_id`. A receipt whose content no longer hashes to its ID is
-rejected.
+These checks prove which JSON was supplied and whether that JSON is structurally
+consistent. They do **not** prove that the claimed live observation actually
+occurred.
 
 ## Output boundary
 
-A green compile emits the existing selected-state descriptor schema:
+A green compile emits only:
 
 ```text
-status=PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY
-production_rpc_target_selected=true
-rpc_url=http://127.0.0.1:18553/
-write_capability_classification=write_capable_not_authorized
-independent_host_acceptance=true
+marker=VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_V1
+status=PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_PREVIEW_STRUCTURALLY_VERIFIED_NOT_LIVE_BOUND
+production_rpc_target_selected=false
+runtime_active_verified=false
+independent_host_acceptance=false
+live_observer_reexecuted=false
+selected_descriptor_emitted=false
 ```
 
-The output is create-only mode 0600 and **must be outside the repository**.
-This prevents the compiler from silently selecting the canonical target.
+The preview is content-addressed by
+`voidpe2rpcprompreview1_<sha256>`.
 
-The resulting descriptor still grants no transaction, signing, submission,
-broadcast, migration, market, presale, or funds authority.
+It may record the proposed reviewed RPC URL/service plus the pinned activation
+and serialized-observation IDs/digests, but those facts remain proposal/evidence
+metadata rather than production selection authority.
+
+The legacy exported
+`buildProductionEpoch2RpcSelectedDescriptorV1(...)` entrypoint now fails closed
+with:
+
+`production_epoch2_rpc_selected_descriptor_requires_live_revalidated_apply`
+
+so existing callers cannot silently retain the old authority-bearing behavior.
 
 ## Live usage
 
@@ -85,11 +95,10 @@ node tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs \
   --activation-receipt-sha256 <64hex> \
   --runtime-observation /absolute/production-rpc-observation.json \
   --runtime-observation-sha256 <64hex> \
-  --output /absolute/outside-repo/production-rpc-selected-candidate.json
+  --output /absolute/outside-repo/production-rpc-promotion-preview.json
 ```
 
 The compiler itself makes no RPC call and performs no service or Docker action.
-The runtime facts were already captured by the independent observer.
 
 ## Verification
 
@@ -99,15 +108,24 @@ node --check scripts/prove_void_production_epoch2_rpc_target_promotion_compiler_
 node scripts/prove_void_production_epoch2_rpc_target_promotion_compiler_v1.mjs
 ```
 
-The proof covers the green selected-descriptor build plus rejection of a
-modified observation ID, activation-plan digest drift, alternate RPC,
-missing independent acceptance, forged promotion authority, authority
-escalation, and malformed evidence hashes.
+The proof intentionally uses a fully synthetic but structurally self-consistent
+host-observation fixture. That fixture must now produce only a preview. It must
+never produce `production_rpc_target_selected=true`,
+`runtime_active_verified=true`, or `independent_host_acceptance=true` as
+compiler authority.
+
+The proof also retains rejection coverage for observation-ID drift,
+activation-plan digest drift, alternate RPC, missing claimed acceptance,
+forged promotion authority, authority escalation, and malformed evidence hashes.
 
 ## Authority boundary
 
 ```text
-source_candidate_only=true
+source_preview_only=true
+source_candidate_only=false
+structural_evidence_only=true
+selected_target_authority=false
+live_observer_reexecution=false
 canonical_target_write=false
 rpc_call=false
 service_action=false
@@ -129,8 +147,9 @@ funds_movement=false
 
 ## Next gate
 
-After this compiler is merged, run it on Precision against the exact activation
-artifacts and a fresh accepted host-observation receipt. Review the generated
-candidate and its SHA-256. Only then should a separate evidence-aware apply
-lane be implemented to update the canonical target and teach the canonical
-loader to reverify the checked-in promotion evidence.
+Use the preview to review evidence shape and lineage only.
+
+The separate evidence-aware canonical apply lane must establish fresh live
+observer authority immediately before any selected descriptor is created or the
+canonical HOLD descriptor is changed. Serialized observation JSON by itself is
+never sufficient for that gate.
