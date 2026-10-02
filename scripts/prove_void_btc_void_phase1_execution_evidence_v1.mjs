@@ -170,6 +170,10 @@ function atomicEvaluation(direction, finalPhase, terminal, seed) {
           "63d347948f3dd0bded2f2f79fadafec8f0cf7838",
         "tools/void-btc-void-bounded-stdin-v1.mjs":
           "2026b9be59216b0c52cf4d978b7fc91b7f7592e1",
+        "tools/void-shared-market-post-discovery-state-v2.mjs":
+          "bcfff9c2981e713a7053ff51a39145eb06b7238b",
+        "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json":
+          "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
       },
       exact_reviewed_git_object_execution: true,
       private_readonly_execution_bundle: true,
@@ -442,6 +446,23 @@ expectReject(
       contentId("voidbtcp1case1_", caseMaterial);
   },
   /phase1_suite_mixed_atomic_source_generations/u,
+);
+
+expectReject(
+  (input) => {
+    input.cases[1].atomic_evaluation.execution_source_binding.source_tree_sha =
+      "c".repeat(40);
+    const value = input.cases[1].atomic_evaluation;
+    const material = structuredClone(value);
+    delete material.evaluation_id;
+    value.evaluation_id =
+      "sha256:" + sha256(Buffer.from(canonicalJson(material), "utf8"));
+    const caseMaterial = structuredClone(input.cases[1]);
+    delete caseMaterial.case_id;
+    input.cases[1].case_id =
+      contentId("voidbtcp1case1_", caseMaterial);
+  },
+  /phase1_suite_mixed_atomic_source_trees/u,
 );
 
 expectReject(
