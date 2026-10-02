@@ -83,34 +83,40 @@ For present-tense claims use this precedence:
   still not a public VOID truth-layer state-root anchor; live
   balance/receipt/code verification remains HOLD, and neither migration nor
   public activation is authorized.
-- The state-root anchor is now source-defined as one immutable public payload
-  intended for the existing `DatanetContentCommitmentRegistryV1`. Its exact
-  object-ID SHA-256 is
+- The state-root anchor is source-defined as one immutable public payload
+  intended for `DatanetContentCommitmentRegistryV1`. Its exact object-ID
+  SHA-256 is
   `fa6a4ff9a7a25b8ec1888c58d7eb49159a69d84a4021b1365fe1293e868f1f51`;
-  its exact payload SHA-256 is
-  `e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4`.
-  Source/public payload readiness is not a Chain-2050 anchor. The anchor gate
-  stays HOLD until the exact tuple is committed, finalized under the accepted
+  after the September 29 production-successor evidence repair, its canonical
+  payload SHA-256 is
+  `8bb02e6147096465a78f983d8b34e7420e3c5b69cde11e2bdb5018340557fb84`
+  and its exact byte length is `3204`. The earlier
+  `e0d6cff588a13315f7a63ff246895440b2d2faf858d8f228912a508ffa88f4d4`
+  / `3203` tuple is superseded and must not be committed. Source/public payload
+  readiness is still not a Chain-2050 anchor. The anchor gate stays HOLD until
+  the corrected exact tuple is committed, finalized under the accepted
   checkpoint policy, its event membership is verified, and canonical commitment
   truth is admitted.
-- A fresh dedicated DataNet content-commitment publisher was generated offline
-  on Nimo and backed up on encrypted `VOID_AUTHORITY`. The only source-bound
-  public identity is
-  `0x926aa1d35824e6957fae1a05510e6cc6a0d57be6`, backed by public ceremony
-  receipt SHA-256
+- The dedicated DataNet content-commitment publisher remains
+  `0x926aa1d35824e6957fae1a05510e6cc6a0d57be6`, generated offline on Nimo
+  and backed up on encrypted `VOID_AUTHORITY`, with public ceremony receipt
+  SHA-256
   `119d634591a324d6b5cd4736ff97d21ad527a69ad6f4a6982fc6ebd360ce701a`.
-  This closes publisher selection only. Registry-deployer selection is recorded
-  separately below; deployment/signing/broadcast/Chain-2050 write authority
-  remains false.
-- A fresh dedicated DataNet registry deployer was generated offline on Nimo and
-  backed up on encrypted `VOID_AUTHORITY`. The public deployer address is
-  `0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb`, bound to public ceremony
-  receipt SHA-256
-  `81a43d3c245b5badfa975c7ab998094359f62872600d533453df6cab8ed68cb3`.
-  It is distinct from the DataNet publisher and does not reuse the historical
-  role-authority or presale deployers. Its live Chain-2050 nonce, native balance,
-  and predicted CREATE address have not yet been observed. Funding, deployment,
-  signing, broadcast, and Chain-2050 write authority remain false.
+  Publisher selection is complete; no state-root commitment transaction is
+  authorized by that selection alone.
+- The dedicated DataNet registry deployer
+  `0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb` remains distinct from the
+  publisher and historical role-authority/presale deployers. On October 2, 2026,
+  its exact zero-fee Epoch-2 marker-bound deployment transaction
+  `0x52f86154f85a40070cdd7d42057d6423e2bb7d4906f26d2bfa19c8df5cf7503c`
+  succeeded in block `5899` and created
+  `0xe60b15ed8df7c4ec5334067ead18c924744c2681`. The exact deployment
+  attestation is
+  `voiddccda1_895702727c043bb38f6b85cb356b3b536635941ae48ba9d45cf89342ddc6c995`;
+  it proves the creation transaction and CREATE address, exact runtime,
+  publisher/predecessor immutables and views, genesis predecessor lineage, and
+  the minimum 12-confirmation floor. This deployment does not itself authorize
+  the separate state-root commitment transaction.
 - The first live DataNet deployer-resolution attempt correctly HOLDed after only
   `eth_chainId`. That attempt exposed a stale Precision-runner default to the
   historical `127.0.0.1:8545` epoch-1/private execution surface. The source
