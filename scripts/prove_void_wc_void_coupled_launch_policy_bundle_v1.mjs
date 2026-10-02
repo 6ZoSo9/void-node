@@ -794,7 +794,7 @@ assert.match(source, /fstatSync/u);
 assert.match(source, /GIT_CONFIG_NOSYSTEM/u);
 assert.match(
   source,
-  new RegExp('GIT_CONFIG_GLOBAL\\\\s*:\\s*"/dev/null"', "u"),
+  new RegExp('GIT_CONFIG_GLOBAL\\s*:\\s*"/dev/null"', "u"),
 );
 assert.match(source, /core\.fsmonitor=false/u);
 assert.match(source, /expected-input-sha256/u);
