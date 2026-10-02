@@ -19,9 +19,13 @@ Each host observer requires:
 - exact current tailnet IPv4 and enode from the private plan;
 - exact installed genesis, static-peer file, and systemd unit hashes;
 - empty Besu data directory;
-- inactive and non-enabled validator service; `static` is accepted because
-  the generated unit intentionally has no `[Install]` section;
-- no `*.wants` or `*.requires` autostart link;
+- inactive validator service;
+- exact observed unit-file state `static`, stable across the observation
+  window;
+- no direct `*.wants` or `*.requires` enablement link under the reviewed operator user-unit directory;
+- symlinked `.wants` / `.requires` directories fail closed;
+- `indirect_activation_absence_proven=false` (this gate does not claim that
+  every possible dependency/activation path is absent);
 - exact plugin hash;
 - pinned Besu image still present;
 - rootless Docker still bound to the operator user socket;
@@ -65,7 +69,11 @@ A green aggregate requires:
 - every receipt fresh at the same evaluation instant;
 - no more than 120 seconds between the earliest and latest host observations;
 - all three validator private identities locally revalidated;
-- all three services inactive and disabled;
+- all three services inactive;
+- all three unit-file states observed as exactly `static` and carried into
+  start admission;
+- `operator_user_unit_dir_direct_enablement_links_absent=true` on all three hosts;
+- no claim that indirect activation absence is proven;
 - all candidate listener ports still vacant.
 
 The aggregate result is:
@@ -102,5 +110,9 @@ a separate explicit operator confirmation named
 
 `startPrivateEpoch2QbftSuccessorV1`.
 
-The future activation ceremony must still fail closed if admission expires or
-any installed/runtime fact changes before the actual start action.
+The activation ceremony must still fail closed if admission expires or any
+installed/runtime fact changes before the actual start action. Immediately
+before the explicit start it rechecks that operator-user-unit-directory direct
+enablement links remain absent, the unit-file state is still `static`, and the service is still
+inactive. It performs `daemon-reload`, then rechecks all three conditions
+again before issuing `systemctl start`.

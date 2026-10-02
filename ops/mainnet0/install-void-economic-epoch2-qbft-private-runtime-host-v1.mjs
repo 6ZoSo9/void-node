@@ -10,6 +10,7 @@ import {
 } from "../../tools/void-economic-epoch2-qbft-private-runtime-bundle-set-v1.mjs";
 import {
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_CONFIRMATION_V1,
+  VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1,
   VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1,
   buildVoidEconomicEpoch2QbftHostInstallReceiptV1,
   validateVoidEconomicEpoch2QbftHostInstallBindingV1,
@@ -39,10 +40,11 @@ function git(args) {
   }).trim();
 }
 function parseArgs(argv) {
-  const out={apply:false,confirmation:""};
+  const out={apply:false,reattest_existing:false,confirmation:""};
   for(let i=0;i<argv.length;i+=1) {
     const key=argv[i];
     if(key==="--apply") out.apply=true;
+    else if(key==="--reattest-existing") out.reattest_existing=true;
     else if(key==="--confirmation") out.confirmation=String(argv[++i]||"");
     else if(key==="--plan") out.plan=String(argv[++i]||"");
     else if(key==="--bundle") out.bundle=String(argv[++i]||"");
@@ -53,6 +55,9 @@ function parseArgs(argv) {
   }
   for(const key of ["plan","bundle","bundle_set","role","output"]) {
     if(!out[key]) fail("missing_argument:"+key);
+  }
+  if(out.apply&&out.reattest_existing) {
+    fail("install_apply_and_reattest_mutually_exclusive");
   }
   return out;
 }
@@ -85,37 +90,188 @@ function systemctl(args) {
     stdio:["ignore","pipe","pipe"],
   });
 }
-function requireInactiveDisabled(service) {
+function requireInactiveUnitFileState(service,{allowStatic=false}={}) {
   const active=systemctl(["is-active",service]);
   const activeText=String(active.stdout||active.stderr||"").trim();
   if(!["inactive","unknown"].includes(activeText)) {
     fail("service_state_not_clean_inactive:"+activeText);
   }
   const enabled=systemctl(["is-enabled",service]);
-  const enabledText=String(enabled.stdout||enabled.stderr||"").trim();
-  if(!["disabled","not-found","static"].includes(enabledText)) {
-    fail("service_enable_state_not_clean:"+enabledText);
+  const unitFileState=String(enabled.stdout||enabled.stderr||"").trim();
+  const accepted=allowStatic
+    ? ["disabled","not-found","static"]
+    : ["disabled","not-found"];
+  if(!accepted.includes(unitFileState)) {
+    fail("service_unit_file_state_not_clean:"+unitFileState);
   }
-  return {active_state:activeText,enabled_state:enabledText};
+  return {active_state:activeText,unit_file_state:unitFileState};
 }
-function requireNoEnableLinks(unitDir,service) {
+function requireNoDirectEnablementLinks(unitDir,service) {
   for(const name of fs.readdirSync(unitDir)) {
     if(!name.endsWith(".wants")&&!name.endsWith(".requires")) continue;
     const dir=path.join(unitDir,name);
     const st=fs.lstatSync(dir);
-    if(st.isSymbolicLink()||!st.isDirectory()) continue;
+    if(st.isSymbolicLink()) {
+      fail("service_enablement_directory_symlink:"+name);
+    }
+    if(!st.isDirectory()) {
+      fail("service_enablement_directory_not_directory:"+name);
+    }
     const candidate=path.join(dir,service);
     try {
       fs.lstatSync(candidate);
-      fail("service_autostart_link_present:"+name);
+      fail("service_direct_enablement_link_present:"+name);
     } catch(error) {
       if(error?.code!=="ENOENT") throw error;
     }
   }
+  return true;
 }
 function writeNew(file,bytes,mode) {
   fs.writeFileSync(file,bytes,{flag:"wx",mode});
   fs.chmodSync(file,mode);
+}
+function requireOwnedMode(file,expectedMode,label) {
+  const st=fs.lstatSync(file);
+  if(
+    st.isSymbolicLink()||
+    (typeof process.getuid==="function"&&st.uid!==process.getuid())||
+    (st.mode&0o777)!==expectedMode
+  ) {
+    fail(label+"_identity_invalid");
+  }
+  return st;
+}
+function requireNoInstallSection(bytes,code) {
+  if(/^[ \t]*\[Install\][ \t]*$/mu.test(bytes.toString("utf8"))) {
+    fail(code);
+  }
+}
+function stableOwnedFileBytes(file,expectedMode,label,maxBytes=MAX_JSON) {
+  const resolved=regularFile(file,label,maxBytes);
+  const pathBefore=fs.lstatSync(resolved);
+  const fd=fs.openSync(
+    resolved,
+    fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
+  );
+  try {
+    const before=fs.fstatSync(fd);
+    if(
+      !before.isFile()||
+      before.nlink!==1||
+      (typeof process.getuid==="function"&&before.uid!==process.getuid())||
+      (before.mode&0o777)!==expectedMode||
+      before.size<1||
+      before.size>maxBytes
+    ) {
+      fail(label+"_descriptor_identity_invalid");
+    }
+    const bytes=Buffer.alloc(before.size);
+    let offset=0;
+    while(offset<bytes.length) {
+      const count=fs.readSync(fd,bytes,offset,bytes.length-offset,offset);
+      if(count<=0) fail(label+"_short_read");
+      offset+=count;
+    }
+    const after=fs.fstatSync(fd);
+    for(const key of ["dev","ino","size","mtimeMs","ctimeMs"]) {
+      if(before[key]!==after[key]) fail(label+"_changed_during_read");
+    }
+    const pathAfter=fs.lstatSync(resolved);
+    if(
+      pathAfter.isSymbolicLink()||
+      pathAfter.dev!==before.dev||
+      pathAfter.ino!==before.ino||
+      pathBefore.dev!==before.dev||
+      pathBefore.ino!==before.ino
+    ) {
+      fail(label+"_path_identity_changed");
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+function requireExactBytes(file,expected,label,maxBytes=MAX_JSON) {
+  const actual=stableOwnedFileBytes(file,0o600,label,maxBytes);
+  if(!actual.equals(expected)) fail(label+"_bytes_mismatch");
+}
+function verifyExistingInstalledRuntime({
+  runtimeRoot,
+  unitPath,
+  bundle,
+  bundleSetRaw,
+  hashes,
+}) {
+  canonicalDir(runtimeRoot,"existing_runtime_root");
+  requireOwnedMode(runtimeRoot,0o700,"existing_runtime_root");
+
+  const expectedEntries=[
+    "bundle-set.json",
+    "data",
+    "genesis-evidence.json",
+    "genesis.json",
+    "prepared-materialization.json",
+    "static-nodes.json",
+  ];
+  const actualEntries=fs.readdirSync(runtimeRoot).sort();
+  if(JSON.stringify(actualEntries)!==JSON.stringify(expectedEntries)) {
+    fail("existing_runtime_membership_mismatch");
+  }
+
+  const genesis=path.join(runtimeRoot,"genesis.json");
+  const genesisEvidence=path.join(runtimeRoot,"genesis-evidence.json");
+  const staticNodes=path.join(runtimeRoot,"static-nodes.json");
+  const prepared=path.join(runtimeRoot,"prepared-materialization.json");
+  const bundleSet=path.join(runtimeRoot,"bundle-set.json");
+  const data=path.join(runtimeRoot,"data");
+
+  for(const [file,label] of [
+    [genesis,"existing_genesis"],
+    [genesisEvidence,"existing_genesis_evidence"],
+    [staticNodes,"existing_static_nodes"],
+    [prepared,"existing_materialization"],
+    [bundleSet,"existing_bundle_set"],
+  ]) {
+    regularFile(file,label,MAX_JSON);
+    requireOwnedMode(file,0o600,label);
+  }
+  canonicalDir(data,"existing_data");
+  requireOwnedMode(data,0o700,"existing_data");
+  if(fs.readdirSync(data).length!==0) fail("existing_data_not_empty");
+
+  const genesisBytes=
+    stableOwnedFileBytes(genesis,0o600,"existing_genesis");
+  const staticNodesBytes=
+    stableOwnedFileBytes(staticNodes,0o600,"existing_static_nodes");
+  if(
+    sha256(genesisBytes)!==hashes.genesisSha||
+    sha256(staticNodesBytes)!==hashes.staticSha
+  ) {
+    fail("existing_runtime_hash_mismatch");
+  }
+  requireExactBytes(
+    genesisEvidence,
+    Buffer.from(JSON.stringify(bundle.genesis_evidence,null,2)+"\n"),
+    "existing_genesis_evidence",
+  );
+  requireExactBytes(
+    prepared,
+    Buffer.from(JSON.stringify(bundle.materialization,null,2)+"\n"),
+    "existing_materialization",
+  );
+  requireExactBytes(bundleSet,bundleSetRaw,"existing_bundle_set");
+
+  const unitBytes=
+    stableOwnedFileBytes(unitPath,0o600,"existing_unit",256*1024);
+  if(sha256(unitBytes)!==hashes.unitSha) fail("existing_unit_hash_mismatch");
+  requireNoInstallSection(unitBytes,"existing_unit_install_section_forbidden");
+
+  return Object.freeze({
+    runtime_root_exact:true,
+    unit_exact:true,
+    data_empty:true,
+  });
 }
 function validateBundleBytes(bundle,binding) {
   const genesisSha=sha256(bundle.genesis_raw);
@@ -130,6 +286,10 @@ function validateBundleBytes(bundle,binding) {
   if(bundle.systemd_unit_raw.toString("utf8").includes("\nRestart=on-failure\n")) {
     fail("bundle_unit_auto_restart_forbidden");
   }
+  requireNoInstallSection(
+    bundle.systemd_unit_raw,
+    "bundle_unit_install_section_forbidden",
+  );
   return {genesisSha,staticSha,unitSha};
 }
 
@@ -186,11 +346,11 @@ const expectedUnitPath=path.join(
 if(unitPath!==expectedUnitPath) fail("unit_install_path_mismatch");
 
 const unitDir=canonicalDir(path.dirname(unitPath),"systemd_user_dir");
-requireNoEnableLinks(unitDir,binding.manifest.service_name);
-const preState=requireInactiveDisabled(binding.manifest.service_name);
-
-if(fs.existsSync(runtimeRoot)) fail("runtime_root_already_exists");
-if(fs.existsSync(unitPath)) fail("unit_path_already_exists");
+requireNoDirectEnablementLinks(unitDir,binding.manifest.service_name);
+const preState=requireInactiveUnitFileState(
+  binding.manifest.service_name,
+  {allowStatic:args.reattest_existing},
+);
 
 const output=path.resolve(args.output);
 if(fs.existsSync(output)) fail("output_already_exists");
@@ -204,7 +364,9 @@ console.log("materialization_id="+binding.manifest.materialization_id);
 console.log("runtime_root="+runtimeRoot);
 console.log("unit_install_path="+unitPath);
 console.log("pre_active_state="+preState.active_state);
-console.log("pre_enabled_state="+preState.enabled_state);
+console.log("pre_unit_file_state="+preState.unit_file_state);
+console.log("pre_operator_user_unit_dir_direct_enablement_links_absent=true");
+console.log("pre_indirect_activation_absence_proven=false");
 console.log("daemon_reload=false");
 console.log("service_enable=false");
 console.log("service_start=false");
@@ -213,6 +375,74 @@ console.log("nodekey_content_read=false");
 console.log("authoritative_chain2050_write=false");
 console.log("funds_movement=false");
 console.log("apply="+String(args.apply));
+console.log("reattest_existing="+String(args.reattest_existing));
+
+if(args.reattest_existing) {
+  if(
+    args.confirmation!==
+      VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_REATTEST_CONFIRMATION_V1
+  ) {
+    fail("reattest_explicit_confirmation_required");
+  }
+  if(preState.unit_file_state!=="static") {
+    fail("reattest_unit_file_state_not_static:"+preState.unit_file_state);
+  }
+  verifyExistingInstalledRuntime({
+    runtimeRoot,
+    unitPath,
+    bundle,
+    bundleSetRaw:bundleSetFile.raw,
+    hashes,
+  });
+  requireNoDirectEnablementLinks(unitDir,binding.manifest.service_name);
+  const postState=requireInactiveUnitFileState(
+    binding.manifest.service_name,
+    {allowStatic:true},
+  );
+  if(postState.unit_file_state!=="static") {
+    fail("reattest_unit_file_state_changed:"+postState.unit_file_state);
+  }
+  verifyExistingInstalledRuntime({
+    runtimeRoot,
+    unitPath,
+    bundle,
+    bundleSetRaw:bundleSetFile.raw,
+    hashes,
+  });
+  const receipt=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+    plan:planFile.value,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSetFile.value,
+    role:args.role,
+    materialization:bundle.materialization,
+    receipt_basis:"existing_runtime_read_only_reattestation",
+    observed_at_utc:new Date().toISOString(),
+    observed_repo_head:currentHead,
+    unit_file_state:postState.unit_file_state,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+  });
+  writeNew(
+    output,
+    Buffer.from(JSON.stringify(receipt,null,2)+"\n"),
+    0o600,
+  );
+  console.log("receipt_basis=existing_runtime_read_only_reattestation");
+  console.log("runtime_filesystem_mutation=false");
+  console.log("unit_filesystem_mutation=false");
+  console.log("daemon_reload=false");
+  console.log("service_enable=false");
+  console.log("service_start=false");
+  console.log("docker_mutation=false");
+  console.log("nodekey_content_read=false");
+  console.log("authoritative_chain2050_write=false");
+  console.log("funds_movement=false");
+  console.log("install_receipt="+output);
+  console.log(VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_INSTALL_V1+"_REATTEST_GREEN");
+  process.exit(0);
+}
+
+if(fs.existsSync(runtimeRoot)) fail("runtime_root_already_exists");
+if(fs.existsSync(unitPath)) fail("unit_path_already_exists");
 
 if(!args.apply) {
   console.log("required_confirmation="+
@@ -297,44 +527,54 @@ try {
 
   writeNew(unitStage,bundle.systemd_unit_raw,0o600);
 
-  const installedAt=new Date().toISOString();
-  const receipt=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
-    plan:planFile.value,
-    plan_file_sha256:planFileSha,
-    bundle_set_receipt:bundleSetFile.value,
-    role:args.role,
-    materialization:bundle.materialization,
-    installed_at_utc:installedAt,
-    installed_repo_head:currentHead,
-  });
-  writeNew(
-    outputStage,
-    Buffer.from(JSON.stringify(receipt,null,2)+"\n"),
-    0o600,
-  );
+  const observedAt=new Date().toISOString();
 
   fs.renameSync(runtimeStage,runtimeRoot);
   runtimePublished=true;
   fs.renameSync(unitStage,unitPath);
   unitPublished=true;
 
-  requireNoEnableLinks(unitDir,binding.manifest.service_name);
-  const postState=requireInactiveDisabled(binding.manifest.service_name);
-
-  if(
-    sha256(fs.readFileSync(path.join(runtimeRoot,"genesis.json")))!==hashes.genesisSha||
-    sha256(fs.readFileSync(path.join(runtimeRoot,"static-nodes.json")))!==hashes.staticSha||
-    sha256(fs.readFileSync(unitPath))!==hashes.unitSha||
-    fs.readdirSync(path.join(runtimeRoot,"data")).length!==0
-  ) {
-    fail("post_install_hash_or_data_check_failed");
+  requireNoDirectEnablementLinks(unitDir,binding.manifest.service_name);
+  const postState=requireInactiveUnitFileState(
+    binding.manifest.service_name,
+    {allowStatic:true},
+  );
+  if(postState.unit_file_state!=="static") {
+    fail("install_post_unit_file_state_not_static:"+postState.unit_file_state);
   }
 
+  verifyExistingInstalledRuntime({
+    runtimeRoot,
+    unitPath,
+    bundle,
+    bundleSetRaw:bundleSetFile.raw,
+    hashes,
+  });
+
+  const receipt=buildVoidEconomicEpoch2QbftHostInstallReceiptV1({
+    plan:planFile.value,
+    plan_file_sha256:planFileSha,
+    bundle_set_receipt:bundleSetFile.value,
+    role:args.role,
+    materialization:bundle.materialization,
+    receipt_basis:"fresh_install",
+    observed_at_utc:observedAt,
+    observed_repo_head:currentHead,
+    unit_file_state:postState.unit_file_state,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
+  });
+  writeNew(
+    outputStage,
+    Buffer.from(JSON.stringify(receipt,null,2)+"\n"),
+    0o600,
+  );
   fs.renameSync(outputStage,output);
   outputPublished=true;
 
   console.log("post_active_state="+postState.active_state);
-  console.log("post_enabled_state="+postState.enabled_state);
+  console.log("post_unit_file_state="+postState.unit_file_state);
+  console.log("post_operator_user_unit_dir_direct_enablement_links_absent=true");
+  console.log("post_indirect_activation_absence_proven=false");
   console.log("runtime_root_present=true");
   console.log("user_unit_file_present=true");
   console.log("data_directory_empty=true");

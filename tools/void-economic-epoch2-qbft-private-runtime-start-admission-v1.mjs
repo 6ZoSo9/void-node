@@ -97,10 +97,14 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
     ) {
       throw new Error("start_admission_identity_or_hash_binding_mismatch:"+role);
     }
+    const unitFileState=String(receipt?.facts?.unit_file_state||"");
+    if(unitFileState!=="static") {
+      throw new Error("start_admission_unit_file_state_not_static:"+role);
+    }
     const expectedFacts={
       repo_main_clean:true,
       final_revalidation_green:true,
-      installed_repo_head_ancestor:true,
+      install_receipt_observed_repo_head_ancestor:true,
       current_tailnet_ipv4_exact:true,
       current_enode_exact:true,
       installed_genesis_sha256_exact:true,
@@ -110,8 +114,9 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       installed_systemd_unit_sha256_exact:true,
       installed_data_directory_empty:true,
       service_inactive:true,
-      service_disabled:true,
-      autostart_links_absent:true,
+      unit_file_state:unitFileState,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
       plugin_sha256_exact:true,
       besu_image_identity_exact:true,
       rootless_docker_verified:true,
@@ -198,6 +203,9 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       enode:receipt.enode,
       validator_address:receipt.validator_address,
       besu_public_key:receipt.besu_public_key,
+      unit_file_state:unitFileState,
+      operator_user_unit_dir_direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
     });
   }
 
@@ -229,7 +237,9 @@ export function buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1(input)
       nodekey_bytes_emitted:false,
       nodekey_bytes_persisted:false,
       all_services_inactive:true,
-      all_services_disabled:true,
+      all_unit_file_states_observed:true,
+      all_operator_user_unit_dir_direct_enablement_links_absent:true,
+      indirect_activation_absence_proven:false,
       all_candidate_ports_vacant:true,
       service_start:false,
       authoritative_chain2050_write:false,
