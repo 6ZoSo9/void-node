@@ -27,6 +27,12 @@ Between the two preflights it takes two pending-state snapshots of:
 - pending gas estimate for the exact registry commit call; and
 - publisher pending native balance.
 
+For the canonical Epoch-2 execution model, **both** in-window gas-price
+observations must be exactly zero. A nonzero observation is policy drift and
+HOLDs the lane. The balance is still observed and lineage-bound, but a positive
+native balance is not required because the exact maximum native gas cost is
+zero.
+
 The second snapshot is the dynamic binding source for gas, fee, and balance checks. Only after both snapshots does the gate run the second hardened preflight.
 
 After that final hardened preflight, it re-reads the publisher pending nonce once more. The nonce must match both in-window snapshots and the post-preflight read.
@@ -37,20 +43,21 @@ This ordering matters: the second hardened preflight proves the object is still 
 
 V1 does not silently inherit Buy-VOID production limits.
 
-The caller supplies an explicit closed DataNet fee policy. Structural source limits prevent unbounded values, but an actual production policy remains a later repository/runtime binding.
+The caller supplies an explicit closed DataNet fee policy. On current Epoch-2
+main that policy is exact, not merely capped:
 
-The verifier requires bounded:
+- `max_fee_per_gas_wei=0`;
+- `max_priority_fee_per_gas_wei=0`;
+- `max_total_gas_cost_wei=0`.
 
-- gas-limit multiplier;
-- maximum gas limit;
-- fee multiplier;
-- maximum fee per gas;
-- priority fee;
-- maximum total gas cost;
-- request timeout; and
-- response bytes.
+Gas remains metered. The gas-limit multiplier and maximum gas limit stay bounded,
+the pending estimate must remain positive, and the resulting gas limit must stay
+within policy. The fee multiplier remains part of the content-addressed policy
+for continuity, but with observed gas price zero the computed max fee is exactly
+zero.
 
-A plan that exceeds any cap HOLDs.
+Request timeout and response bytes remain bounded. Any nonzero fee/cost policy
+or nonzero in-window gas-price observation HOLDs.
 
 ## Unsigned transaction candidate
 
@@ -62,9 +69,9 @@ GREEN may materialize a type-2 unsigned candidate containing:
 - exact registry;
 - zero native value;
 - exact commit calldata;
-- bounded gas limit;
-- bounded max fee; and
-- bounded priority fee.
+- bounded positive gas limit;
+- exact zero max fee; and
+- exact zero priority fee.
 
 It is still unsigned and grants no signer access.
 
