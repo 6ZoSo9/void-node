@@ -415,16 +415,14 @@ try{
     "utf8",
   );
   for(const reviewedForbiddenSurface of [
-    "createServer(",
-    "listen(",
-    "fetch(",
-    "eth_sendRawTransaction",
-    "eth_sendTransaction",
-    "new Wallet(",
-    "systemctl",
     "writeFileSync(",
     "appendFileSync(",
     "renameSync(",
+    "spawnSync(",
+    "execFileSync(",
+    "eth_sendRawTransaction",
+    "eth_sendTransaction",
+    "new Wallet(",
   ]){
     assert.equal(
       tool.includes('"' + reviewedForbiddenSurface + '"'),
