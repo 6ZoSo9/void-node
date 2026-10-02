@@ -1464,18 +1464,6 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     SEMANTIC_REQUEST_KEYS,
     "CANONICAL_APPLICATION_SEMANTIC_ORIGIN_INPUT_SHAPE_INVALID",
   );
-  const rederivedSemantic =
-    promoteWcVoidBoundedCanarySemanticV1(semanticRequest);
-  const rederivedSemanticBytes = prettyBytes(rederivedSemantic);
-  const rederivedSemanticSha256 = sha256(rederivedSemanticBytes);
-  if (
-    canonicalJson(rederivedSemantic) !== canonicalJson(semantic.value) ||
-    rederivedSemanticSha256 !== semantic.sha256 ||
-    !semantic.bytes.equals(rederivedSemanticBytes)
-  ) {
-    fail("CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH");
-  }
-
   const reviewedReceipt = parseJsonBytes(
     candidatePromotionReceiptBytes,
     candidatePromotionReceiptFileSha256,
@@ -1499,24 +1487,47 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     "SUCCESSOR_SOURCE",
   );
 
-  const rederived = promoteWcVoidBoundedCanaryCandidatesV1({
+  const reviewed = runReviewedAuthority(repository, {
+    operation: "prepare",
+    semantic_promotion_request: semanticRequest,
     repository_head_sha: repository.head,
     repository_tree_sha: repository.tree,
-    semantic_promotion_bytes: rederivedSemanticBytes,
-    semantic_promotion_file_sha256: rederivedSemanticSha256,
-    production_candidate_bytes: production.bytes,
+    production_candidate_base64: production.bytes.toString("base64"),
     production_candidate_file_sha256: production.sha256,
-    coupled_candidate_bytes: coupled.bytes,
+    production_candidate: production.value,
+    coupled_candidate_base64: coupled.bytes.toString("base64"),
     coupled_candidate_file_sha256: coupled.sha256,
-    successor_candidate_bytes: successor.bytes,
+    coupled_candidate: coupled.value,
+    successor_candidate_base64: successor.bytes.toString("base64"),
     successor_candidate_file_sha256: successor.sha256,
+    successor_candidate: successor.value,
   });
+  const reviewedResult = reviewed.result;
+  if (reviewedResult.operation !== "prepare") {
+    fail("CANONICAL_APPLICATION_REVIEWED_PREPARE_OPERATION_INVALID");
+  }
+  const rederivedSemanticBytes = Buffer.from(
+    String(reviewedResult.semantic_pretty_base64 || ""),
+    "base64",
+  );
+  const rederivedSemanticSha256 = sha256(rederivedSemanticBytes);
+  if (
+    reviewedResult.semantic_file_sha256 !== rederivedSemanticSha256 ||
+    canonicalJson(reviewedResult.semantic) !== canonicalJson(semantic.value) ||
+    rederivedSemanticSha256 !== semantic.sha256 ||
+    !semantic.bytes.equals(rederivedSemanticBytes)
+  ) {
+    fail("CANONICAL_APPLICATION_SEMANTIC_ORIGIN_MISMATCH");
+  }
 
+  const rederived = reviewedResult.promotion;
   if (canonicalJson(rederived) !== canonicalJson(reviewedReceipt.value)) {
     fail("CANONICAL_APPLICATION_REVIEWED_PROMOTION_RECEIPT_MISMATCH");
   }
   if (
-    rederived.marker !== VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1 ||
+    rederived.marker !== "VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1" ||
+    reviewedResult.promotion_contract?.marker !==
+      "VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_V1" ||
     rederived.status !==
       "BOUNDED_CANARY_CANDIDATE_PROMOTION_READY_FINAL_ACTIVATION_HOLD" ||
     rederived.coupled_launch_id !== CURRENT_LAUNCH ||
@@ -1532,7 +1543,7 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   }
   exactAuthority(
     rederived.authority,
-    VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1,
+    reviewedResult.promotion_contract.authority,
     "CANONICAL_APPLICATION_PROMOTION_AUTHORITY",
   );
 
@@ -1541,15 +1552,10 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
   exactCandidateDelta(production.value, targetProduction, "production");
   exactCandidateDelta(coupled.value, targetCoupled, "coupled");
 
-  const productionBefore =
-    classifyVoidWcVoidProductionReadinessV1(production.value);
-  const productionAfter =
-    classifyVoidWcVoidProductionReadinessV1(targetProduction);
-  const coupledBefore =
-    classifyVoidCoupledEconomicSuccessorGateV1(coupled.value, successor.value);
-  const coupledAfter =
-    classifyVoidCoupledEconomicSuccessorGateV1(targetCoupled, successor.value);
-
+  const productionBefore = reviewedResult.production_before;
+  const productionAfter = reviewedResult.production_after;
+  const coupledBefore = reviewedResult.coupled_before;
+  const coupledAfter = reviewedResult.coupled_after;
   const expectedProductionMissing = minusOne(
     productionBefore.missing_gates || [],
     "bounded_canary_required",
@@ -1575,11 +1581,7 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
 
   const productionTargetBytes = prettyBytes(targetProduction);
   const coupledTargetBytes = prettyBytes(targetCoupled);
-  const toolBlob = commitBlob(
-    repository.head,
-    TOOL_REL,
-    "CANONICAL_APPLICATION_TOOL_BLOB_UNAVAILABLE",
-  );
+  const toolBlob = repository.tool_blob_sha1;
   const promotionToolBlob = commitBlob(
     repository.head,
     PROMOTION_TOOL_REL,
@@ -1611,6 +1613,19 @@ export function prepareVoidWcVoidBoundedCanaryCanonicalApplicationV1({
     application_base_tree_sha: repository.tree,
     candidate_promotion_tool_git_blob_sha1: promotionToolBlob,
     canonical_application_tool_git_blob_sha1: toolBlob,
+    reviewed_execution_module_git_blobs:
+      reviewed.binding.module_git_blobs,
+    reviewed_runtime_tool_git_blob_sha1:
+      reviewed.binding.runtime_tool_git_blob_sha1,
+    reviewed_runtime_profile_git_blob_sha1:
+      reviewed.binding.runtime_profile_git_blob_sha1,
+    reviewed_runtime_profile_id:
+      reviewed.binding.profile_id,
+    reviewed_runtime_packages_aggregate_sha256:
+      reviewed.binding.packages_aggregate_sha256,
+    reviewed_execution_permission_fenced: true,
+    reviewed_execution_ancestor_package_resolution_allowed: false,
+    reviewed_execution_network_isolation_provided: false,
     production_candidate_path: PRODUCTION_REL,
     production_source_git_blob_sha1: production.blob_sha1,
     production_source_file_sha256: production.sha256,
