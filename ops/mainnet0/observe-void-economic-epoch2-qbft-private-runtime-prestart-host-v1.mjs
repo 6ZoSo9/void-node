@@ -365,7 +365,7 @@ const facts={
   installed_data_directory_empty:true,
   service_inactive:true,
   unit_file_state:finalUnitState.unit_file_state,
-  direct_enablement_links_absent:true,
+  operator_user_unit_dir_direct_enablement_links_absent:true,
   indirect_activation_absence_proven:false,
   plugin_sha256_exact:true,
   besu_image_identity_exact:true,
