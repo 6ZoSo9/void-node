@@ -109,12 +109,12 @@ for (const forbidden of [
 
 assert.ok(
   source.indexOf("swap.state = SwapState.Claimed;") <
-    source.indexOf("token().transfer(beneficiary"),
+    source.indexOf("_token().transfer(beneficiary"),
   "claim terminal state must be written before outbound token transfer",
 );
 assert.ok(
   source.indexOf("swap.state = SwapState.Refunded;") <
-    source.indexOf("token().transfer(refundAuthority"),
+    source.indexOf("_token().transfer(refundAuthority"),
   "refund terminal state must be written before outbound token transfer",
 );
 
