@@ -21,7 +21,6 @@ const ADDRESS=/^0x[0-9a-f]{40}$/u;
 const PUBLIC_KEY=/^0x04[0-9a-f]{128}$/u;
 const ENODE=/^enode:\/\/[0-9a-f]{128}@[0-9.]+:30313$/u;
 const ROLES=["precision","nimo","xiphos"];
-const INACTIVE_UNIT_FILE_STATES=new Set(["disabled","not-found","static"]);
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -109,8 +108,8 @@ export function buildVoidEconomicEpoch2QbftHostPrestartReceiptV1(input) {
 
   const planHost=validated.binding.plan_host;
   const unitFileState=String(input?.facts?.unit_file_state||"");
-  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
-    throw new Error("prestart_unit_file_state_invalid:"+role);
+  if(unitFileState!=="static") {
+    throw new Error("prestart_unit_file_state_not_static:"+role);
   }
   const expectedFacts={
     repo_main_clean:true,
@@ -242,8 +241,8 @@ export function validateVoidEconomicEpoch2QbftHostPrestartReceiptV1(receipt) {
   }
 
   const unitFileState=String(receipt?.facts?.unit_file_state||"");
-  if(!INACTIVE_UNIT_FILE_STATES.has(unitFileState)) {
-    throw new Error("prestart_receipt_unit_file_state_invalid:"+receipt.role);
+  if(unitFileState!=="static") {
+    throw new Error("prestart_receipt_unit_file_state_not_static:"+receipt.role);
   }
   const expectedFacts={
     repo_main_clean:true,
