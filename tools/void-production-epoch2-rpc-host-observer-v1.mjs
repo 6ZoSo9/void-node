@@ -249,8 +249,10 @@ function validateContainerObservation(container, expected) {
     container.docker_host !== expected.docker_host ||
     container.container_name !== expected.container_name ||
     !/^[0-9a-f]{64}$/u.test(String(container.container_id || "")) ||
+    /^0{64}$/u.test(String(container.container_id || "")) ||
     container.image_reference !== expected.image_reference ||
     !/^sha256:[0-9a-f]{64}$/u.test(String(container.image_id || "")) ||
+    /^sha256:0{64}$/u.test(String(container.image_id || "")) ||
     container.running !== true ||
     typeof container.started_at_utc !== "string" ||
     container.started_at_utc.length < 20 ||
