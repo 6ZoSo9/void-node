@@ -435,6 +435,7 @@ for(const required of [
   "service_enable_state_not_clean",
   '["disabled","not-found","static"]',
   "rootless_docker_required",
+  'regularFile(dockerBin,"docker_bin",128*1024*1024)',
   "p2p_port_not_vacant",
   "start_authorized=false",
 ]) {
