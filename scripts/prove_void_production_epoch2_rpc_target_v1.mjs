@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   HOLD_STATUS,
@@ -331,6 +334,87 @@ const digest = crypto
   ))
   .digest("hex");
 
+{
+  const mutableAuthorityPaths = [
+    "tools/void-production-epoch2-rpc-selection-evidence-verifier-v1.mjs",
+    "tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs",
+    "tools/void-production-epoch2-rpc-target-promotion-apply-admission-v1.mjs",
+    "tools/void-production-epoch2-rpc-target-v1.mjs",
+  ];
+  const sentinel = path.join(
+    os.tmpdir(),
+    "void-production-epoch2-rpc-hidden-worktree-" + String(process.pid),
+  );
+  const originals = new Map();
+  try {
+    fs.rmSync(sentinel, { force: true });
+    for (const relative of mutableAuthorityPaths) {
+      const original = fs.readFileSync(relative);
+      originals.set(relative, original);
+      execFileSync(
+        "/usr/bin/git",
+        ["update-index", "--assume-unchanged", relative],
+        { stdio: "ignore" },
+      );
+      const malicious = Buffer.concat([
+        Buffer.from(
+          'import { writeFileSync as __voidHiddenWrite } from "node:fs";\n' +
+            "__voidHiddenWrite(" +
+            JSON.stringify(sentinel) +
+            ', "executed\\n", { flag: "a" });\n',
+          "utf8",
+        ),
+        original,
+      ]);
+      fs.writeFileSync(relative, malicious);
+    }
+
+    const hiddenWorktreeResult = loadProductionEpoch2RpcTargetV1();
+    assert.equal(hiddenWorktreeResult.evaluation.status, SELECTED_STATUS);
+    assert.equal(
+      hiddenWorktreeResult.evaluation.evidence_aware_selection_verified,
+      true,
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "hidden worktree authority module executed",
+    );
+  } finally {
+    for (const [relative, original] of originals) {
+      fs.writeFileSync(relative, original);
+      execFileSync(
+        "/usr/bin/git",
+        ["update-index", "--no-assume-unchanged", relative],
+        { stdio: "ignore" },
+      );
+    }
+    fs.rmSync(sentinel, { force: true });
+  }
+}
+
+const targetSource = fs.readFileSync(
+  "tools/void-production-epoch2-rpc-target-v1.mjs",
+  "utf8",
+);
+for (const marker of [
+  "materializePrivateSelectionTreeV1",
+  "assertPrivateSelectionTreeV1",
+  "--permission",
+  "--allow-child-process",
+  "production_epoch2_selection_private_git_blob_mismatch",
+  "production_epoch2_selection_private_source_generation_drift",
+]) {
+  assert.equal(targetSource.includes(marker), true, marker);
+}
+assert.equal(
+  targetSource.includes(
+    "[path.join(ROOT, SELECTION_EVIDENCE_VERIFIER_REL)]",
+  ),
+  false,
+  "worktree verifier spawn path must be retired",
+);
+
 console.log("VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1_PROOF_GREEN");
 console.log("canonical_status=" + SELECTED_STATUS);
 console.log("canonical_target_sha256=" + digest);
@@ -357,6 +441,9 @@ console.log("source_lineage_ancestry_reverified=true");
 console.log("evidence_packet_tamper_adversaries_green=true");
 console.log("verifier_entry_git_object_bound=true");
 console.log("reviewed_execution_exact_head_git_object_bytes=true");
+console.log("reviewed_execution_private_detached_checkout=true");
+console.log("reviewed_execution_private_module_bytes_rebound=true");
+console.log("hidden_worktree_authority_execution=false");
 console.log("reviewed_execution_non_shallow_repository=true");
 console.log("reviewed_execution_bare_package_runtime_absent=true");
 console.log("promotion_manifest_content_addressed=true");
