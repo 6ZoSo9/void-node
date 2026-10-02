@@ -77,7 +77,7 @@ function systemctl(args) {
     stdio:["ignore","pipe","pipe"],
   });
 }
-function requireInactiveDisabled(service) {
+function requireInactiveUnitFileState(service) {
   const active=systemctl(["is-active",service]);
   const activeText=String(active.stdout||active.stderr||"").trim();
   if(!["inactive","unknown"].includes(activeText)) {
@@ -88,13 +88,24 @@ function requireInactiveDisabled(service) {
   if(!["disabled","not-found","static"].includes(enabledText)) {
     fail("service_enable_state_not_clean:"+enabledText);
   }
+  return {active_state:activeText,unit_file_state:enabledText};
+}
+function requireNoInstallSection(bytes,label) {
+  if(/^[ \t]*\[Install\][ \t]*$/mu.test(bytes.toString("utf8"))) {
+    fail(label+"_install_section_forbidden");
+  }
 }
 function requireNoAutostartLinks(unitDir,service) {
   for(const name of fs.readdirSync(unitDir)) {
     if(!name.endsWith(".wants")&&!name.endsWith(".requires")) continue;
     const dir=path.join(unitDir,name);
     const st=fs.lstatSync(dir);
-    if(st.isSymbolicLink()||!st.isDirectory()) continue;
+    if(st.isSymbolicLink()) {
+      fail("service_dependency_dir_symlink_forbidden:"+name);
+    }
+    if(!st.isDirectory()) {
+      fail("service_dependency_dir_not_directory:"+name);
+    }
     const candidate=path.join(dir,service);
     try {
       fs.lstatSync(candidate);
@@ -184,6 +195,7 @@ if((unitStat.mode&0o777)!==0o600) fail("installed_unit_mode_invalid");
 if(sha256File(unitPath)!==validated.receipt.installed_hashes.systemd_unit_sha256) {
   fail("installed_unit_sha256_mismatch");
 }
+requireNoInstallSection(fs.readFileSync(unitPath),"installed_unit");
 
 const genesisPath=path.join(runtimeRoot,"genesis.json");
 const genesisEvidencePath=path.join(runtimeRoot,"genesis-evidence.json");
@@ -228,7 +240,7 @@ if(fs.readdirSync(dataDir).length!==0) fail("installed_data_not_empty");
 
 const unitDir=canonicalDir(path.dirname(unitPath),"systemd_user_dir");
 requireNoAutostartLinks(unitDir,materialization.service_name);
-requireInactiveDisabled(materialization.service_name);
+const serviceState=requireInactiveUnitFileState(materialization.service_name);
 
 const pluginPath=path.resolve(materialization.files.plugin.path);
 regularFile(pluginPath,"plugin",64*1024*1024);
@@ -398,6 +410,7 @@ console.log("nodekey_bytes_emitted=false");
 console.log("nodekey_bytes_persisted=false");
 console.log("service_action=false");
 console.log("systemd_reload=false");
+console.log("service_unit_file_state="+serviceState.unit_file_state);
 console.log("service_enable=false");
 console.log("service_start=false");
 console.log("docker_mutation=false");
