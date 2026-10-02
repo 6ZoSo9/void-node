@@ -15,6 +15,9 @@ import {
   VOID_DATANET_CONTENT_COMMITMENT_DEPLOYMENT_OBSERVER_V1,
   observeDatanetContentCommitmentDeploymentV1,
 } from "../tools/datanet-content-commitment-deployment-observer-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "../tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
 
 const ROOT=process.cwd();
 const identity=JSON.parse(fs.readFileSync(
@@ -173,6 +176,22 @@ function input(transport,override={}){
   for(const call of f.calls){
     if(call.method==="eth_getCode"||call.method==="eth_call"){
       assert.equal(call.params[1],"0x6f");
+    }
+    if(call.method==="eth_call"){
+      const envelope=call.params[0];
+      assert.equal(envelope.from,PUBLISHER);
+      assert.equal(envelope.to,CONTRACT);
+      assert.equal(envelope.value,"0x0");
+      assert.deepEqual(
+        envelope.accessList,
+        [{
+          address:
+            VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
+          storageKeys:[
+            VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_storage_key,
+          ],
+        }],
+      );
     }
   }
 }

@@ -4,11 +4,13 @@ Marker: `VOID_PRODUCTION_EPOCH2_RPC_TARGET_PROMOTION_APPLY_ADMISSION_V1`
 
 ## Purpose
 
-This is the read-only/source-only admission gate between a compiled production
-Epoch-2 RPC selected-target candidate and the later source promotion that will
-change the canonical target descriptor.
+This is the retained read-only/source-only admission gate that was used between
+the compiled production Epoch-2 RPC selected-target candidate and canonical
+source promotion.
 
-It does **not** edit the repository and does not select the target.
+It does **not** edit the repository and does not itself select the target. The
+canonical target is now selected by the separately reviewed source-promotion
+manifest.
 
 The authoritative CLI accepts only:
 
@@ -124,8 +126,8 @@ funds_movement=false
 
 ## Next gate
 
-After a real production candidate receives a green authoritative admission,
-materialize a reviewable source promotion packet containing the exact evidence
-bytes and selected descriptor. The final canonical-target change remains a
-separate PR and must teach the canonical loader to reverify that checked-in
-evidence before selected state can load.
+The real production candidate received a green authoritative admission before
+canonical source promotion. This tool remains as provenance/regression evidence.
+The next gate is downstream fresh read-only revalidation against the selected
+production target; later write/deployment/public-activation authority remains
+separate.
