@@ -1513,6 +1513,16 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
     local_source_head_sha: p.repository.head_sha,
     local_source_tree_sha: p.repository.tree_sha,
     qualification_id: p.qualification.qualification_id,
+    qualification_source_head_sha:
+      p.qualification.qualification_source_head_sha,
+    qualification_source_tree_sha:
+      p.qualification.qualification_source_tree_sha,
+    qualification_source_head_ancestor_current_main:
+      p.qualification.qualification_source_head_ancestor_current_main,
+    qualification_historical_reviewed_bytes_verified:
+      p.qualification.qualification_historical_reviewed_bytes_verified,
+    qualification_current_reviewed_bytes_verified:
+      p.qualification.qualification_current_reviewed_bytes_verified,
     rpc_methods_used: p.rpc.rpc_methods_used,
     observation: p.observation,
     sufficiency: p.sufficiency,
