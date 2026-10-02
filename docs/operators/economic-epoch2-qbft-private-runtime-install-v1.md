@@ -44,8 +44,10 @@ Before filesystem mutation the installer requires:
 - canonical clean `main`;
 - exact host/role binding;
 - the validator service is inactive;
-- before publication, `systemctl --user is-enabled` may report
-  `disabled`, `not-found`, or `static`;
+- before publication, `systemctl --user is-enabled` must report only
+  `disabled` or `not-found`; a pre-existing `static` unit with the same
+  service name is a HOLD because it cannot be the not-yet-published reviewed
+  unit;
 - no direct `*.wants` or `*.requires` enablement link exists;
 - any symlinked `.wants` or `.requires` directory is a HOLD rather than
   being skipped;
@@ -54,10 +56,12 @@ Before filesystem mutation the installer requires:
 
 The unit itself remains `Restart=no`.
 
-The generated validator unit intentionally has no `[Install]` section.
-After the reviewed unit file is published, the post-install observation must
-report exactly `static`. Any `disabled` or `not-found` post-publication
-result is a HOLD rather than an alternate accepted installed state.
+The generated validator unit intentionally has no `[Install]` section, and
+the exact reviewed unit bytes are checked for that property before publication.
+After the reviewed unit file is published and its hash is verified, the
+post-install observation must report exactly `static`. Any `disabled` or
+`not-found` post-publication result is a HOLD rather than an alternate
+accepted installed state.
 
 `static` is recorded as the exact observed **unit-file state**. It is not
 treated as proof that the service cannot be started indirectly. Direct
@@ -104,6 +108,44 @@ the post-publication unit-file state must be exactly `static`, and direct-link
 absence must hold. The later activation ceremony owns any reload/start action.
 The install receipt does not claim that every possible indirect systemd
 activation path is absent.
+
+## Existing-runtime re-attestation
+
+Hosts that already contain the exact reviewed inactive runtime do **not** need
+to delete and reinstall it merely because the receipt schema changed.
+
+The same runner supports:
+
+```text
+--reattest-existing
+--confirmation reattestExistingPrivateEpoch2QbftBundleV1
+```
+
+This mode requires the exact plan/bundle/bundle-set/role binding and then proves:
+
+- the runtime root is the exact canonical role path, owned by the operator and
+  mode 0700;
+- runtime membership is exactly the reviewed genesis, genesis evidence,
+  static-peer file, prepared materialization, bundle-set copy and empty data
+  directory;
+- all reviewed runtime files are direct operator-owned mode-0600 files with
+  exact reviewed bytes/hashes;
+- the data directory is direct, operator-owned, mode 0700 and empty;
+- the installed user unit is direct, operator-owned, mode 0600, exact reviewed
+  bytes, and contains no `[Install]` section;
+- the service is inactive and the exact installed reviewed unit reports
+  `static`;
+- no direct operator user-unit `.wants` / `.requires` link exists.
+
+Re-attestation writes **only** the create-only receipt output. It does not write,
+replace, rename or remove the runtime root or unit; does not run
+`daemon-reload`; does not enable/start a service; does not invoke Docker; and
+does not read the validator private key.
+
+The emitted install receipt is a state attestation for downstream admission.
+Its `installed_at_utc` value is the fresh re-attestation observation time in
+this mode; it is not a claim that filesystem installation happened at that
+instant.
 
 ## Exact applied confirmation
 
