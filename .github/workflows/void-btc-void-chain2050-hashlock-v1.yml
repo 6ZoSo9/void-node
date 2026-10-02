@@ -155,11 +155,7 @@ jobs:
       - name: Review exact dual-compiler identity
         run: |
           set -euo pipefail
-          SOURCE_COMMIT="$(git rev-parse HEAD)"
-          SOURCE_REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-detached}}"
-          REVIEWED_AT="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-
-          node tools/void-btc-void-chain2050-hashlock-v1.mjs             review             --source contracts/mainnet/BtcVoidHashlockSettlementV1.sol             --input "$WORK/input.json"             --output-a "$WORK/output-native.json"             --output-b "$WORK/output-solcjs.json"             --environment-a "$WORK/environment-native.json"             --environment-b "$WORK/environment-solcjs.json"             --source-commit "$SOURCE_COMMIT"             --source-ref "$SOURCE_REF"             --reviewed-at "$REVIEWED_AT"             --out "$WORK/identity.json"
+          node tools/void-btc-void-chain2050-hashlock-v1.mjs             review             --source contracts/mainnet/BtcVoidHashlockSettlementV1.sol             --input "$WORK/input.json"             --output-a "$WORK/output-native.json"             --output-b "$WORK/output-solcjs.json"             --environment-a "$WORK/environment-native.json"             --environment-b "$WORK/environment-solcjs.json"             --out "$WORK/identity.json"
 
           IDENTITY="$WORK/identity.json" node - <<'NODE'
           const fs = require("node:fs");
@@ -178,8 +174,29 @@ jobs:
               "0x470075b85352eb86f7d089fb9ba88945f12aad94") {
             fail("token");
           }
-          if (value.compiler?.compiler_outputs_reproduced !== true) {
-            fail("reproduced");
+          if (value.compiler?.compiler_outputs_cross_checked !== true ||
+              value.compiler?.compiler_execution_rederived !== false) {
+            fail("compiler_provenance");
+          }
+          if (value.contract?.canonical_void_token_source?.path !==
+              "contracts/epoch2/VoidEpoch2TokenV1.sol" ||
+              !/^[0-9a-f]{64}$/.test(
+                value.contract?.canonical_void_token_source?.source_sha256 || ""
+              ) ||
+              !/^[0-9a-f]{40}$/.test(
+                value.contract?.canonical_void_token_source?.source_git_blob_sha1 || ""
+              ) ||
+              value.contract?.canonical_void_token_source?.
+                transfer_semantics_verified_source_only !== true ||
+              value.contract?.canonical_void_token_source?.
+                runtime_code_verified !== false) {
+            fail("token_source");
+          }
+          if (!/^[0-9a-f]{40}$/.test(value.source?.repository_head_sha || "") ||
+              !/^[0-9a-f]{40}$/.test(value.source?.repository_tree_sha || "") ||
+              value.source?.canonical_remote_url !==
+                "https://github.com/6ZoSo9/void-node.git") {
+            fail("source_git_identity");
           }
           if (value.artifacts?.storage_slot_zero_label !== "_swaps") {
             fail("storage");
@@ -218,7 +235,10 @@ jobs:
             "runtime_bytecode_sha256=" +
               value.artifacts.runtime_bytecode_sha256
           );
-          console.log("compiler_outputs_reproduced=true");
+          console.log("compiler_outputs_cross_checked=true");
+          console.log("compiler_execution_rederived=false");
+          console.log("canonical_git_source_bound=true");
+          console.log("canonical_void_token_source_bound=true");
           console.log("contract_deployment=false");
           console.log("chain2050_write=false");
           console.log("funds_movement=false");
