@@ -55,8 +55,8 @@ function canonicalCandidate(calldata){
     value_wei:"0",
     calldata,
     gas_limit:"60000",
-    max_fee_per_gas_wei:"2000000000",
-    max_priority_fee_per_gas_wei:"1000000000",
+    max_fee_per_gas_wei:"0",
+    max_priority_fee_per_gas_wei:"0",
   };
 }
 
