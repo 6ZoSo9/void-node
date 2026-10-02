@@ -318,7 +318,7 @@ console.log("runtime_root="+runtimeRoot);
 console.log("unit_install_path="+unitPath);
 console.log("pre_active_state="+preState.active_state);
 console.log("pre_unit_file_state="+preState.unit_file_state);
-console.log("pre_direct_enablement_links_absent=true");
+console.log("pre_operator_user_unit_dir_direct_enablement_links_absent=true");
 console.log("pre_indirect_activation_absence_proven=false");
 console.log("daemon_reload=false");
 console.log("service_enable=false");
@@ -364,7 +364,7 @@ if(args.reattest_existing) {
     installed_at_utc:new Date().toISOString(),
     installed_repo_head:currentHead,
     unit_file_state:postState.unit_file_state,
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
   });
   writeNew(
     output,
@@ -506,7 +506,7 @@ try {
     installed_at_utc:installedAt,
     installed_repo_head:currentHead,
     unit_file_state:postState.unit_file_state,
-    direct_enablement_links_absent:true,
+    operator_user_unit_dir_direct_enablement_links_absent:true,
   });
   writeNew(
     outputStage,
@@ -518,7 +518,7 @@ try {
 
   console.log("post_active_state="+postState.active_state);
   console.log("post_unit_file_state="+postState.unit_file_state);
-  console.log("post_direct_enablement_links_absent=true");
+  console.log("post_operator_user_unit_dir_direct_enablement_links_absent=true");
   console.log("post_indirect_activation_absence_proven=false");
   console.log("runtime_root_present=true");
   console.log("user_unit_file_present=true");
