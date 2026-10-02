@@ -45,6 +45,15 @@ const UINT64_RE = /^(0|[1-9][0-9]{0,19})$/;
 const MAX_UINT64 = 18446744073709551615n;
 const MAX_ACTIVE_CHALLENGES = 256;
 const MAX_ACTIVE_SESSIONS = 256;
+const REVIEWED_SESSION_STATE_FILE_STORES_V1 = new WeakSet();
+
+export function isVoidPublicParticipantSessionStateFileStoreV1(value) {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    REVIEWED_SESSION_STATE_FILE_STORES_V1.has(value)
+  );
+}
 
 const SNAPSHOT_KEYS = Object.freeze([
   "challenges",
@@ -913,7 +922,7 @@ export function createVoidPublicParticipantSessionStateFileV1({
     }
   };
 
-  return Object.freeze({
+  const store = Object.freeze({
     ...VOID_PUBLIC_PARTICIPANT_SESSION_STATE_STORE_V1,
     state_file: location.file,
     purge,
@@ -931,4 +940,6 @@ export function createVoidPublicParticipantSessionStateFileV1({
     getSession,
     deleteSession,
   });
+  REVIEWED_SESSION_STATE_FILE_STORES_V1.add(store);
+  return store;
 }
