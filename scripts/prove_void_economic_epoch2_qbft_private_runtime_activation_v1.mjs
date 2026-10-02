@@ -595,6 +595,8 @@ for(const required of [
   "service_not_clean_inactive",
   "service_unit_file_state_not_clean",
   "service_unit_file_state_drift",
+  "service_unit_file_state_not_static_before_explicit_start",
+  "service_unit_file_state_changed_during_daemon_reload",
   "service_already_active_before_explicit_start",
   "service_started_during_daemon_reload",
   "service_enablement_directory_symlink",
