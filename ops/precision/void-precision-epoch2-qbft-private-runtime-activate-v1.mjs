@@ -356,7 +356,11 @@ function startScript() {
   return [
     "set -Eeuo pipefail",
     "service="+bashLiteral(SERVICE),
+    'active="$(systemctl --user is-active "$service" 2>&1 || true)"',
+    'case "$active" in inactive|unknown) ;; *) printf \'HOLD:service_already_active_before_explicit_start:%s\\n\' "$active" >&2; exit 2 ;; esac',
     'systemctl --user daemon-reload',
+    'active="$(systemctl --user is-active "$service" 2>&1 || true)"',
+    'case "$active" in inactive|unknown) ;; *) printf \'HOLD:service_started_during_daemon_reload:%s\\n\' "$active" >&2; exit 2 ;; esac',
     'systemctl --user start "$service"',
     'for _ in $(seq 1 120); do',
     '  systemctl --user is-active --quiet "$service" && exit 0',
