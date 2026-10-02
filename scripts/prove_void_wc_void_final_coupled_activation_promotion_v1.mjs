@@ -12,6 +12,7 @@ import {
   deriveVoidWcVoidFinalCoupledActivationPromotionV1,
   testOnlyExerciseVoidWcVoidFinalCoupledInputParentReplacementV1,
   testOnlyExerciseVoidWcVoidFinalCoupledOutputParentReplacementV1,
+  testOnlyExerciseVoidWcVoidFinalCoupledReviewedBindingMutationV1,
   testOnlyVoidWcVoidFinalCoupledGitIdentityV1,
   writeVoidWcVoidFinalCoupledActivationPromotionV1,
 } from "../tools/void-wc-void-final-coupled-activation-promotion-v1.mjs";
@@ -148,7 +149,12 @@ for (const [key, value] of Object.entries(
       key === "private_input_descriptor_bound" ||
       key === "private_input_parent_identity_bound" ||
       key === "private_output_parent_fd_bound" ||
-      key === "private_output_exact_directory_fsync") {
+      key === "private_output_exact_directory_fsync" ||
+      key === "reviewed_execution_required" ||
+      key === "exact_reviewed_repository_head_tree_required" ||
+      key === "reviewed_authority_entry_blobs_required" ||
+      key === "reviewed_package_runtime_required" ||
+      key === "permission_fenced_reviewed_execution_required") {
     assert.equal(value, true, key);
   } else {
     assert.equal(value, false, key);
@@ -463,6 +469,20 @@ try {
 }
 
 {
+  const mutation =
+    testOnlyExerciseVoidWcVoidFinalCoupledReviewedBindingMutationV1();
+  assert.equal(mutation.initial_binding_green, true);
+  assert.match(
+    String(mutation.runner_mutation_reason || ""),
+    /FINAL_COUPLED_REVIEWED_RUNNER_PRIVATE_SHA256_MISMATCH/u,
+  );
+  assert.match(
+    String(mutation.module_mutation_reason || ""),
+    /FINAL_COUPLED_REVIEWED_PRIVATE_MODULE_BLOB_MISMATCH/u,
+  );
+}
+
+{
   const temp = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-final-coupled-git-adversary-"),
   );
@@ -607,6 +627,11 @@ for (const required of [
   "fs.constants.O_DIRECTORY",
   "privateRegularFileBytes",
   "createPrivateOutputBoundV1",
+  "reviewedClassifierClosure",
+  "assertReviewedExecutionStaticBinding",
+  "testOnlyExerciseVoidWcVoidFinalCoupledReviewedBindingMutationV1",
+  "FINAL_COUPLED_REVIEWED_PARENT_IDENTITY_DRIFT",
+  "FINAL_COUPLED_REVIEWED_PRIVATE_MODULE_BLOB_MISMATCH",
 ]) {
   assert.equal(source.includes(required), true, required);
 }
@@ -616,6 +641,16 @@ assert.equal(
   ),
   false,
   "verified derivation must remain module-private",
+);
+assert.equal(
+  source.includes("--depth=1"),
+  false,
+  "reviewed execution must retain historical application-base objects",
+);
+assert.equal(
+  source.includes("reviewedExecutionCache"),
+  false,
+  "reviewed execution tree must not persist in a process-wide cache",
 );
 
 for (const forbidden of [
@@ -646,6 +681,13 @@ console.log("private_input_descriptor_bound=true");
 console.log("private_input_parent_identity_bound=true");
 console.log("private_output_parent_fd_bound=true");
 console.log("private_output_exact_directory_fsync=true");
+console.log("reviewed_execution_full_history_required=true");
+console.log("reviewed_execution_process_cache=false");
+console.log("reviewed_classifier_transitive_closure_bound=true");
+console.log("reviewed_static_binding_revalidated_before_spawn=true");
+console.log("reviewed_runner_mutation_held=true");
+console.log("reviewed_module_mutation_held=true");
+console.log("reviewed_execution_private_tree_torn_down_after_spawn=true");
 console.log("composite_source_ready_proven=true");
 console.log("canonical_candidate_files_updated=false");
 console.log("runtime_activation_authorized=false");
