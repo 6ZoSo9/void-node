@@ -10,15 +10,15 @@ Bind the already-reviewed DataNet registry deployer observer to the **actual
 private Epoch-2 successor runtime** only after a successful guarded QBFT
 activation receipt exists.
 
-The older static
-`ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json` remains
-intentionally HOLD. It is not rewritten or promoted. Historical/equivalence
-ports therefore do not acquire production authority.
-
-Instead, a valid private activation plan + activation receipt dynamically bind
-the only accepted RPC:
+The canonical
+`ops/mainnet0/datanet-registry-deployer-resolution-target-v1.json` is now
+source-bound to the reviewed production Epoch-2 RPC:
 
 `http://127.0.0.1:18553/`
+
+The activation-bound observer remains the semantic bridge that validates the
+private activation lineage. Historical/equivalence ports still do not acquire
+production authority.
 
 ## Activation lineage
 

@@ -13,6 +13,7 @@ import {
   buildProductionEpoch2RpcSelectedDescriptorV1,
 } from "../tools/void-production-epoch2-rpc-target-promotion-compiler-v1.mjs";
 import {
+  HOLD_STATUS,
   SELECTED_STATUS,
   productionEpoch2RpcUrlFingerprintV1,
   validateProductionEpoch2RpcTargetV1,
@@ -51,12 +52,34 @@ function withObservationId(material) {
   };
 }
 
-const holdTarget = JSON.parse(
+const canonicalTarget = JSON.parse(
   fs.readFileSync(
     "ops/mainnet0/production-epoch2-rpc-target-v1.json",
     "utf8",
   ),
 );
+const holdTarget = structuredClone(canonicalTarget);
+holdTarget.status = HOLD_STATUS;
+holdTarget.selection = {
+  production_rpc_target_selected: false,
+  rpc_url: null,
+  rpc_url_fingerprint_sha256: null,
+  service_unit: null,
+  activation_plan_id: null,
+  activation_receipt_id: null,
+  activation_receipt_sha256: null,
+  runtime_observation_id: null,
+  runtime_observation_sha256: null,
+  runtime_active_verified: false,
+  exact_genesis_bound: false,
+  production_validator_set_bound: false,
+  production_validator_binding_source_path: null,
+  production_validator_binding_evidence_sha256: null,
+  write_capability_classification: null,
+  independent_host_acceptance: false,
+};
+holdTarget.next_gate =
+  "observe_and_select_one_real_long_lived_production_epoch2_rpc_runtime";
 
 const activationPlanMaterial = {
   marker: VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1,

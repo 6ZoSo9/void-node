@@ -1,19 +1,19 @@
 {
   "marker": "VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1",
   "version": 1,
-  "status": "HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED",
+  "status": "PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY",
   "chain_id": 2050,
   "execution_epoch": 2,
   "purpose": "bind_the_only_rpc_target_allowed_for_live_datanet_registry_deployer_resolution",
   "production_execution_layer": {
     "client": "Besu",
     "client_version": "26.8.1",
-    "production_rpc_target_selected": false,
-    "rpc_url": null,
-    "rpc_url_fingerprint_sha256": null,
-    "runtime_active_verified": false,
-    "exact_genesis_bound": false,
-    "production_validator_set_bound": false,
+    "production_rpc_target_selected": true,
+    "rpc_url": "http://127.0.0.1:18553/",
+    "rpc_url_fingerprint_sha256": "795cf5eb7058632084b66d9cb831e1c7f91db76544a24d145512f71b1932f642",
+    "runtime_active_verified": true,
+    "exact_genesis_bound": true,
+    "production_validator_set_bound": true,
     "migration_authorized": false,
     "public_activation_authorized": false
   },
@@ -50,5 +50,5 @@
     "migration_authorized": false,
     "public_activation_authorized": false
   },
-  "next_gate": "review_and_bind_exact_production_epoch2_loopback_rpc_target_after_runtime_authority_prerequisites"
+  "next_gate": "run_fresh_read_only_datanet_deployer_resolution_against_selected_production_epoch2_rpc"
 }
