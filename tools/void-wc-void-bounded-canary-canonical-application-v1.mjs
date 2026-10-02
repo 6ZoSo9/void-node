@@ -655,6 +655,55 @@ function writePrivateSource(file, bytes, mode = 0o400) {
   }
 }
 
+function readBoundPrivateRegularFile(
+  file,
+  { expectedSha256 = null, expectedGitBlobSha1 = null } = {},
+  code,
+) {
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+  );
+  try {
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.nlink !== 1 || before.size < 1) {
+      fail(code + "_FILE_INVALID");
+    }
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (count <= 0) fail(code + "_SHORT_READ");
+      offset += count;
+    }
+    const after = fs.fstatSync(fd);
+    for (const key of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
+      if (before[key] !== after[key]) fail(code + "_CHANGED_DURING_READ");
+    }
+    if (
+      expectedSha256 !== null &&
+      sha256(bytes) !== expectedSha256
+    ) {
+      fail(code + "_SHA256_MISMATCH");
+    }
+    if (
+      expectedGitBlobSha1 !== null &&
+      gitBlobSha1(bytes) !== expectedGitBlobSha1
+    ) {
+      fail(code + "_GIT_BLOB_MISMATCH");
+    }
+    return bytes;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function gitRunPrivate(cwd, args, code, { allowFail = false } = {}) {
   const result = spawnSync(
     GIT,
@@ -766,6 +815,14 @@ function buildReviewedExecutionRoot(repository) {
     path.join(os.tmpdir(), "void-bounded-canary-reviewed-"),
   );
   fs.chmodSync(parent, 0o700);
+  const parentStat = fs.lstatSync(parent);
+  if (!parentStat.isDirectory() || parentStat.isSymbolicLink()) {
+    fail("CANONICAL_APPLICATION_REVIEWED_PARENT_INVALID");
+  }
+  const parentIdentity = Object.freeze({
+    dev: parentStat.dev,
+    ino: parentStat.ino,
+  });
   try {
     const bootstrapDir = path.join(parent, "bootstrap");
     fs.mkdirSync(bootstrapDir, { mode: 0o700 });
@@ -802,7 +859,8 @@ function buildReviewedExecutionRoot(repository) {
       'process.stdout.write(JSON.stringify(result));',
       '',
     ].join("\n");
-    writePrivateSource(bootstrapFile, Buffer.from(bootstrapSource, "utf8"));
+    const bootstrapBytes = Buffer.from(bootstrapSource, "utf8");
+    writePrivateSource(bootstrapFile, bootstrapBytes);
 
     const materialize = spawnSync(
       fs.realpathSync.native(process.execPath),
@@ -911,7 +969,8 @@ function buildReviewedExecutionRoot(repository) {
       'process.stdout.write(JSON.stringify(envelope));',
       '',
     ].join("\n");
-    writePrivateSource(runnerFile, Buffer.from(runnerSource, "utf8"));
+    const runnerBytes = Buffer.from(runnerSource, "utf8");
+    writePrivateSource(runnerFile, runnerBytes);
 
     makeReviewedTreeReadOnly(executionRoot);
     const privateStatus = String(
@@ -927,11 +986,18 @@ function buildReviewedExecutionRoot(repository) {
 
     return Object.freeze({
       parent,
+      parent_identity: parentIdentity,
       bootstrap_dir: bootstrapDir,
       bootstrap_file: bootstrapFile,
+      bootstrap_file_sha256: sha256(bootstrapBytes),
+      runtime_tool_file: runtimeToolFile,
+      runtime_tool_file_sha256: runtimeTool.sha256,
       profile_file: profileFile,
+      profile_file_sha256: runtimeProfile.sha256,
       execution_root: executionRoot,
       runner_file: runnerFile,
+      runner_file_sha256: sha256(runnerBytes),
+      private_module_git_blobs: closure.module_git_blobs,
       binding: Object.freeze({
         module_git_blobs: closure.module_git_blobs,
         runtime_tool_git_blob_sha1: runtimeTool.blob_sha1,
@@ -958,7 +1024,49 @@ function buildReviewedExecutionRoot(repository) {
   }
 }
 
+function assertPrivateExecutionStaticBinding(bundle) {
+  const parentStat = fs.lstatSync(bundle.parent);
+  if (
+    !parentStat.isDirectory() ||
+    parentStat.isSymbolicLink() ||
+    parentStat.dev !== bundle.parent_identity.dev ||
+    parentStat.ino !== bundle.parent_identity.ino
+  ) {
+    fail("CANONICAL_APPLICATION_REVIEWED_PARENT_IDENTITY_DRIFT");
+  }
+  readBoundPrivateRegularFile(
+    bundle.bootstrap_file,
+    { expectedSha256: bundle.bootstrap_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_BOOTSTRAP",
+  );
+  readBoundPrivateRegularFile(
+    bundle.runtime_tool_file,
+    { expectedSha256: bundle.runtime_tool_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_RUNTIME_TOOL_PRIVATE",
+  );
+  readBoundPrivateRegularFile(
+    bundle.profile_file,
+    { expectedSha256: bundle.profile_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_RUNTIME_PROFILE_PRIVATE",
+  );
+  readBoundPrivateRegularFile(
+    bundle.runner_file,
+    { expectedSha256: bundle.runner_file_sha256 },
+    "CANONICAL_APPLICATION_REVIEWED_RUNNER",
+  );
+  for (const [relativePath, expectedBlob] of
+    Object.entries(bundle.private_module_git_blobs)) {
+    readBoundPrivateRegularFile(
+      path.join(bundle.execution_root, relativePath),
+      { expectedGitBlobSha1: expectedBlob },
+      "CANONICAL_APPLICATION_REVIEWED_PRIVATE_MODULE_" +
+        relativePath.replace(/[^A-Za-z0-9]+/gu, "_"),
+    );
+  }
+}
+
 function verifyReviewedRuntimeTree(bundle) {
+  assertPrivateExecutionStaticBinding(bundle);
   const result = spawnSync(
     fs.realpathSync.native(process.execPath),
     [bundle.bootstrap_file],
@@ -986,6 +1094,7 @@ function runReviewedAuthority(repository, request) {
   const bundle = buildReviewedExecutionRoot(repository);
   try {
     verifyReviewedRuntimeTree(bundle);
+    assertPrivateExecutionStaticBinding(bundle);
     const result = spawnSync(
       fs.realpathSync.native(process.execPath),
       [
