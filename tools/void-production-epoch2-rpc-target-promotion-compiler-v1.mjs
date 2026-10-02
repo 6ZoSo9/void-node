@@ -373,7 +373,7 @@ export function buildProductionEpoch2RpcSelectedDescriptorV1() {
   );
 }
 
-function writePreviewOutsideRepository(output, preview) {(output, candidate) {
+function writePreviewOutsideRepository(output, preview) {
   const absolute = path.resolve(output);
   if (absolute === ROOT || absolute.startsWith(ROOT + path.sep)) {
     fail("production_epoch2_rpc_promotion_output_inside_repository_forbidden");
