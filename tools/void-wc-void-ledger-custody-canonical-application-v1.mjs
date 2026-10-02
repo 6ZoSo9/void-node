@@ -237,7 +237,22 @@ function repositoryIdentity(){
   if(!acceptedOrigins.has(rawOrigin)){
     fail("LEDGER_CUSTODY_APPLICATION_CANONICAL_ORIGIN_MISMATCH");
   }
-  return Object.freeze({head,tree,branch,origin:CANONICAL_REMOTE});
+  const toolSource=commitBytes(
+    head,
+    TOOL_REL,
+    "APPLICATION_TOOL",
+  );
+  const toolWorktree=fs.readFileSync(path.join(ROOT,TOOL_REL));
+  if(gitBlobSha1(toolWorktree)!==toolSource.blob_sha1){
+    fail("LEDGER_CUSTODY_APPLICATION_TOOL_WORKTREE_DRIFT");
+  }
+  return Object.freeze({
+    head,
+    tree,
+    branch,
+    origin:CANONICAL_REMOTE,
+    tool_blob_sha1:toolSource.blob_sha1,
+  });
 }
 function commitFile(commit,rel,label){
   if(typeof commit!=="string"||!HEX40.test(commit)){
@@ -880,8 +895,17 @@ function assertReviewedExecutionBinding(plan,binding){
 function canonicalRemoteMainHead(){
   const result=spawnSync(
     GIT,
-    ["ls-remote",CANONICAL_REMOTE,"refs/heads/main"],
+    [
+      "--no-replace-objects",
+      "-c","http.sslVerify=true",
+      ...REVIEWED_GIT_CONFIG_ARGS,
+      "ls-remote",
+      "--heads",
+      CANONICAL_REMOTE,
+      "refs/heads/main",
+    ],
     {
+      cwd:"/",
       env:sanitizedGitEnv(),
       encoding:"utf8",
       stdio:["ignore","pipe","pipe"],
@@ -1327,8 +1351,7 @@ export function prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1(input){
     pair:"WC_VOID",
     application_base_head_sha:repo.head,
     application_base_tree_sha:repo.tree,
-    application_tool_git_blob_sha1:
-      gitText(["rev-parse","HEAD:"+TOOL_REL],"LEDGER_CUSTODY_APPLICATION_TOOL_BLOB_UNAVAILABLE"),
+    application_tool_git_blob_sha1:repo.tool_blob_sha1,
     promotion_tool_git_blob_sha1:
       gitText(["rev-parse","HEAD:"+PROMOTION_TOOL_REL],"LEDGER_CUSTODY_APPLICATION_PROMOTION_TOOL_BLOB_UNAVAILABLE"),
     production_classifier_git_blob_sha1:
@@ -1398,7 +1421,11 @@ export function prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1(input){
   });
   validatePlan(plan);
   const repoAfter=repositoryIdentity();
-  if(repoAfter.head!==repo.head||repoAfter.tree!==repo.tree){
+  if(
+    repoAfter.head!==repo.head||
+    repoAfter.tree!==repo.tree||
+    repoAfter.tool_blob_sha1!==repo.tool_blob_sha1
+  ){
     fail("LEDGER_CUSTODY_APPLICATION_REPOSITORY_CHANGED_DURING_PREPARE");
   }
   return plan;
@@ -1580,5 +1607,9 @@ export function verifyVoidWcVoidLedgerCustodyCanonicalApplicationV1({
 }
 
 export const _internal=Object.freeze({
-  canonicalJson,prettyBytes,sha256,gitBlobSha1,
+  canonicalJson,
+  prettyBytes,
+  sha256,
+  gitBlobSha1,
+  canonicalRemoteMainHead,
 });
