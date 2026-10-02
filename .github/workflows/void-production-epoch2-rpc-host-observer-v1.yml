@@ -9,6 +9,9 @@ on:
       - "tools/void-production-epoch2-rpc-host-observer-v1.mjs"
       - "tools/void-production-epoch2-rpc-target-v1.mjs"
       - "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs"
       - "scripts/fixtures/void-datanet-registry-unsigned-candidate-fixture-v1.mjs"
   push:
     branches:
@@ -20,6 +23,9 @@ on:
       - "tools/void-production-epoch2-rpc-host-observer-v1.mjs"
       - "tools/void-production-epoch2-rpc-target-v1.mjs"
       - "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-install-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-materialization-v1.mjs"
+      - "tools/void-economic-epoch2-qbft-private-runtime-plan-v1.mjs"
       - "scripts/fixtures/void-datanet-registry-unsigned-candidate-fixture-v1.mjs"
 
 permissions:
