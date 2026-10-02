@@ -225,16 +225,25 @@ export function validateVoidEconomicEpoch2QbftHostInstallBindingV1(input) {
 
 export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
   const binding=validateVoidEconomicEpoch2QbftHostInstallBindingV1(input);
-  const installedAt=String(input?.installed_at_utc||"");
+  const receiptBasis=String(input?.receipt_basis||"");
   if(
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(installedAt)||
-    !Number.isFinite(Date.parse(installedAt))
+    ![
+      "fresh_install",
+      "existing_runtime_read_only_reattestation",
+    ].includes(receiptBasis)
   ) {
-    throw new Error("installed_at_utc_invalid");
+    throw new Error("install_receipt_basis_invalid");
   }
-  const installedRepoHead=String(input?.installed_repo_head||"");
-  if(!SHA40.test(installedRepoHead)) {
-    throw new Error("installed_repo_head_invalid");
+  const observedAt=String(input?.observed_at_utc||"");
+  if(
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(observedAt)||
+    !Number.isFinite(Date.parse(observedAt))
+  ) {
+    throw new Error("install_observed_at_utc_invalid");
+  }
+  const observedRepoHead=String(input?.observed_repo_head||"");
+  if(!SHA40.test(observedRepoHead)) {
+    throw new Error("install_observed_repo_head_invalid");
   }
   const unitFileState=String(input?.unit_file_state||"");
   if(unitFileState!=="static") {
@@ -253,8 +262,9 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
     materialization_id:binding.manifest.materialization_id,
     role:binding.role,
     hostname:binding.manifest.hostname,
-    installed_at_utc:installedAt,
-    installed_repo_head:installedRepoHead,
+    receipt_basis:receiptBasis,
+    observed_at_utc:observedAt,
+    observed_repo_head:observedRepoHead,
     runtime_root:binding.manifest.runtime_root,
     unit_install_path:binding.manifest.unit_install_path,
     installed_hashes:{
@@ -281,8 +291,8 @@ export function buildVoidEconomicEpoch2QbftHostInstallReceiptV1(input) {
       funds_movement:false,
     },
     authority:{
-      runtime_root_write:true,
-      service_unit_installation:true,
+      runtime_root_write:receiptBasis==="fresh_install",
+      service_unit_installation:receiptBasis==="fresh_install",
       systemd_reload:false,
       service_enable:false,
       service_start:false,
