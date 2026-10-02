@@ -28,6 +28,10 @@ verified_at_unix <= reverified_at_unix < valid_until_unix
 reverified_at_unix <= current_wall_clock_unix < valid_until_unix
 ```
 
+The final production wall-clock value must also be greater than or equal to the
+initial production wall-clock value. A backward clock step during observation
+fails closed rather than extending the apparent lifetime of the qualification.
+
 At either boundary, at or after `valid_until_unix`, the result is:
 
 ```text
@@ -46,8 +50,8 @@ final wall-clock reads are internal; a production caller cannot extend
 qualification life by supplying either time.
 
 The test-only observer has deterministic explicit initial/final evaluation-time
-seams so CI proves both expiry before RPC and expiry after a full valid RPC
-observation but before artifact mint.
+seams so CI proves expiry before RPC, expiry after a full valid RPC observation
+but before artifact mint, and a backward wall-clock step after RPC.
 
 ## Operational consequence
 
