@@ -64,6 +64,12 @@ A green live run additionally requires:
   activation plan;
 - service `active/running` with a nonzero MainPID and InvocationID;
 - the same systemd unit/MainPID/InvocationID remains stable across the RPC observation window;
+- exact rootless Docker socket `unix:///run/user/<uid>/docker.sock`, owned by the current operator UID;
+- exact running container name `void-e2-qbft-precision-v1`;
+- exact reviewed Besu image reference plus a concrete `sha256:<image-id>`;
+- exact container user `0:0`, Besu entrypoint/arguments, reviewed bind mounts, `BESU_OPTS`, `--cap-drop=ALL`, and `no-new-privileges`;
+- exact configured **and live** Docker mappings, including `127.0.0.1:18553 -> 8545/tcp` and the reviewed Precision P2P mapping;
+- the same normalized container ID/image/start generation remains stable across the RPC observation window;
 - loopback `127.0.0.1:18553` listener is present before and after the RPC observation;
 - local clean `main` and live GitHub `refs/heads/main` remain unchanged across the observation window;
 - `eth_chainId = 0x802`;
@@ -132,8 +138,10 @@ node tools/void-production-epoch2-rpc-host-observer-v1.mjs \
   --output /absolute/production-epoch2-rpc-host-observation.json
 ```
 
-The observer performs one fixed canonical GitHub main identity read and
-loopback-only read RPC calls. It performs no service action.
+The observer performs one fixed canonical GitHub main identity read,
+read-only HTTP `GET /containers/void-e2-qbft-precision-v1/json` calls over the
+reviewed rootless Docker Unix socket, and loopback-only read RPC calls. It does
+not invoke a Docker mutation endpoint or perform any service action.
 
 ## Authority boundary
 
@@ -142,6 +150,10 @@ observer_read_only=true
 activation_plan_upstream_reexecution_required=true
 exact_upstream_activation_artifacts_required=true
 activation_source_ancestry_required=true
+rootless_docker_read_only=true
+container_inspection_read_only=true
+service_container_listener_binding_required=true
+container_generation_stable_required=true
 private_output_parent_fd_bound=true
 private_output_exact_directory_fsync=true
 private_output_redirect_forbidden=true
