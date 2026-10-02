@@ -299,7 +299,7 @@ for(const required of [
   "service_state_not_clean_inactive",
   "service_enable_state_not_clean",
   '["inactive","unknown"]',
-  '["disabled","not-found"]',
+  '["disabled","not-found","static"]',
   "requireNoEnableLinks",
   "service_autostart_link_present",
   "runtime_root_already_exists",
