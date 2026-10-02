@@ -136,6 +136,11 @@ const reviewedSemantic = Object.freeze({
   reviewed_source_head_sha: "a".repeat(40),
   reviewed_source_tree_sha: "b".repeat(40),
   reviewed_execution_manifest_sha256: "f".repeat(64),
+  reviewed_activation_source_head_sha:
+    activationPlan.start_admission_observed_repo_head,
+  reviewed_activation_source_tree_sha: "c".repeat(40),
+  reviewed_activation_execution_manifest_sha256: "e".repeat(64),
+  reviewed_activation_source_ancestor_current_main: true,
   activation_plan: activationPlan,
   activation_receipt: fixture.activationReceipt,
   private_runtime_plan: privateRuntimePlan,
@@ -250,6 +255,18 @@ assert.deepEqual(observation.rpc.validators, [...EXPECTED_VALIDATORS_V1].sort())
 assert.equal(
   observation.write_capability_classification,
   "write_capable_not_authorized",
+);
+assert.equal(
+  observation.reviewed_semantic_execution.activation_source_head_sha,
+  activationPlan.start_admission_observed_repo_head,
+);
+assert.equal(
+  observation.reviewed_semantic_execution.activation_source_ancestor_current_main,
+  true,
+);
+assert.match(
+  observation.reviewed_semantic_execution.activation_execution_manifest_sha256,
+  /^[0-9a-f]{64}$/u,
 );
 assert.equal(observation.independent_host_acceptance, false);
 assert.equal(observation.target_descriptor_promotion_authorized, false);
@@ -636,6 +653,9 @@ for (const required of [
 
 console.log("VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1_PROOF_GREEN");
 console.log("activation_receipt_rederived=true");
+console.log("historical_activation_source_generation_bound=true");
+console.log("activation_source_ancestor_current_main_required=true");
+console.log("current_target_contract_execution_separate=true");
 console.log("canonical_main_live_match_required=true");
 console.log("exact_installed_unit_sha_required=true");
 console.log("dropins_forbidden=true");
