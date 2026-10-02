@@ -119,6 +119,11 @@ The parent application tool itself is also compared byte-for-byte by Git blob id
 against `HEAD:tools/void-wc-void-bounded-canary-canonical-application-v1.mjs`
 before authority execution and again when repository stability is rechecked.
 
+The reviewed closure also records the exact sorted set of network-capable imported
+modules in the content-addressed plan. Those modules may expose live-observer functions
+that are not invoked by this evidence-only path. Their presence is therefore explicit
+lineage, not a claim of network isolation.
+
 Private temporary filesystem writes are therefore expected and explicitly recorded;
 `repository_source_write=false` remains true. The reviewed runtime does not claim a
 socket/network sandbox: `execution_network_isolation_provided=false`.
