@@ -419,6 +419,32 @@ assert.deepEqual(
   VOID_BTC_VOID_PHASE1_EXECUTION_EVIDENCE_AUTHORITY_V1,
 );
 
+assert.equal(Object.isFrozen(preview), true);
+assert.equal(Object.isFrozen(preview.cases), true);
+assert.equal(Object.isFrozen(preview.cases[0]), true);
+assert.equal(Object.isFrozen(preview.cases[0].bitcoin_observation), true);
+assert.equal(Object.isFrozen(preview.cases[0].chain2050_observation), true);
+assert.equal(Object.isFrozen(preview.cases[0].atomic_evaluation), true);
+assert.equal(Object.isFrozen(preview.cases[0].cross_rail_binding), true);
+assert.equal(Object.isFrozen(preview.coverage), true);
+assert.equal(Object.isFrozen(preview.authority), true);
+
+const originalNetwork = preview.cases[0].bitcoin_observation.network;
+assert.throws(
+  () => {
+    preview.cases[0].bitcoin_observation.network = "main";
+  },
+  TypeError,
+);
+assert.equal(preview.cases[0].bitcoin_observation.network, originalNetwork);
+
+const previewMaterialAfterMutationAttempt = structuredClone(preview);
+delete previewMaterialAfterMutationAttempt.preview_id;
+assert.equal(
+  preview.preview_id,
+  contentId("voidbtcp1preview1_", previewMaterialAfterMutationAttempt),
+);
+
 expectReject(
   (input) => {
     input.cases[0].bitcoin_observation.network = "main";
@@ -599,6 +625,7 @@ for (const required of [
   "native_unit_execution_conservation_verified: false",
   "bitcoin_mainnet_contact: false",
   "production_chain2050_contact: false",
+  "deepFreeze",
 ]) {
   assert.equal(source.includes(required), true, required);
 }
@@ -614,6 +641,9 @@ console.log("chain2050_receipts_replayed=false");
 console.log("fee_envelope_execution_accounting_verified=false");
 console.log("native_unit_execution_conservation_verified=false");
 console.log("structural_case_coverage=true");
+console.log("preview_graph_recursively_frozen=true");
+console.log("post_mint_nested_mutation_rejected=true");
+console.log("preview_content_identity_stable_after_mutation_attempt=true");
 console.log("bitcoin_mainnet_contact=false");
 console.log("production_chain2050_contact=false");
 console.log("wallet_or_signer_access=false");
