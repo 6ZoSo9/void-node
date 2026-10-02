@@ -166,7 +166,13 @@ function decodeScriptNumber(bytes) {
 }
 
 function locktimeType(value) {
-  return value < LOCKTIME_THRESHOLD ? "block_height" : "unix_timestamp";
+  return value < LOCKTIME_THRESHOLD ? "block_height" : "block_time";
+}
+
+function locktimeFinalityClock(value) {
+  return value < LOCKTIME_THRESHOLD
+    ? "next_block_height"
+    : "median_time_past_bip113";
 }
 
 function buildWitnessScript({
@@ -243,6 +249,10 @@ function materialFor(input) {
     refund_pubkey_hash160: input.refund_pubkey_hash160,
     refund_locktime: input.refund_locktime,
     refund_locktime_type: locktimeType(input.refund_locktime),
+    refund_locktime_finality_clock:
+      locktimeFinalityClock(input.refund_locktime),
+    timestamp_locktime_value_is_unix_epoch_seconds:
+      input.refund_locktime >= LOCKTIME_THRESHOLD,
     witness_script_hex: witnessScript.toString("hex"),
     witness_script_bytes: witnessScript.length,
     witness_script_sha256: witnessProgram,
