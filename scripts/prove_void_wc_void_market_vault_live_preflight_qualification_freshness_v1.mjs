@@ -530,7 +530,11 @@ assert.ok(source.includes("live_deployment_preflight_evaluation_time_regressed")
 assert.ok(source.indexOf("verifyQualification(") < source.indexOf("createHttpTransport(rpcPolicy)"));
 assert.ok(
   source.indexOf("finalEvaluationTimeUnix === null") <
-    source.indexOf("const material = Object.freeze"),
+    source.indexOf("const bareEstimatedCost = gasEstimate * gasPrice"),
+);
+assert.ok(
+  source.indexOf("live_deployment_preflight_evaluation_time_regressed") <
+    source.indexOf("const bareEstimatedCost = gasEstimate * gasPrice"),
 );
 
 console.log("VOID_WC_VOID_MARKET_VAULT_LIVE_PREFLIGHT_QUALIFICATION_FRESHNESS_V1_PROOF_GREEN");
