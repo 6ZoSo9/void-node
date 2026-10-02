@@ -166,6 +166,13 @@ voidbtcp1preview1_<sha256>
 
 It does not emit the former authoritative-looking `evidence_suite_id` field.
 
+The returned preview graph is recursively frozen after validation and before it
+is exposed to callers. The outer preview, cases array, each case, and nested
+observation/binding objects are immutable in-process. This preserves the
+content-addressed claim that `preview_id` identifies the visible returned
+structure: a caller cannot mutate a nested field after mint while retaining the
+same preview ID.
+
 ## Authority
 
 The emitted authority object explicitly states:
