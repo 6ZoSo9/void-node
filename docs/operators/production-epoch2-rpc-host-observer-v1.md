@@ -63,7 +63,10 @@ A green live run additionally requires:
 - unit fragment path and SHA-256 equal the Precision install row in the
   activation plan;
 - service `active/running` with a nonzero MainPID and InvocationID;
-- the same systemd unit/MainPID/InvocationID remains stable across the RPC observation window;
+- the active MainPID command line exactly equals the reviewed unit fragment's deterministic `ExecStart=` argv;
+- the active MainPID cgroup is bound to `void-economic-epoch2-qbft-validator-v1.service`;
+- the exact ExecStart/MainPID argv SHA-256 and cgroup binding are recorded in the observation lineage;
+- the same systemd unit/MainPID/InvocationID/argv generation remains stable across the RPC observation window;
 - exact rootless Docker socket `unix:///run/user/<uid>/docker.sock`, owned by the current operator UID;
 - Docker daemon `/info` security options explicitly report rootless mode;
 - exact running container name `void-e2-qbft-precision-v1`;
