@@ -13,6 +13,10 @@ import {
 import {
   validateVoidDatanetRegistryUnsignedDeploymentInputPlanV1,
 } from "./void-datanet-registry-unsigned-deployment-input-plan-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+  classifyVoidEconomicEpoch2RawTransactionDomainV1,
+} from "./void-economic-epoch2-raw-transaction-domain-v1.mjs";
 
 export const VOID_DATANET_REGISTRY_UNSIGNED_TRANSACTION_CANDIDATE_V1 =
   "VOID_DATANET_REGISTRY_UNSIGNED_TRANSACTION_CANDIDATE_V1";
@@ -193,6 +197,8 @@ function compileCandidate(input,{requireConfirmation}){
     throw new Error("unsigned_candidate_predicted_address_mismatch");
   }
 
+  const epoch2Domain=
+    VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1;
   const tx=Transaction.from({
     type:2,
     chainId:2050,
@@ -203,6 +209,10 @@ function compileCandidate(input,{requireConfirmation}){
     to:null,
     value:0n,
     data,
+    accessList:[{
+      address:epoch2Domain.marker_address,
+      storageKeys:[epoch2Domain.marker_storage_key],
+    }],
   });
   if(tx.signature!==null){
     throw new Error("unsigned_candidate_unexpected_signature");
@@ -213,6 +223,14 @@ function compileCandidate(input,{requireConfirmation}){
     !HASH.test(String(tx.unsignedHash||"").toLowerCase())
   ){
     throw new Error("unsigned_candidate_serialization_invalid");
+  }
+
+  const rawDomain=classifyVoidEconomicEpoch2RawTransactionDomainV1(tx);
+  if(rawDomain.ok!==true){
+    throw new Error(
+      "unsigned_candidate_epoch2_raw_transaction_domain_invalid:"+
+      String(rawDomain.reason||"unknown"),
+    );
   }
 
   const transaction={
@@ -265,6 +283,7 @@ function compileCandidate(input,{requireConfirmation}){
       fee_caps_exact:true,
       deployer_funding_sufficient:true,
       eip1559_type2_serialization_exact:true,
+      epoch2_raw_transaction_domain_marker_exact:true,
       signature_absent:true,
     },
     authority:{
@@ -378,6 +397,7 @@ export function validateVoidDatanetRegistryUnsignedTransactionCandidateV1(
     fee_caps_exact:true,
     deployer_funding_sufficient:true,
     eip1559_type2_serialization_exact:true,
+    epoch2_raw_transaction_domain_marker_exact:true,
     signature_absent:true,
   };
   if(canonicalJson(candidate.verification)!==canonicalJson(expectedVerification)){
@@ -446,6 +466,18 @@ export function validateVoidDatanetRegistryUnsignedTransactionCandidateV1(
     parsed.unsignedHash.toLowerCase()!==tx.unsigned_transaction_hash
   ){
     throw new Error("unsigned_candidate_transaction_parse_mismatch");
+  }
+
+  const rawDomain=
+    classifyVoidEconomicEpoch2RawTransactionDomainV1(parsed);
+  if(
+    rawDomain.ok!==true||
+    rawDomain.marker_address!==
+      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address||
+    rawDomain.marker_storage_key!==
+      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_storage_key
+  ){
+    throw new Error("unsigned_candidate_epoch2_raw_transaction_domain_mismatch");
   }
 
   return candidate;
