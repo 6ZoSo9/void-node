@@ -44,9 +44,12 @@ Before filesystem mutation the installer requires:
 - canonical clean `main`;
 - exact host/role binding;
 - the validator service is not active or activating;
-- no systemd enable/link state exists;
-- no `*.wants` or `*.requires` autostart link exists, including dangling
-  symlinks;
+- the service is inactive;
+- `systemctl --user is-enabled` reports one of the explicitly accepted
+  unit-file states: `disabled`, `not-found`, or `static`;
+- no direct `*.wants` or `*.requires` enablement link exists;
+- any symlinked `.wants` or `.requires` directory is a HOLD rather than
+  being skipped;
 - the final runtime root does not already exist; and
 - the final unit path does not already exist.
 
@@ -54,8 +57,12 @@ The unit itself remains `Restart=no`.
 
 The generated validator unit intentionally has no `[Install]` section. Once
 the unit file is published, `systemctl --user is-enabled` may therefore
-report `static`. V1 treats `static` as non-enabled; explicit `.wants` and
-`.requires` autostart links remain forbidden.
+report `static`.
+
+`static` is recorded as the exact observed **unit-file state**. It is not
+treated as proof that the service cannot be started indirectly. Direct
+`.wants` / `.requires` enablement links are required absent, while
+`indirect_activation_absence_proven=false` remains explicit.
 
 ## Filesystem publication
 
@@ -92,8 +99,10 @@ Even in applied mode this installer does **not**:
 - authorize public activation.
 
 The installer performs no daemon reload and no activation. Read-only systemd
-inspection may resolve the unit file, but the unit must remain disabled and
-inactive; the later activation ceremony owns any reload/start action.
+inspection may resolve the unit file, but the service must remain inactive and
+the accepted unit-file state plus direct-link absence must remain stable. The
+later activation ceremony owns any reload/start action. The install receipt does
+not claim that every possible indirect systemd activation path is absent.
 
 ## Exact applied confirmation
 
