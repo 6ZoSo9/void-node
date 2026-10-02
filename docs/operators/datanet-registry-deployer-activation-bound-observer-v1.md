@@ -108,3 +108,20 @@ deployment plan** containing the exact deployer nonce, deployment creation data,
 predicted registry address, and activation lineage.
 
 That later source plan still must not access a key or submit a transaction.
+
+## Pinned production legacy-lineage compatibility
+
+The production private successor was activated before the receipt-basis schema
+migration. DataNet observation therefore permits one narrow compatibility
+fallback for the exact content-addressed production activation plan and
+activation receipt created by that ceremony.
+
+The fallback recomputes both content IDs and rechecks Chain-2050/QBFT identity,
+the three expected validators, the legacy install-row shape, the read-only RPC
+binding, and transaction/migration HOLD authority. It is not a generic legacy
+acceptance path and does not mint replacement activation evidence.
+
+The compatibility path is lineage-only. It does not stop or start validators,
+access credentials, construct or sign transactions, broadcast, deploy, move
+funds, or authorize migration/public activation. Fresh live read-only state
+observation remains mandatory.

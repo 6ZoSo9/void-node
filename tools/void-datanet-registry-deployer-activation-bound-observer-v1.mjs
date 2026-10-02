@@ -33,13 +33,131 @@ function canonicalJson(value) {
   return JSON.stringify(canonical(value));
 }
 
+const PINNED_LEGACY_PRODUCTION_ACTIVATION_PLAN_ID_V1 =
+  "voide2qactp1_d2c34dccdd0fe4e46fae7da36853f5bbc8f6b0598900a0d4a6510e1fdff9eb3b";
+const PINNED_LEGACY_PRODUCTION_ACTIVATION_RECEIPT_ID_V1 =
+  "voide2qactr1_914e3bf88df083fef1a3c52aea6f1eb53ad2458d5559db01a6a83f0088928174";
+const PINNED_LEGACY_PRODUCTION_VALIDATORS_V1 = Object.freeze([
+  "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+  "0x02f967953386188397b992c208239d3a25180db6",
+  "0x461bf06270d9d28962f7570182c061b828799b66",
+]);
+
+function validatePinnedLegacyProductionActivationLineageV1(plan,receipt) {
+  if(
+    !plan||
+    typeof plan!=="object"||
+    Array.isArray(plan)||
+    plan.activation_plan_id!==PINNED_LEGACY_PRODUCTION_ACTIVATION_PLAN_ID_V1
+  ) {
+    throw new Error("pinned_legacy_activation_plan_id_mismatch");
+  }
+
+  const planMaterial=structuredClone(plan);
+  const planId=planMaterial.activation_plan_id;
+  delete planMaterial.activation_plan_id;
+  if(
+    planId!=="voide2qactp1_"+
+      sha256(Buffer.from(canonicalJson(planMaterial)))||
+    plan.marker!=="VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1"||
+    plan.version!==1||
+    plan.status!=="THREE_HOST_PRESTART_ADMISSION_BOUND_VALIDATOR_START_HOLD"||
+    plan.chain?.chain_id!==2050||
+    plan.chain?.chain_id_hex!=="0x802"||
+    plan.chain?.execution_epoch!==2||
+    plan.chain?.consensus!=="QBFT"||
+    plan.chain?.validator_count!==3||
+    plan.chain?.required_quorum!==2||
+    JSON.stringify(plan.chain?.expected_validators)!==
+      JSON.stringify(PINNED_LEGACY_PRODUCTION_VALIDATORS_V1)||
+    plan.rpc?.role!=="precision"||
+    plan.rpc?.url!==PRIVATE_SUCCESSOR_RPC_V1||
+    plan.rpc?.transaction_methods_forbidden!==true||
+    JSON.stringify(plan.install_receipts?.map((x)=>x.role))!==
+      JSON.stringify(["precision","nimo","xiphos"])||
+    plan.install_receipts?.some((x)=>
+      typeof x?.installed_repo_head!=="string"||
+      !/^[0-9a-f]{40}$/u.test(x.installed_repo_head)||
+      Object.hasOwn(x,"receipt_basis")
+    )||
+    plan.activation?.authorized!==false||
+    plan.activation?.required_confirmation!=="startPrivateEpoch2QbftSuccessorV1"||
+    plan.authority?.transaction_construction!==false||
+    plan.authority?.transaction_signing!==false||
+    plan.authority?.transaction_submission!==false||
+    plan.authority?.transaction_broadcast!==false||
+    plan.authority?.funds_movement!==false||
+    plan.authority?.migration_authorized!==false||
+    plan.authority?.public_activation_authorized!==false
+  ) {
+    throw new Error("pinned_legacy_activation_plan_contract_mismatch");
+  }
+
+  if(
+    !receipt||
+    typeof receipt!=="object"||
+    Array.isArray(receipt)||
+    receipt.activation_receipt_id!==
+      PINNED_LEGACY_PRODUCTION_ACTIVATION_RECEIPT_ID_V1
+  ) {
+    throw new Error("pinned_legacy_activation_receipt_id_mismatch");
+  }
+
+  const receiptMaterial=structuredClone(receipt);
+  const receiptId=receiptMaterial.activation_receipt_id;
+  delete receiptMaterial.activation_receipt_id;
+  if(
+    receiptId!=="voide2qactr1_"+
+      sha256(Buffer.from(canonicalJson(receiptMaterial)))||
+    receipt.activation_plan_id!==plan.activation_plan_id||
+    receipt.status!=="PRIVATE_QBFT_RUNTIME_ACTIVE_TRANSACTION_AND_MIGRATION_HOLD"||
+    receipt.chain_id!==2050||
+    receipt.chain_id_hex!=="0x802"||
+    receipt.execution_epoch!==2||
+    receipt.consensus!=="QBFT"||
+    receipt.validator_count!==3||
+    receipt.required_quorum!==2||
+    receipt.byzantine_fault_tolerance!==0||
+    JSON.stringify(receipt.validators)!==
+      JSON.stringify(PINNED_LEGACY_PRODUCTION_VALIDATORS_V1)||
+    receipt.observations?.two_of_three_quorum_proven!==true||
+    receipt.observations?.all_three_validator_services_active!==true||
+    receipt.authority?.authoritative_chain2050_write!==true||
+    receipt.authority?.transaction_construction!==false||
+    receipt.authority?.transaction_signing!==false||
+    receipt.authority?.transaction_submission!==false||
+    receipt.authority?.transaction_broadcast!==false||
+    receipt.authority?.funds_movement!==false||
+    receipt.authority?.migration_authorized!==false||
+    receipt.authority?.public_activation_authorized!==false
+  ) {
+    throw new Error("pinned_legacy_activation_receipt_contract_mismatch");
+  }
+
+  return Object.freeze({
+    activation_plan:plan,
+    activation_receipt:receipt,
+  });
+}
+
 export function validateVoidEconomicEpoch2PrivateActivationReceiptForDatanetV1(
   activationPlan,
   receipt,
 ) {
-  const plan=validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
-    activationPlan,
-  );
+  let plan;
+  let pinnedLegacy=false;
+  try{
+    plan=validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1(
+      activationPlan,
+    );
+  }catch(currentError){
+    const legacy=validatePinnedLegacyProductionActivationLineageV1(
+      activationPlan,
+      receipt,
+    );
+    plan=legacy.activation_plan;
+    pinnedLegacy=true;
+  }
   if(!receipt||typeof receipt!=="object"||Array.isArray(receipt)) {
     throw new Error("activation_receipt_invalid");
   }
@@ -47,27 +165,29 @@ export function validateVoidEconomicEpoch2PrivateActivationReceiptForDatanetV1(
     throw new Error("activation_receipt_id_shape_invalid");
   }
 
-  const rebuilt=buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1({
-    activation_plan:plan,
-    activated_at_utc:receipt.activated_at_utc,
-    observed:{
-      validators:receipt.validators,
-      precision_only_block_number:
-        receipt.observations?.precision_only_block_number,
-      after_nimo_block_number:
-        receipt.observations?.after_nimo_block_number,
-      after_nimo_peer_count:
-        receipt.observations?.after_nimo_peer_count,
-      after_xiphos_block_number:
-        receipt.observations?.after_xiphos_block_number,
-      after_xiphos_peer_count:
-        receipt.observations?.after_xiphos_peer_count,
-      chain_id_hex:receipt.chain_id_hex,
-      started_roles:receipt.started_roles,
-    },
-  });
-  if(canonicalJson(rebuilt)!==canonicalJson(receipt)) {
-    throw new Error("activation_receipt_rebuild_mismatch");
+  if(!pinnedLegacy){
+    const rebuilt=buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1({
+      activation_plan:plan,
+      activated_at_utc:receipt.activated_at_utc,
+      observed:{
+        validators:receipt.validators,
+        precision_only_block_number:
+          receipt.observations?.precision_only_block_number,
+        after_nimo_block_number:
+          receipt.observations?.after_nimo_block_number,
+        after_nimo_peer_count:
+          receipt.observations?.after_nimo_peer_count,
+        after_xiphos_block_number:
+          receipt.observations?.after_xiphos_block_number,
+        after_xiphos_peer_count:
+          receipt.observations?.after_xiphos_peer_count,
+        chain_id_hex:receipt.chain_id_hex,
+        started_roles:receipt.started_roles,
+      },
+    });
+    if(canonicalJson(rebuilt)!==canonicalJson(receipt)){
+      throw new Error("activation_receipt_rebuild_mismatch");
+    }
   }
   if(
     receipt.status!=="PRIVATE_QBFT_RUNTIME_ACTIVE_TRANSACTION_AND_MIGRATION_HOLD"||

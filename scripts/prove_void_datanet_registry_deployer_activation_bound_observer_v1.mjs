@@ -485,6 +485,15 @@ const bindingTool=fs.readFileSync(
   "utf8",
 );
 assert.ok(bindingTool.includes('PRIVATE_SUCCESSOR_RPC_V1="http://127.0.0.1:18553/"'));
+assert.ok(bindingTool.includes(
+  "PINNED_LEGACY_PRODUCTION_ACTIVATION_PLAN_ID_V1",
+));
+assert.ok(bindingTool.includes(
+  "PINNED_LEGACY_PRODUCTION_ACTIVATION_RECEIPT_ID_V1",
+));
+assert.ok(bindingTool.includes(
+  "validatePinnedLegacyProductionActivationLineageV1",
+));
 
 const runner=fs.readFileSync(
   "ops/precision/void-datanet-registry-deployer-resolution-activation-bound-v1.mjs",
