@@ -11,6 +11,7 @@ import { parseArgs } from "node:util";
 import {
   EXPECTED_VALIDATORS_V1,
   buildVoidEconomicEpoch2QbftPrivateRuntimeActivationReceiptV1,
+  compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1,
   validateVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1,
 } from "./void-economic-epoch2-qbft-private-runtime-activation-v1.mjs";
 import {
@@ -27,6 +28,8 @@ export const VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1 =
     observer_read_only: true,
     canonical_main_live_read: true,
     activation_lineage_rederived: true,
+    activation_plan_upstream_reexecution_required: true,
+    exact_upstream_activation_artifacts_required: true,
     systemd_read_only: true,
     listener_read_only: true,
     rpc_read_only: true,
@@ -222,7 +225,8 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     host.canonical_main_stable_during_observation !== true ||
     host.service_invocation_stable_during_observation !== true ||
     host.listener_stable_during_observation !== true ||
-    host.activation_source_lineage_ancestor_current_main !== true
+    host.activation_source_lineage_ancestor_current_main !== true ||
+    host.activation_plan_rederived_from_upstream !== true
   ) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_SERVICE_OR_LISTENER_INVALID");
   }
@@ -272,6 +276,19 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_HEAD_BELOW_ACTIVATION_FLOOR");
   }
 
+  const upstream = host.activation_upstream;
+  if (
+    !plain(upstream) ||
+    !HEX64.test(String(upstream.private_runtime_plan_file_sha256 || "")) ||
+    !HEX64.test(String(upstream.bundle_set_receipt_file_sha256 || "")) ||
+    !HEX64.test(String(upstream.start_admission_receipt_file_sha256 || "")) ||
+    !HEX64.test(String(upstream.install_precision_file_sha256 || "")) ||
+    !HEX64.test(String(upstream.install_nimo_file_sha256 || "")) ||
+    !HEX64.test(String(upstream.install_xiphos_file_sha256 || ""))
+  ) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_UPSTREAM_INVALID");
+  }
+
   const observedAt = String(host.observed_at_utc || "");
   if (
     !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(observedAt) ||
@@ -306,6 +323,18 @@ export function buildVoidProductionEpoch2RpcHostObservationV1(input) {
     activation_lineage: Object.freeze({
       activation_plan_id: plan.activation_plan_id,
       activation_plan_file_sha256: p.sha256,
+      private_runtime_plan_file_sha256:
+        host.activation_upstream.private_runtime_plan_file_sha256,
+      bundle_set_receipt_file_sha256:
+        host.activation_upstream.bundle_set_receipt_file_sha256,
+      start_admission_receipt_file_sha256:
+        host.activation_upstream.start_admission_receipt_file_sha256,
+      install_receipt_file_sha256: Object.freeze({
+        precision: host.activation_upstream.install_precision_file_sha256,
+        nimo: host.activation_upstream.install_nimo_file_sha256,
+        xiphos: host.activation_upstream.install_xiphos_file_sha256,
+      }),
+      activation_plan_rederived_from_upstream: true,
       activation_receipt_id: receipt.activation_receipt_id,
       activation_receipt_file_sha256: r.sha256,
       activated_at_utc: receipt.activated_at_utc,
@@ -502,8 +531,9 @@ function gitCommitIsAncestor(commit, descendant) {
   if (result.error) throw result.error;
   return result.status === 0;
 }
-function activationSourceLineageAncestor(plan, currentHead) {
+function activationSourceLineageAncestor(plan, privateRuntimePlan, currentHead) {
   const commits = [
+    privateRuntimePlan.source_head,
     plan.start_admission_observed_repo_head,
     ...plan.install_receipts.map((row) => row.installed_repo_head),
   ];
@@ -538,6 +568,16 @@ function readStable(file, label) {
   } finally {
     fs.closeSync(fd);
   }
+}
+function parseStableJson(bytes, label) {
+  let value;
+  try {
+    value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    fail(label + "_JSON_INVALID");
+  }
+  if (!plain(value)) fail(label + "_JSON_NOT_OBJECT");
+  return value;
 }
 function systemdFacts() {
   const result = spawnSync(
@@ -881,6 +921,18 @@ export function testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1
 async function main() {
   const { values } = parseArgs({
     options: {
+      "private-runtime-plan": { type: "string" },
+      "private-runtime-plan-sha256": { type: "string" },
+      "bundle-set": { type: "string" },
+      "bundle-set-sha256": { type: "string" },
+      "install-precision": { type: "string" },
+      "install-precision-sha256": { type: "string" },
+      "install-nimo": { type: "string" },
+      "install-nimo-sha256": { type: "string" },
+      "install-xiphos": { type: "string" },
+      "install-xiphos-sha256": { type: "string" },
+      "start-admission": { type: "string" },
+      "start-admission-sha256": { type: "string" },
       "activation-plan": { type: "string" },
       "activation-plan-sha256": { type: "string" },
       "activation-receipt": { type: "string" },
@@ -891,6 +943,18 @@ async function main() {
     strict: true,
   });
   for (const key of [
+    "private-runtime-plan",
+    "private-runtime-plan-sha256",
+    "bundle-set",
+    "bundle-set-sha256",
+    "install-precision",
+    "install-precision-sha256",
+    "install-nimo",
+    "install-nimo-sha256",
+    "install-xiphos",
+    "install-xiphos-sha256",
+    "start-admission",
+    "start-admission-sha256",
     "activation-plan",
     "activation-plan-sha256",
     "activation-receipt",
@@ -899,14 +963,46 @@ async function main() {
   ]) {
     if (!values[key]) fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ARGUMENT_MISSING:" + key);
   }
-  if (
-    !HEX64.test(values["activation-plan-sha256"]) ||
-    !HEX64.test(values["activation-receipt-sha256"])
-  ) {
-    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ARGUMENT_SHA_INVALID");
+  for (const key of [
+    "private-runtime-plan-sha256",
+    "bundle-set-sha256",
+    "install-precision-sha256",
+    "install-nimo-sha256",
+    "install-xiphos-sha256",
+    "start-admission-sha256",
+    "activation-plan-sha256",
+    "activation-receipt-sha256",
+  ]) {
+    if (!HEX64.test(values[key])) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ARGUMENT_SHA_INVALID:" + key);
+    }
   }
 
   const source = repoIdentity();
+  const privatePlanBytes = readStable(
+    path.resolve(values["private-runtime-plan"]),
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_PRIVATE_PLAN_FILE",
+  );
+  const bundleSetBytes = readStable(
+    path.resolve(values["bundle-set"]),
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_BUNDLE_SET_FILE",
+  );
+  const installPrecisionBytes = readStable(
+    path.resolve(values["install-precision"]),
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_INSTALL_PRECISION_FILE",
+  );
+  const installNimoBytes = readStable(
+    path.resolve(values["install-nimo"]),
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_INSTALL_NIMO_FILE",
+  );
+  const installXiphosBytes = readStable(
+    path.resolve(values["install-xiphos"]),
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_INSTALL_XIPHOS_FILE",
+  );
+  const startAdmissionBytes = readStable(
+    path.resolve(values["start-admission"]),
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_START_ADMISSION_FILE",
+  );
   const planBytes = readStable(
     path.resolve(values["activation-plan"]),
     "PRODUCTION_EPOCH2_RPC_OBSERVER_PLAN_FILE",
@@ -915,17 +1011,73 @@ async function main() {
     path.resolve(values["activation-receipt"]),
     "PRODUCTION_EPOCH2_RPC_OBSERVER_RECEIPT_FILE",
   );
-  if (sha256(planBytes) !== values["activation-plan-sha256"] ||
-      sha256(receiptBytes) !== values["activation-receipt-sha256"]) {
-    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_EXTERNAL_SHA_MISMATCH");
+  const externalArtifacts = [
+    [privatePlanBytes, "private-runtime-plan-sha256"],
+    [bundleSetBytes, "bundle-set-sha256"],
+    [installPrecisionBytes, "install-precision-sha256"],
+    [installNimoBytes, "install-nimo-sha256"],
+    [installXiphosBytes, "install-xiphos-sha256"],
+    [startAdmissionBytes, "start-admission-sha256"],
+    [planBytes, "activation-plan-sha256"],
+    [receiptBytes, "activation-receipt-sha256"],
+  ];
+  for (const [artifactBytes, key] of externalArtifacts) {
+    if (sha256(artifactBytes) !== values[key]) {
+      fail("PRODUCTION_EPOCH2_RPC_OBSERVER_EXTERNAL_SHA_MISMATCH:" + key);
+    }
   }
+
+  const privateRuntimePlan = parseStableJson(
+    privatePlanBytes,
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_PRIVATE_PLAN",
+  );
+  const bundleSet = parseStableJson(
+    bundleSetBytes,
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_BUNDLE_SET",
+  );
+  const installReceipts = {
+    precision: parseStableJson(
+      installPrecisionBytes,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_INSTALL_PRECISION",
+    ),
+    nimo: parseStableJson(
+      installNimoBytes,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_INSTALL_NIMO",
+    ),
+    xiphos: parseStableJson(
+      installXiphosBytes,
+      "PRODUCTION_EPOCH2_RPC_OBSERVER_INSTALL_XIPHOS",
+    ),
+  };
+  const startAdmission = parseStableJson(
+    startAdmissionBytes,
+    "PRODUCTION_EPOCH2_RPC_OBSERVER_START_ADMISSION",
+  );
   const parsedPlan = parseBytes(
     planBytes,
     values["activation-plan-sha256"],
     "PRODUCTION_EPOCH2_RPC_OBSERVER_CLI_PLAN",
   ).value;
+
+  const rederivedPlan =
+    compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1({
+      plan: privateRuntimePlan,
+      plan_file_sha256: values["private-runtime-plan-sha256"],
+      bundle_set_receipt: bundleSet,
+      install_receipts: installReceipts,
+      start_admission_receipt: startAdmission,
+      compiled_at_utc: parsedPlan.compiled_at_utc,
+    });
+  if (!same(rederivedPlan, parsedPlan)) {
+    fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_PLAN_REDERIVATION_MISMATCH");
+  }
+
   const sourceLineageAncestor =
-    activationSourceLineageAncestor(parsedPlan, source.head);
+    activationSourceLineageAncestor(
+      parsedPlan,
+      privateRuntimePlan,
+      source.head,
+    );
   if (!sourceLineageAncestor) {
     fail("PRODUCTION_EPOCH2_RPC_OBSERVER_ACTIVATION_SOURCE_NOT_ANCESTOR");
   }
@@ -959,6 +1111,17 @@ async function main() {
       service_invocation_stable_during_observation: true,
       listener_stable_during_observation: true,
       activation_source_lineage_ancestor_current_main: sourceLineageAncestor,
+      activation_plan_rederived_from_upstream: true,
+      activation_upstream: {
+        private_runtime_plan_file_sha256:
+          values["private-runtime-plan-sha256"],
+        bundle_set_receipt_file_sha256: values["bundle-set-sha256"],
+        start_admission_receipt_file_sha256:
+          values["start-admission-sha256"],
+        install_precision_file_sha256: values["install-precision-sha256"],
+        install_nimo_file_sha256: values["install-nimo-sha256"],
+        install_xiphos_file_sha256: values["install-xiphos-sha256"],
+      },
       rpc,
       observed_at_utc: new Date().toISOString(),
     },
