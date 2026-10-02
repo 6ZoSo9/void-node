@@ -1,0 +1,30 @@
+name: VOID public economic launch UI v1
+
+on:
+  pull_request:
+    paths:
+      - "public/void-app-wave1-v1/**"
+      - "ops/public/voidchain-org-wordpress-home-v1.html"
+      - "docs/public/buy-void-public-checkout-contract-v1.md"
+      - "scripts/prove_void_public_economic_launch_ui_v1.mjs"
+      - ".github/workflows/void-public-economic-launch-ui-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax check Buy VOID client
+        run: node --check public/void-app-wave1-v1/assets/js/buy-live.js
+      - name: Prove economic launch UI
+        run: node scripts/prove_void_public_economic_launch_ui_v1.mjs
+      - name: Preserve WordPress homepage proof
+        run: node scripts/prove_voidchain_org_wordpress_home_v1.mjs
