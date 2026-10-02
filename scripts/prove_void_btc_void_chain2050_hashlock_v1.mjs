@@ -7,6 +7,7 @@ import fs from "node:fs";
 import {
   AUTHORITY,
   CANONICAL_VOID_TOKEN,
+  CANONICAL_VOID_TOKEN_SOURCE_PATH,
   CONTRACT_NAME,
   CONTRACT_PATH,
   EVM_VERSION,
@@ -15,6 +16,7 @@ import {
   VOID_BTC_VOID_CHAIN2050_HASHLOCK_COMPILER_IDENTITY_V1,
   VOID_BTC_VOID_CHAIN2050_HASHLOCK_V1,
   buildStandardJsonInput,
+  validateCanonicalVoidTokenSourceText,
   validateSourceText,
 } from "../tools/void-btc-void-chain2050-hashlock-v1.mjs";
 
@@ -23,6 +25,10 @@ const DOC_PATH = "docs/operators/btc-void-chain2050-hashlock-v1.md";
 const TOOL_PATH = "tools/void-btc-void-chain2050-hashlock-v1.mjs";
 
 const source = fs.readFileSync(CONTRACT_PATH, "utf8");
+const tokenSource = fs.readFileSync(
+  CANONICAL_VOID_TOKEN_SOURCE_PATH,
+  "utf8",
+);
 const tests = fs.readFileSync(TEST_PATH, "utf8");
 const tool = fs.readFileSync(TOOL_PATH, "utf8");
 
@@ -45,6 +51,10 @@ assert.equal(
 );
 assert.equal(CONTRACT_PATH, "contracts/mainnet/BtcVoidHashlockSettlementV1.sol");
 assert.equal(CONTRACT_NAME, "BtcVoidHashlockSettlementV1");
+assert.equal(
+  CANONICAL_VOID_TOKEN_SOURCE_PATH,
+  "contracts/epoch2/VoidEpoch2TokenV1.sol",
+);
 assert.equal(SOLC_VERSION, "0.8.24");
 assert.equal(SOLC_RELEASE, "0.8.24+commit.e11b9ed9");
 assert.equal(EVM_VERSION, "paris");
@@ -54,6 +64,7 @@ assert.equal(
 );
 
 validateSourceText(source);
+validateCanonicalVoidTokenSourceText(tokenSource);
 const input = buildStandardJsonInput(source);
 assert.equal(input.language, "Solidity");
 assert.equal(
@@ -173,7 +184,15 @@ for (const required of [
   '"voidToken()"',
   'layout.storage[0]?.label !== "_swaps"',
   "unexpected_link_or_immutable_references",
-  "compiler_outputs_reproduced: true",
+  "compiler_outputs_cross_checked: true",
+  "compiler_execution_rederived: false",
+  "source_path_must_be_canonical_contract",
+  '"rev-parse", "HEAD"',
+  '"rev-parse", "HEAD^{tree}"',
+  '"rev-parse", "HEAD:" + relativePath',
+  "canonical_void_token_source",
+  "transfer_semantics_verified_source_only: true",
+  "runtime_code_verified: false",
   "contract_deployment: false",
   "chain2050_write: false",
   "funds_movement: false",
@@ -183,7 +202,10 @@ for (const required of [
 
 assert.deepEqual(AUTHORITY, {
   source_and_compiler_proof_only: true,
-  compiler_execution_recorded: true,
+  canonical_git_source_required: true,
+  canonical_void_token_source_bound: true,
+  compiler_outputs_cross_checked: true,
+  compiler_execution_rederived: false,
   rpc_call: false,
   credential_access: false,
   wallet_or_signer_access: false,
@@ -206,6 +228,10 @@ assert.ok(!fs.existsSync(DOC_PATH) || fs.statSync(DOC_PATH).isFile());
 console.log("VOID_BTC_VOID_CHAIN2050_HASHLOCK_V1_PROOF_GREEN");
 console.log("contract_source_blob_sha1=" + gitBlobSha1(source));
 console.log("canonical_void_token_bound=true");
+console.log("canonical_void_token_source_bound=true");
+console.log("canonical_git_source_bound=true");
+console.log("compiler_outputs_cross_checked=true");
+console.log("compiler_execution_rederived=false");
 console.log("funding_caller_refund_authority=true");
 console.log("exact_32_byte_sha256_preimage=true");
 console.log("claim_strictly_before_refund_deadline=true");
