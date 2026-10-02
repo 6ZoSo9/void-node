@@ -53,6 +53,13 @@ const EXPECTED = Object.freeze({
     "voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973",
   validator_promotion_rel:
     "ops/mainnet0/economic-epoch2-production-successor-equivalence-promotion-v1.json",
+  activation_contract_rel:
+    "tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs",
+  activation_runner_rel:
+    "ops/precision/void-precision-epoch2-qbft-private-runtime-activate-v1.mjs",
+  prospective_rpc_url: "http://127.0.0.1:18553/",
+  prospective_service_unit:
+    "void-economic-epoch2-qbft-validator-v1.service",
 });
 
 const FORBIDDEN = Object.freeze({
@@ -121,12 +128,19 @@ const IDENTITY_KEYS = Object.freeze([
   "production_validator_binding_evidence_sha256",
   "production_validator_binding_evidence_id",
   "production_validator_binding_promotion_path",
+  "private_runtime_activation_contract_path",
+  "private_runtime_activation_runner_path",
+  "prospective_production_rpc_url",
+  "prospective_production_service_unit",
 ]);
 const SELECTION_KEYS = Object.freeze([
   "production_rpc_target_selected",
   "rpc_url",
   "rpc_url_fingerprint_sha256",
   "service_unit",
+  "activation_plan_id",
+  "activation_receipt_id",
+  "activation_receipt_sha256",
   "runtime_observation_id",
   "runtime_observation_sha256",
   "runtime_active_verified",
@@ -242,6 +256,14 @@ function validateIdentity(identity) {
       EXPECTED.validator_evidence_id,
     production_validator_binding_promotion_path:
       EXPECTED.validator_promotion_rel,
+    private_runtime_activation_contract_path:
+      EXPECTED.activation_contract_rel,
+    private_runtime_activation_runner_path:
+      EXPECTED.activation_runner_rel,
+    prospective_production_rpc_url:
+      EXPECTED.prospective_rpc_url,
+    prospective_production_service_unit:
+      EXPECTED.prospective_service_unit,
   };
   deepEqualJson(identity, required, "reviewed_successor_identity");
 }
@@ -325,6 +347,9 @@ function validateHoldSelection(selection) {
     rpc_url: null,
     rpc_url_fingerprint_sha256: null,
     service_unit: null,
+    activation_plan_id: null,
+    activation_receipt_id: null,
+    activation_receipt_sha256: null,
     runtime_observation_id: null,
     runtime_observation_sha256: null,
     runtime_active_verified: false,
@@ -347,9 +372,15 @@ function validateSelectedSelection(selection, forbiddenValues) {
     fail("production_epoch2_rpc_target_forbidden");
   }
   if (
+    url !== EXPECTED.prospective_rpc_url ||
     selection.rpc_url_fingerprint_sha256 !== fingerprint(url) ||
-    typeof selection.service_unit !== "string" ||
-    !/^void-[a-z0-9-]+\.service$/u.test(selection.service_unit) ||
+    selection.service_unit !== EXPECTED.prospective_service_unit ||
+    typeof selection.activation_plan_id !== "string" ||
+    !/^voide2qactp1_[0-9a-f]{64}$/u.test(selection.activation_plan_id) ||
+    typeof selection.activation_receipt_id !== "string" ||
+    !/^voide2qactr1_[0-9a-f]{64}$/u.test(selection.activation_receipt_id) ||
+    typeof selection.activation_receipt_sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(selection.activation_receipt_sha256) ||
     typeof selection.runtime_observation_id !== "string" ||
     !/^voidpe2rpcobs1_[0-9a-f]{64}$/u.test(selection.runtime_observation_id) ||
     typeof selection.runtime_observation_sha256 !== "string" ||
