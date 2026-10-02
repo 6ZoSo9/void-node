@@ -11,6 +11,7 @@ import {
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1,
   buildVoidProductionEpoch2RpcHostObservationV1,
   testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1,
+  testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1,
 } from "../tools/void-production-epoch2-rpc-host-observer-v1.mjs";
 import {
   buildVoidDatanetRegistryUnsignedCandidateFixtureV1,
@@ -24,12 +25,125 @@ function sha(value) {
 }
 
 const fixture = await buildVoidDatanetRegistryUnsignedCandidateFixtureV1();
-const planBytes = bytes(fixture.activationPlan);
-const receiptBytes = bytes(fixture.activationReceipt);
-const precision = fixture.activationPlan.install_receipts.find(
+const activationPlan = structuredClone(fixture.activationPlan);
+const precision = activationPlan.install_receipts.find(
   (row) => row.role === "precision",
 );
 assert.ok(precision);
+precision.runtime_root =
+  "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/precision";
+precision.unit_install_path =
+  "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service";
+precision.systemd_unit_sha256 = "a".repeat(64);
+
+const planBytes = bytes(activationPlan);
+const receiptBytes = bytes(fixture.activationReceipt);
+const BESU_IMAGE =
+  "hyperledger/besu@sha256:6f3f21ce533383fcc8db3bce02252b59d5a9e776b72b5a1c8ecd2db011600042";
+const RPC_URL = "http://127.0.0.1:18553/";
+const precisionHost = Object.freeze({
+  role: "precision",
+  hostname: "zoso-Precision-Tower-7810",
+  container_name: "void-e2-qbft-precision-v1",
+  service_name: "void-economic-epoch2-qbft-validator-v1.service",
+  nodekey_path_relative:
+    ".local/share/void/epoch2-qbft-validator-identity-v1/precision/nodekey",
+  plugin_path_relative:
+    "Downloads/void-epoch2-raw-transaction-domain-plugin-v1.jar",
+  p2p: Object.freeze({
+    host_publish: "100.64.1.1:30313:30313/tcp",
+  }),
+  rpc: Object.freeze({
+    enabled: true,
+    host_publish: "127.0.0.1:18553:8545/tcp",
+    loopback_url: RPC_URL,
+  }),
+  besu_args: Object.freeze(["--network-id=2050"]),
+});
+const privateRuntimePlan = Object.freeze({
+  marker: "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_PLAN_V1",
+  status: "PRIVATE_QBFT_RUNTIME_PLAN_READY_ACTIVATION_HOLD",
+  runtime: Object.freeze({ besu_image: BESU_IMAGE }),
+  hosts: Object.freeze([precisionHost]),
+});
+const targetIdentity = Object.freeze({
+  prospective_production_rpc_url: RPC_URL,
+  prospective_production_service_unit:
+    "void-economic-epoch2-qbft-validator-v1.service",
+  genesis_block_hash:
+    "0x8b522cd3dad5301f2d48c2fb1a750fca1e55dfcaa8bf699423bccdb5a061d01d",
+  genesis_state_root:
+    "0x7aef6c030a691569cdb0d033f1b9333c1a07cdc9de0c0fbfb952fddbd96cc2b2",
+  production_validator_binding_evidence_path:
+    "ops/mainnet0/economic-epoch2-production-successor-equivalence-evidence-v1.json",
+  production_validator_binding_evidence_sha256: "b".repeat(64),
+  production_validator_binding_evidence_id:
+    "voide2pse1_" + "c".repeat(64),
+});
+const expectedContainer = Object.freeze({
+  docker_host:
+    "unix:///run/user/" + String(process.getuid()) + "/docker.sock",
+  container_name: precisionHost.container_name,
+  image_reference: BESU_IMAGE,
+  entrypoint: Object.freeze(["/opt/besu/bin/besu"]),
+  command: precisionHost.besu_args,
+  binds: Object.freeze([
+    "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/precision/data:/data",
+    "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/precision/genesis.json:/config/genesis.json:ro",
+    "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/precision/static-nodes.json:/config/static-nodes.json:ro",
+    "/home/zoso/.local/share/void/epoch2-qbft-validator-identity-v1/precision/nodekey:/key/nodekey:ro",
+    "/home/zoso/Downloads/void-epoch2-raw-transaction-domain-plugin-v1.jar:/plugins/void-epoch2-raw-transaction-domain-plugin-v1.jar:ro",
+  ].sort()),
+  port_bindings: Object.freeze([
+    Object.freeze({
+      container_port: "30313/tcp",
+      host_ip: "100.64.1.1",
+      host_port: "30313",
+    }),
+    Object.freeze({
+      container_port: "8545/tcp",
+      host_ip: "127.0.0.1",
+      host_port: "18553",
+    }),
+  ]),
+});
+const validContainer = Object.freeze({
+  docker_host: expectedContainer.docker_host,
+  container_name: expectedContainer.container_name,
+  container_id: "d".repeat(64),
+  image_reference: expectedContainer.image_reference,
+  image_id: "sha256:" + "e".repeat(64),
+  running: true,
+  started_at_utc: "2030-01-01T00:04:59.000Z",
+  auto_remove: true,
+  user: "0:0",
+  entrypoint: expectedContainer.entrypoint,
+  command: expectedContainer.command,
+  binds: expectedContainer.binds,
+  port_bindings: expectedContainer.port_bindings,
+  besu_plugins_env_verified: true,
+  cap_drop_all: true,
+  no_new_privileges: true,
+  rootless_security_verified: true,
+  docker_socket_owner_uid: String(process.getuid()),
+  systemd_exec_start_matches_reviewed_contract: true,
+});
+const reviewedSemantic = Object.freeze({
+  reviewed_execution_verified: true,
+  reviewed_source_head_sha: "a".repeat(40),
+  reviewed_source_tree_sha: "b".repeat(40),
+  reviewed_execution_manifest_sha256: "f".repeat(64),
+  activation_plan: activationPlan,
+  activation_receipt: fixture.activationReceipt,
+  private_runtime_plan: privateRuntimePlan,
+  target_value: Object.freeze({
+    reviewed_successor_identity: targetIdentity,
+  }),
+  expected_validators: Object.freeze([...EXPECTED_VALIDATORS_V1]),
+  target_status: "HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED",
+  target_selected: false,
+  rpc_url_fingerprint_sha256: sha(Buffer.from(RPC_URL, "utf8")),
+});
 
 function validInput() {
   return {
@@ -45,6 +159,7 @@ function validInput() {
       remote_main_sha: "a".repeat(40),
       canonical_main_live_match: true,
     },
+    reviewed_semantic: reviewedSemantic,
     host_observation: {
       hostname: "zoso-Precision-Tower-7810",
       service_unit: "void-economic-epoch2-qbft-validator-v1.service",
@@ -61,6 +176,9 @@ function validInput() {
       canonical_main_stable_during_observation: true,
       service_invocation_stable_during_observation: true,
       listener_stable_during_observation: true,
+      container_stable_during_observation: true,
+      service_container_contract_verified: true,
+      container: validContainer,
       activation_source_lineage_ancestor_current_main: true,
       activation_plan_rederived_from_upstream: true,
       activation_upstream: {
@@ -112,6 +230,14 @@ assert.equal(observation.target_descriptor_promotion_authorized, false);
 assert.equal(observation.canonical_main_stable_during_observation, true);
 assert.equal(observation.service.invocation_stable_during_observation, true);
 assert.equal(observation.service.listener_stable_during_observation, true);
+assert.equal(observation.service.container_stable_during_observation, true);
+assert.equal(observation.service.service_container_contract_verified, true);
+assert.equal(observation.service_container_listener_binding_verified, true);
+assert.equal(observation.container.container_id, validContainer.container_id);
+assert.deepEqual(
+  observation.container.port_bindings,
+  expectedContainer.port_bindings,
+);
 assert.equal(
   observation.activation_lineage.source_lineage_ancestor_current_main,
   true,
@@ -140,6 +266,61 @@ assert.deepEqual(
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
 );
 
+{
+  const inspect = {
+    Id: validContainer.container_id,
+    Name: "/" + expectedContainer.container_name,
+    Image: validContainer.image_id,
+    State: {
+      Running: true,
+      Status: "running",
+      StartedAt: validContainer.started_at_utc,
+    },
+    Config: {
+      Image: expectedContainer.image_reference,
+      User: "0:0",
+      Entrypoint: [...expectedContainer.entrypoint],
+      Cmd: [...expectedContainer.command],
+      Env: ["BESU_OPTS=-Dbesu.plugins.dir=/plugins"],
+    },
+    HostConfig: {
+      AutoRemove: true,
+      Binds: [...expectedContainer.binds],
+      CapDrop: ["ALL"],
+      SecurityOpt: ["no-new-privileges:true"],
+      PortBindings: {
+        "30313/tcp": [{ HostIp: "100.64.1.1", HostPort: "30313" }],
+        "8545/tcp": [{ HostIp: "127.0.0.1", HostPort: "18553" }],
+      },
+    },
+    NetworkSettings: {
+      Ports: {
+        "30313/tcp": [{ HostIp: "100.64.1.1", HostPort: "30313" }],
+        "8545/tcp": [{ HostIp: "127.0.0.1", HostPort: "18553" }],
+      },
+    },
+  };
+  const normalized =
+    testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1(
+      inspect,
+      expectedContainer,
+      process.getuid(),
+    );
+  assert.equal(normalized.container_id, validContainer.container_id);
+  assert.deepEqual(normalized.port_bindings, expectedContainer.port_bindings);
+
+  const wrongPort = structuredClone(inspect);
+  wrongPort.NetworkSettings.Ports["8545/tcp"][0].HostPort = "18552";
+  assert.throws(
+    () => testOnlyNormalizeVoidProductionEpoch2RpcDockerInspectV1(
+      wrongPort,
+      expectedContainer,
+      process.getuid(),
+    ),
+    /DOCKER_RUNTIME_CONTRACT_INVALID/u,
+  );
+}
+
 function rejected(mutator, pattern) {
   const input = validInput();
   mutator(input);
@@ -155,6 +336,24 @@ rejected(
 );
 rejected(
   (v) => { v.host_observation.drop_in_paths = "/tmp/override.conf"; },
+  /SERVICE_OR_LISTENER_INVALID/u,
+);
+rejected(
+  (v) => { v.host_observation.container.container_id = "0".repeat(64); },
+  /CONTAINER_IDENTITY_INVALID/u,
+);
+rejected(
+  (v) => {
+    v.host_observation.container.port_bindings[1] = {
+      container_port: "8545/tcp",
+      host_ip: "127.0.0.1",
+      host_port: "18552",
+    };
+  },
+  /CONTAINER_IDENTITY_INVALID/u,
+);
+rejected(
+  (v) => { v.host_observation.container_stable_during_observation = false; },
   /SERVICE_OR_LISTENER_INVALID/u,
 );
 rejected(
@@ -250,6 +449,13 @@ for (const required of [
   '"qbft_getValidatorsByBlockNumber"',
   '"--user", "show"',
   '"sport = :18553"',
+  '"/containers/"',
+  '"NetworkSettings"',
+  '"PortBindings"',
+  "dockerContainerFacts",
+  "reviewedSemanticExecution",
+  "container_stable_during_observation",
+  "service_container_contract_verified",
   '"merge-base", "--is-ancestor"',
   "compileVoidEconomicEpoch2QbftPrivateRuntimeActivationPlanV1",
   '"private-runtime-plan"',
@@ -278,6 +484,10 @@ console.log("head_at_or_above_activation_floor=true");
 console.log("canonical_main_stable_during_observation=true");
 console.log("service_invocation_stable_during_observation=true");
 console.log("listener_stable_during_observation=true");
+console.log("rootless_docker_container_identity_verified=true");
+console.log("service_container_listener_binding_verified=true");
+console.log("container_stable_during_observation=true");
+console.log("docker_live_port_mapping_verified=true");
 console.log("activation_source_lineage_ancestor_current_main=true");
 console.log("activation_lineage_git_ancestry_execution_present=true");
 console.log("activation_plan_upstream_reexecution_required=true");
