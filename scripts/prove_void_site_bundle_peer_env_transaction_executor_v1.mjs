@@ -430,15 +430,12 @@ const source=fs.readFileSync(
   "utf8",
 );
 for(const forbidden of [
-  "node:child_process",
-  "spawnSync(",
-  "execFile",
-  "systemctl",
-  "ssh ",
   "git push",
   "git tag",
-  "fetch(",
   "eth_sendRawTransaction",
+  "new Wallet(",
+  "validator-runtime-truth-publish",
+  "checkpoint_publish_allowed=true",
 ]){
   assert.equal(source.includes(forbidden),false,forbidden);
 }
@@ -449,9 +446,40 @@ for(const required of [
   "RECOVER_RESTORE_LOCAL",
   "ambiguous publish recovery observation",
   "ambiguous restore recovery observation",
+  'const SSH="/usr/bin/ssh"',
+  'const SYSTEMCTL="/usr/bin/systemctl"',
+  '"--user","unset-environment"',
+  '"--user","daemon-reload"',
+  '"--user","restart","void-node.service"',
+  '"/proc/self/fd/"',
+  "writeDurableJournal",
+  "participant_prestate_drift",
+  "participant_receipt_conflict",
+  "site_bundle_executor_retired_alienware_forbidden",
+  "applyVoidSiteBundlePeerEnvPersistenceV1",
 ]){
   assert.equal(source.includes(required),true,required);
 }
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1
+    .validator_publication,
+  false,
+);
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1
+    .git_tag_creation,
+  false,
+);
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1
+    .git_push,
+  false,
+);
+assert.equal(
+  VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_AUTHORITY_V1
+    .funds_movement,
+  false,
+);
 
 console.log("VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_V1_PROOF_GREEN");
 console.log("happy_path_two_party_commit=true");
@@ -462,6 +490,10 @@ console.log("restore_intent_persisted_before_side_effect=true");
 console.log("restore_crash_observed_without_duplicate_restore=true");
 console.log("ambiguous_recovery_holds=true");
 console.log("journal_failure_not_reinterpreted=true");
+console.log("live_adapter_reviewed_absolute_primitives=true");
+console.log("participant_receipts_create_only_idempotent=true");
+console.log("private_journal_parent_fd_bound=true");
+console.log("retired_alienware_forbidden=true");
 console.log("validator_publication=false");
 console.log("git_tag_or_push=false");
 console.log("funds_movement=false");
