@@ -8,6 +8,7 @@ import {
 } from "../tools/void-economic-epoch2-qbft-private-runtime-activation-v1.mjs";
 import {
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
+  VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_V1,
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1,
   buildVoidProductionEpoch2RpcHostObservationV1,
   testOnlyExerciseVoidProductionEpoch2RpcOutputParentReplacementV1,
@@ -213,12 +214,19 @@ function validInput() {
 
 const observation =
   buildVoidProductionEpoch2RpcHostObservationV1(validInput());
-assert.equal(observation.marker, VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_V1);
+assert.equal(
+  observation.marker,
+  VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_PREVIEW_V1,
+);
 assert.equal(
   observation.status,
-  "PRODUCTION_EPOCH2_RPC_HOST_OBSERVATION_ACCEPTED",
+  "PRODUCTION_EPOCH2_RPC_HOST_OBSERVATION_PREVIEW_NOT_SOURCE_VERIFIED",
 );
-assert.match(observation.observation_id, /^voidpe2rpcobs1_[0-9a-f]{64}$/u);
+assert.match(
+  observation.preview_id,
+  /^voidpe2rpcobspreview1_[0-9a-f]{64}$/u,
+);
+assert.equal(Object.hasOwn(observation, "observation_id"), false);
 assert.equal(observation.rpc.url, "http://127.0.0.1:18553/");
 assert.equal(observation.rpc.peer_count, 2);
 assert.deepEqual(observation.rpc.validators, [...EXPECTED_VALIDATORS_V1].sort());
@@ -226,9 +234,9 @@ assert.equal(
   observation.write_capability_classification,
   "write_capable_not_authorized",
 );
-assert.equal(observation.independent_host_acceptance, true);
+assert.equal(observation.independent_host_acceptance, false);
 assert.equal(observation.target_descriptor_promotion_authorized, false);
-assert.equal(observation.canonical_main_stable_during_observation, true);
+assert.equal(observation.canonical_main_stable_during_observation, false);
 assert.equal(observation.service.invocation_stable_during_observation, true);
 assert.equal(observation.service.listener_stable_during_observation, true);
 assert.equal(observation.service.container_stable_during_observation, true);
@@ -251,18 +259,18 @@ assert.equal(
   observation.activation_lineage.private_runtime_plan_file_sha256,
   "4".repeat(64),
 );
-assert.equal(observation.authority.activation_source_ancestry_required, true);
+assert.equal(observation.authority.structural_preview_only, true);
+assert.equal(observation.authority.canonical_main_live_read, false);
+assert.equal(observation.authority.activation_lineage_rederived, false);
+assert.equal(observation.authority.systemd_observation_performed, false);
+assert.equal(observation.authority.docker_observation_performed, false);
+assert.equal(observation.authority.rpc_observation_performed, false);
+assert.equal(observation.authority.independent_host_acceptance, false);
 assert.equal(
-  observation.authority.activation_plan_upstream_reexecution_required,
-  true,
+  observation.authority.target_descriptor_promotion,
+  false,
 );
-assert.equal(
-  observation.authority.exact_upstream_activation_artifacts_required,
-  true,
-);
-assert.equal(observation.authority.private_output_parent_fd_bound, true);
-assert.equal(observation.authority.private_output_redirect_forbidden, true);
-assert.deepEqual(
+assert.notDeepEqual(
   observation.authority,
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
 );
@@ -484,6 +492,10 @@ for (const required of [
   '"PortBindings"',
   "dockerContainerFacts",
   "reviewedSemanticExecution",
+  "buildVerifiedVoidProductionEpoch2RpcHostObservationV1",
+  "VERIFIED_SOURCE_CAPABILITY",
+  "VERIFIED_SOURCE_OBSERVATIONS.has",
+  "PRODUCTION_EPOCH2_RPC_OBSERVER_VERIFIED_SOURCE_REQUIRED",
   "container_stable_during_observation",
   "service_container_contract_verified",
   '"merge-base", "--is-ancestor"',
@@ -526,7 +538,9 @@ console.log("exact_upstream_activation_artifacts_required=true");
 console.log("private_output_parent_fd_bound=true");
 console.log("private_output_redirect_forbidden=true");
 console.log("write_capability_classification=write_capable_not_authorized");
-console.log("independent_host_acceptance=true");
+console.log("synthetic_builder_independent_host_acceptance=false");
+console.log("synthetic_builder_authoritative_marker_emitted=false");
+console.log("live_verified_source_capability_required=true");
 console.log("target_descriptor_promotion_authorized=false");
 console.log("transaction_broadcast=false");
 console.log("funds_movement=false");
