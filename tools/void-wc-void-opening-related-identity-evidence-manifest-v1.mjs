@@ -84,6 +84,17 @@ const EVIDENCE_KEYS = Object.freeze([
   "privacy_class",
 ]);
 
+const EVIDENCE_ID_INPUT_KEYS = Object.freeze([
+  "schema",
+  "cluster_id",
+  "evidence_kind",
+  "decision_basis",
+  "subject_participant_ids",
+  "evidence_file_sha256",
+  "evidence_bytes",
+  "privacy_class",
+]);
+
 const EVIDENCE_KINDS = Object.freeze(new Set([
   "void_key_control_linkage_v1",
   "void_credential_control_linkage_v1",
@@ -282,9 +293,65 @@ function evidenceSummary(raw) {
   });
 }
 
-export function wcVoidOpeningRelatedIdentityEvidenceIdV1(value) {
-  const summary = evidenceSummary(value);
-  return summary.evidence_id;
+export function wcVoidOpeningRelatedIdentityEvidenceIdV1(raw) {
+  const value = snapshotExact(
+    raw,
+    EVIDENCE_ID_INPUT_KEYS,
+    "INVALID_RELATED_IDENTITY_EVIDENCE_ID_INPUT",
+  );
+  if (
+    value.schema !==
+    VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_DOCUMENT_SCHEMA_V1
+  ) {
+    fail("INVALID_RELATED_IDENTITY_EVIDENCE_SCHEMA");
+  }
+  shaId(value.cluster_id, "INVALID_RELATED_IDENTITY_EVIDENCE_CLUSTER_ID");
+  if (!EVIDENCE_KINDS.has(value.evidence_kind)) {
+    fail("INVALID_RELATED_IDENTITY_EVIDENCE_KIND");
+  }
+  if (
+    value.decision_basis !== "common_control" &&
+    value.decision_basis !== "distinct_cluster_boundary"
+  ) {
+    fail("INVALID_RELATED_IDENTITY_DECISION_BASIS");
+  }
+  if (
+    value.decision_basis === "distinct_cluster_boundary" &&
+    value.evidence_kind !== "reviewed_cluster_boundary_evidence_v1"
+  ) {
+    fail("RELATED_IDENTITY_BOUNDARY_EVIDENCE_KIND_MISMATCH");
+  }
+  if (
+    value.decision_basis === "common_control" &&
+    value.evidence_kind === "reviewed_cluster_boundary_evidence_v1"
+  ) {
+    fail("RELATED_IDENTITY_COMMON_CONTROL_EVIDENCE_KIND_MISMATCH");
+  }
+  const subjects = sortedUniqueShaIds(
+    value.subject_participant_ids,
+    "INVALID_RELATED_IDENTITY_EVIDENCE_SUBJECTS",
+  );
+  if (
+    value.privacy_class !== "void_control_evidence_non_personal_v1" ||
+    !Buffer.isBuffer(value.evidence_bytes) ||
+    value.evidence_bytes.length < 1 ||
+    value.evidence_bytes.length > MAX_EVIDENCE_BYTES ||
+    typeof value.evidence_file_sha256 !== "string" ||
+    !HEX64.test(value.evidence_file_sha256) ||
+    sha256Bytes(value.evidence_bytes) !== value.evidence_file_sha256
+  ) {
+    fail("INVALID_RELATED_IDENTITY_EVIDENCE_BYTES");
+  }
+  return digest(Object.freeze({
+    schema: value.schema,
+    cluster_id: value.cluster_id,
+    evidence_kind: value.evidence_kind,
+    decision_basis: value.decision_basis,
+    subject_participant_ids: subjects,
+    evidence_file_sha256: value.evidence_file_sha256,
+    evidence_bytes: value.evidence_bytes.length,
+    privacy_class: value.privacy_class,
+  }));
 }
 
 export function compileWcVoidOpeningRelatedIdentityEvidenceManifestV1(raw) {
