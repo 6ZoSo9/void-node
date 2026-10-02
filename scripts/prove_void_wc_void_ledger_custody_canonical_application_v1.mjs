@@ -281,6 +281,79 @@ const plan=prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1({
   promotion_receipt_file_sha256:sha256(promotionBytes),
 });
 
+{
+  const toolPath =
+    "tools/void-wc-void-ledger-custody-canonical-application-v1.mjs";
+  const original = fs.readFileSync(toolPath);
+  try {
+    git("update-index", "--assume-unchanged", toolPath);
+    fs.appendFileSync(toolPath, "\n// hidden parent-tool mutation\n");
+    assert.throws(
+      () => prepareVoidWcVoidLedgerCustodyCanonicalApplicationV1({
+        ledger_import_input_bytes: inputBytes,
+        ledger_import_input_file_sha256: sha256(inputBytes),
+        promotion_receipt_bytes: promotionBytes,
+        promotion_receipt_file_sha256: sha256(promotionBytes),
+      }),
+      /LEDGER_CUSTODY_APPLICATION_TOOL_WORKTREE_DRIFT/u,
+    );
+  } finally {
+    fs.writeFileSync(toolPath, original);
+    git("update-index", "--no-assume-unchanged", toolPath);
+  }
+}
+
+{
+  const remoteBefore = _internal.canonicalRemoteMainHead();
+  assert.match(remoteBefore, /^[0-9a-f]{40}$/u);
+
+  const urlKey =
+    "url.https://127.0.0.1:1/ledger-custody-hostile/.insteadOf";
+  const sslKey = "http.sslVerify";
+  const priorUrl = gitRun(
+    ["config", "--local", "--no-includes", "--get-all", urlKey],
+    { allowFail: true },
+  );
+  const priorSsl = gitRun(
+    ["config", "--local", "--no-includes", "--get-all", sslKey],
+    { allowFail: true },
+  );
+  const priorUrlValues = priorUrl.status === 0
+    ? String(priorUrl.stdout || "").split("\n").filter(Boolean)
+    : [];
+  const priorSslValues = priorSsl.status === 0
+    ? String(priorSsl.stdout || "").split("\n").filter(Boolean)
+    : [];
+  try {
+    git(
+      "config", "--local", "--no-includes", "--add",
+      urlKey, "https://github.com/6ZoSo9/void-node.git",
+    );
+    git(
+      "config", "--local", "--no-includes", "--replace-all",
+      sslKey, "false",
+    );
+    const remoteUnderHostileLocalConfig =
+      _internal.canonicalRemoteMainHead();
+    assert.equal(remoteUnderHostileLocalConfig, remoteBefore);
+  } finally {
+    gitRun(
+      ["config", "--local", "--no-includes", "--unset-all", urlKey],
+      { allowFail: true },
+    );
+    for (const value of priorUrlValues) {
+      git("config", "--local", "--no-includes", "--add", urlKey, value);
+    }
+    gitRun(
+      ["config", "--local", "--no-includes", "--unset-all", sslKey],
+      { allowFail: true },
+    );
+    for (const value of priorSslValues) {
+      git("config", "--local", "--no-includes", "--add", sslKey, value);
+    }
+  }
+}
+
 assert.equal(
   plan.marker,
   VOID_WC_VOID_LEDGER_CUSTODY_CANONICAL_APPLICATION_PLAN_V1,
@@ -649,6 +722,9 @@ for(const required of [
   "--allow-child-process",
   "LEDGER_CUSTODY_APPLICATION_REVIEWED_AUTHORITY_EXECUTION_FAILED",
   "LEDGER_CUSTODY_APPLICATION_APPLIED_HEAD_NOT_REMOTE_MAIN",
+  "LEDGER_CUSTODY_APPLICATION_TOOL_WORKTREE_DRIFT",
+  "http.sslVerify=true",
+  'cwd:"/"',
   "buildVoidWcVoidLedgerCustodyCoupledCandidatePromotionV1",
   "classifyVoidWcVoidProductionReadinessV1",
   "classifyVoidCoupledEconomicSuccessorGateV1",
@@ -675,6 +751,9 @@ console.log("focused_workflow_trigger_symmetry_green=true");
 console.log("ancestor_package_resolution_allowed=false");
 console.log("ambient_git_and_node_overrides_ignored=true");
 console.log("hidden_worktree_authority_mutation_ignored=true");
+console.log("parent_tool_worktree_binding_verified=true");
+console.log("canonical_remote_local_config_ignored=true");
+console.log("canonical_remote_tls_verify_forced=true");
 console.log("canonical_source_prestates_bound=true");
 console.log("forged_application_plan_held=true");
 console.log("exact_four_field_delta_prepared=true");
