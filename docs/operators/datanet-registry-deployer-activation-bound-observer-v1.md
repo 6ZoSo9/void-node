@@ -137,4 +137,3 @@ install rows solely for Git ancestry verification:
 The fallback does not rewrite either evidence schema. The selected commit must
 still be present and must remain an ancestor of the current clean canonical
 repository head before any live RPC observation proceeds.
-
