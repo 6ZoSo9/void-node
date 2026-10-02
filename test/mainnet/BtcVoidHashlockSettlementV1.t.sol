@@ -104,13 +104,27 @@ contract BtcVoidHashlockSettlementV1Test {
         _token().mint(FUNDER, 1_000 ether);
     }
 
+    function _callAs(address sender, address target, bytes memory data)
+        internal
+        returns (bool ok)
+    {
+        vm.prank(sender);
+        (ok,) = target.call(data);
+    }
+
+    function _approve(BtcVoidHashlockSettlementV1 settlement, uint256 amount)
+        internal
+    {
+        vm.prank(FUNDER);
+        _token().approve(address(settlement), amount);
+    }
+
     function _lock(
         BtcVoidHashlockSettlementV1 settlement,
         bytes32 swapId,
         uint256 deadline
     ) internal {
-        vm.prank(FUNDER);
-        _token().approve(address(settlement), AMOUNT);
+        _approve(settlement, AMOUNT);
         vm.prank(FUNDER);
         settlement.lock(
             swapId,
@@ -154,25 +168,33 @@ contract BtcVoidHashlockSettlementV1Test {
         public
     {
         BtcVoidHashlockSettlementV1 settlement = _deploy();
-        uint256 deadline = START + 1000;
-        _lock(settlement, SWAP_A, deadline);
+        _lock(settlement, SWAP_A, START + 1000);
 
-        vm.prank(OTHER);
-        try settlement.claim(SWAP_A, _preimageBytes()) {
-            revert("non_beneficiary_claim_accepted");
-        } catch {}
+        bool otherOk = _callAs(
+            OTHER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.claim,
+                (SWAP_A, _preimageBytes())
+            )
+        );
+        _assert(!otherOk, "non_beneficiary_claim_accepted");
 
-        vm.prank(BENEFICIARY);
-        try settlement.claim(SWAP_A, hex"11") {
-            revert("short_preimage_accepted");
-        } catch {}
+        bool shortOk = _callAs(
+            BENEFICIARY,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.claim, (SWAP_A, hex"11"))
+        );
+        _assert(!shortOk, "short_preimage_accepted");
 
         bytes memory wrong = new bytes(32);
         wrong[31] = 0x22;
-        vm.prank(BENEFICIARY);
-        try settlement.claim(SWAP_A, wrong) {
-            revert("wrong_preimage_accepted");
-        } catch {}
+        bool wrongOk = _callAs(
+            BENEFICIARY,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.claim, (SWAP_A, wrong))
+        );
+        _assert(!wrongOk, "wrong_preimage_accepted");
 
         vm.prank(BENEFICIARY);
         settlement.claim(SWAP_A, _preimageBytes());
@@ -190,13 +212,17 @@ contract BtcVoidHashlockSettlementV1Test {
         BtcVoidHashlockSettlementV1 settlement = _deploy();
         uint256 deadline = START + 1000;
         _lock(settlement, SWAP_A, deadline);
-
         vm.warp(deadline);
 
-        vm.prank(BENEFICIARY);
-        try settlement.claim(SWAP_A, _preimageBytes()) {
-            revert("claim_at_deadline_accepted");
-        } catch {}
+        bool claimOk = _callAs(
+            BENEFICIARY,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.claim,
+                (SWAP_A, _preimageBytes())
+            )
+        );
+        _assert(!claimOk, "claim_at_deadline_accepted");
 
         vm.prank(FUNDER);
         settlement.refund(SWAP_A);
@@ -214,15 +240,19 @@ contract BtcVoidHashlockSettlementV1Test {
         uint256 deadline = START + 1000;
         _lock(settlement, SWAP_A, deadline);
 
-        vm.prank(OTHER);
-        try settlement.refund(SWAP_A) {
-            revert("other_refund_accepted");
-        } catch {}
+        bool otherOk = _callAs(
+            OTHER,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.refund, (SWAP_A))
+        );
+        _assert(!otherOk, "other_refund_accepted");
 
-        vm.prank(FUNDER);
-        try settlement.refund(SWAP_A) {
-            revert("early_refund_accepted");
-        } catch {}
+        bool earlyOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.refund, (SWAP_A))
+        );
+        _assert(!earlyOk, "early_refund_accepted");
 
         vm.warp(deadline);
         vm.prank(FUNDER);
@@ -236,16 +266,23 @@ contract BtcVoidHashlockSettlementV1Test {
         vm.prank(BENEFICIARY);
         settlement.claim(SWAP_A, _preimageBytes());
 
-        vm.prank(BENEFICIARY);
-        try settlement.claim(SWAP_A, _preimageBytes()) {
-            revert("claim_replay_accepted");
-        } catch {}
+        bool replayOk = _callAs(
+            BENEFICIARY,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.claim,
+                (SWAP_A, _preimageBytes())
+            )
+        );
+        _assert(!replayOk, "claim_replay_accepted");
 
         vm.warp(START + 1000);
-        vm.prank(FUNDER);
-        try settlement.refund(SWAP_A) {
-            revert("refund_after_claim_accepted");
-        } catch {}
+        bool refundOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.refund, (SWAP_A))
+        );
+        _assert(!refundOk, "refund_after_claim_accepted");
 
         _assert(_token().balanceOf(BENEFICIARY) == AMOUNT, "single_claim");
     }
@@ -259,15 +296,22 @@ contract BtcVoidHashlockSettlementV1Test {
         vm.prank(FUNDER);
         settlement.refund(SWAP_A);
 
-        vm.prank(FUNDER);
-        try settlement.refund(SWAP_A) {
-            revert("refund_replay_accepted");
-        } catch {}
+        bool replayOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.refund, (SWAP_A))
+        );
+        _assert(!replayOk, "refund_replay_accepted");
 
-        vm.prank(BENEFICIARY);
-        try settlement.claim(SWAP_A, _preimageBytes()) {
-            revert("claim_after_refund_accepted");
-        } catch {}
+        bool claimOk = _callAs(
+            BENEFICIARY,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.claim,
+                (SWAP_A, _preimageBytes())
+            )
+        );
+        _assert(!claimOk, "claim_after_refund_accepted");
 
         _assert(_token().balanceOf(FUNDER) == 1_000 ether, "single_refund");
     }
@@ -276,105 +320,93 @@ contract BtcVoidHashlockSettlementV1Test {
         BtcVoidHashlockSettlementV1 settlement = _deploy();
         uint256 deadline = START + 1000;
         _lock(settlement, SWAP_A, deadline);
+        _approve(settlement, AMOUNT * 8);
 
-        vm.prank(FUNDER);
-        _token().approve(address(settlement), AMOUNT * 8);
-
-        vm.prank(FUNDER);
-        try settlement.lock(
-            SWAP_A,
-            _hashlock(),
-            BENEFICIARY,
-            AMOUNT,
-            deadline
-        ) {
-            revert("duplicate_swap_accepted");
-        } catch {}
-
-        vm.prank(FUNDER);
-        try settlement.lock(
-            bytes32(0),
-            _hashlock(),
-            BENEFICIARY,
-            AMOUNT,
-            deadline
-        ) {
-            revert("zero_swap_accepted");
-        } catch {}
-
-        vm.prank(FUNDER);
-        try settlement.lock(
-            SWAP_B,
-            bytes32(0),
-            BENEFICIARY,
-            AMOUNT,
-            deadline
-        ) {
-            revert("zero_hashlock_accepted");
-        } catch {}
-
-        vm.prank(FUNDER);
-        try settlement.lock(
-            SWAP_B,
-            _hashlock(),
-            address(0),
-            AMOUNT,
-            deadline
-        ) {
-            revert("zero_beneficiary_accepted");
-        } catch {}
-
-        vm.prank(FUNDER);
-        try settlement.lock(
-            SWAP_B,
-            _hashlock(),
+        bool duplicateOk = _callAs(
             FUNDER,
-            AMOUNT,
-            deadline
-        ) {
-            revert("same_role_accepted");
-        } catch {}
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_A, _hashlock(), BENEFICIARY, AMOUNT, deadline)
+            )
+        );
+        _assert(!duplicateOk, "duplicate_swap_accepted");
 
-        vm.prank(FUNDER);
-        try settlement.lock(
-            SWAP_B,
-            _hashlock(),
-            BENEFICIARY,
-            0,
-            deadline
-        ) {
-            revert("zero_amount_accepted");
-        } catch {}
+        bool zeroSwapOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (bytes32(0), _hashlock(), BENEFICIARY, AMOUNT, deadline)
+            )
+        );
+        _assert(!zeroSwapOk, "zero_swap_accepted");
 
-        vm.prank(FUNDER);
-        try settlement.lock(
-            SWAP_B,
-            _hashlock(),
-            BENEFICIARY,
-            AMOUNT,
-            START
-        ) {
-            revert("nonfuture_deadline_accepted");
-        } catch {}
+        bool zeroHashOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_B, bytes32(0), BENEFICIARY, AMOUNT, deadline)
+            )
+        );
+        _assert(!zeroHashOk, "zero_hashlock_accepted");
+
+        bool zeroBeneficiaryOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_B, _hashlock(), address(0), AMOUNT, deadline)
+            )
+        );
+        _assert(!zeroBeneficiaryOk, "zero_beneficiary_accepted");
+
+        bool sameRoleOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_B, _hashlock(), FUNDER, AMOUNT, deadline)
+            )
+        );
+        _assert(!sameRoleOk, "same_role_accepted");
+
+        bool zeroAmountOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_B, _hashlock(), BENEFICIARY, 0, deadline)
+            )
+        );
+        _assert(!zeroAmountOk, "zero_amount_accepted");
+
+        bool staleDeadlineOk = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_B, _hashlock(), BENEFICIARY, AMOUNT, START)
+            )
+        );
+        _assert(!staleDeadlineOk, "nonfuture_deadline_accepted");
     }
 
     function test_failedFundingTransferRollsBackLockState() public {
         BtcVoidHashlockSettlementV1 settlement = _deploy();
         _token().setFailTransferFrom(true);
+        _approve(settlement, AMOUNT);
 
-        vm.prank(FUNDER);
-        _token().approve(address(settlement), AMOUNT);
-        vm.prank(FUNDER);
-        try settlement.lock(
-            SWAP_A,
-            _hashlock(),
-            BENEFICIARY,
-            AMOUNT,
-            START + 1000
-        ) {
-            revert("failed_funding_accepted");
-        } catch {}
-
+        bool ok = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.lock,
+                (SWAP_A, _hashlock(), BENEFICIARY, AMOUNT, START + 1000)
+            )
+        );
+        _assert(!ok, "failed_funding_accepted");
         _assert(
             settlement.stateOf(SWAP_A) ==
                 BtcVoidHashlockSettlementV1.SwapState.None,
@@ -387,11 +419,15 @@ contract BtcVoidHashlockSettlementV1Test {
         _lock(settlement, SWAP_A, START + 1000);
         _token().setFailTransfer(true);
 
-        vm.prank(BENEFICIARY);
-        try settlement.claim(SWAP_A, _preimageBytes()) {
-            revert("failed_claim_transfer_accepted");
-        } catch {}
-
+        bool ok = _callAs(
+            BENEFICIARY,
+            address(settlement),
+            abi.encodeCall(
+                BtcVoidHashlockSettlementV1.claim,
+                (SWAP_A, _preimageBytes())
+            )
+        );
+        _assert(!ok, "failed_claim_transfer_accepted");
         _assert(
             settlement.stateOf(SWAP_A) ==
                 BtcVoidHashlockSettlementV1.SwapState.Locked,
@@ -406,11 +442,12 @@ contract BtcVoidHashlockSettlementV1Test {
         vm.warp(deadline);
         _token().setFailTransfer(true);
 
-        vm.prank(FUNDER);
-        try settlement.refund(SWAP_A) {
-            revert("failed_refund_transfer_accepted");
-        } catch {}
-
+        bool ok = _callAs(
+            FUNDER,
+            address(settlement),
+            abi.encodeCall(BtcVoidHashlockSettlementV1.refund, (SWAP_A))
+        );
+        _assert(!ok, "failed_refund_transfer_accepted");
         _assert(
             settlement.stateOf(SWAP_A) ==
                 BtcVoidHashlockSettlementV1.SwapState.Locked,
