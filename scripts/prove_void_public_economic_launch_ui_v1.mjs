@@ -15,6 +15,7 @@ const files = Object.fromEntries(entries);
 
 const receiver = '0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5';
 const usdc = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const ethereumUsdc = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
 
 for (const [name, source] of Object.entries({
   views: files.views,
@@ -25,6 +26,11 @@ for (const [name, source] of Object.entries({
   assert.match(source, /exchange|custodial/i, `${name} must carry exchange custody warning`);
   assert.match(source, /lost/i, `${name} must state loss consequence`);
 }
+assert.match(files.views, /Ethereum mainnet native USDC is policy-approved, but the current purchase-request flow accepts Base only/);
+assert.match(files.home, /Ethereum native USDC is policy-approved but must not be sent until the site explicitly marks that rail OPEN/);
+assert.match(files.checkout, /This checkout remains Base-only/);
+assert.ok(files.checkout.includes(ethereumUsdc), 'checkout contract must identify canonical Ethereum USDC without presenting it as active');
+
 
 for (const token of [
   receiver,
