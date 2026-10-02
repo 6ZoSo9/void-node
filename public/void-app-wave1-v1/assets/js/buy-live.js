@@ -117,7 +117,11 @@ const validateSnapshot = (config, status, sale) => {
   if (status.schema !== 'void_public_buy_void_status_v1' || status.ok !== true) {
     throw new Error('Buy VOID status identity mismatch');
   }
-  if (sale.schema !== 'void_buy_void_sale_state_v1' || sale.ok !== true) {
+  if (
+    sale.schema !== 'void_buy_void_sale_state_v1' ||
+    sale.ok !== true ||
+    typeof sale.sold_out !== 'boolean'
+  ) {
     throw new Error('Buy VOID sale-state identity mismatch');
   }
   for (const key of ['pool_void_total', 'remaining_void', 'raised_usdc_so_far', 'progress_pct']) {
@@ -132,7 +136,8 @@ const isOpen = (snapshot) =>
   snapshot.config.payment_ready === true &&
   snapshot.config.receiver_binding_green === true &&
   snapshot.status.request_intake_ready === true &&
-  snapshot.sale.sold_out !== true;
+  snapshot.sale.sold_out === false &&
+  Number(snapshot.sale.remaining_void) > 0;
 
 const setFormEnabled = (enabled) => {
   all('[data-buy-amount], [data-buy-destination], [data-buy-ack]').forEach((node) => {
@@ -177,7 +182,7 @@ function updateSubmit() {
 const renderSnapshot = (snapshot) => {
   const { config, status, sale } = snapshot;
   const open = isOpen(snapshot);
-  const soldOut = sale.sold_out === true;
+  const soldOut = sale.sold_out === true || Number(sale.remaining_void) <= 0;
   setText('[data-buy-price]', `$${Number(config.price_usdc_per_void).toFixed(2)} / VOID`);
   setText('[data-buy-pool-total]', `${format(sale.pool_void_total)} VOID`);
   setText('[data-buy-pool-remaining]', `${format(sale.remaining_void)} VOID`);
