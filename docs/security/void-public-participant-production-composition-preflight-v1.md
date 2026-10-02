@@ -159,33 +159,78 @@ shaped hermetic authority, the real session HTTP module, and the real account
 read edge. This proves the merged components themselves are compatible without
 mounting a listener or contacting production.
 
-## Current source HOLD
+## Source wiring state
 
-Current gateway source is still default-off and requires a binding registry when
-enabled. It also shares one session HTTP instance with the account-read edge.
-
-But the gateway does **not** yet inject:
-
-- `roleAuthority`; or
-- `stateStore`
-
-into `createVoidPublicParticipantSessionHttpV1(...)`.
-
-Therefore the expected current result is:
+The gateway remains default-off:
 
 ```text
-status=PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_WIRING_HOLD
-composition_role_authority_injection_present=false
-composition_durable_state_injection_present=false
-source_composition_ready=false
+VOID_PUBLIC_PARTICIPANT_COMPOSITION_ACTIVE=0
+```
+
+When a later lifecycle gate explicitly enables composition, source now requires
+all three scalar/private-path inputs:
+
+```text
+VOID_PUBLIC_PARTICIPANT_BINDING_REGISTRY_FILE
+VOID_PUBLIC_PARTICIPANT_ROLE_RPC_URL
+VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE
+```
+
+The enabled branch then:
+
+1. constructs the fixed read-only Chain-2050 role observer from the scalar
+   loopback RPC URL and reviewed registry/runtime/finality constants;
+2. loads only the compiled reviewed security binding/session-adapter modules
+   from `dist/security`;
+3. derives the canonical binding-descriptor SHA-256 internally;
+4. constructs the reviewed AGENT session role adapter;
+5. constructs the branded durable session-state store from the reviewed factory;
+6. injects both `roleAuthority` and `stateStore` into the existing session
+   HTTP constructor; and
+7. gives the account-read edge that exact same session HTTP instance.
+
+The live-role bridge does not accept caller-supplied observer, binding, source,
+admit, or revalidate functions.
+
+The focused source proof builds the reviewed TypeScript runtime first and proves
+that both compiled factories are loadable. The preflight Git-binds the complete
+eight-file role-authority TypeScript closure plus the live RPC observer,
+live-role bridge, gateway, durable store and participant HTTP/account-read
+modules.
+
+This source change does **not** enable the environment gate. Expected source
+preflight output is now:
+
+```text
+status=PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BOUND_HOST_LIFECYCLE_HOLD
+composition_role_authority_injection_present=true
+composition_durable_state_injection_present=true
+source_composition_ready=true
 
 production_session_issuance=false
 public_session_route_mount_authorized=false
 runtime_activation_authorized=false
 ```
 
-This is a useful HOLD, not a failure of the prerequisite work. It identifies the
-next exact source transition.
+### Compiled runtime boundary
+
+The public gateway is still launched by plain `node`; it does not rely on
+`tsx` or another production TypeScript loader.
+
+The live-role bridge dynamically imports:
+
+```text
+dist/security/chain2050_role_authority_live_rpc_binding_v1.js
+dist/security/participant_role_authority_session_adapter_v1.js
+```
+
+only after the composition activation gate is explicitly enabled. Those files
+must be direct bounded regular files at their canonical build paths. Missing or
+aliased build products fail closed.
+
+Because `dist/` is generated rather than canonical Git source, the later
+designated-host lifecycle gate must additionally prove the installed compiled
+runtime was built from the exact reviewed source generation before activation.
 
 ## Next gate
 
