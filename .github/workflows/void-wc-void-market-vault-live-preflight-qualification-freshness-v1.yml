@@ -6,6 +6,7 @@ on:
       - ".github/workflows/void-wc-void-market-vault-live-preflight-qualification-freshness-v1.yml"
       - "docs/operators/wc-void-market-vault-live-preflight-qualification-freshness-v1.md"
       - "scripts/prove_void_wc_void_market_vault_live_preflight_qualification_freshness_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs"
       - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs"
       - "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs"
   push:
@@ -15,6 +16,7 @@ on:
       - ".github/workflows/void-wc-void-market-vault-live-preflight-qualification-freshness-v1.yml"
       - "docs/operators/wc-void-market-vault-live-preflight-qualification-freshness-v1.md"
       - "scripts/prove_void_wc_void_market_vault_live_preflight_qualification_freshness_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs"
       - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs"
       - "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs"
 
