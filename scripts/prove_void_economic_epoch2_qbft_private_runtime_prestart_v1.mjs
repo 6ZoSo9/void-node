@@ -464,6 +464,7 @@ for(const required of [
   "service_unit_state_changed_during_observation",
   "prestart_unit_file_state_not_static",
   "rootless_docker_required",
+  'regularFile(dockerBin,"docker_bin",128*1024*1024)',
   "p2p_port_not_vacant",
   "start_authorized=false",
 ]) {
