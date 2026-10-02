@@ -57,6 +57,9 @@ function validInput() {
       listener_address: "127.0.0.1",
       listener_port: 18553,
       listener_present: true,
+      canonical_main_stable_during_observation: true,
+      service_invocation_stable_during_observation: true,
+      listener_stable_during_observation: true,
       rpc: {
         url: "http://127.0.0.1:18553/",
         chain_id_hex: "0x802",
@@ -73,7 +76,7 @@ function validInput() {
         peer_count: 2,
         validators: [...EXPECTED_VALIDATORS_V1],
       },
-      observed_at_utc: "2026-10-02T00:00:00.000Z",
+      observed_at_utc: "2030-01-01T00:06:00.000Z",
     },
   };
 }
@@ -95,6 +98,9 @@ assert.equal(
 );
 assert.equal(observation.independent_host_acceptance, true);
 assert.equal(observation.target_descriptor_promotion_authorized, false);
+assert.equal(observation.canonical_main_stable_during_observation, true);
+assert.equal(observation.service.invocation_stable_during_observation, true);
+assert.equal(observation.service.listener_stable_during_observation, true);
 assert.deepEqual(
   observation.authority,
   VOID_PRODUCTION_EPOCH2_RPC_HOST_OBSERVER_AUTHORITY_V1,
@@ -147,6 +153,14 @@ rejected(
   (v) => { v.source_binding.remote_main_sha = "c".repeat(40); },
   /SOURCE_OR_HOST_INVALID/u,
 );
+rejected(
+  (v) => { v.host_observation.service_invocation_stable_during_observation = false; },
+  /SERVICE_OR_LISTENER_INVALID/u,
+);
+rejected(
+  (v) => { v.host_observation.observed_at_utc = "2029-12-31T23:59:59.000Z"; },
+  /TIME_INVALID/u,
+);
 
 {
   const input = validInput();
@@ -196,6 +210,9 @@ console.log("genesis_identity_exact=true");
 console.log("validator_set_exact=true");
 console.log("peer_count_minimum_two=true");
 console.log("head_at_or_above_activation_floor=true");
+console.log("canonical_main_stable_during_observation=true");
+console.log("service_invocation_stable_during_observation=true");
+console.log("listener_stable_during_observation=true");
 console.log("write_capability_classification=write_capable_not_authorized");
 console.log("independent_host_acceptance=true");
 console.log("target_descriptor_promotion_authorized=false");
