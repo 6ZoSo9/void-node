@@ -110,8 +110,11 @@ automatically. Bare package imports are forbidden except reviewed `ethers`.
 The exact reviewed Node package-runtime tool/profile is copied from the same HEAD,
 verifies the locked installed `ethers` bytes, and materializes them privately outside
 the repository. A private detached checkout of the exact application HEAD is then
-created beneath that package root. The reviewed bridge executes there under
-`node --permission` with filesystem reads limited to the private reviewed root.
+created beneath that package root. The private parent directory identity plus bootstrap,
+runtime-tool, profile, generated-runner, and every reviewed module byte identity are
+revalidated before package verification and again immediately before child spawn.
+The reviewed bridge executes there under `node --permission` with filesystem reads
+limited to the private reviewed root.
 Child process is enabled only because the reviewed #2240 promotion performs its own
 hardened read-only Git provenance checks.
 
