@@ -485,11 +485,11 @@ function transportFixture(options={}){
         if(options.nonceDriftFinalOnly===true&&nonceReads>2)return "0x8";
         return options.nonceDrift===true&&nonceReads>1?"0x8":"0x7";
       case "eth_gasPrice":
-        return "0x3b9aca00";
+        return options.nonzeroGasPrice===true?"0x1":"0x0";
       case "eth_estimateGas":
         return options.gasTooHigh===true?"0x989680":"0xc350";
       case "eth_getBalance":
-        return options.lowBalance===true?"0x1":"0xde0b6b3a7640000";
+        return options.nonzeroBalance===true?"0x1":"0x0";
       default:
         throw new Error("unexpected_rpc_method:"+call.method);
     }
@@ -505,9 +505,9 @@ function policy(overrides={}){
     gas_limit_multiplier_bps:"12000",
     max_gas_limit:"100000",
     fee_multiplier_bps:"20000",
-    max_fee_per_gas_wei:"3000000000",
-    max_priority_fee_per_gas_wei:"1000000000",
-    max_total_gas_cost_wei:"300000000000000",
+    max_fee_per_gas_wei:"0",
+    max_priority_fee_per_gas_wei:"0",
+    max_total_gas_cost_wei:"0",
     request_timeout_ms:5000,
     max_response_bytes:65536,
     ...overrides,
@@ -555,13 +555,18 @@ function preSignInput(transport,overrides={}){
     unsignedPlan.unsigned_call.calldata,
   );
   assert.equal(result.unsigned_transaction_candidate.gas_limit,"60000");
+  assert.equal(result.first_gas_price_wei,"0");
+  assert.equal(result.final_gas_price_wei,"0");
+  assert.equal(result.first_publisher_balance_wei,"0");
+  assert.equal(result.final_publisher_balance_wei,"0");
+  assert.equal(result.computed_max_gas_cost_wei,"0");
   assert.equal(
     result.unsigned_transaction_candidate.max_fee_per_gas_wei,
-    "2000000000",
+    "0",
   );
   assert.equal(
     result.unsigned_transaction_candidate.max_priority_fee_per_gas_wei,
-    "1000000000",
+    "0",
   );
   assert.equal(result.authority.signer_identity_bound,false);
   assert.equal(result.authority.signer_access_authorized,false);
@@ -663,7 +668,7 @@ function preSignInput(transport,overrides={}){
 }
 
 {
-  const f=transportFixture({lowBalance:true});
+  const f=transportFixture({nonzeroGasPrice:true});
   const result=
     await runDatanetContentCommitmentPreSignRevalidationAgainstFingerprintV1(
       preSignInput(f.transport),
@@ -672,7 +677,7 @@ function preSignInput(transport,overrides={}){
   assert.equal(result.ok,false);
   assert.equal(
     result.reason,
-    "datanet_pre_sign_native_gas_balance_or_cost_cap_failed",
+    "datanet_pre_sign_nonzero_gas_price_policy_drift",
   );
 }
 
@@ -707,12 +712,13 @@ function preSignInput(transport,overrides={}){
   const result=
     await runDatanetContentCommitmentPreSignRevalidationAgainstFingerprintV1(
       preSignInput(f.transport,{
-        policy:policy({max_fee_per_gas_wei:"1500000000"}),
+        policy:policy({max_fee_per_gas_wei:"1"}),
       }),
       sovereignFingerprint,
     );
   assert.equal(result.ok,false);
-  assert.equal(result.reason,"datanet_pre_sign_fee_exceeds_policy");
+  assert.equal(result.reason,"datanet_pre_sign_policy_invalid");
+  assert.equal(f.calls.length,0);
 }
 
 {
@@ -735,7 +741,9 @@ for(const [key,expected] of Object.entries({
   two_fresh_object_preflights_required:true,
   pending_nonce_stability_required:true,
   pending_gas_estimate_required:true,
-  pending_native_balance_required:true,
+  pending_native_balance_required:false,
+  pending_native_balance_observed:true,
+  exact_zero_fee_policy_required:true,
   explicit_bounded_fee_policy_required:true,
   unsigned_transaction_candidate_may_be_materialized:true,
   signing_authorized:false,
@@ -789,7 +797,9 @@ console.log("pending_nonce_stable_across_revalidation=true");
 console.log("final_pending_nonce_rechecked_after_final_preflight=true");
 console.log("exact_pending_gas_estimate_bound=true");
 console.log("explicit_bounded_fee_policy=true");
-console.log("publisher_pending_native_balance_verified=true");
+console.log("exact_zero_fee_policy=true");
+console.log("publisher_zero_native_balance_supported=true");
+console.log("publisher_pending_native_balance_observed=true");
 console.log("nonce_drift_rejected=true");
 console.log("second_pass_commit_race_rejected=true");
 console.log("gas_cap_failure_rejected=true");
