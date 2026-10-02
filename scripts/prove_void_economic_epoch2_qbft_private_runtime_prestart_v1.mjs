@@ -264,6 +264,28 @@ for(const [index,role] of roles.entries()) {
   assert.equal(prestartReceipts[role].authority.nodekey_bytes_persisted,false);
 }
 
+{
+  const badFacts={
+    ...prestartReceipts.precision.facts,
+    unit_file_state:"disabled",
+  };
+  assert.throws(
+    ()=>buildVoidEconomicEpoch2QbftHostPrestartReceiptV1({
+      plan,
+      plan_file_sha256:planFileSha,
+      bundle_set_receipt:bundleSet,
+      role:"precision",
+      materialization:materializations.precision,
+      install_receipt:installReceipts.precision,
+      observed_repo_head:INSTALL_HEAD,
+      observed_at_utc:"2030-01-01T00:03:00.000Z",
+      valid_until_utc:"2030-01-01T00:08:00.000Z",
+      facts:badFacts,
+    }),
+    /prestart_unit_file_state_not_static:precision/u,
+  );
+}
+
 const admission=buildVoidEconomicEpoch2QbftPrivateRuntimeStartAdmissionV1({
   plan,
   plan_file_sha256:planFileSha,
@@ -440,6 +462,7 @@ for(const required of [
   "service_enablement_directory_symlink",
   "service_direct_enablement_link_present",
   "service_unit_state_changed_during_observation",
+  "prestart_unit_file_state_not_static",
   "rootless_docker_required",
   "p2p_port_not_vacant",
   "start_authorized=false",
