@@ -46,10 +46,12 @@ A green live run additionally requires:
 - unit fragment path and SHA-256 equal the Precision install row in the
   activation plan;
 - service `active/running` with a nonzero MainPID and InvocationID;
-- loopback `127.0.0.1:18553` listener present;
+- the same systemd unit/MainPID/InvocationID remains stable across the RPC observation window;
+- loopback `127.0.0.1:18553` listener is present before and after the RPC observation;
+- local clean `main` and live GitHub `refs/heads/main` remain unchanged across the observation window;
 - `eth_chainId = 0x802`;
 - exact genesis block hash and state root from the reviewed successor identity;
-- exact current QBFT validator set;
+- exact current QBFT validator set at the captured head block;
 - at least two peers;
 - live head at or above the activation receipt's post-Xiphos block floor;
 - one exact head block hash/state root observation.
