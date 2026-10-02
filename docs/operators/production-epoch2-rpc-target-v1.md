@@ -78,15 +78,42 @@ selected runtime must cite the exact evidence path + SHA-256 above; a caller
 cannot substitute an arbitrary new file merely because it is under
 `ops/mainnet0/`.
 
+## Existing reviewed activation path
+
+The repository already defines the production-capable private QBFT runtime
+ceremony. Its activation plan fixes:
+
+- Precision RPC: `http://127.0.0.1:18553/`;
+- service unit on each host:
+  `void-economic-epoch2-qbft-validator-v1.service`;
+- start order: Precision, Nimo, Xiphos;
+- two-of-three quorum at the Nimo start;
+- exact three-validator roster; and
+- transaction methods forbidden during activation observation.
+
+A green
+`VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_RECEIPT_V1`
+proves block progression and authoritative successor block production, while
+transaction construction/signing/submission/broadcast and funds movement remain
+false.
+
+Therefore the central RPC target contract accepts **only** `18553` and the
+exact reviewed service identity for its future selected state. Selection also
+requires a content-addressed activation plan + activation receipt and a later
+independent host observation. No arbitrary spare loopback port can be promoted.
+
 ## Selected-state contract
 
 A future selected descriptor may use
 `PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY` only when all of the
 following are present:
 
-- canonical explicit loopback HTTP RPC URL;
+- exact reviewed RPC URL `http://127.0.0.1:18553/`;
 - URL SHA-256 fingerprint;
-- concrete long-lived systemd service identity;
+- exact systemd service identity
+  `void-economic-epoch2-qbft-validator-v1.service`;
+- content-addressed private-QBFT activation plan ID;
+- content-addressed green private-QBFT activation receipt ID + file SHA-256;
 - content-addressed runtime host-observation ID and artifact SHA-256;
 - runtime active verification;
 - exact reviewed successor genesis binding;
@@ -120,9 +147,12 @@ node tools/void-production-epoch2-rpc-target-v1.mjs
 node scripts/prove_void_production_epoch2_rpc_target_v1.mjs
 ```
 
-The proof also constructs a synthetic selected-state object on a non-reserved
-loopback port to exercise the future schema. That synthetic object is test data
-only and creates no runtime or production evidence.
+The proof also constructs a synthetic selected-state object using the exact
+reviewed `18553`/service identities plus fake content-addressed receipt IDs to
+exercise the future schema. It explicitly rejects an arbitrary alternate
+loopback port, wrong service identity, and missing activation lineage. The
+synthetic object is test data only and creates no runtime or production
+evidence.
 
 ## Authority boundary
 
