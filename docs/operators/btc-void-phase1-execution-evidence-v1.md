@@ -37,11 +37,12 @@ The v1 verifier pins the exact reviewed Git blobs for:
 - the client-neutral Epoch-2 state manifest.
 
 The atomic evaluation must additionally carry the exact reviewed dependency
-blobs for quote math, reserve policy, buyback-journal transition, and bounded
-stdin.
+blobs for quote math, reserve policy, buyback-journal transition, bounded
+stdin, shared-market V2, and the canonical coupled-market candidate.
 
-All 12 admitted cases must come from one atomic source HEAD. Mixing source
-generations in one Phase-1 suite fails closed.
+All 12 admitted cases must come from one atomic source HEAD **and one source
+tree**. Mixing source generations or source trees in one Phase-1 suite fails
+closed.
 
 ## Bitcoin execution identity
 
