@@ -57,6 +57,15 @@ assert.deepEqual(
   ["signature", "compressed_pubkey", "", "witness_script"],
 );
 assert.equal(
+  built.redeem_spend_requirements
+    .compressed_pubkey_required_for_standard_segwit_v0_relay,
+  true,
+);
+assert.equal(
+  built.redeem_spend_requirements.minimal_if_selector_must_be_01,
+  true,
+);
+assert.equal(
   built.refund_spend_requirements
     .transaction_nlocktime_at_least_refund_locktime,
   true,
@@ -69,6 +78,15 @@ assert.equal(
 assert.equal(
   built.refund_spend_requirements
     .spending_input_sequence_must_not_equal_uint32_max,
+  true,
+);
+assert.equal(
+  built.refund_spend_requirements
+    .compressed_pubkey_required_for_standard_segwit_v0_relay,
+  true,
+);
+assert.equal(
+  built.refund_spend_requirements.minimal_if_selector_must_be_empty_vector,
   true,
 );
 assert.deepEqual(
@@ -198,8 +216,11 @@ for (const required of [
   "required_preimage_bytes: 32",
   "p2wsh_version: 0",
   "transaction_nlocktime_at_least_refund_locktime: true",
+  "compressed_pubkey_required_for_standard_segwit_v0_relay: true",
+  "minimal_if_selector_must_be_01: true",
   "transaction_locktime_type_must_match_refund_locktime_type: true",
   "spending_input_sequence_must_not_equal_uint32_max: true",
+  "minimal_if_selector_must_be_empty_vector: true",
   "bitcoin_mainnet_contact: false",
   "transaction_construction: false",
   "transaction_signing: false",
