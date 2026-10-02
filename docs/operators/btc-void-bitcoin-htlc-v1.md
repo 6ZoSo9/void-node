@@ -65,7 +65,12 @@ The builder uses canonical Bitcoin Script integer encoding:
 - non-minimal encodings are rejected by the parser.
 
 The contract classifies locktimes below 500,000,000 as block heights and values
-at/above that threshold as Unix timestamps.
+at/above that threshold as timestamp-form block-time locktimes. The numeric
+timestamp value is expressed in Unix-epoch seconds, but modern Bitcoin finality
+does **not** compare it directly to local wall-clock time: BIP113 evaluates
+time-based transaction locktime against the previous chain tip's Median Time
+Past. The artifact therefore records `median_time_past_bip113` as the finality
+clock for timestamp-form locktimes.
 
 The refund branch uses BIP65 `OP_CHECKLOCKTIMEVERIFY`. A later transaction
 builder must additionally bind:
