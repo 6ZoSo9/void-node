@@ -23,6 +23,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     qualification_control_freshness_required: true,
     qualification_control_freshness_revalidation_required: true,
     production_wall_clock_evaluation_required: true,
+    production_wall_clock_monotonicity_required: true,
     canonical_source_revalidation_required: true,
     reviewed_qualification_contract_exact_head_execution: true,
     private_reviewed_qualification_contract_materialization: true,
@@ -1229,6 +1230,14 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
           verifiedQualification.control_freshness.valid_until_unix
       ) {
         return held("live_deployment_preflight_control_freshness_lineage_drift", {
+          rpc_methods_used: methods,
+        });
+      }
+      if (
+        BigInt(finalFreshness.evaluation_time_unix) <
+        BigInt(verifiedQualification.control_freshness.evaluation_time_unix)
+      ) {
+        return held("live_deployment_preflight_evaluation_time_regressed", {
           rpc_methods_used: methods,
         });
       }
