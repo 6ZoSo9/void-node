@@ -21,6 +21,9 @@ import {
   VOID_DATANET_PHASE0_SOVEREIGN_PRIMARY_DER_SHA256_V1,
 } from "../tools/datanet-content-commitment-object-preflight-v1.mjs";
 import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "../tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
+import {
   canonicalJson,
   sha256,
 } from "../tools/datanet-content-commitment-compiler-profile-v1.mjs";
@@ -461,6 +464,25 @@ function input(transport,override={}){
     [...new Set(f.calls.map(x=>x.method))].sort(),
     ["eth_blockNumber","eth_call","eth_chainId","eth_getBlockByNumber","eth_getCode"].sort(),
   );
+  const ethCalls=f.calls.filter(x=>x.method==="eth_call");
+  assert.equal(ethCalls.length,6);
+  for(const call of ethCalls){
+    assert.equal(call.params[1],"0x6f");
+    const envelope=call.params[0];
+    assert.equal(envelope.from,PUBLISHER);
+    assert.equal(envelope.to,CONTRACT);
+    assert.equal(envelope.value,"0x0");
+    assert.deepEqual(
+      envelope.accessList,
+      [{
+        address:
+          VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
+        storageKeys:[
+          VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_storage_key,
+        ],
+      }],
+    );
+  }
 }
 
 {
