@@ -112,6 +112,7 @@ a separate explicit operator confirmation named
 
 The activation ceremony must still fail closed if admission expires or any
 installed/runtime fact changes before the actual start action. Immediately
-before the explicit start it rechecks that the unit-file state is still
-`static` and the service is still inactive, performs `daemon-reload`, then
-rechecks both conditions again before issuing `systemctl start`.
+before the explicit start it rechecks that direct enablement links remain
+absent, the unit-file state is still `static`, and the service is still
+inactive. It performs `daemon-reload`, then rechecks all three conditions
+again before issuing `systemctl start`.
