@@ -314,6 +314,9 @@ try {
 
   requireNoDirectEnablementLinks(unitDir,binding.manifest.service_name);
   const postState=requireInactiveUnitFileState(binding.manifest.service_name);
+  if(postState.unit_file_state!=="static") {
+    fail("install_post_unit_file_state_not_static:"+postState.unit_file_state);
+  }
 
   if(
     sha256(fs.readFileSync(path.join(runtimeRoot,"genesis.json")))!==hashes.genesisSha||
