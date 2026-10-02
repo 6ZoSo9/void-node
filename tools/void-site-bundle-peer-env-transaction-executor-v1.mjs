@@ -399,7 +399,9 @@ function requireAdapter(adapter){
     "persistParticipantReceipt",
     "observe",
     "publish",
+    "recoverPublish",
     "restore",
+    "recoverRestore",
   ]){
     if(typeof adapter[name]!=="function"){
       fail("site_bundle_executor_adapter_missing:"+name);
@@ -429,6 +431,46 @@ function participantFromAction(action,suffix){
   fail("site_bundle_executor_action_participant_invalid:"+action);
 }
 
+function recoverablePublishPartial(transaction,participant,observation){
+  observationShape(observation,participant);
+  const prestate=transaction.prestate[participant];
+  if(
+    observation.host!==prestate.host||
+    observation.repository_head_sha!==transaction.source.repository_head_sha||
+    observation.service.active!==prestate.service.active
+  ) return false;
+
+  const targetDropin=(
+    observation.dropin.exists===true&&
+    observation.dropin.sha256===targetSha(transaction,participant)&&
+    observation.dropin.mode==="0644"
+  );
+  const prestateDropin=sameDropin(observation.dropin,prestate.dropin);
+  const clearedManager=managerCleared(observation.manager_environment);
+  const prestateManager=same(
+    observation.manager_environment,
+    prestate.manager_environment,
+  );
+  if(
+    (!targetDropin&&!prestateDropin)||
+    (!clearedManager&&!prestateManager)
+  ) return false;
+
+  if(!prestate.service.active){
+    return observation.service.invocation_id===null;
+  }
+  const invocation=observation.service.invocation_id;
+  if(!INVOCATION.test(String(invocation||"")))return false;
+  if(!restartExpected(transaction,participant)){
+    return invocation===prestate.service.invocation_id;
+  }
+  if(invocation===prestate.service.invocation_id)return true;
+  // An advanced invocation is accepted as a recoverable publish generation
+  // only after the full static target state is already visible. Otherwise an
+  // unrelated service restart is indistinguishable from transaction progress.
+  return targetDropin&&clearedManager;
+}
+
 function recoveryPublishClassification(transaction,participant,observation){
   if(targetStateObserved(transaction,participant,observation)){
     return Object.freeze({
@@ -442,7 +484,54 @@ function recoveryPublishClassification(transaction,participant,observation){
       receipt:publishNoEffectReceipt(transaction,participant,observation),
     });
   }
+  if(recoverablePublishPartial(transaction,participant,observation)){
+    return Object.freeze({kind:"recoverable_partial",receipt:null});
+  }
   return Object.freeze({kind:"ambiguous",receipt:null});
+}
+
+function recoverableRestorePartial(transaction,participant,observation){
+  observationShape(observation,participant);
+  const prestate=transaction.prestate[participant];
+  const published=transaction.published[participant];
+  const started=transaction.restore_started[participant];
+  if(
+    !published||
+    !started||
+    observation.host!==prestate.host||
+    observation.repository_head_sha!==transaction.source.repository_head_sha||
+    observation.service.active!==prestate.service.active
+  ) return false;
+
+  const targetDropin=(
+    observation.dropin.exists===true&&
+    observation.dropin.sha256===targetSha(transaction,participant)&&
+    observation.dropin.mode==="0644"
+  );
+  const prestateDropin=sameDropin(observation.dropin,prestate.dropin);
+  const clearedManager=managerCleared(observation.manager_environment);
+  const prestateManager=same(
+    observation.manager_environment,
+    prestate.manager_environment,
+  );
+  if(
+    (!targetDropin&&!prestateDropin)||
+    (!clearedManager&&!prestateManager)
+  ) return false;
+
+  if(!prestate.service.active){
+    return observation.service.invocation_id===null;
+  }
+  const invocation=observation.service.invocation_id;
+  if(!INVOCATION.test(String(invocation||"")))return false;
+  if(!started.restart_expected){
+    return invocation===prestate.service.invocation_id;
+  }
+  if(invocation===started.restart_before_invocation_id)return true;
+  // Once rollback restart advanced, exact prestate bytes/environment must
+  // already be restored. This avoids treating an unrelated restart during a
+  // partially restored state as transaction progress.
+  return prestateDropin&&prestateManager;
 }
 
 function recoveryRestoreClassification(transaction,participant,observation){
@@ -479,6 +568,9 @@ function recoveryRestoreClassification(transaction,participant,observation){
     observation,
   )){
     return "restored";
+  }
+  if(recoverableRestorePartial(transaction,participant,observation)){
+    return "recoverable_partial";
   }
   return "ambiguous";
 }
@@ -579,6 +671,23 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
         );
         continue;
       }
+      if(recovered.kind==="recoverable_partial"){
+        const completed=observationShape(
+          await io.recoverPublish(participant,current,observation),
+          participant,
+        );
+        const receipt=publishReceipt(current,participant,completed);
+        current=recordVoidCrossboxMutationPublishedV1(current,receipt);
+        await persistTransition(persist,current);
+        await persistParticipant(
+          io,
+          participant,
+          "published",
+          receipt,
+          current,
+        );
+        continue;
+      }
       current=holdVoidCrossboxMutationTransactionV1(
         current,
         "ambiguous publish recovery observation for "+participant,
@@ -674,6 +783,11 @@ export async function driveVoidSiteBundlePeerEnvTransactionV1({
           await io.restore(participant,current),
           participant,
         );
+      }else if(classification==="recoverable_partial"){
+        observation=observationShape(
+          await io.recoverRestore(participant,current,observation),
+          participant,
+        );
       }
       const receipt=restoreReceipt(current,participant,observation);
       current=recordVoidCrossboxMutationRestoredV1(current,receipt);
@@ -708,6 +822,8 @@ export const VOID_SITE_BUNDLE_PEER_ENV_TRANSACTION_EXECUTOR_INTERNAL_V1 =
     verifyReceipt,
     restoreStartedReceipt,
     restoreReceipt,
+    recoverablePublishPartial,
+    recoverableRestorePartial,
   });
 
 
