@@ -7,6 +7,7 @@ on:
       - "ops/mainnet0/participant-buy-void-clarity-proof.sh"
       - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
       - "public/void-app-wave1-v1/assets/js/buy-live.js"
+      - "src/index.ts"
   push:
     branches: [main]
     paths:
@@ -14,6 +15,7 @@ on:
       - "ops/mainnet0/participant-buy-void-clarity-proof.sh"
       - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
       - "public/void-app-wave1-v1/assets/js/buy-live.js"
+      - "src/index.ts"
 
 permissions:
   contents: read
@@ -40,7 +42,7 @@ jobs:
         run: bash -n ops/mainnet0/participant-buy-void-clarity-proof.sh
 
       - name: Prove participant rail-state copy fixtures
-        run: VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_MODE=1 bash ops/mainnet0/participant-buy-void-clarity-proof.sh
+        run: VOID_REPO="$GITHUB_WORKSPACE" VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_MODE=1 bash ops/mainnet0/participant-buy-void-clarity-proof.sh
 
       - name: Prove Buy VOID readonly client rail rendering
         run: node scripts/prove_void_app_buy_presale_readonly_v1.mjs
