@@ -28,8 +28,25 @@ The canonical policy loader already requires the reviewed Base + Ethereum RPC
 identity, URL fingerprint inputs, canonical USDC/receive-address policy,
 minimum-confirmation policy, and total timeout policy.
 
-A missing/invalid finality policy therefore keeps Ethereum payment instructions
-HOLD even if the generic and Ethereum intake toggles are both enabled.
+Configuration is still not sufficient. Payment-instruction readiness also binds
+the canonical V4 finality capability authority. Current V4 deliberately reports:
+
+```text
+source_generation_verified_on_success=false
+deployed_artifact_generation_verified=false
+remote_provider_identity_verified=false
+ancestry_verified=false
+provider_quorum_verified=false
+production_source_finality_authority_ready=false
+```
+
+Therefore current Ethereum payment instructions remain HOLD even with every RPC
+environment value configured. A future source-finality generation must promote
+those canonical capability facts before this readiness gate can turn GREEN.
+
+A missing/invalid finality policy **or** non-production-ready canonical finality
+capability therefore keeps Ethereum payment instructions HOLD even if the
+generic and Ethereum intake toggles are both enabled.
 
 The intake toggles are deliberately **not** re-required when verifying an
 already-created payment attempt. Turning intake off must stop new instructions,
