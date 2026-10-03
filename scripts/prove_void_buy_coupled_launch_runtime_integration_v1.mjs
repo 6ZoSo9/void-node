@@ -32,7 +32,7 @@ assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
 assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
-assert.equal(index.split('Error("buy_closed")').length - 1, 2);
+assert.equal(index.split('Error("buy_closed")').length - 1, 3);
 const gateSource = read("src/economic/buy_void_coupled_launch_gate_v1.mjs");
 assert.ok(gateSource.includes("buy-void-coupled-live-generation-v1.jsonl"));
 assert.ok(gateSource.includes("generation_tip_sha256"));
