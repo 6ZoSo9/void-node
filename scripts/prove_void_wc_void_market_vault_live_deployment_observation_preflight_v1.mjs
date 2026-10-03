@@ -628,6 +628,10 @@ await withFixture({}, async (f) => {
     exact.rpc_url_fingerprint_sha256,
     selected.selection.rpc_url_fingerprint_sha256,
   );
+  assert.equal(
+    exact.selected_rpc_target_git_blob_sha1,
+    gitText(["rev-parse", "HEAD:" + PRODUCTION_RPC_TARGET]),
+  );
   for (const rpc_url of [
     "http://127.0.0.1:8545/",
     "http://127.0.0.1:18550/",
@@ -647,6 +651,32 @@ await withFixture({}, async (f) => {
       rpc_url,
     );
     assert.equal(held.rpc_call, false);
+  }
+}
+
+{
+  const original = fs.readFileSync(PRODUCTION_RPC_TARGET);
+  try {
+    const tampered = JSON.parse(original.toString("utf8"));
+    tampered.selection.rpc_url = "http://127.0.0.1:18553/tampered";
+    tampered.selection.rpc_url_fingerprint_sha256 =
+      sha256(Buffer.from(tampered.selection.rpc_url, "utf8"));
+    fs.writeFileSync(
+      PRODUCTION_RPC_TARGET,
+      JSON.stringify(tampered, null, 2) + "\n",
+    );
+    const held =
+      testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1({
+        rpc_url: tampered.selection.rpc_url,
+      });
+    assert.equal(held.ok, false);
+    assert.equal(
+      held.reason,
+      "live_deployment_preflight_production_rpc_target_worktree_blob_mismatch",
+    );
+    assert.equal(held.rpc_call, false);
+  } finally {
+    fs.writeFileSync(PRODUCTION_RPC_TARGET, original);
   }
 }
 
@@ -1037,6 +1067,7 @@ for (const required of [
   "live_deployment_preflight_canonical_main_branch_required",
   "live_deployment_preflight_remote_main_head_mismatch",
   "PRODUCTION_EPOCH2_RPC_TARGET_REL",
+  "live_deployment_preflight_production_rpc_target_worktree_blob_mismatch",
   "live_deployment_preflight_production_rpc_mismatch",
   "requireCanonicalProductionRpc: true",
   "live_deployment_preflight_transport_injection_forbidden",
@@ -1066,6 +1097,7 @@ console.log("canonical_main_branch_required=true");
 console.log("canonical_remote_main_read_required=true");
 console.log("canonical_remote_main_head_match_required=true");
 console.log("canonical_production_epoch2_rpc_required=true");
+console.log("canonical_production_epoch2_rpc_target_head_blob_required=true");
 console.log("retired_epoch1_rpc_8545_rejected=true");
 console.log("isolated_epoch2_proof_rpcs_rejected=true");
 console.log("caller_transport_injection_forbidden=true");
