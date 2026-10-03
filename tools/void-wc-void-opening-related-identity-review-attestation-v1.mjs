@@ -890,7 +890,7 @@ function boundedControlInputCloneV1(value) {
     }
     const keys = own.sort(compareTextV1);
 
-    const out = {};
+    const out = Object.create(null);
     for (const key of keys) {
       budget.stringBytes += Buffer.byteLength(key, "utf8");
       if (budget.stringBytes > limits.max_string_bytes) {
@@ -904,7 +904,12 @@ function boundedControlInputCloneV1(value) {
       ) {
         fail("review_control_input_shape_invalid");
       }
-      out[key] = clone(descriptor.value, depth + 1);
+      Object.defineProperty(out, key, {
+        value: clone(descriptor.value, depth + 1),
+        enumerable: true,
+        writable: false,
+        configurable: false,
+      });
     }
     return out;
   }
