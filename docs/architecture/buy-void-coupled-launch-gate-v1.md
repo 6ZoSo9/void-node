@@ -42,7 +42,8 @@ Public intake additionally requires a separately authorized live coupled-launch
 receipt. No such production receipt is committed by this source lane.
 
 The runtime requires a cryptographically authorized receipt, a durable
-generation journal, and explicit transport bindings.
+generation journal, a separate external high-water mirror, and explicit
+transport bindings.
 
 The receipt must carry two EIP-712 signatures over the same activation
 statement:
@@ -70,6 +71,10 @@ Runtime state is bound through:
 
 - `DATA_DIR` / `VOID_DATA_DIR`, locating the private append-only
   `economic/buy-void-coupled-live-generation-v1.jsonl` journal;
+- the fixed OS-user authority path
+  `~/.local/state/void-node-authority-v1/buy-void-coupled-live-generation-anchor-v1.jsonl`,
+  which must contain byte-identical generation history and must resolve outside
+  `DATA_DIR`;
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH`: exact absolute path to the
   current private receipt;
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256`: exact SHA-256 of those
@@ -78,10 +83,18 @@ Runtime state is bound through:
   `activate-coupled-public-buy-v1:<generation>:<generation_tip>:<receipt_id>:<receipt_sha256>`.
 
 The generation is not accepted from a mutable environment value. The current
-generation and its content-addressed tip are derived from the durable journal.
-An active generation must be revoked before another generation can become
-active, and a revoked generation cannot reappear by restoring an older
-environment bundle.
+generation and its content-addressed tip are accepted only when the runtime
+journal and the fixed external high-water mirror are byte-identical and both
+validate as the same contiguous event chain. An active generation must be
+revoked before another generation can become active.
+
+The external mirror is intentionally outside the ordinary runtime data rollback
+domain and is not selected by an activation environment variable. If
+`DATA_DIR`, the receipt, and the service environment are restored to an older
+snapshot while the external mirror retains a later revocation/rotation, the
+mismatch fails closed. Generation transition tooling must durably publish the
+same complete append-only bytes to both locations before a lease relying on that
+tip can become admissible.
 
 The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
@@ -111,10 +124,11 @@ Its content must be content-addressed and bind:
 - `runtime_or_launch_evidence=true`; and
 - `source_ready_only=false`.
 
-A missing path, digest, generation journal, confirmation, insecure file, changed
-file, stale composition ID, expired lease, revoked/superseded generation,
-mismatched generation tip, malformed receipt, wrong/invalid signature,
-future-dated activation, or any false launch fact holds
+A missing path, digest, generation journal, external high-water mirror,
+journal/anchor mismatch, confirmation, insecure file, changed file, stale
+composition ID, expired lease, revoked/superseded generation, mismatched
+generation tip, malformed receipt, wrong/invalid signature, future-dated
+activation, or any false launch fact holds
 intake closed. The receipt is therefore a renewable activation lease rather than
 permanent evidence of a past ceremony. A self-authored JSON fixture with
 internally consistent hashes and environment confirmation cannot open production
@@ -195,7 +209,8 @@ npx tsx scripts/prove_buy_void_request_tx_hash_binding_v1.ts
 The focused proof uses only temporary synthetic EIP-712 signers and a
 live-receipt fixture. It proves the signature format plus
 parser/custody/digest/confirmation behavior, durable generation
-revocation/rotation, request expiry, and explicitly proves that valid synthetic
+revocation/rotation, rejection of rolled-back runtime journal bytes against a
+newer external high-water anchor, request expiry, and explicitly proves that valid synthetic
 signatures cannot
 satisfy either fixed production authority identity. CI never has either
 production key, cannot mint production activation evidence, and carries no
