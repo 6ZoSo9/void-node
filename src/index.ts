@@ -108,7 +108,7 @@ import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from
 
 // VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1
 let __BL:any;void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26")__BL=m}).catch(()=>0);
-const __bld=()=>{try{return __BL?.readBuyLaunchGateV1()||{ready:0}}catch{return{ready:0}}},__blo=(r:any)=>{try{return __BL?.buyLaunchRequestAuthorityMatchesV1(r,__bld())}catch{return false}};
+const __bld=()=>{try{return __BL?.readBuyLaunchGateV1()||{ready:0}}catch{return{ready:0}}},__blo=(r:any)=>{try{return __BL?.buyLaunchRequestAuthorityMatchesV1(r,__bld())}catch{return false}},__blm=(r:any,f:any)=>__BL.withBuyLaunchRequestAuthorityMutationV1(r,f);
 
 // __VOID_TS_DECLARES_V1__
 declare const app: any;
@@ -18552,7 +18552,7 @@ small{color:#94a3b8}
       return events;
     }
 
-    async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any){const fs=await import("node:fs");const path=await import("node:path");const {withBuyVoidTerminalCloseoutRequestLockV1}=await import("./economic/buy_void_terminal_closeout_request_lock_v1.js");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});return withBuyVoidTerminalCloseoutRequestLockV1({request_dir:dir,request_id:String(event?.request_id||"")},()=>{if(event?.operator_status==="payment_verified"&&!__blo(request))throw new Error("request_launch_authority_expired_or_superseded");fs.appendFileSync(path.join(dir,"operator-events.jsonl"),JSON.stringify(event)+"\n");fs.writeFileSync(path.join(dir,"operator-event-"+event.request_id+"-"+event.marked_at_ms+".json"),JSON.stringify(event,null,2));return{ok:true,dir}})}
+    async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any){const fs=await import("node:fs");const path=await import("node:path");const {withBuyVoidTerminalCloseoutRequestLockV1}=await import("./economic/buy_void_terminal_closeout_request_lock_v1.js");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});const op=()=>withBuyVoidTerminalCloseoutRequestLockV1({request_dir:dir,request_id:String(event?.request_id||"")},()=>{fs.appendFileSync(path.join(dir,"operator-events.jsonl"),JSON.stringify(event)+"\n");fs.writeFileSync(path.join(dir,"operator-event-"+event.request_id+"-"+event.marked_at_ms+".json"),JSON.stringify(event,null,2));return{ok:true,dir}});return event?.operator_status==="payment_verified"?await __blm(request,op):op()}
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
     function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){
@@ -19035,7 +19035,7 @@ setInterval(refresh, 10000);
     });
 
 
-    async function __voidPersistBuyVoidRequestV1(reqObj:any){const fs=await import("node:fs");const path=await import("node:path");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});const json=JSON.stringify(reqObj);if(!__blo(reqObj))throw new Error("request_launch_authority_expired_or_superseded");fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\n");fs.writeFileSync(path.join(dir,reqObj.request_id+".json"),JSON.stringify(reqObj,null,2));return{dir,file:path.join(dir,reqObj.request_id+".json")}}
+    async function __voidPersistBuyVoidRequestV1(reqObj:any){const fs=await import("node:fs");const path=await import("node:path");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});return await __blm(reqObj,()=>{const json=JSON.stringify(reqObj);fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\n");fs.writeFileSync(path.join(dir,reqObj.request_id+".json"),JSON.stringify(reqObj,null,2));return{dir,file:path.join(dir,reqObj.request_id+".json")}})}
 
     function __voidBuyVoidReadParamV1(req:any, name:string){
       const q = (req && req.query) || {};
