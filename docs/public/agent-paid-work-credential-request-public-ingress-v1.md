@@ -94,6 +94,10 @@ VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE=<M>
 The gateway requires `2 * N <= M`. The reviewed example is `N=4`,
 `M=12`, matching the existing loopback gateway's reviewed 12/minute global
 wall while preventing one verified applicant from consuming that entire bucket.
+The public edge also mirrors `M` as its own bounded global rolling window
+before proxying. This keeps verified-but-rejected traffic from growing
+per-applicant/replay state without bound, while the loopback gateway remains the
+independent second/global wall.
 
 The `x-void-applicant-auth-v1` header is base64url-encoded JSON. Its signed
 canonical body contains exactly:
@@ -127,8 +131,10 @@ bindings, then consumes the nonce exactly once. Changing forwarding headers,
 callback data, request IDs, body bytes, timestamps, or public keys cannot select
 or reset the applicant rate key without a new valid signature.
 
-The inner loopback gateway keeps its existing per-loopback/global limiter as a
-second safety wall. No forwarded-IP header becomes authority.
+Rate-limited requests do not consume new replay-cache entries. Applicant and
+nonce tracking are explicitly bounded, and expired/non-active entries are
+pruned. The inner loopback gateway keeps its existing per-loopback/global
+limiter as a second safety wall. No forwarded-IP header becomes authority.
 
 ## No generic proxy
 
