@@ -301,11 +301,14 @@ for (const marker of [
   "./assets/js/home-live.js",
   "./assets/js/wallet-live.js",
   "./assets/js/earn-live.js",
-  "WAVE 4 READ-ONLY EARN",
 ]) {
   if (!html.includes(marker)) {
     fail(`application integration marker missing: ${marker}`);
   }
+}
+
+if (html.includes("WAVE 4 READ-ONLY EARN")) {
+  fail("obsolete Wave 4 prototype banner remains in production app shell");
 }
 
 for (const marker of [
