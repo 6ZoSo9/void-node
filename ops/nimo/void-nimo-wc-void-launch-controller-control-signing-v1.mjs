@@ -841,8 +841,8 @@ export function testOnlyExerciseSignatureOutputExpiryCleanupV1() {
           version: 1,
         }),
         {
-          expiresAtUnix: 100,
-          nowUnix: () => 100,
+          expiresAtUnix: "100",
+          nowUnix: () => "100",
         },
       );
     } catch (error) {
