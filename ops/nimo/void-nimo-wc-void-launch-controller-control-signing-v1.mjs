@@ -937,11 +937,58 @@ async function signValidatedControlChallengeV1({
   reviewed,
   privateKey,
   ethers,
+  nowUnix = null,
 }) {
-  return await signValidatedControlChallengeV1({
-    reviewed,
-    privateKey,
-    ethers,
+  const liveNow = () =>
+    nowUnix === null
+      ? BigInt(Math.floor(Date.now() / 1000))
+      : decimal(nowUnix, "control_now_invalid");
+
+  if (liveNow() >= BigInt(reviewed.expires_at_unix)) {
+    fail("control_challenge_expired");
+  }
+
+  let wallet;
+  try {
+    wallet = new ethers.Wallet(privateKey);
+  } catch {
+    fail("launch_controller_private_key_invalid");
+  }
+  const derived = wallet.address.toLowerCase();
+  if (derived !== reviewed.candidate_address) {
+    fail("launch_controller_private_key_address_mismatch");
+  }
+
+  if (liveNow() >= BigInt(reviewed.expires_at_unix)) {
+    fail("control_challenge_expired");
+  }
+
+  const signature = await wallet.signTypedData(
+    reviewed.typed_data.domain,
+    reviewed.typed_data.types,
+    reviewed.typed_data.value,
+  );
+  if (liveNow() >= BigInt(reviewed.expires_at_unix)) {
+    fail("control_challenge_expired");
+  }
+  if (!SIGNATURE65.test(signature)) {
+    fail("launch_controller_signature_shape_invalid");
+  }
+  const recovered = ethers.verifyTypedData(
+    reviewed.typed_data.domain,
+    reviewed.typed_data.types,
+    reviewed.typed_data.value,
+    signature,
+  ).toLowerCase();
+  if (recovered !== reviewed.candidate_address) {
+    fail("launch_controller_signature_recovery_mismatch");
+  }
+
+  return Object.freeze({
+    marker: SIGNATURE_MARKER_V1,
+    version: 1,
+    challenge_id: reviewed.challenge_id,
+    signature,
   });
 }
 
@@ -971,40 +1018,11 @@ export async function signControlChallengeCoreV1({
     ethers,
   });
 
-  let wallet;
-  try {
-    wallet = new ethers.Wallet(privateKey);
-  } catch {
-    fail("launch_controller_private_key_invalid");
-  }
-  const derived = wallet.address.toLowerCase();
-  if (derived !== reviewed.candidate_address) {
-    fail("launch_controller_private_key_address_mismatch");
-  }
-
-  const signature = await wallet.signTypedData(
-    reviewed.typed_data.domain,
-    reviewed.typed_data.types,
-    reviewed.typed_data.value,
-  );
-  if (!SIGNATURE65.test(signature)) {
-    fail("launch_controller_signature_shape_invalid");
-  }
-  const recovered = ethers.verifyTypedData(
-    reviewed.typed_data.domain,
-    reviewed.typed_data.types,
-    reviewed.typed_data.value,
-    signature,
-  ).toLowerCase();
-  if (recovered !== reviewed.candidate_address) {
-    fail("launch_controller_signature_recovery_mismatch");
-  }
-
-  return Object.freeze({
-    marker: SIGNATURE_MARKER_V1,
-    version: 1,
-    challenge_id: reviewed.challenge_id,
-    signature,
+  return await signValidatedControlChallengeV1({
+    reviewed,
+    privateKey,
+    ethers,
+    nowUnix,
   });
 }
 
@@ -1028,18 +1046,25 @@ export async function signSelectedLaunchControllerChallengeV1({
   challengePath,
   challengeSha256,
   outputPath,
-  nowUnix = Math.floor(Date.now() / 1000),
 } = {}) {
   validateSanitizedOfflineSignerEnvironmentV1();
   const challenge = readChallengeV1(challengePath, challengeSha256);
 
   return await withReviewedEthersV1(async ({ ethers, profile }) => {
+    const signingNowUnix = Math.floor(Date.now() / 1000);
     const reviewed = validateChallengeForSigningV1({
       challengeEnvelope: challenge.value,
       expectedAddress: SELECTED_REVIEWER_ADDRESS_V1,
-      nowUnix,
+      nowUnix: signingNowUnix,
       ethers,
     });
+    if (
+      BigInt(Math.floor(Date.now() / 1000)) >=
+      BigInt(reviewed.expires_at_unix)
+    ) {
+      fail("control_challenge_expired");
+    }
+
     let privateKey = readPrivateKeyV1(KEY_PATH_V1);
     let envelope;
     try {
