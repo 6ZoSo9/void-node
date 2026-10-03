@@ -40,7 +40,9 @@ export const VOID_BUY_COUPLED_LIVE_ACTIVATION_TYPES_V1 =
       Object.freeze({ name: "source_composition_id", type: "bytes32" }),
       Object.freeze({ name: "activation_receipt_id", type: "string" }),
       Object.freeze({ name: "activation_nonce", type: "bytes32" }),
+      Object.freeze({ name: "activation_generation", type: "bytes32" }),
       Object.freeze({ name: "activated_at_ms", type: "uint64" }),
+      Object.freeze({ name: "expires_at_ms", type: "uint64" }),
       Object.freeze({ name: "buy_void_private_runtime_active", type: "bool" }),
       Object.freeze({ name: "wc_void_market_active", type: "bool" }),
       Object.freeze({ name: "public_presale_active", type: "bool" }),
@@ -64,16 +66,19 @@ const PRODUCTION = "ops/mainnet0/wc-void-production-candidate-v1.json";
 const COUPLED = "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR = "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const LIVE_RECEIPT_MAX_BYTES = 64 * 1024;
+const LIVE_ACTIVATION_MAX_LEASE_MS = 5 * 60 * 1000;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const LIVE_KEYS = Object.freeze([
   "activated_at_ms",
+  "activation_generation",
   "activation_nonce",
   "activation_receipt_id",
   "activation_signature",
   "activation_signer",
   "buy_void_private_runtime_active",
   "coupled_launch_id",
+  "expires_at_ms",
   "marker",
   "public_buy_request_intake_authorized",
   "public_presale_active",
@@ -136,8 +141,11 @@ export function buyLaunchLiveActivationTypedDataV1(receipt) {
       String(receipt.activation_receipt_id || ""),
     ) ||
     !BYTES32.test(String(receipt.activation_nonce || "")) ||
+    !BYTES32.test(String(receipt.activation_generation || "")) ||
     !Number.isSafeInteger(receipt.activated_at_ms) ||
-    receipt.activated_at_ms <= 0
+    receipt.activated_at_ms <= 0 ||
+    !Number.isSafeInteger(receipt.expires_at_ms) ||
+    receipt.expires_at_ms <= receipt.activated_at_ms
   ) {
     throw new Error("buy_launch_live_activation_typed_data_invalid");
   }
@@ -153,7 +161,9 @@ export function buyLaunchLiveActivationTypedDataV1(receipt) {
         sha256IdBytes32(receipt.source_composition_id),
       activation_receipt_id: receipt.activation_receipt_id,
       activation_nonce: receipt.activation_nonce,
+      activation_generation: receipt.activation_generation,
       activated_at_ms: BigInt(receipt.activated_at_ms),
+      expires_at_ms: BigInt(receipt.expires_at_ms),
       buy_void_private_runtime_active:
         receipt.buy_void_private_runtime_active === true,
       wc_void_market_active: receipt.wc_void_market_active === true,
@@ -361,9 +371,11 @@ export function readBuyLaunchSourceGateV1() {
   }
 }
 
-export function readBuyLaunchLiveActivationV1(
+function readBuyLaunchLiveActivationCoreV1(
   sourceGate,
-  env = process.env,
+  env,
+  nowMs,
+  expectedSigner,
 ) {
   try {
     if (
@@ -377,8 +389,15 @@ export function readBuyLaunchLiveActivationV1(
     const filePath = env.VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH;
     const expectedSha256 =
       env.VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256;
-    if (!HEX64.test(String(expectedSha256 || ""))) {
-      throw new Error("buy_launch_live_receipt_sha256_invalid");
+    const activeGeneration =
+      env.VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION;
+    if (
+      !HEX64.test(String(expectedSha256 || "")) ||
+      !BYTES32.test(String(activeGeneration || "")) ||
+      !Number.isSafeInteger(nowMs) ||
+      nowMs <= 0
+    ) {
+      throw new Error("buy_launch_live_receipt_runtime_binding_invalid");
     }
 
     const bytes = readStablePrivateFile(filePath);
@@ -409,12 +428,19 @@ export function readBuyLaunchLiveActivationV1(
       receipt.source_composition_id !== sourceGate.composition_id ||
       receipt.activation_receipt_id !== expectedReceiptId ||
       String(receipt.activation_signer || "").toLowerCase() !==
-        VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
+        getAddress(expectedSigner).toLowerCase() ||
       !BYTES32.test(String(receipt.activation_nonce || "")) ||
+      !BYTES32.test(String(receipt.activation_generation || "")) ||
+      receipt.activation_generation !== activeGeneration ||
       !SIGNATURE.test(String(receipt.activation_signature || "")) ||
       !Number.isSafeInteger(receipt.activated_at_ms) ||
+      !Number.isSafeInteger(receipt.expires_at_ms) ||
       receipt.activated_at_ms <= 0 ||
-      receipt.activated_at_ms > Date.now() + 300_000 ||
+      receipt.activated_at_ms > nowMs ||
+      receipt.expires_at_ms <= nowMs ||
+      receipt.expires_at_ms <= receipt.activated_at_ms ||
+      receipt.expires_at_ms - receipt.activated_at_ms >
+        LIVE_ACTIVATION_MAX_LEASE_MS ||
       receipt.buy_void_private_runtime_active !== true ||
       receipt.wc_void_market_active !== true ||
       receipt.public_presale_active !== true ||
@@ -428,7 +454,7 @@ export function readBuyLaunchLiveActivationV1(
 
     const signed = verifyBuyLaunchLiveActivationSignatureV1(
       receipt,
-      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
+      expectedSigner,
     );
     if (signed.verified !== true) {
       throw new Error("buy_launch_live_receipt_signature_invalid");
@@ -436,6 +462,8 @@ export function readBuyLaunchLiveActivationV1(
 
     const confirmation =
       "activate-coupled-public-buy-v1:" +
+      receipt.activation_generation +
+      ":" +
       receipt.activation_receipt_id +
       ":" +
       actualSha256;
@@ -466,7 +494,37 @@ export function readBuyLaunchLiveActivationV1(
   }
 }
 
-export function readBuyLaunchGateV1(env = process.env) {
+export function readBuyLaunchLiveActivationV1(
+  sourceGate,
+  env = process.env,
+  nowMs = Date.now(),
+) {
+  return readBuyLaunchLiveActivationCoreV1(
+    sourceGate,
+    env,
+    nowMs,
+    VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
+  );
+}
+
+export function testOnlyReadBuyLaunchLiveActivationV1(
+  sourceGate,
+  env,
+  nowMs,
+  expectedSigner,
+) {
+  return readBuyLaunchLiveActivationCoreV1(
+    sourceGate,
+    env,
+    nowMs,
+    expectedSigner,
+  );
+}
+
+export function readBuyLaunchGateV1(
+  env = process.env,
+  nowMs = Date.now(),
+) {
   const source = readBuyLaunchSourceGateV1();
   if (!source.ready) {
     return Object.freeze({
@@ -477,7 +535,7 @@ export function readBuyLaunchGateV1(env = process.env) {
       live_activation_signer: null,
     });
   }
-  const live = readBuyLaunchLiveActivationV1(source, env);
+  const live = readBuyLaunchLiveActivationV1(source, env, nowMs);
   return Object.freeze({
     ready: source.ready && live.ready,
     id: source.id,
