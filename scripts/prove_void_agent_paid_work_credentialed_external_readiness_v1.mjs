@@ -188,14 +188,22 @@ const disconnectedCredentialRoute = credentialGatewaySource.replace(
   /pathname\s*!==\s*\n\s*AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH/u,
   'pathname !==\n          "/__void/agents/paid-work/disconnected"',
 );
+const spoofedCredentialRoute =
+  disconnectedCredentialRoute +
+  '\nconst oldRouteText = "pathname !== AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH";\n';
 assert.notEqual(disconnectedCredentialRoute, credentialGatewaySource);
 assert.ok(
-  disconnectedCredentialRoute.includes(
+  spoofedCredentialRoute.includes(
     '"/__void/agents/paid-work/credential-requests/v1"',
   ),
 );
+assert.ok(
+  spoofedCredentialRoute.includes(
+    "pathname !== AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH",
+  ),
+);
 assert.throws(
-  () => evaluateCredentialRequestGatewayContractV1(disconnectedCredentialRoute),
+  () => evaluateCredentialRequestGatewayContractV1(spoofedCredentialRoute),
   /credential_request_gateway_route_guard_contract_match_count/u,
 );
 
@@ -204,19 +212,27 @@ const disconnectedSubmissionRoute = publicGatewaySource.replace(
   /parsed\.pathname\s*===\s*\n\s*AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH/u,
   'parsed.pathname ===\n    "/__void/agents/paid-work/disconnected"',
 );
+const spoofedSubmissionRoute =
+  disconnectedSubmissionRoute +
+  '\nconst oldSubmissionRouteText = "parsed.pathname === AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH";\n';
 assert.notEqual(disconnectedSubmissionRoute, publicGatewaySource);
 assert.ok(
-  disconnectedSubmissionRoute.includes(
+  spoofedSubmissionRoute.includes(
     '"/__void/agents/paid-work/submissions/v1"',
   ),
 );
 assert.ok(
-  disconnectedSubmissionRoute.includes(
+  spoofedSubmissionRoute.includes(
     "VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM",
   ),
 );
+assert.ok(
+  spoofedSubmissionRoute.includes(
+    "parsed.pathname === AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH",
+  ),
+);
 assert.throws(
-  () => evaluatePublicSubmissionGatewayContractV1(disconnectedSubmissionRoute),
+  () => evaluatePublicSubmissionGatewayContractV1(spoofedSubmissionRoute),
   /public_submission_route_contract_match_count/u,
 );
 
@@ -347,6 +363,7 @@ console.log("worktree_component_bytes_match_head=true");
 console.log("semantic_readiness_contracts_bound=true");
 console.log("authority_flip_adversary_rejected=true");
 console.log("route_disconnect_adversary_rejected=true");
+console.log("string_literal_route_spoof_rejected=true");
 console.log("hidden_worktree_drift_rejected=true");
 console.log("opening_eligibility_policy_changed=false");
 console.log("credential_request_public_proxy_wired=false");
