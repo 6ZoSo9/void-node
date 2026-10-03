@@ -70,16 +70,19 @@ budget.
 
 The first successful hosted v2 observation is now pinned:
 
-- observation head: `1c56a9c0ec074ec198610864462634a66ce26722`;
+- observation synthetic-merge head: `1c56a9c0ec074ec198610864462634a66ce26722`;
+- observation tree: `2b8a67bfaec2e389fd34ca6b8b0debb9f5174cc5`;
+- observed gas-test Git blob: `e63444f2f02b6eaccb6424253c1fca2e39406b2c`;
 - test SHA-256: `bcc5cf5d02a75e979ca201289fc55a951aed11dff8af497aee5f95846767729a`;
 - Foundry image ID: `sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb`;
 - first settlement / fresh recipient: `133515` gas;
 - subsequent settlement / fresh recipient: `99303` gas.
 
 The focused workflow re-runs the isolated measurement and requires those exact
-values. The source proof also requires the observation head to remain an
-ancestor and the current gas-test Git blob to equal the observed generation's
-gas-test blob.
+values. The observation head is a GitHub-generated synthetic pull-request merge,
+so it is recorded as evidence rather than required to be a branch ancestor.
+The current gas-test Git blob and SHA-256 must exactly equal the observed
+generation's gas-test identities.
 
 These are measurement inputs for #2364, not a selected sponsorship budget.
 
