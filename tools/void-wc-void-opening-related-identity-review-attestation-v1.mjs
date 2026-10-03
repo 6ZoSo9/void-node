@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   TypedDataEncoder,
@@ -69,6 +71,8 @@ export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_AUTHORITY_V1 =
     reviewer_signature_verification: true,
     fresh_launch_controller_control_evidence_required: true,
     manifest_review_attestation_only: true,
+    reviewed_lineage_verifier_execution: true,
+    mutable_worktree_lineage_execution: false,
     private_key_access: false,
     credential_access: false,
     wallet_or_signer_access: false,
@@ -133,6 +137,22 @@ const REVIEWED_MANIFEST_AUTHORITY_V1 = Object.freeze({
 });
 export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1 =
   "7bb5c54fcd6a0d188b90c4c17d06145fe792ce66";
+
+export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1 =
+  Object.freeze({
+    "tools/void-wc-void-coupled-opening-v1.mjs":
+      "886feaef71a228b1e6f49f1106ae8ec2b34c404e",
+    "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs":
+      "fcc915b20df0d281646a2ffda60667e1aa6859de",
+    "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs":
+      "db034d197a8b932d0b9eb1d134a6a4a7a0fb6b86",
+    "tools/void-wc-void-opening-window-policy-v1.mjs":
+      "0aaf83c1d404897d8836b969e5111c3bb0870bbe",
+    "tools/void-wc-void-opening-concentration-sybil-policy-v1.mjs":
+      "01c1e5b326255a7ee49f14fc7d0ff7c1fb0452bb",
+    "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs":
+      "27c686c9bf95bbf9b56f09c692cb59ffba958d0d",
+  });
 
 function fail(code) {
   throw new Error(code);
@@ -242,6 +262,142 @@ function currentManifestCompilerBlobV1() {
     fail("review_manifest_compiler_generation_mismatch");
   }
   return blob;
+}
+
+function reviewedGitEnvV1() {
+  return {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+}
+
+function reviewedHeadBlobV1(sourcePath) {
+  try {
+    return execFileSync(
+      GIT,
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.preloadIndex=false",
+        "-c", "submodule.recurse=false",
+        "-C", ROOT,
+        "rev-parse",
+        "HEAD:" + sourcePath,
+      ],
+      {
+        cwd: "/",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: reviewedGitEnvV1(),
+      },
+    ).trim();
+  } catch {
+    fail("review_lineage_blob_unavailable");
+  }
+}
+
+function reviewedBlobBytesV1(blob) {
+  try {
+    return execFileSync(
+      GIT,
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-C", ROOT,
+        "cat-file",
+        "blob",
+        blob,
+      ],
+      {
+        cwd: "/",
+        encoding: null,
+        maxBuffer: 16 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: reviewedGitEnvV1(),
+      },
+    );
+  } catch {
+    fail("review_lineage_blob_materialization_failed");
+  }
+}
+
+async function loadReviewedLineageVerifiersV1() {
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-wc-review-lineage-v1-"),
+  );
+  try {
+    for (const [sourcePath, expectedBlob] of Object.entries(
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
+    )) {
+      const currentBlob = reviewedHeadBlobV1(sourcePath);
+      if (currentBlob !== expectedBlob || !GIT_BLOB.test(currentBlob)) {
+        fail("review_lineage_generation_mismatch");
+      }
+      const destination = path.join(temp, path.basename(sourcePath));
+      fs.writeFileSync(
+        destination,
+        reviewedBlobBytesV1(expectedBlob),
+        { flag: "wx", mode: 0o600 },
+      );
+    }
+
+    const [
+      windowPolicy,
+      concentrationPolicy,
+      eligibilityPolicy,
+      concentrationContract,
+    ] = await Promise.all([
+      import(
+        pathToFileURL(
+          path.join(temp, "void-wc-void-opening-window-policy-v1.mjs"),
+        ).href
+      ),
+      import(
+        pathToFileURL(
+          path.join(temp, "void-wc-void-opening-concentration-sybil-policy-v1.mjs"),
+        ).href
+      ),
+      import(
+        pathToFileURL(
+          path.join(
+            temp,
+            "void-wc-void-opening-participant-provenance-eligibility-v1.mjs",
+          ),
+        ).href
+      ),
+      import(
+        pathToFileURL(
+          path.join(
+            temp,
+            "void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs",
+          ),
+        ).href
+      ),
+    ]);
+
+    return Object.freeze({
+      windowPolicy,
+      concentrationPolicy,
+      eligibilityPolicy,
+      concentrationContract,
+    });
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
 }
 
 function canonicalAddress(value, code) {
@@ -591,6 +747,100 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
   }
   return Object.freeze({ ...manifest });
 }
+export async function verifyReviewManifestLineageV1(
+  manifest,
+  lineage,
+) {
+  const reviewed = validateReviewableRelatedIdentityManifestV1(manifest);
+  const input = exactKeysV1(
+    lineage,
+    [
+      "opening_window",
+      "opening_admissions",
+      "concentration_policy",
+      "commitments",
+      "production_wc_provenance_records",
+      "eligibility_records",
+    ],
+    "review_manifest_lineage_shape_invalid",
+  );
+  const {
+    windowPolicy,
+    concentrationPolicy,
+    eligibilityPolicy,
+    concentrationContract,
+  } = await loadReviewedLineageVerifiersV1();
+
+  const windowState = windowPolicy.verifyWcVoidOpeningWindowPolicyV1({
+    coupled_launch_id: reviewed.coupled_launch_id,
+    window: input.opening_window,
+    commitments: input.commitments,
+    admissions: input.opening_admissions,
+  });
+  if (
+    windowState.coupled_launch_id !== reviewed.coupled_launch_id ||
+    windowState.window_id !== reviewed.opening_window_id ||
+    windowState.opening_commitment_window_policy_ready !== true
+  ) {
+    fail("review_manifest_window_lineage_mismatch");
+  }
+
+  const concentration =
+    concentrationPolicy.verifyWcVoidOpeningConcentrationSybilPolicyDefinitionV1(
+      input.concentration_policy,
+      input.opening_window,
+    );
+  const contract =
+    concentrationContract.VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_CONTRACT;
+  if (
+    concentration.coupled_launch_id !== reviewed.coupled_launch_id ||
+    concentration.opening_window_id !== reviewed.opening_window_id ||
+    concentration.policy_id !== reviewed.concentration_policy_id ||
+    contract.policy_contract_id !== reviewed.concentration_policy_contract_id ||
+    concentration.failure_action !== contract.failure_action
+  ) {
+    fail("review_manifest_concentration_lineage_mismatch");
+  }
+
+  const eligibility =
+    eligibilityPolicy.verifyWcVoidOpeningParticipantProvenanceEligibilityV1(
+      reviewed.coupled_launch_id,
+      input.commitments,
+      input.production_wc_provenance_records,
+      input.eligibility_records,
+    );
+  const eligibleCohortRoot = digestSha256IdV1({
+    schema: "void.wc-void-opening-eligible-cohort-root.v1",
+    coupled_launch_id: reviewed.coupled_launch_id,
+    participant_provenance_policy_id: eligibility.policy_id,
+    records: eligibility.records,
+  });
+  if (
+    eligibility.coupled_launch_id !== reviewed.coupled_launch_id ||
+    eligibility.participant_provenance_and_eligibility_verified !== true ||
+    eligibility.policy_id !== reviewed.participant_provenance_policy_id ||
+    contract.participant_provenance_policy_id !== eligibility.policy_id ||
+    eligibility.eligible_participant_count !== reviewed.participant_count ||
+    eligibleCohortRoot !== reviewed.eligible_cohort_root ||
+    windowState.admission_count !== eligibility.commitment_count
+  ) {
+    fail("review_manifest_eligible_cohort_lineage_mismatch");
+  }
+
+  return Object.freeze({
+    coupled_launch_id: reviewed.coupled_launch_id,
+    opening_window_id: windowState.window_id,
+    concentration_policy_contract_id: contract.policy_contract_id,
+    concentration_policy_id: concentration.policy_id,
+    participant_provenance_policy_id: eligibility.policy_id,
+    eligible_cohort_root: eligibleCohortRoot,
+    participant_count: eligibility.eligible_participant_count,
+    reviewed_lineage_blobs:
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
+    mutable_worktree_lineage_execution: false,
+  });
+}
+
 export function reviewAttestationTypedValueV1(material) {
   return Object.freeze({
     reviewer_role_decision_id: prefixedIdBytes32(
@@ -739,6 +989,7 @@ function attestationMaterialV1({
 
 export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
   manifest,
+  lineage,
   controlEvidence,
   nowUnix = Math.floor(Date.now() / 1000),
   ttlSeconds = 900,
@@ -746,6 +997,7 @@ export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
 } = {}) {
   const role = buildWcVoidOpeningRelatedIdentityReviewerRoleV1();
   verifyWcVoidOpeningRelatedIdentityReviewerRoleV1(role);
+  await verifyReviewManifestLineageV1(manifest, lineage);
 
   const fresh =
     await reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
@@ -788,6 +1040,7 @@ export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
 
 export async function verifyWcVoidOpeningRelatedIdentityReviewAttestationV1({
   manifest,
+  lineage,
   controlEvidence,
   material,
   signature,
@@ -796,6 +1049,7 @@ export async function verifyWcVoidOpeningRelatedIdentityReviewAttestationV1({
   const role = buildWcVoidOpeningRelatedIdentityReviewerRoleV1();
   verifyWcVoidOpeningRelatedIdentityReviewerRoleV1(role);
   const reviewed = validateReviewableRelatedIdentityManifestV1(manifest);
+  await verifyReviewManifestLineageV1(reviewed, lineage);
 
   const fresh =
     await reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
