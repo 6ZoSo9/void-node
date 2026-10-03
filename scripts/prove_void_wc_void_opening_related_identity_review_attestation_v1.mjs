@@ -727,6 +727,26 @@ await assert.rejects(
 }
 
 {
+  const specialKeyEvidence = Object.create(null);
+  Object.defineProperty(specialKeyEvidence, "__proto__", {
+    enumerable: true,
+    configurable: false,
+    writable: false,
+    value: "must-remain-an-own-data-property",
+  });
+  await assert.rejects(
+    () =>
+      prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+        manifest: lineageManifest,
+        lineage,
+        controlEvidence: specialKeyEvidence,
+        nowUnix: 1_780_000_000,
+      }),
+    /review_control_child_execution_failed/u,
+  );
+}
+
+{
   const generation = await reviewedControlVerifierGenerationV1();
   assert.equal(
     generation.reviewed_package_runtime_profile_id,
@@ -1254,6 +1274,8 @@ console.log("control_evidence_accessors_not_executed=true");
 console.log("hidden_control_properties_rejected=true");
 console.log("symbol_control_properties_rejected=true");
 console.log("decorated_control_arrays_rejected=true");
+console.log("special_control_keys_preserved=true");
+console.log("control_clone_null_prototype=true");
 console.log("process_environment_mutation=false");
 console.log("concurrent_control_reverification_parent_env_stable=true");
 console.log("dirty_lineage_verifier_sentinel_execution=false");
