@@ -145,13 +145,15 @@ when its lease expires.
 
 Every accepted public Buy request snapshots the exact current request authority:
 coupled launch/composition, generation, durable generation-journal tip, activation
-receipt ID/SHA-256, and its original lease expiry. Tx-hash binding and payment
-verification both revalidate the request against a currently live gate on the
-same generation/tip; payment verification checks once before chain observation
-and again before recording `payment_verified`. A same-generation receipt
-renewal may keep the launch live, but it never extends the request's original
-payment deadline. An expired, revoked, rotated, or otherwise superseded request
-therefore cannot be carried across the launch boundary.
+receipt ID/SHA-256, and its original lease expiry. The handler revalidates that
+snapshot immediately before persisting or returning payment instructions.
+Tx-hash binding and payment verification both revalidate the request against a
+currently live gate on the same generation/tip; payment verification checks once
+before chain observation and again before recording `payment_verified`. A
+same-generation receipt renewal may keep the launch live, but it never extends
+the request's original payment deadline. An expired, revoked, rotated, or
+otherwise superseded request therefore cannot be carried across the launch
+boundary.
 
 Ethereum payment verification/finality remains a separate prerequisite; this
 gate does not replace the Ethereum finality gate.
