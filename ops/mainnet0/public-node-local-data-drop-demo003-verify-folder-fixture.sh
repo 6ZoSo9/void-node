@@ -1014,6 +1014,82 @@ try:
                 "terminal_child_custody_changed_before_green:" + rel
             )
 
+    for (
+        rel,
+        parent_fd,
+        leaf,
+        child_fd,
+        validated_identity,
+        validated_digest,
+    ) in reversed(opened_children):
+        opened = os.fstat(child_fd)
+        visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            file_identity(opened) != validated_identity
+            or file_identity(visible) != validated_identity
+        ):
+            raise SystemExit(
+                "terminal_child_second_pass_state_changed:" + rel
+            )
+        if (
+            opened.st_uid != euid
+            or opened.st_mode & 0o022
+            or visible.st_uid != euid
+            or visible.st_mode & 0o022
+        ):
+            raise SystemExit(
+                "terminal_child_second_pass_custody_changed:" + rel
+            )
+
+        second_digest = hashlib.sha256()
+        second_total = 0
+        second_offset = 0
+        while True:
+            chunk = os.pread(child_fd, 65536, second_offset)
+            if not chunk:
+                break
+            second_total += len(chunk)
+            if second_total > MAX_MEMBER_BYTES:
+                raise SystemExit(
+                    "terminal_child_second_pass_read_limit_exceeded:" + rel
+                )
+            second_digest.update(chunk)
+            second_offset += len(chunk)
+
+        after = os.fstat(child_fd)
+        visible_after = os.stat(
+            leaf,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        if (
+            second_total != after.st_size
+            or file_identity(after) != validated_identity
+            or file_identity(visible_after) != validated_identity
+        ):
+            raise SystemExit(
+                "terminal_child_second_pass_changed_during_read:" + rel
+            )
+        if second_digest.hexdigest() != validated_digest:
+            raise SystemExit(
+                "terminal_child_second_pass_digest_mismatch:" + rel
+            )
+
+    visible_root = os.stat(pathname, follow_symlinks=False)
+    visible_files_dir = os.stat(
+        "files",
+        dir_fd=root_fd,
+        follow_symlinks=False,
+    )
+    if (
+        root_identity(visible_root) != expected_root
+        or root_identity(os.fstat(files_fd)) !=
+          root_identity(opened_files_dir)
+        or root_identity(visible_files_dir) !=
+          root_identity(opened_files_dir)
+    ):
+        raise SystemExit("terminal_namespace_changed_before_green")
+
     print("fixture_dir=" + pathname)
     print("semantic_verify_descriptor_bound=true")
     print("semantic_verify_child_bytes_sealed=true")
