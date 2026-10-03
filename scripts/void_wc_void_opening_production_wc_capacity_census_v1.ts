@@ -112,11 +112,103 @@ function directRegularFile(file: string, maxBytes: number): Buffer {
 
 type StableWcFileStampV1 = fs.BigIntStats | null;
 
+type BoundWcDirectoryV1 = Readonly<{
+  fd: number;
+  visible_path: string;
+  proc_path: string;
+  initial_stat: fs.BigIntStats;
+}>;
+
 export type StableWcStateSnapshotV1 = Readonly<{
   ledger_bytes: Buffer;
   redeemed_bytes: Buffer;
   redeemed_file_present: boolean;
 }>;
+
+function openBoundWcDirectoryV1(
+  file: string,
+  label: string,
+): BoundWcDirectoryV1 {
+  if (process.platform !== "linux") {
+    fail("wc_state_snapshot_linux_required");
+  }
+  if (
+    !path.isAbsolute(file) ||
+    path.resolve(file) !== file
+  ) {
+    fail(label + "_invalid");
+  }
+  const noFollow = (
+    fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }
+  ).O_NOFOLLOW;
+  const directory = (
+    fs.constants as typeof fs.constants & { O_DIRECTORY?: number }
+  ).O_DIRECTORY;
+  if (typeof noFollow !== "number" || typeof directory !== "number") {
+    fail("wc_state_snapshot_directory_flags_unavailable");
+  }
+
+  let listed: fs.BigIntStats;
+  try {
+    listed = fs.lstatSync(file, { bigint: true });
+  } catch {
+    fail(label + "_invalid");
+  }
+  if (!listed.isDirectory() || listed.isSymbolicLink()) {
+    fail(label + "_invalid");
+  }
+
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | directory | noFollow,
+    );
+    const opened = fs.fstatSync(fd, { bigint: true });
+    if (!opened.isDirectory() || !sameFileStamp(listed, opened)) {
+      fail("wc_state_snapshot_directory_drift");
+    }
+    const procPath = "/proc/self/fd/" + String(fd);
+    return Object.freeze({
+      fd,
+      visible_path: file,
+      proc_path: procPath,
+      initial_stat: opened,
+    });
+  } catch (error) {
+    if (fd >= 0) fs.closeSync(fd);
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String((error as { code?: unknown }).code || "") === "ELOOP"
+    ) {
+      fail(label + "_invalid");
+    }
+    throw error;
+  }
+}
+
+function assertBoundWcDirectoryStableV1(
+  binding: BoundWcDirectoryV1,
+): void {
+  const descriptor = fs.fstatSync(binding.fd, { bigint: true });
+  let visible: fs.BigIntStats;
+  try {
+    visible = fs.lstatSync(binding.visible_path, { bigint: true });
+  } catch {
+    fail("wc_state_snapshot_directory_drift");
+  }
+  if (
+    !descriptor.isDirectory() ||
+    !visible.isDirectory() ||
+    visible.isSymbolicLink() ||
+    !sameFileStamp(binding.initial_stat, descriptor) ||
+    !sameFileStamp(binding.initial_stat, visible)
+  ) {
+    fail("wc_state_snapshot_directory_drift");
+  }
+}
 
 function boundedPathStampV1(
   file: string,
@@ -200,48 +292,67 @@ function sameOptionalFileStampV1(
 export function readStableWcStateSnapshotV1(
   dataDir: string,
   testOnlyAfterRead?: () => void,
+  testOnlyAfterDirectoryBind?: () => void,
 ): StableWcStateSnapshotV1 {
-  const ledger = path.join(dataDir, "wc_v1", "ledger.jsonl");
-  const redeemed = path.join(dataDir, "wc_v1", "redeemed.jsonl");
+  const dataBinding = openBoundWcDirectoryV1(dataDir, "data_dir");
+  let wcBinding: BoundWcDirectoryV1 | null = null;
+  try {
+    wcBinding = openBoundWcDirectoryV1(
+      path.join(dataBinding.proc_path, "wc_v1"),
+      "wc_state_directory",
+    );
+    if (testOnlyAfterDirectoryBind) {
+      testOnlyAfterDirectoryBind();
+    }
 
-  const ledgerBefore = boundedPathStampV1(
-    ledger,
-    MAX_LEDGER_BYTES,
-    { required: true, allowEmpty: false },
-  );
-  const redeemedBefore = boundedPathStampV1(
-    redeemed,
-    MAX_REDEEMED_BYTES,
-    { required: false, allowEmpty: true },
-  );
+    const ledger = path.join(wcBinding.proc_path, "ledger.jsonl");
+    const redeemed = path.join(wcBinding.proc_path, "redeemed.jsonl");
 
-  const ledgerBytes = readDirectFileAtStampV1(ledger, ledgerBefore);
-  const redeemedBytes = readDirectFileAtStampV1(redeemed, redeemedBefore);
+    const ledgerBefore = boundedPathStampV1(
+      ledger,
+      MAX_LEDGER_BYTES,
+      { required: true, allowEmpty: false },
+    );
+    const redeemedBefore = boundedPathStampV1(
+      redeemed,
+      MAX_REDEEMED_BYTES,
+      { required: false, allowEmpty: true },
+    );
 
-  if (testOnlyAfterRead) testOnlyAfterRead();
+    const ledgerBytes = readDirectFileAtStampV1(ledger, ledgerBefore);
+    const redeemedBytes = readDirectFileAtStampV1(redeemed, redeemedBefore);
 
-  const ledgerAfter = boundedPathStampV1(
-    ledger,
-    MAX_LEDGER_BYTES,
-    { required: true, allowEmpty: false },
-  );
-  const redeemedAfter = boundedPathStampV1(
-    redeemed,
-    MAX_REDEEMED_BYTES,
-    { required: false, allowEmpty: true },
-  );
-  if (
-    !sameOptionalFileStampV1(ledgerBefore, ledgerAfter) ||
-    !sameOptionalFileStampV1(redeemedBefore, redeemedAfter)
-  ) {
-    fail("wc_state_snapshot_drift");
+    if (testOnlyAfterRead) testOnlyAfterRead();
+
+    const ledgerAfter = boundedPathStampV1(
+      ledger,
+      MAX_LEDGER_BYTES,
+      { required: true, allowEmpty: false },
+    );
+    const redeemedAfter = boundedPathStampV1(
+      redeemed,
+      MAX_REDEEMED_BYTES,
+      { required: false, allowEmpty: true },
+    );
+    if (
+      !sameOptionalFileStampV1(ledgerBefore, ledgerAfter) ||
+      !sameOptionalFileStampV1(redeemedBefore, redeemedAfter)
+    ) {
+      fail("wc_state_snapshot_drift");
+    }
+
+    assertBoundWcDirectoryStableV1(wcBinding);
+    assertBoundWcDirectoryStableV1(dataBinding);
+
+    return Object.freeze({
+      ledger_bytes: ledgerBytes,
+      redeemed_bytes: redeemedBytes,
+      redeemed_file_present: redeemedBefore !== null,
+    });
+  } finally {
+    if (wcBinding !== null) fs.closeSync(wcBinding.fd);
+    fs.closeSync(dataBinding.fd);
   }
-
-  return Object.freeze({
-    ledger_bytes: ledgerBytes,
-    redeemed_bytes: redeemedBytes,
-    redeemed_file_present: redeemedBefore !== null,
-  });
 }
 
 function* snapshotLinesV1(bytes: Buffer): Iterable<string> {
@@ -590,11 +701,10 @@ async function main(): Promise<void> {
   if (!path.isAbsolute(dataDirRaw)) fail("absolute_data_dir_required");
   if (rootArgs.length < 1 || rootArgs.length > 8) fail("receipt_root_count_invalid");
 
-  const dataInputStat = fs.lstatSync(dataDirRaw);
-  if (!dataInputStat.isDirectory() || dataInputStat.isSymbolicLink()) {
+  if (path.resolve(dataDirRaw) !== dataDirRaw) {
     fail("data_dir_invalid");
   }
-  const dataDir = fs.realpathSync(dataDirRaw);
+  const dataDir = dataDirRaw;
 
   const roots = rootArgs.map((raw) => {
     if (!path.isAbsolute(raw)) fail("absolute_receipt_root_required");
@@ -785,6 +895,8 @@ async function main(): Promise<void> {
       historical_malformed_redeemed_lines_observed:
         historicalMalformedRedeemedLinesObserved,
       wc_state_snapshot_stable: true,
+      wc_data_directory_identity_bound: true,
+      wc_state_directory_identity_bound: true,
       canonical_multi_account_projection_single_pass: true,
       redeemed_file_present: wcStateSnapshot.redeemed_file_present,
     },

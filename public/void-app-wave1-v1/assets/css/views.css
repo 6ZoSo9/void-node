@@ -132,6 +132,8 @@
 .buy-risk-warning { border-color: rgba(255,113,143,.5); background: rgba(255,113,143,.09); }
 .buy-risk-warning .alert__copy strong { color: var(--void-danger); letter-spacing: .02em; }
 .buy-request-form { display: grid; gap: 1rem; }
+.buy-field-error { display: block; min-height: 1.25rem; color: var(--void-danger); font-weight: 700; }
+.input[aria-invalid="true"] { border-color: var(--void-danger); }
 .buy-checklist { display: grid; gap: .7rem; padding: 1rem; border: 1px solid var(--void-border-default); border-radius: var(--void-radius-2); background: rgba(7,9,13,.28); }
 .buy-checklist label { display: grid; grid-template-columns: auto 1fr; gap: .65rem; align-items: start; color: var(--void-text-secondary); line-height: 1.45; }
 .buy-checklist input { margin-top: .2rem; }

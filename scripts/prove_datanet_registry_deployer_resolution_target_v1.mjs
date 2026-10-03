@@ -153,9 +153,41 @@ assert.doesNotMatch(
   currentTruth,
   /registry deployer remains explicitly\s+unresolved/,
 );
+assert.equal(
+  currentTruth.includes(
+    "0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb",
+  ),
+  true,
+);
+assert.equal(
+  currentTruth.includes(
+    "0x52f86154f85a40070cdd7d42057d6423e2bb7d4906f26d2bfa19c8df5cf7503c",
+  ),
+  true,
+);
+assert.equal(
+  currentTruth.includes(
+    "0xe60b15ed8df7c4ec5334067ead18c924744c2681",
+  ),
+  true,
+);
+assert.equal(
+  currentTruth.includes(
+    "voiddccda1_895702727c043bb38f6b85cb356b3b536635941ae48ba9d45cf89342ddc6c995",
+  ),
+  true,
+);
 assert.match(
   currentTruth,
-  /Registry-deployer selection is recorded\s+separately below/,
+  /This deployment does not itself authorize\s+the separate state-root commitment transaction/,
+);
+assert.match(
+  currentTruth,
+  /The dedicated DataNet registry deployer\s+`0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb` remains distinct/,
+);
+assert.match(
+  currentTruth,
+  /runner has \*\*no default RPC\*\* and reads the\s+reviewed `VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1` artifact/,
 );
 for(const forbiddenTarget of [
   "127.0.0.1:8545",

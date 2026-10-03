@@ -62,12 +62,20 @@ LIFO rule for later debits/redemptions.
 The census therefore does not pretend to know exactly which earning source a
 later outflow consumed.
 
-The census captures `wc_v1/ledger.jsonl` and, when present,
-`wc_v1/redeemed.jsonl` as one stable bounded snapshot. It records both file
-identities before either read, reads through nofollow direct-file descriptors,
-then rechecks both identities after both reads. Any append, rotation, ownership/
-mode change, or redeemed-file create/remove during that window fails closed as
-`wc_state_snapshot_drift`.
+The census binds the absolute data directory and its nested `wc_v1`
+directory through retained Linux `O_DIRECTORY|O_NOFOLLOW` descriptors before
+opening canonical WC files. Ledger/redeemed paths are resolved through
+`/proc/self/fd/<wc-dir-fd>/...`, not by re-resolving the operator pathname.
+Both visible directory identities are rechecked against their retained
+descriptors before the snapshot returns; a rename/replacement of either directory
+fails closed as `wc_state_snapshot_directory_drift`.
+
+Within that retained directory chain, the census captures
+`wc_v1/ledger.jsonl` and, when present, `wc_v1/redeemed.jsonl` as one stable
+bounded snapshot. It records both file identities before either read, reads
+through nofollow direct-file descriptors, then rechecks both identities after
+both reads. Any append, rotation, ownership/mode change, or redeemed-file
+create/remove during that window fails closed as `wc_state_snapshot_drift`.
 
 The ledger snapshot is parsed with the same exact historical-compatibility rule
 used for production-WC visibility. The same repaired snapshot bytes are then
@@ -132,10 +140,13 @@ an outflow relevant to the production-earned lower/upper bounds.
 
 The ledger and redemption inputs are bounded independently at 256 MiB each.
 Those are technical verifier ceilings, not economic policy values. The output
-records `wc_state_snapshot_stable=true` and
-`canonical_multi_account_projection_single_pass=true` only after the stable
-snapshot and one-pass projection complete. Snapshot drift is a hard failure, not
-a discovery-gap success.
+records `wc_state_snapshot_stable=true`,
+`wc_data_directory_identity_bound=true`,
+`wc_state_directory_identity_bound=true`, and
+`canonical_multi_account_projection_single_pass=true` only after the retained
+directory chain, stable file snapshot, and one-pass projection complete.
+Directory or file snapshot drift is a hard failure, not a discovery-gap
+success.
 
 One historical exception is already part of canonical production-WC visibility
 compatibility on `main`. The census recognizes only that exact raw-line SHA-256,
@@ -198,3 +209,9 @@ Verification:
 ```bash
 ./node_modules/.bin/tsx   scripts/prove_void_wc_void_opening_production_wc_capacity_census_v1.ts
 ```
+
+The focused proof includes deterministic Linux adversaries that replace the whole
+selected data directory and, separately, the nested `wc_v1` directory after
+both descriptors are retained. Both must fail with
+`wc_state_snapshot_directory_drift`, and the original ledger bytes must remain
+unchanged after restoration.
