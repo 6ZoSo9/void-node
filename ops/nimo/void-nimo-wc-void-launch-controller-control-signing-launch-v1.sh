@@ -9,7 +9,13 @@ challenge_sha="${3:-}"
 reviewed_head="${4:-}"
 output="${5:-}"
 
-repo="/home/zoso/dev/void-node"
+repo="${VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1:-/home/zoso/dev/void-node}"
+[[ "$repo" == /* ]] || {
+  printf '%s_HOLD\n' "VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_LAUNCH_V1" >&2
+  printf '%s\n' "repo_root_must_be_absolute" >&2
+  exit 2
+}
+repo="$(cd -- "$repo" && pwd -P)"
 launcher_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
 launcher_file="${BASH_SOURCE[0]}"
 [[ "$launcher_file" == /* ]] || launcher_file="$(pwd -P)/$launcher_file"
