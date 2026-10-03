@@ -1556,10 +1556,26 @@ async function proxyAgentPaidWorkCredentialRequest(
   const releaseUpstreamSerial =
     await acquirePaidWorkCredentialRequestUpstreamSerialV1();
   try {
+    if (Date.now() > applicantAuth.expires_at_ms) {
+      jsonResponse(response, 401, {
+        ok: false,
+        error: "applicant_auth_invalid",
+      });
+      return;
+    }
+
     if (!(await requalifyPaidWorkCredentialRequestUpstreamV1())) {
       jsonResponse(response, 503, {
         ok: false,
         error: "agent_paid_work_credential_request_gateway_unavailable",
+      });
+      return;
+    }
+
+    if (Date.now() > applicantAuth.expires_at_ms) {
+      jsonResponse(response, 401, {
+        ok: false,
+        error: "applicant_auth_invalid",
       });
       return;
     }
@@ -1810,6 +1826,7 @@ server.listen({ host, port, exclusive: true }, () => {
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.verified,
         upstream_requalified_per_admitted_request: true,
         upstream_qualification_post_serialized: true,
+        applicant_auth_revalidated_after_serial_wait: true,
         upstream_failure_invalidates_qualification: true,
         upstream_status_hold_reason:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.reason,
