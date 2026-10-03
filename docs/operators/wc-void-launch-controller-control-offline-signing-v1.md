@@ -373,12 +373,14 @@ Preflight mode reports those access facts as false and exits without opening the
 key.
 
 Sign mode does **not** reopen the mutable worktree signer after verification.
-The exact reviewed signer Git blob is streamed into Node on stdin, while the
-exact reviewed runtime-helper Git blob is transported in memory and reverified
-inside the signer before import. The original verified repository root is passed
-separately as `VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1` for
-Git/profile/source-state reads; it is never used as an executable signer or
-runtime-helper path.
+The exact reviewed signer Git blob is streamed into Node on stdin. The signer
+then descriptor-reads the pinned standalone `ethers.min.js` bundle from the
+verified repository root, requires its exact reviewed SHA-256, and imports only
+those captured bytes through an in-memory `data:` URL. No runtime-helper blob,
+temporary package tree, or generated signing bridge participates in production
+signing. The original verified repository root is passed separately as
+`VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1` only for Git/source-state reads and
+the descriptor-bound bundle read; it is never used as an executable signer path.
 
 The streamed signer itself rechecks that the current/source-binding heads both
 equal the environment-carried reviewed commit before private-key access. This
