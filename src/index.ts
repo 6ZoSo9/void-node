@@ -19263,7 +19263,7 @@ setInterval(refresh, 10000);
           }
         };
 
-        if(!__blo(requestObj))throw 0;
+        if(!__blo(requestObj))throw new Error("request_launch_authority_expired_or_superseded");
         const persisted = await __voidPersistBuyVoidRequestV1(requestObj);
         requestObj.persisted = { ok:true, file:persisted.file };
 
@@ -19275,15 +19275,7 @@ setInterval(refresh, 10000);
           one_active_request_cap_enforced: true,
           request: requestObj
         });
-      } catch(e:any) {
-        return res.status(500).json({
-          schema: "void_public_buy_void_checkout_request_result_v1",
-          marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-          ok: false,
-          error: "buy_void_checkout_request_failed",
-          message: String(e?.message || e)
-        });
-      }
+      }catch(e:any){const m=String(e?.message||e),h=m==="request_launch_authority_expired_or_superseded";return res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:false,error:h?m:"buy_void_checkout_request_failed",message:m})}
     });
 
 
