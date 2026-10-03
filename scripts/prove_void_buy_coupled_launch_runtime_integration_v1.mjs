@@ -49,6 +49,9 @@ assert.ok(gateSource.includes("readBuyLaunchLiveActivationV1"));
 assert.ok(gateSource.includes("verifyTypedData"));
 assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1"));
 assert.ok(gateSource.includes("verifyBuyLaunchLiveActivationSovereignSignatureV1"));
+assert.ok(gateSource.includes("bound.activation_receipt_id !== current.activation_receipt_id"));
+assert.ok(gateSource.includes("bound.activation_receipt_sha256 !== current.activation_receipt_sha256"));
+assert.ok(gateSource.includes("bound.expires_at_ms !== current.expires_at_ms"));
 assert.equal(
   index.split('=== "1"&&__voidBuyLaunchReadyV1()').length - 1,
   2,
@@ -100,6 +103,7 @@ console.log("current_canonical_gate_ready=false");
 console.log("live_activation_generation_bound=true");
 console.log("live_activation_lease_expiry_bound=true");
 console.log("request_launch_authority_snapshot_bound=true");
+console.log("request_launch_authority_exact_receipt_bound=true");
 console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
 console.log("sovereign_launch_lease_cosignature_bound=true");
