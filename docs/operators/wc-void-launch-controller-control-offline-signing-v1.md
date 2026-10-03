@@ -204,83 +204,127 @@ commit as a separate positional argument and verifies:
 - no private-key access during preflight.
 
 Do not execute the mutable worktree launcher as the bootstrap authority.
-Materialize the launcher directly from the independently reviewed Git commit,
-verify its Git blob, then execute that reviewed copy:
+The operator bootstrap reads the launcher directly from the independently
+reviewed Git commit, verifies the complete Git-blob hash **in memory**, and
+passes those already-verified bytes directly to Bash stdin. No staged launcher
+pathname or mutable launcher inode exists between verification and execution:
 
 ```bash
-(
-set -Eeuo pipefail
-umask 077
-
-repo="/home/zoso/dev/void-node"
-reviewed_head="<operator-reviewed-commit-40hex>"
-launcher_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
-stage="$(mktemp -d "$HOME/Downloads/void-reviewed-launcher.XXXXXX")"
-trap 'rm -rf -- "$stage"' EXIT
-
-git_env=(
-  /usr/bin/env -i
-  HOME=/nonexistent
-  PATH=/usr/bin:/bin
-  LANG=C
-  LC_ALL=C
-  GIT_CONFIG_NOSYSTEM=1
-  GIT_CONFIG_GLOBAL=/dev/null
-  GIT_OPTIONAL_LOCKS=0
-  GIT_TERMINAL_PROMPT=0
-)
-
-git_cmd=(
-  /usr/bin/git
-  --no-replace-objects
-  -c core.hooksPath=/dev/null
-  -c core.attributesFile=/dev/null
-  -c core.fsmonitor=false
-  -c core.untrackedCache=false
-  -c core.preloadIndex=false
-  -c submodule.recurse=false
-  -C "$repo"
-)
-
-expected_blob="$(
-  "${git_env[@]}" "${git_cmd[@]}"     rev-parse "$reviewed_head:$launcher_rel"
-)"
-"${git_env[@]}" "${git_cmd[@]}"   cat-file blob "$expected_blob" > "$stage/launcher.sh"
-chmod 400 "$stage/launcher.sh"
-
-# Pin the staged launcher before verifying it. All later verification and
-# execution use the same already-open descriptor; the pathname is not reopened.
-exec 9< "$stage/launcher.sh"
-actual_blob="$(
-  "${git_env[@]}" "${git_cmd[@]}"     hash-object -- "/proc/self/fd/9"
-)"
-test "$actual_blob" = "$expected_blob"
-
 /usr/bin/env -i \
   HOME=/home/zoso \
   PATH=/usr/bin:/bin \
   LANG=C \
   LC_ALL=C \
-  VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
-  /bin/bash --noprofile --norc \
-  "/proc/self/fd/9" \
-  sign \
+  /usr/bin/python3 - \
+  /home/zoso/dev/void-node \
+  <operator-reviewed-commit-40hex> \
   /absolute/private-work/challenge.json \
   <challenge-sha256-64hex> \
-  "$reviewed_head" \
-  /absolute/private-work/signature.json
+  /absolute/private-work/signature.json <<'PY'
+import hashlib
+import os
+import re
+import subprocess
+import sys
+
+repo, reviewed_head, challenge, challenge_sha, output = sys.argv[1:]
+launcher_rel = (
+    "ops/nimo/"
+    "void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
 )
+
+if re.fullmatch(r"[0-9a-f]{40}", reviewed_head) is None:
+    raise SystemExit("HOLD: operator_reviewed_head_invalid")
+
+git_env = {
+    "HOME": "/nonexistent",
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+}
+git_base = [
+    "/usr/bin/git",
+    "--no-replace-objects",
+    "-c", "core.hooksPath=/dev/null",
+    "-c", "core.attributesFile=/dev/null",
+    "-c", "core.fsmonitor=false",
+    "-c", "core.untrackedCache=false",
+    "-c", "core.preloadIndex=false",
+    "-c", "submodule.recurse=false",
+    "-C", repo,
+]
+
+expected_blob = subprocess.run(
+    git_base + ["rev-parse", f"{reviewed_head}:{launcher_rel}"],
+    cwd="/",
+    env=git_env,
+    check=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+).stdout.strip()
+
+if re.fullmatch(r"[0-9a-f]{40}", expected_blob) is None:
+    raise SystemExit("HOLD: reviewed_launcher_blob_invalid")
+
+launcher_bytes = subprocess.run(
+    git_base + ["cat-file", "blob", expected_blob],
+    cwd="/",
+    env=git_env,
+    check=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+).stdout
+
+actual_blob = hashlib.sha1(
+    b"blob " + str(len(launcher_bytes)).encode("ascii") + b"\0" + launcher_bytes
+).hexdigest()
+if actual_blob != expected_blob:
+    raise SystemExit("HOLD: reviewed_launcher_blob_mismatch")
+
+launch_env = {
+    "HOME": "/home/zoso",
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1": repo,
+    "VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1": expected_blob,
+}
+
+result = subprocess.run(
+    [
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        "-s",
+        "--",
+        "sign",
+        challenge,
+        challenge_sha,
+        reviewed_head,
+        output,
+    ],
+    cwd=repo,
+    env=launch_env,
+    input=launcher_bytes,
+)
+raise SystemExit(result.returncode)
+PY
 ```
 
-The bootstrap opens the staged launcher on file descriptor 9 **before** its
-Git-blob check and then executes `/proc/self/fd/9`. The staged pathname is
-never reopened after verification. Replacing `$stage/launcher.sh` after the
-descriptor is pinned cannot change the bytes Bash executes.
+The bootstrap verifies the full launcher bytes before Bash receives any of them.
+The verified immutable Python `bytes` value is then the Bash stdin payload.
+Changing, replacing, deleting, or rewriting any launcher pathname after the Git
+read cannot affect the bytes Bash executes.
 
-The launcher also re-hashes the file descriptor currently executing and
-requires that blob to equal the launcher blob at the independently supplied
-reviewed commit. A modified temporary launcher, pathname swap, or mutable
-worktree launcher therefore fails before signer/key access.
+The launcher receives only the already-verified launcher Git-blob ID as
+`VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1` and requires it to equal
+the launcher blob at the independently supplied reviewed commit before
+signer/key access. A challenge cannot choose this trust anchor.
 
 Before sign-mode `exec`, the launcher explicitly announces the requested
 operation boundary:
