@@ -1,0 +1,49 @@
+name: VOID participant Buy VOID clarity v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/participant-buy-void-clarity-v1.yml"
+      - "ops/mainnet0/participant-buy-void-clarity-proof.sh"
+      - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
+      - "public/void-app-wave1-v1/assets/js/buy-live.js"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/participant-buy-void-clarity-v1.yml"
+      - "ops/mainnet0/participant-buy-void-clarity-proof.sh"
+      - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
+      - "public/void-app-wave1-v1/assets/js/buy-live.js"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Shell syntax
+        run: bash -n ops/mainnet0/participant-buy-void-clarity-proof.sh
+
+      - name: Prove participant rail-state copy fixtures
+        run: VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_MODE=1 bash ops/mainnet0/participant-buy-void-clarity-proof.sh
+
+      - name: Prove Buy VOID readonly client rail rendering
+        run: node scripts/prove_void_app_buy_presale_readonly_v1.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
