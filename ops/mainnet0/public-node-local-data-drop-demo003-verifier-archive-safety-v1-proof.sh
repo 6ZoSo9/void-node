@@ -231,7 +231,7 @@ if [ -d "$control_out/extract" ] &&
   fail "control_name_archive_extracted_before_rejection"
 fi
 
-echo "\${MARKER}_PROOF_GREEN"
+echo "${MARKER}_PROOF_GREEN"
 echo "canonical_fixture_green=true"
 echo "symlink_member_rejected_before_extract=true"
 echo "hardlink_member_rejected_before_extract=true"
