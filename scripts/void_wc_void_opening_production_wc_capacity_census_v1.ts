@@ -406,6 +406,7 @@ async function main(): Promise<void> {
     receiptScan.invalid_files === 0 &&
     receiptsWithoutCredit === 0 &&
     ledgerScan.invalid_matching_rows === 0 &&
+    ledgerScan.malformed_lines === 0 &&
     duplicateLedgerMatches === 0 &&
     receiptScan.unreadable_directories === 0 &&
     receiptScan.depth_limited_directories === 0;
