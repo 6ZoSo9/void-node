@@ -32,8 +32,11 @@ grep -Fq "terminal_child_seals_verified=true" "$VERIFIER" || fail "terminal_chil
 grep -Fq "sealed digest mismatch" "$VERIFIER" || fail "semantic_child_digest_enforcement_missing"
 grep -Fq "terminal_child_digest_mismatch" "$VERIFIER" || fail "terminal_child_digest_enforcement_missing"
 grep -Fq "terminal_files_directory_changed_before_green" "$VERIFIER" || fail "terminal_files_directory_binding_missing"
-grep -Fq "terminal_child_size_or_type_invalid" "$VERIFIER" || fail "terminal_child_size_bound_missing"
+grep -Fq "terminal_child_custody_invalid" "$VERIFIER" || fail "terminal_child_custody_check_missing"
+grep -Fq "terminal_child_size_invalid" "$VERIFIER" || fail "terminal_child_size_bound_missing"
 grep -Fq "terminal_child_read_limit_exceeded" "$VERIFIER" || fail "terminal_child_stream_bound_missing"
+grep -Fq "semantic read limit exceeded" "$VERIFIER" || fail "semantic_stream_bound_missing"
+if grep -Fq 'const buf = fs.readFileSync(fd);' "$VERIFIER"; then fail "semantic_unbounded_fd_read_remains"; fi
 grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
 grep -Fq "terminal_fixture_root_identity_mismatch" "$VERIFIER" || fail "terminal_root_identity_check_missing"
 grep -Fq "terminal_child_visible_identity_mismatch" "$VERIFIER" || fail "terminal_child_visible_identity_check_missing"
@@ -427,7 +430,7 @@ if [ -n "${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE:-}" ] &&
 fi
 
 if [ -n "${VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET:-}" ] &&
-   grep -Fq "terminal_child_size_or_type_invalid" "$script"; then
+   grep -Fq "terminal_child_size_invalid" "$script"; then
   target="${VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET:?}"
   test -d "$target"
   "$real" - "$target" <<'PY_OVERSIZE'
@@ -439,6 +442,13 @@ path = os.path.join(root, "files", "README.txt")
 with open(path, "wb") as handle:
     handle.truncate(3 * 1024 * 1024)
 PY_OVERSIZE
+fi
+
+if [ -n "${VOID_DEMO003_TEST_TERMINAL_MODE_WEAK_TARGET:-}" ] &&
+   grep -Fq "terminal_child_custody_invalid" "$script"; then
+  target="${VOID_DEMO003_TEST_TERMINAL_MODE_WEAK_TARGET:?}"
+  test -d "$target"
+  chmod 0666 "$target/files/README.txt"
 fi
 
 if [ -n "${VOID_DEMO003_TEST_TERMINAL_GROW_DURING_READ:-}" ] &&
@@ -543,6 +553,71 @@ fi
 exit "$rc"
 SH
 chmod 700 "$wrapper_bin/python3"
+
+real_node="$(command -v node)"
+cat >"$wrapper_bin/node" <<'SH_NODE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+real="${VOID_DEMO003_TEST_REAL_NODE:?}"
+if [ "${1:-}" != "-" ]; then
+  exec "$real" "$@"
+fi
+
+script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-node-wrapper.XXXXXX.mjs")"
+trap 'rm -f "$script"' EXIT
+cat >"$script"
+
+if [ "${VOID_DEMO003_TEST_SEMANTIC_GROW_DURING_READ:-0}" = "1" ] &&
+   grep -Fq "semantic read limit exceeded" "$script"; then
+  "${VOID_DEMO003_TEST_REAL_PYTHON:?}" - "$script" <<'PY_NODE_GROW'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf8")
+needle = '''    const opened = fs.fstatSync(fd, { bigint: true });
+    ok(stamp(listed) === stamp(opened), `identity changed ${rel}`);
+
+    const chunks = [];
+'''
+replacement = '''    const opened = fs.fstatSync(fd, { bigint: true });
+    ok(stamp(listed) === stamp(opened), `identity changed ${rel}`);
+    if (
+      process.env.VOID_DEMO003_TEST_SEMANTIC_GROW_DURING_READ === "1" &&
+      rel === "files/README.txt"
+    ) {
+      fs.truncateSync(p, maxFileBytes + 65536);
+    }
+
+    const chunks = [];
+'''
+if text.count(needle) != 1:
+    raise SystemExit("semantic_growth_injection_anchor_invalid")
+path.write_text(text.replace(needle, replacement), encoding="utf8")
+PY_NODE_GROW
+fi
+
+exec "$real" "$script" "${@:2}"
+SH_NODE
+chmod 700 "$wrapper_bin/node"
+
+semantic_growth_out="$tmp/verify-semantic-growth"
+semantic_growth_log="$tmp/semantic-growth.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_REAL_NODE="$real_node" \
+   VOID_DEMO003_TEST_SEMANTIC_GROW_DURING_READ=1 \
+   OUT="$semantic_growth_out" \
+   bash "$VERIFIER" "$tarball" >"$semantic_growth_log" 2>&1; then
+  fail "semantic_growth_during_read_accepted"
+fi
+grep -Fq "semantic read limit exceeded files/README.txt" "$semantic_growth_log" ||
+  fail "semantic_growth_stream_limit_not_exercised"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$semantic_growth_log"; then
+  fail "semantic_growth_during_read_reached_green"
+fi
+rm -f "$wrapper_bin/node"
 
 swap_log="$tmp/interphase-swap.log"
 if PATH="$wrapper_bin:$PATH" \
@@ -654,10 +729,25 @@ if PATH="$wrapper_bin:$PATH" \
    bash "$VERIFIER" "$tarball" >"$terminal_oversize_log" 2>&1; then
   fail "terminal_oversize_child_accepted"
 fi
-grep -Fq "terminal_child_size_or_type_invalid:files/README.txt" "$terminal_oversize_log" ||
+grep -Fq "terminal_child_size_invalid:files/README.txt" "$terminal_oversize_log" ||
   fail "terminal_oversize_child_bound_missing"
 if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_oversize_log"; then
   fail "terminal_oversize_child_reached_green"
+fi
+
+terminal_mode_out="$tmp/verify-terminal-mode"
+terminal_mode_log="$tmp/terminal-mode.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_TERMINAL_MODE_WEAK_TARGET="$terminal_mode_out/extract/demo003-folder-fixture" \
+   OUT="$terminal_mode_out" \
+   bash "$VERIFIER" "$tarball" >"$terminal_mode_log" 2>&1; then
+  fail "terminal_weak_mode_accepted"
+fi
+grep -Fq "terminal_child_custody_invalid:files/README.txt" "$terminal_mode_log" ||
+  fail "terminal_weak_mode_custody_hold_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_mode_log"; then
+  fail "terminal_weak_mode_reached_green"
 fi
 
 terminal_growth_out="$tmp/verify-terminal-growth"
@@ -729,7 +819,9 @@ echo "xpg_echo_output_path_safe=true"
 echo "interphase_output_tree_swap_rejected=true"
 echo "interphase_child_replacement_rejected=true"
 echo "terminal_child_replacement_rejected=true"
+echo "semantic_growth_during_read_rejected=true"
 echo "terminal_oversize_child_rejected=true"
+echo "terminal_weak_mode_rejected=true"
 echo "terminal_growth_during_read_rejected=true"
 echo "terminal_files_directory_swap_rejected=true"
 echo "semantic_verify_descriptor_bound=true"
