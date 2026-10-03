@@ -38,7 +38,10 @@ const persistNeedle="const persisted = await __voidPersistBuyVoidRequestV1(reque
 const persistAt=index.indexOf(persistNeedle);
 assert.ok(persistAt>0);
 const prePersist=index.slice(Math.max(0,persistAt-120),persistAt);
-assert.match(prePersist,/if\(!__blo\(requestObj\)\)throw 0;/);
+assert.match(
+  prePersist,
+  /if\(!__blo\(requestObj\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
+);
 
 const persistHelperAt=index.indexOf(
   "async function __voidPersistBuyVoidRequestV1(reqObj:any)",
@@ -76,6 +79,12 @@ assert.match(
   /if\(event\?\.operator_status==="payment_verified"&&!__blo\(request\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
 );
 assert.ok(index.includes('"operator_mark_failed"'));
+assert.ok(index.includes(
+  'res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1"',
+));
+assert.ok(index.includes(
+  'error:h?m:"buy_void_checkout_request_failed"',
+));
 assert.ok(index.includes('x==="request_launch_authority_expired_or_superseded"?409:500'));
 assert.ok(index.includes(
   "await __voidWriteBuyVoidOperatorEventV1(event,found);",
@@ -154,6 +163,7 @@ console.log("live_activation_generation_bound=true");
 console.log("live_activation_lease_expiry_bound=true");
 console.log("request_launch_authority_snapshot_bound=true");
 console.log("request_launch_authority_revalidated_before_persist=true");
+console.log("checkout_persistence_lease_conflict_response_409=true");
 console.log("request_launch_authority_revalidated_at_request_append=true");
 console.log("request_launch_authority_revalidated_inside_payment_event_lock=true");
 console.log("post_expiry_terminal_operator_cleanup_allowed=true");
