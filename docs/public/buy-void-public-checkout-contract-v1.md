@@ -5,8 +5,9 @@ Marker: `VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1`
 This lane establishes the request-first public checkout for Base or Ethereum
 native USDC → native VOID fulfillment.
 
-The payment policy approves exactly two rails, but request readiness is
-rail-specific. Base follows the coupled Buy request gate. Ethereum remains HOLD
+The payment policy accepts exactly two payment rails as approved policy
+options, but request readiness is rail-specific. Base follows the coupled Buy
+request gate. Ethereum remains HOLD
 unless its separate fail-closed request gate is explicitly opened:
 
 - Base Mainnet native USDC: chain ID `8453`, contract
