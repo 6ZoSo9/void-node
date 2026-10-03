@@ -62,7 +62,11 @@ PY
 
 grep -Fq "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1" \
   /tmp/void-buy-public-checkout-page-v1.html
-grep -Fq "Buy VOID with Base USDC" \
+grep -Fq "Buy VOID with USDC" \
+  /tmp/void-buy-public-checkout-page-v1.html
+grep -Fq 'id="buyChain"' \
+  /tmp/void-buy-public-checkout-page-v1.html
+grep -Fq 'value="ethereum"' \
   /tmp/void-buy-public-checkout-page-v1.html
 grep -Fq "Native VOID destination address (chain ID 2050)" \
   /tmp/void-buy-public-checkout-page-v1.html
