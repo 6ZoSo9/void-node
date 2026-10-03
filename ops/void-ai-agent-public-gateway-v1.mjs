@@ -77,6 +77,10 @@ const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM_RAW = String(
 ).trim();
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH =
   "/__void/agents/paid-work/credential-requests/v1";
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_STATUS_PATH =
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH + "/status";
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_MARKER =
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_V1";
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES = Math.max(
   1024,
   Number(
@@ -266,12 +270,21 @@ if (
     "credential request public applicant rate must reserve capacity for a second applicant",
   );
 }
-const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED =
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED =
   Boolean(AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM) &&
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE > 0 &&
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE > 0 &&
   2 * AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE <=
     AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE;
+let AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED = false;
+let AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION =
+  Object.freeze({
+    verified: false,
+    reason: AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED
+      ? "upstream_status_not_checked"
+      : "source_configuration_incomplete",
+    observed_max_requests_per_minute: null,
+  });
 
 const host =
   process.env.VOID_AI_AGENT_PUBLIC_GATEWAY_HOST || DEFAULT_HOST;
@@ -1036,9 +1049,164 @@ async function proxyAgentPaidWorkSubmission(
 }
 
 
+async function qualifyPaidWorkCredentialRequestUpstream() {
+  if (!AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED) {
+    return AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION;
+  }
+
+  const upstreamAbort = createOwnedUpstreamAbortContext(
+    Math.min(
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS,
+      5_000,
+    ),
+  );
+
+  try {
+    const response = await fetch(
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM +
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_STATUS_PATH,
+      {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          "user-agent": "void-ai-agent-public-gateway-v1",
+        },
+        redirect: "manual",
+        signal: upstreamAbort.signal,
+      },
+    );
+
+    if (response.status !== 200) {
+      await rejectUpstreamResponseBounded({
+        controller: upstreamAbort.controller,
+        body: response.body,
+        reader: null,
+        label: "agent_paid_work_credential_request_status",
+      });
+      throw new Error(
+        "credential_request_upstream_status_http_" +
+          String(response.status),
+      );
+    }
+
+    const contentType = String(
+      response.headers.get("content-type") || "",
+    )
+      .split(";", 1)[0]
+      .trim()
+      .toLowerCase();
+    if (contentType !== "application/json") {
+      await rejectUpstreamResponseBounded({
+        controller: upstreamAbort.controller,
+        body: response.body,
+        reader: null,
+        label: "agent_paid_work_credential_request_status",
+      });
+      throw new Error(
+        "credential_request_upstream_status_content_type_invalid",
+      );
+    }
+
+    const bytes = await readBoundedUpstreamResponseBody(
+      response,
+      Math.min(
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES,
+        64 * 1024,
+      ),
+      "agent_paid_work_credential_request_status",
+      upstreamAbort.controller,
+    );
+    let status;
+    try {
+      status = JSON.parse(bytes.toString("utf8"));
+    } catch {
+      throw new Error(
+        "credential_request_upstream_status_json_invalid",
+      );
+    }
+
+    const observed = Number(status?.max_requests_per_minute);
+    if (
+      status?.marker !==
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_MARKER ||
+      status?.version !== 1 ||
+      status?.ready !== true ||
+      status?.state_consistent !== true ||
+      status?.request_path !==
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH ||
+      !Number.isSafeInteger(observed) ||
+      observed !==
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE ||
+      status?.credential_issuance_authorized !== false ||
+      status?.credential_registry_mutation_authorized !== false ||
+      status?.receiver_restart_authorized !== false
+    ) {
+      throw new Error(
+        "credential_request_upstream_status_semantics_mismatch",
+      );
+    }
+
+    return Object.freeze({
+      verified: true,
+      reason: null,
+      observed_max_requests_per_minute: observed,
+    });
+  } catch (error) {
+    process.stderr.write(
+      MARKER +
+        " paid_work_credential_request_status_hold=" +
+        String(error) +
+        "\n",
+    );
+    return Object.freeze({
+      verified: false,
+      reason: "upstream_status_not_verified",
+      observed_max_requests_per_minute: null,
+    });
+  }
+}
+
+AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION =
+  await qualifyPaidWorkCredentialRequestUpstream();
+AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED =
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED &&
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.verified ===
+    true;
+
 const paidWorkCredentialApplicantRateWindows = new Map();
 const paidWorkCredentialApplicantNonceReplay = new Map();
 let paidWorkCredentialPublicGlobalWindow = [];
+let paidWorkCredentialPreAuthGlobalWindow = [];
+
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PREAUTH_MAX_PER_MINUTE =
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED
+    ? Math.min(
+        1200,
+        Math.max(
+          60,
+          10 *
+            AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE,
+        ),
+      )
+    : 0;
+
+function admitPaidWorkCredentialPreAuth(nowMs) {
+  const minimumMs = nowMs - 60_000;
+  paidWorkCredentialPreAuthGlobalWindow =
+    paidWorkCredentialPreAuthGlobalWindow.filter(
+      (timestamp) => timestamp > minimumMs,
+    );
+
+  if (
+    paidWorkCredentialPreAuthGlobalWindow.length >=
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_PREAUTH_MAX_PER_MINUTE
+  ) {
+    return false;
+  }
+
+  paidWorkCredentialPreAuthGlobalWindow.push(nowMs);
+  return true;
+}
 
 function prunePaidWorkCredentialApplicantState(nowMs) {
   for (const [key, expiresAtMs] of paidWorkCredentialApplicantNonceReplay) {
@@ -1205,6 +1373,20 @@ async function proxyAgentPaidWorkCredentialRequest(
       ok: false,
       error: "application_json_required",
     });
+    return;
+  }
+
+  const preAuthNowMs = Date.now();
+  if (!admitPaidWorkCredentialPreAuth(preAuthNowMs)) {
+    jsonResponse(
+      response,
+      429,
+      {
+        ok: false,
+        error: "credential_request_preauth_rate_limit_exceeded",
+      },
+      { "Retry-After": "60" },
+    );
     return;
   }
 
@@ -1551,9 +1733,19 @@ server.listen({ host, port, exclusive: true }, () => {
         upstream_global_limit_per_minute:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE ||
           null,
+        upstream_status_verified:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.verified,
+        upstream_status_hold_reason:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.reason,
+        upstream_observed_max_requests_per_minute:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION
+            .observed_max_requests_per_minute,
         two_applicant_capacity_reserved:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
         nonce_replay_protection: true,
+        preauth_global_rate_wall: true,
+        preauth_max_requests_per_minute:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_PREAUTH_MAX_PER_MINUTE || null,
         edge_global_rate_wall: true,
         forwarded_ip_headers_trusted: false,
         credential_request_record_write:
