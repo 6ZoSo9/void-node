@@ -427,6 +427,26 @@ assert.match(
   /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID/,
 );
 assert.match(
+  docs.readme,
+  /separate coupled Buy VOID source launch gate is also merged[\s\S]*canonical successor as `HOLD`[\s\S]*route\/config integration remains separate/,
+);
+assert.match(
+  docs.publicStatus,
+  /merged coupled Buy VOID source launch gate[\s\S]*canonical successor as `HOLD`[\s\S]*Neither source control is route\/config activation authority/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /Buy VOID coupled source launch gate \| Guarded \/ `HOLD`[\s\S]*route\/config integration and public activation remain separate/,
+);
+assert.match(
+  docs.releases,
+  /merged source-only coupled Buy VOID launch[\s\S]*canonical successor readiness still `HOLD`[\s\S]*public intake still closed/,
+);
+assert.match(
+  docs.releases,
+  /Coupled Buy VOID route\/config\s+integration remains separate[\s\S]*canonical successor still classifies\s+`HOLD`/m,
+);
+assert.match(
   docs.gatewayContent,
   /VOID separates public network truth from guarded economic execution/,
 );
