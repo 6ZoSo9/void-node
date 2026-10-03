@@ -42,7 +42,23 @@ assert.ok(!index.includes(
 
 for (const required of [
   "COPY --from=build /app/src/economic/buy_void_coupled_launch_gate_v1.mjs ./src/economic/",
-  "COPY --from=build /app/tools/void-economic-evm-successor-migration-v1.mjs ./tools/",
+  "/app/tools/void-wc-void-coupled-launch-readiness-v1.mjs",
+  "/app/tools/void-wc-void-production-readiness-v1.mjs",
+  "/app/tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs",
+  "/app/tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
+  "/app/tools/void-wc-void-opening-settlement-adapter-review-v1.mjs",
+  "/app/tools/void-coupled-economic-successor-gate-v1.mjs",
+  "/app/tools/void-economic-evm-successor-migration-v1.mjs",
+  "/app/tools/void-wc-void-coupled-opening-v1.mjs",
+  "/app/tools/void-shared-market-post-discovery-state-v2.mjs",
+  "/app/tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs",
+  "/app/tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs",
+  "/app/tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs",
+  "/app/tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs",
+  "/app/tools/void-wc-void-reverse-settlement-v1.mjs",
+  "/app/tools/void-wc-void-public-quote-disclosure-v1.mjs",
+  "/app/tools/void-economic-intent-ttl-caps-policy-v1.mjs",
+  "/app/tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs",
   "/app/ops/mainnet0/wc-void-production-candidate-v1.json",
   "/app/ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
   "/app/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
@@ -62,6 +78,7 @@ console.log("VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_V1_GREEN");
 console.log("request_flag_alone_can_open_intake=false");
 console.log("current_canonical_gate_ready=false");
 console.log("docker_runtime_gate_dependencies_bound=true");
+console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
   const manifest = JSON.parse(read(
     "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
