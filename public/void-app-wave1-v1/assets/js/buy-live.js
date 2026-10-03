@@ -229,6 +229,25 @@ const validAmount = () => {
   );
 };
 const validDestination = () => ADDRESS_RE.test(String(one('[data-buy-destination]')?.value || '').trim());
+const setFieldError = (fieldSelector, errorSelector, message) => {
+  const field = one(fieldSelector);
+  const error = one(errorSelector);
+  if (field) field.setAttribute('aria-invalid', message ? 'true' : 'false');
+  if (error) error.textContent = message;
+};
+const updateFieldErrors = () => {
+  const amount = one('[data-buy-amount]');
+  const destination = one('[data-buy-destination]');
+  const cfg = currentSnapshot?.config;
+  const amountMessage = amount && !amount.disabled && String(amount.value || '').trim() && cfg && !validAmount()
+    ? `Enter ${format(cfg.min_usdc)}–${format(cfg.max_usdc)} USDC using at most 6 decimals.`
+    : '';
+  const destinationMessage = destination && !destination.disabled && String(destination.value || '').trim() && !validDestination()
+    ? 'Enter a complete 42-character 0x VOID address.'
+    : '';
+  setFieldError('[data-buy-amount]', '[data-buy-amount-error]', amountMessage);
+  setFieldError('[data-buy-destination]', '[data-buy-destination-error]', destinationMessage);
+};
 const selectedChain = () => String(one('[data-buy-chain]')?.value || '').trim().toLowerCase();
 const selectedRail = () => {
   const chain = selectedChain();
@@ -236,6 +255,7 @@ const selectedRail = () => {
   return BUY_RAILS[chain] || null;
 };
 function updateSubmit() {
+  updateFieldErrors();
   const button = one('[data-buy-submit]');
   if (!button) return;
   const acks = acknowledgements();
