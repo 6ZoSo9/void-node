@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { userInfo } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -77,6 +78,8 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 export const VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1 =
   "VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1";
+export const VOID_BUY_COUPLED_LIVE_GENERATION_EXTERNAL_ANCHOR_V1 =
+  "VOID_BUY_COUPLED_LIVE_GENERATION_EXTERNAL_ANCHOR_V1";
 
 const LIVE_GENERATION_EVENT_KEYS = Object.freeze([
   "event_sha256",
@@ -265,6 +268,40 @@ export function classifyBuyLaunchGenerationJournalV1(bytes) {
   });
 }
 
+export function classifyBuyLaunchGenerationAuthorityV1(
+  journalBytes,
+  externalAnchorBytes,
+) {
+  if (
+    !Buffer.isBuffer(journalBytes) ||
+    !Buffer.isBuffer(externalAnchorBytes) ||
+    !journalBytes.equals(externalAnchorBytes)
+  ) {
+    throw new Error("buy_launch_generation_external_anchor_mismatch");
+  }
+  const state = classifyBuyLaunchGenerationJournalV1(journalBytes);
+  return Object.freeze({
+    ...state,
+    external_anchor_verified: true,
+    external_anchor_sha256:
+      "sha256:" + sha256(externalAnchorBytes),
+  });
+}
+
+export function buyLaunchGenerationExternalAnchorPathV1() {
+  const home = path.resolve(String(userInfo().homedir || ""));
+  if (!home || home === path.parse(home).root) {
+    throw new Error("buy_launch_generation_home_invalid");
+  }
+  return path.join(
+    home,
+    ".local",
+    "state",
+    "void-node-authority-v1",
+    "buy-void-coupled-live-generation-anchor-v1.jsonl",
+  );
+}
+
 export function readBuyLaunchGenerationJournalV1(env = process.env) {
   const dataDirRaw = String(env.DATA_DIR || env.VOID_DATA_DIR || "").trim();
   if (!dataDirRaw) {
@@ -276,8 +313,19 @@ export function readBuyLaunchGenerationJournalV1(env = process.env) {
     "economic",
     "buy-void-coupled-live-generation-v1.jsonl",
   );
-  return classifyBuyLaunchGenerationJournalV1(
+  const anchorPath = buyLaunchGenerationExternalAnchorPathV1();
+  const relativeAnchor = path.relative(dataDir, anchorPath);
+  if (
+    relativeAnchor === "" ||
+    (!relativeAnchor.startsWith(".." + path.sep) &&
+      relativeAnchor !== ".." &&
+      !path.isAbsolute(relativeAnchor))
+  ) {
+    throw new Error("buy_launch_generation_anchor_inside_data_dir");
+  }
+  return classifyBuyLaunchGenerationAuthorityV1(
     readStablePrivateFile(journalPath),
+    readStablePrivateFile(anchorPath),
   );
 }
 
@@ -574,6 +622,7 @@ export function classifyBuyLaunchLiveActivationLeaseV1(
     typeof receipt === "object" &&
     !Array.isArray(receipt) &&
     generationState?.ready === true &&
+    generationState?.external_anchor_verified === true &&
     BYTES32.test(String(generationState.generation || "")) &&
     SHA256_ID.test(String(generationState.tip_sha256 || "")) &&
     BYTES32.test(String(receipt.activation_generation || "")) &&
