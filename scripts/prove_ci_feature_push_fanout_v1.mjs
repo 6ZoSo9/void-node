@@ -37,18 +37,47 @@ const prCancellationTargets = [
   ".github/workflows/public-node-operator-trial-submission-review-chain-rollup.yml",
   ".github/workflows/public-node-operator-trial-submission-review-chain-closeout-rollup.yml",
   ".github/workflows/public-node-operator-trial-lane-dashboard-link.yml",
+  ".github/workflows/public-node-operator-trial-review-decision-example.yml",
+  ".github/workflows/public-node-operator-trial-public-entrypoint.yml",
+  ".github/workflows/void-ai-agent-provenance-unfiltered-v1.yml",
+  ".github/workflows/void-github-actions-ref-guard-v1.yml",
+  ".github/workflows/public-node-operator-trial-submission-review-chain-final-seal.yml",
+  ".github/workflows/public-node-operator-trial-lane-rollup.yml",
+  ".github/workflows/public-node-operator-trial-submission-review-queue.yml",
+  ".github/workflows/public-node-operator-trial-terminal-closeout-rollup.yml",
+  ".github/workflows/public-node-operator-trial-packet.yml",
+  ".github/workflows/public-node-operator-trial-closeout-rollup.yml",
+  ".github/workflows/license-guard.yml",
+  ".github/workflows/void-public-checkpoint-restore-v1.yml",
+  ".github/workflows/void-public-safe-background-loop-backpressure-v1.yml",
+  ".github/workflows/public-first-official-release-rehearsal-v1.yml",
+  ".github/workflows/public-node-operator-trial-root-link.yml",
+  ".github/workflows/ci-cost-boundary-v1.yml",
 ];
 
-const allTargets = [...featurePushTargets, ...prCancellationTargets];
+const pendingSupersessionTargets = [
+  ".github/workflows/void-nimo-build-admission-v1.yml",
+  ".github/workflows/void-nimo-executed-runtime-v1.yml",
+  ".github/workflows/void-nimo-fresh-sync-session-v1.yml",
+];
+
+const allTargets = [...featurePushTargets, ...prCancellationTargets, ...pendingSupersessionTargets];
 assert.equal(featurePushTargets.length, 20);
-assert.equal(prCancellationTargets.length, 11);
-assert.equal(allTargets.length, 31);
+assert.equal(prCancellationTargets.length, 27);
+assert.equal(pendingSupersessionTargets.length, 3);
+assert.equal(allTargets.length, 50);
 assert.equal(new Set(allTargets).size, allTargets.length);
 
-const concurrency = [
+const cancelConcurrency = [
   "concurrency:",
   "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}",
   "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+].join("\n");
+
+const preserveRunningConcurrency = [
+  "concurrency:",
+  "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}",
+  "  cancel-in-progress: false",
 ].join("\n");
 
 function concurrencyGroup({ workflow, prNumber, runId }) {
@@ -119,18 +148,32 @@ const forbiddenStateful = [
   /curl[^\n]*\s-X\s+(?:POST|PUT|PATCH|DELETE)\b/i,
 ];
 
-for (const file of allTargets) {
+const cancelTargets = [...featurePushTargets, ...prCancellationTargets];
+
+for (const file of cancelTargets) {
   const text = fs.readFileSync(file, "utf8");
   assert.equal(
-    text.includes(concurrency),
+    text.includes(cancelConcurrency),
     true,
     file + ": event-aware PR-only cancellation policy required",
   );
   assert.match(text, /\n  pull_request:/, file + ": pull_request coverage required");
   assert.match(text, /\n  push:/, file + ": push coverage required");
   for (const pattern of forbiddenStateful) {
-    assert.doesNotMatch(text, pattern, file + ": stateful target is not cancel-safe");
+    assert.doesNotMatch(text, pattern, file + ": stateful target must not cancel in-progress work");
   }
+}
+
+for (const file of pendingSupersessionTargets) {
+  const text = fs.readFileSync(file, "utf8");
+  assert.equal(
+    text.includes(preserveRunningConcurrency),
+    true,
+    file + ": PR queue supersession must preserve an already-running evidence job",
+  );
+  assert.match(text, /\n  pull_request:/, file + ": pull_request coverage required");
+  assert.match(text, /\n  push:/, file + ": push coverage required");
+  assert.match(text, /actions\/upload-artifact@/, file + ": preserve-running class requires evidence artifact publication");
 }
 
 for (const file of featurePushTargets) {
@@ -170,20 +213,23 @@ const self = fs.readFileSync(
   "utf8",
 );
 assert.equal(
-  self.includes(concurrency),
+  self.includes(cancelConcurrency),
   true,
   "focused proof workflow must preserve main/manual runs and cancel only stale PR heads",
 );
 
 console.log("VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN");
 console.log("feature_push_targets=20");
-console.log("pr_supersession_targets=31");
+console.log("pr_supersession_targets=50");
 console.log("feature_branch_push_execution=false");
 console.log("pull_request_execution=true");
 console.log("main_push_execution=true");
 console.log("main_push_cancellation=false");
 console.log("manual_dispatch_cancellation=false");
-console.log("stateful_target_workflows=0");
+console.log("stateful_target_workflows=3");
+console.log("cancel_in_progress_stateful_targets=0");
+console.log("preserve_running_targets=3");
+console.log("in_progress_evidence_cancellation=false");
 console.log("target_workflow_names_unique=true");
 console.log("target_workflow_names_case_insensitively_unique=true");
 console.log("same_pr_heads_share_group=true");
