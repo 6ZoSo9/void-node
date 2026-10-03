@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-coupled-launch-gate-v1.yml"
       - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "ops/precision/void-buy-coupled-live-generation-publish-v1.mjs"
       - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "src/economic/buy_void_request_tx_hash_binding_v1.ts"
       - "scripts/prove_buy_void_request_tx_hash_binding_v1.ts"
@@ -39,6 +40,7 @@ on:
     paths:
       - ".github/workflows/buy-void-coupled-launch-gate-v1.yml"
       - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "ops/precision/void-buy-coupled-live-generation-publish-v1.mjs"
       - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "src/economic/buy_void_request_tx_hash_binding_v1.ts"
       - "scripts/prove_buy_void_request_tx_hash_binding_v1.ts"
