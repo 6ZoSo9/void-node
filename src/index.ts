@@ -18382,9 +18382,10 @@ small{color:#94a3b8}
         schema: "void_public_buy_void_config_v1",
         marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
         ok: true,
-        mode: "base_usdc_request_first_checkout",
+        mode: "dual_usdc_request_first_checkout",
         requests_enabled,
         payment_ready,
+        payment_chains: ["base", "ethereum"],
         chain: "base",
         payment_chain: "base",
         payment_chain_id: __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,
@@ -18972,7 +18973,7 @@ setInterval(refresh, 10000);
           ok: true,
           request_id: id,
           operator_status: "payment_verified",
-          note: "Base USDC payment verified by receipt/log check",
+          note: "USDC receipt/log verified",
           marked_at_ms: Date.now(),
           prior_status: found.status || "",
           tx_hash: tx,
@@ -19185,12 +19186,14 @@ setInterval(refresh, 10000);
         const rawAmount = __voidBuyVoidReadBodyV1(req, "requested_amount_usdc", "usdc_amount", "amount_usdc", "amount");
         const void_destination_address = __voidBuyVoidReadBodyV1(req, "void_destination_address", "delivery_address", "delivery_wallet", "wallet");
         const source_chain = (__voidBuyVoidReadBodyV1(req, "source_chain", "payment_chain", "chain") || "base").toLowerCase();
+        const ethereum = source_chain === "ethereum";
+        const usdc_contract = ethereum ? "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" : cfg.usdc_contract;
         const account = __voidBuyVoidReadBodyV1(req, "account", "participant_account").slice(0, 128);
         const txHashAtCreation = __voidBuyVoidReadBodyV1(req, "tx_hash", "payment_tx_hash");
         const note = __voidBuyVoidReadBodyV1(req, "note").slice(0, 240);
         const acknowledgements = {
           self_custody: __voidBuyVoidReadBooleanBodyV1(req, "ack_self_custody"),
-          base_native_usdc: __voidBuyVoidReadBooleanBodyV1(req, "ack_base_native_usdc", "ack_base_usdc"),
+          native_usdc: __voidBuyVoidReadBooleanBodyV1(req, "ack_native_usdc", "ack_base_native_usdc"),
           request_before_payment: __voidBuyVoidReadBooleanBodyV1(req, "ack_request_before_payment"),
           sender_equals_void_destination: __voidBuyVoidReadBooleanBodyV1(req, "ack_sender_equals_void_destination"),
           no_automatic_fulfillment: __voidBuyVoidReadBooleanBodyV1(req, "ack_no_automatic_fulfillment")
@@ -19204,7 +19207,7 @@ setInterval(refresh, 10000);
         if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
         if (Number.isFinite(usdc_amount) && Math.round(usdc_amount * 1_000_000) / 1_000_000 !== usdc_amount) errors.push("usdc_amount_exceeds_6_decimals");
         if (!/^0x[a-fA-F0-9]{40}$/.test(void_destination_address)) errors.push("invalid_void_destination_address");
-        if (source_chain !== "base") errors.push("base_mainnet_only");
+        if (source_chain !== "base" && !ethereum) errors.push("unsupported_usdc_source_chain");
         if (txHashAtCreation) errors.push("payment_tx_hash_not_allowed_at_request_creation");
         for (const [key, value] of Object.entries(acknowledgements)) {
           if (!value) errors.push("acknowledgement_required_" + key);
@@ -19243,7 +19246,7 @@ setInterval(refresh, 10000);
 
         if (activeForDestination) {
           const activeAmount = Number(activeForDestination.usdc_amount ?? activeForDestination.requested_amount_usdc ?? 0);
-          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount) {
+          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount && (activeForDestination.source_chain || "base") === source_chain) {
             return res.json({
               schema: "void_public_buy_void_checkout_request_result_v1",
               marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
@@ -19275,13 +19278,13 @@ setInterval(refresh, 10000);
           request_id,
           created_at_ms,
           status: "awaiting_payment_tx_hash",
-          funding_model: "request_first_base_usdc_to_native_void",
+          funding_model: "request_first_usdc_to_native_void",
           account: account || null,
-          source_chain: "base",
-          payment_chain: "base",
-          payment_chain_id: cfg.payment_chain_id,
+          source_chain,
+          payment_chain: source_chain,
+          payment_chain_id: ethereum ? 1 : cfg.payment_chain_id,
           asset_in: "USDC",
-          usdc_contract: cfg.usdc_contract,
+          usdc_contract,
           usdc_decimals: cfg.usdc_decimals,
           usdc_amount,
           requested_amount_usdc: usdc_amount,
@@ -19309,9 +19312,9 @@ setInterval(refresh, 10000);
           payment_instructions: {
             request_id,
             send_asset: "USDC",
-            send_chain: "base",
-            send_chain_id: cfg.payment_chain_id,
-            token_contract: cfg.usdc_contract,
+            send_chain: source_chain,
+            send_chain_id: ethereum ? 1 : cfg.payment_chain_id,
+            token_contract: usdc_contract,
             token_decimals: cfg.usdc_decimals,
             send_to: cfg.receive_address,
             send_from: void_destination_address,

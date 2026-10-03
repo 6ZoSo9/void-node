@@ -1,7 +1,7 @@
 {
   "schema": "void.buy-void-public-checkout-contract.v1",
   "marker": "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-  "status": "source_bound_hold_request_activation_required",
+  "status": "source_bound_dual_rail_hold_request_activation_required",
   "source_context_snapshot": "93d6d35fe956e66ef91429520e9b279cbd82df2b",
   "payment": {
     "chain": "base",
@@ -37,13 +37,17 @@
     "request_before_payment_required": true,
     "tx_hash_at_creation_allowed": false,
     "one_active_request_per_void_destination": true,
-    "same_destination_same_amount_is_idempotent": true,
     "source_default_requests_enabled": false,
-    "activation_env": "VOID_BUY_REQUESTS_ENABLED"
+    "activation_env": "VOID_BUY_REQUESTS_ENABLED",
+    "supported_source_chains": [
+      "base",
+      "ethereum"
+    ],
+    "same_destination_same_amount_same_chain_is_idempotent": true
   },
   "required_acknowledgements": [
     "ack_self_custody",
-    "ack_base_native_usdc",
+    "ack_native_usdc",
     "ack_request_before_payment",
     "ack_sender_equals_void_destination",
     "ack_no_automatic_fulfillment"
@@ -59,5 +63,23 @@
     "money_movement": false,
     "void_transfer": false,
     "node_restart": false
-  }
+  },
+  "payment_rails": [
+    {
+      "chain": "base",
+      "chain_id": 8453,
+      "asset": "USDC",
+      "token_contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "token_decimals": 6,
+      "receiver": "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
+    },
+    {
+      "chain": "ethereum",
+      "chain_id": 1,
+      "asset": "USDC",
+      "token_contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "token_decimals": 6,
+      "receiver": "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
+    }
+  ]
 }

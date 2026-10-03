@@ -16,9 +16,10 @@ bad(){ if grep -qF "$1" "$2"; then echo "forbidden=$1 file=$2"; exit 1; fi; }
 marker="VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1"
 receiver="0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
 base_usdc="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+eth_usdc="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 proof_sha="dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830"
 
-for value in "$marker" "$receiver" "$base_usdc" "$proof_sha"; do
+for value in "$marker" "$receiver" "$base_usdc" "$eth_usdc" "$proof_sha"; do
   need "$value" "$src"
   need "$value" "$fixture"
 done
@@ -70,12 +71,15 @@ pool=block("// VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1","function __v
 
 receiver="0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
 usdc="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+eth_usdc="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 
 assert receiver in config and receiver in pool
 assert usdc in config and usdc in pool
+assert eth_usdc in request
 assert "__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1 = 8453" in config
 assert "__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1 = 2050" in config
 assert "receiverBindingConflict" in config
+assert 'payment_chains: ["base", "ethereum"]' in config
 assert 'request_method: "POST"' in config
 assert 'tx_hash_at_request_creation_allowed: false' in config
 assert 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' in config
@@ -83,7 +87,8 @@ assert 'const payment_ready = !receiverBindingConflict;' in config
 
 assert 'app.post("/__void/buy-void/request"' in request
 assert "res.status(405)" in request
-assert 'source_chain !== "base"' in request
+assert '"unsupported_usdc_source_chain"' in request
+assert 'send_chain: source_chain' in request
 assert "one_active_request_per_void_destination" in request
 assert "payment_tx_hash_not_allowed_at_request_creation" in request
 assert "send_from: void_destination_address" in request
@@ -112,6 +117,11 @@ assert j["marker"]=="VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1"
 assert j["payment"]["chain_id"]==8453
 assert j["payment"]["token_contract"]==usdc
 assert j["payment"]["receiver"]==receiver
+rails={x["chain"]:x for x in j["payment_rails"]}
+assert set(rails)=={"base","ethereum"}
+assert rails["base"]["chain_id"]==8453 and rails["base"]["token_contract"]==usdc
+assert rails["ethereum"]["chain_id"]==1 and rails["ethereum"]["token_contract"]==eth_usdc
+assert all(x["receiver"]==receiver for x in rails.values())
 assert j["delivery"]["chain_id"]==2050
 assert j["request_contract"]["method"]=="POST"
 assert j["request_contract"]["legacy_get_status"]==405
@@ -120,6 +130,9 @@ assert j["request_contract"]["tx_hash_at_creation_allowed"] is False
 assert j["request_contract"]["source_default_requests_enabled"] is False
 assert j["request_contract"]["activation_env"]=="VOID_BUY_REQUESTS_ENABLED"
 assert len(j["required_acknowledgements"])==5
+assert "ack_native_usdc" in j["required_acknowledgements"]
+assert j["request_contract"]["supported_source_chains"]==["base","ethereum"]
+assert j["request_contract"]["same_destination_same_amount_same_chain_is_idempotent"] is True
 for k,v in j["authority"].items():
     assert v is False,(k,v)
 print("buy_void_public_checkout_source_semantics_green=true")
@@ -127,7 +140,7 @@ print("buy_void_public_checkout_fixture_semantics_green=true")
 PY
 
 echo "buy_void_public_checkout_receiver_binding_green=true"
-echo "buy_void_public_checkout_base_usdc_only_green=true"
+echo "buy_void_public_checkout_dual_rail_request_contract_green=true"
 echo "buy_void_public_checkout_void_destination_chain_2050_green=true"
 echo "buy_void_public_checkout_request_first_green=true"
 echo "buy_void_public_checkout_source_default_request_intake=false"
