@@ -38,7 +38,11 @@ function appendJsonl(file: string, value: unknown): void {
   });
 }
 
-function adapterReceipt(suffix: string, account: string) {
+function adapterReceipt(
+  suffix: string,
+  account: string,
+  overrides: { jobId?: string; receiptId?: string } = {},
+) {
   const credentialId = `voidapwc1_${h(suffix)}`;
   const bindingId = `voidapwcb1_${h(suffix)}`;
   const registryId = `voidapwcbr1_${h(suffix)}`;
@@ -145,8 +149,8 @@ function adapterReceipt(suffix: string, account: string) {
     marker: "VOID_WC_PUBLIC_EARNING_PARTICIPANT_CLI_V1",
     account,
     ticket_id: `ticket-capacity-${suffix}`,
-    job_id: `job-capacity-${suffix}`,
-    receipt_id: `receipt-capacity-${suffix}`,
+    job_id: overrides.jobId || `job-capacity-${suffix}`,
+    receipt_id: overrides.receiptId || `receipt-capacity-${suffix}`,
     token_sha256: h("7"),
     wc: {
       before: 0,
@@ -231,6 +235,30 @@ function run(dataDir: string, receiptRoot: string) {
     raw: result.stdout,
     value: JSON.parse(result.stdout),
   };
+}
+
+function runFailure(
+  dataDir: string,
+  receiptRoot: string,
+  pattern: RegExp,
+): void {
+  const result = spawnSync(
+    TSX,
+    [
+      TOOL,
+      "--data-dir",
+      dataDir,
+      "--receipt-root",
+      receiptRoot,
+    ],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: { ...process.env, NO_COLOR: "1" },
+    },
+  );
+  assert.notEqual(result.status, 0, "expected census to fail closed");
+  assert.match(result.stderr || result.stdout, pattern);
 }
 
 const temp = fs.mkdtempSync(
@@ -332,6 +360,64 @@ try {
   assert.equal(clean.raw.includes(accountB), false);
   assert.equal(clean.raw.includes(temp), false);
 
+  const receiptIdReuse = adapterReceipt(
+    "c",
+    "capacity-proof-account-c",
+    { receiptId: receiptA.participant.receipt_id },
+  );
+  const receiptIdReuseFile = path.join(
+    receiptRoot,
+    "receipt-id-reuse",
+    "adapter-execution-receipt-v1.json",
+  );
+  writeJson(receiptIdReuseFile, receiptIdReuse);
+  runFailure(
+    dataDir,
+    receiptRoot,
+    /adapter_receipt_duplicate_guard_conflict/u,
+  );
+  fs.rmSync(path.dirname(receiptIdReuseFile), {
+    recursive: true,
+    force: true,
+  });
+
+  const jobIdReuse = adapterReceipt(
+    "d",
+    "capacity-proof-account-d",
+    { jobId: receiptA.participant.job_id },
+  );
+  const jobIdReuseFile = path.join(
+    receiptRoot,
+    "job-id-reuse",
+    "adapter-execution-receipt-v1.json",
+  );
+  writeJson(jobIdReuseFile, jobIdReuse);
+  runFailure(
+    dataDir,
+    receiptRoot,
+    /adapter_receipt_duplicate_guard_conflict/u,
+  );
+  fs.rmSync(path.dirname(jobIdReuseFile), {
+    recursive: true,
+    force: true,
+  });
+
+  const ledgerBaseline = fs.readFileSync(ledger);
+
+  const conflictingReceiptCredit = ledgerCredit(receiptA);
+  conflictingReceiptCredit.account = "capacity-proof-account-conflict";
+  conflictingReceiptCredit.job_id = "job-capacity-conflict";
+  appendJsonl(ledger, conflictingReceiptCredit);
+  runFailure(dataDir, receiptRoot, /matching_ledger_credit_conflict/u);
+  fs.writeFileSync(ledger, ledgerBaseline);
+
+  const conflictingJobCredit = ledgerCredit(receiptA);
+  conflictingJobCredit.account = "capacity-proof-account-conflict";
+  conflictingJobCredit.receipt_id = "receipt-capacity-conflict";
+  appendJsonl(ledger, conflictingJobCredit);
+  runFailure(dataDir, receiptRoot, /matching_ledger_credit_conflict/u);
+  fs.writeFileSync(ledger, ledgerBaseline);
+
   writeJson(
     path.join(receiptRoot, "invalid", "adapter-execution-receipt-v1.json"),
     { marker: "not-an-adapter-receipt" },
@@ -393,6 +479,7 @@ try {
     "VOID_WC_VOID_OPENING_PRODUCTION_WC_CAPACITY_CENSUS_V1_PROOF_GREEN",
   );
   console.log("canonical_adapter_receipt_validation=true");
+  console.log("canonical_receipt_job_duplicate_guard=true");
   console.log("canonical_wc_state_projection_reused=true");
   console.log("production_earned_lower_upper_bounds=true");
   console.log("depth_limited_discovery_gap_fail_closed=true");
