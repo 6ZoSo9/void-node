@@ -1,0 +1,56 @@
+name: VOID WC-VOID production WC capacity census v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-opening-production-wc-capacity-census-v1.yml"
+      - "scripts/void_wc_void_opening_production_wc_capacity_census_v1.ts"
+      - "scripts/prove_void_wc_void_opening_production_wc_capacity_census_v1.ts"
+      - "docs/operators/wc-void-opening-production-wc-capacity-census-v1.md"
+      - "src/economic/agent_paid_work_wc_earning_adapter_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/void-wc-void-opening-production-wc-capacity-census-v1.yml"
+      - "scripts/void_wc_void_opening_production_wc_capacity_census_v1.ts"
+      - "scripts/prove_void_wc_void_opening_production_wc_capacity_census_v1.ts"
+      - "docs/operators/wc-void-opening-production-wc-capacity-census-v1.md"
+      - "src/economic/agent_paid_work_wc_earning_adapter_v1.ts"
+      - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-wc-void-production-wc-capacity-census-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install repository dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Prove production WC capacity census
+        run: |
+          ./node_modules/.bin/tsx             scripts/prove_void_wc_void_opening_production_wc_capacity_census_v1.ts
+
+      - name: Diff hygiene
+        run: git diff --check
