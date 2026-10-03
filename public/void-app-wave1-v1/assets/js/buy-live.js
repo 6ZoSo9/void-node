@@ -17,6 +17,13 @@ let currentSnapshot = null;
 let readinessPending = false;
 let submitBusy = false;
 const touchedFields = new Set();
+let activeBuyView = null;
+const beginBuyViewInstance = (view) => {
+  if (view === activeBuyView) return false;
+  activeBuyView = view;
+  touchedFields.clear();
+  return true;
+};
 
 const currentRoute = () => location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0] || 'home';
 const one = (selector) => document.querySelector(selector);
@@ -339,7 +346,9 @@ const renderError = (error) => {
   setFormEnabled(false);
 };
 async function loadBuy() {
-  if (currentRoute() !== 'buy' || !one('[data-buy-view]')) return;
+  const buyView = one('[data-buy-view]');
+  if (currentRoute() !== 'buy' || !buyView) return;
+  beginBuyViewInstance(buyView);
   const serial = ++requestSerial;
   readinessPending = true;
   currentSnapshot = null;
