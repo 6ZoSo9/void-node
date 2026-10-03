@@ -36,6 +36,18 @@ const NONCE =
 const walletA = new ethers.Wallet(PRIVATE_A);
 const walletB = new ethers.Wallet(PRIVATE_B);
 const now = Math.floor(Date.now() / 1000);
+const reviewedHeadResult = spawnSync(
+  "/usr/bin/git",
+  ["rev-parse", "HEAD"],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  },
+);
+assert.equal(reviewedHeadResult.status, 0);
+const reviewedHead = reviewedHeadResult.stdout.trim();
+assert.match(reviewedHead, /^[0-9a-f]{40}$/u);
 
 const challenge =
   prepareVoidWcVoidLaunchControllerControlChallengeV1({
@@ -92,6 +104,7 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
         "preflight",
         challengePath,
         challengeSha,
+        reviewedHead,
       ],
       {
         cwd: process.cwd(),
@@ -110,7 +123,40 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     );
     assert.match(result.stdout, /repository_clean=true/u);
     assert.match(result.stdout, /critical_source_blobs_verified=true/u);
+    assert.match(
+      result.stdout,
+      new RegExp("operator_reviewed_head=" + reviewedHead, "u"),
+    );
     assert.match(result.stdout, /private_key_access=false/u);
+
+    const forgedReviewedHead = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "preflight",
+        challengePath,
+        challengeSha,
+        "0".repeat(40),
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(forgedReviewedHead.status, 0);
+    assert.match(
+      forgedReviewedHead.stderr,
+      /current_head_not_exact_operator_reviewed_head/u,
+    );
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
   }
@@ -301,6 +347,7 @@ await assert.rejects(
     LANG: "C",
     LC_ALL: "C",
     VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1: "1",
+    VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1: reviewedHead,
   };
   const clean = validateSanitizedOfflineSignerEnvironmentV1(
     cleanEnv,
@@ -394,7 +441,15 @@ const launcherSource = fs.readFileSync(
   "utf8",
 );
 assert.equal(
-  launcherSource.includes('current_head_not_exact_challenge_head'),
+  launcherSource.includes('current_head_not_exact_operator_reviewed_head'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('challenge_source_head_not_operator_reviewed_head'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1'),
   true,
 );
 assert.equal(
@@ -712,6 +767,8 @@ console.log("node_preload_flags_rejected=true");
 console.log("home_override_rejected=true");
 console.log("current_source_binding_reverified_before_key_access=true");
 console.log("exact_challenge_source_head_required=true");
+console.log("independent_operator_reviewed_head_required=true");
+console.log("challenge_head_cannot_self_authorize_signer=true");
 console.log("exact_head_launcher_preflight_green=true");
 console.log("launcher_critical_blobs_verified=true");
 console.log("private_key_access_reported=true");
