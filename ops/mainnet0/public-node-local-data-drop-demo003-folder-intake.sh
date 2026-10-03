@@ -8,6 +8,7 @@ FIXTURE_OUT="$OUT/fixture"
 VERIFY_OUT="$OUT/verify"
 INTAKE_DIR="$DATA_DIR/public-node/local-data-drop-demo003-folder-fixtures"
 LATEST="$INTAKE_DIR/latest"
+LATEST_STAGE="$INTAKE_DIR/.latest-stage-$STAMP-$"
 ARCHIVE="$INTAKE_DIR/archive/demo003-folder-fixture-$STAMP"
 
 FIXTURE_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
@@ -70,8 +71,59 @@ with open(intake_path, "w") as f:
     f.write("\n")
 PY
 
-rm -rf "$LATEST"
-ln -s "$(realpath "$ARCHIVE")" "$LATEST"
+rm -rf "$LATEST_STAGE"
+mkdir -p "$LATEST_STAGE"
+cp -a "$ARCHIVE/." "$LATEST_STAGE/"
+
+python3 - "$LATEST_STAGE" "$LATEST" <<'PY'
+import ctypes
+import os
+import shutil
+import stat
+import sys
+
+stage, latest = sys.argv[1], sys.argv[2]
+AT_FDCWD = -100
+RENAME_EXCHANGE = 2
+
+if os.path.lexists(latest):
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise RuntimeError("renameat2_unavailable")
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    rc = renameat2(
+        AT_FDCWD,
+        os.fsencode(stage),
+        AT_FDCWD,
+        os.fsencode(latest),
+        RENAME_EXCHANGE,
+    )
+    if rc != 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err))
+    if os.path.islink(stage) or not os.path.isdir(stage):
+        os.unlink(stage)
+    else:
+        shutil.rmtree(stage)
+else:
+    os.rename(stage, latest)
+
+st = os.lstat(latest)
+if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
+    raise RuntimeError("latest_not_direct_directory")
+
+print("latest_atomic_publish=true")
+print("latest_real_directory=true")
+print("latest_symlink=false")
+PY
 
 python3 - "$LATEST/intake.json" <<'PY'
 import json, sys
@@ -92,4 +144,7 @@ PY
 
 echo "archive=$ARCHIVE"
 echo "latest=$LATEST"
+echo "latest_atomic_publish=true"
+echo "latest_real_directory=true"
+echo "latest_symlink=false"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED"

@@ -12,8 +12,8 @@ echo "data_dir=$DATA_DIR"
 echo "latest=$LATEST"
 echo "archive_dir=$ARCHIVE_DIR"
 
-if [ ! -e "$LATEST/intake.json" ]; then
-  echo "status=demo003_folder_intake_missing"
+if [ ! -d "$LATEST" ] || [ -L "$LATEST" ] || [ ! -e "$LATEST/intake.json" ]; then
+  echo "status=demo003_folder_intake_missing_or_unsafe_latest"
   echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false"
   exit 1
 fi
@@ -34,6 +34,8 @@ assert d["file_count"] == 3
 
 print("status=demo003_folder_intake_present")
 print("latest_present=true")
+print("latest_real_directory=true")
+print("latest_symlink=false")
 print("archive_count=" + archive_count)
 print("object_set_id=" + str(d["object_set_id"]))
 print("file_count=" + str(d["file_count"]))

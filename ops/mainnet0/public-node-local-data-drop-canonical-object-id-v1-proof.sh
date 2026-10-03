@@ -13,6 +13,8 @@ PAYLOAD="public/public-node/evidence/economic-epoch2-public-void-state-root-anch
 IMPORTER="ops/mainnet0/public-node-local-data-drop-import.sh"
 SOURCE="src/index.ts"
 READER="src/http/public_node_local_data_drop_file_v1.ts"
+DEMO003_INTAKE="ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh"
+DEMO003_STATUS="ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
 
 fail() {
   printf '%s HOLD: %s\n' "$MARKER" "$*" >&2
@@ -23,6 +25,8 @@ test -f "$PAYLOAD" && test ! -L "$PAYLOAD" || fail "payload_missing_or_symlink"
 test -f "$IMPORTER" && test ! -L "$IMPORTER" || fail "importer_missing_or_symlink"
 test -f "$SOURCE" && test ! -L "$SOURCE" || fail "source_missing_or_symlink"
 test -f "$READER" && test ! -L "$READER" || fail "reader_missing_or_symlink"
+test -x "$DEMO003_INTAKE" && test ! -L "$DEMO003_INTAKE" || fail "demo003_intake_missing_or_symlink"
+test -x "$DEMO003_STATUS" && test ! -L "$DEMO003_STATUS" || fail "demo003_status_missing_or_symlink"
 
 bash -n "$IMPORTER" || fail "importer_shell_syntax"
 test "$(grep -Foc 'VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SECURE_STAGED_CREATE_ONLY_V2' "$IMPORTER")" = "1" ||
@@ -86,6 +90,8 @@ grep -Fq 'type(doc.get(key)) is not str' "$IMPORTER" ||
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1" "$READER" || fail "reader_marker_missing"
 grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
 grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
+grep -Fq "RENAME_EXCHANGE = 2" "$DEMO003_INTAKE" || fail "demo003_atomic_exchange_missing"
+if grep -Fq 'ln -s "$(realpath "$ARCHIVE")" "$LATEST"' "$DEMO003_INTAKE"; then fail "demo003_legacy_latest_symlink_remains"; fi
 
 node - "$SOURCE" "$READER" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
 const assert=require("node:assert/strict");
@@ -158,6 +164,37 @@ NODE
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+
+demo003_data="$tmp/demo003-data"
+demo003_out="$tmp/demo003-intake"
+demo003_base="$demo003_data/public-node/local-data-drop-demo003-folder-fixtures"
+mkdir -p "$demo003_base/archive/legacy"
+printf 'legacy\n' > "$demo003_base/archive/legacy/legacy.txt"
+ln -s "$(realpath "$demo003_base/archive/legacy")" "$demo003_base/latest"
+
+DATA_DIR="$demo003_data" OUT="$demo003_out" bash "$DEMO003_INTAKE" >"$tmp/demo003-intake.log"
+test -d "$demo003_base/latest" && test ! -L "$demo003_base/latest" ||
+  fail "demo003_latest_not_real_directory"
+grep -Fq "latest_atomic_publish=true" "$tmp/demo003-intake.log" ||
+  fail "demo003_atomic_publish_not_reported"
+grep -Fq "latest_real_directory=true" "$tmp/demo003-intake.log" ||
+  fail "demo003_real_directory_not_reported"
+grep -Fq "latest_symlink=false" "$tmp/demo003-intake.log" ||
+  fail "demo003_symlink_retirement_not_reported"
+test -f "$demo003_base/latest/manifest.json" ||
+  fail "demo003_latest_manifest_missing"
+test -f "$demo003_base/latest/intake.json" ||
+  fail "demo003_latest_intake_missing"
+test -f "$demo003_base/latest/files/index.html" ||
+  fail "demo003_latest_index_missing"
+
+DATA_DIR="$demo003_data" bash "$DEMO003_STATUS" >"$tmp/demo003-status.log"
+grep -Fq "latest_real_directory=true" "$tmp/demo003-status.log" ||
+  fail "demo003_status_real_directory_missing"
+grep -Fq "latest_symlink=false" "$tmp/demo003-status.log" ||
+  fail "demo003_status_symlink_false_missing"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" "$tmp/demo003-status.log" ||
+  fail "demo003_status_not_green"
 
 DATA_DIR="$tmp/data" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" > "$tmp/import.log"
 
@@ -487,6 +524,7 @@ echo "operator_owned_recovery_files=true"
 echo "runtime_descriptor_bound_read_calls=15"
 echo "runtime_pathname_reads=0"
 echo "runtime_ancestor_descriptor_walk=true"
+echo "demo003_latest_atomic_real_directory=true"
 echo "index_size_ceiling_preserved=true"
 echo "staged_atomic_publication=true"
 echo "staging_global_lock=true"
