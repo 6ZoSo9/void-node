@@ -68,9 +68,12 @@ one mechanism: exact standalone bundle bytes admitted before key access.
 
 Node's module-loader environment is still sanitized before the streamed signer
 starts: `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables, shell
-injection variables, and unrelated environment values are absent. Nimo must
-remain offline for the entire signing ceremony because this lane does not claim
-process-level network sandboxing.
+injection variables, and unrelated environment values are absent. The reviewed
+stdin invocation requires exactly one Node exec-argv entry,
+`--input-type=module`; empty exec-argv or any additional/different loader,
+preload, import, require, inspect, policy, conditions, or arbitrary Node option
+fails closed. Nimo must remain offline for the entire signing ceremony because
+this lane does not claim process-level network sandboxing.
 
 ## Challenge validation
 
