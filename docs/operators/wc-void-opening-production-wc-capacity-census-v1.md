@@ -112,7 +112,10 @@ The scan proves only what was found beneath the explicitly supplied roots.
 
 Unreadable directories and receipt-search paths truncated by the bounded
 recursive-depth limit force the `OBSERVED_WITH_DISCOVERY_GAPS` status. Unknown
-malformed canonical WC ledger lines do the same.
+malformed canonical WC ledger lines do the same. The census also consumes the
+canonical WC projector's malformed-redemption count for matched accounts; any
+malformed `wc_v1/redeemed.jsonl` row likewise prevents CLEAN status because it
+can hide an outflow relevant to the production-earned lower/upper bounds.
 
 One historical exception is already part of canonical production-WC visibility
 compatibility on `main`. The census recognizes only that exact raw-line SHA-256,
@@ -145,7 +148,8 @@ The JSON output does not emit:
 - raw receipt evidence.
 
 Only aggregate counts, WC quantities, basis-point statistics, and safety flags
-are returned.
+are returned. Malformed ledger/redemption evidence is exposed only as aggregate
+counts; no affected account or raw line is emitted.
 
 ## Operator use
 
