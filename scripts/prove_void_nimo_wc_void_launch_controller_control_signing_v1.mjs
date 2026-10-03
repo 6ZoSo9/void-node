@@ -974,6 +974,16 @@ assert.equal(
   "operator bootstrap must pass the verified launcher blob as defense-in-depth",
 );
 assert.equal(
+  launcherSource.includes('launcher_file="${BASH_SOURCE[0]:-}"'),
+  true,
+  "streamed launcher must not require BASH_SOURCE[0]",
+);
+assert.equal(
+  (launcherSource.match(/executed_launcher_blob_required_for_streamed_execution/g) || []).length,
+  2,
+  "both launcher modes must fail closed if streamed bytes lack the reviewed blob binding",
+);
+assert.equal(
   operatorDoc.includes('/proc/self/fd/9'),
   false,
   "production ceremony must not depend on a mutable staged launcher inode",
