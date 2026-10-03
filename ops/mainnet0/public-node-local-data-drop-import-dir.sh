@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -19,8 +20,6 @@ if [ ! -d "$SRC_DIR" ]; then
 fi
 
 SRC_DIR="$(cd "$SRC_DIR" && pwd)"
-mkdir -p "$DATA_ROOT"
-
 echo "marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_V1"
 echo "source_dir=$SRC_DIR"
 echo "data_dir=$DATA_ROOT"

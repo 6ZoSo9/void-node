@@ -11,6 +11,7 @@ CONTENT_SHA256="8bb02e6147096465a78f983d8b34e7420e3c5b69cde11e2bdb5018340557fb84
 BYTE_LENGTH="3204"
 PAYLOAD="public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
 IMPORTER="ops/mainnet0/public-node-local-data-drop-import.sh"
+IMPORT_DIR="ops/mainnet0/public-node-local-data-drop-import-dir.sh"
 SOURCE="src/index.ts"
 READER="src/http/public_node_local_data_drop_file_v1.ts"
 DEMO003_INTAKE="ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh"
@@ -23,12 +24,16 @@ fail() {
 
 test -f "$PAYLOAD" && test ! -L "$PAYLOAD" || fail "payload_missing_or_symlink"
 test -f "$IMPORTER" && test ! -L "$IMPORTER" || fail "importer_missing_or_symlink"
+test -x "$IMPORT_DIR" && test ! -L "$IMPORT_DIR" || fail "import_dir_missing_or_symlink"
 test -f "$SOURCE" && test ! -L "$SOURCE" || fail "source_missing_or_symlink"
 test -f "$READER" && test ! -L "$READER" || fail "reader_missing_or_symlink"
 test -x "$DEMO003_INTAKE" && test ! -L "$DEMO003_INTAKE" || fail "demo003_intake_missing_or_symlink"
 test -x "$DEMO003_STATUS" && test ! -L "$DEMO003_STATUS" || fail "demo003_status_missing_or_symlink"
 
 bash -n "$IMPORTER" || fail "importer_shell_syntax"
+bash -n "$IMPORT_DIR" || fail "import_dir_shell_syntax"
+grep -Fq "umask 077" "$IMPORT_DIR" || fail "import_dir_private_umask_missing"
+if grep -Fq 'mkdir -p "$DATA_ROOT"' "$IMPORT_DIR"; then fail "import_dir_precreates_data_root"; fi
 test "$(grep -Foc 'VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SECURE_STAGED_CREATE_ONLY_V2' "$IMPORTER")" = "1" ||
   fail "importer_v2_marker_not_unique"
 test "$(grep -Foc 'python3 - "$SRC" "$DATA_DIR" "$OBJECT_ID"' "$IMPORTER")" = "1" ||
@@ -109,6 +114,10 @@ grep -Fq 'type(doc.get(key)) is not str' "$IMPORTER" ||
 grep -Fq 'after.st_mode & 0o022' "$IMPORTER" || fail "recovery_file_write_mode_guard_missing"
 grep -Fq 'after.st_nlink != 1' "$IMPORTER" || fail "recovery_file_link_count_guard_missing"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1" "$READER" || fail "reader_marker_missing"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1" "$READER" || fail "reader_unsafe_storage_marker_missing"
+grep -Fq 'errorCodeV1(error) === "ENOENT"' "$READER" || fail "reader_missing_only_enoent_missing"
+grep -Fq 'unsafeStorageV1("unsafe_final_parent")' "$READER" || fail "reader_unsafe_parent_fail_closed_missing"
+grep -Fq 'unsafeStorageV1("unsafe_final_file")' "$READER" || fail "reader_unsafe_file_fail_closed_missing"
 grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
 grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
 grep -Fq 'listed.nlink !== 1n' "$READER" || fail "reader_link_count_guard_missing"
@@ -611,6 +620,27 @@ test "$(sha256sum "$default_root/public-node/local-data-drop/objects/$default_id
 test -f "$default_root/public-node/local-data-drop/receipts/$default_id.json" ||
   fail "default_object_id_receipt_missing"
 
+import_dir_src="$tmp/import-dir-src"
+import_dir_root="$tmp/import-dir-data"
+mkdir -p "$import_dir_src"
+printf 'local data drop import-dir private root proof\n' > "$import_dir_src/sample.txt"
+(
+  umask 0000
+  DATA_DIR="$import_dir_root" bash "$IMPORT_DIR" "$import_dir_src"
+) >"$tmp/import-dir.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_DIR_V1_IMPORTED" "$tmp/import-dir.log" ||
+  fail "import_dir_success_marker_missing"
+for d in \
+  "$import_dir_root" \
+  "$import_dir_root/public-node" \
+  "$import_dir_root/public-node/local-data-drop" \
+  "$import_dir_root/public-node/local-data-drop/objects" \
+  "$import_dir_root/public-node/local-data-drop/receipts"; do
+  test -d "$d" && test ! -L "$d" || fail "import_dir_private_root_directory_missing:$d"
+  test "$(stat -c '%u' "$d")" = "$(id -u)" || fail "import_dir_private_root_wrong_owner:$d"
+  test -z "$(find "$d" -maxdepth 0 -perm /022 -print -quit)" || fail "import_dir_private_root_writable:$d"
+done
+
 object_symlink_root="$tmp/object-symlink"
 mkdir -p   "$object_symlink_root/public-node/local-data-drop/objects"   "$object_symlink_root/public-node/local-data-drop/receipts"
 printf 'outside-object-sentinel\n' > "$object_symlink_root/outside-object.txt"
@@ -987,6 +1017,9 @@ echo "runtime_hardlink_rejected=true"
 echo "runtime_descriptor_bound_read_calls=15"
 echo "runtime_pathname_reads=0"
 echo "runtime_descriptor_bound_directory_lists=6"
+echo "runtime_unsafe_storage_fail_closed=true"
+echo "runtime_missing_storage_empty_only=true"
+echo "import_dir_private_root_under_permissive_umask=true"
 echo "runtime_route_storage_mutation=false"
 echo "runtime_ancestor_descriptor_walk=true"
 echo "demo003_latest_atomic_real_directory=true"

@@ -6,6 +6,8 @@ import * as path from "node:path";
 
 export const VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1 =
   "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1";
+export const VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1 =
+  "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1";
 
 const PROC_FD_ROOT_V1 = "/proc/self/fd";
 
@@ -29,6 +31,32 @@ function renameProtectedDirectoryV1(st: fs.BigIntStats, euid: bigint): boolean {
   return (st.mode & 0o022n) === 0n || (st.mode & 0o1000n) !== 0n;
 }
 
+function errorCodeV1(error: unknown): string {
+  if (typeof error !== "object" || error === null || !("code" in error)) return "";
+  return String((error as { code?: unknown }).code || "");
+}
+
+function missingPathV1(error: unknown): boolean {
+  return errorCodeV1(error) === "ENOENT";
+}
+
+function unsafeStorageV1(detail: string, error?: unknown): never {
+  const code = errorCodeV1(error);
+  throw new Error(
+    VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1 +
+      ":" +
+      detail +
+      (code ? ":" + code : ""),
+  );
+}
+
+function isUnsafeStorageV1(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.startsWith(VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1 + ":")
+  );
+}
+
 function openParentDirectoryV1(filePath: string): { fd: number; name: string } | null {
   const noFollow = (
     fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }
@@ -36,24 +64,28 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
   const directory = (
     fs.constants as typeof fs.constants & { O_DIRECTORY?: number }
   ).O_DIRECTORY;
-  if (typeof noFollow !== "number" || typeof directory !== "number") return null;
+  if (typeof noFollow !== "number" || typeof directory !== "number") {
+    unsafeStorageV1("required_open_flags_unavailable");
+  }
 
   const euid =
     typeof process.geteuid === "function" ? BigInt(process.geteuid()) : null;
-  if (euid === null) return null;
+  if (euid === null) unsafeStorageV1("effective_uid_unavailable");
 
   const absolute = path.resolve(filePath);
   const parsed = path.parse(absolute);
   const parts = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean);
   const name = parts.pop();
-  if (!name || name === "." || name === "..") return null;
+  if (!name || name === "." || name === "..") unsafeStorageV1("invalid_final_component");
 
   let fd = -1;
   try {
     fd = fs.openSync(parsed.root, fs.constants.O_RDONLY | directory | noFollow);
     for (const part of parts) {
-      if (!renameProtectedDirectoryV1(fs.fstatSync(fd, { bigint: true }), euid)) return null;
-      if (!part || part === "." || part === "..") return null;
+      if (!renameProtectedDirectoryV1(fs.fstatSync(fd, { bigint: true }), euid)) {
+        unsafeStorageV1("unsafe_ancestor_directory");
+      }
+      if (!part || part === "." || part === "..") unsafeStorageV1("invalid_ancestor_component");
       const nextPath = path.join(PROC_FD_ROOT_V1, String(fd), part);
       const nextFd = fs.openSync(
         nextPath,
@@ -62,7 +94,7 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
       const opened = fs.fstatSync(nextFd, { bigint: true });
       if (!opened.isDirectory() || opened.isSymbolicLink()) {
         fs.closeSync(nextFd);
-        return null;
+        unsafeStorageV1("unsafe_opened_ancestor");
       }
       fs.closeSync(fd);
       fd = nextFd;
@@ -74,13 +106,15 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
       parentStat.uid !== euid ||
       (parentStat.mode & 0o022n) !== 0n
     ) {
-      return null;
+      unsafeStorageV1("unsafe_final_parent");
     }
     const result = { fd, name };
     fd = -1;
     return result;
-  } catch {
-    return null;
+  } catch (error) {
+    if (isUnsafeStorageV1(error)) throw error;
+    if (missingPathV1(error)) return null;
+    unsafeStorageV1("parent_walk_failed", error);
   } finally {
     if (fd >= 0) {
       try {
@@ -103,11 +137,13 @@ export function listDirectDirectoryNamesV1(dirPath: string): string[] {
       !after.isDirectory() ||
       !sameStampV1(before, after)
     ) {
-      return [];
+      unsafeStorageV1("directory_changed_during_list");
     }
     return names;
-  } catch {
-    return [];
+  } catch (error) {
+    if (isUnsafeStorageV1(error)) throw error;
+    if (missingPathV1(error)) return [];
+    unsafeStorageV1("directory_list_failed", error);
   } finally {
     try {
       fs.closeSync(authority.fd);
@@ -119,7 +155,7 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
   const noFollow = (
     fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }
   ).O_NOFOLLOW;
-  if (typeof noFollow !== "number") return null;
+  if (typeof noFollow !== "number") unsafeStorageV1("nofollow_unavailable");
 
   const parent = openParentDirectoryV1(filePath);
   if (!parent) return null;
@@ -127,7 +163,14 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
   let fd = -1;
   try {
     const procPath = path.join(PROC_FD_ROOT_V1, String(parent.fd), parent.name);
-    const listed = fs.lstatSync(procPath, { bigint: true });
+    let listed: fs.BigIntStats;
+    try {
+      listed = fs.lstatSync(procPath, { bigint: true });
+    } catch (error) {
+      if (missingPathV1(error)) return null;
+      unsafeStorageV1("final_lstat_failed", error);
+    }
+
     const euid =
       typeof process.geteuid === "function" ? BigInt(process.geteuid()) : null;
     if (
@@ -137,17 +180,31 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
       listed.uid !== euid ||
       listed.nlink !== 1n ||
       (listed.mode & 0o022n) !== 0n
-    ) return null;
+    ) {
+      unsafeStorageV1("unsafe_final_file");
+    }
 
-    fd = fs.openSync(procPath, fs.constants.O_RDONLY | noFollow);
+    try {
+      fd = fs.openSync(procPath, fs.constants.O_RDONLY | noFollow);
+    } catch (error) {
+      if (missingPathV1(error)) return null;
+      unsafeStorageV1("final_open_failed", error);
+    }
+
     const opened = fs.fstatSync(fd, { bigint: true });
     if (!opened.isFile() || opened.isSymbolicLink() || !sameStampV1(listed, opened)) {
-      return null;
+      unsafeStorageV1("final_identity_changed_before_read");
     }
 
     const buf = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
-    const visible = fs.lstatSync(procPath, { bigint: true });
+    let visible: fs.BigIntStats;
+    try {
+      visible = fs.lstatSync(procPath, { bigint: true });
+    } catch (error) {
+      if (missingPathV1(error)) return null;
+      unsafeStorageV1("final_visible_lstat_failed", error);
+    }
     if (
       !after.isFile() ||
       !visible.isFile() ||
@@ -156,11 +213,13 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
       !sameStampV1(after, visible) ||
       after.size !== BigInt(buf.length)
     ) {
-      return null;
+      unsafeStorageV1("final_changed_during_read");
     }
     return buf;
-  } catch {
-    return null;
+  } catch (error) {
+    if (isUnsafeStorageV1(error)) throw error;
+    if (missingPathV1(error)) return null;
+    unsafeStorageV1("file_read_failed", error);
   } finally {
     if (fd >= 0) {
       try {

@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/public-node-local-data-drop-canonical-object-id-v1.yml"
       - "ops/mainnet0/public-node-local-data-drop-import.sh"
+      - "ops/mainnet0/public-node-local-data-drop-import-dir.sh"
       - "ops/mainnet0/public-node-local-data-drop-canonical-object-id-v1-proof.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
@@ -18,6 +19,7 @@ on:
     paths:
       - ".github/workflows/public-node-local-data-drop-canonical-object-id-v1.yml"
       - "ops/mainnet0/public-node-local-data-drop-import.sh"
+      - "ops/mainnet0/public-node-local-data-drop-import-dir.sh"
       - "ops/mainnet0/public-node-local-data-drop-canonical-object-id-v1-proof.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
