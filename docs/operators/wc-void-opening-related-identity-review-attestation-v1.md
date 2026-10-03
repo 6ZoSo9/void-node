@@ -1,0 +1,90 @@
+# WC/VOID opening related-identity review attestation v1
+
+Marker: `VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1`
+
+Status: **source-only EIP-712 attestation preparation and verifier**.
+
+This lane stacks on the reviewer-role decision in #2375. It does not contain,
+read, or generate the production reviewer's private key.
+
+## Signed material
+
+The EIP-712 message binds:
+
+- reviewer-role decision ID;
+- exact selected reviewer address;
+- fresh launch-controller control-evidence ID;
+- related-identity manifest ID;
+- coupled-launch ID;
+- concentration-policy ID;
+- opening-window ID;
+- eligible-cohort root;
+- cluster-assignment root;
+- evidence-manifest root;
+- issued/expiry timestamps; and
+- a 32-byte nonce.
+
+The EIP-712 domain is separate from launch-controller control verification:
+
+`VOID WC/VOID Related Identity Review Attestation`
+
+This prevents a control-proof signature from being replayed as a review
+attestation.
+
+## Required production verification
+
+The production wrapper requires:
+
+1. the exact #2375 reviewer-role decision;
+2. a #2369 manifest in
+   `RELATED_IDENTITY_EVIDENCE_MANIFEST_READY_REVIEW_ATTESTATION_HOLD`;
+3. full cohort coverage and zero ambiguous participants;
+4. a content-addressed manifest ID matching the exact manifest bytes/material;
+5. fresh re-verification of
+   `VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1`;
+6. control evidence recovering the exact selected reviewer
+   `0x2f1e0005e865b772b268bd8c797bf3eaa901d97e`;
+7. an unexpired review-attestation message; and
+8. EIP-712 signature recovery to that exact reviewer address.
+
+Failure of any condition is HOLD.
+
+## Output boundary
+
+A valid review signature may establish:
+
+```text
+review_attestation_verified=true
+related_identity_truth_verified=true
+```
+
+under #2365's bounded meaning: the complete reviewed evidence manifest is
+authenticated by the selected reviewer. It is not a claim of metaphysical
+one-human-one-key certainty.
+
+This verifier still leaves:
+
+```text
+opening_concentration_and_sybil_limits_ready=false
+opening_price_acceptance_allowed=false
+opening_price_acceptance_hold=concentration_arithmetic_recheck_required
+```
+
+The existing concentration arithmetic must be rerun after evidence admission.
+
+## Proof boundary
+
+CI uses an ephemeral random test key only to prove generic EIP-712 recovery and
+wrong-signer rejection. The production fixed-address positive path cannot be
+signed in CI because the production private key is intentionally absent.
+
+The later operator ceremony must prepare the exact typed data, sign it offline
+with the already-selected reviewer key, and verify it together with fresh
+control evidence.
+
+## Authority
+
+No production private-key access, wallet/signer access, WC mutation,
+runtime/service mutation, transaction construction/signing/broadcast,
+Chain-2050 write, deployment, inventory funding, market/presale activation,
+liquidity/treasury movement, or funds movement is performed or authorized.
