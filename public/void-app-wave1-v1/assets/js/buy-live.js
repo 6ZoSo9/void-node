@@ -5,6 +5,11 @@ const BUY_REQUEST_ENDPOINT = '/__void/buy-void/request';
 const BUY_MARKER = 'VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1';
 const CANONICAL_RECEIVER = '0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5';
 const CANONICAL_BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const CANONICAL_ETHEREUM_USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+const BUY_RAILS = {
+  base: { chainId: 8453, contract: CANONICAL_BASE_USDC, label: 'Base Mainnet' },
+  ethereum: { chainId: 1, contract: CANONICAL_ETHEREUM_USDC, label: 'Ethereum Mainnet' },
+};
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const MAX_BUY_JSON_BYTES = 131072;
 let requestSerial = 0;
@@ -112,6 +117,14 @@ const validateSnapshot = (config, status, sale) => {
   if (String(config.usdc_contract || '').toLowerCase() !== CANONICAL_BASE_USDC.toLowerCase()) {
     throw new Error('Base USDC contract mismatch');
   }
+  if (
+    !Array.isArray(config.payment_chains) ||
+    config.payment_chains.length !== 2 ||
+    config.payment_chains[0] !== 'base' ||
+    config.payment_chains[1] !== 'ethereum'
+  ) {
+    throw new Error('presale payment-rail policy mismatch');
+  }
   if (config.payment_chain_id !== 8453 || config.delivery_chain_id !== 2050) {
     throw new Error('presale chain identity mismatch');
   }
@@ -183,7 +196,7 @@ const isOpen = (snapshot) =>
   snapshot.sale.remaining_void > 0;
 
 const setFormEnabled = (enabled) => {
-  all('[data-buy-amount], [data-buy-destination], [data-buy-ack]').forEach((node) => {
+  all('[data-buy-chain], [data-buy-amount], [data-buy-destination], [data-buy-ack]').forEach((node) => {
     node.disabled = !enabled;
   });
   updateSubmit();
@@ -212,20 +225,22 @@ const validAmount = () => {
   );
 };
 const validDestination = () => ADDRESS_RE.test(String(one('[data-buy-destination]')?.value || '').trim());
+const selectedChain = () => String(one('[data-buy-chain]')?.value || '').trim().toLowerCase();
+const selectedRail = () => BUY_RAILS[selectedChain()] || null;
 function updateSubmit() {
   const button = one('[data-buy-submit]');
   if (!button) return;
   const acks = acknowledgements();
   const allAcknowledged = [
     'self_custody',
-    'base_native_usdc',
+    'native_usdc',
     'request_before_payment',
     'sender_equals_void_destination',
     'no_automatic_fulfillment',
   ].every((key) => acks[key] === true);
   button.disabled = readinessPending || submitBusy ||
     !currentSnapshot || !isOpen(currentSnapshot) ||
-    !validAmount() || !validDestination() || !allAcknowledged;
+    !selectedRail() || !validAmount() || !validDestination() || !allAcknowledged;
 }
 const renderSnapshot = (snapshot) => {
   const { config, status, sale } = snapshot;
@@ -236,7 +251,8 @@ const renderSnapshot = (snapshot) => {
   setText('[data-buy-pool-remaining]', `${format(sale.remaining_void)} VOID`);
   setText('[data-buy-raised]', `$${format(sale.raised_usdc_so_far, 2)} USDC`);
   setText('[data-buy-progress]', `${format(sale.progress_pct, 2)}% of verified allocation reserved`);
-  setText('[data-buy-usdc-contract]', config.usdc_contract);
+  setText('[data-buy-base-usdc-contract]', CANONICAL_BASE_USDC);
+  setText('[data-buy-ethereum-usdc-contract]', CANONICAL_ETHEREUM_USDC);
   setText('[data-buy-receiver]', config.receive_address);
   setText('[data-buy-limits]', `${format(config.min_usdc)}–${format(config.max_usdc)} USDC · up to 6 decimals`);
   setText('[data-buy-fulfillment]', config.automatic_fulfillment === true ? 'AUTOMATIC' : 'GUARDED');
@@ -315,13 +331,16 @@ async function submitBuy(event) {
 
   const amount = String(one('[data-buy-amount]').value || '').trim();
   const destination = String(one('[data-buy-destination]').value || '').trim();
+  const chain = selectedChain();
+  const rail = selectedRail();
+  if (!rail) return;
   const acks = acknowledgements();
   const payload = {
     requested_amount_usdc: amount,
     void_destination_address: destination,
-    source_chain: 'base',
+    source_chain: chain,
     ack_self_custody: acks.self_custody,
-    ack_base_native_usdc: acks.base_native_usdc,
+    ack_native_usdc: acks.native_usdc,
     ack_request_before_payment: acks.request_before_payment,
     ack_sender_equals_void_destination: acks.sender_equals_void_destination,
     ack_no_automatic_fulfillment: acks.no_automatic_fulfillment,
@@ -355,7 +374,11 @@ async function submitBuy(event) {
     if (
       !String(request.request_id || '').trim() ||
       String(request.receive_address || '').toLowerCase() !== CANONICAL_RECEIVER ||
-      String(request.void_destination_address || '').toLowerCase() !== destination.toLowerCase()
+      String(request.void_destination_address || '').toLowerCase() !== destination.toLowerCase() ||
+      String(request.source_chain || '').toLowerCase() !== chain ||
+      String(request.payment_chain || '').toLowerCase() !== chain ||
+      Number(request.payment_chain_id) !== rail.chainId ||
+      String(request.usdc_contract || '').toLowerCase() !== rail.contract.toLowerCase()
     ) {
       throw new Error('returned request identity mismatch');
     }
@@ -375,6 +398,11 @@ async function submitBuy(event) {
       request.safety?.automatic_fulfillment !== false ||
       request.safety?.manual_review_required !== true ||
       request.payment_instructions?.do_not_send_from_exchange_or_pooled_custody !== true ||
+      String(request.payment_instructions?.send_chain || '').toLowerCase() !== chain ||
+      Number(request.payment_instructions?.send_chain_id) !== rail.chainId ||
+      String(request.payment_instructions?.token_contract || '').toLowerCase() !== rail.contract.toLowerCase() ||
+      Number(request.payment_instructions?.token_decimals) !== 6 ||
+      String(request.payment_instructions?.send_to || '').toLowerCase() !== CANONICAL_RECEIVER ||
       String(request.payment_instructions?.send_from || '').toLowerCase() !== destination.toLowerCase()
     ) {
       throw new Error('returned request safety binding mismatch');
@@ -383,8 +411,8 @@ async function submitBuy(event) {
       'REQUEST CREATED — VERIFY BEFORE PAYMENT',
       `Request ID: ${request.request_id}`,
       `Send exactly: ${returnedAmount} USDC`,
-      'Network: Base Mainnet (8453)',
-      `USDC contract: ${CANONICAL_BASE_USDC}`,
+      `Network: ${rail.label} (${rail.chainId})`,
+      `USDC contract: ${rail.contract}`,
       `Approved receiver: ${request.receive_address}`,
       `Send from / VOID destination: ${destination}`,
       '',
@@ -392,7 +420,7 @@ async function submitBuy(event) {
       'Do not send from an exchange or custodial wallet.',
       'VOID cannot recover exchange/custodial sends. Treat them as lost.',
       '',
-      'Keep the Base transaction hash. Payment observation is not itself a fulfillment receipt.',
+      `Keep the ${rail.label} transaction hash. Payment observation is not itself a fulfillment receipt.`,
     ].join('\n'));
   } catch (error) {
     setText('[data-buy-result]', `REQUEST NOT CREATED — DO NOT SEND FUNDS\n${String(error?.message || error)}`);
@@ -405,10 +433,10 @@ document.addEventListener('submit', (event) => {
   if (event.target?.matches?.('[data-buy-request-form]')) submitBuy(event);
 });
 document.addEventListener('input', (event) => {
-  if (event.target?.matches?.('[data-buy-amount], [data-buy-destination], [data-buy-ack]')) updateSubmit();
+  if (event.target?.matches?.('[data-buy-chain], [data-buy-amount], [data-buy-destination], [data-buy-ack]')) updateSubmit();
 });
 document.addEventListener('change', (event) => {
-  if (event.target?.matches?.('[data-buy-ack]')) updateSubmit();
+  if (event.target?.matches?.('[data-buy-chain], [data-buy-ack]')) updateSubmit();
 });
 document.addEventListener('click', (event) => {
   if (event.target.closest('[data-buy-refresh]')) loadBuy();
