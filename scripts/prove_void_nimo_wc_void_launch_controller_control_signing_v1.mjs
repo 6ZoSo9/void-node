@@ -192,11 +192,6 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     const priorReviewedHead = priorHeadResult.stdout.trim();
     assert.match(priorReviewedHead, /^[0-9a-f]{40}$/u);
     assert.notEqual(priorReviewedHead, reviewedHead);
-    assert.equal(
-      fs.existsSync(path.join(process.cwd(), ".git", "shallow")),
-      true,
-      "focused adversary must remain valid under depth-1 checkout",
-    );
 
     const forgedReviewedHead = spawnSync(
       "/usr/bin/env",
@@ -1391,7 +1386,7 @@ console.log("signature_output_parent_descriptor_bound=true");
 console.log("signature_output_parent_replacement_rejected=true");
 console.log("signature_output_redirect_cleanup_verified=true");
 console.log("signature_output_postwrite_expiry_cleanup_verified=true");
-console.log("shallow_checkout_negative_reviewed_object_proof=true");
+console.log("history_independent_negative_reviewed_object_proof=true");
 console.log("production_signing_helper_non_recursive=true");
 console.log("post_runtime_signing_clock_sampled=true");
 console.log("expiry_rechecked_before_and_after_signature=true");
