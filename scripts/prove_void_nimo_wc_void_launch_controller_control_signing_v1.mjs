@@ -206,6 +206,93 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
   }
 }
 
+// Adversary for the reviewed-launcher bootstrap: pin the reviewed launcher
+// descriptor, replace its pathname with unreviewed bytes, and execute only the
+// inherited descriptor. The path replacement must never execute.
+{
+  const temporary = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-offline-signer-launcher-fd-race-"),
+  );
+  let launcherFd = -1;
+  try {
+    const challengePath = path.join(temporary, "challenge.json");
+    const challengeBytes = Buffer.from(
+      JSON.stringify(challenge, null, 2) + "\n",
+      "utf8",
+    );
+    fs.writeFileSync(challengePath, challengeBytes, { mode: 0o600 });
+    fs.chmodSync(challengePath, 0o600);
+    const challengeSha = crypto
+      .createHash("sha256")
+      .update(challengeBytes)
+      .digest("hex");
+
+    const sourceLauncher = path.resolve(
+      "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+    );
+    const stagedLauncher = path.join(temporary, "launcher.sh");
+    const displacedLauncher = path.join(temporary, "launcher.reviewed.sh");
+    fs.copyFileSync(sourceLauncher, stagedLauncher);
+    fs.chmodSync(stagedLauncher, 0o400);
+
+    launcherFd = fs.openSync(stagedLauncher, "r");
+    fs.renameSync(stagedLauncher, displacedLauncher);
+    fs.writeFileSync(
+      stagedLauncher,
+      [
+        "#!/bin/bash",
+        "printf 'UNREVIEWED_REPLACEMENT_LAUNCHER_EXECUTED\\n'",
+        "exit 0",
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+
+    const result = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        "/proc/self/fd/3",
+        "preflight",
+        challengePath,
+        challengeSha,
+        reviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe", launcherFd],
+      },
+    );
+
+    assert.equal(
+      result.status,
+      0,
+      ["descriptor-pinned launcher preflight failed", result.stdout, result.stderr]
+        .join("\n"),
+    );
+    assert.match(
+      result.stdout,
+      /status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN/u,
+    );
+    assert.equal(
+      result.stdout.includes("UNREVIEWED_REPLACEMENT_LAUNCHER_EXECUTED"),
+      false,
+    );
+  } finally {
+    if (launcherFd >= 0) fs.closeSync(launcherFd);
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
 // Adversary for the historical pre-pin realpath race: when the canonical-path
 // observation fires, swap the ancestor directory. Old ordering would then pin
 // and read the replacement; descriptor-first ordering has already pinned the
@@ -913,6 +1000,8 @@ console.log("challenge_head_cannot_self_authorize_signer=true");
 console.log("launcher_materialized_from_reviewed_commit=true");
 console.log("executed_launcher_self_blob_verified=true");
 console.log("tampered_launcher_rejected=true");
+console.log("descriptor_pinned_launcher_execution=true");
+console.log("launcher_path_replacement_after_fd_pin_ignored=true");
 console.log("reviewed_launcher_bootstrap_descriptor_pinned=true");
 console.log("reviewed_launcher_path_reopen=false");
 console.log("reviewed_signer_materialized_before_execution=true");
