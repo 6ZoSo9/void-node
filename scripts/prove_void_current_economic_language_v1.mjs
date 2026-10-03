@@ -415,6 +415,11 @@ assert.match(
   /BTC\/VOID settlement primitives \| Guarded \/ source-only/,
 );
 assert.match(
+  docs.capabilityMatrix,
+  /BTC\/VOID settlement primitives \| Guarded \/ source-only \| Deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives are merged[\s\S]*post-presale[\s\S]*separately launch-gated/i,
+  "capability matrix must preserve BTC/VOID primitive details plus post-presale separate launch boundary",
+);
+assert.match(
   docs.publicStatus,
   /Deterministic Bitcoin HTLC[\s\S]*hashlock-settlement primitives are merged[\s\S]*BTC\/VOID remains post-presale[\s\S]*separately launch-gated/i,
 );
@@ -433,6 +438,16 @@ assert.match(
 assert.match(
   docs.releases,
   /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID/,
+);
+assert.match(
+  docs.releases,
+  /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID[\s\S]*post-presale and separately launch-gated/i,
+  "RELEASES must preserve BTC/VOID primitive details plus post-presale separate launch boundary",
+);
+assert.match(
+  docs.releases,
+  /Merged BTC\/VOID and coupled-gas hardening remain source-level controls; they are[\s\S]*not current runtime or activation truth/i,
+  "RELEASES must keep merged BTC/VOID controls source-only/non-live",
 );
 assert.match(
   docs.readme,
