@@ -35,6 +35,8 @@ assert.ok(gateSource.includes("LIVE_ACTIVATION_MAX_LEASE_MS"));
 assert.ok(gateSource.includes("expires_at_ms"));
 assert.ok(gateSource.includes("readBuyLaunchLiveActivationV1"));
 assert.ok(gateSource.includes("verifyTypedData"));
+assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1"));
+assert.ok(gateSource.includes("verifyBuyLaunchLiveActivationSovereignSignatureV1"));
 assert.equal(
   index.split('=== "1"&&__voidBuyLaunchReadyV1()').length - 1,
   2,
@@ -85,6 +87,7 @@ console.log("request_flag_alone_can_open_intake=false");
 console.log("current_canonical_gate_ready=false");
 console.log("live_activation_generation_bound=true");
 console.log("live_activation_lease_expiry_bound=true");
+console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
