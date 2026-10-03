@@ -1038,6 +1038,7 @@ async function proxyAgentPaidWorkSubmission(
 
 const paidWorkCredentialApplicantRateWindows = new Map();
 const paidWorkCredentialApplicantNonceReplay = new Map();
+let paidWorkCredentialPublicGlobalWindow = [];
 
 function prunePaidWorkCredentialApplicantState(nowMs) {
   for (const [key, expiresAtMs] of paidWorkCredentialApplicantNonceReplay) {
@@ -1067,26 +1068,15 @@ function admitPaidWorkCredentialApplicant(auth, nowMs) {
       error: "applicant_auth_replay",
     });
   }
-  if (
-    paidWorkCredentialApplicantNonceReplay.size >=
-    AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_TRACKED_NONCES
-  ) {
-    return Object.freeze({
-      ok: false,
-      status: 503,
-      error: "applicant_auth_replay_capacity",
-    });
-  }
-
-  paidWorkCredentialApplicantNonceReplay.set(
-    auth.nonce_key,
-    auth.expires_at_ms,
-  );
 
   const minimumMs = nowMs - 60_000;
   const active = (
     paidWorkCredentialApplicantRateWindows.get(auth.applicant_id) || []
   ).filter((timestamp) => timestamp > minimumMs);
+  paidWorkCredentialPublicGlobalWindow =
+    paidWorkCredentialPublicGlobalWindow.filter(
+      (timestamp) => timestamp > minimumMs,
+    );
 
   if (
     active.length >=
@@ -1097,6 +1087,17 @@ function admitPaidWorkCredentialApplicant(auth, nowMs) {
       ok: false,
       status: 429,
       error: "applicant_rate_limit_exceeded",
+    });
+  }
+
+  if (
+    paidWorkCredentialPublicGlobalWindow.length >=
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE
+  ) {
+    return Object.freeze({
+      ok: false,
+      status: 429,
+      error: "public_credential_request_global_rate_limit_exceeded",
     });
   }
 
@@ -1112,8 +1113,24 @@ function admitPaidWorkCredentialApplicant(auth, nowMs) {
     });
   }
 
+  if (
+    paidWorkCredentialApplicantNonceReplay.size >=
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_TRACKED_NONCES
+  ) {
+    return Object.freeze({
+      ok: false,
+      status: 503,
+      error: "applicant_auth_replay_capacity",
+    });
+  }
+
+  paidWorkCredentialApplicantNonceReplay.set(
+    auth.nonce_key,
+    auth.expires_at_ms,
+  );
   active.push(nowMs);
   paidWorkCredentialApplicantRateWindows.set(auth.applicant_id, active);
+  paidWorkCredentialPublicGlobalWindow.push(nowMs);
   return Object.freeze({ ok: true });
 }
 
@@ -1530,6 +1547,7 @@ server.listen({ host, port, exclusive: true }, () => {
         two_applicant_capacity_reserved:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
         nonce_replay_protection: true,
+        edge_global_rate_wall: true,
         forwarded_ip_headers_trusted: false,
         credential_request_record_write:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
