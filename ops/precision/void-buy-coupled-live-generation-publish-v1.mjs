@@ -83,7 +83,7 @@ if (
         `tip_sha256=${result.tip_sha256}`,
         `external_anchor_sha256=${result.external_anchor_sha256}`,
         "shared_generation_authority_lock=true",
-        "asynchronous_callback_allowed=false",
+        "async_aware_shared_lock=true",
         "wallet_access=false",
         "private_key_access=false",
         "transaction_construction=false",
