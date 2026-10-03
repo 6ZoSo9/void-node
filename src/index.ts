@@ -108,7 +108,7 @@ import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from
 
 // VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1
 let __voidBL:any;void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26")__voidBL=m}).catch(()=>{});
-const __voidBLD=()=>{try{return __voidBL?.readBuyLaunchGateV1()||{ready:false}}catch{return{ready:false}}},__voidBLO=(r:any)=>{try{return __voidBL?.buyLaunchRequestAuthorityMatchesV1(r,__voidBLD())===true}catch{return false}};
+const __bld=()=>{try{return __voidBL?.readBuyLaunchGateV1()||{ready:false}}catch{return{ready:false}}},__blo=(r:any)=>{try{return __voidBL?.buyLaunchRequestAuthorityMatchesV1(r,__bld())===true}catch{return false}};
 
 // __VOID_TS_DECLARES_V1__
 declare const app: any;
@@ -18375,7 +18375,7 @@ small{color:#94a3b8}
       const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddressLower !== boundReceiveAddressLower;
       const receiverBindingSource=configuredReceiveAddress?(receiverBindingConflict?"environment_conflict_hold":"source_and_environment_exact_match"):"source_bound_operator_approved_receiver";
       const usdc_symbol="USDC",rate_void_per_usdc=String(process.env.VOID_BUY_RATE_VOID_PER_USDC||"2"),min_usdc=Number(process.env.VOID_BUY_MIN_USDC||"1"),max_usdc=Number(process.env.VOID_BUY_MAX_USDC||"500");
-      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__voidBLD().ready===true;
+      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__bld().ready===true;
       const ethereum_requests_enabled=requests_enabled&&process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1";
       const payment_ready = !receiverBindingConflict;
       return {
@@ -18878,7 +18878,7 @@ setInterval(refresh, 10000);
             request_id: id
           });
         }
-        if(!__voidBLO(found))throw Error("buy_launch_closed");
+        if(!__blo(found))throw Error("buy_closed");
 
         const tx = String(found.tx_hash || "").trim();
         if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
@@ -18942,7 +18942,7 @@ setInterval(refresh, 10000);
           });
         }
 
-        if(!__voidBLO(found))throw Error("buy_launch_closed");
+        if(!__blo(found))throw Error("buy_closed");
         const event = {
           schema: "void_buy_void_operator_mark_v1",
           ok: true,
@@ -19064,7 +19064,7 @@ setInterval(refresh, 10000);
       });
     });
 
-    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__voidBLO});
+    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__blo});
 
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
       res.json(await __voidBuyVoidSaleStateV1());
@@ -19133,7 +19133,7 @@ setInterval(refresh, 10000);
         if (!cfg.requests_enabled) {
           return res.status(503).json({ schema:"void_public_buy_void_checkout_request_v1", ok:false, error:"buy_void_requests_disabled" });
         }
-        const launch=__voidBLD();if(!launch.request_authority)throw Error("buy_launch_unavailable");
+        const launch=__bld();if(!launch.request_authority)throw Error("buy_closed");
         if (!cfg.payment_ready || !cfg.receiver_binding_green) {
           return res.status(503).json({
             schema:"void_public_buy_void_checkout_request_v1",
@@ -19211,7 +19211,7 @@ setInterval(refresh, 10000);
         const destinationLower = void_destination_address.toLowerCase();
         const activeForDestination = effectiveRequests.find((request:any)=>{
           const boundDestination = String(request.void_destination_address || request.delivery_address || request.delivery_wallet || "").trim().toLowerCase();
-          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status)&&__voidBLO(request);
+          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status)&&__blo(request);
         });
 
         if (activeForDestination) {
@@ -19290,6 +19290,7 @@ setInterval(refresh, 10000);
             send_to: cfg.receive_address,
             send_from: void_destination_address,
             amount: usdc_amount,
+            expires_at_ms:launch.request_authority.expires_at_ms,
             do_not_send_before_request: true,
             do_not_send_from_exchange_or_pooled_custody: true,
             keep_transaction_hash: true
@@ -80263,7 +80264,7 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
   const boundReceiveAddress = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
   const configuredReceiveAddress = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
   const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddress.toLowerCase() !== boundReceiveAddress.toLowerCase();
-  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__voidBLD().ready===true;
+  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__bld().ready===true;
   const paymentReady = !receiverBindingConflict;
   const usdcSymbol = "USDC";
   const priceUsdcPerVoid = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
