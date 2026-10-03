@@ -418,7 +418,15 @@ if [ "$rc" -eq 0 ] &&
     source="${VOID_DEMO003_TEST_CHILD_SWAP_SOURCE:?}"
     test -d "$target"
     test -d "$source"
-    cp -a -- "$source/." "$target/"
+    for rel in \
+      manifest.json \
+      sha256sums.txt \
+      files/README.txt \
+      files/index.html \
+      files/metadata.json
+    do
+      cp -- "$source/$rel" "$target/$rel"
+    done
   fi
 fi
 
