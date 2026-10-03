@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import type { Dirent } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import readline from "node:readline";
@@ -38,7 +39,6 @@ type AdapterReceiptSummary = Readonly<{
   account: string;
   job_id: string;
   receipt_id: string;
-  receipt_file_sha256: string;
 }>;
 
 function fail(message: string): never {
@@ -132,7 +132,6 @@ function canonicalReceiptSummary(value: unknown, bytes: Buffer): AdapterReceiptS
     account,
     job_id: jobId,
     receipt_id: receiptId,
-    receipt_file_sha256: sha256(bytes),
   });
 }
 
@@ -152,7 +151,7 @@ function scanReceiptFiles(roots: string[]): {
   const walk = (dir: string, depth: number): void => {
     if (depth > MAX_SCAN_DEPTH) return;
     if (FORBIDDEN_COMPONENT.test(dir)) return;
-    let entries: fs.Dirent[];
+    let entries: Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
@@ -171,26 +170,27 @@ function scanReceiptFiles(roots: string[]): {
       if (visitedFiles > MAX_FILES_VISITED) fail("receipt_scan_file_limit_exceeded");
       if (entry.name !== RECEIPT_BASENAME) continue;
       filesSeen += 1;
+      let summary: AdapterReceiptSummary;
       try {
         const bytes = directRegularFile(child, MAX_RECEIPT_BYTES);
         const parsed = JSON.parse(bytes.toString("utf8"));
-        const summary = canonicalReceiptSummary(parsed, bytes);
-        const prior = summaries.get(summary.adapter_receipt_id);
-        if (prior) {
-          if (
-            prior.account !== summary.account ||
-            prior.job_id !== summary.job_id ||
-            prior.receipt_id !== summary.receipt_id ||
-            prior.receipt_file_sha256 !== summary.receipt_file_sha256
-          ) {
-            fail("adapter_receipt_id_collision_or_drift");
-          }
-          duplicateCopies += 1;
-        } else {
-          summaries.set(summary.adapter_receipt_id, summary);
-        }
+        summary = canonicalReceiptSummary(parsed, bytes);
       } catch {
         invalidFiles += 1;
+        continue;
+      }
+      const prior = summaries.get(summary.adapter_receipt_id);
+      if (prior) {
+        if (
+          prior.account !== summary.account ||
+          prior.job_id !== summary.job_id ||
+          prior.receipt_id !== summary.receipt_id
+        ) {
+          fail("adapter_receipt_id_collision_or_drift");
+        }
+        duplicateCopies += 1;
+      } else {
+        summaries.set(summary.adapter_receipt_id, summary);
       }
     }
   };
