@@ -221,7 +221,7 @@ async function main(): Promise<void> {
         rejected[0].reason?.message ||
           rejected[0].reason,
       ),
-      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING|public_claim_(account_active|executor_active|global_active_cap_reached)/,
+      /VOID_WC_PUBLIC_CLAIM_HISTORY_WARMING|VOID_WC_PUBLIC_CLAIM_ISSUANCE_BUSY|public_claim_(account_active|executor_active|global_active_cap_reached)/,
     );
 
     assert.equal(
