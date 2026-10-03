@@ -51,11 +51,62 @@ function fail(message: string): never {
 }
 
 
+function sameFileStamp(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.nlink === right.nlink
+  );
+}
+
 function directRegularFile(file: string, maxBytes: number): Buffer {
-  const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink()) fail("direct_regular_file_required");
-  if (stat.size < 1 || stat.size > maxBytes) fail("file_size_out_of_range");
-  return fs.readFileSync(file);
+  const noFollow = (
+    fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }
+  ).O_NOFOLLOW;
+  if (typeof noFollow !== "number") fail("nofollow_unavailable");
+
+  let fd = -1;
+  try {
+    fd = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile() || before.nlink !== 1n) {
+      fail("direct_regular_file_required");
+    }
+    if (before.size < 1n || before.size > BigInt(maxBytes)) {
+      fail("file_size_out_of_range");
+    }
+
+    const bytes = fs.readFileSync(fd);
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (
+      !sameFileStamp(before, after) ||
+      after.size !== BigInt(bytes.length)
+    ) {
+      fail("direct_file_changed_during_read");
+    }
+    return bytes;
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String((error as { code?: unknown }).code || "") === "ELOOP"
+    ) {
+      fail("direct_regular_file_required");
+    }
+    throw error;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
 }
 
 function exactText(value: unknown): string {
@@ -357,15 +408,19 @@ async function main(): Promise<void> {
   if (!path.isAbsolute(dataDirRaw)) fail("absolute_data_dir_required");
   if (rootArgs.length < 1 || rootArgs.length > 8) fail("receipt_root_count_invalid");
 
+  const dataInputStat = fs.lstatSync(dataDirRaw);
+  if (!dataInputStat.isDirectory() || dataInputStat.isSymbolicLink()) {
+    fail("data_dir_invalid");
+  }
   const dataDir = fs.realpathSync(dataDirRaw);
-  const dataStat = fs.lstatSync(dataDir);
-  if (!dataStat.isDirectory() || dataStat.isSymbolicLink()) fail("data_dir_invalid");
 
   const roots = rootArgs.map((raw) => {
     if (!path.isAbsolute(raw)) fail("absolute_receipt_root_required");
+    const inputStat = fs.lstatSync(raw);
+    if (!inputStat.isDirectory() || inputStat.isSymbolicLink()) {
+      fail("receipt_root_invalid");
+    }
     const root = fs.realpathSync(raw);
-    const stat = fs.lstatSync(root);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) fail("receipt_root_invalid");
     if (FORBIDDEN_COMPONENT.test(root)) fail("receipt_root_secret_class_forbidden");
     return root;
   });
