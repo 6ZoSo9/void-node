@@ -83,7 +83,7 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
   try {
     const procPath = path.join(PROC_FD_ROOT_V1, String(parent.fd), parent.name);
     const listed = fs.lstatSync(procPath, { bigint: true });
-    if (!listed.isFile() || listed.isSymbolicLink()) return null;
+    if (!listed.isFile() || listed.isSymbolicLink() || listed.nlink !== 1n || (listed.mode & 0o022n) !== 0n) return null;
 
     fd = fs.openSync(procPath, fs.constants.O_RDONLY | noFollow);
     const opened = fs.fstatSync(fd, { bigint: true });

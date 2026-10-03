@@ -159,6 +159,12 @@ def open_existing_file(dir_fd, name, label):
     if after.st_uid != euid:
         os.close(fd)
         fail(f"{label}_not_owned_by_operator")
+    if after.st_mode & 0o022:
+        os.close(fd)
+        fail(f"{label}_group_or_world_writable")
+    if after.st_nlink != 1:
+        os.close(fd)
+        fail(f"{label}_multiple_links")
     return fd, after
 
 

@@ -87,9 +87,13 @@ grep -Fq 'type(doc.get(key)) is not bool' "$IMPORTER" ||
   fail "receipt_exact_bool_type_guard_missing"
 grep -Fq 'type(doc.get(key)) is not str' "$IMPORTER" ||
   fail "receipt_exact_string_type_guard_missing"
+grep -Fq 'after.st_mode & 0o022' "$IMPORTER" || fail "recovery_file_write_mode_guard_missing"
+grep -Fq 'after.st_nlink != 1' "$IMPORTER" || fail "recovery_file_link_count_guard_missing"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1" "$READER" || fail "reader_marker_missing"
 grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
 grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
+grep -Fq 'listed.nlink !== 1n' "$READER" || fail "reader_link_count_guard_missing"
+grep -Fq '(listed.mode & 0o022n) !== 0n' "$READER" || fail "reader_write_mode_guard_missing"
 grep -Fq "RENAME_EXCHANGE = 2" "$DEMO003_INTAKE" || fail "demo003_atomic_exchange_missing"
 if grep -Fq 'ln -s "$(realpath "$ARCHIVE")" "$LATEST"' "$DEMO003_INTAKE"; then fail "demo003_legacy_latest_symlink_remains"; fi
 
@@ -465,6 +469,66 @@ for label in zero one; do
     fail "malformed_orphan_receipt_mutated:$label"
 done
 
+writable_object_root="$tmp/writable-orphan-object"
+mkdir -p \
+  "$writable_object_root/public-node/local-data-drop/objects" \
+  "$writable_object_root/public-node/local-data-drop/receipts"
+cp "$PAYLOAD" "$writable_object_root/public-node/local-data-drop/objects/$OBJECT_ID"
+chmod 0666 "$writable_object_root/public-node/local-data-drop/objects/$OBJECT_ID"
+writable_object_before="$(sha256sum "$writable_object_root/public-node/local-data-drop/objects/$OBJECT_ID" | awk '{print $1}')"
+if DATA_DIR="$writable_object_root" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/writable-object.log" 2>&1; then
+  fail "writable_orphan_object_accepted"
+fi
+test "$(sha256sum "$writable_object_root/public-node/local-data-drop/objects/$OBJECT_ID" | awk '{print $1}')" = "$writable_object_before" ||
+  fail "writable_orphan_object_mutated"
+test ! -e "$writable_object_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" ||
+  fail "writable_orphan_object_created_receipt"
+
+writable_receipt_root="$tmp/writable-orphan-receipt"
+mkdir -p \
+  "$writable_receipt_root/public-node/local-data-drop/objects" \
+  "$writable_receipt_root/public-node/local-data-drop/receipts"
+cp "$receipt" "$writable_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
+chmod 0666 "$writable_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
+writable_receipt_before="$(sha256sum "$writable_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" | awk '{print $1}')"
+if DATA_DIR="$writable_receipt_root" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/writable-receipt.log" 2>&1; then
+  fail "writable_orphan_receipt_accepted"
+fi
+test "$(sha256sum "$writable_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" | awk '{print $1}')" = "$writable_receipt_before" ||
+  fail "writable_orphan_receipt_mutated"
+test ! -e "$writable_receipt_root/public-node/local-data-drop/objects/$OBJECT_ID" ||
+  fail "writable_orphan_receipt_created_object"
+
+hardlink_object_root="$tmp/hardlink-orphan-object"
+mkdir -p \
+  "$hardlink_object_root/public-node/local-data-drop/objects" \
+  "$hardlink_object_root/public-node/local-data-drop/receipts"
+cp "$PAYLOAD" "$hardlink_object_root/outside-object.bin"
+ln "$hardlink_object_root/outside-object.bin" "$hardlink_object_root/public-node/local-data-drop/objects/$OBJECT_ID"
+hardlink_object_before="$(sha256sum "$hardlink_object_root/outside-object.bin" | awk '{print $1}')"
+if DATA_DIR="$hardlink_object_root" bash "$IMPORTER" "$hardlink_object_root/outside-object.bin" "$OBJECT_ID" >"$tmp/hardlink-object.log" 2>&1; then
+  fail "hardlink_orphan_object_accepted"
+fi
+test "$(sha256sum "$hardlink_object_root/outside-object.bin" | awk '{print $1}')" = "$hardlink_object_before" ||
+  fail "hardlink_orphan_object_outside_mutated"
+test ! -e "$hardlink_object_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" ||
+  fail "hardlink_orphan_object_created_receipt"
+
+hardlink_receipt_root="$tmp/hardlink-orphan-receipt"
+mkdir -p \
+  "$hardlink_receipt_root/public-node/local-data-drop/objects" \
+  "$hardlink_receipt_root/public-node/local-data-drop/receipts"
+cp "$receipt" "$hardlink_receipt_root/outside-receipt.json"
+ln "$hardlink_receipt_root/outside-receipt.json" "$hardlink_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
+hardlink_receipt_before="$(sha256sum "$hardlink_receipt_root/outside-receipt.json" | awk '{print $1}')"
+if DATA_DIR="$hardlink_receipt_root" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/hardlink-receipt.log" 2>&1; then
+  fail "hardlink_orphan_receipt_accepted"
+fi
+test "$(sha256sum "$hardlink_receipt_root/outside-receipt.json" | awk '{print $1}')" = "$hardlink_receipt_before" ||
+  fail "hardlink_orphan_receipt_outside_mutated"
+test ! -e "$hardlink_receipt_root/public-node/local-data-drop/objects/$OBJECT_ID" ||
+  fail "hardlink_orphan_receipt_created_object"
+
 orphan_receipt_root="$tmp/orphan-receipt"
 mkdir -p   "$orphan_receipt_root/public-node/local-data-drop/objects"   "$orphan_receipt_root/public-node/local-data-drop/receipts"
 cp "$receipt" "$orphan_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
@@ -521,6 +585,10 @@ echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"
 echo "operator_owned_recovery_files=true"
+echo "writable_orphan_recovery_files_rejected=true"
+echo "hardlink_orphan_recovery_files_rejected=true"
+echo "runtime_writable_file_rejected=true"
+echo "runtime_hardlink_rejected=true"
 echo "runtime_descriptor_bound_read_calls=15"
 echo "runtime_pathname_reads=0"
 echo "runtime_ancestor_descriptor_walk=true"
