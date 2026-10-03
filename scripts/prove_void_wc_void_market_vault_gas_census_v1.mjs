@@ -20,6 +20,10 @@ const EXPECTED_VAULT_ID =
   "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a";
 const EXPECTED_VAULT_SOURCE_SHA256 =
   "2ac773c7580f5a5d477d12da62e1a597d64c174395af8b20b721873a63138925";
+const EXPECTED_TEST_SHA256 =
+  "34961afa7cf4478ec41ac0b6f01fb1033f1fd8bb8233bebf7ba0b4a7a7ad8adc";
+const EXPECTED_FOUNDRY_IMAGE_ID =
+  "sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb";
 
 function read(path) {
   return fs.readFileSync(path, "utf8");
@@ -148,7 +152,8 @@ for (const required of [
   "WCVoidMarketVaultV2",
   "does not select",
   "snapshotGasLastCall",
-  "c607ee9fdcac8e9917a79471e1648ded2bfc1002",
+  "3a9185187d395ed7932e91a66f4ee2e9d2e5deca",
+  EXPECTED_TEST_SHA256,
   "sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb",
   "133515",
   "22452",
@@ -174,6 +179,14 @@ for (const required of [
   "settle_void_subsequent_measured_tx_gas",
   EXPECTED_VAULT_BLOB,
   EXPECTED_TOKEN_BLOB,
+  EXPECTED_TEST_SHA256,
+  EXPECTED_FOUNDRY_IMAGE_ID,
+  "settle_void_first_execution_gas: 133515",
+  "settle_void_first_intrinsic_gas: 22452",
+  "settle_void_first_measured_tx_gas: 155967",
+  "settle_void_subsequent_execution_gas: 99303",
+  "settle_void_subsequent_intrinsic_gas: 22440",
+  "settle_void_subsequent_measured_tx_gas: 121743",
 ]) {
   need(workflow, required, `workflow:${required}`);
 }
@@ -191,6 +204,10 @@ console.log("VOID_WC_VOID_MARKET_VAULT_GAS_CENSUS_V1_PROOF_GREEN");
 console.log(`vault_git_blob_sha1=${EXPECTED_VAULT_BLOB}`);
 console.log(`token_git_blob_sha1=${EXPECTED_TOKEN_BLOB}`);
 console.log(`accepted_vault_identity_id=${EXPECTED_VAULT_ID}`);
+console.log(`gas_test_sha256=${EXPECTED_TEST_SHA256}`);
+console.log(`foundry_image_id=${EXPECTED_FOUNDRY_IMAGE_ID}`);
+console.log("first_measured_tx_gas=155967");
+console.log("subsequent_measured_tx_gas=121743");
 console.log("isolated_foundry_measurement=true");
 console.log("production_rpc=false");
 console.log("production_transaction=false");
