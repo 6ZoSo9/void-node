@@ -69,7 +69,11 @@ The Nimo helper requires:
 - challenge TTL from 60 through 1800 seconds; and
 - current Nimo clock inside the challenge window.
 
-The helper signs only after all checks pass.
+The helper signs only after all checks pass. Production signing samples the
+clock only after reviewed-package verification/materialization completes,
+rechecks expiry immediately before opening the private key, rechecks again
+immediately before the signature operation, and refuses to emit the signature
+envelope if the challenge expires during signing.
 
 ## Key-file boundary
 
@@ -131,15 +135,29 @@ Transfer only the challenge JSON and its SHA-256 to Nimo.
 Disconnect Nimo from network access before opening the key.
 
 Ensure the challenge file is mode `0600`, create a private output directory,
-and run:
+and launch the signer through a scrubbed process environment. Use the absolute
+Node executable and do not wrap this command in another Node launcher:
 
 ```bash
-node ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs \
+/usr/bin/env -i \
+  HOME=/home/zoso \
+  PATH=/usr/bin:/bin \
+  LANG=C \
+  LC_ALL=C \
+  VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
+  /usr/bin/node \
+  ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs \
   sign \
   --challenge /absolute/private-work/challenge.json \
   --challenge-sha256 <64hex> \
   --output /absolute/private-work/signature.json
 ```
+
+The signer rejects any extra environment variable, a different `HOME`, a
+different Node executable, or any Node preload/loader flag. This launch form
+ensures `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables, shell-specific
+injection variables, and unrelated ambient configuration are absent before Node
+starts and before the private key can be opened.
 
 Return only `signature.json` and its printed output SHA-256 to Precision.
 
