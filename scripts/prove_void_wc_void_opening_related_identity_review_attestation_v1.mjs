@@ -17,14 +17,50 @@ import {
 
 import {
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_AUTHORITY_V1,
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1,
   canonicalReviewJsonV1,
   relatedIdentityManifestIdV1,
   validateReviewableRelatedIdentityManifestV1,
+  verifyReviewManifestLineageV1,
   verifyReviewSignatureForAddressV1,
   voidWcVoidRelatedIdentityReviewDigestV1,
   voidWcVoidRelatedIdentityReviewTypedDataV1,
 } from "../tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs";
+
+import {
+  VOID_WC_VOID_OPENING_COMMITMENT_SCHEMA_V1,
+  wcVoidOpeningCommitmentIdV1,
+} from "../tools/void-wc-void-coupled-opening-v1.mjs";
+
+import {
+  VOID_WC_VOID_OPENING_WC_PROVENANCE_SCHEMA_V1,
+} from "../tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs";
+
+import {
+  VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_SCHEMA_V1,
+  wcVoidOpeningParticipantIdV1,
+} from "../tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs";
+
+import {
+  VOID_WC_VOID_OPENING_ADMISSION_SCHEMA_V1,
+  VOID_WC_VOID_OPENING_WINDOW_SCHEMA_V1,
+  wcVoidOpeningAdmissionIdV1,
+  wcVoidOpeningWindowIdV1,
+} from "../tools/void-wc-void-opening-window-policy-v1.mjs";
+
+import {
+  VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_SCHEMA_V1,
+  wcVoidOpeningConcentrationSybilPolicyIdV1,
+} from "../tools/void-wc-void-opening-concentration-sybil-policy-v1.mjs";
+
+import {
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_ASSIGNMENT_SCHEMA_V1,
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_DOCUMENT_SCHEMA_V1,
+  compileWcVoidOpeningRelatedIdentityEvidenceManifestV1,
+  wcVoidOpeningRelatedIdentityClusterIdV1,
+  wcVoidOpeningRelatedIdentityEvidenceIdV1,
+} from "../tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
 
 const h = (x) => "sha256:" + String(x).repeat(64);
 const digest = (value) =>
@@ -156,6 +192,229 @@ assert.equal(
   manifest.manifest_id,
 );
 
+const lineageHex = (digit) => String(digit).repeat(64);
+const lineageLaunchId = h("a");
+const lineageAccount = "wc-review-lineage-alpha";
+const lineageAgentId = "void.agent.review-lineage-alpha";
+const lineageCredentialId = "voidapwc1_" + lineageHex("1");
+const lineageBindingId = "voidapwcb1_" + lineageHex("2");
+const lineageParticipantId = wcVoidOpeningParticipantIdV1({
+  agent_id: lineageAgentId,
+  credential_id: lineageCredentialId,
+  binding_id: lineageBindingId,
+  destination_wc_account: lineageAccount,
+});
+const lineageCommitment = {
+  schema: VOID_WC_VOID_OPENING_COMMITMENT_SCHEMA_V1,
+  commitment_id: h("0"),
+  coupled_launch_id: lineageLaunchId,
+  participant_id: lineageParticipantId,
+  account: lineageAccount,
+  wc_units: "250",
+};
+lineageCommitment.commitment_id =
+  wcVoidOpeningCommitmentIdV1(lineageCommitment);
+
+const lineageProvenance = {
+  schema: VOID_WC_VOID_OPENING_WC_PROVENANCE_SCHEMA_V1,
+  coupled_launch_id: lineageLaunchId,
+  commitment_id: lineageCommitment.commitment_id,
+  participant_id: lineageParticipantId,
+  account: lineageAccount,
+  wc_units: lineageCommitment.wc_units,
+  source_class: "production_earned_wc",
+  earning_receipt_id: "sha256:" + lineageHex("3"),
+  price_formation_included: true,
+};
+
+const lineageEligibility = {
+  schema:
+    VOID_WC_VOID_OPENING_PARTICIPANT_PROVENANCE_ELIGIBILITY_SCHEMA_V1,
+  coupled_launch_id: lineageLaunchId,
+  commitment_id: lineageCommitment.commitment_id,
+  participant_id: lineageParticipantId,
+  account: lineageAccount,
+  wc_units: lineageCommitment.wc_units,
+  agent_id: lineageAgentId,
+  credential_id: lineageCredentialId,
+  binding_id: lineageBindingId,
+  credential_registry_id: "voidapwcr1_" + lineageHex("4"),
+  credential_registry_sha256: lineageHex("5"),
+  credential_scope: "agent_paid_work_submit",
+  credential_issued_at: "2030-01-01T10:00:00.000Z",
+  credential_expires_at: "2030-01-02T10:00:00.000Z",
+  credential_revoked_at: null,
+  binding_registry_id: "voidapwcbr1_" + lineageHex("6"),
+  binding_registry_sha256: lineageHex("7"),
+  binding_status: "active",
+  binding_valid_from: "2030-01-01T10:00:00.000Z",
+  binding_valid_until: "2030-01-02T10:00:00.000Z",
+  binding_revoked_at: null,
+  admission_at: "2030-01-01T12:00:00.000Z",
+  earning_adapter_receipt_id: "voidapwear1_" + lineageHex("3"),
+  earning_adapter_receipt_sha256: lineageHex("3"),
+  earning_receipt_agent_id: lineageAgentId,
+  earning_receipt_credential_id: lineageCredentialId,
+  earning_receipt_binding_id: lineageBindingId,
+  earning_receipt_account: lineageAccount,
+  earning_receipt_canonical_redeemable: true,
+  eligible: true,
+};
+
+const lineageWindow = {
+  schema: VOID_WC_VOID_OPENING_WINDOW_SCHEMA_V1,
+  window_id: h("0"),
+  coupled_launch_id: lineageLaunchId,
+  policy_committed_at_ms: 1790350000000,
+  opens_at_ms: 1790353600000,
+  closes_at_ms: 1790357200000,
+};
+lineageWindow.window_id = wcVoidOpeningWindowIdV1(lineageWindow);
+
+const lineageAdmission = {
+  schema: VOID_WC_VOID_OPENING_ADMISSION_SCHEMA_V1,
+  admission_id: h("0"),
+  window_id: lineageWindow.window_id,
+  coupled_launch_id: lineageLaunchId,
+  commitment_id: lineageCommitment.commitment_id,
+  participant_id: lineageParticipantId,
+  account: lineageAccount,
+  admitted_at_ms: lineageWindow.opens_at_ms,
+};
+lineageAdmission.admission_id =
+  wcVoidOpeningAdmissionIdV1(lineageAdmission);
+
+const lineageConcentrationPolicy = {
+  schema: VOID_WC_VOID_OPENING_CONCENTRATION_SYBIL_POLICY_SCHEMA_V1,
+  policy_id: h("0"),
+  coupled_launch_id: lineageLaunchId,
+  policy_generation: "1",
+  policy_committed_at_ms: lineageWindow.opens_at_ms - 1000,
+  opening_window_id: lineageWindow.window_id,
+  max_participant_share_bps: "5000",
+  max_related_identity_share_bps: "6000",
+  failure_action: "hold_opening_price_acceptance",
+};
+lineageConcentrationPolicy.policy_id =
+  wcVoidOpeningConcentrationSybilPolicyIdV1(lineageConcentrationPolicy);
+
+const lineageClusterId = wcVoidOpeningRelatedIdentityClusterIdV1([
+  lineageParticipantId,
+]);
+const lineageEvidenceBytes = Buffer.from(
+  "review lineage singleton boundary evidence\n",
+  "utf8",
+);
+const lineageEvidenceInput = {
+  schema:
+    VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_DOCUMENT_SCHEMA_V1,
+  cluster_id: lineageClusterId,
+  evidence_kind: "reviewed_cluster_boundary_evidence_v1",
+  decision_basis: "distinct_cluster_boundary",
+  subject_participant_ids: [lineageParticipantId],
+  evidence_file_sha256:
+    crypto.createHash("sha256").update(lineageEvidenceBytes).digest("hex"),
+  evidence_bytes: lineageEvidenceBytes,
+  privacy_class: "void_control_evidence_non_personal_v1",
+};
+const lineageEvidence = {
+  ...lineageEvidenceInput,
+  evidence_id:
+    wcVoidOpeningRelatedIdentityEvidenceIdV1(lineageEvidenceInput),
+};
+const lineageAssignment = {
+  schema: VOID_WC_VOID_OPENING_RELATED_IDENTITY_ASSIGNMENT_SCHEMA_V1,
+  commitment_id: lineageCommitment.commitment_id,
+  participant_id: lineageParticipantId,
+  cluster_id: lineageClusterId,
+  evidence_id: lineageEvidence.evidence_id,
+  ambiguous: false,
+};
+
+const lineageManifest =
+  compileWcVoidOpeningRelatedIdentityEvidenceManifestV1({
+    coupled_launch_id: lineageLaunchId,
+    concentration_policy_id: lineageConcentrationPolicy.policy_id,
+    opening_window_id: lineageWindow.window_id,
+    commitments: [lineageCommitment],
+    production_wc_provenance_records: [lineageProvenance],
+    eligibility_records: [lineageEligibility],
+    cluster_assignments: [lineageAssignment],
+    evidence_documents: [lineageEvidence],
+  });
+
+const lineage = {
+  opening_window: lineageWindow,
+  opening_admissions: [lineageAdmission],
+  concentration_policy: lineageConcentrationPolicy,
+  commitments: [lineageCommitment],
+  production_wc_provenance_records: [lineageProvenance],
+  eligibility_records: [lineageEligibility],
+};
+
+const verifiedLineage = await verifyReviewManifestLineageV1(
+  lineageManifest,
+  lineage,
+);
+assert.equal(
+  verifiedLineage.opening_window_id,
+  lineageManifest.opening_window_id,
+);
+assert.equal(
+  verifiedLineage.concentration_policy_id,
+  lineageManifest.concentration_policy_id,
+);
+assert.equal(
+  verifiedLineage.eligible_cohort_root,
+  lineageManifest.eligible_cohort_root,
+);
+assert.equal(verifiedLineage.participant_count, 1);
+assert.equal(verifiedLineage.mutable_worktree_lineage_execution, false);
+
+await assert.rejects(
+  () => verifyReviewManifestLineageV1(
+    lineageManifest,
+    {
+      ...lineage,
+      concentration_policy: {
+        ...lineageConcentrationPolicy,
+        max_participant_share_bps: "4000",
+      },
+    },
+  ),
+  /WC_VOID_CONCENTRATION_POLICY_DIGEST_MISMATCH/u,
+);
+
+await assert.rejects(
+  () => verifyReviewManifestLineageV1(
+    lineageManifest,
+    {
+      ...lineage,
+      opening_window: {
+        ...lineageWindow,
+        closes_at_ms: lineageWindow.closes_at_ms + 1,
+      },
+    },
+  ),
+  /WC_VOID_OPENING_WINDOW_DIGEST_MISMATCH/u,
+);
+
+await assert.rejects(
+  () => verifyReviewManifestLineageV1(
+    lineageManifest,
+    {
+      ...lineage,
+      eligibility_records: [
+        {
+          ...lineageEligibility,
+          credential_registry_sha256: lineageHex("8"),
+        },
+      ],
+    },
+  ),
+  /review_manifest_eligible_cohort_lineage_mismatch/u,
+);
+
 {
   const toolPath =
     "tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs";
@@ -241,6 +500,89 @@ assert.equal(
     spawnSync(
       "/usr/bin/git",
       ["-C", process.cwd(), "update-index", "--no-assume-unchanged", compilerPath],
+      { env: gitEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
+{
+  const toolPath =
+    "tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs";
+  const lineagePath =
+    "tools/void-wc-void-opening-concentration-sybil-policy-v1.mjs";
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-related-identity-review-lineage-sentinel-"),
+  );
+  const sentinel = path.join(temp, "lineage-executed");
+  const original = fs.readFileSync(lineagePath);
+  const gitEnv = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+  try {
+    const hide = spawnSync(
+      "/usr/bin/git",
+      ["-C", process.cwd(), "update-index", "--assume-unchanged", lineagePath],
+      { env: gitEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    assert.equal(hide.status, 0, String(hide.stderr || ""));
+
+    fs.writeFileSync(
+      lineagePath,
+      Buffer.concat([
+        Buffer.from(
+          'import { writeFileSync as __voidLineageSentinelWrite } from "node:fs";\n' +
+            "__voidLineageSentinelWrite(" +
+            JSON.stringify(sentinel) +
+            ', "executed\\n");\n',
+          "utf8",
+        ),
+        original,
+      ]),
+    );
+
+    const moduleUrl = pathToFileURL(path.resolve(toolPath)).href;
+    const childSource = [
+      "import { verifyReviewManifestLineageV1 } from " +
+        JSON.stringify(moduleUrl) + ";",
+      "const manifest=" + JSON.stringify(lineageManifest) + ";",
+      "const lineage=" + JSON.stringify(lineage) + ";",
+      "const result=await verifyReviewManifestLineageV1(manifest,lineage);",
+      "if(result.eligible_cohort_root!==manifest.eligible_cohort_root) process.exit(41);",
+    ].join("\n");
+    const child = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", childSource],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 60_000,
+      },
+    );
+    assert.equal(
+      child.status,
+      0,
+      String(child.stdout || "") + String(child.stderr || ""),
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "dirty lineage verifier bytes executed",
+    );
+  } finally {
+    fs.writeFileSync(lineagePath, original);
+    spawnSync(
+      "/usr/bin/git",
+      ["-C", process.cwd(), "update-index", "--no-assume-unchanged", lineagePath],
       { env: gitEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
     fs.rmSync(temp, { recursive: true, force: true });
@@ -413,6 +755,17 @@ console.log("reviewable_manifest_binding=true");
 console.log("manifest_cluster_evidence_roots_reverified=true");
 console.log("manifest_compiler_worktree_execution=false");
 console.log("dirty_manifest_compiler_sentinel_execution=false");
+console.log("reviewed_opening_lineage_reverified=true");
+console.log("stale_concentration_policy_body_rejected=true");
+console.log("stale_opening_window_body_rejected=true");
+console.log("forged_eligible_cohort_root_rejected=true");
+console.log("dirty_lineage_verifier_sentinel_execution=false");
+console.log(
+  "reviewed_lineage_blob_count=" +
+    Object.keys(
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
+    ).length,
+);
 console.log(
   "manifest_compiler_git_blob_sha1=" +
     VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1,
