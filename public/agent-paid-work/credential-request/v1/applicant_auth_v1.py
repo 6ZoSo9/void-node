@@ -77,7 +77,33 @@ def run_openssl(
     )
 
     if completed.returncode != 0:
-        fail("OpenSSL Ed25519 operation failed")
+        diagnostic = completed.stderr.decode(
+            "utf-8",
+            errors="replace",
+        )
+
+        for argument in arguments:
+            if (
+                isinstance(argument, str)
+                and argument.startswith("/")
+            ):
+                diagnostic = diagnostic.replace(
+                    argument,
+                    "<private-path>",
+                )
+
+        diagnostic = " ".join(
+            diagnostic.split()
+        )[:512]
+
+        fail(
+            "OpenSSL Ed25519 operation failed"
+            + (
+                f": {diagnostic}"
+                if diagnostic
+                else ""
+            )
+        )
 
     return bytes(completed.stdout)
 
