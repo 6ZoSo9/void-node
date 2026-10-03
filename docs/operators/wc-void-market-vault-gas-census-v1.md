@@ -100,6 +100,28 @@ Both observations must remain below the existing signed-intent maximum:
 That 3,000,000 value is an existing safety ceiling. Passing it does not make the
 measured value a production sponsorship budget.
 
+## Observed generation-1 measurement
+
+The first hosted isolated Foundry measurement completed successfully against the
+reviewed source generation at commit
+`c607ee9fdcac8e9917a79471e1648ded2bfc1002` using resolved image:
+
+`sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb`
+
+Observed values:
+
+- first settlement execution gas: `133515`
+- first settlement intrinsic gas: `22452`
+- first settlement measured transaction gas: `155967`
+- subsequent settlement execution gas: `99303`
+- subsequent settlement intrinsic gas: `22440`
+- subsequent settlement measured transaction gas: `121743`
+
+Both measured transaction values are below the existing `3,000,000` signed-intent
+maximum. These numbers are measurement evidence only. They do not select a
+production sponsored-gas budget, margin, TTL, cap, market parameter, or launch
+time; those remain separate policy decisions.
+
 ## First-generation lifecycle
 
 The first hosted run is observational. It emits:
