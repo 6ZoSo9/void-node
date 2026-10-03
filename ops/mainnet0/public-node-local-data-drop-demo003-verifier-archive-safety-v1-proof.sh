@@ -39,7 +39,8 @@ grep -Fq "semantic read limit exceeded" "$VERIFIER" || fail "semantic_stream_bou
 if grep -Fq 'const buf = fs.readFileSync(fd);' "$VERIFIER"; then fail "semantic_unbounded_fd_read_remains"; fi
 grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
 grep -Fq "terminal_fixture_root_identity_mismatch" "$VERIFIER" || fail "terminal_root_identity_check_missing"
-grep -Fq "terminal_child_visible_identity_mismatch" "$VERIFIER" || fail "terminal_child_visible_identity_check_missing"
+grep -Fq "terminal_child_state_changed_before_green" "$VERIFIER" || fail "terminal_child_saved_state_check_missing"
+grep -Fq "terminal_child_custody_changed_before_green" "$VERIFIER" || fail "terminal_child_final_custody_check_missing"
 grep -Fq "sys.stdout.flush()" "$VERIFIER" || fail "terminal_green_flush_missing"
 grep -Fq "Demo003 invocation path invalid" "$VERIFIER" || fail "invocation_path_guard_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"
@@ -480,6 +481,47 @@ path.write_text(text.replace(needle, replacement), encoding="utf8")
 PY_GROW_INJECT
 fi
 
+if [ -n "${VOID_DEMO003_TEST_TERMINAL_POST_DIGEST_MUTATION_TARGET:-}" ] &&
+   grep -Fq "terminal_child_state_changed_before_green" "$script"; then
+  "$real" - "$script" <<'PY_POST_DIGEST_INJECT'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf8")
+needle = '''    for (
+        rel,
+        parent_fd,
+        leaf,
+        child_fd,
+        validated_identity,
+        validated_digest,
+    ) in opened_children:
+'''
+replacement = '''    late_target = os.environ.get(
+        "VOID_DEMO003_TEST_TERMINAL_POST_DIGEST_MUTATION_TARGET"
+    )
+    if late_target:
+        readme = os.path.join(late_target, "files", "README.txt")
+        with open(readme, "wb") as handle:
+            handle.write(b"VOID_DEMO003_POST_DIGEST_MUTATION\\n")
+        os.chmod(readme, 0o666)
+
+    for (
+        rel,
+        parent_fd,
+        leaf,
+        child_fd,
+        validated_identity,
+        validated_digest,
+    ) in opened_children:
+'''
+if text.count(needle) != 1:
+    raise SystemExit("terminal_post_digest_injection_anchor_invalid")
+path.write_text(text.replace(needle, replacement), encoding="utf8")
+PY_POST_DIGEST_INJECT
+fi
+
 if [ -n "${VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE:-}" ] &&
    grep -Fq "terminal_files_directory_changed_before_green" "$script"; then
   "$real" - "$script" <<'PY_INJECT'
@@ -765,6 +807,21 @@ if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_G
   fail "terminal_growth_during_read_reached_green"
 fi
 
+terminal_post_digest_out="$tmp/verify-terminal-post-digest-mutation"
+terminal_post_digest_log="$tmp/terminal-post-digest-mutation.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_TERMINAL_POST_DIGEST_MUTATION_TARGET="$terminal_post_digest_out/extract/demo003-folder-fixture" \
+   OUT="$terminal_post_digest_out" \
+   bash "$VERIFIER" "$tarball" >"$terminal_post_digest_log" 2>&1; then
+  fail "terminal_post_digest_mutation_accepted"
+fi
+grep -Fq "terminal_child_state_changed_before_green:files/README.txt" "$terminal_post_digest_log" ||
+  fail "terminal_post_digest_saved_state_hold_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_post_digest_log"; then
+  fail "terminal_post_digest_mutation_reached_green"
+fi
+
 terminal_files_swap_out="$tmp/verify-terminal-files-dir-swap"
 terminal_files_swap_log="$tmp/terminal-files-dir-swap.log"
 terminal_files_swap_detached="$tmp/terminal-files-dir-detached"
@@ -824,6 +881,7 @@ echo "terminal_oversize_child_rejected=true"
 echo "terminal_weak_mode_rejected=true"
 echo "terminal_growth_during_read_rejected=true"
 echo "terminal_files_directory_swap_rejected=true"
+echo "terminal_post_digest_mutation_rejected=true"
 echo "semantic_verify_descriptor_bound=true"
 echo "semantic_verify_child_bytes_sealed=true"
 echo "terminal_child_seals_verified=true"
