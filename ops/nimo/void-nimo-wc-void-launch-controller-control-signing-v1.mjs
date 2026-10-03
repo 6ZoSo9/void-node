@@ -94,6 +94,7 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     env.LANG !== "C" ||
     env.LC_ALL !== "C" ||
     env.VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1 !== "1" ||
+    env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1 !== ROOT ||
     typeof env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1 !== "string" ||
     !HEX40.test(env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1) ||
     typeof env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1 !== "string" ||
@@ -1002,6 +1003,7 @@ function runPermissionFencedReviewedChildV1({
     status: result.status,
     stdout: String(result.stdout || ""),
     permission_fenced: true,
+    permission_flag: permissionFlag,
     allowed_fs_read_root: root,
     ancestor_package_resolution_allowed: false,
     ambient_node_resolution_overrides_ignored: true,
