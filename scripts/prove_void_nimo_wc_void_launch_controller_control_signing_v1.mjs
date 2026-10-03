@@ -619,6 +619,16 @@ assert.equal(
   "production private key must enter the child only through stdin",
 );
 assert.equal(
+  signerSource.includes('fs.readFileSync(0, "utf8")'),
+  false,
+  "permission-fenced child must consume the key from process.stdin, not a filesystem read on fd 0",
+);
+assert.equal(
+  signerSource.includes('process.stdin.setEncoding("utf8")'),
+  true,
+  "permission-fenced child must consume key material through the stdin stream",
+);
+assert.equal(
   signerSource.includes("ancestor_package_resolution_allowed: false"),
   true,
   "production result must expose ancestor-resolution denial",
@@ -713,7 +723,7 @@ console.log("permission_fenced_signing_child=true");
 console.log("ancestor_package_resolution_allowed=false");
 console.log("ancestor_package_fallback_blocked=true");
 console.log("production_parent_dynamic_ethers_import=false");
-console.log("private_key_transport=stdin_only");
+console.log("private_key_transport=stdin_stream_only");
 console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
 console.log("selected_reviewer_fixed=true");
 console.log("private_key_path_fixed=true");
