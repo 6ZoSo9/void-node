@@ -21,6 +21,8 @@ export const VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1 =
   "VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1";
 export const VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 =
   "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e";
+export const VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1 =
+  "0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b";
 export const VOID_BUY_COUPLED_LIVE_ACTIVATION_DOMAIN_V1 =
   Object.freeze({
     name: "VOID Coupled Public Launch Activation",
@@ -36,6 +38,7 @@ export const VOID_BUY_COUPLED_LIVE_ACTIVATION_TYPES_V1 =
       Object.freeze({ name: "execution_epoch", type: "uint64" }),
       Object.freeze({ name: "role_id", type: "bytes32" }),
       Object.freeze({ name: "activation_signer", type: "address" }),
+      Object.freeze({ name: "sovereign_signer", type: "address" }),
       Object.freeze({ name: "coupled_launch_id", type: "bytes32" }),
       Object.freeze({ name: "source_composition_id", type: "bytes32" }),
       Object.freeze({ name: "activation_receipt_id", type: "string" }),
@@ -84,6 +87,8 @@ const LIVE_KEYS = Object.freeze([
   "public_presale_active",
   "runtime_or_launch_evidence",
   "same_launch_ceremony",
+  "sovereign_signature",
+  "sovereign_signer",
   "source_composition_id",
   "source_ready_only",
   "status",
@@ -156,6 +161,7 @@ export function buyLaunchLiveActivationTypedDataV1(receipt) {
       execution_epoch: 2n,
       role_id: LIVE_ACTIVATION_ROLE_ID_V1,
       activation_signer: getAddress(receipt.activation_signer),
+      sovereign_signer: getAddress(receipt.sovereign_signer),
       coupled_launch_id: sha256IdBytes32(receipt.coupled_launch_id),
       source_composition_id:
         sha256IdBytes32(receipt.source_composition_id),
@@ -198,6 +204,39 @@ export function verifyBuyLaunchLiveActivationSignatureV1(
     );
     if (recovered !== expected) {
       throw new Error("buy_launch_live_activation_signer_mismatch");
+    }
+    return Object.freeze({
+      verified: true,
+      recovered_signer: recovered.toLowerCase(),
+    });
+  } catch {
+    return Object.freeze({
+      verified: false,
+      recovered_signer: null,
+    });
+  }
+}
+
+export function verifyBuyLaunchLiveActivationSovereignSignatureV1(
+  receipt,
+  expectedSigner = VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
+) {
+  try {
+    if (!SIGNATURE.test(String(receipt?.sovereign_signature || ""))) {
+      throw new Error("buy_launch_live_sovereign_signature_invalid");
+    }
+    const expected = getAddress(expectedSigner);
+    const typed = buyLaunchLiveActivationTypedDataV1(receipt);
+    const recovered = getAddress(
+      verifyTypedData(
+        typed.domain,
+        typed.types,
+        typed.value,
+        receipt.sovereign_signature,
+      ),
+    );
+    if (recovered !== expected) {
+      throw new Error("buy_launch_live_sovereign_signer_mismatch");
     }
     return Object.freeze({
       verified: true,
@@ -455,6 +494,7 @@ function readBuyLaunchLiveActivationCoreV1(
     const body = { ...receipt };
     delete body.activation_receipt_id;
     delete body.activation_signature;
+    delete body.sovereign_signature;
     const expectedReceiptId = buyLaunchLiveActivationReceiptIdV1(body);
     if (
       receipt.marker !== VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1 ||
@@ -465,8 +505,11 @@ function readBuyLaunchLiveActivationCoreV1(
       receipt.activation_receipt_id !== expectedReceiptId ||
       String(receipt.activation_signer || "").toLowerCase() !==
         VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
+      String(receipt.sovereign_signer || "").toLowerCase() !==
+        VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1 ||
       !BYTES32.test(String(receipt.activation_nonce || "")) ||
       !SIGNATURE.test(String(receipt.activation_signature || "")) ||
+      !SIGNATURE.test(String(receipt.sovereign_signature || "")) ||
       receipt.buy_void_private_runtime_active !== true ||
       receipt.wc_void_market_active !== true ||
       receipt.public_presale_active !== true ||
@@ -482,7 +525,12 @@ function readBuyLaunchLiveActivationCoreV1(
       receipt,
       VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
     );
-    if (signed.verified !== true) {
+    const sovereignSigned =
+      verifyBuyLaunchLiveActivationSovereignSignatureV1(
+        receipt,
+        VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
+      );
+    if (signed.verified !== true || sovereignSigned.verified !== true) {
       throw new Error("buy_launch_live_receipt_signature_invalid");
     }
 
@@ -503,6 +551,7 @@ function readBuyLaunchLiveActivationCoreV1(
       receipt_sha256: actualSha256,
       source_composition_id: receipt.source_composition_id,
       activation_signer: signed.recovered_signer,
+      sovereign_signer: sovereignSigned.recovered_signer,
       reason: null,
     });
   } catch {
@@ -515,6 +564,7 @@ function readBuyLaunchLiveActivationCoreV1(
           ? sourceGate.composition_id
           : null,
       activation_signer: null,
+      sovereign_signer: null,
       reason: "live_coupled_activation_evidence_not_ready",
     });
   }
@@ -544,6 +594,7 @@ export function readBuyLaunchGateV1(
       live_activation_ready: false,
       live_activation_receipt_id: null,
       live_activation_signer: null,
+      live_activation_sovereign_signer: null,
     });
   }
   const live = readBuyLaunchLiveActivationV1(source, env, nowMs);
@@ -555,6 +606,7 @@ export function readBuyLaunchGateV1(
     live_activation_ready: live.ready,
     live_activation_receipt_id: live.receipt_id,
     live_activation_signer: live.activation_signer,
+    live_activation_sovereign_signer: live.sovereign_signer,
     reason: live.ready ? null : live.reason,
   });
 }
