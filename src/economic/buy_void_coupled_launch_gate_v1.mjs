@@ -612,6 +612,27 @@ export function readBuyLaunchSourceGateV1() {
   }
 }
 
+export function sameBuyLaunchGenerationAuthorityV1(
+  first,
+  second,
+) {
+  return (
+    first?.ready === true &&
+    second?.ready === true &&
+    first?.external_anchor_verified === true &&
+    second?.external_anchor_verified === true &&
+    BYTES32.test(String(first.generation || "")) &&
+    first.generation === second.generation &&
+    SHA256_ID.test(String(first.tip_sha256 || "")) &&
+    first.tip_sha256 === second.tip_sha256 &&
+    Number.isSafeInteger(first.sequence) &&
+    first.sequence >= 1 &&
+    first.sequence === second.sequence &&
+    SHA256_ID.test(String(first.external_anchor_sha256 || "")) &&
+    first.external_anchor_sha256 === second.external_anchor_sha256
+  );
+}
+
 export function classifyBuyLaunchLiveActivationLeaseV1(
   receipt,
   generationState,
@@ -753,6 +774,23 @@ function readBuyLaunchLiveActivationCoreV1(
       actualSha256;
     if (env.VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM !== confirmation) {
       throw new Error("buy_launch_live_receipt_confirmation_invalid");
+    }
+
+    const finalGenerationState = readBuyLaunchGenerationJournalV1(env);
+    if (
+      !sameBuyLaunchGenerationAuthorityV1(
+        generationState,
+        finalGenerationState,
+      ) ||
+      classifyBuyLaunchLiveActivationLeaseV1(
+        receipt,
+        finalGenerationState,
+        nowMs,
+      ).ready !== true
+    ) {
+      throw new Error(
+        "buy_launch_generation_changed_during_activation_verification",
+      );
     }
 
     return Object.freeze({
