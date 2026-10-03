@@ -34,7 +34,7 @@ Reviewed: **October 2, 2026**
 - A Precision atomic Buy VOID activation apply gate is merged source, but it does not itself open intake, authorize a signer, move inventory, or enable automatic fulfillment.
 - Economic activation still requires bounded micro-purchase/micro-trade gas-grief protection. No hidden minimum is authorized; if a minimum is selected later it must be explicit and public, while batching, user-paid gas, or another bounded mechanism may satisfy the same gate.
 - Any unpaid payment/trade instruction that reserves gas or inventory must also have bounded expiry plus per-identity/global outstanding caps; stale instructions cannot pin capacity indefinitely.
-- WC/VOID's zero-WC-seed opening uses a source-defined absolute opening window with an exclusive close boundary, but the exact launch artifact still must supply the live timestamps. Participant provenance, concentration/Sybil limits, minimum real-WC depth, and exclusion of non-production/test WC remain separate gates.
+- WC/VOID's zero-WC-seed opening also needs a fixed price-forming window. The window shape is source-defined as an absolute opening window with an exclusive close boundary, but the exact launch artifact still must supply the live timestamps. Participant provenance, concentration/Sybil limits, minimum real-WC depth, and exclusion of non-production/test WC remain separate gates.
 - The private economic EVM contains historical standard Anvil prefunded accounts with publicly known keys. Their historical receipts remain evidence, but those balances/keys must be neutralized/reconciled and blocked from public submission before economic public access.
 - Public economic instructions/quotes must disclose every fee component, gas payer/model, gross/net amount, slippage/minimum output, market-state binding, and expiry before money authority.
 - BTC/VOID now has merged deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives with exact terminal VOID balance-delta and adversarial preimage checks. That is source-level settlement progress, not a live market; BTC/VOID remains post-presale and separately launch-gated.
@@ -229,7 +229,7 @@ The published release inventory contains one immutable historical artifact relea
 
 VOID has implemented and proven substantial deterministic build, installer, update-channel, qualification, immutable-publication, canary, promotion, rollback, and solo-operator time-lock infrastructure. Release infrastructure is not itself a published stable release. An official checkpoint must be bound to a clean exact `main` commit and pass the repository's deterministic build, qualification, approval/time-lock, immutable publication, canary, and stable-promotion gates. Do not cut or promote a stable release while a runtime/storage/follower or release-path regression remains unresolved.
 
-See [Release state and published artifacts](RELEASES.md) for the current release inventory and the first-official-release path. 
+See [Release state and published artifacts](RELEASES.md) for the current release inventory and the first-official-release path.
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
 ## Verified release installer
 
