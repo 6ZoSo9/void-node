@@ -761,9 +761,11 @@ function writeExclusiveJsonV1(
     });
   } catch (primary) {
     if (created) {
+      const primaryReason =
+        primary instanceof Error ? primary.message : String(primary);
       throw new AggregateError(
         [primary],
-        "signature_output_quarantined_after_failure",
+        "signature_output_quarantined_after_failure:" + primaryReason,
       );
     }
     throw primary;
