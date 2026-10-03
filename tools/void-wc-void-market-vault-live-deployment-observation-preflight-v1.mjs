@@ -1039,6 +1039,16 @@ function normalizeRpcPolicy(input) {
 function readCanonicalProductionEpoch2RpcTargetV1() {
   const file = path.join(ROOT, PRODUCTION_EPOCH2_RPC_TARGET_REL);
   const bytes = fs.readFileSync(file);
+  const expectedBlob = gitText(
+    ["rev-parse", "HEAD:" + PRODUCTION_EPOCH2_RPC_TARGET_REL],
+    "live_deployment_preflight_production_rpc_target_blob_unavailable",
+  );
+  if (
+    !HEX40.test(expectedBlob) ||
+    gitBlobSha1(bytes) !== expectedBlob
+  ) {
+    fail("live_deployment_preflight_production_rpc_target_worktree_blob_mismatch");
+  }
   if (bytes.length < 2 || bytes.length > 1024 * 1024) {
     fail("live_deployment_preflight_production_rpc_target_size_invalid");
   }
@@ -1090,6 +1100,7 @@ function readCanonicalProductionEpoch2RpcTargetV1() {
   }
   return Object.freeze({
     path: PRODUCTION_EPOCH2_RPC_TARGET_REL,
+    git_blob_sha1: expectedBlob,
     file_sha256: sha256Bytes(bytes),
     status: target.status,
     rpc_url: selectedPolicy.rpc_url,
@@ -1551,6 +1562,8 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
           canonicalProductionRpcTarget !== null,
         canonical_production_epoch2_rpc_target_path:
           canonicalProductionRpcTarget?.path ?? null,
+        canonical_production_epoch2_rpc_target_git_blob_sha1:
+          canonicalProductionRpcTarget?.git_blob_sha1 ?? null,
         canonical_production_epoch2_rpc_target_file_sha256:
           canonicalProductionRpcTarget?.file_sha256 ?? null,
       }),
