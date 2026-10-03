@@ -22,6 +22,7 @@ import {
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
   observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
   testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1,
+  testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1,
   testOnlyExerciseVoidWcVoidMarketVaultOutputParentReplacementV1,
   testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
 } from "../tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
@@ -30,6 +31,8 @@ const QUALIFICATION_TOOL =
   "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 const PREFLIGHT_TOOL =
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
+const PRODUCTION_RPC_TARGET =
+  "ops/mainnet0/production-epoch2-rpc-target-v1.json";
 const COUPLED_LAUNCH_ID =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 const TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
@@ -607,6 +610,47 @@ await withFixture({}, async (f) => {
 });
 
 {
+  const selected = JSON.parse(
+    fs.readFileSync(PRODUCTION_RPC_TARGET, "utf8"),
+  );
+  const exact =
+    testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1({
+      rpc_url: selected.selection.rpc_url,
+    });
+  assert.equal(exact.ok, true);
+  assert.equal(
+    exact.status,
+    "TEST_ONLY_PRODUCTION_EPOCH2_RPC_POLICY_GREEN",
+  );
+  assert.equal(exact.production_artifact_authorized, false);
+  assert.equal(exact.rpc_call, false);
+  assert.equal(
+    exact.rpc_url_fingerprint_sha256,
+    selected.selection.rpc_url_fingerprint_sha256,
+  );
+  for (const rpc_url of [
+    "http://127.0.0.1:8545/",
+    "http://127.0.0.1:18550/",
+    "http://127.0.0.1:18551/",
+    "http://127.0.0.1:18552/",
+    "http://[::1]:18553/",
+    "http://127.0.0.1:18553/not-production",
+  ]) {
+    const held =
+      testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1({
+        rpc_url,
+      });
+    assert.equal(held.ok, false, rpc_url);
+    assert.equal(
+      held.reason,
+      "live_deployment_preflight_production_rpc_mismatch",
+      rpc_url,
+    );
+    assert.equal(held.rpc_call, false);
+  }
+}
+
+{
   const head = gitText(["rev-parse", "HEAD"]);
   const feature =
     testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1({
@@ -863,6 +907,7 @@ for (const [key, expected] of Object.entries({
   canonical_remote_main_read_required: true,
   canonical_remote_main_head_match_required: true,
   canonical_remote_main_external_network_read: true,
+  canonical_production_epoch2_rpc_required: true,
   caller_transport_injection_forbidden: true,
   production_transport_internal_only: true,
   private_output_parent_fd_bound: true,
@@ -916,6 +961,7 @@ for (const [key, expected] of Object.entries({
   production_artifact_authorized: false,
   production_preflight_id_emitted: false,
   canonical_remote_main_required: false,
+  canonical_production_epoch2_rpc_required: false,
   real_loopback_http_required: true,
   caller_transport_injection_forbidden: true,
   rpc_write: false,
@@ -990,6 +1036,9 @@ for (const required of [
   '"refs/heads/main"',
   "live_deployment_preflight_canonical_main_branch_required",
   "live_deployment_preflight_remote_main_head_mismatch",
+  "PRODUCTION_EPOCH2_RPC_TARGET_REL",
+  "live_deployment_preflight_production_rpc_mismatch",
+  "requireCanonicalProductionRpc: true",
   "live_deployment_preflight_transport_injection_forbidden",
   "testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1",
   "TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN",
@@ -1016,6 +1065,9 @@ console.log("qualification_current_reviewed_bytes_required=true");
 console.log("canonical_main_branch_required=true");
 console.log("canonical_remote_main_read_required=true");
 console.log("canonical_remote_main_head_match_required=true");
+console.log("canonical_production_epoch2_rpc_required=true");
+console.log("retired_epoch1_rpc_8545_rejected=true");
+console.log("isolated_epoch2_proof_rpcs_rejected=true");
 console.log("caller_transport_injection_forbidden=true");
 console.log("production_transport_internal_only=true");
 console.log("test_only_loopback_http_green=true");

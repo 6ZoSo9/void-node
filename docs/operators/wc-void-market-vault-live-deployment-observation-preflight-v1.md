@@ -105,6 +105,17 @@ eth_call
 
 No send/sign/admin/personal/debug RPC method exists in this lane.
 
+Production mode does not accept an arbitrary loopback Chain-2050 endpoint. It
+reads the reviewed source selection
+`ops/mainnet0/production-epoch2-rpc-target-v1.json`, requires
+`PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY`, verifies the selected
+URL fingerprint, and requires the caller's normalized RPC to match that selected
+target exactly. The current selected target is
+`http://127.0.0.1:18553/`. The retired Epoch-1 archive at `8545` and isolated
+Epoch-2 proof endpoints at `18550`–`18552` therefore fail before any RPC
+call. Test-only loopback fixtures retain ephemeral-port support and cannot emit a
+production preflight.
+
 The deployment estimate is not a bare legacy transaction shape. Its
 `eth_estimateGas` transaction object explicitly binds `type: 0x2`,
 `chainId: 0x802` (2050), contract creation (`to: null`), and the canonical
@@ -254,6 +265,7 @@ node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mj
 
 ```text
 qualification_reexecution=false
+canonical_production_epoch2_rpc_required=true
 deployer_selection_authorized=false
 inventory_source_selection_authorized=false
 epoch2_signed_access_list_marker_required=true

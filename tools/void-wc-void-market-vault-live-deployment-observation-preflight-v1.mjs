@@ -39,6 +39,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     canonical_remote_main_read_required: true,
     canonical_remote_main_head_match_required: true,
     canonical_remote_main_external_network_read: true,
+    canonical_production_epoch2_rpc_required: true,
     caller_transport_injection_forbidden: true,
     production_transport_internal_only: true,
     private_output_parent_fd_bound: true,
@@ -96,6 +97,8 @@ const QUALIFICATION_TOOL_REL =
   "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 const PREFLIGHT_TOOL_REL =
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
+const PRODUCTION_EPOCH2_RPC_TARGET_REL =
+  "ops/mainnet0/production-epoch2-rpc-target-v1.json";
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
 const CANONICAL_COUPLED_LAUNCH_ID =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
@@ -139,6 +142,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORIT
     production_artifact_authorized: false,
     production_preflight_id_emitted: false,
     canonical_remote_main_required: false,
+    canonical_production_epoch2_rpc_required: false,
     real_loopback_http_required: true,
     caller_transport_injection_forbidden: true,
     rpc_write: false,
@@ -1032,6 +1036,115 @@ function normalizeRpcPolicy(input) {
   });
 }
 
+function readCanonicalProductionEpoch2RpcTargetV1() {
+  const file = path.join(ROOT, PRODUCTION_EPOCH2_RPC_TARGET_REL);
+  const bytes = fs.readFileSync(file);
+  if (bytes.length < 2 || bytes.length > 1024 * 1024) {
+    fail("live_deployment_preflight_production_rpc_target_size_invalid");
+  }
+  let target;
+  try {
+    target = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    fail("live_deployment_preflight_production_rpc_target_json_invalid");
+  }
+  const selection = target?.selection;
+  if (
+    !plain(target) ||
+    target.marker !== "VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1" ||
+    target.version !== 1 ||
+    target.status !==
+      "PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY" ||
+    target.chain_id !== 2050 ||
+    target.execution_epoch !== 2 ||
+    !plain(selection) ||
+    selection.production_rpc_target_selected !== true ||
+    selection.write_capability_classification !==
+      "write_capable_not_authorized" ||
+    selection.independent_host_acceptance !== true ||
+    !Array.isArray(target.downstream_consumers) ||
+    !target.downstream_consumers.includes(
+      "wc_void_market_vault_live_deployment_observation",
+    ) ||
+    target.authority?.source_only !== true ||
+    target.authority?.rpc_call !== false ||
+    target.authority?.transaction_construction !== false ||
+    target.authority?.transaction_signing !== false ||
+    target.authority?.transaction_submission !== false ||
+    target.authority?.transaction_broadcast !== false ||
+    target.authority?.funds_movement !== false
+  ) {
+    fail("live_deployment_preflight_production_rpc_target_invalid");
+  }
+  const selectedPolicy = normalizeRpcPolicy({
+    rpc_url: selection.rpc_url,
+  });
+  if (
+    !selectedPolicy ||
+    selection.rpc_url !== selectedPolicy.rpc_url ||
+    !HEX64.test(String(selection.rpc_url_fingerprint_sha256 || "")) ||
+    selection.rpc_url_fingerprint_sha256 !==
+      selectedPolicy.rpc_url_fingerprint_sha256
+  ) {
+    fail("live_deployment_preflight_production_rpc_target_binding_invalid");
+  }
+  return Object.freeze({
+    path: PRODUCTION_EPOCH2_RPC_TARGET_REL,
+    file_sha256: sha256Bytes(bytes),
+    status: target.status,
+    rpc_url: selectedPolicy.rpc_url,
+    rpc_url_fingerprint_sha256:
+      selectedPolicy.rpc_url_fingerprint_sha256,
+    write_capability_classification:
+      selection.write_capability_classification,
+  });
+}
+
+function requireCanonicalProductionEpoch2RpcV1(policy) {
+  const selected = readCanonicalProductionEpoch2RpcTargetV1();
+  if (
+    !policy ||
+    policy.rpc_url !== selected.rpc_url ||
+    policy.rpc_url_fingerprint_sha256 !==
+      selected.rpc_url_fingerprint_sha256
+  ) {
+    fail("live_deployment_preflight_production_rpc_mismatch");
+  }
+  return selected;
+}
+
+export function testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1(
+  input = {},
+) {
+  try {
+    const policy = normalizeRpcPolicy(input);
+    if (!policy) fail("live_deployment_preflight_rpc_policy_invalid");
+    const selected = requireCanonicalProductionEpoch2RpcV1(policy);
+    return Object.freeze({
+      ok: true,
+      marker:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+      status: "TEST_ONLY_PRODUCTION_EPOCH2_RPC_POLICY_GREEN",
+      selected_rpc_target_path: selected.path,
+      selected_rpc_target_file_sha256: selected.file_sha256,
+      rpc_url_fingerprint_sha256:
+        selected.rpc_url_fingerprint_sha256,
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      marker:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+      status: "TEST_ONLY_HOLD",
+      reason: error instanceof Error ? error.message : String(error),
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  }
+}
+
 function createHttpTransport(policy) {
   let nextId = 0;
   return async ({ method, params }) => {
@@ -1148,6 +1261,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   input,
   {
     requireCanonicalMain = false,
+    requireCanonicalProductionRpc = false,
     evaluationTimeUnix = TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
     finalEvaluationTimeUnix = null,
   } = {},
@@ -1157,6 +1271,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   let deployer;
   let inventorySource;
   let rpcPolicy;
+  let canonicalProductionRpcTarget = null;
   try {
     if (
       input &&
@@ -1184,6 +1299,10 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
     );
     rpcPolicy = normalizeRpcPolicy(input);
     if (!rpcPolicy) fail("live_deployment_preflight_rpc_policy_invalid");
+    if (requireCanonicalProductionRpc) {
+      canonicalProductionRpcTarget =
+        requireCanonicalProductionEpoch2RpcV1(rpcPolicy);
+    }
   } catch (error) {
     return held(
       error instanceof Error ? error.message : String(error),
@@ -1425,6 +1544,15 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
           rpcPolicy.rpc_url_fingerprint_sha256,
         rpc_methods_used: Object.freeze([...methods]),
         loopback_http_only: true,
+        canonical_production_epoch2_rpc_required:
+          requireCanonicalProductionRpc,
+        canonical_production_epoch2_rpc_bound:
+          requireCanonicalProductionRpc &&
+          canonicalProductionRpcTarget !== null,
+        canonical_production_epoch2_rpc_target_path:
+          canonicalProductionRpcTarget?.path ?? null,
+        canonical_production_epoch2_rpc_target_file_sha256:
+          canonicalProductionRpcTarget?.file_sha256 ?? null,
       }),
       observation: Object.freeze({
         block_number: head.toString(),
@@ -1498,6 +1626,7 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
     input,
     {
       requireCanonicalMain: true,
+      requireCanonicalProductionRpc: true,
       evaluationTimeUnix: String(Math.floor(Date.now() / 1000)),
       finalEvaluationTimeUnix: null,
     },
@@ -1512,6 +1641,7 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
       input,
       {
         requireCanonicalMain: false,
+        requireCanonicalProductionRpc: false,
         evaluationTimeUnix:
           input?.evaluation_time_unix ??
           TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
