@@ -19088,7 +19088,7 @@ setInterval(refresh, 10000);
         if (!cfg.requests_enabled) {
           return res.status(503).json({ schema:"void_public_buy_void_checkout_request_v1", ok:false, error:"buy_void_requests_disabled" });
         }
-        const launch=__bld();if(!launch.request_authority)throw 0;
+        const launch=__bld();if(!launch.request_authority)throw new Error("request_launch_authority_expired_or_superseded");
         if (!cfg.payment_ready || !cfg.receiver_binding_green) {
           return res.status(503).json({
             schema:"void_public_buy_void_checkout_request_v1",
