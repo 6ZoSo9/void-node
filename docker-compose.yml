@@ -33,4 +33,3 @@ services:
 volumes:
   void_buy_authority_proposer:
   void_buy_authority_follower:
-
