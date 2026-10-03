@@ -168,7 +168,10 @@ for (const required of [
   assert.ok(docker.includes(required), required);
 }
 assert.ok(docker.includes("USER root"));
-assert.ok(docker.includes('VOLUME ["/root/.local/state/void-node-authority-v1"]'));
+assert.equal(
+  docker.includes('VOLUME ["/root/.local/state/void-node-authority-v1"]'),
+  false,
+);
 assert.equal(
   docker.split(
     "COPY --from=build /app/ops/precision/void-buy-coupled-live-generation-publish-v1.mjs ./ops/precision/",
@@ -224,6 +227,7 @@ console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
 console.log("docker_generation_publisher_packaged=true");
 console.log("docker_generation_authority_volume_persistent=true");
+console.log("docker_image_anonymous_authority_volume=false");
 console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
