@@ -155,7 +155,11 @@ assert.doesNotMatch(
 );
 assert.match(
   currentTruth,
-  /Registry-deployer selection is recorded\s+separately below/,
+  /The dedicated DataNet registry deployer\s+`0x6c93ddfcc4116574fe66d63c1c67daedc0070dbb` remains distinct/,
+);
+assert.match(
+  currentTruth,
+  /runner has \*\*no default RPC\*\* and reads the\s+reviewed `VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1` artifact/,
 );
 for(const forbiddenTarget of [
   "127.0.0.1:8545",
