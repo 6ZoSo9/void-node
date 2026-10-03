@@ -413,13 +413,22 @@ ambient configuration before Node starts and before the private key can be
 opened.
 
 Repository-local Git metadata is also non-authoritative before any
-worktree-sensitive Git check. The launcher requires a direct `.git` directory,
+worktree-sensitive check. The launcher requires a direct `.git` directory,
 rejects any non-empty `.git/info/attributes`, rejects local `[filter ...]`,
 `[include]`, `[includeIf ...]`, or `core.attributesFile` configuration,
-and runs worktree/blob `git hash-object` comparisons with
-`--no-filters`. System and global Git config remain disabled in the scrubbed
-Git environment. A repository clean/smudge/process filter therefore cannot run
-as the offline signing user before the private key boundary.
+and runs remaining `git hash-object` comparisons with `--no-filters`.
+System and global Git config remain disabled in the scrubbed Git environment.
+
+The clean-worktree decision does not call `git status`. Instead, an isolated
+Python verifier obtains the reviewed commit tree and stage-0 index through
+non-content-transforming Git queries, requires their complete mode/blob/path
+maps to be identical, then opens each tracked worktree file directly (nofollow
+for regular files), recomputes the raw Git blob ID as
+`SHA1("blob " || len || NUL || bytes)`, and requires the exact reviewed blob.
+Nonignored untracked paths are rejected separately. Clean/smudge/process filters
+therefore have no content-transforming command in the authority-bearing
+cleanliness path and cannot run as the offline signing user before the private
+key boundary.
 
 The streamed signer performs production cryptography in the same sanitized
 short-lived Node process using only the exact in-memory bundle described above.
