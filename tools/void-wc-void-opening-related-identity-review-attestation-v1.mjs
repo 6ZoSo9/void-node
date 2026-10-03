@@ -86,6 +86,16 @@ export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1 =
     max_total_evidence_bytes: 64 * 1024 * 1024,
     max_total_evidence_subject_references: 1_000_000,
   });
+
+export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_CONTROL_INPUT_LIMITS_V1 =
+  Object.freeze({
+    max_depth: 16,
+    max_nodes: 8_192,
+    max_object_keys: 128,
+    max_array_items: 512,
+    max_string_bytes: 2 * 1024 * 1024,
+    max_serialized_bytes: 2 * 1024 * 1024,
+  });
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/u;
 const SIGNATURE = /^0x[0-9a-fA-F]{130}$/u;
@@ -791,6 +801,146 @@ async function withReviewedEip712BridgeV1(fn) {
   );
 }
 
+function boundedControlInputCloneV1(value) {
+  const limits =
+    VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_CONTROL_INPUT_LIMITS_V1;
+  const budget = {
+    nodes: 0,
+    stringBytes: 0,
+  };
+
+  function clone(current, depth) {
+    budget.nodes += 1;
+    if (budget.nodes > limits.max_nodes || depth > limits.max_depth) {
+      fail("review_control_input_resource_limit_exceeded");
+    }
+
+    if (
+      current === null ||
+      typeof current === "boolean" ||
+      (
+        typeof current === "number" &&
+        Number.isSafeInteger(current)
+      )
+    ) {
+      return current;
+    }
+
+    if (typeof current === "string") {
+      budget.stringBytes += Buffer.byteLength(current, "utf8");
+      if (budget.stringBytes > limits.max_string_bytes) {
+        fail("review_control_input_resource_limit_exceeded");
+      }
+      return current;
+    }
+
+    if (Array.isArray(current)) {
+      if (
+        !Number.isSafeInteger(current.length) ||
+        current.length > limits.max_array_items
+      ) {
+        fail("review_control_input_resource_limit_exceeded");
+      }
+      const out = [];
+      for (let index = 0; index < current.length; index += 1) {
+        const descriptor =
+          Object.getOwnPropertyDescriptor(current, String(index));
+        if (
+          !descriptor ||
+          descriptor.enumerable !== true ||
+          !Object.hasOwn(descriptor, "value")
+        ) {
+          fail("review_control_input_shape_invalid");
+        }
+        out.push(clone(descriptor.value, depth + 1));
+      }
+      return out;
+    }
+
+    if (
+      !current ||
+      typeof current !== "object" ||
+      (
+        Object.getPrototypeOf(current) !== Object.prototype &&
+        Object.getPrototypeOf(current) !== null
+      )
+    ) {
+      fail("review_control_input_shape_invalid");
+    }
+
+    const keys = [];
+    for (const key in current) {
+      if (!Object.hasOwn(current, key)) continue;
+      keys.push(key);
+      if (keys.length > limits.max_object_keys) {
+        fail("review_control_input_resource_limit_exceeded");
+      }
+    }
+    keys.sort(compareTextV1);
+
+    const out = {};
+    for (const key of keys) {
+      budget.stringBytes += Buffer.byteLength(key, "utf8");
+      if (budget.stringBytes > limits.max_string_bytes) {
+        fail("review_control_input_resource_limit_exceeded");
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(current, key);
+      if (
+        !descriptor ||
+        descriptor.enumerable !== true ||
+        !Object.hasOwn(descriptor, "value")
+      ) {
+        fail("review_control_input_shape_invalid");
+      }
+      out[key] = clone(descriptor.value, depth + 1);
+    }
+    return out;
+  }
+
+  return Object.freeze({
+    value: clone(value, 0),
+    nodes: budget.nodes,
+    string_bytes: budget.stringBytes,
+  });
+}
+
+function normalizedControlChildInputV1(command, input) {
+  if (command === "generation") {
+    return Object.freeze({
+      value: Object.freeze({}),
+      serialized: "{}",
+    });
+  }
+
+  if (
+    !input ||
+    typeof input !== "object" ||
+    Array.isArray(input)
+  ) {
+    fail("review_control_input_invalid");
+  }
+  const normalizedNow = decimal(
+    input.nowUnix,
+    "review_control_now_invalid",
+  ).toString();
+  const bounded = boundedControlInputCloneV1({
+    evidence: input.evidence,
+    nowUnix: normalizedNow,
+  });
+  const serialized = JSON.stringify(bounded.value);
+  if (
+    Buffer.byteLength(serialized, "utf8") >
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_CONTROL_INPUT_LIMITS_V1
+        .max_serialized_bytes
+  ) {
+    fail("review_control_input_resource_limit_exceeded");
+  }
+  return Object.freeze({
+    value: Object.freeze(bounded.value),
+    serialized,
+  });
+}
+
 async function runReviewedControlVerifierV1(command, input = null) {
   if (command !== "generation" && command !== "reverify") {
     fail("review_control_command_invalid");
@@ -925,9 +1075,11 @@ async function runReviewedControlVerifierV1(command, input = null) {
           Buffer.from(bridgeSource, "utf8"),
           0o400,
         );
+        const normalizedInput =
+          normalizedControlChildInputV1(command, input);
         writePrivateSourceV1(
           inputFile,
-          Buffer.from(JSON.stringify(input ?? {}), "utf8"),
+          Buffer.from(normalizedInput.serialized, "utf8"),
           0o400,
         );
 
