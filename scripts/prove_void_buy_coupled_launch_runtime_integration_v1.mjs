@@ -29,6 +29,18 @@ assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
 assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
 assert.ok(index.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1));
 assert.ok(index.includes("m.readBuyLaunchGateV1().ready===true"));
+assert.ok(index.includes("launch_authority:launch.request_authority"));
+assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
+assert.ok(index.includes("activation_generation:launch.request_authority.activation_generation"));
+assert.ok(index.includes("requestLaunchAuthorityReady: __voidBuyLaunchRequestOkV1"));
+assert.equal(
+  index.split("request_launch_authority_expired_or_superseded").length - 1,
+  1,
+);
+assert.equal(
+  index.split("request_launch_authority_expired_during_verification").length - 1,
+  1,
+);
 const gateSource = read("src/economic/buy_void_coupled_launch_gate_v1.mjs");
 assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION"));
 assert.ok(gateSource.includes("LIVE_ACTIVATION_MAX_LEASE_MS"));
@@ -87,6 +99,9 @@ console.log("request_flag_alone_can_open_intake=false");
 console.log("current_canonical_gate_ready=false");
 console.log("live_activation_generation_bound=true");
 console.log("live_activation_lease_expiry_bound=true");
+console.log("request_launch_authority_snapshot_bound=true");
+console.log("tx_hash_binding_after_launch_expiry=false");
+console.log("payment_verification_after_launch_expiry=false");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
