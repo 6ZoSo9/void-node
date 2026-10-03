@@ -73,6 +73,7 @@ const ROOT = path.resolve(HERE, "../..");
 export function validateSanitizedOfflineSignerEnvironmentV1(
   env = process.env,
   execPath = process.execPath,
+  execArgv = process.execArgv,
 ) {
   const allowed = new Set([
     "HOME",
@@ -103,12 +104,19 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
   if (actualNode !== expectedNode) {
     fail("offline_signer_node_executable_mismatch");
   }
+  if (
+    !Array.isArray(execArgv) ||
+    execArgv.length !== 0
+  ) {
+    fail("offline_signer_node_preload_flags_forbidden");
+  }
   return Object.freeze({
     sanitized_environment: true,
     node_executable: expectedNode,
     ambient_node_options_absent: true,
     ambient_node_path_absent: true,
     ambient_dynamic_loader_overrides_absent: true,
+    node_preload_flags_absent: true,
   });
 }
 
@@ -1018,6 +1026,7 @@ export async function signSelectedLaunchControllerChallengeV1({
   outputPath,
   nowUnix = Math.floor(Date.now() / 1000),
 } = {}) {
+  validateSanitizedOfflineSignerEnvironmentV1();
   const challenge = readChallengeV1(challengePath, challengeSha256);
 
   return await withReviewedEthersV1(async ({ ethers, profile }) => {
@@ -1098,7 +1107,6 @@ async function main(argv) {
     usage();
     fail("offline_signer_arguments_invalid");
   }
-  validateSanitizedOfflineSignerEnvironmentV1();
   const result = await signSelectedLaunchControllerChallengeV1({
     challengePath: path.resolve(values.challenge),
     challengeSha256: values["challenge-sha256"],
