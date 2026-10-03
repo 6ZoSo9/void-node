@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import type { Dirent } from "node:fs";
-import { createHash } from "node:crypto";
 import path from "node:path";
 import readline from "node:readline";
 import { parseArgs } from "node:util";
@@ -45,9 +44,6 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-function sha256(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
 
 function directRegularFile(file: string, maxBytes: number): Buffer {
   const stat = fs.lstatSync(file);
