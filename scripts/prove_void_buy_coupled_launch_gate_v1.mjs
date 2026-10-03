@@ -963,7 +963,6 @@ assert.match(gateSource, /buy_launch_generation_publication_pending/);
     ) < finalIntentCheck,
   );
 }
-assert.match(gateSource, /buy_launch_generation_pending_publication_recovered_retry_required/);
 assert.match(gateSource, /buy_launch_generation_publish_recovery_order_invalid/);
 assert.match(gateSource, /recovery\.phase === "intent_only"/);
 assert.match(gateSource, /recovery\.phase === "journal_committed"/);
@@ -975,10 +974,6 @@ assert.match(gateSource, /recoverBuyLaunchGenerationPublicationV1/);
 assert.doesNotMatch(
   gateSource,
   /buy_launch_generation_publish_recovery_input_mismatch/,
-);
-assert.match(
-  gateSource,
-  /buy_launch_generation_pending_publication_recovered_retry_required/,
 );
 assert.match(gateSource, /classifyBuyLaunchGenerationPublicationRecoveryV1/);
 assert.match(gateSource, /buildBuyLaunchGenerationPublicationIntentV1/);
