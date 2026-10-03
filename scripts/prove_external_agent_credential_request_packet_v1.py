@@ -158,6 +158,118 @@ try:
         check=True,
     )
 
+    packet_checksum_files = [
+        "README.md",
+        "applicant_auth_v1.py",
+        "credential-request-draft-v1.example.json",
+        "credential_request_client_v1.py",
+        "manifest-v1.json",
+        "verify_packet_v1.py",
+    ]
+
+    def rewrite_packet_checksums(root: Path) -> None:
+        lines: list[str] = []
+
+        for relative in packet_checksum_files:
+            digest = hashlib.sha256(
+                (root / relative).read_bytes()
+            ).hexdigest()
+            lines.append(
+                f"{digest}  {relative}"
+            )
+
+        (root / "SHA256SUMS.txt").write_text(
+            "\n".join(lines) + "\n",
+            encoding="ascii",
+        )
+
+    manifest_adversaries = [
+        (
+            "auth-marker",
+            "applicant_auth_marker",
+            "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_V0",
+        ),
+        (
+            "auth-ttl",
+            "applicant_auth_ttl_seconds",
+            31,
+        ),
+        (
+            "auth-max-ttl",
+            "applicant_auth_ttl_seconds_maximum",
+            61,
+        ),
+        (
+            "private-key-required",
+            "applicant_identity_private_key_required_by_client",
+            False,
+        ),
+        (
+            "forwarded-auth",
+            "applicant_auth_forwarded_to_review_gateway",
+            True,
+        ),
+    ]
+
+    for label, field, replacement in manifest_adversaries:
+        adversary = (
+            temporary
+            / f"manifest-adversary-{label}"
+        )
+        shutil.copytree(
+            PACKET,
+            adversary,
+        )
+        manifest_path = (
+            adversary
+            / "manifest-v1.json"
+        )
+        manifest_value = json.loads(
+            manifest_path.read_text(
+                encoding="utf-8"
+            )
+        )
+        manifest_value[field] = replacement
+        manifest_path.write_text(
+            json.dumps(
+                manifest_value,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        rewrite_packet_checksums(
+            adversary
+        )
+        rejected = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    adversary
+                    / "verify_packet_v1.py"
+                ),
+            ],
+            cwd=str(adversary),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        diagnostic = (
+            rejected.stdout
+            + rejected.stderr
+        )
+        if (
+            rejected.returncode == 0
+            or (
+                "HOLD: packet manifest identity mismatch"
+                not in diagnostic
+            )
+        ):
+            raise RuntimeError(
+                "applicant-auth manifest adversary was not rejected: "
+                + label
+            )
+
     module = load_client()
     identity_key = (
         temporary
