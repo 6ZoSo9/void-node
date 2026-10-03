@@ -8,7 +8,7 @@ umask 077
 PID=""
 LEGACY_OUT=""
 LEGACY_TARGET=""
-LEGACY_LINK_CREATED=0"
+LEGACY_LINK_CREATED=0
 
 cleanup() {
   if [ -n "$PID" ]; then
