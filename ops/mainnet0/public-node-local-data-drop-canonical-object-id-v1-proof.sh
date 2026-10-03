@@ -103,8 +103,9 @@ grep -Fq "RENAME_EXCHANGE = 2" "$DEMO003_INTAKE" || fail "demo003_atomic_exchang
 grep -Fq 'find "$LATEST_STAGE" -type f -exec chmod 0644 {} +' "$DEMO003_INTAKE" || fail "demo003_file_mode_normalization_missing"
 grep -Fq 'find "$LATEST_STAGE" -type d -exec chmod 0755 {} +' "$DEMO003_INTAKE" || fail "demo003_directory_mode_normalization_missing"
 grep -Fq 'find "$LATEST_STAGE" -type f -perm /022' "$DEMO003_INTAKE" || fail "demo003_writable_file_guard_missing"
-grep -Fq 'LOCK_DIR="$INTAKE_DIR/.intake-lock-v1"' "$DEMO003_INTAKE" || fail "demo003_intake_lock_missing"
-grep -Fq 'mkdir -m 0700 "$LOCK_DIR"' "$DEMO003_INTAKE" || fail "demo003_intake_lock_create_only_missing"
+grep -Fq 'LOCK_FILE="$INTAKE_DIR/.intake-lock-v1"' "$DEMO003_INTAKE" || fail "demo003_intake_lock_missing"
+grep -Fq 'flock -w "$LOCK_WAIT_SECONDS" "$LOCK_FD"' "$DEMO003_INTAKE" || fail "demo003_intake_flock_missing"
+grep -Fq 'test "$(stat -c '''%a''' "$LOCK_FILE")" = "600"' "$DEMO003_INTAKE" || fail "demo003_intake_lock_mode_guard_missing"
 grep -Fq 'RUN_TOKEN=' "$DEMO003_INTAKE" || fail "demo003_run_token_missing"
 grep -Fq 'run_identity_collision_resistant=true' "$DEMO003_INTAKE" || fail "demo003_run_identity_marker_missing"
 grep -Fq 'O_NOFOLLOW' "$DEMO003_STATUS" || fail "demo003_status_nofollow_missing"
@@ -246,9 +247,37 @@ demo003_concurrent_base="$demo003_concurrent_data/public-node/local-data-drop-de
 demo003_concurrent_archives="$(find "$demo003_concurrent_base/archive" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
 test "$demo003_concurrent_archives" = "2" || fail "demo003_concurrent_archive_count:$demo003_concurrent_archives"
 test -z "$(find "$demo003_concurrent_base" -mindepth 1 -maxdepth 1 -name '.latest-stage-*' -print -quit)" || fail "demo003_concurrent_stage_residue"
-test ! -e "$demo003_concurrent_base/.intake-lock-v1" && test ! -L "$demo003_concurrent_base/.intake-lock-v1" || fail "demo003_concurrent_lock_residue"
+demo003_concurrent_lock="$demo003_concurrent_base/.intake-lock-v1"
+test -f "$demo003_concurrent_lock" && test ! -L "$demo003_concurrent_lock" || fail "demo003_concurrent_lock_not_regular"
+test "$(stat -c '%u' "$demo003_concurrent_lock")" = "$(id -u)" || fail "demo003_concurrent_lock_wrong_owner"
+test "$(stat -c '%a' "$demo003_concurrent_lock")" = "600" || fail "demo003_concurrent_lock_wrong_mode"
+flock -n "$demo003_concurrent_lock" true || fail "demo003_concurrent_lock_still_held"
 DATA_DIR="$demo003_concurrent_data" bash "$DEMO003_STATUS" >"$tmp/demo003-concurrent-status.log"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" "$tmp/demo003-concurrent-status.log" || fail "demo003_concurrent_final_status_not_green"
+
+demo003_lock_ready="$tmp/demo003-lock-holder-ready"
+python3 - "$demo003_concurrent_lock" "$demo003_lock_ready" <<'PY' &
+import fcntl, os, sys, time
+lock_path, ready_path = sys.argv[1], sys.argv[2]
+fd = os.open(lock_path, os.O_RDWR | getattr(os, "O_NOFOLLOW", 0))
+fcntl.flock(fd, fcntl.LOCK_EX)
+with open(ready_path, "w", encoding="utf-8") as handle:
+    handle.write("ready\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+time.sleep(60)
+PY
+demo003_lock_holder=$!
+for _ in $(seq 1 100); do
+  test -f "$demo003_lock_ready" && break
+  sleep 0.02
+done
+test -f "$demo003_lock_ready" || fail "demo003_lock_holder_not_ready"
+kill -9 "$demo003_lock_holder"
+wait "$demo003_lock_holder" 2>/dev/null || true
+DEMO003_LOCK_WAIT_SECONDS=2 DEMO003_STAMP=20261003-020001 DATA_DIR="$demo003_concurrent_data" OUT="$tmp/demo003-after-kill" bash "$DEMO003_INTAKE" >"$tmp/demo003-after-kill.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED" "$tmp/demo003-after-kill.log" || fail "demo003_lock_not_recoverable_after_process_death"
+flock -n "$demo003_concurrent_lock" true || fail "demo003_lock_held_after_recovery"
 
 demo003_data="$tmp/demo003-data"
 demo003_out="$tmp/demo003-intake"
@@ -678,6 +707,8 @@ echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"
 echo "demo003_fresh_publication_ancestry_safe=true"
 echo "demo003_intake_serialized=true"
+echo "demo003_intake_lock_kernel_released=true"
+echo "demo003_intake_lock_sigkill_recovery=true"
 echo "demo003_concurrent_archives_distinct=true"
 echo "demo003_status_missing_tree_false_marker=true"
 echo "demo003_status_ancestor_symlink_rejected=true"
