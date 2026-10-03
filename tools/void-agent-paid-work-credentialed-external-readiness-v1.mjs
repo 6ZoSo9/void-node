@@ -206,8 +206,9 @@ function assertRepositoryStable(repository) {
   }
 }
 
-function stripComments(source) {
+function lexicalView(source) {
   let output = "";
+  const codeMask = new Uint8Array(source.length);
   let state = "code";
   let quote = "";
   for (let index = 0; index < source.length; index += 1) {
@@ -217,6 +218,7 @@ function stripComments(source) {
       if (char === "\n") {
         state = "code";
         output += "\n";
+        codeMask[index] = 1;
       } else {
         output += " ";
       }
@@ -259,6 +261,7 @@ function stripComments(source) {
       state = "block";
       continue;
     }
+    codeMask[index] = 1;
     if (char === "'" || char === '"' || char.charCodeAt(0) === 96) {
       output += char;
       state = "string";
@@ -267,11 +270,22 @@ function stripComments(source) {
     }
     output += char;
   }
-  return output;
+  return Object.freeze({ text: output, codeMask });
 }
 
-function matchExactlyOne(source, regex, label) {
-  const matches = [...source.matchAll(regex)];
+function stripComments(source) {
+  return lexicalView(source).text;
+}
+
+function matchExactlyOne(source, regex, label, codeMask = null) {
+  const matches = [...source.matchAll(regex)].filter(
+    (match) =>
+      codeMask === null ||
+      (
+        Number.isInteger(match.index) &&
+        codeMask[match.index] === 1
+      ),
+  );
   if (matches.length !== 1) {
     fail(label + "_contract_match_count:" + String(matches.length));
   }
@@ -287,12 +301,24 @@ function requireCodeTokens(source, tokens, label) {
   }
 }
 
-function allBooleanProperties(source, property, expected, label) {
+function allBooleanProperties(
+  source,
+  property,
+  expected,
+  label,
+  codeMask,
+) {
   const regex = new RegExp(
     "\\b" + property + "\\s*:\\s*(true|false)\\b",
     "gu",
   );
-  const values = [...source.matchAll(regex)].map((match) => match[1]);
+  const values = [...source.matchAll(regex)]
+    .filter(
+      (match) =>
+        Number.isInteger(match.index) &&
+        codeMask[match.index] === 1,
+    )
+    .map((match) => match[1]);
   if (values.length < 1 || values.some((value) => value !== expected)) {
     fail(label + "_authority_changed");
   }
@@ -300,11 +326,14 @@ function allBooleanProperties(source, property, expected, label) {
 }
 
 export function evaluateCredentialRequestGatewayContractV1(source) {
-  const code = stripComments(source);
+  const lexical = lexicalView(source);
+  const code = lexical.text;
+  const codeMask = lexical.codeMask;
   const pathMatch = matchExactlyOne(
     code,
     /export\s+const\s+AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH\s*=\s*"([^"]+)"\s+as\s+const\s*;/gu,
     "credential_request_gateway_path",
+    codeMask,
   );
   if (pathMatch[1] !== "/__void/agents/paid-work/credential-requests/v1") {
     fail("credential_request_gateway_path_changed");
@@ -314,16 +343,19 @@ export function evaluateCredentialRequestGatewayContractV1(source) {
     code,
     /value\.listen_host\s*===\s*"127\.0\.0\.1"/gu,
     "credential_request_gateway_loopback",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /pathname\s*!==\s*AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH/gu,
     "credential_request_gateway_route_guard",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /\breceiveAgentPaidWorkCredentialRequestV1\s*\(\s*\{/gu,
     "credential_request_gateway_intake_call",
+    codeMask,
   );
 
   const issuanceChecks = allBooleanProperties(
@@ -331,18 +363,21 @@ export function evaluateCredentialRequestGatewayContractV1(source) {
     "credential_issuance_authorized",
     "false",
     "credential_request_gateway_credential_issuance",
+    codeMask,
   );
   allBooleanProperties(
     code,
     "credential_registry_mutation_authorized",
     "false",
     "credential_request_gateway_registry_mutation",
+    codeMask,
   );
   allBooleanProperties(
     code,
     "receiver_restart_authorized",
     "false",
     "credential_request_gateway_receiver_restart",
+    codeMask,
   );
 
   return Object.freeze({
@@ -355,17 +390,21 @@ export function evaluateCredentialRequestGatewayContractV1(source) {
 }
 
 export function evaluatePublicSubmissionGatewayContractV1(source) {
-  const code = stripComments(source);
+  const lexical = lexicalView(source);
+  const code = lexical.text;
+  const codeMask = lexical.codeMask;
 
   matchExactlyOne(
     code,
     /const\s+AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM_RAW\s*=\s*String\(\s*process\.env\.VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM\s*\|\|\s*""\s*,?\s*\)\.trim\(\)\s*;/gu,
     "public_submission_upstream_default",
+    codeMask,
   );
   const pathMatch = matchExactlyOne(
     code,
     /const\s+AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH\s*=\s*"([^"]+)"\s*;/gu,
     "public_submission_path",
+    codeMask,
   );
   if (pathMatch[1] !== "/__void/agents/paid-work/submissions/v1") {
     fail("public_submission_path_changed");
@@ -375,36 +414,43 @@ export function evaluatePublicSubmissionGatewayContractV1(source) {
     code,
     /const\s+AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM\s*=\s*parseReviewedLoopbackUpstream\(\s*AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM_RAW\s*,\s*"VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM"\s*,?\s*\)\s*;/gu,
     "public_submission_loopback_binding",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /parsed\.hostname\s*!==\s*"127\.0\.0\.1"/gu,
     "public_submission_loopback_parser",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /parsed\.pathname\s*===\s*AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH/gu,
     "public_submission_route",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /await\s+proxyAgentPaidWorkSubmission\s*\(\s*request\s*,\s*response\s*,\s*parsed\s*,?\s*\)/gu,
     "public_submission_route_handler",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /if\s*\(\s*!AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM\s*\)/gu,
     "public_submission_default_off_guard",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /url\.pathname\s*!==\s*AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH/gu,
     "public_submission_proxy_path_guard",
+    codeMask,
   );
   matchExactlyOne(
     code,
     /\x60\$\{AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM\}\$\{AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH\}\x60/gu,
     "public_submission_exact_upstream_target",
+    codeMask,
   );
 
   return Object.freeze({
@@ -416,32 +462,45 @@ export function evaluatePublicSubmissionGatewayContractV1(source) {
 }
 
 function frozenObjectBody(source, declaration, label) {
-  const code = stripComments(source);
+  const lexical = lexicalView(source);
+  const code = lexical.text;
   const startToken = "const " + declaration + " = Object.freeze({";
-  const start = code.indexOf(startToken);
-  if (start < 0 || code.indexOf(startToken, start + 1) >= 0) {
+  const starts = [];
+  let cursor = 0;
+  while (true) {
+    const at = code.indexOf(startToken, cursor);
+    if (at < 0) break;
+    if (lexical.codeMask[at] === 1) starts.push(at);
+    cursor = at + 1;
+  }
+  if (starts.length !== 1) {
     fail(label + "_object_declaration_invalid");
   }
-  const bodyStart = start + startToken.length;
+  const bodyStart = starts[0] + startToken.length;
   const end = code.indexOf("\n});", bodyStart);
   if (end < 0) fail(label + "_object_end_missing");
-  return code.slice(bodyStart, end);
+  return Object.freeze({
+    text: code.slice(bodyStart, end),
+    codeMask: lexical.codeMask.slice(bodyStart, end),
+  });
 }
 
 function exactStringProperty(body, property, label) {
   const match = matchExactlyOne(
-    body,
+    body.text,
     new RegExp("\\b" + property + "\\s*:\\s*\"([^\"]+)\"\\s*,", "gu"),
     label + "_" + property,
+    body.codeMask,
   );
   return match[1];
 }
 
 function exactBooleanProperty(body, property, label) {
   const match = matchExactlyOne(
-    body,
+    body.text,
     new RegExp("\\b" + property + "\\s*:\\s*(true|false)\\s*,", "gu"),
     label + "_" + property,
+    body.codeMask,
   );
   return match[1] === "true";
 }
