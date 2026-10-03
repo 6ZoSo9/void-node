@@ -10,6 +10,12 @@ on:
       - "tools/void-wc-void-opening-related-identity-reviewer-role-v1.mjs"
       - "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs"
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-window-policy-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
   push:
     branches: [main]
     paths:
@@ -20,6 +26,12 @@ on:
       - "tools/void-wc-void-opening-related-identity-reviewer-role-v1.mjs"
       - "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs"
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-window-policy-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
   workflow_dispatch:
 
 permissions:
