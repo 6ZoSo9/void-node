@@ -224,6 +224,12 @@ async function scanLedger(
   if (stat.size < 1 || stat.size > MAX_LEDGER_BYTES) fail("ledger_size_out_of_range");
 
   const matchingRows = new Map<string, number>();
+  const targetReceiptIds = new Set(
+    [...targets.values()].map((summary) => summary.receipt_id),
+  );
+  const targetJobIds = new Set(
+    [...targets.values()].map((summary) => summary.job_id),
+  );
   let malformedLines = 0;
   let invalidMatchingRows = 0;
   const input = fs.createReadStream(ledger, { encoding: "utf8" });
@@ -242,11 +248,17 @@ async function scanLedger(
       const account = exactText(row?.account);
       const jobId = exactText(row?.job_id);
       const receiptId = exactText(row?.receipt_id);
-      if (!account || !jobId || !receiptId) continue;
+      const intersectsTargetIdentity =
+        (receiptId !== "" && targetReceiptIds.has(receiptId)) ||
+        (jobId !== "" && targetJobIds.has(jobId));
+      if (!intersectsTargetIdentity) continue;
+      if (!account || !jobId || !receiptId) {
+        invalidMatchingRows += 1;
+        continue;
+      }
       const key = adapterKey(account, jobId, receiptId);
       const target = targets.get(key);
-      if (!target) continue;
-      if (!canonicalLedgerCredit(row, target)) {
+      if (!target || !canonicalLedgerCredit(row, target)) {
         invalidMatchingRows += 1;
         continue;
       }
@@ -288,7 +300,10 @@ async function main(): Promise<void> {
 
   const receiptScan = scanReceiptFiles(roots);
   const byLedgerKey = new Map<string, AdapterReceiptSummary>();
+  const byReceiptId = new Map<string, string>();
+  const byJobId = new Map<string, string>();
   let adapterKeyConflicts = 0;
+  let adapterDuplicateGuardConflicts = 0;
   for (const summary of receiptScan.summaries.values()) {
     const key = adapterKey(summary.account, summary.job_id, summary.receipt_id);
     const prior = byLedgerKey.get(key);
@@ -297,8 +312,31 @@ async function main(): Promise<void> {
     } else {
       byLedgerKey.set(key, summary);
     }
+
+    const priorReceiptAdapter = byReceiptId.get(summary.receipt_id);
+    if (
+      priorReceiptAdapter !== undefined &&
+      priorReceiptAdapter !== summary.adapter_receipt_id
+    ) {
+      adapterDuplicateGuardConflicts += 1;
+    } else {
+      byReceiptId.set(summary.receipt_id, summary.adapter_receipt_id);
+    }
+
+    const priorJobAdapter = byJobId.get(summary.job_id);
+    if (
+      priorJobAdapter !== undefined &&
+      priorJobAdapter !== summary.adapter_receipt_id
+    ) {
+      adapterDuplicateGuardConflicts += 1;
+    } else {
+      byJobId.set(summary.job_id, summary.adapter_receipt_id);
+    }
   }
   if (adapterKeyConflicts > 0) fail("adapter_receipt_ledger_key_conflict");
+  if (adapterDuplicateGuardConflicts > 0) {
+    fail("adapter_receipt_duplicate_guard_conflict");
+  }
 
   const ledger = path.join(dataDir, "wc_v1", "ledger.jsonl");
   const redeemed = path.join(dataDir, "wc_v1", "redeemed.jsonl");
