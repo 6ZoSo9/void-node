@@ -18563,7 +18563,7 @@ small{color:#94a3b8}
       return withBuyVoidTerminalCloseoutRequestLockV1(
         { request_dir: dir, request_id: String(event?.request_id || "") },
         () => {
-          if(!__blo(request))throw new Error("request_launch_authority_expired_or_superseded");
+          if(event?.operator_status==="payment_verified"&&!__blo(request))throw new Error("request_launch_authority_expired_or_superseded");
           fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
           fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
           return { ok:true, dir };
@@ -19002,19 +19002,6 @@ setInterval(refresh, 10000);
       const void_delivery_tx_hash = String(q.void_tx_hash || q.delivery_tx_hash || "").trim();
 
       // VOID_BUY_VOID_FULFILLMENT_TX_HASH_GUARD_V1
-      if (operator_status === "fulfilled") {
-        if (!/^0x[a-fA-F0-9]{64}$/.test(void_delivery_tx_hash)) {
-          return res.status(400).json({
-            schema: "void_buy_void_operator_mark_v1",
-            ok: false,
-            error: "invalid_void_delivery_tx_hash",
-            message: "fulfilled status requires a real 0x-prefixed 32-byte VOID delivery transaction hash",
-            request_id: id,
-            operator_status,
-            void_delivery_tx_hash
-          });
-        }
-      }
       const allowed = new Set(["reviewed", "fulfilled", "rejected"]);
 
       if (!id || !allowed.has(operator_status)) {
@@ -19046,23 +19033,15 @@ setInterval(refresh, 10000);
         });
       }
 
+      try{
       const r = await g(
-        found, id, operator_status, note, void_delivery_tx_hash,
-        __voidReadBuyVoidOperatorEventsV1, __voidApplyBuyVoidOperatorEventsV1,
+        found,id,operator_status,note,void_delivery_tx_hash,
+        __voidReadBuyVoidOperatorEventsV1,__voidApplyBuyVoidOperatorEventsV1,
         (e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found),
       );
-      if (!r.ok) {
-        return res.status(r.status_code).json(r.body);
-      }
-      const event = r.body;
-
-
-      res.json({
-        schema: "void_buy_void_operator_mark_result_v1",
-        ok: true,
-        event,
-        request: found
-      });
+      if(!r.ok)return res.status(r.status_code).json(r.body);
+      return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.body,request:found});
+      }catch(e:any){const x=String(e?.message||"");return res.status(x==="request_launch_authority_expired_or_superseded"?409:500).json({schema:"void_buy_void_operator_mark_v1",ok:false,error:x==="request_launch_authority_expired_or_superseded"?x:"operator_mark_failed",request_id:id})}
     });
 
     require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__blo});
