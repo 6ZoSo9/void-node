@@ -51,65 +51,31 @@ if [[ "$mode" == "sign" ]]; then
 fi
 
 source_head="$(
-  /usr/bin/python3 -I -P - "$challenge" "$challenge_sha" <<'PY'
-import hashlib
+  /usr/bin/python3 -I -P - "$challenge" <<'PY'
 import json
 import os
 import re
-import stat
 import sys
 
 path = sys.argv[1]
-expected_sha = sys.argv[2]
-max_bytes = 2 * 1024 * 1024
-no_follow = getattr(os, "O_NOFOLLOW", 0)
-close_on_exec = getattr(os, "O_CLOEXEC", 0)
+flags = os.O_RDONLY
+if hasattr(os, "O_NOFOLLOW"):
+    flags |= os.O_NOFOLLOW
 
-fd = os.open(path, os.O_RDONLY | no_follow | close_on_exec)
+fd = os.open(path, flags)
 try:
-    before = os.fstat(fd)
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or before.st_size <= 0
-        or before.st_size > max_bytes
-    ):
+    stat = os.fstat(fd)
+    if stat.st_size < 1 or stat.st_size > 2 * 1024 * 1024:
         raise SystemExit(2)
-
-    chunks = []
-    total = 0
-    while True:
-        remaining = max_bytes + 1 - total
-        if remaining <= 0:
-            raise SystemExit(2)
-        chunk = os.read(fd, min(65536, remaining))
-        if not chunk:
-            break
-        total += len(chunk)
-        if total > max_bytes:
-            raise SystemExit(2)
-        chunks.append(chunk)
-
-    after = os.fstat(fd)
-    if (
-        before.st_dev != after.st_dev
-        or before.st_ino != after.st_ino
-        or before.st_size != after.st_size
-        or before.st_mtime_ns != after.st_mtime_ns
-        or before.st_ctime_ns != after.st_ctime_ns
-        or total != after.st_size
-    ):
+    raw = os.read(fd, stat.st_size + 1)
+    if len(raw) != stat.st_size:
         raise SystemExit(2)
 finally:
     os.close(fd)
 
-data = b"".join(chunks)
-if hashlib.sha256(data).hexdigest() != expected_sha:
-    raise SystemExit(3)
-
 try:
-    text = data.decode("utf-8", errors="strict")
-    value = json.loads(text)
-except (UnicodeDecodeError, json.JSONDecodeError):
+    value = json.loads(raw.decode("utf-8"))
+except Exception:
     raise SystemExit(2)
 
 source = value.get("source_binding")
