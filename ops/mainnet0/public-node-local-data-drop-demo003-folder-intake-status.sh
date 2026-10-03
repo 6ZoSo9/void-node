@@ -43,6 +43,13 @@ def open_component(parent_fd,name,label,require_custody):
         os.close(fd); fail(f"{label}_group_or_world_writable")
     return fd
 
+def require_rename_protected_parent(fd,label):
+    current=os.fstat(fd)
+    if not stat.S_ISDIR(current.st_mode): fail(f"{label}_not_directory")
+    if current.st_mode&0o022:
+        if not (current.st_mode&stat.S_ISVTX): fail(f"{label}_group_or_world_writable_without_sticky")
+        if current.st_uid not in (0,euid): fail(f"{label}_sticky_owner_not_operator_or_root")
+
 def open_data_root(path):
     if not path or "\x00" in path: fail("data_dir_invalid")
     absolute=os.path.isabs(path)
@@ -51,12 +58,16 @@ def open_data_root(path):
     fd=os.open("/" if absolute else ".",DIR_FLAGS)
     try:
         for idx,part in enumerate(parts):
+            require_rename_protected_parent(fd,f"data_dir_parent_{idx}")
             next_fd=open_component(fd,part,f"data_dir_component_{idx}",idx==len(parts)-1)
             os.close(fd); fd=next_fd
         if not parts:
             st=os.fstat(fd)
             if st.st_uid!=euid: fail("data_dir_not_owned_by_operator")
             if st.st_mode&0o022: fail("data_dir_group_or_world_writable")
+            parent_fd=os.open("..",DIR_FLAGS,dir_fd=fd)
+            try: require_rename_protected_parent(parent_fd,"data_dir_parent")
+            finally: os.close(parent_fd)
         result=fd; fd=-1; return result
     finally:
         if fd>=0: os.close(fd)

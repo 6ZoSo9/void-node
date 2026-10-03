@@ -86,6 +86,12 @@ grep -Fq 'data_dir_group_or_world_writable' "$IMPORTER" || fail "data_root_dot_c
 grep -Fq 'require_rename_protected_parent' "$IMPORTER" || fail "data_root_parent_custody_guard_missing"
 grep -Fq 'stat.S_ISVTX' "$IMPORTER" || fail "data_root_parent_sticky_exception_missing"
 grep -Fq 'group_or_world_writable_without_sticky' "$IMPORTER" || fail "data_root_parent_write_guard_missing"
+grep -Fq 'data_dir_parent_{idx}' "$IMPORTER" || fail "data_root_all_ancestor_guard_missing"
+grep -Fq 'sticky_owner_not_operator_or_root' "$IMPORTER" || fail "data_root_sticky_owner_guard_missing"
+grep -Fq 'require_rename_protected_parent(fd, f"data_dir_parent_{idx}")' "$DEMO003_INTAKE" || fail "demo003_intake_all_ancestor_guard_missing"
+grep -Fq 'require_rename_protected_parent(fd,f"data_dir_parent_{idx}")' "$DEMO003_STATUS" || fail "demo003_status_all_ancestor_guard_missing"
+grep -Fq 'renameProtectedDirectoryV1(fs.fstatSync(fd, { bigint: true }), euid)' "$READER" || fail "reader_all_ancestor_guard_missing"
+grep -Fq 'st.uid === euid || st.uid === 0n' "$READER" || fail "reader_sticky_owner_guard_missing"
 grep -Fq 'type(doc.get("bytes")) is not int' "$IMPORTER" ||
   fail "receipt_exact_int_type_guard_missing"
 grep -Fq 'type(doc.get(key)) is not bool' "$IMPORTER" ||
@@ -224,6 +230,27 @@ grep -Fq "demo003_publication_ancestry_safe=true" "$tmp/demo003-fresh-status.log
   fail "demo003_fresh_status_ancestry_not_safe"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" "$tmp/demo003-fresh-status.log" ||
   fail "demo003_fresh_status_not_green"
+
+demo003_unsafe_ancestor="$tmp/demo003-unsafe-ancestor"
+mkdir -p "$demo003_unsafe_ancestor/safe-parent/data"
+chmod 0777 "$demo003_unsafe_ancestor"
+chmod 0700 "$demo003_unsafe_ancestor/safe-parent" "$demo003_unsafe_ancestor/safe-parent/data"
+if DATA_DIR="$demo003_unsafe_ancestor/safe-parent/data" OUT="$tmp/demo003-unsafe-ancestor-out" bash "$DEMO003_INTAKE" >"$tmp/demo003-unsafe-ancestor-intake.log" 2>&1; then
+  fail "demo003_higher_unsafe_ancestor_intake_accepted"
+fi
+test ! -e "$demo003_unsafe_ancestor/safe-parent/data/public-node" ||
+  fail "demo003_higher_unsafe_ancestor_received_publication"
+
+demo003_status_unsafe_ancestor="$tmp/demo003-status-unsafe-ancestor"
+mkdir -p "$demo003_status_unsafe_ancestor/safe-parent"
+cp -a "$demo003_fresh_data" "$demo003_status_unsafe_ancestor/safe-parent/data"
+chmod 0777 "$demo003_status_unsafe_ancestor"
+chmod 0700 "$demo003_status_unsafe_ancestor/safe-parent" "$demo003_status_unsafe_ancestor/safe-parent/data"
+if DATA_DIR="$demo003_status_unsafe_ancestor/safe-parent/data" bash "$DEMO003_STATUS" >"$tmp/demo003-status-unsafe-ancestor.log" 2>&1; then
+  fail "demo003_higher_unsafe_ancestor_status_unexpected_green"
+fi
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-unsafe-ancestor.log" ||
+  fail "demo003_higher_unsafe_ancestor_status_false_marker_missing"
 
 demo003_status_symlink_data="$tmp/demo003-status-symlink-data"
 demo003_status_outside="$tmp/demo003-status-outside-public-node"
@@ -538,6 +565,16 @@ fi
 test ! -e "$unsafe_dot_parent/data/public-node" ||
   fail "unsafe_dot_parent_received_publication"
 
+unsafe_data_ancestor="$tmp/unsafe-data-ancestor"
+mkdir -p "$unsafe_data_ancestor/safe-parent/data"
+chmod 0777 "$unsafe_data_ancestor"
+chmod 0700 "$unsafe_data_ancestor/safe-parent" "$unsafe_data_ancestor/safe-parent/data"
+if DATA_DIR="$unsafe_data_ancestor/safe-parent/data" bash "$IMPORTER" "$PAYLOAD" "void:proof:unsafe-data-ancestor:v1" >"$tmp/unsafe-data-ancestor.log" 2>&1; then
+  fail "higher_group_world_writable_nonsticky_data_ancestor_accepted"
+fi
+test ! -e "$unsafe_data_ancestor/safe-parent/data/public-node" ||
+  fail "unsafe_data_ancestor_received_publication"
+
 public_node_symlink_root="$tmp/public-node-symlink"
 mkdir -p "$public_node_symlink_root/data" "$public_node_symlink_root/outside"
 ln -s "$public_node_symlink_root/outside" "$public_node_symlink_root/data/public-node"
@@ -755,6 +792,9 @@ echo "data_root_owner_mode_guard=true"
 echo "data_root_dot_owner_mode_guard=true"
 echo "data_root_parent_rename_protection=true"
 echo "data_root_parent_sticky_exception=true"
+echo "data_root_all_ancestors_rename_protected=true"
+echo "demo003_all_ancestors_rename_protected=true"
+echo "reader_all_ancestors_rename_protected=true"
 echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"

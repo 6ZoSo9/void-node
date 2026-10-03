@@ -23,6 +23,12 @@ function sameStampV1(a: fs.BigIntStats, b: fs.BigIntStats): boolean {
   );
 }
 
+function renameProtectedDirectoryV1(st: fs.BigIntStats, euid: bigint): boolean {
+  if (!st.isDirectory() || st.isSymbolicLink()) return false;
+  if ((st.mode & 0o022n) === 0n) return true;
+  return (st.mode & 0o1000n) !== 0n && (st.uid === euid || st.uid === 0n);
+}
+
 function openParentDirectoryV1(filePath: string): { fd: number; name: string } | null {
   const noFollow = (
     fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }
@@ -46,6 +52,7 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
   try {
     fd = fs.openSync(parsed.root, fs.constants.O_RDONLY | directory | noFollow);
     for (const part of parts) {
+      if (!renameProtectedDirectoryV1(fs.fstatSync(fd, { bigint: true }), euid)) return null;
       if (!part || part === "." || part === "..") return null;
       const nextPath = path.join(PROC_FD_ROOT_V1, String(fd), part);
       const nextFd = fs.openSync(

@@ -70,6 +70,16 @@ def open_component(parent_fd, name, label, create, require_custody):
         fail(f"{label}_group_or_world_writable")
     return fd
 
+def require_rename_protected_parent(fd, label):
+    current = os.fstat(fd)
+    if not stat.S_ISDIR(current.st_mode):
+        fail(f"{label}_not_directory")
+    if current.st_mode & 0o022:
+        if not (current.st_mode & stat.S_ISVTX):
+            fail(f"{label}_group_or_world_writable_without_sticky")
+        if current.st_uid not in (0, euid):
+            fail(f"{label}_sticky_owner_not_operator_or_root")
+
 absolute = os.path.isabs(data_dir)
 parts = [p for p in data_dir.split(os.sep) if p not in ("", ".")]
 if any(p == ".." for p in parts):
@@ -78,6 +88,7 @@ if any(p == ".." for p in parts):
 fd = os.open("/" if absolute else ".", FLAGS)
 try:
     for idx, part in enumerate(parts):
+        require_rename_protected_parent(fd, f"data_dir_parent_{idx}")
         next_fd = open_component(
             fd,
             part,
@@ -94,6 +105,11 @@ try:
             fail("data_dir_not_owned_by_operator")
         if root.st_mode & 0o022:
             fail("data_dir_group_or_world_writable")
+        parent_fd = os.open("..", FLAGS, dir_fd=fd)
+        try:
+            require_rename_protected_parent(parent_fd, "data_dir_parent")
+        finally:
+            os.close(parent_fd)
 
     public_fd = open_component(fd, "public-node", "public_node_dir", True, True)
     base_fd = open_component(
