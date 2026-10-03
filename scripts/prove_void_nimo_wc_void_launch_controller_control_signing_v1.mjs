@@ -610,6 +610,10 @@ assert.equal(
   fs.realpathSync.native(runtime.child_node_executable),
   fs.realpathSync.native(process.execPath),
 );
+assert.equal(
+  runtime.permission_flag,
+  nodePermissionFlagV1(process.versions.node),
+);
 assert.equal(runtime.ancestor_package_resolution_allowed, false);
 assert.equal(runtime.ambient_node_resolution_overrides_ignored, true);
 assert.equal(runtime.ambient_dynamic_loader_overrides_ignored, true);
