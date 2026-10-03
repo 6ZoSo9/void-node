@@ -5,7 +5,9 @@ on:
     paths:
       - ".github/workflows/void-wc-void-market-vault-live-preflight-qualification-freshness-v1.yml"
       - "docs/operators/wc-void-market-vault-live-preflight-qualification-freshness-v1.md"
+      - "docs/operators/wc-void-market-vault-live-deployment-observation-preflight-v1.md"
       - "scripts/prove_void_wc_void_market_vault_live_preflight_qualification_freshness_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_live_preflight_control_evidence_replay_v1.mjs"
       - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs"
       - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs"
       - "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs"
@@ -15,7 +17,9 @@ on:
     paths:
       - ".github/workflows/void-wc-void-market-vault-live-preflight-qualification-freshness-v1.yml"
       - "docs/operators/wc-void-market-vault-live-preflight-qualification-freshness-v1.md"
+      - "docs/operators/wc-void-market-vault-live-deployment-observation-preflight-v1.md"
       - "scripts/prove_void_wc_void_market_vault_live_preflight_qualification_freshness_v1.mjs"
+      - "scripts/prove_void_wc_void_market_vault_live_preflight_control_evidence_replay_v1.mjs"
       - "scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs"
       - "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs"
       - "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs"
@@ -46,8 +50,11 @@ jobs:
         run: |
           node --check tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs
           node --check scripts/prove_void_wc_void_market_vault_live_preflight_qualification_freshness_v1.mjs
+          node --check scripts/prove_void_wc_void_market_vault_live_preflight_control_evidence_replay_v1.mjs
       - name: Prove qualification freshness wall
         run: node scripts/prove_void_wc_void_market_vault_live_preflight_qualification_freshness_v1.mjs
+      - name: Prove signed control evidence replay
+        run: node scripts/prove_void_wc_void_market_vault_live_preflight_control_evidence_replay_v1.mjs
       - name: Existing live-preflight regression
         run: node scripts/prove_void_wc_void_market_vault_live_deployment_observation_preflight_v1.mjs
       - name: Diff hygiene
