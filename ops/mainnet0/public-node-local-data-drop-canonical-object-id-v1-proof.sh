@@ -95,6 +95,9 @@ grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
 grep -Fq 'listed.nlink !== 1n' "$READER" || fail "reader_link_count_guard_missing"
 grep -Fq '(listed.mode & 0o022n) !== 0n' "$READER" || fail "reader_write_mode_guard_missing"
 grep -Fq "RENAME_EXCHANGE = 2" "$DEMO003_INTAKE" || fail "demo003_atomic_exchange_missing"
+grep -Fq 'find "$LATEST_STAGE" -type f -exec chmod 0644 {} +' "$DEMO003_INTAKE" || fail "demo003_file_mode_normalization_missing"
+grep -Fq 'find "$LATEST_STAGE" -type d -exec chmod 0755 {} +' "$DEMO003_INTAKE" || fail "demo003_directory_mode_normalization_missing"
+grep -Fq 'find "$LATEST_STAGE" -type f -perm /022' "$DEMO003_INTAKE" || fail "demo003_writable_file_guard_missing"
 if grep -Fq 'ln -s "$(realpath "$ARCHIVE")" "$LATEST"' "$DEMO003_INTAKE"; then fail "demo003_legacy_latest_symlink_remains"; fi
 
 node - "$SOURCE" "$READER" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
@@ -176,7 +179,10 @@ mkdir -p "$demo003_base/archive/legacy"
 printf 'legacy\n' > "$demo003_base/archive/legacy/legacy.txt"
 ln -s "$(realpath "$demo003_base/archive/legacy")" "$demo003_base/latest"
 
-DATA_DIR="$demo003_data" OUT="$demo003_out" bash "$DEMO003_INTAKE" >"$tmp/demo003-intake.log"
+(
+  umask 0000
+  DATA_DIR="$demo003_data" OUT="$demo003_out" bash "$DEMO003_INTAKE"
+) >"$tmp/demo003-intake.log"
 test -d "$demo003_base/latest" && test ! -L "$demo003_base/latest" ||
   fail "demo003_latest_not_real_directory"
 grep -Fq "latest_atomic_publish=true" "$tmp/demo003-intake.log" ||
@@ -191,6 +197,14 @@ test -f "$demo003_base/latest/intake.json" ||
   fail "demo003_latest_intake_missing"
 test -f "$demo003_base/latest/files/index.html" ||
   fail "demo003_latest_index_missing"
+grep -Fq "latest_stage_modes_normalized=true" "$tmp/demo003-intake.log" ||
+  fail "demo003_stage_mode_normalization_not_reported"
+grep -Fq "latest_file_modes_safe=true" "$tmp/demo003-intake.log" ||
+  fail "demo003_safe_mode_publish_not_reported"
+test -z "$(find "$demo003_base/latest" -type l -print -quit)" ||
+  fail "demo003_latest_contains_symlink"
+test -z "$(find "$demo003_base/latest" -type f -perm /022 -print -quit)" ||
+  fail "demo003_latest_has_group_or_world_writable_file"
 
 DATA_DIR="$demo003_data" bash "$DEMO003_STATUS" >"$tmp/demo003-status.log"
 grep -Fq "latest_real_directory=true" "$tmp/demo003-status.log" ||
@@ -593,6 +607,7 @@ echo "runtime_descriptor_bound_read_calls=15"
 echo "runtime_pathname_reads=0"
 echo "runtime_ancestor_descriptor_walk=true"
 echo "demo003_latest_atomic_real_directory=true"
+echo "demo003_permissive_umask_modes_normalized=true"
 echo "index_size_ceiling_preserved=true"
 echo "staged_atomic_publication=true"
 echo "staging_global_lock=true"

@@ -75,6 +75,18 @@ rm -rf "$LATEST_STAGE"
 mkdir -p "$LATEST_STAGE"
 cp -a "$ARCHIVE/." "$LATEST_STAGE/"
 
+if find "$LATEST_STAGE" -type l -print -quit | grep -q .; then
+  echo "[fail] staged Demo003 fixture contains a symlink" >&2
+  exit 2
+fi
+find "$LATEST_STAGE" -type d -exec chmod 0755 {} +
+find "$LATEST_STAGE" -type f -exec chmod 0644 {} +
+if find "$LATEST_STAGE" -type f -perm /022 -print -quit | grep -q .; then
+  echo "[fail] staged Demo003 fixture has a group/world-writable file" >&2
+  exit 2
+fi
+echo "latest_stage_modes_normalized=true"
+
 python3 - "$LATEST_STAGE" "$LATEST" <<'PY'
 import ctypes
 import os
@@ -147,4 +159,5 @@ echo "latest=$LATEST"
 echo "latest_atomic_publish=true"
 echo "latest_real_directory=true"
 echo "latest_symlink=false"
+echo "latest_file_modes_safe=true"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED"
