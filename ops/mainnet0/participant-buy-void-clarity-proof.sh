@@ -7,6 +7,9 @@ cd "${VOID_REPO:-$HOME/dev/void-node}"
 
 BASE="${BASE:-http://127.0.0.1:4100}"
 HTML="/tmp/void-participant-buy-void-clarity-proof.html"
+CONFIG="/tmp/void-participant-buy-void-clarity-config.json"
+STATUS="/tmp/void-participant-buy-void-clarity-status.json"
+SALE="/tmp/void-participant-buy-void-clarity-sale.json"
 
 echo "=== Participant Buy VOID clarity proof ==="
 
@@ -54,7 +57,56 @@ grep -q 'payment confirmation is not VOID fulfillment' "$HTML"
 echo "[ok] Buy VOID public safety copy rendered"
 
 echo
-echo "=== [4] status smoke stays green ==="
+echo "=== [4] live rail state matches the checkout contract ==="
+curl -fsS "$BASE/__void/buy-void/config.json" > "$CONFIG"
+curl -fsS "$BASE/__void/buy-void/status.json" > "$STATUS"
+curl -fsS "$BASE/__void/buy-void/sale-state.json" > "$SALE"
+
+python3 - "$CONFIG" "$STATUS" "$SALE" <<'PY'
+import json, sys
+
+config=json.load(open(sys.argv[1]))
+status=json.load(open(sys.argv[2]))
+sale=json.load(open(sys.argv[3]))
+
+assert config.get("marker") == "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1", config
+assert config.get("schema") == "void_public_buy_void_config_v1", config
+assert status.get("schema") == "void_public_buy_void_status_v1", status
+assert status.get("ok") is True, status
+assert sale.get("schema") == "void_buy_void_sale_state_v1", sale
+assert sale.get("ok") is True, sale
+assert isinstance(config.get("requests_enabled"), bool), config
+assert isinstance(config.get("ethereum_requests_enabled"), bool), config
+assert isinstance(config.get("payment_ready"), bool), config
+assert isinstance(status.get("request_intake_ready"), bool), status
+assert isinstance(sale.get("sold_out"), bool), sale
+
+expected_ready = config["requests_enabled"] and config["payment_ready"]
+assert status["request_intake_ready"] == expected_ready, (config, status)
+
+open_now = (
+    status["request_intake_ready"]
+    and not sale["sold_out"]
+    and float(sale.get("remaining_void", 0)) > 0
+)
+if not open_now:
+    rail_state = "hold"
+elif config["ethereum_requests_enabled"]:
+    rail_state = "base_and_ethereum_open"
+else:
+    rail_state = "base_open_ethereum_hold"
+
+print(f"live_buy_rail_state={rail_state}")
+print(f"live_requests_enabled={str(config['requests_enabled']).lower()}")
+print(f"live_ethereum_requests_enabled={str(config['ethereum_requests_enabled']).lower()}")
+print(f"live_request_intake_ready={str(status['request_intake_ready']).lower()}")
+PY
+
+node scripts/prove_void_app_buy_presale_readonly_v1.mjs
+echo "[ok] live rail state + participant rendering contract"
+
+echo
+echo "=== [5] status smoke stays green ==="
 bash ops/mainnet/mainnet0-status-smoke.sh
 
 echo
