@@ -921,16 +921,24 @@ export function nodePermissionFlagV1(
   const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u.exec(
     String(version),
   );
-  if (!match || Number(match[1]) !== 22) {
-    fail("offline_signer_node22_required");
-  }
-  const minor = Number(match[2]);
-  if (!Number.isSafeInteger(minor) || minor < 0) {
+  if (!match) {
     fail("offline_signer_node_version_invalid");
   }
-  return minor >= 13
-    ? "--permission"
-    : "--experimental-permission";
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  if (
+    !Number.isSafeInteger(major) ||
+    !Number.isSafeInteger(minor) ||
+    minor < 0
+  ) {
+    fail("offline_signer_node_version_invalid");
+  }
+  if (![22, 24, 26].includes(major)) {
+    fail("offline_signer_node_version_unsupported");
+  }
+  return major === 22 && minor < 13
+    ? "--experimental-permission"
+    : "--permission";
 }
 
 function runPermissionFencedReviewedChildV1({
@@ -974,10 +982,11 @@ function runPermissionFencedReviewedChildV1({
     fail("offline_signer_reviewed_child_args_invalid");
   }
 
+  const permissionFlag = nodePermissionFlagV1();
   const result = spawnSync(
     NODE_V1,
     [
-      nodePermissionFlagV1(),
+      permissionFlag,
       "--allow-fs-read=" + root,
       entry,
       ...args,
