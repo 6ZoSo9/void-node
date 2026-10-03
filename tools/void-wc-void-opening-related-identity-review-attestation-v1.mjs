@@ -1092,6 +1092,7 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
   }
 
   const evidenceById = new Map();
+  const evidenceSubjectsById = new Map();
   const evidenceByCluster = new Map();
   const canonicalEvidence = [];
   let totalEvidenceBytes = 0;
@@ -1199,6 +1200,7 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
     }
     const normalized = Object.freeze({ ...evidenceMaterial, evidence_id: evidence.evidence_id });
     evidenceById.set(evidence.evidence_id, normalized);
+    evidenceSubjectsById.set(evidence.evidence_id, new Set(subjects));
     const clusterEvidence = evidenceByCluster.get(evidence.cluster_id) || [];
     clusterEvidence.push(normalized);
     evidenceByCluster.set(evidence.cluster_id, clusterEvidence);
@@ -1243,10 +1245,12 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
       fail("review_manifest_assignment_bijection_invalid");
     }
     const evidence = evidenceById.get(assignment.evidence_id);
+    const evidenceSubjects = evidenceSubjectsById.get(assignment.evidence_id);
     if (
       !evidence ||
+      !evidenceSubjects ||
       evidence.cluster_id !== assignment.cluster_id ||
-      !evidence.subject_participant_ids.includes(assignment.participant_id)
+      !evidenceSubjects.has(assignment.participant_id)
     ) {
       fail("review_manifest_assignment_evidence_mismatch");
     }
