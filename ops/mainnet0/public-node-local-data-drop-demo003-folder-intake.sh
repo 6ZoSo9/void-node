@@ -79,12 +79,15 @@ def require_rename_protected_parent(fd, label):
     if current.st_mode & 0o022 and not (current.st_mode & stat.S_ISVTX):
         fail(f"{label}_group_or_world_writable_without_sticky")
 
-absolute = os.path.isabs(data_dir)
-parts = [p for p in data_dir.split(os.sep) if p not in ("", ".")]
-if any(p == ".." for p in parts):
+original_parts = [p for p in data_dir.split(os.sep) if p not in ("", ".")]
+if any(p == ".." for p in original_parts):
     fail("data_dir_parent_component_rejected")
+resolved = os.path.abspath(data_dir)
+parts = [p for p in resolved.split(os.sep) if p]
+if not parts:
+    fail("data_dir_filesystem_root_rejected")
 
-fd = os.open("/" if absolute else ".", FLAGS)
+fd = os.open("/", FLAGS)
 try:
     for idx, part in enumerate(parts):
         require_rename_protected_parent(fd, f"data_dir_parent_{idx}")
@@ -97,18 +100,6 @@ try:
         )
         os.close(fd)
         fd = next_fd
-
-    if not parts:
-        root = os.fstat(fd)
-        if root.st_uid != euid:
-            fail("data_dir_not_owned_by_operator")
-        if root.st_mode & 0o022:
-            fail("data_dir_group_or_world_writable")
-        parent_fd = os.open("..", FLAGS, dir_fd=fd)
-        try:
-            require_rename_protected_parent(parent_fd, "data_dir_parent")
-        finally:
-            os.close(parent_fd)
 
     public_fd = open_component(fd, "public-node", "public_node_dir", True, True)
     base_fd = open_component(

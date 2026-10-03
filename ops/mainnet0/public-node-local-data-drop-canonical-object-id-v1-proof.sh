@@ -94,6 +94,12 @@ grep -Fq 'require_rename_protected_parent(fd, f"data_dir_parent_{idx}")' "$DEMO0
 grep -Fq 'require_rename_protected_parent(fd,f"data_dir_parent_{idx}")' "$DEMO003_STATUS" || fail "demo003_status_all_ancestor_guard_missing"
 grep -Fq 'renameProtectedDirectoryV1(fs.fstatSync(fd, { bigint: true }), euid)' "$READER" || fail "reader_all_ancestor_guard_missing"
 grep -Fq 'st.uid !== euid && st.uid !== 0n' "$READER" || fail "reader_parent_owner_guard_missing"
+grep -Fq 'resolved = os.path.abspath(path)' "$IMPORTER" || fail "data_root_relative_anchor_resolution_missing"
+grep -Fq 'fd = os.open("/", DIR_FLAGS)' "$IMPORTER" || fail "data_root_absolute_root_walk_missing"
+grep -Fq 'resolved = os.path.abspath(data_dir)' "$DEMO003_INTAKE" || fail "demo003_intake_relative_anchor_resolution_missing"
+grep -Fq 'fd = os.open("/", FLAGS)' "$DEMO003_INTAKE" || fail "demo003_intake_absolute_root_walk_missing"
+grep -Fq 'resolved=os.path.abspath(path)' "$DEMO003_STATUS" || fail "demo003_status_relative_anchor_resolution_missing"
+grep -Fq 'fd=os.open("/",DIR_FLAGS)' "$DEMO003_STATUS" || fail "demo003_status_absolute_root_walk_missing"
 grep -Fq 'type(doc.get("bytes")) is not int' "$IMPORTER" ||
   fail "receipt_exact_int_type_guard_missing"
 grep -Fq 'type(doc.get(key)) is not bool' "$IMPORTER" ||
@@ -253,6 +259,31 @@ if DATA_DIR="$demo003_status_unsafe_ancestor/safe-parent/data" bash "$DEMO003_ST
 fi
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-unsafe-ancestor.log" ||
   fail "demo003_higher_unsafe_ancestor_status_false_marker_missing"
+
+demo003_relative_anchor="$tmp/demo003-relative-anchor"
+mkdir -p "$demo003_relative_anchor/cwd/data"
+chmod 0777 "$demo003_relative_anchor"
+chmod 0700 "$demo003_relative_anchor/cwd" "$demo003_relative_anchor/cwd/data"
+if (
+  cd "$demo003_relative_anchor/cwd"
+  DATA_DIR=data OUT="$tmp/demo003-relative-anchor-out" bash "$ROOT/$DEMO003_INTAKE" >"$tmp/demo003-relative-anchor-intake.log" 2>&1
+); then
+  fail "demo003_relative_data_dir_unsafe_cwd_ancestor_accepted"
+fi
+test ! -e "$demo003_relative_anchor/cwd/data/public-node" ||
+  fail "demo003_relative_data_dir_unsafe_cwd_ancestor_received_publication"
+
+mkdir -p "$demo003_relative_anchor/status-cwd"
+cp -a "$demo003_fresh_data" "$demo003_relative_anchor/status-cwd/data"
+chmod 0700 "$demo003_relative_anchor/status-cwd" "$demo003_relative_anchor/status-cwd/data"
+if (
+  cd "$demo003_relative_anchor/status-cwd"
+  DATA_DIR=data bash "$ROOT/$DEMO003_STATUS" >"$tmp/demo003-relative-anchor-status.log" 2>&1
+); then
+  fail "demo003_relative_status_unsafe_cwd_ancestor_unexpected_green"
+fi
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-relative-anchor-status.log" ||
+  fail "demo003_relative_status_unsafe_cwd_ancestor_false_marker_missing"
 
 demo003_status_symlink_data="$tmp/demo003-status-symlink-data"
 demo003_status_outside="$tmp/demo003-status-outside-public-node"
@@ -577,6 +608,19 @@ fi
 test ! -e "$unsafe_data_ancestor/safe-parent/data/public-node" ||
   fail "unsafe_data_ancestor_received_publication"
 
+relative_anchor_root="$tmp/relative-anchor"
+mkdir -p "$relative_anchor_root/cwd/data"
+chmod 0777 "$relative_anchor_root"
+chmod 0700 "$relative_anchor_root/cwd" "$relative_anchor_root/cwd/data"
+if (
+  cd "$relative_anchor_root/cwd"
+  DATA_DIR=data bash "$ROOT/$IMPORTER" "$ROOT/$PAYLOAD" "void:proof:relative-anchor:v1" >"$tmp/relative-anchor.log" 2>&1
+); then
+  fail "relative_data_dir_unsafe_cwd_ancestor_accepted"
+fi
+test ! -e "$relative_anchor_root/cwd/data/public-node" ||
+  fail "relative_data_dir_unsafe_cwd_ancestor_received_publication"
+
 public_node_symlink_root="$tmp/public-node-symlink"
 mkdir -p "$public_node_symlink_root/data" "$public_node_symlink_root/outside"
 ln -s "$public_node_symlink_root/outside" "$public_node_symlink_root/data/public-node"
@@ -798,6 +842,8 @@ echo "data_root_all_ancestors_rename_protected=true"
 echo "demo003_all_ancestors_rename_protected=true"
 echo "reader_all_ancestors_rename_protected=true"
 echo "all_path_ancestors_owned_by_operator_or_root=true"
+echo "relative_data_dir_walks_from_filesystem_root=true"
+echo "demo003_relative_data_dir_walks_from_filesystem_root=true"
 echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"

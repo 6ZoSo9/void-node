@@ -51,22 +51,17 @@ def require_rename_protected_parent(fd,label):
 
 def open_data_root(path):
     if not path or "\x00" in path: fail("data_dir_invalid")
-    absolute=os.path.isabs(path)
-    parts=[p for p in path.split(os.sep) if p not in ("",".")]
-    if any(p==".." for p in parts): fail("data_dir_parent_component_rejected")
-    fd=os.open("/" if absolute else ".",DIR_FLAGS)
+    original_parts=[p for p in path.split(os.sep) if p not in ("",".")]
+    if any(p==".." for p in original_parts): fail("data_dir_parent_component_rejected")
+    resolved=os.path.abspath(path)
+    parts=[p for p in resolved.split(os.sep) if p]
+    if not parts: fail("data_dir_filesystem_root_rejected")
+    fd=os.open("/",DIR_FLAGS)
     try:
         for idx,part in enumerate(parts):
             require_rename_protected_parent(fd,f"data_dir_parent_{idx}")
             next_fd=open_component(fd,part,f"data_dir_component_{idx}",idx==len(parts)-1)
             os.close(fd); fd=next_fd
-        if not parts:
-            st=os.fstat(fd)
-            if st.st_uid!=euid: fail("data_dir_not_owned_by_operator")
-            if st.st_mode&0o022: fail("data_dir_group_or_world_writable")
-            parent_fd=os.open("..",DIR_FLAGS,dir_fd=fd)
-            try: require_rename_protected_parent(parent_fd,"data_dir_parent")
-            finally: os.close(parent_fd)
         result=fd; fd=-1; return result
     finally:
         if fd>=0: os.close(fd)
