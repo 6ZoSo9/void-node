@@ -62,11 +62,25 @@ LIFO rule for later debits/redemptions.
 The census therefore does not pretend to know exactly which earning source a
 later outflow consumed.
 
-For every matched production-earned account it reuses the canonical:
+The census captures `wc_v1/ledger.jsonl` and, when present,
+`wc_v1/redeemed.jsonl` as one stable bounded snapshot. It records both file
+identities before either read, reads through nofollow direct-file descriptors,
+then rechecks both identities after both reads. Any append, rotation, ownership/
+mode change, or redeemed-file create/remove during that window fails closed as
+`wc_state_snapshot_drift`.
 
-`readCanonicalWcState(...)`
+The ledger snapshot is parsed with the same exact historical-compatibility rule
+used for production-WC visibility. The same repaired snapshot bytes are then
+fed to the canonical multi-account WC projector:
 
-and derives:
+`projectCanonicalWcStatesFromEntriesV1(...)`
+
+That projector is also reused by `readCanonicalWcState(...)`, so the census
+does not fork the canonical credit/debit/redemption arithmetic. All matched
+accounts are projected in one ledger pass and one redemption pass rather than
+rescanning both files once per account.
+
+From that stable canonical projection the census derives:
 
 ```text
 lower bound
@@ -112,15 +126,23 @@ The scan proves only what was found beneath the explicitly supplied roots.
 
 Unreadable directories and receipt-search paths truncated by the bounded
 recursive-depth limit force the `OBSERVED_WITH_DISCOVERY_GAPS` status. Unknown
-malformed canonical WC ledger lines do the same. The census also consumes the
-canonical WC projector's malformed-redemption count for matched accounts; any
-malformed `wc_v1/redeemed.jsonl` row likewise prevents CLEAN status because it
-can hide an outflow relevant to the production-earned lower/upper bounds.
+malformed canonical WC ledger lines do the same. Any malformed
+`wc_v1/redeemed.jsonl` row likewise prevents CLEAN status because it can hide
+an outflow relevant to the production-earned lower/upper bounds.
+
+The ledger and redemption inputs are bounded independently at 256 MiB each.
+Those are technical verifier ceilings, not economic policy values. The output
+records `wc_state_snapshot_stable=true` and
+`canonical_multi_account_projection_single_pass=true` only after the stable
+snapshot and one-pass projection complete. Snapshot drift is a hard failure, not
+a discovery-gap success.
 
 One historical exception is already part of canonical production-WC visibility
 compatibility on `main`. The census recognizes only that exact raw-line SHA-256,
 repairs only byte position `178` to `:`, requires the exact canonical repaired
-SHA-256, and parses the repaired bytes in memory. It reports the count as
+SHA-256, and parses the repaired bytes in memory. Crucially, the repaired row is
+used both for duplicate-credit matching and for canonical balance projection;
+the raw malformed file is not reopened later. It reports the count as
 `historical_known_compatibility_repairs_applied` and never writes repaired bytes
 back to the ledger. Any other malformed row remains a discovery gap.
 
