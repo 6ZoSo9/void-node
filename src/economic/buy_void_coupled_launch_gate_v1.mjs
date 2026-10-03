@@ -333,29 +333,10 @@ function buyLaunchGenerationPathsV1(env = process.env) {
   return Object.freeze({ dataDir, journalPath, anchorPath });
 }
 
-function assertSynchronousGenerationOperationV1(operation) {
+async function withBuyLaunchGenerationAuthorityLockV1(operation) {
   if (typeof operation !== "function") {
     throw new Error("buy_launch_generation_lock_operation_required");
   }
-  if (operation.constructor?.name === "AsyncFunction") {
-    throw new Error("buy_launch_generation_async_operation_forbidden");
-  }
-  return () => {
-    const result = operation();
-    if (
-      result &&
-      (typeof result === "object" || typeof result === "function") &&
-      typeof result.then === "function"
-    ) {
-      throw new Error("buy_launch_generation_thenable_operation_forbidden");
-    }
-    return result;
-  };
-}
-
-async function withBuyLaunchGenerationAuthorityLockV1(operation) {
-  const synchronousOperation =
-    assertSynchronousGenerationOperationV1(operation);
   let lockModule;
   try {
     lockModule = await import(
@@ -366,13 +347,13 @@ async function withBuyLaunchGenerationAuthorityLockV1(operation) {
     throw new Error("buy_launch_generation_authority_lock_unavailable");
   }
   if (
-    typeof lockModule?.withBuyVoidFilesystemBakeryLockV1 !== "function"
+    typeof lockModule?.withBuyVoidFilesystemBakeryLockAsyncV1 !== "function"
   ) {
     throw new Error("buy_launch_generation_authority_lock_invalid");
   }
-  return lockModule.withBuyVoidFilesystemBakeryLockV1(
+  return lockModule.withBuyVoidFilesystemBakeryLockAsyncV1(
     buyLaunchGenerationAuthorityLockPathV1(),
-    synchronousOperation,
+    operation,
   );
 }
 
@@ -530,7 +511,7 @@ export async function publishBuyLaunchGenerationTransitionV1(
       journal_path: journalPath,
       anchor_path: anchorPath,
       publication_locked: true,
-      asynchronous_callback_allowed: false,
+      async_aware_shared_lock: true,
       funds_movement: false,
     });
   });
