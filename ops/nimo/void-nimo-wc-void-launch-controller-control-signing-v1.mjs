@@ -1182,6 +1182,8 @@ async function withReviewedSigningRuntimeV1(
       profile,
       run,
       permission_fenced: true,
+      permission_flag: nodePermissionFlagV1(),
+      child_node_executable: CHILD_NODE_V1,
       ancestor_package_resolution_allowed: false,
       ambient_node_resolution_overrides_ignored: true,
       ambient_dynamic_loader_overrides_ignored: true,
@@ -1964,6 +1966,8 @@ export async function reviewedOfflineSigningRuntimeV1() {
             ? probe.ethers_version
             : null,
         permission_fenced_execution: runtime.permission_fenced,
+        permission_flag: runtime.permission_flag,
+        child_node_executable: runtime.child_node_executable,
         ancestor_package_resolution_allowed:
           runtime.ancestor_package_resolution_allowed,
         ambient_node_resolution_overrides_ignored:
@@ -2063,6 +2067,8 @@ export async function signSelectedLaunchControllerChallengeV1({
         reviewed_packages_aggregate_sha256:
           runtime.profile.packages_aggregate_sha256,
         permission_fenced_execution: true,
+        permission_flag: runtime.permission_flag,
+        child_node_executable: runtime.child_node_executable,
         ancestor_package_resolution_allowed: false,
         ambient_node_resolution_overrides_ignored: true,
         ambient_dynamic_loader_overrides_ignored: true,
