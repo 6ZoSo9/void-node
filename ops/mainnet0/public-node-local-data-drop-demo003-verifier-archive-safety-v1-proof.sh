@@ -122,9 +122,10 @@ for kind in symlink hardlink extra traversal; do
 done
 
 outside_dir="$tmp/outside-dir"
-mkdir -m 700 "$outside_dir"
+mkdir -m 750 "$outside_dir"
 printf 'OUTSIDE_DIRECTORY_SENTINEL\n' >"$outside_dir/sentinel.txt"
 outside_dir_before="$(sha256sum "$outside_dir/sentinel.txt" | awk '{print $1}')"
+outside_dir_stat_before="$(stat -c '%d:%i:%f:%u:%g:%s:%y:%z' "$outside_dir")"
 
 root_link="$tmp/verify-root-link"
 ln -s "$outside_dir" "$root_link"
@@ -133,8 +134,10 @@ if OUT="$root_link" bash "$VERIFIER" "$tarball" >"$tmp/root-link.log" 2>&1; then
 fi
 test "$(sha256sum "$outside_dir/sentinel.txt" | awk '{print $1}')" = "$outside_dir_before" ||
   fail "output_root_symlink_mutated_outside_sentinel"
-test "$(find "$outside_dir" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 1 ||
-  fail "output_root_symlink_created_outside_file"
+test "$(find "$outside_dir" -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ||
+  fail "output_root_symlink_created_outside_entry"
+test "$(stat -c '%d:%i:%f:%u:%g:%s:%y:%z' "$outside_dir")" = "$outside_dir_stat_before" ||
+  fail "output_root_symlink_mutated_outside_directory"
 
 extract_link_root="$tmp/verify-extract-link"
 mkdir -m 700 "$extract_link_root"
@@ -144,8 +147,10 @@ if OUT="$extract_link_root" bash "$VERIFIER" "$tarball" >"$tmp/extract-link.log"
 fi
 test "$(sha256sum "$outside_dir/sentinel.txt" | awk '{print $1}')" = "$outside_dir_before" ||
   fail "extract_root_symlink_mutated_outside_sentinel"
-test "$(find "$outside_dir" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 1 ||
-  fail "extract_root_symlink_created_outside_file"
+test "$(find "$outside_dir" -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ||
+  fail "extract_root_symlink_created_outside_entry"
+test "$(stat -c '%d:%i:%f:%u:%g:%s:%y:%z' "$outside_dir")" = "$outside_dir_stat_before" ||
+  fail "extract_root_symlink_mutated_outside_directory"
 
 python3 - "$tmp/pax-bomb.tar.gz" "$tmp/control-name.tar.gz" <<'PY'
 import io
