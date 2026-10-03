@@ -582,8 +582,19 @@ function readPrivateKeyV1(file) {
 function writeExclusiveJsonV1(
   file,
   value,
-  { testOnlyAfterParentPinnedBeforeCreate = null } = {},
+  {
+    expiresAtUnix = null,
+    nowUnix = () => Math.floor(Date.now() / 1000),
+    testOnlyAfterParentPinnedBeforeCreate = null,
+  } = {},
 ) {
+  if (
+    !(expiresAtUnix === null ||
+      (Number.isSafeInteger(expiresAtUnix) && expiresAtUnix > 0)) ||
+    typeof nowUnix !== "function"
+  ) {
+    fail("signature_output_expiry_guard_invalid");
+  }
   if (
     typeof file !== "string" ||
     !path.isAbsolute(file) ||
@@ -715,6 +726,13 @@ function writeExclusiveJsonV1(
       fail("signature_output_path_changed_after_create");
     }
 
+    if (
+      expiresAtUnix !== null &&
+      BigInt(nowUnix()) >= BigInt(expiresAtUnix)
+    ) {
+      fail("control_challenge_expired_after_output_write");
+    }
+
     return Object.freeze({
       bytes: bytes.length,
       sha256: sha256(bytes),
@@ -789,6 +807,42 @@ export function testOnlyExerciseSignatureOutputParentReplacementV1() {
         fs.existsSync(path.join(active, "signature.json")),
       displaced_output_exists:
         fs.existsSync(path.join(displaced, "signature.json")),
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+export function testOnlyExerciseSignatureOutputExpiryCleanupV1() {
+  const root = fs.mkdtempSync(
+    path.join(
+      process.env.TMPDIR || "/tmp",
+      "void-offline-signer-output-expiry-",
+    ),
+  );
+  fs.chmodSync(root, 0o700);
+  const output = path.join(root, "signature.json");
+  let reason = null;
+  try {
+    try {
+      writeExclusiveJsonV1(
+        output,
+        Object.freeze({
+          marker: "TEST_ONLY_PUBLIC_SIGNATURE_ENVELOPE",
+          version: 1,
+        }),
+        {
+          expiresAtUnix: 100,
+          nowUnix: () => 100,
+        },
+      );
+    } catch (error) {
+      reason =
+        error instanceof Error ? error.message : String(error);
+    }
+    return Object.freeze({
+      reason,
+      output_exists: fs.existsSync(output),
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -1625,7 +1679,11 @@ export async function signSelectedLaunchControllerChallengeV1({
     fail("control_challenge_expired");
   }
 
-  const written = writeExclusiveJsonV1(outputPath, envelope);
+  const written = writeExclusiveJsonV1(
+    outputPath,
+    envelope,
+    { expiresAtUnix: reviewed.expires_at_unix },
+  );
   return Object.freeze({
     marker: VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
     status: "PUBLIC_CONTROL_SIGNATURE_ENVELOPE_WRITTEN",
