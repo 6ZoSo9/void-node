@@ -103,6 +103,7 @@ for (const required of [
   "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   "data-buy-chain",
   "config.payment_chains",
+  "config.ethereum_requests_enabled",
   "ack_native_usdc",
   "source_chain: chain",
   "request.payment_instructions?.send_chain",
@@ -240,6 +241,7 @@ const validConfig = {
   payment_sender_must_equal_void_destination: true,
   do_not_send_from_exchange: true,
   requests_enabled: true,
+  ethereum_requests_enabled: false,
   payment_ready: true,
   receiver_binding_green: true,
   automatic_fulfillment: false,
@@ -268,7 +270,18 @@ assert.equal(buyTest.isOpen(validSnapshot), true);
 chainInput.value = "ethereum";
 buyTest.setState(validSnapshot, false, false);
 buyTest.updateSubmit();
-assert.equal(submitButton.disabled, false, "Ethereum rail selection may enable submit under the same OPEN snapshot");
+assert.equal(submitButton.disabled, true, "Ethereum must stay disabled while its separate request gate is HOLD");
+const heldFetchCount = fetchCalls.length;
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, heldFetchCount, "Ethereum HOLD must not POST");
+const ethereumSnapshot = buyTest.validateSnapshot(
+  { ...validConfig, ethereum_requests_enabled: true },
+  structuredClone(validStatus),
+  structuredClone(validSale),
+);
+buyTest.setState(ethereumSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "Ethereum may enable only after its explicit gate is OPEN");
 chainInput.value = "base";
 
 for (const malformed of [

@@ -5,8 +5,9 @@ Marker: `VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1`
 This lane establishes the request-first public checkout for Base or Ethereum
 native USDC → native VOID fulfillment.
 
-When public request intake is activated, the request contract accepts exactly
-two payment rails:
+The payment policy approves exactly two rails, but request readiness is
+rail-specific. Base follows the coupled Buy request gate. Ethereum remains HOLD
+unless its separate fail-closed request gate is explicitly opened:
 
 - Base Mainnet native USDC: chain ID `8453`, contract
   `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
@@ -52,8 +53,11 @@ required before a request can be created.
 
 Request intake is fail-closed by default. Source defaults
 `VOID_BUY_REQUESTS_ENABLED=0`; an explicit `VOID_BUY_REQUESTS_ENABLED=1`
-activation is required for the coupled presale/WC launch ceremony. Until then,
-the public surface is inspectable and new request/payment intake remains held.
+activation is required for Base request intake at the coupled presale/WC launch.
+Ethereum additionally requires `VOID_BUY_ETHEREUM_REQUESTS_ENABLED=1`, which
+defaults to HOLD and cannot be opened merely by enabling Base. Until the relevant
+rail gate is open, the public surface is inspectable but that rail rejects new
+request/payment intake.
 Payment verification for already-created obligations remains available without
 reopening new-request intake.
 

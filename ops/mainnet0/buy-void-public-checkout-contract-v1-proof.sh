@@ -43,12 +43,15 @@ need 'method:"POST"' "$src"
 need 'VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1' "$src"
 need 'VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1' "$src"
 need 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' "$src"
+need 'process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1"' "$src"
+need 'buy_void_ethereum_requests_disabled' "$src"
 need 'const payment_ready = !receiverBindingConflict;' "$src"
 need 'mode: !cfg.requests_enabled ? "request_intake_hold"' "$src"
 need 'request_intake_ready: cfg.requests_enabled && cfg.payment_ready' "$src"
 need 'HOLD: Buy VOID request intake is not activated. Do not send funds.' "$src"
 need 'legacy_request_get_method_not_allowed_green=true' "$accounting"
 bad 'process.env.VOID_BUY_REQUESTS_ENABLED || "1"' "$src"
+bad 'process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED || "1"' "$src"
 
 bad 'app.get("/__void/buy-void/request.json", async' "$src"
 bad 'tx_hash: tx_hash || ""' "$src"
@@ -83,11 +86,15 @@ assert 'payment_chains: ["base", "ethereum"]' in config
 assert 'request_method: "POST"' in config
 assert 'tx_hash_at_request_creation_allowed: false' in config
 assert 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' in config
+assert 'process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1"' in config
+assert 'ethereum_requests_enabled' in config
 assert 'const payment_ready = !receiverBindingConflict;' in config
 
 assert 'app.post("/__void/buy-void/request"' in request
 assert "res.status(405)" in request
 assert '"unsupported_usdc_source_chain"' in request
+assert '"buy_void_ethereum_requests_disabled"' in request
+assert '!cfg.ethereum_requests_enabled' in request
 assert 'send_chain: source_chain' in request
 assert "one_active_request_per_void_destination" in request
 assert "payment_tx_hash_not_allowed_at_request_creation" in request
@@ -133,6 +140,9 @@ assert j["request_contract"]["one_active_request_per_void_destination"] is True
 assert j["request_contract"]["tx_hash_at_creation_allowed"] is False
 assert j["request_contract"]["source_default_requests_enabled"] is False
 assert j["request_contract"]["activation_env"]=="VOID_BUY_REQUESTS_ENABLED"
+assert j["request_contract"]["source_default_ethereum_requests_enabled"] is False
+assert j["request_contract"]["ethereum_activation_env"]=="VOID_BUY_ETHEREUM_REQUESTS_ENABLED"
+assert j["request_contract"]["base_open_does_not_open_ethereum"] is True
 assert len(j["required_acknowledgements"])==5
 assert "ack_native_usdc" in j["required_acknowledgements"]
 assert j["request_contract"]["supported_source_chains"]==["base","ethereum"]

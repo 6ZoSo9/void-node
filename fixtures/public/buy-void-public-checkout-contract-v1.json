@@ -43,7 +43,10 @@
       "base",
       "ethereum"
     ],
-    "same_destination_same_amount_same_chain_is_idempotent": true
+    "same_destination_same_amount_same_chain_is_idempotent": true,
+    "source_default_ethereum_requests_enabled": false,
+    "ethereum_activation_env": "VOID_BUY_ETHEREUM_REQUESTS_ENABLED",
+    "base_open_does_not_open_ethereum": true
   },
   "required_acknowledgements": [
     "ack_self_custody",

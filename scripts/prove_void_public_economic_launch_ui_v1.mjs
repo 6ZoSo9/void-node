@@ -40,6 +40,7 @@ for (const token of [
   "BUY_REQUEST_ENDPOINT = '/__void/buy-void/request'",
   "method: 'POST'",
   'config.requests_enabled === true',
+  'config.ethereum_requests_enabled',
   'snapshot.status.request_intake_ready === true',
   'snapshot.sale.sold_out === false',
   'snapshot.sale.remaining_void > 0',

@@ -125,8 +125,12 @@ const validateSnapshot = (config, status, sale) => {
   ) {
     throw new Error('presale payment-rail policy mismatch');
   }
-  if (config.payment_chain_id !== 8453 || config.delivery_chain_id !== 2050) {
-    throw new Error('presale chain identity mismatch');
+  if (
+    config.payment_chain_id !== 8453 ||
+    config.delivery_chain_id !== 2050 ||
+    typeof config.ethereum_requests_enabled !== 'boolean'
+  ) {
+    throw new Error('presale chain/readiness identity mismatch');
   }
   if (
     config.price_usdc_per_void !== '0.50' ||
@@ -226,7 +230,11 @@ const validAmount = () => {
 };
 const validDestination = () => ADDRESS_RE.test(String(one('[data-buy-destination]')?.value || '').trim());
 const selectedChain = () => String(one('[data-buy-chain]')?.value || '').trim().toLowerCase();
-const selectedRail = () => BUY_RAILS[selectedChain()] || null;
+const selectedRail = () => {
+  const chain = selectedChain();
+  if (chain === 'ethereum' && currentSnapshot?.config.ethereum_requests_enabled !== true) return null;
+  return BUY_RAILS[chain] || null;
+};
 function updateSubmit() {
   const button = one('[data-buy-submit]');
   if (!button) return;
@@ -279,7 +287,9 @@ const renderSnapshot = (snapshot) => {
   setChip('[data-buy-state-chip]', 'positive', 'OPEN — REQUEST FIRST');
   setChip('[data-buy-form-chip]', 'positive', 'OPEN');
   setText('[data-buy-intake]', 'OPEN');
-  setText('[data-buy-message]', 'Live readiness is OPEN. Create one request first, verify the returned payment instructions, then send only from the same self-custody address used as the VOID destination.');
+  setText('[data-buy-message]', config.ethereum_requests_enabled === true
+    ? 'Base and Ethereum request intake are OPEN. Create one request first, then use only its exact returned rail and payment instructions.'
+    : 'Base request intake is OPEN. Ethereum native USDC is policy-approved but remains HOLD until separately activated.');
   setText('[data-buy-result]', 'Ready to create a request. No funds are sent by this page.');
   setFormEnabled(true);
 };

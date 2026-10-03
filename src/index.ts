@@ -18377,38 +18377,14 @@ small{color:#94a3b8}
       const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
       const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
       const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
+      const ethereum_requests_enabled=requests_enabled&&process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1";
       const payment_ready = !receiverBindingConflict;
       return {
-        schema: "void_public_buy_void_config_v1",
-        marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-        ok: true,
-        mode: "dual_usdc_request_first_checkout",
-        requests_enabled,
-        payment_ready,
-        payment_chains: ["base", "ethereum"],
-        chain: "base",
-        payment_chain: "base",
-        payment_chain_id: __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,
-        usdc_symbol,
-        usdc_contract: __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,
-        usdc_decimals: 6,
-        receive_address: __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,
-        receiver_binding_green: !receiverBindingConflict,
-        receiver_binding_source: receiverBindingSource,
-        receiver_binding_conflict: receiverBindingConflict,
-        configured_receive_address_present: !!configuredReceiveAddress,
-        receiver_control_proof_marker: "VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",
-        receiver_control_proof_manifest_sha256: "dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
-        request_method: "POST",
-        request_route: "/__void/buy-void/request",
-        legacy_get_request_route: "/__void/buy-void/request.json",
-        one_active_request_per_void_destination: true,
-        void_destination_field: "void_destination_address",
-        delivery_chain: "void",
-        delivery_chain_id: __VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,
-        payment_sender_must_equal_void_destination: true,
-        request_before_payment_required: true,
-        tx_hash_at_request_creation_allowed: false,
+        schema:"void_public_buy_void_config_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:true,mode:"dual_usdc_request_first_checkout",
+        requests_enabled,ethereum_requests_enabled,payment_ready,payment_chains: ["base", "ethereum"],chain:"base",payment_chain:"base",payment_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,usdc_symbol,usdc_contract:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,usdc_decimals:6,
+        receive_address:__VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,receiver_binding_green:!receiverBindingConflict,receiver_binding_source:receiverBindingSource,receiver_binding_conflict:receiverBindingConflict,configured_receive_address_present:!!configuredReceiveAddress,
+        receiver_control_proof_marker:"VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",receiver_control_proof_manifest_sha256:"dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
+        request_method: "POST",request_route:"/__void/buy-void/request",legacy_get_request_route:"/__void/buy-void/request.json",one_active_request_per_void_destination:true,void_destination_field:"void_destination_address",delivery_chain:"void",delivery_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,payment_sender_must_equal_void_destination: true,request_before_payment_required:true,tx_hash_at_request_creation_allowed: false,
         rate_void_per_usdc,
         price_usdc_per_void: String(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
         pool_void_total: Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000"),
@@ -19207,7 +19183,7 @@ setInterval(refresh, 10000);
         if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
         if (Number.isFinite(usdc_amount) && Math.round(usdc_amount * 1_000_000) / 1_000_000 !== usdc_amount) errors.push("usdc_amount_exceeds_6_decimals");
         if (!/^0x[a-fA-F0-9]{40}$/.test(void_destination_address)) errors.push("invalid_void_destination_address");
-        if (source_chain !== "base" && !ethereum) errors.push("unsupported_usdc_source_chain");
+        if(source_chain!=="base"&&(!ethereum||!cfg.ethereum_requests_enabled))errors.push(ethereum?"buy_void_ethereum_requests_disabled":"unsupported_usdc_source_chain");
         if (txHashAtCreation) errors.push("payment_tx_hash_not_allowed_at_request_creation");
         for (const [key, value] of Object.entries(acknowledgements)) {
           if (!value) errors.push("acknowledgement_required_" + key);
