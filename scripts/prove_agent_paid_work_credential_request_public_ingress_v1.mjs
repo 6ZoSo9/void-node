@@ -303,6 +303,7 @@ assert.equal(
   true,
 );
 assert.equal(ready.paid_work_credential_request_route.nonce_replay_protection, true);
+assert.equal(ready.paid_work_credential_request_route.edge_global_rate_wall, true);
 assert.equal(ready.paid_work_credential_request_route.forwarded_ip_headers_trusted, false);
 assert.equal(ready.paid_work_credential_request_route.credential_issuance_authority, false);
 assert.equal(ready.paid_work_credential_request_route.credential_registry_mutation_authority, false);
@@ -528,6 +529,45 @@ assert.equal(
   "applicant B must retain its allowance after applicant A is exhausted",
 );
 assert.ok(upstreamCalls.length < UPSTREAM_LIMIT);
+
+const applicantC = identity();
+for (let index = 0; index < 2; index += 1) {
+  const body = requestBody("applicant-c-" + index);
+  const response = await postCredential(
+    base,
+    body,
+    authHeader({
+      identityValue: applicantC,
+      body,
+      nonceLabel: "applicant-c-" + index,
+    }),
+  );
+  assert.equal(response.status, 202);
+}
+assert.equal(upstreamCalls.length, UPSTREAM_LIMIT);
+
+const applicantD = identity();
+const applicantDBody = requestBody("applicant-d-global-hold");
+const applicantDResponse = await postCredential(
+  base,
+  applicantDBody,
+  authHeader({
+    identityValue: applicantD,
+    body: applicantDBody,
+    nonceLabel: "applicant-d-global-hold",
+  }),
+);
+assert.equal(applicantDResponse.status, 429);
+assert.equal(
+  (await applicantDResponse.json()).error,
+  "public_credential_request_global_rate_limit_exceeded",
+);
+assert.equal(
+  upstreamCalls.length,
+  UPSTREAM_LIMIT,
+  "edge global wall must stop before another upstream request",
+);
+
 for (const call of upstreamCalls) {
   assert.equal(
     call.headers[VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1],
@@ -605,6 +645,8 @@ console.log("nonce_replay_rejected_before_upstream=true");
 console.log("forwarded_ip_headers_trusted=false");
 console.log("single_applicant_cannot_exhaust_upstream_bucket=true");
 console.log("second_applicant_isolated_after_first_exhaustion=true");
+console.log("edge_global_rate_wall_mirrors_declared_upstream_cap=true");
 console.log("upstream_global_rate_wall_preserved=true");
+console.log("rejected_rate_limited_nonces_do_not_fill_replay_cache=true");
 console.log("credential_issuance_authority=false");
 console.log("default_activation=false");
