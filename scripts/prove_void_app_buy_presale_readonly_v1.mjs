@@ -55,6 +55,11 @@ for (const required of [
   "VOID is not listed on any exchange.",
   "data-buy-request-form",
   "data-buy-submit",
+  'aria-describedby="buy-usdc-amount-help buy-usdc-amount-error"',
+  'aria-describedby="buy-void-destination-help buy-void-destination-error"',
+  'data-buy-amount-error role="status"',
+  'data-buy-destination-error role="status"',
+  'required aria-required="true"',
   "disabled",
   "The selected-rail USDC sender must be this exact same address.",
   "This page never sends funds or connects a wallet.",
@@ -94,6 +99,8 @@ for (const required of [
   "request.safety?.automatic_fulfillment !== false",
   "request.safety?.manual_review_required !== true",
   "usdcAtoms",
+  "updateFieldErrors",
+  "42-character 0x VOID address",
   "MAX_BUY_JSON_BYTES = 131072",
   "response.body?.getReader?.()",
   "Buy VOID response exceeds byte limit",
@@ -141,11 +148,26 @@ assert.doesNotThrow(() => {
 new Function(client);
 
 const submitButton = { disabled: true };
-const amountInput = { value: "10", disabled: false };
-const destinationInput = {
-  value: "0x1111111111111111111111111111111111111111",
-  disabled: false,
+const fieldNode = (value) => {
+  const attributes = new Map();
+  return {
+    value,
+    disabled: false,
+    setAttribute(name, nextValue) {
+      attributes.set(name, String(nextValue));
+    },
+    removeAttribute(name) {
+      attributes.delete(name);
+    },
+    getAttribute(name) {
+      return attributes.get(name) ?? null;
+    },
+  };
 };
+let amountInput = fieldNode("10");
+let destinationInput = fieldNode("0x1111111111111111111111111111111111111111");
+let amountError = { textContent: "" };
+let destinationError = { textContent: "" };
 const chainInput = { value: "base", disabled: false };
 const ackNames = [
   "self_custody",
@@ -159,7 +181,14 @@ const ackNodes = ackNames.map((name) => ({
   checked: true,
   disabled: false,
 }));
-const buyViewNode = {};
+let buyViewNode = {};
+const replaceBuyView = () => {
+  amountInput = fieldNode("");
+  destinationInput = fieldNode("");
+  amountError = { textContent: "" };
+  destinationError = { textContent: "" };
+  buyViewNode = {};
+};
 const fetchCalls = [];
 const sandbox = {
   console,
@@ -170,6 +199,8 @@ const sandbox = {
       if (selector === "[data-buy-submit]") return submitButton;
       if (selector === "[data-buy-amount]") return amountInput;
       if (selector === "[data-buy-destination]") return destinationInput;
+      if (selector === "[data-buy-amount-error]") return amountError;
+      if (selector === "[data-buy-destination-error]") return destinationError;
       if (selector === "[data-buy-chain]") return chainInput;
       if (selector === "[data-buy-view]") return buyViewNode;
       return null;
@@ -207,6 +238,8 @@ const instrumentedClient = client + `
   isOpen,
   updateSubmit,
   submitBuy,
+  markFieldTouched,
+  beginBuyViewInstance,
   setState(snapshot, pending, busy) {
     currentSnapshot = snapshot;
     readinessPending = pending;
@@ -267,8 +300,50 @@ const validSnapshot = buyTest.validateSnapshot(
   structuredClone(validSale),
 );
 assert.equal(buyTest.isOpen(validSnapshot), true);
-chainInput.value = "ethereum";
+assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
 buyTest.setState(validSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(amountInput.getAttribute("aria-invalid"), null);
+assert.equal(destinationInput.getAttribute("aria-invalid"), null);
+assert.equal(amountError.textContent, "");
+assert.equal(destinationError.textContent, "");
+
+buyTest.markFieldTouched("amount");
+amountInput.value = "10.1234567";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "over-precision amount must keep submit disabled");
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
+assert.match(amountError.textContent, /at most 6 decimals/);
+
+amountInput.value = "";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "cleared required amount must keep submit disabled");
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
+assert.match(amountError.textContent, /Enter a native USDC amount/);
+
+amountInput.value = "10";
+buyTest.markFieldTouched("destination");
+destinationInput.value = "0x1234";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "incomplete destination must keep submit disabled");
+assert.equal(destinationInput.getAttribute("aria-invalid"), "true");
+assert.match(destinationError.textContent, /42-character/);
+
+destinationInput.value = "";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "cleared required destination must keep submit disabled");
+assert.equal(destinationInput.getAttribute("aria-invalid"), "true");
+assert.match(destinationError.textContent, /Enter the native VOID destination address/);
+
+destinationInput.value = "0x1111111111111111111111111111111111111111";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "corrected fields must clear errors and enable eligible submit");
+assert.equal(amountInput.getAttribute("aria-invalid"), "false");
+assert.equal(destinationInput.getAttribute("aria-invalid"), "false");
+assert.equal(amountError.textContent, "");
+assert.equal(destinationError.textContent, "");
+
+chainInput.value = "ethereum";
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, true, "Ethereum must stay disabled while its separate request gate is HOLD");
 const heldFetchCount = fetchCalls.length;
@@ -410,6 +485,32 @@ assert.equal(
   "submit may re-enable only after readiness pending is cleared",
 );
 
+replaceBuyView();
+assert.equal(
+  buyTest.beginBuyViewInstance(buyViewNode),
+  true,
+  "replacement Buy view must begin a new validation-state lifetime",
+);
+buyTest.setState(validSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "replacement empty required fields must keep submit disabled");
+assert.equal(amountInput.getAttribute("aria-invalid"), null);
+assert.equal(destinationInput.getAttribute("aria-invalid"), null);
+assert.equal(amountError.textContent, "");
+assert.equal(destinationError.textContent, "");
+
+buyTest.markFieldTouched("amount");
+buyTest.updateSubmit();
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
+assert.match(amountError.textContent, /Enter a native USDC amount/);
+assert.equal(
+  buyTest.beginBuyViewInstance(buyViewNode),
+  false,
+  "refreshing the same Buy view must preserve its touched state",
+);
+buyTest.updateSubmit();
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
+
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
 console.log(`canonical_price_occurrences=${canonicalPrice.occurrenceCount}`);
@@ -430,3 +531,4 @@ console.log("wallet_or_signer_access=0");
 console.log("browser_fund_send=0");
 console.log("transaction_broadcast=0");
 console.log("money_movement_by_page=0");
+console.log("invalid_buy_fields_announced=1");
