@@ -12,6 +12,7 @@ BYTE_LENGTH="3204"
 PAYLOAD="public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
 IMPORTER="ops/mainnet0/public-node-local-data-drop-import.sh"
 SOURCE="src/index.ts"
+READER="src/http/public_node_local_data_drop_file_v1.ts"
 
 fail() {
   printf '%s HOLD: %s\n' "$MARKER" "$*" >&2
@@ -21,6 +22,7 @@ fail() {
 test -f "$PAYLOAD" && test ! -L "$PAYLOAD" || fail "payload_missing_or_symlink"
 test -f "$IMPORTER" && test ! -L "$IMPORTER" || fail "importer_missing_or_symlink"
 test -f "$SOURCE" && test ! -L "$SOURCE" || fail "source_missing_or_symlink"
+test -f "$READER" && test ! -L "$READER" || fail "reader_missing_or_symlink"
 
 bash -n "$IMPORTER" || fail "importer_shell_syntax"
 test "$(grep -Foc 'VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SECURE_STAGED_CREATE_ONLY_V2' "$IMPORTER")" = "1" ||
@@ -75,14 +77,17 @@ if grep -Fq 'sha256sum "$SRC"' "$IMPORTER"; then
 fi
 grep -Fq 'object_id = f"{expected_sha[:16]}-' "$IMPORTER" ||
   fail "secure_default_object_id_derivation_missing"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1" "$READER" || fail "reader_marker_missing"
+grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
 
-node - "$SOURCE" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
+node - "$SOURCE" "$READER" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
 const assert=require("node:assert/strict");
 const crypto=require("node:crypto");
 const fs=require("node:fs");
 
-const [sourcePath,objectId,expectedObjectIdSha]=process.argv.slice(2);
+const [sourcePath,readerPath,objectId,expectedObjectIdSha]=process.argv.slice(2);
 const source=fs.readFileSync(sourcePath,"utf8");
+const reader=fs.readFileSync(readerPath,"utf8");
 const sourceBytes=Buffer.byteLength(source,"utf8");
 assert.ok(sourceBytes<=3851076,"src/index.ts size guard exceeded");
 const oldGrammar="^[a-zA-Z0-9._-]{1,160}$";
@@ -104,21 +109,12 @@ const clusterStart=source.indexOf(
 );
 assert.notEqual(clusterStart,-1,"Local Data Drop cluster missing");
 const cluster=source.slice(clusterStart,routeStart+1800);
-assert.equal(
-  cluster.includes("fs.statSync("),
-  false,
-  "Local Data Drop cluster must not follow pre-planted symlinks via statSync",
-);
-assert.equal(
-  (cluster.match(/fs\.lstatSync\(/g)||[]).length,
-  19,
-  "all Local Data Drop file-type checks must use lstatSync",
-);
-assert.equal(
-  cluster.includes(".import-staging-v2"),
-  false,
-  "public runtime must not mount importer staging",
-);
+assert.equal((cluster.match(/\brf\(/g)||[]).length,15,"all Local Data Drop public reads use descriptor helper");
+assert.equal(cluster.includes("fs.readFileSync("),false,"Local Data Drop cluster retains pathname read");
+assert.equal(cluster.includes(".import-staging-v2"),false,"public runtime must not mount importer staging");
+for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","O_NOFOLLOW","fs.openSync(filePath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(filePath","fs.closeSync(fd)"]){
+  assert.equal(reader.includes(needle),true,"reader contract missing "+needle);
+}
 const route=source.slice(routeStart,routeStart+1800);
 assert.equal(
   route.includes('/^\\.\\.?$/.test(objectId)'),
@@ -146,7 +142,8 @@ console.log("runtime_colon_grammar_occurrences=7");
 console.log("runtime_dot_components_rejected=true");
 console.log("runtime_slash_rejected=true");
 console.log("runtime_backslash_rejected=true");
-console.log("runtime_nofollow_read_checks=19");
+console.log("runtime_descriptor_bound_read_calls=15");
+console.log("runtime_pathname_reads=0");
 console.log("staging_absent_from_public_runtime=true");
 console.log("index_size_bytes="+sourceBytes);
 NODE
@@ -415,7 +412,8 @@ echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"
 echo "operator_owned_recovery_files=true"
-echo "runtime_nofollow_read_checks=19"
+echo "runtime_descriptor_bound_read_calls=15"
+echo "runtime_pathname_reads=0"
 echo "index_size_ceiling_preserved=true"
 echo "staged_atomic_publication=true"
 echo "staging_global_lock=true"
