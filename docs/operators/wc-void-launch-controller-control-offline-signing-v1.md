@@ -140,9 +140,17 @@ Transfer only the challenge JSON and its SHA-256 to Nimo.
 
 Disconnect Nimo from network access before opening the key.
 
-Ensure the challenge file is mode `0600`, create a private output directory,
-and launch the signer through a scrubbed process environment. Use the absolute
-Node executable and do not wrap this command in another Node launcher:
+Before signing, Nimo must be on the **exact** source HEAD embedded in the
+challenge. A clean descendant is not accepted. The reviewed launcher verifies:
+
+- exact challenge SHA-256;
+- current checkout HEAD equals `source_binding.source_head_sha`;
+- clean tracked/untracked repository state;
+- worktree Git blob equality for the launcher, signer, reviewed package-runtime
+  helper/profile, control verifier, `package.json`, and `package-lock.json`;
+- no private-key access during preflight.
+
+Run the launcher itself from a scrubbed shell:
 
 ```bash
 /usr/bin/env -i \
@@ -150,20 +158,19 @@ Node executable and do not wrap this command in another Node launcher:
   PATH=/usr/bin:/bin \
   LANG=C \
   LC_ALL=C \
-  VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
-  /usr/bin/node \
-  ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs \
+  /bin/bash --noprofile --norc \
+  ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh \
   sign \
-  --challenge /absolute/private-work/challenge.json \
-  --challenge-sha256 <64hex> \
-  --output /absolute/private-work/signature.json
+  /absolute/private-work/challenge.json \
+  <64hex> \
+  /absolute/private-work/signature.json
 ```
 
-The signer rejects any extra environment variable, a different `HOME`, a
-different Node executable, or any Node preload/loader flag. This launch form
-ensures `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables, shell-specific
-injection variables, and unrelated ambient configuration are absent before Node
-starts and before the private key can be opened.
+The launcher then execs the signer through a second `/usr/bin/env -i` boundary
+with the exact signer launch marker and absolute `/usr/bin/node`. This excludes
+`NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables, shell-specific
+injection variables, and unrelated ambient configuration before Node starts and
+before the private key can be opened.
 
 Return only `signature.json` and its printed output SHA-256 to Precision.
 
@@ -185,9 +192,14 @@ A green result proves current control only.
 
 ## Authority
 
+This ceremony **does** access the fixed production private key and constructs an
+in-memory signer object. Those facts are reported explicitly as
+`private_key_access=true`, `credential_access=true`, and
+`wallet_or_signer_access=true`.
+
 Signing this challenge does **not** authorize:
 
-- transaction construction or signing;
+- transaction construction or transaction signing;
 - transaction submission/broadcast;
 - Chain-2050 writes;
 - WC ledger writes;
