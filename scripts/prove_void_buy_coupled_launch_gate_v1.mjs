@@ -16,6 +16,7 @@ import {
   readBuyLaunchGateV1,
   readBuyLaunchLiveActivationV1,
   readBuyLaunchSourceGateV1,
+  testOnlyReadBuyLaunchLiveActivationV1,
   verifyBuyLaunchLiveActivationSignatureV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
 import {
@@ -144,12 +145,16 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-buy-live-"));
 try {
   fs.chmodSync(tmp, 0o700);
   const receiptPath = path.join(tmp, "activation.json");
+  const nowMs = 1791014400000;
+  const activationGeneration = "0x" + "b".repeat(64);
   const receiptBody = {
-    activated_at_ms: 1791014400000,
+    activated_at_ms: nowMs,
+    activation_generation: activationGeneration,
     activation_nonce: "0x" + "a".repeat(64),
     activation_signer: syntheticActivationWallet.address.toLowerCase(),
     buy_void_private_runtime_active: true,
     coupled_launch_id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
+    expires_at_ms: nowMs + 120_000,
     marker: VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
     public_buy_request_intake_authorized: true,
     public_presale_active: true,
@@ -205,47 +210,93 @@ try {
     crypto.createHash("sha256").update(receiptBytes).digest("hex");
   const confirmation =
     "activate-coupled-public-buy-v1:" +
+    receipt.activation_generation +
+    ":" +
     receipt.activation_receipt_id +
     ":" +
     receiptSha256;
   const liveEnv = {
     VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH: receiptPath,
     VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256: receiptSha256,
+    VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION: activationGeneration,
     VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM: confirmation,
   };
 
   // A self-created, content-addressed receipt is not production authority.
   // Even with valid EIP-712 structure and matching file/env bindings it must
   // remain closed unless signed by the fixed launch-controller identity.
-  const live = readBuyLaunchLiveActivationV1(sourceReady, liveEnv);
+  const live = readBuyLaunchLiveActivationV1(
+    sourceReady,
+    liveEnv,
+    nowMs + 1,
+  );
   assert.equal(live.ready, false);
   assert.equal(live.activation_signer, null);
+
+  const syntheticLive = testOnlyReadBuyLaunchLiveActivationV1(
+    sourceReady,
+    liveEnv,
+    nowMs + 1,
+    syntheticActivationWallet.address,
+  );
+  assert.equal(syntheticLive.ready, true);
+  assert.equal(
+    syntheticLive.activation_signer,
+    syntheticActivationWallet.address.toLowerCase(),
+  );
+
+  // The same otherwise-valid signed receipt is no longer live after expiry.
+  assert.equal(
+    testOnlyReadBuyLaunchLiveActivationV1(
+      sourceReady,
+      liveEnv,
+      receipt.expires_at_ms,
+      syntheticActivationWallet.address,
+    ).ready,
+    false,
+  );
+
+  // Deactivation or a newer ceremony advances the external generation.
+  assert.equal(
+    testOnlyReadBuyLaunchLiveActivationV1(
+      sourceReady,
+      {
+        ...liveEnv,
+        VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION:
+          "0x" + "c".repeat(64),
+      },
+      nowMs + 1,
+      syntheticActivationWallet.address,
+    ).ready,
+    false,
+  );
 
   assert.equal(
     readBuyLaunchLiveActivationV1(sourceReady, {
       ...liveEnv,
       VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM: "",
-    }).ready,
+    }, nowMs + 1).ready,
     false,
   );
   assert.equal(
     readBuyLaunchLiveActivationV1(sourceReady, {
       ...liveEnv,
       VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256: "0".repeat(64),
-    }).ready,
+    }, nowMs + 1).ready,
     false,
   );
   assert.equal(
     readBuyLaunchLiveActivationV1(
       { ...sourceReady, composition_id: "sha256:" + "0".repeat(64) },
       liveEnv,
+      nowMs + 1,
     ).ready,
     false,
   );
 
   fs.chmodSync(receiptPath, 0o644);
   assert.equal(
-    readBuyLaunchLiveActivationV1(sourceReady, liveEnv).ready,
+    readBuyLaunchLiveActivationV1(sourceReady, liveEnv, nowMs + 1).ready,
     false,
   );
   fs.chmodSync(receiptPath, 0o600);
@@ -289,6 +340,9 @@ const gateSource = fs.readFileSync(
 assert.match(gateSource, /classifyVoidWcVoidCoupledLaunchReadinessV1/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256/);
+assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION/);
+assert.match(gateSource, /expires_at_ms/);
+assert.match(gateSource, /LIVE_ACTIVATION_MAX_LEASE_MS/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
 assert.match(gateSource, /readBuyLaunchLiveActivationV1/);
 assert.match(gateSource, /verifyTypedData/);
@@ -302,6 +356,9 @@ console.log("nested_policy_false_positive_blocked=true");
 console.log("source_ready_alone_can_open_intake=false");
 console.log("live_coupled_activation_receipt_required=true");
 console.log("live_receipt_digest_binding_required=true");
+console.log("live_activation_lease_expiry_required=true");
+console.log("live_activation_generation_match_required=true");
+console.log("stale_live_activation_receipt_replay=false");
 console.log("launch_controller_eip712_signature_required=true");
 console.log("fixed_launch_controller=" + VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1);
 console.log("explicit_operator_confirmation_required=true");
