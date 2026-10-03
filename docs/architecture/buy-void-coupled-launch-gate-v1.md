@@ -147,7 +147,13 @@ are byte-identical and the next state has been revalidated.
 The underlying bakery lock now provides
 `withBuyVoidFilesystemBakeryLockAsyncV1(...)`: its queue claim remains present
 until `await operation()` settles, and cleanup occurs only in the enclosing
-`finally`. The launch gate uses that async-aware lock for both generation
+`finally`.
+ Each queue claim also binds the process PID to the Linux
+`/proc/<pid>/stat` start-time ticks observed when the claim is created. On
+persistent Docker authority volumes, a claim left by a crashed container is
+therefore reclaimed when a later container reuses the same PID but has a
+different process incarnation; PID liveness alone is not treated as ownership.
+ The launch gate uses that async-aware lock for both generation
 publication and request-authority mutation. A Promise-returning critical section
 therefore cannot resume after its lock claim has been released. Its contention loop also yields with
 an asynchronous timer rather than blocking the Node event loop, so a second
