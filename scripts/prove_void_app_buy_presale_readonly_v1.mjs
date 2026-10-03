@@ -148,6 +148,9 @@ assert.doesNotThrow(() => {
 new Function(client);
 
 const submitButton = { disabled: true };
+const buyMessageNode = { textContent: "" };
+const buyIntakeNode = { textContent: "" };
+const buyResultNode = { textContent: "" };
 const fieldNode = (value) => {
   const attributes = new Map();
   return {
@@ -206,6 +209,9 @@ const sandbox = {
       return null;
     },
     querySelectorAll(selector) {
+      if (selector === "[data-buy-message]") return [buyMessageNode];
+      if (selector === "[data-buy-intake]") return [buyIntakeNode];
+      if (selector === "[data-buy-result]") return [buyResultNode];
       if (selector === "[data-buy-ack]") return ackNodes;
       if (
         selector ===
@@ -236,6 +242,7 @@ const instrumentedClient = client + `
 ;globalThis.__voidBuyTestV1 = {
   validateSnapshot,
   isOpen,
+  renderSnapshot,
   updateSubmit,
   submitBuy,
   markFieldTouched,
@@ -300,6 +307,38 @@ const validSnapshot = buyTest.validateSnapshot(
   structuredClone(validSale),
 );
 assert.equal(buyTest.isOpen(validSnapshot), true);
+buyTest.setState(validSnapshot, false, false);
+buyTest.renderSnapshot(validSnapshot);
+assert.equal(buyIntakeNode.textContent, "OPEN");
+assert.equal(
+  buyMessageNode.textContent,
+  "Base request intake is OPEN. Ethereum native USDC is policy-approved but remains HOLD until separately activated.",
+);
+assert.doesNotMatch(
+  buyMessageNode.textContent,
+  /Base and Ethereum request intake are OPEN/u,
+  "Base-only state must not render a dual-rail OPEN claim",
+);
+
+const heldSnapshot = buyTest.validateSnapshot(
+  { ...validConfig, requests_enabled: false },
+  { ...validStatus, request_intake_ready: false },
+  structuredClone(validSale),
+);
+buyTest.setState(heldSnapshot, false, false);
+buyTest.renderSnapshot(heldSnapshot);
+assert.equal(buyIntakeNode.textContent, "HOLD");
+assert.equal(
+  buyMessageNode.textContent,
+  "Presale request intake is not activated. The receiver and policy are visible for verification, but no payment should be sent.",
+);
+assert.doesNotMatch(
+  buyMessageNode.textContent,
+  /request intake (?:is|are) OPEN/u,
+  "global HOLD state must not render any OPEN rail claim",
+);
+
+buyTest.setState(validSnapshot, false, false);
 assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
 buyTest.setState(validSnapshot, false, false);
 buyTest.updateSubmit();
@@ -355,6 +394,17 @@ const ethereumSnapshot = buyTest.validateSnapshot(
   structuredClone(validSale),
 );
 buyTest.setState(ethereumSnapshot, false, false);
+buyTest.renderSnapshot(ethereumSnapshot);
+assert.equal(buyIntakeNode.textContent, "OPEN");
+assert.equal(
+  buyMessageNode.textContent,
+  "Base and Ethereum request intake are OPEN. Create one request first, then use only its exact returned rail and payment instructions.",
+);
+assert.doesNotMatch(
+  buyMessageNode.textContent,
+  /Ethereum native USDC is policy-approved but remains HOLD/u,
+  "dual-rail OPEN state must not retain the Ethereum-HOLD claim",
+);
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, false, "Ethereum may enable only after its explicit gate is OPEN");
 sandbox.fetch = async (...args) => {
@@ -524,6 +574,10 @@ console.log("refresh_pending_submit_disabled=1");
 console.log("refresh_pending_post_count=0");
 console.log("request_creation_activation_gated=1");
 console.log("dual_rail_selection_bound=true");
+console.log("base_open_ethereum_hold_message_bound=true");
+console.log("dual_rail_open_message_bound=true");
+console.log("global_hold_message_bound=true");
+console.log("rail_state_contradiction_adversary_green=true");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
 console.log("exchange_custody_loss_warning=1");
