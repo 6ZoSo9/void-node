@@ -50,9 +50,9 @@ WC ledger credit with:
 Copied identical adapter receipts are deduplicated by their content-addressed
 adapter receipt ID. Distinct adapter receipts may not reuse either canonical
 duplicate-guard identity (`receipt_id` or `job_id`). While scanning the WC
-ledger, any row that reuses a matched receipt ID or job ID without being the
-exact canonical account/job/receipt credit is conflicting evidence and fails
-closed. Exact duplicate matching credits also fail closed.
+ledger, any credit row that reuses a matched receipt ID or job ID without
+being the exact canonical account/job/receipt credit is conflicting evidence
+and fails closed. Exact duplicate matching credits also fail closed.
 
 ## Current redeemable bounds
 
