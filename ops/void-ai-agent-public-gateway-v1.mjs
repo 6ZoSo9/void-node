@@ -5,6 +5,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_PROOF_HEADERS_V1,
+  verifyCredentialRequestApplicantProofV1,
+} from "../tools/void-agent-paid-work-credential-request-public-proof-v1.mjs";
+
 const MARKER = "VOID_AI_AGENT_PUBLIC_GATEWAY_V1";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4112;
@@ -92,6 +97,19 @@ const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES = Math.max(
       String(4 * 1024 * 1024),
   ),
 );
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT =
+  Number(
+    process.env
+      .VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT ||
+      "4",
+  );
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_REPLAY_MAX_ENTRIES = 65_536;
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_TRUSTED_KEY_HEADER =
+  "x-void-credential-applicant-key-id";
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_TRUSTED_PROOF_HEADER =
+  "x-void-credential-applicant-proof-verified";
+const credentialApplicantRateWindows = new Map();
+const credentialApplicantReplay = new Map();
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(
@@ -302,6 +320,19 @@ for (const [name, value] of [
     fail(`invalid ${name}`);
   }
 }
+
+if (
+  !Number.isSafeInteger(
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT,
+  ) ||
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT < 1 ||
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT > 60
+) {
+  fail(
+    "invalid VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT",
+  );
+}
+
 
 const payloads = new Map();
 
@@ -923,6 +954,59 @@ async function proxyAgentPaidWorkSubmission(
     return;
   }
 
+  const nowUnix = Math.floor(Date.now() / 1000);
+  let applicantProof;
+  try {
+    applicantProof = verifyCredentialRequestApplicantProofV1({
+      headers: request.headers,
+      payloadSha256: bodySha,
+      nowUnix,
+    });
+  } catch {
+    jsonResponse(response, 401, {
+      ok: false,
+      error: "credential_applicant_proof_invalid",
+    });
+    return;
+  }
+
+  const replay = consumeCredentialApplicantReplay(
+    applicantProof,
+    nowUnix,
+  );
+  if (replay === "replay") {
+    jsonResponse(response, 409, {
+      ok: false,
+      error: "credential_applicant_proof_replayed",
+    });
+    return;
+  }
+  if (replay === "full") {
+    jsonResponse(response, 503, {
+      ok: false,
+      error: "credential_applicant_replay_window_full",
+    });
+    return;
+  }
+
+  if (
+    !credentialApplicantRateAllowed(
+      applicantProof.applicant_key_id,
+      Date.now(),
+    )
+  ) {
+    jsonResponse(
+      response,
+      429,
+      {
+        ok: false,
+        error: "credential_applicant_rate_limit_exceeded",
+      },
+      { "Retry-After": "60" },
+    );
+    return;
+  }
+
   try {
     const upstreamAbort = createOwnedUpstreamAbortContext(
       AGENT_PAID_WORK_SUBMISSION_TIMEOUT_MS,
@@ -938,6 +1022,10 @@ async function proxyAgentPaidWorkSubmission(
           "content-length": String(body.length),
           "user-agent": "void-ai-agent-public-gateway-v1",
           "x-void-payload-sha256": bodySha,
+          [AGENT_PAID_WORK_CREDENTIAL_REQUEST_TRUSTED_KEY_HEADER]:
+            applicantProof.applicant_key_id,
+          [AGENT_PAID_WORK_CREDENTIAL_REQUEST_TRUSTED_PROOF_HEADER]:
+            "v1",
         },
         body,
         redirect: "manual",
@@ -970,6 +1058,52 @@ async function proxyAgentPaidWorkSubmission(
   }
 }
 
+
+function pruneCredentialApplicantReplay(nowUnix) {
+  for (const [key, expiresAtUnix] of credentialApplicantReplay.entries()) {
+    if (expiresAtUnix <= nowUnix) {
+      credentialApplicantReplay.delete(key);
+    }
+  }
+}
+
+function consumeCredentialApplicantReplay(proof, nowUnix) {
+  pruneCredentialApplicantReplay(nowUnix);
+  const replayKey =
+    proof.applicant_key_id + ":" + proof.nonce;
+  if (credentialApplicantReplay.has(replayKey)) {
+    return "replay";
+  }
+  if (
+    credentialApplicantReplay.size >=
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_REPLAY_MAX_ENTRIES
+  ) {
+    return "full";
+  }
+  credentialApplicantReplay.set(
+    replayKey,
+    Number(proof.expires_at_unix),
+  );
+  return "accepted";
+}
+
+function credentialApplicantRateAllowed(applicantKeyId, nowMs) {
+  const minimumMs = nowMs - 60_000;
+  const active = (
+    credentialApplicantRateWindows.get(applicantKeyId) || []
+  ).filter((timestamp) => timestamp > minimumMs);
+
+  if (
+    active.length >=
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT
+  ) {
+    credentialApplicantRateWindows.set(applicantKeyId, active);
+    return false;
+  }
+  active.push(nowMs);
+  credentialApplicantRateWindows.set(applicantKeyId, active);
+  return true;
+}
 
 function copyPaidWorkCredentialRequestResponseHeaders(
   upstreamResponse,
@@ -1312,6 +1446,10 @@ server.listen({ host, port, exclusive: true }, () => {
         Boolean(
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
         ),
+      paid_work_credential_request_applicant_proof_required: true,
+      paid_work_credential_request_rate_identity:
+        "verified_ed25519_spki_sha256_key_id",
+      paid_work_credential_request_forwarded_for_trusted: false,
       paid_work_credential_request_integration_marker:
         AGENT_PAID_WORK_CREDENTIAL_REQUEST_INTEGRATION_MARKER,
       paid_work_credential_request_route: {
