@@ -81,23 +81,26 @@ The fixed key file must be:
 
 - a direct regular file;
 - no symlink at the file or through any parent-directory alias;
-- resolve canonically to the exact absolute path before the read;
-- open every parent directory through a retained nofollow directory-descriptor
-  chain;
+- begin trust from a retained nofollow directory-descriptor chain opened from
+  filesystem root, not from an unpinned `realpath` observation;
 - capture the final file identity through that pinned parent before opening it;
-- require the opened file descriptor to match that pre-open device/inode; and
-- require the pinned pathname to still reference that same opened identity after
-  the read;
+- require the opened file descriptor to match that pre-open device/inode;
+- only after parent/file descriptors are pinned, require the original absolute
+  pathname to canonicalize to itself and resolve to that same opened inode;
+- read only through the pinned file descriptor; and
+- require both the pinned pathname and the original absolute pathname to still
+  reference that same opened identity after the read;
 - be owned by the current user;
 - be exactly mode `0600`;
 - contain one 32-byte hexadecimal private key, with optional `0x` prefix;
 - contain at most one trailing newline; and
 - contain no leading/trailing spaces, tabs, blank lines, or other normalization.
 
-The transferred public challenge file is subject to the same pinned-directory,
-pre-open identity and post-read rebind rules. Atomic replacement of an ancestor
-directory between validation and file open cannot redirect the read because the
-final lookup is performed beneath the retained parent descriptor.
+The transferred public challenge file is subject to the same descriptor-first,
+pre-open identity and post-read rebind rules. There is no trusted
+canonical-path checkpoint before descriptor acquisition. Atomic replacement of
+an ancestor before, during, or after traversal either changes the path↔inode
+binding and fails closed or cannot redirect the already pinned final lookup.
 
 The raw key is never printed, returned, copied into the repository, placed in
 process arguments, or written into the public signature envelope.
@@ -172,11 +175,24 @@ Run the launcher itself from a scrubbed shell:
   /absolute/private-work/signature.json
 ```
 
-The launcher then execs the signer through a second `/usr/bin/env -i` boundary
-with the exact signer launch marker and absolute `/usr/bin/node`. This excludes
-`NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables, shell-specific
-injection variables, and unrelated ambient configuration before Node starts and
-before the private key can be opened.
+Before sign-mode `exec`, the launcher explicitly announces the requested
+operation boundary:
+
+```text
+private_key_access=true
+credential_access=true
+wallet_or_signer_access=true
+transaction_signing=false
+transaction_broadcast=false
+funds_movement=false
+```
+
+Preflight mode reports those access facts as false and exits without opening the
+key. Sign mode then execs the signer through a second `/usr/bin/env -i`
+boundary with the exact signer launch marker and absolute `/usr/bin/node`.
+This excludes `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables,
+shell-specific injection variables, and unrelated ambient configuration before
+Node starts and before the private key can be opened.
 
 Return only `signature.json` and its printed output SHA-256 to Precision.
 
@@ -209,7 +225,8 @@ Signing this challenge does **not** authorize:
 - transaction submission/broadcast;
 - Chain-2050 writes;
 - WC ledger writes;
-- credential access;
+- any credential/key access beyond the fixed reviewer-key access explicitly
+  described above;
 - runtime/service mutation;
 - deployment;
 - inventory funding;
