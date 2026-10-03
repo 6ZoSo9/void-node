@@ -41,6 +41,10 @@ grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descript
 grep -Fq "terminal_fixture_root_identity_mismatch" "$VERIFIER" || fail "terminal_root_identity_check_missing"
 grep -Fq "terminal_child_state_changed_before_green" "$VERIFIER" || fail "terminal_child_saved_state_check_missing"
 grep -Fq "terminal_child_custody_changed_before_green" "$VERIFIER" || fail "terminal_child_final_custody_check_missing"
+grep -Fq "terminal_child_second_pass_state_changed" "$VERIFIER" || fail "terminal_second_pass_state_check_missing"
+grep -Fq "terminal_child_second_pass_digest_mismatch" "$VERIFIER" || fail "terminal_second_pass_digest_check_missing"
+grep -Fq "reversed(opened_children)" "$VERIFIER" || fail "terminal_reverse_second_sweep_missing"
+grep -Fq "os.pread(child_fd" "$VERIFIER" || fail "terminal_second_pass_bounded_read_missing"
 grep -Fq "sys.stdout.flush()" "$VERIFIER" || fail "terminal_green_flush_missing"
 grep -Fq "Demo003 invocation path invalid" "$VERIFIER" || fail "invocation_path_guard_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"
@@ -522,6 +526,55 @@ path.write_text(text.replace(needle, replacement), encoding="utf8")
 PY_POST_DIGEST_INJECT
 fi
 
+if [ -n "${VOID_DEMO003_TEST_TERMINAL_AFTER_FIRST_CHILD_MUTATION:-}" ] &&
+   grep -Fq "terminal_child_second_pass_state_changed" "$script"; then
+  "$real" - "$script" <<'PY_AFTER_FIRST'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf8")
+needle = '''        if (
+            opened.st_uid != euid
+            or opened.st_mode & 0o022
+            or visible.st_uid != euid
+            or visible.st_mode & 0o022
+        ):
+            raise SystemExit(
+                "terminal_child_custody_changed_before_green:" + rel
+            )
+
+    for (
+'''
+replacement = '''        if (
+            opened.st_uid != euid
+            or opened.st_mode & 0o022
+            or visible.st_uid != euid
+            or visible.st_mode & 0o022
+        ):
+            raise SystemExit(
+                "terminal_child_custody_changed_before_green:" + rel
+            )
+        if (
+            os.environ.get(
+                "VOID_DEMO003_TEST_TERMINAL_AFTER_FIRST_CHILD_MUTATION"
+            ) == "1"
+            and rel == "manifest.json"
+        ):
+            manifest_path = os.path.join(pathname, "manifest.json")
+            with open(manifest_path, "wb") as handle:
+                handle.write(
+                    b"VOID_DEMO003_AFTER_FIRST_FINAL_CHECK_MUTATION\n"
+                )
+
+    for (
+'''
+if text.count(needle) != 1:
+    raise SystemExit("terminal_after_first_child_injection_anchor_invalid")
+path.write_text(text.replace(needle, replacement), encoding="utf8")
+PY_AFTER_FIRST
+fi
+
 if [ -n "${VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE:-}" ] &&
    grep -Fq "terminal_files_directory_changed_before_green" "$script"; then
   "$real" - "$script" <<'PY_INJECT'
@@ -530,13 +583,31 @@ import sys
 
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf8")
-needle = '''        if digest.hexdigest() != expected_sha:
+needle = '''        validated_digest = digest.hexdigest()
+        if validated_digest != expected_sha:
             raise SystemExit("terminal_child_digest_mismatch:" + rel)
+        opened_children[-1] = (
+            rel,
+            parent_fd,
+            leaf,
+            child_fd,
+            file_identity(after),
+            validated_digest,
+        )
 
     visible_root = os.stat(pathname, follow_symlinks=False)
 '''
-replacement = '''        if digest.hexdigest() != expected_sha:
+replacement = '''        validated_digest = digest.hexdigest()
+        if validated_digest != expected_sha:
             raise SystemExit("terminal_child_digest_mismatch:" + rel)
+        opened_children[-1] = (
+            rel,
+            parent_fd,
+            leaf,
+            child_fd,
+            file_identity(after),
+            validated_digest,
+        )
 
     late_swap_source = os.environ.get(
         "VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE"
@@ -822,6 +893,21 @@ if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_G
   fail "terminal_post_digest_mutation_reached_green"
 fi
 
+terminal_after_first_out="$tmp/verify-terminal-after-first-child"
+terminal_after_first_log="$tmp/terminal-after-first-child.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_TERMINAL_AFTER_FIRST_CHILD_MUTATION=1 \
+   OUT="$terminal_after_first_out" \
+   bash "$VERIFIER" "$tarball" >"$terminal_after_first_log" 2>&1; then
+  fail "terminal_after_first_child_mutation_accepted"
+fi
+grep -Fq "terminal_child_second_pass_state_changed:manifest.json" "$terminal_after_first_log" ||
+  fail "terminal_after_first_child_second_sweep_hold_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_after_first_log"; then
+  fail "terminal_after_first_child_mutation_reached_green"
+fi
+
 terminal_files_swap_out="$tmp/verify-terminal-files-dir-swap"
 terminal_files_swap_log="$tmp/terminal-files-dir-swap.log"
 terminal_files_swap_detached="$tmp/terminal-files-dir-detached"
@@ -881,6 +967,7 @@ echo "terminal_oversize_child_rejected=true"
 echo "terminal_weak_mode_rejected=true"
 echo "terminal_growth_during_read_rejected=true"
 echo "terminal_files_directory_swap_rejected=true"
+echo "terminal_after_first_child_mutation_rejected=true"
 echo "terminal_post_digest_mutation_rejected=true"
 echo "semantic_verify_descriptor_bound=true"
 echo "semantic_verify_child_bytes_sealed=true"
