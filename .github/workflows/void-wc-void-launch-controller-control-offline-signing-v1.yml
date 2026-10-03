@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/void-wc-void-launch-controller-control-offline-signing-v1.yml"
       - "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
+      - "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
       - "scripts/prove_void_nimo_wc_void_launch_controller_control_signing_v1.mjs"
       - "docs/operators/wc-void-launch-controller-control-offline-signing-v1.md"
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
