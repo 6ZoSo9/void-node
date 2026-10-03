@@ -132,10 +132,10 @@ except UnicodeDecodeError:
     raise SystemExit(2)
 
 for pattern in (
-    r'(?im)^\\s*\\[\\s*filter(?:\\s+"[^"]*")?\\s*\\]\\s*$',
-    r'(?im)^\\s*\\[\\s*include(?:if)?(?:\\s+"[^"]*")?\\s*\\]\\s*$',
-    r'(?im)^\\s*attributesfile\\s*=',
-    r'(?im)^\\s*hookspath\\s*=',
+    r'(?im)^\s*\[\s*filter(?:\s+"[^"]*")?\s*\]\s*$',
+    r'(?im)^\s*\[\s*include(?:if)?(?:\s+"[^"]*")?\s*\]\s*$',
+    r'(?im)^\s*attributesfile\s*=',
+    r'(?im)^\s*hookspath\s*=',
 ):
     if re.search(pattern, text):
         raise SystemExit(2)
@@ -289,7 +289,7 @@ for relative, (mode, expected_oid) in tree.items():
         ):
             raise SystemExit(2)
         digest = hashlib.sha1()
-        digest.update(b"blob " + str(len(raw)).encode("ascii") + b"\\0")
+        digest.update(b"blob " + str(len(raw)).encode("ascii") + b"\0")
         digest.update(raw)
         actual_oid = digest.hexdigest()
     else:
@@ -308,7 +308,7 @@ for relative, (mode, expected_oid) in tree.items():
                 raise SystemExit(2)
             digest = hashlib.sha1()
             digest.update(
-                b"blob " + str(opened.st_size).encode("ascii") + b"\\0"
+                b"blob " + str(opened.st_size).encode("ascii") + b"\0"
             )
             remaining = opened.st_size
             while remaining:
