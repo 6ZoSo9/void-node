@@ -68,8 +68,10 @@ Public presale intake and production WC/VOID activation are coupled:
   market until the reverse VOID→WC settlement path is separately ready.
 
 BTC/VOID and ETH/VOID remain separate post-presale markets behind their own gates.
-Open BTC/VOID and coupled-gas hardening PRs are source proposals until merged;
-they are not current runtime or activation truth.
+Merged BTC/VOID and coupled-gas hardening remain source-level controls; they are
+not current runtime or activation truth. Coupled Buy VOID route/config
+integration remains separate, and the canonical successor still classifies
+`HOLD`.
 
 ## Not released or generally activated
 
