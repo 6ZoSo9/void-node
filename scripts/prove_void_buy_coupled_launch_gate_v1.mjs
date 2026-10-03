@@ -931,6 +931,38 @@ assert.ok(recoveryFunctionAt >= 0);
 assert.ok(recoveryRetryGuardAt > recoveryFunctionAt);
 assert.ok(recoveryFirstWriteAt > recoveryRetryGuardAt);
 assert.match(gateSource, /buy_launch_generation_publication_pending/);
+{
+  const generationReaderAt = gateSource.indexOf(
+    "export function readBuyLaunchGenerationJournalV1",
+  );
+  const generationReaderEnd = gateSource.indexOf(
+    "function sha256IdBytes32",
+    generationReaderAt,
+  );
+  assert.ok(generationReaderAt >= 0 && generationReaderEnd > generationReaderAt);
+  const generationReaderSource = gateSource.slice(
+    generationReaderAt,
+    generationReaderEnd,
+  );
+  assert.equal(
+    (generationReaderSource.match(/fs\.existsSync\(intentPath\)/gu) || []).length,
+    2,
+    "generation authority read must fence publication intent before and after the file snapshot",
+  );
+  const finalIntentCheck = generationReaderSource.lastIndexOf(
+    "fs.existsSync(intentPath)",
+  );
+  assert.ok(
+    generationReaderSource.indexOf(
+      "const journalBytes = readStablePrivateFile(journalPath);",
+    ) < finalIntentCheck,
+  );
+  assert.ok(
+    generationReaderSource.indexOf(
+      "const anchorBytes = readStablePrivateFile(anchorPath);",
+    ) < finalIntentCheck,
+  );
+}
 assert.match(gateSource, /buy_launch_generation_pending_publication_recovered_retry_required/);
 assert.match(gateSource, /buy_launch_generation_publish_recovery_order_invalid/);
 assert.match(gateSource, /recovery\.phase === "intent_only"/);
@@ -1056,6 +1088,7 @@ console.log("payment_request_bound_to_lease_expiry=true");
 console.log("mutation_admission_fresh_clock_required=true");
 console.log("future_generation_timestamp_skew_bounded=true");
 console.log("pending_generation_publication_holds_runtime_reads=true");
+console.log("generation_authority_snapshot_post_intent_fence=true");
 console.log("generation_publication_exact_retry_required=true");
 console.log("generation_publication_writer_order_recovery_bound=true");
 console.log("generation_publication_event_timestamp_bound=true");

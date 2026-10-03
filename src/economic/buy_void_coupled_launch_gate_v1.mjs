@@ -923,9 +923,14 @@ export function readBuyLaunchGenerationJournalV1(env = process.env) {
   if (fs.existsSync(intentPath)) {
     throw new Error("buy_launch_generation_publication_pending");
   }
+  const journalBytes = readStablePrivateFile(journalPath);
+  const anchorBytes = readStablePrivateFile(anchorPath);
+  if (fs.existsSync(intentPath)) {
+    throw new Error("buy_launch_generation_publication_pending");
+  }
   return classifyBuyLaunchGenerationAuthorityV1(
-    readStablePrivateFile(journalPath),
-    readStablePrivateFile(anchorPath),
+    journalBytes,
+    anchorBytes,
   );
 }
 

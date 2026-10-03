@@ -138,9 +138,13 @@ committed while the anchor remains prior, or both files committed to the next
 bytes. Anchor-first, rollback-mixed, unknown, missing-required-prior, or
 non-append-only states fail closed. The intent itself proves the final event's
 generation/state/timestamp and the exact one-event append from its prior digest.
-While any intent remains present, ordinary generation-authority reads HOLD
-rather than treating the prior pair as still live. Recovery requires the caller
-to retry the exact state/generation/timestamp transition recorded by the intent.
+Generation-authority reads check the intent path both before and after the
+journal/anchor snapshot. If an intent is present at either boundary, the read
+HOLDS rather than accepting a pair written inside an unfinished publication. A
+publication that completes entirely between those checks is accepted only
+through the resulting byte-identical journal/anchor pair. Recovery requires the
+caller to retry the exact state/generation/timestamp transition recorded by the
+intent.
 The intent is removed and its directory fsynced only after both authority files
 are byte-identical and the next state has been revalidated.
 
