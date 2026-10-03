@@ -81,6 +81,16 @@ if (
     != "x-void-applicant-auth-v1"
     or manifest.get("applicant_auth_algorithm")
     != "Ed25519"
+    or manifest.get("applicant_auth_marker")
+    != (
+        "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_V1"
+    )
+    or manifest.get("applicant_auth_ttl_seconds")
+    != 30
+    or manifest.get(
+        "applicant_auth_ttl_seconds_maximum"
+    )
+    != 60
     or manifest.get("applicant_identity_scheme")
     != "void-agent:ed25519"
     or manifest.get(
@@ -88,7 +98,15 @@ if (
     )
     is not True
     or manifest.get(
+        "applicant_identity_private_key_required_by_client"
+    )
+    is not True
+    or manifest.get(
         "applicant_identity_private_key_is_wallet_key"
+    )
+    is not False
+    or manifest.get(
+        "applicant_auth_forwarded_to_review_gateway"
     )
     is not False
 ):
