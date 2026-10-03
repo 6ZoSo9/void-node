@@ -720,6 +720,16 @@ assert.equal(
   "operator bootstrap must execute the already-verified launcher bytes through Bash stdin",
 );
 assert.equal(
+  operatorDoc.includes('/usr/bin/python3 -I -P -'),
+  true,
+  "operator bootstrap must run Python in isolated safe-path mode",
+);
+assert.equal(
+  launcherSource.includes('/usr/bin/python3 -I -P - "$challenge"'),
+  true,
+  "reviewed launcher challenge parser must run Python in isolated safe-path mode",
+);
+assert.equal(
   operatorDoc.includes(
     '"VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1": expected_blob',
   ),
@@ -1317,7 +1327,7 @@ console.log("tampered_launcher_rejected=true");
 console.log("content_addressed_launcher_stream_execution=true");
 console.log("launcher_bytes_verified_before_bash_stdin=true");
 console.log("launcher_path_replacement_after_byte_verification_ignored=true");
-console.log("reviewed_launcher_bootstrap_descriptor_pinned=true");
+console.log("reviewed_launcher_bootstrap_verified_byte_stream=true");
 console.log("reviewed_launcher_path_reopen=false");
 console.log("reviewed_signer_git_blob_stream_verified=true");
 console.log("outer_temporary_executable_tree=false");
