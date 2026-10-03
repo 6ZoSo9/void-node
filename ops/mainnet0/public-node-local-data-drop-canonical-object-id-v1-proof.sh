@@ -23,6 +23,10 @@ test -f "$IMPORTER" && test ! -L "$IMPORTER" || fail "importer_missing_or_symlin
 test -f "$SOURCE" && test ! -L "$SOURCE" || fail "source_missing_or_symlink"
 
 bash -n "$IMPORTER" || fail "importer_shell_syntax"
+test "$(grep -Foc 'VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SECURE_STAGED_CREATE_ONLY_V2' "$IMPORTER")" = "1" ||
+  fail "importer_v2_marker_not_unique"
+test "$(grep -Foc 'python3 - "$SRC" "$DATA_DIR" "$OBJECT_ID" <<'\''PY'\''' "$IMPORTER")" = "1" ||
+  fail "importer_python_body_not_unique"
 
 test "$(printf '%s' "$OBJECT_ID" | sha256sum | awk '{print $1}')" = "$OBJECT_ID_SHA256" ||
   fail "canonical_object_id_sha256_mismatch"
