@@ -187,7 +187,9 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
     try {
       fd = fs.openSync(procPath, fs.constants.O_RDONLY | noFollow);
     } catch (error) {
-      if (missingPathV1(error)) return null;
+      if (missingPathV1(error)) {
+        unsafeStorageV1("final_disappeared_before_open", error);
+      }
       unsafeStorageV1("final_open_failed", error);
     }
 
@@ -202,7 +204,9 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
     try {
       visible = fs.lstatSync(procPath, { bigint: true });
     } catch (error) {
-      if (missingPathV1(error)) return null;
+      if (missingPathV1(error)) {
+        unsafeStorageV1("final_disappeared_after_read", error);
+      }
       unsafeStorageV1("final_visible_lstat_failed", error);
     }
     if (
