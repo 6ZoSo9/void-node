@@ -635,7 +635,10 @@ function recoverBuyLaunchGenerationPublicationV1({
 }) {
   if (!fs.existsSync(intentPath)) return null;
   const recovery = classifyBuyLaunchGenerationPublicationRecoveryV1({
-    intent_bytes: readStablePrivateFile(intentPath),
+    intent_bytes: readStablePrivateFile(
+      intentPath,
+      GENERATION_PUBLICATION_INTENT_MAX_BYTES,
+    ),
     journal_bytes: generationPublicationObservedBytesV1(journalPath),
     anchor_bytes: generationPublicationObservedBytesV1(anchorPath),
   });
@@ -959,13 +962,23 @@ function sameStat(a, b) {
   );
 }
 
-function readStablePrivateFile(filePath) {
+function readStablePrivateFile(
+  filePath,
+  maxBytes = LIVE_RECEIPT_MAX_BYTES,
+) {
   if (
     typeof filePath !== "string" ||
     !path.isAbsolute(filePath) ||
     path.resolve(filePath) !== filePath
   ) {
     throw new Error("buy_launch_live_receipt_path_invalid");
+  }
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > GENERATION_PUBLICATION_INTENT_MAX_BYTES
+  ) {
+    throw new Error("buy_launch_live_receipt_max_bytes_invalid");
   }
   const noFollow = fs.constants.O_NOFOLLOW;
   const directory = fs.constants.O_DIRECTORY;
@@ -1027,7 +1040,7 @@ function readStablePrivateFile(filePath) {
       listed.nlink !== 1n ||
       (listed.mode & 0o077n) !== 0n ||
       listed.size <= 0n ||
-      listed.size > BigInt(LIVE_RECEIPT_MAX_BYTES)
+      listed.size > BigInt(maxBytes)
     ) {
       throw new Error("buy_launch_live_receipt_file_unsafe");
     }
