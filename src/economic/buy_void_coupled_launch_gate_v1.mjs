@@ -44,6 +44,7 @@ export const VOID_BUY_COUPLED_LIVE_ACTIVATION_TYPES_V1 =
       Object.freeze({ name: "activation_receipt_id", type: "string" }),
       Object.freeze({ name: "activation_nonce", type: "bytes32" }),
       Object.freeze({ name: "activation_generation", type: "bytes32" }),
+      Object.freeze({ name: "generation_tip_sha256", type: "bytes32" }),
       Object.freeze({ name: "activated_at_ms", type: "uint64" }),
       Object.freeze({ name: "expires_at_ms", type: "uint64" }),
       Object.freeze({ name: "buy_void_private_runtime_active", type: "bool" }),
@@ -69,9 +70,25 @@ const PRODUCTION = "ops/mainnet0/wc-void-production-candidate-v1.json";
 const COUPLED = "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR = "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const LIVE_RECEIPT_MAX_BYTES = 64 * 1024;
+const LIVE_GENERATION_JOURNAL_MAX_BYTES = 64 * 1024;
+const LIVE_GENERATION_JOURNAL_MAX_EVENTS = 128;
 const LIVE_ACTIVATION_MAX_LEASE_MS = 5 * 60 * 1000;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
+export const VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1 =
+  "VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1";
+
+const LIVE_GENERATION_EVENT_KEYS = Object.freeze([
+  "event_sha256",
+  "generation",
+  "marker",
+  "occurred_at_ms",
+  "previous_event_sha256",
+  "sequence",
+  "state",
+  "version",
+]);
+
 const LIVE_KEYS = Object.freeze([
   "activated_at_ms",
   "activation_generation",
@@ -82,6 +99,7 @@ const LIVE_KEYS = Object.freeze([
   "buy_void_private_runtime_active",
   "coupled_launch_id",
   "expires_at_ms",
+  "generation_tip_sha256",
   "marker",
   "public_buy_request_intake_authorized",
   "public_presale_active",
@@ -130,6 +148,139 @@ export function buyLaunchLiveActivationReceiptIdV1(receiptWithoutId) {
   );
 }
 
+export function buildBuyLaunchGenerationEventV1({
+  sequence,
+  previous_event_sha256,
+  generation,
+  state,
+  occurred_at_ms,
+}) {
+  if (
+    !Number.isSafeInteger(sequence) ||
+    sequence < 1 ||
+    !(previous_event_sha256 === null ||
+      SHA256_ID.test(String(previous_event_sha256 || ""))) ||
+    !BYTES32.test(String(generation || "")) ||
+    !["active", "revoked"].includes(state) ||
+    !Number.isSafeInteger(occurred_at_ms) ||
+    occurred_at_ms <= 0
+  ) {
+    throw new Error("buy_launch_generation_event_invalid");
+  }
+  const body = Object.freeze({
+    marker: VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1,
+    version: 1,
+    sequence,
+    previous_event_sha256,
+    generation,
+    state,
+    occurred_at_ms,
+  });
+  return Object.freeze({
+    ...body,
+    event_sha256:
+      "sha256:" + sha256(Buffer.from(canonicalJson(body), "utf8")),
+  });
+}
+
+export function classifyBuyLaunchGenerationJournalV1(bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 1 ||
+      bytes.length > LIVE_GENERATION_JOURNAL_MAX_BYTES) {
+    throw new Error("buy_launch_generation_journal_size_invalid");
+  }
+  const text = bytes.toString("utf8");
+  const lines = text.endsWith("\n")
+    ? text.slice(0, -1).split("\n")
+    : text.split("\n");
+  if (
+    lines.length < 1 ||
+    lines.length > LIVE_GENERATION_JOURNAL_MAX_EVENTS ||
+    lines.some(line => line.length === 0)
+  ) {
+    throw new Error("buy_launch_generation_journal_lines_invalid");
+  }
+
+  let previous = null;
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = JSON.parse(lines[index]);
+    if (
+      !raw ||
+      typeof raw !== "object" ||
+      Array.isArray(raw) ||
+      Object.keys(raw).sort().join("\n") !==
+        [...LIVE_GENERATION_EVENT_KEYS].sort().join("\n")
+    ) {
+      throw new Error("buy_launch_generation_event_shape_invalid");
+    }
+    const expected = buildBuyLaunchGenerationEventV1({
+      sequence: raw.sequence,
+      previous_event_sha256: raw.previous_event_sha256,
+      generation: raw.generation,
+      state: raw.state,
+      occurred_at_ms: raw.occurred_at_ms,
+    });
+    if (
+      raw.marker !== VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1 ||
+      raw.version !== 1 ||
+      raw.sequence !== index + 1 ||
+      raw.event_sha256 !== expected.event_sha256 ||
+      raw.previous_event_sha256 !==
+        (previous ? previous.event_sha256 : null)
+    ) {
+      throw new Error("buy_launch_generation_event_chain_invalid");
+    }
+    if (previous) {
+      if (
+        previous.state === "active" &&
+        !(raw.state === "revoked" &&
+          raw.generation === previous.generation)
+      ) {
+        throw new Error("buy_launch_generation_active_must_revoke");
+      }
+      if (
+        previous.state === "revoked" &&
+        !(raw.state === "active" &&
+          raw.generation !== previous.generation)
+      ) {
+        throw new Error("buy_launch_generation_revoke_must_rotate");
+      }
+      if (raw.occurred_at_ms < previous.occurred_at_ms) {
+        throw new Error("buy_launch_generation_time_regression");
+      }
+    } else if (raw.state !== "active") {
+      throw new Error("buy_launch_generation_first_event_must_activate");
+    }
+    previous = Object.freeze({ ...raw });
+  }
+
+  return Object.freeze({
+    ready: previous?.state === "active",
+    generation: previous?.generation || null,
+    tip_sha256: previous?.event_sha256 || null,
+    sequence: previous?.sequence || 0,
+    reason:
+      previous?.state === "active"
+        ? null
+        : "live_coupled_activation_generation_revoked",
+  });
+}
+
+export function readBuyLaunchGenerationJournalV1(env = process.env) {
+  const dataDirRaw = String(env.DATA_DIR || "").trim();
+  if (!dataDirRaw) {
+    throw new Error("buy_launch_generation_data_dir_missing");
+  }
+  const dataDir = path.resolve(dataDirRaw);
+  const journalPath = path.join(
+    dataDir,
+    "economic",
+    "buy-void-coupled-live-generation-v1.jsonl",
+  );
+  return classifyBuyLaunchGenerationJournalV1(
+    readStablePrivateFile(journalPath),
+  );
+}
+
 function sha256IdBytes32(value) {
   if (!SHA256_ID.test(String(value || ""))) {
     throw new Error("buy_launch_live_activation_sha256_id_invalid");
@@ -147,6 +298,7 @@ export function buyLaunchLiveActivationTypedDataV1(receipt) {
     ) ||
     !BYTES32.test(String(receipt.activation_nonce || "")) ||
     !BYTES32.test(String(receipt.activation_generation || "")) ||
+    !SHA256_ID.test(String(receipt.generation_tip_sha256 || "")) ||
     !Number.isSafeInteger(receipt.activated_at_ms) ||
     receipt.activated_at_ms <= 0 ||
     !Number.isSafeInteger(receipt.expires_at_ms) ||
@@ -168,6 +320,8 @@ export function buyLaunchLiveActivationTypedDataV1(receipt) {
       activation_receipt_id: receipt.activation_receipt_id,
       activation_nonce: receipt.activation_nonce,
       activation_generation: receipt.activation_generation,
+      generation_tip_sha256:
+        sha256IdBytes32(receipt.generation_tip_sha256),
       activated_at_ms: BigInt(receipt.activated_at_ms),
       expires_at_ms: BigInt(receipt.expires_at_ms),
       buy_void_private_runtime_active:
@@ -412,16 +566,20 @@ export function readBuyLaunchSourceGateV1() {
 
 export function classifyBuyLaunchLiveActivationLeaseV1(
   receipt,
-  activeGeneration,
+  generationState,
   nowMs,
 ) {
   const ready =
     receipt &&
     typeof receipt === "object" &&
     !Array.isArray(receipt) &&
-    BYTES32.test(String(activeGeneration || "")) &&
+    generationState?.ready === true &&
+    BYTES32.test(String(generationState.generation || "")) &&
+    SHA256_ID.test(String(generationState.tip_sha256 || "")) &&
     BYTES32.test(String(receipt.activation_generation || "")) &&
-    receipt.activation_generation === activeGeneration &&
+    SHA256_ID.test(String(receipt.generation_tip_sha256 || "")) &&
+    receipt.activation_generation === generationState.generation &&
+    receipt.generation_tip_sha256 === generationState.tip_sha256 &&
     Number.isSafeInteger(nowMs) &&
     nowMs > 0 &&
     Number.isSafeInteger(receipt.activated_at_ms) &&
@@ -455,15 +613,16 @@ function readBuyLaunchLiveActivationCoreV1(
     const filePath = env.VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH;
     const expectedSha256 =
       env.VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256;
-    const activeGeneration =
-      env.VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION;
     if (
       !HEX64.test(String(expectedSha256 || "")) ||
-      !BYTES32.test(String(activeGeneration || "")) ||
       !Number.isSafeInteger(nowMs) ||
       nowMs <= 0
     ) {
       throw new Error("buy_launch_live_receipt_runtime_binding_invalid");
+    }
+    const generationState = readBuyLaunchGenerationJournalV1(env);
+    if (!generationState.ready) {
+      throw new Error(generationState.reason);
     }
 
     const bytes = readStablePrivateFile(filePath);
@@ -484,7 +643,7 @@ function readBuyLaunchLiveActivationCoreV1(
 
     const lease = classifyBuyLaunchLiveActivationLeaseV1(
       receipt,
-      activeGeneration,
+      generationState,
       nowMs,
     );
     if (!lease.ready) {
@@ -537,6 +696,8 @@ function readBuyLaunchLiveActivationCoreV1(
     const confirmation =
       "activate-coupled-public-buy-v1:" +
       receipt.activation_generation +
+      ":" +
+      receipt.generation_tip_sha256 +
       ":" +
       receipt.activation_receipt_id +
       ":" +
