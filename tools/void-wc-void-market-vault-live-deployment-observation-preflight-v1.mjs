@@ -1280,7 +1280,10 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
     const gasEstimate = quantity(
       await call("eth_estimateGas", [
         {
+          type: "0x2",
+          chainId: "0x802",
           from: deployer,
+          to: null,
           data: verifiedQualification.deployment_data_hex,
           value: "0x0",
           accessList: deploymentAccessList,
@@ -1434,6 +1437,8 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
         deployer_native_balance_wei: deployerBalance.toString(),
         gas_price_wei: gasPrice.toString(),
         epoch2_transaction_type: "2",
+        epoch2_estimate_chain_id: "2050",
+        epoch2_estimate_contract_creation: true,
         epoch2_access_list_marker_address: epoch2Domain.marker_address,
         epoch2_access_list_marker_storage_key:
           epoch2Domain.marker_storage_key,
