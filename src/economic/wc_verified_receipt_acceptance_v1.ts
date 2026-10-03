@@ -305,7 +305,6 @@ export function projectCanonicalWcStatesFromEntriesV1(
 ): ReadonlyMap<string, CanonicalWcProjectedStateV1> {
   if (
     !Array.isArray(accountsRaw) ||
-    accountsRaw.length < 1 ||
     accountsRaw.length > 100_000
   ) {
     fail("canonical_wc_projection_account_count_invalid");
