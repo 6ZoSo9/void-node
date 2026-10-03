@@ -797,21 +797,30 @@ ok(metadata.trusted_as_network_truth === false, "metadata not network truth");
 console.log("[ok] Demo 003 folder fixture offline verified");
 NODE
 
-if ! python3 - "$FIXTURE_FD" "$FIXTURE_DIR" "$FIXTURE_IDENTITY" <<'PY_VISIBLE'
+if ! python3 - \
+  "$FIXTURE_FD" "$FIXTURE_DIR" "$FIXTURE_IDENTITY" \
+  "$SEALED_MANIFEST_SHA256" "$SEALED_CHECKSUMS_SHA256" \
+  "$SEALED_README_SHA256" "$SEALED_INDEX_SHA256" "$SEALED_METADATA_SHA256" <<'PY_VISIBLE'
+import hashlib
 import os
 import stat
 import sys
 
-fd = int(sys.argv[1])
+root_fd = int(sys.argv[1])
 pathname = sys.argv[2]
-expected = sys.argv[3]
-opened = os.fstat(fd)
-try:
-    visible = os.stat(pathname, follow_symlinks=False)
-except FileNotFoundError:
-    raise SystemExit(2)
+expected_root = sys.argv[3]
+sealed = {
+    "manifest.json": sys.argv[4],
+    "sha256sums.txt": sys.argv[5],
+    "files/README.txt": sys.argv[6],
+    "files/index.html": sys.argv[7],
+    "files/metadata.json": sys.argv[8],
+}
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 
-def identity(st):
+def root_identity(st):
     return ":".join(
         str(value)
         for value in (
@@ -823,35 +832,125 @@ def identity(st):
         )
     )
 
+def file_identity(st):
+    return ":".join(
+        str(value)
+        for value in (
+            st.st_dev,
+            st.st_ino,
+            st.st_size,
+            st.st_mtime_ns,
+            st.st_ctime_ns,
+            st.st_mode,
+            st.st_uid,
+            st.st_gid,
+            st.st_nlink,
+        )
+    )
+
+opened_root = os.fstat(root_fd)
+try:
+    visible_root = os.stat(pathname, follow_symlinks=False)
+except FileNotFoundError:
+    raise SystemExit("terminal_fixture_root_disappeared")
+
 if (
-    not stat.S_ISDIR(opened.st_mode)
-    or not stat.S_ISDIR(visible.st_mode)
-    or stat.S_ISLNK(visible.st_mode)
-    or identity(opened) != expected
-    or identity(visible) != expected
+    not stat.S_ISDIR(opened_root.st_mode)
+    or not stat.S_ISDIR(visible_root.st_mode)
+    or stat.S_ISLNK(visible_root.st_mode)
+    or root_identity(opened_root) != expected_root
+    or root_identity(visible_root) != expected_root
 ):
-    raise SystemExit(2)
+    raise SystemExit("terminal_fixture_root_identity_mismatch")
+
+files_fd = os.open(
+    "files",
+    os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+    dir_fd=root_fd,
+)
+opened_children = []
+try:
+    for rel, expected_sha in sealed.items():
+        if rel.startswith("files/"):
+            parent_fd = files_fd
+            leaf = rel.split("/", 1)[1]
+        else:
+            parent_fd = root_fd
+            leaf = rel
+
+        listed = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(listed.st_mode)
+            or stat.S_ISLNK(listed.st_mode)
+            or listed.st_nlink != 1
+        ):
+            raise SystemExit("terminal_child_type_invalid:" + rel)
+
+        child_fd = os.open(
+            leaf,
+            os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC,
+            dir_fd=parent_fd,
+        )
+        opened_children.append((rel, parent_fd, leaf, child_fd))
+        opened = os.fstat(child_fd)
+        if file_identity(opened) != file_identity(listed):
+            raise SystemExit("terminal_child_identity_mismatch:" + rel)
+
+        digest = hashlib.sha256()
+        total = 0
+        while True:
+            chunk = os.read(child_fd, 65536)
+            if not chunk:
+                break
+            total += len(chunk)
+            digest.update(chunk)
+
+        after = os.fstat(child_fd)
+        visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            total != after.st_size
+            or file_identity(opened) != file_identity(after)
+            or file_identity(after) != file_identity(visible)
+        ):
+            raise SystemExit("terminal_child_changed_during_read:" + rel)
+        if digest.hexdigest() != expected_sha:
+            raise SystemExit("terminal_child_digest_mismatch:" + rel)
+
+    visible_root = os.stat(pathname, follow_symlinks=False)
+    if root_identity(visible_root) != expected_root:
+        raise SystemExit("terminal_fixture_root_changed_before_green")
+
+    for rel, parent_fd, leaf, child_fd in opened_children:
+        opened = os.fstat(child_fd)
+        visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        if file_identity(opened) != file_identity(visible):
+            raise SystemExit("terminal_child_visible_identity_mismatch:" + rel)
+
+    print("fixture_dir=" + pathname)
+    print("semantic_verify_descriptor_bound=true")
+    print("semantic_verify_child_bytes_sealed=true")
+    print("terminal_child_seals_verified=true")
+    print("archive_member_preflight=true")
+    print("archive_exact_member_set=true")
+    print("archive_links_rejected=true")
+    print("post_extract_nofollow_custody=true")
+    print("manifest_verified=true")
+    print("checksums_verified=true")
+    print("files_verified=true")
+    print("metadata_verified=true")
+    print("offline_verified=true")
+    print("network_fetch=false")
+    print("trusted_as_network_truth=false")
+    print("VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN")
+finally:
+    for _rel, _parent_fd, _leaf, child_fd in opened_children:
+        os.close(child_fd)
+    os.close(files_fd)
 PY_VISIBLE
 then
   exec {FIXTURE_FD}<&-
-  echo "[fail] Demo003 fixture visible identity changed during semantic verify" >&2
+  echo "[fail] Demo003 terminal sealed child verification failed" >&2
   exit 2
 fi
 
 exec {FIXTURE_FD}<&-
-
-printf 'fixture_dir=%s\n' "$FIXTURE_DIR"
-echo "semantic_verify_descriptor_bound=true"
-echo "semantic_verify_child_bytes_sealed=true"
-echo "archive_member_preflight=true"
-echo "archive_exact_member_set=true"
-echo "archive_links_rejected=true"
-echo "post_extract_nofollow_custody=true"
-echo "manifest_verified=true"
-echo "checksums_verified=true"
-echo "files_verified=true"
-echo "metadata_verified=true"
-echo "offline_verified=true"
-echo "network_fetch=false"
-echo "trusted_as_network_truth=false"
-echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN"
