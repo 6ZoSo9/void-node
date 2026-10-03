@@ -16,6 +16,8 @@ const FILES = Object.freeze({
     "scripts/agent_paid_work_credential_lifecycle_cli_v1.ts",
   credential_wc_binding:
     "scripts/agent_paid_work_credential_wc_account_binding_lifecycle_v1.mjs",
+  credential_registry:
+    "scripts/agent_paid_work_credential_registry_v1.ts",
   submission_receiver:
     "scripts/agent_paid_work_submission_receiver_v1.ts",
   public_gateway:
@@ -114,10 +116,22 @@ requireTokens(
   "credential_wc_binding",
 );
 requireTokens(
+  sources.credential_registry,
+  [
+    "AGENT_PAID_WORK_CREDENTIAL_REGISTRY_MARKER",
+    "AGENT_PAID_WORK_SUBMIT_SCOPE",
+    '"agent_paid_work_submit" as const',
+    "authenticateAgentPaidWorkCredentialV1",
+  ],
+  "credential_registry",
+);
+requireTokens(
   sources.submission_receiver,
   [
     "VOID_AGENT_PAID_WORK_SUBMISSION",
-    "agent_paid_work_submit",
+    "AGENT_PAID_WORK_SUBMIT_SCOPE",
+    "authenticateAgentPaidWorkCredentialV1",
+    "parseAgentPaidWorkCredentialRegistryV1",
   ],
   "submission_receiver",
 );
@@ -218,6 +232,7 @@ const output = {
     credential_request_review_queue_source_ready: true,
     credential_lifecycle_source_ready: true,
     credential_wc_account_binding_source_ready: true,
+    credential_registry_source_ready: true,
     authenticated_submission_receiver_source_ready: true,
     public_submission_proxy_source_wired: publicSubmissionProxySourceWired,
     wc_earning_adapter_source_ready: true,
