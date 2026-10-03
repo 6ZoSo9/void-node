@@ -3,8 +3,8 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import type { Dirent } from "node:fs";
 import path from "node:path";
-import readline from "node:readline";
 import { parseArgs } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import {
   AGENT_PAID_WORK_WC_EARNING_ADAPTER_RECEIPT_MARKER,
@@ -12,7 +12,7 @@ import {
 } from "../src/economic/agent_paid_work_wc_earning_adapter_v1.js";
 
 import {
-  readCanonicalWcState,
+  projectCanonicalWcStatesFromEntriesV1,
   VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC,
   VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_TASK,
 } from "../src/economic/wc_verified_receipt_acceptance_v1.js";
@@ -31,6 +31,7 @@ const VOID_WC_PRODUCTION_HISTORICAL_REPAIRED_LINE_SHA256_V1 =
   "398291f147e64b5590b5467f68756df504aa0876bdcfd78abbd57b9ca49568f2";
 const MAX_RECEIPT_BYTES = 2 * 1024 * 1024;
 const MAX_LEDGER_BYTES = 256 * 1024 * 1024;
+const MAX_REDEEMED_BYTES = 256 * 1024 * 1024;
 const MAX_FILES_VISITED = 100_000;
 const MAX_SCAN_DEPTH = 16;
 const SAFE_ACCOUNT = /^[A-Za-z0-9._:@-]{3,128}$/u;
@@ -106,6 +107,201 @@ function directRegularFile(file: string, maxBytes: number): Buffer {
     throw error;
   } finally {
     if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
+type StableWcFileStampV1 = fs.BigIntStats | null;
+
+export type StableWcStateSnapshotV1 = Readonly<{
+  ledger_bytes: Buffer;
+  redeemed_bytes: Buffer;
+  redeemed_file_present: boolean;
+}>;
+
+function boundedPathStampV1(
+  file: string,
+  maxBytes: number,
+  options: { required: boolean; allowEmpty: boolean },
+): StableWcFileStampV1 {
+  let stat: fs.BigIntStats;
+  try {
+    stat = fs.lstatSync(file, { bigint: true });
+  } catch (error) {
+    if (
+      !options.required &&
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String((error as { code?: unknown }).code || "") === "ENOENT"
+    ) {
+      return null;
+    }
+    throw error;
+  }
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1n) {
+    fail("wc_state_snapshot_direct_regular_file_required");
+  }
+  const minimum = options.allowEmpty ? 0n : 1n;
+  if (stat.size < minimum || stat.size > BigInt(maxBytes)) {
+    fail("wc_state_snapshot_file_size_out_of_range");
+  }
+  return stat;
+}
+
+function readDirectFileAtStampV1(
+  file: string,
+  expected: StableWcFileStampV1,
+): Buffer {
+  if (expected === null) return Buffer.alloc(0);
+  const noFollow = (
+    fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }
+  ).O_NOFOLLOW;
+  if (typeof noFollow !== "number") fail("nofollow_unavailable");
+
+  let fd = -1;
+  try {
+    fd = fs.openSync(file, fs.constants.O_RDONLY | noFollow);
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!sameFileStamp(expected, before)) {
+      fail("wc_state_snapshot_drift");
+    }
+    const bytes = fs.readFileSync(fd);
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (
+      !sameFileStamp(before, after) ||
+      after.size !== BigInt(bytes.length)
+    ) {
+      fail("wc_state_snapshot_drift");
+    }
+    return bytes;
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String((error as { code?: unknown }).code || "") === "ELOOP"
+    ) {
+      fail("wc_state_snapshot_direct_regular_file_required");
+    }
+    throw error;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
+function sameOptionalFileStampV1(
+  left: StableWcFileStampV1,
+  right: StableWcFileStampV1,
+): boolean {
+  if (left === null || right === null) return left === right;
+  return sameFileStamp(left, right);
+}
+
+export function readStableWcStateSnapshotV1(
+  dataDir: string,
+  testOnlyAfterRead?: () => void,
+): StableWcStateSnapshotV1 {
+  const ledger = path.join(dataDir, "wc_v1", "ledger.jsonl");
+  const redeemed = path.join(dataDir, "wc_v1", "redeemed.jsonl");
+
+  const ledgerBefore = boundedPathStampV1(
+    ledger,
+    MAX_LEDGER_BYTES,
+    { required: true, allowEmpty: false },
+  );
+  const redeemedBefore = boundedPathStampV1(
+    redeemed,
+    MAX_REDEEMED_BYTES,
+    { required: false, allowEmpty: true },
+  );
+
+  const ledgerBytes = readDirectFileAtStampV1(ledger, ledgerBefore);
+  const redeemedBytes = readDirectFileAtStampV1(redeemed, redeemedBefore);
+
+  if (testOnlyAfterRead) testOnlyAfterRead();
+
+  const ledgerAfter = boundedPathStampV1(
+    ledger,
+    MAX_LEDGER_BYTES,
+    { required: true, allowEmpty: false },
+  );
+  const redeemedAfter = boundedPathStampV1(
+    redeemed,
+    MAX_REDEEMED_BYTES,
+    { required: false, allowEmpty: true },
+  );
+  if (
+    !sameOptionalFileStampV1(ledgerBefore, ledgerAfter) ||
+    !sameOptionalFileStampV1(redeemedBefore, redeemedAfter)
+  ) {
+    fail("wc_state_snapshot_drift");
+  }
+
+  return Object.freeze({
+    ledger_bytes: ledgerBytes,
+    redeemed_bytes: redeemedBytes,
+    redeemed_file_present: redeemedBefore !== null,
+  });
+}
+
+function* snapshotLinesV1(bytes: Buffer): Iterable<string> {
+  let start = 0;
+  while (start < bytes.length) {
+    let end = bytes.indexOf(0x0a, start);
+    if (end < 0) end = bytes.length;
+    let lineEnd = end;
+    if (lineEnd > start && bytes[lineEnd - 1] === 0x0d) {
+      lineEnd -= 1;
+    }
+    const line = bytes.subarray(start, lineEnd).toString("utf8").trim();
+    if (line) yield line;
+    start = end + 1;
+  }
+}
+
+type LedgerSnapshotParseStatsV1 = {
+  malformed_lines: number;
+  historical_compatibility_repairs: number;
+};
+
+function* canonicalLedgerEntriesFromSnapshotV1(
+  bytes: Buffer,
+  stats: LedgerSnapshotParseStatsV1,
+): Iterable<Json> {
+  for (const line of snapshotLinesV1(bytes)) {
+    const parsed = parseLedgerLineWithHistoricalCompatibility(line);
+    if (!parsed) {
+      stats.malformed_lines += 1;
+      continue;
+    }
+    if (parsed.repairedKnownHistoricalLine) {
+      stats.historical_compatibility_repairs += 1;
+    }
+    yield parsed.row;
+  }
+}
+
+type RedeemedSnapshotParseStatsV1 = {
+  malformed_lines: number;
+};
+
+function* canonicalRedeemedEntriesFromSnapshotV1(
+  bytes: Buffer,
+  stats: RedeemedSnapshotParseStatsV1,
+): Iterable<Json> {
+  for (const line of snapshotLinesV1(bytes)) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      stats.malformed_lines += 1;
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      stats.malformed_lines += 1;
+      continue;
+    }
+    yield parsed as Json;
   }
 }
 
