@@ -874,6 +874,48 @@ const operatorDoc = fs.readFileSync(
   "docs/operators/wc-void-launch-controller-control-offline-signing-v1.md",
   "utf8",
 );
+
+{
+  const syntax = spawnSync(
+    "/bin/bash",
+    ["-n", "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  assert.equal(
+    syntax.status,
+    0,
+    ["offline signer launcher must parse under bash -n", syntax.stdout, syntax.stderr].join("\n"),
+  );
+}
+assert.equal(
+  signerSource.includes("status\", \"--porcelain=v1"),
+  false,
+  "streamed signer must not retain filter-sensitive git status",
+);
+assert.equal(
+  signerSource.includes("status --porcelain"),
+  false,
+  "streamed signer must not retain textual git status commands",
+);
+assert.equal(
+  launcherSource.includes("chunks = []"),
+  false,
+  "tracked worktree verification must not buffer whole files",
+);
+assert.equal(
+  launcherSource.includes('digest.update(b"blob " + str(opened.st_size).encode("ascii") + b"\\0")'),
+  true,
+  "tracked worktree blob hashing must seed Git blob SHA-1 incrementally",
+);
+assert.equal(
+  launcherSource.includes("digest.update(chunk)"),
+  true,
+  "tracked worktree blob hashing must update SHA-1 per bounded chunk",
+);
 assert.equal(
   operatorDoc.includes('cat-file", "blob", expected_blob'),
   true,
@@ -1649,6 +1691,9 @@ console.log("worktree_blob_hashing_uses_no_filters=true");
 console.log("filter_aware_git_status_absent=true");
 console.log("single_launcher_body=true");
 console.log("git_status_filter_path_used=false");
+console.log("launcher_bash_syntax_green=true");
+console.log("streamed_signer_git_status_absent=true");
+console.log("tracked_worktree_hashing_incremental=true");
 console.log("reviewed_tree_index_exact_match_required=true");
 console.log("tracked_worktree_blob_ids_recomputed_from_raw_bytes=true");
 console.log("nonignored_untracked_files_rejected=true");
