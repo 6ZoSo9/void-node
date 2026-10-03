@@ -2,8 +2,8 @@
 
 Marker: `VOID_AGENT_PAID_WORK_CREDENTIALED_EXTERNAL_READINESS_V1`
 
-Issue: #2382  
-Parent cohort blocker: #2376  
+Issue: #2382
+Parent cohort blocker: #2376
 Policy context: #2370 / #2364
 
 ## Purpose
