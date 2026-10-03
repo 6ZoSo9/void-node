@@ -62,7 +62,7 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
     if (fd >= 0) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch (err) { void err; }
     }
   }
 }
