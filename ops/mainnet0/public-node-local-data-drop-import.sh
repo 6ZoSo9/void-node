@@ -77,6 +77,14 @@ def open_child_dir(parent_fd, name, label, create, require_owner):
     return fd
 
 
+def require_rename_protected_parent(fd, label):
+    current = os.fstat(fd)
+    if not stat.S_ISDIR(current.st_mode):
+        fail(f"{label}_not_directory")
+    if (current.st_mode & 0o022) and not (current.st_mode & stat.S_ISVTX):
+        fail(f"{label}_group_or_world_writable_without_sticky")
+
+
 def open_data_root(path):
     if not path or "\x00" in path:
         fail("data_dir_invalid")
@@ -91,6 +99,8 @@ def open_data_root(path):
 
     fd = os.open("/" if absolute else ".", DIR_FLAGS)
     for idx, part in enumerate(parts):
+        if idx == len(parts) - 1:
+            require_rename_protected_parent(fd, "data_dir_parent")
         next_fd = open_child_dir(
             fd,
             part,
@@ -106,6 +116,11 @@ def open_data_root(path):
             fail("data_dir_not_owned_by_operator")
         if root.st_mode & 0o022:
             fail("data_dir_group_or_world_writable")
+        parent_fd = os.open("..", DIR_FLAGS, dir_fd=fd)
+        try:
+            require_rename_protected_parent(parent_fd, "data_dir_parent")
+        finally:
+            os.close(parent_fd)
     return fd
 
 

@@ -83,6 +83,9 @@ grep -Fq 'object_id = f"{expected_sha[:16]}-' "$IMPORTER" ||
   fail "secure_default_object_id_derivation_missing"
 grep -Fq 'idx == len(parts) - 1' "$IMPORTER" || fail "data_root_final_component_custody_missing"
 grep -Fq 'data_dir_group_or_world_writable' "$IMPORTER" || fail "data_root_dot_custody_missing"
+grep -Fq 'require_rename_protected_parent' "$IMPORTER" || fail "data_root_parent_custody_guard_missing"
+grep -Fq 'stat.S_ISVTX' "$IMPORTER" || fail "data_root_parent_sticky_exception_missing"
+grep -Fq 'group_or_world_writable_without_sticky' "$IMPORTER" || fail "data_root_parent_write_guard_missing"
 grep -Fq 'type(doc.get("bytes")) is not int' "$IMPORTER" ||
   fail "receipt_exact_int_type_guard_missing"
 grep -Fq 'type(doc.get(key)) is not bool' "$IMPORTER" ||
@@ -512,6 +515,29 @@ fi
 test ! -e "$unsafe_dot_root/public-node" ||
   fail "unsafe_dot_data_root_received_publication"
 
+unsafe_data_parent="$tmp/unsafe-data-parent"
+mkdir -p "$unsafe_data_parent/data"
+chmod 0777 "$unsafe_data_parent"
+chmod 0700 "$unsafe_data_parent/data"
+if DATA_DIR="$unsafe_data_parent/data" bash "$IMPORTER" "$PAYLOAD" "void:proof:unsafe-data-parent:v1" >"$tmp/unsafe-data-parent.log" 2>&1; then
+  fail "group_world_writable_nonsticky_data_parent_accepted"
+fi
+test ! -e "$unsafe_data_parent/data/public-node" ||
+  fail "unsafe_data_parent_received_publication"
+
+unsafe_dot_parent="$tmp/unsafe-dot-parent"
+mkdir -p "$unsafe_dot_parent/data"
+chmod 0777 "$unsafe_dot_parent"
+chmod 0700 "$unsafe_dot_parent/data"
+if (
+  cd "$unsafe_dot_parent/data"
+  DATA_DIR=. bash "$ROOT/$IMPORTER" "$ROOT/$PAYLOAD" "void:proof:unsafe-dot-parent:v1" >"$tmp/unsafe-dot-parent.log" 2>&1
+); then
+  fail "group_world_writable_nonsticky_dot_parent_accepted"
+fi
+test ! -e "$unsafe_dot_parent/data/public-node" ||
+  fail "unsafe_dot_parent_received_publication"
+
 public_node_symlink_root="$tmp/public-node-symlink"
 mkdir -p "$public_node_symlink_root/data" "$public_node_symlink_root/outside"
 ln -s "$public_node_symlink_root/outside" "$public_node_symlink_root/data/public-node"
@@ -727,6 +753,8 @@ echo "receipts_directory_symlink_rejected=true"
 echo "data_root_symlink_rejected=true"
 echo "data_root_owner_mode_guard=true"
 echo "data_root_dot_owner_mode_guard=true"
+echo "data_root_parent_rename_protection=true"
+echo "data_root_parent_sticky_exception=true"
 echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"
