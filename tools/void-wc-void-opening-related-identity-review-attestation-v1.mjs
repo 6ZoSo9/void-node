@@ -61,6 +61,10 @@ export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_AUTHORITY_V1 =
     manifest_review_attestation_only: true,
     reviewed_lineage_verifier_execution: true,
     mutable_worktree_lineage_execution: false,
+    reviewed_package_runtime_required: true,
+    reviewed_package_bytes_verified: true,
+    ancestor_package_resolution_preempted: true,
+    ambient_node_package_bytes_forbidden: true,
     private_key_access: false,
     credential_access: false,
     wallet_or_signer_access: false,
@@ -158,6 +162,18 @@ const REVIEWED_CONTROL_EVIDENCE_MARKER_V1 =
   "VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1";
 const REVIEWED_CONTROL_ROLE_LABEL_V1 =
   "VOID_WC_VOID_MARKET_VAULT_LAUNCH_CONTROLLER_V1";
+const REVIEWED_RUNTIME_TOOL_PATH_V1 =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_TOOL_BLOB_V1 =
+  "6475c3f18ffe566cf5f448ca1de4795391a6efde";
+const REVIEWED_RUNTIME_PROFILE_PATH_V1 =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_RUNTIME_PROFILE_BLOB_V1 =
+  "87b650e28366acfea3d140ea7778f41f57e5b0c3";
+const REVIEWED_RUNTIME_PROFILE_ID_V1 =
+  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
+const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1 =
+  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 const REVIEWED_CONTROL_SOURCE_BLOBS_V1 = Object.freeze({
   [REVIEWED_CONTROL_PATH_V1]: REVIEWED_CONTROL_BLOB_V1,
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json":
@@ -166,6 +182,8 @@ const REVIEWED_CONTROL_SOURCE_BLOBS_V1 = Object.freeze({
     "c85b6bc59caac6bc765cb8e969cb980386161d12",
   "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
   "package-lock.json": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+  [REVIEWED_RUNTIME_TOOL_PATH_V1]: REVIEWED_RUNTIME_TOOL_BLOB_V1,
+  [REVIEWED_RUNTIME_PROFILE_PATH_V1]: REVIEWED_RUNTIME_PROFILE_BLOB_V1,
 });
 
 function fail(code) {
@@ -513,36 +531,234 @@ function reviewedReviewerRoleV1() {
   });
 }
 
-function reviewedEthersRuntimeVersionV1() {
-  let lock;
-  let installed;
-  try {
-    lock = JSON.parse(
-      reviewedBlobBytesV1(
-        REVIEWED_CONTROL_SOURCE_BLOBS_V1["package-lock.json"],
-      ).toString("utf8"),
-    );
-    installed = JSON.parse(
-      fs.readFileSync(
-        path.join(ROOT, "node_modules", "ethers", "package.json"),
-        "utf8",
-      ),
-    );
-  } catch {
-    fail("review_ethers_runtime_unavailable");
-  }
-  const reviewed = lock?.packages?.["node_modules/ethers"]?.version;
-  if (
-    typeof reviewed !== "string" ||
-    installed?.name !== "ethers" ||
-    installed?.version !== reviewed
-  ) {
-    fail("review_ethers_runtime_version_mismatch");
-  }
-  return reviewed;
+function gitBlobSha1V1(bytes) {
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from("blob " + bytes.length + "\0", "utf8"))
+    .update(bytes)
+    .digest("hex");
 }
 
-async function loadReviewedControlVerifierV1() {
+function writePrivateSourceV1(file, bytes, mode = 0o400) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    mode,
+  );
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, mode);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function makePrivateTreeRemovableV1(root) {
+  if (!fs.existsSync(root)) return;
+  const stat = fs.lstatSync(root);
+  if (stat.isSymbolicLink()) return;
+  if (stat.isDirectory()) {
+    fs.chmodSync(root, 0o700);
+    for (const entry of fs.readdirSync(root)) {
+      makePrivateTreeRemovableV1(path.join(root, entry));
+    }
+  } else if (stat.isFile()) {
+    fs.chmodSync(root, 0o600);
+  }
+}
+
+function materializedBlobV1(treeRoot, relativePath, expectedBlob) {
+  const file = path.resolve(treeRoot, relativePath);
+  const relative = path.relative(treeRoot, file);
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  ) {
+    fail("review_control_materialized_path_escape");
+  }
+  const stat = fs.lstatSync(file);
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    fail("review_control_materialized_file_invalid");
+  }
+  const bytes = fs.readFileSync(file);
+  if (gitBlobSha1V1(bytes) !== expectedBlob) {
+    fail("review_control_materialized_blob_mismatch");
+  }
+  return bytes;
+}
+
+function repositoryGitDirV1() {
+  let raw;
+  try {
+    raw = execFileSync(
+      GIT,
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-C", ROOT,
+        "rev-parse",
+        "--git-dir",
+      ],
+      {
+        cwd: "/",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: reviewedGitEnvV1(),
+      },
+    ).trim();
+  } catch {
+    fail("review_control_git_dir_unavailable");
+  }
+  const resolved = path.isAbsolute(raw) ? raw : path.resolve(ROOT, raw);
+  let stat;
+  try {
+    stat = fs.lstatSync(resolved);
+  } catch {
+    fail("review_control_git_dir_invalid");
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail("review_control_git_dir_invalid");
+  }
+  return fs.realpathSync.native(resolved);
+}
+
+function reviewedControlEnvV1(treeRoot, gitDir) {
+  return {
+    ...reviewedGitEnvV1(),
+    GIT_DIR: gitDir,
+    GIT_WORK_TREE: treeRoot,
+  };
+}
+
+function restoreEnvironmentV1(saved, keys) {
+  for (const key of keys) {
+    if (saved[key] === undefined) delete process.env[key];
+    else process.env[key] = saved[key];
+  }
+}
+
+async function withReviewedEthersPackageRootV1(fn) {
+  for (const [sourcePath, expectedBlob] of [
+    [REVIEWED_RUNTIME_TOOL_PATH_V1, REVIEWED_RUNTIME_TOOL_BLOB_V1],
+    [REVIEWED_RUNTIME_PROFILE_PATH_V1, REVIEWED_RUNTIME_PROFILE_BLOB_V1],
+  ]) {
+    if (
+      reviewedHeadBlobV1(sourcePath) !== expectedBlob ||
+      reviewedWorktreeBlobV1(sourcePath) !== expectedBlob
+    ) {
+      fail("review_package_runtime_generation_mismatch");
+    }
+  }
+
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-related-identity-reviewed-ethers-"),
+  );
+  fs.chmodSync(tempRoot, 0o700);
+  try {
+    const runtimeToolFile = path.join(tempRoot, "reviewed-node-runtime.mjs");
+    writePrivateSourceV1(
+      runtimeToolFile,
+      reviewedBlobBytesV1(REVIEWED_RUNTIME_TOOL_BLOB_V1),
+      0o400,
+    );
+    const runtimeTool = await import(
+      pathToFileURL(runtimeToolFile).href +
+        "?blob=" +
+        REVIEWED_RUNTIME_TOOL_BLOB_V1
+    );
+    for (const name of [
+      "verifyReviewedNodePackageRuntimeV1",
+      "materializeReviewedNodePackageRuntimeV1",
+      "verifyMaterializedReviewedNodePackageRuntimeV1",
+    ]) {
+      if (typeof runtimeTool[name] !== "function") {
+        fail("review_package_runtime_export_missing");
+      }
+    }
+
+    let profile;
+    try {
+      profile = JSON.parse(
+        reviewedBlobBytesV1(REVIEWED_RUNTIME_PROFILE_BLOB_V1).toString("utf8"),
+      );
+    } catch {
+      fail("review_package_runtime_profile_invalid");
+    }
+    if (
+      profile?.marker !== "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1" ||
+      profile?.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE" ||
+      profile?.version !== 1 ||
+      profile?.profile_id !== REVIEWED_RUNTIME_PROFILE_ID_V1 ||
+      profile?.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1 ||
+      canonicalReviewJsonV1(profile?.root_packages) !==
+        canonicalReviewJsonV1(["ethers"])
+    ) {
+      fail("review_package_runtime_profile_invalid");
+    }
+
+    const verified = runtimeTool.verifyReviewedNodePackageRuntimeV1({
+      profile,
+      repoRoot: ROOT,
+    });
+    if (
+      verified?.ok !== true ||
+      verified.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      verified.profile_id !== REVIEWED_RUNTIME_PROFILE_ID_V1 ||
+      verified.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1
+    ) {
+      fail("review_package_runtime_profile_not_verified");
+    }
+
+    const runtimeRoot = path.join(tempRoot, "runtime");
+    const materialized = runtimeTool.materializeReviewedNodePackageRuntimeV1({
+      profile,
+      repoRoot: ROOT,
+      destinationRoot: runtimeRoot,
+    });
+    if (
+      materialized?.ok !== true ||
+      materialized.status !==
+        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      materialized.profile_id !== REVIEWED_RUNTIME_PROFILE_ID_V1 ||
+      materialized.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1 ||
+      materialized.read_only_materialization !== true
+    ) {
+      fail("review_package_runtime_materialization_invalid");
+    }
+
+    const reverified =
+      runtimeTool.verifyMaterializedReviewedNodePackageRuntimeV1({
+        profile,
+        repoRoot: ROOT,
+        destinationRoot: runtimeRoot,
+      });
+    if (
+      reverified?.ok !== true ||
+      reverified.status !==
+        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
+    ) {
+      fail("review_package_runtime_materialization_reverification_failed");
+    }
+
+    return await fn(Object.freeze({ runtimeRoot, profile }));
+  } finally {
+    makePrivateTreeRemovableV1(tempRoot);
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function withReviewedControlVerifierV1(fn) {
   for (const [sourcePath, expectedBlob] of Object.entries(
     REVIEWED_CONTROL_SOURCE_BLOBS_V1,
   )) {
@@ -553,61 +769,165 @@ async function loadReviewedControlVerifierV1() {
       fail("review_control_worktree_blob_mismatch");
     }
   }
-  const ethersVersion = reviewedEthersRuntimeVersionV1();
-  const destination = path.join(
-    ROOT,
-    "tools",
-    ".void-reviewed-control-" +
-      process.pid +
-      "-" +
-      crypto.randomBytes(8).toString("hex") +
-      ".tmp.mjs",
+
+  return await withReviewedEthersPackageRootV1(
+    async ({ runtimeRoot, profile }) => {
+      const treeRoot = path.join(runtimeRoot, "source");
+      const archive = path.join(runtimeRoot, "source.tar");
+      fs.mkdirSync(treeRoot, { mode: 0o700 });
+      try {
+        execFileSync(
+          GIT,
+          [
+            "--no-replace-objects",
+            "-c", "core.hooksPath=/dev/null",
+            "-c", "core.attributesFile=/dev/null",
+            "-c", "core.fsmonitor=false",
+            "-c", "core.untrackedCache=false",
+            "-c", "core.preloadIndex=false",
+            "-c", "submodule.recurse=false",
+            "-C", ROOT,
+            "archive",
+            "--format=tar",
+            "--output=" + archive,
+            "HEAD",
+          ],
+          {
+            cwd: "/",
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            env: reviewedGitEnvV1(),
+          },
+        );
+        execFileSync(
+          "/usr/bin/tar",
+          ["-xf", archive, "-C", treeRoot],
+          {
+            cwd: "/",
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            env: reviewedGitEnvV1(),
+          },
+        );
+        fs.unlinkSync(archive);
+
+        for (const [relativePath, expectedBlob] of Object.entries(
+          REVIEWED_CONTROL_SOURCE_BLOBS_V1,
+        )) {
+          materializedBlobV1(treeRoot, relativePath, expectedBlob);
+        }
+        execFileSync(
+          "/usr/bin/chmod",
+          ["-R", "a-w", treeRoot],
+          {
+            cwd: "/",
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+            env: reviewedGitEnvV1(),
+          },
+        );
+
+        const gitDir = repositoryGitDirV1();
+        const env = reviewedControlEnvV1(treeRoot, gitDir);
+        const keys = Object.keys(env);
+        const saved = Object.fromEntries(
+          keys.map((key) => [key, process.env[key]]),
+        );
+        Object.assign(process.env, env);
+        try {
+          const status = execFileSync(
+            GIT,
+            [
+              "--no-replace-objects",
+              "-c", "core.hooksPath=/dev/null",
+              "-c", "core.attributesFile=/dev/null",
+              "-c", "core.fsmonitor=false",
+              "-c", "core.untrackedCache=false",
+              "-c", "core.preloadIndex=false",
+              "-c", "submodule.recurse=false",
+              "-C", treeRoot,
+              "status",
+              "--porcelain=v1",
+              "--untracked-files=all",
+            ],
+            {
+              cwd: "/",
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              env,
+            },
+          ).trim();
+          if (status !== "") {
+            fail("review_control_materialized_repository_not_clean");
+          }
+
+          const module = await import(
+            pathToFileURL(
+              path.join(treeRoot, REVIEWED_CONTROL_PATH_V1),
+            ).href +
+              "?reviewed_blob=" +
+              REVIEWED_CONTROL_BLOB_V1
+          );
+          if (
+            module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1 !==
+              REVIEWED_CONTROL_EVIDENCE_MARKER_V1 ||
+            module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_ROLE_ID_V1 !==
+              keccak256(toUtf8Bytes(REVIEWED_CONTROL_ROLE_LABEL_V1)) ||
+            typeof module.reverifyVoidWcVoidLaunchControllerControlEvidenceV1 !==
+              "function"
+          ) {
+            fail("review_control_verifier_exports_mismatch");
+          }
+
+          const ethersRow = profile.packages.find(
+            (row) =>
+              row?.name === "ethers" &&
+              row?.lock_key === "node_modules/ethers",
+          );
+          if (!ethersRow || typeof ethersRow.version !== "string") {
+            fail("review_package_runtime_ethers_identity_missing");
+          }
+
+          return await fn(Object.freeze({
+            module,
+            ethers_version: ethersRow.version,
+            runtime_profile_id: profile.profile_id,
+            packages_aggregate_sha256: profile.packages_aggregate_sha256,
+          }));
+        } finally {
+          restoreEnvironmentV1(saved, keys);
+        }
+      } finally {
+        makePrivateTreeRemovableV1(treeRoot);
+      }
+    },
   );
-  try {
-    fs.writeFileSync(
-      destination,
-      reviewedBlobBytesV1(REVIEWED_CONTROL_BLOB_V1),
-      { flag: "wx", mode: 0o600 },
-    );
-    const module = await import(
-      pathToFileURL(destination).href +
-        "?reviewed=" +
-        REVIEWED_CONTROL_BLOB_V1
-    );
-    if (
-      module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1 !==
-        REVIEWED_CONTROL_EVIDENCE_MARKER_V1 ||
-      module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_ROLE_ID_V1 !==
-        keccak256(toUtf8Bytes(REVIEWED_CONTROL_ROLE_LABEL_V1)) ||
-      typeof module.reverifyVoidWcVoidLaunchControllerControlEvidenceV1 !==
-        "function"
-    ) {
-      fail("review_control_verifier_exports_mismatch");
-    }
-    return Object.freeze({
-      reverify:
-        module.reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
-      git_blob_sha1: REVIEWED_CONTROL_BLOB_V1,
-      ethers_version: ethersVersion,
-      mutable_worktree_execution: false,
-    });
-  } finally {
-    fs.rmSync(destination, { force: true });
-  }
 }
 
 export async function reviewedControlVerifierGenerationV1() {
-  const verifier = await loadReviewedControlVerifierV1();
-  return Object.freeze({
-    control_verifier_git_blob_sha1: verifier.git_blob_sha1,
-    ethers_version: verifier.ethers_version,
-    mutable_worktree_execution: verifier.mutable_worktree_execution,
-  });
+  return await withReviewedControlVerifierV1(
+    async ({
+      ethers_version,
+      runtime_profile_id,
+      packages_aggregate_sha256,
+    }) => Object.freeze({
+      control_verifier_git_blob_sha1: REVIEWED_CONTROL_BLOB_V1,
+      ethers_version,
+      reviewed_package_runtime_profile_id: runtime_profile_id,
+      reviewed_packages_aggregate_sha256: packages_aggregate_sha256,
+      reviewed_package_bytes_verified: true,
+      ancestor_package_resolution_preempted: true,
+      ambient_node_package_bytes_forbidden: true,
+      mutable_worktree_execution: false,
+    }),
+  );
 }
 
 async function reverifyReviewedControlEvidenceV1(input) {
-  const verifier = await loadReviewedControlVerifierV1();
-  return verifier.reverify(input);
+  return await withReviewedControlVerifierV1(
+    async ({ module }) =>
+      module.reverifyVoidWcVoidLaunchControllerControlEvidenceV1(input),
+  );
 }
 
 function canonicalAddress(value, code) {
@@ -1025,6 +1345,52 @@ export async function verifyReviewManifestLineageV1(
     participant_provenance_policy_id: eligibility.policy_id,
     records: eligibility.records,
   });
+
+  const manifestPairs = reviewed.cluster_assignments
+    .map((value) => Object.freeze({
+      commitment_id: value.commitment_id,
+      participant_id: value.participant_id,
+    }))
+    .sort((left, right) =>
+      compareTextV1(left.commitment_id, right.commitment_id) ||
+      compareTextV1(left.participant_id, right.participant_id)
+    );
+  const eligibilityPairs = eligibility.records
+    .map((value) => Object.freeze({
+      commitment_id: value.commitment_id,
+      participant_id: value.participant_id,
+    }))
+    .sort((left, right) =>
+      compareTextV1(left.commitment_id, right.commitment_id) ||
+      compareTextV1(left.participant_id, right.participant_id)
+    );
+  if (
+    canonicalReviewJsonV1(manifestPairs) !==
+    canonicalReviewJsonV1(eligibilityPairs)
+  ) {
+    fail("review_manifest_assignment_eligibility_bijection_mismatch");
+  }
+
+  const admissionsByCommitment = new Map(
+    windowState.admissions.map((value) => [value.commitment_id, value]),
+  );
+  for (const record of eligibility.records) {
+    const admission = admissionsByCommitment.get(record.commitment_id);
+    const admissionAtMs = Date.parse(record.admission_at);
+    if (
+      !admission ||
+      admission.participant_id !== record.participant_id ||
+      admission.account !== record.account
+    ) {
+      fail("review_manifest_opening_admission_identity_mismatch");
+    }
+    if (
+      !Number.isSafeInteger(admissionAtMs) ||
+      admissionAtMs !== admission.admitted_at_ms
+    ) {
+      fail("review_manifest_eligibility_admission_time_mismatch");
+    }
+  }
   if (
     eligibility.coupled_launch_id !== reviewed.coupled_launch_id ||
     eligibility.participant_provenance_and_eligibility_verified !== true ||
@@ -1045,6 +1411,8 @@ export async function verifyReviewManifestLineageV1(
     participant_provenance_policy_id: eligibility.policy_id,
     eligible_cohort_root: eligibleCohortRoot,
     participant_count: eligibility.eligible_participant_count,
+    assignment_eligibility_bijection_verified: true,
+    eligibility_admission_times_match_opening: true,
     reviewed_lineage_blobs:
       VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
     mutable_worktree_lineage_execution: false,
