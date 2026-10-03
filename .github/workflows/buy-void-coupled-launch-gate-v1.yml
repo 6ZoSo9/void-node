@@ -100,6 +100,8 @@ jobs:
         run: node scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs
       - name: Prove coupled launch source gate
         run: node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
+      - name: Load canonical generation publisher without mutation
+        run: node ops/precision/void-buy-coupled-live-generation-publish-v1.mjs --help
       - name: Prove coupled launch runtime integration
         run: node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
       - name: Prove request tx-hash launch-authority binding
