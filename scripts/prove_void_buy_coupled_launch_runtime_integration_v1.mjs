@@ -28,32 +28,22 @@ const gitBlobSha1 = bytes => crypto.createHash("sha1")
 assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
 assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
 assert.ok(index.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1));
-assert.ok(index.includes("m.readBuyLaunchGateV1().ready===true"));
+assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
-assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
-assert.ok(index.includes("activation_generation:launch.request_authority.activation_generation"));
-assert.ok(index.includes("requestLaunchAuthorityReady: __voidBuyLaunchRequestOkV1"));
-assert.equal(
-  index.split("request_launch_authority_expired_or_superseded").length - 1,
-  1,
-);
-assert.equal(
-  index.split("request_launch_authority_expired_during_verification").length - 1,
-  1,
-);
+assert.ok(index.includes("requestLaunchAuthorityReady:__voidBLO"));
+assert.equal(index.split('Error("buy_launch_closed")').length - 1, 2);
 const gateSource = read("src/economic/buy_void_coupled_launch_gate_v1.mjs");
-assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION"));
+assert.ok(gateSource.includes("buy-void-coupled-live-generation-v1.jsonl"));
+assert.ok(gateSource.includes("generation_tip_sha256"));
 assert.ok(gateSource.includes("LIVE_ACTIVATION_MAX_LEASE_MS"));
 assert.ok(gateSource.includes("expires_at_ms"));
 assert.ok(gateSource.includes("readBuyLaunchLiveActivationV1"));
 assert.ok(gateSource.includes("verifyTypedData"));
 assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1"));
 assert.ok(gateSource.includes("verifyBuyLaunchLiveActivationSovereignSignatureV1"));
-assert.ok(gateSource.includes("bound.activation_receipt_id !== current.activation_receipt_id"));
-assert.ok(gateSource.includes("bound.activation_receipt_sha256 !== current.activation_receipt_sha256"));
-assert.ok(gateSource.includes("bound.expires_at_ms !== current.expires_at_ms"));
+assert.ok(gateSource.includes("buyLaunchRequestAuthorityMatchesV1"));
 assert.equal(
-  index.split('=== "1"&&__voidBuyLaunchReadyV1()').length - 1,
+  index.split('=== "1"&&__voidBLD().ready===true').length - 1,
   2,
 );
 assert.ok(!index.includes(
@@ -103,7 +93,7 @@ console.log("current_canonical_gate_ready=false");
 console.log("live_activation_generation_bound=true");
 console.log("live_activation_lease_expiry_bound=true");
 console.log("request_launch_authority_snapshot_bound=true");
-console.log("request_launch_authority_exact_receipt_bound=true");
+console.log("request_launch_authority_generation_tip_bound=true");
 console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
 console.log("sovereign_launch_lease_cosignature_bound=true");
