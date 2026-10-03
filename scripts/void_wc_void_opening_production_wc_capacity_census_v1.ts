@@ -137,20 +137,28 @@ function scanReceiptFiles(roots: string[]): {
   invalid_files: number;
   duplicate_copies: number;
   visited_files: number;
+  unreadable_directories: number;
+  depth_limited_directories: number;
 } {
   const summaries = new Map<string, AdapterReceiptSummary>();
   let filesSeen = 0;
   let invalidFiles = 0;
   let duplicateCopies = 0;
   let visitedFiles = 0;
+  let unreadableDirectories = 0;
+  let depthLimitedDirectories = 0;
 
   const walk = (dir: string, depth: number): void => {
-    if (depth > MAX_SCAN_DEPTH) return;
+    if (depth > MAX_SCAN_DEPTH) {
+      depthLimitedDirectories += 1;
+      return;
+    }
     if (FORBIDDEN_COMPONENT.test(dir)) return;
     let entries: Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
+      unreadableDirectories += 1;
       return;
     }
     for (const entry of entries) {
@@ -192,7 +200,15 @@ function scanReceiptFiles(roots: string[]): {
   };
 
   for (const root of roots) walk(root, 0);
-  return { summaries, files_seen: filesSeen, invalid_files: invalidFiles, duplicate_copies: duplicateCopies, visited_files: visitedFiles };
+  return {
+    summaries,
+    files_seen: filesSeen,
+    invalid_files: invalidFiles,
+    duplicate_copies: duplicateCopies,
+    visited_files: visitedFiles,
+    unreadable_directories: unreadableDirectories,
+    depth_limited_directories: depthLimitedDirectories,
+  };
 }
 
 async function scanLedger(
@@ -351,7 +367,9 @@ async function main(): Promise<void> {
     receiptScan.invalid_files === 0 &&
     receiptsWithoutCredit === 0 &&
     ledgerScan.invalid_matching_rows === 0 &&
-    duplicateLedgerMatches === 0;
+    duplicateLedgerMatches === 0 &&
+    receiptScan.unreadable_directories === 0 &&
+    receiptScan.depth_limited_directories === 0;
 
   const output = {
     marker: VOID_WC_VOID_OPENING_PRODUCTION_WC_CAPACITY_CENSUS_V1,
@@ -378,6 +396,8 @@ async function main(): Promise<void> {
       valid_unique_adapter_receipts: receiptScan.summaries.size,
       invalid_adapter_receipt_files: receiptScan.invalid_files,
       duplicate_adapter_receipt_copies: receiptScan.duplicate_copies,
+      unreadable_directories: receiptScan.unreadable_directories,
+      depth_limited_directories: receiptScan.depth_limited_directories,
       valid_receipts_without_matching_ledger_credit: receiptsWithoutCredit,
       matching_ledger_credit_conflicts:
         ledgerScan.invalid_matching_rows + duplicateLedgerMatches,
