@@ -146,7 +146,8 @@ Any future public economic instruction must show the complete effective cost:
 gross amount, every fee/spread, source-chain and Chain-2050 gas responsibility,
 net output, and expiry/reconciliation behavior. Deterministic Bitcoin HTLC and
 Chain-2050 hashlock-settlement primitives are merged with exact terminal VOID
-balance-delta and adversarial preimage checks, but BTC/VOID remains post-presale
+balance-delta and adversarial preimage checks. These are source-only settlement
+controls, not current runtime or activation truth; BTC/VOID remains post-presale
 and separately launch-gated. BTC/VOID source currently has a 0.50% protocol fee
 plus a separate 1% buyback spread; their combined launch treatment remains HOLD
 pending explicit review.
