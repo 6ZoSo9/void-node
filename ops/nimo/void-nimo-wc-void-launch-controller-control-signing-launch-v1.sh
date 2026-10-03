@@ -132,7 +132,18 @@ except UnicodeDecodeError:
     raise SystemExit(2)
 
 for pattern in (
-    r'^\s*\[\s*filter(?:\s+"[^"]*")?\s*\]\s*  HOME=/nonexistent
+    r'(?im)^\\s*\\[\\s*filter(?:\\s+"[^"]*")?\\s*\\]\\s*$',
+    r'(?im)^\\s*\\[\\s*include(?:if)?(?:\\s+"[^"]*")?\\s*\\]\\s*$',
+    r'(?im)^\\s*attributesfile\\s*=',
+    r'(?im)^\\s*hookspath\\s*=',
+):
+    if re.search(pattern, text):
+        raise SystemExit(2)
+PY
+
+git_env=(
+  /usr/bin/env -i
+  HOME=/nonexistent
   PATH=/usr/bin:/bin
   LANG=C
   LC_ALL=C
@@ -277,6 +288,10 @@ for relative, (mode, expected_oid) in tree.items():
             != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns)
         ):
             raise SystemExit(2)
+        digest = hashlib.sha1()
+        digest.update(b"blob " + str(len(raw)).encode("ascii") + b"\\0")
+        digest.update(raw)
+        actual_oid = digest.hexdigest()
     else:
         if not stat.S_ISREG(before.st_mode):
             raise SystemExit(2)
@@ -291,15 +306,17 @@ for relative, (mode, expected_oid) in tree.items():
                 or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
             ):
                 raise SystemExit(2)
-            chunks = []
+            digest = hashlib.sha1()
+            digest.update(
+                b"blob " + str(opened.st_size).encode("ascii") + b"\\0"
+            )
             remaining = opened.st_size
             while remaining:
                 chunk = os.read(fd, min(1024 * 1024, remaining))
                 if not chunk:
                     raise SystemExit(2)
-                chunks.append(chunk)
+                digest.update(chunk)
                 remaining -= len(chunk)
-            raw = b"".join(chunks)
             after_fd = os.fstat(fd)
         finally:
             os.close(fd)
@@ -318,10 +335,8 @@ for relative, (mode, expected_oid) in tree.items():
         )
         if identity_before != identity_after_fd or identity_before != identity_after_path:
             raise SystemExit(2)
+        actual_oid = digest.hexdigest()
 
-    actual_oid = hashlib.sha1(
-        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw,
-    ).hexdigest()
     if actual_oid != expected_oid:
         raise SystemExit(2)
 
