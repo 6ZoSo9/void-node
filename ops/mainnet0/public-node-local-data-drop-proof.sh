@@ -6,38 +6,38 @@ BASE="${BASE:-http://127.0.0.1:${RUN_PORT}}"
 umask 077
 
 PID=""
+LEGACY_SANDBOX=""
 LEGACY_OUT=""
 LEGACY_TARGET=""
-LEGACY_LINK_CREATED=0
 
 cleanup() {
   if [ -n "$PID" ]; then
     kill "$PID" 2>/dev/null || true
   fi
-  if [ "$LEGACY_LINK_CREATED" = "1" ] &&
-     [ -n "$LEGACY_OUT" ] &&
-     [ -L "$LEGACY_OUT" ]; then
-    rm -f -- "$LEGACY_OUT"
-  fi
-  if [ -n "$LEGACY_TARGET" ] && [ -d "$LEGACY_TARGET" ]; then
-    rm -rf -- "$LEGACY_TARGET"
+  if [ -n "$LEGACY_SANDBOX" ] && [ -d "$LEGACY_SANDBOX" ]; then
+    rm -rf -- "$LEGACY_SANDBOX"
   fi
 }
 trap cleanup EXIT
 
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
-LEGACY_OUT="/tmp/public-node-local-data-drop-v1-proof-$STAMP"
+LEGACY_SANDBOX="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof-legacy-sandbox.XXXXXX)"
+test -d "$LEGACY_SANDBOX" && test ! -L "$LEGACY_SANDBOX"
+test "$(stat -c '%u' "$LEGACY_SANDBOX")" = "$(id -u)"
+test "$(stat -c '%a' "$LEGACY_SANDBOX")" = "700"
+
+LEGACY_TARGET="$LEGACY_SANDBOX/target"
+mkdir -m 700 -- "$LEGACY_TARGET"
+test -d "$LEGACY_TARGET" && test ! -L "$LEGACY_TARGET"
+LEGACY_OUT="$LEGACY_SANDBOX/public-node-local-data-drop-v1-proof-$STAMP"
 test ! -e "$LEGACY_OUT" && test ! -L "$LEGACY_OUT"
 
-LEGACY_TARGET="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof-legacy-target.XXXXXX)"
-test -d "$LEGACY_TARGET" && test ! -L "$LEGACY_TARGET"
-test "$(stat -c '%u' "$LEGACY_TARGET")" = "$(id -u)"
-test "$(stat -c '%a' "$LEGACY_TARGET")" = "700"
 printf 'VOID_LOCAL_DATA_DROP_LEGACY_OUT_SENTINEL\n' > "$LEGACY_TARGET/nodeA.key"
 LEGACY_SENTINEL_SHA="$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')"
 LEGACY_SENTINEL_STAT="$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")"
-ln -s -- "$LEGACY_TARGET" "$LEGACY_OUT"
-LEGACY_LINK_CREATED=1
+ln -sT -- "$LEGACY_TARGET" "$LEGACY_OUT"
+test -L "$LEGACY_OUT"
+test "$(readlink -- "$LEGACY_OUT")" = "$LEGACY_TARGET"
 
 OUT="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof.XXXXXX)"
 test -d "$OUT" && test ! -L "$OUT"
@@ -338,6 +338,7 @@ test "$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')" = "$LEGACY_SEN
 test "$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")" = "$LEGACY_SENTINEL_STAT"
 test ! -e "$LEGACY_TARGET/data"
 echo "proof_output_root_create_only=true"
+echo "legacy_timestamp_symlink_private_sandbox=true"
 echo "legacy_timestamp_symlink_untouched=true"
 echo "out=$OUT"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_V1_GREEN"
