@@ -96,7 +96,7 @@ async function gatewayReady(runtime) {
         if (value?.marker === "VOID_AI_AGENT_PUBLIC_GATEWAY_V1" && value?.ready === true) {
           return value;
         }
-      } catch {}
+      } catch (_error) { void _error; }
     }
     await sleep(40);
   }
