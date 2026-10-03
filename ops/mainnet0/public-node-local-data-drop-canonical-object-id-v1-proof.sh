@@ -118,6 +118,8 @@ grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1" "$READER" || fail 
 grep -Fq 'errorCodeV1(error) === "ENOENT"' "$READER" || fail "reader_missing_only_enoent_missing"
 grep -Fq 'unsafeStorageV1("unsafe_final_parent")' "$READER" || fail "reader_unsafe_parent_fail_closed_missing"
 grep -Fq 'unsafeStorageV1("unsafe_final_file")' "$READER" || fail "reader_unsafe_file_fail_closed_missing"
+grep -Fq 'unsafeStorageV1("final_disappeared_before_open", error)' "$READER" || fail "reader_observed_open_disappearance_drift_missing"
+grep -Fq 'unsafeStorageV1("final_disappeared_after_read", error)' "$READER" || fail "reader_post_read_disappearance_drift_missing"
 grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
 grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
 grep -Fq 'listed.nlink !== 1n' "$READER" || fail "reader_link_count_guard_missing"
@@ -189,6 +191,9 @@ assert.equal(cluster.includes(".import-staging-v2"),false,"public runtime must n
 for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","listDirectDirectoryNamesV1","fs.readdirSync(procPath","/proc/self/fd","O_NOFOLLOW","O_DIRECTORY","fs.openSync(procPath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(procPath","fs.closeSync(parent.fd)"]){
   assert.equal(reader.includes(needle),true,"reader contract missing "+needle);
 }
+assert.equal(reader.includes('if (missingPathV1(error)) return null;'),true,"initial absence must remain not-found");
+assert.equal(reader.includes('unsafeStorageV1("final_disappeared_before_open", error);'),true,"observed pre-open disappearance must be state drift");
+assert.equal(reader.includes('unsafeStorageV1("final_disappeared_after_read", error);'),true,"post-read disappearance must be state drift");
 const demoManifestStart=source.indexOf('APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json"');
 const demoManifestEnd=source.indexOf('APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fileName"',demoManifestStart);
 assert.notEqual(demoManifestStart,-1,"Demo003 manifest route missing");
