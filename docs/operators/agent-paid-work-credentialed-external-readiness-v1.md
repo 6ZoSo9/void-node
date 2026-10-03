@@ -11,6 +11,12 @@ Policy context: #2370 / #2364
 Re-observe the current repository source for the exact credentialed paid-work
 lineage required by the existing WC/VOID opening eligibility policy.
 
+The census captures one repository HEAD/tree generation, reads every component
+from the exact `HEAD:<path>` Git object, emits each component Git blob identity
+plus SHA-256, and requires the corresponding direct worktree file bytes to match
+that Git blob. Hidden `assume-unchanged` / `skip-worktree` drift therefore
+cannot be reported as if it belonged to the recorded repository HEAD.
+
 This census deliberately does **not** change that policy and does not claim that
 an external agent can currently complete the live credentialed path.
 
@@ -40,6 +46,14 @@ The census binds current source for:
 
 These components exist in current source. That is not the same thing as a live
 public external execution path.
+
+Readiness is not inferred from independent source-token presence. The credential
+request gateway contract binds its exported request path, loopback config check,
+reachable request-route guard/intake call, and all issuance/registry/restart
+authority fields together. The public submission contract binds the route to the
+default-off loopback upstream and the actual proxy handler/fetch target. The
+opening policy is read from the single `POLICY_PAYLOAD` object and requires the
+exact credential identity source, earning source, and active-credential flag.
 
 ## Current fail-closed result
 
@@ -84,12 +98,32 @@ A ZoSo-controlled second account or host is not independence evidence.
 
 ## Authority
 
-This census performs source reads and Git HEAD observation only.
+This census performs exact HEAD Git-object reads plus descriptor-bound
+worktree equality checks only. It does not accept mutable worktree bytes as
+repository-head source authority.
 
 It performs no network request, credential/token read, private-key access,
 credential issuance, registry/binding write, runtime/service mutation, paid-work
 dispatch, WC mutation, Chain-2050 write, transaction action, market/presale
 activation, liquidity/treasury action, token movement, or funds movement.
+
+## Adversarial proof
+
+The focused proof preserves the old token surface while independently:
+
+- flipping `credential_issuance_authorized` to true;
+- disconnecting the credential-request route;
+- disconnecting the public submission route;
+- flipping the opening policy's `active_credential_required`; and
+- hiding a tracked credential-gateway worktree edit with
+  `git update-index --assume-unchanged`.
+
+Each semantic substitution must fail closed, and the hidden worktree change must
+fail the exact HEAD Git blob comparison.
+
+This still does **not** prove the full #2382 issuance/controller/execution/
+completion-finalization lineage. That remains a separate current-generation
+composition/runtime requalification.
 
 Run:
 
