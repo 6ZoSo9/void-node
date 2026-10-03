@@ -304,6 +304,16 @@ function readStableFileV1(file, {
   ) {
     fail(label + "_path_invalid");
   }
+  let canonicalBefore;
+  try {
+    canonicalBefore = fs.realpathSync.native(file);
+  } catch {
+    fail(label + "_realpath_unavailable");
+  }
+  if (canonicalBefore !== file) {
+    fail(label + "_path_alias_forbidden");
+  }
+
   let fd = -1;
   try {
     fd = fs.openSync(
@@ -328,7 +338,18 @@ function readStableFileV1(file, {
     }
     const bytes = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
+    let canonicalAfter;
+    let pathnameAfter;
+    try {
+      canonicalAfter = fs.realpathSync.native(file);
+      pathnameAfter = fs.statSync(file, { bigint: true });
+    } catch {
+      fail(label + "_path_changed_during_read");
+    }
     if (
+      canonicalAfter !== file ||
+      pathnameAfter.dev !== after.dev ||
+      pathnameAfter.ino !== after.ino ||
       before.dev !== after.dev ||
       before.ino !== after.ino ||
       before.size !== after.size ||
