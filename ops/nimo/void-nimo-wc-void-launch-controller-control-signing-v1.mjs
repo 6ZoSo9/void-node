@@ -527,10 +527,22 @@ function validateChallengeForSigningV1({
     ["domain", "types", "value"],
     "control_typed_data",
   );
+  const expectedValue = {
+    execution_epoch: challenge.execution_epoch,
+    role_id: challenge.role_id,
+    candidate_address: challenge.candidate_address,
+    coupled_launch_id: challenge.coupled_launch_id,
+    compiled_identity_id: challenge.compiled_identity_id,
+    void_token: challenge.void_token,
+    source_binding_sha256: challenge.source_binding_sha256,
+    nonce: challenge.nonce,
+    issued_at_unix: challenge.issued_at_unix,
+    expires_at_unix: challenge.expires_at_unix,
+  };
   if (
     canonicalJson(typedData.domain) !== canonicalJson(expectedDomain) ||
     canonicalJson(typedData.types) !== canonicalJson(expectedTypes) ||
-    canonicalJson(typedData.value) !== canonicalJson(challenge)
+    canonicalJson(typedData.value) !== canonicalJson(expectedValue)
   ) {
     fail("control_typed_data_semantics_invalid");
   }
@@ -631,7 +643,7 @@ function validateChallengeForSigningV1({
           ),
         ),
       }),
-      value: Object.freeze({ ...challenge }),
+      value: Object.freeze({ ...expectedValue }),
     }),
     typed_data_digest: digest,
     expires_at_unix: expires.toString(),
