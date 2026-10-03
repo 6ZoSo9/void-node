@@ -24,6 +24,11 @@ const EXPECTED_VAULT_SOURCE_SHA256 =
   "2ac773c7580f5a5d477d12da62e1a597d64c174395af8b20b721873a63138925";
 const EXPECTED_FOUNDRY_IMAGE_ID =
   "sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb";
+const OBSERVED_HEAD = "1c56a9c0ec074ec198610864462634a66ce26722";
+const EXPECTED_TEST_SHA256 =
+  "bcc5cf5d02a75e979ca201289fc55a951aed11dff8af497aee5f95846767729a";
+const EXPECTED_FIRST_ISOLATED_TX_GAS = "133515";
+const EXPECTED_SUBSEQUENT_ISOLATED_TX_GAS = "99303";
 
 function read(path) {
   return fs.readFileSync(path, "utf8");
@@ -60,6 +65,12 @@ const accepted = JSON.parse(read(ACCEPTED));
 const holderManifest = JSON.parse(read(HOLDER_MANIFEST));
 const testSha256 = crypto.createHash("sha256").update(test).digest("hex");
 
+assert.equal(testSha256, EXPECTED_TEST_SHA256);
+git("merge-base", "--is-ancestor", OBSERVED_HEAD, "HEAD");
+assert.equal(
+  git("rev-parse", `${OBSERVED_HEAD}:${TEST}`),
+  git("rev-parse", `HEAD:${TEST}`),
+);
 assert.equal(git("rev-parse", `HEAD:${VAULT}`), EXPECTED_VAULT_BLOB);
 assert.equal(git("rev-parse", `HEAD:${TOKEN}`), EXPECTED_TOKEN_BLOB);
 
@@ -129,14 +140,18 @@ for (const forbidden of [
 
 for (const required of [
   "replacement measurement-only evidence",
-  "generation 2 unpinned",
-  "must not be used",
+  "generation 2 pinned",
+  OBSERVED_HEAD,
+  EXPECTED_TEST_SHA256,
+  EXPECTED_FOUNDRY_IMAGE_ID,
+  EXPECTED_FIRST_ISOLATED_TX_GAS,
+  EXPECTED_SUBSEQUENT_ISOLATED_TX_GAS,
   "--isolate",
   "does not add intrinsic gas a second time",
   "snapshotGasLastCall",
   "3,000,000",
   "does not select",
-  "first v2 hosted run is observational and unpinned",
+  "These are measurement inputs for #2364, not a selected sponsorship budget.",
 ]) {
   need(doc, required, `doc:${required}`);
 }
@@ -158,6 +173,10 @@ for (const required of [
   EXPECTED_VAULT_BLOB,
   EXPECTED_TOKEN_BLOB,
   EXPECTED_FOUNDRY_IMAGE_ID,
+  OBSERVED_HEAD,
+  EXPECTED_TEST_SHA256,
+  EXPECTED_FIRST_ISOLATED_TX_GAS,
+  EXPECTED_SUBSEQUENT_ISOLATED_TX_GAS,
 ]) {
   need(workflow, required, `workflow:${required}`);
 }
@@ -183,9 +202,12 @@ console.log(`token_git_blob_sha1=${EXPECTED_TOKEN_BLOB}`);
 console.log(`accepted_vault_identity_id=${EXPECTED_VAULT_ID}`);
 console.log(`gas_test_sha256=${testSha256}`);
 console.log(`foundry_image_id=${EXPECTED_FOUNDRY_IMAGE_ID}`);
+console.log(`observed_head=${OBSERVED_HEAD}`);
+console.log(`pinned_first_isolated_tx_gas=${EXPECTED_FIRST_ISOLATED_TX_GAS}`);
+console.log(`pinned_subsequent_isolated_tx_gas=${EXPECTED_SUBSEQUENT_ISOLATED_TX_GAS}`);
 console.log("forge_isolate_required=true");
 console.log("manual_intrinsic_addition=false");
-console.log("generation2_measurement_pinned=false");
+console.log("generation2_measurement_pinned=true");
 console.log("production_rpc=false");
 console.log("production_transaction=false");
 console.log("production_budget_selected=false");
