@@ -568,7 +568,7 @@ await assert.rejects(
   const clean = validateSanitizedOfflineSignerEnvironmentV1(
     cleanEnv,
     "/usr/bin/node",
-    [],
+    ["--input-type=module"],
   );
   assert.equal(clean.sanitized_environment, true);
   assert.equal(clean.node_preload_flags_absent, true);
@@ -576,9 +576,20 @@ await assert.rejects(
   assert.throws(
     () =>
       validateSanitizedOfflineSignerEnvironmentV1(
+        cleanEnv,
+        "/usr/bin/node",
+        ["--input-type=module"],
+      ),
+    /offline_signer_node_preload_flags_forbidden/u,
+    "production signer must require the reviewed streamed-module launch flag",
+  );
+
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
         { ...cleanEnv, NODE_OPTIONS: "--import=/tmp/evil.mjs" },
         "/usr/bin/node",
-        [],
+        ["--input-type=module"],
       ),
     /offline_signer_environment_not_sanitized/u,
   );
@@ -596,7 +607,7 @@ await assert.rejects(
       validateSanitizedOfflineSignerEnvironmentV1(
         { ...cleanEnv, HOME: "/tmp/alternate" },
         "/usr/bin/node",
-        [],
+        ["--input-type=module"],
       ),
     /offline_signer_environment_not_sanitized/u,
   );
@@ -608,7 +619,7 @@ await assert.rejects(
           VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1: "/tmp",
         },
         "/usr/bin/node",
-        [],
+        ["--input-type=module"],
       ),
     /offline_signer_environment_not_sanitized/u,
   );
@@ -985,6 +996,13 @@ assert.equal(signerSource.includes("fetch("), false);
 assert.equal(signerSource.includes("WebSocket"), false);
 assert.equal(signerSource.includes("JsonRpcProvider"), false);
 assert.equal(signerSource.includes("transaction_signing: false"), true);
+assert.equal(
+  signerSource.includes(
+    'execArgv[0] !== "--input-type=module"',
+  ),
+  true,
+  "production signer must admit only the required streamed-module execArgv flag",
+);
 assert.equal(signerSource.includes("transaction_broadcast: false"), true);
 assert.equal(signerSource.includes("funds_movement: false"), true);
 assert.equal(
@@ -1145,6 +1163,7 @@ console.log("typed_data_tamper_rejected=true");
 console.log("self_authored_source_binding_rejected=true");
 console.log("sanitized_launch_environment_required=true");
 console.log("node_preload_flags_rejected=true");
+console.log("streamed_module_input_type_flag_required=true");
 console.log("home_override_rejected=true");
 console.log("current_source_binding_reverified_before_key_access=true");
 console.log("exact_challenge_source_head_required=true");
