@@ -12,6 +12,85 @@ STATUS="/tmp/void-participant-buy-void-clarity-status.json"
 SALE="/tmp/void-participant-buy-void-clarity-sale.json"
 RAIL_STATE="/tmp/void-participant-buy-void-clarity-rail-state.txt"
 
+validate_participant_copy_for_rail_state() {
+  local rail_state="$1"
+  local html_file="$2"
+
+  case "$rail_state" in
+    hold)
+      grep -Fqi 'Presale request intake is not activated' "$html_file" ||
+        { echo "[fail] HOLD participant copy lacks explicit not-activated warning" >&2; return 1; }
+      for forbidden in         'Base native USDC only now'         'Base USDC active'         'Base USDC · ETH pending'         'Base · ETH pending'         'Base request intake is OPEN'         'Base and Ethereum request intake are OPEN'
+      do
+        if grep -Fq "$forbidden" "$html_file"; then
+          echo "[fail] HOLD participant copy still advertises active rail: $forbidden" >&2
+          return 1
+        fi
+      done
+      ;;
+    base_open_ethereum_hold)
+      grep -Fq 'Base request intake is OPEN' "$html_file" ||
+        grep -Fq 'Base native USDC only now' "$html_file" ||
+        { echo "[fail] Base-only participant copy lacks Base OPEN claim" >&2; return 1; }
+      grep -Fq 'Ethereum native USDC is approved but NOT ACTIVE until OPEN' "$html_file" ||
+        { echo "[fail] Base-only participant copy lost Ethereum HOLD warning" >&2; return 1; }
+      if grep -Fq 'Base and Ethereum request intake are OPEN' "$html_file"; then
+        echo "[fail] Base-only participant copy falsely claims dual-rail OPEN" >&2
+        return 1
+      fi
+      ;;
+    base_and_ethereum_open)
+      grep -Fq 'Base and Ethereum request intake are OPEN' "$html_file" ||
+        { echo "[fail] dual-rail participant copy lacks explicit dual OPEN claim" >&2; return 1; }
+      for forbidden in         'Ethereum native USDC is approved but NOT ACTIVE until OPEN'         'Base native USDC only now'         'Base USDC active'         'Base USDC · ETH pending'         'Base · ETH pending'
+      do
+        if grep -Fq "$forbidden" "$html_file"; then
+          echo "[fail] dual-rail participant copy retains stale single-rail claim: $forbidden" >&2
+          return 1
+        fi
+      done
+      ;;
+    *)
+      echo "[fail] unknown live rail state: $rail_state" >&2
+      return 1
+      ;;
+  esac
+}
+
+if [[ "${VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_MODE:-0}" == "1" ]]; then
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+
+  printf '%s\n'     'Presale request intake is not activated. Do not send funds.'     > "$tmp/hold-good.html"
+  validate_participant_copy_for_rail_state hold "$tmp/hold-good.html"
+
+  printf '%s\n'     'Presale request intake is not activated. Base USDC active.'     > "$tmp/hold-bad.html"
+  if validate_participant_copy_for_rail_state hold "$tmp/hold-bad.html"; then
+    echo "[fail] HOLD contradiction fixture unexpectedly passed" >&2
+    exit 1
+  fi
+
+  printf '%s\n'     'Base request intake is OPEN.'     'Ethereum native USDC is approved but NOT ACTIVE until OPEN.'     > "$tmp/base-good.html"
+  validate_participant_copy_for_rail_state     base_open_ethereum_hold "$tmp/base-good.html"
+
+  printf '%s\n'     'Base and Ethereum request intake are OPEN.'     > "$tmp/dual-good.html"
+  validate_participant_copy_for_rail_state     base_and_ethereum_open "$tmp/dual-good.html"
+
+  printf '%s\n'     'Base and Ethereum request intake are OPEN.'     'Base USDC · ETH pending'     > "$tmp/dual-bad.html"
+  if validate_participant_copy_for_rail_state     base_and_ethereum_open "$tmp/dual-bad.html"; then
+    echo "[fail] dual-rail contradiction fixture unexpectedly passed" >&2
+    exit 1
+  fi
+
+  echo "VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_V1_GREEN"
+  echo "hold_copy_case_green=true"
+  echo "hold_active_claim_adversary_green=true"
+  echo "base_open_ethereum_hold_case_green=true"
+  echo "dual_rail_open_case_green=true"
+  echo "dual_rail_pending_adversary_green=true"
+  exit 0
+fi
+
 echo "=== Participant Buy VOID clarity proof ==="
 
 echo
@@ -112,33 +191,10 @@ with open(state_path, "w", encoding="utf-8") as handle:
 PY
 
 rail_state="$(cat "$RAIL_STATE")"
-case "$rail_state" in
-  hold)
-    ;;
-  base_open_ethereum_hold)
-    grep -Fq 'Ethereum native USDC is approved but NOT ACTIVE until OPEN' "$HTML" ||
-      { echo "[fail] participant Base-only page lost Ethereum HOLD warning" >&2; exit 1; }
-    ;;
-  base_and_ethereum_open)
-    if grep -Fq 'Ethereum native USDC is approved but NOT ACTIVE until OPEN' "$HTML"; then
-      echo "[fail] participant page still renders Ethereum NOT ACTIVE while live rail is OPEN" >&2
-      exit 1
-    fi
-    if grep -Fq 'setText("buyRailStatus", "Base USDC · ETH pending");' src/index.ts; then
-      echo "[fail] participant renderer hard-codes ETH pending while live rail is OPEN" >&2
-      exit 1
-    fi
-    if grep -Fq 'setText("buyPlanRail", "Base · ETH pending");' src/index.ts; then
-      echo "[fail] participant plan renderer hard-codes ETH pending while live rail is OPEN" >&2
-      exit 1
-    fi
-    ;;
-  *)
-    echo "[fail] unknown live rail state: $rail_state" >&2
-    exit 1
-    ;;
-esac
+validate_participant_copy_for_rail_state "$rail_state" "$HTML"
 echo "participant_copy_live_rail_state_bound=true"
+echo "participant_hold_copy_bound=true"
+echo "participant_dual_rail_contradiction_rejected=true"
 
 node scripts/prove_void_app_buy_presale_readonly_v1.mjs
 echo "[ok] live rail state + participant rendering contract"
