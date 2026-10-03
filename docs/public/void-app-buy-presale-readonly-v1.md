@@ -26,15 +26,17 @@ When the gate is OPEN, the page may POST one guarded request to
 `/__void/buy-void/request`. It does not connect a wallet, approve USDC, sign a
 message or transaction, or send funds.
 
-Request creation retains the reviewed acknowledgements for self-custody, Base
-native USDC, request-before-payment, sender/destination identity, and the
-fulfillment boundary.
+Request creation retains the reviewed acknowledgements for self-custody,
+native USDC on the explicitly selected Base or Ethereum rail,
+request-before-payment, sender/destination identity, and the fulfillment
+boundary.
 
 Before displaying returned payment instructions, the browser also fails closed
 unless the response has the reviewed checkout-result schema, the returned VOID
 destination matches the submitted self-custody destination, the returned USDC
-amount matches the submitted amount exactly at six-decimal Base-USDC precision,
-the approved receiver remains canonical, and the returned safety object still
+amount matches the submitted amount exactly at six-decimal USDC precision,
+the returned source chain, chain ID, token contract, and receiver all match the
+selected rail, and the returned safety object still
 states manual review with automatic fulfillment disabled.
 
 The live snapshot is type-closed rather than coercion-based. Canonical price/rate
@@ -48,8 +50,8 @@ before parsing; oversized, malformed, or non-JSON responses fail closed.
 
 ## Exchange/custody warning
 
-SELF-CUSTODY ONLY. VOID is not listed on any exchange. The Base USDC sender
-address is the VOID delivery identity. An exchange or pooled custodian can send
+SELF-CUSTODY ONLY. VOID is not listed on any exchange. The selected-rail USDC
+sender address is the VOID delivery identity. An exchange or pooled custodian can send
 from an address the participant does not control, causing the resulting VOID
 delivery to be inaccessible to that participant. VOID cannot recover those
 funds. The UI instructs participants to treat exchange/custodial sends as lost.
