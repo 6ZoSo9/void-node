@@ -40,6 +40,18 @@ function allTrue(value) {
   );
 }
 
+function sourceOnlyAuthority(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    value.source_only === true &&
+    Object.entries(value).every(
+      ([key, entry]) => key === "source_only" ? entry === true : entry === false,
+    )
+  );
+}
+
 export function classifyBuyLaunchGateV1({ production, coupled, successor }) {
   const ready =
     production?.marker === "VOID_WC_VOID_PRODUCTION_CANDIDATE_V1" &&
@@ -75,7 +87,7 @@ export function classifyBuyLaunchGateV1({ production, coupled, successor }) {
     successor.version === 1 &&
     successor.source_execution_layer?.chain_id === 2050 &&
     successor.successor_execution_layer?.execution_epoch === 2 &&
-    allFalse(successor.launch_authority);
+    sourceOnlyAuthority(successor.launch_authority);
   return Object.freeze({
     ready,
     id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
