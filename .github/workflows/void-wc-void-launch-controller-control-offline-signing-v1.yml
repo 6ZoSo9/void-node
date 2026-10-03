@@ -1,0 +1,54 @@
+name: VOID WC-VOID launch-controller control offline signing v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-launch-controller-control-offline-signing-v1.yml"
+      - "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
+      - "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+      - "scripts/prove_void_nimo_wc_void_launch_controller_control_signing_v1.mjs"
+      - "docs/operators/wc-void-launch-controller-control-offline-signing-v1.md"
+      - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prove:
+    name: VOID launch-controller offline signing v1 / Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - "22.12.0"
+          - "22.13.0"
+          - "22"
+          - "24"
+          - "26"
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Prove offline launch-controller control signer
+        run: node scripts/prove_void_nimo_wc_void_launch_controller_control_signing_v1.mjs
