@@ -37,6 +37,8 @@ for (const token of [
   "applicant_auth_invalid",
   "applicant_auth_replay",
   "applicant_rate_limit_exceeded",
+  "credential_request_preauth_rate_limit_exceeded",
+  "upstream_status_verified",
   "two_applicant_capacity_reserved",
   "forwarded_ip_headers_trusted: false",
   "credential_issuance_authority: false",
@@ -225,8 +227,39 @@ async function postCredential(base, body, auth, extraHeaders = {}) {
 }
 
 const upstreamCalls = [];
+let upstreamStatusCalls = 0;
 const UPSTREAM_LIMIT = 8;
 const upstream = http.createServer(async (req, res) => {
+  if (
+    req.method === "GET" &&
+    req.url === ROUTE + "/status"
+  ) {
+    upstreamStatusCalls += 1;
+    const payload = Buffer.from(JSON.stringify({
+      marker: "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_V1",
+      version: 1,
+      ready: true,
+      request_count: upstreamCalls.length,
+      receipt_count: upstreamCalls.length,
+      state_consistent: true,
+      request_path: ROUTE,
+      max_body_bytes: 65536,
+      max_requests_per_minute: UPSTREAM_LIMIT,
+      raw_request_content_exposed: false,
+      callback_uri_exposed: false,
+      credential_issuance_authorized: false,
+      credential_registry_mutation_authorized: false,
+      receiver_restart_authorized: false,
+    }) + "\n");
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "content-length": String(payload.length),
+      "cache-control": "no-store",
+    });
+    res.end(payload);
+    return;
+  }
+
   const chunks = [];
   for await (const chunk of req) chunks.push(Buffer.from(chunk));
   const body = Buffer.concat(chunks);
@@ -305,9 +338,31 @@ assert.equal(
   UPSTREAM_LIMIT,
 );
 assert.equal(
+  ready.paid_work_credential_request_route.upstream_status_verified,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_status_hold_reason,
+  null,
+);
+assert.equal(
+  ready.paid_work_credential_request_route
+    .upstream_observed_max_requests_per_minute,
+  UPSTREAM_LIMIT,
+);
+assert.ok(
+  ready.paid_work_credential_request_route
+    .preauth_max_requests_per_minute >= 60,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.preauth_global_rate_wall,
+  true,
+);
+assert.equal(
   ready.paid_work_credential_request_route.two_applicant_capacity_reserved,
   true,
 );
+assert.equal(upstreamStatusCalls, 1);
 assert.equal(ready.paid_work_credential_request_route.nonce_replay_protection, true);
 assert.equal(ready.paid_work_credential_request_route.edge_global_rate_wall, true);
 assert.equal(ready.paid_work_credential_request_route.forwarded_ip_headers_trusted, false);
@@ -604,6 +659,102 @@ for (const call of upstreamCalls) {
 
 await stopGateway(runtime);
 
+const mismatchRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    "12",
+});
+const mismatchReady = await gatewayReady(mismatchRuntime);
+assert.equal(
+  mismatchReady.bounded_paid_work_credential_request_proxy_authority,
+  false,
+);
+assert.equal(
+  mismatchReady.paid_work_credential_request_route.configured,
+  false,
+);
+assert.equal(
+  mismatchReady.paid_work_credential_request_route.upstream_status_verified,
+  false,
+);
+assert.equal(
+  mismatchReady.paid_work_credential_request_route.upstream_status_hold_reason,
+  "upstream_status_not_verified",
+);
+const mismatchIdentity = identity();
+const mismatchLimitBody = requestBody(
+  "mismatched-upstream-limit",
+  mismatchIdentity.agentId,
+);
+const mismatchLimitResponse = await postCredential(
+  `http://127.0.0.1:${mismatchReady.port}`,
+  mismatchLimitBody,
+  authHeader({
+    identityValue: mismatchIdentity,
+    body: mismatchLimitBody,
+    nonceLabel: "mismatched-upstream-limit",
+  }),
+);
+assert.equal(mismatchLimitResponse.status, 503);
+assert.equal(
+  (await mismatchLimitResponse.json()).error,
+  "agent_paid_work_credential_request_gateway_unavailable",
+);
+await stopGateway(mismatchRuntime);
+
+const preauthRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    String(UPSTREAM_LIMIT),
+});
+const preauthReady = await gatewayReady(preauthRuntime);
+assert.equal(preauthReady.paid_work_credential_request_route.configured, true);
+const preauthBase = `http://127.0.0.1:${preauthReady.port}`;
+const preauthMax =
+  preauthReady.paid_work_credential_request_route
+    .preauth_max_requests_per_minute;
+assert.ok(Number.isSafeInteger(preauthMax) && preauthMax >= 60);
+const upstreamBeforePreauthFlood = upstreamCalls.length;
+for (let index = 0; index < preauthMax; index += 1) {
+  const floodIdentity = identity();
+  const floodBody = requestBody(
+    "preauth-invalid-" + index,
+    floodIdentity.agentId,
+  );
+  const response = await postCredential(
+    preauthBase,
+    floodBody,
+    "not-a-valid-auth-envelope",
+  );
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, "applicant_auth_invalid");
+}
+const blockedIdentity = identity();
+const blockedBody = requestBody(
+  "preauth-blocked",
+  blockedIdentity.agentId,
+);
+const blockedResponse = await postCredential(
+  preauthBase,
+  blockedBody,
+  "not-a-valid-auth-envelope",
+);
+assert.equal(blockedResponse.status, 429);
+assert.equal(
+  (await blockedResponse.json()).error,
+  "credential_request_preauth_rate_limit_exceeded",
+);
+assert.equal(
+  upstreamCalls.length,
+  upstreamBeforePreauthFlood,
+  "invalid-auth flood must never reach the loopback gateway",
+);
+await stopGateway(preauthRuntime);
+
 const incompleteRuntime = startGateway({
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
     `http://127.0.0.1:${upstreamPort}`,
@@ -677,7 +828,11 @@ console.log("nonce_replay_rejected_before_upstream=true");
 console.log("forwarded_ip_headers_trusted=false");
 console.log("single_applicant_cannot_exhaust_upstream_bucket=true");
 console.log("second_applicant_isolated_after_first_exhaustion=true");
-console.log("edge_global_rate_wall_mirrors_declared_upstream_cap=true");
+console.log("upstream_status_limit_equality_required=true");
+console.log("mismatched_upstream_limit_holds_route_closed=true");
+console.log("preauth_global_rate_wall_before_signature_verification=true");
+console.log("invalid_auth_flood_bounded_before_upstream=true");
+console.log("edge_global_rate_wall_mirrors_verified_upstream_cap=true");
 console.log("upstream_global_rate_wall_preserved=true");
 console.log("rejected_rate_limited_nonces_do_not_fill_replay_cache=true");
 console.log("credential_issuance_authority=false");
