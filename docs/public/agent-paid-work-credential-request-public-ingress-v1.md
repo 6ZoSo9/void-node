@@ -141,8 +141,20 @@ applicant identity itself.
 
 Rate-limited requests do not consume new replay-cache entries. Applicant and
 nonce tracking are explicitly bounded, and expired/non-active entries are
-pruned. The inner loopback gateway keeps its existing per-loopback/global
-limiter as a second safety wall. No forwarded-IP header becomes authority.
+pruned.
+
+Upstream rate authority is live, not a startup-only assertion. The public
+gateway verifies the loopback status contract at startup and then re-runs that
+same qualification for every signed request that passes applicant admission,
+immediately before proxying the credential request. The observed
+`max_requests_per_minute` must still equal the configured global wall. Any
+status mismatch, qualification failure, upstream 429, upstream 5xx, or transport
+failure invalidates the cached live qualification. No credential request is
+proxied while that qualification is false; a later admitted signed request may
+restore the route only by proving the status contract again.
+
+The inner loopback gateway keeps its existing per-loopback/global limiter as a
+second safety wall. No forwarded-IP header becomes authority.
 
 ## No generic proxy
 
