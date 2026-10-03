@@ -24,6 +24,7 @@ const featurePushTargets = [
   ".github/workflows/wc-public-earning-outbound-participant-v1.yml",
   ".github/workflows/wc-public-ticket-claim-v1.yml",
   ".github/workflows/void-public-safe-background-loop-backpressure-v1.yml",
+  ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml",
 ];
 
 const prCancellationTargets = [
@@ -62,10 +63,10 @@ const pendingSupersessionTargets = [
 ];
 
 const allTargets = [...featurePushTargets, ...prCancellationTargets, ...pendingSupersessionTargets];
-assert.equal(featurePushTargets.length, 21);
+assert.equal(featurePushTargets.length, 22);
 assert.equal(prCancellationTargets.length, 26);
 assert.equal(pendingSupersessionTargets.length, 3);
-assert.equal(allTargets.length, 50);
+assert.equal(allTargets.length, 51);
 assert.equal(new Set(allTargets).size, allTargets.length);
 
 const cancelConcurrency = [
@@ -219,8 +220,8 @@ assert.equal(
 );
 
 console.log("VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN");
-console.log("feature_push_targets=21");
-console.log("pr_supersession_targets=50");
+console.log("feature_push_targets=22");
+console.log("pr_supersession_targets=51");
 console.log("feature_branch_push_execution=false");
 console.log("pull_request_execution=true");
 console.log("main_push_execution=true");
