@@ -56,10 +56,12 @@ jobs:
           test "$(git rev-parse HEAD:contracts/epoch2/VoidEpoch2TokenV1.sol)" = "7c4297aadbc17b6214b4dde1f1766523cb499923"
           echo "tested_head_sha=$(git rev-parse HEAD)"
           echo "pinned_observation_head=1c56a9c0ec074ec198610864462634a66ce26722"
+          echo "pinned_observation_tree=2b8a67bfaec2e389fd34ca6b8b0debb9f5174cc5"
+          echo "pinned_observation_test_blob=e63444f2f02b6eaccb6424253c1fca2e39406b2c"
           echo "vault_git_blob_sha1=bd11190e2c22f58ac60918ecdf603f53427cadd0"
           echo "token_git_blob_sha1=7c4297aadbc17b6214b4dde1f1766523cb499923"
           test "$(sha256sum test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol | awk '{print $1}')" = "bcc5cf5d02a75e979ca201289fc55a951aed11dff8af497aee5f95846767729a"
-          test "$(git rev-parse 1c56a9c0ec074ec198610864462634a66ce26722:test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol)" = "$(git rev-parse HEAD:test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol)"
+          test "$(git rev-parse HEAD:test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol)" = "e63444f2f02b6eaccb6424253c1fca2e39406b2c"
           echo "gas_test_sha256=bcc5cf5d02a75e979ca201289fc55a951aed11dff8af497aee5f95846767729a"
 
       - name: Run actual isolated Foundry gas measurement
