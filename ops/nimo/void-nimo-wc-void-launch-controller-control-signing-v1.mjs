@@ -1103,7 +1103,11 @@ function validateChallengeParentPreflightV1({
     typeof challenge.source_binding_sha256 !== "string" ||
     !BYTES32.test(challenge.source_binding_sha256) ||
     typeof challenge.nonce !== "string" ||
-    !BYTES32.test(challenge.nonce)
+    !BYTES32.test(challenge.nonce) ||
+    typeof challenge.issued_at_unix !== "string" ||
+    !/^(0|[1-9][0-9]*)$/u.test(challenge.issued_at_unix) ||
+    typeof challenge.expires_at_unix !== "string" ||
+    !/^(0|[1-9][0-9]*)$/u.test(challenge.expires_at_unix)
   ) {
     fail("control_challenge_semantics_invalid");
   }
@@ -1400,7 +1404,11 @@ function validateChallengeForSigningV1({
     typeof challenge.source_binding_sha256 !== "string" ||
     !BYTES32.test(challenge.source_binding_sha256) ||
     typeof challenge.nonce !== "string" ||
-    !BYTES32.test(challenge.nonce)
+    !BYTES32.test(challenge.nonce) ||
+    typeof challenge.issued_at_unix !== "string" ||
+    !/^(0|[1-9][0-9]*)$/u.test(challenge.issued_at_unix) ||
+    typeof challenge.expires_at_unix !== "string" ||
+    !/^(0|[1-9][0-9]*)$/u.test(challenge.expires_at_unix)
   ) {
     fail("control_challenge_semantics_invalid");
   }
