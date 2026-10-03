@@ -8,7 +8,7 @@ This lane measures the reviewed WC/VOID settlement path so the real coupled
 launch-policy artifact tracked by #2364 can later choose sponsored-execution
 budgets from evidence instead of proof fixtures or guesses.
 
-It does **not select** any production TTL, outstanding-request cap,
+It does not select any production TTL, outstanding-request cap,
 per-identity gas budget, global gas budget, market parameter, or launch time.
 
 ## Exact source boundary
