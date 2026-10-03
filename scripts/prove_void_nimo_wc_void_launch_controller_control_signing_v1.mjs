@@ -1110,117 +1110,87 @@ assert.equal(
   true,
   "production signer must require exact challenge source HEAD",
 );
+{
+  const selectedStart = signerSource.indexOf(
+    "export async function signSelectedLaunchControllerChallengeV1",
+  );
+  const selectedEnd = signerSource.indexOf(
+    "\nfunction usage()",
+    selectedStart,
+  );
+  assert.ok(selectedStart >= 0 && selectedEnd > selectedStart);
+  const selectedSource = signerSource.slice(selectedStart, selectedEnd);
+
+  assert.equal(
+    selectedSource.includes("loadPinnedStandaloneEthersV1()"),
+    true,
+    "production signer must verify the pinned standalone ethers bundle",
+  );
+  assert.equal(
+    selectedSource.includes("withReviewedSigningRuntimeV1"),
+    false,
+    "production key path must not execute a mutable package-tree runtime",
+  );
+  assert.equal(
+    selectedSource.includes('runtime.run("sign"'),
+    false,
+    "production key path must not stream the key to a package-tree child",
+  );
+  assert.equal(
+    selectedSource.includes("readPrivateKeyV1(KEY_PATH_V1)"),
+    true,
+  );
+  assert.ok(
+    selectedSource.indexOf("loadPinnedStandaloneEthersV1()") <
+      selectedSource.indexOf("readPrivateKeyV1(KEY_PATH_V1)"),
+    "exact in-memory ethers bundle must be admitted before private-key access",
+  );
+  assert.equal(
+    selectedSource.includes(
+      "ethers_execution_from_memory: true",
+    ),
+    true,
+  );
+  assert.equal(
+    selectedSource.includes(
+      "package_resolution_used_for_signing: false",
+    ),
+    true,
+  );
+  assert.equal(
+    selectedSource.includes(
+      "BigInt(Math.floor(Date.now() / 1000)) >=\n    BigInt(reviewed.expires_at_unix)",
+    ),
+    true,
+    "production signer must recheck expiry after runtime admission",
+  );
+}
+
 assert.equal(
-  signerSource.includes("withReviewedEthersV1"),
-  false,
-  "production signer must not use the former in-process reviewed ethers import",
+  signerSource.includes(
+    'ETHERS_STANDALONE_BUNDLE_RELATIVE_V1 =\n  "node_modules/ethers/dist/ethers.min.js"',
+  ),
+  true,
 );
 assert.equal(
   signerSource.includes(
-    "return await withReviewedSigningRuntimeV1(",
+    '"b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c"',
   ),
-  true,
-  "production signer must enter the permission-fenced reviewed child runtime",
-);
-assert.equal(
-  signerSource.includes("const permissionFlag = nodePermissionFlagV1();"),
-  true,
-  "reviewed signer child must select the permission flag by supported Node version",
-);
-assert.equal(
-  signerSource.includes(
-    'const childFdRoot = "/proc/self/fd/3";',
-  ),
-  true,
-  "inner reviewed runtime must execute through an inherited directory descriptor",
-);
-assert.equal(
-  signerSource.includes(
-    'stdio: ["pipe", "pipe", "pipe", runtimeFd]',
-  ),
-  true,
-  "inner runtime directory fd must be inherited by the signing child",
-);
-assert.equal(
-  signerSource.includes(
-    '"--allow-fs-read=" + childFdRoot',
-  ),
-  true,
-  "permission fence must authorize only the inherited reviewed-runtime tree",
-);
-assert.equal(
-  signerSource.includes(
-    "gitBlobSha1V1(controlBytes) !== expectedControlBlobSha1",
-  ),
-  true,
-  "pinned control-verifier bytes must match the reviewed Git blob before key streaming",
-);
-assert.equal(
-  signerSource.includes(
-    "sha256(inputBytes) !== expectedInputSha256",
-  ),
-  true,
-  "pinned per-operation input bytes must match the parent-authored digest before key streaming",
-);
-assert.equal(
-  signerSource.includes("descriptor_bound_runtime: true"),
   true,
 );
 assert.equal(
   signerSource.includes(
-    "const PRODUCTION_NODE_V1 = \"/usr/bin/node\";",
+    '"data:text/javascript;base64," + source.bytes.toString("base64")',
   ),
   true,
-  "production launcher interpreter remains fixed",
+  "production ethers must execute only from exact verified in-memory bytes",
 );
 assert.equal(
   signerSource.includes(
-    "const CHILD_NODE_V1 = fs.realpathSync.native(process.execPath);",
+    "expectedSha256: ETHERS_STANDALONE_BUNDLE_SHA256_V1",
   ),
   true,
-  "reviewed child must reuse the already-running interpreter",
-);
-assert.equal(
-  signerSource.includes('"--allow-fs-read=" + root'),
-  true,
-  "reviewed signer child must restrict filesystem reads to the private runtime",
-);
-assert.equal(
-  signerSource.includes("input: stdinText"),
-  true,
-  "production private key must enter the child only through stdin",
-);
-assert.equal(
-  signerSource.includes('fs.readFileSync(0, "utf8")'),
-  false,
-  "permission-fenced child must consume the key from process.stdin, not a filesystem read on fd 0",
-);
-assert.equal(
-  signerSource.includes('process.stdin.setEncoding("utf8")'),
-  true,
-  "permission-fenced child must consume key material through the stdin stream",
-);
-assert.equal(
-  signerSource.includes("ancestor_package_resolution_allowed: false"),
-  true,
-  "production result must expose ancestor-resolution denial",
-);
-assert.equal(
-  signerSource.includes("permission_fenced_execution: true"),
-  true,
-  "production result must expose permission-fenced execution",
-);
-assert.equal(
-  signerSource.includes(
-    "BigInt(Math.floor(Date.now() / 1000)) >=\n        BigInt(preflight.expires_at_unix)",
-  ),
-  true,
-  "production parent must recheck expiry immediately before private-key access",
-);
-assert.equal(
-  signerSource.includes('throw new Error("bridge_challenge_expired")'),
-  true,
-  "reviewed child must recheck expiry around private-key use and signing",
+  "bundle bytes must be content-bound before import",
 );
 assert.equal(
   /signSelectedLaunchControllerChallengeV1\(\{[\s\S]*?nowUnix\s*=/u.test(
