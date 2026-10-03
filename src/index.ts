@@ -19371,11 +19371,11 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 
 <section class="card"><!-- VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1 -->
   <h2>Create a request</h2>
-  <label>Rail<br/><select id="buyChain"><option value="base">Base (8453)</option><option value="ethereum">Ethereum (1)</option></select></label><br/><br/>
+  <label>Native USDC rail<br/><select id="buyChain"><option value="base">Base (8453)</option><option value="ethereum">Ethereum (1)</option></select></label><br/><br/>
   <label>USDC amount<br/><input id="buyUsdcAmount" inputmode="decimal" value="25" /></label>
   <br/><br/>
   <label>Native VOID destination address (chain ID 2050)<br/><input id="buyVoidDestination" placeholder="0x..." autocomplete="off" /></label>
-  <p class="warntext">The selected USDC sender must be this address. No exchange/custodial sends.</p>
+  <p class="warntext"><b>Funds sent from an exchange/custodial wallet will be treated as lost.</b> VOID is not exchange-listed. Use this same self-custody address only.</p>
   <label class="check"><input type="checkbox" id="ackSelfCustody"/>I control this self-custody wallet.</label>
   <label class="check"><input type="checkbox" id="ackNativeUsdc"/>I will send native USDC on the selected rail.</label>
   <label class="check"><input type="checkbox" id="ackRequestFirst"/>I will not send until this request is created.</label>
@@ -19406,7 +19406,7 @@ async function loadBuyCheckoutV1(){
     var cfg=await pair[0].json();
     var sale=await pair[1].json();
     buyCheckoutConfig=cfg;
-    buyText("buyNetwork","Base 8453 / Ethereum 1");
+    buyText("buyNetwork",cfg.ethereum_requests_enabled?"Base 8453 + Ethereum 1":"Base 8453 (Ethereum HOLD)");
     buyText("buyUsdcContract","See request");
     document.querySelector('#buyChain option[value="ethereum"]').disabled=!cfg.ethereum_requests_enabled;
     buyText("buyReceiver",cfg.receive_address || "Unavailable");
