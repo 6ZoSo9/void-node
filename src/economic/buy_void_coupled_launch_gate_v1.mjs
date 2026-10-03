@@ -480,9 +480,24 @@ export function buildBuyLaunchGenerationPublicationIntentV1({
     throw new Error("buy_launch_generation_publish_intent_input_invalid");
   }
   const nextState = classifyBuyLaunchGenerationJournalV1(next_bytes);
+  const nextText = next_bytes.toString("utf8");
+  const nextLines = nextText.endsWith("\n")
+    ? nextText.slice(0, -1).split("\n")
+    : nextText.split("\n");
+  const finalEvent = JSON.parse(nextLines[nextLines.length - 1]);
+  const derivedPreviousBytes =
+    nextLines.length === 1
+      ? Buffer.alloc(0)
+      : Buffer.from(nextLines.slice(0, -1).join("\n") + "\n", "utf8");
   if (
+    !derivedPreviousBytes.equals(previous_bytes) ||
     nextState.generation !== generation ||
-    nextState.ready !== (state === "active")
+    nextState.ready !== (state === "active") ||
+    finalEvent.generation !== generation ||
+    finalEvent.state !== state ||
+    finalEvent.occurred_at_ms !== occurred_at_ms ||
+    finalEvent.sequence !== nextState.sequence ||
+    finalEvent.event_sha256 !== nextState.tip_sha256
   ) {
     throw new Error("buy_launch_generation_publish_intent_state_mismatch");
   }
@@ -546,16 +561,37 @@ export function parseBuyLaunchGenerationPublicationIntentV1(bytes) {
     throw new Error("buy_launch_generation_publish_intent_bytes_invalid");
   }
   const nextState = classifyBuyLaunchGenerationJournalV1(nextBytes);
+  const nextText = nextBytes.toString("utf8");
+  const nextLines = nextText.endsWith("\n")
+    ? nextText.slice(0, -1).split("\n")
+    : nextText.split("\n");
+  const finalEvent = JSON.parse(nextLines[nextLines.length - 1]);
+  const priorBytes =
+    nextLines.length === 1
+      ? Buffer.alloc(0)
+      : Buffer.from(nextLines.slice(0, -1).join("\n") + "\n", "utf8");
+  if (priorBytes.length > 0) {
+    classifyBuyLaunchGenerationJournalV1(priorBytes);
+  }
+  const derivedPriorSha =
+    priorBytes.length > 0 ? "sha256:" + sha256(priorBytes) : null;
   if (
     nextState.sequence !== raw.sequence ||
     nextState.tip_sha256 !== raw.tip_sha256 ||
     nextState.generation !== raw.generation ||
-    nextState.ready !== (raw.state === "active")
+    nextState.ready !== (raw.state === "active") ||
+    finalEvent.sequence !== raw.sequence ||
+    finalEvent.event_sha256 !== raw.tip_sha256 ||
+    finalEvent.generation !== raw.generation ||
+    finalEvent.state !== raw.state ||
+    finalEvent.occurred_at_ms !== raw.occurred_at_ms ||
+    derivedPriorSha !== raw.prior_sha256
   ) {
     throw new Error("buy_launch_generation_publish_intent_state_invalid");
   }
   return Object.freeze({
     intent: Object.freeze({ ...raw }),
+    prior_bytes: priorBytes,
     next_bytes: nextBytes,
     next_state: nextState,
   });
@@ -574,40 +610,69 @@ export function classifyBuyLaunchGenerationPublicationRecoveryV1({
   const parsed = parseBuyLaunchGenerationPublicationIntentV1(intent_bytes);
   const priorSha = parsed.intent.prior_sha256;
   const nextSha = parsed.intent.next_sha256;
-  const observations = [journal_bytes, anchor_bytes];
-  for (const observed of observations) {
-    if (observed === null) {
-      if (priorSha !== null) {
-        throw new Error("buy_launch_generation_publish_recovery_missing_prior");
+  const journalSha =
+    journal_bytes === null
+      ? null
+      : Buffer.isBuffer(journal_bytes)
+        ? "sha256:" + sha256(journal_bytes)
+        : (() => {
+            throw new Error(
+              "buy_launch_generation_publish_recovery_observation_invalid",
+            );
+          })();
+  const anchorSha =
+    anchor_bytes === null
+      ? null
+      : Buffer.isBuffer(anchor_bytes)
+        ? "sha256:" + sha256(anchor_bytes)
+        : (() => {
+            throw new Error(
+              "buy_launch_generation_publish_recovery_observation_invalid",
+            );
+          })();
+
+  let phase = null;
+  if (priorSha === null) {
+    if (journalSha === null && anchorSha === null) {
+      phase = "intent_only";
+    } else if (journalSha === nextSha && anchorSha === null) {
+      phase = "journal_committed";
+    } else if (journalSha === nextSha && anchorSha === nextSha) {
+      phase = "pair_committed";
+    }
+  } else {
+    if (journalSha === priorSha && anchorSha === priorSha) {
+      phase = "intent_only";
+    } else if (journalSha === nextSha && anchorSha === priorSha) {
+      phase = "journal_committed";
+    } else if (journalSha === nextSha && anchorSha === nextSha) {
+      phase = "pair_committed";
+    }
+  }
+  if (phase === null) {
+    throw new Error("buy_launch_generation_publish_recovery_order_invalid");
+  }
+
+  for (const [observed, observedSha] of [
+    [journal_bytes, journalSha],
+    [anchor_bytes, anchorSha],
+  ]) {
+    if (observedSha === priorSha && Buffer.isBuffer(observed)) {
+      if (!observed.equals(parsed.prior_bytes)) {
+        throw new Error("buy_launch_generation_publish_recovery_prior_mismatch");
       }
-      continue;
     }
-    if (!Buffer.isBuffer(observed)) {
-      throw new Error("buy_launch_generation_publish_recovery_observation_invalid");
-    }
-    const observedSha = "sha256:" + sha256(observed);
-    if (observedSha !== nextSha && observedSha !== priorSha) {
-      throw new Error("buy_launch_generation_publish_recovery_state_unknown");
-    }
-    if (observedSha === priorSha) {
-      if (
-        parsed.next_bytes.length <= observed.length ||
-        !parsed.next_bytes.subarray(0, observed.length).equals(observed)
-      ) {
-        throw new Error("buy_launch_generation_publish_recovery_not_append_only");
+    if (observedSha === nextSha && Buffer.isBuffer(observed)) {
+      if (!observed.equals(parsed.next_bytes)) {
+        throw new Error("buy_launch_generation_publish_recovery_next_mismatch");
       }
     }
   }
-  if (
-    Buffer.isBuffer(journal_bytes) &&
-    Buffer.isBuffer(anchor_bytes) &&
-    "sha256:" + sha256(journal_bytes) === priorSha &&
-    "sha256:" + sha256(anchor_bytes) === priorSha &&
-    !journal_bytes.equals(anchor_bytes)
-  ) {
-    throw new Error("buy_launch_generation_publish_recovery_prior_mismatch");
-  }
-  return parsed;
+
+  return Object.freeze({
+    ...parsed,
+    phase,
+  });
 }
 
 function fsyncGenerationDirectoryV1(directoryPath) {
@@ -632,6 +697,7 @@ function recoverBuyLaunchGenerationPublicationV1({
   journalPath,
   anchorPath,
   intentPath,
+  input,
 }) {
   if (!fs.existsSync(intentPath)) return null;
   const recovery = classifyBuyLaunchGenerationPublicationRecoveryV1({
@@ -642,14 +708,28 @@ function recoverBuyLaunchGenerationPublicationV1({
     journal_bytes: generationPublicationObservedBytesV1(journalPath),
     anchor_bytes: generationPublicationObservedBytesV1(anchorPath),
   });
-  atomicWritePrivateGenerationBytesV1(
-    journalPath,
-    recovery.next_bytes,
-  );
-  atomicWritePrivateGenerationBytesV1(
-    anchorPath,
-    recovery.next_bytes,
-  );
+  if (
+    recovery.intent.state !== input?.state ||
+    recovery.intent.generation !== input?.generation ||
+    recovery.intent.occurred_at_ms !== input?.occurred_at_ms
+  ) {
+    throw new Error("buy_launch_generation_publish_recovery_input_mismatch");
+  }
+  if (recovery.phase === "intent_only") {
+    atomicWritePrivateGenerationBytesV1(
+      journalPath,
+      recovery.next_bytes,
+    );
+  }
+  if (
+    recovery.phase === "intent_only" ||
+    recovery.phase === "journal_committed"
+  ) {
+    atomicWritePrivateGenerationBytesV1(
+      anchorPath,
+      recovery.next_bytes,
+    );
+  }
   const verified = classifyBuyLaunchGenerationAuthorityV1(
     readStablePrivateFile(journalPath),
     readStablePrivateFile(anchorPath),
@@ -715,6 +795,7 @@ export async function publishBuyLaunchGenerationTransitionV1(
       journalPath,
       anchorPath,
       intentPath,
+      input,
     });
     if (recovered) {
       if (
@@ -818,7 +899,11 @@ export async function publishBuyLaunchGenerationTransitionV1(
 }
 
 export function readBuyLaunchGenerationJournalV1(env = process.env) {
-  const { journalPath, anchorPath } = buyLaunchGenerationPathsV1(env);
+  const { journalPath, anchorPath, intentPath } =
+    buyLaunchGenerationPathsV1(env);
+  if (fs.existsSync(intentPath)) {
+    throw new Error("buy_launch_generation_publication_pending");
+  }
   return classifyBuyLaunchGenerationAuthorityV1(
     readStablePrivateFile(journalPath),
     readStablePrivateFile(anchorPath),

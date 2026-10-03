@@ -133,12 +133,16 @@ journal bytes/digest, generation, state, sequence, tip, and event timestamp.
 While holding the same generation-authority lock, a retry first examines any
 pending intent. Each observed authority file must be either the recorded prior
 state or the recorded next state (or absent only for a genesis transition).
-Only those known crash states may be completed forward to the recorded next
-state; unknown bytes, deletion of a required prior state, or non-append-only
-substitution fail closed. The intent is removed and its directory fsynced only
-after both authority files are byte-identical and the next state has been
-revalidated. A retry of the same interrupted transition returns the recovered
-publication; a different requested transition must be retried after recovery.
+Only the writer's exact forward order is recoverable: intent-only, journal
+committed while the anchor remains prior, or both files committed to the next
+bytes. Anchor-first, rollback-mixed, unknown, missing-required-prior, or
+non-append-only states fail closed. The intent itself proves the final event's
+generation/state/timestamp and the exact one-event append from its prior digest.
+While any intent remains present, ordinary generation-authority reads HOLD
+rather than treating the prior pair as still live. Recovery requires the caller
+to retry the exact state/generation/timestamp transition recorded by the intent.
+The intent is removed and its directory fsynced only after both authority files
+are byte-identical and the next state has been revalidated.
 
 The underlying bakery lock now provides
 `withBuyVoidFilesystemBakeryLockAsyncV1(...)`: its queue claim remains present

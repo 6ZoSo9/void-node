@@ -234,6 +234,7 @@ try {
     genesisRecoveryFromNoWrites.next_state.tip_sha256,
     activeEvent.event_sha256,
   );
+  assert.equal(genesisRecoveryFromNoWrites.phase, "intent_only");
   assert.equal(
     classifyBuyLaunchGenerationPublicationRecoveryV1({
       intent_bytes: genesisIntentBytes,
@@ -246,10 +247,59 @@ try {
     classifyBuyLaunchGenerationPublicationRecoveryV1({
       intent_bytes: genesisIntentBytes,
       journal_bytes: activeJournalBytes,
+      anchor_bytes: null,
+    }).phase,
+    "journal_committed",
+  );
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: genesisIntentBytes,
+      journal_bytes: activeJournalBytes,
       anchor_bytes: activeJournalBytes,
     }).next_state.tip_sha256,
     activeEvent.event_sha256,
   );
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: genesisIntentBytes,
+      journal_bytes: activeJournalBytes,
+      anchor_bytes: activeJournalBytes,
+    }).phase,
+    "pair_committed",
+  );
+  assert.throws(
+    () => classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: genesisIntentBytes,
+      journal_bytes: null,
+      anchor_bytes: activeJournalBytes,
+    }),
+    /buy_launch_generation_publish_recovery_order_invalid/u,
+  );
+  assert.throws(
+    () => buildBuyLaunchGenerationPublicationIntentV1({
+      previous_bytes: Buffer.alloc(0),
+      next_bytes: activeJournalBytes,
+      state: "active",
+      generation: activationGeneration,
+      occurred_at_ms: nowMs,
+    }),
+    /buy_launch_generation_publish_intent_state_mismatch/u,
+  );
+  {
+    const tamperedIntent = JSON.parse(genesisIntentBytes.toString("utf8"));
+    tamperedIntent.prior_sha256 = "sha256:" + "f".repeat(64);
+    assert.throws(
+      () => classifyBuyLaunchGenerationPublicationRecoveryV1({
+        intent_bytes: Buffer.from(
+          JSON.stringify(tamperedIntent, null, 2) + "\n",
+          "utf8",
+        ),
+        journal_bytes: activeJournalBytes,
+        anchor_bytes: activeJournalBytes,
+      }),
+      /buy_launch_generation_publish_intent_state_invalid/u,
+    );
+  }
   assert.throws(
     () => classifyBuyLaunchGenerationPublicationRecoveryV1({
       intent_bytes: genesisIntentBytes,
@@ -565,6 +615,46 @@ try {
     JSON.stringify(revokedEvent) + "\n",
     "utf8",
   );
+  const revokeIntentBytes =
+    buildBuyLaunchGenerationPublicationIntentV1({
+      previous_bytes: activeJournalBytes,
+      next_bytes: revokedJournalBytes,
+      state: "revoked",
+      generation: activationGeneration,
+      occurred_at_ms: nowMs + 2,
+    });
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: revokeIntentBytes,
+      journal_bytes: activeJournalBytes,
+      anchor_bytes: activeJournalBytes,
+    }).phase,
+    "intent_only",
+  );
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: revokeIntentBytes,
+      journal_bytes: revokedJournalBytes,
+      anchor_bytes: activeJournalBytes,
+    }).phase,
+    "journal_committed",
+  );
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: revokeIntentBytes,
+      journal_bytes: revokedJournalBytes,
+      anchor_bytes: revokedJournalBytes,
+    }).phase,
+    "pair_committed",
+  );
+  assert.throws(
+    () => classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: revokeIntentBytes,
+      journal_bytes: activeJournalBytes,
+      anchor_bytes: revokedJournalBytes,
+    }),
+    /buy_launch_generation_publish_recovery_order_invalid/u,
+  );
   fs.writeFileSync(journalPath, revokedJournalBytes, { mode: 0o600 });
   const revokedState =
     classifyBuyLaunchGenerationAuthorityV1(
@@ -800,6 +890,11 @@ assert.doesNotMatch(
   /export\s+async\s+function\s+withBuyLaunchGenerationTransitionPublicationV1/,
 );
 assert.match(gateSource, /publishBuyLaunchGenerationTransitionV1/);
+assert.match(gateSource, /buy_launch_generation_publication_pending/);
+assert.match(gateSource, /buy_launch_generation_publish_recovery_input_mismatch/);
+assert.match(gateSource, /buy_launch_generation_publish_recovery_order_invalid/);
+assert.match(gateSource, /recovery\.phase === "intent_only"/);
+assert.match(gateSource, /recovery\.phase === "journal_committed"/);
 assert.match(
   gateSource,
   /buy-void-coupled-live-generation-publication-intent-v1\.json/,
@@ -911,6 +1006,10 @@ console.log("payment_request_bound_to_exact_activation_receipt=true");
 console.log("payment_request_bound_to_lease_expiry=true");
 console.log("mutation_admission_fresh_clock_required=true");
 console.log("future_generation_timestamp_skew_bounded=true");
+console.log("pending_generation_publication_holds_runtime_reads=true");
+console.log("generation_publication_exact_retry_required=true");
+console.log("generation_publication_writer_order_recovery_bound=true");
+console.log("generation_publication_event_timestamp_bound=true");
 console.log("stale_live_activation_receipt_replay=false");
 console.log("launch_controller_eip712_signature_required=true");
 console.log("sovereign_eip712_cosignature_required=true");
