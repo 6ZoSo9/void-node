@@ -71,13 +71,15 @@ Only then does this helper return:
 ```text
 status=ethereum_payment_source_finality_gate_ready
 payment_verified_finality_gate_ready=true
-inventory_reservation_finality_gate_ready=true
+inventory_reservation_authorized=false
 coupled_launch_gate_composed=false
 overall_checkout_activation_authorized=false
 ```
 
-The helper itself does **not** write either event or inventory state, and a
-GREEN finality gate is not overall checkout or reservation authority.
+The helper itself does **not** write either event or inventory state. It never
+reports inventory-reservation readiness; `inventory_reservation_authorized=false`
+remains explicit even when payment finality is GREEN. The separate coupled-launch
+gate must authorize any later `payment_verified` write / reservation transition.
 
 A receipt/log match by itself cannot produce this status.
 
