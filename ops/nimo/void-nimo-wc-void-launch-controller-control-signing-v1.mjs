@@ -818,7 +818,15 @@ async function main() {
     throw new Error("bridge_challenge_expired");
   }
 
-  let privateKey = fs.readFileSync(0, "utf8");
+  process.stdin.setEncoding("utf8");
+  let privateKey = "";
+  for await (const chunk of process.stdin) {
+    privateKey += chunk;
+    if (privateKey.length > 66) {
+      privateKey = "";
+      throw new Error("bridge_private_key_invalid");
+    }
+  }
   if (!/^(?:0x)?[0-9a-fA-F]{64}$/.test(privateKey)) {
     privateKey = "";
     throw new Error("bridge_private_key_invalid");
