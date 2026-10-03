@@ -1166,7 +1166,23 @@ async function qualifyPaidWorkCredentialRequestUpstream() {
   }
 }
 
-let paidWorkCredentialRequestQualificationInFlight = null;
+let paidWorkCredentialRequestUpstreamSerialTailV1 =
+  Promise.resolve();
+
+async function acquirePaidWorkCredentialRequestUpstreamSerialV1() {
+  let release;
+  const turn = new Promise((resolve) => {
+    release = resolve;
+  });
+  const previous = paidWorkCredentialRequestUpstreamSerialTailV1;
+  paidWorkCredentialRequestUpstreamSerialTailV1 =
+    previous.then(
+      () => turn,
+      () => turn,
+    );
+  await previous;
+  return release;
+}
 
 function applyPaidWorkCredentialRequestQualificationV1(qualification) {
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION =
@@ -1195,16 +1211,8 @@ async function requalifyPaidWorkCredentialRequestUpstreamV1() {
     return false;
   }
 
-  if (!paidWorkCredentialRequestQualificationInFlight) {
-    paidWorkCredentialRequestQualificationInFlight =
-      qualifyPaidWorkCredentialRequestUpstream()
-        .finally(() => {
-          paidWorkCredentialRequestQualificationInFlight = null;
-        });
-  }
-
   const qualification =
-    await paidWorkCredentialRequestQualificationInFlight;
+    await qualifyPaidWorkCredentialRequestUpstream();
   return applyPaidWorkCredentialRequestQualificationV1(
     qualification,
   );
@@ -1545,15 +1553,18 @@ async function proxyAgentPaidWorkCredentialRequest(
     return;
   }
 
-  if (!(await requalifyPaidWorkCredentialRequestUpstreamV1())) {
-    jsonResponse(response, 503, {
-      ok: false,
-      error: "agent_paid_work_credential_request_gateway_unavailable",
-    });
-    return;
-  }
-
+  const releaseUpstreamSerial =
+    await acquirePaidWorkCredentialRequestUpstreamSerialV1();
   try {
+    if (!(await requalifyPaidWorkCredentialRequestUpstreamV1())) {
+      jsonResponse(response, 503, {
+        ok: false,
+        error: "agent_paid_work_credential_request_gateway_unavailable",
+      });
+      return;
+    }
+
+    try {
     const upstreamAbort = createOwnedUpstreamAbortContext(
       AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS,
     );
@@ -1608,6 +1619,9 @@ async function proxyAgentPaidWorkCredentialRequest(
       ok: false,
       error: "agent_paid_work_credential_request_gateway_upstream_failed",
     });
+    }
+  } finally {
+    releaseUpstreamSerial();
   }
 }
 
@@ -1795,6 +1809,7 @@ server.listen({ host, port, exclusive: true }, () => {
         upstream_status_verified:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.verified,
         upstream_requalified_per_admitted_request: true,
+        upstream_qualification_post_serialized: true,
         upstream_failure_invalidates_qualification: true,
         upstream_status_hold_reason:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.reason,
