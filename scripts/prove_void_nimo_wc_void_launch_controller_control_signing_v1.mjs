@@ -206,14 +206,13 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
   }
 }
 
-// Adversary for the reviewed-launcher bootstrap: pin the reviewed launcher
-// descriptor, replace its pathname with unreviewed bytes, and execute only the
-// inherited descriptor. The path replacement must never execute.
+// Adversary for the reviewed-launcher bootstrap: verify the complete launcher
+// bytes in memory, replace the source pathname, then execute only the already-
+// verified byte buffer through Bash stdin. The replacement path must be inert.
 {
   const temporary = fs.mkdtempSync(
-    path.join(os.tmpdir(), "void-offline-signer-launcher-fd-race-"),
+    path.join(os.tmpdir(), "void-offline-signer-launcher-stream-race-"),
   );
-  let launcherFd = -1;
   try {
     const challengePath = path.join(temporary, "challenge.json");
     const challengeBytes = Buffer.from(
@@ -231,12 +230,56 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
       "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
     );
     const stagedLauncher = path.join(temporary, "launcher.sh");
-    const displacedLauncher = path.join(temporary, "launcher.reviewed.sh");
     fs.copyFileSync(sourceLauncher, stagedLauncher);
     fs.chmodSync(stagedLauncher, 0o400);
 
-    launcherFd = fs.openSync(stagedLauncher, "r");
-    fs.renameSync(stagedLauncher, displacedLauncher);
+    const verifiedLauncherBytes = fs.readFileSync(stagedLauncher);
+    const verifiedLauncherBlob = crypto
+      .createHash("sha1")
+      .update(
+        Buffer.from(
+          "blob " + verifiedLauncherBytes.length + "\0",
+          "utf8",
+        ),
+      )
+      .update(verifiedLauncherBytes)
+      .digest("hex");
+
+    const expectedBlobResult = spawnSync(
+      "/usr/bin/git",
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.preloadIndex=false",
+        "-c", "submodule.recurse=false",
+        "-C", process.cwd(),
+        "rev-parse",
+        reviewedHead +
+          ":ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+      ],
+      {
+        cwd: "/",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          PATH: "/usr/bin:/bin",
+          LANG: "C",
+          LC_ALL: "C",
+          HOME: "/nonexistent",
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_OPTIONAL_LOCKS: "0",
+          GIT_TERMINAL_PROMPT: "0",
+        },
+      },
+    );
+    assert.equal(expectedBlobResult.status, 0);
+    const expectedLauncherBlob = expectedBlobResult.stdout.trim();
+    assert.equal(verifiedLauncherBlob, expectedLauncherBlob);
+
     fs.writeFileSync(
       stagedLauncher,
       [
@@ -257,10 +300,13 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
         "LANG=C",
         "LC_ALL=C",
         "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1=" +
+          expectedLauncherBlob,
         "/bin/bash",
         "--noprofile",
         "--norc",
-        "/proc/self/fd/3",
+        "-s",
+        "--",
         "preflight",
         challengePath,
         challengeSha,
@@ -268,15 +314,16 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
       ],
       {
         cwd: process.cwd(),
+        input: verifiedLauncherBytes,
         encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe", launcherFd],
+        stdio: ["pipe", "pipe", "pipe"],
       },
     );
 
     assert.equal(
       result.status,
       0,
-      ["descriptor-pinned launcher preflight failed", result.stdout, result.stderr]
+      ["buffered launcher preflight failed", result.stdout, result.stderr]
         .join("\n"),
     );
     assert.match(
@@ -288,7 +335,6 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
       false,
     );
   } finally {
-    if (launcherFd >= 0) fs.closeSync(launcherFd);
     fs.rmSync(temporary, { recursive: true, force: true });
   }
 }
@@ -1000,8 +1046,8 @@ console.log("challenge_head_cannot_self_authorize_signer=true");
 console.log("launcher_materialized_from_reviewed_commit=true");
 console.log("executed_launcher_self_blob_verified=true");
 console.log("tampered_launcher_rejected=true");
-console.log("descriptor_pinned_launcher_execution=true");
-console.log("launcher_path_replacement_after_fd_pin_ignored=true");
+console.log("content_addressed_launcher_stream_execution=true");
+console.log("launcher_path_replacement_after_byte_verification_ignored=true");
 console.log("reviewed_launcher_bootstrap_descriptor_pinned=true");
 console.log("reviewed_launcher_path_reopen=false");
 console.log("reviewed_signer_materialized_before_execution=true");
