@@ -96,6 +96,11 @@ assert.equal(
     .overall_checkout_activation_authority,
   false,
 );
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .existing_payment_reconciliation_independent_of_intake_toggle,
+  true,
+);
 for (const key of [
   "rpc_write",
   "request_intake_mutation",
@@ -208,6 +213,25 @@ if (missingAttempt.ok === false) {
   assert.equal(missingAttempt.inventory_reservation_finality_gate_ready, false);
 }
 
+const disabledIntakeEnv: NodeJS.ProcessEnv = {
+  ...env,
+  VOID_BUY_REQUESTS_ENABLED: "0",
+  VOID_BUY_ETHEREUM_REQUESTS_ENABLED: "0",
+};
+const disabledIntakeExistingPayment =
+  await runBuyVoidEthereumPublicCheckoutPaymentFinalityV1({
+    root_dir: "/tmp/void-buy-ethereum-public-checkout-proof-missing",
+    attempt_id: attemptId,
+    env: disabledIntakeEnv,
+  });
+assert.equal(disabledIntakeExistingPayment.ok, false);
+if (disabledIntakeExistingPayment.ok === false) {
+  assert.equal(
+    disabledIntakeExistingPayment.reason,
+    "ethereum_checkout_source_finality_execution_attempt_not_found",
+  );
+}
+
 const transactionHash = "0x" + "b".repeat(64);
 const canonicalIdentity =
   `voidpay1:ethereum:${transactionHash}:7`;
@@ -309,6 +333,7 @@ console.log(
 );
 console.log("ethereum_payment_instructions_fail_closed=true");
 console.log("server_controlled_finality_policy_required=true");
+console.log("existing_payment_reconciliation_survives_intake_disable=true");
 console.log("canonical_source_finality_preflight_required=true");
 console.log("synthetic_finality_production_authority=false");
 console.log("base_behavior_modified=false");
