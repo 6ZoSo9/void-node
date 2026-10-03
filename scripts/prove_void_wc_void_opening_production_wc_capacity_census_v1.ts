@@ -6,6 +6,15 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import {
+  readStableWcStateSnapshotV1,
+} from "./void_wc_void_opening_production_wc_capacity_census_v1.js";
+
+import {
+  projectCanonicalWcStatesFromEntriesV1,
+  readCanonicalWcState,
+} from "../src/economic/wc_verified_receipt_acceptance_v1.js";
+
+import {
   deriveAgentPaidWorkWcEarningAdapterPlanV1,
   materializeAgentPaidWorkWcEarningAdapterReceiptV1,
   validateAgentPaidWorkWcEarningAdapterReceiptV1,
@@ -292,6 +301,28 @@ for (const token of [
   assert.ok(censusSource.includes(token), `secure read boundary missing: ${token}`);
 }
 
+for (const token of [
+  "readStableWcStateSnapshotV1(dataDir)",
+  "wc_state_snapshot_drift",
+  "MAX_REDEEMED_BYTES",
+  "projectCanonicalWcStatesFromEntriesV1(",
+  "canonicalLedgerEntriesFromSnapshotV1(",
+  "canonicalRedeemedEntriesFromSnapshotV1(",
+  "canonical_multi_account_projection_single_pass: true",
+]) {
+  assert.ok(censusSource.includes(token), `stable snapshot boundary missing: ${token}`);
+}
+assert.equal(
+  censusSource.includes("readCanonicalWcState(account, dataDir)"),
+  false,
+  "capacity census must not reopen canonical WC files per account",
+);
+assert.match(
+  censusSource,
+  /projectCanonicalWcStatesFromEntriesV1\([\s\S]*canonicalLedgerEntriesFromSnapshotV1\([\s\S]*wcStateSnapshot\.ledger_bytes/u,
+  "historically repaired ledger snapshot must feed canonical projection",
+);
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-wc-capacity-census-proof-"),
 );
@@ -398,6 +429,60 @@ try {
   assert.equal(clean.raw.includes(accountA), false);
   assert.equal(clean.raw.includes(accountB), false);
   assert.equal(clean.raw.includes(temp), false);
+  assert.equal(clean.value.discovery.wc_state_snapshot_stable, true);
+  assert.equal(
+    clean.value.discovery.canonical_multi_account_projection_single_pass,
+    true,
+  );
+
+  const cleanLedgerEntries = fs
+    .readFileSync(ledger, "utf8")
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  const cleanRedeemedEntries = fs
+    .readFileSync(redeemed, "utf8")
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+  const projectedClean = projectCanonicalWcStatesFromEntriesV1(
+    [accountA, accountB],
+    cleanLedgerEntries,
+    cleanRedeemedEntries,
+  );
+  for (const account of [accountA, accountB]) {
+    const fromEntries = projectedClean.get(account);
+    const fromCanonicalFile = await readCanonicalWcState(account, dataDir);
+    assert.ok(fromEntries);
+    assert.equal(
+      fromEntries.redeemable_quanta,
+      fromCanonicalFile.redeemable_quanta,
+    );
+    assert.equal(
+      fromEntries.debited_quanta,
+      fromCanonicalFile.debited_quanta,
+    );
+    assert.equal(
+      fromEntries.redeemed_quanta,
+      fromCanonicalFile.redeemed_quanta,
+    );
+  }
+
+  const stableSnapshot = readStableWcStateSnapshotV1(dataDir);
+  assert.ok(stableSnapshot.ledger_bytes.length > 0);
+  assert.equal(stableSnapshot.redeemed_file_present, true);
+  const driftBaseline = fs.readFileSync(ledger);
+  try {
+    assert.throws(
+      () =>
+        readStableWcStateSnapshotV1(dataDir, () => {
+          fs.appendFileSync(ledger, "\n");
+        }),
+      /wc_state_snapshot_drift/u,
+    );
+  } finally {
+    fs.writeFileSync(ledger, driftBaseline);
+  }
 
   if (process.platform === "linux") {
     const receiptRootLink = path.join(temp, "receipt-root-link");
@@ -573,6 +658,10 @@ try {
   console.log("canonical_adapter_receipt_validation=true");
   console.log("canonical_receipt_job_duplicate_guard=true");
   console.log("canonical_wc_state_projection_reused=true");
+  console.log("canonical_multi_account_projection_single_pass=true");
+  console.log("stable_wc_state_snapshot=true");
+  console.log("wc_state_snapshot_drift_fail_closed=true");
+  console.log("historical_repair_feeds_canonical_projection=true");
   console.log("production_earned_lower_upper_bounds=true");
   console.log("known_historical_ledger_compatibility_bound=true");
   console.log("nofollow_receipt_read_boundary=true");
