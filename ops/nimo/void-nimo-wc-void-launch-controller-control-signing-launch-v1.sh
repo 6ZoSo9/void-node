@@ -6,7 +6,8 @@ marker="VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_LAUNCH_V1"
 mode="${1:-}"
 challenge="${2:-}"
 challenge_sha="${3:-}"
-output="${4:-}"
+reviewed_head="${4:-}"
+output="${5:-}"
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repo="$(cd -- "$script_dir/../.." && pwd -P)"
@@ -22,6 +23,8 @@ hold() {
 [[ "$challenge" == /* ]] || hold "challenge_path_must_be_absolute"
 [[ "$challenge_sha" =~ ^[0-9a-f]{64}$ ]] ||
   hold "challenge_sha256_invalid"
+[[ "$reviewed_head" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "operator_reviewed_head_invalid"
 [[ -f "$challenge" && ! -L "$challenge" ]] ||
   hold "challenge_file_invalid"
 
@@ -84,8 +87,10 @@ git_cmd=(
 
 current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
   hold "current_head_unavailable"
-[[ "$current_head" == "$source_head" ]] ||
-  hold "current_head_not_exact_challenge_head"
+[[ "$current_head" == "$reviewed_head" ]] ||
+  hold "current_head_not_exact_operator_reviewed_head"
+[[ "$source_head" == "$reviewed_head" ]] ||
+  hold "challenge_source_head_not_operator_reviewed_head"
 
 status="$("${git_env[@]}" "${git_cmd[@]}" status --porcelain=v1 --untracked-files=all)" ||
   hold "repository_status_unavailable"
@@ -106,8 +111,8 @@ for rel in "${critical_paths[@]}"; do
   [[ -f "$file" && ! -L "$file" ]] ||
     hold "critical_file_invalid:$rel"
 
-  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "HEAD:$rel")" ||
-    hold "critical_head_blob_unavailable:$rel"
+  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
+    hold "critical_reviewed_blob_unavailable:$rel"
   actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$file")" ||
     hold "critical_worktree_blob_unavailable:$rel"
 
@@ -119,6 +124,7 @@ done
 
 printf '%s\n' "$marker"
 printf 'status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN\n'
+printf 'operator_reviewed_head=%s\n' "$reviewed_head"
 printf 'challenge_source_head=%s\n' "$source_head"
 printf 'challenge_sha256=%s\n' "$challenge_sha"
 printf 'repository_clean=true\n'
@@ -148,6 +154,7 @@ exec /usr/bin/env -i \
   LANG=C \
   LC_ALL=C \
   VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
+  VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
   /usr/bin/node \
   "$repo/ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs" \
   sign \
