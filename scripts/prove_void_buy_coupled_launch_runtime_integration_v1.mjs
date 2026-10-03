@@ -165,6 +165,12 @@ for (const required of [
 }
 assert.ok(docker.includes("USER root"));
 assert.ok(docker.includes('VOLUME ["/root/.local/state/void-node-authority-v1"]'));
+assert.equal(
+  docker.split(
+    "COPY --from=build /app/ops/precision/void-buy-coupled-live-generation-publish-v1.mjs ./ops/precision/",
+  ).length - 1,
+  1,
+);
 const proposerCompose = compose.slice(
   compose.indexOf("  proposer:"),
   compose.indexOf("  follower:"),
@@ -180,6 +186,8 @@ assert.match(
   compose,
   /\nvolumes:\n\s+void_buy_authority_proposer:\n\s+void_buy_authority_follower:/u,
 );
+assert.equal((compose.match(/^volumes:/gmu) || []).length, 1);
+assert.equal(compose.includes("void_buy_coupled_authority:"), false);
 
 const current = readBuyLaunchGateV1();
 assert.equal(current.id, VOID_BUY_COUPLED_LAUNCH_ID_V1);
