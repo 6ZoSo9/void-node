@@ -1,0 +1,91 @@
+name: VOID WC-VOID market-vault isolated gas census v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-wc-void-market-vault-isolated-gas-census-v2.yml"
+      - "test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol"
+      - "scripts/prove_void_wc_void_market_vault_isolated_gas_census_v2.mjs"
+      - "docs/operators/wc-void-market-vault-isolated-gas-census-v2.md"
+      - "contracts/mainnet/WCVoidMarketVaultV2.sol"
+      - "contracts/epoch2/VoidEpoch2TokenV1.sol"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "ops/mainnet0/economic-epoch2-contract-holder-destination-manifest-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: void-wc-void-market-vault-isolated-gas-census-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove isolated gas-census source binding
+        run: node scripts/prove_void_wc_void_market_vault_isolated_gas_census_v2.mjs
+      - name: Diff hygiene
+        run: git diff --check
+
+  foundry-isolated-measurement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify exact reviewed source blobs
+        run: |
+          set -Eeuo pipefail
+          test "$(git rev-parse HEAD:contracts/mainnet/WCVoidMarketVaultV2.sol)" = "bd11190e2c22f58ac60918ecdf603f53427cadd0"
+          test "$(git rev-parse HEAD:contracts/epoch2/VoidEpoch2TokenV1.sol)" = "7c4297aadbc17b6214b4dde1f1766523cb499923"
+          echo "tested_head_sha=$(git rev-parse HEAD)"
+          echo "vault_git_blob_sha1=bd11190e2c22f58ac60918ecdf603f53427cadd0"
+          echo "token_git_blob_sha1=7c4297aadbc17b6214b4dde1f1766523cb499923"
+          echo "gas_test_sha256=$(sha256sum test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol | awk '{print $1}')"
+
+      - name: Run actual isolated Foundry gas measurement
+        env:
+          FOUNDRY_IMAGE: ghcr.io/foundry-rs/foundry:v1.7.1
+        run: |
+          set -Eeuo pipefail
+          FOUNDRY_HOME="$RUNNER_TEMP/void-foundry-home-v2"
+          FOUNDRY_OUT="$RUNNER_TEMP/void-foundry-out-v2"
+          FOUNDRY_CACHE="$RUNNER_TEMP/void-foundry-cache-v2"
+          FOUNDRY_PROJECT="$RUNNER_TEMP/void-wc-void-market-vault-gas-census-v2"
+          LOG="$RUNNER_TEMP/void-wc-void-market-vault-gas-census-v2.log"
+
+          mkdir -p             "$FOUNDRY_HOME" "$FOUNDRY_OUT" "$FOUNDRY_CACHE"             "$FOUNDRY_PROJECT/contracts/mainnet"             "$FOUNDRY_PROJECT/contracts/epoch2"             "$FOUNDRY_PROJECT/test/mainnet"
+
+          install -m 0444 contracts/mainnet/WCVoidMarketVaultV2.sol             "$FOUNDRY_PROJECT/contracts/mainnet/WCVoidMarketVaultV2.sol"
+          install -m 0444 contracts/epoch2/VoidEpoch2TokenV1.sol             "$FOUNDRY_PROJECT/contracts/epoch2/VoidEpoch2TokenV1.sol"
+          install -m 0444 test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol             "$FOUNDRY_PROJECT/test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol"
+
+          docker pull "$FOUNDRY_IMAGE"
+          FOUNDRY_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$FOUNDRY_IMAGE")"
+          test "$FOUNDRY_IMAGE_ID" = "sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb"
+          echo "foundry_image_id=$FOUNDRY_IMAGE_ID"
+
+          docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -e FORGE_SNAPSHOT_EMIT=false             -v "$FOUNDRY_HOME:/foundry-home"             -v "$FOUNDRY_OUT:/foundry-out"             -v "$FOUNDRY_CACHE:/foundry-cache"             -v "$FOUNDRY_PROJECT:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             test             --root /proof             --contracts contracts             --match-path test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol             --use 0.8.24             --evm-version paris             --out /foundry-out             --cache-path /foundry-cache             --isolate             --gas-report             -vvvv 2>&1 | tee "$LOG"
+
+          grep -F "settle_void_first_isolated_tx_gas" "$LOG"
+          grep -F "settle_void_subsequent_isolated_tx_gas" "$LOG"
+          grep -F "settle_void_first_signed_intent_max_gas" "$LOG"
+          grep -F "settle_void_subsequent_signed_intent_max_gas" "$LOG"
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
