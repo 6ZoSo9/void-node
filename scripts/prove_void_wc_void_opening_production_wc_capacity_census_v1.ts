@@ -404,6 +404,19 @@ try {
 
   const ledgerBaseline = fs.readFileSync(ledger);
 
+  fs.appendFileSync(ledger, "{historical-malformed-capacity-line}\\n");
+  const malformedLedger = run(dataDir, receiptRoot);
+  assert.equal(
+    malformedLedger.value.status,
+    "PRODUCTION_WC_CAPACITY_OBSERVED_WITH_DISCOVERY_GAPS",
+  );
+  assert.equal(
+    malformedLedger.value.discovery.historical_malformed_ledger_lines_observed,
+    1,
+  );
+  assert.equal(malformedLedger.value.matched.gross_production_earned_wc, "6");
+  fs.writeFileSync(ledger, ledgerBaseline);
+
   const conflictingReceiptCredit = ledgerCredit(receiptA);
   conflictingReceiptCredit.account = "capacity-proof-account-conflict";
   conflictingReceiptCredit.job_id = "job-capacity-conflict";
@@ -482,6 +495,7 @@ try {
   console.log("canonical_receipt_job_duplicate_guard=true");
   console.log("canonical_wc_state_projection_reused=true");
   console.log("production_earned_lower_upper_bounds=true");
+  console.log("malformed_ledger_discovery_gap_fail_closed=true");
   console.log("depth_limited_discovery_gap_fail_closed=true");
   console.log("unreadable_directory_discovery_gap_fail_closed=" + String(process.platform === "linux"));
   console.log("account_identifiers_not_emitted=true");
