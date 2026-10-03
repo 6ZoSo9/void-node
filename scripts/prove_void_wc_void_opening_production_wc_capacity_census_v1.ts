@@ -358,6 +358,10 @@ try {
     0,
   );
   assert.equal(clean.value.discovery.depth_limited_directories, 0);
+  assert.equal(
+    clean.value.discovery.historical_malformed_redeemed_lines_observed,
+    0,
+  );
   assert.equal(clean.value.matched.production_earning_receipt_count, 2);
   assert.equal(clean.value.matched.distinct_wc_account_count, 2);
   assert.equal(clean.value.matched.gross_production_earned_wc, "6");
@@ -448,6 +452,7 @@ try {
   });
 
   const ledgerBaseline = fs.readFileSync(ledger);
+  const redeemedBaseline = fs.readFileSync(redeemed);
 
   fs.appendFileSync(ledger, "{historical-malformed-capacity-line}\\n");
   const malformedLedger = run(dataDir, receiptRoot);
@@ -465,6 +470,31 @@ try {
   );
   assert.equal(malformedLedger.value.matched.gross_production_earned_wc, "6");
   fs.writeFileSync(ledger, ledgerBaseline);
+
+  fs.appendFileSync(
+    redeemed,
+    "{historical-malformed-redeemed-capacity-line}\\n",
+  );
+  const malformedRedeemed = run(dataDir, receiptRoot);
+  assert.equal(
+    malformedRedeemed.value.status,
+    "PRODUCTION_WC_CAPACITY_OBSERVED_WITH_DISCOVERY_GAPS",
+  );
+  assert.equal(
+    malformedRedeemed.value.discovery
+      .historical_malformed_redeemed_lines_observed,
+    1,
+  );
+  assert.equal(
+    malformedRedeemed.value.matched.gross_production_earned_wc,
+    "6",
+  );
+  assert.equal(malformedRedeemed.value.policy_selection_authorized, false);
+  assert.equal(malformedRedeemed.value.wc_ledger_mutation, false);
+  assert.equal(malformedRedeemed.raw.includes(accountA), false);
+  assert.equal(malformedRedeemed.raw.includes(accountB), false);
+  assert.equal(malformedRedeemed.raw.includes(temp), false);
+  fs.writeFileSync(redeemed, redeemedBaseline);
 
   const conflictingReceiptCredit = ledgerCredit(receiptA);
   conflictingReceiptCredit.account = "capacity-proof-account-conflict";
@@ -548,6 +578,7 @@ try {
   console.log("nofollow_receipt_read_boundary=true");
   console.log("symlink_root_rejection=true");
   console.log("malformed_ledger_discovery_gap_fail_closed=true");
+  console.log("malformed_redeemed_discovery_gap_fail_closed=true");
   console.log("depth_limited_discovery_gap_fail_closed=true");
   console.log("unreadable_directory_discovery_gap_fail_closed=" + String(process.platform === "linux"));
   console.log("account_identifiers_not_emitted=true");
