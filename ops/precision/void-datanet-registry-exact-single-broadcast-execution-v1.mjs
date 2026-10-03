@@ -149,7 +149,11 @@ function rpcFactory(){
           params,
         }),
         signal:controller.signal,
+        redirect:"error",
       });
+      if(response.redirected){
+        fail("rpc_redirect_forbidden");
+      }
       text=await response.text();
     }finally{
       clearTimeout(timer);
@@ -199,6 +203,7 @@ const result=await submitVoidDatanetRegistryExactSingleBroadcastV1({
   prebroadcast_observation:observation.value,
   signed_transaction:signed.value,
   state_dir:state,
+  confirmation:args.confirmation,
   rpc:rpcFactory(),
   now:()=>Date.now(),
 });

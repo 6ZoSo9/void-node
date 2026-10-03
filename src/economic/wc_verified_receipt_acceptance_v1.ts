@@ -274,6 +274,171 @@ function wcQuantaToCompatNumberV1(
   }
 }
 
+export type CanonicalWcProjectedStateV1 = Readonly<{
+  account: string;
+  earned: number | null;
+  debited: number | null;
+  redeemed: number | null;
+  redeemable: number | null;
+  earned_exact: string;
+  debited_exact: string;
+  redeemed_exact: string;
+  redeemable_exact: string;
+  earned_quanta: string;
+  debited_quanta: string;
+  redeemed_quanta: string;
+  redeemable_quanta: string;
+  exact_decimals: number;
+  numeric_authority: "nano_wc_fixed_point_v1";
+}>;
+
+type CanonicalWcProjectionAccumulatorV1 = {
+  earnedQuanta: bigint;
+  debitedQuanta: bigint;
+  redeemedQuanta: bigint;
+};
+
+function createCanonicalWcProjectionAccumulatorsV1(
+  accountsRaw: readonly string[],
+): Map<string, CanonicalWcProjectionAccumulatorV1> {
+  if (
+    !Array.isArray(accountsRaw) ||
+    accountsRaw.length > 100_000
+  ) {
+    fail("canonical_wc_projection_account_count_invalid");
+  }
+
+  const accumulators =
+    new Map<string, CanonicalWcProjectionAccumulatorV1>();
+  for (const raw of accountsRaw) {
+    const account = safeAccount(raw);
+    if (!account) fail("account_invalid");
+    if (accumulators.has(account)) {
+      fail("canonical_wc_projection_duplicate_account");
+    }
+    accumulators.set(account, {
+      earnedQuanta: 0n,
+      debitedQuanta: 0n,
+      redeemedQuanta: 0n,
+    });
+  }
+  return accumulators;
+}
+
+function accumulateCanonicalWcLedgerEntryV1(
+  accumulators: Map<string, CanonicalWcProjectionAccumulatorV1>,
+  entry: JsonObject,
+): void {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    fail("canonical_wc_projection_ledger_entry_invalid");
+  }
+  const account = exactStringV1(entry.account);
+  if (!account) return;
+  const accumulator = accumulators.get(account);
+  if (!accumulator) return;
+
+  if (canonicalAcceptanceCreditAuthorityV1(entry) === "invalid") {
+    return;
+  }
+  if (
+    entry.kind !== undefined &&
+    typeof entry.kind !== "string"
+  ) {
+    fail("ledger_kind_not_exact_string");
+  }
+  const deltaQuanta =
+    entry.delta === undefined || entry.delta === null
+      ? 0n
+      : wcNumberToQuantaV1(
+          entry.delta,
+          "ledger_delta_not_exact_number",
+        );
+  if (deltaQuanta > 0n) {
+    accumulator.earnedQuanta += deltaQuanta;
+  }
+  if (entry.kind === "debit") {
+    const amountQuanta =
+      entry.amount === undefined || entry.amount === null
+        ? (deltaQuanta < 0n ? -deltaQuanta : deltaQuanta)
+        : wcNumberToQuantaV1(
+            entry.amount,
+            "ledger_amount_not_exact_number",
+          );
+    if (amountQuanta < 0n) fail("ledger_amount_negative");
+    accumulator.debitedQuanta += amountQuanta;
+  }
+}
+
+function accumulateCanonicalWcRedeemedEntryV1(
+  accumulators: Map<string, CanonicalWcProjectionAccumulatorV1>,
+  entry: JsonObject,
+): void {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    fail("canonical_wc_projection_redeemed_entry_invalid");
+  }
+  const account = exactStringV1(entry.account);
+  if (!account) return;
+  const accumulator = accumulators.get(account);
+  if (!accumulator) return;
+
+  const amountQuanta =
+    entry.amount === undefined || entry.amount === null
+      ? 0n
+      : wcNumberToQuantaV1(
+          entry.amount,
+          "redeemed_amount_not_exact_number",
+        );
+  if (amountQuanta < 0n) fail("redeemed_amount_negative");
+  accumulator.redeemedQuanta += amountQuanta;
+}
+
+function finalizeCanonicalWcProjectionV1(
+  accumulators: ReadonlyMap<string, CanonicalWcProjectionAccumulatorV1>,
+): ReadonlyMap<string, CanonicalWcProjectedStateV1> {
+  const projected =
+    new Map<string, CanonicalWcProjectedStateV1>();
+  for (const [account, accumulator] of accumulators) {
+    const outflowsQuanta =
+      accumulator.debitedQuanta + accumulator.redeemedQuanta;
+    const netQuanta = accumulator.earnedQuanta - outflowsQuanta;
+    const redeemableQuanta = netQuanta > 0n ? netQuanta : 0n;
+    projected.set(account, Object.freeze({
+      account,
+      earned: wcQuantaToCompatNumberV1(accumulator.earnedQuanta),
+      debited: wcQuantaToCompatNumberV1(accumulator.debitedQuanta),
+      redeemed: wcQuantaToCompatNumberV1(accumulator.redeemedQuanta),
+      redeemable: wcQuantaToCompatNumberV1(redeemableQuanta),
+      earned_exact: wcQuantaToDecimalV1(accumulator.earnedQuanta),
+      debited_exact: wcQuantaToDecimalV1(accumulator.debitedQuanta),
+      redeemed_exact: wcQuantaToDecimalV1(accumulator.redeemedQuanta),
+      redeemable_exact: wcQuantaToDecimalV1(redeemableQuanta),
+      earned_quanta: accumulator.earnedQuanta.toString(),
+      debited_quanta: accumulator.debitedQuanta.toString(),
+      redeemed_quanta: accumulator.redeemedQuanta.toString(),
+      redeemable_quanta: redeemableQuanta.toString(),
+      exact_decimals: VOID_WC_EXACT_DECIMALS_V1,
+      numeric_authority: "nano_wc_fixed_point_v1",
+    }));
+  }
+  return projected;
+}
+
+export function projectCanonicalWcStatesFromEntriesV1(
+  accountsRaw: readonly string[],
+  ledgerEntries: Iterable<JsonObject>,
+  redeemedEntries: Iterable<JsonObject>,
+): ReadonlyMap<string, CanonicalWcProjectedStateV1> {
+  const accumulators =
+    createCanonicalWcProjectionAccumulatorsV1(accountsRaw);
+  for (const entry of ledgerEntries) {
+    accumulateCanonicalWcLedgerEntryV1(accumulators, entry);
+  }
+  for (const entry of redeemedEntries) {
+    accumulateCanonicalWcRedeemedEntryV1(accumulators, entry);
+  }
+  return finalizeCanonicalWcProjectionV1(accumulators);
+}
+
 async function appendLedgerEntryDurable(
   file: string,
   value: JsonObject,
@@ -794,45 +959,14 @@ export async function readCanonicalWcState(
   const account = safeAccount(accountRaw);
   if (!account) fail("account_invalid");
 
-  let earnedQuanta = 0n;
-  let debitedQuanta = 0n;
-  let redeemedQuanta = 0n;
-
+  // VOID_WC_CANONICAL_STATE_STREAMING_ACCUMULATION_V1
+  const accumulators =
+    createCanonicalWcProjectionAccumulatorsV1([account]);
   const ledgerScan = await scanJsonl(
     ledgerFile(dataDir),
     (entry) => {
-      if (exactStringV1(entry?.account) !== account) return;
-      if (
-        canonicalAcceptanceCreditAuthorityV1(entry) === "invalid"
-      ) {
-        return;
-      }
-      if (
-        entry?.kind !== undefined &&
-        typeof entry.kind !== "string"
-      ) {
-        fail("ledger_kind_not_exact_string");
-      }
-      const deltaQuanta =
-        entry?.delta === undefined || entry?.delta === null
-          ? 0n
-          : wcNumberToQuantaV1(
-              entry.delta,
-              "ledger_delta_not_exact_number",
-            );
-      if (deltaQuanta > 0n) {
-        earnedQuanta += deltaQuanta;
-      }
-      if (entry.kind === "debit") {
-        const amountQuanta =
-          entry?.amount === undefined || entry?.amount === null
-            ? (deltaQuanta < 0n ? -deltaQuanta : deltaQuanta)
-            : wcNumberToQuantaV1(
-                entry.amount,
-                "ledger_amount_not_exact_number",
-              );
-        if (amountQuanta < 0n) fail("ledger_amount_negative");
-        debitedQuanta += amountQuanta;
+      if (exactStringV1(entry?.account) === account) {
+        accumulateCanonicalWcLedgerEntryV1(accumulators, entry);
       }
     },
     [account],
@@ -844,16 +978,9 @@ export async function readCanonicalWcState(
   const redeemedScan = await scanJsonl(
     redeemedFile(dataDir),
     (entry) => {
-      if (exactStringV1(entry?.account) !== account) return;
-      const amountQuanta =
-        entry?.amount === undefined || entry?.amount === null
-          ? 0n
-          : wcNumberToQuantaV1(
-              entry.amount,
-              "redeemed_amount_not_exact_number",
-            );
-      if (amountQuanta < 0n) fail("redeemed_amount_negative");
-      redeemedQuanta += amountQuanta;
+      if (exactStringV1(entry?.account) === account) {
+        accumulateCanonicalWcRedeemedEntryV1(accumulators, entry);
+      }
     },
     [account],
   );
@@ -861,26 +988,12 @@ export async function readCanonicalWcState(
     fail("ambiguous_malformed_redeemed_line");
   }
 
-  const outflowsQuanta = debitedQuanta + redeemedQuanta;
-  const netQuanta = earnedQuanta - outflowsQuanta;
-  const redeemableQuanta = netQuanta > 0n ? netQuanta : 0n;
+  const projected =
+    finalizeCanonicalWcProjectionV1(accumulators).get(account);
+  if (!projected) fail("canonical_wc_projection_missing_account");
 
   return {
-    account,
-    earned: wcQuantaToCompatNumberV1(earnedQuanta),
-    debited: wcQuantaToCompatNumberV1(debitedQuanta),
-    redeemed: wcQuantaToCompatNumberV1(redeemedQuanta),
-    redeemable: wcQuantaToCompatNumberV1(redeemableQuanta),
-    earned_exact: wcQuantaToDecimalV1(earnedQuanta),
-    debited_exact: wcQuantaToDecimalV1(debitedQuanta),
-    redeemed_exact: wcQuantaToDecimalV1(redeemedQuanta),
-    redeemable_exact: wcQuantaToDecimalV1(redeemableQuanta),
-    earned_quanta: earnedQuanta.toString(),
-    debited_quanta: debitedQuanta.toString(),
-    redeemed_quanta: redeemedQuanta.toString(),
-    redeemable_quanta: redeemableQuanta.toString(),
-    exact_decimals: VOID_WC_EXACT_DECIMALS_V1,
-    numeric_authority: "nano_wc_fixed_point_v1",
+    ...projected,
     historical_malformed_ledger_lines: ledgerScan.malformed,
     historical_malformed_redeemed_lines: redeemedScan.malformed,
   };

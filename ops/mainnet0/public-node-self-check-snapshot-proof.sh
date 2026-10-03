@@ -132,6 +132,8 @@ ok(smoke.marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1", "smoke s
 console.log("[ok] json self-check snapshot");
 NODE
 
+self_check_expected_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(x.expected_route_count));' "$OUT/self-check-snapshot.json")"
+
 grep -Fq "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_UI_V1" "$OUT/public-node.html"
 grep -Fq "/public-node/self-check-snapshot.json" "$OUT/public-node.html"
 grep -Fq "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_DOC_V1" docs/public/public-node-self-check-snapshot.md
@@ -143,7 +145,7 @@ echo "doc=docs/public/public-node-self-check-snapshot.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_externally_testable_read_only_surface_ready"
-echo "expected_route_count=25"
+echo "expected_route_count=$self_check_expected_route_count"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"

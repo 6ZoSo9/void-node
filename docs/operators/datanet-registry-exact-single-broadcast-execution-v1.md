@@ -36,7 +36,9 @@ authorizeDatanetRegistryDeploymentBroadcastV1:<signed_transaction_id>:<signed_tr
 ```
 
 The runner rejects a generic authorization or any confirmation that does not
-exactly match the authorization artifact.
+exactly match the authorization artifact. The transaction-submitting API repeats
+that exact comparison internally; library callers cannot bypass the
+operation-bound confirmation by skipping the Precision CLI.
 
 ## Replay and crash boundary
 
@@ -55,7 +57,10 @@ If that intent already exists, the executor refuses to call
 publication as an already-spent submission opportunity rather than risking a
 silent duplicate send.
 
-The intent is mode 0600 and fsynced before RPC.
+The attempt directory itself is made durable by fsyncing the private state-root
+directory before intent publication. The mode-0600 intent is then fsynced and its
+attempt directory is fsynced before RPC. A power loss after submission therefore
+cannot erase the attempt-directory entry and reopen a supposedly unused slot.
 
 ## Runtime boundary
 
@@ -66,11 +71,18 @@ Immediately before submission the executor rechecks:
 - exact state-root generation; and
 - exact signed transaction/request/authorization/consumption lineage.
 
+If that final pre-send recheck fails after the durable intent exists, the call
+returns an explicit HOLD/error result with zero broadcaster/RPC-send access.
+It does not continue through reconciliation as a successful broadcast attempt,
+and the durable intent still prevents later replay.
+
 The only mutating RPC method available to this gate is:
 
 `eth_sendRawTransaction`
 
-and it may be invoked at most once.
+and it may be invoked at most once. The Precision HTTP client uses the pinned
+loopback successor RPC with fetch redirects disabled; a 3xx redirect is an error
+and signed raw bytes are never forwarded to a redirected authority.
 
 No `eth_sendTransaction`, replacement transaction, automatic retry, signer,
 wallet, credential, or private-key path exists in this gate.
