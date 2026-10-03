@@ -231,8 +231,6 @@ VOID has implemented and proven substantial deterministic build, installer, upda
 
 See [Release state and published artifacts](RELEASES.md) for the current release inventory and the first-official-release path. 
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
-
-<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
 ## Verified release installer
 
 The public download lane now has a deterministic Linux x64 archive, stable
