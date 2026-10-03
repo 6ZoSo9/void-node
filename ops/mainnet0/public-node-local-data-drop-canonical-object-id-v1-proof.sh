@@ -50,6 +50,10 @@ grep -Fq 'os.link(' "$IMPORTER" ||
   fail "atomic_hardlink_publish_missing"
 grep -Fq '.import-staging-v2' "$IMPORTER" ||
   fail "unexposed_staging_directory_missing"
+grep -Fq 'group_or_world_writable' "$IMPORTER" ||
+  fail "store_directory_mode_guard_missing"
+grep -Fq 'not_owned_by_operator' "$IMPORTER" ||
+  fail "operator_ownership_guard_missing"
 
 node - "$SOURCE" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
 const assert=require("node:assert/strict");
@@ -58,6 +62,8 @@ const fs=require("node:fs");
 
 const [sourcePath,objectId,expectedObjectIdSha]=process.argv.slice(2);
 const source=fs.readFileSync(sourcePath,"utf8");
+const sourceBytes=Buffer.byteLength(source,"utf8");
+assert.ok(sourceBytes<=3851076,"src/index.ts size guard exceeded");
 const oldGrammar="^[a-zA-Z0-9._-]{1,160}$";
 const grammar="^[\\w.:-]{1,160}$";
 
@@ -72,6 +78,21 @@ const routeStart=source.indexOf(
   'APP.get("/public-node/local-data-drop/:objectId"',
 );
 assert.notEqual(routeStart,-1,"object route missing");
+const clusterStart=source.indexOf(
+  'APP.get("/public-node/local-data-drop/weighted.json"',
+);
+assert.notEqual(clusterStart,-1,"Local Data Drop cluster missing");
+const cluster=source.slice(clusterStart,routeStart+1800);
+assert.equal(
+  cluster.includes("fs.statSync("),
+  false,
+  "Local Data Drop cluster must not follow pre-planted symlinks via statSync",
+);
+assert.equal(
+  (cluster.match(/fs\.lstatSync\(/g)||[]).length,
+  19,
+  "all Local Data Drop file-type checks must use lstatSync",
+);
 const route=source.slice(routeStart,routeStart+1800);
 assert.equal(
   route.includes('/^\\.\\.?$/.test(objectId)'),
@@ -99,6 +120,8 @@ console.log("runtime_colon_grammar_occurrences=7");
 console.log("runtime_dot_components_rejected=true");
 console.log("runtime_slash_rejected=true");
 console.log("runtime_backslash_rejected=true");
+console.log("runtime_nofollow_read_checks=19");
+console.log("index_size_bytes="+sourceBytes);
 NODE
 
 tmp="$(mktemp -d)"
@@ -288,6 +311,10 @@ echo "receipts_directory_symlink_rejected=true"
 echo "data_root_symlink_rejected=true"
 echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
+echo "store_directory_mode_guard=true"
+echo "operator_owned_recovery_files=true"
+echo "runtime_nofollow_read_checks=19"
+echo "index_size_ceiling_preserved=true"
 echo "staged_atomic_publication=true"
 echo "orphan_receipt_recovery=true"
 echo "orphan_object_recovery=true"
