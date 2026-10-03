@@ -148,6 +148,14 @@ for (const required of [
   "WCVoidMarketVaultV2",
   "does not select",
   "snapshotGasLastCall",
+  "c607ee9fdcac8e9917a79471e1648ded2bfc1002",
+  "sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb",
+  "133515",
+  "22452",
+  "155967",
+  "99303",
+  "22440",
+  "121743",
 ]) {
   need(doc, required, `doc:${required}`);
 }
