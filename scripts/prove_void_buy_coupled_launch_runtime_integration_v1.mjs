@@ -30,8 +30,9 @@ assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'))
 assert.ok(index.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1));
 assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
-assert.ok(index.includes("requestLaunchAuthorityReady:__voidBLO"));
-assert.equal(index.split('Error("buy_launch_closed")').length - 1, 2);
+assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
+assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
+assert.equal(index.split('Error("buy_closed")').length - 1, 2);
 const gateSource = read("src/economic/buy_void_coupled_launch_gate_v1.mjs");
 assert.ok(gateSource.includes("buy-void-coupled-live-generation-v1.jsonl"));
 assert.ok(gateSource.includes("generation_tip_sha256"));
@@ -43,7 +44,7 @@ assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1"));
 assert.ok(gateSource.includes("verifyBuyLaunchLiveActivationSovereignSignatureV1"));
 assert.ok(gateSource.includes("buyLaunchRequestAuthorityMatchesV1"));
 assert.equal(
-  index.split('=== "1"&&__voidBLD().ready===true').length - 1,
+  index.split('=== "1"&&__bld().ready===true').length - 1,
   2,
 );
 assert.ok(!index.includes(
