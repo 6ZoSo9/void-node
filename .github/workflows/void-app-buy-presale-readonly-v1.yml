@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "public/void-app-wave1-v1/assets/js/views.js"
+      - "public/void-app-wave1-v1/assets/js/buy-live.js"
+      - "public/void-app-wave1-v1/index.html"
       - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
       - "docs/public/void-app-buy-presale-readonly-v1.md"
       - ".github/workflows/void-app-buy-presale-readonly-v1.yml"
@@ -12,6 +14,8 @@ on:
     branches: [main]
     paths:
       - "public/void-app-wave1-v1/assets/js/views.js"
+      - "public/void-app-wave1-v1/assets/js/buy-live.js"
+      - "public/void-app-wave1-v1/index.html"
       - "scripts/prove_void_app_buy_presale_readonly_v1.mjs"
       - "docs/public/void-app-buy-presale-readonly-v1.md"
       - ".github/workflows/void-app-buy-presale-readonly-v1.yml"
@@ -35,4 +39,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: node --check public/void-app-wave1-v1/assets/js/views.js
+      - run: node --check public/void-app-wave1-v1/assets/js/buy-live.js
       - run: node scripts/prove_void_app_buy_presale_readonly_v1.mjs
