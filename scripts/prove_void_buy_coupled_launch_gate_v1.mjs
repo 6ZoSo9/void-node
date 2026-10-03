@@ -466,6 +466,42 @@ try {
     VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM: confirmation,
   };
 
+  // The private descriptor reader must remain byte-bounded even if a file
+  // grows after the pre-open/stat checks. Inject growth only after the first
+  // descriptor read begins; the reader may consume at most maxBytes + 1.
+  {
+    const originalReadSync = fs.readSync;
+    let growthInjected = false;
+    let streamedBytes = 0;
+    fs.readSync = function injectedReadSync(...args) {
+      if (!growthInjected) {
+        growthInjected = true;
+        fs.appendFileSync(
+          journalPath,
+          Buffer.alloc(70 * 1024, 0x20),
+        );
+      }
+      const count = originalReadSync.apply(fs, args);
+      streamedBytes += count;
+      return count;
+    };
+    try {
+      const grown = readBuyLaunchLiveActivationV1(
+        sourceReady,
+        liveEnv,
+        nowMs + 1,
+      );
+      assert.equal(grown.ready, false);
+      assert.equal(growthInjected, true);
+      assert.ok(fs.statSync(journalPath).size > 64 * 1024);
+      assert.equal(streamedBytes, 64 * 1024 + 1);
+    } finally {
+      fs.readSync = originalReadSync;
+      fs.writeFileSync(journalPath, activeJournalBytes, { mode: 0o600 });
+      fs.chmodSync(journalPath, 0o600);
+    }
+  }
+
   // A self-created, content-addressed receipt is not production authority.
   // Even with valid EIP-712 structure and matching file/env bindings it must
   // remain closed unless signed by the fixed launch-controller identity.
@@ -897,6 +933,9 @@ assert.match(gateSource, /void-node-authority-v1/);
 assert.match(gateSource, /buy-void-coupled-live-generation-anchor-v1\.jsonl/);
 assert.match(gateSource, /external_anchor_verified/);
 assert.match(gateSource, /generation_tip_sha256/);
+assert.doesNotMatch(gateSource, /fs\.readFileSync\(fileFd\)/);
+assert.match(gateSource, /fs\.readSync\(\s*fileFd,/u);
+assert.match(gateSource, /buy_launch_private_file_stream_size_exceeded/);
 assert.match(gateSource, /VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1/);
 assert.match(gateSource, /buyLaunchRequestAuthorityMatchesV1/);
 assert.match(gateSource, /classifyBuyLaunchRequestMutationAdmissionV1/);
@@ -1075,6 +1114,8 @@ console.log("pending_publication_recovery_precedes_new_transition=true");
 console.log("unknown_partial_generation_state_fails_closed=true");
 console.log("async_generation_publication_lock_lifetime_safe=true");
 console.log("external_generation_high_water_anchor_required=true");
+console.log("private_file_descriptor_read_byte_bounded=true");
+console.log("concurrent_private_file_growth_fails_at_max_plus_one=true");
 console.log("data_dir_rollback_old_generation_replay=false");
 console.log("configuration_rollback_old_generation_replay=false");
 console.log("payment_request_bound_to_generation_tip=true");

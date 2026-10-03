@@ -1158,7 +1158,31 @@ function readStablePrivateFile(
     if (!sameStat(listed, opened)) {
       throw new Error("buy_launch_live_receipt_identity_changed");
     }
-    const bytes = fs.readFileSync(fileFd);
+    const chunks = [];
+    let totalBytes = 0;
+    while (true) {
+      const remaining = maxBytes + 1 - totalBytes;
+      if (remaining <= 0) {
+        throw new Error("buy_launch_private_file_stream_size_exceeded");
+      }
+      const chunk = Buffer.allocUnsafe(
+        Math.min(64 * 1024, remaining),
+      );
+      const readBytes = fs.readSync(
+        fileFd,
+        chunk,
+        0,
+        chunk.length,
+        null,
+      );
+      if (readBytes === 0) break;
+      totalBytes += readBytes;
+      if (totalBytes > maxBytes) {
+        throw new Error("buy_launch_private_file_stream_size_exceeded");
+      }
+      chunks.push(chunk.subarray(0, readBytes));
+    }
+    const bytes = Buffer.concat(chunks, totalBytes);
     const after = fs.fstatSync(fileFd, { bigint: true });
     const visible = fs.lstatSync(procPath, { bigint: true });
     if (

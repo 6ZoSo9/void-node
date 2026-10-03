@@ -189,6 +189,12 @@ string provide custody/integrity binding; they are not launch authority. The
 launch-controller signature plus Sovereign co-signature are the live lease
 authority proof.
 
+Private authority/receipt reads are byte-bounded at the descriptor layer as well
+as by the pre-open stat. The reader consumes at most `maxBytes + 1` bytes and
+fails immediately on overflow, so a file that grows concurrently after the
+initial size check cannot force an unbounded read before the existing
+post-read inode/stat consistency checks reject it.
+
 Its content must be content-addressed and bind:
 
 - marker `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1`;
