@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -160,6 +160,80 @@ function fail(code) {
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function gitBlobSha1V1(bytes) {
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from("blob " + bytes.length + "\0", "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+function gitBlobBytesV1(blobSha, label) {
+  if (typeof blobSha !== "string" || !HEX40.test(blobSha)) {
+    fail(label + "_blob_invalid");
+  }
+  let bytes;
+  try {
+    bytes = execFileSync(
+      GIT_V1,
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.preloadIndex=false",
+        "-c", "submodule.recurse=false",
+        "-C", ROOT,
+        "cat-file",
+        "blob",
+        blobSha,
+      ],
+      {
+        cwd: "/",
+        encoding: null,
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 4 * 1024 * 1024,
+        env: reviewedGitEnvV1(),
+      },
+    );
+  } catch {
+    fail(label + "_blob_unavailable");
+  }
+  if (!Buffer.isBuffer(bytes) || gitBlobSha1V1(bytes) !== blobSha) {
+    fail(label + "_blob_content_mismatch");
+  }
+  return bytes;
+}
+
+function writePrivateRuntimeFileV1(file, bytes, mode = 0o400) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const fd = fs.openSync(
+    file,
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
+      Number(fs.constants.O_NOFOLLOW || 0),
+    mode,
+  );
+  try {
+    fs.writeFileSync(fd, bytes);
+    fs.fchmodSync(fd, mode);
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  const stat = fs.lstatSync(file);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1 ||
+    (stat.mode & 0o777) !== mode
+  ) {
+    fail("offline_signer_runtime_private_file_invalid");
+  }
 }
 
 function canonicalize(value) {
@@ -620,7 +694,299 @@ function makeRemovableTreeV1(root) {
   walk(root);
 }
 
-async function withReviewedEthersV1(fn) {
+function reviewedSigningBridgeSourceV1() {
+  return `#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import {
+  Wallet,
+  getAddress,
+  verifyTypedData,
+} from "ethers";
+import * as control from "./source/control-requalification-v1.mjs";
+
+const BRIDGE_MARKER =
+  "VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_REVIEWED_SIGNING_BRIDGE_V1";
+
+function stable(value) {
+  if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map(
+      (key) => JSON.stringify(key) + ":" + stable(value[key])
+    ).join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
+
+function output(value, status = 0) {
+  process.stdout.write(JSON.stringify(value) + "\\n");
+  process.exitCode = status;
+}
+
+async function main() {
+  const operation = process.argv[2] || "";
+  const inputRelative = process.argv[3] || "";
+  if (
+    !["probe", "sign"].includes(operation) ||
+    !inputRelative ||
+    path.isAbsolute(inputRelative) ||
+    inputRelative.split("/").some(
+      (part) => !part || part === "." || part === ".."
+    )
+  ) {
+    throw new Error("bridge_input_invalid");
+  }
+  const input = JSON.parse(
+    fs.readFileSync(path.resolve(process.cwd(), inputRelative), "utf8")
+  );
+
+  if (operation === "probe") {
+    output({
+      marker: BRIDGE_MARKER,
+      version: 1,
+      ok: true,
+      operation,
+      ethers_version:
+        typeof (await import("ethers")).version === "string"
+          ? (await import("ethers")).version
+          : null,
+      permission_fenced: true,
+      ancestor_package_resolution_allowed: false,
+    });
+    return;
+  }
+
+  const envelope = input.challenge_envelope;
+  const expectedAddress = String(input.expected_address || "").toLowerCase();
+  if (
+    !envelope ||
+    typeof envelope !== "object" ||
+    Array.isArray(envelope) ||
+    !/^0x[0-9a-f]{40}$/.test(expectedAddress)
+  ) {
+    throw new Error("bridge_sign_input_invalid");
+  }
+
+  if (
+    envelope.marker !==
+      control.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_REQUALIFICATION_V1 ||
+    envelope.version !== 1 ||
+    envelope.challenge?.marker !==
+      control.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_CHALLENGE_V1 ||
+    envelope.challenge?.version !== 1 ||
+    envelope.challenge?.role_id !==
+      control.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_ROLE_ID_V1 ||
+    getAddress(String(envelope.challenge?.candidate_address)).toLowerCase() !==
+      expectedAddress
+  ) {
+    throw new Error("bridge_challenge_identity_mismatch");
+  }
+
+  const canonicalTyped =
+    control.voidWcVoidLaunchControllerControlTypedDataV1(
+      envelope.challenge
+    );
+  if (stable(canonicalTyped) !== stable(envelope.typed_data)) {
+    throw new Error("bridge_typed_data_mismatch");
+  }
+  const digest =
+    control.voidWcVoidLaunchControllerControlDigestV1(
+      envelope.challenge
+    );
+  if (digest !== envelope.typed_data_digest) {
+    throw new Error("bridge_typed_data_digest_mismatch");
+  }
+
+  const expires = BigInt(String(envelope.challenge.expires_at_unix));
+  const nowBeforeKey = BigInt(Math.floor(Date.now() / 1000));
+  if (nowBeforeKey >= expires) {
+    throw new Error("bridge_challenge_expired");
+  }
+
+  let privateKey = fs.readFileSync(0, "utf8");
+  if (!/^(?:0x)?[0-9a-fA-F]{64}$/.test(privateKey)) {
+    privateKey = "";
+    throw new Error("bridge_private_key_invalid");
+  }
+  if (!privateKey.startsWith("0x")) privateKey = "0x" + privateKey;
+
+  let wallet;
+  try {
+    wallet = new Wallet(privateKey);
+  } finally {
+    privateKey = "";
+  }
+  if (wallet.address.toLowerCase() !== expectedAddress) {
+    throw new Error("bridge_private_key_address_mismatch");
+  }
+  if (BigInt(Math.floor(Date.now() / 1000)) >= expires) {
+    throw new Error("bridge_challenge_expired");
+  }
+
+  const signature = await wallet.signTypedData(
+    canonicalTyped.domain,
+    canonicalTyped.types,
+    canonicalTyped.value
+  );
+  if (BigInt(Math.floor(Date.now() / 1000)) >= expires) {
+    throw new Error("bridge_challenge_expired");
+  }
+  const recovered = verifyTypedData(
+    canonicalTyped.domain,
+    canonicalTyped.types,
+    canonicalTyped.value,
+    signature
+  ).toLowerCase();
+  if (recovered !== expectedAddress) {
+    throw new Error("bridge_signature_recovery_mismatch");
+  }
+
+  const signatureEnvelope =
+    control.buildVoidWcVoidLaunchControllerControlSignatureEnvelopeV1({
+      challengeId: envelope.challenge_id,
+      signature,
+    });
+
+  output({
+    marker: BRIDGE_MARKER,
+    version: 1,
+    ok: true,
+    operation,
+    envelope: signatureEnvelope,
+    permission_fenced: true,
+    ancestor_package_resolution_allowed: false,
+  });
+}
+
+main().catch(() => {
+  output({
+    marker: BRIDGE_MARKER,
+    version: 1,
+    ok: false,
+    error: "reviewed_signing_bridge_failed",
+  }, 2);
+});
+`;
+}
+
+function reviewedChildExecutionEnvV1() {
+  return {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: "/nonexistent",
+  };
+}
+
+function runPermissionFencedReviewedChildV1({
+  profile,
+  runtimeRoot,
+  entryFile,
+  args,
+  stdinText = "",
+  allowFailure = false,
+}) {
+  const verified = verifyMaterializedReviewedNodePackageRuntimeV1({
+    profile,
+    destinationRoot: runtimeRoot,
+    repoRoot: ROOT,
+  });
+  if (
+    verified.ok !== true ||
+    verified.status !== "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
+  ) {
+    fail("offline_signer_reviewed_child_runtime_unverified");
+  }
+  const root = fs.realpathSync.native(runtimeRoot);
+  const entry = fs.realpathSync.native(entryFile);
+  const relative = path.relative(root, entry);
+  const stat = fs.lstatSync(entry);
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative) ||
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1
+  ) {
+    fail("offline_signer_reviewed_child_entry_invalid");
+  }
+  if (
+    !Array.isArray(args) ||
+    args.some((value) => typeof value !== "string")
+  ) {
+    fail("offline_signer_reviewed_child_args_invalid");
+  }
+
+  const result = spawnSync(
+    NODE_V1,
+    [
+      "--permission",
+      "--allow-fs-read=" + root,
+      entry,
+      ...args,
+    ],
+    {
+      cwd: root,
+      input: stdinText,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 30_000,
+      maxBuffer: 16 * 1024 * 1024,
+      env: reviewedChildExecutionEnvV1(),
+    },
+  );
+  if (result.error) {
+    fail("offline_signer_reviewed_child_spawn_failed");
+  }
+  if (result.status !== 0 && !allowFailure) {
+    fail("offline_signer_reviewed_child_execution_failed");
+  }
+  return Object.freeze({
+    ok: result.status === 0,
+    status: result.status,
+    stdout: String(result.stdout || ""),
+    permission_fenced: true,
+    allowed_fs_read_root: root,
+    ancestor_package_resolution_allowed: false,
+    ambient_node_resolution_overrides_ignored: true,
+    ambient_dynamic_loader_overrides_ignored: true,
+    profile_id: profile.profile_id,
+    packages_aggregate_sha256: profile.packages_aggregate_sha256,
+  });
+}
+
+function parseReviewedBridgeOutputV1(execution, operation) {
+  const text = String(execution.stdout || "").trim();
+  if (text.length < 2 || text.length > 2 * 1024 * 1024) {
+    fail("offline_signer_reviewed_child_output_invalid");
+  }
+  const lines = text.split(/\r?\n/u);
+  if (lines.length !== 1) {
+    fail("offline_signer_reviewed_child_output_multiline");
+  }
+  let value;
+  try {
+    value = JSON.parse(lines[0]);
+  } catch {
+    fail("offline_signer_reviewed_child_output_json_invalid");
+  }
+  if (
+    value?.marker !==
+      "VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_REVIEWED_SIGNING_BRIDGE_V1" ||
+    value?.version !== 1 ||
+    value?.operation !== operation ||
+    value?.ok !== true ||
+    value?.permission_fenced !== true ||
+    value?.ancestor_package_resolution_allowed !== false
+  ) {
+    fail("offline_signer_reviewed_child_output_mismatch");
+  }
+  return value;
+}
+
+async function withReviewedSigningRuntimeV1(controlBlobSha1, fn) {
   const { profile } = readReviewedNodePackageRuntimeProfileV1({
     relativePath: REVIEWED_RUNTIME_PROFILE_RELATIVE_V1,
     repoRoot: ROOT,
@@ -662,31 +1028,63 @@ async function withReviewedEthersV1(fn) {
     ) {
       fail("offline_signer_private_runtime_unverified");
     }
-    const reverified = verifyMaterializedReviewedNodePackageRuntimeV1({
+
+    const controlBytes = gitBlobBytesV1(
+      controlBlobSha1,
+      "offline_signer_control_contract",
+    );
+    const sourceRoot = path.join(runtimeRoot, "source");
+    const controlPath = path.join(
+      sourceRoot,
+      "control-requalification-v1.mjs",
+    );
+    writePrivateRuntimeFileV1(controlPath, controlBytes, 0o400);
+
+    const bridgePath = path.join(runtimeRoot, "signing-bridge.mjs");
+    writePrivateRuntimeFileV1(
+      bridgePath,
+      Buffer.from(reviewedSigningBridgeSourceV1(), "utf8"),
+      0o400,
+    );
+
+    const inputRoot = path.join(runtimeRoot, "inputs");
+    fs.mkdirSync(inputRoot, { mode: 0o700 });
+
+    const run = (operation, payload, stdinText = "") => {
+      const inputPath = path.join(
+        inputRoot,
+        operation + "-" + crypto.randomBytes(8).toString("hex") + ".json",
+      );
+      const inputBytes = Buffer.from(
+        JSON.stringify(payload, null, 2) + "\n",
+        "utf8",
+      );
+      if (inputBytes.length > 2 * 1024 * 1024) {
+        fail("offline_signer_reviewed_child_input_too_large");
+      }
+      writePrivateRuntimeFileV1(inputPath, inputBytes, 0o400);
+      const execution = runPermissionFencedReviewedChildV1({
+        profile,
+        runtimeRoot,
+        entryFile: bridgePath,
+        args: [operation, path.relative(runtimeRoot, inputPath)],
+        stdinText,
+        allowFailure: true,
+      });
+      if (!execution.ok) {
+        fail("offline_signer_reviewed_child_execution_failed");
+      }
+      return parseReviewedBridgeOutputV1(execution, operation);
+    };
+
+    return await fn(Object.freeze({
       profile,
-      destinationRoot: runtimeRoot,
-      repoRoot: ROOT,
-    });
-    if (
-      reverified.ok !== true ||
-      reverified.status !==
-        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
-    ) {
-      fail("offline_signer_private_runtime_reverification_failed");
-    }
-    const ethersEntry = path.join(
-      runtimeRoot,
-      "node_modules",
-      "ethers",
-      "lib.esm",
-      "index.js",
-    );
-    const ethers = await import(
-      pathToFileURL(ethersEntry).href +
-        "?profile=" +
-        encodeURIComponent(profile.profile_id)
-    );
-    return await fn(Object.freeze({ ethers, profile }));
+      run,
+      permission_fenced: true,
+      ancestor_package_resolution_allowed: false,
+      ambient_node_resolution_overrides_ignored: true,
+      ambient_dynamic_loader_overrides_ignored: true,
+    }));
   } finally {
     makeRemovableTreeV1(parent);
     fs.rmSync(parent, { recursive: true, force: true });
