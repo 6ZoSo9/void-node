@@ -54,6 +54,10 @@ grep -Fq 'group_or_world_writable' "$IMPORTER" ||
   fail "store_directory_mode_guard_missing"
 grep -Fq 'not_owned_by_operator' "$IMPORTER" ||
   fail "operator_ownership_guard_missing"
+grep -Fq 'source_before = os.lstat(src)' "$IMPORTER" ||
+  fail "source_lstat_guard_missing"
+grep -Fq 'os.open(src, os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC)' "$IMPORTER" ||
+  fail "source_nofollow_open_missing"
 
 node - "$SOURCE" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
 const assert=require("node:assert/strict");
@@ -184,6 +188,21 @@ for bad in "." ".." "../escape" "bad/id" 'bad\id'; do
   fi
 done
 
+source_symlink_root="$tmp/source-symlink"
+mkdir -p "$source_symlink_root/data"
+printf 'VOID_SENTINEL_SECRET_MUST_NOT_PUBLISH\n' > "$source_symlink_root/secret.txt"
+ln -s "$source_symlink_root/secret.txt" "$source_symlink_root/source-link"
+if DATA_DIR="$source_symlink_root/data" bash "$IMPORTER" "$source_symlink_root/source-link" "$OBJECT_ID" >"$tmp/source-symlink.log" 2>&1; then
+  fail "source_symlink_accepted"
+fi
+test ! -e "$source_symlink_root/data/public-node/local-data-drop/objects/$OBJECT_ID" ||
+  fail "source_symlink_published_object"
+test ! -e "$source_symlink_root/data/public-node/local-data-drop/receipts/$OBJECT_ID.json" ||
+  fail "source_symlink_published_receipt"
+if grep -R -Fq "VOID_SENTINEL_SECRET_MUST_NOT_PUBLISH" "$source_symlink_root/data" 2>/dev/null; then
+  fail "source_symlink_secret_leaked_into_data_dir"
+fi
+
 object_symlink_root="$tmp/object-symlink"
 mkdir -p   "$object_symlink_root/public-node/local-data-drop/objects"   "$object_symlink_root/public-node/local-data-drop/receipts"
 printf 'outside-object-sentinel\n' > "$object_symlink_root/outside-object.txt"
@@ -304,6 +323,7 @@ echo "dot_rejected=true"
 echo "dotdot_rejected=true"
 echo "create_only=true"
 echo "duplicate_rejected_without_mutation=true"
+echo "source_symlink_rejected_without_publication=true"
 echo "object_symlink_rejected_outside_unchanged=true"
 echo "receipt_symlink_rejected_outside_unchanged=true"
 echo "objects_directory_symlink_rejected=true"
