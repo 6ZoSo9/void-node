@@ -14,7 +14,95 @@ ARCHIVE="$INTAKE_DIR/archive/demo003-folder-fixture-$STAMP"
 FIXTURE_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
 VERIFY_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-verify-folder-fixture.sh"
 
-mkdir -p "$OUT" "$INTAKE_DIR/archive"
+umask 0077
+mkdir -p "$OUT"
+
+python3 - "$DATA_DIR" <<'PY'
+import os
+import stat
+import sys
+
+data_dir = sys.argv[1]
+euid = os.geteuid()
+O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+FLAGS = os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
+
+def fail(msg):
+    raise RuntimeError(msg)
+
+def same_identity(a, b):
+    return (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino)
+
+def open_component(parent_fd, name, label, create, require_custody):
+    if not name or name in (".", "..") or "/" in name:
+        fail(f"{label}_invalid_component")
+    if create:
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+    before = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if not stat.S_ISDIR(before.st_mode):
+        fail(f"{label}_not_direct_directory")
+    fd = os.open(name, FLAGS, dir_fd=parent_fd)
+    after = os.fstat(fd)
+    if not stat.S_ISDIR(after.st_mode) or not same_identity(before, after):
+        os.close(fd)
+        fail(f"{label}_identity_changed")
+    if require_custody and after.st_uid != euid:
+        os.close(fd)
+        fail(f"{label}_not_owned_by_operator")
+    if require_custody and (after.st_mode & 0o022):
+        os.close(fd)
+        fail(f"{label}_group_or_world_writable")
+    return fd
+
+absolute = os.path.isabs(data_dir)
+parts = [p for p in data_dir.split(os.sep) if p not in ("", ".")]
+if any(p == ".." for p in parts):
+    fail("data_dir_parent_component_rejected")
+
+fd = os.open("/" if absolute else ".", FLAGS)
+try:
+    for idx, part in enumerate(parts):
+        next_fd = open_component(
+            fd,
+            part,
+            f"data_dir_component_{idx}",
+            True,
+            idx == len(parts) - 1,
+        )
+        os.close(fd)
+        fd = next_fd
+
+    if not parts:
+        root = os.fstat(fd)
+        if root.st_uid != euid:
+            fail("data_dir_not_owned_by_operator")
+        if root.st_mode & 0o022:
+            fail("data_dir_group_or_world_writable")
+
+    public_fd = open_component(fd, "public-node", "public_node_dir", True, True)
+    base_fd = open_component(
+        public_fd,
+        "local-data-drop-demo003-folder-fixtures",
+        "demo003_base_dir",
+        True,
+        True,
+    )
+    archive_fd = open_component(base_fd, "archive", "demo003_archive_dir", True, True)
+    for child in (archive_fd, base_fd, public_fd):
+        os.close(child)
+finally:
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+print("demo003_publication_ancestry_secure=true")
+PY
 
 echo "=== VOID Public Node Demo 003 Folder Intake v1 ==="
 echo "marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1"
@@ -160,4 +248,5 @@ echo "latest_atomic_publish=true"
 echo "latest_real_directory=true"
 echo "latest_symlink=false"
 echo "latest_file_modes_safe=true"
+echo "demo003_publication_ancestry_secure=true"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED"

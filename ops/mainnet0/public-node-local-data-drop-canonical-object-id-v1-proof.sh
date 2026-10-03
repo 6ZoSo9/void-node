@@ -94,6 +94,11 @@ grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
 grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
 grep -Fq 'listed.nlink !== 1n' "$READER" || fail "reader_link_count_guard_missing"
 grep -Fq '(listed.mode & 0o022n) !== 0n' "$READER" || fail "reader_write_mode_guard_missing"
+grep -Fq 'parentStat.uid !== euid' "$READER" || fail "reader_parent_owner_guard_missing"
+grep -Fq '(parentStat.mode & 0o022n) !== 0n' "$READER" || fail "reader_parent_write_mode_guard_missing"
+grep -Fq 'listed.uid !== euid' "$READER" || fail "reader_file_owner_guard_missing"
+grep -Fq 'demo003_publication_ancestry_secure=true' "$DEMO003_INTAKE" || fail "demo003_publication_ancestry_guard_missing"
+grep -Fq 'demo003_publication_ancestry_safe=true' "$DEMO003_STATUS" || fail "demo003_status_ancestry_guard_missing"
 grep -Fq "RENAME_EXCHANGE = 2" "$DEMO003_INTAKE" || fail "demo003_atomic_exchange_missing"
 grep -Fq 'find "$LATEST_STAGE" -type f -exec chmod 0644 {} +' "$DEMO003_INTAKE" || fail "demo003_file_mode_normalization_missing"
 grep -Fq 'find "$LATEST_STAGE" -type d -exec chmod 0755 {} +' "$DEMO003_INTAKE" || fail "demo003_directory_mode_normalization_missing"
@@ -171,6 +176,26 @@ NODE
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+
+demo003_fresh_data="$tmp/demo003-fresh-data"
+demo003_fresh_out="$tmp/demo003-fresh-intake"
+(
+  umask 0000
+  DATA_DIR="$demo003_fresh_data" OUT="$demo003_fresh_out" bash "$DEMO003_INTAKE"
+) >"$tmp/demo003-fresh-intake.log"
+demo003_fresh_base="$demo003_fresh_data/public-node/local-data-drop-demo003-folder-fixtures"
+for d in   "$demo003_fresh_data"   "$demo003_fresh_data/public-node"   "$demo003_fresh_base"   "$demo003_fresh_base/archive"; do
+  test -d "$d" && test ! -L "$d" || fail "demo003_fresh_ancestry_not_direct_directory:$d"
+  test "$(stat -c '%u' "$d")" = "$(id -u)" || fail "demo003_fresh_ancestry_wrong_owner:$d"
+  test -z "$(find "$d" -maxdepth 0 -perm /022 -print -quit)" || fail "demo003_fresh_ancestry_writable:$d"
+done
+grep -Fq "demo003_publication_ancestry_secure=true" "$tmp/demo003-fresh-intake.log" ||
+  fail "demo003_fresh_ancestry_not_reported"
+DATA_DIR="$demo003_fresh_data" bash "$DEMO003_STATUS" >"$tmp/demo003-fresh-status.log"
+grep -Fq "demo003_publication_ancestry_safe=true" "$tmp/demo003-fresh-status.log" ||
+  fail "demo003_fresh_status_ancestry_not_safe"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" "$tmp/demo003-fresh-status.log" ||
+  fail "demo003_fresh_status_not_green"
 
 demo003_data="$tmp/demo003-data"
 demo003_out="$tmp/demo003-intake"
@@ -598,6 +623,9 @@ echo "data_root_symlink_rejected=true"
 echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"
+echo "demo003_fresh_publication_ancestry_safe=true"
+echo "reader_parent_owner_mode_guard=true"
+echo "reader_file_owner_guard=true"
 echo "operator_owned_recovery_files=true"
 echo "writable_orphan_recovery_files_rejected=true"
 echo "hardlink_orphan_recovery_files_rejected=true"

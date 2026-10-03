@@ -32,6 +32,10 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
   ).O_DIRECTORY;
   if (typeof noFollow !== "number" || typeof directory !== "number") return null;
 
+  const euid =
+    typeof process.geteuid === "function" ? BigInt(process.geteuid()) : null;
+  if (euid === null) return null;
+
   const absolute = path.resolve(filePath);
   const parsed = path.parse(absolute);
   const parts = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean);
@@ -55,6 +59,15 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
       }
       fs.closeSync(fd);
       fd = nextFd;
+    }
+    const parentStat = fs.fstatSync(fd, { bigint: true });
+    if (
+      !parentStat.isDirectory() ||
+      parentStat.isSymbolicLink() ||
+      parentStat.uid !== euid ||
+      (parentStat.mode & 0o022n) !== 0n
+    ) {
+      return null;
     }
     const result = { fd, name };
     fd = -1;
@@ -83,7 +96,16 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
   try {
     const procPath = path.join(PROC_FD_ROOT_V1, String(parent.fd), parent.name);
     const listed = fs.lstatSync(procPath, { bigint: true });
-    if (!listed.isFile() || listed.isSymbolicLink() || listed.nlink !== 1n || (listed.mode & 0o022n) !== 0n) return null;
+    const euid =
+      typeof process.geteuid === "function" ? BigInt(process.geteuid()) : null;
+    if (
+      euid === null ||
+      !listed.isFile() ||
+      listed.isSymbolicLink() ||
+      listed.uid !== euid ||
+      listed.nlink !== 1n ||
+      (listed.mode & 0o022n) !== 0n
+    ) return null;
 
     fd = fs.openSync(procPath, fs.constants.O_RDONLY | noFollow);
     const opened = fs.fstatSync(fd, { bigint: true });
