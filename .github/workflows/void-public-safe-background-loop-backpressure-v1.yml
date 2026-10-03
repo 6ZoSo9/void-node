@@ -3,6 +3,7 @@ name: VOID public-safe background loop backpressure v1
 on:
   pull_request:
   push:
+    branches: [main]
 
 permissions:
   contents: read

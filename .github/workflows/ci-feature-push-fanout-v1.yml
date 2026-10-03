@@ -133,7 +133,7 @@ jobs:
           set -euo pipefail
           node scripts/prove_ci_feature_push_fanout_v1.mjs | tee "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN' "$RUNNER_TEMP/ci-fanout.log"
-          grep -Fx 'feature_push_targets=20' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'feature_push_targets=21' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'pr_supersession_targets=50' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'feature_branch_push_execution=false' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'main_push_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
