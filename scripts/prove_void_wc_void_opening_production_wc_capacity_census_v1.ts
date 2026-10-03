@@ -292,10 +292,14 @@ for (const source of [productionVisibilitySource, censusSource]) {
 
 for (const token of [
   "O_NOFOLLOW",
+  "O_DIRECTORY",
   "fs.openSync(file, fs.constants.O_RDONLY | noFollow)",
   "fs.fstatSync(fd, { bigint: true })",
   "direct_file_changed_during_read",
-  "dataInputStat.isSymbolicLink()",
+  "openBoundWcDirectoryV1",
+  "assertBoundWcDirectoryStableV1",
+  '"/proc/self/fd/"',
+  "wc_state_snapshot_directory_drift",
   "inputStat.isSymbolicLink()",
 ]) {
   assert.ok(censusSource.includes(token), `secure read boundary missing: ${token}`);
@@ -303,7 +307,9 @@ for (const token of [
 
 for (const token of [
   "readStableWcStateSnapshotV1(dataDir)",
+  "testOnlyAfterDirectoryBind",
   "wc_state_snapshot_drift",
+  "wc_state_snapshot_directory_drift",
   "MAX_REDEEMED_BYTES",
   "projectCanonicalWcStatesFromEntriesV1(",
   "canonicalLedgerEntriesFromSnapshotV1(",
@@ -485,6 +491,92 @@ try {
   }
 
   if (process.platform === "linux") {
+    const dataDirOriginal = path.join(temp, "data-original-after-swap");
+    const dataDirReplacement = path.join(temp, "data-replacement");
+    fs.mkdirSync(
+      path.join(dataDirReplacement, "wc_v1"),
+      { recursive: true, mode: 0o700 },
+    );
+    fs.writeFileSync(
+      path.join(dataDirReplacement, "wc_v1", "ledger.jsonl"),
+      driftBaseline,
+      { mode: 0o600 },
+    );
+    fs.writeFileSync(
+      path.join(dataDirReplacement, "wc_v1", "redeemed.jsonl"),
+      fs.readFileSync(redeemed),
+      { mode: 0o600 },
+    );
+    try {
+      assert.throws(
+        () =>
+          readStableWcStateSnapshotV1(
+            dataDir,
+            undefined,
+            () => {
+              fs.renameSync(dataDir, dataDirOriginal);
+              fs.renameSync(dataDirReplacement, dataDir);
+            },
+          ),
+        /wc_state_snapshot_directory_drift/u,
+      );
+    } finally {
+      if (fs.existsSync(dataDirOriginal)) {
+        if (fs.existsSync(dataDir)) {
+          fs.renameSync(dataDir, dataDirReplacement);
+        }
+        fs.renameSync(dataDirOriginal, dataDir);
+      }
+      fs.rmSync(dataDirReplacement, {
+        recursive: true,
+        force: true,
+      });
+    }
+    assert.equal(fs.readFileSync(ledger).equals(driftBaseline), true);
+
+    const wcDir = path.join(dataDir, "wc_v1");
+    const wcDirOriginal =
+      path.join(dataDir, "wc_v1-original-after-swap");
+    const wcDirReplacement =
+      path.join(dataDir, "wc_v1-replacement");
+    fs.mkdirSync(wcDirReplacement, { mode: 0o700 });
+    fs.writeFileSync(
+      path.join(wcDirReplacement, "ledger.jsonl"),
+      driftBaseline,
+      { mode: 0o600 },
+    );
+    fs.writeFileSync(
+      path.join(wcDirReplacement, "redeemed.jsonl"),
+      fs.readFileSync(redeemed),
+      { mode: 0o600 },
+    );
+    try {
+      assert.throws(
+        () =>
+          readStableWcStateSnapshotV1(
+            dataDir,
+            undefined,
+            () => {
+              fs.renameSync(wcDir, wcDirOriginal);
+              fs.renameSync(wcDirReplacement, wcDir);
+            },
+          ),
+        /wc_state_snapshot_directory_drift/u,
+      );
+    } finally {
+      if (fs.existsSync(wcDirOriginal)) {
+        if (fs.existsSync(wcDir)) {
+          fs.renameSync(wcDir, wcDirReplacement);
+        }
+        fs.renameSync(wcDirOriginal, wcDir);
+      }
+      fs.rmSync(wcDirReplacement, {
+        recursive: true,
+        force: true,
+      });
+    }
+    assert.equal(fs.readFileSync(ledger).equals(driftBaseline), true);
+
     const receiptRootLink = path.join(temp, "receipt-root-link");
     fs.symlinkSync(receiptRoot, receiptRootLink, "dir");
     runFailure(dataDir, receiptRootLink, /receipt_root_invalid/u);
@@ -660,6 +752,10 @@ try {
   console.log("canonical_wc_state_projection_reused=true");
   console.log("canonical_multi_account_projection_single_pass=true");
   console.log("stable_wc_state_snapshot=true");
+  console.log("wc_data_directory_identity_bound=true");
+  console.log("wc_state_directory_identity_bound=true");
+  console.log("whole_data_directory_replacement_rejected=true");
+  console.log("wc_state_directory_replacement_rejected=true");
   console.log("wc_state_snapshot_drift_fail_closed=true");
   console.log("historical_repair_feeds_canonical_projection=true");
   console.log("production_earned_lower_upper_bounds=true");
