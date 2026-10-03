@@ -21,6 +21,10 @@ on:
       - '.github/workflows/void-nimo-executed-runtime-v1.yml'
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   schedules:
     name: Executed runtime schedules (Node ${{ matrix.major }})
