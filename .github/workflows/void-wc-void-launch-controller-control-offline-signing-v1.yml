@@ -50,5 +50,13 @@ jobs:
 
       - run: npm ci
 
+      - name: Bind matrix Node to production absolute path
+        run: |
+          selected_node="$(command -v node)"
+          test -x "$selected_node"
+          sudo rm -f /usr/bin/node
+          sudo ln -s "$selected_node" /usr/bin/node
+          test "$(readlink -f /usr/bin/node)" = "$(readlink -f "$selected_node")"
+
       - name: Prove offline launch-controller control signer
         run: node scripts/prove_void_nimo_wc_void_launch_controller_control_signing_v1.mjs
