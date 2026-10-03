@@ -275,6 +275,17 @@ for (const token of [
   assert.ok(censusSource.includes(token), `census compatibility drift: ${token}`);
 }
 
+for (const token of [
+  "O_NOFOLLOW",
+  "fs.openSync(file, fs.constants.O_RDONLY | noFollow)",
+  "fs.fstatSync(fd, { bigint: true })",
+  "direct_file_changed_during_read",
+  "dataInputStat.isSymbolicLink()",
+  "inputStat.isSymbolicLink()",
+]) {
+  assert.ok(censusSource.includes(token), `secure read boundary missing: ${token}`);
+}
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-wc-capacity-census-proof-"),
 );
@@ -377,6 +388,16 @@ try {
   assert.equal(clean.raw.includes(accountA), false);
   assert.equal(clean.raw.includes(accountB), false);
   assert.equal(clean.raw.includes(temp), false);
+
+  if (process.platform === "linux") {
+    const receiptRootLink = path.join(temp, "receipt-root-link");
+    fs.symlinkSync(receiptRoot, receiptRootLink, "dir");
+    runFailure(dataDir, receiptRootLink, /receipt_root_invalid/u);
+
+    const dataDirLink = path.join(temp, "data-dir-link");
+    fs.symlinkSync(dataDir, dataDirLink, "dir");
+    runFailure(dataDirLink, receiptRoot, /data_dir_invalid/u);
+  }
 
   const receiptIdReuse = adapterReceipt(
     "c",
@@ -518,6 +539,8 @@ try {
   console.log("canonical_wc_state_projection_reused=true");
   console.log("production_earned_lower_upper_bounds=true");
   console.log("known_historical_ledger_compatibility_bound=true");
+  console.log("nofollow_receipt_read_boundary=true");
+  console.log("symlink_root_rejection=true");
   console.log("malformed_ledger_discovery_gap_fail_closed=true");
   console.log("depth_limited_discovery_gap_fail_closed=true");
   console.log("unreadable_directory_discovery_gap_fail_closed=" + String(process.platform === "linux"));
