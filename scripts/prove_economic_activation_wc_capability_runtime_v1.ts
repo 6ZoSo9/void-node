@@ -30,18 +30,54 @@ function append(file: string, value: any): void {
   fs.appendFileSync(file, JSON.stringify(value) + "\n");
 }
 
-function canonicalState(account: string): { earned: number; redeemable: number } {
+const WC_QUANTA_PER_WC_V1 = 1_000_000_000n;
+
+function wcDeltaQuanta(raw: unknown): bigint {
+  const value = String(raw);
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,9}))?$/.exec(value);
+  assert.ok(match, `invalid proof WC delta: ${value}`);
+  return (
+    BigInt(match[1]) * WC_QUANTA_PER_WC_V1 +
+    BigInt(String(match[2] || "").padEnd(9, "0") || "0")
+  );
+}
+
+function wcQuantaExact(value: bigint): string {
+  const whole = value / WC_QUANTA_PER_WC_V1;
+  const fraction = value % WC_QUANTA_PER_WC_V1;
+  if (fraction === 0n) return whole.toString();
+  return `${whole}.${fraction.toString().padStart(9, "0").replace(/0+$/, "")}`;
+}
+
+function wcCompat(value: bigint): number | null {
+  const exact = wcQuantaExact(value);
+  const compat = Number(exact);
+  return Number.isSafeInteger(compat) ? compat : null;
+}
+
+function canonicalState(account: string): Record<string, unknown> {
   const file = path.join(tmp, "wc_v1", "ledger.jsonl");
-  if (!fs.existsSync(file)) return { earned: 0, redeemable: 0 };
-  let earned = 0;
-  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    const entry = JSON.parse(line);
-    if (String(entry?.account || "") !== account) continue;
-    const delta = Number(entry?.delta || 0);
-    if (Number.isFinite(delta) && delta > 0) earned += delta;
+  let earnedQuanta = 0n;
+  if (fs.existsSync(file)) {
+    for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const entry = JSON.parse(line);
+      if (String(entry?.account || "") !== account) continue;
+      earnedQuanta += wcDeltaQuanta(entry?.delta);
+    }
   }
-  return { earned, redeemable: earned };
+  const exact = wcQuantaExact(earnedQuanta);
+  const compat = wcCompat(earnedQuanta);
+  return {
+    earned: compat,
+    redeemable: compat,
+    earned_exact: exact,
+    redeemable_exact: exact,
+    earned_quanta: earnedQuanta.toString(),
+    redeemable_quanta: earnedQuanta.toString(),
+    exact_decimals: 9,
+    numeric_authority: "nano_wc_fixed_point_v1",
+  };
 }
 
 const app: any = {
@@ -107,21 +143,30 @@ globalThis.fetch = (async (input: any, init?: RequestInit): Promise<Response> =>
 
   if (url.includes("/wc/runner/tick?dry=0&confirm=wcRunnerTick")) {
     tickCalls += 1;
-    append(path.join(tmp, "agent_v1", "receipts.jsonl"), receipt);
+    const tickReceipt =
+      String(body.account || "") === receipt.account
+        ? receipt
+        : {
+            ...receipt,
+            receipt_id: `rcpt_runtime_v1_${tickCalls}`,
+            job_id: `job_runtime_v1_${tickCalls}`,
+            account: String(body.account || ""),
+          };
+    append(path.join(tmp, "agent_v1", "receipts.jsonl"), tickReceipt);
     append(path.join(tmp, "agent", "jobs.jsonl"), {
-      job_id: receipt.job_id,
-      account: receipt.account,
-      kind: receipt.kind,
+      job_id: tickReceipt.job_id,
+      account: tickReceipt.account,
+      kind: tickReceipt.kind,
       status: "queued",
-      dataset_id: receipt.dataset_id,
+      dataset_id: tickReceipt.dataset_id,
     });
     append(path.join(tmp, "agent_v1", "job_state.jsonl"), {
-      job_id: receipt.job_id,
+      job_id: tickReceipt.job_id,
       status: "completed",
-      receipt_id: receipt.receipt_id,
-      dataset_id: receipt.dataset_id,
-      input_hash: receipt.input_hash,
-      output_hash: receipt.output_hash,
+      receipt_id: tickReceipt.receipt_id,
+      dataset_id: tickReceipt.dataset_id,
+      input_hash: tickReceipt.input_hash,
+      output_hash: tickReceipt.output_hash,
       verified: true,
     });
 
@@ -131,7 +176,7 @@ globalThis.fetch = (async (input: any, init?: RequestInit): Promise<Response> =>
       submit: {
         out: {
           worker: {
-            receipt,
+            receipt: tickReceipt,
           },
         },
       },
@@ -253,7 +298,14 @@ try {
   assert.equal(executed.status, 200);
   assert.equal(executed.body.ok, true);
   assert.equal(executed.body.wc.delta, 3);
+  assert.equal(executed.body.wc.delta_quanta, "3000000000");
   assert.equal(executed.body.wc.after, 3);
+  assert.equal(executed.body.wc.after_exact, "3");
+  assert.equal(executed.body.wc.after_quanta, "3000000000");
+  assert.equal(
+    executed.body.wc.numeric_authority,
+    "nano_wc_fixed_point_v1",
+  );
   assert.equal(executed.body.verified_receipt.verified, true);
   assert.equal(executed.body.internal.acceptance_credited, true);
   assert.equal(executed.body.internal.acceptance_duplicate, false);
@@ -289,6 +341,13 @@ try {
   );
   assert.equal(consumed.status, "completed");
   assert.equal(consumed.wc_delta, 3);
+  assert.equal(consumed.wc_delta_quanta, "3000000000");
+  assert.equal(consumed.canonical_redeemable_after_exact, "3");
+  assert.equal(
+    consumed.canonical_redeemable_after_quanta,
+    "3000000000",
+  );
+  assert.equal(consumed.numeric_authority, "nano_wc_fixed_point_v1");
   assert.equal(
     JSON.stringify(consumed).includes(issued.body.capability_token),
     false,
@@ -306,6 +365,96 @@ try {
       .trim()
       .split(/\r?\n/).length,
     1,
+  );
+
+  const highAccount = "outside-operator-high";
+  append(path.join(tmp, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: highAccount,
+    delta: Number.MAX_SAFE_INTEGER,
+  });
+  append(path.join(tmp, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: highAccount,
+    delta: 1,
+  });
+  assert.equal(canonicalState(highAccount).redeemable, null);
+  assert.equal(
+    canonicalState(highAccount).redeemable_exact,
+    "9007199254740992",
+  );
+
+  const highIssued = await call("POST", issueRoute, {
+    body: {
+      account: highAccount,
+      task_class: "datanet_fetch_verify",
+      ttl_ms: 60_000,
+    },
+  });
+  assert.equal(highIssued.status, 201);
+
+  const highExecuted = await call("POST", runRoute, {
+    headers: {
+      authorization: `Bearer ${highIssued.body.capability_token}`,
+    },
+    body: { account: highAccount },
+  });
+  assert.equal(highExecuted.status, 200);
+  assert.equal(highExecuted.body.ok, true);
+  assert.equal(highExecuted.body.wc.before, null);
+  assert.equal(
+    highExecuted.body.wc.before_exact,
+    "9007199254740992",
+  );
+  assert.equal(
+    highExecuted.body.wc.before_quanta,
+    "9007199254740992000000000",
+  );
+  assert.equal(highExecuted.body.wc.after, null);
+  assert.equal(
+    highExecuted.body.wc.after_exact,
+    "9007199254740995",
+  );
+  assert.equal(
+    highExecuted.body.wc.after_quanta,
+    "9007199254740995000000000",
+  );
+  assert.equal(highExecuted.body.wc.delta, 3);
+  assert.equal(
+    highExecuted.body.wc.delta_quanta,
+    "3000000000",
+  );
+  assert.equal(
+    highExecuted.body.wc.numeric_authority,
+    "nano_wc_fixed_point_v1",
+  );
+
+  const highConsumed = JSON.parse(
+    fs.readFileSync(
+      path.join(
+        tmp,
+        "wc_v1",
+        "public-capabilities-v1",
+        "consumed",
+        `${highIssued.body.ticket_id}.json`,
+      ),
+      "utf8",
+    ),
+  );
+  assert.equal(highConsumed.status, "completed");
+  assert.equal(highConsumed.wc_delta, 3);
+  assert.equal(highConsumed.wc_delta_quanta, "3000000000");
+  assert.equal(
+    highConsumed.canonical_redeemable_after_exact,
+    "9007199254740995",
+  );
+  assert.equal(
+    highConsumed.canonical_redeemable_after_quanta,
+    "9007199254740995000000000",
+  );
+  assert.equal(
+    highConsumed.numeric_authority,
+    "nano_wc_fixed_point_v1",
   );
 
   const expiring = await call("POST", issueRoute, {
