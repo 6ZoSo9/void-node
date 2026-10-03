@@ -20,7 +20,10 @@ grep -Fq "VOID_PUBLIC_NODE_ROUTE_MANIFEST_DOC_V1" docs/public/public-node-route-
 grep -Fq "/public-node/route-manifest.json" src/index.ts
 
 bash -n ops/mainnet0/public-node-self-check-snapshot-proof.sh
-grep -Fq "expected_route_count=25" ops/mainnet0/public-node-self-check-snapshot-proof.sh
+if grep -Eq '^echo "expected_route_count=[0-9]+"' ops/mainnet0/public-node-self-check-snapshot-proof.sh; then
+  echo "[fail] hardcoded self-check route count remains" >&2
+  exit 1
+fi
 
 npm run build
 echo "[ok] source/docs/build/self-check-proof-updated"
@@ -55,11 +58,12 @@ curl --max-time 10 -fsS "$BASE/public-node" > "$OUT/public-node.html"
 curl --max-time 10 -fsS "$BASE/public-node/route-index.json" > "$OUT/route-index.json"
 curl --max-time 10 -fsS "$BASE/public-node/self-check-snapshot.json" > "$OUT/self-check-snapshot.json"
 
-node - "$OUT/route-manifest.json" "$OUT/route-index.json" "$OUT/self-check-snapshot.json" <<'NODE'
+node - "$OUT/route-manifest.json" "$OUT/route-index.json" "$OUT/self-check-snapshot.json" "$BASE" <<'NODE'
 const fs = require("fs");
 const manifest = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const idx = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const snap = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
+const base = process.argv[5];
 
 function ok(x, msg) {
   if (!x) {
@@ -71,10 +75,12 @@ function ok(x, msg) {
 ok(manifest.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", "manifest marker");
 ok(manifest.purpose === "canonical_public_node_route_manifest", "purpose");
 ok(manifest.status === "public_node_route_manifest_ready", "status");
-ok(manifest.effective_base_url === "http://127.0.0.1:4141", "effective base");
+ok(manifest.effective_base_url === base, "effective base");
 ok(Array.isArray(manifest.routes), "routes array");
 ok(manifest.route_count === manifest.routes.length, "route count matches");
-ok(manifest.route_count === 25, "route count 14");
+const manifestPaths = manifest.routes.map((row) => row && row.path);
+ok(manifestPaths.every((route) => typeof route === "string" && route.length > 0), "manifest route path");
+ok(new Set(manifestPaths).size === manifestPaths.length, "manifest route paths unique");
 
 const required = [
   ["/.well-known/void-public-node.json", "VOID_PUBLIC_NODE_AGENT_DISCOVERY_V1"],
@@ -113,16 +119,31 @@ ok(manifest.policy.validator_mutation === false, "no validator mutation");
 
 ok(idx.routes.some(r => r.path === "/public-node/route-manifest.json" && r.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"), "route index manifest entry");
 ok(snap.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", "self-check still works");
-ok(snap.expected_route_count === 25, "self-check route count 14");
+ok(Array.isArray(snap.expected_routes), "self-check route array");
+ok(snap.expected_route_count === snap.expected_routes.length, "self-check count matches");
+ok(new Set(snap.expected_routes).size === snap.expected_routes.length, "self-check routes unique");
+for (const route of snap.expected_routes) {
+  ok(manifestPaths.includes(route), "self-check route missing from canonical manifest: " + route);
+}
+ok(manifestPaths.length >= snap.expected_routes.length, "canonical manifest covers self-check core");
 ok(snap.expected_routes.includes("/public-node/route-manifest.json"), "self-check includes manifest");
 ok(snap.checks.route_manifest_present === true, "self-check manifest present");
 
+const manifestOnly = manifestPaths.filter((route) => !snap.expected_routes.includes(route));
 console.log("[ok] json route manifest");
+console.log("route_count=" + manifestPaths.length);
+console.log("self_check_expected_route_count=" + snap.expected_routes.length);
+console.log("manifest_only_route_count=" + manifestOnly.length);
+console.log("self_check_expected_routes_subset_of_manifest=true");
 NODE
 
 grep -Fq "VOID_PUBLIC_NODE_ROUTE_MANIFEST_UI_V1" "$OUT/public-node.html"
 grep -Fq "/public-node/route-manifest.json" "$OUT/public-node.html"
 grep -Fq "VOID_PUBLIC_NODE_ROUTE_MANIFEST_DOC_V1" docs/public/public-node-route-manifest.md
+
+ROUTE_COUNT="$(node -e 'const fs=require("fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.routes.length));' "$OUT/route-manifest.json")"
+SELF_ROUTE_COUNT="$(node -e 'const fs=require("fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.expected_routes.length));' "$OUT/self-check-snapshot.json")"
+MANIFEST_ONLY_COUNT="$((ROUTE_COUNT - SELF_ROUTE_COUNT))"
 
 echo "marker=VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1"
 echo "route=/public-node/route-manifest.json"
@@ -131,8 +152,10 @@ echo "doc=docs/public/public-node-route-manifest.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_route_manifest_ready"
-echo "route_count=25"
-echo "self_check_expected_route_count=25"
+echo "route_count=$ROUTE_COUNT"
+echo "self_check_expected_route_count=$SELF_ROUTE_COUNT"
+echo "manifest_only_route_count=$MANIFEST_ONLY_COUNT"
+echo "self_check_expected_routes_subset_of_manifest=true"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"
