@@ -66,11 +66,19 @@ if [[ "${VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_MODE:-0}" == "1" ]]; then
   printf '%s\n'     'Presale request intake is not activated. Do not send funds.'     > "$tmp/hold-good.html"
   validate_participant_copy_for_rail_state hold "$tmp/hold-good.html"
 
-  printf '%s\n'     'Presale request intake is not activated. Base USDC active.'     > "$tmp/hold-bad.html"
-  if validate_participant_copy_for_rail_state hold "$tmp/hold-bad.html"; then
-    echo "[fail] HOLD contradiction fixture unexpectedly passed" >&2
-    exit 1
-  fi
+  for active_claim in \
+    'Base USDC active.' \
+    'Base native USDC now.' \
+    'Base USDC preflight ready.'
+  do
+    printf '%s\n' \
+      "Presale request intake is not activated. $active_claim" \
+      > "$tmp/hold-bad.html"
+    if validate_participant_copy_for_rail_state hold "$tmp/hold-bad.html"; then
+      echo "[fail] HOLD contradiction fixture unexpectedly passed: $active_claim" >&2
+      exit 1
+    fi
+  done
 
   printf '%s\n'     'Base request intake is OPEN.'     'Ethereum native USDC is approved but NOT ACTIVE until OPEN.'     > "$tmp/base-good.html"
   validate_participant_copy_for_rail_state     base_open_ethereum_hold "$tmp/base-good.html"
@@ -78,18 +86,30 @@ if [[ "${VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_MODE:-0}" == "1" ]]; then
   printf '%s\n'     'Base and Ethereum request intake are OPEN.'     > "$tmp/dual-good.html"
   validate_participant_copy_for_rail_state     base_and_ethereum_open "$tmp/dual-good.html"
 
-  printf '%s\n'     'Base and Ethereum request intake are OPEN.'     'Base USDC · ETH pending'     > "$tmp/dual-bad.html"
-  if validate_participant_copy_for_rail_state     base_and_ethereum_open "$tmp/dual-bad.html"; then
-    echo "[fail] dual-rail contradiction fixture unexpectedly passed" >&2
-    exit 1
-  fi
+  for stale_claim in \
+    'Base USDC · ETH pending' \
+    'Base native USDC now' \
+    'Base USDC preflight ready'
+  do
+    printf '%s\n' \
+      'Base and Ethereum request intake are OPEN.' \
+      "$stale_claim" \
+      > "$tmp/dual-bad.html"
+    if validate_participant_copy_for_rail_state \
+      base_and_ethereum_open "$tmp/dual-bad.html"; then
+      echo "[fail] dual-rail contradiction fixture unexpectedly passed: $stale_claim" >&2
+      exit 1
+    fi
+  done
 
   echo "VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_V1_GREEN"
   echo "hold_copy_case_green=true"
   echo "hold_active_claim_adversary_green=true"
+  echo "hold_current_base_active_variants_rejected=true"
   echo "base_open_ethereum_hold_case_green=true"
   echo "dual_rail_open_case_green=true"
   echo "dual_rail_pending_adversary_green=true"
+  echo "dual_rail_stale_base_variants_rejected=true"
   exit 0
 fi
 
