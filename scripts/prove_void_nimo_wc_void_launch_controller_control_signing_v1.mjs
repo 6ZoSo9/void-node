@@ -21,6 +21,7 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   reviewedOfflineSigningRuntimeV1,
   signControlChallengeCoreV1,
+  testOnlyReadTransferredControlChallengeV1,
   validateSanitizedOfflineSignerEnvironmentV1,
 } from "../ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs";
 
@@ -111,6 +112,61 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     assert.match(result.stdout, /private_key_access=false/u);
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+// Adversary for the historical pre-pin realpath race: when the canonical-path
+// observation fires, swap the ancestor directory. Old ordering would then pin
+// and read the replacement; descriptor-first ordering has already pinned the
+// original inode and must reject the original pathname rebinding.
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-offline-signer-path-race-"),
+  );
+  const active = path.join(root, "active");
+  const replacement = path.join(root, "replacement");
+  const displaced = path.join(root, "displaced");
+  fs.mkdirSync(active, { mode: 0o700 });
+  fs.mkdirSync(replacement, { mode: 0o700 });
+  const target = path.join(active, "challenge.json");
+  const replacementTarget = path.join(replacement, "challenge.json");
+  const challengeBytes = Buffer.from(
+    JSON.stringify(challenge, null, 2) + "\n",
+    "utf8",
+  );
+  fs.writeFileSync(target, challengeBytes, { mode: 0o600 });
+  fs.writeFileSync(replacementTarget, challengeBytes, { mode: 0o600 });
+  fs.chmodSync(target, 0o600);
+  fs.chmodSync(replacementTarget, 0o600);
+  const challengeSha = crypto
+    .createHash("sha256")
+    .update(challengeBytes)
+    .digest("hex");
+
+  const originalNative = fs.realpathSync.native;
+  let swapped = false;
+  fs.realpathSync.native = function injectedRealpath(candidate, ...args) {
+    const resolved = originalNative(candidate, ...args);
+    if (!swapped && candidate === target) {
+      fs.renameSync(active, displaced);
+      fs.renameSync(replacement, active);
+      swapped = true;
+    }
+    return resolved;
+  };
+  try {
+    assert.throws(
+      () =>
+        testOnlyReadTransferredControlChallengeV1(
+          target,
+          challengeSha,
+        ),
+      /control_challenge_original_path_not_bound_to_pinned_file/u,
+    );
+    assert.equal(swapped, true);
+  } finally {
+    fs.realpathSync.native = originalNative;
+    fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
@@ -347,6 +403,30 @@ assert.equal(
   ),
   true,
 );
+{
+  const modeBranch = launcherSource.indexOf(
+    'if [[ "$mode" == "preflight" ]]',
+  );
+  const preflightFalse = launcherSource.indexOf(
+    "private_key_access=false",
+    modeBranch,
+  );
+  const branchEnd = launcherSource.indexOf("\nfi\n", modeBranch);
+  const signTrue = launcherSource.indexOf(
+    "private_key_access=true",
+    branchEnd,
+  );
+  const execIndex = launcherSource.indexOf("exec /usr/bin/env -i");
+  assert.ok(modeBranch >= 0 && branchEnd > modeBranch);
+  assert.ok(
+    preflightFalse > modeBranch && preflightFalse < branchEnd,
+    "false key-access fact must be emitted only in preflight branch",
+  );
+  assert.ok(
+    signTrue > branchEnd && signTrue < execIndex,
+    "sign mode must announce true key access after preflight branch and before exec",
+  );
+}
 assert.equal(
   launcherSource.indexOf("private_key_access=true") <
     launcherSource.indexOf("exec /usr/bin/env -i"),
@@ -569,6 +649,7 @@ console.log("private_key_whitespace_normalization=false");
 console.log("canonical_input_paths_required=true");
 console.log("descriptor_chain_is_first_trusted_path_observation=true");
 console.log("unpinned_realpath_precheck=false");
+console.log("ancestor_swap_after_pin_rejected=true");
 console.log("original_path_rebound_to_pinned_inode=true");
 console.log("pinned_parent_directory_chain=true");
 console.log("preopen_path_identity_bound=true");
