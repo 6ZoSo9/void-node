@@ -109,6 +109,9 @@ let safeRunner = true;
 let enableCalls = 0;
 let disableCalls = 0;
 let tickCalls = 0;
+const balanceFetchCounts = new Map<string, number>();
+const failPostCreditBalanceFor = new Set<string>();
+const failRunnerDisableFor = new Set<string>();
 
 globalThis.fetch = (async (input: any, init?: RequestInit): Promise<Response> => {
   const url = String(input);
@@ -125,6 +128,14 @@ globalThis.fetch = (async (input: any, init?: RequestInit): Promise<Response> =>
 
   if (url.includes("/wc/redeemable?account=")) {
     const account = decodeURIComponent(url.split("account=")[1] || "");
+    const count = Number(balanceFetchCounts.get(account) || 0) + 1;
+    balanceFetchCounts.set(account, count);
+    if (failPostCreditBalanceFor.has(account) && count >= 2) {
+      return jsonResponse(
+        { ok: false, error: "injected_post_credit_balance_failure" },
+        503,
+      );
+    }
     return jsonResponse({ ok: true, ...canonicalState(account) });
   }
 
@@ -138,6 +149,12 @@ globalThis.fetch = (async (input: any, init?: RequestInit): Promise<Response> =>
       return jsonResponse({ ok: true, enabled: true });
     }
     disableCalls += 1;
+    if (failRunnerDisableFor.has(String(body.account || ""))) {
+      return jsonResponse(
+        { ok: false, error: "injected_runner_disable_failure" },
+        503,
+      );
+    }
     return jsonResponse({ ok: true, enabled: false });
   }
 
@@ -233,12 +250,63 @@ function issuedRecord(ticketId: string): any {
   );
 }
 
+function consumedRecord(ticketId: string): any {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(tmp, "wc_v1", "public-capabilities-v1", "consumed", `${ticketId}.json`),
+      "utf8",
+    ),
+  );
+}
+
+function ledgerEntriesFor(account: string): any[] {
+  const ledgerFile = path.join(tmp, "wc_v1", "ledger.jsonl");
+  if (!fs.existsSync(ledgerFile)) return [];
+  return fs
+    .readFileSync(ledgerFile, "utf8")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line))
+    .filter((entry) => String(entry?.account || "") === account);
+}
+
 try {
   const moduleUrl =
     pathToFileURL(path.join(process.cwd(), "src", "economic", "wc_public_capability_v1.ts")).href +
     `?runtime-proof=${Date.now()}`;
 
-  await import(moduleUrl);
+  const capabilityModule = await import(moduleUrl);
+  const validateProjection =
+    capabilityModule.validateCanonicalWcAcceptanceProjectionV1;
+  assert.equal(typeof validateProjection, "function");
+
+  const validProjection = {
+    credited: true,
+    duplicate: false,
+    award_wc: 3,
+    accepted_delta_wc: 3,
+    accepted_delta_quanta: "3000000000",
+    canonical_redeemable_before: 0,
+    canonical_redeemable_before_exact: "0",
+    canonical_redeemable_before_quanta: "0",
+    canonical_redeemable_after_local: 3,
+    canonical_redeemable_after_local_exact: "3",
+    canonical_redeemable_after_local_quanta: "3000000000",
+  };
+  assert.equal(validateProjection(validProjection).afterExact, "3");
+  for (const [patch, code] of [
+    [{ canonical_redeemable_before_exact: "1" }, "canonical_wc_before_exact_mismatch"],
+    [{ canonical_redeemable_after_local_exact: "4" }, "canonical_wc_after_exact_mismatch"],
+    [{ canonical_redeemable_after_local_quanta: "4000000000" }, "canonical_wc_delta_mismatch"],
+    [{ canonical_redeemable_before: null }, "canonical_wc_before_compat_mismatch"],
+    [{ canonical_redeemable_after_local: null }, "canonical_wc_after_compat_mismatch"],
+  ] as const) {
+    assert.throws(
+      () => validateProjection({ ...validProjection, ...patch }),
+      new RegExp(code),
+    );
+  }
+
   await new Promise((resolve) => setTimeout(resolve, 400));
 
   const issueRoute = "/__void/operator/wc-public-capability-v1/issue";
@@ -456,6 +524,102 @@ try {
     highConsumed.numeric_authority,
     "nano_wc_fixed_point_v1",
   );
+
+  const balanceFailureAccount = "outside-operator-balance-failure";
+  const balanceFailureIssued = await call("POST", issueRoute, {
+    body: {
+      account: balanceFailureAccount,
+      task_class: "datanet_fetch_verify",
+      ttl_ms: 60_000,
+    },
+  });
+  assert.equal(balanceFailureIssued.status, 201);
+  failPostCreditBalanceFor.add(balanceFailureAccount);
+
+  const balanceFailure = await call("POST", runRoute, {
+    headers: {
+      authorization: `Bearer ${balanceFailureIssued.body.capability_token}`,
+    },
+    body: { account: balanceFailureAccount },
+  });
+  assert.equal(balanceFailure.status, 503);
+  assert.equal(
+    balanceFailure.body.error,
+    "capability_credited_reconciliation_required",
+  );
+  assert.equal(balanceFailure.body.credit_acknowledged, true);
+  assert.equal(balanceFailure.body.wc.delta_quanta, "3000000000");
+  const balanceFailureConsumed = consumedRecord(
+    balanceFailureIssued.body.ticket_id,
+  );
+  assert.equal(
+    balanceFailureConsumed.status,
+    "credited_reconciliation_required",
+  );
+  assert.equal(balanceFailureConsumed.credit_acknowledged, true);
+  assert.equal(balanceFailureConsumed.wc_delta_quanta, "3000000000");
+  assert.match(
+    balanceFailureConsumed.reconciliation_reason,
+    /injected_post_credit_balance_failure/,
+  );
+  assert.equal(ledgerEntriesFor(balanceFailureAccount).length, 1);
+
+  const balanceFailureReplay = await call("POST", runRoute, {
+    headers: {
+      authorization: `Bearer ${balanceFailureIssued.body.capability_token}`,
+    },
+    body: { account: balanceFailureAccount },
+  });
+  assert.equal(balanceFailureReplay.status, 409);
+  assert.equal(ledgerEntriesFor(balanceFailureAccount).length, 1);
+
+  const disableFailureAccount = "outside-operator-disable-failure";
+  const disableFailureIssued = await call("POST", issueRoute, {
+    body: {
+      account: disableFailureAccount,
+      task_class: "datanet_fetch_verify",
+      ttl_ms: 60_000,
+    },
+  });
+  assert.equal(disableFailureIssued.status, 201);
+  failRunnerDisableFor.add(disableFailureAccount);
+
+  const disableFailure = await call("POST", runRoute, {
+    headers: {
+      authorization: `Bearer ${disableFailureIssued.body.capability_token}`,
+    },
+    body: { account: disableFailureAccount },
+  });
+  assert.equal(disableFailure.status, 503);
+  assert.equal(
+    disableFailure.body.error,
+    "capability_credited_reconciliation_required",
+  );
+  assert.equal(disableFailure.body.credit_acknowledged, true);
+  assert.equal(disableFailure.body.runner_disabled, false);
+  const disableFailureConsumed = consumedRecord(
+    disableFailureIssued.body.ticket_id,
+  );
+  assert.equal(
+    disableFailureConsumed.status,
+    "credited_reconciliation_required",
+  );
+  assert.equal(disableFailureConsumed.credit_acknowledged, true);
+  assert.equal(disableFailureConsumed.cleanup_status, "required");
+  assert.match(
+    disableFailureConsumed.reconciliation_reason,
+    /injected_runner_disable_failure/,
+  );
+  assert.equal(ledgerEntriesFor(disableFailureAccount).length, 1);
+
+  const disableFailureReplay = await call("POST", runRoute, {
+    headers: {
+      authorization: `Bearer ${disableFailureIssued.body.capability_token}`,
+    },
+    body: { account: disableFailureAccount },
+  });
+  assert.equal(disableFailureReplay.status, 409);
+  assert.equal(ledgerEntriesFor(disableFailureAccount).length, 1);
 
   const expiring = await call("POST", issueRoute, {
     body: { account: "outside-operator-2", ttl_ms: 60_000 },

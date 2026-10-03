@@ -57,20 +57,88 @@ function exactNonnegativeWcQuantaV1(raw: unknown, code: string): bigint {
   return BigInt(raw);
 }
 
-function exactNonnegativeWcDecimalV1(raw: unknown, code: string): string {
-  if (
-    typeof raw !== "string" ||
-    !/^(0|[1-9][0-9]*)(?:\.[0-9]{1,9})?$/.test(raw)
-  ) {
-    throw new Error(code);
-  }
-  return raw;
+const WC_QUANTA_PER_WC_V1 = 1_000_000_000n;
+
+function wcExactFromQuantaV1(value: bigint): string {
+  const whole = value / WC_QUANTA_PER_WC_V1;
+  const fraction = value % WC_QUANTA_PER_WC_V1;
+  if (fraction === 0n) return whole.toString();
+  return `${whole}.${fraction.toString().padStart(9, "0").replace(/0+$/, "")}`;
 }
 
-function wcCompatProjectionV1(raw: unknown): number | null {
-  return typeof raw === "number" && Number.isFinite(raw)
-    ? raw
-    : null;
+function wcCompatFromQuantaV1(value: bigint): number | null {
+  const projection = Number(wcExactFromQuantaV1(value));
+  return Number.isSafeInteger(projection) ? projection : null;
+}
+
+export function validateCanonicalWcAcceptanceProjectionV1(
+  acceptance: Record<string, any>,
+): {
+  acceptedDeltaWc: number;
+  acceptedDeltaQuanta: bigint;
+  beforeQuanta: bigint;
+  afterQuanta: bigint;
+  beforeExact: string;
+  afterExact: string;
+  beforeRedeemable: number | null;
+  afterRedeemable: number | null;
+} {
+  if (
+    acceptance?.credited !== true ||
+    acceptance?.duplicate === true ||
+    acceptance?.award_wc !== 3 ||
+    acceptance?.accepted_delta_wc !== 3
+  ) {
+    throw new Error("verified_receipt_acceptance_failed");
+  }
+
+  const acceptedDeltaQuanta = exactNonnegativeWcQuantaV1(
+    acceptance?.accepted_delta_quanta,
+    "accepted_wc_delta_quanta_invalid",
+  );
+  const beforeQuanta = exactNonnegativeWcQuantaV1(
+    acceptance?.canonical_redeemable_before_quanta,
+    "canonical_wc_before_quanta_invalid",
+  );
+  const afterQuanta = exactNonnegativeWcQuantaV1(
+    acceptance?.canonical_redeemable_after_local_quanta,
+    "canonical_wc_after_quanta_invalid",
+  );
+  if (
+    acceptedDeltaQuanta !== 3n * WC_QUANTA_PER_WC_V1 ||
+    afterQuanta - beforeQuanta !== acceptedDeltaQuanta
+  ) {
+    throw new Error("canonical_wc_delta_mismatch");
+  }
+
+  const beforeExact = wcExactFromQuantaV1(beforeQuanta);
+  const afterExact = wcExactFromQuantaV1(afterQuanta);
+  if (acceptance?.canonical_redeemable_before_exact !== beforeExact) {
+    throw new Error("canonical_wc_before_exact_mismatch");
+  }
+  if (acceptance?.canonical_redeemable_after_local_exact !== afterExact) {
+    throw new Error("canonical_wc_after_exact_mismatch");
+  }
+
+  const beforeRedeemable = wcCompatFromQuantaV1(beforeQuanta);
+  const afterRedeemable = wcCompatFromQuantaV1(afterQuanta);
+  if (!Object.is(acceptance?.canonical_redeemable_before, beforeRedeemable)) {
+    throw new Error("canonical_wc_before_compat_mismatch");
+  }
+  if (!Object.is(acceptance?.canonical_redeemable_after_local, afterRedeemable)) {
+    throw new Error("canonical_wc_after_compat_mismatch");
+  }
+
+  return {
+    acceptedDeltaWc: 3,
+    acceptedDeltaQuanta,
+    beforeQuanta,
+    afterQuanta,
+    beforeExact,
+    afterExact,
+    beforeRedeemable,
+    afterRedeemable,
+  };
 }
 
 function dataDir(): string {
@@ -454,6 +522,8 @@ async function runCapability(req: any, res: any): Promise<any> {
   });
 
   let runnerEnabledByCapability = false;
+  let creditCommitted = false;
+  let committedCredit: JsonObject | null = null;
 
   const disableRunner = async (): Promise<JsonObject | null> => {
     if (!runnerEnabledByCapability) return null;
@@ -547,51 +617,50 @@ async function runCapability(req: any, res: any): Promise<any> {
       source: "wc_public_capability_v1",
     });
 
-    const acceptedDeltaWc = Number(acceptance?.accepted_delta_wc);
-    if (
-      acceptance?.credited !== true ||
-      acceptance?.duplicate === true ||
-      Number(acceptance?.award_wc || 0) !== 3 ||
-      acceptedDeltaWc !== 3
-    ) {
-      throw new Error("verified_receipt_acceptance_failed");
-    }
+    creditCommitted =
+      acceptance?.credited === true && acceptance?.duplicate !== true;
 
-    const acceptedDeltaQuanta = exactNonnegativeWcQuantaV1(
-      acceptance?.accepted_delta_quanta,
-      "accepted_wc_delta_quanta_invalid",
-    );
-    const beforeQuanta = exactNonnegativeWcQuantaV1(
-      acceptance?.canonical_redeemable_before_quanta,
-      "canonical_wc_before_quanta_invalid",
-    );
-    const afterQuanta = exactNonnegativeWcQuantaV1(
-      acceptance?.canonical_redeemable_after_local_quanta,
-      "canonical_wc_after_quanta_invalid",
-    );
-    const awardQuanta = BigInt(acceptedDeltaWc) * 1_000_000_000n;
-    if (
-      acceptedDeltaQuanta !== awardQuanta ||
-      afterQuanta - beforeQuanta !== acceptedDeltaQuanta
-    ) {
-      throw new Error("canonical_wc_delta_mismatch");
-    }
+    const {
+      acceptedDeltaWc: delta,
+      acceptedDeltaQuanta,
+      beforeQuanta,
+      afterQuanta,
+      beforeExact,
+      afterExact,
+      beforeRedeemable,
+      afterRedeemable,
+    } = validateCanonicalWcAcceptanceProjectionV1(acceptance);
 
-    const beforeExact = exactNonnegativeWcDecimalV1(
-      acceptance?.canonical_redeemable_before_exact,
-      "canonical_wc_before_exact_invalid",
-    );
-    const afterExact = exactNonnegativeWcDecimalV1(
-      acceptance?.canonical_redeemable_after_local_exact,
-      "canonical_wc_after_exact_invalid",
-    );
-    const beforeRedeemable = wcCompatProjectionV1(
-      acceptance?.canonical_redeemable_before,
-    );
-    const afterRedeemable = wcCompatProjectionV1(
-      acceptance?.canonical_redeemable_after_local,
-    );
-    const delta = acceptedDeltaWc;
+    committedCredit = {
+      credit_acknowledged: true,
+      receipt_id: String(receipt.receipt_id || ""),
+      job_id: String(receipt.job_id || ""),
+      dataset_id: String(receipt.dataset_id || ""),
+      wc_delta: delta,
+      wc_delta_quanta: acceptedDeltaQuanta.toString(),
+      canonical_redeemable_before: beforeRedeemable,
+      canonical_redeemable_before_exact: beforeExact,
+      canonical_redeemable_before_quanta: beforeQuanta.toString(),
+      canonical_redeemable_after: afterRedeemable,
+      canonical_redeemable_after_exact: afterExact,
+      canonical_redeemable_after_quanta: afterQuanta.toString(),
+      numeric_authority: "nano_wc_fixed_point_v1",
+    };
+    updateConsumed(parsed.ticketId, {
+      status: "credited_pending_cleanup",
+      credited_at_ms: Date.now(),
+      ...committedCredit,
+    });
+    appendAudit({
+      event: "credit_committed",
+      ticket_id: parsed.ticketId,
+      account,
+      receipt_id: committedCredit.receipt_id,
+      job_id: committedCredit.job_id,
+      wc_delta: delta,
+      wc_delta_quanta: acceptedDeltaQuanta.toString(),
+      numeric_authority: "nano_wc_fixed_point_v1",
+    });
 
     // Preserve the public canonical-balance reachability gate without using
     // its nullable compatibility number as delta authority.
@@ -606,25 +675,15 @@ async function runCapability(req: any, res: any): Promise<any> {
     updateConsumed(parsed.ticketId, {
       status: "completed",
       completed_at_ms: Date.now(),
-      receipt_id: String(receipt.receipt_id || ""),
-      job_id: String(receipt.job_id || ""),
-      dataset_id: String(receipt.dataset_id || ""),
-      wc_delta: delta,
-      wc_delta_quanta: acceptedDeltaQuanta.toString(),
-      canonical_redeemable_after: afterRedeemable,
-      canonical_redeemable_after_exact: afterExact,
-      canonical_redeemable_after_quanta: afterQuanta.toString(),
-      numeric_authority: "nano_wc_fixed_point_v1",
+      cleanup_status: "completed",
     });
     appendAudit({
-      event: "credited",
+      event: "completed",
       ticket_id: parsed.ticketId,
       account,
       receipt_id: String(receipt.receipt_id || ""),
       job_id: String(receipt.job_id || ""),
-      wc_delta: delta,
-      wc_delta_quanta: acceptedDeltaQuanta.toString(),
-      numeric_authority: "nano_wc_fixed_point_v1",
+      runner_disabled: disableResult?.enabled === false,
     });
 
     return res.status(200).json({
@@ -684,6 +743,47 @@ async function runCapability(req: any, res: any): Promise<any> {
     const failureDetail = disableError
       ? `${String(error?.message || error)}; cleanup=${disableError}`
       : String(error?.message || error);
+
+    if (creditCommitted) {
+      updateConsumed(parsed.ticketId, {
+        status: "credited_reconciliation_required",
+        completed_at_ms: Date.now(),
+        credit_acknowledged: true,
+        ...(committedCredit || {}),
+        reconciliation_reason: failureDetail,
+        cleanup_status: runnerEnabledByCapability ? "required" : "completed",
+      });
+      appendAudit({
+        event: "credited_reconciliation_required",
+        ticket_id: parsed.ticketId,
+        account,
+        receipt_id: committedCredit?.receipt_id || null,
+        job_id: committedCredit?.job_id || null,
+        reason: failureDetail,
+        runner_disabled: !runnerEnabledByCapability,
+      });
+
+      return res.status(503).json({
+        ok: false,
+        marker: MARKER,
+        error: "capability_credited_reconciliation_required",
+        detail: failureDetail,
+        ticket_id: parsed.ticketId,
+        capability_consumed: true,
+        credit_acknowledged: true,
+        wc: committedCredit
+          ? {
+              after: committedCredit.canonical_redeemable_after,
+              after_exact: committedCredit.canonical_redeemable_after_exact,
+              after_quanta: committedCredit.canonical_redeemable_after_quanta,
+              delta: committedCredit.wc_delta,
+              delta_quanta: committedCredit.wc_delta_quanta,
+              numeric_authority: committedCredit.numeric_authority,
+            }
+          : null,
+        runner_disabled: !runnerEnabledByCapability,
+      });
+    }
 
     updateConsumed(parsed.ticketId, {
       status: "failed",
