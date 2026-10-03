@@ -34,7 +34,7 @@ const digest = (value) =>
     .digest("hex");
 
 const REVIEWED_MANIFEST_MARKER =
-  "REVIEWED_MANIFEST_MARKER";
+  "VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_MANIFEST_V1";
 const REVIEWED_MANIFEST_AUTHORITY = Object.freeze({
   source_only: true,
   explicit_input_only: true,
