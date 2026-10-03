@@ -916,16 +916,37 @@ assert.equal(
   false,
   "tracked worktree verification must not buffer whole files",
 );
-assert.equal(
-  launcherSource.includes('digest.update(b"blob " + str(opened.st_size).encode("ascii") + b"\\0")'),
-  true,
-  "tracked worktree blob hashing must seed Git blob SHA-1 incrementally",
-);
-assert.equal(
-  launcherSource.includes("digest.update(chunk)"),
-  true,
-  "tracked worktree blob hashing must update SHA-1 per bounded chunk",
-);
+{
+  const regularHashStart = launcherSource.indexOf(
+    "digest = hashlib.sha1()",
+    launcherSource.indexOf("opened = os.fstat(fd)"),
+  );
+  const blobHeaderAt = launcherSource.indexOf(
+    'b"blob " + str(opened.st_size).encode("ascii") + b"\\0"',
+    regularHashStart,
+  );
+  const boundedLoopAt = launcherSource.indexOf(
+    "while remaining:",
+    blobHeaderAt,
+  );
+  const chunkUpdateAt = launcherSource.indexOf(
+    "digest.update(chunk)",
+    boundedLoopAt,
+  );
+  assert.ok(regularHashStart >= 0, "tracked worktree SHA-1 init missing");
+  assert.ok(
+    blobHeaderAt > regularHashStart,
+    "tracked worktree blob hashing must seed the Git blob header",
+  );
+  assert.ok(
+    boundedLoopAt > blobHeaderAt,
+    "tracked worktree blob header must be seeded before bounded reads",
+  );
+  assert.ok(
+    chunkUpdateAt > boundedLoopAt,
+    "tracked worktree blob hashing must update SHA-1 per bounded chunk",
+  );
+}
 assert.equal(
   operatorDoc.includes('cat-file", "blob", expected_blob'),
   true,
