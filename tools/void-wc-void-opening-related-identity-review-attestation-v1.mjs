@@ -102,7 +102,7 @@ const REVIEWED_MANIFEST_COMPILER_PATH =
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GIT = "/usr/bin/git";
 const REVIEWED_MANIFEST_MARKER_V1 =
-  "REVIEWED_MANIFEST_MARKER_V1";
+  "VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_MANIFEST_V1";
 const REVIEWED_MANIFEST_AUTHORITY_V1 = Object.freeze({
   source_only: true,
   explicit_input_only: true,
