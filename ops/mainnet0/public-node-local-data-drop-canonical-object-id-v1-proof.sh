@@ -38,14 +38,18 @@ if grep -Fq "^[A-Za-z0-9._-]{1,160}$" "$IMPORTER"; then
 fi
 grep -Fq '[ "$OBJECT_ID" = "." ] || [ "$OBJECT_ID" = ".." ]' "$IMPORTER" ||
   fail "importer_dot_component_guard_missing"
-grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SECURE_CREATE_ONLY_V1" "$IMPORTER" ||
-  fail "secure_create_only_marker_missing"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SECURE_STAGED_CREATE_ONLY_V2" "$IMPORTER" ||
+  fail "secure_staged_create_only_marker_missing"
 grep -Fq 'os.O_EXCL' "$IMPORTER" ||
   fail "create_only_open_flag_missing"
 grep -Fq 'O_NOFOLLOW' "$IMPORTER" ||
   fail "nofollow_open_flag_missing"
 grep -Fq 'follow_symlinks=False' "$IMPORTER" ||
   fail "nofollow_stat_guard_missing"
+grep -Fq 'os.link(' "$IMPORTER" ||
+  fail "atomic_hardlink_publish_missing"
+grep -Fq '.import-staging-v2' "$IMPORTER" ||
+  fail "unexposed_staging_directory_missing"
 
 node - "$SOURCE" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
 const assert=require("node:assert/strict");
@@ -55,7 +59,7 @@ const fs=require("node:fs");
 const [sourcePath,objectId,expectedObjectIdSha]=process.argv.slice(2);
 const source=fs.readFileSync(sourcePath,"utf8");
 const oldGrammar="^[a-zA-Z0-9._-]{1,160}$";
-const grammar="^[a-zA-Z0-9._:-]{1,160}$";
+const grammar="^[\\w.:-]{1,160}$";
 
 assert.equal(source.includes(oldGrammar),false,"legacy runtime grammar remains");
 assert.equal(
@@ -70,18 +74,18 @@ const routeStart=source.indexOf(
 assert.notEqual(routeStart,-1,"object route missing");
 const route=source.slice(routeStart,routeStart+1800);
 assert.equal(
-  route.includes('objectId === "." || objectId === ".."'),
+  route.includes('/^\\.\\.?$/.test(objectId)'),
   true,
   "object route must reject dot path components",
 );
 
-const allowed=/^[a-zA-Z0-9._:-]{1,160}$/;
+const allowed=/^[\w.:-]{1,160}$/;
 assert.equal(allowed.test(objectId),true,"canonical object ID rejected");
-for(const bad of ["bad/id","bad\\id","", "x".repeat(161)]){
+for(const bad of ["bad/id","bad\\id","", "x".repeat(161),".",".."]){
   assert.equal(
-    allowed.test(bad),
-    false,
-    "unsafe object ID accepted: "+JSON.stringify(bad),
+    bad === "." || bad === ".." ? /^\.\.?$/.test(bad) : allowed.test(bad),
+    bad === "." || bad === ".." ? true : false,
+    "runtime object ID boundary mismatch: "+JSON.stringify(bad),
   );
 }
 
@@ -104,6 +108,7 @@ DATA_DIR="$tmp/data" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" > "$tmp/import.log
 
 object="$tmp/data/public-node/local-data-drop/objects/$OBJECT_ID"
 receipt="$tmp/data/public-node/local-data-drop/receipts/$OBJECT_ID.json"
+staging="$tmp/data/public-node/local-data-drop/.import-staging-v2"
 
 test -f "$object" && test ! -L "$object" || fail "canonical_import_object_missing"
 test -f "$receipt" && test ! -L "$receipt" || fail "canonical_import_receipt_missing"
@@ -113,8 +118,14 @@ test "$(wc -c < "$object" | tr -d ' ')" = "$BYTE_LENGTH" ||
   fail "canonical_import_byte_length_mismatch"
 grep -Fq "create_only=true" "$tmp/import.log" ||
   fail "canonical_import_create_only_not_reported"
-grep -Fq "destination_nofollow=true" "$tmp/import.log" ||
-  fail "canonical_import_nofollow_not_reported"
+grep -Fq "ancestor_nofollow=true" "$tmp/import.log" ||
+  fail "canonical_import_ancestor_nofollow_not_reported"
+grep -Fq "staged_atomic_publication=true" "$tmp/import.log" ||
+  fail "canonical_import_staged_publication_not_reported"
+test -d "$staging" && test ! -L "$staging" ||
+  fail "staging_directory_missing_or_symlink"
+test -z "$(find "$staging" -mindepth 1 -maxdepth 1 -print -quit)" ||
+  fail "successful_import_left_staging_entry"
 
 node - "$receipt" "$OBJECT_ID" "$CONTENT_SHA256" "$BYTE_LENGTH" <<'NODE'
 const assert=require("node:assert/strict");
@@ -200,6 +211,64 @@ test -z "$(find "$receipt_dir_symlink_root/outside-receipts" -mindepth 1 -maxdep
 test ! -e "$receipt_dir_symlink_root/public-node/local-data-drop/objects/$OBJECT_ID" ||
   fail "receipts_directory_symlink_attempt_left_object"
 
+data_root_symlink_parent="$tmp/data-root-symlink"
+mkdir -p "$data_root_symlink_parent/outside"
+ln -s "$data_root_symlink_parent/outside" "$data_root_symlink_parent/alias"
+if DATA_DIR="$data_root_symlink_parent/alias" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/data-root-symlink.log" 2>&1; then
+  fail "data_root_symlink_accepted"
+fi
+test -z "$(find "$data_root_symlink_parent/outside" -mindepth 1 -maxdepth 1 -print -quit)" ||
+  fail "data_root_symlink_received_write"
+
+public_node_symlink_root="$tmp/public-node-symlink"
+mkdir -p "$public_node_symlink_root/data" "$public_node_symlink_root/outside"
+ln -s "$public_node_symlink_root/outside" "$public_node_symlink_root/data/public-node"
+if DATA_DIR="$public_node_symlink_root/data" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/public-node-symlink.log" 2>&1; then
+  fail "public_node_ancestor_symlink_accepted"
+fi
+test -z "$(find "$public_node_symlink_root/outside" -mindepth 1 -maxdepth 1 -print -quit)" ||
+  fail "public_node_ancestor_symlink_received_write"
+
+local_drop_symlink_root="$tmp/local-drop-symlink"
+mkdir -p   "$local_drop_symlink_root/data/public-node"   "$local_drop_symlink_root/outside"
+ln -s   "$local_drop_symlink_root/outside"   "$local_drop_symlink_root/data/public-node/local-data-drop"
+if DATA_DIR="$local_drop_symlink_root/data" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/local-drop-symlink.log" 2>&1; then
+  fail "local_drop_ancestor_symlink_accepted"
+fi
+test -z "$(find "$local_drop_symlink_root/outside" -mindepth 1 -maxdepth 1 -print -quit)" ||
+  fail "local_drop_ancestor_symlink_received_write"
+
+orphan_receipt_root="$tmp/orphan-receipt"
+mkdir -p   "$orphan_receipt_root/public-node/local-data-drop/objects"   "$orphan_receipt_root/public-node/local-data-drop/receipts"
+cp "$receipt" "$orphan_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
+orphan_receipt_before="$(sha256sum "$orphan_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" | awk '{print $1}')"
+DATA_DIR="$orphan_receipt_root" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/orphan-receipt.log"
+grep -Fq "recovered_orphan_receipt=true" "$tmp/orphan-receipt.log" ||
+  fail "orphan_receipt_recovery_not_reported"
+test "$(sha256sum "$orphan_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" | awk '{print $1}')" = "$orphan_receipt_before" ||
+  fail "orphan_receipt_recovery_rewrote_receipt"
+test "$(sha256sum "$orphan_receipt_root/public-node/local-data-drop/objects/$OBJECT_ID" | awk '{print $1}')" = "$CONTENT_SHA256" ||
+  fail "orphan_receipt_recovery_object_mismatch"
+
+orphan_object_root="$tmp/orphan-object"
+mkdir -p   "$orphan_object_root/public-node/local-data-drop/objects"   "$orphan_object_root/public-node/local-data-drop/receipts"
+cp "$object" "$orphan_object_root/public-node/local-data-drop/objects/$OBJECT_ID"
+orphan_object_before="$(sha256sum "$orphan_object_root/public-node/local-data-drop/objects/$OBJECT_ID" | awk '{print $1}')"
+DATA_DIR="$orphan_object_root" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/orphan-object.log"
+grep -Fq "recovered_orphan_object=true" "$tmp/orphan-object.log" ||
+  fail "orphan_object_recovery_not_reported"
+test "$(sha256sum "$orphan_object_root/public-node/local-data-drop/objects/$OBJECT_ID" | awk '{print $1}')" = "$orphan_object_before" ||
+  fail "orphan_object_recovery_rewrote_object"
+node - "$orphan_object_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" "$CONTENT_SHA256" <<'NODE'
+const assert=require("node:assert/strict");
+const fs=require("node:fs");
+const [p,sha]=process.argv.slice(2);
+const doc=JSON.parse(fs.readFileSync(p,"utf8"));
+assert.equal(doc.sha256,sha);
+assert.equal(doc.object_id,"void:economic:epoch2:successor-state-root:v1");
+assert.equal(doc.bytes,3204);
+NODE
+
 echo "${MARKER}_PROOF_GREEN"
 echo "canonical_object_id=$OBJECT_ID"
 echo "canonical_object_id_sha256=$OBJECT_ID_SHA256"
@@ -216,6 +285,12 @@ echo "object_symlink_rejected_outside_unchanged=true"
 echo "receipt_symlink_rejected_outside_unchanged=true"
 echo "objects_directory_symlink_rejected=true"
 echo "receipts_directory_symlink_rejected=true"
+echo "data_root_symlink_rejected=true"
+echo "public_node_ancestor_symlink_rejected=true"
+echo "local_drop_ancestor_symlink_rejected=true"
+echo "staged_atomic_publication=true"
+echo "orphan_receipt_recovery=true"
+echo "orphan_object_recovery=true"
 echo "live_runtime_mutation=false"
 echo "credential_access=false"
 echo "private_key_access=false"
