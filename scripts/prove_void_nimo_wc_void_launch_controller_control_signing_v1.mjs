@@ -341,6 +341,30 @@ assert.equal(
   launcherSource.includes('exec /usr/bin/env -i'),
   true,
 );
+assert.equal(
+  launcherSource.includes(
+    "status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED",
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.indexOf("private_key_access=true") <
+    launcherSource.indexOf("exec /usr/bin/env -i"),
+  true,
+  "sign mode must announce key access before exec",
+);
+assert.equal(
+  launcherSource.indexOf("credential_access=true") <
+    launcherSource.indexOf("exec /usr/bin/env -i"),
+  true,
+  "sign mode must announce credential access before exec",
+);
+assert.equal(
+  launcherSource.indexOf("wallet_or_signer_access=true") <
+    launcherSource.indexOf("exec /usr/bin/env -i"),
+  true,
+  "sign mode must announce signer access before exec",
+);
 
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
@@ -368,6 +392,46 @@ assert.equal(
   signerSource.includes("function openPinnedParentDirectoryV1"),
   true,
 );
+{
+  const readStart = signerSource.indexOf("function readStableFileV1");
+  const readEnd = signerSource.indexOf("function readChallengeV1", readStart);
+  const readSource = signerSource.slice(readStart, readEnd);
+  const pinIndex = readSource.indexOf(
+    "const parent = openPinnedParentDirectoryV1(file, label);",
+  );
+  const canonicalIndex = readSource.indexOf(
+    "canonicalBound = fs.realpathSync.native(file);",
+  );
+  const pinnedOpenIndex = readSource.indexOf(
+    "fd = fs.openSync(\n      pinnedPath",
+  );
+  assert.ok(readStart >= 0 && readEnd > readStart);
+  assert.ok(pinIndex >= 0, "descriptor chain must be acquired");
+  assert.ok(pinnedOpenIndex > pinIndex, "file open must use pinned parent");
+  assert.ok(
+    canonicalIndex > pinnedOpenIndex,
+    "pathname canonicalization must occur only after parent/file pinning",
+  );
+  assert.equal(
+    readSource.includes("canonicalBefore = fs.realpathSync.native(file)"),
+    false,
+    "no unpinned canonical-path authority may precede descriptor acquisition",
+  );
+  assert.equal(
+    readSource.includes(
+      "!sameOpenedFileIdentityV1(before, originalPathBefore)",
+    ),
+    true,
+    "original path must bind back to the pinned opened inode before read",
+  );
+  assert.equal(
+    readSource.includes(
+      "!sameOpenedFileIdentityV1(after, originalPathAfter)",
+    ),
+    true,
+    "original path must still bind to the pinned inode after read",
+  );
+}
 assert.equal(
   signerSource.includes('"/proc/self/fd/" + fd'),
   true,
@@ -465,7 +529,6 @@ assert.deepEqual(
     transaction_submission: false,
     transaction_broadcast: false,
     chain2050_write: false,
-    credential_access: false,
     wc_ledger_write: false,
     runtime_service_mutation: false,
     deployment_authorized: false,
@@ -493,7 +556,9 @@ console.log("exact_challenge_source_head_required=true");
 console.log("exact_head_launcher_preflight_green=true");
 console.log("launcher_critical_blobs_verified=true");
 console.log("private_key_access_reported=true");
+console.log("credential_access_reported=true");
 console.log("wallet_or_signer_access_reported=true");
+console.log("sign_mode_access_announced_before_exec=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
 console.log("selected_reviewer_fixed=true");
@@ -502,6 +567,9 @@ console.log("key_file_cli_override=false");
 console.log("exact_private_key_file_format=true");
 console.log("private_key_whitespace_normalization=false");
 console.log("canonical_input_paths_required=true");
+console.log("descriptor_chain_is_first_trusted_path_observation=true");
+console.log("unpinned_realpath_precheck=false");
+console.log("original_path_rebound_to_pinned_inode=true");
 console.log("pinned_parent_directory_chain=true");
 console.log("preopen_path_identity_bound=true");
 console.log("parent_symlink_alias_rejected=true");
