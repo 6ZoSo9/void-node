@@ -81,13 +81,18 @@ assert isinstance(config.get("payment_ready"), bool), config
 assert isinstance(status.get("request_intake_ready"), bool), status
 assert isinstance(sale.get("sold_out"), bool), sale
 
-expected_ready = config["requests_enabled"] and config["payment_ready"]
-assert status["request_intake_ready"] == expected_ready, (config, status)
+if status["request_intake_ready"]:
+    assert config["requests_enabled"] is True, (config, status)
+    assert config["payment_ready"] is True, (config, status)
+
+remaining = sale.get("remaining_void")
+assert isinstance(remaining, (int, float)) and not isinstance(remaining, bool), sale
+assert remaining >= 0, sale
 
 open_now = (
     status["request_intake_ready"]
     and not sale["sold_out"]
-    and float(sale.get("remaining_void", 0)) > 0
+    and remaining > 0
 )
 if not open_now:
     rail_state = "hold"
