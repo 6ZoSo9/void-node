@@ -61,7 +61,7 @@ export type BuyVoidEthereumPublicCheckoutReadinessReadyV1 = {
   min_confirmations: string;
   payment_instructions_finality_gate_ready: true;
   payment_verified_finality_gate_ready: false;
-  inventory_reservation_finality_gate_ready: false;
+  inventory_reservation_authorized: false;
   runtime_config_mutation_performed: false;
   payment_event_write_performed: false;
   inventory_write_performed: false;
@@ -78,7 +78,7 @@ export type BuyVoidEthereumPublicCheckoutReadinessHeldV1 = {
   source_chain: "ethereum";
   payment_instructions_finality_gate_ready: false;
   payment_verified_finality_gate_ready: false;
-  inventory_reservation_finality_gate_ready: false;
+  inventory_reservation_authorized: false;
   runtime_config_mutation_performed: false;
   payment_event_write_performed: false;
   inventory_write_performed: false;
@@ -102,7 +102,7 @@ export type BuyVoidEthereumPublicCheckoutPaymentReadyV1 = {
     typeof VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1;
   production_source_finality_authority_ready: true;
   payment_verified_finality_gate_ready: true;
-  inventory_reservation_finality_gate_ready: true;
+  inventory_reservation_authorized: false;
   coupled_launch_gate_composed: false;
   overall_checkout_activation_authorized: false;
   payment_verified_event_write_performed: false;
@@ -121,7 +121,7 @@ export type BuyVoidEthereumPublicCheckoutPaymentHeldV1 = {
   source_chain: "ethereum";
   production_source_finality_authority_ready: false;
   payment_verified_finality_gate_ready: false;
-  inventory_reservation_finality_gate_ready: false;
+  inventory_reservation_authorized: false;
   coupled_launch_gate_composed: false;
   overall_checkout_activation_authorized: false;
   payment_verified_event_write_performed: false;
@@ -152,7 +152,7 @@ function readinessHeld(
     source_chain: "ethereum",
     payment_instructions_finality_gate_ready: false,
     payment_verified_finality_gate_ready: false,
-    inventory_reservation_finality_gate_ready: false,
+    inventory_reservation_authorized: false,
     runtime_config_mutation_performed: false,
     payment_event_write_performed: false,
     inventory_write_performed: false,
@@ -174,7 +174,7 @@ function paymentHeld(
     source_chain: "ethereum",
     production_source_finality_authority_ready: false,
     payment_verified_finality_gate_ready: false,
-    inventory_reservation_finality_gate_ready: false,
+    inventory_reservation_authorized: false,
     coupled_launch_gate_composed: false,
     overall_checkout_activation_authorized: false,
     payment_verified_event_write_performed: false,
@@ -220,7 +220,7 @@ function readEthereumFinalityPrerequisitesV1(
     min_confirmations: rail.min_confirmations,
     payment_instructions_finality_gate_ready: true,
     payment_verified_finality_gate_ready: false,
-    inventory_reservation_finality_gate_ready: false,
+    inventory_reservation_authorized: false,
     runtime_config_mutation_performed: false,
     payment_event_write_performed: false,
     inventory_write_performed: false,
@@ -353,7 +353,7 @@ export async function runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(
       VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
     production_source_finality_authority_ready: true,
     payment_verified_finality_gate_ready: true,
-    inventory_reservation_finality_gate_ready: true,
+    inventory_reservation_authorized: false,
     coupled_launch_gate_composed: false,
     overall_checkout_activation_authorized: false,
     payment_verified_event_write_performed: false,
