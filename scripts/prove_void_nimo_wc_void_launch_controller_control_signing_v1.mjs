@@ -606,6 +606,7 @@ assert.equal(
 );
 assert.equal(runtime.ethers_version, "6.17.0");
 assert.equal(runtime.permission_fenced_execution, true);
+assert.equal(runtime.descriptor_bound_runtime, true);
 assert.equal(
   fs.realpathSync.native(runtime.child_node_executable),
   fs.realpathSync.native(process.execPath),
@@ -894,14 +895,35 @@ assert.equal(
 );
 assert.equal(signerSource.includes("os.homedir()"), false);
 assert.equal(signerSource.includes('"key-file"'), false);
+{
+  const keyReaderStart = signerSource.indexOf("function readPrivateKeyV1");
+  const keyReaderEnd = signerSource.indexOf(
+    "function writeExclusiveJsonV1",
+    keyReaderStart,
+  );
+  assert.ok(keyReaderStart >= 0 && keyReaderEnd > keyReaderStart);
+  const keyReaderSource = signerSource.slice(keyReaderStart, keyReaderEnd);
+  assert.equal(
+    keyReaderSource.includes('/^(?:0x)?[0-9a-fA-F]{64}\\n?$/u'),
+    true,
+  );
+  assert.equal(
+    keyReaderSource.includes(".trim()"),
+    false,
+    "private-key reader must not normalize whitespace",
+  );
+  assert.equal(
+    keyReaderSource.includes('source.bytes.fill(0)'),
+    true,
+    "private-key reader must zero the direct byte buffer",
+  );
+}
 assert.equal(
-  signerSource.includes('/^(?:0x)?[0-9a-fA-F]{64}\\n?$/u'),
+  signerSource.includes(
+    'fail(label + "_original_path_not_bound_to_pinned_file")',
+  ),
   true,
-);
-assert.equal(signerSource.includes(".trim()"), false);
-assert.equal(
-  signerSource.includes('fail(label + "_path_alias_forbidden")'),
-  true,
+  "descriptor-first stable reader must bind the original path back to the pinned inode",
 );
 assert.equal(
   signerSource.includes("function openPinnedParentDirectoryV1"),
@@ -1001,6 +1023,45 @@ assert.equal(
   signerSource.includes("const permissionFlag = nodePermissionFlagV1();"),
   true,
   "reviewed signer child must select the permission flag by supported Node version",
+);
+assert.equal(
+  signerSource.includes(
+    'const childFdRoot = "/proc/self/fd/3";',
+  ),
+  true,
+  "inner reviewed runtime must execute through an inherited directory descriptor",
+);
+assert.equal(
+  signerSource.includes(
+    'stdio: ["pipe", "pipe", "pipe", runtimeFd]',
+  ),
+  true,
+  "inner runtime directory fd must be inherited by the signing child",
+);
+assert.equal(
+  signerSource.includes(
+    '"--allow-fs-read=" + childFdRoot',
+  ),
+  true,
+  "permission fence must authorize only the inherited reviewed-runtime tree",
+);
+assert.equal(
+  signerSource.includes(
+    "gitBlobSha1V1(controlBytes) !== expectedControlBlobSha1",
+  ),
+  true,
+  "pinned control-verifier bytes must match the reviewed Git blob before key streaming",
+);
+assert.equal(
+  signerSource.includes(
+    "sha256(inputBytes) !== expectedInputSha256",
+  ),
+  true,
+  "pinned per-operation input bytes must match the parent-authored digest before key streaming",
+);
+assert.equal(
+  signerSource.includes("descriptor_bound_runtime: true"),
+  true,
 );
 assert.equal(
   signerSource.includes(
@@ -1146,6 +1207,8 @@ console.log("wallet_or_signer_access_reported=true");
 console.log("sign_mode_access_announced_before_exec=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("permission_fenced_signing_child=true");
+console.log("inner_reviewed_runtime_descriptor_bound=true");
+console.log("inner_bridge_control_and_input_bytes_bound_before_key=true");
 console.log("ancestor_package_resolution_allowed=false");
 console.log("ancestor_package_fallback_blocked=true");
 console.log("production_parent_dynamic_ethers_import=false");
