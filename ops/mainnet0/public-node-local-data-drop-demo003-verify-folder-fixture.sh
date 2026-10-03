@@ -927,7 +927,9 @@ try:
             os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC,
             dir_fd=parent_fd,
         )
-        opened_children.append((rel, parent_fd, leaf, child_fd))
+        opened_children.append(
+            (rel, parent_fd, leaf, child_fd, None, None)
+        )
         opened = os.fstat(child_fd)
         if file_identity(opened) != file_identity(listed):
             raise SystemExit("terminal_child_identity_mismatch:" + rel)
@@ -951,8 +953,17 @@ try:
             or file_identity(after) != file_identity(visible)
         ):
             raise SystemExit("terminal_child_changed_during_read:" + rel)
-        if digest.hexdigest() != expected_sha:
+        validated_digest = digest.hexdigest()
+        if validated_digest != expected_sha:
             raise SystemExit("terminal_child_digest_mismatch:" + rel)
+        opened_children[-1] = (
+            rel,
+            parent_fd,
+            leaf,
+            child_fd,
+            file_identity(after),
+            validated_digest,
+        )
 
     visible_root = os.stat(pathname, follow_symlinks=False)
     if root_identity(visible_root) != expected_root:
@@ -973,11 +984,35 @@ try:
     ):
         raise SystemExit("terminal_files_directory_changed_before_green")
 
-    for rel, parent_fd, leaf, child_fd in opened_children:
+    for (
+        rel,
+        parent_fd,
+        leaf,
+        child_fd,
+        validated_identity,
+        validated_digest,
+    ) in opened_children:
+        if validated_identity is None or validated_digest != sealed[rel]:
+            raise SystemExit("terminal_child_validated_state_missing:" + rel)
+
         opened = os.fstat(child_fd)
         visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
-        if file_identity(opened) != file_identity(visible):
-            raise SystemExit("terminal_child_visible_identity_mismatch:" + rel)
+        if (
+            file_identity(opened) != validated_identity
+            or file_identity(visible) != validated_identity
+        ):
+            raise SystemExit(
+                "terminal_child_state_changed_before_green:" + rel
+            )
+        if (
+            opened.st_uid != euid
+            or opened.st_mode & 0o022
+            or visible.st_uid != euid
+            or visible.st_mode & 0o022
+        ):
+            raise SystemExit(
+                "terminal_child_custody_changed_before_green:" + rel
+            )
 
     print("fixture_dir=" + pathname)
     print("semantic_verify_descriptor_bound=true")
@@ -997,8 +1032,8 @@ try:
     print("VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN")
     sys.stdout.flush()
 finally:
-    for _rel, _parent_fd, _leaf, child_fd in opened_children:
-        os.close(child_fd)
+    for child_record in opened_children:
+        os.close(child_record[3])
     os.close(files_fd)
 PY_VISIBLE
 then
