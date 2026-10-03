@@ -149,6 +149,7 @@ git_cmd=(
   --no-replace-objects
   -c core.hooksPath=/dev/null
   -c core.attributesFile=/dev/null
+  -c core.excludesFile=/dev/null
   -c core.fsmonitor=false
   -c core.untrackedCache=false
   -c core.preloadIndex=false
@@ -180,9 +181,156 @@ current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
 [[ "$source_head" == "$reviewed_head" ]] ||
   hold "challenge_source_head_not_operator_reviewed_head"
 
-status="$("${git_env[@]}" "${git_cmd[@]}" status --porcelain=v1 --untracked-files=all)" ||
-  hold "repository_status_unavailable"
-[[ -z "$status" ]] || hold "repository_not_clean"
+/usr/bin/python3 -I -P - "$repo" "$reviewed_head" <<'PY' ||
+  hold "repository_not_clean"
+import hashlib
+import os
+import stat
+import subprocess
+import sys
+
+repo, reviewed_head = sys.argv[1:]
+git_env = {
+    "HOME": "/nonexistent",
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_PAGER": "cat",
+    "PAGER": "cat",
+}
+git_base = [
+    "/usr/bin/git",
+    "--no-replace-objects",
+    "-c", "core.hooksPath=/dev/null",
+    "-c", "core.attributesFile=/dev/null",
+    "-c", "core.excludesFile=/dev/null",
+    "-c", "core.fsmonitor=false",
+    "-c", "core.untrackedCache=false",
+    "-c", "core.preloadIndex=false",
+    "-c", "submodule.recurse=false",
+    "-C", repo,
+]
+
+def git_bytes(args):
+    return subprocess.run(
+        git_base + args,
+        cwd="/",
+        env=git_env,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout
+
+def parse_tree(raw):
+    out = {}
+    for row in raw.split(b"\0"):
+        if not row:
+            continue
+        meta, path_bytes = row.split(b"\t", 1)
+        mode, kind, oid = meta.decode("ascii").split(" ")
+        path = os.fsdecode(path_bytes)
+        if kind != "blob" or mode not in ("100644", "100755", "120000"):
+            raise SystemExit(2)
+        if path in out:
+            raise SystemExit(2)
+        out[path] = (mode, oid)
+    return out
+
+def parse_index(raw):
+    out = {}
+    for row in raw.split(b"\0"):
+        if not row:
+            continue
+        meta, path_bytes = row.split(b"\t", 1)
+        mode, oid, stage = meta.decode("ascii").split(" ")
+        if stage != "0":
+            raise SystemExit(2)
+        path = os.fsdecode(path_bytes)
+        if path in out:
+            raise SystemExit(2)
+        out[path] = (mode, oid)
+    return out
+
+tree = parse_tree(git_bytes([
+    "ls-tree", "-r", "-z", "--full-tree", reviewed_head,
+]))
+index = parse_index(git_bytes(["ls-files", "-s", "-z"]))
+if tree != index:
+    raise SystemExit(2)
+
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+for relative, (mode, expected_oid) in tree.items():
+    full = os.path.join(repo, relative)
+    before = os.lstat(full)
+    if mode == "120000":
+        if not stat.S_ISLNK(before.st_mode):
+            raise SystemExit(2)
+        raw = os.fsencode(os.readlink(full))
+        after = os.lstat(full)
+        if (
+            not stat.S_ISLNK(after.st_mode)
+            or (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_ctime_ns)
+            != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns)
+        ):
+            raise SystemExit(2)
+    else:
+        if not stat.S_ISREG(before.st_mode):
+            raise SystemExit(2)
+        expected_exec = mode == "100755"
+        if bool(before.st_mode & 0o111) != expected_exec:
+            raise SystemExit(2)
+        fd = os.open(full, os.O_RDONLY | no_follow)
+        try:
+            opened = os.fstat(fd)
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+            ):
+                raise SystemExit(2)
+            chunks = []
+            remaining = opened.st_size
+            while remaining:
+                chunk = os.read(fd, min(1024 * 1024, remaining))
+                if not chunk:
+                    raise SystemExit(2)
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            raw = b"".join(chunks)
+            after_fd = os.fstat(fd)
+        finally:
+            os.close(fd)
+        after_path = os.lstat(full)
+        identity_before = (
+            opened.st_dev, opened.st_ino, opened.st_size,
+            opened.st_mtime_ns, opened.st_ctime_ns, opened.st_mode,
+        )
+        identity_after_fd = (
+            after_fd.st_dev, after_fd.st_ino, after_fd.st_size,
+            after_fd.st_mtime_ns, after_fd.st_ctime_ns, after_fd.st_mode,
+        )
+        identity_after_path = (
+            after_path.st_dev, after_path.st_ino, after_path.st_size,
+            after_path.st_mtime_ns, after_path.st_ctime_ns, after_path.st_mode,
+        )
+        if identity_before != identity_after_fd or identity_before != identity_after_path:
+            raise SystemExit(2)
+
+    actual_oid = hashlib.sha1(
+        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw,
+    ).hexdigest()
+    if actual_oid != expected_oid:
+        raise SystemExit(2)
+
+untracked = git_bytes([
+    "ls-files", "--others", "--exclude-standard", "-z",
+])
+if untracked:
+    raise SystemExit(2)
+PY
 
 critical_paths=(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
