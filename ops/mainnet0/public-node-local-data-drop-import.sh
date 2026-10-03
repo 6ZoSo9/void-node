@@ -9,11 +9,6 @@ if [ -z "$SRC" ]; then
   exit 2
 fi
 
-if [ ! -f "$SRC" ]; then
-  echo "[fail] source file not found: $SRC" >&2
-  exit 2
-fi
-
 DATA_DIR="${DATA_DIR:-.runtime/mainnet0}"
 
 if [ -z "$OBJECT_ID" ]; then
@@ -231,10 +226,14 @@ receipts_fd = None
 staging_fd = None
 
 try:
-    src_fd = os.open(src, os.O_RDONLY | O_CLOEXEC)
+    source_before = os.lstat(src)
+    if not stat.S_ISREG(source_before.st_mode):
+        fail("source_not_direct_regular_file")
+    src_fd = os.open(src, os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
     fds.append(src_fd)
-    if not stat.S_ISREG(os.fstat(src_fd).st_mode):
-        fail("source_not_regular")
+    source_after = os.fstat(src_fd)
+    if not stat.S_ISREG(source_after.st_mode) or not same_identity(source_before, source_after):
+        fail("source_identity_changed")
     expected_bytes, expected_sha = hash_fd(src_fd)
 
     data_fd = open_data_root(data_dir)
