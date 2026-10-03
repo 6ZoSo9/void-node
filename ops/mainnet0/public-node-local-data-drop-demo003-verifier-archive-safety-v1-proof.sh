@@ -28,7 +28,9 @@ grep -Fq "safe_diagnostic" "$VERIFIER" || fail "sanitized_diagnostic_missing"
 grep -Fq "function diagnostic" "$VERIFIER" || fail "node_sanitized_diagnostic_missing"
 grep -Fq "semantic_verify_descriptor_bound=true" "$VERIFIER" || fail "semantic_descriptor_binding_missing"
 grep -Fq "semantic_verify_child_bytes_sealed=true" "$VERIFIER" || fail "semantic_child_byte_seal_missing"
+grep -Fq "terminal_child_seals_verified=true" "$VERIFIER" || fail "terminal_child_seal_marker_missing"
 grep -Fq "sealed digest mismatch" "$VERIFIER" || fail "semantic_child_digest_enforcement_missing"
+grep -Fq "terminal_child_digest_mismatch" "$VERIFIER" || fail "terminal_child_digest_enforcement_missing"
 grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
 grep -Fq "fixture visible identity changed during semantic verify" "$VERIFIER" || fail "terminal_visible_identity_check_missing"
 grep -Fq "Demo003 invocation path invalid" "$VERIFIER" || fail "invocation_path_guard_missing"
@@ -402,6 +404,23 @@ script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-python-wrapper.XXXXXX")"
 trap 'rm -f "$script"' EXIT
 cat >"$script"
 
+if [ -n "${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE:-}" ] &&
+   grep -Fq "terminal_child_digest_mismatch" "$script"; then
+  target="${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_TARGET:?}"
+  source="${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE:?}"
+  test -d "$target"
+  test -d "$source"
+  for rel in \
+    manifest.json \
+    sha256sums.txt \
+    files/README.txt \
+    files/index.html \
+    files/metadata.json
+  do
+    cp -- "$source/$rel" "$target/$rel"
+  done
+fi
+
 set +e
 "$real" "$script" "${@:2}"
 rc=$?
@@ -519,6 +538,22 @@ fi
 test -d "$child_swap_out/extract/demo003-folder-fixture" ||
   fail "interphase_child_replacement_fixture_missing"
 
+terminal_swap_out="$tmp/verify-terminal-child-swap"
+terminal_swap_log="$tmp/terminal-child-swap.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE="$replacement_root" \
+   VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_TARGET="$terminal_swap_out/extract/demo003-folder-fixture" \
+   OUT="$terminal_swap_out" \
+   bash "$VERIFIER" "$tarball" >"$terminal_swap_log" 2>&1; then
+  fail "terminal_child_replacement_accepted"
+fi
+grep -Fq "terminal_child_digest_mismatch" "$terminal_swap_log" ||
+  fail "terminal_child_replacement_digest_hold_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_swap_log"; then
+  fail "terminal_child_replacement_reached_green"
+fi
+
 manifest_control_out="$tmp/verify-manifest-control"
 if OUT="$manifest_control_out" \
    bash "$VERIFIER" "$tmp/manifest-control.tar.gz" \
@@ -553,8 +588,10 @@ echo "invocation_path_diagnostics_escaped=true"
 echo "xpg_echo_output_path_safe=true"
 echo "interphase_output_tree_swap_rejected=true"
 echo "interphase_child_replacement_rejected=true"
+echo "terminal_child_replacement_rejected=true"
 echo "semantic_verify_descriptor_bound=true"
 echo "semantic_verify_child_bytes_sealed=true"
+echo "terminal_child_seals_verified=true"
 echo "outside_sentinel_unchanged=true"
 echo "network_fetch=false"
 echo "live_runtime_mutation=false"
