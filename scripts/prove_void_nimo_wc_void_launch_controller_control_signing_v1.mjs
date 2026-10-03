@@ -21,6 +21,7 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   reviewedOfflineSigningRuntimeV1,
   signControlChallengeCoreV1,
+  testOnlyNodePermissionFlagV1,
   testOnlyReadTransferredControlChallengeV1,
   testOnlyReviewedAncestorPackageFallbackBlockedV1,
   validateSanitizedOfflineSignerEnvironmentV1,
@@ -391,6 +392,7 @@ await assert.rejects(
     LC_ALL: "C",
     VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1: "1",
     VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1: reviewedHead,
+    VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1: process.cwd(),
   };
   const clean = validateSanitizedOfflineSignerEnvironmentV1(
     cleanEnv,
@@ -427,7 +429,38 @@ await assert.rejects(
       ),
     /offline_signer_environment_not_sanitized/u,
   );
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        {
+          ...cleanEnv,
+          VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1: "/tmp",
+        },
+        "/usr/bin/node",
+        [],
+      ),
+    /offline_signer_environment_not_sanitized/u,
+  );
 }
+
+assert.equal(
+  testOnlyNodePermissionFlagV1("22.0.0"),
+  "--experimental-permission",
+);
+assert.equal(
+  testOnlyNodePermissionFlagV1("22.12.0"),
+  "--experimental-permission",
+);
+assert.equal(
+  testOnlyNodePermissionFlagV1("22.13.0"),
+  "--permission",
+);
+assert.equal(testOnlyNodePermissionFlagV1("24.0.0"), "--permission");
+assert.equal(testOnlyNodePermissionFlagV1("26.0.0"), "--permission");
+assert.throws(
+  () => testOnlyNodePermissionFlagV1("20.19.0"),
+  /offline_signer_node_version_unsupported/u,
+);
 
 const runtime = await reviewedOfflineSigningRuntimeV1();
 assert.equal(
@@ -516,8 +549,35 @@ assert.equal(
   true,
 );
 assert.equal(
-  launcherSource.includes('exec /usr/bin/env -i'),
+  launcherSource.includes('reviewed_signer_materialized=true'),
   true,
+);
+assert.equal(
+  launcherSource.includes('materialize_reviewed_blob "$signer_rel"'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('materialize_reviewed_blob "$runtime_rel"'),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    'VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo"',
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    '"$reviewed_runtime_root/$signer_rel"',
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    '"$repo/ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"',
+  ),
+  false,
+  "sign mode must not execute the mutable worktree signer path",
 );
 assert.equal(
   launcherSource.includes(
@@ -538,7 +598,9 @@ assert.equal(
     "private_key_access=true",
     branchEnd,
   );
-  const execIndex = launcherSource.indexOf("exec /usr/bin/env -i");
+  const execIndex = launcherSource.indexOf(
+    '"$reviewed_runtime_root/$signer_rel"',
+  );
   assert.ok(modeBranch >= 0 && branchEnd > modeBranch);
   assert.ok(
     preflightFalse > modeBranch && preflightFalse < branchEnd,
@@ -551,19 +613,19 @@ assert.equal(
 }
 assert.equal(
   launcherSource.indexOf("private_key_access=true") <
-    launcherSource.indexOf("exec /usr/bin/env -i"),
+    launcherSource.indexOf('"$reviewed_runtime_root/$signer_rel"'),
   true,
   "sign mode must announce key access before exec",
 );
 assert.equal(
   launcherSource.indexOf("credential_access=true") <
-    launcherSource.indexOf("exec /usr/bin/env -i"),
+    launcherSource.indexOf('"$reviewed_runtime_root/$signer_rel"'),
   true,
   "sign mode must announce credential access before exec",
 );
 assert.equal(
   launcherSource.indexOf("wallet_or_signer_access=true") <
-    launcherSource.indexOf("exec /usr/bin/env -i"),
+    launcherSource.indexOf('"$reviewed_runtime_root/$signer_rel"'),
   true,
   "sign mode must announce signer access before exec",
 );
@@ -710,9 +772,19 @@ assert.equal(
   "production signer must enter the permission-fenced reviewed child runtime",
 );
 assert.equal(
-  signerSource.includes('"--permission"'),
+  signerSource.includes('"--experimental-permission"'),
   true,
-  "reviewed signer child must enable the Node permission model",
+  "Node 22.0 through 22.12 must use the experimental permission flag",
+);
+assert.equal(
+  signerSource.includes('return "--permission";'),
+  true,
+  "Node 22.13+ and supported newer majors must use the stable permission flag",
+);
+assert.equal(
+  signerSource.includes("const permissionFlag = nodePermissionFlagV1();"),
+  true,
+  "reviewed signer child must select the permission flag by supported Node version",
 );
 assert.equal(
   signerSource.includes('"--allow-fs-read=" + root'),
@@ -823,6 +895,10 @@ console.log("challenge_head_cannot_self_authorize_signer=true");
 console.log("launcher_materialized_from_reviewed_commit=true");
 console.log("executed_launcher_self_blob_verified=true");
 console.log("tampered_launcher_rejected=true");
+console.log("reviewed_signer_materialized_before_execution=true");
+console.log("mutable_worktree_signer_execution=false");
+console.log("node_22_0_to_22_12_permission_flag_supported=true");
+console.log("node_22_13_plus_permission_flag_supported=true");
 console.log("exact_head_launcher_preflight_green=true");
 console.log("launcher_critical_blobs_verified=true");
 console.log("private_key_access_reported=true");
