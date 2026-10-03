@@ -176,6 +176,51 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     assert.match(result.stdout, /private_key_access=false/u);
     assert.match(result.stdout, /executed_launcher_blob=[0-9a-f]{40}/u);
 
+    const oversizedChallengePath = path.join(
+      temporary,
+      "oversized-challenge.json",
+    );
+    const oversizedChallengeBytes = Buffer.alloc(
+      2 * 1024 * 1024 + 1,
+      0x20,
+    );
+    fs.writeFileSync(
+      oversizedChallengePath,
+      oversizedChallengeBytes,
+      { mode: 0o600 },
+    );
+    fs.chmodSync(oversizedChallengePath, 0o600);
+    const oversizedChallengeSha = crypto
+      .createHash("sha256")
+      .update(oversizedChallengeBytes)
+      .digest("hex");
+    const oversizedResult = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "preflight",
+        oversizedChallengePath,
+        oversizedChallengeSha,
+        reviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(oversizedResult.status, 0);
+    assert.match(oversizedResult.stderr, /challenge_size_invalid/u);
+
     const priorHeadResult = spawnSync(
       "/usr/bin/git",
       ["rev-parse", "HEAD^{tree}"],
@@ -582,6 +627,45 @@ await assert.rejects(
 }
 
 {
+  for (const field of ["issued_at_unix", "expires_at_unix"]) {
+    const numeric = structuredClone(challenge);
+    numeric.challenge[field] = Number(numeric.challenge[field]);
+    numeric.typed_data.value[field] = numeric.challenge[field];
+    numeric.typed_data_digest = ethers.TypedDataEncoder.hash(
+      numeric.typed_data.domain,
+      numeric.typed_data.types,
+      numeric.typed_data.value,
+    );
+    const material = {
+      marker: numeric.marker,
+      version: numeric.version,
+      challenge: numeric.challenge,
+      source_binding: numeric.source_binding,
+      typed_data: numeric.typed_data,
+    };
+    numeric.challenge_id =
+      "voidwclcc1_" +
+      crypto
+        .createHash("sha256")
+        .update(Buffer.from(canonicalJson(material), "utf8"))
+        .digest("hex");
+
+    await assert.rejects(
+      () =>
+        signControlChallengeCoreV1({
+          challengeEnvelope: numeric,
+          privateKey: PRIVATE_A,
+          expectedAddress: walletA.address,
+          nowUnix: now,
+          ethers,
+        }),
+      /control_challenge_semantics_invalid/u,
+      field + " must remain a canonical decimal string",
+    );
+  }
+}
+
+{
   const forged = structuredClone(challenge);
   forged.source_binding.source_head_sha = "f".repeat(40);
   const bindingMaterial = {
@@ -738,9 +822,19 @@ assert.equal(
   "operator bootstrap must run Python in isolated safe-path mode",
 );
 assert.equal(
-  launcherSource.includes('/usr/bin/python3 -I -P - "$challenge"'),
+  launcherSource.includes('/usr/bin/python3 -I -P - "$challenge" "$challenge_sha"'),
   true,
   "reviewed launcher challenge parser must run Python in isolated safe-path mode",
+);
+assert.equal(
+  launcherSource.includes("challenge_size > 0 && challenge_size <= 2 * 1024 * 1024"),
+  true,
+  "launcher must reject oversized transferred challenge bytes before parsing",
+);
+assert.equal(
+  launcherSource.includes("total > max_bytes"),
+  true,
+  "isolated launcher parser must enforce its own bounded read after open",
 );
 assert.equal(
   operatorDoc.includes(
@@ -1422,6 +1516,8 @@ console.log("signature_output_parent_replacement_rejected=true");
 console.log("signature_output_redirect_quarantine_verified=true");
 console.log("signature_output_postwrite_expiry_quarantine_verified=true");
 console.log("history_independent_negative_reviewed_object_proof=true");
+console.log("launcher_challenge_parse_bounded=true");
+console.log("challenge_timestamp_string_types_required=true");
 console.log("production_signing_helper_non_recursive=true");
 console.log("post_runtime_signing_clock_sampled=true");
 console.log("expiry_rechecked_before_and_after_signature=true");
