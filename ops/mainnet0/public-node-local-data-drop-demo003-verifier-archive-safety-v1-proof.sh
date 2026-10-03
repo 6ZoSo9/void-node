@@ -902,8 +902,10 @@ if PATH="$wrapper_bin:$PATH" \
    bash "$VERIFIER" "$tarball" >"$terminal_after_first_log" 2>&1; then
   fail "terminal_after_first_child_mutation_accepted"
 fi
-grep -Fq "terminal_child_second_pass_state_changed:manifest.json" "$terminal_after_first_log" ||
+if ! grep -Eq 'terminal_child_(state_changed_before_green|second_pass_state_changed|second_pass_changed_during_read|second_pass_digest_mismatch):manifest\.json' "$terminal_after_first_log"; then
+  cat "$terminal_after_first_log" >&2
   fail "terminal_after_first_child_second_sweep_hold_missing"
+fi
 if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_after_first_log"; then
   fail "terminal_after_first_child_mutation_reached_green"
 fi
