@@ -437,6 +437,14 @@ try {
   assert.equal(clean.raw.includes(temp), false);
   assert.equal(clean.value.discovery.wc_state_snapshot_stable, true);
   assert.equal(
+    clean.value.discovery.wc_data_directory_identity_bound,
+    true,
+  );
+  assert.equal(
+    clean.value.discovery.wc_state_directory_identity_bound,
+    true,
+  );
+  assert.equal(
     clean.value.discovery.canonical_multi_account_projection_single_pass,
     true,
   );
