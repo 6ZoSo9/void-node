@@ -145,8 +145,12 @@ pruned.
 
 Upstream rate authority is live, not a startup-only assertion. The public
 gateway verifies the loopback status contract at startup and then re-runs that
-same qualification for every signed request that passes applicant admission,
-immediately before proxying the credential request. The observed
+same qualification for every signed request that passes applicant admission.
+For admitted requests, the status qualification and its corresponding upstream
+POST are serialized as one FIFO critical section: a later caller cannot share,
+reuse, or overtake an earlier caller's status observation. The signed applicant
+envelope is rechecked for expiry after waiting for that serialized section and
+again after the status probe, before any POST. The observed
 `max_requests_per_minute` must still equal the configured global wall. Any
 status mismatch, qualification failure, upstream 429, upstream 5xx, or transport
 failure invalidates the cached live qualification. No credential request is
