@@ -67,6 +67,24 @@ the already-validated public challenge plus the fixed private key over stdin.
 The key is never placed in argv, environment variables, or a temporary key
 file.
 
+The nested reviewed package runtime is descriptor-bound too. Before each
+authority-bearing child execution, the signer retains the materialized runtime
+directory as an `O_DIRECTORY|O_NOFOLLOW` file descriptor, verifies the package
+inventory while that descriptor is held, rechecks that the original runtime path
+still binds to the same directory inode, and independently binds through the
+descriptor:
+
+- the generated signing bridge bytes;
+- the exact reviewed control-verifier Git blob; and
+- the exact per-operation JSON input SHA-256.
+
+The child inherits that directory as fd 3, executes
+`/proc/self/fd/3/signing-bridge.mjs`, receives filesystem permission only for
+`/proc/self/fd/3`, and reads its input through that same root. A runtime
+rename/replacement after verification therefore cannot substitute the bridge,
+control verifier, package closure, or challenge input before the private key is
+streamed.
+
 Normal Node package resolution can walk ancestor directories. The permission
 fence prevents an optional/unreviewed package in an ancestor
 `node_modules` from being read or executed. Focused proof places an
