@@ -376,7 +376,7 @@ async function withBuyLaunchGenerationAuthorityLockV1(operation) {
   );
 }
 
-export async function withBuyLaunchGenerationTransitionPublicationV1(
+async function withBuyLaunchGenerationTransitionPublicationV1(
   operation,
 ) {
   return withBuyLaunchGenerationAuthorityLockV1(operation);

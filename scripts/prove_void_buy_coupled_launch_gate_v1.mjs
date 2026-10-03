@@ -623,6 +623,10 @@ assert.match(gateSource, /classifyBuyLaunchLiveActivationLeaseV1/);
 assert.match(gateSource, /sameBuyLaunchGenerationAuthorityV1/);
 assert.match(gateSource, /withBuyLaunchRequestAuthorityMutationV1/);
 assert.match(gateSource, /withBuyLaunchGenerationTransitionPublicationV1/);
+assert.doesNotMatch(
+  gateSource,
+  /export\s+async\s+function\s+withBuyLaunchGenerationTransitionPublicationV1/,
+);
 assert.match(gateSource, /publishBuyLaunchGenerationTransitionV1/);
 assert.match(gateSource, /assertSynchronousGenerationOperationV1/);
 assert.match(gateSource, /AsyncFunction/);
