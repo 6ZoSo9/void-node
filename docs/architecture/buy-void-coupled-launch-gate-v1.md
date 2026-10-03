@@ -44,18 +44,26 @@ receipt. No such production receipt is committed by this source lane.
 The runtime requires a cryptographically authorized receipt plus three
 environment transport bindings.
 
-The receipt must carry an EIP-712 signature recovering to the fixed existing
-WC/VOID launch-controller identity:
+The receipt must carry two EIP-712 signatures over the same activation
+statement:
 
-`0x2f1e0005e865b772b268bd8c797bf3eaa901d97e`
+- launch-controller identity:
+  `0x2f1e0005e865b772b268bd8c797bf3eaa901d97e`;
+- current source-backed Sovereign/closeout-controller co-signer:
+  `0xe1f147b6b2671f140c4107fa4a1dd5f7cbd06d0b`.
 
-The signed payload binds execution epoch 2, the launch-controller role ID, the
-exact coupled launch ID, the exact source composition ID, a 32-byte activation
-nonce, a 32-byte activation generation, activation and expiry times, the
-content-addressed receipt ID, and every boolean that claims the private Buy
-runtime / WC/VOID market / presale were activated in the same ceremony. A
-different signer, malformed signature, changed signed field, expired lease,
-superseded generation, or future-dated activation time fails closed.
+The second signature is required because historical control of the launch
+controller candidate is not, by itself, current role authorization. Each live
+lease therefore requires explicit Sovereign co-authorization.
+
+The signed payload binds execution epoch 2, the launch-controller role ID, both
+signer addresses, the exact coupled launch ID, the exact source composition ID,
+a 32-byte activation nonce, a 32-byte activation generation, activation and
+expiry times, the content-addressed receipt ID, and every boolean that claims
+the private Buy runtime / WC/VOID market / presale were activated in the same
+ceremony. A different signer, missing co-signature, malformed signature,
+changed signed field, expired lease, superseded generation, or future-dated
+activation time fails closed.
 
 The four environment bindings are:
 
@@ -73,13 +81,16 @@ The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
 permissions and no link aliases. File ownership, SHA-256, and the confirmation
 string provide custody/integrity binding; they are not launch authority. The
-EIP-712 launch-controller signature is the authority proof.
+launch-controller signature plus Sovereign co-signature are the live lease
+authority proof.
 
 Its content must be content-addressed and bind:
 
 - marker `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1`;
 - status `COUPLED_PUBLIC_LAUNCH_ACTIVE`;
 - the fixed launch-controller signer;
+- the fixed Sovereign co-signer;
+- valid signatures from both identities over the same typed payload;
 - a unique bytes32 activation nonce;
 - the exact active bytes32 activation generation;
 - activation and expiry timestamps with a maximum five-minute lease;
@@ -155,10 +166,10 @@ node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
 node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
 ```
 
-The focused proof uses only a temporary synthetic EIP-712 signer and live-receipt
-fixture. It proves the signature format plus parser/custody/digest/confirmation
-behavior, lease expiry, generation supersession, and explicitly proves that a
-valid synthetic signature cannot satisfy the fixed production launch-controller
-identity. CI never has the production
-launch-controller key, cannot mint production activation evidence, and carries
-no runtime or economic authority.
+The focused proof uses only temporary synthetic EIP-712 signers and a
+live-receipt fixture. It proves the signature format plus
+parser/custody/digest/confirmation behavior, lease expiry, generation
+supersession, and explicitly proves that valid synthetic signatures cannot
+satisfy either fixed production authority identity. CI never has either
+production key, cannot mint production activation evidence, and carries no
+runtime or economic authority.
