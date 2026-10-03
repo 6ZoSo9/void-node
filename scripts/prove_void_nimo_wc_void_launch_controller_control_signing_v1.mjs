@@ -763,44 +763,52 @@ assert.equal(
   true,
 );
 assert.equal(
-  launcherSource.includes('reviewed_signer_materialized=true'),
-  true,
-);
-assert.equal(
-  launcherSource.includes('materialize_reviewed_blob "$signer_rel"'),
-  true,
-);
-assert.equal(
-  launcherSource.includes('materialize_reviewed_blob "$runtime_rel"'),
-  true,
-);
-assert.equal(
   launcherSource.includes(
-    'VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo"',
+    "reviewed_signer_transport=verified_git_blob_stdin",
   ),
   true,
 );
 assert.equal(
   launcherSource.includes(
-    '"$reviewed_runtime_fd_path/$signer_rel"',
+    "reviewed_runtime_helper_transport=verified_git_blob_environment",
   ),
   true,
-  "sign mode must execute through the retained reviewed-runtime directory descriptor",
 );
 assert.equal(
   launcherSource.includes(
-    '"$reviewed_runtime_root/$signer_rel"',
+    'cat-file blob "$reviewed_signer_blob"',
   ),
-  false,
-  "sign mode must not reopen the materialized signer through its mutable pathname",
-);
-assert.equal(
-  launcherSource.includes('exec 19<"$reviewed_runtime_root"'),
   true,
-  "reviewed runtime root must be pinned by descriptor before materialization",
 );
 assert.equal(
-  launcherSource.includes('reviewed_runtime_descriptor_bound=true'),
+  launcherSource.includes(
+    'cat-file blob "$reviewed_runtime_blob"',
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    'hash-object --stdin',
+  ),
+  true,
+  "transported source bytes must be re-hashed before execution",
+);
+assert.equal(
+  launcherSource.includes(
+    '[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]]',
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    '[[ "$actual_runtime_blob" == "$reviewed_runtime_blob" ]]',
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    'VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1="$reviewed_runtime_b64"',
+  ),
   true,
 );
 assert.equal(
@@ -811,20 +819,28 @@ assert.equal(
   "sign mode must not execute the mutable worktree signer path",
 );
 assert.equal(
+  launcherSource.includes("reviewed_runtime_root="),
+  false,
+  "outer authority-bearing signer execution must not use a temporary executable tree",
+);
+assert.equal(
   launcherSource.includes(
     "status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED",
   ),
   true,
 );
+
 const nodeInvocationNeedle =
   '/usr/bin/node \\\n' +
-  '  "$reviewed_runtime_fd_path/$signer_rel" \\\n' +
-  '  sign \\\n';
+  '    --input-type=module \\\n' +
+  '    - \\\n' +
+  '    sign \\\n';
 const nodeInvocationAt = launcherSource.indexOf(nodeInvocationNeedle);
 assert.ok(
   nodeInvocationAt >= 0,
-  "descriptor-bound signer Node invocation must be present",
+  "reviewed signer must execute exact streamed module bytes on stdin",
 );
+
 {
   const modeBranch = launcherSource.indexOf(
     'if [[ "$mode" == "preflight" ]]',
@@ -838,69 +854,63 @@ assert.ok(
     "private_key_access=true",
     branchEnd,
   );
-  const execIndex = nodeInvocationAt;
   assert.ok(modeBranch >= 0 && branchEnd > modeBranch);
   assert.ok(
     preflightFalse > modeBranch && preflightFalse < branchEnd,
     "false key-access fact must be emitted only in preflight branch",
   );
   assert.ok(
-    signTrue > branchEnd && signTrue < execIndex,
-    "sign mode must announce true key access after preflight branch and before exec",
+    signTrue > branchEnd && signTrue < nodeInvocationAt,
+    "sign mode must announce true key access before the actual Node invocation",
   );
 }
-assert.equal(
-  launcherSource.indexOf("private_key_access=true") <
-    nodeInvocationAt,
-  true,
-  "sign mode must announce key access before exec",
-);
-assert.equal(
-  launcherSource.indexOf("credential_access=true") <
-    nodeInvocationAt,
-  true,
-  "sign mode must announce credential access before exec",
-);
-assert.equal(
-  launcherSource.indexOf("wallet_or_signer_access=true") <
-    nodeInvocationAt,
-  true,
-  "sign mode must announce signer access before exec",
-);
-
-{
-  const runtimeCreate = launcherSource.indexOf(
-    'reviewed_runtime_root="$(/usr/bin/mktemp -d',
-  );
-  const descriptorOpen = launcherSource.indexOf(
-    'exec 19<"$reviewed_runtime_root"',
-  );
-  const firstMaterialize = launcherSource.indexOf(
-    'materialize_reviewed_blob "$signer_rel"',
-  );
-  const descriptorExec = nodeInvocationAt;
-  assert.ok(runtimeCreate >= 0);
-  assert.ok(descriptorOpen > runtimeCreate);
+for (const access of [
+  "private_key_access=true",
+  "credential_access=true",
+  "wallet_or_signer_access=true",
+]) {
   assert.ok(
-    firstMaterialize > descriptorOpen,
-    "reviewed runtime descriptor must be retained before signer materialization",
-  );
-  assert.ok(
-    descriptorExec > firstMaterialize,
-    "descriptor-bound signer execution must follow reviewed materialization",
-  );
-  assert.equal(
-    launcherSource.includes(
-      'destination="$reviewed_runtime_fd_path/$rel"',
-    ),
-    true,
-    "reviewed blob writes and hashes must use the retained directory descriptor",
+    launcherSource.indexOf(access) < nodeInvocationAt,
+    access + " must be announced before streamed signer execution",
   );
 }
 
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
   "utf8",
+);
+
+assert.equal(
+  signerSource.includes(
+    'from "../../tools/void-reviewed-node-package-runtime-v1.mjs"',
+  ),
+  false,
+  "production streamed signer must not statically reopen the runtime helper path",
+);
+assert.equal(
+  signerSource.includes(
+    "VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1",
+  ),
+  true,
+);
+assert.equal(
+  signerSource.includes(
+    "gitBlobSha1V1(bytes) !== expectedBlob",
+  ),
+  true,
+  "runtime helper transport must be Git-blob verified before import",
+);
+assert.equal(
+  signerSource.includes(
+    '"data:text/javascript;base64,"',
+  ),
+  true,
+  "reviewed helper must be imported from verified in-memory bytes",
+);
+assert.equal(
+  signerSource.includes('process.argv[1] === "-"'),
+  true,
+  "production streamed module must have an explicit direct-main boundary",
 );
 
 assert.equal(
@@ -1232,10 +1242,10 @@ console.log("launcher_bytes_verified_before_bash_stdin=true");
 console.log("launcher_path_replacement_after_byte_verification_ignored=true");
 console.log("reviewed_launcher_bootstrap_descriptor_pinned=true");
 console.log("reviewed_launcher_path_reopen=false");
-console.log("reviewed_signer_materialized_before_execution=true");
-console.log("reviewed_signer_tree_pinned_before_materialization=true");
-console.log("reviewed_signer_descriptor_execution=true");
-console.log("materialized_signer_path_reopen=false");
+console.log("reviewed_signer_git_blob_stream_verified=true");
+console.log("outer_temporary_executable_tree=false");
+console.log("reviewed_signer_stdin_execution=true");
+console.log("runtime_helper_verified_in_memory=true");
 console.log("mutable_worktree_signer_execution=false");
 console.log("node_22_0_to_22_12_permission_flag_supported=true");
 console.log("node_22_13_plus_permission_flag_supported=true");
