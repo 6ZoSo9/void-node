@@ -275,6 +275,22 @@ assert.equal(
   true,
 );
 assert.equal(signerSource.includes(".trim()"), false);
+assert.equal(
+  signerSource.includes('fail(label + "_path_alias_forbidden")'),
+  true,
+);
+assert.equal(
+  signerSource.includes("canonicalAfter !== file"),
+  true,
+);
+assert.equal(
+  signerSource.includes("pathnameAfter.dev !== after.dev"),
+  true,
+);
+assert.equal(
+  signerSource.includes("pathnameAfter.ino !== after.ino"),
+  true,
+);
 assert.equal(signerSource.includes("http:"), false);
 assert.equal(signerSource.includes("https:"), false);
 assert.equal(signerSource.includes("fetch("), false);
@@ -377,6 +393,9 @@ console.log("private_key_path_fixed=true");
 console.log("key_file_cli_override=false");
 console.log("exact_private_key_file_format=true");
 console.log("private_key_whitespace_normalization=false");
+console.log("canonical_input_paths_required=true");
+console.log("parent_symlink_alias_rejected=true");
+console.log("input_path_inode_rebound_after_read=true");
 console.log("production_signing_helper_non_recursive=true");
 console.log("post_runtime_signing_clock_sampled=true");
 console.log("expiry_rechecked_before_and_after_signature=true");
