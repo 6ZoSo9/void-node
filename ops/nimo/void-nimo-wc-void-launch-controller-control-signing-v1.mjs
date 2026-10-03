@@ -727,7 +727,7 @@ async function main() {
   const operation = process.argv[2] || "";
   const inputRelative = process.argv[3] || "";
   if (
-    !["probe", "sign"].includes(operation) ||
+    !["probe", "sign", "ancestor_probe"].includes(operation) ||
     !inputRelative ||
     path.isAbsolute(inputRelative) ||
     inputRelative.split("/").some(
@@ -741,15 +741,30 @@ async function main() {
   );
 
   if (operation === "probe") {
+    const ethersModule = await import("ethers");
     output({
       marker: BRIDGE_MARKER,
       version: 1,
       ok: true,
       operation,
       ethers_version:
-        typeof (await import("ethers")).version === "string"
-          ? (await import("ethers")).version
+        typeof ethersModule.version === "string"
+          ? ethersModule.version
           : null,
+      permission_fenced: true,
+      ancestor_package_resolution_allowed: false,
+    });
+    return;
+  }
+
+  if (operation === "ancestor_probe") {
+    const candidate = await import("bufferutil");
+    output({
+      marker: BRIDGE_MARKER,
+      version: 1,
+      ok: true,
+      operation,
+      ancestor_marker: candidate.marker ?? null,
       permission_fenced: true,
       ancestor_package_resolution_allowed: false,
     });
@@ -986,7 +1001,11 @@ function parseReviewedBridgeOutputV1(execution, operation) {
   return value;
 }
 
-async function withReviewedSigningRuntimeV1(controlBlobSha1, fn) {
+async function withReviewedSigningRuntimeV1(
+  controlBlobSha1,
+  fn,
+  { testAncestorPackage = false } = {},
+) {
   const { profile } = readReviewedNodePackageRuntimeProfileV1({
     relativePath: REVIEWED_RUNTIME_PROFILE_RELATIVE_V1,
     repoRoot: ROOT,
@@ -1027,6 +1046,36 @@ async function withReviewedSigningRuntimeV1(controlBlobSha1, fn) {
         "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
     ) {
       fail("offline_signer_private_runtime_unverified");
+    }
+
+    if (testAncestorPackage === true) {
+      const ancestorPackage = path.join(
+        parent,
+        "node_modules",
+        "bufferutil",
+      );
+      fs.mkdirSync(ancestorPackage, { recursive: true, mode: 0o700 });
+      writePrivateRuntimeFileV1(
+        path.join(ancestorPackage, "package.json"),
+        Buffer.from(
+          JSON.stringify({
+            name: "bufferutil",
+            version: "9.9.9",
+            type: "module",
+            exports: "./index.js",
+          }) + "\n",
+          "utf8",
+        ),
+        0o400,
+      );
+      writePrivateRuntimeFileV1(
+        path.join(ancestorPackage, "index.js"),
+        Buffer.from(
+          'export const marker="UNREVIEWED_ANCESTOR_PACKAGE_EXECUTED";\n',
+          "utf8",
+        ),
+        0o400,
+      );
     }
 
     const controlBytes = gitBlobBytesV1(
@@ -1803,6 +1852,41 @@ export async function signControlChallengeCoreV1({
     ethers,
     nowUnix,
   });
+}
+
+export async function testOnlyReviewedAncestorPackageFallbackBlockedV1() {
+  const currentControlBlob = gitReadV1(
+    ["rev-parse", "HEAD:" + CONTROL_REL_V1],
+    "offline_signer_current_control_blob_unavailable",
+  );
+  if (!HEX40.test(currentControlBlob)) {
+    fail("offline_signer_current_control_blob_invalid");
+  }
+  return await withReviewedSigningRuntimeV1(
+    currentControlBlob,
+    async (runtime) => {
+      try {
+        runtime.run("ancestor_probe", {}, "");
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          /offline_signer_reviewed_child_execution_failed/u.test(
+            error.message,
+          )
+        ) {
+          return Object.freeze({
+            ancestor_package_present: true,
+            ancestor_package_executed: false,
+            permission_fenced_execution: true,
+            ancestor_package_resolution_allowed: false,
+          });
+        }
+        throw error;
+      }
+      fail("offline_signer_ancestor_package_unexpectedly_executed");
+    },
+    { testAncestorPackage: true },
+  );
 }
 
 export async function reviewedOfflineSigningRuntimeV1() {
