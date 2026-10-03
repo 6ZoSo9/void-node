@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -33,14 +34,31 @@ const REVIEWED_RUNTIME_PROFILE_ID_V1 =
 const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1 =
   "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73";
 const ROLE_LABEL_V1 = "VOID_WC_VOID_MARKET_VAULT_LAUNCH_CONTROLLER_V1";
+const COUPLED_LAUNCH_ID_V1 =
+  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 const COUPLED_LAUNCH_BYTES32_V1 =
   "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 const COMPILED_IDENTITY_ID_V1 =
   "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a";
 const VOID_TOKEN_V1 =
   "0x470075b85352eb86f7d089fb9ba88945f12aad94";
-const KEY_RELATIVE_V1 =
-  ".local/share/void/offline-keys/wc-void-launch-controller-v1/private-key.hex";
+const KEY_PATH_V1 =
+  "/home/zoso/.local/share/void/offline-keys/wc-void-launch-controller-v1/private-key.hex";
+const GIT_V1 = "/usr/bin/git";
+const NODE_V1 = "/usr/bin/node";
+const COUPLED_REL_V1 =
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
+const IDENTITY_REL_V1 =
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
+const CONTROL_REL_V1 =
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
+const EXPECTED_SOURCE_BLOBS_V1 = Object.freeze({
+  [COUPLED_REL_V1]: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+  [IDENTITY_REL_V1]: "c85b6bc59caac6bc765cb8e969cb980386161d12",
+  "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+  "package-lock.json": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+});
+const HEX40 = /^[0-9a-f]{40}$/u;
 const CHALLENGE_ID_PATTERN = /^voidwclcc1_[0-9a-f]{64}$/u;
 const SHA64 = /^[0-9a-f]{64}$/u;
 const BYTES32 = /^0x[0-9a-f]{64}$/u;
@@ -51,6 +69,48 @@ const MAX_TTL_SECONDS = 1800n;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
+
+export function validateSanitizedOfflineSignerEnvironmentV1(
+  env = process.env,
+  execPath = process.execPath,
+) {
+  const allowed = new Set([
+    "HOME",
+    "PATH",
+    "LANG",
+    "LC_ALL",
+    "VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1",
+  ]);
+  const keys = Object.keys(env);
+  if (
+    keys.some((key) => !allowed.has(key)) ||
+    env.HOME !== "/home/zoso" ||
+    env.PATH !== "/usr/bin:/bin" ||
+    env.LANG !== "C" ||
+    env.LC_ALL !== "C" ||
+    env.VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1 !== "1"
+  ) {
+    fail("offline_signer_environment_not_sanitized");
+  }
+  let actualNode;
+  let expectedNode;
+  try {
+    actualNode = fs.realpathSync.native(execPath);
+    expectedNode = fs.realpathSync.native(NODE_V1);
+  } catch {
+    fail("offline_signer_node_executable_unavailable");
+  }
+  if (actualNode !== expectedNode) {
+    fail("offline_signer_node_executable_mismatch");
+  }
+  return Object.freeze({
+    sanitized_environment: true,
+    node_executable: expectedNode,
+    ambient_node_options_absent: true,
+    ambient_node_path_absent: true,
+    ambient_dynamic_loader_overrides_absent: true,
+  });
+}
 
 export const VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1 =
   Object.freeze({
@@ -100,6 +160,59 @@ function canonicalize(value) {
 
 function canonicalJson(value) {
   return JSON.stringify(canonicalize(value));
+}
+
+function reviewedGitEnvV1() {
+  return {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: "/nonexistent",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+}
+
+function gitReadV1(args, code) {
+  let output;
+  try {
+    output = execFileSync(
+      GIT_V1,
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.preloadIndex=false",
+        "-c", "submodule.recurse=false",
+        "-C", ROOT,
+        ...args,
+      ],
+      {
+        cwd: "/",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: reviewedGitEnvV1(),
+      },
+    ).trim();
+  } catch {
+    fail(code);
+  }
+  return output;
+}
+
+function requireCleanRepositoryV1() {
+  if (
+    gitReadV1(
+      ["status", "--porcelain=v1", "--untracked-files=all"],
+      "offline_signer_repository_status_unavailable",
+    ) !== ""
+  ) {
+    fail("offline_signer_repository_not_clean");
+  }
 }
 
 function exactDataObject(value, keys, code) {
@@ -421,6 +534,156 @@ async function withReviewedEthersV1(fn) {
   }
 }
 
+function validateCurrentSourceBindingV1(
+  bindingValue,
+  challenge,
+) {
+  const binding = exactDataObject(
+    bindingValue,
+    [
+      "source_head_sha",
+      "source_tree_sha",
+      "control_contract_git_blob_sha1",
+      "source_blobs",
+      "coupled_launch_id",
+      "coupled_launch_id_bytes32",
+      "compiled_identity_id",
+      "void_token",
+      "source_binding_sha256",
+    ],
+    "control_source_binding",
+  );
+  if (
+    typeof binding.source_head_sha !== "string" ||
+    !HEX40.test(binding.source_head_sha) ||
+    typeof binding.source_tree_sha !== "string" ||
+    !HEX40.test(binding.source_tree_sha) ||
+    typeof binding.control_contract_git_blob_sha1 !== "string" ||
+    !HEX40.test(binding.control_contract_git_blob_sha1) ||
+    binding.coupled_launch_id !== COUPLED_LAUNCH_ID_V1 ||
+    binding.coupled_launch_id_bytes32 !== COUPLED_LAUNCH_BYTES32_V1 ||
+    binding.compiled_identity_id !== COMPILED_IDENTITY_ID_V1 ||
+    binding.void_token !== VOID_TOKEN_V1 ||
+    typeof binding.source_binding_sha256 !== "string" ||
+    !SHA64.test(binding.source_binding_sha256)
+  ) {
+    fail("control_source_binding_invalid");
+  }
+  const blobs = exactDataObject(
+    binding.source_blobs,
+    Object.keys(EXPECTED_SOURCE_BLOBS_V1),
+    "control_source_binding_blobs",
+  );
+  for (const [relativePath, expectedBlob] of
+    Object.entries(EXPECTED_SOURCE_BLOBS_V1)) {
+    if (blobs[relativePath] !== expectedBlob) {
+      fail("control_source_binding_blob_invalid:" + relativePath);
+    }
+  }
+  const material = {
+    source_head_sha: binding.source_head_sha,
+    source_tree_sha: binding.source_tree_sha,
+    control_contract_git_blob_sha1:
+      binding.control_contract_git_blob_sha1,
+    source_blobs: blobs,
+    coupled_launch_id: binding.coupled_launch_id,
+    coupled_launch_id_bytes32: binding.coupled_launch_id_bytes32,
+    compiled_identity_id: binding.compiled_identity_id,
+    void_token: binding.void_token,
+  };
+  if (
+    sha256(Buffer.from(canonicalJson(material), "utf8")) !==
+      binding.source_binding_sha256 ||
+    challenge.source_binding_sha256 !==
+      "0x" + binding.source_binding_sha256
+  ) {
+    fail("control_source_binding_digest_mismatch");
+  }
+
+  requireCleanRepositoryV1();
+  const currentHead = gitReadV1(
+    ["rev-parse", "HEAD"],
+    "control_current_head_unavailable",
+  );
+  if (!HEX40.test(currentHead)) {
+    fail("control_current_head_invalid");
+  }
+  try {
+    execFileSync(
+      GIT_V1,
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.preloadIndex=false",
+        "-c", "submodule.recurse=false",
+        "-C", ROOT,
+        "merge-base",
+        "--is-ancestor",
+        binding.source_head_sha,
+        currentHead,
+      ],
+      {
+        cwd: "/",
+        stdio: ["ignore", "ignore", "ignore"],
+        env: reviewedGitEnvV1(),
+      },
+    );
+  } catch {
+    fail("control_source_head_not_ancestor_of_current_head");
+  }
+
+  const reviewedTree = gitReadV1(
+    ["rev-parse", binding.source_head_sha + "^{tree}"],
+    "control_reviewed_source_tree_unavailable",
+  );
+  if (reviewedTree !== binding.source_tree_sha) {
+    fail("control_reviewed_source_tree_mismatch");
+  }
+
+  for (const [relativePath, expectedBlob] of
+    Object.entries(EXPECTED_SOURCE_BLOBS_V1)) {
+    const reviewedBlob = gitReadV1(
+      ["rev-parse", binding.source_head_sha + ":" + relativePath],
+      "control_reviewed_source_blob_unavailable",
+    );
+    const currentBlob = gitReadV1(
+      ["rev-parse", "HEAD:" + relativePath],
+      "control_current_source_blob_unavailable",
+    );
+    if (
+      reviewedBlob !== expectedBlob ||
+      reviewedBlob !== blobs[relativePath] ||
+      currentBlob !== expectedBlob
+    ) {
+      fail("control_source_blob_drift:" + relativePath);
+    }
+  }
+
+  const reviewedControlBlob = gitReadV1(
+    ["rev-parse", binding.source_head_sha + ":" + CONTROL_REL_V1],
+    "control_reviewed_contract_source_blob_unavailable",
+  );
+  const currentControlBlob = gitReadV1(
+    ["rev-parse", "HEAD:" + CONTROL_REL_V1],
+    "control_current_contract_source_blob_unavailable",
+  );
+  if (
+    reviewedControlBlob !== binding.control_contract_git_blob_sha1 ||
+    currentControlBlob !== binding.control_contract_git_blob_sha1
+  ) {
+    fail("control_contract_source_blob_drift");
+  }
+  return Object.freeze({
+    source_binding_sha256: binding.source_binding_sha256,
+    source_head_sha: binding.source_head_sha,
+    current_head_sha: currentHead,
+    current_source_binding_verified: true,
+  });
+}
+
 function validateChallengeForSigningV1({
   challengeEnvelope,
   expectedAddress,
@@ -497,6 +760,11 @@ function validateChallengeForSigningV1({
       { name: "expires_at_unix", type: "uint64" },
     ],
   };
+
+  const sourceBinding = validateCurrentSourceBindingV1(
+    envelope.source_binding,
+    challenge,
+  );
 
   const candidate = ethers.getAddress(
     String(challenge.candidate_address),
@@ -647,6 +915,21 @@ function validateChallengeForSigningV1({
     }),
     typed_data_digest: digest,
     expires_at_unix: expires.toString(),
+    source_binding_sha256: sourceBinding.source_binding_sha256,
+    current_source_binding_verified:
+      sourceBinding.current_source_binding_verified,
+  });
+}
+
+async function signValidatedControlChallengeV1({
+  reviewed,
+  privateKey,
+  ethers,
+}) {
+  return await signValidatedControlChallengeV1({
+    reviewed,
+    privateKey,
+    ethers,
   });
 }
 
@@ -736,17 +1019,20 @@ export async function signSelectedLaunchControllerChallengeV1({
   nowUnix = Math.floor(Date.now() / 1000),
 } = {}) {
   const challenge = readChallengeV1(challengePath, challengeSha256);
-  const keyPath = path.resolve(os.homedir(), KEY_RELATIVE_V1);
 
   return await withReviewedEthersV1(async ({ ethers, profile }) => {
-    let privateKey = readPrivateKeyV1(keyPath);
+    const reviewed = validateChallengeForSigningV1({
+      challengeEnvelope: challenge.value,
+      expectedAddress: SELECTED_REVIEWER_ADDRESS_V1,
+      nowUnix,
+      ethers,
+    });
+    let privateKey = readPrivateKeyV1(KEY_PATH_V1);
     let envelope;
     try {
-      envelope = await signControlChallengeCoreV1({
-        challengeEnvelope: challenge.value,
+      envelope = await signValidatedControlChallengeV1({
+        reviewed,
         privateKey,
-        expectedAddress: SELECTED_REVIEWER_ADDRESS_V1,
-        nowUnix,
         ethers,
       });
     } finally {
@@ -767,6 +1053,8 @@ export async function signSelectedLaunchControllerChallengeV1({
       reviewed_packages_aggregate_sha256:
         profile.packages_aggregate_sha256,
       private_key_path_fixed: true,
+      current_source_binding_verified: true,
+      sanitized_environment_required: true,
       private_key_printed: false,
       private_key_exported: false,
       transaction_signing: false,
@@ -810,6 +1098,7 @@ async function main(argv) {
     usage();
     fail("offline_signer_arguments_invalid");
   }
+  validateSanitizedOfflineSignerEnvironmentV1();
   const result = await signSelectedLaunchControllerChallengeV1({
     challengePath: path.resolve(values.challenge),
     challengeSha256: values["challenge-sha256"],
