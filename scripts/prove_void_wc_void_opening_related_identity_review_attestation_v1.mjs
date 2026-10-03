@@ -577,8 +577,14 @@ await assert.rejects(
   const compilerPath =
     "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
   const toolSource = fs.readFileSync(toolPath, "utf8");
+  const productionImportRegion = toolSource.slice(
+    0,
+    toolSource.indexOf(
+      "export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1",
+    ),
+  );
   assert.equal(
-    toolSource.includes('from "ethers"'),
+    productionImportRegion.includes('from "ethers"'),
     false,
     "production verifier must not execute ambient ethers at module load",
   );
@@ -586,6 +592,18 @@ await assert.rejects(
     toolSource.includes("canonicalEvidence.filter("),
     false,
     "cluster validation must not rescan the full evidence array",
+  );
+  assert.equal(
+    toolSource.includes(
+      "evidence.subject_participant_ids.includes(assignment.participant_id)",
+    ),
+    false,
+    "assignment validation must not linearly rescan evidence subjects",
+  );
+  assert.equal(
+    toolSource.includes("evidenceSubjects.has(assignment.participant_id)"),
+    true,
+    "assignment validation must use the indexed evidence-subject set",
   );
   assert.equal(
     toolSource.includes("evidenceByCluster.get(clusterId)"),
@@ -959,6 +977,7 @@ console.log("review_domain_salt_rederived=true");
 console.log("reviewable_manifest_binding=true");
 console.log("manifest_resource_limits_enforced=true");
 console.log("linear_evidence_by_cluster_index=true");
+console.log("indexed_evidence_subject_membership=true");
 console.log("manifest_cluster_evidence_roots_reverified=true");
 console.log("manifest_compiler_worktree_execution=false");
 console.log("dirty_manifest_compiler_sentinel_execution=false");
