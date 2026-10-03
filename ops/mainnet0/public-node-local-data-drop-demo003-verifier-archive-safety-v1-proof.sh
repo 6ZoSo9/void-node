@@ -27,6 +27,8 @@ grep -Fq "BoundedDecompressedReader" "$VERIFIER" || fail "bounded_decompress_rea
 grep -Fq "safe_diagnostic" "$VERIFIER" || fail "sanitized_diagnostic_missing"
 grep -Fq "function diagnostic" "$VERIFIER" || fail "node_sanitized_diagnostic_missing"
 grep -Fq "semantic_verify_descriptor_bound=true" "$VERIFIER" || fail "semantic_descriptor_binding_missing"
+grep -Fq "semantic_verify_child_bytes_sealed=true" "$VERIFIER" || fail "semantic_child_byte_seal_missing"
+grep -Fq "sealed digest mismatch" "$VERIFIER" || fail "semantic_child_digest_enforcement_missing"
 grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
 grep -Fq "fixture visible identity changed during semantic verify" "$VERIFIER" || fail "terminal_visible_identity_check_missing"
 grep -Fq "Demo003 invocation path invalid" "$VERIFIER" || fail "invocation_path_guard_missing"
@@ -37,6 +39,7 @@ if grep -Fq 'install -d -m 700 "$OUT"' "$VERIFIER"; then fail "pathname_output_r
 if grep -Fq 'tee "$OUT/sha256-check.log"' "$VERIFIER"; then fail "pathname_postverify_log_write_remains"; fi
 if grep -Fq 'echo "tarball=$TARBALL"' "$VERIFIER"; then fail "raw_tarball_diagnostic_remains"; fi
 if grep -Fq 'echo "out=$OUT"' "$VERIFIER"; then fail "raw_output_diagnostic_remains"; fi
+if grep -Fq 'echo "fixture_dir=$FIXTURE_DIR"' "$VERIFIER"; then fail "raw_final_output_diagnostic_remains"; fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -55,6 +58,26 @@ grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREE
 if find "$verify_out/extract" -type l -print -quit | grep -q .; then fail "canonical_extract_contains_symlink"; fi
 grep -Fq "semantic_verify_descriptor_bound=true" "$tmp/verify.log" ||
   fail "canonical_semantic_descriptor_binding_not_reported"
+grep -Fq "semantic_verify_child_bytes_sealed=true" "$tmp/verify.log" ||
+  fail "canonical_semantic_child_seal_not_reported"
+
+xpg_out="$tmp/xpg-output\\nFORGED_XPG_OUTPUT_LINE=true"
+xpg_log="$tmp/xpg-output.log"
+if ! OUT="$xpg_out" bash -O xpg_echo "$VERIFIER" "$tarball" >"$xpg_log" 2>&1; then
+  fail "xpg_echo_canonical_verification_failed"
+fi
+python3 - "$xpg_log" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+if any(line == b"FORGED_XPG_OUTPUT_LINE=true" for line in data.splitlines()):
+    raise SystemExit("xpg_echo_forged_output_line")
+if data.count(b"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN") != 1:
+    raise SystemExit("xpg_echo_green_count_invalid")
+if b"fixture_dir=" not in data or b"\\nFORGED_XPG_OUTPUT_LINE=true" not in data:
+    raise SystemExit("xpg_echo_literal_backslash_not_preserved")
+PY
 
 hostile_tar="$tmp/missing-tar"$'\nFORGED_TARBALL_GREEN=true\033[31m'
 hostile_tar_log="$tmp/hostile-tar-path.log"
@@ -385,10 +408,18 @@ rc=$?
 set -e
 
 if [ "$rc" -eq 0 ] &&
-   grep -Fq "MAX_TARBALL_BYTES = 16 * 1024 * 1024" "$script" &&
-   [ "${VOID_DEMO003_TEST_SWAP_ON_ARCHIVE_PHASE:-0}" = "1" ]; then
-  mv -- "${VOID_DEMO003_TEST_SWAP_OUT:?}" "${VOID_DEMO003_TEST_SWAP_DETACHED:?}"
-  mv -- "${VOID_DEMO003_TEST_SWAP_REPLACEMENT:?}" "${VOID_DEMO003_TEST_SWAP_OUT:?}"
+   grep -Fq "MAX_TARBALL_BYTES = 16 * 1024 * 1024" "$script"; then
+  if [ "${VOID_DEMO003_TEST_SWAP_ON_ARCHIVE_PHASE:-0}" = "1" ]; then
+    mv -- "${VOID_DEMO003_TEST_SWAP_OUT:?}" "${VOID_DEMO003_TEST_SWAP_DETACHED:?}"
+    mv -- "${VOID_DEMO003_TEST_SWAP_REPLACEMENT:?}" "${VOID_DEMO003_TEST_SWAP_OUT:?}"
+  fi
+  if [ -n "${VOID_DEMO003_TEST_CHILD_SWAP_SOURCE:-}" ]; then
+    target="${VOID_DEMO003_TEST_CHILD_SWAP_TARGET:?}"
+    source="${VOID_DEMO003_TEST_CHILD_SWAP_SOURCE:?}"
+    test -d "$target"
+    test -d "$source"
+    cp -a -- "$source/." "$target/"
+  fi
 fi
 
 exit "$rc"
@@ -413,6 +444,72 @@ if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_G
 fi
 test -d "$swap_detached/extract/demo003-folder-fixture" ||
   fail "interphase_detached_verified_tree_missing"
+
+replacement_root="$tmp/interphase-valid-replacement"
+cp -a "$fixture_out/demo003-folder-fixture" "$replacement_root"
+python3 - "$replacement_root" <<'PY_REPLACEMENT'
+import hashlib
+import json
+import os
+import sys
+
+root = sys.argv[1]
+readme = os.path.join(root, "files", "README.txt")
+with open(readme, "wb") as handle:
+    handle.write(b"VOID_DEMO003_INTERPHASE_REPLACEMENT\n")
+
+metadata = os.path.join(root, "files", "metadata.json")
+with open(metadata, "r", encoding="utf8") as handle:
+    metadata_value = json.load(handle)
+metadata_value["interphase_replacement_fixture"] = True
+with open(metadata, "w", encoding="utf8") as handle:
+    json.dump(metadata_value, handle, sort_keys=True, indent=2)
+    handle.write("\n")
+
+manifest_path = os.path.join(root, "manifest.json")
+with open(manifest_path, "r", encoding="utf8") as handle:
+    manifest = json.load(handle)
+for row in manifest["files"]:
+    rel = row["path"]
+    full = os.path.join(root, rel)
+    with open(full, "rb") as source:
+        data = source.read()
+    row["sha256"] = hashlib.sha256(data).hexdigest()
+    row["sizeBytes"] = len(data)
+with open(manifest_path, "w", encoding="utf8") as handle:
+    json.dump(manifest, handle, indent=2)
+    handle.write("\n")
+
+rels = [
+    "manifest.json",
+    "files/README.txt",
+    "files/index.html",
+    "files/metadata.json",
+]
+with open(os.path.join(root, "sha256sums.txt"), "w", encoding="ascii") as handle:
+    for rel in rels:
+        with open(os.path.join(root, rel), "rb") as source:
+            digest = hashlib.sha256(source.read()).hexdigest()
+        handle.write(f"{digest}  ./{rel}\n")
+PY_REPLACEMENT
+
+child_swap_out="$tmp/verify-interphase-child-swap"
+child_swap_log="$tmp/interphase-child-swap.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_CHILD_SWAP_SOURCE="$replacement_root" \
+   VOID_DEMO003_TEST_CHILD_SWAP_TARGET="$child_swap_out/extract/demo003-folder-fixture" \
+   OUT="$child_swap_out" \
+   bash "$VERIFIER" "$tarball" >"$child_swap_log" 2>&1; then
+  fail "interphase_child_replacement_accepted"
+fi
+grep -Fq "sealed digest mismatch" "$child_swap_log" ||
+  fail "interphase_child_replacement_digest_hold_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$child_swap_log"; then
+  fail "interphase_child_replacement_reached_green"
+fi
+test -d "$child_swap_out/extract/demo003-folder-fixture" ||
+  fail "interphase_child_replacement_fixture_missing"
 
 manifest_control_out="$tmp/verify-manifest-control"
 if OUT="$manifest_control_out" \
@@ -445,8 +542,11 @@ echo "extract_root_symlink_rejected=true"
 echo "archive_control_diagnostics_escaped=true"
 echo "manifest_path_diagnostics_escaped=true"
 echo "invocation_path_diagnostics_escaped=true"
+echo "xpg_echo_output_path_safe=true"
 echo "interphase_output_tree_swap_rejected=true"
+echo "interphase_child_replacement_rejected=true"
 echo "semantic_verify_descriptor_bound=true"
+echo "semantic_verify_child_bytes_sealed=true"
 echo "outside_sentinel_unchanged=true"
 echo "network_fetch=false"
 echo "live_runtime_mutation=false"
