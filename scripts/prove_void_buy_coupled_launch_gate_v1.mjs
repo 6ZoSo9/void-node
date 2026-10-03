@@ -891,7 +891,7 @@ assert.doesNotMatch(
 );
 assert.match(gateSource, /publishBuyLaunchGenerationTransitionV1/);
 assert.match(gateSource, /buy_launch_generation_publication_pending/);
-assert.match(gateSource, /buy_launch_generation_publish_recovery_input_mismatch/);
+assert.match(gateSource, /buy_launch_generation_pending_publication_recovered_retry_required/);
 assert.match(gateSource, /buy_launch_generation_publish_recovery_order_invalid/);
 assert.match(gateSource, /recovery\.phase === "intent_only"/);
 assert.match(gateSource, /recovery\.phase === "journal_committed"/);
@@ -900,6 +900,14 @@ assert.match(
   /buy-void-coupled-live-generation-publication-intent-v1\.json/,
 );
 assert.match(gateSource, /recoverBuyLaunchGenerationPublicationV1/);
+assert.doesNotMatch(
+  gateSource,
+  /buy_launch_generation_publish_recovery_input_mismatch/,
+);
+assert.match(
+  gateSource,
+  /buy_launch_generation_pending_publication_recovered_retry_required/,
+);
 assert.match(gateSource, /classifyBuyLaunchGenerationPublicationRecoveryV1/);
 assert.match(gateSource, /buildBuyLaunchGenerationPublicationIntentV1/);
 assert.match(gateSource, /atomicWritePrivateGenerationBytesV1\(intentPath, intentBytes\)/);
@@ -996,6 +1004,7 @@ console.log("generation_transition_publication_generation_lock_required=true");
 console.log("canonical_generation_publisher_uses_shared_lock=true");
 console.log("generation_publication_write_ahead_intent_required=true");
 console.log("partial_generation_publication_crash_recoverable=true");
+console.log("pending_publication_recovery_precedes_new_transition=true");
 console.log("unknown_partial_generation_state_fails_closed=true");
 console.log("async_generation_publication_lock_lifetime_safe=true");
 console.log("external_generation_high_water_anchor_required=true");
