@@ -54,10 +54,14 @@ grep -Fq 'group_or_world_writable' "$IMPORTER" ||
   fail "store_directory_mode_guard_missing"
 grep -Fq 'not_owned_by_operator' "$IMPORTER" ||
   fail "operator_ownership_guard_missing"
-grep -Fq 'source_before = os.lstat(src)' "$IMPORTER" ||
-  fail "source_lstat_guard_missing"
-grep -Fq 'os.open(src, os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC)' "$IMPORTER" ||
-  fail "source_nofollow_open_missing"
+grep -Fq 'def open_source(path):' "$IMPORTER" ||
+  fail "secure_source_walk_missing"
+grep -Fq 'f"source_dir_component_{idx}"' "$IMPORTER" ||
+  fail "source_ancestor_nofollow_walk_missing"
+grep -Fq 'before = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)' "$IMPORTER" ||
+  fail "source_final_nofollow_stat_missing"
+grep -Fq 'fd = os.open(name, READ_FLAGS, dir_fd=parent_fd)' "$IMPORTER" ||
+  fail "source_final_dirfd_open_missing"
 if grep -Fq 'sha256sum "$SRC"' "$IMPORTER"; then
   fail "shell_source_hash_read_remains"
 fi
@@ -218,6 +222,18 @@ if find "$source_symlink_default_root/data" -mindepth 1 -print -quit | grep -q .
   fail "source_symlink_without_object_id_created_data_artifacts"
 fi
 
+source_ancestor_symlink_root="$tmp/source-ancestor-symlink"
+mkdir -p   "$source_ancestor_symlink_root/input"   "$source_ancestor_symlink_root/outside"
+printf 'VOID_ANCESTOR_SENTINEL_SECRET_MUST_NOT_PUBLISH\n' > "$source_ancestor_symlink_root/outside/secret.txt"
+ln -s   "$source_ancestor_symlink_root/outside"   "$source_ancestor_symlink_root/input/alias"
+if DATA_DIR="$source_ancestor_symlink_root/data" bash "$IMPORTER" "$source_ancestor_symlink_root/input/alias/secret.txt" "$OBJECT_ID" >"$tmp/source-ancestor-symlink.log" 2>&1; then
+  fail "source_ancestor_symlink_accepted"
+fi
+if [ -e "$source_ancestor_symlink_root/data" ] &&
+   find "$source_ancestor_symlink_root/data" -mindepth 1 -print -quit | grep -q .; then
+  fail "source_ancestor_symlink_created_data_artifacts"
+fi
+
 default_root="$tmp/default-object-id"
 default_base="$(basename "$PAYLOAD" | tr -cd 'A-Za-z0-9._-' | cut -c1-120)"
 default_id="${CONTENT_SHA256:0:16}-${default_base:-object.bin}"
@@ -351,6 +367,7 @@ echo "create_only=true"
 echo "duplicate_rejected_without_mutation=true"
 echo "source_symlink_rejected_without_publication=true"
 echo "source_symlink_default_id_rejected_without_read_artifact=true"
+echo "source_ancestor_symlink_rejected_without_read_artifact=true"
 echo "secure_default_object_id_compatibility=true"
 echo "object_symlink_rejected_outside_unchanged=true"
 echo "receipt_symlink_rejected_outside_unchanged=true"
