@@ -924,7 +924,7 @@ function materializePrivateSelectionTreeV1(generation) {
 export function nodePermissionFlagV1(
   nodeVersion = process.versions.node,
 ) {
-  const match = /^(\\d+)\\.(\\d+)\\.(\\d+)(?:-|$)/u.exec(nodeVersion);
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-|$)/u.exec(nodeVersion);
   if (!match) {
     fail("production_epoch2_selection_node_version_invalid");
   }
