@@ -152,8 +152,13 @@ currently live gate on the same generation/tip; payment verification checks once
 before chain observation and again before recording `payment_verified`. A
 same-generation receipt renewal may keep the launch live, but it never extends
 the request's original payment deadline. An expired, revoked, rotated, or
-otherwise superseded request therefore cannot be carried across the launch
-boundary.
+otherwise superseded request therefore cannot accept a new payment or advance
+into `payment_verified`.
+
+That payment-admission lease does not erase obligations already accepted while
+the lease was valid. Operator rejection/review and confirmed fulfillment of an
+already verified payment remain available after intake closes; those are
+resolution actions, not new payment admission.
 
 Ethereum payment verification/finality remains a separate prerequisite; this
 gate does not replace the Ethereum finality gate.
