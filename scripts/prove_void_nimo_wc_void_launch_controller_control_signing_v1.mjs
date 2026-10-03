@@ -780,6 +780,15 @@ assert.equal(
   ),
   true,
 );
+const nodeInvocationNeedle =
+  '/usr/bin/node \\\n' +
+  '  "$reviewed_runtime_fd_path/$signer_rel" \\\n' +
+  '  sign \\\n';
+const nodeInvocationAt = launcherSource.indexOf(nodeInvocationNeedle);
+assert.ok(
+  nodeInvocationAt >= 0,
+  "descriptor-bound signer Node invocation must be present",
+);
 {
   const modeBranch = launcherSource.indexOf(
     'if [[ "$mode" == "preflight" ]]',
@@ -793,9 +802,7 @@ assert.equal(
     "private_key_access=true",
     branchEnd,
   );
-  const execIndex = launcherSource.indexOf(
-    '"$reviewed_runtime_fd_path/$signer_rel"',
-  );
+  const execIndex = nodeInvocationAt;
   assert.ok(modeBranch >= 0 && branchEnd > modeBranch);
   assert.ok(
     preflightFalse > modeBranch && preflightFalse < branchEnd,
@@ -808,19 +815,19 @@ assert.equal(
 }
 assert.equal(
   launcherSource.indexOf("private_key_access=true") <
-    launcherSource.indexOf('"$reviewed_runtime_fd_path/$signer_rel"'),
+    nodeInvocationAt,
   true,
   "sign mode must announce key access before exec",
 );
 assert.equal(
   launcherSource.indexOf("credential_access=true") <
-    launcherSource.indexOf('"$reviewed_runtime_fd_path/$signer_rel"'),
+    nodeInvocationAt,
   true,
   "sign mode must announce credential access before exec",
 );
 assert.equal(
   launcherSource.indexOf("wallet_or_signer_access=true") <
-    launcherSource.indexOf('"$reviewed_runtime_fd_path/$signer_rel"'),
+    nodeInvocationAt,
   true,
   "sign mode must announce signer access before exec",
 );
@@ -835,9 +842,7 @@ assert.equal(
   const firstMaterialize = launcherSource.indexOf(
     'materialize_reviewed_blob "$signer_rel"',
   );
-  const descriptorExec = launcherSource.indexOf(
-    '"$reviewed_runtime_fd_path/$signer_rel"',
-  );
+  const descriptorExec = nodeInvocationAt;
   assert.ok(runtimeCreate >= 0);
   assert.ok(descriptorOpen > runtimeCreate);
   assert.ok(
@@ -1205,6 +1210,7 @@ console.log("private_key_access_reported=true");
 console.log("credential_access_reported=true");
 console.log("wallet_or_signer_access_reported=true");
 console.log("sign_mode_access_announced_before_exec=true");
+console.log("sign_mode_ordering_bound_to_actual_node_invocation=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("permission_fenced_signing_child=true");
 console.log("inner_reviewed_runtime_descriptor_bound=true");
