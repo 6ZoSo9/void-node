@@ -237,8 +237,11 @@ between signer-byte verification and production-key access.
 Do not execute the mutable worktree launcher as the bootstrap authority.
 The operator bootstrap reads the launcher directly from the independently
 reviewed Git commit, verifies the complete Git-blob hash **in memory**, and
-passes those already-verified bytes directly to Bash stdin. No staged launcher
-pathname or mutable launcher inode exists between verification and execution:
+passes those already-verified bytes directly to Bash stdin. The Python bootstrap
+runs with `-I -P`, disabling user-site/environment influence and unsafe
+working-directory path prepends before it imports even standard-library modules.
+No staged launcher pathname or mutable launcher inode exists between verification
+and execution:
 
 ```bash
 /usr/bin/env -i \
@@ -246,7 +249,7 @@ pathname or mutable launcher inode exists between verification and execution:
   PATH=/usr/bin:/bin \
   LANG=C \
   LC_ALL=C \
-  /usr/bin/python3 - \
+  /usr/bin/python3 -I -P - \
   /home/zoso/dev/void-node \
   <operator-reviewed-commit-40hex> \
   /absolute/private-work/challenge.json \
