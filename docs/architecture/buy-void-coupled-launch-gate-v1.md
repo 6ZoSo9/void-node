@@ -124,6 +124,22 @@ entrypoint calls `publishBuyLaunchGenerationTransitionV1(...)`, the only
 exported generation-publication operation. Its internal critical section takes
 the same generation-authority lock used by request/payment mutation.
 
+Publication is crash-recoverable across the two independent authority files.
+Before either journal or external-anchor write, the publisher atomically stores
+a private write-ahead intent at
+`~/.local/state/void-node-authority-v1/buy-void-coupled-live-generation-publication-intent-v1.json`.
+That intent binds the prior authority digest, the complete next append-only
+journal bytes/digest, generation, state, sequence, tip, and event timestamp.
+While holding the same generation-authority lock, a retry first examines any
+pending intent. Each observed authority file must be either the recorded prior
+state or the recorded next state (or absent only for a genesis transition).
+Only those known crash states may be completed forward to the recorded next
+state; unknown bytes, deletion of a required prior state, or non-append-only
+substitution fail closed. The intent is removed and its directory fsynced only
+after both authority files are byte-identical and the next state has been
+revalidated. A retry of the same interrupted transition returns the recovered
+publication; a different requested transition must be retried after recovery.
+
 The underlying bakery lock now provides
 `withBuyVoidFilesystemBakeryLockAsyncV1(...)`: its queue claim remains present
 until `await operation()` settles, and cleanup occurs only in the enclosing
@@ -274,8 +290,9 @@ The focused proof uses only temporary synthetic EIP-712 signers and a
 live-receipt fixture. It proves the signature format plus
 parser/custody/digest/confirmation behavior, durable generation
 revocation/rotation, rejection of rolled-back runtime journal bytes against a
-newer external high-water anchor, request expiry, and explicitly proves that valid synthetic
-signatures cannot
+newer external high-water anchor, write-ahead recovery of interrupted dual-file
+generation publication, rejection of unknown partial publication state, request
+expiry, and explicitly proves that valid synthetic signatures cannot
 satisfy either fixed production authority identity. CI never has either
 production key, cannot mint production activation evidence, and carries no
 runtime or economic authority.
