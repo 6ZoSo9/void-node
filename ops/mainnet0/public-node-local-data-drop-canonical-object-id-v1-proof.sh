@@ -130,6 +130,11 @@ grep -Fq 'run_identity_collision_resistant=true' "$DEMO003_INTAKE" || fail "demo
 grep -Fq 'O_NOFOLLOW' "$DEMO003_STATUS" || fail "demo003_status_nofollow_missing"
 grep -Fq 'data_dir_component_' "$DEMO003_STATUS" || fail "demo003_status_component_walk_missing"
 grep -Fq 'VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false' "$DEMO003_STATUS" || fail "demo003_status_false_marker_missing"
+grep -Fq 'EXPECTED_LATEST_NAMES=' "$DEMO003_STATUS" || fail "demo003_status_exact_latest_member_set_missing"
+grep -Fq 'EXPECTED_PAYLOAD_NAMES=' "$DEMO003_STATUS" || fail "demo003_status_exact_payload_member_set_missing"
+grep -Fq 'record.get("source_manifest")!=manifest' "$DEMO003_STATUS" || fail "demo003_status_intake_manifest_binding_missing"
+grep -Fq 'checksum_entries!=observed_hashes' "$DEMO003_STATUS" || fail "demo003_status_checksum_recompute_missing"
+grep -Fq 'payload_sha256_mismatch' "$DEMO003_STATUS" || fail "demo003_status_payload_digest_guard_missing"
 if grep -Fq 'ln -s "$(realpath "$ARCHIVE")" "$LATEST"' "$DEMO003_INTAKE"; then fail "demo003_legacy_latest_symlink_remains"; fi
 
 node - "$SOURCE" "$READER" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
@@ -238,6 +243,41 @@ grep -Fq "demo003_publication_ancestry_safe=true" "$tmp/demo003-fresh-status.log
   fail "demo003_fresh_status_ancestry_not_safe"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" "$tmp/demo003-fresh-status.log" ||
   fail "demo003_fresh_status_not_green"
+
+demo003_fresh_intake_sha="$(sha256sum "$demo003_fresh_base/latest/intake.json" | awk '{print $1}')"
+
+demo003_missing_member_data="$tmp/demo003-status-missing-member-data"
+cp -a "$demo003_fresh_data" "$demo003_missing_member_data"
+rm "$demo003_missing_member_data/public-node/local-data-drop-demo003-folder-fixtures/latest/files/README.txt"
+test "$(sha256sum "$demo003_missing_member_data/public-node/local-data-drop-demo003-folder-fixtures/latest/intake.json" | awk '{print $1}')" = "$demo003_fresh_intake_sha" ||
+  fail "demo003_missing_member_intake_changed"
+if DATA_DIR="$demo003_missing_member_data" bash "$DEMO003_STATUS" >"$tmp/demo003-status-missing-member.log" 2>&1; then
+  fail "demo003_missing_member_status_unexpected_green"
+fi
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-missing-member.log" ||
+  fail "demo003_missing_member_status_false_marker_missing"
+
+demo003_corrupt_member_data="$tmp/demo003-status-corrupt-member-data"
+cp -a "$demo003_fresh_data" "$demo003_corrupt_member_data"
+printf '\ncorrupt-byte\n' >> "$demo003_corrupt_member_data/public-node/local-data-drop-demo003-folder-fixtures/latest/files/index.html"
+test "$(sha256sum "$demo003_corrupt_member_data/public-node/local-data-drop-demo003-folder-fixtures/latest/intake.json" | awk '{print $1}')" = "$demo003_fresh_intake_sha" ||
+  fail "demo003_corrupt_member_intake_changed"
+if DATA_DIR="$demo003_corrupt_member_data" bash "$DEMO003_STATUS" >"$tmp/demo003-status-corrupt-member.log" 2>&1; then
+  fail "demo003_corrupt_member_status_unexpected_green"
+fi
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-corrupt-member.log" ||
+  fail "demo003_corrupt_member_status_false_marker_missing"
+
+demo003_extra_member_data="$tmp/demo003-status-extra-member-data"
+cp -a "$demo003_fresh_data" "$demo003_extra_member_data"
+printf 'unexpected\n' > "$demo003_extra_member_data/public-node/local-data-drop-demo003-folder-fixtures/latest/files/extra.txt"
+test "$(sha256sum "$demo003_extra_member_data/public-node/local-data-drop-demo003-folder-fixtures/latest/intake.json" | awk '{print $1}')" = "$demo003_fresh_intake_sha" ||
+  fail "demo003_extra_member_intake_changed"
+if DATA_DIR="$demo003_extra_member_data" bash "$DEMO003_STATUS" >"$tmp/demo003-status-extra-member.log" 2>&1; then
+  fail "demo003_extra_member_status_unexpected_green"
+fi
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-extra-member.log" ||
+  fail "demo003_extra_member_status_false_marker_missing"
 
 demo003_unsafe_ancestor="$tmp/demo003-unsafe-ancestor"
 mkdir -p "$demo003_unsafe_ancestor/safe-parent/data"
@@ -853,6 +893,10 @@ echo "demo003_intake_lock_kernel_released=true"
 echo "demo003_intake_lock_sigkill_recovery=true"
 echo "demo003_concurrent_archives_distinct=true"
 echo "demo003_status_missing_tree_false_marker=true"
+echo "demo003_status_missing_member_false_marker=true"
+echo "demo003_status_corrupt_member_false_marker=true"
+echo "demo003_status_extra_member_false_marker=true"
+echo "demo003_status_manifest_checksum_binding=true"
 echo "demo003_status_ancestor_symlink_rejected=true"
 echo "demo003_manifest_custody_fail_closed=true"
 echo "reader_parent_owner_mode_guard=true"
