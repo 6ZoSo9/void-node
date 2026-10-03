@@ -31,6 +31,12 @@ minimum-confirmation policy, and total timeout policy.
 A missing/invalid finality policy therefore keeps Ethereum payment instructions
 HOLD even if the generic and Ethereum intake toggles are both enabled.
 
+The intake toggles are deliberately **not** re-required when verifying an
+already-created payment attempt. Turning intake off must stop new instructions,
+but must not strand a buyer who already sent funds. Existing-payment
+reconciliation still requires the same server-controlled finality policy and the
+full canonical source-finality execution preflight.
+
 This gate does not alter Base behavior.
 
 A GREEN result here is only a **finality prerequisite**. It does not mean the
