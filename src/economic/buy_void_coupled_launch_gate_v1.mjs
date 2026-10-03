@@ -697,7 +697,6 @@ function recoverBuyLaunchGenerationPublicationV1({
   journalPath,
   anchorPath,
   intentPath,
-  input,
 }) {
   if (!fs.existsSync(intentPath)) return null;
   const recovery = classifyBuyLaunchGenerationPublicationRecoveryV1({
@@ -708,13 +707,6 @@ function recoverBuyLaunchGenerationPublicationV1({
     journal_bytes: generationPublicationObservedBytesV1(journalPath),
     anchor_bytes: generationPublicationObservedBytesV1(anchorPath),
   });
-  if (
-    recovery.intent.state !== input?.state ||
-    recovery.intent.generation !== input?.generation ||
-    recovery.intent.occurred_at_ms !== input?.occurred_at_ms
-  ) {
-    throw new Error("buy_launch_generation_publish_recovery_input_mismatch");
-  }
   if (recovery.phase === "intent_only") {
     atomicWritePrivateGenerationBytesV1(
       journalPath,
@@ -795,7 +787,6 @@ export async function publishBuyLaunchGenerationTransitionV1(
       journalPath,
       anchorPath,
       intentPath,
-      input,
     });
     if (recovered) {
       if (
