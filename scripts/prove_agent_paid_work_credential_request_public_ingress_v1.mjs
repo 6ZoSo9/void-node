@@ -67,6 +67,11 @@ assert.match(
   /VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE=12/u,
 );
 assert.match(dropin, /Example only/u);
+assert.doesNotMatch(
+  dropin,
+  /\\nEnvironment=/u,
+  "systemd drop-in must contain real newlines, not escaped text",
+);
 
 const sha256 = (body) =>
   crypto.createHash("sha256").update(body).digest("hex");
