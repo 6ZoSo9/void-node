@@ -80,6 +80,9 @@ def open_child_dir(parent_fd, name, label, create, require_owner):
     if require_owner and after.st_uid != euid:
         os.close(fd)
         fail(f"{label}_not_owned_by_operator")
+    if require_owner and (after.st_mode & 0o022):
+        os.close(fd)
+        fail(f"{label}_group_or_world_writable")
     return fd
 
 
@@ -121,6 +124,9 @@ def open_existing_file(dir_fd, name, label):
     if not stat.S_ISREG(after.st_mode) or not same_identity(before, after):
         os.close(fd)
         fail(f"{label}_identity_changed")
+    if after.st_uid != euid:
+        os.close(fd)
+        fail(f"{label}_not_owned_by_operator")
     return fd, after
 
 
