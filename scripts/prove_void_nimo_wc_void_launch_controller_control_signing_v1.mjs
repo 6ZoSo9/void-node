@@ -20,6 +20,7 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   signControlChallengeCoreV1,
+  testOnlyExerciseSignatureOutputExpiryCleanupV1,
   testOnlyExerciseSignatureOutputParentReplacementV1,
   testOnlyPinnedStandaloneEthersV1,
   testOnlyReadTransferredControlChallengeV1,
@@ -176,7 +177,7 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
 
     const priorHeadResult = spawnSync(
       "/usr/bin/git",
-      ["rev-parse", "HEAD^"],
+      ["rev-parse", "HEAD^{tree}"],
       {
         cwd: process.cwd(),
         encoding: "utf8",
@@ -186,11 +187,16 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     assert.equal(
       priorHeadResult.status,
       0,
-      ["prior HEAD resolution failed", priorHeadResult.stderr].join("\n"),
+      ["alternate reviewed object resolution failed", priorHeadResult.stderr].join("\n"),
     );
     const priorReviewedHead = priorHeadResult.stdout.trim();
     assert.match(priorReviewedHead, /^[0-9a-f]{40}$/u);
     assert.notEqual(priorReviewedHead, reviewedHead);
+    assert.equal(
+      fs.existsSync(path.join(process.cwd(), ".git", "shallow")),
+      true,
+      "focused adversary must remain valid under depth-1 checkout",
+    );
 
     const forgedReviewedHead = spawnSync(
       "/usr/bin/env",
@@ -890,6 +896,18 @@ assert.match(
 assert.equal(outputParentRace.replacement_output_exists, false);
 assert.equal(outputParentRace.displaced_output_exists, false);
 
+const outputExpiry =
+  testOnlyExerciseSignatureOutputExpiryCleanupV1();
+assert.match(
+  String(outputExpiry.reason || ""),
+  /control_challenge_expired_after_output_write/u,
+);
+assert.equal(
+  outputExpiry.output_exists,
+  false,
+  "expired durable signature output must be removed before failure returns",
+);
+
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
   "utf8",
@@ -1053,7 +1071,12 @@ assert.equal(
   assert.equal(
     writerSource.includes("fs.unlinkSync(pinnedOutput)"),
     true,
-    "failed redirected output must be removed through the retained parent fd",
+    "failed redirected or expired output must be removed through the retained parent fd",
+  );
+  assert.equal(
+    writerSource.includes("control_challenge_expired_after_output_write"),
+    true,
+    "durable output writer must recheck challenge expiry before success",
   );
   assert.equal(
     writerSource.includes(
@@ -1367,6 +1390,8 @@ console.log("input_path_inode_rebound_after_read=true");
 console.log("signature_output_parent_descriptor_bound=true");
 console.log("signature_output_parent_replacement_rejected=true");
 console.log("signature_output_redirect_cleanup_verified=true");
+console.log("signature_output_postwrite_expiry_cleanup_verified=true");
+console.log("shallow_checkout_negative_reviewed_object_proof=true");
 console.log("production_signing_helper_non_recursive=true");
 console.log("post_runtime_signing_clock_sampled=true");
 console.log("expiry_rechecked_before_and_after_signature=true");
