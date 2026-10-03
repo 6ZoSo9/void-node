@@ -86,6 +86,16 @@ assert.equal(
     .base_behavior_modified,
   false,
 );
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .coupled_launch_gate_composed,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .overall_checkout_activation_authority,
+  false,
+);
 for (const key of [
   "rpc_write",
   "request_intake_mutation",
@@ -117,7 +127,7 @@ const disabledAll =
 assert.equal(disabledAll.ok, false);
 if (disabledAll.ok === false) {
   assert.equal(disabledAll.reason, "buy_void_requests_disabled");
-  assert.equal(disabledAll.payment_instructions_ready, false);
+  assert.equal(disabledAll.payment_instructions_finality_gate_ready, false);
 }
 
 const ethereumDisabled = readBuyVoidEthereumPublicCheckoutReadinessV1({
@@ -154,9 +164,9 @@ if (ready.ok) {
   );
   assert.equal(ready.source_chain, "ethereum");
   assert.equal(ready.chain_id, "1");
-  assert.equal(ready.payment_instructions_ready, true);
-  assert.equal(ready.payment_verified_transition_ready, false);
-  assert.equal(ready.inventory_reservation_ready, false);
+  assert.equal(ready.payment_instructions_finality_gate_ready, true);
+  assert.equal(ready.payment_verified_finality_gate_ready, false);
+  assert.equal(ready.inventory_reservation_finality_gate_ready, false);
   assert.equal(ready.runtime_config_mutation_performed, false);
   assert.equal(ready.payment_event_write_performed, false);
   assert.equal(ready.inventory_write_performed, false);
@@ -194,8 +204,8 @@ if (missingAttempt.ok === false) {
     missingAttempt.production_source_finality_authority_ready,
     false,
   );
-  assert.equal(missingAttempt.payment_verified_transition_ready, false);
-  assert.equal(missingAttempt.inventory_reservation_ready, false);
+  assert.equal(missingAttempt.payment_verified_finality_gate_ready, false);
+  assert.equal(missingAttempt.inventory_reservation_finality_gate_ready, false);
 }
 
 const transactionHash = "0x" + "b".repeat(64);
