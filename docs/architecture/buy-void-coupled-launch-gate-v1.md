@@ -58,8 +58,9 @@ lease therefore requires explicit Sovereign co-authorization.
 
 The signed payload binds execution epoch 2, the launch-controller role ID, both
 signer addresses, the exact coupled launch ID, the exact source composition ID,
-a 32-byte activation nonce, a 32-byte activation generation, activation and
-expiry times, the content-addressed receipt ID, and every boolean that claims
+a 32-byte activation nonce, a 32-byte activation generation, the exact
+content-addressed generation-journal tip, activation and expiry times, the
+content-addressed receipt ID, and every boolean that claims
 the private Buy runtime / WC/VOID market / presale were activated in the same
 ceremony. A different signer, missing co-signature, malformed signature,
 changed signed field, expired lease, superseded generation, or future-dated
@@ -97,7 +98,7 @@ Its content must be content-addressed and bind:
 - the fixed Sovereign co-signer;
 - valid signatures from both identities over the same typed payload;
 - a unique bytes32 activation nonce;
-- the exact active bytes32 activation generation;
+- the exact active bytes32 activation generation and generation-journal tip;
 - activation and expiry timestamps with a maximum five-minute lease;
 - a valid launch-controller EIP-712 signature;
 - the exact coupled launch ID;
@@ -110,9 +111,10 @@ Its content must be content-addressed and bind:
 - `runtime_or_launch_evidence=true`; and
 - `source_ready_only=false`.
 
-A missing path, digest, generation, confirmation, insecure file, changed file,
-stale composition ID, expired lease, superseded generation, malformed receipt,
-wrong/invalid signature, future-dated activation, or any false launch fact holds
+A missing path, digest, generation journal, confirmation, insecure file, changed
+file, stale composition ID, expired lease, revoked/superseded generation,
+mismatched generation tip, malformed receipt, wrong/invalid signature,
+future-dated activation, or any false launch fact holds
 intake closed. The receipt is therefore a renewable activation lease rather than
 permanent evidence of a past ceremony. A self-authored JSON fixture with
 internally consistent hashes and environment confirmation cannot open production
@@ -143,12 +145,13 @@ when its lease expires.
 
 Every accepted public Buy request snapshots the exact current request authority:
 coupled launch/composition, generation, durable generation-journal tip, activation
-receipt ID/SHA-256, and lease expiry. The payment instructions expose that expiry
-and generation. Tx-hash binding and payment verification both revalidate the
-snapshot against the current live gate; payment verification checks once before
-chain observation and again before recording `payment_verified`. An expired,
-revoked, renewed-with-a-different-receipt, or superseded request therefore cannot
-be carried across the launch boundary.
+receipt ID/SHA-256, and its original lease expiry. Tx-hash binding and payment
+verification both revalidate the request against a currently live gate on the
+same generation/tip; payment verification checks once before chain observation
+and again before recording `payment_verified`. A same-generation receipt
+renewal may keep the launch live, but it never extends the request's original
+payment deadline. An expired, revoked, rotated, or otherwise superseded request
+therefore cannot be carried across the launch boundary.
 
 Ethereum payment verification/finality remains a separate prerequisite; this
 gate does not replace the Ethereum finality gate.
@@ -179,12 +182,14 @@ Source/package/proof only:
 node scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs
 node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
 node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
+npx tsx scripts/prove_buy_void_request_tx_hash_binding_v1.ts
 ```
 
 The focused proof uses only temporary synthetic EIP-712 signers and a
 live-receipt fixture. It proves the signature format plus
-parser/custody/digest/confirmation behavior, lease expiry, generation
-supersession, and explicitly proves that valid synthetic signatures cannot
+parser/custody/digest/confirmation behavior, durable generation
+revocation/rotation, request expiry, and explicitly proves that valid synthetic
+signatures cannot
 satisfy either fixed production authority identity. CI never has either
 production key, cannot mint production activation evidence, and carries no
 runtime or economic authority.
