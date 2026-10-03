@@ -1189,23 +1189,25 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
     ) {
       fail("review_manifest_evidence_semantics_invalid");
     }
-    const subjects = [...evidence.subject_participant_ids];
-    totalEvidenceBytes += evidence.evidence_bytes;
-    totalEvidenceSubjectReferences += subjects.length;
+    const subjectCount = evidence.subject_participant_ids.length;
+    const limits =
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1;
     if (
-      evidence.evidence_bytes >
-        VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
-          .max_evidence_bytes_per_document ||
-      subjects.length > manifest.participant_count ||
+      !Number.isSafeInteger(subjectCount) ||
+      subjectCount < 1 ||
+      subjectCount > manifest.participant_count ||
+      subjectCount > limits.max_total_evidence_subject_references ||
+      evidence.evidence_bytes > limits.max_evidence_bytes_per_document ||
       totalEvidenceBytes >
-        VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
-          .max_total_evidence_bytes ||
+        limits.max_total_evidence_bytes - evidence.evidence_bytes ||
       totalEvidenceSubjectReferences >
-        VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
-          .max_total_evidence_subject_references
+        limits.max_total_evidence_subject_references - subjectCount
     ) {
       fail("review_manifest_resource_limit_exceeded");
     }
+    totalEvidenceBytes += evidence.evidence_bytes;
+    totalEvidenceSubjectReferences += subjectCount;
+    const subjects = [...evidence.subject_participant_ids];
     for (const participantId of subjects) {
       sha256IdBytes32(
         participantId,
@@ -1707,7 +1709,8 @@ export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
   nonce = null,
 } = {}) {
   const role = reviewedReviewerRoleV1();
-  await verifyReviewManifestLineageV1(manifest, lineage);
+  const reviewed = validateReviewableRelatedIdentityManifestV1(manifest);
+  await verifyReviewManifestLineageV1(reviewed, lineage);
 
   const fresh =
     await reverifyReviewedControlEvidenceV1({
@@ -1726,7 +1729,7 @@ export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
     : String(nonce);
 
   const material = attestationMaterialV1({
-    manifest,
+    manifest: reviewed,
     controlEvidenceId: fresh.evidence_id,
     nowUnix,
     ttlSeconds,
