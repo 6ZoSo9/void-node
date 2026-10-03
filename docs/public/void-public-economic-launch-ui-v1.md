@@ -28,16 +28,16 @@ Ethereum Mainnet native USDC is policy-approved at:
 
 `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
 
-The current launch checkout is intentionally **Base-only**. Ethereum USDC is
-not a valid current payment instruction until the Ethereum receiver,
-verification/finality, and request-path gates are live. Public copy must label
-Ethereum as approved-but-not-active and instruct users not to send it until the
-site explicitly marks that rail OPEN.
+When intake is OPEN, the public request contract accepts exactly two native-USDC
+rails: Base Mainnet and Ethereum Mainnet. The participant must select one rail
+before request creation and use only the exact chain ID, token contract,
+receiver, amount, and sender identity returned by that request. Switching rails
+after request creation is not allowed.
 
 ## Exchange and custody warning
 
-SELF-CUSTODY ONLY. VOID is not listed on any exchange. The Base USDC sender is
-the VOID destination identity. Exchange and pooled-custody withdrawals can use
+SELF-CUSTODY ONLY. VOID is not listed on any exchange. The selected-rail USDC
+sender is the VOID destination identity. Exchange and pooled-custody withdrawals can use
 an address the participant does not control, so VOID cannot recover the
 resulting delivery. The public UI instructs participants to treat those sends as
 lost.
