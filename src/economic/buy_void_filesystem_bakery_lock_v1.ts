@@ -378,3 +378,90 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
     fsyncDirectory(queue);
   }
 }
+
+
+export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
+  lockPath: string,
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  const raw = String(lockPath || "").trim();
+  if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
+    throw new Error("bakery_lock_path_must_be_absolute");
+  }
+  if (typeof operation !== "function") {
+    throw new Error("bakery_lock_operation_required");
+  }
+
+  const queue = ensurePrivateDirectory(`${path.resolve(raw)}.queue`);
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const createdAt = new Date().toISOString();
+  const choosingPath = path.join(
+    queue,
+    `choosing-${process.pid}-${nonce}.json`,
+  );
+  let ticketPath = "";
+
+  atomicWriteJson(choosingPath, {
+    schema: CLAIM_SCHEMA,
+    pid: process.pid,
+    nonce,
+    phase: "choosing",
+    ticket: null,
+    created_at_utc: createdAt,
+  });
+
+  try {
+    const initial = scanQueue(queue);
+    const maximum = initial.tickets.reduce(
+      (current, claim) => Math.max(current, claim.ticket || 0),
+      0,
+    );
+    const ticket = safeInteger(
+      maximum + 1,
+      1,
+      Number.MAX_SAFE_INTEGER,
+      "bakery_lock_ticket",
+    );
+    ticketPath = path.join(
+      queue,
+      `ticket-${String(ticket).padStart(16, "0")}-${process.pid}-${nonce}.json`,
+    );
+    atomicWriteJson(ticketPath, {
+      schema: CLAIM_SCHEMA,
+      pid: process.pid,
+      nonce,
+      phase: "ticket",
+      ticket,
+      created_at_utc: createdAt,
+    });
+    removeOwnClaim(choosingPath);
+    fsyncDirectory(queue);
+
+    const deadline = Date.now() + MAX_WAIT_MS;
+    for (;;) {
+      const scanned = scanQueue(queue);
+      const own = scanned.tickets.find(
+        (claim) => claim.path === ticketPath,
+      );
+      if (!own) throw new Error("bakery_lock_ownership_lost");
+      if (scanned.choosing.length === 0) {
+        scanned.tickets.sort((left, right) =>
+          (left.ticket || 0) - (right.ticket || 0) ||
+          left.pid - right.pid ||
+          left.nonce.localeCompare(right.nonce),
+        );
+        if (scanned.tickets[0]?.path === ticketPath) break;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error("bakery_lock_wait_timeout");
+      }
+      sleep(POLL_MS);
+    }
+
+    return await operation();
+  } finally {
+    removeOwnClaim(choosingPath);
+    if (ticketPath) removeOwnClaim(ticketPath);
+    fsyncDirectory(queue);
+  }
+}
