@@ -9,8 +9,10 @@ challenge_sha="${3:-}"
 reviewed_head="${4:-}"
 output="${5:-}"
 
-script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-repo="$(cd -- "$script_dir/../.." && pwd -P)"
+repo="/home/zoso/dev/void-node"
+launcher_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+launcher_file="${BASH_SOURCE[0]}"
+[[ "$launcher_file" == /* ]] || launcher_file="$(pwd -P)/$launcher_file"
 
 hold() {
   printf '%s_HOLD\n' "$marker" >&2
@@ -85,6 +87,15 @@ git_cmd=(
   -C "$repo"
 )
 
+expected_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$launcher_rel")" ||
+  hold "reviewed_launcher_blob_unavailable"
+actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$launcher_file")" ||
+  hold "executed_launcher_blob_unavailable"
+[[ "$expected_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_launcher_blob_invalid"
+[[ "$actual_launcher_blob" == "$expected_launcher_blob" ]] ||
+  hold "executed_launcher_not_operator_reviewed_blob"
+
 current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
   hold "current_head_unavailable"
 [[ "$current_head" == "$reviewed_head" ]] ||
@@ -125,6 +136,7 @@ done
 printf '%s\n' "$marker"
 printf 'status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN\n'
 printf 'operator_reviewed_head=%s\n' "$reviewed_head"
+printf 'executed_launcher_blob=%s\n' "$actual_launcher_blob"
 printf 'challenge_source_head=%s\n' "$source_head"
 printf 'challenge_sha256=%s\n' "$challenge_sha"
 printf 'repository_clean=true\n'
