@@ -131,6 +131,7 @@ export const views = {
   earn: () => earnView(),
   data: () => placeholderView('Data', 'Publish, retrieve, verify, share, and manage datasets from one consistent data workspace.', 'Review data structure', ['Dataset table', 'Publish workflow', 'Verification state']),
   buy: () => buyView(),
+  market: () => marketView(),
   validate: () => validateView(),
   network: () => networkView(),
   foundation: () => foundationView(),
@@ -255,6 +256,14 @@ function earnView() {
         title: 'Earn',
         purpose: 'Inspect useful-work policy, Work Credit accounting, recent jobs, and verification receipts without executing work or changing account state.',
       })}
+
+      <div class="alert alert--warning">
+        <span class="alert__icon">!</span>
+        <div class="alert__copy">
+          <strong>Earn Work Credits — not VOID directly</strong>
+          <p>Useful verified work earns WC. WC and VOID are separate assets. When the WC/VOID market is activated, participants may exchange WC for VOID at the market-determined price; the $0.50 presale price does not set the WC/VOID rate.</p>
+        </div>
+      </div>
 
       <div class="dashboard-grid earn-live-grid">
         <section class="surface hero-surface span-12" aria-labelledby="earn-context-title">
@@ -445,90 +454,197 @@ function earnView() {
 
 function buyView() {
   return `
-    <div data-buy-view data-buy-marker="VOID_BUY_VOID_APP_READONLY_V1">
+    <div data-buy-view data-buy-marker="VOID_BUY_VOID_APP_LAUNCH_READY_V1">
       ${pageHeader({
-        eyebrow: 'Current fixed-price presale',
+        eyebrow: 'Activation-gated fixed-price presale',
         title: 'Buy VOID',
-        purpose: 'Review the $0.50 presale terms, request boundary, and receipt truth without submitting payment or moving funds.',
+        purpose: 'Create a guarded Base or Ethereum native-USDC purchase request only when the live presale gate is OPEN. This page never sends funds or connects a wallet.',
       })}
-      <div class="alert">
-        <span class="alert__icon">i</span>
+
+      <div class="alert alert--warning buy-risk-warning" role="alert">
+        <span class="alert__icon">!</span>
         <div class="alert__copy">
-          <strong>Read-only presale guidance</strong>
-          <p>No wallet, signer, transaction, inventory, or fulfillment action is available in this view.</p>
+          <strong>SELF-CUSTODY ONLY — EXCHANGE SENDS ARE TREATED AS LOST</strong>
+          <p>VOID is not listed on any exchange. Do not send USDC from an exchange or custodial wallet. The selected-rail USDC sender address is bound as the VOID destination identity. If an exchange sends for you, resulting VOID can be delivered to an address you do not control. VOID cannot recover those funds. Treat any exchange or custodial send as lost.</p>
         </div>
       </div>
 
-      <div class="dashboard-grid">
+      <div class="dashboard-grid buy-launch-grid">
         <section class="surface hero-surface span-12" aria-labelledby="buy-presale-title">
           <div class="hero-content">
-            <span class="status-chip status-chip--warning">HOLD — live readiness not loaded</span>
+            <span class="status-chip status-chip--info" data-buy-state-chip>Checking presale</span>
             <h2 id="buy-presale-title">Fixed-price presale</h2>
-            <p>The reviewed policy price is $0.50 / VOID. This page does not claim that intake is open, quote remaining inventory, or publish payment instructions without a verified live readiness source.</p>
+            <p data-buy-message>Loading the live Buy VOID configuration and verified sale state. Payment instructions remain hidden until the activation gate is open and a request is created.</p>
           </div>
-          <aside class="hero-aside" aria-label="Presale policy boundary">
-            <div class="signal-line"><span>Policy price</span><strong>$0.50 / VOID</strong></div>
-            <div class="signal-line"><span>Request</span><strong>NO REQUEST SELECTED</strong></div>
-            <div class="signal-line"><span>Fulfillment</span><strong>NOT ACTIVATED HERE</strong></div>
+          <aside class="hero-aside" aria-label="Presale launch state">
+            <div class="signal-line"><span>Policy price</span><strong data-buy-price>$0.50 / VOID</strong></div>
+            <div class="signal-line"><span>Intake</span><strong data-buy-intake>CHECKING</strong></div>
+            <div class="signal-line"><span>Fulfillment</span><strong data-buy-fulfillment>GUARDED</strong></div>
           </aside>
         </section>
 
-        <section class="surface panel span-6" aria-labelledby="buy-before-payment-title">
-          <div class="panel-header">
-            <div class="panel-header__copy">
-              <span class="eyebrow">Before payment</span>
-              <h2 id="buy-before-payment-title">Require verified instructions</h2>
-              <p>No payment address is published here.</p>
-            </div>
-          </div>
-          <div class="activity-list">
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Presale readiness</strong><small>Must come from the exact validated inventory aggregate and intake policy.</small></div>
-              <div class="activity-value">Not loaded</div>
-            </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Payment instructions</strong><small>Must bind an exact request, amount, network, destination, and expiry.</small></div>
-              <div class="activity-value">Unavailable</div>
-            </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Automatic fulfillment</strong><small>Source-green does not prove activation, funding, signing, or broadcast.</small></div>
-              <div class="activity-value">Unproven</div>
-            </div>
+        <section class="span-12" aria-label="Presale accounting">
+          <div class="balance-strip">
+            <article class="balance-tile">
+              <div class="balance-tile__top"><span class="balance-tile__label">Presale allocation</span><span class="status-chip">Fixed</span></div>
+              <strong class="balance-tile__value" data-buy-pool-total>10,000,000 VOID</strong>
+              <span class="balance-tile__meta">Finite presale pool</span>
+            </article>
+            <article class="balance-tile">
+              <div class="balance-tile__top"><span class="balance-tile__label">Remaining</span><span class="status-chip status-chip--info">Verified state</span></div>
+              <strong class="balance-tile__value" data-buy-pool-remaining>—</strong>
+              <span class="balance-tile__meta" data-buy-progress>Waiting for sale state</span>
+            </article>
+            <article class="balance-tile balance-tile--production">
+              <div class="balance-tile__top"><span class="balance-tile__label">Verified USDC</span><span class="status-chip">Paid only</span></div>
+              <strong class="balance-tile__value" data-buy-raised>—</strong>
+              <span class="balance-tile__meta">Unpaid requests do not reserve inventory</span>
+            </article>
           </div>
         </section>
 
-        <section class="surface panel span-6" aria-labelledby="buy-receipt-title">
+        <section class="surface panel span-7" aria-labelledby="buy-request-title">
           <div class="panel-header">
             <div class="panel-header__copy">
-              <span class="eyebrow">Receipt truth</span>
-              <h2 id="buy-receipt-title">Do not infer fulfillment</h2>
-              <p>A payment observation is not a fulfillment receipt.</p>
+              <span class="eyebrow">Request before payment</span>
+              <h2 id="buy-request-title">Create Buy VOID request</h2>
+              <p>The button stays disabled unless the live node reports request intake ready.</p>
             </div>
+            <span class="status-chip status-chip--warning" data-buy-form-chip>HOLD</span>
           </div>
-          <div class="activity-list">
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Request status</strong><small>No request identifier is selected or queried by this view.</small></div>
-              <div class="activity-value">Unavailable</div>
+
+          <form class="buy-request-form" data-buy-request-form>
+            <div class="form-field">
+              <label for="buy-usdc-chain">Payment network</label>
+              <select class="input" id="buy-usdc-chain" name="source_chain" data-buy-chain disabled>
+                <option value="base">Base Mainnet — native USDC</option>
+                <option value="ethereum">Ethereum Mainnet — native USDC</option>
+              </select>
+              <small>Choose one network and use only the chain/token returned by the request.</small>
             </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Payment status</strong><small>No chain observation or confirmation evidence is loaded.</small></div>
-              <div class="activity-value">Unverified</div>
+            <div class="form-field">
+              <label for="buy-usdc-amount">Native USDC amount</label>
+              <input class="input" id="buy-usdc-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="25" required aria-required="true" aria-describedby="buy-usdc-amount-help buy-usdc-amount-error" data-buy-amount disabled>
+              <small id="buy-usdc-amount-help" data-buy-limits>Loading live purchase limits.</small>
+              <small class="buy-field-error" id="buy-usdc-amount-error" data-buy-amount-error role="status"></small>
             </div>
-            <div class="activity-row">
-              <div class="activity-copy"><strong>Fulfillment receipt</strong><small>Requires exact request, payment, delivered VOID units, and durable receipt binding.</small></div>
-              <div class="activity-value">Not available</div>
+            <div class="form-field">
+              <label for="buy-void-destination">Native VOID destination address</label>
+              <input class="input mono" id="buy-void-destination" name="void_destination_address" autocomplete="off" spellcheck="false" placeholder="0x…" required aria-required="true" aria-describedby="buy-void-destination-help buy-void-destination-error" data-buy-destination disabled>
+              <small id="buy-void-destination-help">The selected-rail USDC sender must be this exact same address.</small>
+              <small class="buy-field-error" id="buy-void-destination-error" data-buy-destination-error role="status"></small>
             </div>
-          </div>
+
+            <div class="buy-checklist" aria-label="Required purchase acknowledgements">
+              <label><input type="checkbox" data-buy-ack="self_custody" disabled> I control this self-custody address and understand exchange/custodial sends are treated as lost.</label>
+              <label><input type="checkbox" data-buy-ack="native_usdc" disabled> I will send native USDC only on the network selected above and verify the returned token contract.</label>
+              <label><input type="checkbox" data-buy-ack="request_before_payment" disabled> I will not send funds until this request is created and I verify its instructions.</label>
+              <label><input type="checkbox" data-buy-ack="sender_equals_void_destination" disabled> The selected-rail USDC sender will equal the VOID destination address above.</label>
+              <label><input type="checkbox" data-buy-ack="no_automatic_fulfillment" disabled> I understand payment observation alone is not a VOID fulfillment receipt.</label>
+            </div>
+
+            <div class="buy-action-row">
+              <button class="button button--primary" type="submit" data-buy-submit disabled>Create Buy VOID request</button>
+              <button class="button button--tertiary" type="button" data-buy-refresh>Refresh readiness</button>
+            </div>
+          </form>
+
+          <pre class="buy-request-result" data-buy-result aria-live="polite">Presale readiness is loading. Do not send funds.</pre>
         </section>
 
-        <section class="surface panel span-12" aria-labelledby="buy-exit-title">
+        <section class="surface panel span-5" aria-labelledby="buy-instructions-title">
           <div class="panel-header">
             <div class="panel-header__copy">
-              <span class="eyebrow">Presale exit boundary</span>
-              <h2 id="buy-exit-title">OPEN, SOLD_OUT, CLOSED, or HOLD</h2>
-              <p>Only a validated OPEN readiness result may accept a new request. Missing, inconsistent, disabled, sold-out, or closed evidence must not be presented as purchasable.</p>
+              <span class="eyebrow">Verified payment identity</span>
+              <h2 id="buy-instructions-title">Payment boundary</h2>
+              <p>Never use an address copied from a message, post, or exchange withdrawal screen.</p>
             </div>
           </div>
+          <dl class="buy-facts">
+            <div><dt>Supported rails</dt><dd>Base Mainnet · 8453<br>Ethereum Mainnet · 1</dd></div>
+            <div><dt>Asset</dt><dd>Native USDC</dd></div>
+            <div><dt>Base USDC contract</dt><dd class="mono" data-buy-base-usdc-contract>—</dd></div>
+            <div><dt>Ethereum USDC contract</dt><dd class="mono" data-buy-ethereum-usdc-contract>—</dd></div>
+            <div><dt>Approved receiver</dt><dd class="mono" data-buy-receiver>Hidden until verified</dd></div>
+            <div><dt>VOID chain</dt><dd>2050</dd></div>
+            <div><dt>Exchange/custody</dt><dd class="buy-danger-copy">NOT SUPPORTED</dd></div>
+          </dl>
+        </section>
+
+        <section class="surface panel span-6" aria-labelledby="buy-wc-void-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Coupled economic launch</span>
+              <h2 id="buy-wc-void-title">WC / VOID market</h2>
+              <p>The WC/VOID price is market-determined. The fixed $0.50 presale price does not set the WC/VOID exchange rate.</p>
+            </div>
+            <span class="status-chip status-chip--warning">Activation gated</span>
+          </div>
+          <div class="activity-list">
+            <div class="activity-row"><div class="activity-copy"><strong>Pricing</strong><small>Pool price discovery; no fixed WC→VOID redemption rate.</small></div><div class="activity-value">Market</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Trading</strong><small>No trade button is exposed until the reviewed market runtime is live.</small></div><div class="activity-value">HOLD</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Launch order</strong><small>Presale activation remains the immediate gate; WC/VOID can follow its bounded activation ceremony.</small></div><div class="activity-value">Prepared</div></div>
+          </div>
+          <div class="alert alert--warning">
+            <span class="alert__icon">!</span>
+            <div class="alert__copy">
+              <strong>Use the exact rail returned by your request</strong>
+              <p>Base Mainnet and Ethereum Mainnet native USDC are supported request rails. Never switch networks or token contracts after request creation; use only the exact chain, contract, receiver, amount, and sender identity returned by the request.</p>
+            </div>
+          </div>
+          <p class="panel-link-row"><a href="#/market">Open WC / VOID launch status →</a></p>
+        </section>
+
+        <section class="surface panel span-6" aria-labelledby="buy-earn-title">
+          <div class="panel-header">
+            <div class="panel-header__copy">
+              <span class="eyebrow">Useful work</span>
+              <h2 id="buy-earn-title">Earn Work Credits</h2>
+              <p>VOID does not award VOID directly for ordinary useful work. Verified useful work earns WC; WC can participate in the WC/VOID market after activation.</p>
+            </div>
+            <span class="status-chip status-chip--info">WC accounting</span>
+          </div>
+          <p class="panel-link-row"><a href="#/earn">Open Earn →</a></p>
+        </section>
+      </div>
+    </div>`;
+}
+
+function marketView() {
+  return `
+    <div data-market-view data-market-marker="VOID_WC_VOID_PUBLIC_LAUNCH_STATUS_V1">
+      ${pageHeader({
+        eyebrow: 'Activation-gated market',
+        title: 'WC / VOID',
+        purpose: 'Review the WC/VOID launch boundary. No quote, trade, debit, settlement, wallet, or signer control is exposed before the reviewed market runtime is live.',
+      })}
+      <div class="alert alert--warning">
+        <span class="alert__icon">!</span>
+        <div class="alert__copy">
+          <strong>WC/VOID trading is not open from this page</strong>
+          <p>The pool is being prepared for activation. The exchange rate will be market-determined; there is no fixed 100 WC = 1 VOID redemption and the $0.50 presale price does not set this market.</p>
+        </div>
+      </div>
+      <div class="dashboard-grid">
+        <section class="surface hero-surface span-12">
+          <div class="hero-content">
+            <span class="status-chip status-chip--warning">ACTIVATION GATED</span>
+            <h2>Prepared without premature authority</h2>
+            <p>The source, policy, vault, bounded-canary, and coupled-launch work can be completed independently of the website. Trade controls stay absent until live evidence proves the market is ready.</p>
+          </div>
+          <aside class="hero-aside" aria-label="WC VOID market policy">
+            <div class="signal-line"><span>Pair</span><strong>WC / VOID</strong></div>
+            <div class="signal-line"><span>Price</span><strong>MARKET-DETERMINED</strong></div>
+            <div class="signal-line"><span>Trade authority</span><strong>HOLD</strong></div>
+          </aside>
+        </section>
+        <section class="surface panel span-6">
+          <div class="panel-header"><div class="panel-header__copy"><span class="eyebrow">Earn side</span><h2>Work → WC</h2><p>Useful verified work earns Work Credits under the network's bounded earning policy.</p></div></div>
+          <p class="panel-link-row"><a href="#/earn">Review Earn →</a></p>
+        </section>
+        <section class="surface panel span-6">
+          <div class="panel-header"><div class="panel-header__copy"><span class="eyebrow">Market side</span><h2>WC ↔ VOID</h2><p>Once activated, the pool determines the exchange rate from market state rather than a treasury-fixed conversion promise.</p></div></div>
+          <p class="panel-link-row"><a href="#/buy">Review presale →</a></p>
         </section>
       </div>
     </div>`;
