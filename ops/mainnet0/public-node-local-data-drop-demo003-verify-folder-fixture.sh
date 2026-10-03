@@ -53,6 +53,7 @@ umask 0077
 archive_phase_output="$(
 python3 - "$TARBALL" "$OUT" <<'PY'
 import gzip
+import hashlib
 import io
 import json
 import os
@@ -437,6 +438,54 @@ def extract_archive(compressed, extract_fd):
         os.close(fixture_fd)
 
 
+def seal_regular_file(parent_fd, name):
+    listed = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISREG(listed.st_mode)
+        or stat.S_ISLNK(listed.st_mode)
+        or listed.st_uid != euid
+        or listed.st_nlink != 1
+        or listed.st_mode & 0o022
+        or listed.st_size <= 0
+        or listed.st_size > MAX_MEMBER_BYTES
+    ):
+        fail("extracted_file_custody_invalid:" + member_label(name))
+
+    fd = os.open(
+        name,
+        os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC,
+        dir_fd=parent_fd,
+    )
+    try:
+        opened = os.fstat(fd)
+        if not same_stamp(listed, opened):
+            fail("extracted_file_identity_changed:" + member_label(name))
+
+        digest = hashlib.sha256()
+        total = 0
+        while True:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_MEMBER_BYTES:
+                fail("extracted_file_growth:" + member_label(name))
+            digest.update(chunk)
+
+        after = os.fstat(fd)
+        visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            total != after.st_size
+            or not same_stamp(opened, after)
+            or not same_stamp(after, visible)
+        ):
+            fail("extracted_file_changed_during_seal:" + member_label(name))
+
+        return digest.hexdigest()
+    finally:
+        os.close(fd)
+
+
 def post_extract_custody(extract_fd):
     fixture_fd = os.open(
         "demo003-folder-fixture",
@@ -462,29 +511,15 @@ def post_extract_custody(extract_fd):
         if files_stat.st_uid != euid or files_stat.st_mode & 0o022:
             fail("extracted_files_directory_custody_invalid")
 
-        for name in ("manifest.json", "sha256sums.txt"):
-            st = os.stat(name, dir_fd=fixture_fd, follow_symlinks=False)
-            if (
-                not stat.S_ISREG(st.st_mode)
-                or stat.S_ISLNK(st.st_mode)
-                or st.st_uid != euid
-                or st.st_nlink != 1
-                or st.st_mode & 0o022
-            ):
-                fail("extracted_file_custody_invalid:" + member_label(name))
+        seals = {
+            "manifest": seal_regular_file(fixture_fd, "manifest.json"),
+            "checksums": seal_regular_file(fixture_fd, "sha256sums.txt"),
+            "readme": seal_regular_file(files_fd, "README.txt"),
+            "index": seal_regular_file(files_fd, "index.html"),
+            "metadata": seal_regular_file(files_fd, "metadata.json"),
+        }
 
-        for name in ("README.txt", "index.html", "metadata.json"):
-            st = os.stat(name, dir_fd=files_fd, follow_symlinks=False)
-            if (
-                not stat.S_ISREG(st.st_mode)
-                or stat.S_ISLNK(st.st_mode)
-                or st.st_uid != euid
-                or st.st_nlink != 1
-                or st.st_mode & 0o022
-            ):
-                fail("extracted_file_custody_invalid:" + member_label(name))
-
-        return fixture_stat
+        return fixture_stat, seals
     finally:
         if files_fd is not None:
             os.close(files_fd)
@@ -512,7 +547,7 @@ def main():
         compressed = read_tarball_snapshot()
         preflight_archive(compressed)
         extract_archive(compressed, extract_fd)
-        fixture_stat = post_extract_custody(extract_fd)
+        fixture_stat, seals = post_extract_custody(extract_fd)
         os.fsync(extract_fd)
         os.fsync(out_fd)
     finally:
@@ -521,6 +556,11 @@ def main():
         os.close(out_fd)
 
     print("fixture_identity=" + directory_identity(fixture_stat))
+    print("sealed_manifest_sha256=" + seals["manifest"])
+    print("sealed_checksums_sha256=" + seals["checksums"])
+    print("sealed_readme_sha256=" + seals["readme"])
+    print("sealed_index_sha256=" + seals["index"])
+    print("sealed_metadata_sha256=" + seals["metadata"])
     print("archive_member_preflight=true")
     print("archive_exact_member_set=true")
     print("archive_links_rejected=true")
@@ -551,6 +591,31 @@ test -n "$FIXTURE_IDENTITY" || {
   echo "[fail] Demo003 fixture identity missing" >&2
   exit 2
 }
+
+archive_seal() {
+  key="$1"
+  value="$(
+    printf '%s\n' "$archive_phase_output" |
+      sed -n "s/^\${key}=\([0-9a-f]\{64\}\)$/\1/p"
+  )"
+  count="$(
+    printf '%s\n' "$archive_phase_output" |
+      grep -c "^\${key}=" || true
+  )"
+  test "$count" = "1" && [[ "$value" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s' "$value"
+}
+
+SEALED_MANIFEST_SHA256="$(archive_seal sealed_manifest_sha256)" ||
+  { echo "[fail] Demo003 manifest seal missing" >&2; exit 2; }
+SEALED_CHECKSUMS_SHA256="$(archive_seal sealed_checksums_sha256)" ||
+  { echo "[fail] Demo003 checksums seal missing" >&2; exit 2; }
+SEALED_README_SHA256="$(archive_seal sealed_readme_sha256)" ||
+  { echo "[fail] Demo003 README seal missing" >&2; exit 2; }
+SEALED_INDEX_SHA256="$(archive_seal sealed_index_sha256)" ||
+  { echo "[fail] Demo003 index seal missing" >&2; exit 2; }
+SEALED_METADATA_SHA256="$(archive_seal sealed_metadata_sha256)" ||
+  { echo "[fail] Demo003 metadata seal missing" >&2; exit 2; }
 
 exec {FIXTURE_FD}<"$FIXTURE_DIR" || {
   echo "[fail] Demo003 fixture descriptor open failed" >&2
@@ -584,12 +649,24 @@ then
   exit 2
 fi
 
-node - "/proc/self/fd/$FIXTURE_FD" <<'NODE'
+node - "/proc/self/fd/$FIXTURE_FD" \
+  "$SEALED_MANIFEST_SHA256" \
+  "$SEALED_CHECKSUMS_SHA256" \
+  "$SEALED_README_SHA256" \
+  "$SEALED_INDEX_SHA256" \
+  "$SEALED_METADATA_SHA256" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 
 const fixtureDir = process.argv[2];
+const sealedDigests = new Map([
+  ["manifest.json", process.argv[3]],
+  ["sha256sums.txt", process.argv[4]],
+  ["files/README.txt", process.argv[5]],
+  ["files/index.html", process.argv[6]],
+  ["files/metadata.json", process.argv[7]],
+]);
 const noFollow = fs.constants.O_NOFOLLOW;
 const maxFileBytes = 2 * 1024 * 1024;
 
@@ -634,6 +711,12 @@ function readDirect(rel) {
     ok(stamp(opened) === stamp(after), `changed during read ${rel}`);
     ok(stamp(after) === stamp(visible), `visible identity changed ${rel}`);
     ok(after.size === BigInt(buf.length), `byte count changed ${rel}`);
+    const sealed = sealedDigests.get(rel);
+    ok(typeof sealed === "string" && /^[a-f0-9]{64}$/.test(sealed), `sealed digest missing ${rel}`);
+    ok(
+      crypto.createHash("sha256").update(buf).digest("hex") === sealed,
+      `sealed digest mismatch ${rel}`,
+    );
     return buf;
   } finally {
     fs.closeSync(fd);
@@ -757,8 +840,9 @@ fi
 
 exec {FIXTURE_FD}<&-
 
-echo "fixture_dir=$FIXTURE_DIR"
+printf 'fixture_dir=%s\n' "$FIXTURE_DIR"
 echo "semantic_verify_descriptor_bound=true"
+echo "semantic_verify_child_bytes_sealed=true"
 echo "archive_member_preflight=true"
 echo "archive_exact_member_set=true"
 echo "archive_links_rejected=true"
