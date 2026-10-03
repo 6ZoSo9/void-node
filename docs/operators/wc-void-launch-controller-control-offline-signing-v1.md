@@ -197,22 +197,75 @@ commit as a separate positional argument and verifies:
   helper/profile, control verifier, `package.json`, and `package-lock.json`;
 - no private-key access during preflight.
 
-Run the launcher itself from a scrubbed shell:
+Do not execute the mutable worktree launcher as the bootstrap authority.
+Materialize the launcher directly from the independently reviewed Git commit,
+verify its Git blob, then execute that reviewed copy:
 
 ```bash
+(
+set -Eeuo pipefail
+umask 077
+
+repo="/home/zoso/dev/void-node"
+reviewed_head="<operator-reviewed-commit-40hex>"
+launcher_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+stage="$(mktemp -d "$HOME/Downloads/void-reviewed-launcher.XXXXXX")"
+trap 'rm -rf -- "$stage"' EXIT
+
+git_env=(
+  /usr/bin/env -i
+  HOME=/nonexistent
+  PATH=/usr/bin:/bin
+  LANG=C
+  LC_ALL=C
+  GIT_CONFIG_NOSYSTEM=1
+  GIT_CONFIG_GLOBAL=/dev/null
+  GIT_OPTIONAL_LOCKS=0
+  GIT_TERMINAL_PROMPT=0
+)
+
+git_cmd=(
+  /usr/bin/git
+  --no-replace-objects
+  -c core.hooksPath=/dev/null
+  -c core.attributesFile=/dev/null
+  -c core.fsmonitor=false
+  -c core.untrackedCache=false
+  -c core.preloadIndex=false
+  -c submodule.recurse=false
+  -C "$repo"
+)
+
+expected_blob="$(
+  "${git_env[@]}" "${git_cmd[@]}"     rev-parse "$reviewed_head:$launcher_rel"
+)"
+"${git_env[@]}" "${git_cmd[@]}"   cat-file blob "$expected_blob" > "$stage/launcher.sh"
+actual_blob="$(
+  "${git_env[@]}" "${git_cmd[@]}"     hash-object -- "$stage/launcher.sh"
+)"
+test "$actual_blob" = "$expected_blob"
+chmod 700 "$stage/launcher.sh"
+
 /usr/bin/env -i \
   HOME=/home/zoso \
   PATH=/usr/bin:/bin \
   LANG=C \
   LC_ALL=C \
+  VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
   /bin/bash --noprofile --norc \
-  ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh \
+  "$stage/launcher.sh" \
   sign \
   /absolute/private-work/challenge.json \
   <challenge-sha256-64hex> \
-  <operator-reviewed-commit-40hex> \
+  "$reviewed_head" \
   /absolute/private-work/signature.json
+)
 ```
+
+The launcher re-hashes the file currently executing and requires that blob to
+equal the launcher blob at the independently supplied reviewed commit. A
+modified temporary launcher or mutable worktree launcher therefore fails before
+signer/key access.
 
 Before sign-mode `exec`, the launcher explicitly announces the requested
 operation boundary:
