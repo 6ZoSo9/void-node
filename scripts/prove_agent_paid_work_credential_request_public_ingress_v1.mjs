@@ -230,6 +230,7 @@ const upstreamCalls = [];
 let upstreamStatusCalls = 0;
 const UPSTREAM_LIMIT = 8;
 let upstreamStatusLimit = UPSTREAM_LIMIT;
+let upstreamStatusLimitAfterNextPost = null;
 const upstream = http.createServer(async (req, res) => {
   if (
     req.method === "GET" &&
@@ -285,6 +286,11 @@ const upstream = http.createServer(async (req, res) => {
     body,
     headers: req.headers,
   });
+
+  if (upstreamStatusLimitAfterNextPost !== null) {
+    upstreamStatusLimit = upstreamStatusLimitAfterNextPost;
+    upstreamStatusLimitAfterNextPost = null;
+  }
 
   const parsed = JSON.parse(body.toString("utf8"));
   const payload = Buffer.from(JSON.stringify({
@@ -377,11 +383,88 @@ const recoveredResponse = await postCredential(
 assert.equal(recoveredResponse.status, 202);
 assert.equal(upstreamStatusCalls, 4);
 assert.equal(upstreamCalls.length, 2);
+
+upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimitAfterNextPost = 1;
+const concurrentA = identity();
+const concurrentABody = requestBody(
+  "live-requalification-concurrent-a",
+  concurrentA.agentId,
+);
+const concurrentB = identity();
+const concurrentBBody = requestBody(
+  "live-requalification-concurrent-b",
+  concurrentB.agentId,
+);
+const concurrentResponses = await Promise.all([
+  postCredential(
+    requalBase,
+    concurrentABody,
+    authHeader({
+      identityValue: concurrentA,
+      body: concurrentABody,
+      nonceLabel: "live-requalification-concurrent-a",
+    }),
+  ),
+  postCredential(
+    requalBase,
+    concurrentBBody,
+    authHeader({
+      identityValue: concurrentB,
+      body: concurrentBBody,
+      nonceLabel: "live-requalification-concurrent-b",
+    }),
+  ),
+]);
+const concurrentStatuses =
+  concurrentResponses.map((response) => response.status).sort();
+assert.deepEqual(
+  concurrentStatuses,
+  [202, 503],
+  "concurrent admitted requests must not share one qualification",
+);
+for (const response of concurrentResponses) {
+  if (response.status === 503) {
+    assert.equal(
+      (await response.json()).error,
+      "agent_paid_work_credential_request_gateway_unavailable",
+    );
+  } else {
+    await response.json();
+  }
+}
+assert.equal(upstreamStatusCalls, 6);
+assert.equal(
+  upstreamCalls.length,
+  3,
+  "only the first concurrent request may POST before status drift is reobserved",
+);
+
+upstreamStatusLimit = UPSTREAM_LIMIT;
+const concurrentRecovery = identity();
+const concurrentRecoveryBody = requestBody(
+  "live-requalification-concurrent-recovery",
+  concurrentRecovery.agentId,
+);
+const concurrentRecoveryResponse = await postCredential(
+  requalBase,
+  concurrentRecoveryBody,
+  authHeader({
+    identityValue: concurrentRecovery,
+    body: concurrentRecoveryBody,
+    nonceLabel: "live-requalification-concurrent-recovery",
+  }),
+);
+assert.equal(concurrentRecoveryResponse.status, 202);
+await concurrentRecoveryResponse.json();
+assert.equal(upstreamStatusCalls, 7);
+assert.equal(upstreamCalls.length, 4);
 await stopGateway(requalRuntime);
 
 upstreamCalls.length = 0;
 upstreamStatusCalls = 0;
 upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimitAfterNextPost = null;
 
 const runtime = startGateway({
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
@@ -427,6 +510,10 @@ assert.equal(
 );
 assert.equal(
   ready.paid_work_credential_request_route.upstream_failure_invalidates_qualification,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_qualification_post_serialized,
   true,
 );
 assert.equal(
@@ -916,6 +1003,8 @@ console.log("upstream_status_limit_equality_required=true");
 console.log("upstream_requalified_per_admitted_request=true");
 console.log("runtime_upstream_limit_drift_holds_before_proxy=true");
 console.log("runtime_upstream_limit_recovery_requalifies=true");
+console.log("concurrent_requests_do_not_share_qualification=true");
+console.log("qualification_and_post_serialized=true");
 console.log("mismatched_upstream_limit_holds_route_closed=true");
 console.log("preauth_global_rate_wall_before_signature_verification=true");
 console.log("invalid_auth_flood_bounded_before_upstream=true");
