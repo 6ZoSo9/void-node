@@ -44,6 +44,14 @@ const SHA256_PATTERN =
   /^[0-9a-f]{64}$/;
 const UTC_SECONDS_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const APPLICANT_KEY_ID_PATTERN =
+  /^ed25519:[0-9a-f]{64}$/;
+const TRUSTED_APPLICANT_KEY_HEADER =
+  "x-void-credential-applicant-key-id";
+const TRUSTED_APPLICANT_PROOF_HEADER =
+  "x-void-credential-applicant-proof-verified";
+const TRUSTED_PUBLIC_GATEWAY_USER_AGENT =
+  "void-ai-agent-public-gateway-v1";
 
 type AnyRecord =
   Record<string, unknown>;
@@ -840,6 +848,12 @@ createAgentPaidWorkCredentialRequestGatewayHandlerV1(
               maxBodyBytes,
             max_requests_per_minute:
               maxRequestsPerMinute,
+            public_gateway_applicant_rate_handoff_supported:
+              true,
+            public_gateway_applicant_rate_handoff_loopback_only:
+              true,
+            forwarded_for_trusted:
+              false,
             raw_request_content_exposed:
               false,
             callback_uri_exposed:
@@ -889,9 +903,40 @@ createAgentPaidWorkCredentialRequestGatewayHandlerV1(
         return;
       }
 
-      const remoteKey =
+      const remoteAddress =
         request.socket.remoteAddress ||
         "unknown";
+      const forwardedApplicantKey =
+        request.headers[
+          TRUSTED_APPLICANT_KEY_HEADER
+        ];
+      const forwardedProof =
+        request.headers[
+          TRUSTED_APPLICANT_PROOF_HEADER
+        ];
+      const forwardedUserAgent =
+        request.headers["user-agent"];
+      const loopbackPeer =
+        remoteAddress === "127.0.0.1" ||
+        remoteAddress === "::1" ||
+        remoteAddress === "::ffff:127.0.0.1";
+      const trustedApplicantKey =
+        loopbackPeer &&
+        typeof forwardedApplicantKey === "string" &&
+        APPLICANT_KEY_ID_PATTERN.test(
+          forwardedApplicantKey,
+        ) &&
+        forwardedProof === "v1" &&
+        forwardedUserAgent ===
+          TRUSTED_PUBLIC_GATEWAY_USER_AGENT
+          ? forwardedApplicantKey
+          : null;
+      const remoteKey =
+        trustedApplicantKey
+          ? "applicant:" +
+            trustedApplicantKey
+          : "remote:" +
+            remoteAddress;
       const nowMs =
         Date.now();
       const minimumMs =
