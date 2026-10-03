@@ -36,6 +36,42 @@ const NONCE =
 
 const walletA = new ethers.Wallet(PRIVATE_A);
 const walletB = new ethers.Wallet(PRIVATE_B);
+
+{
+  const bundlePath = path.resolve(
+    "node_modules/ethers/dist/ethers.min.js",
+  );
+  const bundleBytes = fs.readFileSync(bundlePath);
+  const bundleSha256 = crypto
+    .createHash("sha256")
+    .update(bundleBytes)
+    .digest("hex");
+  const bundle = await import(
+    "data:text/javascript;base64," + bundleBytes.toString("base64")
+  );
+  for (const name of [
+    "Wallet",
+    "verifyTypedData",
+    "TypedDataEncoder",
+    "getAddress",
+    "keccak256",
+    "toUtf8Bytes",
+  ]) {
+    assert.equal(
+      typeof bundle[name] === "function" ||
+        (name === "TypedDataEncoder" &&
+          typeof bundle[name]?.hash === "function"),
+      true,
+      "ethers standalone bundle missing " + name,
+    );
+  }
+  assert.equal(
+    typeof bundle.TypedDataEncoder.hash,
+    "function",
+  );
+  console.log("reviewed_ethers_standalone_bundle_sha256=" + bundleSha256);
+  console.log("reviewed_ethers_standalone_bundle_exports_green=true");
+}
 const now = Math.floor(Date.now() / 1000);
 const reviewedHeadResult = spawnSync(
   "/usr/bin/git",
