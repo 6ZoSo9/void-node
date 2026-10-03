@@ -22,9 +22,9 @@ const moduleSource = fs.readFileSync(
 const sourceRequired = [
   'require("./economic/buy_void_request_tx_hash_binding_v1")',
   ".installBuyVoidRequestTxHashBindingV1({",
-  "localOnly: __voidBuyVoidOperatorLocalOnlyV1",
-  "readRequests: __voidReadBuyVoidRequestsV1",
-  "persistRequest: __voidPersistBuyVoidRequestV1",
+  "localOnly:__voidBuyVoidOperatorLocalOnlyV1",
+  "readRequests:__voidReadBuyVoidRequestsV1",
+  "persistRequest:__voidPersistBuyVoidRequestV1",
   "requestLaunchAuthorityReady:__blo",
 ];
 
