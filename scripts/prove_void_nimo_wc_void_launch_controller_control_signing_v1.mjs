@@ -653,19 +653,37 @@ const operatorDoc = fs.readFileSync(
   "docs/operators/wc-void-launch-controller-control-offline-signing-v1.md",
   "utf8",
 );
-assert.equal(operatorDoc.includes('exec 9< "$stage/launcher.sh"'), true);
 assert.equal(
-  operatorDoc.includes('hash-object -- "/proc/self/fd/9"'),
+  operatorDoc.includes('cat-file", "blob", expected_blob'),
   true,
+  "operator bootstrap must read the reviewed launcher by Git blob ID",
 );
 assert.equal(
-  operatorDoc.includes('"/proc/self/fd/9" \\\n  sign'),
+  operatorDoc.includes('actual_blob = hashlib.sha1('),
   true,
+  "operator bootstrap must verify the complete launcher Git blob in memory",
 );
 assert.equal(
-  operatorDoc.includes('"$stage/launcher.sh" \\\n  sign'),
+  operatorDoc.includes('input=launcher_bytes'),
+  true,
+  "operator bootstrap must execute the already-verified launcher bytes through Bash stdin",
+);
+assert.equal(
+  operatorDoc.includes(
+    '"VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1": expected_blob',
+  ),
+  true,
+  "operator bootstrap must pass the verified launcher blob as defense-in-depth",
+);
+assert.equal(
+  operatorDoc.includes('/proc/self/fd/9'),
   false,
-  "reviewed launcher pathname must not be reopened after verification",
+  "production ceremony must not depend on a mutable staged launcher inode",
+);
+assert.equal(
+  operatorDoc.includes('$stage/launcher.sh'),
+  false,
+  "production ceremony must not stage and reopen a launcher pathname",
 );
 assert.equal(
   launcherSource.includes('current_head_not_exact_operator_reviewed_head'),
@@ -1047,6 +1065,7 @@ console.log("launcher_materialized_from_reviewed_commit=true");
 console.log("executed_launcher_self_blob_verified=true");
 console.log("tampered_launcher_rejected=true");
 console.log("content_addressed_launcher_stream_execution=true");
+console.log("launcher_bytes_verified_before_bash_stdin=true");
 console.log("launcher_path_replacement_after_byte_verification_ignored=true");
 console.log("reviewed_launcher_bootstrap_descriptor_pinned=true");
 console.log("reviewed_launcher_path_reopen=false");
