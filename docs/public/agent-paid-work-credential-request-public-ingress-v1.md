@@ -55,6 +55,9 @@ The public proxy adds its own:
   `x-void-applicant-auth-v1`;
 - exact binding of that signature to the unchanged inner request ID, exact body
   SHA-256, POST method, exact route, issue/expiry times and nonce;
+- exact equality between the key-derived `void-agent:ed25519:...` identity and
+  the inner credential request's `agent_id`, so throwaway signing keys cannot
+  rotate the rate-limit identity for one applicant;
 - the existing `void-agent:ed25519:<digest>` identity derivation over a public
   Ed25519 JWK;
 - a 60-second maximum auth lifetime with clock-skew and expiry rejection;
@@ -129,10 +132,12 @@ canonical body contains exactly:
 
 The header additionally contains a base64url Ed25519 `signature` over
 `void-canonical-json/1` of the object above. The gateway rederives
-`agent_id` from the public JWK, verifies the signature and all request/body
-bindings, then consumes the nonce exactly once. Changing forwarding headers,
-callback data, request IDs, body bytes, timestamps, or public keys cannot select
-or reset the applicant rate key without a new valid signature.
+`agent_id` from the public JWK, requires that value to equal both the signed
+envelope and the inner request's `agent_id`, verifies the signature and all
+request/body bindings, then consumes the nonce exactly once. Changing forwarding
+headers, callback data, request IDs, body bytes, timestamps, or public keys
+cannot select or reset the applicant rate key without changing the authenticated
+applicant identity itself.
 
 Rate-limited requests do not consume new replay-cache entries. Applicant and
 nonce tracking are explicitly bounded, and expired/non-active entries are
