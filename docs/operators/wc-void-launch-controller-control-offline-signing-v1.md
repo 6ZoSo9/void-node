@@ -170,17 +170,28 @@ node tools/void-wc-void-launch-controller-control-requalification-v1.mjs \
 Record the printed `challenge_sha256`, challenge ID, typed-data digest and
 expiry.
 
-Transfer only the challenge JSON and its SHA-256 to Nimo.
+Separately record the exact operator-reviewed canonical main commit that contains
+the reviewed launcher and signer. This reviewed commit is an independent trust
+input; it must not be recovered from the challenge itself.
+
+Transfer to Nimo:
+- the public challenge JSON;
+- its SHA-256; and
+- the separately reviewed 40-hex canonical commit.
 
 ### Nimo — offline sign
 
 Disconnect Nimo from network access before opening the key.
 
-Before signing, Nimo must be on the **exact** source HEAD embedded in the
-challenge. A clean descendant is not accepted. The reviewed launcher verifies:
+Before signing, Nimo must be on the **exact independently reviewed commit**.
+A clean descendant is not accepted. The reviewed launcher requires the reviewed
+commit as a separate positional argument and verifies:
 
 - exact challenge SHA-256;
-- current checkout HEAD equals `source_binding.source_head_sha`;
+- the supplied reviewed commit is a canonical 40-hex Git SHA;
+- current checkout HEAD equals that independently supplied reviewed commit;
+- challenge `source_binding.source_head_sha` independently equals that same
+  reviewed commit;
 - clean tracked/untracked repository state;
 - worktree Git blob equality for the launcher, signer, reviewed package-runtime
   helper/profile, control verifier, `package.json`, and `package-lock.json`;
@@ -198,7 +209,8 @@ Run the launcher itself from a scrubbed shell:
   ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh \
   sign \
   /absolute/private-work/challenge.json \
-  <64hex> \
+  <challenge-sha256-64hex> \
+  <operator-reviewed-commit-40hex> \
   /absolute/private-work/signature.json
 ```
 
@@ -216,7 +228,10 @@ funds_movement=false
 
 Preflight mode reports those access facts as false and exits without opening the
 key. Sign mode then execs the signer through a second `/usr/bin/env -i`
-boundary with the exact signer launch marker and absolute `/usr/bin/node`.
+boundary with the exact signer launch marker, the independently supplied
+reviewed commit, and absolute `/usr/bin/node`. The signer itself rechecks that
+the current/source-binding heads both equal this environment-carried reviewed
+commit before private-key access.
 This excludes `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables,
 shell-specific injection variables, and unrelated ambient configuration before
 Node starts and before the private key can be opened.
