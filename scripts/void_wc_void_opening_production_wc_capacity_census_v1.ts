@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import readline from "node:readline";
 import { parseArgs } from "node:util";
@@ -45,7 +46,7 @@ function fail(message: string): never {
 }
 
 function sha256(bytes: Buffer): string {
-  return require("node:crypto").createHash("sha256").update(bytes).digest("hex");
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function directRegularFile(file: string, maxBytes: number): Buffer {
