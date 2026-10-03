@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,11 +10,32 @@ import {
 
 export const VOID_BUY_COUPLED_LAUNCH_ID_V1 =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+export const VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1 =
+  "VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PRODUCTION = "ops/mainnet0/wc-void-production-candidate-v1.json";
 const COUPLED = "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SUCCESSOR = "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
+const LIVE_RECEIPT_MAX_BYTES = 64 * 1024;
+const HEX64 = /^[0-9a-f]{64}$/u;
+const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
+const LIVE_KEYS = Object.freeze([
+  "activated_at_ms",
+  "activation_receipt_id",
+  "buy_void_private_runtime_active",
+  "coupled_launch_id",
+  "marker",
+  "public_buy_request_intake_authorized",
+  "public_presale_active",
+  "runtime_or_launch_evidence",
+  "same_launch_ceremony",
+  "source_composition_id",
+  "source_ready_only",
+  "status",
+  "version",
+  "wc_void_market_active",
+]);
 
 function read(relativePath) {
   const value = JSON.parse(
@@ -25,60 +47,138 @@ function read(relativePath) {
   return value;
 }
 
-function productionRuntimeEvidenceReady(production) {
-  const compiled = production?.market_vault_compiled_identity_acceptance;
-  const settlement = production?.wc_settlement_adapter_review;
-  return (
-    compiled?.deployment_attested === true &&
-    compiled.final_role_bindings_attested === true &&
-    compiled.deployed_runtime_code_observed === true &&
-    compiled.inventory_funding_verified === true &&
-    compiled.inventory_lock_verified === true &&
-    settlement?.live_ledger_persistence_verified === true &&
-    settlement.quote_reserve_custody_verified === true
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map(
+      key => JSON.stringify(key) + ":" + canonicalJson(value[key]),
+    ).join(",") + "}";
+  }
+  throw new Error("buy_launch_live_receipt_noncanonical");
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+export function buyLaunchLiveActivationReceiptIdV1(receiptWithoutId) {
+  return "voidbclive1_" + sha256(
+    Buffer.from(canonicalJson(receiptWithoutId), "utf8"),
   );
 }
 
-function coupledRuntimeEvidenceReady(coupled) {
-  const nonproduction =
-    coupled?.opening_nonproduction_wc_exclusion_policy;
-  const provenance =
-    coupled?.opening_participant_provenance_eligibility_policy;
-  const concentration =
-    coupled?.opening_concentration_sybil_policy_contract;
-  const depth =
-    coupled?.opening_minimum_real_wc_depth_policy_contract;
-  const reverse =
-    coupled?.reverse_void_to_wc_settlement_policy;
-  const intent =
-    coupled?.economic_intent_ttl_caps_policy_contract;
-  const sponsored =
-    coupled?.system_sponsored_execution_anti_grief_policy_contract;
-  const reconciliation =
-    coupled?.shared_post_discovery_reconciliation;
-
+function sameStat(a, b) {
   return (
-    nonproduction?.runtime_or_launch_evidence === true &&
-    provenance?.runtime_or_launch_evidence === true &&
-    concentration?.production_cap_values_hardcoded === true &&
-    concentration.runtime_enforcement_verified === true &&
-    concentration.related_identity_truth_verified === true &&
-    depth?.production_minimum_real_wc_value_hardcoded === true &&
-    depth.runtime_enforcement_verified === true &&
-    reverse?.pricing_math_verified === true &&
-    reverse.quote_publisher_authenticity_verified === true &&
-    reverse.receipt_provenance_verified === true &&
-    reverse.market_vault_custody_verified === true &&
-    reverse.runtime_or_launch_evidence === true &&
-    intent?.production_ttl_value_hardcoded === true &&
-    intent.production_cap_values_hardcoded === true &&
-    intent.runtime_enforcement_verified === true &&
-    sponsored?.production_budget_values_hardcoded === true &&
-    sponsored.runtime_enforcement_verified === true &&
-    reconciliation?.runtime_or_launch_evidence === true &&
-    reconciliation.quote_reserve_custody_verified === true &&
-    reconciliation.void_reserve_custody_verified === true
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs &&
+    a.mode === b.mode &&
+    a.uid === b.uid &&
+    a.gid === b.gid &&
+    a.nlink === b.nlink
   );
+}
+
+function readStablePrivateFile(filePath) {
+  if (
+    typeof filePath !== "string" ||
+    !path.isAbsolute(filePath) ||
+    path.resolve(filePath) !== filePath
+  ) {
+    throw new Error("buy_launch_live_receipt_path_invalid");
+  }
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directory = fs.constants.O_DIRECTORY;
+  if (typeof noFollow !== "number" || typeof directory !== "number") {
+    throw new Error("buy_launch_live_receipt_nofollow_unavailable");
+  }
+  if (typeof process.geteuid !== "function") {
+    throw new Error("buy_launch_live_receipt_euid_unavailable");
+  }
+  const euid = BigInt(process.geteuid());
+  const parsed = path.parse(filePath);
+  const parts = filePath.slice(parsed.root.length).split(path.sep).filter(Boolean);
+  const name = parts.pop();
+  if (!name || name === "." || name === "..") {
+    throw new Error("buy_launch_live_receipt_name_invalid");
+  }
+
+  let dirFd = fs.openSync(parsed.root, fs.constants.O_RDONLY | directory | noFollow);
+  let fileFd = -1;
+  try {
+    for (const part of parts) {
+      if (!part || part === "." || part === "..") {
+        throw new Error("buy_launch_live_receipt_ancestor_invalid");
+      }
+      const next = fs.openSync(
+        path.join("/proc/self/fd", String(dirFd), part),
+        fs.constants.O_RDONLY | directory | noFollow,
+      );
+      const st = fs.fstatSync(next, { bigint: true });
+      if (
+        !st.isDirectory() ||
+        st.isSymbolicLink() ||
+        (st.uid !== euid && st.uid !== 0n) ||
+        ((st.mode & 0o022n) !== 0n && (st.mode & 0o1000n) === 0n)
+      ) {
+        fs.closeSync(next);
+        throw new Error("buy_launch_live_receipt_ancestor_unsafe");
+      }
+      fs.closeSync(dirFd);
+      dirFd = next;
+    }
+
+    const parent = fs.fstatSync(dirFd, { bigint: true });
+    if (
+      !parent.isDirectory() ||
+      parent.isSymbolicLink() ||
+      parent.uid !== euid ||
+      (parent.mode & 0o022n) !== 0n
+    ) {
+      throw new Error("buy_launch_live_receipt_parent_unsafe");
+    }
+
+    const procPath = path.join("/proc/self/fd", String(dirFd), name);
+    const listed = fs.lstatSync(procPath, { bigint: true });
+    if (
+      !listed.isFile() ||
+      listed.isSymbolicLink() ||
+      listed.uid !== euid ||
+      listed.nlink !== 1n ||
+      (listed.mode & 0o077n) !== 0n ||
+      listed.size <= 0n ||
+      listed.size > BigInt(LIVE_RECEIPT_MAX_BYTES)
+    ) {
+      throw new Error("buy_launch_live_receipt_file_unsafe");
+    }
+    fileFd = fs.openSync(procPath, fs.constants.O_RDONLY | noFollow);
+    const opened = fs.fstatSync(fileFd, { bigint: true });
+    if (!sameStat(listed, opened)) {
+      throw new Error("buy_launch_live_receipt_identity_changed");
+    }
+    const bytes = fs.readFileSync(fileFd);
+    const after = fs.fstatSync(fileFd, { bigint: true });
+    const visible = fs.lstatSync(procPath, { bigint: true });
+    if (
+      bytes.length !== Number(after.size) ||
+      !sameStat(opened, after) ||
+      !sameStat(after, visible)
+    ) {
+      throw new Error("buy_launch_live_receipt_changed_during_read");
+    }
+    return bytes;
+  } finally {
+    if (fileFd >= 0) {
+      try { fs.closeSync(fileFd); } catch {}
+    }
+    try { fs.closeSync(dirFd); } catch {}
+  }
 }
 
 export function classifyBuyLaunchGateV1({ production, coupled, successor }) {
@@ -97,24 +197,24 @@ export function classifyBuyLaunchGateV1({ production, coupled, successor }) {
     decision?.ok === true &&
     decision.status === "SOURCE_READY" &&
     decision.marker === VOID_WC_VOID_COUPLED_LAUNCH_READINESS_V1 &&
+    SHA256_ID.test(String(decision.composition_id || "")) &&
     decision.activation_authority === false &&
     decision.funding_authority === false &&
     decision.market_activation_authorized === false &&
     decision.public_presale_activation_authorized === false &&
     decision.funds_movement_authorized === false &&
-    productionRuntimeEvidenceReady(production) &&
-    coupledRuntimeEvidenceReady(coupled) &&
     coupled?.shared_post_discovery_reconciliation?.coupled_launch_id ===
       VOID_BUY_COUPLED_LAUNCH_ID_V1;
 
   return Object.freeze({
     ready,
     id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
+    composition_id: ready ? decision.composition_id : null,
     reason: ready ? null : "canonical_coupled_launch_source_not_ready",
   });
 }
 
-export function readBuyLaunchGateV1() {
+export function readBuyLaunchSourceGateV1() {
   try {
     return classifyBuyLaunchGateV1({
       production: read(PRODUCTION),
@@ -125,7 +225,119 @@ export function readBuyLaunchGateV1() {
     return Object.freeze({
       ready: false,
       id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
+      composition_id: null,
       reason: "canonical_coupled_launch_source_unavailable",
     });
   }
+}
+
+export function readBuyLaunchLiveActivationV1(
+  sourceGate,
+  env = process.env,
+) {
+  try {
+    if (
+      sourceGate?.ready !== true ||
+      sourceGate.id !== VOID_BUY_COUPLED_LAUNCH_ID_V1 ||
+      !SHA256_ID.test(String(sourceGate.composition_id || ""))
+    ) {
+      throw new Error("buy_launch_source_gate_not_ready");
+    }
+
+    const filePath = env.VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH;
+    const expectedSha256 =
+      env.VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256;
+    if (!HEX64.test(String(expectedSha256 || ""))) {
+      throw new Error("buy_launch_live_receipt_sha256_invalid");
+    }
+
+    const bytes = readStablePrivateFile(filePath);
+    const actualSha256 = sha256(bytes);
+    if (actualSha256 !== expectedSha256) {
+      throw new Error("buy_launch_live_receipt_sha256_mismatch");
+    }
+
+    const receipt = JSON.parse(bytes.toString("utf8"));
+    if (
+      !receipt ||
+      typeof receipt !== "object" ||
+      Array.isArray(receipt) ||
+      Object.keys(receipt).sort().join("\n") !== [...LIVE_KEYS].sort().join("\n")
+    ) {
+      throw new Error("buy_launch_live_receipt_shape_invalid");
+    }
+
+    const body = { ...receipt };
+    delete body.activation_receipt_id;
+    const expectedReceiptId = buyLaunchLiveActivationReceiptIdV1(body);
+    if (
+      receipt.marker !== VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1 ||
+      receipt.version !== 1 ||
+      receipt.status !== "COUPLED_PUBLIC_LAUNCH_ACTIVE" ||
+      receipt.coupled_launch_id !== VOID_BUY_COUPLED_LAUNCH_ID_V1 ||
+      receipt.source_composition_id !== sourceGate.composition_id ||
+      receipt.activation_receipt_id !== expectedReceiptId ||
+      !Number.isSafeInteger(receipt.activated_at_ms) ||
+      receipt.activated_at_ms <= 0 ||
+      receipt.buy_void_private_runtime_active !== true ||
+      receipt.wc_void_market_active !== true ||
+      receipt.public_presale_active !== true ||
+      receipt.same_launch_ceremony !== true ||
+      receipt.public_buy_request_intake_authorized !== true ||
+      receipt.runtime_or_launch_evidence !== true ||
+      receipt.source_ready_only !== false
+    ) {
+      throw new Error("buy_launch_live_receipt_semantics_invalid");
+    }
+
+    const confirmation =
+      "activate-coupled-public-buy-v1:" +
+      receipt.activation_receipt_id +
+      ":" +
+      actualSha256;
+    if (env.VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM !== confirmation) {
+      throw new Error("buy_launch_live_receipt_confirmation_invalid");
+    }
+
+    return Object.freeze({
+      ready: true,
+      receipt_id: receipt.activation_receipt_id,
+      receipt_sha256: actualSha256,
+      source_composition_id: receipt.source_composition_id,
+      reason: null,
+    });
+  } catch {
+    return Object.freeze({
+      ready: false,
+      receipt_id: null,
+      receipt_sha256: null,
+      source_composition_id:
+        typeof sourceGate?.composition_id === "string"
+          ? sourceGate.composition_id
+          : null,
+      reason: "live_coupled_activation_evidence_not_ready",
+    });
+  }
+}
+
+export function readBuyLaunchGateV1(env = process.env) {
+  const source = readBuyLaunchSourceGateV1();
+  if (!source.ready) {
+    return Object.freeze({
+      ...source,
+      source_ready: false,
+      live_activation_ready: false,
+      live_activation_receipt_id: null,
+    });
+  }
+  const live = readBuyLaunchLiveActivationV1(source, env);
+  return Object.freeze({
+    ready: source.ready && live.ready,
+    id: source.id,
+    composition_id: source.composition_id,
+    source_ready: true,
+    live_activation_ready: live.ready,
+    live_activation_receipt_id: live.receipt_id,
+    reason: live.ready ? null : live.reason,
+  });
 }
