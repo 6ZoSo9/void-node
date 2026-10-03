@@ -606,6 +606,10 @@ assert.equal(
 );
 assert.equal(runtime.ethers_version, "6.17.0");
 assert.equal(runtime.permission_fenced_execution, true);
+assert.equal(
+  fs.realpathSync.native(runtime.child_node_executable),
+  fs.realpathSync.native(process.execPath),
+);
 assert.equal(runtime.ancestor_package_resolution_allowed, false);
 assert.equal(runtime.ambient_node_resolution_overrides_ignored, true);
 assert.equal(runtime.ambient_dynamic_loader_overrides_ignored, true);
@@ -956,6 +960,20 @@ assert.equal(
   "reviewed signer child must select the permission flag by supported Node version",
 );
 assert.equal(
+  signerSource.includes(
+    "const PRODUCTION_NODE_V1 = \"/usr/bin/node\";",
+  ),
+  true,
+  "production launcher interpreter remains fixed",
+);
+assert.equal(
+  signerSource.includes(
+    "const CHILD_NODE_V1 = fs.realpathSync.native(process.execPath);",
+  ),
+  true,
+  "reviewed child must reuse the already-running interpreter",
+);
+assert.equal(
   signerSource.includes('"--allow-fs-read=" + root'),
   true,
   "reviewed signer child must restrict filesystem reads to the private runtime",
@@ -1073,6 +1091,7 @@ console.log("reviewed_signer_materialized_before_execution=true");
 console.log("mutable_worktree_signer_execution=false");
 console.log("node_22_0_to_22_12_permission_flag_supported=true");
 console.log("node_22_13_plus_permission_flag_supported=true");
+console.log("reviewed_child_reuses_parent_node=true");
 console.log("exact_head_launcher_preflight_green=true");
 console.log("launcher_critical_blobs_verified=true");
 console.log("private_key_access_reported=true");
