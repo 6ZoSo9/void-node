@@ -106,6 +106,11 @@ assert.equal(
   19,
   "all Local Data Drop file-type checks must use lstatSync",
 );
+assert.equal(
+  cluster.includes(".import-staging-v2"),
+  false,
+  "public runtime must not mount importer staging",
+);
 const route=source.slice(routeStart,routeStart+1800);
 assert.equal(
   route.includes('/^\\.\\.?$/.test(objectId)'),
@@ -134,6 +139,7 @@ console.log("runtime_dot_components_rejected=true");
 console.log("runtime_slash_rejected=true");
 console.log("runtime_backslash_rejected=true");
 console.log("runtime_nofollow_read_checks=19");
+console.log("staging_absent_from_public_runtime=true");
 console.log("index_size_bytes="+sourceBytes);
 NODE
 
@@ -381,6 +387,7 @@ echo "operator_owned_recovery_files=true"
 echo "runtime_nofollow_read_checks=19"
 echo "index_size_ceiling_preserved=true"
 echo "staged_atomic_publication=true"
+echo "staging_absent_from_public_runtime=true"
 echo "orphan_receipt_recovery=true"
 echo "orphan_object_recovery=true"
 echo "live_runtime_mutation=false"
