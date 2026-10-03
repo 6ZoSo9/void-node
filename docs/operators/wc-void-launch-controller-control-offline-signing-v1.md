@@ -49,6 +49,12 @@ Before the private key is opened, it:
    launched with the permission model and
    `--allow-fs-read=<private-runtime-root>`.
 
+For Node 22.0 through 22.12 the signer uses the documented
+`--experimental-permission` spelling. Node 22.13+ and the supported Node
+24/26 lines use `--permission`. This preserves the repository's declared
+`^22.0.0 || ^24.0.0 || ^26.0.0` runtime range rather than silently requiring
+a newer Node 22 patch release.
+
 The key-owning parent process never imports `ethers`. The child receives only
 the already-validated public challenge plus the fixed private key over stdin.
 The key is never placed in argv, environment variables, or a temporary key
@@ -280,14 +286,28 @@ funds_movement=false
 ```
 
 Preflight mode reports those access facts as false and exits without opening the
-key. Sign mode then execs the signer through a second `/usr/bin/env -i`
-boundary with the exact signer launch marker, the independently supplied
-reviewed commit, and absolute `/usr/bin/node`. The signer itself rechecks that
-the current/source-binding heads both equal this environment-carried reviewed
-commit before private-key access.
-This excludes `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables,
-shell-specific injection variables, and unrelated ambient configuration before
-Node starts and before the private key can be opened.
+key.
+
+Sign mode does **not** reopen the mutable worktree signer after verification.
+Instead the launcher creates a fresh private runtime directory, materializes the
+exact signer and reviewed-package-runtime helper Git blobs directly from the
+independently reviewed commit, re-hashes both materialized files, removes write
+permission from the materialized tree, and launches that reviewed signer copy
+through a second `/usr/bin/env -i` boundary. The original verified repository
+root is passed separately as
+`VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1` for Git/profile/source-state reads; it
+is not used as the signer executable path.
+
+The materialized signer itself rechecks that the current/source-binding heads
+both equal the environment-carried reviewed commit before private-key access.
+This closes the verify-then-reopen worktree race: a later replacement of the
+worktree signer or runtime helper cannot change the bytes that receive
+production-key access.
+
+The scrubbed launch also excludes `NODE_OPTIONS`, `NODE_PATH`,
+dynamic-loader variables, shell-specific injection variables, and unrelated
+ambient configuration before Node starts and before the private key can be
+opened.
 
 The signer then performs production cryptography in a second
 permission-fenced reviewed child. The parent sends the fixed key only over
