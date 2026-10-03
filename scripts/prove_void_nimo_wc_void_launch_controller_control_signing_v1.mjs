@@ -22,6 +22,7 @@ import {
   reviewedOfflineSigningRuntimeV1,
   signControlChallengeCoreV1,
   testOnlyReadTransferredControlChallengeV1,
+  testOnlyReviewedAncestorPackageFallbackBlockedV1,
   validateSanitizedOfflineSignerEnvironmentV1,
 } from "../ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs";
 
@@ -348,10 +349,25 @@ assert.equal(
   "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73",
 );
 assert.equal(runtime.ethers_version, "6.17.0");
+assert.equal(runtime.permission_fenced_execution, true);
+assert.equal(runtime.ancestor_package_resolution_allowed, false);
+assert.equal(runtime.ambient_node_resolution_overrides_ignored, true);
+assert.equal(runtime.ambient_dynamic_loader_overrides_ignored, true);
 assert.equal(runtime.private_key_access, false);
 assert.equal(runtime.network_access_required, false);
+assert.equal(runtime.execution_network_isolation_provided, false);
 assert.equal(runtime.transaction_signing, false);
 assert.equal(runtime.funds_movement, false);
+
+const ancestorFallback =
+  await testOnlyReviewedAncestorPackageFallbackBlockedV1();
+assert.equal(ancestorFallback.ancestor_package_present, true);
+assert.equal(ancestorFallback.ancestor_package_executed, false);
+assert.equal(ancestorFallback.permission_fenced_execution, true);
+assert.equal(
+  ancestorFallback.ancestor_package_resolution_allowed,
+  false,
+);
 
 {
   const packageFile = path.resolve("node_modules/ethers/package.json");
@@ -449,6 +465,31 @@ assert.equal(
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
   "utf8",
+);
+
+assert.equal(
+  signerSource.includes("const ethersEntry = path.join("),
+  false,
+  "production parent must not construct an in-process ethers entry path",
+);
+assert.equal(
+  /await import\(\s*pathToFileURL\(ethersEntry\)/u.test(signerSource),
+  false,
+  "production parent must not dynamically import reviewed ethers",
+);
+assert.equal(
+  signerSource.includes(
+    'bridgeResult = runtime.run(\n          "sign"',
+  ),
+  true,
+  "production signing must be delegated to the fenced reviewed child",
+);
+assert.equal(
+  signerSource.includes(
+    'const candidate = await import("bufferutil");',
+  ),
+  true,
+  "focused bridge must contain the ancestor-package adversary operation",
 );
 
 assert.equal(
@@ -551,25 +592,53 @@ assert.equal(
   "production signer must require exact challenge source HEAD",
 );
 assert.equal(
-  signerSource.includes(
-    "const signingNowUnix = Math.floor(Date.now() / 1000);",
-  ),
-  true,
-  "production signing must sample the clock after reviewed runtime setup",
+  signerSource.includes("withReviewedEthersV1"),
+  false,
+  "production signer must not use the former in-process reviewed ethers import",
 );
 assert.equal(
   signerSource.includes(
-    "BigInt(Math.floor(Date.now() / 1000)) >=\n      BigInt(reviewed.expires_at_unix)",
+    "return await withReviewedSigningRuntimeV1(",
   ),
   true,
-  "production signing must recheck expiry before private-key access",
+  "production signer must enter the permission-fenced reviewed child runtime",
+);
+assert.equal(
+  signerSource.includes('"--permission"'),
+  true,
+  "reviewed signer child must enable the Node permission model",
+);
+assert.equal(
+  signerSource.includes('"--allow-fs-read=" + root'),
+  true,
+  "reviewed signer child must restrict filesystem reads to the private runtime",
+);
+assert.equal(
+  signerSource.includes("input: stdinText"),
+  true,
+  "production private key must enter the child only through stdin",
+);
+assert.equal(
+  signerSource.includes("ancestor_package_resolution_allowed: false"),
+  true,
+  "production result must expose ancestor-resolution denial",
+);
+assert.equal(
+  signerSource.includes("permission_fenced_execution: true"),
+  true,
+  "production result must expose permission-fenced execution",
 );
 assert.equal(
   signerSource.includes(
-    "if (liveNow() >= BigInt(reviewed.expires_at_unix))",
+    "BigInt(Math.floor(Date.now() / 1000)) >=\n        BigInt(preflight.expires_at_unix)",
   ),
   true,
-  "validated signing must recheck expiry around signature generation",
+  "production parent must recheck expiry immediately before private-key access",
+);
+assert.equal(
+  signerSource.includes('throw new Error("bridge_challenge_expired")'),
+  true,
+  "reviewed child must recheck expiry around private-key use and signing",
 );
 assert.equal(
   /signSelectedLaunchControllerChallengeV1\(\{[\s\S]*?nowUnix\s*=/u.test(
@@ -640,6 +709,11 @@ console.log("credential_access_reported=true");
 console.log("wallet_or_signer_access_reported=true");
 console.log("sign_mode_access_announced_before_exec=true");
 console.log("reviewed_ethers_runtime_verified=true");
+console.log("permission_fenced_signing_child=true");
+console.log("ancestor_package_resolution_allowed=false");
+console.log("ancestor_package_fallback_blocked=true");
+console.log("production_parent_dynamic_ethers_import=false");
+console.log("private_key_transport=stdin_only");
 console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
 console.log("selected_reviewer_fixed=true");
 console.log("private_key_path_fixed=true");
