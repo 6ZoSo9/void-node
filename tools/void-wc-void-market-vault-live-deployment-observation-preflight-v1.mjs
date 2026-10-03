@@ -1137,6 +1137,7 @@ export function testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1(
         VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
       status: "TEST_ONLY_PRODUCTION_EPOCH2_RPC_POLICY_GREEN",
       selected_rpc_target_path: selected.path,
+      selected_rpc_target_git_blob_sha1: selected.git_blob_sha1,
       selected_rpc_target_file_sha256: selected.file_sha256,
       rpc_url_fingerprint_sha256:
         selected.rpc_url_fingerprint_sha256,
