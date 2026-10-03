@@ -1001,7 +1001,7 @@ assert.match(
 assert.match(gateSource, /withBuyVoidFilesystemBakeryLockAsyncV1/);
 assert.match(
   gateSource,
-  /const gateReadStartedAtMs = Date\.now\(\);[\s\S]*readBuyLaunchGateV1\([\s\S]*gateReadStartedAtMs[\s\S]*const mutationAdmissionNowMs = Date\.now\(\);[\s\S]*buyLaunchRequestAuthorityMatchesV1\([\s\S]*mutationAdmissionNowMs/u,
+  /const gateReadStartedAtMs = now\(\);[\s\S]*readBuyLaunchGateV1\([\s\S]*gateReadStartedAtMs[\s\S]*const mutationAdmissionNowMs = now\(\);[\s\S]*classifyBuyLaunchRequestMutationAdmissionV1\([\s\S]*gateReadStartedAtMs,[\s\S]*mutationAdmissionNowMs/u,
 );
 assert.match(
   bakeryLockSource,
