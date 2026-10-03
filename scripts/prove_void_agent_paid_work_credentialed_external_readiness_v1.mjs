@@ -2,7 +2,13 @@
 // VOID_AGENT_PAID_WORK_CREDENTIALED_EXTERNAL_READINESS_V1_PROOF
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+
+import {
+  evaluateCredentialRequestGatewayContractV1,
+  evaluateOpeningEligibilityContractV1,
+  evaluatePublicSubmissionGatewayContractV1,
+} from "../tools/void-agent-paid-work-credentialed-external-readiness-v1.mjs";
 
 const TOOL =
   "tools/void-agent-paid-work-credentialed-external-readiness-v1.mjs";
@@ -10,16 +16,32 @@ const DOC =
   "docs/operators/agent-paid-work-credentialed-external-readiness-v1.md";
 const WORKFLOW =
   ".github/workflows/void-agent-paid-work-credentialed-external-readiness-v1.yml";
+const CREDENTIAL_GATEWAY =
+  "scripts/agent_paid_work_credential_request_gateway_v1.ts";
+const PUBLIC_GATEWAY =
+  "ops/void-ai-agent-public-gateway-v1.mjs";
+const OPENING_ELIGIBILITY =
+  "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs";
 
-for (const path of [TOOL, DOC, WORKFLOW]) {
+for (const path of [
+  TOOL,
+  DOC,
+  WORKFLOW,
+  CREDENTIAL_GATEWAY,
+  PUBLIC_GATEWAY,
+  OPENING_ELIGIBILITY,
+]) {
   assert.equal(fs.existsSync(path), true, "missing " + path);
 }
 
-const stdout = execFileSync(process.execPath, [TOOL], {
-  encoding: "utf8",
-  stdio: ["ignore", "pipe", "pipe"],
-});
-const result = JSON.parse(stdout);
+function runTool() {
+  return execFileSync(process.execPath, [TOOL], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+const result = JSON.parse(runTool());
 
 assert.equal(
   result.marker,
@@ -28,6 +50,9 @@ assert.equal(
 assert.equal(result.version, 1);
 assert.equal(result.issue, 2382);
 assert.match(result.repository_head, /^[0-9a-f]{40}$/u);
+assert.match(result.repository_tree, /^[0-9a-f]{40}$/u);
+assert.equal(result.exact_head_git_object_source_census, true);
+assert.equal(result.worktree_component_bytes_match_head, true);
 
 for (const [key, expected] of Object.entries({
   read_only_source_census: true,
@@ -52,13 +77,16 @@ const lineage = result.source_lineage;
 for (const key of [
   "credential_request_gateway_source_ready",
   "credential_request_gateway_loopback_only",
+  "credential_request_gateway_review_only_issuance",
   "credential_request_review_queue_source_ready",
   "credential_lifecycle_source_ready",
   "credential_wc_account_binding_source_ready",
   "credential_registry_source_ready",
   "authenticated_submission_receiver_source_ready",
   "public_submission_proxy_source_wired",
+  "public_submission_proxy_loopback_upstream_only",
   "wc_earning_adapter_source_ready",
+  "opening_policy_active_credential_required",
 ]) {
   assert.equal(lineage[key], true, key);
 }
@@ -139,7 +167,140 @@ const componentKeys = Object.keys(result.components);
 assert.equal(componentKeys.length, 11);
 for (const key of componentKeys) {
   assert.equal(typeof result.components[key].path, "string");
+  assert.match(result.components[key].git_blob_sha1, /^[0-9a-f]{40}$/u);
   assert.match(result.components[key].sha256, /^[0-9a-f]{64}$/u);
+}
+
+const credentialGatewaySource =
+  fs.readFileSync(CREDENTIAL_GATEWAY, "utf8");
+const gatewayAuthorityFlip = credentialGatewaySource.replace(
+  /credential_issuance_authorized:\s*\n\s*false,/u,
+  "credential_issuance_authorized:\n              true,",
+);
+assert.notEqual(gatewayAuthorityFlip, credentialGatewaySource);
+assert.ok(gatewayAuthorityFlip.includes("false"));
+assert.throws(
+  () => evaluateCredentialRequestGatewayContractV1(gatewayAuthorityFlip),
+  /credential_request_gateway_credential_issuance_authority_changed/u,
+);
+
+const disconnectedCredentialRoute = credentialGatewaySource.replace(
+  /pathname\s*!==\s*\n\s*AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH/u,
+  'pathname !==\n          "/__void/agents/paid-work/disconnected"',
+);
+assert.notEqual(disconnectedCredentialRoute, credentialGatewaySource);
+assert.ok(
+  disconnectedCredentialRoute.includes(
+    '"/__void/agents/paid-work/credential-requests/v1"',
+  ),
+);
+assert.throws(
+  () => evaluateCredentialRequestGatewayContractV1(disconnectedCredentialRoute),
+  /credential_request_gateway_route_guard_contract_match_count/u,
+);
+
+const publicGatewaySource = fs.readFileSync(PUBLIC_GATEWAY, "utf8");
+const disconnectedSubmissionRoute = publicGatewaySource.replace(
+  /parsed\.pathname\s*===\s*\n\s*AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH/u,
+  'parsed.pathname ===\n    "/__void/agents/paid-work/disconnected"',
+);
+assert.notEqual(disconnectedSubmissionRoute, publicGatewaySource);
+assert.ok(
+  disconnectedSubmissionRoute.includes(
+    '"/__void/agents/paid-work/submissions/v1"',
+  ),
+);
+assert.ok(
+  disconnectedSubmissionRoute.includes(
+    "VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM",
+  ),
+);
+assert.throws(
+  () => evaluatePublicSubmissionGatewayContractV1(disconnectedSubmissionRoute),
+  /public_submission_route_contract_match_count/u,
+);
+
+const openingSource = fs.readFileSync(OPENING_ELIGIBILITY, "utf8");
+const openingAuthorityFlip = openingSource.replace(
+  "active_credential_required: true,",
+  "active_credential_required: false,",
+);
+assert.notEqual(openingAuthorityFlip, openingSource);
+assert.ok(openingAuthorityFlip.includes("active_credential_required"));
+assert.ok(openingAuthorityFlip.includes("true"));
+assert.throws(
+  () => evaluateOpeningEligibilityContractV1(openingAuthorityFlip),
+  /opening_eligibility_policy_contract_changed/u,
+);
+
+{
+  const original = fs.readFileSync(CREDENTIAL_GATEWAY);
+  const gitEnv = {
+    ...process.env,
+    GIT_OPTIONAL_LOCKS: "0",
+  };
+  try {
+    const assume = spawnSync(
+      "/usr/bin/git",
+      ["update-index", "--assume-unchanged", CREDENTIAL_GATEWAY],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: gitEnv,
+      },
+    );
+    assert.equal(assume.status, 0, String(assume.stderr || ""));
+    fs.appendFileSync(
+      CREDENTIAL_GATEWAY,
+      "\n// hidden readiness worktree drift\n",
+    );
+    const hidden = spawnSync(
+      process.execPath,
+      [TOOL],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.equal(hidden.status, 2);
+    assert.match(
+      String(hidden.stderr || ""),
+      /worktree_head_blob_mismatch:scripts\/agent_paid_work_credential_request_gateway_v1\.ts/u,
+    );
+  } finally {
+    fs.writeFileSync(CREDENTIAL_GATEWAY, original);
+    const restore = spawnSync(
+      "/usr/bin/git",
+      ["update-index", "--no-assume-unchanged", CREDENTIAL_GATEWAY],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: gitEnv,
+      },
+    );
+    assert.equal(restore.status, 0, String(restore.stderr || ""));
+  }
+}
+
+const source = fs.readFileSync(TOOL, "utf8");
+for (const required of [
+  "readHeadComponent",
+  "readStableWorktree",
+  "worktree_head_blob_mismatch",
+  "git_blob_sha1",
+  "evaluateCredentialRequestGatewayContractV1",
+  "evaluatePublicSubmissionGatewayContractV1",
+  "evaluateOpeningEligibilityContractV1",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "core.fsmonitor=false",
+  "core.hooksPath=/dev/null",
+  "--no-replace-objects",
+]) {
+  assert.ok(source.includes(required), "missing tool contract:" + required);
 }
 
 const doc = fs.readFileSync(DOC, "utf8");
@@ -153,6 +314,9 @@ for (const required of [
   "ready_for_external_opening_eligible_canary=false",
   "does not currently contain the credential",
   "A ZoSo-controlled second account or host is not independence evidence.",
+  "exact HEAD Git object",
+  "Git blob",
+  "worktree",
 ]) {
   assert.ok(doc.includes(required), "missing doc:" + required);
 }
@@ -178,7 +342,12 @@ for (const required of [
 console.log(
   "VOID_AGENT_PAID_WORK_CREDENTIALED_EXTERNAL_READINESS_V1_PROOF_GREEN",
 );
-console.log("source_lineage_reobserved=true");
+console.log("exact_head_git_object_source_census=true");
+console.log("worktree_component_bytes_match_head=true");
+console.log("semantic_readiness_contracts_bound=true");
+console.log("authority_flip_adversary_rejected=true");
+console.log("route_disconnect_adversary_rejected=true");
+console.log("hidden_worktree_drift_rejected=true");
 console.log("opening_eligibility_policy_changed=false");
 console.log("credential_request_public_proxy_wired=false");
 console.log("authenticated_submission_proxy_source_wired=true");
