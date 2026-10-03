@@ -596,11 +596,11 @@ archive_seal() {
   key="$1"
   value="$(
     printf '%s\n' "$archive_phase_output" |
-      sed -n "s/^\${key}=\([0-9a-f]\{64\}\)$/\1/p"
+      sed -n "s/^${key}=\([0-9a-f]\{64\}\)$/\1/p"
   )"
   count="$(
     printf '%s\n' "$archive_phase_output" |
-      grep -c "^\${key}=" || true
+      grep -c "^${key}=" || true
   )"
   test "$count" = "1" && [[ "$value" =~ ^[0-9a-f]{64}$ ]] || return 1
   printf '%s' "$value"
