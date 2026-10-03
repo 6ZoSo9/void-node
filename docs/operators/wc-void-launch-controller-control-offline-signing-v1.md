@@ -75,6 +75,30 @@ preload, import, require, inspect, policy, conditions, or arbitrary Node option
 fails closed. Nimo must remain offline for the entire signing ceremony because
 this lane does not claim process-level network sandboxing.
 
+## Filter-free repository preflight
+
+Before private-key access, the reviewed launcher verifies the exact operator-reviewed
+HEAD without invoking `git status` or any Git path that may execute a clean/smudge
+filter.
+
+It:
+
+- rejects non-empty `.git/info/attributes`;
+- rejects repository-local `filter`, `include` / `includeIf`,
+  `core.attributesFile`, and `core.hooksPath` configuration;
+- requires the reviewed tree and stage-0 index to match exactly;
+- recomputes every tracked worktree blob ID from raw nofollow descriptor reads;
+- hashes regular-file bytes incrementally using Git blob SHA-1 framing, so a
+  corrupted oversized tracked file is not accumulated in memory;
+- verifies symlink blob bytes from the link target itself;
+- rejects nonignored untracked files; and
+- uses `git hash-object --no-filters` for the remaining explicit critical-file
+  checks.
+
+The streamed signer does not rerun `git status`; it relies on this exact
+filter-free launcher admission and separately rechecks the exact challenge/source
+HEAD and source-object bindings before opening the fixed private-key file.
+
 ## Challenge validation
 
 The Nimo helper requires:
