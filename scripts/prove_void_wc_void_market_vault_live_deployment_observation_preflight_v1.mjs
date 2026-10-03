@@ -13,6 +13,9 @@ import {
   VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1,
 } from "../tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "../tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
+import {
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1,
@@ -349,6 +352,19 @@ async function fixture(options = {}) {
             result = "0x3b9aca00";
             break;
           case "eth_estimateGas":
+            assert.deepEqual(
+              call.params?.[0]?.accessList,
+              [{
+                address:
+                  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1
+                    .marker_address,
+                storageKeys: [
+                  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1
+                    .marker_storage_key,
+                ],
+              }],
+              "deployment estimate must carry the exact signed Epoch-2 access-list marker",
+            );
             result = options.badGasEstimate ? "0x0" : "0xf4240";
             break;
           case "eth_call":
@@ -443,6 +459,19 @@ await withFixture({}, async (f) => {
   assert.equal(result.observation.pending_nonce_revalidated, true);
   assert.equal(result.observation.deployment_gas_estimate, "1000000");
   assert.equal(result.observation.gas_price_wei, "1000000000");
+  assert.equal(result.observation.epoch2_transaction_type, "2");
+  assert.equal(
+    result.observation.epoch2_access_list_marker_address,
+    VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
+  );
+  assert.equal(
+    result.observation.epoch2_access_list_marker_storage_key,
+    VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_storage_key,
+  );
+  assert.equal(
+    result.observation.epoch2_signed_access_list_marker_bound,
+    true,
+  );
   assert.equal(
     result.observation.bare_estimated_deployment_cost_wei,
     "1000000000000000",
@@ -480,6 +509,17 @@ await withFixture({}, async (f) => {
   assert.equal(
     estimate.params[0].data,
     q.deployment_preparation.deployment_data_hex,
+  );
+  assert.deepEqual(
+    estimate.params[0].accessList,
+    [{
+      address:
+        VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
+      storageKeys: [
+        VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1
+          .marker_storage_key,
+      ],
+    }],
   );
   assert.equal(estimate.params[1], "0x64");
   const balanceCall = f.calls.find((call) => call.method === "eth_call");
@@ -820,6 +860,7 @@ for (const [key, expected] of Object.entries({
   observation_block_hash_revalidation_required: true,
   block_bound_deployer_balance_required: true,
   exact_deployment_data_gas_estimate_required: true,
+  epoch2_signed_access_list_marker_required: true,
   gas_price_observation_required: true,
   canonical_void_balance_of_required: true,
   opening_inventory_atoms_required: OPENING_ATOMS.toString(),
@@ -916,6 +957,9 @@ for (const required of [
   "eth_gasPrice",
   "eth_estimateGas",
   "eth_call",
+  "VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1",
+  "accessList: deploymentAccessList",
+  "epoch2_signed_access_list_marker_bound: true",
   "O_NOFOLLOW",
   "O_DIRECTORY",
   '"/proc/self/fd/"',
@@ -972,6 +1016,7 @@ console.log("fixed_block_observation=true");
 console.log("pending_nonce_revalidated=true");
 console.log("deployer_balance_block_bound=true");
 console.log("deployment_gas_estimate_read_only=true");
+console.log("epoch2_signed_access_list_marker_bound=true");
 console.log("gas_price_observed=true");
 console.log("inventory_balance_of_block_bound=true");
 console.log("opening_inventory_required_atoms="+OPENING_ATOMS.toString());

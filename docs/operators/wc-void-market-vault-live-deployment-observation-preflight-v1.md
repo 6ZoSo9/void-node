@@ -105,6 +105,15 @@ eth_call
 
 No send/sign/admin/personal/debug RPC method exists in this lane.
 
+The deployment estimate is not a bare legacy transaction shape. Its
+`eth_estimateGas` transaction object carries the canonical signed Epoch-2
+access-list marker from
+`VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1`: exactly one marker
+entry at `0x0000000000000000000000000000000000002050` with storage key
+`0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7`.
+This is read-only estimation compatibility with the production validator domain;
+it does not construct, sign, or authorize a transaction.
+
 The fixed canonical GitHub `ls-remote` source-generation read is a separate
 read-only external Git/TLS observation. `loopback_http_only` refers to
 Chain-2050 JSON-RPC, not that canonical source read.
@@ -119,8 +128,8 @@ The preflight:
 4. reads pending deployer nonce;
 5. reads deployer native balance at the fixed block;
 6. reads current gas-price observation;
-7. calls `eth_estimateGas` for the **exact qualification deployment data** at
-   the fixed block;
+7. calls `eth_estimateGas` for the **exact qualification deployment data**
+   plus the exact signed Epoch-2 access-list marker at the fixed block;
 8. calls canonical VOID `balanceOf(inventorySource)` at the same fixed block;
 9. re-reads pending nonce; and
 10. re-reads the exact fixed block and requires identical hash/number/timestamp.
@@ -169,6 +178,7 @@ and records:
 - latest and pending deployer nonce;
 - deployer native balance;
 - gas-price observation;
+- exact signed Epoch-2 access-list marker identity;
 - exact deployment-data gas estimate;
 - bare estimated deployment cost;
 - canonical VOID inventory-source balance;
@@ -235,7 +245,7 @@ node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mj
   --expected-qualification-sha256 <64hex> \
   --deployer 0x... \
   --inventory-source 0x... \
-  --rpc http://127.0.0.1:8545/ \
+  --rpc http://127.0.0.1:18553/ \
   --output /absolute/live-observation-preflight.json
 ```
 
@@ -245,6 +255,7 @@ node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mj
 qualification_reexecution=false
 deployer_selection_authorized=false
 inventory_source_selection_authorized=false
+epoch2_signed_access_list_marker_required=true
 gas_limit_policy_selected=false
 fee_policy_selected=false
 transaction_envelope_construction=false

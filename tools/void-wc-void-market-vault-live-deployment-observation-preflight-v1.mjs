@@ -9,6 +9,10 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
+import {
+  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
+} from "./void-economic-epoch2-raw-transaction-domain-v1.mjs";
+
 
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1 =
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1";
@@ -49,6 +53,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     observation_block_hash_revalidation_required: true,
     block_bound_deployer_balance_required: true,
     exact_deployment_data_gas_estimate_required: true,
+    epoch2_signed_access_list_marker_required: true,
     gas_price_observation_required: true,
     canonical_void_balance_of_required: true,
     opening_inventory_atoms_required:
@@ -1254,12 +1259,31 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       await call("eth_gasPrice", []),
       "live_deployment_preflight_gas_price_invalid",
     );
+    const epoch2Domain =
+      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1;
+    if (
+      epoch2Domain.chain_id !== 2050n ||
+      epoch2Domain.transaction_type !== 2 ||
+      !ADDRESS.test(epoch2Domain.marker_address) ||
+      !HEX32_BYTES.test(epoch2Domain.marker_storage_key)
+    ) {
+      return held("live_deployment_preflight_epoch2_domain_invalid", {
+        rpc_methods_used: methods,
+      });
+    }
+    const deploymentAccessList = Object.freeze([
+      Object.freeze({
+        address: epoch2Domain.marker_address,
+        storageKeys: Object.freeze([epoch2Domain.marker_storage_key]),
+      }),
+    ]);
     const gasEstimate = quantity(
       await call("eth_estimateGas", [
         {
           from: deployer,
           data: verifiedQualification.deployment_data_hex,
           value: "0x0",
+          accessList: deploymentAccessList,
         },
         blockTag,
       ]),
@@ -1409,6 +1433,11 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
         pending_nonce_revalidated: true,
         deployer_native_balance_wei: deployerBalance.toString(),
         gas_price_wei: gasPrice.toString(),
+        epoch2_transaction_type: "2",
+        epoch2_access_list_marker_address: epoch2Domain.marker_address,
+        epoch2_access_list_marker_storage_key:
+          epoch2Domain.marker_storage_key,
+        epoch2_signed_access_list_marker_bound: true,
         deployment_gas_estimate: gasEstimate.toString(),
         bare_estimated_deployment_cost_wei: bareEstimatedCost.toString(),
         deployer_balance_covers_bare_estimate: deployerBalanceSufficient,
