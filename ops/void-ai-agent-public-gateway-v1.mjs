@@ -104,6 +104,10 @@ const AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT =
       "4",
   );
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_REPLAY_MAX_ENTRIES = 65_536;
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_MAX_IDENTITIES = 65_536;
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAP_CLEANUP_INTERVAL_MS = 5_000;
+let credentialApplicantRateLastCleanupMs = 0;
+let credentialApplicantReplayLastCleanupMs = 0;
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_TRUSTED_KEY_HEADER =
   "x-void-credential-applicant-key-id";
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_TRUSTED_PROOF_HEADER =
@@ -970,9 +974,11 @@ async function proxyAgentPaidWorkSubmission(
     return;
   }
 
+  const proofNowMs = Date.now();
   const replay = consumeCredentialApplicantReplay(
     applicantProof,
     nowUnix,
+    proofNowMs,
   );
   if (replay === "replay") {
     jsonResponse(response, 409, {
@@ -989,12 +995,18 @@ async function proxyAgentPaidWorkSubmission(
     return;
   }
 
-  if (
-    !credentialApplicantRateAllowed(
-      applicantProof.applicant_key_id,
-      Date.now(),
-    )
-  ) {
+  const rateDecision = credentialApplicantRateAllowed(
+    applicantProof.applicant_key_id,
+    proofNowMs,
+  );
+  if (rateDecision === "full") {
+    jsonResponse(response, 503, {
+      ok: false,
+      error: "credential_applicant_rate_window_full",
+    });
+    return;
+  }
+  if (rateDecision === "limited") {
     jsonResponse(
       response,
       429,
@@ -1059,7 +1071,14 @@ async function proxyAgentPaidWorkSubmission(
 }
 
 
-function pruneCredentialApplicantReplay(nowUnix) {
+function pruneCredentialApplicantReplay(nowUnix, nowMs) {
+  if (
+    nowMs - credentialApplicantReplayLastCleanupMs <
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAP_CLEANUP_INTERVAL_MS
+  ) {
+    return;
+  }
+  credentialApplicantReplayLastCleanupMs = nowMs;
   for (const [key, expiresAtUnix] of credentialApplicantReplay.entries()) {
     if (expiresAtUnix <= nowUnix) {
       credentialApplicantReplay.delete(key);
@@ -1067,8 +1086,8 @@ function pruneCredentialApplicantReplay(nowUnix) {
   }
 }
 
-function consumeCredentialApplicantReplay(proof, nowUnix) {
-  pruneCredentialApplicantReplay(nowUnix);
+function consumeCredentialApplicantReplay(proof, nowUnix, nowMs) {
+  pruneCredentialApplicantReplay(nowUnix, nowMs);
   const replayKey =
     proof.applicant_key_id + ":" + proof.nonce;
   if (credentialApplicantReplay.has(replayKey)) {
@@ -1087,22 +1106,52 @@ function consumeCredentialApplicantReplay(proof, nowUnix) {
   return "accepted";
 }
 
-function credentialApplicantRateAllowed(applicantKeyId, nowMs) {
+function pruneCredentialApplicantRateWindows(nowMs) {
+  if (
+    nowMs - credentialApplicantRateLastCleanupMs <
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAP_CLEANUP_INTERVAL_MS
+  ) {
+    return;
+  }
+  credentialApplicantRateLastCleanupMs = nowMs;
   const minimumMs = nowMs - 60_000;
-  const active = (
-    credentialApplicantRateWindows.get(applicantKeyId) || []
-  ).filter((timestamp) => timestamp > minimumMs);
+  for (const [key, timestamps] of credentialApplicantRateWindows.entries()) {
+    const active = timestamps.filter(
+      (timestamp) => timestamp > minimumMs,
+    );
+    if (active.length === 0) {
+      credentialApplicantRateWindows.delete(key);
+    } else {
+      credentialApplicantRateWindows.set(key, active);
+    }
+  }
+}
+
+function credentialApplicantRateAllowed(applicantKeyId, nowMs) {
+  pruneCredentialApplicantRateWindows(nowMs);
+  const minimumMs = nowMs - 60_000;
+  const existing = credentialApplicantRateWindows.get(applicantKeyId);
+  if (
+    !existing &&
+    credentialApplicantRateWindows.size >=
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_MAX_IDENTITIES
+  ) {
+    return "full";
+  }
+  const active = (existing || []).filter(
+    (timestamp) => timestamp > minimumMs,
+  );
 
   if (
     active.length >=
       AGENT_PAID_WORK_CREDENTIAL_REQUEST_RATE_LIMIT_PER_APPLICANT
   ) {
     credentialApplicantRateWindows.set(applicantKeyId, active);
-    return false;
+    return "limited";
   }
   active.push(nowMs);
   credentialApplicantRateWindows.set(applicantKeyId, active);
-  return true;
+  return "allowed";
 }
 
 function copyPaidWorkCredentialRequestResponseHeaders(
