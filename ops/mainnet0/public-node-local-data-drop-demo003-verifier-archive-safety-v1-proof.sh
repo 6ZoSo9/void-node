@@ -31,6 +31,9 @@ grep -Fq "semantic_verify_child_bytes_sealed=true" "$VERIFIER" || fail "semantic
 grep -Fq "terminal_child_seals_verified=true" "$VERIFIER" || fail "terminal_child_seal_marker_missing"
 grep -Fq "sealed digest mismatch" "$VERIFIER" || fail "semantic_child_digest_enforcement_missing"
 grep -Fq "terminal_child_digest_mismatch" "$VERIFIER" || fail "terminal_child_digest_enforcement_missing"
+grep -Fq "terminal_files_directory_changed_before_green" "$VERIFIER" || fail "terminal_files_directory_binding_missing"
+grep -Fq "terminal_child_size_or_type_invalid" "$VERIFIER" || fail "terminal_child_size_bound_missing"
+grep -Fq "terminal_child_read_limit_exceeded" "$VERIFIER" || fail "terminal_child_stream_bound_missing"
 grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
 grep -Fq "terminal_fixture_root_identity_mismatch" "$VERIFIER" || fail "terminal_root_identity_check_missing"
 grep -Fq "terminal_child_visible_identity_mismatch" "$VERIFIER" || fail "terminal_child_visible_identity_check_missing"
@@ -423,6 +426,63 @@ if [ -n "${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE:-}" ] &&
   done
 fi
 
+if [ -n "${VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET:-}" ] &&
+   grep -Fq "terminal_child_size_or_type_invalid" "$script"; then
+  target="${VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET:?}"
+  test -d "$target"
+  "$real" - "$target" <<'PY_OVERSIZE'
+import os
+import sys
+
+root = sys.argv[1]
+path = os.path.join(root, "files", "README.txt")
+with open(path, "wb") as handle:
+    handle.truncate(3 * 1024 * 1024)
+PY_OVERSIZE
+fi
+
+if [ -n "${VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE:-}" ] &&
+   grep -Fq "terminal_files_directory_changed_before_green" "$script"; then
+  "$real" - "$script" <<'PY_INJECT'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf8")
+needle = '''        if digest.hexdigest() != expected_sha:
+            raise SystemExit("terminal_child_digest_mismatch:" + rel)
+
+    visible_root = os.stat(pathname, follow_symlinks=False)
+'''
+replacement = '''        if digest.hexdigest() != expected_sha:
+            raise SystemExit("terminal_child_digest_mismatch:" + rel)
+
+    late_swap_source = os.environ.get(
+        "VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE"
+    )
+    if late_swap_source:
+        detached = os.environ[
+            "VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_DETACHED"
+        ]
+        visible_files = os.path.join(pathname, "files")
+        os.rename(visible_files, detached)
+        os.mkdir(visible_files, 0o700)
+        for name in ("README.txt", "index.html", "metadata.json"):
+            source = os.path.join(late_swap_source, name)
+            target = os.path.join(visible_files, name)
+            with open(source, "rb") as source_handle:
+                data = source_handle.read()
+            with open(target, "wb") as target_handle:
+                target_handle.write(data)
+
+    visible_root = os.stat(pathname, follow_symlinks=False)
+'''
+if text.count(needle) != 1:
+    raise SystemExit("terminal_files_dir_swap_injection_anchor_invalid")
+path.write_text(text.replace(needle, replacement), encoding="utf8")
+PY_INJECT
+fi
+
 set +e
 "$real" "$script" "${@:2}"
 rc=$?
@@ -556,6 +616,40 @@ if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_G
   fail "terminal_child_replacement_reached_green"
 fi
 
+terminal_oversize_out="$tmp/verify-terminal-oversize"
+terminal_oversize_log="$tmp/terminal-oversize.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET="$terminal_oversize_out/extract/demo003-folder-fixture" \
+   OUT="$terminal_oversize_out" \
+   bash "$VERIFIER" "$tarball" >"$terminal_oversize_log" 2>&1; then
+  fail "terminal_oversize_child_accepted"
+fi
+grep -Fq "terminal_child_size_or_type_invalid:files/README.txt" "$terminal_oversize_log" ||
+  fail "terminal_oversize_child_bound_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_oversize_log"; then
+  fail "terminal_oversize_child_reached_green"
+fi
+
+terminal_files_swap_out="$tmp/verify-terminal-files-dir-swap"
+terminal_files_swap_log="$tmp/terminal-files-dir-swap.log"
+terminal_files_swap_detached="$tmp/terminal-files-dir-detached"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE="$replacement_root/files" \
+   VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_DETACHED="$terminal_files_swap_detached" \
+   OUT="$terminal_files_swap_out" \
+   bash "$VERIFIER" "$tarball" >"$terminal_files_swap_log" 2>&1; then
+  fail "terminal_files_directory_swap_accepted"
+fi
+grep -Fq "terminal_files_directory_changed_before_green" "$terminal_files_swap_log" ||
+  fail "terminal_files_directory_swap_hold_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_files_swap_log"; then
+  fail "terminal_files_directory_swap_reached_green"
+fi
+test -d "$terminal_files_swap_detached" ||
+  fail "terminal_files_directory_detached_original_missing"
+
 manifest_control_out="$tmp/verify-manifest-control"
 if OUT="$manifest_control_out" \
    bash "$VERIFIER" "$tmp/manifest-control.tar.gz" \
@@ -591,6 +685,8 @@ echo "xpg_echo_output_path_safe=true"
 echo "interphase_output_tree_swap_rejected=true"
 echo "interphase_child_replacement_rejected=true"
 echo "terminal_child_replacement_rejected=true"
+echo "terminal_oversize_child_rejected=true"
+echo "terminal_files_directory_swap_rejected=true"
 echo "semantic_verify_descriptor_bound=true"
 echo "semantic_verify_child_bytes_sealed=true"
 echo "terminal_child_seals_verified=true"
