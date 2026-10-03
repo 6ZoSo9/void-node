@@ -627,10 +627,10 @@ await assert.rejects(
       validateSanitizedOfflineSignerEnvironmentV1(
         cleanEnv,
         "/usr/bin/node",
-        ["--input-type=module"],
+        [],
       ),
     /offline_signer_node_preload_flags_forbidden/u,
-    "production signer must require the reviewed streamed-module launch flag",
+    "production signer must reject missing streamed-module launch flag",
   );
 
   assert.throws(
