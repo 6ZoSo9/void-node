@@ -3,18 +3,21 @@
 type LocalOnly = (req: any, res: any) => boolean;
 type ReadRequests = () => Promise<any[]>;
 type PersistRequest = (request: any) => Promise<any>;
+type RequestLaunchAuthorityReady = (request: any) => boolean;
 
 export function installBuyVoidRequestTxHashBindingV1(input: {
   app: any;
   localOnly: LocalOnly;
   readRequests: ReadRequests;
   persistRequest: PersistRequest;
+  requestLaunchAuthorityReady: RequestLaunchAuthorityReady;
 }): void {
   const {
     app,
     localOnly,
     readRequests,
     persistRequest,
+    requestLaunchAuthorityReady,
   } = input;
 
   app.get(
@@ -138,6 +141,24 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
               "void_buy_void_request_tx_hash_binding_v1",
             ok: false,
             error: "buy_void_request_not_found",
+            request_id: id,
+          });
+        }
+
+        let launchAuthorityReady = false;
+        try {
+          launchAuthorityReady =
+            requestLaunchAuthorityReady(found) === true;
+        } catch (error) {
+          void error;
+        }
+        if (!launchAuthorityReady) {
+          return res.status(409).json({
+            schema:
+              "void_buy_void_request_tx_hash_binding_v1",
+            ok: false,
+            error:
+              "request_launch_authority_expired_or_superseded",
             request_id: id,
           });
         }
