@@ -5,6 +5,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1,
+  verifyAgentPaidWorkCredentialRequestPublicAuthV1,
+} from "../tools/void-agent-paid-work-credential-request-public-auth-v1.mjs";
+
 const MARKER = "VOID_AI_AGENT_PUBLIC_GATEWAY_V1";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4112;
@@ -92,6 +97,20 @@ const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES = Math.max(
       String(4 * 1024 * 1024),
   ),
 );
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE_RAW =
+  String(
+    process.env
+      .VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE ||
+      "",
+  ).trim();
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE_RAW =
+  String(
+    process.env
+      .VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE ||
+      "",
+  ).trim();
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_TRACKED_APPLICANTS = 4096;
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_TRACKED_NONCES = 8192;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(
@@ -162,6 +181,22 @@ function fail(message) {
   process.exit(78);
 }
 
+function parseOptionalBoundedInteger(raw, name, minimum, maximum) {
+  if (raw === "") return 0;
+  if (!/^(?:0|[1-9][0-9]*)$/.test(raw)) {
+    fail(`invalid ${name}`);
+  }
+  const value = Number(raw);
+  if (
+    !Number.isSafeInteger(value) ||
+    value < minimum ||
+    value > maximum
+  ) {
+    fail(`invalid ${name}`);
+  }
+  return value;
+}
+
 function parseReviewedLoopbackUpstream(raw, name) {
   if (!raw) return "";
 
@@ -207,6 +242,36 @@ const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM =
     AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM_RAW,
     "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM",
   );
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE =
+  parseOptionalBoundedInteger(
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE_RAW,
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE",
+    1,
+    60,
+  );
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE =
+  parseOptionalBoundedInteger(
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE_RAW,
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE",
+    2,
+    120,
+  );
+if (
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE > 0 &&
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE > 0 &&
+  2 * AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE >
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE
+) {
+  fail(
+    "credential request public applicant rate must reserve capacity for a second applicant",
+  );
+}
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED =
+  Boolean(AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM) &&
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE > 0 &&
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE > 0 &&
+  2 * AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE <=
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE;
 
 const host =
   process.env.VOID_AI_AGENT_PUBLIC_GATEWAY_HOST || DEFAULT_HOST;
@@ -971,6 +1036,87 @@ async function proxyAgentPaidWorkSubmission(
 }
 
 
+const paidWorkCredentialApplicantRateWindows = new Map();
+const paidWorkCredentialApplicantNonceReplay = new Map();
+
+function prunePaidWorkCredentialApplicantState(nowMs) {
+  for (const [key, expiresAtMs] of paidWorkCredentialApplicantNonceReplay) {
+    if (expiresAtMs < nowMs) {
+      paidWorkCredentialApplicantNonceReplay.delete(key);
+    }
+  }
+
+  const minimumMs = nowMs - 60_000;
+  for (const [applicantId, values] of paidWorkCredentialApplicantRateWindows) {
+    const active = values.filter((timestamp) => timestamp > minimumMs);
+    if (active.length === 0) {
+      paidWorkCredentialApplicantRateWindows.delete(applicantId);
+    } else if (active.length !== values.length) {
+      paidWorkCredentialApplicantRateWindows.set(applicantId, active);
+    }
+  }
+}
+
+function admitPaidWorkCredentialApplicant(auth, nowMs) {
+  prunePaidWorkCredentialApplicantState(nowMs);
+
+  if (paidWorkCredentialApplicantNonceReplay.has(auth.nonce_key)) {
+    return Object.freeze({
+      ok: false,
+      status: 409,
+      error: "applicant_auth_replay",
+    });
+  }
+  if (
+    paidWorkCredentialApplicantNonceReplay.size >=
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_TRACKED_NONCES
+  ) {
+    return Object.freeze({
+      ok: false,
+      status: 503,
+      error: "applicant_auth_replay_capacity",
+    });
+  }
+
+  paidWorkCredentialApplicantNonceReplay.set(
+    auth.nonce_key,
+    auth.expires_at_ms,
+  );
+
+  const minimumMs = nowMs - 60_000;
+  const active = (
+    paidWorkCredentialApplicantRateWindows.get(auth.applicant_id) || []
+  ).filter((timestamp) => timestamp > minimumMs);
+
+  if (
+    active.length >=
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE
+  ) {
+    paidWorkCredentialApplicantRateWindows.set(auth.applicant_id, active);
+    return Object.freeze({
+      ok: false,
+      status: 429,
+      error: "applicant_rate_limit_exceeded",
+    });
+  }
+
+  if (
+    !paidWorkCredentialApplicantRateWindows.has(auth.applicant_id) &&
+    paidWorkCredentialApplicantRateWindows.size >=
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_TRACKED_APPLICANTS
+  ) {
+    return Object.freeze({
+      ok: false,
+      status: 503,
+      error: "applicant_rate_limit_capacity",
+    });
+  }
+
+  active.push(nowMs);
+  paidWorkCredentialApplicantRateWindows.set(auth.applicant_id, active);
+  return Object.freeze({ ok: true });
+}
+
 function copyPaidWorkCredentialRequestResponseHeaders(
   upstreamResponse,
 ) {
@@ -1010,7 +1156,7 @@ async function proxyAgentPaidWorkCredentialRequest(
   response,
   url,
 ) {
-  if (!AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM) {
+  if (!AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED) {
     jsonResponse(response, 503, {
       ok: false,
       error: "agent_paid_work_credential_request_gateway_unavailable",
@@ -1091,13 +1237,66 @@ async function proxyAgentPaidWorkCredentialRequest(
     return;
   }
 
+  let parsedBody;
   try {
-    JSON.parse(body.toString("utf8"));
+    parsedBody = JSON.parse(body.toString("utf8"));
   } catch {
     jsonResponse(response, 400, {
       ok: false,
       error: "invalid_json",
     });
+    return;
+  }
+
+  const requestId =
+    parsedBody &&
+    typeof parsedBody === "object" &&
+    !Array.isArray(parsedBody)
+      ? String(parsedBody.request_id || "")
+      : "";
+  const encodedApplicantAuth = String(
+    request.headers[
+      VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1
+    ] || "",
+  ).trim();
+  const nowMs = Date.now();
+  let applicantAuth;
+
+  try {
+    applicantAuth =
+      verifyAgentPaidWorkCredentialRequestPublicAuthV1({
+        encoded_header: encodedApplicantAuth,
+        method: "POST",
+        path: AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH,
+        body_sha256: bodySha,
+        request_id: requestId,
+        now_ms: nowMs,
+      });
+  } catch {
+    jsonResponse(response, 401, {
+      ok: false,
+      error: "applicant_auth_invalid",
+    });
+    return;
+  }
+
+  const applicantAdmission =
+    admitPaidWorkCredentialApplicant(
+      applicantAuth,
+      nowMs,
+    );
+  if (!applicantAdmission.ok) {
+    jsonResponse(
+      response,
+      applicantAdmission.status,
+      {
+        ok: false,
+        error: applicantAdmission.error,
+      },
+      applicantAdmission.status === 429
+        ? { "Retry-After": "60" }
+        : {},
+    );
     return;
   }
 
@@ -1309,21 +1508,31 @@ server.listen({ host, port, exclusive: true }, () => {
       mutation_authority: false,
       proxy_authority: false,
       bounded_paid_work_credential_request_proxy_authority:
-        Boolean(
-          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
-        ),
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
       paid_work_credential_request_integration_marker:
         AGENT_PAID_WORK_CREDENTIAL_REQUEST_INTEGRATION_MARKER,
       paid_work_credential_request_route: {
         path: AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH,
         methods: ["POST"],
-        configured: Boolean(
-          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
-        ),
+        configured:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
         accepted_for_review_only: true,
-        credential_request_record_write: Boolean(
-          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
-        ),
+        applicant_auth_required: true,
+        applicant_identity_scheme: "void-agent:ed25519",
+        applicant_auth_header:
+          VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1,
+        applicant_max_requests_per_minute:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE ||
+          null,
+        upstream_global_limit_per_minute:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE ||
+          null,
+        two_applicant_capacity_reserved:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
+        nonce_replay_protection: true,
+        forwarded_ip_headers_trusted: false,
+        credential_request_record_write:
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED,
         credential_issuance_authority: false,
         credential_registry_mutation_authority: false,
         wc_award_authority: false,
