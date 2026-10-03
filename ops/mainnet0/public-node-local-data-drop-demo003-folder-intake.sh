@@ -20,7 +20,7 @@ INTAKE_DIR="$DATA_DIR/public-node/local-data-drop-demo003-folder-fixtures"
 LATEST="$INTAKE_DIR/latest"
 LATEST_STAGE="$INTAKE_DIR/.latest-stage-$RUN_ID"
 ARCHIVE="$INTAKE_DIR/archive/demo003-folder-fixture-$RUN_ID"
-LOCK_DIR="$INTAKE_DIR/.intake-lock-v1"
+LOCK_FILE="$INTAKE_DIR/.intake-lock-v1"
 LOCK_WAIT_SECONDS="${DEMO003_LOCK_WAIT_SECONDS:-30}"
 
 FIXTURE_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
@@ -119,30 +119,40 @@ case "$LOCK_WAIT_SECONDS" in
   ''|*[!0-9]*) echo "[fail] invalid DEMO003_LOCK_WAIT_SECONDS" >&2; exit 2 ;;
 esac
 
-lock_deadline=$((SECONDS + LOCK_WAIT_SECONDS))
-while ! mkdir -m 0700 "$LOCK_DIR" 2>/dev/null; do
-  if [ "$SECONDS" -ge "$lock_deadline" ]; then
-    echo "status=demo003_folder_intake_hold"
-    echo "hold_reason=demo003_intake_already_in_progress"
-    echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED=false"
-    exit 75
-  fi
-  sleep 0.1
-done
+command -v flock >/dev/null 2>&1 || {
+  echo "[fail] flock unavailable" >&2
+  exit 2
+}
+
+if [ -L "$LOCK_FILE" ]; then
+  echo "[fail] Demo003 intake lock is a symlink" >&2
+  exit 2
+fi
+if [ ! -e "$LOCK_FILE" ]; then
+  (umask 0077; : > "$LOCK_FILE")
+fi
+test -f "$LOCK_FILE" && test ! -L "$LOCK_FILE"
+test "$(stat -c '%u' "$LOCK_FILE")" = "$(id -u)"
+test "$(stat -c '%a' "$LOCK_FILE")" = "600"
+
+exec {LOCK_FD}<>"$LOCK_FILE"
+test "$(stat -Lc '%d:%i' "$LOCK_FILE")" = "$(stat -Lc '%d:%i' "/proc/self/fd/$LOCK_FD")"
+if ! flock -w "$LOCK_WAIT_SECONDS" "$LOCK_FD"; then
+  echo "status=demo003_folder_intake_hold"
+  echo "hold_reason=demo003_intake_already_in_progress"
+  echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED=false"
+  exit 75
+fi
 
 cleanup_demo003_intake() {
   rc=$?
   set +e
   if [ -e "$LATEST_STAGE" ] || [ -L "$LATEST_STAGE" ]; then rm -rf -- "$LATEST_STAGE"; fi
   if [ "$rc" -ne 0 ] && { [ -e "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; }; then rm -rf -- "$ARCHIVE"; fi
-  rmdir "$LOCK_DIR" 2>/dev/null || true
   exit "$rc"
 }
 trap cleanup_demo003_intake EXIT
 
-test -d "$LOCK_DIR" && test ! -L "$LOCK_DIR"
-test "$(stat -c '%u' "$LOCK_DIR")" = "$(id -u)"
-test -z "$(find "$LOCK_DIR" -maxdepth 0 -perm /022 -print -quit)"
 mkdir -p "$OUT"
 
 echo "=== VOID Public Node Demo 003 Folder Intake v1 ==="
@@ -152,7 +162,7 @@ echo "run_id=$RUN_ID"
 echo "out=$OUT"
 echo "latest=$LATEST"
 echo "archive=$ARCHIVE"
-echo "intake_lock=$LOCK_DIR"
+echo "intake_lock=$LOCK_FILE"
 echo "intake_lock_serialized=true"
 
 test -x "$FIXTURE_SCRIPT"
