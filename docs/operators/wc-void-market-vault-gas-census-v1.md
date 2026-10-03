@@ -33,8 +33,8 @@ The census binds:
 - Foundry container tag already used by the existing vault adversarial suite:
   `ghcr.io/foundry-rs/foundry:v1.7.1`.
 
-The hosted measurement also prints the resolved Docker image ID. A later pinned
-gas result must bind that observed image identity and the exact tested Git head.
+The hosted measurement is pinned to the resolved Docker image ID and exact gas-test
+SHA-256. Any image or measurement drift fails the focused workflow.
 
 ## Why the Epoch-2 token source is required
 
@@ -102,11 +102,14 @@ measured value a production sponsorship budget.
 
 ## Observed generation-1 measurement
 
-The first hosted isolated Foundry measurement completed successfully against the
-reviewed source generation at commit
-`c607ee9fdcac8e9917a79471e1648ded2bfc1002` using resolved image:
+The first hosted isolated Foundry measurement completed successfully against
+pull-request merge head `3a9185187d395ed7932e91a66f4ee2e9d2e5deca` using resolved image:
 
 `sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb`
+
+Bound gas-test SHA-256:
+
+`34961afa7cf4478ec41ac0b6f01fb1033f1fd8bb8233bebf7ba0b4a7a7ad8adc`
 
 Observed values:
 
@@ -122,9 +125,10 @@ maximum. These numbers are measurement evidence only. They do not select a
 production sponsored-gas budget, margin, TTL, cap, market parameter, or launch
 time; those remain separate policy decisions.
 
-## First-generation lifecycle
+## Pinned generation-1 lifecycle
 
-The first hosted run is observational. It emits:
+The first hosted run is now pinned evidence. The focused workflow re-runs the
+same isolated measurement and requires these exact outputs:
 
 - `settle_void_first_execution_gas`;
 - `settle_void_first_intrinsic_gas`;
@@ -133,10 +137,9 @@ The first hosted run is observational. It emits:
 - `settle_void_subsequent_intrinsic_gas`;
 - `settle_void_subsequent_measured_tx_gas`.
 
-After those values are observed, a later commit in this same lane may pin the
-exact measurement evidence. Any production safety margin or sponsored-gas
-budget remains a separate #2364 policy decision. Until the measurement is
-pinned, #2364 must not infer a production gas budget from this source alone.
+Any production safety margin or sponsored-gas budget remains a separate #2364
+policy decision. This evidence establishes measurement facts only; it does not
+choose that policy.
 
 ## Authority
 
