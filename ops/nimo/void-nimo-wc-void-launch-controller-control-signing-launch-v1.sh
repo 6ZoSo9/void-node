@@ -123,14 +123,14 @@ printf 'challenge_source_head=%s\n' "$source_head"
 printf 'challenge_sha256=%s\n' "$challenge_sha"
 printf 'repository_clean=true\n'
 printf 'critical_source_blobs_verified=true\n'
-printf 'private_key_access=false\n'
-printf 'credential_access=false\n'
-printf 'wallet_or_signer_access=false\n'
-printf 'transaction_signing=false\n'
-printf 'transaction_broadcast=false\n'
-printf 'funds_movement=false\n'
 
 if [[ "$mode" == "preflight" ]]; then
+  printf 'private_key_access=false\n'
+  printf 'credential_access=false\n'
+  printf 'wallet_or_signer_access=false\n'
+  printf 'transaction_signing=false\n'
+  printf 'transaction_broadcast=false\n'
+  printf 'funds_movement=false\n'
   exit 0
 fi
 
