@@ -6,15 +6,6 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import {
-  TypedDataEncoder,
-  getAddress,
-  isHexString,
-  keccak256,
-  toUtf8Bytes,
-  verifyTypedData,
-} from "ethers";
-
 export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1 =
   "VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1";
 
@@ -26,11 +17,8 @@ export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_DOMAIN_V1 =
     name: "VOID WC/VOID Related Identity Review Attestation",
     version: "1",
     chainId: 2050,
-    salt: keccak256(
-      toUtf8Bytes(
-        "VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1",
-      ),
-    ),
+    salt:
+      "0xccbbbf6c8571cce06ca20935e6305c773788e03f629cfc6dca29c0f5d4808346",
   });
 
 export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_TYPES_V1 =
@@ -87,7 +75,18 @@ export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_AUTHORITY_V1 =
 
 const MAX_TTL_SECONDS = 1800n;
 const MIN_TTL_SECONDS = 60n;
+export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1 =
+  Object.freeze({
+    max_participants: 65_536,
+    max_clusters: 65_536,
+    max_evidence_documents: 65_536,
+    max_evidence_bytes_per_document: 8 * 1024 * 1024,
+    max_total_evidence_bytes: 64 * 1024 * 1024,
+    max_total_evidence_subject_references: 1_000_000,
+  });
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/u;
+const SIGNATURE = /^0x[0-9a-fA-F]{130}$/u;
 const MANIFEST_ID = /^voidwcriem1_[0-9a-f]{64}$/u;
 const ROLE_DECISION_ID = /^voidwcrirr1_[0-9a-f]{64}$/u;
 const CONTROL_EVIDENCE_ID = /^voidwlcce1_[0-9a-f]{64}$/u;
@@ -162,6 +161,8 @@ const REVIEWED_CONTROL_EVIDENCE_MARKER_V1 =
   "VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1";
 const REVIEWED_CONTROL_ROLE_LABEL_V1 =
   "VOID_WC_VOID_MARKET_VAULT_LAUNCH_CONTROLLER_V1";
+const REVIEWED_CONTROL_ROLE_ID_V1 =
+  "0x498afbfb8fb314814638ccf5209cc7344582c21542a3f494834d141d197fb453";
 const REVIEWED_RUNTIME_TOOL_PATH_V1 =
   "tools/void-reviewed-node-package-runtime-v1.mjs";
 const REVIEWED_RUNTIME_TOOL_BLOB_V1 =
@@ -758,6 +759,43 @@ async function withReviewedEthersPackageRootV1(fn) {
   }
 }
 
+async function withReviewedEip712BridgeV1(fn) {
+  return await withReviewedEthersPackageRootV1(
+    async ({ runtimeRoot, profile }) => {
+      const sourceRoot = path.join(runtimeRoot, "source");
+      fs.mkdirSync(sourceRoot, { recursive: true, mode: 0o700 });
+      const bridgeFile = path.join(
+        sourceRoot,
+        "void-related-identity-reviewed-eip712-bridge.mjs",
+      );
+      const bridgeSource = [
+        'import { TypedDataEncoder, verifyTypedData } from "ethers";',
+        'export { TypedDataEncoder, verifyTypedData };',
+        "",
+      ].join("\n");
+      const bridgeBytes = Buffer.from(bridgeSource, "utf8");
+      writePrivateSourceV1(bridgeFile, bridgeBytes, 0o400);
+      const bridgeModule = await import(
+        pathToFileURL(bridgeFile).href +
+          "?sha256=" +
+          sha256(bridgeBytes)
+      );
+      if (
+        typeof bridgeModule.TypedDataEncoder?.hash !== "function" ||
+        typeof bridgeModule.verifyTypedData !== "function"
+      ) {
+        fail("review_eip712_bridge_exports_mismatch");
+      }
+      return await fn(Object.freeze({
+        TypedDataEncoder: bridgeModule.TypedDataEncoder,
+        verifyTypedData: bridgeModule.verifyTypedData,
+        runtime_profile_id: profile.profile_id,
+        packages_aggregate_sha256: profile.packages_aggregate_sha256,
+      }));
+    },
+  );
+}
+
 async function withReviewedControlVerifierV1(fn) {
   for (const [sourcePath, expectedBlob] of Object.entries(
     REVIEWED_CONTROL_SOURCE_BLOBS_V1,
@@ -872,7 +910,7 @@ async function withReviewedControlVerifierV1(fn) {
             module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1 !==
               REVIEWED_CONTROL_EVIDENCE_MARKER_V1 ||
             module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_ROLE_ID_V1 !==
-              keccak256(toUtf8Bytes(REVIEWED_CONTROL_ROLE_LABEL_V1)) ||
+              REVIEWED_CONTROL_ROLE_ID_V1 ||
             typeof module.reverifyVoidWcVoidLaunchControllerControlEvidenceV1 !==
               "function"
           ) {
@@ -931,13 +969,9 @@ async function reverifyReviewedControlEvidenceV1(input) {
 }
 
 function canonicalAddress(value, code) {
-  if (typeof value !== "string") fail(code);
-  let address;
-  try {
-    address = getAddress(value).toLowerCase();
-  } catch {
-    fail(code);
-  }
+  if (typeof value !== "string" || !ADDRESS.test(value)) fail(code);
+  const address = value.toLowerCase();
+  if (address === "0x" + "0".repeat(40)) fail(code);
   return address;
 }
 
@@ -984,6 +1018,26 @@ export function relatedIdentityManifestIdV1(manifest) {
 export function validateReviewableRelatedIdentityManifestV1(manifest) {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
     fail("review_manifest_not_object");
+  }
+  if (
+    !Number.isSafeInteger(manifest.participant_count) ||
+    !Number.isSafeInteger(manifest.cluster_count) ||
+    !Number.isSafeInteger(manifest.evidence_document_count)
+  ) {
+    fail("review_manifest_not_ready");
+  }
+  const limits =
+    VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1;
+  if (
+    manifest.participant_count < 1 ||
+    manifest.participant_count > limits.max_participants ||
+    manifest.cluster_count < 1 ||
+    manifest.cluster_count > manifest.participant_count ||
+    manifest.cluster_count > limits.max_clusters ||
+    manifest.evidence_document_count < 1 ||
+    manifest.evidence_document_count > limits.max_evidence_documents
+  ) {
+    fail("review_manifest_resource_limit_exceeded");
   }
   if (
     manifest.marker !==
@@ -1038,7 +1092,10 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
   }
 
   const evidenceById = new Map();
+  const evidenceByCluster = new Map();
   const canonicalEvidence = [];
+  let totalEvidenceBytes = 0;
+  let totalEvidenceSubjectReferences = 0;
   for (const raw of manifest.evidence_documents) {
     const evidence = exactKeysV1(
       raw,
@@ -1095,6 +1152,22 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
       fail("review_manifest_evidence_semantics_invalid");
     }
     const subjects = [...evidence.subject_participant_ids];
+    totalEvidenceBytes += evidence.evidence_bytes;
+    totalEvidenceSubjectReferences += subjects.length;
+    if (
+      evidence.evidence_bytes >
+        VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
+          .max_evidence_bytes_per_document ||
+      subjects.length > manifest.participant_count ||
+      totalEvidenceBytes >
+        VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
+          .max_total_evidence_bytes ||
+      totalEvidenceSubjectReferences >
+        VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
+          .max_total_evidence_subject_references
+    ) {
+      fail("review_manifest_resource_limit_exceeded");
+    }
     for (const participantId of subjects) {
       sha256IdBytes32(
         participantId,
@@ -1126,6 +1199,9 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
     }
     const normalized = Object.freeze({ ...evidenceMaterial, evidence_id: evidence.evidence_id });
     evidenceById.set(evidence.evidence_id, normalized);
+    const clusterEvidence = evidenceByCluster.get(evidence.cluster_id) || [];
+    clusterEvidence.push(normalized);
+    evidenceByCluster.set(evidence.cluster_id, clusterEvidence);
     canonicalEvidence.push(normalized);
   }
 
@@ -1215,9 +1291,7 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
     if (reviewedManifestClusterIdV1(members) !== clusterId) {
       fail("review_manifest_cluster_id_mismatch");
     }
-    const clusterEvidence = canonicalEvidence.filter(
-      (evidence) => evidence.cluster_id === clusterId,
-    );
+    const clusterEvidence = evidenceByCluster.get(clusterId) || [];
     if (members.length > 1) {
       if (!clusterEvidence.some((evidence) =>
         evidence.decision_basis === "common_control" &&
@@ -1493,17 +1567,20 @@ export function voidWcVoidRelatedIdentityReviewTypedDataV1(material) {
   });
 }
 
-export function voidWcVoidRelatedIdentityReviewDigestV1(material) {
+export async function voidWcVoidRelatedIdentityReviewDigestV1(material) {
   const data = voidWcVoidRelatedIdentityReviewTypedDataV1(material);
-  return TypedDataEncoder.hash(data.domain, data.types, data.value);
+  return await withReviewedEip712BridgeV1(
+    async ({ TypedDataEncoder }) =>
+      TypedDataEncoder.hash(data.domain, data.types, data.value),
+  );
 }
 
-export function verifyReviewSignatureForAddressV1({
+export async function verifyReviewSignatureForAddressV1({
   material,
   signature,
   expectedReviewerAddress,
 }) {
-  if (typeof signature !== "string" || !isHexString(signature, 65)) {
+  if (typeof signature !== "string" || !SIGNATURE.test(signature)) {
     fail("review_signature_invalid");
   }
   const expected = canonicalAddress(
@@ -1511,12 +1588,15 @@ export function verifyReviewSignatureForAddressV1({
     "review_expected_address_invalid",
   );
   const data = voidWcVoidRelatedIdentityReviewTypedDataV1(material);
-  const recovered = verifyTypedData(
-    data.domain,
-    data.types,
-    data.value,
-    signature,
-  ).toLowerCase();
+  const recovered = await withReviewedEip712BridgeV1(
+    async ({ verifyTypedData }) =>
+      verifyTypedData(
+        data.domain,
+        data.types,
+        data.value,
+        signature,
+      ).toLowerCase(),
+  );
   if (recovered !== expected) fail("review_signature_reviewer_mismatch");
   return recovered;
 }
@@ -1597,14 +1677,12 @@ export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
     nonce: nonceValue,
   });
   const typedData = voidWcVoidRelatedIdentityReviewTypedDataV1(material);
+  const typedDataDigest =
+    await voidWcVoidRelatedIdentityReviewDigestV1(material);
   return Object.freeze({
     material,
     typed_data: typedData,
-    typed_data_digest: TypedDataEncoder.hash(
-      typedData.domain,
-      typedData.types,
-      typedData.value,
-    ),
+    typed_data_digest: typedDataDigest,
     signing_performed: false,
     review_attestation_verified: false,
     related_identity_truth_verified: false,
@@ -1657,7 +1735,7 @@ export async function verifyWcVoidOpeningRelatedIdentityReviewAttestationV1({
   const expires = decimal(material.expires_at_unix, "review_expires_at_invalid");
   if (now < issued || now >= expires) fail("review_attestation_expired");
 
-  const recovered = verifyReviewSignatureForAddressV1({
+  const recovered = await verifyReviewSignatureForAddressV1({
     material,
     signature,
     expectedReviewerAddress: role.reviewer_address,
