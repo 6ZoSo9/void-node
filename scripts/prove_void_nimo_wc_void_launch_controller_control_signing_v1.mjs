@@ -505,8 +505,12 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     const expectedLauncherBlob = expectedBlobResult.stdout.trim();
     assert.equal(verifiedLauncherBlob, expectedLauncherBlob);
 
+    const replacementLauncher = path.join(
+      temporary,
+      "launcher-replacement.sh",
+    );
     fs.writeFileSync(
-      stagedLauncher,
+      replacementLauncher,
       [
         "#!/bin/bash",
         "printf 'UNREVIEWED_REPLACEMENT_LAUNCHER_EXECUTED\\n'",
@@ -515,6 +519,7 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
       ].join("\n"),
       { mode: 0o700 },
     );
+    fs.renameSync(replacementLauncher, stagedLauncher);
 
     const result = spawnSync(
       "/usr/bin/env",
