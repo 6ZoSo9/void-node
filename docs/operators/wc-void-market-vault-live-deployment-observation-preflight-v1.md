@@ -18,6 +18,12 @@ The preflight consumes exact pretty-serialized bytes from a current-generation:
 
 The caller also supplies an independent SHA-256 of those bytes.
 
+The production preflight now additionally requires the exact private
+`VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1` bytes that were used by
+the qualification, plus an independently supplied SHA-256 for that evidence.
+The evidence file remains private input; the preflight does not create a new
+challenge or signature.
+
 Before any RPC call, the **production** preflight requires:
 
 - local branch exactly `main`;
@@ -25,8 +31,10 @@ Before any RPC call, the **production** preflight requires:
   `git ls-remote --heads https://github.com/6ZoSo9/void-node.git refs/heads/main`
   read whose exact SHA equals local HEAD;
 - qualification marker/version/status;
-- qualification source HEAD == preflight repository HEAD;
-- qualification source tree == current HEAD tree;
+- qualification source HEAD is an ancestor of the current preflight repository
+  HEAD;
+- the qualification source tree re-derives exactly from that historical source
+  HEAD;
 - canonical GitHub origin, accepting the normal HTTPS/SSH checkout spellings
   for exactly `6ZoSo9/void-node` and normalizing them to
   `https://github.com/6ZoSo9/void-node.git`;
@@ -36,6 +44,14 @@ Before any RPC call, the **production** preflight requires:
   private temporary module containing the exact captured-HEAD qualification-tool
   bytes, never from a top-level mutable-worktree import;
 - exact reviewed qualification dependency Git blobs and file SHA-256s;
+- exact control-evidence bytes and independent SHA-256 matching the
+  qualification's recorded `evidence_file_sha256`;
+- replay of the signed launch-controller evidence through the exact reviewed
+  control-requalification source plus the reviewed `ethers` package runtime;
+- exact match of the reverified candidate address, evidence ID, evidence source
+  head/binding, verified/reverified/expiry timestamps, and false authority
+  facts back to the qualification;
+- evidence source generation ancestry to the qualification source generation;
 - rederived content-addressed `qualification_id`;
 - current coupled-launch identity;
 - canonical Epoch-2 VOID token;
@@ -48,10 +64,14 @@ Before any RPC call, the **production** preflight requires:
 - exact constructor role/launch binding; and
 - the original qualification authority object.
 
-The preflight does not re-run the #2241 control signature/evidence ceremony.
-Loading the exact qualification module only supplies the reviewed marker,
-authority object, and dependency manifest used to verify the supplied receipt.
-A new current-generation qualification must be generated first.
+The preflight does **not** create or request a new #2241 signature. It replays
+verification of the already-signed private control evidence through the same
+reviewed control contract/package boundary that the qualification generator
+uses. Content addressing of the qualification alone is not accepted as proof
+that launch-controller control evidence existed.
+
+A fresh qualification/control proof is still required when the bounded control
+window expires or authority-bearing reviewed bytes change.
 
 A dirty qualification-tool worktree fails before those bytes can execute, and
 the proof carries an execution sentinel for that ordering. An off-owner or
@@ -203,7 +223,7 @@ identities, and reject off-owner Git origins.
 
 ## Private CLI custody
 
-The qualification input must be:
+The qualification and launch-controller control-evidence inputs must each be:
 
 - an absolute path outside the repository;
 - a direct regular file;
@@ -233,9 +253,11 @@ Example:
 node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs \
   --qualification /absolute/current-qualification.json \
   --expected-qualification-sha256 <64hex> \
+  --control-evidence /absolute/current-launch-controller-control-evidence.json \
+  --expected-control-evidence-sha256 <64hex> \
   --deployer 0x... \
   --inventory-source 0x... \
-  --rpc http://127.0.0.1:8545/ \
+  --rpc http://127.0.0.1:18553/ \
   --output /absolute/live-observation-preflight.json
 ```
 
@@ -243,6 +265,9 @@ node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mj
 
 ```text
 qualification_reexecution=false
+launch_controller_signed_evidence_required=true
+launch_controller_signed_evidence_reverification_required=true
+launch_controller_signed_evidence_required_before_rpc=true
 deployer_selection_authorized=false
 inventory_source_selection_authorized=false
 gas_limit_policy_selected=false
