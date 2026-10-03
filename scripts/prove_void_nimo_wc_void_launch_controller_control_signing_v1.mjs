@@ -283,6 +283,41 @@ assert.equal(signerSource.includes("JsonRpcProvider"), false);
 assert.equal(signerSource.includes("transaction_signing: false"), true);
 assert.equal(signerSource.includes("transaction_broadcast: false"), true);
 assert.equal(signerSource.includes("funds_movement: false"), true);
+assert.equal(
+  signerSource.includes(
+    "return await signValidatedControlChallengeV1({\n    reviewed,\n    privateKey,\n    ethers,\n  });",
+  ),
+  false,
+  "validated signing helper must not recursively call itself",
+);
+assert.equal(
+  signerSource.includes(
+    "const signingNowUnix = Math.floor(Date.now() / 1000);",
+  ),
+  true,
+  "production signing must sample the clock after reviewed runtime setup",
+);
+assert.equal(
+  signerSource.includes(
+    "BigInt(Math.floor(Date.now() / 1000)) >=\n      BigInt(reviewed.expires_at_unix)",
+  ),
+  true,
+  "production signing must recheck expiry before private-key access",
+);
+assert.equal(
+  signerSource.includes(
+    "if (liveNow() >= BigInt(reviewed.expires_at_unix))",
+  ),
+  true,
+  "validated signing must recheck expiry around signature generation",
+);
+assert.equal(
+  /signSelectedLaunchControllerChallengeV1\(\{[\s\S]*?nowUnix\s*=/u.test(
+    signerSource,
+  ),
+  false,
+  "production selected-key signer must not accept a caller-supplied signing time",
+);
 
 assert.equal(
   SELECTED_REVIEWER_ADDRESS_V1,
@@ -342,6 +377,10 @@ console.log("private_key_path_fixed=true");
 console.log("key_file_cli_override=false");
 console.log("exact_private_key_file_format=true");
 console.log("private_key_whitespace_normalization=false");
+console.log("production_signing_helper_non_recursive=true");
+console.log("post_runtime_signing_clock_sampled=true");
+console.log("expiry_rechecked_before_and_after_signature=true");
+console.log("production_now_override=false");
 console.log("network_access_required=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
