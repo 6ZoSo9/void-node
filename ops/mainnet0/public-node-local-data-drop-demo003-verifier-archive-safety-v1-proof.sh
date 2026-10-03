@@ -25,6 +25,7 @@ grep -Fq "archive_bounded_decompressed_stream=true" "$VERIFIER" || fail "decompr
 grep -Fq "output_root_nofollow_custody=true" "$VERIFIER" || fail "output_root_custody_marker_missing"
 grep -Fq "BoundedDecompressedReader" "$VERIFIER" || fail "bounded_decompress_reader_missing"
 grep -Fq "safe_diagnostic" "$VERIFIER" || fail "sanitized_diagnostic_missing"
+grep -Fq "function diagnostic" "$VERIFIER" || fail "node_sanitized_diagnostic_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"
 if grep -Fq 'tar -xzf' "$VERIFIER"; then fail "legacy_tar_extract_remains"; fi
 if grep -Fq 'sha256sum -c' "$VERIFIER"; then fail "legacy_unbounded_checksum_paths_remain"; fi
@@ -236,6 +237,85 @@ if [ -d "$control_out/extract" ] &&
   fail "control_name_archive_extracted_before_rejection"
 fi
 
+python3 - \
+  "$fixture_out/demo003-folder-fixture" \
+  "$tmp/manifest-control.tar.gz" <<'PY'
+import hashlib
+import json
+import os
+import shutil
+import sys
+import tarfile
+import tempfile
+
+source, out = sys.argv[1:]
+work = tempfile.mkdtemp(prefix="manifest-control-", dir=os.path.dirname(out))
+root = os.path.join(work, "demo003-folder-fixture")
+shutil.copytree(source, root)
+
+manifest_path = os.path.join(root, "manifest.json")
+with open(manifest_path, "r", encoding="utf8") as handle:
+    manifest = json.load(handle)
+manifest["files"][0]["path"] = (
+    "files/README.txt\nFORGED_MANIFEST_LOG_LINE=true\x1b[31m"
+)
+with open(manifest_path, "w", encoding="utf8") as handle:
+    json.dump(manifest, handle, indent=2)
+    handle.write("\n")
+
+rels = [
+    "manifest.json",
+    "files/README.txt",
+    "files/index.html",
+    "files/metadata.json",
+]
+checksum_path = os.path.join(root, "sha256sums.txt")
+with open(checksum_path, "w", encoding="ascii") as handle:
+    for rel in rels:
+        with open(os.path.join(root, rel), "rb") as source_file:
+            digest = hashlib.sha256(source_file.read()).hexdigest()
+        handle.write(f"{digest}  ./{rel}\n")
+
+with tarfile.open(out, "w:gz", format=tarfile.PAX_FORMAT) as tf:
+    tf.add(root, arcname="demo003-folder-fixture", recursive=False)
+    tf.add(
+        os.path.join(root, "files"),
+        arcname="demo003-folder-fixture/files",
+        recursive=False,
+    )
+    for rel in [
+        "manifest.json",
+        "sha256sums.txt",
+        "files/README.txt",
+        "files/index.html",
+        "files/metadata.json",
+    ]:
+        tf.add(
+            os.path.join(root, rel),
+            arcname="demo003-folder-fixture/" + rel,
+            recursive=False,
+        )
+PY
+
+manifest_control_out="$tmp/verify-manifest-control"
+if OUT="$manifest_control_out" \
+   bash "$VERIFIER" "$tmp/manifest-control.tar.gz" \
+   >"$tmp/manifest-control.log" 2>&1; then
+  fail "manifest_control_path_archive_accepted"
+fi
+python3 - "$tmp/manifest-control.log" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+if b"\x1b" in data:
+    raise SystemExit("raw_manifest_escape_reached_diagnostic")
+if any(line == b"FORGED_MANIFEST_LOG_LINE=true" for line in data.splitlines()):
+    raise SystemExit("forged_manifest_log_line_reached_diagnostic")
+if b"FORGED_MANIFEST_LOG_LINE=true" not in data:
+    raise SystemExit("escaped_hostile_manifest_path_not_reported")
+PY
+
 echo "${MARKER}_PROOF_GREEN"
 echo "canonical_fixture_green=true"
 echo "symlink_member_rejected_before_extract=true"
@@ -246,6 +326,7 @@ echo "pax_extension_header_decompression_bounded=true"
 echo "output_root_symlink_rejected=true"
 echo "extract_root_symlink_rejected=true"
 echo "archive_control_diagnostics_escaped=true"
+echo "manifest_path_diagnostics_escaped=true"
 echo "outside_sentinel_unchanged=true"
 echo "network_fetch=false"
 echo "live_runtime_mutation=false"
