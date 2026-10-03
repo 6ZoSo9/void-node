@@ -156,9 +156,12 @@ Before child serialization, `nowUnix` is normalized through the same uint64
 decimal parser to canonical decimal text, so supported `bigint` timestamps do
 not depend on JSON's lack of bigint support. The control-evidence input is copied
 through a descriptor-only bounded clone with depth/node/object-key/array/string
-budgets and a final 2 MiB serialized ceiling. Oversized, deeply nested, accessor,
-or non-plain inputs fail in the parent before the child is spawned; arbitrary
-caller objects are never passed directly to `JSON.stringify`.
+budgets and a final 2 MiB serialized ceiling. The clone inspects all own keys
+with `Reflect.ownKeys()`; symbol keys, non-enumerable hidden fields, accessors,
+decorated/sparse arrays, oversized/deep values, or non-plain inputs fail in the
+parent before the child is spawned. Nothing that the canonical exact-schema
+verifier would have observed may be silently dropped before serialization, and
+arbitrary caller objects are never passed directly to `JSON.stringify`.
 
 The focused proof exercises both public prepare/verify APIs with bigint
 `nowUnix` values, requires invalid small evidence to reach the canonical child
