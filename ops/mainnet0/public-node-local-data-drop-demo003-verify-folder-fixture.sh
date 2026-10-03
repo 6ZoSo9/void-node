@@ -914,13 +914,13 @@ try:
         if (
             not stat.S_ISREG(listed.st_mode)
             or stat.S_ISLNK(listed.st_mode)
-            or listed.st_uid != euid
             or listed.st_nlink != 1
-            or listed.st_mode & 0o022
-            or listed.st_size <= 0
-            or listed.st_size > MAX_MEMBER_BYTES
         ):
-            raise SystemExit("terminal_child_size_or_type_invalid:" + rel)
+            raise SystemExit("terminal_child_type_invalid:" + rel)
+        if listed.st_uid != euid or listed.st_mode & 0o022:
+            raise SystemExit("terminal_child_custody_invalid:" + rel)
+        if listed.st_size <= 0 or listed.st_size > MAX_MEMBER_BYTES:
+            raise SystemExit("terminal_child_size_invalid:" + rel)
 
         child_fd = os.open(
             leaf,
