@@ -26,11 +26,17 @@ grep -Fq "output_root_nofollow_custody=true" "$VERIFIER" || fail "output_root_cu
 grep -Fq "BoundedDecompressedReader" "$VERIFIER" || fail "bounded_decompress_reader_missing"
 grep -Fq "safe_diagnostic" "$VERIFIER" || fail "sanitized_diagnostic_missing"
 grep -Fq "function diagnostic" "$VERIFIER" || fail "node_sanitized_diagnostic_missing"
+grep -Fq "semantic_verify_descriptor_bound=true" "$VERIFIER" || fail "semantic_descriptor_binding_missing"
+grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
+grep -Fq "fixture visible identity changed during semantic verify" "$VERIFIER" || fail "terminal_visible_identity_check_missing"
+grep -Fq "Demo003 invocation path invalid" "$VERIFIER" || fail "invocation_path_guard_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"
 if grep -Fq 'tar -xzf' "$VERIFIER"; then fail "legacy_tar_extract_remains"; fi
 if grep -Fq 'sha256sum -c' "$VERIFIER"; then fail "legacy_unbounded_checksum_paths_remain"; fi
 if grep -Fq 'install -d -m 700 "$OUT"' "$VERIFIER"; then fail "pathname_output_root_creation_remains"; fi
 if grep -Fq 'tee "$OUT/sha256-check.log"' "$VERIFIER"; then fail "pathname_postverify_log_write_remains"; fi
+if grep -Fq 'echo "tarball=$TARBALL"' "$VERIFIER"; then fail "raw_tarball_diagnostic_remains"; fi
+if grep -Fq 'echo "out=$OUT"' "$VERIFIER"; then fail "raw_output_diagnostic_remains"; fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -47,6 +53,54 @@ grep -Fq "checksums_verified=true" "$tmp/verify.log" || fail "canonical_checksum
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$tmp/verify.log" ||
   fail "canonical_verifier_not_green"
 if find "$verify_out/extract" -type l -print -quit | grep -q .; then fail "canonical_extract_contains_symlink"; fi
+grep -Fq "semantic_verify_descriptor_bound=true" "$tmp/verify.log" ||
+  fail "canonical_semantic_descriptor_binding_not_reported"
+
+hostile_tar="$tmp/missing-tar"$'\nFORGED_TARBALL_GREEN=true\033[31m'
+hostile_tar_log="$tmp/hostile-tar-path.log"
+if OUT="$tmp/hostile-tar-output" bash "$VERIFIER" "$hostile_tar" >"$hostile_tar_log" 2>&1; then
+  fail "hostile_tarball_invocation_path_accepted"
+fi
+python3 - "$hostile_tar_log" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+if b"\x1b" in data:
+    raise SystemExit("raw_tarball_escape_reached_diagnostic")
+if any(line == b"FORGED_TARBALL_GREEN=true" for line in data.splitlines()):
+    raise SystemExit("forged_tarball_line_reached_diagnostic")
+if data.count(b"tarball=") != 1:
+    raise SystemExit("tarball_diagnostic_count_invalid")
+if b"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" in data:
+    raise SystemExit("hostile_tarball_path_reached_green")
+PY
+test ! -e "$tmp/hostile-tar-output" ||
+  fail "hostile_tarball_path_created_output"
+
+hostile_out="$tmp/hostile-out"$'\nFORGED_OUT_OK=true\033[31m'
+hostile_out_log="$tmp/hostile-out-path.log"
+if OUT="$hostile_out" bash "$VERIFIER" "$tarball" >"$hostile_out_log" 2>&1; then
+  fail "hostile_output_invocation_path_accepted"
+fi
+python3 - "$hostile_out_log" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+if b"\x1b" in data:
+    raise SystemExit("raw_output_escape_reached_diagnostic")
+if any(line == b"FORGED_OUT_OK=true" for line in data.splitlines()):
+    raise SystemExit("forged_output_line_reached_diagnostic")
+if data.count(b"out=") != 1:
+    raise SystemExit("output_diagnostic_count_invalid")
+if b"[ok]" in data:
+    raise SystemExit("hostile_output_path_reached_ok_marker")
+if b"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" in data:
+    raise SystemExit("hostile_output_path_reached_green")
+PY
+test ! -e "$hostile_out" ||
+  fail "hostile_output_path_created_tree"
 
 printf 'VOID_DEMO003_OUTSIDE_SENTINEL\n' >"$tmp/outside-sentinel.txt"
 outside_before="$(sha256sum "$tmp/outside-sentinel.txt" | awk '{print $1}')"
@@ -297,6 +351,63 @@ with tarfile.open(out, "w:gz", format=tarfile.PAX_FORMAT) as tf:
         )
 PY
 
+
+swap_out="$tmp/verify-interphase-swap"
+swap_replacement="$tmp/verify-interphase-replacement"
+swap_detached="$tmp/verify-interphase-detached"
+cp -a "$verify_out" "$swap_replacement"
+
+real_python="$(command -v python3)"
+wrapper_bin="$tmp/interphase-wrapper-bin"
+mkdir -m 700 "$wrapper_bin"
+cat >"$wrapper_bin/python3" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+real="${VOID_DEMO003_TEST_REAL_PYTHON:?}"
+if [ "${1:-}" != "-" ]; then
+  exec "$real" "$@"
+fi
+
+script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-python-wrapper.XXXXXX")"
+trap 'rm -f "$script"' EXIT
+cat >"$script"
+
+set +e
+"$real" "$script" "${@:2}"
+rc=$?
+set -e
+
+if [ "$rc" -eq 0 ] &&
+   grep -Fq "MAX_TARBALL_BYTES = 16 * 1024 * 1024" "$script" &&
+   [ "${VOID_DEMO003_TEST_SWAP_ON_ARCHIVE_PHASE:-0}" = "1" ]; then
+  mv -- "${VOID_DEMO003_TEST_SWAP_OUT:?}" "${VOID_DEMO003_TEST_SWAP_DETACHED:?}"
+  mv -- "${VOID_DEMO003_TEST_SWAP_REPLACEMENT:?}" "${VOID_DEMO003_TEST_SWAP_OUT:?}"
+fi
+
+exit "$rc"
+SH
+chmod 700 "$wrapper_bin/python3"
+
+swap_log="$tmp/interphase-swap.log"
+if PATH="$wrapper_bin:$PATH" \
+   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+   VOID_DEMO003_TEST_SWAP_ON_ARCHIVE_PHASE=1 \
+   VOID_DEMO003_TEST_SWAP_OUT="$swap_out" \
+   VOID_DEMO003_TEST_SWAP_DETACHED="$swap_detached" \
+   VOID_DEMO003_TEST_SWAP_REPLACEMENT="$swap_replacement" \
+   OUT="$swap_out" \
+   bash "$VERIFIER" "$tarball" >"$swap_log" 2>&1; then
+  fail "interphase_output_tree_swap_accepted"
+fi
+grep -Fq "fixture identity changed before semantic verify" "$swap_log" ||
+  fail "interphase_output_tree_swap_identity_hold_missing"
+if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$swap_log"; then
+  fail "interphase_output_tree_swap_reached_green"
+fi
+test -d "$swap_detached/extract/demo003-folder-fixture" ||
+  fail "interphase_detached_verified_tree_missing"
+
 manifest_control_out="$tmp/verify-manifest-control"
 if OUT="$manifest_control_out" \
    bash "$VERIFIER" "$tmp/manifest-control.tar.gz" \
@@ -327,6 +438,9 @@ echo "output_root_symlink_rejected=true"
 echo "extract_root_symlink_rejected=true"
 echo "archive_control_diagnostics_escaped=true"
 echo "manifest_path_diagnostics_escaped=true"
+echo "invocation_path_diagnostics_escaped=true"
+echo "interphase_output_tree_swap_rejected=true"
+echo "semantic_verify_descriptor_bound=true"
 echo "outside_sentinel_unchanged=true"
 echo "network_fetch=false"
 echo "live_runtime_mutation=false"
