@@ -511,6 +511,12 @@ function ok(x, msg) {
   }
 }
 
+function diagnostic(value) {
+  let text = String(value);
+  if (text.length > 320) text = text.slice(0, 320) + "...";
+  return JSON.stringify(text);
+}
+
 function stamp(st) {
   return [
     st.dev, st.ino, st.size, st.mtimeNs, st.ctimeNs,
@@ -587,8 +593,8 @@ const expected = new Set(["files/README.txt", "files/index.html", "files/metadat
 const seen = new Set();
 for (const f of manifest.files) {
   ok(f && typeof f === "object", "invalid manifest file row");
-  ok(expected.has(f.path), `unexpected file ${f.path}`);
-  ok(!seen.has(f.path), `duplicate manifest file ${f.path}`);
+  ok(expected.has(f.path), `unexpected file ${diagnostic(f.path)}`);
+  ok(!seen.has(f.path), `duplicate manifest file ${diagnostic(f.path)}`);
   seen.add(f.path);
   const data = readDirect(f.path);
   ok(f.sha256 === crypto.createHash("sha256").update(data).digest("hex"), `sha mismatch ${f.path}`);
