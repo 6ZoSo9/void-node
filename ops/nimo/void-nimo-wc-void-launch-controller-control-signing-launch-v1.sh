@@ -18,8 +18,10 @@ repo="${VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1:-/home/zoso/dev/void-node}"
 repo="$(cd -- "$repo" && pwd -P)"
 launcher_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
 signer_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
-launcher_file="${BASH_SOURCE[0]}"
-[[ "$launcher_file" == /* ]] || launcher_file="$(pwd -P)/$launcher_file"
+launcher_file="${BASH_SOURCE[0]:-}"
+if [[ -n "$launcher_file" && "$launcher_file" != /* ]]; then
+  launcher_file="$(pwd -P)/$launcher_file"
+fi
 
 hold() {
   printf '%s_HOLD\n' "$marker" >&2
@@ -178,6 +180,8 @@ if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
   [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
     hold "executed_launcher_blob_invalid"
 else
+  [[ -n "$launcher_file" ]] ||
+    hold "executed_launcher_blob_required_for_streamed_execution"
   actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$launcher_file")" ||
     hold "executed_launcher_blob_unavailable"
 fi
@@ -503,6 +507,8 @@ if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
   [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
     hold "executed_launcher_blob_invalid"
 else
+  [[ -n "$launcher_file" ]] ||
+    hold "executed_launcher_blob_required_for_streamed_execution"
   actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$launcher_file")" ||
     hold "executed_launcher_blob_unavailable"
 fi
