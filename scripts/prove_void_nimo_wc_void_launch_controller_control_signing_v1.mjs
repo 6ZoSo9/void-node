@@ -20,6 +20,7 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   signControlChallengeCoreV1,
+  testOnlyExerciseSignatureOutputCleanupReplacementRaceV1,
   testOnlyExerciseSignatureOutputExpiryCleanupV1,
   testOnlyExerciseSignatureOutputParentReplacementV1,
   testOnlyPinnedStandaloneEthersV1,
@@ -903,6 +904,20 @@ assert.equal(
   "expired durable signature output must be removed before failure returns",
 );
 
+const cleanupReplacementRace =
+  testOnlyExerciseSignatureOutputCleanupReplacementRaceV1();
+assert.match(
+  String(cleanupReplacementRace.reason || ""),
+  /signature_output_cleanup_failed/u,
+);
+assert.equal(cleanupReplacementRace.replacement_output_exists, true);
+assert.equal(cleanupReplacementRace.displaced_signature_exists, true);
+assert.match(
+  String(cleanupReplacementRace.replacement_bytes || ""),
+  /UNRELATED_REPLACEMENT/u,
+  "cleanup must not unlink a replacement basename that is not the created inode",
+);
+
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
   "utf8",
@@ -1395,6 +1410,8 @@ console.log("network_access_required=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
+console.log("signature_output_cleanup_inode_bound=true");
+console.log("signature_output_cleanup_replacement_not_deleted=true");
 console.log("funds_movement=false");
 console.log(
   "marker=" +
