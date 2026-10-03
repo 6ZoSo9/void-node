@@ -28,77 +28,48 @@ There is no `--key-file` override.
 A challenge naming any other candidate address fails before signing. A private
 key deriving any other address also fails before signing.
 
-## Reviewed package runtime
+## Pinned in-memory ethers runtime
 
-The signing helper does not trust ambient `ethers` package bytes.
+The production signing path does not resolve `ethers` through Node package
+resolution after private-key authority begins.
 
-Before the private key is opened, it:
+It is hard-bound to the self-contained ESM bundle:
 
-1. reads the reviewed package-runtime profile
-   `ops/security/reviewed-node-package-runtime-ethers-v1.json`;
-2. rederives and verifies profile ID
-   `voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77`;
-3. requires package aggregate
-   `5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73`;
-4. verifies the installed package closure byte-for-byte;
-5. materializes a private reviewed package tree outside the repository;
-6. reverifies that private tree;
-7. materializes the exact challenge-bound control-verifier Git blob beside that
-   private package tree; and
-8. executes all production `ethers` operations only in a separate Node child
-   launched with the permission model and
-   `--allow-fs-read=<private-runtime-root>`.
+```text
+node_modules/ethers/dist/ethers.min.js
+ethers version = 6.17.0
+sha256 = b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c
+```
 
-For Node 22.0 through 22.12 the signer uses the documented
-`--experimental-permission` spelling. Node 22.13+ and the supported Node
-24/26 lines use `--permission`. This preserves the repository's declared
-`^22.0.0 || ^24.0.0 || ^26.0.0` runtime range rather than silently requiring
-a newer Node 22 patch release.
+Before the private key is opened, the streamed reviewed signer:
 
-The permission-fenced child reuses the exact interpreter already running the
-reviewed signer. Production still requires that parent interpreter to resolve to
-`/usr/bin/node` before private-key access. This makes the child and selected
-permission flag describe the same Node binary, while allowing focused CI to
-exercise the actual 22.12, 22.13, current 22, 24 and 26 setup-node runtimes
-instead of an unrelated runner-system `/usr/bin/node`.
+1. acquires the bundle through the same descriptor-first, nofollow stable-file
+   reader used for the public challenge and private key;
+2. requires the exact SHA-256 above and a 2 MiB maximum;
+3. copies the already-verified bytes into an in-memory `data:` module URL;
+4. imports only those bytes;
+5. requires `ethers.version === "6.17.0"` and the exact cryptographic exports
+   used by this ceremony; and
+6. only then opens the fixed production key.
 
-The key-owning parent process never imports `ethers`. The child receives only
-the already-validated public challenge plus the fixed private key over stdin.
-The key is never placed in argv, environment variables, or a temporary key
-file.
+The authority-bearing signing path does **not** execute a materialized
+`node_modules` tree, generated signing bridge, ancestor package resolver, or
+runtime-helper payload. Replacing the bundle pathname after its bytes have been
+read cannot alter the in-memory module that receives key material.
 
-The nested reviewed package runtime is descriptor-bound too. Before each
-authority-bearing child execution, the signer retains the materialized runtime
-directory as an `O_DIRECTORY|O_NOFOLLOW` file descriptor, verifies the package
-inventory while that descriptor is held, rechecks that the original runtime path
-still binds to the same directory inode, and independently binds through the
-descriptor:
+Focused CI also mutates the installed bundle by one byte and requires the
+key-free bundle self-check to fail on the exact SHA-256 before any private-key
+access.
 
-- the generated signing bridge bytes;
-- the exact reviewed control-verifier Git blob; and
-- the exact per-operation JSON input SHA-256.
+The older reviewed-package-runtime helpers remain exercised by synthetic tests
+as regression coverage only. They are not in the production
+`signSelectedLaunchControllerChallengeV1` key path.
 
-The child inherits that directory as fd 3, executes
-`/proc/self/fd/3/signing-bridge.mjs`, receives filesystem permission only for
-`/proc/self/fd/3`, and reads its input through that same root. A runtime
-rename/replacement after verification therefore cannot substitute the bridge,
-control verifier, package closure, or challenge input before the private key is
-streamed.
-
-Normal Node package resolution can walk ancestor directories. The permission
-fence prevents an optional/unreviewed package in an ancestor
-`node_modules` from being read or executed. Focused proof places an
-unreviewed `bufferutil` package in exactly that ancestor position and requires
-the child to fail closed before it executes.
-
-Same-version ambient package-byte drift therefore holds before private-key
-access, and ancestor-package fallback is denied during the actual
-authority-bearing cryptographic execution.
-
-Node 22's permission model does not provide the required network-isolation
-claim for this lane. Nimo must therefore remain offline for the signing
-ceremony; the source contract explicitly reports
-`execution_network_isolation_provided=false`.
+Node's module-loader environment is still sanitized before the streamed signer
+starts: `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables, shell
+injection variables, and unrelated environment values are absent. Nimo must
+remain offline for the entire signing ceremony because this lane does not claim
+process-level network sandboxing.
 
 ## Challenge validation
 
@@ -122,10 +93,10 @@ The Nimo helper requires:
 - current Nimo clock inside the challenge window.
 
 The helper signs only after all checks pass. Production signing samples the
-clock only after reviewed-package verification/materialization completes,
-rechecks expiry immediately before opening the private key, rechecks again
-immediately before the signature operation, and refuses to emit the signature
-envelope if the challenge expires during signing.
+clock after the exact in-memory ethers bundle is admitted, rechecks expiry
+immediately before opening the private key, rechecks inside the signing helper
+before and after the EIP-712 signature operation, and refuses to emit the
+signature envelope if the challenge expires during signing.
 
 ## Key-file boundary
 
@@ -157,15 +128,15 @@ binding and fails closed or cannot redirect the already pinned final lookup.
 The raw key is never printed, returned, copied into the repository, placed in
 process arguments, or written into the public signature envelope.
 
-After the parent completes source/runtime/expiry checks, it opens the fixed key,
-passes the exact key text only through the permission-fenced child's stdin, and
-clears its direct string reference when the child returns. The child validates
-the key-derived address, signs only the canonical control EIP-712 value, verifies
-signature recovery, and returns only the public signature envelope. The key is
-never written into the private reviewed runtime tree.
+After the streamed reviewed signer completes source/bundle/expiry checks, it
+opens the fixed key, constructs an in-memory Wallet only from the SHA-256-pinned
+ethers bundle, validates the key-derived address, signs only the canonical
+control EIP-712 value, verifies signature recovery, and clears its direct key
+string reference. The key is never placed in argv, environment variables,
+temporary files, a package-runtime tree, or the public output envelope.
 
 The actual key remains process memory only for the lifetime of the short-lived
-offline signing parent/child processes.
+offline signing process.
 
 ## Output
 
@@ -224,33 +195,29 @@ commit as a separate positional argument and verifies:
 - challenge `source_binding.source_head_sha` independently equals that same
   reviewed commit;
 - clean tracked/untracked repository state;
-- worktree Git blob equality for the launcher, signer, reviewed package-runtime
-  helper/profile, control verifier, `package.json`, and `package-lock.json`;
+- worktree Git blob equality for the launcher, signer, control verifier,
+  `package.json`, and `package-lock.json`;
 - no private-key access during preflight.
 
-For sign mode, the verified worktree paths are not reopened as execution
+For sign mode, the verified worktree signer path is not reopened as execution
 authority. After those checks, the launcher:
 
-1. resolves the signer and reviewed-runtime-helper Git blob IDs from the
-   independently reviewed commit;
-2. reads each blob with `git cat-file blob` directly into base64 process
+1. resolves the signer Git blob ID from the independently reviewed commit;
+2. reads that blob with `git cat-file blob` directly into base64 process
    memory;
-3. decodes and re-hashes those exact transported bytes with
-   `git hash-object --stdin`, requiring the reviewed blob IDs again;
+3. decodes and re-hashes the exact transported bytes with
+   `git hash-object --stdin`, requiring the reviewed blob ID again; and
 4. pipes the verified signer bytes directly to
-   `/usr/bin/node --input-type=module -`; and
-5. carries the verified runtime-helper bytes only as non-secret base64 process
-   environment data.
+   `/usr/bin/node --input-type=module -`.
 
-The signer independently re-derives the reviewed runtime-helper Git blob from
-the operator-reviewed commit, verifies the transported helper bytes against that
-blob, performs one exact reviewed transformation that binds the helper's
-repository root to the independently verified repository path, and only then
-imports the helper from an in-memory `data:` URL.
+The streamed signer then verifies and imports the exact standalone ethers bundle
+from already-verified in-memory bytes before private-key access. No runtime
+helper is carried in environment state and no authority-bearing temporary
+package tree is executed.
 
-There is therefore no outer signer or runtime-helper executable file, temporary
-executable tree, worktree reopen, or same-UID-owned code inode between byte
-verification and production-key access.
+There is therefore no outer signer executable file, runtime-helper executable,
+generated signing bridge, mutable package child, or worktree signer reopen
+between signer-byte verification and production-key access.
 
 Do not execute the mutable worktree launcher as the bootstrap authority.
 The operator bootstrap reads the launcher directly from the independently
@@ -409,11 +376,10 @@ dynamic-loader variables, shell-specific injection variables, and unrelated
 ambient configuration before Node starts and before the private key can be
 opened.
 
-The signer then performs production cryptography in a second
-permission-fenced reviewed child. The parent sends the fixed key only over
-stdin; no key appears in the child argv/environment or reviewed-runtime files.
-Because Node 22 does not supply the required network sandbox, keep Nimo
-disconnected for the entire sign command.
+The streamed signer performs production cryptography in the same sanitized
+short-lived Node process using only the exact in-memory bundle described above.
+Because this lane does not provide a network sandbox, keep Nimo disconnected for
+the entire sign command.
 
 Return only `signature.json` and its printed output SHA-256 to Precision.
 
