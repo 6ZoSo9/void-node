@@ -73,8 +73,10 @@ const eventCritical=index.slice(
 );
 assert.match(
   eventCritical,
-  /if\(!__blo\(request\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
+  /if\(event\?\.operator_status==="payment_verified"&&!__blo\(request\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
 );
+assert.ok(index.includes('"operator_mark_failed"'));
+assert.ok(index.includes('x==="request_launch_authority_expired_or_superseded"?409:500'));
 assert.ok(index.includes(
   "await __voidWriteBuyVoidOperatorEventV1(event,found);",
 ));
@@ -144,7 +146,9 @@ console.log("live_activation_lease_expiry_bound=true");
 console.log("request_launch_authority_snapshot_bound=true");
 console.log("request_launch_authority_revalidated_before_persist=true");
 console.log("request_launch_authority_revalidated_at_request_append=true");
-console.log("request_launch_authority_revalidated_inside_operator_event_lock=true");
+console.log("request_launch_authority_revalidated_inside_payment_event_lock=true");
+console.log("post_expiry_terminal_operator_cleanup_allowed=true");
+console.log("operator_mark_persistence_failure_response_bound=true");
 console.log("request_launch_authority_generation_tip_bound=true");
 console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
