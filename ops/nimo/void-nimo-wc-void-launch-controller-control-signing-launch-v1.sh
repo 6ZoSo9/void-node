@@ -95,9 +95,44 @@ print(head)
 PY
 )" || hold "challenge_source_head_invalid"
 
-git_env=(
-  env -i
-  HOME=/nonexistent
+git_dir="$repo/.git"
+[[ -d "$git_dir" && ! -L "$git_dir" ]] ||
+  hold "repository_git_dir_invalid"
+
+info_attributes="$git_dir/info/attributes"
+if [[ -e "$info_attributes" ]]; then
+  [[ -f "$info_attributes" && ! -L "$info_attributes" ]] ||
+    hold "repository_info_attributes_invalid"
+  [[ ! -s "$info_attributes" ]] ||
+    hold "repository_info_attributes_forbidden"
+fi
+
+local_config="$git_dir/config"
+[[ -f "$local_config" && ! -L "$local_config" ]] ||
+  hold "repository_local_git_config_invalid"
+local_config_size="$(/usr/bin/stat -c '%s' -- "$local_config")" ||
+  hold "repository_local_git_config_size_unavailable"
+[[ "$local_config_size" =~ ^[0-9]+$ ]] ||
+  hold "repository_local_git_config_size_invalid"
+(( local_config_size > 0 && local_config_size <= 1024 * 1024 )) ||
+  hold "repository_local_git_config_size_invalid"
+/usr/bin/python3 -I -P - "$local_config" <<'PY' ||
+  hold "repository_local_git_config_forbidden"
+import re
+import sys
+
+path = sys.argv[1]
+with open(path, "rb") as handle:
+    raw = handle.read(1024 * 1024 + 1)
+if len(raw) > 1024 * 1024:
+    raise SystemExit(2)
+try:
+    text = raw.decode("utf-8")
+except UnicodeDecodeError:
+    raise SystemExit(2)
+
+for pattern in (
+    r'^\s*\[\s*filter(?:\s+"[^"]*")?\s*\]\s*  HOME=/nonexistent
   PATH=/usr/bin:/bin
   LANG=C
   LC_ALL=C
@@ -105,6 +140,8 @@ git_env=(
   GIT_CONFIG_GLOBAL=/dev/null
   GIT_OPTIONAL_LOCKS=0
   GIT_TERMINAL_PROMPT=0
+  GIT_PAGER=cat
+  PAGER=cat
 )
 
 git_cmd=(
@@ -129,7 +166,7 @@ if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
   [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
     hold "executed_launcher_blob_invalid"
 else
-  actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$launcher_file")" ||
+  actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$launcher_file")" ||
     hold "executed_launcher_blob_unavailable"
 fi
 
@@ -162,7 +199,7 @@ for rel in "${critical_paths[@]}"; do
 
   expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
     hold "critical_reviewed_blob_unavailable:$rel"
-  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$file")" ||
+  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$file")" ||
     hold "critical_worktree_blob_unavailable:$rel"
 
   [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
@@ -214,7 +251,483 @@ reviewed_signer_b64="$(
 actual_signer_blob="$(
   printf '%s' "$reviewed_signer_b64" |
     /usr/bin/base64 -d |
-    "${git_env[@]}" "${git_cmd[@]}" hash-object --stdin
+    "${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters --stdin
+)" || hold "reviewed_signer_transport_hash_failed"
+
+[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]] ||
+  hold "reviewed_signer_transport_hash_mismatch"
+
+printf 'reviewed_signer_transport=verified_git_blob_stdin\n'
+printf 'reviewed_signer_blob=%s\n' "$reviewed_signer_blob"
+printf 'ethers_execution=in_memory_sha256_pinned_bundle\n'
+printf 'mutable_worktree_signer_execution=false\n'
+printf 'mutable_runtime_helper_execution=false\n'
+
+set +e
+printf '%s' "$reviewed_signer_b64" |
+  /usr/bin/base64 -d |
+  /usr/bin/env -i \
+    HOME=/home/zoso \
+    PATH=/usr/bin:/bin \
+    LANG=C \
+    LC_ALL=C \
+    VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
+    VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
+    VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
+    /usr/bin/node \
+    --input-type=module \
+    - \
+    sign \
+    --challenge "$challenge" \
+    --challenge-sha256 "$challenge_sha" \
+    --output "$output"
+pipe_status=("${PIPESTATUS[@]}")
+set -e
+
+[[ "${pipe_status[0]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_write_failed"
+[[ "${pipe_status[1]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_decode_failed"
+exit "${pipe_status[2]:-2}"
+,
+    r'^\s*\[\s*include\s*\]\s*  HOME=/nonexistent
+  PATH=/usr/bin:/bin
+  LANG=C
+  LC_ALL=C
+  GIT_CONFIG_NOSYSTEM=1
+  GIT_CONFIG_GLOBAL=/dev/null
+  GIT_OPTIONAL_LOCKS=0
+  GIT_TERMINAL_PROMPT=0
+)
+
+git_cmd=(
+  /usr/bin/git
+  --no-replace-objects
+  -c core.hooksPath=/dev/null
+  -c core.attributesFile=/dev/null
+  -c core.fsmonitor=false
+  -c core.untrackedCache=false
+  -c core.preloadIndex=false
+  -c submodule.recurse=false
+  -C "$repo"
+)
+
+expected_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$launcher_rel")" ||
+  hold "reviewed_launcher_blob_unavailable"
+[[ "$expected_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_launcher_blob_invalid"
+
+if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
+  actual_launcher_blob="$VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1"
+  [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "executed_launcher_blob_invalid"
+else
+  actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$launcher_file")" ||
+    hold "executed_launcher_blob_unavailable"
+fi
+
+[[ "$actual_launcher_blob" == "$expected_launcher_blob" ]] ||
+  hold "executed_launcher_not_operator_reviewed_blob"
+
+current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
+  hold "current_head_unavailable"
+[[ "$current_head" == "$reviewed_head" ]] ||
+  hold "current_head_not_exact_operator_reviewed_head"
+[[ "$source_head" == "$reviewed_head" ]] ||
+  hold "challenge_source_head_not_operator_reviewed_head"
+
+status="$("${git_env[@]}" "${git_cmd[@]}" status --porcelain=v1 --untracked-files=all)" ||
+  hold "repository_status_unavailable"
+[[ -z "$status" ]] || hold "repository_not_clean"
+
+critical_paths=(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+  "package.json"
+  "package-lock.json"
+)
+
+for rel in "${critical_paths[@]}"; do
+  file="$repo/$rel"
+  [[ -f "$file" && ! -L "$file" ]] ||
+    hold "critical_file_invalid:$rel"
+
+  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
+    hold "critical_reviewed_blob_unavailable:$rel"
+  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$file")" ||
+    hold "critical_worktree_blob_unavailable:$rel"
+
+  [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "critical_head_blob_invalid:$rel"
+  [[ "$actual_blob" == "$expected_blob" ]] ||
+    hold "critical_worktree_blob_mismatch:$rel"
+done
+
+printf '%s\n' "$marker"
+printf 'status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN\n'
+printf 'operator_reviewed_head=%s\n' "$reviewed_head"
+printf 'executed_launcher_blob=%s\n' "$actual_launcher_blob"
+printf 'challenge_source_head=%s\n' "$source_head"
+printf 'challenge_sha256=%s\n' "$challenge_sha"
+printf 'repository_clean=true\n'
+printf 'critical_source_blobs_verified=true\n'
+
+if [[ "$mode" == "preflight" ]]; then
+  printf 'private_key_access=false\n'
+  printf 'credential_access=false\n'
+  printf 'wallet_or_signer_access=false\n'
+  printf 'transaction_signing=false\n'
+  printf 'transaction_broadcast=false\n'
+  printf 'funds_movement=false\n'
+  exit 0
+fi
+
+printf 'status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED\n'
+printf 'private_key_access=true\n'
+printf 'credential_access=true\n'
+printf 'wallet_or_signer_access=true\n'
+printf 'transaction_signing=false\n'
+printf 'transaction_broadcast=false\n'
+printf 'funds_movement=false\n'
+
+reviewed_signer_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$signer_rel")" ||
+  hold "reviewed_signer_blob_unavailable"
+[[ "$reviewed_signer_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_signer_blob_invalid"
+
+reviewed_signer_b64="$(
+  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_signer_blob" |
+    /usr/bin/base64 -w0
+)" || hold "reviewed_signer_transport_failed"
+
+[[ -n "$reviewed_signer_b64" ]] ||
+  hold "reviewed_signer_transport_empty"
+
+actual_signer_blob="$(
+  printf '%s' "$reviewed_signer_b64" |
+    /usr/bin/base64 -d |
+    "${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters --stdin
+)" || hold "reviewed_signer_transport_hash_failed"
+
+[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]] ||
+  hold "reviewed_signer_transport_hash_mismatch"
+
+printf 'reviewed_signer_transport=verified_git_blob_stdin\n'
+printf 'reviewed_signer_blob=%s\n' "$reviewed_signer_blob"
+printf 'ethers_execution=in_memory_sha256_pinned_bundle\n'
+printf 'mutable_worktree_signer_execution=false\n'
+printf 'mutable_runtime_helper_execution=false\n'
+
+set +e
+printf '%s' "$reviewed_signer_b64" |
+  /usr/bin/base64 -d |
+  /usr/bin/env -i \
+    HOME=/home/zoso \
+    PATH=/usr/bin:/bin \
+    LANG=C \
+    LC_ALL=C \
+    VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
+    VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
+    VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
+    /usr/bin/node \
+    --input-type=module \
+    - \
+    sign \
+    --challenge "$challenge" \
+    --challenge-sha256 "$challenge_sha" \
+    --output "$output"
+pipe_status=("${PIPESTATUS[@]}")
+set -e
+
+[[ "${pipe_status[0]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_write_failed"
+[[ "${pipe_status[1]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_decode_failed"
+exit "${pipe_status[2]:-2}"
+,
+    r'^\s*\[\s*includeif(?:\s+"[^"]*")?\s*\]\s*  HOME=/nonexistent
+  PATH=/usr/bin:/bin
+  LANG=C
+  LC_ALL=C
+  GIT_CONFIG_NOSYSTEM=1
+  GIT_CONFIG_GLOBAL=/dev/null
+  GIT_OPTIONAL_LOCKS=0
+  GIT_TERMINAL_PROMPT=0
+)
+
+git_cmd=(
+  /usr/bin/git
+  --no-replace-objects
+  -c core.hooksPath=/dev/null
+  -c core.attributesFile=/dev/null
+  -c core.fsmonitor=false
+  -c core.untrackedCache=false
+  -c core.preloadIndex=false
+  -c submodule.recurse=false
+  -C "$repo"
+)
+
+expected_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$launcher_rel")" ||
+  hold "reviewed_launcher_blob_unavailable"
+[[ "$expected_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_launcher_blob_invalid"
+
+if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
+  actual_launcher_blob="$VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1"
+  [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "executed_launcher_blob_invalid"
+else
+  actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$launcher_file")" ||
+    hold "executed_launcher_blob_unavailable"
+fi
+
+[[ "$actual_launcher_blob" == "$expected_launcher_blob" ]] ||
+  hold "executed_launcher_not_operator_reviewed_blob"
+
+current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
+  hold "current_head_unavailable"
+[[ "$current_head" == "$reviewed_head" ]] ||
+  hold "current_head_not_exact_operator_reviewed_head"
+[[ "$source_head" == "$reviewed_head" ]] ||
+  hold "challenge_source_head_not_operator_reviewed_head"
+
+status="$("${git_env[@]}" "${git_cmd[@]}" status --porcelain=v1 --untracked-files=all)" ||
+  hold "repository_status_unavailable"
+[[ -z "$status" ]] || hold "repository_not_clean"
+
+critical_paths=(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+  "package.json"
+  "package-lock.json"
+)
+
+for rel in "${critical_paths[@]}"; do
+  file="$repo/$rel"
+  [[ -f "$file" && ! -L "$file" ]] ||
+    hold "critical_file_invalid:$rel"
+
+  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
+    hold "critical_reviewed_blob_unavailable:$rel"
+  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$file")" ||
+    hold "critical_worktree_blob_unavailable:$rel"
+
+  [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "critical_head_blob_invalid:$rel"
+  [[ "$actual_blob" == "$expected_blob" ]] ||
+    hold "critical_worktree_blob_mismatch:$rel"
+done
+
+printf '%s\n' "$marker"
+printf 'status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN\n'
+printf 'operator_reviewed_head=%s\n' "$reviewed_head"
+printf 'executed_launcher_blob=%s\n' "$actual_launcher_blob"
+printf 'challenge_source_head=%s\n' "$source_head"
+printf 'challenge_sha256=%s\n' "$challenge_sha"
+printf 'repository_clean=true\n'
+printf 'critical_source_blobs_verified=true\n'
+
+if [[ "$mode" == "preflight" ]]; then
+  printf 'private_key_access=false\n'
+  printf 'credential_access=false\n'
+  printf 'wallet_or_signer_access=false\n'
+  printf 'transaction_signing=false\n'
+  printf 'transaction_broadcast=false\n'
+  printf 'funds_movement=false\n'
+  exit 0
+fi
+
+printf 'status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED\n'
+printf 'private_key_access=true\n'
+printf 'credential_access=true\n'
+printf 'wallet_or_signer_access=true\n'
+printf 'transaction_signing=false\n'
+printf 'transaction_broadcast=false\n'
+printf 'funds_movement=false\n'
+
+reviewed_signer_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$signer_rel")" ||
+  hold "reviewed_signer_blob_unavailable"
+[[ "$reviewed_signer_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_signer_blob_invalid"
+
+reviewed_signer_b64="$(
+  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_signer_blob" |
+    /usr/bin/base64 -w0
+)" || hold "reviewed_signer_transport_failed"
+
+[[ -n "$reviewed_signer_b64" ]] ||
+  hold "reviewed_signer_transport_empty"
+
+actual_signer_blob="$(
+  printf '%s' "$reviewed_signer_b64" |
+    /usr/bin/base64 -d |
+    "${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters --stdin
+)" || hold "reviewed_signer_transport_hash_failed"
+
+[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]] ||
+  hold "reviewed_signer_transport_hash_mismatch"
+
+printf 'reviewed_signer_transport=verified_git_blob_stdin\n'
+printf 'reviewed_signer_blob=%s\n' "$reviewed_signer_blob"
+printf 'ethers_execution=in_memory_sha256_pinned_bundle\n'
+printf 'mutable_worktree_signer_execution=false\n'
+printf 'mutable_runtime_helper_execution=false\n'
+
+set +e
+printf '%s' "$reviewed_signer_b64" |
+  /usr/bin/base64 -d |
+  /usr/bin/env -i \
+    HOME=/home/zoso \
+    PATH=/usr/bin:/bin \
+    LANG=C \
+    LC_ALL=C \
+    VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
+    VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
+    VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
+    /usr/bin/node \
+    --input-type=module \
+    - \
+    sign \
+    --challenge "$challenge" \
+    --challenge-sha256 "$challenge_sha" \
+    --output "$output"
+pipe_status=("${PIPESTATUS[@]}")
+set -e
+
+[[ "${pipe_status[0]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_write_failed"
+[[ "${pipe_status[1]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_decode_failed"
+exit "${pipe_status[2]:-2}"
+,
+    r'^\s*attributesfile\s*=',
+):
+    if re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
+        raise SystemExit(2)
+PY
+
+git_env=(
+  env -i
+  HOME=/nonexistent
+  PATH=/usr/bin:/bin
+  LANG=C
+  LC_ALL=C
+  GIT_CONFIG_NOSYSTEM=1
+  GIT_CONFIG_GLOBAL=/dev/null
+  GIT_OPTIONAL_LOCKS=0
+  GIT_TERMINAL_PROMPT=0
+)
+
+git_cmd=(
+  /usr/bin/git
+  --no-replace-objects
+  -c core.hooksPath=/dev/null
+  -c core.attributesFile=/dev/null
+  -c core.fsmonitor=false
+  -c core.untrackedCache=false
+  -c core.preloadIndex=false
+  -c submodule.recurse=false
+  -C "$repo"
+)
+
+expected_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$launcher_rel")" ||
+  hold "reviewed_launcher_blob_unavailable"
+[[ "$expected_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_launcher_blob_invalid"
+
+if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
+  actual_launcher_blob="$VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1"
+  [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "executed_launcher_blob_invalid"
+else
+  actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$launcher_file")" ||
+    hold "executed_launcher_blob_unavailable"
+fi
+
+[[ "$actual_launcher_blob" == "$expected_launcher_blob" ]] ||
+  hold "executed_launcher_not_operator_reviewed_blob"
+
+current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
+  hold "current_head_unavailable"
+[[ "$current_head" == "$reviewed_head" ]] ||
+  hold "current_head_not_exact_operator_reviewed_head"
+[[ "$source_head" == "$reviewed_head" ]] ||
+  hold "challenge_source_head_not_operator_reviewed_head"
+
+status="$("${git_env[@]}" "${git_cmd[@]}" status --porcelain=v1 --untracked-files=all)" ||
+  hold "repository_status_unavailable"
+[[ -z "$status" ]] || hold "repository_not_clean"
+
+critical_paths=(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+  "package.json"
+  "package-lock.json"
+)
+
+for rel in "${critical_paths[@]}"; do
+  file="$repo/$rel"
+  [[ -f "$file" && ! -L "$file" ]] ||
+    hold "critical_file_invalid:$rel"
+
+  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
+    hold "critical_reviewed_blob_unavailable:$rel"
+  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$file")" ||
+    hold "critical_worktree_blob_unavailable:$rel"
+
+  [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "critical_head_blob_invalid:$rel"
+  [[ "$actual_blob" == "$expected_blob" ]] ||
+    hold "critical_worktree_blob_mismatch:$rel"
+done
+
+printf '%s\n' "$marker"
+printf 'status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN\n'
+printf 'operator_reviewed_head=%s\n' "$reviewed_head"
+printf 'executed_launcher_blob=%s\n' "$actual_launcher_blob"
+printf 'challenge_source_head=%s\n' "$source_head"
+printf 'challenge_sha256=%s\n' "$challenge_sha"
+printf 'repository_clean=true\n'
+printf 'critical_source_blobs_verified=true\n'
+
+if [[ "$mode" == "preflight" ]]; then
+  printf 'private_key_access=false\n'
+  printf 'credential_access=false\n'
+  printf 'wallet_or_signer_access=false\n'
+  printf 'transaction_signing=false\n'
+  printf 'transaction_broadcast=false\n'
+  printf 'funds_movement=false\n'
+  exit 0
+fi
+
+printf 'status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED\n'
+printf 'private_key_access=true\n'
+printf 'credential_access=true\n'
+printf 'wallet_or_signer_access=true\n'
+printf 'transaction_signing=false\n'
+printf 'transaction_broadcast=false\n'
+printf 'funds_movement=false\n'
+
+reviewed_signer_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$signer_rel")" ||
+  hold "reviewed_signer_blob_unavailable"
+[[ "$reviewed_signer_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_signer_blob_invalid"
+
+reviewed_signer_b64="$(
+  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_signer_blob" |
+    /usr/bin/base64 -w0
+)" || hold "reviewed_signer_transport_failed"
+
+[[ -n "$reviewed_signer_b64" ]] ||
+  hold "reviewed_signer_transport_empty"
+
+actual_signer_blob="$(
+  printf '%s' "$reviewed_signer_b64" |
+    /usr/bin/base64 -d |
+    "${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters --stdin
 )" || hold "reviewed_signer_transport_hash_failed"
 
 [[ "$actual_signer_blob" == "$reviewed_signer_blob" ]] ||
