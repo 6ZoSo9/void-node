@@ -20,9 +20,9 @@ validate_participant_copy_for_rail_state() {
     hold)
       grep -Fqi 'Presale request intake is not activated' "$html_file" ||
         { echo "[fail] HOLD participant copy lacks explicit not-activated warning" >&2; return 1; }
-      for forbidden in         'Base native USDC only now'         'Base USDC active'         'Base USDC · ETH pending'         'Base · ETH pending'         'Base request intake is OPEN'         'Base and Ethereum request intake are OPEN'
+      for forbidden in         'Base native USDC only now'         'Base native USDC now'         'Base USDC active'         'Base USDC preflight ready'         'Base USDC · ETH pending'         'Base · ETH pending'         'Base request intake is OPEN'         'Base and Ethereum request intake are OPEN'
       do
-        if grep -Fq "$forbidden" "$html_file"; then
+        if grep -Fqi "$forbidden" "$html_file"; then
           echo "[fail] HOLD participant copy still advertises active rail: $forbidden" >&2
           return 1
         fi
@@ -31,6 +31,8 @@ validate_participant_copy_for_rail_state() {
     base_open_ethereum_hold)
       grep -Fq 'Base request intake is OPEN' "$html_file" ||
         grep -Fq 'Base native USDC only now' "$html_file" ||
+        grep -Fq 'Base native USDC now' "$html_file" ||
+        grep -Fq 'Base USDC preflight ready' "$html_file" ||
         { echo "[fail] Base-only participant copy lacks Base OPEN claim" >&2; return 1; }
       grep -Fq 'Ethereum native USDC is approved but NOT ACTIVE until OPEN' "$html_file" ||
         { echo "[fail] Base-only participant copy lost Ethereum HOLD warning" >&2; return 1; }
@@ -42,7 +44,7 @@ validate_participant_copy_for_rail_state() {
     base_and_ethereum_open)
       grep -Fq 'Base and Ethereum request intake are OPEN' "$html_file" ||
         { echo "[fail] dual-rail participant copy lacks explicit dual OPEN claim" >&2; return 1; }
-      for forbidden in         'Ethereum native USDC is approved but NOT ACTIVE until OPEN'         'Base native USDC only now'         'Base USDC active'         'Base USDC · ETH pending'         'Base · ETH pending'
+      for forbidden in         'Ethereum native USDC is approved but NOT ACTIVE until OPEN'         'Base native USDC only now'         'Base native USDC now'         'Base USDC active'         'Base USDC preflight ready'         'Base USDC · ETH pending'         'Base · ETH pending'
       do
         if grep -Fq "$forbidden" "$html_file"; then
           echo "[fail] dual-rail participant copy retains stale single-rail claim: $forbidden" >&2
@@ -159,12 +161,14 @@ assert sale.get("ok") is True, sale
 assert isinstance(config.get("requests_enabled"), bool), config
 assert isinstance(config.get("ethereum_requests_enabled"), bool), config
 assert isinstance(config.get("payment_ready"), bool), config
+assert isinstance(config.get("receiver_binding_green"), bool), config
 assert isinstance(status.get("request_intake_ready"), bool), status
 assert isinstance(sale.get("sold_out"), bool), sale
 
 if status["request_intake_ready"]:
     assert config["requests_enabled"] is True, (config, status)
     assert config["payment_ready"] is True, (config, status)
+    assert config["receiver_binding_green"] is True, (config, status)
 
 remaining = sale.get("remaining_void")
 assert isinstance(remaining, (int, float)) and not isinstance(remaining, bool), sale
@@ -172,6 +176,9 @@ assert remaining >= 0, sale
 
 open_now = (
     status["request_intake_ready"]
+    and config["requests_enabled"]
+    and config["payment_ready"]
+    and config["receiver_binding_green"]
     and not sale["sold_out"]
     and remaining > 0
 )
@@ -186,6 +193,7 @@ print(f"live_buy_rail_state={rail_state}")
 print(f"live_requests_enabled={str(config['requests_enabled']).lower()}")
 print(f"live_ethereum_requests_enabled={str(config['ethereum_requests_enabled']).lower()}")
 print(f"live_request_intake_ready={str(status['request_intake_ready']).lower()}")
+print(f"live_receiver_binding_green={str(config['receiver_binding_green']).lower()}")
 with open(state_path, "w", encoding="utf-8") as handle:
     handle.write(rail_state + "\n")
 PY
