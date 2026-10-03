@@ -2,7 +2,9 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import * as ethers from "ethers";
 
@@ -53,6 +55,64 @@ assert.equal(envelope.marker, SIGNATURE_MARKER_V1);
 assert.equal(envelope.version, 1);
 assert.equal(envelope.challenge_id, challenge.challenge_id);
 assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
+
+{
+  const temporary = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-offline-signer-launch-proof-"),
+  );
+  try {
+    const challengePath = path.join(temporary, "challenge.json");
+    const challengeBytes = Buffer.from(
+      JSON.stringify(challenge, null, 2) + "\n",
+      "utf8",
+    );
+    fs.writeFileSync(challengePath, challengeBytes, { mode: 0o600 });
+    fs.chmodSync(challengePath, 0o600);
+    const challengeSha = crypto
+      .createHash("sha256")
+      .update(challengeBytes)
+      .digest("hex");
+    const launcher = path.resolve(
+      "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+    );
+    const result = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "preflight",
+        challengePath,
+        challengeSha,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.equal(
+      result.status,
+      0,
+      ["launcher preflight failed", result.stdout, result.stderr].join("\n"),
+    );
+    assert.match(
+      result.stdout,
+      /status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN/u,
+    );
+    assert.match(result.stdout, /repository_clean=true/u);
+    assert.match(result.stdout, /critical_source_blobs_verified=true/u);
+    assert.match(result.stdout, /private_key_access=false/u);
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
 
 const verified =
   await verifyVoidWcVoidLaunchControllerControlSignatureV1({
@@ -257,6 +317,31 @@ assert.equal(runtime.funds_movement, false);
   }
 }
 
+const launcherSource = fs.readFileSync(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+  "utf8",
+);
+assert.equal(
+  launcherSource.includes('current_head_not_exact_challenge_head'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('critical_worktree_blob_mismatch'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('"ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('"tools/void-reviewed-node-package-runtime-v1.mjs"'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('exec /usr/bin/env -i'),
+  true,
+);
+
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
   "utf8",
@@ -397,6 +482,8 @@ console.log("node_preload_flags_rejected=true");
 console.log("home_override_rejected=true");
 console.log("current_source_binding_reverified_before_key_access=true");
 console.log("exact_challenge_source_head_required=true");
+console.log("exact_head_launcher_preflight_green=true");
+console.log("launcher_critical_blobs_verified=true");
 console.log("private_key_access_reported=true");
 console.log("wallet_or_signer_access_reported=true");
 console.log("reviewed_ethers_runtime_verified=true");
