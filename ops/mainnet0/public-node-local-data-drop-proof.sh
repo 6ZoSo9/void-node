@@ -216,16 +216,25 @@ ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/manifest.j
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/proof/:sha256.json" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1"), "manifest has object proof route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/by-sha256/:sha256" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1"), "manifest has content address route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/:objectId" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1"), "manifest has object route");
-ok(manifest.route_count === 25, "manifest route count 24");
+ok(Array.isArray(manifest.routes), "manifest routes array");
+ok(manifest.route_count === manifest.routes.length, "manifest route count matches routes length");
+ok(Array.isArray(snap.expected_routes), "self-check expected routes array");
+ok(snap.expected_route_count === snap.expected_routes.length, "self-check route count matches expected routes length");
+const manifestPaths = new Set(manifest.routes.map(r => r && r.path).filter(Boolean));
+for (const route of snap.expected_routes) {
+  ok(manifestPaths.has(route), "self-check route absent from manifest " + route);
+}
 ok(snap.expected_routes.includes("/public-node/local-data-drop.json"), "self-check has index");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/manifest.json"), "self-check has storage manifest route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/proof/:sha256.json"), "self-check has object proof route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/by-sha256/:sha256"), "self-check has content address route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/:objectId"), "self-check has object route");
-ok(snap.expected_route_count === 25, "self-check route count 24");
 
 console.log("[ok] json local data drop");
 NODE
+
+route_manifest_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(!Array.isArray(x.routes)||x.route_count!==x.routes.length)process.exit(2);process.stdout.write(String(x.route_count));' "$OUT/route-manifest.json")"
+self_check_expected_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(!Array.isArray(x.expected_routes)||x.expected_route_count!==x.expected_routes.length)process.exit(2);process.stdout.write(String(x.expected_route_count));' "$OUT/self-check-snapshot.json")"
 
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1" "$OUT/public-node.html"
 
@@ -264,8 +273,8 @@ echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MULTI_OBJECT_MANIFEST_V1"
 echo "client_verify_manifest_green=true"
 echo "object_verifier_chain_green=true"
 echo "receipt_valid_for_current_object=true"
-echo "route_manifest_route_count=25"
-echo "self_check_expected_route_count=25"
+echo "route_manifest_route_count=$route_manifest_route_count"
+echo "self_check_expected_route_count=$self_check_expected_route_count"
 echo "public_upload=false"
 echo "operator_local_import_only=true"
 echo "public_read_only=true"
