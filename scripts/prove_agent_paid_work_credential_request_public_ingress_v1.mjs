@@ -231,12 +231,16 @@ let upstreamStatusCalls = 0;
 const UPSTREAM_LIMIT = 8;
 let upstreamStatusLimit = UPSTREAM_LIMIT;
 let upstreamStatusLimitAfterNextPost = null;
+let upstreamStatusDelayMs = 0;
 const upstream = http.createServer(async (req, res) => {
   if (
     req.method === "GET" &&
     req.url === ROUTE + "/status"
   ) {
     upstreamStatusCalls += 1;
+    if (upstreamStatusDelayMs > 0) {
+      await sleep(upstreamStatusDelayMs);
+    }
     const payload = Buffer.from(JSON.stringify({
       marker: "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_V1",
       version: 1,
@@ -459,12 +463,44 @@ assert.equal(concurrentRecoveryResponse.status, 202);
 await concurrentRecoveryResponse.json();
 assert.equal(upstreamStatusCalls, 7);
 assert.equal(upstreamCalls.length, 4);
+
+upstreamStatusDelayMs = 1100;
+const expiringQueuedIdentity = identity();
+const expiringQueuedBody = requestBody(
+  "serialized-auth-expiry",
+  expiringQueuedIdentity.agentId,
+);
+const expiringQueuedNow = Date.now();
+const expiringQueuedResponse = await postCredential(
+  requalBase,
+  expiringQueuedBody,
+  authHeader({
+    identityValue: expiringQueuedIdentity,
+    body: expiringQueuedBody,
+    nonceLabel: "serialized-auth-expiry",
+    issuedAtMs: expiringQueuedNow,
+    expiresAtMs: expiringQueuedNow + 1000,
+  }),
+);
+assert.equal(expiringQueuedResponse.status, 401);
+assert.equal(
+  (await expiringQueuedResponse.json()).error,
+  "applicant_auth_invalid",
+);
+assert.equal(upstreamStatusCalls, 8);
+assert.equal(
+  upstreamCalls.length,
+  4,
+  "auth expiring during serialized qualification must not POST",
+);
+upstreamStatusDelayMs = 0;
 await stopGateway(requalRuntime);
 
 upstreamCalls.length = 0;
 upstreamStatusCalls = 0;
 upstreamStatusLimit = UPSTREAM_LIMIT;
 upstreamStatusLimitAfterNextPost = null;
+upstreamStatusDelayMs = 0;
 
 const runtime = startGateway({
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
@@ -514,6 +550,10 @@ assert.equal(
 );
 assert.equal(
   ready.paid_work_credential_request_route.upstream_qualification_post_serialized,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.applicant_auth_revalidated_after_serial_wait,
   true,
 );
 assert.equal(
@@ -1005,6 +1045,7 @@ console.log("runtime_upstream_limit_drift_holds_before_proxy=true");
 console.log("runtime_upstream_limit_recovery_requalifies=true");
 console.log("concurrent_requests_do_not_share_qualification=true");
 console.log("qualification_and_post_serialized=true");
+console.log("serialized_wait_auth_expiry_rejected_before_post=true");
 console.log("mismatched_upstream_limit_holds_route_closed=true");
 console.log("preauth_global_rate_wall_before_signature_verification=true");
 console.log("invalid_auth_flood_bounded_before_upstream=true");
