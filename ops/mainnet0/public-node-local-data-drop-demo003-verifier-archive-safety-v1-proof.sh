@@ -21,9 +21,15 @@ grep -Fq "for member in tf:" "$VERIFIER" || fail "streaming_member_iteration_mis
 if grep -Fq "getmembers()" "$VERIFIER"; then fail "unbounded_member_materialization_remains"; fi
 grep -Fq "member_not_direct_regular_file" "$VERIFIER" || fail "link_type_rejection_missing"
 grep -Fq "post_extract_nofollow_custody=true" "$VERIFIER" || fail "post_extract_custody_marker_missing"
+grep -Fq "archive_bounded_decompressed_stream=true" "$VERIFIER" || fail "decompressed_stream_bound_marker_missing"
+grep -Fq "output_root_nofollow_custody=true" "$VERIFIER" || fail "output_root_custody_marker_missing"
+grep -Fq "BoundedDecompressedReader" "$VERIFIER" || fail "bounded_decompress_reader_missing"
+grep -Fq "safe_diagnostic" "$VERIFIER" || fail "sanitized_diagnostic_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"
 if grep -Fq 'tar -xzf' "$VERIFIER"; then fail "legacy_tar_extract_remains"; fi
 if grep -Fq 'sha256sum -c' "$VERIFIER"; then fail "legacy_unbounded_checksum_paths_remain"; fi
+if grep -Fq 'install -d -m 700 "$OUT"' "$VERIFIER"; then fail "pathname_output_root_creation_remains"; fi
+if grep -Fq 'tee "$OUT/sha256-check.log"' "$VERIFIER"; then fail "pathname_postverify_log_write_remains"; fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -115,12 +121,126 @@ for kind in symlink hardlink extra traversal; do
   fi
 done
 
-echo "${MARKER}_PROOF_GREEN"
+outside_dir="$tmp/outside-dir"
+mkdir -m 700 "$outside_dir"
+printf 'OUTSIDE_DIRECTORY_SENTINEL\n' >"$outside_dir/sentinel.txt"
+outside_dir_before="$(sha256sum "$outside_dir/sentinel.txt" | awk '{print $1}')"
+
+root_link="$tmp/verify-root-link"
+ln -s "$outside_dir" "$root_link"
+if OUT="$root_link" bash "$VERIFIER" "$tarball" >"$tmp/root-link.log" 2>&1; then
+  fail "output_root_symlink_accepted"
+fi
+test "$(sha256sum "$outside_dir/sentinel.txt" | awk '{print $1}')" = "$outside_dir_before" ||
+  fail "output_root_symlink_mutated_outside_sentinel"
+test "$(find "$outside_dir" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 1 ||
+  fail "output_root_symlink_created_outside_file"
+
+extract_link_root="$tmp/verify-extract-link"
+mkdir -m 700 "$extract_link_root"
+ln -s "$outside_dir" "$extract_link_root/extract"
+if OUT="$extract_link_root" bash "$VERIFIER" "$tarball" >"$tmp/extract-link.log" 2>&1; then
+  fail "extract_root_symlink_accepted"
+fi
+test "$(sha256sum "$outside_dir/sentinel.txt" | awk '{print $1}')" = "$outside_dir_before" ||
+  fail "extract_root_symlink_mutated_outside_sentinel"
+test "$(find "$outside_dir" -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 1 ||
+  fail "extract_root_symlink_created_outside_file"
+
+python3 - "$tmp/pax-bomb.tar.gz" "$tmp/control-name.tar.gz" <<'PY'
+import io
+import tarfile
+import sys
+
+pax_out, control_out = sys.argv[1:]
+dirs = [
+    "demo003-folder-fixture",
+    "demo003-folder-fixture/files",
+]
+files = [
+    "demo003-folder-fixture/manifest.json",
+    "demo003-folder-fixture/sha256sums.txt",
+    "demo003-folder-fixture/files/README.txt",
+    "demo003-folder-fixture/files/index.html",
+    "demo003-folder-fixture/files/metadata.json",
+]
+
+def add_dir(tf, name):
+    item = tarfile.TarInfo(name)
+    item.type = tarfile.DIRTYPE
+    item.mode = 0o700
+    tf.addfile(item)
+
+def add_file(tf, name, data=b"x\n", pax_headers=None):
+    item = tarfile.TarInfo(name)
+    item.size = len(data)
+    item.mode = 0o600
+    if pax_headers is not None:
+        item.pax_headers = dict(pax_headers)
+    tf.addfile(item, io.BytesIO(data))
+
+with tarfile.open(pax_out, "w:gz", format=tarfile.PAX_FORMAT) as tf:
+    for name in dirs:
+        add_dir(tf, name)
+    for index, name in enumerate(files):
+        headers = None
+        if index == 0:
+            headers = {"comment": "A" * (10 * 1024 * 1024)}
+        add_file(tf, name, pax_headers=headers)
+
+with tarfile.open(control_out, "w:gz", format=tarfile.PAX_FORMAT) as tf:
+    for name in dirs:
+        add_dir(tf, name)
+    add_file(
+        tf,
+        "demo003-folder-fixture/files/bad\nFORGED_LOG_LINE=true\x1b[31m.txt",
+    )
+PY
+
+pax_out="$tmp/verify-pax-bomb"
+if OUT="$pax_out" bash "$VERIFIER" "$tmp/pax-bomb.tar.gz" >"$tmp/pax-bomb.log" 2>&1; then
+  fail "pax_extension_decompression_bomb_accepted"
+fi
+grep -Fq "archive_decompressed_size_exceeded" "$tmp/pax-bomb.log" ||
+  fail "pax_extension_decompression_bound_not_reported"
+if [ -d "$pax_out/extract" ] &&
+   find "$pax_out/extract" -mindepth 1 -print -quit | grep -q .; then
+  fail "pax_bomb_extracted_before_rejection"
+fi
+
+control_out="$tmp/verify-control-name"
+if OUT="$control_out" bash "$VERIFIER" "$tmp/control-name.tar.gz" >"$tmp/control-name.log" 2>&1; then
+  fail "control_name_archive_accepted"
+fi
+python3 - "$tmp/control-name.log" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+if b"\x1b" in data:
+    raise SystemExit("raw_escape_reached_diagnostic")
+if any(line == b"FORGED_LOG_LINE=true" for line in data.splitlines()):
+    raise SystemExit("forged_log_line_reached_diagnostic")
+if data.count(b"[fail] Demo003 archive safety:") != 1:
+    raise SystemExit("unexpected_failure_diagnostic_count")
+if b"FORGED_LOG_LINE=true" not in data:
+    raise SystemExit("escaped_hostile_name_not_reported")
+PY
+if [ -d "$control_out/extract" ] &&
+   find "$control_out/extract" -mindepth 1 -print -quit | grep -q .; then
+  fail "control_name_archive_extracted_before_rejection"
+fi
+
+echo "\${MARKER}_PROOF_GREEN"
 echo "canonical_fixture_green=true"
 echo "symlink_member_rejected_before_extract=true"
 echo "hardlink_member_rejected_before_extract=true"
 echo "extra_member_rejected_before_extract=true"
 echo "traversal_member_rejected_before_extract=true"
+echo "pax_extension_header_decompression_bounded=true"
+echo "output_root_symlink_rejected=true"
+echo "extract_root_symlink_rejected=true"
+echo "archive_control_diagnostics_escaped=true"
 echo "outside_sentinel_unchanged=true"
 echo "network_fetch=false"
 echo "live_runtime_mutation=false"
