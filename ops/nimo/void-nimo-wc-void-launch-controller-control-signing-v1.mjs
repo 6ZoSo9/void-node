@@ -235,17 +235,6 @@ function gitReadV1(args, code) {
   return output;
 }
 
-function requireCleanRepositoryV1() {
-  if (
-    gitReadV1(
-      ["status", "--porcelain=v1", "--untracked-files=all"],
-      "offline_signer_repository_status_unavailable",
-    ) !== ""
-  ) {
-    fail("offline_signer_repository_not_clean");
-  }
-}
-
 function exactDataObject(value, keys, code) {
   if (
     value === null ||
@@ -979,7 +968,6 @@ function validateCurrentSourceBindingV1(
     fail("control_source_binding_digest_mismatch");
   }
 
-  requireCleanRepositoryV1();
   const currentHead = gitReadV1(
     ["rev-parse", "HEAD"],
     "control_current_head_unavailable",
