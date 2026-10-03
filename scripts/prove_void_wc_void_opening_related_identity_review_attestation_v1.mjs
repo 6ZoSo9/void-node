@@ -9,6 +9,8 @@ import { pathToFileURL } from "node:url";
 
 import {
   Wallet,
+  keccak256,
+  toUtf8Bytes,
 } from "ethers";
 
 import {
@@ -17,6 +19,7 @@ import {
 
 import {
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_AUTHORITY_V1,
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_DOMAIN_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1,
@@ -63,6 +66,16 @@ import {
   wcVoidOpeningRelatedIdentityClusterIdV1,
   wcVoidOpeningRelatedIdentityEvidenceIdV1,
 } from "../tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
+
+assert.equal(
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_DOMAIN_V1.salt,
+  keccak256(
+    toUtf8Bytes(
+      "VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1",
+    ),
+  ),
+  "review attestation domain salt drifted",
+);
 
 const h = (x) => "sha256:" + String(x).repeat(64);
 const digest = (value) =>
@@ -942,6 +955,7 @@ console.log(
   "VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1_PROOF_GREEN",
 );
 console.log("generic_eip712_recovery=true");
+console.log("review_domain_salt_rederived=true");
 console.log("reviewable_manifest_binding=true");
 console.log("manifest_resource_limits_enforced=true");
 console.log("linear_evidence_by_cluster_index=true");
