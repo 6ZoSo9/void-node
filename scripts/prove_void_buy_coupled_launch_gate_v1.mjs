@@ -13,6 +13,7 @@ import {
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
   VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
   buildBuyLaunchGenerationEventV1,
+  buyLaunchGenerationAuthorityLockPathV1,
   buyLaunchGenerationExternalAnchorPathV1,
   buyLaunchRequestAuthorityMatchesV1,
   buyLaunchLiveActivationReceiptIdV1,
@@ -228,6 +229,12 @@ try {
     /\.local\/state\/void-node-authority-v1\/buy-void-coupled-live-generation-anchor-v1\.jsonl$/u,
   );
   assert.equal(fixedAnchorPath.startsWith(dataDir + path.sep), false);
+  const authorityLockPath = buyLaunchGenerationAuthorityLockPathV1();
+  assert.equal(path.dirname(authorityLockPath), path.dirname(fixedAnchorPath));
+  assert.match(
+    authorityLockPath,
+    /buy-void-coupled-live-generation-authority-v1$/u,
+  );
   const receiptBody = {
     activated_at_ms: nowMs,
     activation_generation: activationGeneration,
@@ -610,6 +617,16 @@ assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
 assert.match(gateSource, /readBuyLaunchLiveActivationV1/);
 assert.match(gateSource, /classifyBuyLaunchLiveActivationLeaseV1/);
 assert.match(gateSource, /sameBuyLaunchGenerationAuthorityV1/);
+assert.match(gateSource, /withBuyLaunchRequestAuthorityMutationV1/);
+assert.match(gateSource, /withBuyLaunchGenerationTransitionPublicationV1/);
+assert.match(
+  gateSource,
+  /\.\.\/\.\.\/dist\/economic\/buy_void_filesystem_bakery_lock_v1\.js/,
+);
+assert.equal(
+  (gateSource.match(/withBuyLaunchGenerationAuthorityLockV1\(/gu) || []).length >= 3,
+  true,
+);
 assert.equal(
   (gateSource.match(/readBuyLaunchGenerationJournalV1\(env\)/gu) || []).length,
   2,
@@ -638,6 +655,9 @@ console.log("live_activation_generation_journal_required=true");
 console.log("durable_generation_revocation_required=true");
 console.log("generation_revalidated_after_receipt_verification=true");
 console.log("mid_verification_generation_change_rejected=true");
+console.log("shared_generation_authority_bakery_lock_required=true");
+console.log("request_mutation_generation_lock_required=true");
+console.log("generation_transition_publication_generation_lock_required=true");
 console.log("external_generation_high_water_anchor_required=true");
 console.log("data_dir_rollback_old_generation_replay=false");
 console.log("configuration_rollback_old_generation_replay=false");
