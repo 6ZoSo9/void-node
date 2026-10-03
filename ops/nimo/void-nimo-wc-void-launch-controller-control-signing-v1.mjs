@@ -741,8 +741,10 @@ function output(value, status = 0) {
 async function main() {
   const operation = process.argv[2] || "";
   const inputRelative = process.argv[3] || "";
+  const runtimeRoot = process.env.VOID_REVIEWED_RUNTIME_ROOT_V1 || "";
   if (
     !["probe", "sign", "ancestor_probe"].includes(operation) ||
+    runtimeRoot !== "/proc/self/fd/3" ||
     !inputRelative ||
     path.isAbsolute(inputRelative) ||
     inputRelative.split("/").some(
@@ -752,7 +754,7 @@ async function main() {
     throw new Error("bridge_input_invalid");
   }
   const input = JSON.parse(
-    fs.readFileSync(path.resolve(process.cwd(), inputRelative), "utf8")
+    fs.readFileSync(path.resolve(runtimeRoot, inputRelative), "utf8")
   );
 
   if (operation === "probe") {
@@ -767,6 +769,7 @@ async function main() {
           ? ethersModule.version
           : null,
       permission_fenced: true,
+      descriptor_bound_runtime: true,
       ancestor_package_resolution_allowed: false,
     });
     return;
@@ -781,6 +784,7 @@ async function main() {
       operation,
       ancestor_marker: candidate.marker ?? null,
       permission_fenced: true,
+      descriptor_bound_runtime: true,
       ancestor_package_resolution_allowed: false,
     });
     return;
@@ -892,6 +896,7 @@ async function main() {
     operation,
     envelope: signatureEnvelope,
     permission_fenced: true,
+    descriptor_bound_runtime: true,
     ancestor_package_resolution_allowed: false,
   });
 }
@@ -907,12 +912,16 @@ main().catch(() => {
 `;
 }
 
-function reviewedChildExecutionEnvV1() {
+function reviewedChildExecutionEnvV1(runtimeRoot) {
+  if (runtimeRoot !== "/proc/self/fd/3") {
+    fail("offline_signer_reviewed_child_runtime_root_invalid");
+  }
   return {
     PATH: "/usr/bin:/bin",
     LANG: "C",
     LC_ALL: "C",
     HOME: "/nonexistent",
+    VOID_REVIEWED_RUNTIME_ROOT_V1: runtimeRoot,
   };
 }
 
@@ -949,79 +958,189 @@ function runPermissionFencedReviewedChildV1({
   args,
   stdinText = "",
   allowFailure = false,
+  expectedControlBlobSha1,
+  expectedInputRelative,
+  expectedInputSha256,
 }) {
-  const verified = verifyMaterializedReviewedNodePackageRuntimeV1({
-    profile,
-    destinationRoot: runtimeRoot,
-    repoRoot: ROOT,
-  });
-  if (
-    verified.ok !== true ||
-    verified.status !== "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
-  ) {
-    fail("offline_signer_reviewed_child_runtime_unverified");
-  }
   const root = fs.realpathSync.native(runtimeRoot);
-  const entry = fs.realpathSync.native(entryFile);
-  const relative = path.relative(root, entry);
-  const stat = fs.lstatSync(entry);
-  if (
-    relative === "" ||
-    relative === ".." ||
-    relative.startsWith(".." + path.sep) ||
-    path.isAbsolute(relative) ||
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.nlink !== 1
-  ) {
-    fail("offline_signer_reviewed_child_entry_invalid");
+  if (root !== path.resolve(runtimeRoot)) {
+    fail("offline_signer_reviewed_child_runtime_root_alias");
   }
-  if (
-    !Array.isArray(args) ||
-    args.some((value) => typeof value !== "string")
-  ) {
-    fail("offline_signer_reviewed_child_args_invalid");
+  const directory = Number(fs.constants.O_DIRECTORY || 0);
+  const noFollow = Number(fs.constants.O_NOFOLLOW || 0);
+  if (directory === 0 || noFollow === 0) {
+    fail("offline_signer_reviewed_child_nofollow_unavailable");
   }
 
-  const permissionFlag = nodePermissionFlagV1();
-  const result = spawnSync(
-    CHILD_NODE_V1,
-    [
-      permissionFlag,
-      "--allow-fs-read=" + root,
-      entry,
-      ...args,
-    ],
-    {
-      cwd: root,
-      input: stdinText,
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "pipe"],
-      timeout: 30_000,
-      maxBuffer: 16 * 1024 * 1024,
-      env: reviewedChildExecutionEnvV1(),
-    },
+  const runtimeFd = fs.openSync(
+    root,
+    fs.constants.O_RDONLY | directory | noFollow,
   );
-  if (result.error) {
-    fail("offline_signer_reviewed_child_spawn_failed");
+  const parentFdRoot = "/proc/self/fd/" + String(runtimeFd);
+  const childFdRoot = "/proc/self/fd/3";
+  try {
+    const fdRootStat = fs.fstatSync(runtimeFd, { bigint: true });
+    const pathRootStat = fs.lstatSync(root, { bigint: true });
+    if (
+      !fdRootStat.isDirectory() ||
+      !pathRootStat.isDirectory() ||
+      fdRootStat.dev !== pathRootStat.dev ||
+      fdRootStat.ino !== pathRootStat.ino
+    ) {
+      fail("offline_signer_reviewed_child_runtime_root_identity_mismatch");
+    }
+
+    const verified = verifyMaterializedReviewedNodePackageRuntimeV1({
+      profile,
+      destinationRoot: root,
+      repoRoot: ROOT,
+    });
+    if (
+      verified.ok !== true ||
+      verified.status !== "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
+    ) {
+      fail("offline_signer_reviewed_child_runtime_unverified");
+    }
+
+    const postVerifyRootStat = fs.lstatSync(root, { bigint: true });
+    if (
+      fdRootStat.dev !== postVerifyRootStat.dev ||
+      fdRootStat.ino !== postVerifyRootStat.ino
+    ) {
+      fail("offline_signer_reviewed_child_runtime_root_rebound");
+    }
+
+    const entryResolved = path.resolve(entryFile);
+    const entryRelative = path.relative(root, entryResolved);
+    if (
+      entryRelative === "" ||
+      entryRelative === ".." ||
+      entryRelative.startsWith(".." + path.sep) ||
+      path.isAbsolute(entryRelative)
+    ) {
+      fail("offline_signer_reviewed_child_entry_invalid");
+    }
+    const pinnedEntry = path.join(
+      parentFdRoot,
+      ...entryRelative.split(path.sep),
+    );
+    const entryStat = fs.lstatSync(pinnedEntry, { bigint: true });
+    const expectedBridgeBytes = Buffer.from(
+      reviewedSigningBridgeSourceV1(),
+      "utf8",
+    );
+    const actualBridgeBytes = fs.readFileSync(pinnedEntry);
+    if (
+      !entryStat.isFile() ||
+      entryStat.isSymbolicLink() ||
+      entryStat.nlink !== 1n ||
+      sha256(actualBridgeBytes) !== sha256(expectedBridgeBytes)
+    ) {
+      fail("offline_signer_reviewed_child_entry_content_mismatch");
+    }
+
+    if (
+      typeof expectedControlBlobSha1 !== "string" ||
+      !HEX40.test(expectedControlBlobSha1)
+    ) {
+      fail("offline_signer_reviewed_child_control_blob_invalid");
+    }
+    const pinnedControl = path.join(
+      parentFdRoot,
+      "source",
+      "control-requalification-v1.mjs",
+    );
+    const controlStat = fs.lstatSync(pinnedControl, { bigint: true });
+    const controlBytes = fs.readFileSync(pinnedControl);
+    if (
+      !controlStat.isFile() ||
+      controlStat.isSymbolicLink() ||
+      controlStat.nlink !== 1n ||
+      gitBlobSha1V1(controlBytes) !== expectedControlBlobSha1
+    ) {
+      fail("offline_signer_reviewed_child_control_content_mismatch");
+    }
+
+    if (
+      typeof expectedInputRelative !== "string" ||
+      expectedInputRelative.length < 1 ||
+      path.isAbsolute(expectedInputRelative) ||
+      expectedInputRelative.split("/").some(
+        (part) => !part || part === "." || part === "..",
+      ) ||
+      typeof expectedInputSha256 !== "string" ||
+      !SHA64.test(expectedInputSha256)
+    ) {
+      fail("offline_signer_reviewed_child_input_binding_invalid");
+    }
+    const pinnedInput = path.join(
+      parentFdRoot,
+      ...expectedInputRelative.split("/"),
+    );
+    const inputStat = fs.lstatSync(pinnedInput, { bigint: true });
+    const inputBytes = fs.readFileSync(pinnedInput);
+    if (
+      !inputStat.isFile() ||
+      inputStat.isSymbolicLink() ||
+      inputStat.nlink !== 1n ||
+      sha256(inputBytes) !== expectedInputSha256
+    ) {
+      fail("offline_signer_reviewed_child_input_content_mismatch");
+    }
+
+    if (
+      !Array.isArray(args) ||
+      args.some((value) => typeof value !== "string") ||
+      args[1] !== expectedInputRelative
+    ) {
+      fail("offline_signer_reviewed_child_args_invalid");
+    }
+
+    const permissionFlag = nodePermissionFlagV1();
+    const childEntry =
+      childFdRoot + "/" + entryRelative.split(path.sep).join("/");
+    const result = spawnSync(
+      CHILD_NODE_V1,
+      [
+        permissionFlag,
+        "--allow-fs-read=" + childFdRoot,
+        childEntry,
+        ...args,
+      ],
+      {
+        cwd: "/",
+        input: stdinText,
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe", runtimeFd],
+        timeout: 30_000,
+        maxBuffer: 16 * 1024 * 1024,
+        env: reviewedChildExecutionEnvV1(childFdRoot),
+      },
+    );
+    if (result.error) {
+      fail("offline_signer_reviewed_child_spawn_failed");
+    }
+    if (result.status !== 0 && !allowFailure) {
+      fail("offline_signer_reviewed_child_execution_failed");
+    }
+    return Object.freeze({
+      ok: result.status === 0,
+      status: result.status,
+      stdout: String(result.stdout || ""),
+      permission_fenced: true,
+      descriptor_bound_runtime: true,
+      permission_flag: permissionFlag,
+      child_node_executable: CHILD_NODE_V1,
+      allowed_fs_read_root: childFdRoot,
+      ancestor_package_resolution_allowed: false,
+      ambient_node_resolution_overrides_ignored: true,
+      ambient_dynamic_loader_overrides_ignored: true,
+      profile_id: profile.profile_id,
+      packages_aggregate_sha256: profile.packages_aggregate_sha256,
+    });
+  } finally {
+    fs.closeSync(runtimeFd);
   }
-  if (result.status !== 0 && !allowFailure) {
-    fail("offline_signer_reviewed_child_execution_failed");
-  }
-  return Object.freeze({
-    ok: result.status === 0,
-    status: result.status,
-    stdout: String(result.stdout || ""),
-    permission_fenced: true,
-    permission_flag: permissionFlag,
-    child_node_executable: CHILD_NODE_V1,
-    allowed_fs_read_root: root,
-    ancestor_package_resolution_allowed: false,
-    ambient_node_resolution_overrides_ignored: true,
-    ambient_dynamic_loader_overrides_ignored: true,
-    profile_id: profile.profile_id,
-    packages_aggregate_sha256: profile.packages_aggregate_sha256,
-  });
 }
 
 function parseReviewedBridgeOutputV1(execution, operation) {
@@ -1046,6 +1165,7 @@ function parseReviewedBridgeOutputV1(execution, operation) {
     value?.operation !== operation ||
     value?.ok !== true ||
     value?.permission_fenced !== true ||
+    value?.descriptor_bound_runtime !== true ||
     value?.ancestor_package_resolution_allowed !== false
   ) {
     fail("offline_signer_reviewed_child_output_mismatch");
@@ -1164,13 +1284,17 @@ async function withReviewedSigningRuntimeV1(
         fail("offline_signer_reviewed_child_input_too_large");
       }
       writePrivateRuntimeFileV1(inputPath, inputBytes, 0o400);
+      const inputRelative = path.relative(runtimeRoot, inputPath);
       const execution = runPermissionFencedReviewedChildV1({
         profile,
         runtimeRoot,
         entryFile: bridgePath,
-        args: [operation, path.relative(runtimeRoot, inputPath)],
+        args: [operation, inputRelative],
         stdinText,
         allowFailure: true,
+        expectedControlBlobSha1: controlBlobSha1,
+        expectedInputRelative: inputRelative,
+        expectedInputSha256: sha256(inputBytes),
       });
       if (!execution.ok) {
         fail("offline_signer_reviewed_child_execution_failed");
@@ -1182,6 +1306,7 @@ async function withReviewedSigningRuntimeV1(
       profile,
       run,
       permission_fenced: true,
+      descriptor_bound_runtime: true,
       permission_flag: nodePermissionFlagV1(),
       child_node_executable: CHILD_NODE_V1,
       ancestor_package_resolution_allowed: false,
@@ -1966,6 +2091,7 @@ export async function reviewedOfflineSigningRuntimeV1() {
             ? probe.ethers_version
             : null,
         permission_fenced_execution: runtime.permission_fenced,
+        descriptor_bound_runtime: runtime.descriptor_bound_runtime,
         permission_flag: runtime.permission_flag,
         child_node_executable: runtime.child_node_executable,
         ancestor_package_resolution_allowed:
@@ -2067,6 +2193,7 @@ export async function signSelectedLaunchControllerChallengeV1({
         reviewed_packages_aggregate_sha256:
           runtime.profile.packages_aggregate_sha256,
         permission_fenced_execution: true,
+        descriptor_bound_runtime: runtime.descriptor_bound_runtime,
         permission_flag: runtime.permission_flag,
         child_node_executable: runtime.child_node_executable,
         ancestor_package_resolution_allowed: false,
