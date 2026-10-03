@@ -50,6 +50,10 @@ grep -Fq 'os.link(' "$IMPORTER" ||
   fail "atomic_hardlink_publish_missing"
 grep -Fq '.import-staging-v2' "$IMPORTER" ||
   fail "unexposed_staging_directory_missing"
+grep -Fq 'fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)' "$IMPORTER" ||
+  fail "staging_global_lock_missing"
+grep -Fq 'def reclaim_staging(staging_fd):' "$IMPORTER" ||
+  fail "stale_staging_reclaimer_missing"
 grep -Fq 'group_or_world_writable' "$IMPORTER" ||
   fail "store_directory_mode_guard_missing"
 grep -Fq 'not_owned_by_operator' "$IMPORTER" ||
@@ -166,8 +170,12 @@ grep -Fq "staged_atomic_publication=true" "$tmp/import.log" ||
   fail "canonical_import_staged_publication_not_reported"
 test -d "$staging" && test ! -L "$staging" ||
   fail "staging_directory_missing_or_symlink"
-test -z "$(find "$staging" -mindepth 1 -maxdepth 1 -print -quit)" ||
+test -f "$staging/.import.lock" && test ! -L "$staging/.import.lock" ||
+  fail "staging_lock_missing_or_symlink"
+test -z "$(find "$staging" -mindepth 1 -maxdepth 1 ! -name '.import.lock' -print -quit)" ||
   fail "successful_import_left_staging_entry"
+grep -Fq "reclaimed_staging_entries=0" "$tmp/import.log" ||
+  fail "clean_import_reported_unexpected_staging_reclaim"
 
 node - "$receipt" "$OBJECT_ID" "$CONTENT_SHA256" "$BYTE_LENGTH" <<'NODE'
 const assert=require("node:assert/strict");
@@ -328,6 +336,25 @@ fi
 test -z "$(find "$local_drop_symlink_root/outside" -mindepth 1 -maxdepth 1 -print -quit)" ||
   fail "local_drop_ancestor_symlink_received_write"
 
+stale_stage_root="$tmp/stale-stage"
+mkdir -p   "$stale_stage_root/public-node/local-data-drop/objects"   "$stale_stage_root/public-node/local-data-drop/receipts"   "$stale_stage_root/public-node/local-data-drop/.import-staging-v2"
+stale_token="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+printf 'stale-object-bytes\n' > "$stale_stage_root/public-node/local-data-drop/.import-staging-v2/object-999-$stale_token"
+printf 'stale-receipt-bytes\n' > "$stale_stage_root/public-node/local-data-drop/.import-staging-v2/receipt-999-$stale_token"
+DATA_DIR="$stale_stage_root" bash "$IMPORTER" "$PAYLOAD" "$OBJECT_ID" >"$tmp/stale-stage.log"
+grep -Fq "reclaimed_staging_entries=2" "$tmp/stale-stage.log" ||
+  fail "stale_staging_reclaim_count_mismatch"
+test ! -e "$stale_stage_root/public-node/local-data-drop/.import-staging-v2/object-999-$stale_token" ||
+  fail "stale_object_stage_not_reclaimed"
+test ! -e "$stale_stage_root/public-node/local-data-drop/.import-staging-v2/receipt-999-$stale_token" ||
+  fail "stale_receipt_stage_not_reclaimed"
+test "$(sha256sum "$stale_stage_root/public-node/local-data-drop/objects/$OBJECT_ID" | awk '{print $1}')" = "$CONTENT_SHA256" ||
+  fail "stale_stage_recovery_object_mismatch"
+test -f "$stale_stage_root/public-node/local-data-drop/receipts/$OBJECT_ID.json" ||
+  fail "stale_stage_recovery_receipt_missing"
+test -z "$(find "$stale_stage_root/public-node/local-data-drop/.import-staging-v2" -mindepth 1 -maxdepth 1 ! -name '.import.lock' -print -quit)" ||
+  fail "stale_stage_recovery_left_stage_residue"
+
 orphan_receipt_root="$tmp/orphan-receipt"
 mkdir -p   "$orphan_receipt_root/public-node/local-data-drop/objects"   "$orphan_receipt_root/public-node/local-data-drop/receipts"
 cp "$receipt" "$orphan_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
@@ -387,6 +414,8 @@ echo "operator_owned_recovery_files=true"
 echo "runtime_nofollow_read_checks=19"
 echo "index_size_ceiling_preserved=true"
 echo "staged_atomic_publication=true"
+echo "staging_global_lock=true"
+echo "stale_staging_reclaimed=true"
 echo "staging_absent_from_public_runtime=true"
 echo "orphan_receipt_recovery=true"
 echo "orphan_object_recovery=true"
