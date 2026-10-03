@@ -14,13 +14,43 @@ FIXTURE_DIR="$EXTRACT/demo003-folder-fixture"
 
 echo "=== VOID Public Node Demo 003 Verify Folder Fixture v1 ==="
 echo "marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1"
-echo "tarball=$TARBALL"
-echo "out=$OUT"
+
+if ! invocation_paths="$(
+  python3 - "$TARBALL" "$OUT" <<'PY_PATHS'
+import json
+import sys
+
+MAX_CHARS = 320
+
+def safe(value):
+    text = str(value)
+    if len(text) > MAX_CHARS:
+        text = text[:MAX_CHARS] + "..."
+    return json.dumps(text, ensure_ascii=True)
+
+tarball, out = sys.argv[1:]
+print("tarball=" + safe(tarball))
+print("out=" + safe(out))
+
+for value in (tarball, out):
+    if (
+        len(value) > 4096
+        or any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
+    ):
+        raise SystemExit(2)
+PY_PATHS
+)"; then
+  printf '%s\n' "$invocation_paths"
+  echo "[fail] Demo003 invocation path invalid" >&2
+  exit 2
+fi
+printf '%s\n' "$invocation_paths"
 echo "offline_verify=true"
 echo "network_fetch=false"
 
 umask 0077
 
+archive_phase_output="$(
 python3 - "$TARBALL" "$OUT" <<'PY'
 import gzip
 import io
@@ -453,10 +483,25 @@ def post_extract_custody(extract_fd):
                 or st.st_mode & 0o022
             ):
                 fail("extracted_file_custody_invalid:" + member_label(name))
+
+        return fixture_stat
     finally:
         if files_fd is not None:
             os.close(files_fd)
         os.close(fixture_fd)
+
+
+def directory_identity(st):
+    return ":".join(
+        str(value)
+        for value in (
+            st.st_dev,
+            st.st_ino,
+            st.st_mode,
+            st.st_uid,
+            st.st_gid,
+        )
+    )
 
 
 def main():
@@ -467,7 +512,7 @@ def main():
         compressed = read_tarball_snapshot()
         preflight_archive(compressed)
         extract_archive(compressed, extract_fd)
-        post_extract_custody(extract_fd)
+        fixture_stat = post_extract_custody(extract_fd)
         os.fsync(extract_fd)
         os.fsync(out_fd)
     finally:
@@ -475,6 +520,7 @@ def main():
             os.close(extract_fd)
         os.close(out_fd)
 
+    print("fixture_identity=" + directory_identity(fixture_stat))
     print("archive_member_preflight=true")
     print("archive_exact_member_set=true")
     print("archive_links_rejected=true")
@@ -494,8 +540,51 @@ except Exception as exc:
     )
     sys.exit(2)
 PY
+)"
+printf '%s\n' "$archive_phase_output"
 
-node - "$FIXTURE_DIR" <<'NODE'
+FIXTURE_IDENTITY="$(
+  printf '%s\n' "$archive_phase_output" |
+    sed -n 's/^fixture_identity=\([0-9][0-9]*:[0-9][0-9]*:[0-9][0-9]*:[0-9][0-9]*:[0-9][0-9]*\)$/\1/p'
+)"
+test -n "$FIXTURE_IDENTITY" || {
+  echo "[fail] Demo003 fixture identity missing" >&2
+  exit 2
+}
+
+exec {FIXTURE_FD}<"$FIXTURE_DIR" || {
+  echo "[fail] Demo003 fixture descriptor open failed" >&2
+  exit 2
+}
+
+if ! python3 - "$FIXTURE_FD" "$FIXTURE_IDENTITY" <<'PY_FD'
+import os
+import stat
+import sys
+
+fd = int(sys.argv[1])
+expected = sys.argv[2]
+st = os.fstat(fd)
+actual = ":".join(
+    str(value)
+    for value in (
+        st.st_dev,
+        st.st_ino,
+        st.st_mode,
+        st.st_uid,
+        st.st_gid,
+    )
+)
+if not stat.S_ISDIR(st.st_mode) or actual != expected:
+    raise SystemExit(2)
+PY_FD
+then
+  exec {FIXTURE_FD}<&-
+  echo "[fail] Demo003 fixture identity changed before semantic verify" >&2
+  exit 2
+fi
+
+node - "/proc/self/fd/$FIXTURE_FD" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -625,7 +714,51 @@ ok(metadata.trusted_as_network_truth === false, "metadata not network truth");
 console.log("[ok] Demo 003 folder fixture offline verified");
 NODE
 
+if ! python3 - "$FIXTURE_FD" "$FIXTURE_DIR" "$FIXTURE_IDENTITY" <<'PY_VISIBLE'
+import os
+import stat
+import sys
+
+fd = int(sys.argv[1])
+pathname = sys.argv[2]
+expected = sys.argv[3]
+opened = os.fstat(fd)
+try:
+    visible = os.stat(pathname, follow_symlinks=False)
+except FileNotFoundError:
+    raise SystemExit(2)
+
+def identity(st):
+    return ":".join(
+        str(value)
+        for value in (
+            st.st_dev,
+            st.st_ino,
+            st.st_mode,
+            st.st_uid,
+            st.st_gid,
+        )
+    )
+
+if (
+    not stat.S_ISDIR(opened.st_mode)
+    or not stat.S_ISDIR(visible.st_mode)
+    or stat.S_ISLNK(visible.st_mode)
+    or identity(opened) != expected
+    or identity(visible) != expected
+):
+    raise SystemExit(2)
+PY_VISIBLE
+then
+  exec {FIXTURE_FD}<&-
+  echo "[fail] Demo003 fixture visible identity changed during semantic verify" >&2
+  exit 2
+fi
+
+exec {FIXTURE_FD}<&-
+
 echo "fixture_dir=$FIXTURE_DIR"
+echo "semantic_verify_descriptor_bound=true"
 echo "archive_member_preflight=true"
 echo "archive_exact_member_set=true"
 echo "archive_links_rejected=true"
