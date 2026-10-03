@@ -77,6 +77,12 @@ if grep -Fq 'sha256sum "$SRC"' "$IMPORTER"; then
 fi
 grep -Fq 'object_id = f"{expected_sha[:16]}-' "$IMPORTER" ||
   fail "secure_default_object_id_derivation_missing"
+grep -Fq 'type(doc.get("bytes")) is not int' "$IMPORTER" ||
+  fail "receipt_exact_int_type_guard_missing"
+grep -Fq 'type(doc.get(key)) is not bool' "$IMPORTER" ||
+  fail "receipt_exact_bool_type_guard_missing"
+grep -Fq 'type(doc.get(key)) is not str' "$IMPORTER" ||
+  fail "receipt_exact_string_type_guard_missing"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1" "$READER" || fail "reader_marker_missing"
 grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
 grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
@@ -358,6 +364,70 @@ test -f "$stale_stage_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
 test -z "$(find "$stale_stage_root/public-node/local-data-drop/.import-staging-v2" -mindepth 1 -maxdepth 1 ! -name '.import.lock' -print -quit)" ||
   fail "stale_stage_recovery_left_stage_residue"
 
+malformed_type_root="$tmp/orphan-receipt-malformed-types"
+for label in zero one; do
+  mkdir -p \
+    "$malformed_type_root/$label/data/public-node/local-data-drop/objects" \
+    "$malformed_type_root/$label/data/public-node/local-data-drop/receipts"
+done
+: > "$malformed_type_root/zero/source.bin"
+printf 'x' > "$malformed_type_root/one/source.bin"
+
+python3 - "$malformed_type_root" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+cases = [
+    ("zero", "void:proof:orphan-type-zero:v1", False),
+    ("one", "void:proof:orphan-type-one:v1", True),
+]
+for label, object_id, bool_bytes in cases:
+    source = root / label / "source.bin"
+    payload = source.read_bytes()
+    receipt = {
+        "marker": "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1",
+        "object_id": object_id,
+        "bytes": bool_bytes,
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "imported_at": "2026-10-03T00:00:00Z",
+        "storage_class": "operator_local_public_read_only",
+        "public_upload": 0,
+        "operator_local_import_only": 1,
+        "trusted_as_network_truth": 0,
+    }
+    out = (
+        root
+        / label
+        / "data"
+        / "public-node"
+        / "local-data-drop"
+        / "receipts"
+        / f"{object_id}.json"
+    )
+    out.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
+for label in zero one; do
+  case "$label" in
+    zero) bad_id="void:proof:orphan-type-zero:v1" ;;
+    one) bad_id="void:proof:orphan-type-one:v1" ;;
+  esac
+  bad_root="$malformed_type_root/$label"
+  bad_receipt="$bad_root/data/public-node/local-data-drop/receipts/$bad_id.json"
+  bad_object="$bad_root/data/public-node/local-data-drop/objects/$bad_id"
+  bad_receipt_before="$(sha256sum "$bad_receipt" | awk '{print $1}')"
+  if DATA_DIR="$bad_root/data" bash "$IMPORTER" "$bad_root/source.bin" "$bad_id" >"$tmp/orphan-type-$label.log" 2>&1; then
+    fail "malformed_orphan_receipt_type_accepted:$label"
+  fi
+  test ! -e "$bad_object" ||
+    fail "malformed_orphan_receipt_published_object:$label"
+  test "$(sha256sum "$bad_receipt" | awk '{print $1}')" = "$bad_receipt_before" ||
+    fail "malformed_orphan_receipt_mutated:$label"
+done
+
 orphan_receipt_root="$tmp/orphan-receipt"
 mkdir -p   "$orphan_receipt_root/public-node/local-data-drop/objects"   "$orphan_receipt_root/public-node/local-data-drop/receipts"
 cp "$receipt" "$orphan_receipt_root/public-node/local-data-drop/receipts/$OBJECT_ID.json"
@@ -422,6 +492,7 @@ echo "staged_atomic_publication=true"
 echo "staging_global_lock=true"
 echo "stale_staging_reclaimed=true"
 echo "staging_absent_from_public_runtime=true"
+echo "malformed_orphan_receipt_types_rejected=true"
 echo "orphan_receipt_recovery=true"
 echo "orphan_object_recovery=true"
 echo "live_runtime_mutation=false"

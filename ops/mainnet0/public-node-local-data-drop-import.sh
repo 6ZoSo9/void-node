@@ -278,20 +278,31 @@ def validate_receipt(fd, expected_sha, expected_bytes):
     os.lseek(fd, 0, os.SEEK_SET)
     with os.fdopen(os.dup(fd), "r", encoding="utf-8") as handle:
         doc = json.load(handle)
-    required = {
+
+    required_strings = {
         "marker": "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1",
         "object_id": object_id,
-        "bytes": expected_bytes,
         "sha256": expected_sha,
         "storage_class": "operator_local_public_read_only",
+    }
+    for key, value in required_strings.items():
+        if type(doc.get(key)) is not str or doc[key] != value:
+            fail(f"receipt_existing_type_or_value_mismatch:{key}")
+
+    if type(doc.get("bytes")) is not int or doc["bytes"] != expected_bytes:
+        fail("receipt_existing_type_or_value_mismatch:bytes")
+
+    required_booleans = {
         "public_upload": False,
         "operator_local_import_only": True,
         "trusted_as_network_truth": False,
     }
-    for key, value in required.items():
-        if doc.get(key) != value:
-            fail(f"receipt_existing_mismatch:{key}")
-    if not isinstance(doc.get("imported_at"), str) or not doc["imported_at"]:
+    for key, value in required_booleans.items():
+        if type(doc.get(key)) is not bool or doc[key] is not value:
+            fail(f"receipt_existing_type_or_value_mismatch:{key}")
+
+    imported_at = doc.get("imported_at")
+    if type(imported_at) is not str or not imported_at:
         fail("receipt_existing_imported_at_invalid")
 
 
