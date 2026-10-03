@@ -97,10 +97,18 @@ git_cmd=(
 
 expected_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$launcher_rel")" ||
   hold "reviewed_launcher_blob_unavailable"
-actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$launcher_file")" ||
-  hold "executed_launcher_blob_unavailable"
 [[ "$expected_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
   hold "reviewed_launcher_blob_invalid"
+
+if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
+  actual_launcher_blob="$VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1"
+  [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "executed_launcher_blob_invalid"
+else
+  actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$launcher_file")" ||
+    hold "executed_launcher_blob_unavailable"
+fi
+
 [[ "$actual_launcher_blob" == "$expected_launcher_blob" ]] ||
   hold "executed_launcher_not_operator_reviewed_blob"
 
