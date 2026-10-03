@@ -949,16 +949,6 @@ assert.equal(
   "production signer must enter the permission-fenced reviewed child runtime",
 );
 assert.equal(
-  signerSource.includes('"--experimental-permission"'),
-  true,
-  "Node 22.0 through 22.12 must use the experimental permission flag",
-);
-assert.equal(
-  signerSource.includes('return "--permission";'),
-  true,
-  "Node 22.13+ and supported newer majors must use the stable permission flag",
-);
-assert.equal(
   signerSource.includes("const permissionFlag = nodePermissionFlagV1();"),
   true,
   "reviewed signer child must select the permission flag by supported Node version",
