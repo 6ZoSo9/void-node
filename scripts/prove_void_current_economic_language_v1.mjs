@@ -416,7 +416,7 @@ assert.match(
 );
 assert.match(
   docs.publicStatus,
-  /BTC\/VOID[\s\S]*source-only[\s\S]*post-presale[\s\S]*separately launch-gated/i,
+  /Deterministic Bitcoin HTLC[\s\S]*hashlock-settlement primitives are merged[\s\S]*BTC\/VOID remains post-presale[\s\S]*separately launch-gated/i,
 );
 assert.match(
   docs.releases,
