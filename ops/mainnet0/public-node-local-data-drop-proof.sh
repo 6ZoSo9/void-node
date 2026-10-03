@@ -3,13 +3,56 @@ set -euo pipefail
 
 RUN_PORT="${RUN_PORT:-4150}"
 BASE="${BASE:-http://127.0.0.1:${RUN_PORT}}"
+umask 077
+
+PID=""
+LEGACY_OUT=""
+LEGACY_TARGET=""
+
+cleanup() {
+  if [ -n "$PID" ]; then
+    kill "$PID" 2>/dev/null || true
+  fi
+  if [ -n "$LEGACY_OUT" ] && [ -L "$LEGACY_OUT" ]; then
+    rm -f -- "$LEGACY_OUT"
+  fi
+  if [ -n "$LEGACY_TARGET" ] && [ -d "$LEGACY_TARGET" ]; then
+    rm -rf -- "$LEGACY_TARGET"
+  fi
+}
+trap cleanup EXIT
+
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
-OUT="/tmp/public-node-local-data-drop-v1-proof-$STAMP"
-install -d -m 700 "$OUT/data"
+LEGACY_OUT="/tmp/public-node-local-data-drop-v1-proof-$STAMP"
+test ! -e "$LEGACY_OUT" && test ! -L "$LEGACY_OUT"
+
+LEGACY_TARGET="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof-legacy-target.XXXXXX)"
+test -d "$LEGACY_TARGET" && test ! -L "$LEGACY_TARGET"
+test "$(stat -c '%u' "$LEGACY_TARGET")" = "$(id -u)"
+test "$(stat -c '%a' "$LEGACY_TARGET")" = "700"
+printf 'VOID_LOCAL_DATA_DROP_LEGACY_OUT_SENTINEL\n' > "$LEGACY_TARGET/nodeA.key"
+LEGACY_SENTINEL_SHA="$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')"
+LEGACY_SENTINEL_STAT="$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")"
+ln -s -- "$LEGACY_TARGET" "$LEGACY_OUT"
+
+OUT="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof.XXXXXX)"
+test -d "$OUT" && test ! -L "$OUT"
+test "$(stat -c '%u' "$OUT")" = "$(id -u)"
+test "$(stat -c '%a' "$OUT")" = "700"
+test "$OUT" != "$LEGACY_OUT"
+
+mkdir -m 700 -- "$OUT/data"
+test -d "$OUT/data" && test ! -L "$OUT/data"
+test "$(stat -c '%u' "$OUT/data")" = "$(id -u)"
 test "$(stat -c '%a' "$OUT/data")" = "700"
+
+test "$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')" = "$LEGACY_SENTINEL_SHA"
+test "$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")" = "$LEGACY_SENTINEL_STAT"
+test ! -e "$LEGACY_TARGET/data"
 
 openssl genpkey -algorithm ED25519 -out "$OUT/nodeA.key" >/dev/null 2>&1
 chmod 600 "$OUT/nodeA.key"
+test -f "$OUT/nodeA.key" && test ! -L "$OUT/nodeA.key"
 
 echo "=== Public Node Local Data Drop v1 proof ==="
 echo "out=$OUT"
@@ -67,7 +110,7 @@ if [ -n "$PIDS" ]; then kill $PIDS 2>/dev/null || true; sleep 1; fi
 ) > "$OUT/server.log" 2>&1 &
 
 PID="$!"
-trap 'kill "$PID" 2>/dev/null || true' EXIT
+trap cleanup EXIT
 
 for i in $(seq 1 100); do
   if curl --max-time 10 -fsS "$BASE/public-node/local-data-drop.json" > "$OUT/local-data-drop.json" 2>/dev/null; then
@@ -285,5 +328,12 @@ echo "wc_to_void_swap=false"
 echo "buy_void_fulfillment=false"
 echo "validator_mutation=false"
 echo "trusted_as_network_truth=false"
+test -L "$LEGACY_OUT"
+test "$(readlink -- "$LEGACY_OUT")" = "$LEGACY_TARGET"
+test "$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')" = "$LEGACY_SENTINEL_SHA"
+test "$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")" = "$LEGACY_SENTINEL_STAT"
+test ! -e "$LEGACY_TARGET/data"
+echo "proof_output_root_create_only=true"
+echo "legacy_timestamp_symlink_untouched=true"
 echo "out=$OUT"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_V1_GREEN"
