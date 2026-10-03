@@ -32,10 +32,11 @@ The census binds current source for:
 2. credential request review queue;
 3. credential lifecycle CLI;
 4. credential-to-WC-account binding lifecycle;
-5. authenticated paid-work submission receiver;
-6. exact public submission proxy support;
-7. WC earning adapter; and
-8. WC/VOID opening participant eligibility.
+5. credential registry and canonical `agent_paid_work_submit` scope;
+6. authenticated paid-work submission receiver and scope import/authentication;
+7. exact public submission proxy support;
+8. WC earning adapter; and
+9. WC/VOID opening participant eligibility.
 
 These components exist in current source. That is not the same thing as a live
 public external execution path.
