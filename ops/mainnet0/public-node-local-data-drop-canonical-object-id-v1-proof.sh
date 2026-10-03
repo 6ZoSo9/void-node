@@ -132,7 +132,7 @@ grep -Fq 'data_dir_component_' "$DEMO003_STATUS" || fail "demo003_status_compone
 grep -Fq 'VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false' "$DEMO003_STATUS" || fail "demo003_status_false_marker_missing"
 grep -Fq 'EXPECTED_LATEST_NAMES=' "$DEMO003_STATUS" || fail "demo003_status_exact_latest_member_set_missing"
 grep -Fq 'EXPECTED_PAYLOAD_NAMES=' "$DEMO003_STATUS" || fail "demo003_status_exact_payload_member_set_missing"
-grep -Fq 'record.get("source_manifest")!=manifest' "$DEMO003_STATUS" || fail "demo003_status_intake_manifest_binding_missing"
+if grep -Fq 'record.get("source_manifest")!=manifest' "$DEMO003_STATUS"; then fail "demo003_status_raw_manifest_binding_remains"; fi
 grep -Fq 'checksum_entries!=observed_hashes' "$DEMO003_STATUS" || fail "demo003_status_checksum_recompute_missing"
 grep -Fq 'payload_sha256_mismatch' "$DEMO003_STATUS" || fail "demo003_status_payload_digest_guard_missing"
 grep -Fq 'type(record_file_count) is not int' "$DEMO003_STATUS" || fail "demo003_status_intake_file_count_type_guard_missing"
