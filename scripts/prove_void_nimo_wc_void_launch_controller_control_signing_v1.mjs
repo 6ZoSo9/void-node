@@ -167,6 +167,11 @@ assert.equal(
   true,
 );
 assert.equal(signerSource.includes('"key-file"'), false);
+assert.equal(
+  signerSource.includes('/^(?:0x)?[0-9a-fA-F]{64}\\n?$/u'),
+  true,
+);
+assert.equal(signerSource.includes(".trim()"), false);
 assert.equal(signerSource.includes("http:"), false);
 assert.equal(signerSource.includes("https:"), false);
 assert.equal(signerSource.includes("fetch("), false);
@@ -223,6 +228,8 @@ console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
 console.log("selected_reviewer_fixed=true");
 console.log("private_key_path_fixed=true");
 console.log("key_file_cli_override=false");
+console.log("exact_private_key_file_format=true");
+console.log("private_key_whitespace_normalization=false");
 console.log("network_access_required=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
