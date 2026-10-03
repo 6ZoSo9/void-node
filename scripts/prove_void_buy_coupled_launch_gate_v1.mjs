@@ -4,14 +4,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { Wallet } from "ethers";
+
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
+  VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
   buyLaunchLiveActivationReceiptIdV1,
+  buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
   readBuyLaunchGateV1,
   readBuyLaunchLiveActivationV1,
   readBuyLaunchSourceGateV1,
+  verifyBuyLaunchLiveActivationSignatureV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
 import {
   classifyVoidEconomicEvmSuccessorMigrationV1,
@@ -41,6 +46,7 @@ assert.equal(currentAdmission.ready, false);
 assert.equal(currentAdmission.source_ready, false);
 assert.equal(currentAdmission.live_activation_ready, false);
 assert.equal(currentAdmission.live_activation_receipt_id, null);
+assert.equal(currentAdmission.live_activation_signer, null);
 
 const readyProduction = structuredClone(production);
 Object.assign(readyProduction, {
@@ -131,12 +137,17 @@ assert.equal(
   "live_coupled_activation_evidence_not_ready",
 );
 
+const syntheticActivationWallet = new Wallet(
+  "0x1111111111111111111111111111111111111111111111111111111111111111",
+);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-buy-live-"));
 try {
   fs.chmodSync(tmp, 0o700);
   const receiptPath = path.join(tmp, "activation.json");
   const receiptBody = {
     activated_at_ms: 1791014400000,
+    activation_nonce: "0x" + "a".repeat(64),
+    activation_signer: syntheticActivationWallet.address.toLowerCase(),
     buy_void_private_runtime_active: true,
     coupled_launch_id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
     marker: VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
@@ -150,11 +161,41 @@ try {
     version: 1,
     wc_void_market_active: true,
   };
-  const receipt = {
+  const unsignedReceipt = {
     ...receiptBody,
     activation_receipt_id:
       buyLaunchLiveActivationReceiptIdV1(receiptBody),
   };
+  const typed = buyLaunchLiveActivationTypedDataV1(unsignedReceipt);
+  const activationSignature =
+    await syntheticActivationWallet.signTypedData(
+      typed.domain,
+      typed.types,
+      typed.value,
+    );
+  const receipt = {
+    ...unsignedReceipt,
+    activation_signature: activationSignature,
+  };
+
+  const syntheticSignature =
+    verifyBuyLaunchLiveActivationSignatureV1(
+      receipt,
+      syntheticActivationWallet.address,
+    );
+  assert.equal(syntheticSignature.verified, true);
+  assert.equal(
+    syntheticSignature.recovered_signer,
+    syntheticActivationWallet.address.toLowerCase(),
+  );
+  assert.equal(
+    verifyBuyLaunchLiveActivationSignatureV1(
+      receipt,
+      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
+    ).verified,
+    false,
+  );
+
   const receiptBytes = Buffer.from(
     JSON.stringify(receipt, null, 2) + "\n",
     "utf8",
@@ -173,11 +214,12 @@ try {
     VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM: confirmation,
   };
 
+  // A self-created, content-addressed receipt is not production authority.
+  // Even with valid EIP-712 structure and matching file/env bindings it must
+  // remain closed unless signed by the fixed launch-controller identity.
   const live = readBuyLaunchLiveActivationV1(sourceReady, liveEnv);
-  assert.equal(live.ready, true);
-  assert.equal(live.receipt_id, receipt.activation_receipt_id);
-  assert.equal(live.receipt_sha256, receiptSha256);
-  assert.equal(live.source_composition_id, sourceReady.composition_id);
+  assert.equal(live.ready, false);
+  assert.equal(live.activation_signer, null);
 
   assert.equal(
     readBuyLaunchLiveActivationV1(sourceReady, {
@@ -249,6 +291,8 @@ assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
 assert.match(gateSource, /readBuyLaunchLiveActivationV1/);
+assert.match(gateSource, /verifyTypedData/);
+assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1/);
 
 console.log("VOID_BUY_COUPLED_LAUNCH_GATE_V1_GREEN");
 console.log("current_canonical_source_ready=false");
@@ -258,6 +302,9 @@ console.log("nested_policy_false_positive_blocked=true");
 console.log("source_ready_alone_can_open_intake=false");
 console.log("live_coupled_activation_receipt_required=true");
 console.log("live_receipt_digest_binding_required=true");
+console.log("launch_controller_eip712_signature_required=true");
+console.log("fixed_launch_controller=" + VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1);
 console.log("explicit_operator_confirmation_required=true");
+console.log("self_authored_receipt_cannot_open_intake=true");
 console.log("synthetic_live_receipt_fixture_is_not_production_evidence=true");
 console.log("funds_movement=false");
