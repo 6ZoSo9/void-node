@@ -17,6 +17,8 @@ bash -n "$FIXTURE"
 bash -n "$VERIFIER"
 grep -Fq "archive_member_preflight=true" "$VERIFIER" || fail "archive_preflight_marker_missing"
 grep -Fq "archive_exact_member_set=true" "$VERIFIER" || fail "exact_member_set_marker_missing"
+grep -Fq "for member in tf:" "$VERIFIER" || fail "streaming_member_iteration_missing"
+if grep -Fq "getmembers()" "$VERIFIER"; then fail "unbounded_member_materialization_remains"; fi
 grep -Fq "member_not_direct_regular_file" "$VERIFIER" || fail "link_type_rejection_missing"
 grep -Fq "post_extract_nofollow_custody=true" "$VERIFIER" || fail "post_extract_custody_marker_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"

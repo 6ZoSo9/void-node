@@ -96,7 +96,11 @@ def main():
         total_bytes = 0
         with os.fdopen(os.dup(fd), "rb") as raw:
             with tarfile.open(fileobj=raw, mode="r:gz") as tf:
-                for member in tf.getmembers():
+                member_count = 0
+                for member in tf:
+                    member_count += 1
+                    if member_count > len(EXPECTED):
+                        fail("too_many_members")
                     raw_name = member.name
                     name = raw_name.rstrip("/")
                     if (
