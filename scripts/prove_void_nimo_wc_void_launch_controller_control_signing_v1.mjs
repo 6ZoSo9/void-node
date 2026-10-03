@@ -365,15 +365,23 @@ assert.equal(
   true,
 );
 assert.equal(
-  signerSource.includes("canonicalAfter !== file"),
+  signerSource.includes("function openPinnedParentDirectoryV1"),
   true,
 );
 assert.equal(
-  signerSource.includes("pathnameAfter.dev !== after.dev"),
+  signerSource.includes('"/proc/self/fd/" + fd'),
   true,
 );
 assert.equal(
-  signerSource.includes("pathnameAfter.ino !== after.ino"),
+  signerSource.includes("pathnameBefore = fs.lstatSync(pinnedPath"),
+  true,
+);
+assert.equal(
+  signerSource.includes("!sameOpenedFileIdentityV1(pathnameBefore, before)"),
+  true,
+);
+assert.equal(
+  signerSource.includes("!sameOpenedFileIdentityV1(after, pathnameAfter)"),
   true,
 );
 assert.equal(signerSource.includes("http:"), false);
@@ -494,6 +502,8 @@ console.log("key_file_cli_override=false");
 console.log("exact_private_key_file_format=true");
 console.log("private_key_whitespace_normalization=false");
 console.log("canonical_input_paths_required=true");
+console.log("pinned_parent_directory_chain=true");
+console.log("preopen_path_identity_bound=true");
 console.log("parent_symlink_alias_rejected=true");
 console.log("input_path_inode_rebound_after_read=true");
 console.log("production_signing_helper_non_recursive=true");
