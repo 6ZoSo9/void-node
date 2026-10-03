@@ -94,8 +94,12 @@ assert "payment_tx_hash_not_allowed_at_request_creation" in request
 assert "send_from: void_destination_address" in request
 assert "automatic_fulfillment: false" in request
 
-assert "Buy VOID with Base USDC" in page
+assert "Buy VOID with USDC" in page
 assert "Native VOID destination address (chain ID 2050)" in page
+assert 'id="buyChain"' in page
+assert 'value="base"' in page and 'value="ethereum"' in page
+assert 'source_chain:chain' in page
+assert 'ack_native_usdc:buyChecked("ackNativeUsdc")' in page
 assert 'fetch("/__void/buy-void/request"' in page
 assert 'method:"POST"' in page
 assert "Payment tx hash" not in page
