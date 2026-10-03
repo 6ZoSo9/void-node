@@ -760,50 +760,10 @@ function writeExclusiveJsonV1(
       sha256: sha256(bytes),
     });
   } catch (primary) {
-    let cleanup = null;
-    try {
-      if (created) {
-        let boundStat = createdStat;
-        if (boundStat === null && fd >= 0) {
-          boundStat = fs.fstatSync(fd, { bigint: true });
-        }
-        if (boundStat === null) {
-          fail("signature_output_cleanup_identity_unavailable");
-        }
-
-        let currentEntry;
-        try {
-          currentEntry = fs.lstatSync(pinnedOutput, { bigint: true });
-        } catch {
-          fail("signature_output_cleanup_entry_missing");
-        }
-
-        if (
-          !currentEntry.isFile() ||
-          currentEntry.isSymbolicLink() ||
-          !sameOpenedFileIdentityV1(boundStat, currentEntry)
-        ) {
-          fail("signature_output_cleanup_identity_mismatch");
-        }
-
-        fs.unlinkSync(pinnedOutput);
-        fs.fsyncSync(parent.fd);
-
-        if (fd >= 0) {
-          const afterUnlink = fs.fstatSync(fd, { bigint: true });
-          if (afterUnlink.nlink !== 0n) {
-            fail("signature_output_cleanup_inode_still_linked");
-          }
-        }
-        created = false;
-      }
-    } catch (error) {
-      cleanup = error;
-    }
-    if (cleanup !== null) {
+    if (created) {
       throw new AggregateError(
-        [primary, cleanup],
-        "signature_output_cleanup_failed",
+        [primary],
+        "signature_output_quarantined_after_failure",
       );
     }
     throw primary;
@@ -865,7 +825,7 @@ export function testOnlyExerciseSignatureOutputParentReplacementV1() {
   }
 }
 
-export function testOnlyExerciseSignatureOutputCleanupReplacementRaceV1() {
+export function testOnlyExerciseSignatureOutputReplacementQuarantineV1() {
   const root = fs.mkdtempSync(
     path.join(
       process.env.TMPDIR || "/tmp",
@@ -915,7 +875,7 @@ export function testOnlyExerciseSignatureOutputCleanupReplacementRaceV1() {
   }
 }
 
-export function testOnlyExerciseSignatureOutputExpiryCleanupV1() {
+export function testOnlyExerciseSignatureOutputExpiryQuarantineV1() {
   const root = fs.mkdtempSync(
     path.join(
       process.env.TMPDIR || "/tmp",
