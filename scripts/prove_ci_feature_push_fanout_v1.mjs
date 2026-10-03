@@ -23,6 +23,7 @@ const featurePushTargets = [
   ".github/workflows/economic-activation-wc-capability-v1.yml",
   ".github/workflows/wc-public-earning-outbound-participant-v1.yml",
   ".github/workflows/wc-public-ticket-claim-v1.yml",
+  ".github/workflows/void-public-safe-background-loop-backpressure-v1.yml",
 ];
 
 const prCancellationTargets = [
@@ -49,7 +50,6 @@ const prCancellationTargets = [
   ".github/workflows/public-node-operator-trial-closeout-rollup.yml",
   ".github/workflows/license-guard.yml",
   ".github/workflows/void-public-checkpoint-restore-v1.yml",
-  ".github/workflows/void-public-safe-background-loop-backpressure-v1.yml",
   ".github/workflows/public-first-official-release-rehearsal-v1.yml",
   ".github/workflows/public-node-operator-trial-root-link.yml",
   ".github/workflows/ci-cost-boundary-v1.yml",
@@ -62,8 +62,8 @@ const pendingSupersessionTargets = [
 ];
 
 const allTargets = [...featurePushTargets, ...prCancellationTargets, ...pendingSupersessionTargets];
-assert.equal(featurePushTargets.length, 20);
-assert.equal(prCancellationTargets.length, 27);
+assert.equal(featurePushTargets.length, 21);
+assert.equal(prCancellationTargets.length, 26);
 assert.equal(pendingSupersessionTargets.length, 3);
 assert.equal(allTargets.length, 50);
 assert.equal(new Set(allTargets).size, allTargets.length);
@@ -219,7 +219,7 @@ assert.equal(
 );
 
 console.log("VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN");
-console.log("feature_push_targets=20");
+console.log("feature_push_targets=21");
 console.log("pr_supersession_targets=50");
 console.log("feature_branch_push_execution=false");
 console.log("pull_request_execution=true");
