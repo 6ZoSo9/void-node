@@ -41,8 +41,8 @@ reports activation/funding/presale/market/funds authority false.
 Public intake additionally requires a separately authorized live coupled-launch
 receipt. No such production receipt is committed by this source lane.
 
-The runtime requires a cryptographically authorized receipt plus three
-environment transport bindings.
+The runtime requires a cryptographically authorized receipt, a durable
+generation journal, and explicit transport bindings.
 
 The receipt must carry two EIP-712 signatures over the same activation
 statement:
@@ -65,17 +65,22 @@ ceremony. A different signer, missing co-signature, malformed signature,
 changed signed field, expired lease, superseded generation, or future-dated
 activation time fails closed.
 
-The four environment bindings are:
+Runtime state is bound through:
 
-- `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH`: exact absolute path to a
-  private receipt;
+- `DATA_DIR` / `VOID_DATA_DIR`, locating the private append-only
+  `economic/buy-void-coupled-live-generation-v1.jsonl` journal;
+- `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH`: exact absolute path to the
+  current private receipt;
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256`: exact SHA-256 of those
-  receipt bytes;
-- `VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION`: exact signed launch
-  generation; deactivation or a replacement ceremony must advance or remove it;
-  and
+  receipt bytes; and
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM`: exact operator confirmation
-  `activate-coupled-public-buy-v1:<generation>:<receipt_id>:<receipt_sha256>`.
+  `activate-coupled-public-buy-v1:<generation>:<generation_tip>:<receipt_id>:<receipt_sha256>`.
+
+The generation is not accepted from a mutable environment value. The current
+generation and its content-addressed tip are derived from the durable journal.
+An active generation must be revoked before another generation can become
+active, and a revoked generation cannot reappear by restoring an older
+environment bundle.
 
 The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
@@ -131,9 +136,19 @@ and
 
 Thus the environment toggle alone cannot open intake, source readiness alone
 cannot open intake, and live evidence for one side of the coupled opening cannot
-open the other side independently. A later shutdown can close intake by removing
-or advancing the active generation, and an unattended activation receipt
-self-closes when its lease expires.
+open the other side independently. A later shutdown closes intake by appending
+the matching generation revocation; a replacement ceremony must append a new
+generation after that revocation. An unattended activation receipt self-closes
+when its lease expires.
+
+Every accepted public Buy request snapshots the exact current request authority:
+coupled launch/composition, generation, durable generation-journal tip, activation
+receipt ID/SHA-256, and lease expiry. The payment instructions expose that expiry
+and generation. Tx-hash binding and payment verification both revalidate the
+snapshot against the current live gate; payment verification checks once before
+chain observation and again before recording `payment_verified`. An expired,
+revoked, renewed-with-a-different-receipt, or superseded request therefore cannot
+be carried across the launch boundary.
 
 Ethereum payment verification/finality remains a separate prerequisite; this
 gate does not replace the Ethereum finality gate.
