@@ -11,7 +11,9 @@ import {
   VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
+  VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
   buildBuyLaunchGenerationEventV1,
+  buyLaunchRequestAuthorityMatchesV1,
   buyLaunchLiveActivationReceiptIdV1,
   buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
@@ -52,6 +54,8 @@ assert.equal(currentAdmission.source_ready, false);
 assert.equal(currentAdmission.live_activation_ready, false);
 assert.equal(currentAdmission.live_activation_receipt_id, null);
 assert.equal(currentAdmission.live_activation_signer, null);
+assert.equal(currentAdmission.live_activation_sovereign_signer, null);
+assert.equal(currentAdmission.request_authority, null);
 
 const readyProduction = structuredClone(production);
 Object.assign(readyProduction, {
@@ -308,6 +312,52 @@ try {
   );
   assert.equal(liveLease.ready, true);
 
+  const requestAuthority = Object.freeze({
+    marker: VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
+    version: 1,
+    coupled_launch_id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
+    source_composition_id: sourceReady.composition_id,
+    activation_generation: activationGeneration,
+    generation_tip_sha256: activeEvent.event_sha256,
+    activation_receipt_id: receipt.activation_receipt_id,
+    activation_receipt_sha256: receiptSha256,
+    expires_at_ms: receipt.expires_at_ms,
+  });
+  const currentGateFixture = Object.freeze({
+    ready: true,
+    request_authority: requestAuthority,
+  });
+  assert.equal(
+    buyLaunchRequestAuthorityMatchesV1(
+      { launch_authority: requestAuthority },
+      currentGateFixture,
+      nowMs + 1,
+    ),
+    true,
+  );
+  assert.equal(
+    buyLaunchRequestAuthorityMatchesV1(
+      { launch_authority: requestAuthority },
+      currentGateFixture,
+      requestAuthority.expires_at_ms,
+    ),
+    false,
+  );
+  assert.equal(
+    buyLaunchRequestAuthorityMatchesV1(
+      { launch_authority: requestAuthority },
+      {
+        ready: true,
+        request_authority: {
+          ...requestAuthority,
+          activation_generation: "0x" + "c".repeat(64),
+        },
+      },
+      nowMs + 1,
+    ),
+    false,
+  );
+
   // The same otherwise-valid signed receipt is no longer live after expiry.
   assert.equal(
     classifyBuyLaunchLiveActivationLeaseV1(
@@ -462,6 +512,8 @@ assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256/);
 assert.match(gateSource, /buy-void-coupled-live-generation-v1\.jsonl/);
 assert.match(gateSource, /generation_tip_sha256/);
+assert.match(gateSource, /VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1/);
+assert.match(gateSource, /buyLaunchRequestAuthorityMatchesV1/);
 assert.match(gateSource, /expires_at_ms/);
 assert.match(gateSource, /LIVE_ACTIVATION_MAX_LEASE_MS/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
@@ -485,6 +537,8 @@ console.log("live_activation_lease_expiry_required=true");
 console.log("live_activation_generation_journal_required=true");
 console.log("durable_generation_revocation_required=true");
 console.log("configuration_rollback_old_generation_replay=false");
+console.log("payment_request_bound_to_generation_tip=true");
+console.log("payment_request_bound_to_lease_expiry=true");
 console.log("stale_live_activation_receipt_replay=false");
 console.log("launch_controller_eip712_signature_required=true");
 console.log("sovereign_eip712_cosignature_required=true");
