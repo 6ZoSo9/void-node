@@ -151,11 +151,12 @@ function identity() {
   });
 }
 
-function requestBody(label) {
+function requestBody(label, agentId) {
   return Buffer.from(JSON.stringify({
     marker: "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_V1",
     version: 1,
     request_id: "voidapwcrq1_" + sha256(Buffer.from(label, "utf8")),
+    agent_id: agentId,
     requested_scope: "agent_paid_work_submit",
   }) + "\n");
 }
@@ -317,7 +318,7 @@ assert.equal(ready.paid_work_credential_request_route.funds_movement, false);
 
 const base = `http://127.0.0.1:${ready.port}`;
 const basicIdentity = identity();
-const basicBody = requestBody("basic");
+const basicBody = requestBody("basic", basicIdentity.agentId);
 const basicAuth = authHeader({
   identityValue: basicIdentity,
   body: basicBody,
@@ -403,14 +404,14 @@ const siblingResponse = await fetch(base + ROUTE + "/status");
 assert.equal(siblingResponse.status, 404);
 assert.equal(upstreamCalls.length, 1);
 
-const unsignedBody = requestBody("unsigned");
+const unsignedBody = requestBody("unsigned", basicIdentity.agentId);
 const unsignedResponse = await postCredential(base, unsignedBody, "");
 assert.equal(unsignedResponse.status, 401);
 assert.equal((await unsignedResponse.json()).error, "applicant_auth_invalid");
 assert.equal(upstreamCalls.length, 1);
 
 const wrongSignerIdentity = identity();
-const wrongSignerBody = requestBody("wrong-signer");
+const wrongSignerBody = requestBody("wrong-signer", wrongSignerIdentity.agentId);
 const wrongSignerResponse = await postCredential(
   base,
   wrongSignerBody,
@@ -425,8 +426,27 @@ assert.equal(wrongSignerResponse.status, 401);
 assert.equal((await wrongSignerResponse.json()).error, "applicant_auth_invalid");
 assert.equal(upstreamCalls.length, 1);
 
+const rotatingIdentity = identity();
+const rotatedBody = requestBody("rotated-key", basicIdentity.agentId);
+const rotatedResponse = await postCredential(
+  base,
+  rotatedBody,
+  authHeader({
+    identityValue: rotatingIdentity,
+    body: rotatedBody,
+    nonceLabel: "rotated-key",
+  }),
+);
+assert.equal(rotatedResponse.status, 401);
+assert.equal((await rotatedResponse.json()).error, "applicant_auth_invalid");
+assert.equal(
+  upstreamCalls.length,
+  1,
+  "throwaway signing keys must not replace the inner applicant identity",
+);
+
 const expiredIdentity = identity();
-const expiredBody = requestBody("expired");
+const expiredBody = requestBody("expired", expiredIdentity.agentId);
 const expiredResponse = await postCredential(
   base,
   expiredBody,
@@ -443,7 +463,7 @@ assert.equal((await expiredResponse.json()).error, "applicant_auth_invalid");
 assert.equal(upstreamCalls.length, 1);
 
 const mismatchIdentity = identity();
-const mismatchBody = requestBody("mismatch");
+const mismatchBody = requestBody("mismatch", mismatchIdentity.agentId);
 const mismatchResponse = await postCredential(
   base,
   mismatchBody,
@@ -459,7 +479,7 @@ assert.equal((await mismatchResponse.json()).error, "applicant_auth_invalid");
 assert.equal(upstreamCalls.length, 1);
 
 const replayIdentity = identity();
-const replayBody = requestBody("replay");
+const replayBody = requestBody("replay", replayIdentity.agentId);
 const replayAuth = authHeader({
   identityValue: replayIdentity,
   body: replayBody,
@@ -475,7 +495,7 @@ assert.equal(upstreamCalls.length, 2);
 
 const applicantA = identity();
 for (let index = 0; index < 2; index += 1) {
-  const body = requestBody("applicant-a-" + index);
+  const body = requestBody("applicant-a-" + index, applicantA.agentId);
   const response = await postCredential(
     base,
     body,
@@ -493,7 +513,7 @@ for (let index = 0; index < 2; index += 1) {
 }
 assert.equal(upstreamCalls.length, 4);
 
-const applicantAThirdBody = requestBody("applicant-a-third");
+const applicantAThirdBody = requestBody("applicant-a-third", applicantA.agentId);
 const applicantAThird = await postCredential(
   base,
   applicantAThirdBody,
@@ -516,7 +536,7 @@ assert.equal(upstreamCalls.length, 4);
 
 const applicantB = identity();
 for (let index = 0; index < 2; index += 1) {
-  const body = requestBody("applicant-b-" + index);
+  const body = requestBody("applicant-b-" + index, applicantB.agentId);
   const response = await postCredential(
     base,
     body,
@@ -537,7 +557,7 @@ assert.ok(upstreamCalls.length < UPSTREAM_LIMIT);
 
 const applicantC = identity();
 for (let index = 0; index < 2; index += 1) {
-  const body = requestBody("applicant-c-" + index);
+  const body = requestBody("applicant-c-" + index, applicantC.agentId);
   const response = await postCredential(
     base,
     body,
@@ -552,7 +572,7 @@ for (let index = 0; index < 2; index += 1) {
 assert.equal(upstreamCalls.length, UPSTREAM_LIMIT);
 
 const applicantD = identity();
-const applicantDBody = requestBody("applicant-d-global-hold");
+const applicantDBody = requestBody("applicant-d-global-hold", applicantD.agentId);
 const applicantDResponse = await postCredential(
   base,
   applicantDBody,
@@ -594,12 +614,16 @@ assert.equal(
   false,
 );
 assert.equal(incompleteReady.paid_work_credential_request_route.configured, false);
-const incompleteBody = requestBody("incomplete-config");
+const incompleteIdentity = identity();
+const incompleteBody = requestBody(
+  "incomplete-config",
+  incompleteIdentity.agentId,
+);
 const incompleteResponse = await postCredential(
   `http://127.0.0.1:${incompleteReady.port}`,
   incompleteBody,
   authHeader({
-    identityValue: identity(),
+    identityValue: incompleteIdentity,
     body: incompleteBody,
     nonceLabel: "incomplete-config",
   }),
@@ -615,12 +639,13 @@ const heldRuntime = startGateway();
 const heldReady = await gatewayReady(heldRuntime);
 assert.equal(heldReady.bounded_paid_work_credential_request_proxy_authority, false);
 assert.equal(heldReady.paid_work_credential_request_route.configured, false);
-const heldBody = requestBody("held");
+const heldIdentity = identity();
+const heldBody = requestBody("held", heldIdentity.agentId);
 const heldResponse = await postCredential(
   `http://127.0.0.1:${heldReady.port}`,
   heldBody,
   authHeader({
-    identityValue: identity(),
+    identityValue: heldIdentity,
     body: heldBody,
     nonceLabel: "held",
   }),
@@ -645,6 +670,8 @@ console.log("payload_sha256_required=true");
 console.log("query_parameters_allowed=false");
 console.log("applicant_identity=void-agent:ed25519");
 console.log("applicant_signature_required=true");
+console.log("inner_agent_id_must_equal_signing_identity=true");
+console.log("throwaway_key_rate_identity_rotation_blocked=true");
 console.log("auth_ttl_max_seconds=60");
 console.log("nonce_replay_rejected_before_upstream=true");
 console.log("forwarded_ip_headers_trusted=false");
