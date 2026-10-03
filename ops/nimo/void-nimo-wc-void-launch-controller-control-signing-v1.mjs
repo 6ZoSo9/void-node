@@ -7,13 +7,6 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import {
-  materializeReviewedNodePackageRuntimeV1,
-  readReviewedNodePackageRuntimeProfileV1,
-  verifyMaterializedReviewedNodePackageRuntimeV1,
-  verifyReviewedNodePackageRuntimeV1,
-} from "../../tools/void-reviewed-node-package-runtime-v1.mjs";
-
 export const VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1 =
   "VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1";
 
@@ -29,6 +22,8 @@ const CONTROL_CHALLENGE_MARKER_V1 =
   "VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_CHALLENGE_V1";
 const REVIEWED_RUNTIME_PROFILE_RELATIVE_V1 =
   "ops/security/reviewed-node-package-runtime-ethers-v1.json";
+const REVIEWED_RUNTIME_HELPER_RELATIVE_V1 =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
 const REVIEWED_RUNTIME_PROFILE_ID_V1 =
   "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77";
 const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1 =
@@ -86,6 +81,7 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     "VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1",
     "VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1",
     "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1",
+    "VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1",
   ]);
   const keys = Object.keys(env);
   if (
@@ -305,6 +301,85 @@ function gitReadV1(args, code) {
     fail(code);
   }
   return output;
+}
+
+let reviewedRuntimeHelperPromiseV1 = null;
+
+async function reviewedRuntimeHelperV1() {
+  if (reviewedRuntimeHelperPromiseV1 !== null) {
+    return await reviewedRuntimeHelperPromiseV1;
+  }
+  reviewedRuntimeHelperPromiseV1 = (async () => {
+    if (process.env.VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1 !== "1") {
+      return await import(
+        "../../tools/void-reviewed-node-package-runtime-v1.mjs"
+      );
+    }
+
+    const encoded =
+      process.env.VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1;
+    const reviewedHead =
+      process.env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1;
+    if (
+      typeof encoded !== "string" ||
+      encoded.length < 32 ||
+      encoded.length > 256 * 1024 ||
+      typeof reviewedHead !== "string" ||
+      !HEX40.test(reviewedHead)
+    ) {
+      fail("offline_signer_runtime_helper_transport_invalid");
+    }
+
+    let bytes;
+    try {
+      bytes = Buffer.from(encoded, "base64");
+    } catch {
+      fail("offline_signer_runtime_helper_transport_invalid");
+    }
+    if (
+      bytes.length < 1 ||
+      bytes.toString("base64") !== encoded
+    ) {
+      fail("offline_signer_runtime_helper_transport_noncanonical");
+    }
+
+    const expectedBlob = gitReadV1(
+      [
+        "rev-parse",
+        reviewedHead + ":" + REVIEWED_RUNTIME_HELPER_RELATIVE_V1,
+      ],
+      "offline_signer_runtime_helper_reviewed_blob_unavailable",
+    );
+    if (
+      !HEX40.test(expectedBlob) ||
+      gitBlobSha1V1(bytes) !== expectedBlob
+    ) {
+      fail("offline_signer_runtime_helper_reviewed_blob_mismatch");
+    }
+
+    let source;
+    try {
+      source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      fail("offline_signer_runtime_helper_text_invalid");
+    }
+    const rootBinding =
+      'const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");';
+    if (
+      source.split(rootBinding).length - 1 !== 1
+    ) {
+      fail("offline_signer_runtime_helper_root_binding_mismatch");
+    }
+    source = source.replace(
+      rootBinding,
+      "const ROOT=process.env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1;",
+    );
+    const dataUrl =
+      "data:text/javascript;base64," +
+      Buffer.from(source, "utf8").toString("base64");
+    return await import(dataUrl);
+  })();
+  return await reviewedRuntimeHelperPromiseV1;
 }
 
 function requireCleanRepositoryV1() {
@@ -961,6 +1036,7 @@ function runPermissionFencedReviewedChildV1({
   expectedControlBlobSha1,
   expectedInputRelative,
   expectedInputSha256,
+  verifyMaterializedRuntime,
 }) {
   const root = fs.realpathSync.native(runtimeRoot);
   if (root !== path.resolve(runtimeRoot)) {
@@ -990,7 +1066,10 @@ function runPermissionFencedReviewedChildV1({
       fail("offline_signer_reviewed_child_runtime_root_identity_mismatch");
     }
 
-    const verified = verifyMaterializedReviewedNodePackageRuntimeV1({
+    if (typeof verifyMaterializedRuntime !== "function") {
+      fail("offline_signer_reviewed_child_verifier_required");
+    }
+    const verified = verifyMaterializedRuntime({
       profile,
       destinationRoot: root,
       repoRoot: ROOT,
@@ -1178,6 +1257,12 @@ async function withReviewedSigningRuntimeV1(
   fn,
   { testAncestorPackage = false } = {},
 ) {
+  const {
+    materializeReviewedNodePackageRuntimeV1,
+    readReviewedNodePackageRuntimeProfileV1,
+    verifyMaterializedReviewedNodePackageRuntimeV1,
+    verifyReviewedNodePackageRuntimeV1,
+  } = await reviewedRuntimeHelperV1();
   const { profile } = readReviewedNodePackageRuntimeProfileV1({
     relativePath: REVIEWED_RUNTIME_PROFILE_RELATIVE_V1,
     repoRoot: ROOT,
@@ -1295,6 +1380,8 @@ async function withReviewedSigningRuntimeV1(
         expectedControlBlobSha1: controlBlobSha1,
         expectedInputRelative: inputRelative,
         expectedInputSha256: sha256(inputBytes),
+        verifyMaterializedRuntime:
+          verifyMaterializedReviewedNodePackageRuntimeV1,
       });
       if (!execution.ok) {
         fail("offline_signer_reviewed_child_execution_failed");
@@ -2266,7 +2353,13 @@ async function main(argv) {
 
 const direct =
   process.argv[1] &&
-  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+  (
+    (
+      process.env.VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1 === "1" &&
+      process.argv[1] === "-"
+    ) ||
+    import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+  );
 if (direct) {
   try {
     await main(process.argv.slice(2));
