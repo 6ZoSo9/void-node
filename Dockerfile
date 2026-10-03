@@ -19,6 +19,7 @@ COPY --from=build \
   /app/src/economic/buy_void_verified_payment_v2.ts \
   ./src/economic/
 COPY --from=build /app/src/economic/buy_void_coupled_launch_gate_v1.mjs ./src/economic/
+COPY --from=build /app/ops/precision/void-buy-coupled-live-generation-publish-v1.mjs ./ops/precision/
 COPY --from=build \
   /app/tools/void-wc-void-coupled-launch-readiness-v1.mjs \
   /app/tools/void-wc-void-production-readiness-v1.mjs \
