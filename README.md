@@ -10,7 +10,7 @@ The repository is public and operational, but it is still an early network. Publ
 
 ## Current state
 
-Reviewed: **October 2, 2026**
+Reviewed: **October 3, 2026**
 
 ### Live now
 
@@ -32,6 +32,7 @@ Reviewed: **October 2, 2026**
 - Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`; source readiness, funding, signer authority, canary success, and public activation remain separate states.
 - The Buy VOID payment policy is source-allowlisted to native USDC on Ethereum mainnet (chain ID `1`) and Base mainnet (chain ID `8453`) only. Bridged USDbC, lookalike tokens, unsupported chains, blind deposits, and exchange/custodial sends are not supported. Public intake is still closed.
 - A Precision atomic Buy VOID activation apply gate is merged source, but it does not itself open intake, authorize a signer, move inventory, or enable automatic fulfillment.
+- A separate preliminary coupled Buy VOID source gate is also merged. Its current implementation checks a bounded subset of production/coupled/successor candidate fields; it is **not** the full canonical coupled-readiness classifier and is not live activation authority. It remains `HOLD` on the current canonical successor; route/config integration and public intake remain closed. Ethereum checkout readiness/finality gating is likewise merged source-only and does not make public intake live.
 - Economic activation still requires bounded micro-purchase/micro-trade gas-grief protection. No hidden minimum is authorized; if a minimum is selected later it must be explicit and public, while batching, user-paid gas, or another bounded mechanism may satisfy the same gate.
 - Any unpaid payment/trade instruction that reserves gas or inventory must also have bounded expiry plus per-identity/global outstanding caps; stale instructions cannot pin capacity indefinitely.
 - WC/VOID's zero-WC-seed opening also needs a fixed price-forming window. The window shape is source-defined as an absolute opening window with an exclusive close boundary, but the exact launch artifact still must supply the live timestamps. Participant provenance, concentration/Sybil limits, minimum real-WC depth, and exclusion of non-production/test WC remain separate gates.
