@@ -59047,6 +59047,8 @@ APP.get("/public-node/local-data-drop/:objectId", (req:any, res:any) => { // VOI
 });
 
 
+APP.use((err:any,req:any,res:any,next:any)=>{const m=String(err&&err.message||""),p=String(req.path||"");if(m.startsWith("VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1:")&&(p.startsWith("/public-node/local-data-drop")||p==="/public-node/real-data-import-lane-status.json"))return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1",status:"local_data_drop_unsafe_storage",public_read_only:true});return next(err);});
+
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
 <html>

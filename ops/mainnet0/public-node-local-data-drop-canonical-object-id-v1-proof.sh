@@ -203,6 +203,13 @@ assert.ok(demoManifestRoute.indexOf("demo003_folder_fixture_unsafe_manifest")<de
 const demoFileRoute=source.slice(demoManifestEnd,source.indexOf('APP.get("/public-node/local-data-drop.json"',demoManifestEnd));
 assert.equal(demoFileRoute.includes("demo003_folder_file_unsafe_storage"),true,"Demo003 unsafe file storage must return typed rejection");
 assert.equal(demoFileRoute.includes("try{buf=rf(filePath);}"),true,"Demo003 file route must catch custody reader rejection");
+const unsafeMiddlewareStart=source.indexOf('APP.use((err:any,req:any,res:any,next:any)=>{',demoManifestEnd);
+const publicNodeStart=source.indexOf('APP.get("/public-node"',unsafeMiddlewareStart);
+assert.ok(unsafeMiddlewareStart>demoManifestEnd&&publicNodeStart>unsafeMiddlewareStart,"Local Data Drop unsafe-storage middleware placement");
+const unsafeMiddleware=source.slice(unsafeMiddlewareStart,publicNodeStart);
+for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1:","local_data_drop_unsafe_storage","/public-node/real-data-import-lane-status.json","p.startsWith(\"/public-node/local-data-drop\")","return next(err)"]){
+  assert.equal(unsafeMiddleware.includes(needle),true,"unsafe-storage middleware missing "+needle);
+}
 
 const route=source.slice(routeStart,routeStart+1800);
 assert.equal(
