@@ -135,6 +135,8 @@ grep -Fq 'EXPECTED_PAYLOAD_NAMES=' "$DEMO003_STATUS" || fail "demo003_status_exa
 grep -Fq 'record.get("source_manifest")!=manifest' "$DEMO003_STATUS" || fail "demo003_status_intake_manifest_binding_missing"
 grep -Fq 'checksum_entries!=observed_hashes' "$DEMO003_STATUS" || fail "demo003_status_checksum_recompute_missing"
 grep -Fq 'payload_sha256_mismatch' "$DEMO003_STATUS" || fail "demo003_status_payload_digest_guard_missing"
+grep -Fq 'type(record_file_count) is not int' "$DEMO003_STATUS" || fail "demo003_status_intake_file_count_type_guard_missing"
+grep -Fq 'type(manifest_file_count) is not int' "$DEMO003_STATUS" || fail "demo003_status_manifest_file_count_type_guard_missing"
 if grep -Fq 'ln -s "$(realpath "$ARCHIVE")" "$LATEST"' "$DEMO003_INTAKE"; then fail "demo003_legacy_latest_symlink_remains"; fi
 
 node - "$SOURCE" "$READER" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
@@ -278,6 +280,53 @@ if DATA_DIR="$demo003_extra_member_data" bash "$DEMO003_STATUS" >"$tmp/demo003-s
 fi
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-extra-member.log" ||
   fail "demo003_extra_member_status_false_marker_missing"
+
+demo003_float_count_data="$tmp/demo003-status-float-count-data"
+cp -a "$demo003_fresh_data" "$demo003_float_count_data"
+python3 - "$demo003_float_count_data/public-node/local-data-drop-demo003-folder-fixtures/latest" <<'PY'
+import hashlib
+import json
+import os
+import sys
+
+latest=sys.argv[1]
+manifest_path=os.path.join(latest,"manifest.json")
+intake_path=os.path.join(latest,"intake.json")
+checksums_path=os.path.join(latest,"sha256sums.txt")
+
+manifest=json.load(open(manifest_path,encoding="utf-8"))
+manifest["file_count"]=3.0
+with open(manifest_path,"w",encoding="utf-8") as f:
+    json.dump(manifest,f,indent=2)
+    f.write("\n")
+
+intake=json.load(open(intake_path,encoding="utf-8"))
+intake["file_count"]=3.0
+intake["source_manifest"]=manifest
+with open(intake_path,"w",encoding="utf-8") as f:
+    json.dump(intake,f,indent=2,sort_keys=True)
+    f.write("\n")
+
+digest=hashlib.sha256(open(manifest_path,"rb").read()).hexdigest()
+lines=open(checksums_path,encoding="utf-8").read().splitlines()
+out=[]
+found=False
+for line in lines:
+    if line.endswith("  ./manifest.json"):
+        out.append(digest+"  ./manifest.json")
+        found=True
+    else:
+        out.append(line)
+if not found:
+    raise SystemExit("manifest checksum entry missing")
+with open(checksums_path,"w",encoding="utf-8") as f:
+    f.write("\n".join(out)+"\n")
+PY
+if DATA_DIR="$demo003_float_count_data" bash "$DEMO003_STATUS" >"$tmp/demo003-status-float-count.log" 2>&1; then
+  fail "demo003_float_file_count_status_unexpected_green"
+fi
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-float-count.log" ||
+  fail "demo003_float_file_count_status_false_marker_missing"
 
 demo003_unsafe_ancestor="$tmp/demo003-unsafe-ancestor"
 mkdir -p "$demo003_unsafe_ancestor/safe-parent/data"
@@ -897,6 +946,7 @@ echo "demo003_status_missing_member_false_marker=true"
 echo "demo003_status_corrupt_member_false_marker=true"
 echo "demo003_status_extra_member_false_marker=true"
 echo "demo003_status_manifest_checksum_binding=true"
+echo "demo003_status_file_count_exact_integer=true"
 echo "demo003_status_ancestor_symlink_rejected=true"
 echo "demo003_manifest_custody_fail_closed=true"
 echo "reader_parent_owner_mode_guard=true"

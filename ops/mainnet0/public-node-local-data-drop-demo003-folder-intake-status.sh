@@ -165,12 +165,14 @@ try:
     if record.get("network_fetch_during_import") is not False: fail("intake_record_network_fetch")
     if record.get("trusted_as_network_truth") is not False: fail("intake_record_trust")
     if record.get("object_set_id")!=EXPECTED_OBJECT_SET: fail("intake_record_object_set_id")
-    if record.get("file_count")!=3: fail("intake_record_file_count")
+    record_file_count=record.get("file_count")
+    if type(record_file_count) is not int or record_file_count!=3: fail("intake_record_file_count")
 
     if manifest.get("marker")!="VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_MANIFEST_V1": fail("manifest_marker")
     if manifest.get("fixture_marker")!="VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_V1": fail("manifest_fixture_marker")
     if manifest.get("object_set_id")!=record.get("object_set_id"): fail("manifest_intake_object_set_mismatch")
-    if manifest.get("file_count")!=3: fail("manifest_file_count")
+    manifest_file_count=manifest.get("file_count")
+    if type(manifest_file_count) is not int or manifest_file_count!=3: fail("manifest_file_count")
     if record.get("source_manifest")!=manifest: fail("intake_source_manifest_mismatch")
     require_boundary_contract(manifest)
 
