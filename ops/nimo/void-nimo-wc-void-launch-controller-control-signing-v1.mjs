@@ -588,11 +588,17 @@ function writeExclusiveJsonV1(
     testOnlyAfterParentPinnedBeforeCreate = null,
   } = {},
 ) {
-  if (
-    !(expiresAtUnix === null ||
-      (Number.isSafeInteger(expiresAtUnix) && expiresAtUnix > 0)) ||
-    typeof nowUnix !== "function"
-  ) {
+  let normalizedExpiry = null;
+  if (expiresAtUnix !== null) {
+    normalizedExpiry = decimal(
+      expiresAtUnix,
+      "signature_output_expiry_guard_invalid",
+    );
+    if (normalizedExpiry <= 0n) {
+      fail("signature_output_expiry_guard_invalid");
+    }
+  }
+  if (typeof nowUnix !== "function") {
     fail("signature_output_expiry_guard_invalid");
   }
   if (
@@ -727,8 +733,11 @@ function writeExclusiveJsonV1(
     }
 
     if (
-      expiresAtUnix !== null &&
-      BigInt(nowUnix()) >= BigInt(expiresAtUnix)
+      normalizedExpiry !== null &&
+      decimal(
+        nowUnix(),
+        "signature_output_now_invalid",
+      ) >= normalizedExpiry
     ) {
       fail("control_challenge_expired_after_output_write");
     }
