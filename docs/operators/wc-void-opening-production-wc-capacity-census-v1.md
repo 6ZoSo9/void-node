@@ -110,10 +110,16 @@ The output always records:
 
 The scan proves only what was found beneath the explicitly supplied roots.
 
-Unreadable directories, receipt-search paths truncated by the bounded
-recursive-depth limit, or any malformed canonical WC ledger line are counted
-explicitly and force the `OBSERVED_WITH_DISCOVERY_GAPS` status. They are never
-silently treated as a complete scan.
+Unreadable directories and receipt-search paths truncated by the bounded
+recursive-depth limit force the `OBSERVED_WITH_DISCOVERY_GAPS` status. Unknown
+malformed canonical WC ledger lines do the same.
+
+One historical exception is already part of canonical production-WC visibility
+compatibility on `main`. The census recognizes only that exact raw-line SHA-256,
+repairs only byte position `178` to `:`, requires the exact canonical repaired
+SHA-256, and parses the repaired bytes in memory. It reports the count as
+`historical_known_compatibility_repairs_applied` and never writes repaired bytes
+back to the ledger. Any other malformed row remains a discovery gap.
 
 It also leaves:
 

@@ -9,6 +9,7 @@ on:
       - "docs/operators/wc-void-opening-production-wc-capacity-census-v1.md"
       - "src/economic/agent_paid_work_wc_earning_adapter_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_production_visibility_projection_v1.ts"
   push:
     branches:
       - main
@@ -19,6 +20,7 @@ on:
       - "docs/operators/wc-void-opening-production-wc-capacity-census-v1.md"
       - "src/economic/agent_paid_work_wc_earning_adapter_v1.ts"
       - "src/economic/wc_verified_receipt_acceptance_v1.ts"
+      - "src/economic/wc_production_visibility_projection_v1.ts"
   workflow_dispatch:
 
 permissions:

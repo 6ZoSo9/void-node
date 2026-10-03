@@ -261,6 +261,20 @@ function runFailure(
   assert.match(result.stderr || result.stdout, pattern);
 }
 
+const censusSource = fs.readFileSync(TOOL, "utf8");
+const productionVisibilitySource = fs.readFileSync(
+  path.join(ROOT, "src/economic/wc_production_visibility_projection_v1.ts"),
+  "utf8",
+);
+for (const token of [
+  "0bd1367f924399b979c7ee9f001cd6edbeea2e35ded37283a0e4c10ba9aacbfb",
+  "VOID_WC_PRODUCTION_HISTORICAL_REPAIR_POSITION_V1 = 178",
+  "398291f147e64b5590b5467f68756df504aa0876bdcfd78abbd57b9ca49568f2",
+]) {
+  assert.ok(productionVisibilitySource.includes(token), `canonical compatibility missing: ${token}`);
+  assert.ok(censusSource.includes(token), `census compatibility drift: ${token}`);
+}
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-wc-capacity-census-proof-"),
 );
@@ -322,6 +336,10 @@ try {
   assert.equal(clean.value.discovery.valid_unique_adapter_receipts, 2);
   assert.equal(clean.value.discovery.duplicate_adapter_receipt_copies, 1);
   assert.equal(clean.value.discovery.unreadable_directories, 0);
+  assert.equal(
+    clean.value.discovery.historical_known_compatibility_repairs_applied,
+    0,
+  );
   assert.equal(clean.value.discovery.depth_limited_directories, 0);
   assert.equal(clean.value.matched.production_earning_receipt_count, 2);
   assert.equal(clean.value.matched.distinct_wc_account_count, 2);
@@ -414,6 +432,10 @@ try {
     malformedLedger.value.discovery.historical_malformed_ledger_lines_observed,
     1,
   );
+  assert.equal(
+    malformedLedger.value.discovery.historical_known_compatibility_repairs_applied,
+    0,
+  );
   assert.equal(malformedLedger.value.matched.gross_production_earned_wc, "6");
   fs.writeFileSync(ledger, ledgerBaseline);
 
@@ -495,6 +517,7 @@ try {
   console.log("canonical_receipt_job_duplicate_guard=true");
   console.log("canonical_wc_state_projection_reused=true");
   console.log("production_earned_lower_upper_bounds=true");
+  console.log("known_historical_ledger_compatibility_bound=true");
   console.log("malformed_ledger_discovery_gap_fail_closed=true");
   console.log("depth_limited_discovery_gap_fail_closed=true");
   console.log("unreadable_directory_discovery_gap_fail_closed=" + String(process.platform === "linux"));

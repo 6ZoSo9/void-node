@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs";
+import crypto from "node:crypto";
 import type { Dirent } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
@@ -23,6 +24,11 @@ const RECEIPT_BASENAME = "adapter-execution-receipt-v1.json";
 const WC_QUANTA_PER_WC = 1_000_000_000n;
 const AWARD_QUANTA =
   BigInt(VOID_WC_VERIFIED_RECEIPT_ACCEPTANCE_AWARD_WC) * WC_QUANTA_PER_WC;
+const VOID_WC_PRODUCTION_HISTORICAL_MALFORMED_LINE_SHA256_V1 =
+  "0bd1367f924399b979c7ee9f001cd6edbeea2e35ded37283a0e4c10ba9aacbfb";
+const VOID_WC_PRODUCTION_HISTORICAL_REPAIR_POSITION_V1 = 178;
+const VOID_WC_PRODUCTION_HISTORICAL_REPAIRED_LINE_SHA256_V1 =
+  "398291f147e64b5590b5467f68756df504aa0876bdcfd78abbd57b9ca49568f2";
 const MAX_RECEIPT_BYTES = 2 * 1024 * 1024;
 const MAX_LEDGER_BYTES = 256 * 1024 * 1024;
 const MAX_FILES_VISITED = 100_000;
@@ -211,11 +217,68 @@ function scanReceiptFiles(roots: string[]): {
   };
 }
 
+function historicalLineSha256(value: string): string {
+  return crypto.createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function historicalLineHashMatches(
+  lineRaw: string,
+  expectedSha256: string,
+): boolean {
+  return [
+    lineRaw,
+    `${lineRaw}\n`,
+    `${lineRaw}\r\n`,
+  ].some((candidate) => historicalLineSha256(candidate) === expectedSha256);
+}
+
+function parseLedgerLineWithHistoricalCompatibility(
+  lineRaw: string,
+): { row: Json; repairedKnownHistoricalLine: boolean } | null {
+  try {
+    const parsed = JSON.parse(lineRaw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return { row: parsed as Json, repairedKnownHistoricalLine: false };
+  } catch (error) {
+    if (
+      !(error instanceof SyntaxError) ||
+      !historicalLineHashMatches(
+        lineRaw,
+        VOID_WC_PRODUCTION_HISTORICAL_MALFORMED_LINE_SHA256_V1,
+      )
+    ) {
+      return null;
+    }
+  }
+
+  const position = VOID_WC_PRODUCTION_HISTORICAL_REPAIR_POSITION_V1;
+  if (lineRaw.length <= position) return null;
+  const repaired =
+    lineRaw.slice(0, position) + ":" + lineRaw.slice(position + 1);
+  if (
+    !historicalLineHashMatches(
+      repaired,
+      VOID_WC_PRODUCTION_HISTORICAL_REPAIRED_LINE_SHA256_V1,
+    )
+  ) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(repaired);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return { row: parsed as Json, repairedKnownHistoricalLine: true };
+  } catch {
+    return null;
+  }
+}
+
+
 async function scanLedger(
   ledger: string,
   targets: Map<string, AdapterReceiptSummary>,
 ): Promise<{
   malformed_lines: number;
+  historical_compatibility_repairs: number;
   matching_rows: Map<string, number>;
   invalid_matching_rows: number;
 }> {
@@ -231,6 +294,7 @@ async function scanLedger(
     [...targets.values()].map((summary) => summary.job_id),
   );
   let malformedLines = 0;
+  let historicalCompatibilityRepairs = 0;
   let invalidMatchingRows = 0;
   const input = fs.createReadStream(ledger, { encoding: "utf8" });
   const lines = readline.createInterface({ input, crlfDelay: Infinity });
@@ -238,12 +302,14 @@ async function scanLedger(
     for await (const lineRaw of lines) {
       const line = lineRaw.trim();
       if (!line) continue;
-      let row: Json;
-      try {
-        row = JSON.parse(line);
-      } catch {
+      const parsed = parseLedgerLineWithHistoricalCompatibility(line);
+      if (!parsed) {
         malformedLines += 1;
         continue;
+      }
+      const row = parsed.row;
+      if (parsed.repairedKnownHistoricalLine) {
+        historicalCompatibilityRepairs += 1;
       }
       if (exactText(row?.kind) !== "credit") continue;
       const account = exactText(row?.account);
@@ -269,7 +335,12 @@ async function scanLedger(
     lines.close();
     input.destroy();
   }
-  return { malformed_lines: malformedLines, matching_rows: matchingRows, invalid_matching_rows: invalidMatchingRows };
+  return {
+    malformed_lines: malformedLines,
+    historical_compatibility_repairs: historicalCompatibilityRepairs,
+    matching_rows: matchingRows,
+    invalid_matching_rows: invalidMatchingRows,
+  };
 }
 
 async function main(): Promise<void> {
@@ -441,6 +512,8 @@ async function main(): Promise<void> {
       valid_receipts_without_matching_ledger_credit: receiptsWithoutCredit,
       matching_ledger_credit_conflicts:
         ledgerScan.invalid_matching_rows + duplicateLedgerMatches,
+      historical_known_compatibility_repairs_applied:
+        ledgerScan.historical_compatibility_repairs,
       historical_malformed_ledger_lines_observed: ledgerScan.malformed_lines,
       redeemed_file_present: fs.existsSync(redeemed),
     },
