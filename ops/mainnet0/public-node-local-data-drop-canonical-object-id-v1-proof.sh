@@ -81,6 +81,8 @@ if grep -Fq 'sha256sum "$SRC"' "$IMPORTER"; then
 fi
 grep -Fq 'object_id = f"{expected_sha[:16]}-' "$IMPORTER" ||
   fail "secure_default_object_id_derivation_missing"
+grep -Fq 'idx == len(parts) - 1' "$IMPORTER" || fail "data_root_final_component_custody_missing"
+grep -Fq 'data_dir_group_or_world_writable' "$IMPORTER" || fail "data_root_dot_custody_missing"
 grep -Fq 'type(doc.get("bytes")) is not int' "$IMPORTER" ||
   fail "receipt_exact_int_type_guard_missing"
 grep -Fq 'type(doc.get(key)) is not bool' "$IMPORTER" ||
@@ -489,6 +491,27 @@ fi
 test -z "$(find "$data_root_symlink_parent/outside" -mindepth 1 -maxdepth 1 -print -quit)" ||
   fail "data_root_symlink_received_write"
 
+unsafe_data_root="$tmp/unsafe-data-root"
+mkdir -p "$unsafe_data_root"
+chmod 0777 "$unsafe_data_root"
+if DATA_DIR="$unsafe_data_root" bash "$IMPORTER" "$PAYLOAD" "void:proof:unsafe-data-root:v1" >"$tmp/unsafe-data-root.log" 2>&1; then
+  fail "group_world_writable_data_root_accepted"
+fi
+test ! -e "$unsafe_data_root/public-node" ||
+  fail "unsafe_data_root_received_publication"
+
+unsafe_dot_root="$tmp/unsafe-dot-root"
+mkdir -p "$unsafe_dot_root"
+chmod 0777 "$unsafe_dot_root"
+if (
+  cd "$unsafe_dot_root"
+  DATA_DIR=. bash "$ROOT/$IMPORTER" "$ROOT/$PAYLOAD" "void:proof:unsafe-dot-root:v1" >"$tmp/unsafe-dot-root.log" 2>&1
+); then
+  fail "group_world_writable_dot_data_root_accepted"
+fi
+test ! -e "$unsafe_dot_root/public-node" ||
+  fail "unsafe_dot_data_root_received_publication"
+
 public_node_symlink_root="$tmp/public-node-symlink"
 mkdir -p "$public_node_symlink_root/data" "$public_node_symlink_root/outside"
 ln -s "$public_node_symlink_root/outside" "$public_node_symlink_root/data/public-node"
@@ -702,6 +725,8 @@ echo "receipt_symlink_rejected_outside_unchanged=true"
 echo "objects_directory_symlink_rejected=true"
 echo "receipts_directory_symlink_rejected=true"
 echo "data_root_symlink_rejected=true"
+echo "data_root_owner_mode_guard=true"
+echo "data_root_dot_owner_mode_guard=true"
 echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"

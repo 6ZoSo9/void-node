@@ -96,10 +96,16 @@ def open_data_root(path):
             part,
             f"data_dir_component_{idx}",
             True,
-            False,
+            idx == len(parts) - 1,
         )
         os.close(fd)
         fd = next_fd
+    if not parts:
+        root = os.fstat(fd)
+        if root.st_uid != euid:
+            fail("data_dir_not_owned_by_operator")
+        if root.st_mode & 0o022:
+            fail("data_dir_group_or_world_writable")
     return fd
 
 
