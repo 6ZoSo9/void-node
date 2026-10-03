@@ -25,10 +25,22 @@ The coupled launch ID is:
 
 The gate is ready only when the production WC/VOID candidate, coupled successor
 gate, inventory/custody/canary conditions, all coupled source gates, and
-source-only successor authority are mutually consistent.
+successor migration are mutually consistent.
 
-Current canonical source is intentionally HOLD, so restoring this module cannot
-open Buy VOID intake.
+The gate requires exact reviewed key sets for:
+- production authority;
+- coupled source gates;
+- coupled authority; and
+- successor launch authority.
+
+Missing or extra authority/gate keys fail closed even when every remaining value
+has the expected boolean. The successor candidate must also pass
+`classifyVoidEconomicEvmSuccessorMigrationV1(...)` with `ok=true` and
+`status=SOURCE_READY`; shape-valid source-only authority is not enough.
+
+Current canonical successor classification is intentionally `HOLD` because the
+public state-root anchor and public economic verification path are not both ready,
+so restoring this module cannot open Buy VOID intake.
 
 ## Integration boundary
 
@@ -56,3 +68,10 @@ Source/proof only:
 ```bash
 node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
 ```
+
+The proof also:
+- demonstrates that synthetically ready production/coupled candidates remain HOLD
+  against the current canonical successor;
+- constructs a fully classifier-ready successor only for inert proof purposes;
+- removes and adds gate/authority keys and requires fail-closed behavior; and
+- proves missing successor public-verification gates prevent readiness.
