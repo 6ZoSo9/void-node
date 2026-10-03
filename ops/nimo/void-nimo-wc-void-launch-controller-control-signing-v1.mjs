@@ -1214,7 +1214,264 @@ function validateCurrentSourceBindingV1(
     source_binding_sha256: binding.source_binding_sha256,
     source_head_sha: binding.source_head_sha,
     current_head_sha: currentHead,
+    control_contract_git_blob_sha1:
+      binding.control_contract_git_blob_sha1,
     current_source_binding_verified: true,
+  });
+}
+
+function validateChallengeParentPreflightV1({
+  challengeEnvelope,
+  expectedAddress,
+  nowUnix,
+}) {
+  const envelope = exactDataObject(
+    challengeEnvelope,
+    [
+      "marker",
+      "version",
+      "challenge",
+      "source_binding",
+      "typed_data",
+      "challenge_id",
+      "typed_data_digest",
+      "authority",
+    ],
+    "control_challenge_envelope",
+  );
+  if (
+    envelope.marker !== CONTROL_REQUALIFICATION_MARKER_V1 ||
+    envelope.version !== 1 ||
+    typeof envelope.challenge_id !== "string" ||
+    !CHALLENGE_ID_PATTERN.test(envelope.challenge_id) ||
+    typeof envelope.typed_data_digest !== "string" ||
+    !BYTES32.test(envelope.typed_data_digest)
+  ) {
+    fail("control_challenge_envelope_invalid");
+  }
+
+  const challenge = exactDataObject(
+    envelope.challenge,
+    [
+      "marker",
+      "version",
+      "execution_epoch",
+      "role_id",
+      "candidate_address",
+      "coupled_launch_id",
+      "compiled_identity_id",
+      "void_token",
+      "source_binding_sha256",
+      "nonce",
+      "issued_at_unix",
+      "expires_at_unix",
+    ],
+    "control_challenge",
+  );
+  if (
+    challenge.marker !== CONTROL_CHALLENGE_MARKER_V1 ||
+    challenge.version !== 1 ||
+    challenge.execution_epoch !== "2" ||
+    typeof challenge.role_id !== "string" ||
+    !BYTES32.test(challenge.role_id) ||
+    String(challenge.candidate_address).toLowerCase() !== expectedAddress ||
+    challenge.coupled_launch_id !== COUPLED_LAUNCH_BYTES32_V1 ||
+    challenge.compiled_identity_id !== COMPILED_IDENTITY_ID_V1 ||
+    String(challenge.void_token).toLowerCase() !== VOID_TOKEN_V1 ||
+    typeof challenge.source_binding_sha256 !== "string" ||
+    !BYTES32.test(challenge.source_binding_sha256) ||
+    typeof challenge.nonce !== "string" ||
+    !BYTES32.test(challenge.nonce)
+  ) {
+    fail("control_challenge_semantics_invalid");
+  }
+
+  const sourceBinding = validateCurrentSourceBindingV1(
+    envelope.source_binding,
+    challenge,
+  );
+
+  const typedData = exactDataObject(
+    envelope.typed_data,
+    ["domain", "types", "value"],
+    "control_typed_data",
+  );
+  const domain = exactDataObject(
+    typedData.domain,
+    ["name", "version", "chainId", "salt"],
+    "control_typed_data_domain",
+  );
+  if (
+    domain.name !== "VOID WC/VOID Launch Controller Control" ||
+    domain.version !== "1" ||
+    domain.chainId !== 2050 ||
+    typeof domain.salt !== "string" ||
+    !BYTES32.test(domain.salt)
+  ) {
+    fail("control_typed_data_domain_invalid");
+  }
+  const types = exactDataObject(
+    typedData.types,
+    ["LaunchControllerControl"],
+    "control_typed_data_types",
+  );
+  const expectedTypeList = [
+    ["execution_epoch", "uint64"],
+    ["role_id", "bytes32"],
+    ["candidate_address", "address"],
+    ["coupled_launch_id", "bytes32"],
+    ["compiled_identity_id", "string"],
+    ["void_token", "address"],
+    ["source_binding_sha256", "bytes32"],
+    ["nonce", "bytes32"],
+    ["issued_at_unix", "uint64"],
+    ["expires_at_unix", "uint64"],
+  ];
+  if (
+    !Array.isArray(types.LaunchControllerControl) ||
+    types.LaunchControllerControl.length !== expectedTypeList.length
+  ) {
+    fail("control_typed_data_types_invalid");
+  }
+  const normalizedTypes = types.LaunchControllerControl.map(
+    (row, index) => {
+      const item = exactDataObject(
+        row,
+        ["name", "type"],
+        "control_typed_data_type_entry",
+      );
+      if (
+        item.name !== expectedTypeList[index][0] ||
+        item.type !== expectedTypeList[index][1]
+      ) {
+        fail("control_typed_data_type_entry_invalid");
+      }
+      return { name: item.name, type: item.type };
+    },
+  );
+
+  const value = exactDataObject(
+    typedData.value,
+    [
+      "execution_epoch",
+      "role_id",
+      "candidate_address",
+      "coupled_launch_id",
+      "compiled_identity_id",
+      "void_token",
+      "source_binding_sha256",
+      "nonce",
+      "issued_at_unix",
+      "expires_at_unix",
+    ],
+    "control_typed_data_value",
+  );
+  const expectedValue = {
+    execution_epoch: challenge.execution_epoch,
+    role_id: challenge.role_id,
+    candidate_address: challenge.candidate_address,
+    coupled_launch_id: challenge.coupled_launch_id,
+    compiled_identity_id: challenge.compiled_identity_id,
+    void_token: challenge.void_token,
+    source_binding_sha256: challenge.source_binding_sha256,
+    nonce: challenge.nonce,
+    issued_at_unix: challenge.issued_at_unix,
+    expires_at_unix: challenge.expires_at_unix,
+  };
+  if (canonicalJson(value) !== canonicalJson(expectedValue)) {
+    fail("control_typed_data_value_mismatch");
+  }
+
+  const issued = decimal(challenge.issued_at_unix, "control_issued_invalid");
+  const expires = decimal(challenge.expires_at_unix, "control_expires_invalid");
+  const now = decimal(nowUnix, "control_now_invalid");
+  if (
+    expires <= issued ||
+    expires - issued < MIN_TTL_SECONDS ||
+    expires - issued > MAX_TTL_SECONDS
+  ) {
+    fail("control_challenge_ttl_invalid");
+  }
+  if (now < issued) fail("control_challenge_not_yet_valid");
+  if (now >= expires) fail("control_challenge_expired");
+
+  const material = {
+    marker: CONTROL_REQUALIFICATION_MARKER_V1,
+    version: 1,
+    challenge,
+    source_binding: envelope.source_binding,
+    typed_data: typedData,
+  };
+  const expectedChallengeId =
+    "voidwclcc1_" +
+    sha256(Buffer.from(canonicalJson(material), "utf8"));
+  if (expectedChallengeId !== envelope.challenge_id) {
+    fail("control_challenge_id_mismatch");
+  }
+
+  const authority = exactDataObject(
+    envelope.authority,
+    [
+      "source_only_control_verification",
+      "public_challenge_material",
+      "public_signature_material",
+      "signature_verification",
+      "current_source_binding_required",
+      "private_key_access",
+      "credential_access",
+      "wallet_or_signer_access",
+      "transaction_construction",
+      "transaction_signing_performed",
+      "transaction_broadcast",
+      "chain2050_write",
+      "role_binding_authorized",
+      "deployment_authorized",
+      "inventory_funding_authorized",
+      "market_activation",
+      "public_presale_activation",
+      "funds_movement",
+    ],
+    "control_challenge_authority",
+  );
+  const expectedAuthority = {
+    source_only_control_verification: true,
+    public_challenge_material: true,
+    public_signature_material: true,
+    signature_verification: true,
+    current_source_binding_required: true,
+    private_key_access: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    transaction_construction: false,
+    transaction_signing_performed: false,
+    transaction_broadcast: false,
+    chain2050_write: false,
+    role_binding_authorized: false,
+    deployment_authorized: false,
+    inventory_funding_authorized: false,
+    market_activation: false,
+    public_presale_activation: false,
+    funds_movement: false,
+  };
+  if (canonicalJson(authority) !== canonicalJson(expectedAuthority)) {
+    fail("control_challenge_authority_mismatch");
+  }
+
+  const detachedEnvelope = JSON.parse(JSON.stringify(challengeEnvelope));
+  return Object.freeze({
+    challenge_envelope: Object.freeze(detachedEnvelope),
+    challenge_id: envelope.challenge_id,
+    candidate_address: expectedAddress,
+    expires_at_unix: expires.toString(),
+    source_binding_sha256: sourceBinding.source_binding_sha256,
+    control_contract_git_blob_sha1:
+      sourceBinding.control_contract_git_blob_sha1,
+    current_source_binding_verified: true,
+    typed_data_structure_verified: true,
+    cryptographic_typed_data_verification_deferred_to_fenced_child: true,
+    normalized_types: Object.freeze(
+      normalizedTypes.map((row) => Object.freeze(row)),
+    ),
   });
 }
 
@@ -1549,18 +1806,39 @@ export async function signControlChallengeCoreV1({
 }
 
 export async function reviewedOfflineSigningRuntimeV1() {
-  return await withReviewedEthersV1(async ({ ethers, profile }) =>
-    Object.freeze({
-      reviewed_runtime_profile_id: profile.profile_id,
-      reviewed_packages_aggregate_sha256:
-        profile.packages_aggregate_sha256,
-      ethers_version:
-        typeof ethers.version === "string" ? ethers.version : null,
-      private_key_access: false,
-      network_access_required: false,
-      transaction_signing: false,
-      funds_movement: false,
-    })
+  const currentControlBlob = gitReadV1(
+    ["rev-parse", "HEAD:" + CONTROL_REL_V1],
+    "offline_signer_current_control_blob_unavailable",
+  );
+  if (!HEX40.test(currentControlBlob)) {
+    fail("offline_signer_current_control_blob_invalid");
+  }
+  return await withReviewedSigningRuntimeV1(
+    currentControlBlob,
+    async (runtime) => {
+      const probe = runtime.run("probe", {}, "");
+      return Object.freeze({
+        reviewed_runtime_profile_id: runtime.profile.profile_id,
+        reviewed_packages_aggregate_sha256:
+          runtime.profile.packages_aggregate_sha256,
+        ethers_version:
+          typeof probe.ethers_version === "string"
+            ? probe.ethers_version
+            : null,
+        permission_fenced_execution: runtime.permission_fenced,
+        ancestor_package_resolution_allowed:
+          runtime.ancestor_package_resolution_allowed,
+        ambient_node_resolution_overrides_ignored:
+          runtime.ambient_node_resolution_overrides_ignored,
+        ambient_dynamic_loader_overrides_ignored:
+          runtime.ambient_dynamic_loader_overrides_ignored,
+        private_key_access: false,
+        network_access_required: false,
+        execution_network_isolation_provided: false,
+        transaction_signing: false,
+        funds_movement: false,
+      });
+    },
   );
 }
 
@@ -1571,62 +1849,93 @@ export async function signSelectedLaunchControllerChallengeV1({
 } = {}) {
   validateSanitizedOfflineSignerEnvironmentV1();
   const challenge = readChallengeV1(challengePath, challengeSha256);
-
-  return await withReviewedEthersV1(async ({ ethers, profile }) => {
-    const signingNowUnix = Math.floor(Date.now() / 1000);
-    const reviewed = validateChallengeForSigningV1({
-      challengeEnvelope: challenge.value,
-      expectedAddress: SELECTED_REVIEWER_ADDRESS_V1,
-      nowUnix: signingNowUnix,
-      ethers,
-    });
-    if (
-      BigInt(Math.floor(Date.now() / 1000)) >=
-      BigInt(reviewed.expires_at_unix)
-    ) {
-      fail("control_challenge_expired");
-    }
-
-    let privateKey = readPrivateKeyV1(KEY_PATH_V1);
-    let envelope;
-    try {
-      envelope = await signValidatedControlChallengeV1({
-        reviewed,
-        privateKey,
-        ethers,
-      });
-    } finally {
-      privateKey = "";
-    }
-
-    const written = writeExclusiveJsonV1(outputPath, envelope);
-    return Object.freeze({
-      marker: VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
-      status: "PUBLIC_CONTROL_SIGNATURE_ENVELOPE_WRITTEN",
-      challenge_id: envelope.challenge_id,
-      candidate_address: SELECTED_REVIEWER_ADDRESS_V1,
-      signature_sha256: sha256(
-        Buffer.from(envelope.signature, "utf8"),
-      ),
-      output_sha256: written.sha256,
-      reviewed_runtime_profile_id: profile.profile_id,
-      reviewed_packages_aggregate_sha256:
-        profile.packages_aggregate_sha256,
-      private_key_path_fixed: true,
-      exact_challenge_source_head_required: true,
-      current_source_binding_verified: true,
-      sanitized_environment_required: true,
-      private_key_access: true,
-      credential_access: true,
-      wallet_or_signer_access: true,
-      private_key_printed: false,
-      private_key_exported: false,
-      transaction_signing: false,
-      transaction_broadcast: false,
-      chain2050_write: false,
-      funds_movement: false,
-    });
+  const preflight = validateChallengeParentPreflightV1({
+    challengeEnvelope: challenge.value,
+    expectedAddress: SELECTED_REVIEWER_ADDRESS_V1,
+    nowUnix: Math.floor(Date.now() / 1000),
   });
+
+  return await withReviewedSigningRuntimeV1(
+    preflight.control_contract_git_blob_sha1,
+    async (runtime) => {
+      if (
+        BigInt(Math.floor(Date.now() / 1000)) >=
+        BigInt(preflight.expires_at_unix)
+      ) {
+        fail("control_challenge_expired");
+      }
+
+      let privateKey = readPrivateKeyV1(KEY_PATH_V1);
+      let bridgeResult;
+      try {
+        bridgeResult = runtime.run(
+          "sign",
+          {
+            challenge_envelope: preflight.challenge_envelope,
+            expected_address: SELECTED_REVIEWER_ADDRESS_V1,
+          },
+          privateKey,
+        );
+      } finally {
+        privateKey = "";
+      }
+
+      if (
+        BigInt(Math.floor(Date.now() / 1000)) >=
+        BigInt(preflight.expires_at_unix)
+      ) {
+        fail("control_challenge_expired");
+      }
+
+      const envelope = exactDataObject(
+        bridgeResult.envelope,
+        ["marker", "version", "challenge_id", "signature"],
+        "offline_signer_signature_envelope",
+      );
+      if (
+        envelope.marker !== SIGNATURE_MARKER_V1 ||
+        envelope.version !== 1 ||
+        envelope.challenge_id !== preflight.challenge_id ||
+        typeof envelope.signature !== "string" ||
+        !SIGNATURE65.test(envelope.signature)
+      ) {
+        fail("offline_signer_signature_envelope_invalid");
+      }
+
+      const written = writeExclusiveJsonV1(outputPath, envelope);
+      return Object.freeze({
+        marker: VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
+        status: "PUBLIC_CONTROL_SIGNATURE_ENVELOPE_WRITTEN",
+        challenge_id: envelope.challenge_id,
+        candidate_address: SELECTED_REVIEWER_ADDRESS_V1,
+        signature_sha256: sha256(
+          Buffer.from(envelope.signature, "utf8"),
+        ),
+        output_sha256: written.sha256,
+        reviewed_runtime_profile_id: runtime.profile.profile_id,
+        reviewed_packages_aggregate_sha256:
+          runtime.profile.packages_aggregate_sha256,
+        permission_fenced_execution: true,
+        ancestor_package_resolution_allowed: false,
+        ambient_node_resolution_overrides_ignored: true,
+        ambient_dynamic_loader_overrides_ignored: true,
+        execution_network_isolation_provided: false,
+        private_key_path_fixed: true,
+        exact_challenge_source_head_required: true,
+        current_source_binding_verified: true,
+        sanitized_environment_required: true,
+        private_key_access: true,
+        credential_access: true,
+        wallet_or_signer_access: true,
+        private_key_printed: false,
+        private_key_exported: false,
+        transaction_signing: false,
+        transaction_broadcast: false,
+        chain2050_write: false,
+        funds_movement: false,
+      });
+    },
+  );
 }
 
 function usage() {
