@@ -164,6 +164,7 @@ export function verifyAgentPaidWorkCredentialRequestPublicAuthV1({
   path,
   body_sha256,
   request_id,
+  inner_agent_id,
   now_ms = Date.now(),
 }) {
   if (!Number.isSafeInteger(now_ms) || now_ms < 0) {
@@ -177,6 +178,9 @@ export function verifyAgentPaidWorkCredentialRequestPublicAuthV1({
   }
   if (!REQUEST_ID.test(String(request_id || ""))) {
     fail("public_auth_request_id_invalid");
+  }
+  if (!AGENT_ID.test(String(inner_agent_id || ""))) {
+    fail("public_auth_inner_agent_id_invalid");
   }
 
   const envelope = parseHeader(encoded_header);
@@ -217,7 +221,11 @@ export function verifyAgentPaidWorkCredentialRequestPublicAuthV1({
 
   const publicJwk = normalizePublicJwk(envelope.public_key_jwk);
   const agentId = deriveVoidEd25519AgentIdV1(publicJwk);
-  if (!AGENT_ID.test(String(envelope.agent_id || "")) || envelope.agent_id !== agentId) {
+  if (
+    !AGENT_ID.test(String(envelope.agent_id || "")) ||
+    envelope.agent_id !== agentId ||
+    inner_agent_id !== agentId
+  ) {
     fail("public_auth_agent_id_mismatch");
   }
 
