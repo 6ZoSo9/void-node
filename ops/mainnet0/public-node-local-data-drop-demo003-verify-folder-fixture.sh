@@ -819,6 +819,7 @@ sealed = {
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+MAX_MEMBER_BYTES = 2 * 1024 * 1024
 
 def root_identity(st):
     return ":".join(
@@ -868,6 +869,16 @@ files_fd = os.open(
     os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
     dir_fd=root_fd,
 )
+opened_files_dir = os.fstat(files_fd)
+visible_files_dir = os.stat("files", dir_fd=root_fd, follow_symlinks=False)
+if (
+    not stat.S_ISDIR(opened_files_dir.st_mode)
+    or not stat.S_ISDIR(visible_files_dir.st_mode)
+    or stat.S_ISLNK(visible_files_dir.st_mode)
+    or root_identity(opened_files_dir) != root_identity(visible_files_dir)
+):
+    raise SystemExit("terminal_files_directory_identity_mismatch")
+
 opened_children = []
 try:
     for rel, expected_sha in sealed.items():
@@ -883,8 +894,10 @@ try:
             not stat.S_ISREG(listed.st_mode)
             or stat.S_ISLNK(listed.st_mode)
             or listed.st_nlink != 1
+            or listed.st_size <= 0
+            or listed.st_size > MAX_MEMBER_BYTES
         ):
-            raise SystemExit("terminal_child_type_invalid:" + rel)
+            raise SystemExit("terminal_child_size_or_type_invalid:" + rel)
 
         child_fd = os.open(
             leaf,
@@ -903,6 +916,8 @@ try:
             if not chunk:
                 break
             total += len(chunk)
+            if total > MAX_MEMBER_BYTES:
+                raise SystemExit("terminal_child_read_limit_exceeded:" + rel)
             digest.update(chunk)
 
         after = os.fstat(child_fd)
@@ -919,6 +934,21 @@ try:
     visible_root = os.stat(pathname, follow_symlinks=False)
     if root_identity(visible_root) != expected_root:
         raise SystemExit("terminal_fixture_root_changed_before_green")
+
+    visible_files_dir = os.stat(
+        "files",
+        dir_fd=root_fd,
+        follow_symlinks=False,
+    )
+    if (
+        not stat.S_ISDIR(visible_files_dir.st_mode)
+        or stat.S_ISLNK(visible_files_dir.st_mode)
+        or root_identity(os.fstat(files_fd)) !=
+          root_identity(opened_files_dir)
+        or root_identity(visible_files_dir) !=
+          root_identity(opened_files_dir)
+    ):
+        raise SystemExit("terminal_files_directory_changed_before_green")
 
     for rel, parent_fd, leaf, child_fd in opened_children:
         opened = os.fstat(child_fd)
