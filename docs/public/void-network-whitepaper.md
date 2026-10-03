@@ -481,4 +481,3 @@ The settlement stack is materially further along: Buy VOID has an atomic source-
 The release objective is equally explicit: source on `main` is not a stable release. The first official node release must clear the deterministic build, qualification, approval/time-lock, immutable publication, canary, and promotion chain before it is described as stable.
 
 VOID's operating principle remains to make claims no broader than the proof that supports them, then expand authority only after the next boundary is exact-green.
-
