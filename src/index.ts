@@ -107,12 +107,9 @@ import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../t
 import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
 const __VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1="VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1";
-let __voidBuyLaunchDecisionV1:any=()=>({ready:false,request_authority:null}),__voidBuyLaunchRequestOkV1:any=()=>false;
-let __voidBuyLaunchReadyV1=()=>__voidBuyLaunchDecisionV1().ready===true;
-void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{
-  __voidBuyLaunchDecisionV1=()=>{try{const d=m.readBuyLaunchGateV1();return m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26"&&d?d:{ready:false,request_authority:null};}catch{return{ready:false,request_authority:null}}};
-  __voidBuyLaunchRequestOkV1=(r:any)=>m.buyLaunchRequestAuthorityMatchesV1(r,__voidBuyLaunchDecisionV1());
-}).catch(()=>{});
+let __voidBL:any;
+void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26")__voidBL=m}).catch(()=>{});
+const __voidBuyLaunchDecisionV1=()=>{try{return __voidBL?.readBuyLaunchGateV1()||{ready:false}}catch{return{ready:false}}},__voidBuyLaunchReadyV1=()=>__voidBuyLaunchDecisionV1().ready===true,__voidBuyLaunchRequestOkV1=(r:any)=>{try{return __voidBL?.buyLaunchRequestAuthorityMatchesV1(r,__voidBuyLaunchDecisionV1())===true}catch{return false}};
 
 // __VOID_TS_DECLARES_V1__
 declare const app: any;
@@ -18882,7 +18879,7 @@ setInterval(refresh, 10000);
             request_id: id
           });
         }
-        if(!__voidBuyLaunchRequestOkV1(found))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_launch_authority_expired_or_superseded",request_id:id});
+        if(!__voidBuyLaunchRequestOkV1(found))throw Error("request_launch_authority_expired_or_superseded");
 
         const tx = String(found.tx_hash || "").trim();
         if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
@@ -18946,7 +18943,7 @@ setInterval(refresh, 10000);
           });
         }
 
-        if(!__voidBuyLaunchRequestOkV1(found))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_launch_authority_expired_during_verification",request_id:id});
+        if(!__voidBuyLaunchRequestOkV1(found))throw Error("request_launch_authority_expired_during_verification");
         const event = {
           schema: "void_buy_void_operator_mark_v1",
           ok: true,
@@ -19068,14 +19065,7 @@ setInterval(refresh, 10000);
       });
     });
 
-    require("./economic/buy_void_request_tx_hash_binding_v1")
-      .installBuyVoidRequestTxHashBindingV1({
-        app,
-        localOnly: __voidBuyVoidOperatorLocalOnlyV1,
-        readRequests: __voidReadBuyVoidRequestsV1,
-        persistRequest: __voidPersistBuyVoidRequestV1,
-        requestLaunchAuthorityReady: __voidBuyLaunchRequestOkV1
-      });
+    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__voidBuyLaunchRequestOkV1});
 
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
       res.json(await __voidBuyVoidSaleStateV1());
@@ -19144,8 +19134,7 @@ setInterval(refresh, 10000);
         if (!cfg.requests_enabled) {
           return res.status(503).json({ schema:"void_public_buy_void_checkout_request_v1", ok:false, error:"buy_void_requests_disabled" });
         }
-        const launch:any=__voidBuyLaunchDecisionV1();
-        if(!launch.ready||!launch.request_authority)return res.status(503).json({schema:"void_public_buy_void_checkout_request_v1",ok:false,error:"buy_void_launch_authority_unavailable"});
+        const launch:any=__voidBuyLaunchDecisionV1();if(!launch.request_authority)return res.status(503).json({ok:false,error:"buy_void_launch_authority_unavailable"});
         if (!cfg.payment_ready || !cfg.receiver_binding_green) {
           return res.status(503).json({
             schema:"void_public_buy_void_checkout_request_v1",
@@ -19302,8 +19291,6 @@ setInterval(refresh, 10000);
             send_to: cfg.receive_address,
             send_from: void_destination_address,
             amount: usdc_amount,
-            expires_at_ms:launch.request_authority.expires_at_ms,
-            activation_generation:launch.request_authority.activation_generation,
             do_not_send_before_request: true,
             do_not_send_from_exchange_or_pooled_custody: true,
             keep_transaction_hash: true
