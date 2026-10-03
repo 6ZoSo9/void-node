@@ -103,6 +103,13 @@ grep -Fq "RENAME_EXCHANGE = 2" "$DEMO003_INTAKE" || fail "demo003_atomic_exchang
 grep -Fq 'find "$LATEST_STAGE" -type f -exec chmod 0644 {} +' "$DEMO003_INTAKE" || fail "demo003_file_mode_normalization_missing"
 grep -Fq 'find "$LATEST_STAGE" -type d -exec chmod 0755 {} +' "$DEMO003_INTAKE" || fail "demo003_directory_mode_normalization_missing"
 grep -Fq 'find "$LATEST_STAGE" -type f -perm /022' "$DEMO003_INTAKE" || fail "demo003_writable_file_guard_missing"
+grep -Fq 'LOCK_DIR="$INTAKE_DIR/.intake-lock-v1"' "$DEMO003_INTAKE" || fail "demo003_intake_lock_missing"
+grep -Fq 'mkdir -m 0700 "$LOCK_DIR"' "$DEMO003_INTAKE" || fail "demo003_intake_lock_create_only_missing"
+grep -Fq 'RUN_TOKEN=' "$DEMO003_INTAKE" || fail "demo003_run_token_missing"
+grep -Fq 'run_identity_collision_resistant=true' "$DEMO003_INTAKE" || fail "demo003_run_identity_marker_missing"
+grep -Fq 'O_NOFOLLOW' "$DEMO003_STATUS" || fail "demo003_status_nofollow_missing"
+grep -Fq 'data_dir_component_' "$DEMO003_STATUS" || fail "demo003_status_component_walk_missing"
+grep -Fq 'VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false' "$DEMO003_STATUS" || fail "demo003_status_false_marker_missing"
 if grep -Fq 'ln -s "$(realpath "$ARCHIVE")" "$LATEST"' "$DEMO003_INTAKE"; then fail "demo003_legacy_latest_symlink_remains"; fi
 
 node - "$SOURCE" "$READER" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
@@ -140,6 +147,15 @@ assert.equal(cluster.includes(".import-staging-v2"),false,"public runtime must n
 for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","/proc/self/fd","O_NOFOLLOW","O_DIRECTORY","fs.openSync(procPath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(procPath","fs.closeSync(parent.fd)"]){
   assert.equal(reader.includes(needle),true,"reader contract missing "+needle);
 }
+const demoManifestStart=source.indexOf('APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json"');
+const demoManifestEnd=source.indexOf('APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fileName"',demoManifestStart);
+assert.notEqual(demoManifestStart,-1,"Demo003 manifest route missing");
+assert.notEqual(demoManifestEnd,-1,"Demo003 file route boundary missing");
+const demoManifestRoute=source.slice(demoManifestStart,demoManifestEnd);
+assert.equal(demoManifestRoute.includes("const manifestBytes=rf(manifestPath);"),true,"Demo003 manifest must use custody reader");
+assert.equal(demoManifestRoute.includes("demo003_folder_fixture_missing_or_unsafe"),true,"Demo003 manifest must fail closed on custody rejection");
+assert.ok(demoManifestRoute.indexOf("demo003_folder_fixture_missing_or_unsafe")<demoManifestRoute.indexOf("demo003_folder_fixture_served"),"Demo003 manifest success must follow custody rejection guard");
+
 const route=source.slice(routeStart,routeStart+1800);
 assert.equal(
   route.includes('/^\\.\\.?$/.test(objectId)'),
@@ -177,6 +193,12 @@ NODE
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
+demo003_missing_data="$tmp/demo003-missing-data"
+if DATA_DIR="$demo003_missing_data" bash "$DEMO003_STATUS" >"$tmp/demo003-missing-status.log" 2>&1; then fail "demo003_missing_status_unexpected_green"; fi
+grep -Fq "status=demo003_folder_intake_missing_or_unsafe_latest" "$tmp/demo003-missing-status.log" || fail "demo003_missing_status_machine_state_missing"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-missing-status.log" || fail "demo003_missing_status_false_marker_missing"
+test ! -e "$demo003_missing_data" || fail "demo003_missing_status_mutated_tree"
+
 demo003_fresh_data="$tmp/demo003-fresh-data"
 demo003_fresh_out="$tmp/demo003-fresh-intake"
 (
@@ -196,6 +218,37 @@ grep -Fq "demo003_publication_ancestry_safe=true" "$tmp/demo003-fresh-status.log
   fail "demo003_fresh_status_ancestry_not_safe"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" "$tmp/demo003-fresh-status.log" ||
   fail "demo003_fresh_status_not_green"
+
+demo003_status_symlink_data="$tmp/demo003-status-symlink-data"
+demo003_status_outside="$tmp/demo003-status-outside-public-node"
+cp -a "$demo003_fresh_data" "$demo003_status_symlink_data"
+mv "$demo003_status_symlink_data/public-node" "$demo003_status_outside"
+ln -s "$demo003_status_outside" "$demo003_status_symlink_data/public-node"
+if DATA_DIR="$demo003_status_symlink_data" bash "$DEMO003_STATUS" >"$tmp/demo003-status-symlink.log" 2>&1; then fail "demo003_status_ancestor_symlink_unexpected_green"; fi
+grep -Fq "demo003_publication_ancestry_safe=false" "$tmp/demo003-status-symlink.log" || fail "demo003_status_ancestor_symlink_safe_false_missing"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=false" "$tmp/demo003-status-symlink.log" || fail "demo003_status_ancestor_symlink_false_marker_missing"
+
+demo003_concurrent_data="$tmp/demo003-concurrent-data"
+demo003_concurrent_out1="$tmp/demo003-concurrent-out-1"
+demo003_concurrent_out2="$tmp/demo003-concurrent-out-2"
+DEMO003_STAMP=20261003-020000 DATA_DIR="$demo003_concurrent_data" OUT="$demo003_concurrent_out1" bash "$DEMO003_INTAKE" >"$tmp/demo003-concurrent-1.log" 2>&1 &
+demo003_pid1=$!
+DEMO003_STAMP=20261003-020000 DATA_DIR="$demo003_concurrent_data" OUT="$demo003_concurrent_out2" bash "$DEMO003_INTAKE" >"$tmp/demo003-concurrent-2.log" 2>&1 &
+demo003_pid2=$!
+if ! wait "$demo003_pid1"; then fail "demo003_concurrent_first_failed"; fi
+if ! wait "$demo003_pid2"; then fail "demo003_concurrent_second_failed"; fi
+demo003_run1="$(grep -m1 '^run_id=' "$tmp/demo003-concurrent-1.log" | cut -d= -f2-)"
+demo003_run2="$(grep -m1 '^run_id=' "$tmp/demo003-concurrent-2.log" | cut -d= -f2-)"
+test -n "$demo003_run1" && test -n "$demo003_run2" && test "$demo003_run1" != "$demo003_run2" || fail "demo003_concurrent_run_ids_not_distinct"
+grep -Fq "intake_lock_serialized=true" "$tmp/demo003-concurrent-1.log" || fail "demo003_concurrent_first_lock_marker_missing"
+grep -Fq "intake_lock_serialized=true" "$tmp/demo003-concurrent-2.log" || fail "demo003_concurrent_second_lock_marker_missing"
+demo003_concurrent_base="$demo003_concurrent_data/public-node/local-data-drop-demo003-folder-fixtures"
+demo003_concurrent_archives="$(find "$demo003_concurrent_base/archive" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+test "$demo003_concurrent_archives" = "2" || fail "demo003_concurrent_archive_count:$demo003_concurrent_archives"
+test -z "$(find "$demo003_concurrent_base" -mindepth 1 -maxdepth 1 -name '.latest-stage-*' -print -quit)" || fail "demo003_concurrent_stage_residue"
+test ! -e "$demo003_concurrent_base/.intake-lock-v1" && test ! -L "$demo003_concurrent_base/.intake-lock-v1" || fail "demo003_concurrent_lock_residue"
+DATA_DIR="$demo003_concurrent_data" bash "$DEMO003_STATUS" >"$tmp/demo003-concurrent-status.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" "$tmp/demo003-concurrent-status.log" || fail "demo003_concurrent_final_status_not_green"
 
 demo003_data="$tmp/demo003-data"
 demo003_out="$tmp/demo003-intake"
@@ -624,6 +677,11 @@ echo "public_node_ancestor_symlink_rejected=true"
 echo "local_drop_ancestor_symlink_rejected=true"
 echo "store_directory_mode_guard=true"
 echo "demo003_fresh_publication_ancestry_safe=true"
+echo "demo003_intake_serialized=true"
+echo "demo003_concurrent_archives_distinct=true"
+echo "demo003_status_missing_tree_false_marker=true"
+echo "demo003_status_ancestor_symlink_rejected=true"
+echo "demo003_manifest_custody_fail_closed=true"
 echo "reader_parent_owner_mode_guard=true"
 echo "reader_file_owner_guard=true"
 echo "operator_owned_recovery_files=true"

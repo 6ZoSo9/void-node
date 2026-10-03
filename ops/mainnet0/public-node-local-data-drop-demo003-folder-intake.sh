@@ -2,20 +2,31 @@
 set -euo pipefail
 
 DATA_DIR="${DATA_DIR:-.runtime/mainnet0}"
-STAMP="$(date -u +%Y%m%d-%H%M%S)"
-OUT="${OUT:-/tmp/public-node-local-data-drop-demo003-folder-intake-$STAMP}"
+STAMP="${DEMO003_STAMP:-$(date -u +%Y%m%d-%H%M%S)}"
+if ! printf '%s' "$STAMP" | grep -Eq '^[0-9]{8}-[0-9]{6}$'; then
+  echo "[fail] invalid DEMO003_STAMP" >&2
+  exit 2
+fi
+RUN_TOKEN="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(12))
+PY
+)"
+RUN_ID="$STAMP-$$-$RUN_TOKEN"
+OUT="${OUT:-/tmp/public-node-local-data-drop-demo003-folder-intake-$RUN_ID}"
 FIXTURE_OUT="$OUT/fixture"
 VERIFY_OUT="$OUT/verify"
 INTAKE_DIR="$DATA_DIR/public-node/local-data-drop-demo003-folder-fixtures"
 LATEST="$INTAKE_DIR/latest"
-LATEST_STAGE="$INTAKE_DIR/.latest-stage-$STAMP-$"
-ARCHIVE="$INTAKE_DIR/archive/demo003-folder-fixture-$STAMP"
+LATEST_STAGE="$INTAKE_DIR/.latest-stage-$RUN_ID"
+ARCHIVE="$INTAKE_DIR/archive/demo003-folder-fixture-$RUN_ID"
+LOCK_DIR="$INTAKE_DIR/.intake-lock-v1"
+LOCK_WAIT_SECONDS="${DEMO003_LOCK_WAIT_SECONDS:-30}"
 
 FIXTURE_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
 VERIFY_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-verify-folder-fixture.sh"
 
 umask 0077
-mkdir -p "$OUT"
 
 python3 - "$DATA_DIR" <<'PY'
 import os
@@ -104,12 +115,45 @@ finally:
 print("demo003_publication_ancestry_secure=true")
 PY
 
+case "$LOCK_WAIT_SECONDS" in
+  ''|*[!0-9]*) echo "[fail] invalid DEMO003_LOCK_WAIT_SECONDS" >&2; exit 2 ;;
+esac
+
+lock_deadline=$((SECONDS + LOCK_WAIT_SECONDS))
+while ! mkdir -m 0700 "$LOCK_DIR" 2>/dev/null; do
+  if [ "$SECONDS" -ge "$lock_deadline" ]; then
+    echo "status=demo003_folder_intake_hold"
+    echo "hold_reason=demo003_intake_already_in_progress"
+    echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED=false"
+    exit 75
+  fi
+  sleep 0.1
+done
+
+cleanup_demo003_intake() {
+  rc=$?
+  set +e
+  if [ -e "$LATEST_STAGE" ] || [ -L "$LATEST_STAGE" ]; then rm -rf -- "$LATEST_STAGE"; fi
+  if [ "$rc" -ne 0 ] && { [ -e "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; }; then rm -rf -- "$ARCHIVE"; fi
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+  exit "$rc"
+}
+trap cleanup_demo003_intake EXIT
+
+test -d "$LOCK_DIR" && test ! -L "$LOCK_DIR"
+test "$(stat -c '%u' "$LOCK_DIR")" = "$(id -u)"
+test -z "$(find "$LOCK_DIR" -maxdepth 0 -perm /022 -print -quit)"
+mkdir -p "$OUT"
+
 echo "=== VOID Public Node Demo 003 Folder Intake v1 ==="
 echo "marker=VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1"
 echo "data_dir=$DATA_DIR"
+echo "run_id=$RUN_ID"
 echo "out=$OUT"
 echo "latest=$LATEST"
 echo "archive=$ARCHIVE"
+echo "intake_lock=$LOCK_DIR"
+echo "intake_lock_serialized=true"
 
 test -x "$FIXTURE_SCRIPT"
 test -x "$VERIFY_SCRIPT"
@@ -125,8 +169,7 @@ test -d "$VERIFY_OUT/extract/demo003-folder-fixture"
 test -f "$VERIFY_OUT/extract/demo003-folder-fixture/manifest.json"
 test -f "$VERIFY_OUT/extract/demo003-folder-fixture/sha256sums.txt"
 
-rm -rf "$ARCHIVE"
-mkdir -p "$ARCHIVE"
+mkdir -m 0700 "$ARCHIVE"
 cp -a "$VERIFY_OUT/extract/demo003-folder-fixture/." "$ARCHIVE/"
 cp "$OUT/fixture.log" "$ARCHIVE/fixture.log"
 cp "$OUT/verify.log" "$ARCHIVE/verify.log"
@@ -159,8 +202,7 @@ with open(intake_path, "w") as f:
     f.write("\n")
 PY
 
-rm -rf "$LATEST_STAGE"
-mkdir -p "$LATEST_STAGE"
+mkdir -m 0700 "$LATEST_STAGE"
 cp -a "$ARCHIVE/." "$LATEST_STAGE/"
 
 if find "$LATEST_STAGE" -type l -print -quit | grep -q .; then
@@ -249,4 +291,6 @@ echo "latest_real_directory=true"
 echo "latest_symlink=false"
 echo "latest_file_modes_safe=true"
 echo "demo003_publication_ancestry_secure=true"
+echo "intake_lock_serialized=true"
+echo "run_identity_collision_resistant=true"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED"

@@ -58839,58 +58839,35 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
 });
 
 APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1
-  const fs = require("fs");
   const path = require("path");
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const latest = path.join(dataDir, "public-node", "local-data-drop-demo003-folder-fixtures", "latest");
   const manifestPath = path.join(latest, "manifest.json");
   const intakePath = path.join(latest, "intake.json");
-
-  if (!fs.existsSync(manifestPath) || !fs.lstatSync(manifestPath).isFile()) {
-    return res.status(404).json({
-      marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
-      status: "demo003_folder_fixture_missing",
-      object_set_id: "demo003-folder-fixture-v1",
-      policy: {
-        public_upload: false,
-        operator_local_import_only: true,
-        public_read_only: true,
-        trusted_as_network_truth: false
-      }
-    });
+  const manifestBytes=rf(manifestPath);
+  if(!manifestBytes){
+    return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_missing_or_unsafe",object_set_id:"demo003-folder-fixture-v1",policy:{public_upload:false,operator_local_import_only:true,public_read_only:true,trusted_as_network_truth:false}});
   }
-
-  let manifest:any = null;
-  let intake:any = null;
-  try{const b=rf(manifestPath);manifest=b?JSON.parse(b.toString("utf8")):null;}catch(_e){manifest=null;}
+  let manifest:any;
+  try{manifest=JSON.parse(manifestBytes.toString("utf8"));}
+  catch(_e){return res.status(422).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_invalid_manifest",object_set_id:"demo003-folder-fixture-v1"});}
+  let intake:any=null;
   try{const b=rf(intakePath);intake=b?JSON.parse(b.toString("utf8")):null;}catch(_e){intake=null;}
-
   return res.json({
-    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
-    status: "demo003_folder_fixture_served",
-    object_set_id: "demo003-folder-fixture-v1",
+    marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
+    status:"demo003_folder_fixture_served",
+    object_set_id:"demo003-folder-fixture-v1",
     manifest,
-    intake_marker: intake && intake.marker || null,
-    offline_verified: !!(intake && intake.offline_verified === true),
-    network_fetch_during_import: !!(intake && intake.network_fetch_during_import === true),
-    trusted_as_network_truth: !!(intake && intake.trusted_as_network_truth === true),
-    files: {
-      index_html: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
-      readme_txt: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
-      metadata_json: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json"
+    intake_marker:intake&&intake.marker||null,
+    offline_verified:!!(intake&&intake.offline_verified===true),
+    network_fetch_during_import:!!(intake&&intake.network_fetch_during_import===true),
+    trusted_as_network_truth:!!(intake&&intake.trusted_as_network_truth===true),
+    files:{
+      index_html:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      readme_txt:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      metadata_json:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json"
     },
-    policy: {
-      public_upload: false,
-      operator_local_import_only: true,
-      public_read_only: true,
-      mutation_from_public: false,
-      money_movement: false,
-      wallet_send: false,
-      wc_to_void_swap: false,
-      buy_void_fulfillment: false,
-      validator_mutation: false,
-      trusted_as_network_truth: false
-    }
+    policy:{public_upload:false,operator_local_import_only:true,public_read_only:true,mutation_from_public:false,money_movement:false,wallet_send:false,wc_to_void_swap:false,buy_void_fulfillment:false,validator_mutation:false,trusted_as_network_truth:false}
   });
 });
 
