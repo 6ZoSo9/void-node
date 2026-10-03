@@ -18,6 +18,13 @@ COPY --from=build \
   /app/src/economic/buy_void_payment_rpc_observer_v1.ts \
   /app/src/economic/buy_void_verified_payment_v2.ts \
   ./src/economic/
+COPY --from=build /app/src/economic/buy_void_coupled_launch_gate_v1.mjs ./src/economic/
+COPY --from=build /app/tools/void-economic-evm-successor-migration-v1.mjs ./tools/
+COPY --from=build \
+  /app/ops/mainnet0/wc-void-production-candidate-v1.json \
+  /app/ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json \
+  /app/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json \
+  ./ops/mainnet0/
 ENV NODE_ENV=production
 EXPOSE 4100
 CMD ["node","dist/index.js"]

@@ -5,6 +5,12 @@ on:
     paths:
       - ".github/workflows/buy-void-coupled-launch-gate-v1.yml"
       - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "src/index.ts"
+      - "Dockerfile"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs"
+      - "src/index.ts"
+      - "Dockerfile"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs"
       - "scripts/prove_void_buy_coupled_launch_gate_v1.mjs"
       - "docs/architecture/buy-void-coupled-launch-gate-v1.md"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
@@ -48,5 +54,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Prove coupled launch source gate
         run: node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
+      - name: Prove coupled launch runtime integration
+        run: node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
       - name: Diff hygiene
         run: git diff --check
