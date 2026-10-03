@@ -22,6 +22,7 @@ import {
   reviewedOfflineSigningRuntimeV1,
   signControlChallengeCoreV1,
   nodePermissionFlagV1,
+  testOnlyPinnedStandaloneEthersV1,
   testOnlyReadTransferredControlChallengeV1,
   testOnlyReviewedAncestorPackageFallbackBlockedV1,
   validateSanitizedOfflineSignerEnvironmentV1,
@@ -68,6 +69,10 @@ const walletB = new ethers.Wallet(PRIVATE_B);
   assert.equal(
     typeof bundle.TypedDataEncoder.hash,
     "function",
+  );
+  assert.equal(
+    bundleSha256,
+    "b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c",
   );
   console.log("reviewed_ethers_standalone_bundle_sha256=" + bundleSha256);
   console.log("reviewed_ethers_standalone_bundle_exports_green=true");
@@ -631,6 +636,38 @@ assert.throws(
   /offline_signer_node_version_unsupported/u,
 );
 
+{
+  const pinned = await testOnlyPinnedStandaloneEthersV1();
+  assert.equal(pinned.ethers_version, "6.17.0");
+  assert.equal(
+    pinned.ethers_bundle_sha256,
+    "b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c",
+  );
+  assert.equal(pinned.ethers_execution_from_memory, true);
+  assert.equal(pinned.package_resolution_used_for_signing, false);
+  assert.equal(pinned.private_key_access, false);
+  assert.equal(pinned.credential_access, false);
+  assert.equal(pinned.wallet_or_signer_access, false);
+
+  const bundleFile = path.resolve("node_modules/ethers/dist/ethers.min.js");
+  const original = fs.readFileSync(bundleFile);
+  const originalMode = fs.statSync(bundleFile).mode & 0o777;
+  try {
+    fs.chmodSync(bundleFile, 0o600);
+    fs.writeFileSync(
+      bundleFile,
+      Buffer.concat([original, Buffer.from(" ", "utf8")]),
+    );
+    await assert.rejects(
+      () => testOnlyPinnedStandaloneEthersV1(),
+      /offline_signer_ethers_standalone_bundle_sha256_mismatch/u,
+    );
+  } finally {
+    fs.writeFileSync(bundleFile, original);
+    fs.chmodSync(bundleFile, originalMode);
+  }
+}
+
 const runtime = await reviewedOfflineSigningRuntimeV1();
 assert.equal(
   runtime.reviewed_runtime_profile_id,
@@ -759,10 +796,6 @@ assert.equal(
   true,
 );
 assert.equal(
-  launcherSource.includes('"tools/void-reviewed-node-package-runtime-v1.mjs"'),
-  true,
-);
-assert.equal(
   launcherSource.includes(
     "reviewed_signer_transport=verified_git_blob_stdin",
   ),
@@ -770,9 +803,21 @@ assert.equal(
 );
 assert.equal(
   launcherSource.includes(
-    "reviewed_runtime_helper_transport=verified_git_blob_environment",
+    "ethers_execution=in_memory_sha256_pinned_bundle",
   ),
   true,
+);
+assert.equal(
+  launcherSource.includes(
+    "reviewed_runtime_helper_transport=verified_git_blob_environment",
+  ),
+  false,
+);
+assert.equal(
+  launcherSource.includes(
+    "VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1",
+  ),
+  false,
 );
 assert.equal(
   launcherSource.includes(
@@ -782,32 +827,14 @@ assert.equal(
 );
 assert.equal(
   launcherSource.includes(
-    'cat-file blob "$reviewed_runtime_blob"',
-  ),
-  true,
-);
-assert.equal(
-  launcherSource.includes(
     'hash-object --stdin',
   ),
   true,
-  "transported source bytes must be re-hashed before execution",
+  "transported signer bytes must be re-hashed before execution",
 );
 assert.equal(
   launcherSource.includes(
     '[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]]',
-  ),
-  true,
-);
-assert.equal(
-  launcherSource.includes(
-    '[[ "$actual_runtime_blob" == "$reviewed_runtime_blob" ]]',
-  ),
-  true,
-);
-assert.equal(
-  launcherSource.includes(
-    'VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1="$reviewed_runtime_b64"',
   ),
   true,
 );
@@ -889,23 +916,28 @@ assert.equal(
 );
 assert.equal(
   signerSource.includes(
-    "VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1",
+    'ETHERS_STANDALONE_BUNDLE_RELATIVE_V1 =\n  "node_modules/ethers/dist/ethers.min.js"',
   ),
   true,
 );
 assert.equal(
   signerSource.includes(
-    "gitBlobSha1V1(bytes) !== expectedBlob",
+    '"b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c"',
   ),
   true,
-  "runtime helper transport must be Git-blob verified before import",
 );
 assert.equal(
   signerSource.includes(
-    '"data:text/javascript;base64,"',
+    "async function loadPinnedStandaloneEthersV1()",
   ),
   true,
-  "reviewed helper must be imported from verified in-memory bytes",
+);
+assert.equal(
+  signerSource.includes(
+    '"data:text/javascript;base64," + source.bytes.toString("base64")',
+  ),
+  true,
+  "production ethers must execute from exact verified in-memory bytes",
 );
 assert.equal(
   signerSource.includes('process.argv[1] === "-"'),
@@ -923,20 +955,40 @@ assert.equal(
   false,
   "production parent must not dynamically import reviewed ethers",
 );
-assert.equal(
-  signerSource.includes(
-    'bridgeResult = runtime.run(\n          "sign"',
-  ),
-  true,
-  "production signing must be delegated to the fenced reviewed child",
-);
-assert.equal(
-  signerSource.includes(
-    'const candidate = await import("bufferutil");',
-  ),
-  true,
-  "focused bridge must contain the ancestor-package adversary operation",
-);
+{
+  const selectedStart = signerSource.indexOf(
+    "export async function signSelectedLaunchControllerChallengeV1",
+  );
+  const selectedEnd = signerSource.indexOf(
+    "\nfunction usage()",
+    selectedStart,
+  );
+  assert.ok(selectedStart >= 0 && selectedEnd > selectedStart);
+  const selectedSource = signerSource.slice(selectedStart, selectedEnd);
+  assert.equal(
+    selectedSource.includes("loadPinnedStandaloneEthersV1()"),
+    true,
+  );
+  assert.equal(
+    selectedSource.includes("withReviewedSigningRuntimeV1"),
+    false,
+    "production key path must not enter the mutable package-tree runtime",
+  );
+  assert.equal(
+    selectedSource.includes('runtime.run("sign"'),
+    false,
+    "production key path must not stream the key to a package-tree child",
+  );
+  assert.equal(
+    selectedSource.includes("readPrivateKeyV1(KEY_PATH_V1)"),
+    true,
+  );
+  assert.ok(
+    selectedSource.indexOf("loadPinnedStandaloneEthersV1()") <
+      selectedSource.indexOf("readPrivateKeyV1(KEY_PATH_V1)"),
+    "pinned in-memory ethers must be verified before key access",
+  );
+}
 
 assert.equal(
   signerSource.includes(
@@ -1188,7 +1240,10 @@ assert.deepEqual(
     offline_operator_action: true,
     fixed_selected_reviewer_only: true,
     exact_public_challenge_required: true,
-    reviewed_ethers_runtime_required: true,
+    reviewed_ethers_runtime_required: false,
+    pinned_standalone_ethers_bundle_required: true,
+    ethers_execution_from_memory: true,
+    package_resolution_used_for_signing: false,
     sanitized_process_environment_required: true,
     node_preload_flags_forbidden: true,
     current_source_binding_reverification_required: true,
@@ -1245,7 +1300,11 @@ console.log("reviewed_launcher_path_reopen=false");
 console.log("reviewed_signer_git_blob_stream_verified=true");
 console.log("outer_temporary_executable_tree=false");
 console.log("reviewed_signer_stdin_execution=true");
-console.log("runtime_helper_verified_in_memory=true");
+console.log("runtime_helper_test_regression_only=true");
+console.log("production_ethers_bundle_sha256_pinned=true");
+console.log("production_ethers_execution_from_memory=true");
+console.log("production_package_resolution_used_for_signing=false");
+console.log("standalone_ethers_byte_drift_rejected_before_key_access=true");
 console.log("mutable_worktree_signer_execution=false");
 console.log("node_22_0_to_22_12_permission_flag_supported=true");
 console.log("node_22_13_plus_permission_flag_supported=true");
@@ -1257,14 +1316,12 @@ console.log("credential_access_reported=true");
 console.log("wallet_or_signer_access_reported=true");
 console.log("sign_mode_access_announced_before_exec=true");
 console.log("sign_mode_ordering_bound_to_actual_node_invocation=true");
-console.log("reviewed_ethers_runtime_verified=true");
-console.log("permission_fenced_signing_child=true");
-console.log("inner_reviewed_runtime_descriptor_bound=true");
-console.log("inner_bridge_control_and_input_bytes_bound_before_key=true");
-console.log("ancestor_package_resolution_allowed=false");
-console.log("ancestor_package_fallback_blocked=true");
-console.log("production_parent_dynamic_ethers_import=false");
-console.log("private_key_transport=stdin_stream_only");
+console.log("reviewed_ethers_runtime_test_only_verified=true");
+console.log("ancestor_package_fallback_test_only_blocked=true");
+console.log("production_package_tree_child=false");
+console.log("production_private_key_transport_to_child=false");
+console.log("production_dynamic_ethers_package_import=false");
+console.log("production_ethers_data_url_import=true");
 console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
 console.log("selected_reviewer_fixed=true");
 console.log("private_key_path_fixed=true");
