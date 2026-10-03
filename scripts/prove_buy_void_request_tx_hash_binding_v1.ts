@@ -20,6 +20,7 @@ const sourceRequired = [
   "localOnly: __voidBuyVoidOperatorLocalOnlyV1",
   "readRequests: __voidReadBuyVoidRequestsV1",
   "persistRequest: __voidPersistBuyVoidRequestV1",
+  "requestLaunchAuthorityReady: __voidBuyLaunchRequestOkV1",
 ];
 
 const moduleRequired = [
@@ -34,6 +35,8 @@ const moduleRequired = [
   'error: "invalid_request_id"',
   'error: "invalid_payment_tx_hash"',
   'error: "buy_void_request_not_found"',
+  '"request_launch_authority_expired_or_superseded"',
+  "requestLaunchAuthorityReady(found) === true",
   '"request_payment_tx_hash_conflict"',
   'error: "payment_tx_hash_already_bound"',
   '"request_not_awaiting_payment_tx_hash"',
@@ -119,6 +122,7 @@ console.log(
       request_id_guard: true,
       tx_hash_shape_guard: true,
       request_state_guard: true,
+      launch_authority_guard: true,
       conflicting_hash_guard: true,
       duplicate_hash_guard: true,
       same_hash_idempotency: true,
