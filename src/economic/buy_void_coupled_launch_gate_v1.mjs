@@ -4,6 +4,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  getAddress,
+  keccak256,
+  toUtf8Bytes,
+  verifyTypedData,
+} from "ethers";
+
+import {
   VOID_WC_VOID_COUPLED_LAUNCH_READINESS_V1,
   classifyVoidWcVoidCoupledLaunchReadinessV1,
 } from "../../tools/void-wc-void-coupled-launch-readiness-v1.mjs";
@@ -12,6 +19,45 @@ export const VOID_BUY_COUPLED_LAUNCH_ID_V1 =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 export const VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1 =
   "VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1";
+export const VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 =
+  "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e";
+export const VOID_BUY_COUPLED_LIVE_ACTIVATION_DOMAIN_V1 =
+  Object.freeze({
+    name: "VOID Coupled Public Launch Activation",
+    version: "1",
+    chainId: 2050,
+    salt: keccak256(
+      toUtf8Bytes(VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1),
+    ),
+  });
+export const VOID_BUY_COUPLED_LIVE_ACTIVATION_TYPES_V1 =
+  Object.freeze({
+    CoupledPublicLaunchActivation: Object.freeze([
+      Object.freeze({ name: "execution_epoch", type: "uint64" }),
+      Object.freeze({ name: "role_id", type: "bytes32" }),
+      Object.freeze({ name: "activation_signer", type: "address" }),
+      Object.freeze({ name: "coupled_launch_id", type: "bytes32" }),
+      Object.freeze({ name: "source_composition_id", type: "bytes32" }),
+      Object.freeze({ name: "activation_receipt_id", type: "string" }),
+      Object.freeze({ name: "activation_nonce", type: "bytes32" }),
+      Object.freeze({ name: "activated_at_ms", type: "uint64" }),
+      Object.freeze({ name: "buy_void_private_runtime_active", type: "bool" }),
+      Object.freeze({ name: "wc_void_market_active", type: "bool" }),
+      Object.freeze({ name: "public_presale_active", type: "bool" }),
+      Object.freeze({ name: "same_launch_ceremony", type: "bool" }),
+      Object.freeze({
+        name: "public_buy_request_intake_authorized",
+        type: "bool",
+      }),
+      Object.freeze({ name: "runtime_or_launch_evidence", type: "bool" }),
+      Object.freeze({ name: "source_ready_only", type: "bool" }),
+    ]),
+  });
+
+const LIVE_ACTIVATION_ROLE_ID_V1 =
+  keccak256(toUtf8Bytes("VOID_WC_VOID_MARKET_VAULT_LAUNCH_CONTROLLER_V1"));
+const BYTES32 = /^0x[0-9a-fA-F]{64}$/u;
+const SIGNATURE = /^0x[0-9a-fA-F]{130}$/u;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PRODUCTION = "ops/mainnet0/wc-void-production-candidate-v1.json";
@@ -22,7 +68,10 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const LIVE_KEYS = Object.freeze([
   "activated_at_ms",
+  "activation_nonce",
   "activation_receipt_id",
+  "activation_signature",
+  "activation_signer",
   "buy_void_private_runtime_active",
   "coupled_launch_id",
   "marker",
@@ -69,6 +118,87 @@ export function buyLaunchLiveActivationReceiptIdV1(receiptWithoutId) {
   return "voidbclive1_" + sha256(
     Buffer.from(canonicalJson(receiptWithoutId), "utf8"),
   );
+}
+
+function sha256IdBytes32(value) {
+  if (!SHA256_ID.test(String(value || ""))) {
+    throw new Error("buy_launch_live_activation_sha256_id_invalid");
+  }
+  return "0x" + String(value).slice("sha256:".length);
+}
+
+export function buyLaunchLiveActivationTypedDataV1(receipt) {
+  if (
+    !receipt ||
+    typeof receipt !== "object" ||
+    Array.isArray(receipt) ||
+    !/^voidbclive1_[0-9a-f]{64}$/u.test(
+      String(receipt.activation_receipt_id || ""),
+    ) ||
+    !BYTES32.test(String(receipt.activation_nonce || "")) ||
+    !Number.isSafeInteger(receipt.activated_at_ms) ||
+    receipt.activated_at_ms <= 0
+  ) {
+    throw new Error("buy_launch_live_activation_typed_data_invalid");
+  }
+  return Object.freeze({
+    domain: VOID_BUY_COUPLED_LIVE_ACTIVATION_DOMAIN_V1,
+    types: VOID_BUY_COUPLED_LIVE_ACTIVATION_TYPES_V1,
+    value: Object.freeze({
+      execution_epoch: 2n,
+      role_id: LIVE_ACTIVATION_ROLE_ID_V1,
+      activation_signer: getAddress(receipt.activation_signer),
+      coupled_launch_id: sha256IdBytes32(receipt.coupled_launch_id),
+      source_composition_id:
+        sha256IdBytes32(receipt.source_composition_id),
+      activation_receipt_id: receipt.activation_receipt_id,
+      activation_nonce: receipt.activation_nonce,
+      activated_at_ms: BigInt(receipt.activated_at_ms),
+      buy_void_private_runtime_active:
+        receipt.buy_void_private_runtime_active === true,
+      wc_void_market_active: receipt.wc_void_market_active === true,
+      public_presale_active: receipt.public_presale_active === true,
+      same_launch_ceremony: receipt.same_launch_ceremony === true,
+      public_buy_request_intake_authorized:
+        receipt.public_buy_request_intake_authorized === true,
+      runtime_or_launch_evidence:
+        receipt.runtime_or_launch_evidence === true,
+      source_ready_only: receipt.source_ready_only === true,
+    }),
+  });
+}
+
+export function verifyBuyLaunchLiveActivationSignatureV1(
+  receipt,
+  expectedSigner = VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
+) {
+  try {
+    if (!SIGNATURE.test(String(receipt?.activation_signature || ""))) {
+      throw new Error("buy_launch_live_activation_signature_invalid");
+    }
+    const expected = getAddress(expectedSigner);
+    const typed = buyLaunchLiveActivationTypedDataV1(receipt);
+    const recovered = getAddress(
+      verifyTypedData(
+        typed.domain,
+        typed.types,
+        typed.value,
+        receipt.activation_signature,
+      ),
+    );
+    if (recovered !== expected) {
+      throw new Error("buy_launch_live_activation_signer_mismatch");
+    }
+    return Object.freeze({
+      verified: true,
+      recovered_signer: recovered.toLowerCase(),
+    });
+  } catch {
+    return Object.freeze({
+      verified: false,
+      recovered_signer: null,
+    });
+  }
 }
 
 function sameStat(a, b) {
@@ -269,6 +399,7 @@ export function readBuyLaunchLiveActivationV1(
 
     const body = { ...receipt };
     delete body.activation_receipt_id;
+    delete body.activation_signature;
     const expectedReceiptId = buyLaunchLiveActivationReceiptIdV1(body);
     if (
       receipt.marker !== VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1 ||
@@ -277,8 +408,13 @@ export function readBuyLaunchLiveActivationV1(
       receipt.coupled_launch_id !== VOID_BUY_COUPLED_LAUNCH_ID_V1 ||
       receipt.source_composition_id !== sourceGate.composition_id ||
       receipt.activation_receipt_id !== expectedReceiptId ||
+      String(receipt.activation_signer || "").toLowerCase() !==
+        VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
+      !BYTES32.test(String(receipt.activation_nonce || "")) ||
+      !SIGNATURE.test(String(receipt.activation_signature || "")) ||
       !Number.isSafeInteger(receipt.activated_at_ms) ||
       receipt.activated_at_ms <= 0 ||
+      receipt.activated_at_ms > Date.now() + 300_000 ||
       receipt.buy_void_private_runtime_active !== true ||
       receipt.wc_void_market_active !== true ||
       receipt.public_presale_active !== true ||
@@ -288,6 +424,14 @@ export function readBuyLaunchLiveActivationV1(
       receipt.source_ready_only !== false
     ) {
       throw new Error("buy_launch_live_receipt_semantics_invalid");
+    }
+
+    const signed = verifyBuyLaunchLiveActivationSignatureV1(
+      receipt,
+      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
+    );
+    if (signed.verified !== true) {
+      throw new Error("buy_launch_live_receipt_signature_invalid");
     }
 
     const confirmation =
@@ -304,6 +448,7 @@ export function readBuyLaunchLiveActivationV1(
       receipt_id: receipt.activation_receipt_id,
       receipt_sha256: actualSha256,
       source_composition_id: receipt.source_composition_id,
+      activation_signer: signed.recovered_signer,
       reason: null,
     });
   } catch {
@@ -315,6 +460,7 @@ export function readBuyLaunchLiveActivationV1(
         typeof sourceGate?.composition_id === "string"
           ? sourceGate.composition_id
           : null,
+      activation_signer: null,
       reason: "live_coupled_activation_evidence_not_ready",
     });
   }
@@ -328,6 +474,7 @@ export function readBuyLaunchGateV1(env = process.env) {
       source_ready: false,
       live_activation_ready: false,
       live_activation_receipt_id: null,
+      live_activation_signer: null,
     });
   }
   const live = readBuyLaunchLiveActivationV1(source, env);
@@ -338,6 +485,7 @@ export function readBuyLaunchGateV1(env = process.env) {
     source_ready: true,
     live_activation_ready: live.ready,
     live_activation_receipt_id: live.receipt_id,
+    live_activation_signer: live.activation_signer,
     reason: live.ready ? null : live.reason,
   });
 }
