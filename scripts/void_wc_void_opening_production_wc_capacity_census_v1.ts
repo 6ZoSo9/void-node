@@ -245,6 +245,7 @@ async function scanLedger(
         malformedLines += 1;
         continue;
       }
+      if (exactText(row?.kind) !== "credit") continue;
       const account = exactText(row?.account);
       const jobId = exactText(row?.job_id);
       const receiptId = exactText(row?.receipt_id);
