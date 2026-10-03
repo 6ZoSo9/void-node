@@ -1094,10 +1094,10 @@ assert.equal(
 );
 assert.equal(
   launcherSource.includes(
-    'hash-object --stdin',
+    'hash-object --no-filters --stdin',
   ),
   true,
-  "transported signer bytes must be re-hashed before execution",
+  "transported signer bytes must be re-hashed without filters before execution",
 );
 assert.equal(
   launcherSource.includes(
