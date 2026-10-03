@@ -45,7 +45,8 @@ const VOID_TOKEN_V1 =
 const KEY_PATH_V1 =
   "/home/zoso/.local/share/void/offline-keys/wc-void-launch-controller-v1/private-key.hex";
 const GIT_V1 = "/usr/bin/git";
-const NODE_V1 = "/usr/bin/node";
+const PRODUCTION_NODE_V1 = "/usr/bin/node";
+const CHILD_NODE_V1 = fs.realpathSync.native(process.execPath);
 const COUPLED_REL_V1 =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const IDENTITY_REL_V1 =
@@ -108,7 +109,7 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
   let expectedNode;
   try {
     actualNode = fs.realpathSync.native(execPath);
-    expectedNode = fs.realpathSync.native(NODE_V1);
+    expectedNode = fs.realpathSync.native(PRODUCTION_NODE_V1);
   } catch {
     fail("offline_signer_node_executable_unavailable");
   }
@@ -984,7 +985,7 @@ function runPermissionFencedReviewedChildV1({
 
   const permissionFlag = nodePermissionFlagV1();
   const result = spawnSync(
-    NODE_V1,
+    CHILD_NODE_V1,
     [
       permissionFlag,
       "--allow-fs-read=" + root,
@@ -1013,6 +1014,7 @@ function runPermissionFencedReviewedChildV1({
     stdout: String(result.stdout || ""),
     permission_fenced: true,
     permission_flag: permissionFlag,
+    child_node_executable: CHILD_NODE_V1,
     allowed_fs_read_root: root,
     ancestor_package_resolution_allowed: false,
     ambient_node_resolution_overrides_ignored: true,
