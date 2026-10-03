@@ -841,6 +841,19 @@ function boundedControlInputCloneV1(value) {
       ) {
         fail("review_control_input_resource_limit_exceeded");
       }
+      const own = Reflect.ownKeys(current);
+      if (
+        own.length !== current.length + 1 ||
+        own.some((key) =>
+          typeof key !== "string" ||
+          (
+            key !== "length" &&
+            !/^(0|[1-9][0-9]*)$/u.test(key)
+          )
+        )
+      ) {
+        fail("review_control_input_shape_invalid");
+      }
       const out = [];
       for (let index = 0; index < current.length; index += 1) {
         const descriptor =
@@ -868,15 +881,14 @@ function boundedControlInputCloneV1(value) {
       fail("review_control_input_shape_invalid");
     }
 
-    const keys = [];
-    for (const key in current) {
-      if (!Object.hasOwn(current, key)) continue;
-      keys.push(key);
-      if (keys.length > limits.max_object_keys) {
-        fail("review_control_input_resource_limit_exceeded");
-      }
+    const own = Reflect.ownKeys(current);
+    if (own.length > limits.max_object_keys) {
+      fail("review_control_input_resource_limit_exceeded");
     }
-    keys.sort(compareTextV1);
+    if (own.some((key) => typeof key !== "string")) {
+      fail("review_control_input_shape_invalid");
+    }
+    const keys = own.sort(compareTextV1);
 
     const out = {};
     for (const key of keys) {
