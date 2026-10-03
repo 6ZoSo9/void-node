@@ -45,7 +45,7 @@ const persistHelperAt=index.indexOf(
 );
 assert.ok(persistHelperAt>0);
 const persistAppendAt=index.indexOf(
-  'fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\\n");',
+  'fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\\n");',
   persistHelperAt,
 );
 assert.ok(persistAppendAt>persistHelperAt);
@@ -63,7 +63,7 @@ const eventWriterAt=index.indexOf(
 );
 assert.ok(eventWriterAt>0);
 const eventAppendAt=index.indexOf(
-  'fs.appendFileSync(path.join(dir, "operator-events.jsonl")',
+  'fs.appendFileSync(path.join(dir,"operator-events.jsonl")',
   eventWriterAt,
 );
 assert.ok(eventAppendAt>eventWriterAt);
