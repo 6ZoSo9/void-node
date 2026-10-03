@@ -155,7 +155,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
             (request: any) =>
               String(request.request_id || "") === id,
           );
-  
+
           if (!found) {
             return res.status(404).json({
               schema:
@@ -165,7 +165,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
               request_id: id,
             });
           }
-  
+
           let launchAuthorityReady = false;
           try {
             launchAuthorityReady =
@@ -183,14 +183,14 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
               request_id: id,
             });
           }
-  
+
           const existing_tx_hash = String(
             found.tx_hash || "",
           ).trim();
           const existing_status = String(
             found.status || "",
           ).trim();
-  
+
           if (existing_tx_hash) {
             if (
               existing_tx_hash.toLowerCase()
@@ -207,7 +207,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
                 request: found,
               });
             }
-  
+
             return res.status(409).json({
               schema:
                 "void_buy_void_request_tx_hash_binding_v1",
@@ -219,7 +219,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
               submitted_tx_hash: tx_hash,
             });
           }
-  
+
           const duplicate = requests.find(
             (request: any) =>
               String(request.request_id || "") !== id
@@ -228,7 +228,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
                 .toLowerCase()
                 === tx_hash.toLowerCase(),
           );
-  
+
           if (duplicate) {
             return res.status(409).json({
               schema:
@@ -242,7 +242,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
               tx_hash,
             });
           }
-  
+
           if (
             existing_status
             !== "awaiting_payment_tx_hash"
@@ -257,7 +257,7 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
               current_status: existing_status,
             });
           }
-  
+
           const updated = {
             ...found,
             status:
@@ -265,11 +265,11 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
             tx_hash,
             payment_submitted_at_ms: Date.now(),
           };
-  
+
           const persisted = await persistRequest(
             updated,
           );
-  
+
           return res.json({
             schema:
               "void_buy_void_request_tx_hash_binding_v1",
