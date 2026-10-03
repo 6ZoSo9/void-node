@@ -69,7 +69,7 @@ python3 credential_request_client_v1.py submit \
 
 Immediately before the HTTPS request, the client creates a fresh route-specific Ed25519 envelope binding the exact request ID, exact transmitted body SHA-256, `POST` method, exact public credential-request path, chain ID 2050, issue/expiry times, and a fresh nonce. The envelope lifetime is 30 seconds and is sent only in `x-void-applicant-auth-v1`.
 
-The public gateway requires the signing key's derived `void-agent:ed25519:...` identity to equal the inner request's `agent_id`. Rotating throwaway keys therefore cannot reset one applicant's public rate identity.
+The public gateway requires the signing key's derived `void-agent:ed25519:...` identity to equal the inner request's `agent_id`. This prevents key/body identity mismatch and makes each signed request attributable to its presented Ed25519 key. Because applicants can create new keys before registration, this self-issued identity is **not** a non-rotatable fairness principal and does not by itself close the multi-applicant rate-isolation requirement tracked in #2400.
 
 A new request should return HTTP `202`. Repeating the exact same content-addressed request with a fresh auth envelope should return HTTP `200` with `duplicate: true` and the original receipt.
 
