@@ -100,7 +100,7 @@ function bpsCeil(numerator: bigint, denominator: bigint): string | null {
   return ((numerator * 10_000n + denominator - 1n) / denominator).toString();
 }
 
-function canonicalReceiptSummary(value: unknown, bytes: Buffer): AdapterReceiptSummary {
+function canonicalReceiptSummary(value: unknown): AdapterReceiptSummary {
   validateAgentPaidWorkWcEarningAdapterReceiptV1(value);
   const receipt = value as Json;
   if (receipt.marker !== AGENT_PAID_WORK_WC_EARNING_ADAPTER_RECEIPT_MARKER) {
@@ -178,7 +178,7 @@ function scanReceiptFiles(roots: string[]): {
       try {
         const bytes = directRegularFile(child, MAX_RECEIPT_BYTES);
         const parsed = JSON.parse(bytes.toString("utf8"));
-        summary = canonicalReceiptSummary(parsed, bytes);
+        summary = canonicalReceiptSummary(parsed);
       } catch {
         invalidFiles += 1;
         continue;
