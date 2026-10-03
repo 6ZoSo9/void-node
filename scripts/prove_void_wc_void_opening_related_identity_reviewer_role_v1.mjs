@@ -35,7 +35,7 @@ assert.equal(
 );
 assert.equal(
   decision.decision_id,
-  "voidwcrirr1_b0631ba09dc1009adb99f7b66a52f8e77a9636c9d611c27e67c5784f5d7cde22",
+  "voidwcrirr1_27edb03939335d6b6ede05da0b46f57680e86e3fa104f3e85cb2d1c06676d10a",
 );
 assert.equal(
   decision.launch_controller_role_label,
@@ -56,6 +56,7 @@ assert.deepEqual(decision.attestation_scope, [
   "eligible_cohort_root",
   "cluster_assignment_root",
   "evidence_manifest_root",
+  "manifest_compiler_git_blob_sha1",
 ]);
 
 assert.equal(decision.reviewer_role_selected, true);

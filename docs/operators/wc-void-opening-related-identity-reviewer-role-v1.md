@@ -17,7 +17,7 @@ Existing role lineage:
 
 Decision ID:
 
-`voidwcrirr1_b0631ba09dc1009adb99f7b66a52f8e77a9636c9d611c27e67c5784f5d7cde22`
+`voidwcrirr1_27edb03939335d6b6ede05da0b46f57680e86e3fa104f3e85cb2d1c06676d10a`
 
 This is a narrow role selection for authenticating reviewed #2369
 related-identity evidence manifests. It does not broaden the key into general
@@ -34,6 +34,7 @@ A later attestation verifier must bind all of:
 - `eligible_cohort_root`
 - `cluster_assignment_root`
 - `evidence_manifest_root`
+- reviewed #2369 manifest compiler Git blob: `7bb5c54fcd6a0d188b90c4c17d06145fe792ce66`
 
 Fresh launch-controller control evidence must recover the exact selected
 reviewer address at attestation-evaluation time.
