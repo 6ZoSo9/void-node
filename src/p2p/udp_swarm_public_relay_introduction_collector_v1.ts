@@ -704,6 +704,9 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
           break;
         } catch {
           this.compositionRejectCount += 1;
+          if (this.stopped) {
+            return this.record(outcome("collector_stopped", fullCounts));
+          }
         }
       }
       if (this.stopped) {
