@@ -601,6 +601,10 @@ const gateSource = fs.readFileSync(
   "src/economic/buy_void_coupled_launch_gate_v1.mjs",
   "utf8",
 );
+const generationPublisherSource = fs.readFileSync(
+  "ops/precision/void-buy-coupled-live-generation-publish-v1.mjs",
+  "utf8",
+);
 assert.match(gateSource, /classifyVoidWcVoidCoupledLaunchReadinessV1/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256/);
@@ -619,9 +623,35 @@ assert.match(gateSource, /classifyBuyLaunchLiveActivationLeaseV1/);
 assert.match(gateSource, /sameBuyLaunchGenerationAuthorityV1/);
 assert.match(gateSource, /withBuyLaunchRequestAuthorityMutationV1/);
 assert.match(gateSource, /withBuyLaunchGenerationTransitionPublicationV1/);
+assert.match(gateSource, /publishBuyLaunchGenerationTransitionV1/);
+assert.match(gateSource, /assertSynchronousGenerationOperationV1/);
+assert.match(gateSource, /AsyncFunction/);
+assert.match(gateSource, /buy_launch_generation_thenable_operation_forbidden/);
+assert.match(gateSource, /atomicWritePrivateGenerationBytesV1\(journalPath, nextBytes\)/);
+assert.match(gateSource, /atomicWritePrivateGenerationBytesV1\(anchorPath, nextBytes\)/);
 assert.match(
   gateSource,
   /\.\.\/\.\.\/dist\/economic\/buy_void_filesystem_bakery_lock_v1\.js/,
+);
+assert.match(
+  generationPublisherSource,
+  /publishBuyLaunchGenerationTransitionV1/,
+);
+assert.match(
+  generationPublisherSource,
+  /--confirm/,
+);
+assert.match(
+  generationPublisherSource,
+  /publishBuyLaunchGenerationTransitionV1/,
+);
+assert.match(
+  generationPublisherSource,
+  /asynchronous_callback_allowed=false/,
+);
+assert.doesNotMatch(
+  generationPublisherSource,
+  /writeFileSync|appendFileSync|renameSync/,
 );
 assert.equal(
   (gateSource.match(/withBuyLaunchGenerationAuthorityLockV1\(/gu) || []).length >= 3,
@@ -658,6 +688,8 @@ console.log("mid_verification_generation_change_rejected=true");
 console.log("shared_generation_authority_bakery_lock_required=true");
 console.log("request_mutation_generation_lock_required=true");
 console.log("generation_transition_publication_generation_lock_required=true");
+console.log("canonical_generation_publisher_uses_shared_lock=true");
+console.log("async_generation_publication_callback_allowed=false");
 console.log("external_generation_high_water_anchor_required=true");
 console.log("data_dir_rollback_old_generation_replay=false");
 console.log("configuration_rollback_old_generation_replay=false");
