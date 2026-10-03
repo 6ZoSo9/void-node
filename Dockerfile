@@ -43,6 +43,9 @@ COPY --from=build \
   /app/ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json \
   /app/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json \
   ./ops/mainnet0/
+COPY --from=build /app/ops/precision/void-buy-coupled-live-generation-publish-v1.mjs ./ops/precision/
+USER root
+VOLUME ["/root/.local/state/void-node-authority-v1"]
 ENV NODE_ENV=production
 EXPOSE 4100
 CMD ["node","dist/index.js"]

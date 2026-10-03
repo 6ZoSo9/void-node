@@ -13,6 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = relative => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const index = read("src/index.ts");
 const docker = read("Dockerfile");
+const compose = read("docker-compose.yml");
 assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
@@ -158,9 +159,27 @@ for (const required of [
   "/app/ops/mainnet0/wc-void-production-candidate-v1.json",
   "/app/ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
   "/app/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
+  "/app/ops/precision/void-buy-coupled-live-generation-publish-v1.mjs",
 ]) {
   assert.ok(docker.includes(required), required);
 }
+assert.ok(docker.includes("USER root"));
+assert.ok(docker.includes('VOLUME ["/root/.local/state/void-node-authority-v1"]'));
+const proposerCompose = compose.slice(
+  compose.indexOf("  proposer:"),
+  compose.indexOf("  follower:"),
+);
+const followerCompose = compose.slice(compose.indexOf("  follower:"));
+assert.ok(proposerCompose.includes(
+  "void_buy_authority_proposer:/root/.local/state/void-node-authority-v1",
+));
+assert.ok(followerCompose.includes(
+  "void_buy_authority_follower:/root/.local/state/void-node-authority-v1",
+));
+assert.match(
+  compose,
+  /\nvolumes:\n\s+void_buy_authority_proposer:\n\s+void_buy_authority_follower:/u,
+);
 
 const current = readBuyLaunchGateV1();
 assert.equal(current.id, VOID_BUY_COUPLED_LAUNCH_ID_V1);
@@ -191,24 +210,55 @@ console.log("generation_lock_spans_payment_verified_append=true");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
+console.log("docker_generation_publisher_packaged=true");
+console.log("docker_generation_authority_volume_persistent=true");
+console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
   const manifest = JSON.parse(read(
     "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
   ));
   const dockerBytes = fs.readFileSync(path.join(ROOT, "Dockerfile"));
+  const lockBytes = fs.readFileSync(
+    path.join(ROOT, "src/economic/buy_void_filesystem_bakery_lock_v1.ts"),
+  );
   const next = structuredClone(manifest);
   const dockerInput = next.inputs.find(entry => entry.path === "Dockerfile");
   assert.ok(dockerInput);
   dockerInput.bytes = dockerBytes.length;
   dockerInput.sha256 = sha256(dockerBytes);
   dockerInput.git_blob_sha1 = gitBlobSha1(dockerBytes);
+  const lockInput = next.inputs.find(
+    entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+  );
+  assert.ok(lockInput);
+  lockInput.bytes = lockBytes.length;
+  lockInput.sha256 = sha256(lockBytes);
+  lockInput.git_blob_sha1 = gitBlobSha1(lockBytes);
   const body = structuredClone(next);
   delete body.enforcement_artifact_set_sha256;
   const nextSetSha256 = sha256(Buffer.from(canonical(body), "utf8"));
   assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.bytes, dockerInput.bytes);
   assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.sha256, dockerInput.sha256);
   assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.git_blob_sha1, dockerInput.git_blob_sha1);
+  assert.equal(
+    manifest.inputs.find(
+      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+    )?.bytes,
+    lockInput.bytes,
+  );
+  assert.equal(
+    manifest.inputs.find(
+      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+    )?.sha256,
+    lockInput.sha256,
+  );
+  assert.equal(
+    manifest.inputs.find(
+      entry => entry.path === "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+    )?.git_blob_sha1,
+    lockInput.git_blob_sha1,
+  );
   assert.equal(manifest.enforcement_artifact_set_sha256, nextSetSha256);
   console.log(`attestation_docker_bytes=${dockerInput.bytes}`);
   console.log(`attestation_docker_sha256=${dockerInput.sha256}`);

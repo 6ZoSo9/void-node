@@ -138,6 +138,16 @@ transition synchronously while that async-aware lock is held. A generation
 transition and a payment/request mutation therefore cannot complete concurrently
 through reviewed paths.
 
+For the canonical Docker Compose path, the final image packages
+`ops/precision/void-buy-coupled-live-generation-publish-v1.mjs`, runs with an
+explicit root runtime identity, and declares
+`/root/.local/state/void-node-authority-v1` as its authority volume. Compose
+mounts a distinct persistent named authority volume for each node. Authorized
+generation publication must execute inside the target service namespace so the
+publisher and node share the same fixed `userInfo().homedir`-derived anchor
+and generation-lock files; a host-side publisher is not equivalent to the
+container authority namespace.
+
 The publisher is not run by this PR. No generation journal, external anchor,
 activation receipt, request intake, market activation, presale activation, or
 funds movement is created merely by merging this source.
