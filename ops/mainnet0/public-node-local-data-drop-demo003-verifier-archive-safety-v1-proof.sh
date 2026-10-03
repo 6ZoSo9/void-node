@@ -564,7 +564,7 @@ if [ "${1:-}" != "-" ]; then
   exec "$real" "$@"
 fi
 
-script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-node-wrapper.XXXXXX.mjs")"
+script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-node-wrapper.XXXXXX.cjs")"
 trap 'rm -f "$script"' EXIT
 cat >"$script"
 
