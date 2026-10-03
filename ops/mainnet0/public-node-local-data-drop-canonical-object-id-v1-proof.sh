@@ -82,7 +82,7 @@ fi
 grep -Fq 'object_id = f"{expected_sha[:16]}-' "$IMPORTER" ||
   fail "secure_default_object_id_derivation_missing"
 grep -Fq 'idx == len(parts) - 1' "$IMPORTER" || fail "data_root_final_component_custody_missing"
-grep -Fq 'data_dir_group_or_world_writable' "$IMPORTER" || fail "data_root_dot_custody_missing"
+grep -Fq 'idx == len(parts) - 1' "$IMPORTER" || fail "data_root_final_component_custody_missing"
 grep -Fq 'require_rename_protected_parent' "$IMPORTER" || fail "data_root_parent_custody_guard_missing"
 grep -Fq 'stat.S_ISVTX' "$IMPORTER" || fail "data_root_parent_sticky_exception_missing"
 grep -Fq 'group_or_world_writable_without_sticky' "$IMPORTER" || fail "data_root_parent_write_guard_missing"

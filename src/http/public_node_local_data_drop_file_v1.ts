@@ -85,7 +85,7 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
     if (fd >= 0) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch (_error) { void _error; }
     }
   }
 }
@@ -140,10 +140,10 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
     if (fd >= 0) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch (_error) { void _error; }
     }
     try {
       fs.closeSync(parent.fd);
-    } catch {}
+    } catch (_error) { void _error; }
   }
 }
