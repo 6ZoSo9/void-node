@@ -45,7 +45,6 @@ COPY --from=build \
   /app/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json \
   ./ops/mainnet0/
 USER root
-VOLUME ["/root/.local/state/void-node-authority-v1"]
 ENV NODE_ENV=production
 EXPOSE 4100
 CMD ["node","dist/index.js"]
