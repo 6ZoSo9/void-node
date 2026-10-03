@@ -90,36 +90,120 @@ assert.equal(
   VOID_WC_VOID_COUPLED_LAUNCH_READINESS_V1,
 );
 
-const ready = classifyBuyLaunchGateV1({
+// Canonical SOURCE_READY is necessary but not sufficient for public intake.
+// These source-policy bundles still explicitly report that deployment/runtime
+// evidence and launch-selected production values are not ready.
+assert.equal(
+  readyProduction.market_vault_compiled_identity_acceptance.deployment_attested,
+  false,
+);
+assert.equal(
+  readyProduction.market_vault_compiled_identity_acceptance
+    .final_role_bindings_attested,
+  false,
+);
+assert.equal(
+  readyProduction.market_vault_compiled_identity_acceptance
+    .deployed_runtime_code_observed,
+  false,
+);
+assert.equal(
+  readyProduction.wc_settlement_adapter_review.live_ledger_persistence_verified,
+  false,
+);
+assert.equal(
+  readyCoupled.opening_nonproduction_wc_exclusion_policy
+    .runtime_or_launch_evidence,
+  false,
+);
+assert.equal(
+  readyCoupled.opening_participant_provenance_eligibility_policy
+    .runtime_or_launch_evidence,
+  false,
+);
+assert.equal(
+  readyCoupled.opening_concentration_sybil_policy_contract
+    .production_cap_values_hardcoded,
+  false,
+);
+assert.equal(
+  readyCoupled.opening_concentration_sybil_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  readyCoupled.opening_concentration_sybil_policy_contract
+    .related_identity_truth_verified,
+  false,
+);
+assert.equal(
+  readyCoupled.opening_minimum_real_wc_depth_policy_contract
+    .production_minimum_real_wc_value_hardcoded,
+  false,
+);
+assert.equal(
+  readyCoupled.opening_minimum_real_wc_depth_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  readyCoupled.reverse_void_to_wc_settlement_policy.runtime_or_launch_evidence,
+  false,
+);
+assert.equal(
+  readyCoupled.economic_intent_ttl_caps_policy_contract
+    .production_ttl_value_hardcoded,
+  false,
+);
+assert.equal(
+  readyCoupled.economic_intent_ttl_caps_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  readyCoupled.system_sponsored_execution_anti_grief_policy_contract
+    .production_budget_values_hardcoded,
+  false,
+);
+assert.equal(
+  readyCoupled.system_sponsored_execution_anti_grief_policy_contract
+    .runtime_enforcement_verified,
+  false,
+);
+assert.equal(
+  readyCoupled.shared_post_discovery_reconciliation.runtime_or_launch_evidence,
+  false,
+);
+
+const topLevelOnlyCannotOpen = classifyBuyLaunchGateV1({
   production: readyProduction,
   coupled: readyCoupled,
   successor: readySuccessor,
 });
-assert.equal(ready.ready, true);
-assert.equal(ready.id, VOID_BUY_COUPLED_LAUNCH_ID_V1);
+assert.equal(topLevelOnlyCannotOpen.ready, false);
+assert.equal(topLevelOnlyCannotOpen.id, VOID_BUY_COUPLED_LAUNCH_ID_V1);
 
-const nestedPolicyHold = structuredClone(readyCoupled);
-nestedPolicyHold.opening_concentration_sybil_policy_contract
+// Changing one nested source-policy field without the reviewed source-policy
+// definition moving with it is also rejected by the canonical classifier.
+const nestedPolicyDrift = structuredClone(readyCoupled);
+nestedPolicyDrift.opening_concentration_sybil_policy_contract
   .runtime_enforcement_verified = true;
-for (const key of Object.keys(nestedPolicyHold.gates)) {
-  assert.equal(nestedPolicyHold.gates[key], true);
-}
-const canonicalNestedHold =
+const canonicalNestedDrift =
   classifyVoidWcVoidCoupledLaunchReadinessV1({
     production_candidate: readyProduction,
-    coupled_candidate: nestedPolicyHold,
+    coupled_candidate: nestedPolicyDrift,
     successor_migration_candidate: readySuccessor,
   });
-assert.equal(canonicalNestedHold.ok, false);
-assert.equal(canonicalNestedHold.status, "HOLD");
+assert.equal(canonicalNestedDrift.ok, false);
+assert.equal(canonicalNestedDrift.status, "HOLD");
 assert.match(
-  canonicalNestedHold.reason,
+  canonicalNestedDrift.reason,
   /opening_concentration_sybil_policy_contract_mismatch:runtime_enforcement_verified/,
 );
 assert.equal(
   classifyBuyLaunchGateV1({
     production: readyProduction,
-    coupled: nestedPolicyHold,
+    coupled: nestedPolicyDrift,
     successor: readySuccessor,
   }).ready,
   false,
@@ -128,7 +212,11 @@ assert.equal(
 for (const mutate of [
   (p, _c, _s) => { p.status = "hold"; },
   (p, _c, _s) => { p.coupled_activation_ready = false; },
+  (p, _c, _s) => { p.native_void_token = "0x2222222222222222222222222222222222222222"; },
+  (p, _c, _s) => { p.fixed_conversion = true; },
   (_p, c, _s) => { c.gates.bounded_canary_green = false; },
+  (_p, c, _s) => { c.execution_policy.raw_public_rpc_allowed = true; },
+  (_p, c, _s) => { c.wc_void_opening.fixed_conversion = true; },
   (_p, c, _s) => {
     c.shared_post_discovery_reconciliation.coupled_launch_id =
       "sha256:" + "0".repeat(64);
@@ -169,11 +257,12 @@ for (const mutate of [
 console.log("VOID_BUY_COUPLED_LAUNCH_GATE_V1_GREEN");
 console.log("current_canonical_source_ready=false");
 console.log("coupled_launch_id=" + VOID_BUY_COUPLED_LAUNCH_ID_V1);
-console.log("source_gate_only=true");
 console.log("canonical_coupled_launch_classifier_required=true");
-console.log("nested_policy_false_positive_blocked=true");
+console.log("canonical_source_ready_alone_can_open_intake=false");
+console.log("nested_production_runtime_evidence_required=true");
+console.log("nested_coupled_runtime_evidence_required=true");
+console.log("top_level_only_bypass=false");
 console.log("successor_classifier_source_ready_required=true");
-console.log("exact_gate_and_authority_key_sets_required=true");
 console.log("current_successor_classifier_status=HOLD");
 console.log("activation_authority=false");
 console.log("funds_movement=false");
