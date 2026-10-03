@@ -65,6 +65,34 @@ const AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES = Math.max(
   ),
 );
 
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_INTEGRATION_MARKER =
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_INGRESS_V1";
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM_RAW = String(
+  process.env.VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM || "",
+).trim();
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH =
+  "/__void/agents/paid-work/credential-requests/v1";
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES = Math.max(
+  1024,
+  Number(
+    process.env.VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES ||
+      String(64 * 1024),
+  ),
+);
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS = Math.max(
+  1000,
+  Number(
+    process.env.VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS || "15000",
+  ),
+);
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES = Math.max(
+  1024,
+  Number(
+    process.env.VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES ||
+      String(4 * 1024 * 1024),
+  ),
+);
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(
   process.env.VOID_REPO_ROOT || path.join(here, ".."),
@@ -174,6 +202,11 @@ const AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM =
     AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM_RAW,
     "VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM",
   );
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM =
+  parseReviewedLoopbackUpstream(
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM_RAW,
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM",
+  );
 
 const host =
   process.env.VOID_AI_AGENT_PUBLIC_GATEWAY_HOST || DEFAULT_HOST;
@@ -244,6 +277,25 @@ for (const [name, value] of [
   [
     "VOID_AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES",
     AGENT_PAID_WORK_SUBMISSION_MAX_RESPONSE_BYTES,
+  ],
+]) {
+  if (!Number.isFinite(value) || value < 1) {
+    fail(`invalid ${name}`);
+  }
+}
+
+for (const [name, value] of [
+  [
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES",
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES,
+  ],
+  [
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS",
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS,
+  ],
+  [
+    "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES",
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES,
   ],
 ]) {
   if (!Number.isFinite(value) || value < 1) {
@@ -918,6 +970,183 @@ async function proxyAgentPaidWorkSubmission(
   }
 }
 
+
+function copyPaidWorkCredentialRequestResponseHeaders(
+  upstreamResponse,
+) {
+  const headers = {};
+
+  for (const [key, value] of upstreamResponse.headers.entries()) {
+    const lower = key.toLowerCase();
+
+    if (
+      [
+        "connection",
+        "content-length",
+        "keep-alive",
+        "location",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "set-cookie",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+      ].includes(lower)
+    ) {
+      continue;
+    }
+
+    headers[key] = value;
+  }
+
+  headers["Cache-Control"] = "no-store";
+  headers["X-Void-Agent-Paid-Work-Credential-Request-Route"] = "v1";
+  return headers;
+}
+
+async function proxyAgentPaidWorkCredentialRequest(
+  request,
+  response,
+  url,
+) {
+  if (!AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM) {
+    jsonResponse(response, 503, {
+      ok: false,
+      error: "agent_paid_work_credential_request_gateway_unavailable",
+    });
+    return;
+  }
+
+  if (
+    url.pathname !== AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH ||
+    url.search ||
+    url.hash
+  ) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "query_not_allowed",
+    });
+    return;
+  }
+
+  const contentType = String(
+    request.headers["content-type"] || "",
+  )
+    .split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+
+  if (contentType !== "application/json") {
+    jsonResponse(response, 415, {
+      ok: false,
+      error: "application_json_required",
+    });
+    return;
+  }
+
+  let body;
+
+  try {
+    body = await readBoundedRequestBody(
+      request,
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES,
+    );
+  } catch (error) {
+    if (
+      String(error?.message || "") ===
+      "request_body_too_large"
+    ) {
+      jsonResponse(response, 413, {
+        ok: false,
+        error: "request_body_too_large",
+      });
+      return;
+    }
+
+    throw error;
+  }
+
+  const bodySha = crypto
+    .createHash("sha256")
+    .update(body)
+    .digest("hex");
+  const declaredSha = String(
+    request.headers["x-void-payload-sha256"] || "",
+  ).toLowerCase();
+
+  if (!/^[0-9a-f]{64}$/.test(declaredSha)) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "payload_sha256_required",
+    });
+    return;
+  }
+
+  if (declaredSha !== bodySha) {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "payload_sha256_mismatch",
+    });
+    return;
+  }
+
+  try {
+    JSON.parse(body.toString("utf8"));
+  } catch {
+    jsonResponse(response, 400, {
+      ok: false,
+      error: "invalid_json",
+    });
+    return;
+  }
+
+  try {
+    const upstreamAbort = createOwnedUpstreamAbortContext(
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS,
+    );
+    const upstreamResponse = await fetch(
+      `${AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM}${AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH}`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          "content-length": String(body.length),
+          "user-agent": "void-ai-agent-public-gateway-v1",
+          "x-void-payload-sha256": bodySha,
+        },
+        body,
+        redirect: "manual",
+        signal: upstreamAbort.signal,
+      },
+    );
+
+    const responseBody = await readBoundedUpstreamResponseBody(
+      upstreamResponse,
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES,
+      "agent_paid_work_credential_request",
+      upstreamAbort.controller,
+    );
+
+    bodyResponse(
+      response,
+      upstreamResponse.status,
+      responseBody,
+      copyPaidWorkCredentialRequestResponseHeaders(upstreamResponse),
+      "POST",
+    );
+  } catch (error) {
+    process.stderr.write(
+      `${MARKER} paid_work_credential_request_upstream_error=${String(error)}\n`,
+    );
+    jsonResponse(response, 502, {
+      ok: false,
+      error: "agent_paid_work_credential_request_gateway_upstream_failed",
+    });
+  }
+}
+
 async function handleRequest(request, response) {
   const method = String(request.method || "").toUpperCase();
 
@@ -930,6 +1159,23 @@ async function handleRequest(request, response) {
     );
   } catch {
     emptyResponse(response, 400);
+    return;
+  }
+
+  if (
+    parsed.pathname ===
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH
+  ) {
+    if (method === "POST") {
+      await proxyAgentPaidWorkCredentialRequest(
+        request,
+        response,
+        parsed,
+      );
+      return;
+    }
+
+    emptyResponse(response, 405, { Allow: "POST" });
     return;
   }
 
@@ -1062,6 +1308,31 @@ server.listen({ host, port, exclusive: true }, () => {
       allowed_routes: [...routeFiles.keys()],
       mutation_authority: false,
       proxy_authority: false,
+      bounded_paid_work_credential_request_proxy_authority:
+        Boolean(
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
+        ),
+      paid_work_credential_request_integration_marker:
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_INTEGRATION_MARKER,
+      paid_work_credential_request_route: {
+        path: AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH,
+        methods: ["POST"],
+        configured: Boolean(
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
+        ),
+        accepted_for_review_only: true,
+        credential_request_record_write: Boolean(
+          AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM,
+        ),
+        credential_issuance_authority: false,
+        credential_registry_mutation_authority: false,
+        wc_award_authority: false,
+        wc_ledger_write_authority: false,
+        wallet_access: false,
+        signing: false,
+        transaction_broadcast: false,
+        funds_movement: false,
+      },
       bounded_paid_work_submission_proxy_authority:
         Boolean(
           AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM,

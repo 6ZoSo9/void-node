@@ -121,6 +121,13 @@ function ensurePrivateDir(parent,name){
   }catch(error){
     if(error?.code!=="EEXIST") throw error;
   }
+  /*
+   * The directory entry itself is part of the single-attempt durability
+   * boundary. Persist the parent directory before any intent can authorize
+   * broadcaster access. This is deliberately unconditional so an existing
+   * directory is harmlessly re-fsynced and a newly-created entry is durable.
+   */
+  fsyncDir(parent);
   const st=fs.lstatSync(dir);
   if(
     st.isSymbolicLink()||
@@ -332,6 +339,16 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     return held("registry_broadcast_execution_exact_binding_mismatch");
   }
 
+  if(
+    typeof input?.confirmation!=="string"||
+    input.confirmation!==authorization.required_confirmation
+  ){
+    return held(
+      "registry_broadcast_execution_exact_operation_confirmation_required",
+      {broadcast_operation_id:operationId},
+    );
+  }
+
   let root;
   let consumption;
   try{
@@ -417,12 +434,32 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     });
   }
 
+  /*
+   * The final gate is intentionally separate from the RPC send catch. A stale
+   * authorization/observation or moved state-root generation means no
+   * broadcaster access occurred and must never be reported as a successful
+   * terminal attempt.
+   */
+  try{
+    assertRuntimeWindow(authorization,observation,dependencies.now());
+    assertStateGeneration(root);
+  }catch(error){
+    return held(
+      "registry_broadcast_execution_final_pre_send_gate_failed",
+      {
+        error:safeError(error),
+        broadcast_operation_id:operationId,
+        consumption_record_id:consumption.consumption_record_id,
+        submission_intent_id:intent.submission_intent_id,
+        attempt_intent_recorded:true,
+      },
+    );
+  }
+
   let sendResult=null;
   let sendError=null;
   let sendCount=0;
   try{
-    assertRuntimeWindow(authorization,observation,dependencies.now());
-    assertStateGeneration(root);
     sendCount+=1;
     if(sendCount!==1) throw new Error("registry_broadcast_execution_send_count_invariant");
     sendResult=await dependencies.rpc(
