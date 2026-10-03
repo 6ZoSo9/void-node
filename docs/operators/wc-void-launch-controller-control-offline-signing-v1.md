@@ -154,13 +154,22 @@ canonical pathname must bind back to that retained directory inode, and the
 output is created only through `/proc/self/fd/<parent-fd>/<basename>` with
 `O_CREAT|O_EXCL|O_NOFOLLOW`. The exact file and retained parent directory are
 fsynced, and the original parent/output pathnames must still rebind to the pinned
-parent and created file after the write. Expiry cleanup is identity-bound: the
-writer unlinks the basename only when it still resolves to the exact device/inode
-captured from the created output. If another same-UID process renames that output
-and replaces the basename, cleanup fails closed with an identity mismatch and
-does not delete the unrelated replacement. The operation never reports signing
-success in that state; the output directory must be quarantined/reviewed before
-reuse.
+parent and created file after the write.
+
+Once the final basename has been published, the signer performs **no path-based
+cleanup on later failure**. A same-UID process can rename or replace a basename
+between any pathname check and `unlink(2)`, and Node does not expose an atomic
+"unlink only if this name still refers to this retained inode" primitive.
+Therefore a late expiry, parent/path drift, or other post-publication failure
+returns terminal HOLD with
+`signature_output_quarantined_after_failure:<reason>` and leaves any published
+artifact untouched for operator quarantine/review. The signer never deletes an
+unrelated replacement pathname and never reports signing success in that state.
+
+An expired or failed signature envelope is public cryptographic material but has
+no control authority: the canonical Precision verifier still rechecks challenge
+expiry, source binding, exact candidate address, and signature recovery before it
+can produce fresh control evidence.
 
 The output is:
 
