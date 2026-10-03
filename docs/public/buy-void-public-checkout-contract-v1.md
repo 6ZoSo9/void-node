@@ -69,6 +69,7 @@ The buyer creates a JSON `POST` request at
 route returns HTTP 405.
 
 The selected-rail USDC sender must equal the native VOID destination address.
+For backward compatibility, `ack_base_native_usdc` is accepted only for Base requests. Ethereum requests require the generic selected-rail `ack_native_usdc` acknowledgement explicitly.
 Only one non-terminal request may exist per destination. Repeating the same
 amount on the same payment chain is idempotent. Changing the amount or payment
 chain conflicts until the earlier request is `fulfilled` or `rejected`.
