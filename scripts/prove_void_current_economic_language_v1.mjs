@@ -428,23 +428,23 @@ assert.match(
 );
 assert.match(
   docs.readme,
-  /separate coupled Buy VOID source launch gate is also merged[\s\S]*canonical successor as `HOLD`[\s\S]*route\/config integration remains separate/,
+  /preliminary coupled Buy VOID source gate is also merged[\s\S]*bounded subset[\s\S]*not.*full canonical coupled-readiness classifier[\s\S]*not live activation authority[\s\S]*remains `HOLD`[\s\S]*route\/config integration and public intake remain closed/i,
 );
 assert.match(
   docs.publicStatus,
-  /merged coupled Buy VOID source launch gate[\s\S]*canonical successor as `HOLD`[\s\S]*Neither source control is route\/config activation authority/,
+  /merged coupled Buy VOID source gate is currently a preliminary bounded-subset check[\s\S]*not the full canonical coupled-readiness classifier[\s\S]*not accepted as live activation authority[\s\S]*canonical successor remains `HOLD`[\s\S]*Neither source control is route\/config activation authority/i,
 );
 assert.match(
   docs.capabilityMatrix,
-  /Buy VOID coupled source launch gate \| Guarded \/ `HOLD`[\s\S]*route\/config integration and public activation remain separate/,
+  /Buy VOID coupled source launch gate \| Guarded \/ `HOLD`[\s\S]*preliminary bounded-subset check[\s\S]*not the full canonical coupled-readiness classifier[\s\S]*not live activation authority[\s\S]*route\/config integration and public activation remain separate/i,
 );
 assert.match(
   docs.releases,
-  /merged source-only coupled Buy VOID launch[\s\S]*canonical successor readiness still `HOLD`[\s\S]*public intake still closed/,
+  /merged preliminary source-only coupled Buy VOID gate[\s\S]*bounded candidate subset rather than the full canonical coupled-readiness classifier[\s\S]*none is live activation authority[\s\S]*canonical successor readiness remains `HOLD`[\s\S]*public intake remains closed/i,
 );
 assert.match(
   docs.releases,
-  /Coupled Buy VOID route\/config\s+integration remains separate[\s\S]*canonical successor still classifies\s+`HOLD`/m,
+  /merged coupled Buy VOID source gate[\s\S]*preliminary subset check rather than full canonical coupled readiness[\s\S]*route\/config integration remains separate[\s\S]*canonical successor still[\s\S]*classifies `HOLD`/i,
 );
 assert.match(
   docs.gatewayContent,
