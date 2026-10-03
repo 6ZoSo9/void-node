@@ -96,6 +96,13 @@ mismatch fails closed. Generation transition tooling must durably publish the
 same complete append-only bytes to both locations before a lease relying on that
 tip can become admissible.
 
+Each live-gate evaluation reads and validates that generation/high-water pair
+before receipt parsing and signature verification, then reads it again after
+both signatures and the operator confirmation are verified. The generation,
+tip, sequence, external-anchor identity, and active state must remain identical
+across those two observations; a revocation or rotation completing during
+receipt verification therefore fails closed before `ready=true`.
+
 The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
 permissions and no link aliases. File ownership, SHA-256, and the confirmation
