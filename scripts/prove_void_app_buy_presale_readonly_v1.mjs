@@ -55,6 +55,10 @@ for (const required of [
   "VOID is not listed on any exchange.",
   "data-buy-request-form",
   "data-buy-submit",
+  'aria-describedby="buy-usdc-amount-help buy-usdc-amount-error"',
+  'aria-describedby="buy-void-destination-help buy-void-destination-error"',
+  'data-buy-amount-error role="status"',
+  'data-buy-destination-error role="status"',
   "disabled",
   "The selected-rail USDC sender must be this exact same address.",
   "This page never sends funds or connects a wallet.",
@@ -94,6 +98,8 @@ for (const required of [
   "request.safety?.automatic_fulfillment !== false",
   "request.safety?.manual_review_required !== true",
   "usdcAtoms",
+  "updateFieldErrors",
+  "42-character 0x VOID address",
   "MAX_BUY_JSON_BYTES = 131072",
   "response.body?.getReader?.()",
   "Buy VOID response exceeds byte limit",
@@ -141,11 +147,23 @@ assert.doesNotThrow(() => {
 new Function(client);
 
 const submitButton = { disabled: true };
-const amountInput = { value: "10", disabled: false };
-const destinationInput = {
-  value: "0x1111111111111111111111111111111111111111",
-  disabled: false,
+const fieldNode = (value) => {
+  const attributes = new Map();
+  return {
+    value,
+    disabled: false,
+    setAttribute(name, nextValue) {
+      attributes.set(name, String(nextValue));
+    },
+    getAttribute(name) {
+      return attributes.get(name) ?? null;
+    },
+  };
 };
+const amountInput = fieldNode("10");
+const destinationInput = fieldNode("0x1111111111111111111111111111111111111111");
+const amountError = { textContent: "" };
+const destinationError = { textContent: "" };
 const chainInput = { value: "base", disabled: false };
 const ackNames = [
   "self_custody",
@@ -170,6 +188,8 @@ const sandbox = {
       if (selector === "[data-buy-submit]") return submitButton;
       if (selector === "[data-buy-amount]") return amountInput;
       if (selector === "[data-buy-destination]") return destinationInput;
+      if (selector === "[data-buy-amount-error]") return amountError;
+      if (selector === "[data-buy-destination-error]") return destinationError;
       if (selector === "[data-buy-chain]") return chainInput;
       if (selector === "[data-buy-view]") return buyViewNode;
       return null;
@@ -267,8 +287,35 @@ const validSnapshot = buyTest.validateSnapshot(
   structuredClone(validSale),
 );
 assert.equal(buyTest.isOpen(validSnapshot), true);
-chainInput.value = "ethereum";
 buyTest.setState(validSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(amountInput.getAttribute("aria-invalid"), "false");
+assert.equal(destinationInput.getAttribute("aria-invalid"), "false");
+assert.equal(amountError.textContent, "");
+assert.equal(destinationError.textContent, "");
+
+amountInput.value = "10.1234567";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "over-precision amount must keep submit disabled");
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
+assert.match(amountError.textContent, /at most 6 decimals/);
+
+amountInput.value = "10";
+destinationInput.value = "0x1234";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "incomplete destination must keep submit disabled");
+assert.equal(destinationInput.getAttribute("aria-invalid"), "true");
+assert.match(destinationError.textContent, /42-character/);
+
+destinationInput.value = "0x1111111111111111111111111111111111111111";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "corrected fields must clear errors and enable eligible submit");
+assert.equal(amountInput.getAttribute("aria-invalid"), "false");
+assert.equal(destinationInput.getAttribute("aria-invalid"), "false");
+assert.equal(amountError.textContent, "");
+assert.equal(destinationError.textContent, "");
+
+chainInput.value = "ethereum";
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, true, "Ethereum must stay disabled while its separate request gate is HOLD");
 const heldFetchCount = fetchCalls.length;
@@ -430,3 +477,4 @@ console.log("wallet_or_signer_access=0");
 console.log("browser_fund_send=0");
 console.log("transaction_broadcast=0");
 console.log("money_movement_by_page=0");
+console.log("invalid_buy_fields_announced=1");
