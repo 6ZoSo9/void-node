@@ -56,7 +56,7 @@ for (const required of [
   "data-buy-request-form",
   "data-buy-submit",
   "disabled",
-  "The Base USDC sender must be this exact same address.",
+  "The selected-rail USDC sender must be this exact same address.",
   "This page never sends funds or connects a wallet.",
   "WC / VOID market",
   "Earn Work Credits",
@@ -100,6 +100,13 @@ for (const required of [
   "new TextDecoder('utf-8', { fatal: true })",
   "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5",
   "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "data-buy-chain",
+  "config.payment_chains",
+  "ack_native_usdc",
+  "source_chain: chain",
+  "request.payment_instructions?.send_chain",
+  "request.payment_instructions?.token_contract",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
 }
@@ -138,9 +145,10 @@ const destinationInput = {
   value: "0x1111111111111111111111111111111111111111",
   disabled: false,
 };
+const chainInput = { value: "base", disabled: false };
 const ackNames = [
   "self_custody",
-  "base_native_usdc",
+  "native_usdc",
   "request_before_payment",
   "sender_equals_void_destination",
   "no_automatic_fulfillment",
@@ -161,6 +169,7 @@ const sandbox = {
       if (selector === "[data-buy-submit]") return submitButton;
       if (selector === "[data-buy-amount]") return amountInput;
       if (selector === "[data-buy-destination]") return destinationInput;
+      if (selector === "[data-buy-chain]") return chainInput;
       if (selector === "[data-buy-view]") return buyViewNode;
       return null;
     },
@@ -168,9 +177,9 @@ const sandbox = {
       if (selector === "[data-buy-ack]") return ackNodes;
       if (
         selector ===
-        "[data-buy-amount], [data-buy-destination], [data-buy-ack]"
+        "[data-buy-chain], [data-buy-amount], [data-buy-destination], [data-buy-ack]"
       ) {
-        return [amountInput, destinationInput, ...ackNodes];
+        return [chainInput, amountInput, destinationInput, ...ackNodes];
       }
       return [];
     },
@@ -218,6 +227,7 @@ const validConfig = {
   schema: "void_public_buy_void_config_v1",
   receive_address: "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5",
   usdc_contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  payment_chains: ["base", "ethereum"],
   payment_chain_id: 8453,
   delivery_chain_id: 2050,
   price_usdc_per_void: "0.50",
@@ -255,6 +265,11 @@ const validSnapshot = buyTest.validateSnapshot(
   structuredClone(validSale),
 );
 assert.equal(buyTest.isOpen(validSnapshot), true);
+chainInput.value = "ethereum";
+buyTest.setState(validSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, false, "Ethereum rail selection may enable submit under the same OPEN snapshot");
+chainInput.value = "base";
 
 for (const malformed of [
   true,
@@ -353,6 +368,7 @@ console.log("usdc_limits_bigint_atom_bound=1");
 console.log("refresh_pending_submit_disabled=1");
 console.log("refresh_pending_post_count=0");
 console.log("request_creation_activation_gated=1");
+console.log("dual_rail_selection_bound=true");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");
 console.log("exchange_custody_loss_warning=1");
