@@ -61,9 +61,10 @@ Focused CI also mutates the installed bundle by one byte and requires the
 key-free bundle self-check to fail on the exact SHA-256 before any private-key
 access.
 
-The older reviewed-package-runtime helpers remain exercised by synthetic tests
-as regression coverage only. They are not in the production
-`signSelectedLaunchControllerChallengeV1` key path.
+The former materialized package-tree signing bridge and its permission-fenced
+child runtime have been removed from this signer entirely. Focused proof now
+requires those obsolete symbols to be absent. This keeps the key path aligned to
+one mechanism: exact standalone bundle bytes admitted before key access.
 
 Node's module-loader environment is still sanitized before the streamed signer
 starts: `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables, shell
