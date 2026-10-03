@@ -298,11 +298,9 @@ type CanonicalWcProjectionAccumulatorV1 = {
   redeemedQuanta: bigint;
 };
 
-export function projectCanonicalWcStatesFromEntriesV1(
+function createCanonicalWcProjectionAccumulatorsV1(
   accountsRaw: readonly string[],
-  ledgerEntries: Iterable<JsonObject>,
-  redeemedEntries: Iterable<JsonObject>,
-): ReadonlyMap<string, CanonicalWcProjectedStateV1> {
+): Map<string, CanonicalWcProjectionAccumulatorV1> {
   if (
     !Array.isArray(accountsRaw) ||
     accountsRaw.length > 100_000
@@ -324,68 +322,79 @@ export function projectCanonicalWcStatesFromEntriesV1(
       redeemedQuanta: 0n,
     });
   }
+  return accumulators;
+}
 
-  for (const entry of ledgerEntries) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      fail("canonical_wc_projection_ledger_entry_invalid");
-    }
-    const account = exactStringV1(entry.account);
-    if (!account) continue;
-    const accumulator = accumulators.get(account);
-    if (!accumulator) continue;
-
-    if (canonicalAcceptanceCreditAuthorityV1(entry) === "invalid") {
-      continue;
-    }
-    if (
-      entry.kind !== undefined &&
-      typeof entry.kind !== "string"
-    ) {
-      fail("ledger_kind_not_exact_string");
-    }
-    const deltaQuanta =
-      entry.delta === undefined || entry.delta === null
-        ? 0n
-        : wcNumberToQuantaV1(
-            entry.delta,
-            "ledger_delta_not_exact_number",
-          );
-    if (deltaQuanta > 0n) {
-      accumulator.earnedQuanta += deltaQuanta;
-    }
-    if (entry.kind === "debit") {
-      const amountQuanta =
-        entry.amount === undefined || entry.amount === null
-          ? (deltaQuanta < 0n ? -deltaQuanta : deltaQuanta)
-          : wcNumberToQuantaV1(
-              entry.amount,
-              "ledger_amount_not_exact_number",
-            );
-      if (amountQuanta < 0n) fail("ledger_amount_negative");
-      accumulator.debitedQuanta += amountQuanta;
-    }
+function accumulateCanonicalWcLedgerEntryV1(
+  accumulators: Map<string, CanonicalWcProjectionAccumulatorV1>,
+  entry: JsonObject,
+): void {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    fail("canonical_wc_projection_ledger_entry_invalid");
   }
+  const account = exactStringV1(entry.account);
+  if (!account) return;
+  const accumulator = accumulators.get(account);
+  if (!accumulator) return;
 
-  for (const entry of redeemedEntries) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-      fail("canonical_wc_projection_redeemed_entry_invalid");
-    }
-    const account = exactStringV1(entry.account);
-    if (!account) continue;
-    const accumulator = accumulators.get(account);
-    if (!accumulator) continue;
-
+  if (canonicalAcceptanceCreditAuthorityV1(entry) === "invalid") {
+    return;
+  }
+  if (
+    entry.kind !== undefined &&
+    typeof entry.kind !== "string"
+  ) {
+    fail("ledger_kind_not_exact_string");
+  }
+  const deltaQuanta =
+    entry.delta === undefined || entry.delta === null
+      ? 0n
+      : wcNumberToQuantaV1(
+          entry.delta,
+          "ledger_delta_not_exact_number",
+        );
+  if (deltaQuanta > 0n) {
+    accumulator.earnedQuanta += deltaQuanta;
+  }
+  if (entry.kind === "debit") {
     const amountQuanta =
       entry.amount === undefined || entry.amount === null
-        ? 0n
+        ? (deltaQuanta < 0n ? -deltaQuanta : deltaQuanta)
         : wcNumberToQuantaV1(
             entry.amount,
-            "redeemed_amount_not_exact_number",
+            "ledger_amount_not_exact_number",
           );
-    if (amountQuanta < 0n) fail("redeemed_amount_negative");
-    accumulator.redeemedQuanta += amountQuanta;
+    if (amountQuanta < 0n) fail("ledger_amount_negative");
+    accumulator.debitedQuanta += amountQuanta;
   }
+}
 
+function accumulateCanonicalWcRedeemedEntryV1(
+  accumulators: Map<string, CanonicalWcProjectionAccumulatorV1>,
+  entry: JsonObject,
+): void {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    fail("canonical_wc_projection_redeemed_entry_invalid");
+  }
+  const account = exactStringV1(entry.account);
+  if (!account) return;
+  const accumulator = accumulators.get(account);
+  if (!accumulator) return;
+
+  const amountQuanta =
+    entry.amount === undefined || entry.amount === null
+      ? 0n
+      : wcNumberToQuantaV1(
+          entry.amount,
+          "redeemed_amount_not_exact_number",
+        );
+  if (amountQuanta < 0n) fail("redeemed_amount_negative");
+  accumulator.redeemedQuanta += amountQuanta;
+}
+
+function finalizeCanonicalWcProjectionV1(
+  accumulators: ReadonlyMap<string, CanonicalWcProjectionAccumulatorV1>,
+): ReadonlyMap<string, CanonicalWcProjectedStateV1> {
   const projected =
     new Map<string, CanonicalWcProjectedStateV1>();
   for (const [account, accumulator] of accumulators) {
@@ -412,6 +421,22 @@ export function projectCanonicalWcStatesFromEntriesV1(
     }));
   }
   return projected;
+}
+
+export function projectCanonicalWcStatesFromEntriesV1(
+  accountsRaw: readonly string[],
+  ledgerEntries: Iterable<JsonObject>,
+  redeemedEntries: Iterable<JsonObject>,
+): ReadonlyMap<string, CanonicalWcProjectedStateV1> {
+  const accumulators =
+    createCanonicalWcProjectionAccumulatorsV1(accountsRaw);
+  for (const entry of ledgerEntries) {
+    accumulateCanonicalWcLedgerEntryV1(accumulators, entry);
+  }
+  for (const entry of redeemedEntries) {
+    accumulateCanonicalWcRedeemedEntryV1(accumulators, entry);
+  }
+  return finalizeCanonicalWcProjectionV1(accumulators);
 }
 
 async function appendLedgerEntryDurable(
@@ -934,12 +959,14 @@ export async function readCanonicalWcState(
   const account = safeAccount(accountRaw);
   if (!account) fail("account_invalid");
 
-  const ledgerEntries: JsonObject[] = [];
+  // VOID_WC_CANONICAL_STATE_STREAMING_ACCUMULATION_V1
+  const accumulators =
+    createCanonicalWcProjectionAccumulatorsV1([account]);
   const ledgerScan = await scanJsonl(
     ledgerFile(dataDir),
     (entry) => {
       if (exactStringV1(entry?.account) === account) {
-        ledgerEntries.push(entry);
+        accumulateCanonicalWcLedgerEntryV1(accumulators, entry);
       }
     },
     [account],
@@ -948,12 +975,11 @@ export async function readCanonicalWcState(
     fail("ambiguous_malformed_ledger_line");
   }
 
-  const redeemedEntries: JsonObject[] = [];
   const redeemedScan = await scanJsonl(
     redeemedFile(dataDir),
     (entry) => {
       if (exactStringV1(entry?.account) === account) {
-        redeemedEntries.push(entry);
+        accumulateCanonicalWcRedeemedEntryV1(accumulators, entry);
       }
     },
     [account],
@@ -962,11 +988,8 @@ export async function readCanonicalWcState(
     fail("ambiguous_malformed_redeemed_line");
   }
 
-  const projected = projectCanonicalWcStatesFromEntriesV1(
-    [account],
-    ledgerEntries,
-    redeemedEntries,
-  ).get(account);
+  const projected =
+    finalizeCanonicalWcProjectionV1(accumulators).get(account);
   if (!projected) fail("canonical_wc_projection_missing_account");
 
   return {
