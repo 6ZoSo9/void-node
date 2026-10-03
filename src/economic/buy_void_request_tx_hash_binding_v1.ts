@@ -260,13 +260,15 @@ export function installBuyVoidRequestTxHashBindingV1(input: {
           persisted,
         });
       } catch (error: any) {
-        return res.status(500).json({
+        const message = String(error?.message || error);
+        const held =
+          message ===
+          "request_launch_authority_expired_or_superseded";
+        return res.status(held ? 409 : 500).json({
           schema:
             "void_buy_void_request_tx_hash_binding_v1",
           ok: false,
-          error: String(
-            error?.message || error,
-          ),
+          error: message,
         });
       }
     },
