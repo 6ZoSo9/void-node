@@ -18552,24 +18552,7 @@ small{color:#94a3b8}
       return events;
     }
 
-    async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any){
-      const fs = await import("node:fs");
-      const path = await import("node:path");
-      const { withBuyVoidTerminalCloseoutRequestLockV1 } = await import(
-        "./economic/buy_void_terminal_closeout_request_lock_v1.js"
-      );
-      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
-      fs.mkdirSync(dir, { recursive: true });
-      return withBuyVoidTerminalCloseoutRequestLockV1(
-        { request_dir: dir, request_id: String(event?.request_id || "") },
-        () => {
-          if(event?.operator_status==="payment_verified"&&!__blo(request))throw new Error("request_launch_authority_expired_or_superseded");
-          fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
-          fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
-          return { ok:true, dir };
-        },
-      );
-    }
+    async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any){const fs=await import("node:fs");const path=await import("node:path");const {withBuyVoidTerminalCloseoutRequestLockV1}=await import("./economic/buy_void_terminal_closeout_request_lock_v1.js");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});return withBuyVoidTerminalCloseoutRequestLockV1({request_dir:dir,request_id:String(event?.request_id||"")},()=>{if(event?.operator_status==="payment_verified"&&!__blo(request))throw new Error("request_launch_authority_expired_or_superseded");fs.appendFileSync(path.join(dir,"operator-events.jsonl"),JSON.stringify(event)+"\n");fs.writeFileSync(path.join(dir,"operator-event-"+event.request_id+"-"+event.marked_at_ms+".json"),JSON.stringify(event,null,2));return{ok:true,dir}})}
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
     function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){
@@ -19052,17 +19035,7 @@ setInterval(refresh, 10000);
     });
 
 
-    async function __voidPersistBuyVoidRequestV1(reqObj:any){
-      const fs = await import("node:fs");
-      const path = await import("node:path");
-      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
-      fs.mkdirSync(dir, { recursive: true });
-      const json = JSON.stringify(reqObj);
-      if(!__blo(reqObj))throw new Error("request_launch_authority_expired_or_superseded");
-      fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\n");
-      fs.writeFileSync(path.join(dir, reqObj.request_id + ".json"), JSON.stringify(reqObj, null, 2));
-      return { dir, file: path.join(dir, reqObj.request_id + ".json") };
-    }
+    async function __voidPersistBuyVoidRequestV1(reqObj:any){const fs=await import("node:fs");const path=await import("node:path");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});const json=JSON.stringify(reqObj);if(!__blo(reqObj))throw new Error("request_launch_authority_expired_or_superseded");fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\n");fs.writeFileSync(path.join(dir,reqObj.request_id+".json"),JSON.stringify(reqObj,null,2));return{dir,file:path.join(dir,reqObj.request_id+".json")}}
 
     function __voidBuyVoidReadParamV1(req:any, name:string){
       const q = (req && req.query) || {};
