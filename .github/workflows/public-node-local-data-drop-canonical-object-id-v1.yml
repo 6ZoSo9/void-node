@@ -1,0 +1,48 @@
+name: Public node Local Data Drop canonical object ID v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-node-local-data-drop-canonical-object-id-v1.yml"
+      - "ops/mainnet0/public-node-local-data-drop-import.sh"
+      - "ops/mainnet0/public-node-local-data-drop-canonical-object-id-v1-proof.sh"
+      - "src/index.ts"
+      - "src/http/public_node_local_data_drop_file_v1.ts"
+      - "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/public-node-local-data-drop-canonical-object-id-v1.yml"
+      - "ops/mainnet0/public-node-local-data-drop-import.sh"
+      - "ops/mainnet0/public-node-local-data-drop-canonical-object-id-v1-proof.sh"
+      - "src/index.ts"
+      - "src/http/public_node_local_data_drop_file_v1.ts"
+      - "public/public-node/evidence/economic-epoch2-public-void-state-root-anchor-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-node-local-data-drop-canonical-object-id-v1-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove canonical colon-bearing object ID safety
+        run: |
+          set -euo pipefail
+          bash ops/mainnet0/public-node-local-data-drop-canonical-object-id-v1-proof.sh
+          git diff --exit-code
