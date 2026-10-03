@@ -69859,14 +69859,14 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Purchase Rules<span class="help" tabindex="0" data-help="Current checkout: Base native USDC. Ethereum native USDC is approved policy but inactive until OPEN. Self-custody and request-first only.">?</span></h2>
+              <h2>Purchase Rules<span class="help" tabindex="0" data-help="Checkout is activation-gated. Use only the rail returned by a live request. Self-custody and request-first only.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip" style="margin-top:6px">
             <div class="mini">
               <div class="k">Asset</div>
               <div class="v">USDC</div>
-              <div class="s">Base USDC active · Ethereum inactive</div>
+              <div class="s">Base / Ethereum · activation-gated</div>
             </div>
             <div class="mini">
               <div class="k">Flow</div>
@@ -69890,7 +69890,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel buy-handoff-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Preflight for Base native USDC. Ethereum native USDC is approved but inactive until OPEN. No payment or VOID send occurs here.">?</span></h2>
+            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Preflight only. Use the exact Base or Ethereum rail returned by a live request. No payment or VOID send occurs here.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
@@ -69931,8 +69931,8 @@ a{color:#93c5fd;text-decoration:none}
         <div class="action-rail" style="margin-top:10px">
           <button class="btn btn-primary" id="buyDraftCreateBtn" type="button"><!-- VOID_BUY_CREATE_GUIDED_REQUEST_BUTTON_V1 -->Create Guided Buy Request</button>
         </div>
-        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount and self-custody delivery wallet, then create a request before Base USDC payment. Do not send Ethereum USDC until OPEN.</div>
-        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base native USDC only now • Ethereum native USDC is approved but NOT ACTIVE until OPEN • request first • self-custody only • no exchange/custodial or blind deposits • payment confirmation is not VOID fulfillment.</div>
+        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount and self-custody delivery wallet, then create a live request before any payment.</div>
+        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base or Ethereum native USDC by live request only • request first • use only its returned rail • self-custody only • no exchange/custodial or blind deposits • payment confirmation is not VOID fulfillment.</div>
         <div class="hero-note" id="buyFulfillmentTxRefWarning" style="margin-top:10px"><!-- VOID_BUY_EXPLICIT_TXREF_FULFILLMENT_V1 --><b>No automatic VOID delivery:</b> a Buy VOID request, payment reference, or payment confirmation is not fulfillment. VOID is delivered only after operator verification records an explicit VOID tx ref.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
@@ -72406,7 +72406,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const buyWalletState = executionWalletAddr
       ? (executionWalletUnlocked ? "Ready" : "Stored")
       : "Missing";
-    setText("buyRailStatus", "Base USDC · ETH pending");
+    setText("buyRailStatus", "Activation-gated");
     setText("buyWalletAddr", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyWalletState", buyWalletState);
     setText("buyWalletVoid", executionWalletVoidText);
@@ -72419,8 +72419,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "buyPathNote",
       executionWalletAddr
-        ? ("Base native USDC now • Ethereum USDC inactive until OPEN • self-custody only • no exchange/custodial sends • no blind deposits.")
-        : "Base native USDC now • Ethereum USDC inactive until OPEN • participant page only • no blind deposits • link a wallet first."
+        ? ("Use only a live request's returned Base or Ethereum rail • self-custody only • no exchange/custodial sends • no blind deposits.")
+        : "Use only a live request's returned rail • participant page only • no blind deposits • link a wallet first."
     );
 
     const buyHandoffReady = !!executionWalletAddr;
@@ -72439,13 +72439,13 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       status: buyHandoffReady ? "ready_for_buy_void_fulfillment_lane" : "missing_execution_wallet"
     };
 
-    setText("buyPlanRail", "Base · ETH pending");
+    setText("buyPlanRail", "Request-returned rail");
     setText("buyPlanDelivery", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyPlanState", buyHandoffReady ? "Ready" : "Missing");
     setText(
       "buyPlanSummary",
       buyHandoffReady
-        ? ("Base USDC preflight ready; Ethereum USDC remains inactive until OPEN. After verified payment, VOID targets " + shortAddr(executionWalletAddr) + ".")
+        ? ("Request-first preflight only. Use the exact returned rail; VOID targets " + shortAddr(executionWalletAddr) + ".")
         : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
     );
     setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));
