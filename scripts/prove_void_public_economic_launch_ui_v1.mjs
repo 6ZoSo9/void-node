@@ -28,7 +28,7 @@ for (const [name, source] of Object.entries({
 }
 assert.match(files.views, /Base Mainnet and Ethereum Mainnet native USDC are supported request rails/);
 assert.match(files.home, /Base native USDC and Ethereum Mainnet native USDC are supported request rails/);
-assert.match(files.checkout, /accepts exactly two payment rails/);
+assert.match(files.checkout, /accepts exactly\s+two payment rails/);
 assert.ok(files.checkout.includes(ethereumUsdc), 'checkout contract must identify canonical Ethereum USDC');
 
 
