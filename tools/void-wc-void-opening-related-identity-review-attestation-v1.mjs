@@ -913,7 +913,7 @@ async function runReviewedControlVerifierV1(command, input = null) {
           "if (command === 'reverify') {",
           "  const input = JSON.parse(fs.readFileSync(inputPath, 'utf8'));",
           "  envelope.result =",
-          "    control.reverifyVoidWcVoidLaunchControllerControlEvidenceV1(input);",
+          "    await control.reverifyVoidWcVoidLaunchControllerControlEvidenceV1(input);",
           "} else if (command !== 'generation') {",
           "  throw new Error('review_control_bridge_command_invalid');",
           "}",
