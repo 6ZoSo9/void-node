@@ -8,6 +8,10 @@ import {
 import {
   classifyVoidEconomicEvmSuccessorMigrationV1,
 } from "../tools/void-economic-evm-successor-migration-v1.mjs";
+import {
+  VOID_WC_VOID_COUPLED_LAUNCH_READINESS_V1,
+  classifyVoidWcVoidCoupledLaunchReadinessV1,
+} from "../tools/void-wc-void-coupled-launch-readiness-v1.mjs";
 
 const production = JSON.parse(
   fs.readFileSync("ops/mainnet0/wc-void-production-candidate-v1.json", "utf8"),
@@ -73,6 +77,19 @@ assert.equal(readySuccessorDecision.migration_authorized, false);
 assert.equal(readySuccessorDecision.public_activation_authorized, false);
 assert.equal(readySuccessorDecision.money_movement_authorized, false);
 
+const canonicalReady =
+  classifyVoidWcVoidCoupledLaunchReadinessV1({
+    production_candidate: readyProduction,
+    coupled_candidate: readyCoupled,
+    successor_migration_candidate: readySuccessor,
+  });
+assert.equal(canonicalReady.ok, true);
+assert.equal(canonicalReady.status, "SOURCE_READY");
+assert.equal(
+  canonicalReady.marker,
+  VOID_WC_VOID_COUPLED_LAUNCH_READINESS_V1,
+);
+
 const ready = classifyBuyLaunchGateV1({
   production: readyProduction,
   coupled: readyCoupled,
@@ -80,6 +97,33 @@ const ready = classifyBuyLaunchGateV1({
 });
 assert.equal(ready.ready, true);
 assert.equal(ready.id, VOID_BUY_COUPLED_LAUNCH_ID_V1);
+
+const nestedPolicyHold = structuredClone(readyCoupled);
+nestedPolicyHold.opening_concentration_sybil_policy_contract
+  .runtime_enforcement_verified = true;
+for (const key of Object.keys(nestedPolicyHold.gates)) {
+  assert.equal(nestedPolicyHold.gates[key], true);
+}
+const canonicalNestedHold =
+  classifyVoidWcVoidCoupledLaunchReadinessV1({
+    production_candidate: readyProduction,
+    coupled_candidate: nestedPolicyHold,
+    successor_migration_candidate: readySuccessor,
+  });
+assert.equal(canonicalNestedHold.ok, false);
+assert.equal(canonicalNestedHold.status, "HOLD");
+assert.match(
+  canonicalNestedHold.reason,
+  /opening_concentration_sybil_policy_contract_mismatch:runtime_enforcement_verified/,
+);
+assert.equal(
+  classifyBuyLaunchGateV1({
+    production: readyProduction,
+    coupled: nestedPolicyHold,
+    successor: readySuccessor,
+  }).ready,
+  false,
+);
 
 for (const mutate of [
   (p, _c, _s) => { p.status = "hold"; },
@@ -126,6 +170,8 @@ console.log("VOID_BUY_COUPLED_LAUNCH_GATE_V1_GREEN");
 console.log("current_canonical_source_ready=false");
 console.log("coupled_launch_id=" + VOID_BUY_COUPLED_LAUNCH_ID_V1);
 console.log("source_gate_only=true");
+console.log("canonical_coupled_launch_classifier_required=true");
+console.log("nested_policy_false_positive_blocked=true");
 console.log("successor_classifier_source_ready_required=true");
 console.log("exact_gate_and_authority_key_sets_required=true");
 console.log("current_successor_classifier_status=HOLD");
