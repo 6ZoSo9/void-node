@@ -18369,47 +18369,19 @@ small{color:#94a3b8}
       const configuredReceiveAddressLower = configuredReceiveAddress.toLowerCase();
       const boundReceiveAddressLower = __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1.toLowerCase();
       const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddressLower !== boundReceiveAddressLower;
-      const receiverBindingSource = configuredReceiveAddress
-        ? (receiverBindingConflict ? "environment_conflict_hold" : "source_and_environment_exact_match")
-        : "source_bound_operator_approved_receiver";
-      const usdc_symbol = "USDC";
-      const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
-      const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
-      const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
+      const receiverBindingSource=configuredReceiveAddress?(receiverBindingConflict?"environment_conflict_hold":"source_and_environment_exact_match"):"source_bound_operator_approved_receiver";
+      const usdc_symbol="USDC",rate_void_per_usdc=String(process.env.VOID_BUY_RATE_VOID_PER_USDC||"2"),min_usdc=Number(process.env.VOID_BUY_MIN_USDC||"1"),max_usdc=Number(process.env.VOID_BUY_MAX_USDC||"500");
       const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
+      const ethereum_requests_enabled=requests_enabled&&process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1";
       const payment_ready = !receiverBindingConflict;
       return {
-        schema: "void_public_buy_void_config_v1",
-        marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-        ok: true,
-        mode: "base_usdc_request_first_checkout",
-        requests_enabled,
-        payment_ready,
-        chain: "base",
-        payment_chain: "base",
-        payment_chain_id: __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,
-        usdc_symbol,
-        usdc_contract: __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,
-        usdc_decimals: 6,
-        receive_address: __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,
-        receiver_binding_green: !receiverBindingConflict,
-        receiver_binding_source: receiverBindingSource,
-        receiver_binding_conflict: receiverBindingConflict,
-        configured_receive_address_present: !!configuredReceiveAddress,
-        receiver_control_proof_marker: "VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",
-        receiver_control_proof_manifest_sha256: "dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
-        request_method: "POST",
-        request_route: "/__void/buy-void/request",
-        legacy_get_request_route: "/__void/buy-void/request.json",
-        one_active_request_per_void_destination: true,
-        void_destination_field: "void_destination_address",
-        delivery_chain: "void",
-        delivery_chain_id: __VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,
-        payment_sender_must_equal_void_destination: true,
-        request_before_payment_required: true,
-        tx_hash_at_request_creation_allowed: false,
+        schema:"void_public_buy_void_config_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:true,mode:"dual_usdc_request_first_checkout",
+        requests_enabled,ethereum_requests_enabled,payment_ready,payment_chains: ["base", "ethereum"],chain:"base",payment_chain:"base",payment_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,usdc_symbol,usdc_contract:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,usdc_decimals:6,
+        receive_address:__VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,receiver_binding_green:!receiverBindingConflict,receiver_binding_source:receiverBindingSource,receiver_binding_conflict:receiverBindingConflict,configured_receive_address_present:!!configuredReceiveAddress,
+        receiver_control_proof_marker:"VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",receiver_control_proof_manifest_sha256:"dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
+        request_method: "POST",request_route:"/__void/buy-void/request",legacy_get_request_route:"/__void/buy-void/request.json",one_active_request_per_void_destination:true,void_destination_field:"void_destination_address",delivery_chain:"void",delivery_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,payment_sender_must_equal_void_destination: true,request_before_payment_required:true,tx_hash_at_request_creation_allowed: false,
         rate_void_per_usdc,
-        price_usdc_per_void: Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
+        price_usdc_per_void: String(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
         pool_void_total: Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000"),
         max_raise_usdc: Number(process.env.VOID_BUY_MAX_RAISE_USDC || "5000000"),
         min_usdc,
@@ -18972,7 +18944,7 @@ setInterval(refresh, 10000);
           ok: true,
           request_id: id,
           operator_status: "payment_verified",
-          note: "Base USDC payment verified by receipt/log check",
+          note: "USDC receipt/log verified",
           marked_at_ms: Date.now(),
           prior_status: found.status || "",
           tx_hash: tx,
@@ -19185,12 +19157,14 @@ setInterval(refresh, 10000);
         const rawAmount = __voidBuyVoidReadBodyV1(req, "requested_amount_usdc", "usdc_amount", "amount_usdc", "amount");
         const void_destination_address = __voidBuyVoidReadBodyV1(req, "void_destination_address", "delivery_address", "delivery_wallet", "wallet");
         const source_chain = (__voidBuyVoidReadBodyV1(req, "source_chain", "payment_chain", "chain") || "base").toLowerCase();
+        const ethereum = source_chain === "ethereum";
+        const usdc_contract = ethereum ? "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" : cfg.usdc_contract;
         const account = __voidBuyVoidReadBodyV1(req, "account", "participant_account").slice(0, 128);
         const txHashAtCreation = __voidBuyVoidReadBodyV1(req, "tx_hash", "payment_tx_hash");
         const note = __voidBuyVoidReadBodyV1(req, "note").slice(0, 240);
         const acknowledgements = {
           self_custody: __voidBuyVoidReadBooleanBodyV1(req, "ack_self_custody"),
-          base_native_usdc: __voidBuyVoidReadBooleanBodyV1(req, "ack_base_native_usdc", "ack_base_usdc"),
+          native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"])),
           request_before_payment: __voidBuyVoidReadBooleanBodyV1(req, "ack_request_before_payment"),
           sender_equals_void_destination: __voidBuyVoidReadBooleanBodyV1(req, "ack_sender_equals_void_destination"),
           no_automatic_fulfillment: __voidBuyVoidReadBooleanBodyV1(req, "ack_no_automatic_fulfillment")
@@ -19204,7 +19178,7 @@ setInterval(refresh, 10000);
         if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
         if (Number.isFinite(usdc_amount) && Math.round(usdc_amount * 1_000_000) / 1_000_000 !== usdc_amount) errors.push("usdc_amount_exceeds_6_decimals");
         if (!/^0x[a-fA-F0-9]{40}$/.test(void_destination_address)) errors.push("invalid_void_destination_address");
-        if (source_chain !== "base") errors.push("base_mainnet_only");
+        if(source_chain!=="base"&&(!ethereum||!cfg.ethereum_requests_enabled))errors.push(ethereum?"buy_void_ethereum_requests_disabled":"unsupported_usdc_source_chain");
         if (txHashAtCreation) errors.push("payment_tx_hash_not_allowed_at_request_creation");
         for (const [key, value] of Object.entries(acknowledgements)) {
           if (!value) errors.push("acknowledgement_required_" + key);
@@ -19243,7 +19217,7 @@ setInterval(refresh, 10000);
 
         if (activeForDestination) {
           const activeAmount = Number(activeForDestination.usdc_amount ?? activeForDestination.requested_amount_usdc ?? 0);
-          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount) {
+          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount && (activeForDestination.source_chain || "base") === source_chain) {
             return res.json({
               schema: "void_public_buy_void_checkout_request_result_v1",
               marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
@@ -19275,13 +19249,13 @@ setInterval(refresh, 10000);
           request_id,
           created_at_ms,
           status: "awaiting_payment_tx_hash",
-          funding_model: "request_first_base_usdc_to_native_void",
+          funding_model: "request_first_usdc_to_native_void",
           account: account || null,
-          source_chain: "base",
-          payment_chain: "base",
-          payment_chain_id: cfg.payment_chain_id,
+          source_chain,
+          payment_chain: source_chain,
+          payment_chain_id: ethereum ? 1 : cfg.payment_chain_id,
           asset_in: "USDC",
-          usdc_contract: cfg.usdc_contract,
+          usdc_contract,
           usdc_decimals: cfg.usdc_decimals,
           usdc_amount,
           requested_amount_usdc: usdc_amount,
@@ -19309,9 +19283,9 @@ setInterval(refresh, 10000);
           payment_instructions: {
             request_id,
             send_asset: "USDC",
-            send_chain: "base",
-            send_chain_id: cfg.payment_chain_id,
-            token_contract: cfg.usdc_contract,
+            send_chain: source_chain,
+            send_chain_id: ethereum ? 1 : cfg.payment_chain_id,
+            token_contract: usdc_contract,
             token_decimals: cfg.usdc_decimals,
             send_to: cfg.receive_address,
             send_from: void_destination_address,
@@ -19417,13 +19391,13 @@ setInterval(refresh, 10000);
 <title>Buy VOID</title>
 <style>
 body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
-main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}.hero{background:linear-gradient(135deg,#0d1321,#111827)}.warn{border-color:#92400e;background:#1f1305}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.stat{border:1px solid #263244;border-radius:12px;padding:12px;background:#090d1a}.k{color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.v{font-size:20px;font-weight:800;word-break:break-all}a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border:0;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none;cursor:pointer}.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}.btn:disabled{opacity:.55;cursor:not-allowed}.warntext{color:#fbbf24}.ok{color:#86efac}code{background:#111827;padding:2px 5px;border-radius:5px;word-break:break-all}input{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb}label.check{display:block;margin:9px 0}label.check input{width:auto;margin-right:8px}pre{white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:10px;padding:12px;overflow:auto}
+main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}.hero{background:linear-gradient(135deg,#0d1321,#111827)}.warn{border-color:#92400e;background:#1f1305}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.stat{border:1px solid #263244;border-radius:12px;padding:12px;background:#090d1a}.k{color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.v{font-size:20px;font-weight:800;word-break:break-all}a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border:0;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none;cursor:pointer}.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}.btn:disabled{opacity:.55;cursor:not-allowed}.warntext{color:#fbbf24}.ok{color:#86efac}code{background:#111827;padding:2px 5px;border-radius:5px;word-break:break-all}input,select{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb}label.check{display:block;margin:9px 0}label.check input{width:auto;margin-right:8px}pre{white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:10px;padding:12px;overflow:auto}
 </style>
 </head>
 <body>
 <main>
 <section class="hero"><!-- VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1 -->
-  <h1>Buy VOID with Base USDC</h1>
+  <h1>Buy VOID with USDC</h1>
   <p>Create one request before sending payment. The fixed rate is <b>2 VOID per 1 USDC</b> (<b>$0.50 USDC per VOID</b>).</p>
   <p><a class="btn secondary" href="/">Home</a><a class="btn secondary" href="/__void/buy-void/config.json">Checkout Config JSON</a><a class="btn secondary" href="/__void/buy-void/sale-state.json">Sale State JSON</a></p>
 </section>
@@ -19448,14 +19422,15 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 
 <section class="card"><!-- VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1 -->
   <h2>Create a request</h2>
+  <label>Rail<br/><select id="buyChain"><option value="base">Base (8453)</option><option value="ethereum">Ethereum (1)</option></select></label><br/><br/>
   <label>USDC amount<br/><input id="buyUsdcAmount" inputmode="decimal" value="25" /></label>
   <br/><br/>
   <label>Native VOID destination address (chain ID 2050)<br/><input id="buyVoidDestination" placeholder="0x..." autocomplete="off" /></label>
-  <p class="warntext">The Base USDC sender must be this same address. Do not use an exchange or pooled-custody sender.</p>
+  <p class="warntext">The selected USDC sender must be this address. No exchange/custodial sends.</p>
   <label class="check"><input type="checkbox" id="ackSelfCustody"/>I control this self-custody wallet.</label>
-  <label class="check"><input type="checkbox" id="ackBaseUsdc"/>I will send native USDC on Base Mainnet only.</label>
+  <label class="check"><input type="checkbox" id="ackNativeUsdc"/>I will send native USDC on the selected rail.</label>
   <label class="check"><input type="checkbox" id="ackRequestFirst"/>I will not send until this request is created.</label>
-  <label class="check"><input type="checkbox" id="ackSameSender"/>The Base sender will equal the VOID destination address.</label>
+  <label class="check"><input type="checkbox" id="ackSameSender"/>The selected sender will equal the VOID destination address.</label>
   <label class="check"><input type="checkbox" id="ackManual"/>I understand automatic fulfillment is not active.</label>
   <br/>
   <button class="btn" id="buyCreateRequestBtn" type="button">Create Buy VOID Request</button>
@@ -19465,10 +19440,9 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 <section class="card">
   <h2>After request creation</h2>
   <ol>
-    <li>Verify the returned request ID, Base chain ID 8453, USDC contract, amount, approved receiver, and VOID destination.</li>
-    <li>Send the exact Base USDC amount from the exact destination address.</li>
-    <li>Keep the transaction hash. The tx hash is bound after the request; it is not accepted during request creation.</li>
-    <li>VOID delivery remains separately verified and activated. A request or payment alone is not fulfillment.</li>
+    <li>Verify the request ID, network, USDC contract, amount, receiver, and VOID destination.</li>
+    <li>Send only the returned instructions from the same self-custody address.</li>
+    <li>Keep the transaction hash. Payment is not VOID fulfillment.</li>
   </ol>
 </section>
 
@@ -19483,8 +19457,9 @@ async function loadBuyCheckoutV1(){
     var cfg=await pair[0].json();
     var sale=await pair[1].json();
     buyCheckoutConfig=cfg;
-    buyText("buyNetwork","Base Mainnet (8453)");
-    buyText("buyUsdcContract",cfg.usdc_contract || "Unavailable");
+    buyText("buyNetwork","Base 8453 / Ethereum 1");
+    buyText("buyUsdcContract","See request");
+    document.querySelector('#buyChain option[value="ethereum"]').disabled=!cfg.ethereum_requests_enabled;
     buyText("buyReceiver",cfg.receive_address || "Unavailable");
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
@@ -19506,12 +19481,13 @@ async function createBuyVoidCheckoutRequestV1(){
   var out=document.getElementById("buyRequestResult");
   var amount=String(document.getElementById("buyUsdcAmount").value || "").trim();
   var destination=String(document.getElementById("buyVoidDestination").value || "").trim();
+  var chain=document.getElementById("buyChain").value;
   var payload={
     requested_amount_usdc:amount,
     void_destination_address:destination,
-    source_chain:"base",
+    source_chain:chain,
     ack_self_custody:buyChecked("ackSelfCustody"),
-    ack_base_native_usdc:buyChecked("ackBaseUsdc"),
+    ack_native_usdc:buyChecked("ackNativeUsdc"),
     ack_request_before_payment:buyChecked("ackRequestFirst"),
     ack_sender_equals_void_destination:buyChecked("ackSameSender"),
     ack_no_automatic_fulfillment:buyChecked("ackManual")
@@ -69916,7 +69892,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned Base or Ethereum USDC purchase rail, self-custody wallet requirements, and the participant wallet that would receive VOID.">?</span></h2>
+              <h2>Buy VOID<span class="help" tabindex="0" data-help="Current checkout is Base native USDC. Ethereum native USDC is policy-approved but not active. Self-custody only.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -69947,14 +69923,14 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects Mainnet-0 funding safety rules: Base or Ethereum native USDC only, participant-page initiation only, and no exchange or custodial sends.">?</span></h2>
+              <h2>Purchase Rules<span class="help" tabindex="0" data-help="Current checkout: Base native USDC. Ethereum native USDC is approved policy but inactive until OPEN. Self-custody and request-first only.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip" style="margin-top:6px">
             <div class="mini">
               <div class="k">Asset</div>
               <div class="v">USDC</div>
-              <div class="s">Base or Ethereum native USDC only</div>
+              <div class="s">Base USDC active · Ethereum inactive</div>
             </div>
             <div class="mini">
               <div class="k">Flow</div>
@@ -69978,7 +69954,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel buy-handoff-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the Base or Ethereum native USDC Buy VOID flow. This does not claim payment or send VOID; it records delivery wallet truth and policy checks.">?</span></h2>
+            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Preflight for Base native USDC. Ethereum native USDC is approved but inactive until OPEN. No payment or VOID send occurs here.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
@@ -70019,8 +69995,8 @@ a{color:#93c5fd;text-decoration:none}
         <div class="action-rail" style="margin-top:10px">
           <button class="btn btn-primary" id="buyDraftCreateBtn" type="button"><!-- VOID_BUY_CREATE_GUIDED_REQUEST_BUTTON_V1 -->Create Guided Buy Request</button>
         </div>
-        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base or Ethereum USDC.</div>
-        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base or Ethereum native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
+        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount and self-custody delivery wallet, then create a request before Base USDC payment. Do not send Ethereum USDC until OPEN.</div>
+        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base native USDC only now • Ethereum native USDC is approved but NOT ACTIVE until OPEN • request first • self-custody only • no exchange/custodial or blind deposits • payment confirmation is not VOID fulfillment.</div>
         <div class="hero-note" id="buyFulfillmentTxRefWarning" style="margin-top:10px"><!-- VOID_BUY_EXPLICIT_TXREF_FULFILLMENT_V1 --><b>No automatic VOID delivery:</b> a Buy VOID request, payment reference, or payment confirmation is not fulfillment. VOID is delivered only after operator verification records an explicit VOID tx ref.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
@@ -72494,7 +72470,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const buyWalletState = executionWalletAddr
       ? (executionWalletUnlocked ? "Ready" : "Stored")
       : "Missing";
-    setText("buyRailStatus", "Base/Ethereum USDC");
+    setText("buyRailStatus", "Base USDC · ETH pending");
     setText("buyWalletAddr", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyWalletState", buyWalletState);
     setText("buyWalletVoid", executionWalletVoidText);
@@ -72507,8 +72483,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "buyPathNote",
       executionWalletAddr
-        ? ("Base or Ethereum native USDC only • start from this participant page • use your own self-custody wallet only • do not send from Coinbase, Binance, Robinhood, or any exchange/custodial account • blind direct deposits are not supported.")
-        : "Base or Ethereum native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
+        ? ("Base native USDC now • Ethereum USDC inactive until OPEN • self-custody only • no exchange/custodial sends • no blind deposits.")
+        : "Base native USDC now • Ethereum USDC inactive until OPEN • participant page only • no blind deposits • link a wallet first."
     );
 
     const buyHandoffReady = !!executionWalletAddr;
@@ -72517,22 +72493,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       delivery_wallet: executionWalletAddr || null,
       execution_wallet_unlocked: !!executionWalletUnlocked,
       current_void_balance: executionWalletVoidText,
-      accepted_asset: "base_or_ethereum_native_usdc",
-      accepted_assets: ["base_native_usdc", "ethereum_native_usdc"],
-      accepted_chains: ["base", "ethereum"],
+      accepted_asset: "base_native_usdc",
+      accepted_assets_policy: ["base_native_usdc", "ethereum_native_usdc"],
+      current_checkout_chain: "base",
+      ethereum_usdc_status: "approved_not_active",
       initiation: "participant_page_only",
       blind_direct_deposits: "blocked",
       exchange_or_custodial_wallet_sends: "blocked",
       status: buyHandoffReady ? "ready_for_buy_void_fulfillment_lane" : "missing_execution_wallet"
     };
 
-    setText("buyPlanRail", "Base/Ethereum USDC");
+    setText("buyPlanRail", "Base · ETH pending");
     setText("buyPlanDelivery", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyPlanState", buyHandoffReady ? "Ready" : "Missing");
     setText(
       "buyPlanSummary",
       buyHandoffReady
-        ? ("Buy VOID participant preflight is ready. After an operator verifies the real Base or Ethereum USDC transaction hash, VOID delivery should target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
+        ? ("Base USDC preflight ready; Ethereum USDC remains inactive until OPEN. After verified payment, VOID targets " + shortAddr(executionWalletAddr) + ".")
         : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
     );
     setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));

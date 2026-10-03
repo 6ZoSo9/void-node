@@ -16,9 +16,10 @@ bad(){ if grep -qF "$1" "$2"; then echo "forbidden=$1 file=$2"; exit 1; fi; }
 marker="VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1"
 receiver="0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
 base_usdc="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+eth_usdc="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 proof_sha="dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830"
 
-for value in "$marker" "$receiver" "$base_usdc" "$proof_sha"; do
+for value in "$marker" "$receiver" "$base_usdc" "$eth_usdc" "$proof_sha"; do
   need "$value" "$src"
   need "$value" "$fixture"
 done
@@ -42,12 +43,16 @@ need 'method:"POST"' "$src"
 need 'VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1' "$src"
 need 'VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1' "$src"
 need 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' "$src"
+need 'process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1"' "$src"
+need 'buy_void_ethereum_requests_disabled' "$src"
+need 'native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"]))' "$src"
 need 'const payment_ready = !receiverBindingConflict;' "$src"
 need 'mode: !cfg.requests_enabled ? "request_intake_hold"' "$src"
 need 'request_intake_ready: cfg.requests_enabled && cfg.payment_ready' "$src"
 need 'HOLD: Buy VOID request intake is not activated. Do not send funds.' "$src"
 need 'legacy_request_get_method_not_allowed_green=true' "$accounting"
 bad 'process.env.VOID_BUY_REQUESTS_ENABLED || "1"' "$src"
+bad 'process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED || "1"' "$src"
 
 bad 'app.get("/__void/buy-void/request.json", async' "$src"
 bad 'tx_hash: tx_hash || ""' "$src"
@@ -70,27 +75,49 @@ pool=block("// VOID_USDC_VOID_FIXED_PRICE_BUY_POOL_PUBLIC_PAGE_V1","function __v
 
 receiver="0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
 usdc="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+eth_usdc="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 
 assert receiver in config and receiver in pool
 assert usdc in config and usdc in pool
+assert eth_usdc in request
 assert "__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1 = 8453" in config
 assert "__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1 = 2050" in config
 assert "receiverBindingConflict" in config
+assert 'payment_chains: ["base", "ethereum"]' in config
 assert 'request_method: "POST"' in config
 assert 'tx_hash_at_request_creation_allowed: false' in config
 assert 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' in config
+assert 'process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1"' in config
+assert 'ethereum_requests_enabled' in config
 assert 'const payment_ready = !receiverBindingConflict;' in config
 
 assert 'app.post("/__void/buy-void/request"' in request
 assert "res.status(405)" in request
-assert 'source_chain !== "base"' in request
+assert '"unsupported_usdc_source_chain"' in request
+assert '"buy_void_ethereum_requests_disabled"' in request
+assert '!cfg.ethereum_requests_enabled' in request
+ack_line='native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"]))'
+assert ack_line in request
+assert request.index(ack_line) < request.index("if (errors.length)") < request.index("__voidPersistBuyVoidRequestV1")
+def native_ack(body, ethereum):
+    return body.get("ack_native_usdc") is True or ((not ethereum) and body.get("ack_base_native_usdc") is True)
+assert native_ack({"ack_base_native_usdc": True}, False) is True
+assert native_ack({"ack_base_native_usdc": True}, True) is False
+assert native_ack({"ack_native_usdc": True}, True) is True
+assert 'send_chain: source_chain' in request
 assert "one_active_request_per_void_destination" in request
+assert '(activeForDestination.source_chain || "base") === source_chain' in request
 assert "payment_tx_hash_not_allowed_at_request_creation" in request
 assert "send_from: void_destination_address" in request
 assert "automatic_fulfillment: false" in request
 
-assert "Buy VOID with Base USDC" in page
+assert "Buy VOID with USDC" in page
 assert "Native VOID destination address (chain ID 2050)" in page
+assert 'id="buyChain"' in page
+assert 'value="base"' in page and 'value="ethereum"' in page
+assert 'document.querySelector(\'#buyChain option[value="ethereum"]\').disabled=!cfg.ethereum_requests_enabled;' in page
+assert 'source_chain:chain' in page
+assert 'ack_native_usdc:buyChecked("ackNativeUsdc")' in page
 assert 'fetch("/__void/buy-void/request"' in page
 assert 'method:"POST"' in page
 assert "Payment tx hash" not in page
@@ -112,6 +139,11 @@ assert j["marker"]=="VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1"
 assert j["payment"]["chain_id"]==8453
 assert j["payment"]["token_contract"]==usdc
 assert j["payment"]["receiver"]==receiver
+rails={x["chain"]:x for x in j["payment_rails"]}
+assert set(rails)=={"base","ethereum"}
+assert rails["base"]["chain_id"]==8453 and rails["base"]["token_contract"]==usdc
+assert rails["ethereum"]["chain_id"]==1 and rails["ethereum"]["token_contract"]==eth_usdc
+assert all(x["receiver"]==receiver for x in rails.values())
 assert j["delivery"]["chain_id"]==2050
 assert j["request_contract"]["method"]=="POST"
 assert j["request_contract"]["legacy_get_status"]==405
@@ -119,7 +151,13 @@ assert j["request_contract"]["one_active_request_per_void_destination"] is True
 assert j["request_contract"]["tx_hash_at_creation_allowed"] is False
 assert j["request_contract"]["source_default_requests_enabled"] is False
 assert j["request_contract"]["activation_env"]=="VOID_BUY_REQUESTS_ENABLED"
+assert j["request_contract"]["source_default_ethereum_requests_enabled"] is False
+assert j["request_contract"]["ethereum_activation_env"]=="VOID_BUY_ETHEREUM_REQUESTS_ENABLED"
+assert j["request_contract"]["base_open_does_not_open_ethereum"] is True
 assert len(j["required_acknowledgements"])==5
+assert "ack_native_usdc" in j["required_acknowledgements"]
+assert j["request_contract"]["supported_source_chains"]==["base","ethereum"]
+assert j["request_contract"]["same_destination_same_amount_same_chain_is_idempotent"] is True
 for k,v in j["authority"].items():
     assert v is False,(k,v)
 print("buy_void_public_checkout_source_semantics_green=true")
@@ -127,7 +165,9 @@ print("buy_void_public_checkout_fixture_semantics_green=true")
 PY
 
 echo "buy_void_public_checkout_receiver_binding_green=true"
-echo "buy_void_public_checkout_base_usdc_only_green=true"
+echo "buy_void_public_checkout_dual_rail_request_contract_green=true"
+echo "buy_void_ethereum_requires_selected_rail_ack=true"
+echo "buy_void_base_legacy_ack_alias_only=true"
 echo "buy_void_public_checkout_void_destination_chain_2050_green=true"
 echo "buy_void_public_checkout_request_first_green=true"
 echo "buy_void_public_checkout_source_default_request_intake=false"
