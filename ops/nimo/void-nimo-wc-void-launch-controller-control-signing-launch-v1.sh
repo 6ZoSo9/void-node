@@ -131,13 +131,331 @@ try:
 except UnicodeDecodeError:
     raise SystemExit(2)
 
-for pattern in (
-    r'(?im)^\s*\[\s*filter(?:\s+"[^"]*")?\s*\]\s*$',
-    r'(?im)^\s*\[\s*include(?:if)?(?:\s+"[^"]*")?\s*\]\s*$',
-    r'(?im)^\s*attributesfile\s*=',
-    r'(?im)^\s*hookspath\s*=',
-):
-    if re.search(pattern, text):
+section_pattern = re.compile(
+    r'^\[\s*(?:filter|include|includeif)(?:\s+"[^"]*")?\s*\]
+PY
+
+git_env=(
+  /usr/bin/env -i
+  HOME=/nonexistent
+  PATH=/usr/bin:/bin
+  LANG=C
+  LC_ALL=C
+  GIT_CONFIG_NOSYSTEM=1
+  GIT_CONFIG_GLOBAL=/dev/null
+  GIT_OPTIONAL_LOCKS=0
+  GIT_TERMINAL_PROMPT=0
+  GIT_PAGER=cat
+  PAGER=cat
+)
+
+git_cmd=(
+  /usr/bin/git
+  --no-replace-objects
+  -c core.hooksPath=/dev/null
+  -c core.attributesFile=/dev/null
+  -c core.excludesFile=/dev/null
+  -c core.fsmonitor=false
+  -c core.untrackedCache=false
+  -c core.preloadIndex=false
+  -c submodule.recurse=false
+  -C "$repo"
+)
+
+expected_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$launcher_rel")" ||
+  hold "reviewed_launcher_blob_unavailable"
+[[ "$expected_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_launcher_blob_invalid"
+
+if [[ -n "${VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1:-}" ]]; then
+  actual_launcher_blob="$VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1"
+  [[ "$actual_launcher_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "executed_launcher_blob_invalid"
+else
+  actual_launcher_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$launcher_file")" ||
+    hold "executed_launcher_blob_unavailable"
+fi
+
+[[ "$actual_launcher_blob" == "$expected_launcher_blob" ]] ||
+  hold "executed_launcher_not_operator_reviewed_blob"
+
+current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
+  hold "current_head_unavailable"
+[[ "$current_head" == "$reviewed_head" ]] ||
+  hold "current_head_not_exact_operator_reviewed_head"
+[[ "$source_head" == "$reviewed_head" ]] ||
+  hold "challenge_source_head_not_operator_reviewed_head"
+
+/usr/bin/python3 -I -P - "$repo" "$reviewed_head" <<'PY' ||
+  hold "repository_not_clean"
+import hashlib
+import os
+import stat
+import subprocess
+import sys
+
+repo, reviewed_head = sys.argv[1:]
+git_env = {
+    "HOME": "/nonexistent",
+    "PATH": "/usr/bin:/bin",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_OPTIONAL_LOCKS": "0",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_PAGER": "cat",
+    "PAGER": "cat",
+}
+git_base = [
+    "/usr/bin/git",
+    "--no-replace-objects",
+    "-c", "core.hooksPath=/dev/null",
+    "-c", "core.attributesFile=/dev/null",
+    "-c", "core.excludesFile=/dev/null",
+    "-c", "core.fsmonitor=false",
+    "-c", "core.untrackedCache=false",
+    "-c", "core.preloadIndex=false",
+    "-c", "submodule.recurse=false",
+    "-C", repo,
+]
+
+def git_bytes(args):
+    return subprocess.run(
+        git_base + args,
+        cwd="/",
+        env=git_env,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    ).stdout
+
+def parse_tree(raw):
+    out = {}
+    for row in raw.split(b"\0"):
+        if not row:
+            continue
+        meta, path_bytes = row.split(b"\t", 1)
+        mode, kind, oid = meta.decode("ascii").split(" ")
+        path = os.fsdecode(path_bytes)
+        if kind != "blob" or mode not in ("100644", "100755", "120000"):
+            raise SystemExit(2)
+        if path in out:
+            raise SystemExit(2)
+        out[path] = (mode, oid)
+    return out
+
+def parse_index(raw):
+    out = {}
+    for row in raw.split(b"\0"):
+        if not row:
+            continue
+        meta, path_bytes = row.split(b"\t", 1)
+        mode, oid, stage = meta.decode("ascii").split(" ")
+        if stage != "0":
+            raise SystemExit(2)
+        path = os.fsdecode(path_bytes)
+        if path in out:
+            raise SystemExit(2)
+        out[path] = (mode, oid)
+    return out
+
+tree = parse_tree(git_bytes([
+    "ls-tree", "-r", "-z", "--full-tree", reviewed_head,
+]))
+index = parse_index(git_bytes(["ls-files", "-s", "-z"]))
+if tree != index:
+    raise SystemExit(2)
+
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+for relative, (mode, expected_oid) in tree.items():
+    full = os.path.join(repo, relative)
+    before = os.lstat(full)
+    if mode == "120000":
+        if not stat.S_ISLNK(before.st_mode):
+            raise SystemExit(2)
+        raw = os.fsencode(os.readlink(full))
+        after = os.lstat(full)
+        if (
+            not stat.S_ISLNK(after.st_mode)
+            or (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_ctime_ns)
+            != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_ctime_ns)
+        ):
+            raise SystemExit(2)
+        digest = hashlib.sha1()
+        digest.update(b"blob " + str(len(raw)).encode("ascii") + b"\0")
+        digest.update(raw)
+        actual_oid = digest.hexdigest()
+    else:
+        if not stat.S_ISREG(before.st_mode):
+            raise SystemExit(2)
+        expected_exec = mode == "100755"
+        if bool(before.st_mode & 0o111) != expected_exec:
+            raise SystemExit(2)
+        fd = os.open(full, os.O_RDONLY | no_follow)
+        try:
+            opened = os.fstat(fd)
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino)
+            ):
+                raise SystemExit(2)
+            digest = hashlib.sha1()
+            digest.update(
+                b"blob " + str(opened.st_size).encode("ascii") + b"\0"
+            )
+            remaining = opened.st_size
+            while remaining:
+                chunk = os.read(fd, min(1024 * 1024, remaining))
+                if not chunk:
+                    raise SystemExit(2)
+                digest.update(chunk)
+                remaining -= len(chunk)
+            after_fd = os.fstat(fd)
+        finally:
+            os.close(fd)
+        after_path = os.lstat(full)
+        identity_before = (
+            opened.st_dev, opened.st_ino, opened.st_size,
+            opened.st_mtime_ns, opened.st_ctime_ns, opened.st_mode,
+        )
+        identity_after_fd = (
+            after_fd.st_dev, after_fd.st_ino, after_fd.st_size,
+            after_fd.st_mtime_ns, after_fd.st_ctime_ns, after_fd.st_mode,
+        )
+        identity_after_path = (
+            after_path.st_dev, after_path.st_ino, after_path.st_size,
+            after_path.st_mtime_ns, after_path.st_ctime_ns, after_path.st_mode,
+        )
+        if identity_before != identity_after_fd or identity_before != identity_after_path:
+            raise SystemExit(2)
+        actual_oid = digest.hexdigest()
+
+    if actual_oid != expected_oid:
+        raise SystemExit(2)
+
+untracked = git_bytes([
+    "ls-files", "--others", "--exclude-standard", "-z",
+])
+if untracked:
+    raise SystemExit(2)
+PY
+
+critical_paths=(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
+  "package.json"
+  "package-lock.json"
+)
+
+for rel in "${critical_paths[@]}"; do
+  file="$repo/$rel"
+  [[ -f "$file" && ! -L "$file" ]] ||
+    hold "critical_file_invalid:$rel"
+
+  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
+    hold "critical_reviewed_blob_unavailable:$rel"
+  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters -- "$file")" ||
+    hold "critical_worktree_blob_unavailable:$rel"
+
+  [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "critical_head_blob_invalid:$rel"
+  [[ "$actual_blob" == "$expected_blob" ]] ||
+    hold "critical_worktree_blob_mismatch:$rel"
+done
+
+printf '%s\n' "$marker"
+printf 'status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN\n'
+printf 'operator_reviewed_head=%s\n' "$reviewed_head"
+printf 'executed_launcher_blob=%s\n' "$actual_launcher_blob"
+printf 'challenge_source_head=%s\n' "$source_head"
+printf 'challenge_sha256=%s\n' "$challenge_sha"
+printf 'repository_clean=true\n'
+printf 'critical_source_blobs_verified=true\n'
+
+if [[ "$mode" == "preflight" ]]; then
+  printf 'private_key_access=false\n'
+  printf 'credential_access=false\n'
+  printf 'wallet_or_signer_access=false\n'
+  printf 'transaction_signing=false\n'
+  printf 'transaction_broadcast=false\n'
+  printf 'funds_movement=false\n'
+  exit 0
+fi
+
+printf 'status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED\n'
+printf 'private_key_access=true\n'
+printf 'credential_access=true\n'
+printf 'wallet_or_signer_access=true\n'
+printf 'transaction_signing=false\n'
+printf 'transaction_broadcast=false\n'
+printf 'funds_movement=false\n'
+
+reviewed_signer_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$signer_rel")" ||
+  hold "reviewed_signer_blob_unavailable"
+[[ "$reviewed_signer_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_signer_blob_invalid"
+
+reviewed_signer_b64="$(
+  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_signer_blob" |
+    /usr/bin/base64 -w0
+)" || hold "reviewed_signer_transport_failed"
+
+[[ -n "$reviewed_signer_b64" ]] ||
+  hold "reviewed_signer_transport_empty"
+
+actual_signer_blob="$(
+  printf '%s' "$reviewed_signer_b64" |
+    /usr/bin/base64 -d |
+    "${git_env[@]}" "${git_cmd[@]}" hash-object --no-filters --stdin
+)" || hold "reviewed_signer_transport_hash_failed"
+
+[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]] ||
+  hold "reviewed_signer_transport_hash_mismatch"
+
+printf 'reviewed_signer_transport=verified_git_blob_stdin\n'
+printf 'reviewed_signer_blob=%s\n' "$reviewed_signer_blob"
+printf 'ethers_execution=in_memory_sha256_pinned_bundle\n'
+printf 'mutable_worktree_signer_execution=false\n'
+printf 'mutable_runtime_helper_execution=false\n'
+
+set +e
+printf '%s' "$reviewed_signer_b64" |
+  /usr/bin/base64 -d |
+  /usr/bin/env -i \
+    HOME=/home/zoso \
+    PATH=/usr/bin:/bin \
+    LANG=C \
+    LC_ALL=C \
+    VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
+    VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
+    VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
+    /usr/bin/node \
+    --input-type=module \
+    - \
+    sign \
+    --challenge "$challenge" \
+    --challenge-sha256 "$challenge_sha" \
+    --output "$output"
+pipe_status=("${PIPESTATUS[@]}")
+set -e
+
+[[ "${pipe_status[0]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_write_failed"
+[[ "${pipe_status[1]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_decode_failed"
+exit "${pipe_status[2]:-2}"
+,
+    re.IGNORECASE,
+)
+key_pattern = re.compile(
+    r'^(?:attributesfile|hookspath)\s*=',
+    re.IGNORECASE,
+)
+for raw_line in text.splitlines():
+    line = raw_line.strip()
+    if section_pattern.fullmatch(line) or key_pattern.match(line):
         raise SystemExit(2)
 PY
 
