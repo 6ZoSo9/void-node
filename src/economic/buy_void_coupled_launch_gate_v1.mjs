@@ -74,6 +74,7 @@ const LIVE_RECEIPT_MAX_BYTES = 64 * 1024;
 const LIVE_GENERATION_JOURNAL_MAX_BYTES = 64 * 1024;
 const LIVE_GENERATION_JOURNAL_MAX_EVENTS = 128;
 const LIVE_ACTIVATION_MAX_LEASE_MS = 5 * 60 * 1000;
+export const VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1 = 30_000;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 export const VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1 =
@@ -433,6 +434,23 @@ function atomicWritePrivateGenerationBytesV1(filePath, bytes) {
   }
 }
 
+export function validateBuyLaunchGenerationPublicationTimeV1(
+  occurredAtMs,
+  nowMs = Date.now(),
+) {
+  if (
+    !Number.isSafeInteger(occurredAtMs) ||
+    occurredAtMs <= 0 ||
+    !Number.isSafeInteger(nowMs) ||
+    nowMs <= 0 ||
+    occurredAtMs >
+      nowMs + VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1
+  ) {
+    throw new Error("buy_launch_generation_publish_time_invalid");
+  }
+  return occurredAtMs;
+}
+
 export async function publishBuyLaunchGenerationTransitionV1(
   input,
   env = process.env,
@@ -443,12 +461,14 @@ export async function publishBuyLaunchGenerationTransitionV1(
     Array.isArray(input) ||
     input.confirmation !== "publishBuyLaunchGenerationTransitionV1" ||
     !BYTES32.test(String(input.generation || "")) ||
-    !["active", "revoked"].includes(input.state) ||
-    !Number.isSafeInteger(input.occurred_at_ms) ||
-    input.occurred_at_ms <= 0
+    !["active", "revoked"].includes(input.state)
   ) {
     throw new Error("buy_launch_generation_publish_input_invalid");
   }
+  validateBuyLaunchGenerationPublicationTimeV1(
+    input.occurred_at_ms,
+    Date.now(),
+  );
 
   return withBuyLaunchGenerationTransitionPublicationV1(() => {
     const { journalPath, anchorPath } =
@@ -1108,31 +1128,60 @@ export function buyLaunchRequestAuthorityMatchesV1(
   }
 }
 
+export function classifyBuyLaunchRequestMutationAdmissionV1(
+  request,
+  currentGate,
+  gateReadStartedAtMs,
+  mutationAdmissionNowMs,
+) {
+  const ready =
+    Number.isSafeInteger(gateReadStartedAtMs) &&
+    gateReadStartedAtMs > 0 &&
+    Number.isSafeInteger(mutationAdmissionNowMs) &&
+    mutationAdmissionNowMs >= gateReadStartedAtMs &&
+    buyLaunchRequestAuthorityMatchesV1(
+      request,
+      currentGate,
+      mutationAdmissionNowMs,
+    );
+  return Object.freeze({
+    ready,
+    gate_read_started_at_ms: gateReadStartedAtMs,
+    mutation_admission_at_ms: mutationAdmissionNowMs,
+    reason: ready
+      ? null
+      : "request_launch_authority_expired_or_superseded",
+  });
+}
+
 export async function withBuyLaunchRequestAuthorityMutationV1(
   request,
   operation,
   env = process.env,
+  now = Date.now,
 ) {
-  if (typeof operation !== "function") {
+  if (
+    typeof operation !== "function" ||
+    typeof now !== "function"
+  ) {
     throw new Error("buy_launch_request_authority_operation_required");
   }
   return withBuyLaunchGenerationAuthorityLockV1(() => {
-    const gateReadStartedAtMs = Date.now();
+    const gateReadStartedAtMs = now();
     const currentGate = readBuyLaunchGateV1(
       env,
       gateReadStartedAtMs,
     );
-    const mutationAdmissionNowMs = Date.now();
-    if (
-      !buyLaunchRequestAuthorityMatchesV1(
+    const mutationAdmissionNowMs = now();
+    const admission =
+      classifyBuyLaunchRequestMutationAdmissionV1(
         request,
         currentGate,
+        gateReadStartedAtMs,
         mutationAdmissionNowMs,
-      )
-    ) {
-      throw new Error(
-        "request_launch_authority_expired_or_superseded",
       );
+    if (!admission.ready) {
+      throw new Error(admission.reason);
     }
     return operation();
   });
