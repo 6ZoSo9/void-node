@@ -159,6 +159,7 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
 
   async function run(
     authority: boolean | "throw",
+    persistenceLeaseConflict = false,
   ): Promise<{
     status: number;
     body: any;
@@ -182,6 +183,11 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
       localOnly: () => true,
       readRequests: async () => [structuredClone(baseRequest)],
       persistRequest: async (request) => {
+        if (persistenceLeaseConflict) {
+          throw new Error(
+            "request_launch_authority_expired_or_superseded",
+          );
+        }
         persisted.push(structuredClone(request));
         return { ok: true };
       },
@@ -241,6 +247,15 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
   assert.equal(thrown.persisted.length, 0);
   assert.equal(thrown.authority_calls, 1);
 
+  const lostDuringPersist = await run(true, true);
+  assert.equal(lostDuringPersist.status, 409);
+  assert.equal(
+    lostDuringPersist.body?.error,
+    "request_launch_authority_expired_or_superseded",
+  );
+  assert.equal(lostDuringPersist.persisted.length, 0);
+  assert.equal(lostDuringPersist.authority_calls, 1);
+
   const allowed = await run(true);
   assert.equal(allowed.status, 200);
   assert.equal(allowed.body?.ok, true);
@@ -256,3 +271,4 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
 
 await exerciseLaunchAuthorityGuard();
 console.log("launch_authority_runtime_guard_exercised=true");
+console.log("persistence_time_launch_authority_conflict_409=true");
