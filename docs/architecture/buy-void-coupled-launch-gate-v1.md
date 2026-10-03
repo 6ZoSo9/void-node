@@ -108,7 +108,10 @@ existing crash-recoverable filesystem bakery lock. The fixed generation
 authority lock is a sibling of the external high-water mirror. New request
 persistence and `payment_verified` persistence acquire that lock, rederive the
 current request authority while holding it, and keep it held through the exact
-append.
+append. After the gate derivation completes, mutation admission samples the
+clock again and rechecks both the bound request expiry and the current receipt
+expiry with that fresh time, so a lease that expires during receipt/signature
+verification cannot authorize the append.
 
 Generation publication now has one canonical reviewed writer:
 `ops/precision/void-buy-coupled-live-generation-publish-v1.mjs`. That operator

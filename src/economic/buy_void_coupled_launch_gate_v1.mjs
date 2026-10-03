@@ -1117,13 +1117,17 @@ export async function withBuyLaunchRequestAuthorityMutationV1(
     throw new Error("buy_launch_request_authority_operation_required");
   }
   return withBuyLaunchGenerationAuthorityLockV1(() => {
-    const nowMs = Date.now();
-    const currentGate = readBuyLaunchGateV1(env, nowMs);
+    const gateReadStartedAtMs = Date.now();
+    const currentGate = readBuyLaunchGateV1(
+      env,
+      gateReadStartedAtMs,
+    );
+    const mutationAdmissionNowMs = Date.now();
     if (
       !buyLaunchRequestAuthorityMatchesV1(
         request,
         currentGate,
-        nowMs,
+        mutationAdmissionNowMs,
       )
     ) {
       throw new Error(

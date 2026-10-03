@@ -403,6 +403,28 @@ try {
     ),
     false,
   );
+
+  // Mutation admission must use a fresh clock sample after gate derivation.
+  // Model a lease that is live when the gate read starts but expires before
+  // the mutation is admitted under the shared generation-authority lock.
+  const gateReadStartedAtMs = requestAuthority.expires_at_ms - 1;
+  const mutationAdmissionNowMs = requestAuthority.expires_at_ms;
+  assert.equal(
+    buyLaunchRequestAuthorityMatchesV1(
+      { launch_authority: requestAuthority },
+      currentGateFixture,
+      gateReadStartedAtMs,
+    ),
+    true,
+  );
+  assert.equal(
+    buyLaunchRequestAuthorityMatchesV1(
+      { launch_authority: requestAuthority },
+      currentGateFixture,
+      mutationAdmissionNowMs,
+    ),
+    false,
+  );
   assert.equal(
     buyLaunchRequestAuthorityMatchesV1(
       { launch_authority: requestAuthority },
@@ -640,6 +662,10 @@ assert.match(
 );
 assert.match(gateSource, /withBuyVoidFilesystemBakeryLockAsyncV1/);
 assert.match(
+  gateSource,
+  /const gateReadStartedAtMs = Date\.now\(\);[\s\S]*readBuyLaunchGateV1\([\s\S]*gateReadStartedAtMs[\s\S]*const mutationAdmissionNowMs = Date\.now\(\);[\s\S]*buyLaunchRequestAuthorityMatchesV1\([\s\S]*mutationAdmissionNowMs/u,
+);
+assert.match(
   bakeryLockSource,
   /export async function withBuyVoidFilesystemBakeryLockAsyncV1/,
 );
@@ -702,6 +728,7 @@ console.log("generation_revalidated_after_receipt_verification=true");
 console.log("mid_verification_generation_change_rejected=true");
 console.log("shared_generation_authority_bakery_lock_required=true");
 console.log("request_mutation_generation_lock_required=true");
+console.log("request_mutation_fresh_post_gate_expiry_check=true");
 console.log("generation_transition_publication_generation_lock_required=true");
 console.log("canonical_generation_publisher_uses_shared_lock=true");
 console.log("async_generation_publication_lock_lifetime_safe=true");
