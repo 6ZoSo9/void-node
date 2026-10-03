@@ -372,7 +372,7 @@ function openPinnedParentDirectoryV1(file, label) {
     if (fd >= 0) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch (closeError) { void closeError; }
     }
     if (
       error &&
@@ -522,7 +522,7 @@ function readStableFileV1(file, {
     if (fd >= 0) fs.closeSync(fd);
     try {
       fs.closeSync(parent.fd);
-    } catch {}
+    } catch (closeError) { void closeError; }
   }
 }
 
@@ -741,11 +741,11 @@ function writeExclusiveJsonV1(
     if (fd >= 0) {
       try {
         fs.closeSync(fd);
-      } catch {}
+      } catch (closeError) { void closeError; }
     }
     try {
       fs.closeSync(parent.fd);
-    } catch {}
+    } catch (closeError) { void closeError; }
   }
 }
 
