@@ -41,7 +41,22 @@ reports activation/funding/presale/market/funds authority false.
 Public intake additionally requires a separately authorized live coupled-launch
 receipt. No such production receipt is committed by this source lane.
 
-The runtime requires all three environment bindings:
+The runtime requires a cryptographically authorized receipt plus three
+environment transport bindings.
+
+The receipt must carry an EIP-712 signature recovering to the fixed existing
+WC/VOID launch-controller identity:
+
+`0x2f1e0005e865b772b268bd8c797bf3eaa901d97e`
+
+The signed payload binds execution epoch 2, the launch-controller role ID, the
+exact coupled launch ID, the exact source composition ID, a 32-byte activation
+nonce, activation time, the content-addressed receipt ID, and every boolean that
+claims the private Buy runtime / WC/VOID market / presale were activated in the
+same ceremony. A different signer, malformed signature, changed signed field,
+or future-dated activation time fails closed.
+
+The three environment bindings are:
 
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH`: exact absolute path to a
   private receipt;
@@ -52,10 +67,17 @@ The runtime requires all three environment bindings:
 
 The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
-permissions and no link aliases. Its content must be content-addressed and bind:
+permissions and no link aliases. File ownership, SHA-256, and the confirmation
+string provide custody/integrity binding; they are not launch authority. The
+EIP-712 launch-controller signature is the authority proof.
+
+Its content must be content-addressed and bind:
 
 - marker `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1`;
 - status `COUPLED_PUBLIC_LAUNCH_ACTIVE`;
+- the fixed launch-controller signer;
+- a unique bytes32 activation nonce;
+- a valid launch-controller EIP-712 signature;
 - the exact coupled launch ID;
 - the exact current source composition ID;
 - private Buy VOID runtime active;
@@ -67,7 +89,10 @@ permissions and no link aliases. Its content must be content-addressed and bind:
 - `source_ready_only=false`.
 
 A missing path, digest, confirmation, insecure file, changed file, stale
-composition ID, malformed receipt, or any false launch fact holds intake closed.
+composition ID, malformed receipt, wrong/invalid signature, future-dated
+activation, or any false launch fact holds intake closed. A self-authored JSON
+fixture with internally consistent hashes and environment confirmation cannot
+open production intake.
 
 The existing final coupled source-promotion lane is deliberately not accepted as
 live evidence: that lane explicitly retains
@@ -120,6 +145,9 @@ node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
 node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
 ```
 
-The focused proof uses only a temporary synthetic live-receipt fixture. That
-fixture proves parser/custody/digest/confirmation behavior; it is not production
-activation evidence and carries no runtime or economic authority.
+The focused proof uses only a temporary synthetic EIP-712 signer and live-receipt
+fixture. It proves the signature format plus parser/custody/digest/confirmation
+behavior, and explicitly proves that a valid synthetic signature cannot satisfy
+the fixed production launch-controller identity. CI never has the production
+launch-controller key, cannot mint production activation evidence, and carries
+no runtime or economic authority.
