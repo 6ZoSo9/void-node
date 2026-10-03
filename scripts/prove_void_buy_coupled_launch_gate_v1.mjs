@@ -11,9 +11,11 @@ import {
   VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
+  buildBuyLaunchGenerationEventV1,
   buyLaunchLiveActivationReceiptIdV1,
   buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
+  classifyBuyLaunchGenerationJournalV1,
   classifyBuyLaunchLiveActivationLeaseV1,
   readBuyLaunchGateV1,
   readBuyLaunchLiveActivationV1,
@@ -154,8 +156,37 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-buy-live-"));
 try {
   fs.chmodSync(tmp, 0o700);
   const receiptPath = path.join(tmp, "activation.json");
+  const dataDir = path.join(tmp, "data");
+  const economicDir = path.join(dataDir, "economic");
+  fs.mkdirSync(economicDir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dataDir, 0o700);
+  fs.chmodSync(economicDir, 0o700);
+  const journalPath = path.join(
+    economicDir,
+    "buy-void-coupled-live-generation-v1.jsonl",
+  );
   const nowMs = 1791014400000;
   const activationGeneration = "0x" + "b".repeat(64);
+  const activeEvent = buildBuyLaunchGenerationEventV1({
+    sequence: 1,
+    previous_event_sha256: null,
+    generation: activationGeneration,
+    state: "active",
+    occurred_at_ms: nowMs - 1000,
+  });
+  const activeJournalBytes = Buffer.from(
+    JSON.stringify(activeEvent) + "\n",
+    "utf8",
+  );
+  fs.writeFileSync(journalPath, activeJournalBytes, {
+    mode: 0o600,
+    flag: "wx",
+  });
+  const activeGenerationState =
+    classifyBuyLaunchGenerationJournalV1(activeJournalBytes);
+  assert.equal(activeGenerationState.ready, true);
+  assert.equal(activeGenerationState.generation, activationGeneration);
+  assert.equal(activeGenerationState.tip_sha256, activeEvent.event_sha256);
   const receiptBody = {
     activated_at_ms: nowMs,
     activation_generation: activationGeneration,
@@ -165,6 +196,7 @@ try {
     buy_void_private_runtime_active: true,
     coupled_launch_id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
     expires_at_ms: nowMs + 120_000,
+    generation_tip_sha256: activeEvent.event_sha256,
     marker: VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
     public_buy_request_intake_authorized: true,
     public_presale_active: true,
@@ -246,13 +278,15 @@ try {
     "activate-coupled-public-buy-v1:" +
     receipt.activation_generation +
     ":" +
+    receipt.generation_tip_sha256 +
+    ":" +
     receipt.activation_receipt_id +
     ":" +
     receiptSha256;
   const liveEnv = {
+    DATA_DIR: dataDir,
     VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH: receiptPath,
     VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256: receiptSha256,
-    VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION: activationGeneration,
     VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM: confirmation,
   };
 
@@ -269,7 +303,7 @@ try {
 
   const liveLease = classifyBuyLaunchLiveActivationLeaseV1(
     receipt,
-    activationGeneration,
+    activeGenerationState,
     nowMs + 1,
   );
   assert.equal(liveLease.ready, true);
@@ -278,21 +312,84 @@ try {
   assert.equal(
     classifyBuyLaunchLiveActivationLeaseV1(
       receipt,
-      activationGeneration,
+      activeGenerationState,
       receipt.expires_at_ms,
     ).ready,
     false,
   );
 
-  // Deactivation or a newer ceremony advances the external generation.
+  // Durable journal revocation survives environment/config rollback.
+  const revokedEvent = buildBuyLaunchGenerationEventV1({
+    sequence: 2,
+    previous_event_sha256: activeEvent.event_sha256,
+    generation: activationGeneration,
+    state: "revoked",
+    occurred_at_ms: nowMs + 2,
+  });
+  const revokedJournalBytes = Buffer.from(
+    JSON.stringify(activeEvent) + "\n" +
+    JSON.stringify(revokedEvent) + "\n",
+    "utf8",
+  );
+  fs.writeFileSync(journalPath, revokedJournalBytes, { mode: 0o600 });
+  const revokedState =
+    classifyBuyLaunchGenerationJournalV1(revokedJournalBytes);
+  assert.equal(revokedState.ready, false);
   assert.equal(
     classifyBuyLaunchLiveActivationLeaseV1(
       receipt,
-      "0x" + "c".repeat(64),
-      nowMs + 1,
+      revokedState,
+      nowMs + 3,
     ).ready,
     false,
   );
+
+  const rotatedGeneration = "0x" + "c".repeat(64);
+  const rotatedEvent = buildBuyLaunchGenerationEventV1({
+    sequence: 3,
+    previous_event_sha256: revokedEvent.event_sha256,
+    generation: rotatedGeneration,
+    state: "active",
+    occurred_at_ms: nowMs + 4,
+  });
+  const rotatedJournalBytes = Buffer.from(
+    JSON.stringify(activeEvent) + "\n" +
+    JSON.stringify(revokedEvent) + "\n" +
+    JSON.stringify(rotatedEvent) + "\n",
+    "utf8",
+  );
+  const rotatedState =
+    classifyBuyLaunchGenerationJournalV1(rotatedJournalBytes);
+  assert.equal(rotatedState.ready, true);
+  assert.equal(rotatedState.generation, rotatedGeneration);
+  assert.equal(
+    classifyBuyLaunchLiveActivationLeaseV1(
+      receipt,
+      rotatedState,
+      nowMs + 5,
+    ).ready,
+    false,
+  );
+
+  const illegalEvent = buildBuyLaunchGenerationEventV1({
+    sequence: 2,
+    previous_event_sha256: activeEvent.event_sha256,
+    generation: rotatedGeneration,
+    state: "active",
+    occurred_at_ms: nowMs + 2,
+  });
+  assert.throws(
+    () => classifyBuyLaunchGenerationJournalV1(
+      Buffer.from(
+        JSON.stringify(activeEvent) + "\n" +
+        JSON.stringify(illegalEvent) + "\n",
+        "utf8",
+      ),
+    ),
+    /buy_launch_generation_active_must_revoke/,
+  );
+
+  fs.writeFileSync(journalPath, activeJournalBytes, { mode: 0o600 });
 
   assert.equal(
     readBuyLaunchLiveActivationV1(sourceReady, {
@@ -363,7 +460,8 @@ const gateSource = fs.readFileSync(
 assert.match(gateSource, /classifyVoidWcVoidCoupledLaunchReadinessV1/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256/);
-assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION/);
+assert.match(gateSource, /buy-void-coupled-live-generation-v1\.jsonl/);
+assert.match(gateSource, /generation_tip_sha256/);
 assert.match(gateSource, /expires_at_ms/);
 assert.match(gateSource, /LIVE_ACTIVATION_MAX_LEASE_MS/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
@@ -384,7 +482,9 @@ console.log("source_ready_alone_can_open_intake=false");
 console.log("live_coupled_activation_receipt_required=true");
 console.log("live_receipt_digest_binding_required=true");
 console.log("live_activation_lease_expiry_required=true");
-console.log("live_activation_generation_match_required=true");
+console.log("live_activation_generation_journal_required=true");
+console.log("durable_generation_revocation_required=true");
+console.log("configuration_rollback_old_generation_replay=false");
 console.log("stale_live_activation_receipt_replay=false");
 console.log("launch_controller_eip712_signature_required=true");
 console.log("sovereign_eip712_cosignature_required=true");
