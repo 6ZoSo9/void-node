@@ -95,6 +95,47 @@ def open_data_root(path):
     return fd
 
 
+def open_source(path):
+    if not path or "\\x00" in path:
+        fail("source_path_invalid")
+    absolute = os.path.isabs(path)
+    parts = []
+    for part in path.split(os.sep):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            fail("source_parent_component_rejected")
+        parts.append(part)
+    if not parts:
+        fail("source_path_missing_filename")
+
+    parent_fd = os.open("/" if absolute else ".", DIR_FLAGS)
+    try:
+        for idx, part in enumerate(parts[:-1]):
+            next_fd = open_child_dir(
+                parent_fd,
+                part,
+                f"source_dir_component_{idx}",
+                False,
+                False,
+            )
+            os.close(parent_fd)
+            parent_fd = next_fd
+
+        name = parts[-1]
+        before = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode):
+            fail("source_not_direct_regular_file")
+        fd = os.open(name, READ_FLAGS, dir_fd=parent_fd)
+        after = os.fstat(fd)
+        if not stat.S_ISREG(after.st_mode) or not same_identity(before, after):
+            os.close(fd)
+            fail("source_identity_changed")
+        return fd
+    finally:
+        os.close(parent_fd)
+
+
 def open_existing_file(dir_fd, name, label):
     try:
         before = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
@@ -214,14 +255,8 @@ receipts_fd = None
 staging_fd = None
 
 try:
-    source_before = os.lstat(src)
-    if not stat.S_ISREG(source_before.st_mode):
-        fail("source_not_direct_regular_file")
-    src_fd = os.open(src, os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+    src_fd = open_source(src)
     fds.append(src_fd)
-    source_after = os.fstat(src_fd)
-    if not stat.S_ISREG(source_after.st_mode) or not same_identity(source_before, source_after):
-        fail("source_identity_changed")
     expected_bytes, expected_sha = hash_fd(src_fd)
 
     if not object_id:
