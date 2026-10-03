@@ -296,6 +296,13 @@ function verifyPolicy(raw, openingWindow) {
   });
 }
 
+export function verifyWcVoidOpeningConcentrationSybilPolicyDefinitionV1(
+  policy,
+  openingWindow,
+) {
+  return verifyPolicy(policy, openingWindow);
+}
+
 function verifyRelatedIdentityRecords(coupledLaunchId, eligibility, rawRecords) {
   const records = snapshotArray(
     rawRecords,
