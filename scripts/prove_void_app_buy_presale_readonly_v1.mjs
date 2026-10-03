@@ -164,10 +164,10 @@ const fieldNode = (value) => {
     },
   };
 };
-const amountInput = fieldNode("10");
-const destinationInput = fieldNode("0x1111111111111111111111111111111111111111");
-const amountError = { textContent: "" };
-const destinationError = { textContent: "" };
+let amountInput = fieldNode("10");
+let destinationInput = fieldNode("0x1111111111111111111111111111111111111111");
+let amountError = { textContent: "" };
+let destinationError = { textContent: "" };
 const chainInput = { value: "base", disabled: false };
 const ackNames = [
   "self_custody",
@@ -181,7 +181,14 @@ const ackNodes = ackNames.map((name) => ({
   checked: true,
   disabled: false,
 }));
-const buyViewNode = {};
+let buyViewNode = {};
+const replaceBuyView = () => {
+  amountInput = fieldNode("");
+  destinationInput = fieldNode("");
+  amountError = { textContent: "" };
+  destinationError = { textContent: "" };
+  buyViewNode = {};
+};
 const fetchCalls = [];
 const sandbox = {
   console,
@@ -232,6 +239,7 @@ const instrumentedClient = client + `
   updateSubmit,
   submitBuy,
   markFieldTouched,
+  beginBuyViewInstance,
   setState(snapshot, pending, busy) {
     currentSnapshot = snapshot;
     readinessPending = pending;
@@ -292,6 +300,7 @@ const validSnapshot = buyTest.validateSnapshot(
   structuredClone(validSale),
 );
 assert.equal(buyTest.isOpen(validSnapshot), true);
+assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
 buyTest.setState(validSnapshot, false, false);
 buyTest.updateSubmit();
 assert.equal(amountInput.getAttribute("aria-invalid"), null);
@@ -475,6 +484,32 @@ assert.equal(
   false,
   "submit may re-enable only after readiness pending is cleared",
 );
+
+replaceBuyView();
+assert.equal(
+  buyTest.beginBuyViewInstance(buyViewNode),
+  true,
+  "replacement Buy view must begin a new validation-state lifetime",
+);
+buyTest.setState(validSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "replacement empty required fields must keep submit disabled");
+assert.equal(amountInput.getAttribute("aria-invalid"), null);
+assert.equal(destinationInput.getAttribute("aria-invalid"), null);
+assert.equal(amountError.textContent, "");
+assert.equal(destinationError.textContent, "");
+
+buyTest.markFieldTouched("amount");
+buyTest.updateSubmit();
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
+assert.match(amountError.textContent, /Enter a native USDC amount/);
+assert.equal(
+  buyTest.beginBuyViewInstance(buyViewNode),
+  false,
+  "refreshing the same Buy view must preserve its touched state",
+);
+buyTest.updateSubmit();
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
 
 console.log("VOID_BUY_VOID_APP_LAUNCH_READY_V1_GREEN");
 console.log(`canonical_price_usdc_per_void=${canonicalPrice.price}`);
