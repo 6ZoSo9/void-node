@@ -20,6 +20,7 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   signControlChallengeCoreV1,
+  testOnlyExerciseSignatureOutputParentReplacementV1,
   testOnlyPinnedStandaloneEthersV1,
   testOnlyReadTransferredControlChallengeV1,
   validateSanitizedOfflineSignerEnvironmentV1,
@@ -852,6 +853,15 @@ for (const access of [
   );
 }
 
+const outputParentRace =
+  testOnlyExerciseSignatureOutputParentReplacementV1();
+assert.match(
+  String(outputParentRace.reason || ""),
+  /signature_output_path_changed_after_create/u,
+);
+assert.equal(outputParentRace.replacement_output_exists, false);
+assert.equal(outputParentRace.displaced_output_exists, false);
+
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
   "utf8",
@@ -982,6 +992,56 @@ assert.equal(
   signerSource.includes("function openPinnedParentDirectoryV1"),
   true,
 );
+{
+  const writerStart = signerSource.indexOf("function writeExclusiveJsonV1");
+  const writerEnd = signerSource.indexOf(
+    "export function testOnlyExerciseSignatureOutputParentReplacementV1",
+    writerStart,
+  );
+  assert.ok(writerStart >= 0 && writerEnd > writerStart);
+  const writerSource = signerSource.slice(writerStart, writerEnd);
+  const pinAt = writerSource.indexOf(
+    'openPinnedParentDirectoryV1(\n    file,\n    "signature_output",',
+  );
+  const canonicalAt = writerSource.indexOf(
+    "parentCanonical = fs.realpathSync.native(parentPath)",
+  );
+  const createAt = writerSource.indexOf(
+    "fd = fs.openSync(\n      pinnedOutput",
+  );
+  assert.ok(pinAt >= 0);
+  assert.ok(canonicalAt > pinAt);
+  assert.ok(createAt > canonicalAt);
+  assert.equal(
+    writerSource.includes("fs.openSync(\n    file,"),
+    false,
+    "signature output must never reopen the mutable original pathname",
+  );
+  assert.equal(
+    writerSource.includes("fs.fsyncSync(parent.fd)"),
+    true,
+    "signature output parent directory must be fsynced",
+  );
+  assert.equal(
+    writerSource.includes("fs.unlinkSync(pinnedOutput)"),
+    true,
+    "failed redirected output must be removed through the retained parent fd",
+  );
+  assert.equal(
+    writerSource.includes(
+      "!sameOpenedFileIdentityV1(parentFdStat, parentAfter)",
+    ),
+    true,
+    "original output parent must still bind to the retained directory inode",
+  );
+  assert.equal(
+    writerSource.includes(
+      "!sameOpenedFileIdentityV1(createdStat, outputAfter)",
+    ),
+    true,
+    "original output pathname must rebind to the created inode",
+  );
+}
 {
   const readStart = signerSource.indexOf("function readStableFileV1");
   const readEnd = signerSource.indexOf("function readChallengeV1", readStart);
@@ -1276,6 +1336,9 @@ console.log("pinned_parent_directory_chain=true");
 console.log("preopen_path_identity_bound=true");
 console.log("parent_symlink_alias_rejected=true");
 console.log("input_path_inode_rebound_after_read=true");
+console.log("signature_output_parent_descriptor_bound=true");
+console.log("signature_output_parent_replacement_rejected=true");
+console.log("signature_output_redirect_cleanup_verified=true");
 console.log("production_signing_helper_non_recursive=true");
 console.log("post_runtime_signing_clock_sampled=true");
 console.log("expiry_rechecked_before_and_after_signature=true");
