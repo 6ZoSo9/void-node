@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 import * as ethers from "ethers";
 
 import {
+  canonicalJson,
   prepareVoidWcVoidLaunchControllerControlChallengeV1,
   verifyVoidWcVoidLaunchControllerControlSignatureV1,
 } from "../tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
@@ -17,6 +19,7 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   reviewedOfflineSigningRuntimeV1,
   signControlChallengeCoreV1,
+  validateSanitizedOfflineSignerEnvironmentV1,
 } from "../ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs";
 
 const PRIVATE_A =
@@ -120,6 +123,105 @@ await assert.rejects(
   );
 }
 
+{
+  const forged = structuredClone(challenge);
+  forged.source_binding.source_head_sha = "f".repeat(40);
+  const bindingMaterial = {
+    source_head_sha: forged.source_binding.source_head_sha,
+    source_tree_sha: forged.source_binding.source_tree_sha,
+    control_contract_git_blob_sha1:
+      forged.source_binding.control_contract_git_blob_sha1,
+    source_blobs: forged.source_binding.source_blobs,
+    coupled_launch_id: forged.source_binding.coupled_launch_id,
+    coupled_launch_id_bytes32:
+      forged.source_binding.coupled_launch_id_bytes32,
+    compiled_identity_id: forged.source_binding.compiled_identity_id,
+    void_token: forged.source_binding.void_token,
+  };
+  const bindingDigest = crypto
+    .createHash("sha256")
+    .update(Buffer.from(canonicalJson(bindingMaterial), "utf8"))
+    .digest("hex");
+  forged.source_binding.source_binding_sha256 = bindingDigest;
+  forged.challenge.source_binding_sha256 = "0x" + bindingDigest;
+  forged.typed_data.value.source_binding_sha256 = "0x" + bindingDigest;
+  forged.typed_data_digest = ethers.TypedDataEncoder.hash(
+    forged.typed_data.domain,
+    forged.typed_data.types,
+    forged.typed_data.value,
+  );
+  const challengeMaterial = {
+    marker: forged.marker,
+    version: forged.version,
+    challenge: forged.challenge,
+    source_binding: forged.source_binding,
+    typed_data: forged.typed_data,
+  };
+  forged.challenge_id =
+    "voidwclcc1_" +
+    crypto
+      .createHash("sha256")
+      .update(Buffer.from(canonicalJson(challengeMaterial), "utf8"))
+      .digest("hex");
+
+  await assert.rejects(
+    () =>
+      signControlChallengeCoreV1({
+        challengeEnvelope: forged,
+        privateKey: PRIVATE_A,
+        expectedAddress: walletA.address,
+        nowUnix: now,
+        ethers,
+      }),
+    /control_source_head_not_ancestor_of_current_head/u,
+  );
+}
+
+{
+  const cleanEnv = {
+    HOME: "/home/zoso",
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1: "1",
+  };
+  const clean = validateSanitizedOfflineSignerEnvironmentV1(
+    cleanEnv,
+    "/usr/bin/node",
+    [],
+  );
+  assert.equal(clean.sanitized_environment, true);
+  assert.equal(clean.node_preload_flags_absent, true);
+
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        { ...cleanEnv, NODE_OPTIONS: "--import=/tmp/evil.mjs" },
+        "/usr/bin/node",
+        [],
+      ),
+    /offline_signer_environment_not_sanitized/u,
+  );
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        cleanEnv,
+        "/usr/bin/node",
+        ["--import=/tmp/evil.mjs"],
+      ),
+    /offline_signer_node_preload_flags_forbidden/u,
+  );
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        { ...cleanEnv, HOME: "/tmp/alternate" },
+        "/usr/bin/node",
+        [],
+      ),
+    /offline_signer_environment_not_sanitized/u,
+  );
+}
+
 const runtime = await reviewedOfflineSigningRuntimeV1();
 assert.equal(
   runtime.reviewed_runtime_profile_id,
@@ -162,10 +264,11 @@ const signerSource = fs.readFileSync(
 
 assert.equal(
   signerSource.includes(
-    ".local/share/void/offline-keys/wc-void-launch-controller-v1/private-key.hex",
+    '"/home/zoso/.local/share/void/offline-keys/wc-void-launch-controller-v1/private-key.hex"',
   ),
   true,
 );
+assert.equal(signerSource.includes("os.homedir()"), false);
 assert.equal(signerSource.includes('"key-file"'), false);
 assert.equal(
   signerSource.includes('/^(?:0x)?[0-9a-fA-F]{64}\\n?$/u'),
@@ -223,6 +326,11 @@ console.log("wrong_private_key_rejected=true");
 console.log("wrong_candidate_rejected=true");
 console.log("expired_challenge_rejected=true");
 console.log("typed_data_tamper_rejected=true");
+console.log("self_authored_source_binding_rejected=true");
+console.log("sanitized_launch_environment_required=true");
+console.log("node_preload_flags_rejected=true");
+console.log("home_override_rejected=true");
+console.log("current_source_binding_reverified_before_key_access=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
 console.log("selected_reviewer_fixed=true");
