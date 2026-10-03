@@ -834,19 +834,40 @@ export function buyLaunchRequestAuthorityMatchesV1(
       Object.keys(current).sort().join("\n") !==
         [...REQUEST_AUTHORITY_KEYS].sort().join("\n") ||
       bound.marker !== VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1 ||
+      current.marker !== VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1 ||
       bound.version !== 1 ||
+      current.version !== 1 ||
       bound.coupled_launch_id !== VOID_BUY_COUPLED_LAUNCH_ID_V1 ||
+      current.coupled_launch_id !== VOID_BUY_COUPLED_LAUNCH_ID_V1 ||
       bound.source_composition_id !== current.source_composition_id ||
       bound.activation_generation !== current.activation_generation ||
       bound.generation_tip_sha256 !== current.generation_tip_sha256 ||
+      !/^voidbclive1_[0-9a-f]{64}$/u.test(
+        String(bound.activation_receipt_id || ""),
+      ) ||
+      !/^voidbclive1_[0-9a-f]{64}$/u.test(
+        String(current.activation_receipt_id || ""),
+      ) ||
+      !HEX64.test(String(bound.activation_receipt_sha256 || "")) ||
+      !HEX64.test(String(current.activation_receipt_sha256 || "")) ||
       !Number.isSafeInteger(bound.expires_at_ms) ||
+      !Number.isSafeInteger(current.expires_at_ms) ||
       !Number.isSafeInteger(nowMs) ||
       nowMs <= 0 ||
-      bound.expires_at_ms <= nowMs
+      bound.expires_at_ms <= nowMs ||
+      current.expires_at_ms <= nowMs
     ) {
       return false;
     }
-    return true;
+    const sameReceipt =
+      bound.activation_receipt_id === current.activation_receipt_id &&
+      bound.activation_receipt_sha256 === current.activation_receipt_sha256 &&
+      bound.expires_at_ms === current.expires_at_ms;
+    const coherentRenewal =
+      bound.activation_receipt_id !== current.activation_receipt_id &&
+      bound.activation_receipt_sha256 !== current.activation_receipt_sha256 &&
+      current.expires_at_ms > bound.expires_at_ms;
+    return sameReceipt || coherentRenewal;
   } catch (error) {
     void error;
     return false;
