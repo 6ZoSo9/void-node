@@ -11,6 +11,7 @@ import re
 import shutil
 import stat
 import subprocess
+import tempfile
 from typing import Any
 
 AUTH_MARKER = (
@@ -353,16 +354,85 @@ def sign_ed25519(
     path = resolve_identity_key(
         value
     )
-    signature = run_openssl(
-        [
-            "pkeyutl",
-            "-sign",
-            "-rawin",
-            "-inkey",
-            str(path),
-        ],
-        input_bytes=message,
+
+    if (
+        not isinstance(message, bytes)
+        or len(message) < 1
+        or len(message) > 64 * 1024
+    ):
+        fail("Ed25519 signing message size invalid")
+
+    temporary = Path(
+        tempfile.mkdtemp(
+            prefix=(
+                "void-credential-request-ed25519-sign-"
+            )
+        )
     )
+    temporary.chmod(0o700)
+    message_path = (
+        temporary
+        / "message.bin"
+    )
+
+    try:
+        descriptor = os.open(
+            message_path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(
+                os,
+                "O_NOFOLLOW",
+                0,
+            ),
+            0o600,
+        )
+
+        try:
+            offset = 0
+
+            while offset < len(message):
+                written = os.write(
+                    descriptor,
+                    message[offset:],
+                )
+
+                if written <= 0:
+                    fail(
+                        "Ed25519 signing message write made no progress"
+                    )
+
+                offset += written
+
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+        message_path.chmod(
+            0o600
+        )
+        signature = run_openssl(
+            [
+                "pkeyutl",
+                "-sign",
+                "-rawin",
+                "-inkey",
+                str(path),
+                "-in",
+                str(message_path),
+            ],
+        )
+    finally:
+        try:
+            message_path.unlink(
+                missing_ok=True
+            )
+        finally:
+            shutil.rmtree(
+                temporary,
+                ignore_errors=True,
+            )
 
     if len(signature) != 64:
         fail("Ed25519 signature length invalid")
