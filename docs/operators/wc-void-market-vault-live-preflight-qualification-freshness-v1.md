@@ -21,7 +21,13 @@ any Chain-2050 RPC observation and again after the fixed-block / pending-nonce
 revalidation immediately before any production preflight material or
 `preflight_id` is constructed.
 
-Both checks require:
+Before the first RPC, the production preflight also receives the exact private
+signed launch-controller control-evidence bytes and an independent SHA-256. It
+replays that evidence through the reviewed control-requalification source and
+reviewed `ethers` runtime, then requires the reverified identity/timestamps and
+false authority facts to match the qualification exactly.
+
+Both freshness checks require:
 
 ```text
 verified_at_unix <= reverified_at_unix < valid_until_unix
@@ -49,9 +55,16 @@ Production evaluation time comes from the process wall clock inside
 final wall-clock reads are internal; a production caller cannot extend
 qualification life by supplying either time.
 
-The test-only observer has deterministic explicit initial/final evaluation-time
-seams so CI proves expiry before RPC, expiry after a full valid RPC observation
-but before artifact mint, and a backward wall-clock step after RPC.
+The legacy broad test-only observer retains its non-production synthetic
+qualification seam for RPC semantics. A separate strict test-only observer
+requires the same signed-evidence replay as production. CI uses that strict path
+to prove valid signed evidence can reach RPC while missing, hash-mismatched, or
+forged self-consistent qualification/evidence inputs make zero RPC calls.
+
+The freshness observer retains deterministic explicit initial/final
+evaluation-time seams so CI proves expiry before RPC, expiry after a full valid
+RPC observation but before artifact mint, and a backward wall-clock step after
+RPC.
 
 ## Operational consequence
 
@@ -65,9 +78,12 @@ through the **entire observation and artifact-mint boundary**:
    recorded blob/SHA-256 manifest;
 4. current canonical main still carries those exact same reviewed
    qualification/dependency bytes;
-5. its launch-controller proof-of-control window has not expired at observation
+5. the exact signed launch-controller evidence bytes and independent SHA-256
+   match the qualification and reverify through the reviewed control/ethers
+   boundary before any RPC;
+6. its launch-controller proof-of-control window has not expired at observation
    start; and
-6. that same control window remains unexpired after RPC revalidation immediately
+7. that same control window remains unexpired after RPC revalidation immediately
    before artifact mint.
 
 Unrelated merges therefore do not invalidate a still-fresh qualification merely
