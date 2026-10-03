@@ -210,6 +210,25 @@ commit as a separate positional argument and verifies:
   helper/profile, control verifier, `package.json`, and `package-lock.json`;
 - no private-key access during preflight.
 
+For sign mode, the verified worktree paths are not reopened as execution
+authority. After those checks, the launcher:
+
+1. creates a private temporary reviewed-runtime tree;
+2. immediately opens and retains that tree as directory descriptor 19;
+3. materializes the exact signer and reviewed-runtime-helper Git blobs from the
+   independently reviewed commit through `/proc/self/fd/19/...`;
+4. re-hashes those materialized bytes against the reviewed Git blob IDs;
+5. freezes the private tree; and
+6. invokes Node on
+   `/proc/self/fd/19/ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs`.
+
+The retained directory descriptor is acquired before materialization, so a
+rename/replacement of the temporary pathname cannot redirect either the bytes
+being materialized or the signer path later opened by Node. The signer’s
+relative import of the reviewed runtime helper resolves inside that same pinned
+tree. Cleanup is also descriptor-bound and removes the original private tree,
+not a path replacement.
+
 Do not execute the mutable worktree launcher as the bootstrap authority.
 The operator bootstrap reads the launcher directly from the independently
 reviewed Git commit, verifies the complete Git-blob hash **in memory**, and
