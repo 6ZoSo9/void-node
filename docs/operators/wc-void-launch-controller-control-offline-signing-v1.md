@@ -42,11 +42,32 @@ Before the private key is opened, it:
    `5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73`;
 4. verifies the installed package closure byte-for-byte;
 5. materializes a private reviewed package tree outside the repository;
-6. reverifies that private tree; and
-7. imports `ethers` from that exact private tree.
+6. reverifies that private tree;
+7. materializes the exact challenge-bound control-verifier Git blob beside that
+   private package tree; and
+8. executes all production `ethers` operations only in a separate Node child
+   launched with the permission model and
+   `--allow-fs-read=<private-runtime-root>`.
+
+The key-owning parent process never imports `ethers`. The child receives only
+the already-validated public challenge plus the fixed private key over stdin.
+The key is never placed in argv, environment variables, or a temporary key
+file.
+
+Normal Node package resolution can walk ancestor directories. The permission
+fence prevents an optional/unreviewed package in an ancestor
+`node_modules` from being read or executed. Focused proof places an
+unreviewed `bufferutil` package in exactly that ancestor position and requires
+the child to fail closed before it executes.
 
 Same-version ambient package-byte drift therefore holds before private-key
-access.
+access, and ancestor-package fallback is denied during the actual
+authority-bearing cryptographic execution.
+
+Node 22's permission model does not provide the required network-isolation
+claim for this lane. Nimo must therefore remain offline for the signing
+ceremony; the source contract explicitly reports
+`execution_network_isolation_provided=false`.
 
 ## Challenge validation
 
@@ -105,9 +126,15 @@ binding and fails closed or cannot redirect the already pinned final lookup.
 The raw key is never printed, returned, copied into the repository, placed in
 process arguments, or written into the public signature envelope.
 
-The process clears its direct input buffer/string reference after constructing
-the signer. The actual key remains process memory only for the lifetime of the
-short-lived offline signing process.
+After the parent completes source/runtime/expiry checks, it opens the fixed key,
+passes the exact key text only through the permission-fenced child's stdin, and
+clears its direct string reference when the child returns. The child validates
+the key-derived address, signs only the canonical control EIP-712 value, verifies
+signature recovery, and returns only the public signature envelope. The key is
+never written into the private reviewed runtime tree.
+
+The actual key remains process memory only for the lifetime of the short-lived
+offline signing parent/child processes.
 
 ## Output
 
@@ -193,6 +220,12 @@ boundary with the exact signer launch marker and absolute `/usr/bin/node`.
 This excludes `NODE_OPTIONS`, `NODE_PATH`, dynamic-loader variables,
 shell-specific injection variables, and unrelated ambient configuration before
 Node starts and before the private key can be opened.
+
+The signer then performs production cryptography in a second
+permission-fenced reviewed child. The parent sends the fixed key only over
+stdin; no key appears in the child argv/environment or reviewed-runtime files.
+Because Node 22 does not supply the required network sandbox, keep Nimo
+disconnected for the entire sign command.
 
 Return only `signature.json` and its printed output SHA-256 to Precision.
 
