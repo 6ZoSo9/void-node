@@ -293,6 +293,8 @@ try {
   assert.equal(clean.value.discovery.adapter_receipt_files_seen, 3);
   assert.equal(clean.value.discovery.valid_unique_adapter_receipts, 2);
   assert.equal(clean.value.discovery.duplicate_adapter_receipt_copies, 1);
+  assert.equal(clean.value.discovery.unreadable_directories, 0);
+  assert.equal(clean.value.discovery.depth_limited_directories, 0);
   assert.equal(clean.value.matched.production_earning_receipt_count, 2);
   assert.equal(clean.value.matched.distinct_wc_account_count, 2);
   assert.equal(clean.value.matched.gross_production_earned_wc, "6");
