@@ -416,16 +416,18 @@ assert.match(
 );
 assert.match(
   docs.capabilityMatrix,
-  /BTC\/VOID settlement primitives \| Guarded \/ source-only \| Deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives are merged[\s\S]*post-presale[\s\S]*separately launch-gated/i,
-  "capability matrix must preserve BTC/VOID primitive details plus post-presale separate launch boundary",
+  /BTC\/VOID settlement primitives \| Guarded \/ source-only \| Deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives are merged[\s\S]*exact terminal VOID balance-delta[\s\S]*adversarial preimage checks[\s\S]*post-presale[\s\S]*separately launch-gated/i,
+  "capability matrix must preserve BTC/VOID primitives, safety details, source-only state, and separate launch boundary",
 );
 assert.match(
   docs.publicStatus,
-  /Deterministic Bitcoin HTLC[\s\S]*hashlock-settlement primitives are merged[\s\S]*BTC\/VOID remains post-presale[\s\S]*separately launch-gated/i,
+  /Deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives are merged[\s\S]*exact terminal VOID[\s\S]*balance-delta[\s\S]*adversarial preimage checks[\s\S]*source-only settlement[\s\S]*not current runtime or activation truth[\s\S]*BTC\/VOID remains post-presale[\s\S]*separately launch-gated/i,
+  "public status must preserve BTC/VOID safety details plus source-only/non-live and separate launch boundaries",
 );
 assert.match(
   docs.readme,
-  /BTC\/VOID now has merged deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives[\s\S]*not a live market[\s\S]*BTC\/VOID remains post-presale and separately launch-gated/i,
+  /BTC\/VOID now has merged deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives[\s\S]*exact terminal VOID balance-delta[\s\S]*adversarial preimage checks[\s\S]*source-level settlement progress[\s\S]*not a live market[\s\S]*BTC\/VOID remains post-presale and separately launch-gated/i,
+  "README must preserve BTC/VOID safety details plus source-level/non-live and separate launch boundaries",
 );
 assert.match(
   docs.releases,
@@ -441,8 +443,8 @@ assert.match(
 );
 assert.match(
   docs.releases,
-  /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID[\s\S]*post-presale and separately launch-gated/i,
-  "RELEASES must preserve BTC/VOID primitive details plus post-presale separate launch boundary",
+  /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID[\s\S]*exact terminal VOID balance-delta[\s\S]*adversarial preimage checks[\s\S]*post-presale and separately launch-gated/i,
+  "RELEASES must preserve BTC/VOID primitives, safety details, and separate launch boundary",
 );
 assert.match(
   docs.releases,
