@@ -12,7 +12,7 @@ Re-observe the current repository source for the exact credentialed paid-work
 lineage required by the existing WC/VOID opening eligibility policy.
 
 The census captures one repository HEAD/tree generation, reads every component
-from the exact `HEAD:<path>` Git object, emits each component Git blob identity
+from the exact HEAD Git object (`HEAD:<path>`), emits each component Git blob identity
 plus SHA-256, and requires the corresponding direct worktree file bytes to match
 that Git blob. Hidden `assume-unchanged` / `skip-worktree` drift therefore
 cannot be reported as if it belonged to the recorded repository HEAD.
