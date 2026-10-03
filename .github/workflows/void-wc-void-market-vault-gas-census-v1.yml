@@ -60,6 +60,7 @@ jobs:
           echo "tested_head_sha=$(git rev-parse HEAD)"
           echo "vault_git_blob_sha1=bd11190e2c22f58ac60918ecdf603f53427cadd0"
           echo "token_git_blob_sha1=7c4297aadbc17b6214b4dde1f1766523cb499923"
+          test "$(sha256sum test/mainnet/WCVoidMarketVaultV2GasCensus.t.sol | awk '{print $1}')" = "34961afa7cf4478ec41ac0b6f01fb1033f1fd8bb8233bebf7ba0b4a7a7ad8adc"
           sha256sum             contracts/mainnet/WCVoidMarketVaultV2.sol             contracts/epoch2/VoidEpoch2TokenV1.sol             test/mainnet/WCVoidMarketVaultV2GasCensus.t.sol
 
       - name: Run isolated Foundry gas measurement
@@ -85,17 +86,19 @@ jobs:
           cmp             test/mainnet/WCVoidMarketVaultV2GasCensus.t.sol             "$FOUNDRY_PROJECT/test/mainnet/WCVoidMarketVaultV2GasCensus.t.sol"
 
           docker pull "$FOUNDRY_IMAGE"
-          echo "foundry_image_id=$(docker image inspect --format '{{.Id}}' "$FOUNDRY_IMAGE")"
+          FOUNDRY_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$FOUNDRY_IMAGE")"
+          test "$FOUNDRY_IMAGE_ID" = "sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb"
+          echo "foundry_image_id=$FOUNDRY_IMAGE_ID"
 
           docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -e FORGE_SNAPSHOT_EMIT=false             -v "$FOUNDRY_HOME:/foundry-home"             -v "$FOUNDRY_OUT:/foundry-out"             -v "$FOUNDRY_CACHE:/foundry-cache"             -v "$FOUNDRY_PROJECT:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             --version
 
           docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -e FORGE_SNAPSHOT_EMIT=false             -v "$FOUNDRY_HOME:/foundry-home"             -v "$FOUNDRY_OUT:/foundry-out"             -v "$FOUNDRY_CACHE:/foundry-cache"             -v "$FOUNDRY_PROJECT:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             test             --root /proof             --contracts contracts             --match-path test/mainnet/WCVoidMarketVaultV2GasCensus.t.sol             --use 0.8.24             --evm-version paris             --out /foundry-out             --cache-path /foundry-cache             --gas-report             -vvvv 2>&1 | tee "$LOG"
 
-          grep -F "settle_void_first_execution_gas" "$LOG"
-          grep -F "settle_void_first_intrinsic_gas" "$LOG"
-          grep -F "settle_void_first_measured_tx_gas" "$LOG"
-          grep -F "settle_void_subsequent_execution_gas" "$LOG"
-          grep -F "settle_void_subsequent_intrinsic_gas" "$LOG"
-          grep -F "settle_void_subsequent_measured_tx_gas" "$LOG"
+          grep -F "settle_void_first_execution_gas: 133515" "$LOG"
+          grep -F "settle_void_first_intrinsic_gas: 22452" "$LOG"
+          grep -F "settle_void_first_measured_tx_gas: 155967" "$LOG"
+          grep -F "settle_void_subsequent_execution_gas: 99303" "$LOG"
+          grep -F "settle_void_subsequent_intrinsic_gas: 22440" "$LOG"
+          grep -F "settle_void_subsequent_measured_tx_gas: 121743" "$LOG"
 
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
