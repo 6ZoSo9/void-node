@@ -579,7 +579,11 @@ function readPrivateKeyV1(file) {
   return normalized;
 }
 
-function writeExclusiveJsonV1(file, value) {
+function writeExclusiveJsonV1(
+  file,
+  value,
+  { testOnlyAfterParentPinnedBeforeCreate = null } = {},
+) {
   if (
     typeof file !== "string" ||
     !path.isAbsolute(file) ||
@@ -598,30 +602,197 @@ function writeExclusiveJsonV1(file, value) {
   ) {
     fail("signature_output_inside_repository");
   }
-  const parent = path.dirname(file);
-  if (fs.realpathSync.native(parent) !== parent) {
-    fail("signature_output_parent_alias");
-  }
-  const bytes = Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
-  const fd = fs.openSync(
+
+  const parentPath = path.dirname(file);
+  const parent = openPinnedParentDirectoryV1(
     file,
-    fs.constants.O_WRONLY |
-      fs.constants.O_CREAT |
-      fs.constants.O_EXCL |
-      Number(fs.constants.O_NOFOLLOW || 0),
-    0o600,
+    "signature_output",
   );
+  const pinnedOutput =
+    parent.proc_path + "/" + parent.basename;
+  let fd = -1;
+  let created = false;
   try {
+    const parentFdStat = fs.fstatSync(parent.fd, { bigint: true });
+    let parentPathStat;
+    let parentCanonical;
+    try {
+      parentCanonical = fs.realpathSync.native(parentPath);
+      parentPathStat = fs.lstatSync(parentPath, { bigint: true });
+    } catch {
+      fail("signature_output_parent_unavailable_after_pin");
+    }
+    if (
+      parentCanonical !== parentPath ||
+      !parentFdStat.isDirectory() ||
+      !parentPathStat.isDirectory() ||
+      parentPathStat.isSymbolicLink() ||
+      !sameOpenedFileIdentityV1(parentFdStat, parentPathStat) ||
+      (
+        typeof process.getuid === "function" &&
+        parentFdStat.uid !== BigInt(process.getuid())
+      ) ||
+      Number(parentFdStat.mode & 0o022n) !== 0
+    ) {
+      fail("signature_output_parent_not_bound_or_private");
+    }
+
+    if (testOnlyAfterParentPinnedBeforeCreate !== null) {
+      if (typeof testOnlyAfterParentPinnedBeforeCreate !== "function") {
+        fail("signature_output_test_hook_invalid");
+      }
+      testOnlyAfterParentPinnedBeforeCreate();
+    }
+
+    const bytes =
+      Buffer.from(JSON.stringify(value, null, 2) + "\n", "utf8");
+    fd = fs.openSync(
+      pinnedOutput,
+      fs.constants.O_RDWR |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        Number(fs.constants.O_NOFOLLOW || 0),
+      0o600,
+    );
+    created = true;
     fs.writeFileSync(fd, bytes);
-    fs.fsyncSync(fd);
     fs.fchmodSync(fd, 0o600);
+    fs.fsyncSync(fd);
+
+    const createdStat = fs.fstatSync(fd, { bigint: true });
+    if (
+      !createdStat.isFile() ||
+      createdStat.isSymbolicLink() ||
+      createdStat.nlink !== 1n ||
+      createdStat.size !== BigInt(bytes.length) ||
+      Number(createdStat.mode & 0o777n) !== 0o600 ||
+      (
+        typeof process.getuid === "function" &&
+        createdStat.uid !== BigInt(process.getuid())
+      )
+    ) {
+      fail("signature_output_created_identity_invalid");
+    }
+
+    const rebound = Buffer.alloc(bytes.length);
+    let offset = 0;
+    while (offset < rebound.length) {
+      const count = fs.readSync(
+        fd,
+        rebound,
+        offset,
+        rebound.length - offset,
+        offset,
+      );
+      if (count <= 0) {
+        fail("signature_output_short_read");
+      }
+      offset += count;
+    }
+    if (!rebound.equals(bytes)) {
+      fail("signature_output_bytes_mismatch");
+    }
+
+    fs.fsyncSync(parent.fd);
+
+    let parentAfter;
+    let outputAfter;
+    let canonicalAfter;
+    try {
+      canonicalAfter = fs.realpathSync.native(parentPath);
+      parentAfter = fs.lstatSync(parentPath, { bigint: true });
+      outputAfter = fs.lstatSync(file, { bigint: true });
+    } catch {
+      fail("signature_output_path_changed_after_create");
+    }
+    if (
+      canonicalAfter !== parentPath ||
+      !sameOpenedFileIdentityV1(parentFdStat, parentAfter) ||
+      !sameOpenedFileIdentityV1(createdStat, outputAfter) ||
+      outputAfter.isSymbolicLink() ||
+      Number(outputAfter.mode & 0o777n) !== 0o600
+    ) {
+      fail("signature_output_path_changed_after_create");
+    }
+
+    return Object.freeze({
+      bytes: bytes.length,
+      sha256: sha256(bytes),
+    });
+  } catch (primary) {
+    let cleanup = null;
+    try {
+      if (created && fs.existsSync(pinnedOutput)) {
+        fs.unlinkSync(pinnedOutput);
+        fs.fsyncSync(parent.fd);
+        created = false;
+      }
+    } catch (error) {
+      cleanup = error;
+    }
+    if (cleanup !== null) {
+      throw new AggregateError(
+        [primary, cleanup],
+        "signature_output_cleanup_failed",
+      );
+    }
+    throw primary;
   } finally {
-    fs.closeSync(fd);
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+    try {
+      fs.closeSync(parent.fd);
+    } catch {}
   }
-  return Object.freeze({
-    bytes: bytes.length,
-    sha256: sha256(bytes),
-  });
+}
+
+export function testOnlyExerciseSignatureOutputParentReplacementV1() {
+  const root = fs.mkdtempSync(
+    path.join(
+      process.env.TMPDIR || "/tmp",
+      "void-offline-signer-output-race-",
+    ),
+  );
+  fs.chmodSync(root, 0o700);
+  const active = path.join(root, "active");
+  const replacement = path.join(root, "replacement");
+  const displaced = path.join(root, "displaced");
+  fs.mkdirSync(active, { mode: 0o700 });
+  fs.mkdirSync(replacement, { mode: 0o700 });
+  const output = path.join(active, "signature.json");
+  let reason = null;
+  try {
+    try {
+      writeExclusiveJsonV1(
+        output,
+        Object.freeze({
+          marker: "TEST_ONLY_PUBLIC_SIGNATURE_ENVELOPE",
+          version: 1,
+        }),
+        {
+          testOnlyAfterParentPinnedBeforeCreate() {
+            fs.renameSync(active, displaced);
+            fs.renameSync(replacement, active);
+          },
+        },
+      );
+    } catch (error) {
+      reason =
+        error instanceof Error ? error.message : String(error);
+    }
+    return Object.freeze({
+      reason,
+      replacement_output_exists:
+        fs.existsSync(path.join(active, "signature.json")),
+      displaced_output_exists:
+        fs.existsSync(path.join(displaced, "signature.json")),
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 function validateCurrentSourceBindingV1(
