@@ -709,6 +709,93 @@ assert.throws(
   /signed observer authorization is required/,
 );
 
+let releaseStoppedFetch!: () => void;
+let reportStoppedFetchStarted!: () => void;
+const stoppedFetchGate = new Promise<void>((resolve) => {
+  releaseStoppedFetch = resolve;
+});
+const stoppedFetchStarted = new Promise<void>((resolve) => {
+  reportStoppedFetchStarted = resolve;
+});
+let stoppedFetchCompositionCalls = 0;
+let stoppedFetchActivationCalls = 0;
+const stoppedDuringFetchCollector =
+  new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+    node: directCollectorNode(local.nodeId, peers),
+    observerAuthorization,
+    releaseRoot,
+    intervalMs: 10_000,
+    nowMs: () => NOW,
+    async fetchIntroduction() {
+      reportStoppedFetchStarted();
+      await stoppedFetchGate;
+      return envelope();
+    },
+    async fetchRecordBytes() {
+      return "{}";
+    },
+    async fetchManifestBytes() {
+      return "{}";
+    },
+    async composeAuthorizedDiscovery() {
+      stoppedFetchCompositionCalls += 1;
+      return composition(local.nodeId);
+    },
+    activateVerifiedComposition() {
+      stoppedFetchActivationCalls += 1;
+      return { route_count: 2 };
+    },
+  });
+const stoppedFetchRun = stoppedDuringFetchCollector.runOnce();
+await stoppedFetchStarted;
+stoppedDuringFetchCollector.stop();
+releaseStoppedFetch();
+assert.equal((await stoppedFetchRun).reason, "collector_stopped");
+assert.equal(stoppedFetchCompositionCalls, 0);
+assert.equal(stoppedFetchActivationCalls, 0);
+
+let releaseStoppedComposition!: () => void;
+let reportStoppedCompositionStarted!: () => void;
+const stoppedCompositionGate = new Promise<void>((resolve) => {
+  releaseStoppedComposition = resolve;
+});
+const stoppedCompositionStarted = new Promise<void>((resolve) => {
+  reportStoppedCompositionStarted = resolve;
+});
+let stoppedCompositionActivationCalls = 0;
+const stoppedDuringCompositionCollector =
+  new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+    node: directCollectorNode(local.nodeId, peers),
+    observerAuthorization,
+    releaseRoot,
+    intervalMs: 10_000,
+    nowMs: () => NOW,
+    async fetchIntroduction() {
+      return envelope();
+    },
+    async fetchRecordBytes() {
+      return "{}";
+    },
+    async fetchManifestBytes() {
+      return "{}";
+    },
+    async composeAuthorizedDiscovery() {
+      reportStoppedCompositionStarted();
+      await stoppedCompositionGate;
+      return composition(local.nodeId);
+    },
+    activateVerifiedComposition() {
+      stoppedCompositionActivationCalls += 1;
+      return { route_count: 2 };
+    },
+  });
+const stoppedCompositionRun = stoppedDuringCompositionCollector.runOnce();
+await stoppedCompositionStarted;
+stoppedDuringCompositionCollector.stop();
+releaseStoppedComposition();
+assert.equal((await stoppedCompositionRun).reason, "collector_stopped");
+assert.equal(stoppedCompositionActivationCalls, 0);
+
 await mount.stop();
 assert.equal(collector.status().stopped, true);
 
