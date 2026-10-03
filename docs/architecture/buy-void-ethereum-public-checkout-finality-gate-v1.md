@@ -33,6 +33,10 @@ HOLD even if the generic and Ethereum intake toggles are both enabled.
 
 This gate does not alter Base behavior.
 
+A GREEN result here is only a **finality prerequisite**. It does not mean the
+overall checkout may open. The separate coupled-launch gate tracked by #2394
+must also be composed before route integration can expose payment instructions.
+
 ## Payment verification / inventory readiness
 
 `runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(...)` never accepts a
@@ -59,12 +63,15 @@ the exact persisted attempt:
 Only then does this helper return:
 
 ```text
-status=ethereum_payment_finality_verified_transition_ready
-payment_verified_transition_ready=true
-inventory_reservation_ready=true
+status=ethereum_payment_source_finality_gate_ready
+payment_verified_finality_gate_ready=true
+inventory_reservation_finality_gate_ready=true
+coupled_launch_gate_composed=false
+overall_checkout_activation_authorized=false
 ```
 
-The helper itself does **not** write either event or inventory state.
+The helper itself does **not** write either event or inventory state, and a
+GREEN finality gate is not overall checkout or reservation authority.
 
 A receipt/log match by itself cannot produce this status.
 
