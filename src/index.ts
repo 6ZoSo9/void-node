@@ -107,9 +107,11 @@ import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../t
 import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
 const __VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1="VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1";
-let __voidBuyLaunchReadyV1=()=>false;
+let __voidBuyLaunchDecisionV1:any=()=>({ready:false,request_authority:null}),__voidBuyLaunchRequestOkV1:any=()=>false;
+let __voidBuyLaunchReadyV1=()=>__voidBuyLaunchDecisionV1().ready===true;
 void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{
-  __voidBuyLaunchReadyV1=()=>{try{return m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26"&&m.readBuyLaunchGateV1().ready===true;}catch{return false;}};
+  __voidBuyLaunchDecisionV1=()=>{try{const d=m.readBuyLaunchGateV1();return m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26"&&d?d:{ready:false,request_authority:null};}catch{return{ready:false,request_authority:null}}};
+  __voidBuyLaunchRequestOkV1=(r:any)=>m.buyLaunchRequestAuthorityMatchesV1(r,__voidBuyLaunchDecisionV1());
 }).catch(()=>{});
 
 // __VOID_TS_DECLARES_V1__
@@ -18460,8 +18462,6 @@ small{color:#94a3b8}
       }
 
       // VOID_BUY_VOID_PAID_ONLY_POOL_RESERVATION_V1
-      // Unpaid quote/request records and unverified tx-hash submissions do not reserve presale capacity.
-      // Available presale inventory is reduced only after operator_status === "payment_verified".
       const reserved_void = Math.min(pool_void_total, submitted_void_total);
       const remaining_void = Math.max(0, Math.floor((pool_void_total - reserved_void) * 1e6) / 1e6);
       const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
@@ -18509,7 +18509,7 @@ small{color:#94a3b8}
 
       const lines = fs.readFileSync(jsonl, "utf8").split(/\n+/).filter(Boolean);
       // VOID_BUY_VOID_LATEST_REQUEST_STATE_V1
-      for (const line of [...lines].reverse()) {
+      for(const line of [...lines].reverse()){
         try {
           const j:any = JSON.parse(line);
           if (!j || !j.request_id || seen.has(j.request_id)) continue;
@@ -18882,6 +18882,7 @@ setInterval(refresh, 10000);
             request_id: id
           });
         }
+        if(!__voidBuyLaunchRequestOkV1(found))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_launch_authority_expired_or_superseded",request_id:id});
 
         const tx = String(found.tx_hash || "").trim();
         if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
@@ -18945,6 +18946,7 @@ setInterval(refresh, 10000);
           });
         }
 
+        if(!__voidBuyLaunchRequestOkV1(found))return res.status(409).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"request_launch_authority_expired_during_verification",request_id:id});
         const event = {
           schema: "void_buy_void_operator_mark_v1",
           ok: true,
@@ -19071,7 +19073,8 @@ setInterval(refresh, 10000);
         app,
         localOnly: __voidBuyVoidOperatorLocalOnlyV1,
         readRequests: __voidReadBuyVoidRequestsV1,
-        persistRequest: __voidPersistBuyVoidRequestV1
+        persistRequest: __voidPersistBuyVoidRequestV1,
+        requestLaunchAuthorityReady: __voidBuyLaunchRequestOkV1
       });
 
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
@@ -19141,6 +19144,8 @@ setInterval(refresh, 10000);
         if (!cfg.requests_enabled) {
           return res.status(503).json({ schema:"void_public_buy_void_checkout_request_v1", ok:false, error:"buy_void_requests_disabled" });
         }
+        const launch:any=__voidBuyLaunchDecisionV1();
+        if(!launch.ready||!launch.request_authority)return res.status(503).json({schema:"void_public_buy_void_checkout_request_v1",ok:false,error:"buy_void_launch_authority_unavailable"});
         if (!cfg.payment_ready || !cfg.receiver_binding_green) {
           return res.status(503).json({
             schema:"void_public_buy_void_checkout_request_v1",
@@ -19218,7 +19223,7 @@ setInterval(refresh, 10000);
         const destinationLower = void_destination_address.toLowerCase();
         const activeForDestination = effectiveRequests.find((request:any)=>{
           const boundDestination = String(request.void_destination_address || request.delivery_address || request.delivery_wallet || "").trim().toLowerCase();
-          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status);
+          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status)&&__voidBuyLaunchRequestOkV1(request);
         });
 
         if (activeForDestination) {
@@ -19255,6 +19260,7 @@ setInterval(refresh, 10000);
           request_id,
           created_at_ms,
           status: "awaiting_payment_tx_hash",
+          launch_authority:launch.request_authority,
           funding_model: "request_first_usdc_to_native_void",
           account: account || null,
           source_chain,
@@ -19296,6 +19302,8 @@ setInterval(refresh, 10000);
             send_to: cfg.receive_address,
             send_from: void_destination_address,
             amount: usdc_amount,
+            expires_at_ms:launch.request_authority.expires_at_ms,
+            activation_generation:launch.request_authority.activation_generation,
             do_not_send_before_request: true,
             do_not_send_from_exchange_or_pooled_custody: true,
             keep_transaction_hash: true
