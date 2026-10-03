@@ -23,11 +23,14 @@ operator explicitly configures:
 
 ```text
 VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM=http://127.0.0.1:<port>
+VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE=<N>
+VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE=<M>
 ```
 
-The source default is empty, so the route fails closed with HTTP 503 until the
-loopback service has been separately configured, started, proven, and the public
-proxy has been explicitly activated.
+All three source defaults are empty, so the route fails closed with HTTP 503
+until the loopback service has been separately configured, started, proven, the
+reviewed rate-budget relation is supplied, and the public proxy has been
+explicitly activated.
 
 ## Boundary preserved
 
