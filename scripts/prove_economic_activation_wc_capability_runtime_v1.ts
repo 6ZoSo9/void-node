@@ -49,10 +49,44 @@ function wcQuantaExact(value: bigint): string {
   return `${whole}.${fraction.toString().padStart(9, "0").replace(/0+$/, "")}`;
 }
 
+function wcCompatNumberToQuanta(value: number): bigint | null {
+  if (
+    !Number.isFinite(value) ||
+    Math.abs(value) > Number.MAX_SAFE_INTEGER
+  ) {
+    return null;
+  }
+
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/.exec(
+    value.toString().toLowerCase(),
+  );
+  if (!match) return null;
+
+  const negative = match[1] === "-";
+  const whole = match[2] || "0";
+  const fraction = match[3] || "";
+  const exponent = Number(match[4] || 0);
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 400) {
+    return null;
+  }
+
+  const digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, "") || "0";
+  let magnitude = BigInt(digits);
+  const power = 9 - fraction.length + exponent;
+  if (power >= 0) {
+    magnitude *= 10n ** BigInt(power);
+  } else {
+    const divisor = 10n ** BigInt(-power);
+    if (magnitude % divisor !== 0n) return null;
+    magnitude /= divisor;
+  }
+  return negative ? -magnitude : magnitude;
+}
+
 function wcCompat(value: bigint): number | null {
-  const exact = wcQuantaExact(value);
-  const compat = Number(exact);
-  return Number.isSafeInteger(compat) ? compat : null;
+  const compat = Number(wcQuantaExact(value));
+  const roundTrip = wcCompatNumberToQuanta(compat);
+  return roundTrip === value ? compat : null;
 }
 
 function canonicalState(account: string): Record<string, unknown> {
@@ -307,6 +341,18 @@ try {
     );
   }
 
+  const fractionalProjection = validateProjection({
+    ...validProjection,
+    canonical_redeemable_before: 1.15,
+    canonical_redeemable_before_exact: "1.15",
+    canonical_redeemable_before_quanta: "1150000000",
+    canonical_redeemable_after_local: 4.15,
+    canonical_redeemable_after_local_exact: "4.15",
+    canonical_redeemable_after_local_quanta: "4150000000",
+  });
+  assert.equal(fractionalProjection.beforeRedeemable, 1.15);
+  assert.equal(fractionalProjection.afterRedeemable, 4.15);
+
   await new Promise((resolve) => setTimeout(resolve, 400));
 
   const issueRoute = "/__void/operator/wc-public-capability-v1/issue";
@@ -434,6 +480,56 @@ try {
       .split(/\r?\n/).length,
     1,
   );
+
+  const fractionalAccount = "outside-operator-fractional";
+  append(path.join(tmp, "wc_v1", "ledger.jsonl"), {
+    kind: "credit",
+    account: fractionalAccount,
+    delta: 1.15,
+  });
+  assert.equal(canonicalState(fractionalAccount).redeemable, 1.15);
+  assert.equal(canonicalState(fractionalAccount).redeemable_exact, "1.15");
+
+  const fractionalIssued = await call("POST", issueRoute, {
+    body: {
+      account: fractionalAccount,
+      task_class: "datanet_fetch_verify",
+      ttl_ms: 60_000,
+    },
+  });
+  assert.equal(fractionalIssued.status, 201);
+
+  const fractionalExecuted = await call("POST", runRoute, {
+    headers: {
+      authorization: `Bearer ${fractionalIssued.body.capability_token}`,
+    },
+    body: { account: fractionalAccount },
+  });
+  assert.equal(fractionalExecuted.status, 200);
+  assert.equal(fractionalExecuted.body.ok, true);
+  assert.equal(fractionalExecuted.body.wc.before, 1.15);
+  assert.equal(fractionalExecuted.body.wc.before_exact, "1.15");
+  assert.equal(fractionalExecuted.body.wc.before_quanta, "1150000000");
+  assert.equal(fractionalExecuted.body.wc.after, 4.15);
+  assert.equal(fractionalExecuted.body.wc.after_exact, "4.15");
+  assert.equal(fractionalExecuted.body.wc.after_quanta, "4150000000");
+  assert.equal(fractionalExecuted.body.wc.delta, 3);
+  assert.equal(fractionalExecuted.body.wc.delta_quanta, "3000000000");
+
+  const fractionalConsumed = consumedRecord(
+    fractionalIssued.body.ticket_id,
+  );
+  assert.equal(fractionalConsumed.status, "completed");
+  assert.equal(fractionalConsumed.canonical_redeemable_after, 4.15);
+  assert.equal(
+    fractionalConsumed.canonical_redeemable_after_exact,
+    "4.15",
+  );
+  assert.equal(
+    fractionalConsumed.canonical_redeemable_after_quanta,
+    "4150000000",
+  );
+  assert.equal(ledgerEntriesFor(fractionalAccount).length, 2);
 
   const highAccount = "outside-operator-high";
   append(path.join(tmp, "wc_v1", "ledger.jsonl"), {
