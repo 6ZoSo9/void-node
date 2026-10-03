@@ -419,6 +419,10 @@ assert.match(
   /Deterministic Bitcoin HTLC[\s\S]*hashlock-settlement primitives are merged[\s\S]*BTC\/VOID remains post-presale[\s\S]*separately launch-gated/i,
 );
 assert.match(
+  docs.readme,
+  /BTC\/VOID now has merged deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives[\s\S]*not a live market[\s\S]*BTC\/VOID remains post-presale and separately launch-gated/i,
+);
+assert.match(
   docs.releases,
   /client-neutral Epoch-2 successor-state manifest published/,
 );
