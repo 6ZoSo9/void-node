@@ -174,6 +174,24 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     assert.match(result.stdout, /private_key_access=false/u);
     assert.match(result.stdout, /executed_launcher_blob=[0-9a-f]{40}/u);
 
+    const priorHeadResult = spawnSync(
+      "/usr/bin/git",
+      ["rev-parse", "HEAD^"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.equal(
+      priorHeadResult.status,
+      0,
+      ["prior HEAD resolution failed", priorHeadResult.stderr].join("\n"),
+    );
+    const priorReviewedHead = priorHeadResult.stdout.trim();
+    assert.match(priorReviewedHead, /^[0-9a-f]{40}$/u);
+    assert.notEqual(priorReviewedHead, reviewedHead);
+
     const forgedReviewedHead = spawnSync(
       "/usr/bin/env",
       [
@@ -190,7 +208,7 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
         "preflight",
         challengePath,
         challengeSha,
-        "0".repeat(40),
+        priorReviewedHead,
       ],
       {
         cwd: process.cwd(),
