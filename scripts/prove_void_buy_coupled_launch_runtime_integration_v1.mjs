@@ -35,6 +35,7 @@ assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.equal(index.includes("throw 0;"),false);
 assert.ok(index.includes("const __bld="));
 assert.ok(index.includes("__blo=(r:any)"));
+assert.ok(index.includes("__blm=(r:any,f:any)=>__BL.withBuyLaunchRequestAuthorityMutationV1(r,f)"));
 const persistNeedle="const persisted = await __voidPersistBuyVoidRequestV1(requestObj);";
 const persistAt=index.indexOf(persistNeedle);
 assert.ok(persistAt>0);
@@ -54,12 +55,16 @@ const persistAppendAt=index.indexOf(
 );
 assert.ok(persistAppendAt>persistHelperAt);
 const persistCritical=index.slice(
-  Math.max(persistHelperAt,persistAppendAt-220),
+  persistHelperAt,
   persistAppendAt,
 );
 assert.match(
   persistCritical,
-  /if\(!__blo\(reqObj\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
+  /return await __blm\(reqObj,\(\)=>\{/,
+);
+assert.doesNotMatch(
+  persistCritical,
+  /if\(!__blo\(reqObj\)\)/,
 );
 
 const eventWriterAt=index.indexOf(
@@ -71,13 +76,18 @@ const eventAppendAt=index.indexOf(
   eventWriterAt,
 );
 assert.ok(eventAppendAt>eventWriterAt);
-const eventCritical=index.slice(
-  Math.max(eventWriterAt,eventAppendAt-260),
-  eventAppendAt,
+const eventWriterEnd=index.indexOf(
+  "// VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1",
+  eventWriterAt,
+);
+const eventCritical=index.slice(eventWriterAt,eventWriterEnd);
+assert.match(
+  eventCritical,
+  /const op=\(\)=>withBuyVoidTerminalCloseoutRequestLockV1/,
 );
 assert.match(
   eventCritical,
-  /if\(event\?\.operator_status==="payment_verified"&&!__blo\(request\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
+  /event\?\.operator_status==="payment_verified"\?await __blm\(request,op\):op\(\)/,
 );
 assert.ok(index.includes('"operator_mark_failed"'));
 assert.ok(index.includes(
@@ -108,6 +118,9 @@ assert.ok(gateSource.includes("generation_tip_sha256"));
 assert.ok(gateSource.includes("LIVE_ACTIVATION_MAX_LEASE_MS"));
 assert.ok(gateSource.includes("expires_at_ms"));
 assert.ok(gateSource.includes("readBuyLaunchLiveActivationV1"));
+assert.ok(gateSource.includes("withBuyLaunchRequestAuthorityMutationV1"));
+assert.ok(gateSource.includes("withBuyLaunchGenerationTransitionPublicationV1"));
+assert.ok(gateSource.includes("../../dist/economic/buy_void_filesystem_bakery_lock_v1.js"));
 assert.ok(gateSource.includes("verifyTypedData"));
 assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1"));
 assert.ok(gateSource.includes("verifyBuyLaunchLiveActivationSovereignSignatureV1"));
@@ -173,6 +186,9 @@ console.log("operator_mark_persistence_failure_response_bound=true");
 console.log("request_launch_authority_generation_tip_bound=true");
 console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
+console.log("generation_lock_spans_request_append=true");
+console.log("generation_lock_spans_payment_verified_append=true");
+console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
