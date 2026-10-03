@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { userInfo } from "node:os";
@@ -309,37 +309,7 @@ export function buyLaunchGenerationAuthorityLockPathV1() {
   );
 }
 
-async function withBuyLaunchGenerationAuthorityLockV1(operation) {
-  if (typeof operation !== "function") {
-    throw new Error("buy_launch_generation_lock_operation_required");
-  }
-  let lockModule;
-  try {
-    lockModule = await import(
-      "../../dist/economic/buy_void_filesystem_bakery_lock_v1.js"
-    );
-  } catch (error) {
-    void error;
-    throw new Error("buy_launch_generation_authority_lock_unavailable");
-  }
-  if (
-    typeof lockModule?.withBuyVoidFilesystemBakeryLockV1 !== "function"
-  ) {
-    throw new Error("buy_launch_generation_authority_lock_invalid");
-  }
-  return lockModule.withBuyVoidFilesystemBakeryLockV1(
-    buyLaunchGenerationAuthorityLockPathV1(),
-    operation,
-  );
-}
-
-export async function withBuyLaunchGenerationTransitionPublicationV1(
-  operation,
-) {
-  return withBuyLaunchGenerationAuthorityLockV1(operation);
-}
-
-export function readBuyLaunchGenerationJournalV1(env = process.env) {
+function buyLaunchGenerationPathsV1(env = process.env) {
   const dataDirRaw = String(env.DATA_DIR || env.VOID_DATA_DIR || "").trim();
   if (!dataDirRaw) {
     throw new Error("buy_launch_generation_data_dir_missing");
@@ -360,6 +330,214 @@ export function readBuyLaunchGenerationJournalV1(env = process.env) {
   ) {
     throw new Error("buy_launch_generation_anchor_inside_data_dir");
   }
+  return Object.freeze({ dataDir, journalPath, anchorPath });
+}
+
+function assertSynchronousGenerationOperationV1(operation) {
+  if (typeof operation !== "function") {
+    throw new Error("buy_launch_generation_lock_operation_required");
+  }
+  if (operation.constructor?.name === "AsyncFunction") {
+    throw new Error("buy_launch_generation_async_operation_forbidden");
+  }
+  return () => {
+    const result = operation();
+    if (
+      result &&
+      (typeof result === "object" || typeof result === "function") &&
+      typeof result.then === "function"
+    ) {
+      throw new Error("buy_launch_generation_thenable_operation_forbidden");
+    }
+    return result;
+  };
+}
+
+async function withBuyLaunchGenerationAuthorityLockV1(operation) {
+  const synchronousOperation =
+    assertSynchronousGenerationOperationV1(operation);
+  let lockModule;
+  try {
+    lockModule = await import(
+      "../../dist/economic/buy_void_filesystem_bakery_lock_v1.js"
+    );
+  } catch (error) {
+    void error;
+    throw new Error("buy_launch_generation_authority_lock_unavailable");
+  }
+  if (
+    typeof lockModule?.withBuyVoidFilesystemBakeryLockV1 !== "function"
+  ) {
+    throw new Error("buy_launch_generation_authority_lock_invalid");
+  }
+  return lockModule.withBuyVoidFilesystemBakeryLockV1(
+    buyLaunchGenerationAuthorityLockPathV1(),
+    synchronousOperation,
+  );
+}
+
+export async function withBuyLaunchGenerationTransitionPublicationV1(
+  operation,
+) {
+  return withBuyLaunchGenerationAuthorityLockV1(operation);
+}
+
+function ensurePrivateGenerationDirectoryV1(directoryPath) {
+  fs.mkdirSync(directoryPath, { recursive: true, mode: 0o700 });
+  const stat = fs.lstatSync(directoryPath, { bigint: true });
+  const euid =
+    typeof process.geteuid === "function"
+      ? BigInt(process.geteuid())
+      : null;
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    euid === null ||
+    (stat.uid !== euid && stat.uid !== 0n) ||
+    (stat.mode & 0o022n) !== 0n
+  ) {
+    throw new Error("buy_launch_generation_publish_directory_unsafe");
+  }
+}
+
+function atomicWritePrivateGenerationBytesV1(filePath, bytes) {
+  if (!Buffer.isBuffer(bytes) || bytes.length < 1) {
+    throw new Error("buy_launch_generation_publish_bytes_invalid");
+  }
+  const parent = path.dirname(filePath);
+  ensurePrivateGenerationDirectoryV1(parent);
+  const tempPath = path.join(
+    parent,
+    "." + path.basename(filePath) +
+      ".tmp-" + process.pid + "-" + randomBytes(8).toString("hex"),
+  );
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      tempPath,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+    fs.writeFileSync(fd, bytes);
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = -1;
+    fs.renameSync(tempPath, filePath);
+    fs.chmodSync(filePath, 0o600);
+    const dirFd = fs.openSync(
+      parent,
+      fs.constants.O_RDONLY | fs.constants.O_DIRECTORY,
+    );
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+  } finally {
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        void error;
+      }
+    }
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch (error) {
+      void error;
+    }
+  }
+}
+
+export async function publishBuyLaunchGenerationTransitionV1(
+  input,
+  env = process.env,
+) {
+  if (
+    !input ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    input.confirmation !== "publishBuyLaunchGenerationTransitionV1" ||
+    !BYTES32.test(String(input.generation || "")) ||
+    !["active", "revoked"].includes(input.state) ||
+    !Number.isSafeInteger(input.occurred_at_ms) ||
+    input.occurred_at_ms <= 0
+  ) {
+    throw new Error("buy_launch_generation_publish_input_invalid");
+  }
+
+  return withBuyLaunchGenerationTransitionPublicationV1(() => {
+    const { journalPath, anchorPath } =
+      buyLaunchGenerationPathsV1(env);
+    const journalExists = fs.existsSync(journalPath);
+    const anchorExists = fs.existsSync(anchorPath);
+    if (journalExists !== anchorExists) {
+      throw new Error("buy_launch_generation_publish_partial_state");
+    }
+
+    let previousBytes = Buffer.alloc(0);
+    let previousState = null;
+    if (journalExists) {
+      const journalBytes = readStablePrivateFile(journalPath);
+      const anchorBytes = readStablePrivateFile(anchorPath);
+      previousState = classifyBuyLaunchGenerationAuthorityV1(
+        journalBytes,
+        anchorBytes,
+      );
+      previousBytes = journalBytes;
+    }
+
+    const event = buildBuyLaunchGenerationEventV1({
+      sequence: previousState ? previousState.sequence + 1 : 1,
+      previous_event_sha256:
+        previousState ? previousState.tip_sha256 : null,
+      generation: input.generation,
+      state: input.state,
+      occurred_at_ms: input.occurred_at_ms,
+    });
+    const nextBytes = Buffer.concat([
+      previousBytes,
+      Buffer.from(JSON.stringify(event) + "\n", "utf8"),
+    ]);
+    const nextState = classifyBuyLaunchGenerationJournalV1(nextBytes);
+
+    atomicWritePrivateGenerationBytesV1(journalPath, nextBytes);
+    atomicWritePrivateGenerationBytesV1(anchorPath, nextBytes);
+
+    const verified = classifyBuyLaunchGenerationAuthorityV1(
+      readStablePrivateFile(journalPath),
+      readStablePrivateFile(anchorPath),
+    );
+    if (
+      verified.sequence !== nextState.sequence ||
+      verified.tip_sha256 !== nextState.tip_sha256 ||
+      verified.generation !== nextState.generation ||
+      verified.ready !== nextState.ready
+    ) {
+      throw new Error("buy_launch_generation_publish_postcheck_failed");
+    }
+    return Object.freeze({
+      marker: "VOID_BUY_COUPLED_LIVE_GENERATION_PUBLISH_V1",
+      version: 1,
+      state: input.state,
+      generation: input.generation,
+      sequence: verified.sequence,
+      tip_sha256: verified.tip_sha256,
+      external_anchor_sha256: verified.external_anchor_sha256,
+      journal_path: journalPath,
+      anchor_path: anchorPath,
+      publication_locked: true,
+      asynchronous_callback_allowed: false,
+      funds_movement: false,
+    });
+  });
+}
+
+export function readBuyLaunchGenerationJournalV1(env = process.env) {
+  const { journalPath, anchorPath } = buyLaunchGenerationPathsV1(env);
   return classifyBuyLaunchGenerationAuthorityV1(
     readStablePrivateFile(journalPath),
     readStablePrivateFile(anchorPath),
