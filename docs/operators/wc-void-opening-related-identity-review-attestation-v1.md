@@ -159,9 +159,12 @@ through a descriptor-only bounded clone with depth/node/object-key/array/string
 budgets and a final 2 MiB serialized ceiling. The clone inspects all own keys
 with `Reflect.ownKeys()`; symbol keys, non-enumerable hidden fields, accessors,
 decorated/sparse arrays, oversized/deep values, or non-plain inputs fail in the
-parent before the child is spawned. Nothing that the canonical exact-schema
-verifier would have observed may be silently dropped before serialization, and
-arbitrary caller objects are never passed directly to `JSON.stringify`.
+parent before the child is spawned. Plain-object clones use a null prototype and
+define every copied key as an explicit own data property, so special names such
+as `__proto__` cannot invoke inherited setters or disappear before the exact-schema
+child verifier runs. Nothing that the canonical verifier would have observed may
+be silently dropped before serialization, and arbitrary caller objects are never
+passed directly to `JSON.stringify`.
 
 The focused proof exercises both public prepare/verify APIs with bigint
 `nowUnix` values, requires invalid small evidence to reach the canonical child
