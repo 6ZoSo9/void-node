@@ -13,10 +13,10 @@ import {
   buyLaunchLiveActivationReceiptIdV1,
   buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
+  classifyBuyLaunchLiveActivationLeaseV1,
   readBuyLaunchGateV1,
   readBuyLaunchLiveActivationV1,
   readBuyLaunchSourceGateV1,
-  testOnlyReadBuyLaunchLiveActivationV1,
   verifyBuyLaunchLiveActivationSignatureV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
 import {
@@ -233,40 +233,29 @@ try {
   assert.equal(live.ready, false);
   assert.equal(live.activation_signer, null);
 
-  const syntheticLive = testOnlyReadBuyLaunchLiveActivationV1(
-    sourceReady,
-    liveEnv,
+  const liveLease = classifyBuyLaunchLiveActivationLeaseV1(
+    receipt,
+    activationGeneration,
     nowMs + 1,
-    syntheticActivationWallet.address,
   );
-  assert.equal(syntheticLive.ready, true);
-  assert.equal(
-    syntheticLive.activation_signer,
-    syntheticActivationWallet.address.toLowerCase(),
-  );
+  assert.equal(liveLease.ready, true);
 
   // The same otherwise-valid signed receipt is no longer live after expiry.
   assert.equal(
-    testOnlyReadBuyLaunchLiveActivationV1(
-      sourceReady,
-      liveEnv,
+    classifyBuyLaunchLiveActivationLeaseV1(
+      receipt,
+      activationGeneration,
       receipt.expires_at_ms,
-      syntheticActivationWallet.address,
     ).ready,
     false,
   );
 
   // Deactivation or a newer ceremony advances the external generation.
   assert.equal(
-    testOnlyReadBuyLaunchLiveActivationV1(
-      sourceReady,
-      {
-        ...liveEnv,
-        VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION:
-          "0x" + "c".repeat(64),
-      },
+    classifyBuyLaunchLiveActivationLeaseV1(
+      receipt,
+      "0x" + "c".repeat(64),
       nowMs + 1,
-      syntheticActivationWallet.address,
     ).ready,
     false,
   );
@@ -345,6 +334,8 @@ assert.match(gateSource, /expires_at_ms/);
 assert.match(gateSource, /LIVE_ACTIVATION_MAX_LEASE_MS/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
 assert.match(gateSource, /readBuyLaunchLiveActivationV1/);
+assert.match(gateSource, /classifyBuyLaunchLiveActivationLeaseV1/);
+assert.doesNotMatch(gateSource, /testOnlyReadBuyLaunchLiveActivationV1/);
 assert.match(gateSource, /verifyTypedData/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1/);
 
