@@ -246,11 +246,15 @@ expected_blob="$(
   "${git_env[@]}" "${git_cmd[@]}"     rev-parse "$reviewed_head:$launcher_rel"
 )"
 "${git_env[@]}" "${git_cmd[@]}"   cat-file blob "$expected_blob" > "$stage/launcher.sh"
+chmod 400 "$stage/launcher.sh"
+
+# Pin the staged launcher before verifying it. All later verification and
+# execution use the same already-open descriptor; the pathname is not reopened.
+exec 9< "$stage/launcher.sh"
 actual_blob="$(
-  "${git_env[@]}" "${git_cmd[@]}"     hash-object -- "$stage/launcher.sh"
+  "${git_env[@]}" "${git_cmd[@]}"     hash-object -- "/proc/self/fd/9"
 )"
 test "$actual_blob" = "$expected_blob"
-chmod 700 "$stage/launcher.sh"
 
 /usr/bin/env -i \
   HOME=/home/zoso \
@@ -259,7 +263,7 @@ chmod 700 "$stage/launcher.sh"
   LC_ALL=C \
   VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
   /bin/bash --noprofile --norc \
-  "$stage/launcher.sh" \
+  "/proc/self/fd/9" \
   sign \
   /absolute/private-work/challenge.json \
   <challenge-sha256-64hex> \
@@ -268,10 +272,15 @@ chmod 700 "$stage/launcher.sh"
 )
 ```
 
-The launcher re-hashes the file currently executing and requires that blob to
-equal the launcher blob at the independently supplied reviewed commit. A
-modified temporary launcher or mutable worktree launcher therefore fails before
-signer/key access.
+The bootstrap opens the staged launcher on file descriptor 9 **before** its
+Git-blob check and then executes `/proc/self/fd/9`. The staged pathname is
+never reopened after verification. Replacing `$stage/launcher.sh` after the
+descriptor is pinned cannot change the bytes Bash executes.
+
+The launcher also re-hashes the file descriptor currently executing and
+requires that blob to equal the launcher blob at the independently supplied
+reviewed commit. A modified temporary launcher, pathname swap, or mutable
+worktree launcher therefore fails before signer/key access.
 
 Before sign-mode `exec`, the launcher explicitly announces the requested
 operation boundary:
