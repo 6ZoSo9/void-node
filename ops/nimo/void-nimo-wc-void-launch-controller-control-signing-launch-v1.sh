@@ -116,70 +116,30 @@ local_config_size="$(/usr/bin/stat -c '%s' -- "$local_config")" ||
   hold "repository_local_git_config_size_invalid"
 (( local_config_size > 0 && local_config_size <= 1024 * 1024 )) ||
   hold "repository_local_git_config_size_invalid"
-/usr/bin/python3 -I -P - "$local_config" <<'PY' ||
-  hold "repository_local_git_config_forbidden"
-import os
-import sys
+local_config_names="$(
+  /usr/bin/env -i \
+    HOME=/nonexistent \
+    PATH=/usr/bin:/bin \
+    LANG=C \
+    LC_ALL=C \
+    GIT_CONFIG_NOSYSTEM=1 \
+    GIT_CONFIG_GLOBAL=/dev/null \
+    /usr/bin/git config \
+      --file "$local_config" \
+      --no-includes \
+      --name-only \
+      --list
+)" || hold "repository_local_git_config_forbidden"
 
-path = sys.argv[1]
-flags = os.O_RDONLY
-if hasattr(os, "O_NOFOLLOW"):
-    flags |= os.O_NOFOLLOW
-
-fd = os.open(path, flags)
-try:
-    before = os.fstat(fd)
-    if before.st_size < 1 or before.st_size > 1024 * 1024:
-        raise SystemExit(2)
-    raw = os.read(fd, before.st_size + 1)
-    after = os.fstat(fd)
-    if (
-        len(raw) != before.st_size
-        or (
-            before.st_dev,
-            before.st_ino,
-            before.st_size,
-            before.st_mtime_ns,
-            before.st_ctime_ns,
-            before.st_mode,
-        )
-        != (
-            after.st_dev,
-            after.st_ino,
-            after.st_size,
-            after.st_mtime_ns,
-            after.st_ctime_ns,
-            after.st_mode,
-        )
-    ):
-        raise SystemExit(2)
-finally:
-    os.close(fd)
-
-try:
-    text = raw.decode("utf-8")
-except UnicodeDecodeError:
-    raise SystemExit(2)
-
-for raw_line in text.splitlines():
-    line = raw_line.strip()
-    lower = line.lower()
-
-    if (
-        lower == "[filter]"
-        or lower.startswith("[filter ")
-        or lower == "[include]"
-        or lower.startswith("[include ")
-        or lower == "[includeif]"
-        or lower.startswith("[includeif ")
-    ):
-        raise SystemExit(2)
-
-    if "=" in lower:
-        key = lower.split("=", 1)[0].strip()
-        if key in {"attributesfile", "hookspath"}:
-            raise SystemExit(2)
-PY
+while IFS= read -r config_name; do
+  [[ -n "$config_name" ]] || continue
+  config_name="${config_name,,}"
+  case "$config_name" in
+    filter.*|include.*|includeif.*|core.attributesfile|core.hookspath)
+      hold "repository_local_git_config_forbidden"
+      ;;
+  esac
+done <<< "$local_config_names"
 
 git_env=(
   /usr/bin/env -i
