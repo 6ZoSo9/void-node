@@ -10,6 +10,7 @@ HTML="/tmp/void-participant-buy-void-clarity-proof.html"
 CONFIG="/tmp/void-participant-buy-void-clarity-config.json"
 STATUS="/tmp/void-participant-buy-void-clarity-status.json"
 SALE="/tmp/void-participant-buy-void-clarity-sale.json"
+RAIL_STATE="/tmp/void-participant-buy-void-clarity-rail-state.txt"
 
 echo "=== Participant Buy VOID clarity proof ==="
 
@@ -62,12 +63,13 @@ curl -fsS "$BASE/__void/buy-void/config.json" > "$CONFIG"
 curl -fsS "$BASE/__void/buy-void/status.json" > "$STATUS"
 curl -fsS "$BASE/__void/buy-void/sale-state.json" > "$SALE"
 
-python3 - "$CONFIG" "$STATUS" "$SALE" <<'PY'
+python3 - "$CONFIG" "$STATUS" "$SALE" "$RAIL_STATE" <<'PY'
 import json, sys
 
 config=json.load(open(sys.argv[1]))
 status=json.load(open(sys.argv[2]))
 sale=json.load(open(sys.argv[3]))
+state_path=sys.argv[4]
 
 assert config.get("marker") == "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1", config
 assert config.get("schema") == "void_public_buy_void_config_v1", config
@@ -105,7 +107,38 @@ print(f"live_buy_rail_state={rail_state}")
 print(f"live_requests_enabled={str(config['requests_enabled']).lower()}")
 print(f"live_ethereum_requests_enabled={str(config['ethereum_requests_enabled']).lower()}")
 print(f"live_request_intake_ready={str(status['request_intake_ready']).lower()}")
+with open(state_path, "w", encoding="utf-8") as handle:
+    handle.write(rail_state + "\n")
 PY
+
+rail_state="$(cat "$RAIL_STATE")"
+case "$rail_state" in
+  hold)
+    ;;
+  base_open_ethereum_hold)
+    grep -Fq 'Ethereum native USDC is approved but NOT ACTIVE until OPEN' "$HTML" ||
+      { echo "[fail] participant Base-only page lost Ethereum HOLD warning" >&2; exit 1; }
+    ;;
+  base_and_ethereum_open)
+    if grep -Fq 'Ethereum native USDC is approved but NOT ACTIVE until OPEN' "$HTML"; then
+      echo "[fail] participant page still renders Ethereum NOT ACTIVE while live rail is OPEN" >&2
+      exit 1
+    fi
+    if grep -Fq 'setText("buyRailStatus", "Base USDC · ETH pending");' src/index.ts; then
+      echo "[fail] participant renderer hard-codes ETH pending while live rail is OPEN" >&2
+      exit 1
+    fi
+    if grep -Fq 'setText("buyPlanRail", "Base · ETH pending");' src/index.ts; then
+      echo "[fail] participant plan renderer hard-codes ETH pending while live rail is OPEN" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "[fail] unknown live rail state: $rail_state" >&2
+    exit 1
+    ;;
+esac
+echo "participant_copy_live_rail_state_bound=true"
 
 node scripts/prove_void_app_buy_presale_readonly_v1.mjs
 echo "[ok] live rail state + participant rendering contract"
