@@ -81,6 +81,7 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     "LANG",
     "LC_ALL",
     "VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1",
+    "VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1",
   ]);
   const keys = Object.keys(env);
   if (
@@ -89,7 +90,9 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     env.PATH !== "/usr/bin:/bin" ||
     env.LANG !== "C" ||
     env.LC_ALL !== "C" ||
-    env.VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1 !== "1"
+    env.VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1 !== "1" ||
+    typeof env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1 !== "string" ||
+    !HEX40.test(env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1)
   ) {
     fail("offline_signer_environment_not_sanitized");
   }
@@ -117,6 +120,8 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     ambient_node_path_absent: true,
     ambient_dynamic_loader_overrides_absent: true,
     node_preload_flags_absent: true,
+    operator_reviewed_head:
+      env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1,
   });
 }
 
@@ -1521,6 +1526,8 @@ function validateChallengeParentPreflightV1({
     candidate_address: expectedAddress,
     expires_at_unix: expires.toString(),
     source_binding_sha256: sourceBinding.source_binding_sha256,
+    source_head_sha: sourceBinding.source_head_sha,
+    current_head_sha: sourceBinding.current_head_sha,
     control_contract_git_blob_sha1:
       sourceBinding.control_contract_git_blob_sha1,
     current_source_binding_verified: true,
@@ -1939,13 +1946,22 @@ export async function signSelectedLaunchControllerChallengeV1({
   challengeSha256,
   outputPath,
 } = {}) {
-  validateSanitizedOfflineSignerEnvironmentV1();
+  const launchEnvironment =
+    validateSanitizedOfflineSignerEnvironmentV1();
   const challenge = readChallengeV1(challengePath, challengeSha256);
   const preflight = validateChallengeParentPreflightV1({
     challengeEnvelope: challenge.value,
     expectedAddress: SELECTED_REVIEWER_ADDRESS_V1,
     nowUnix: Math.floor(Date.now() / 1000),
   });
+  if (
+    preflight.source_head_sha !==
+      launchEnvironment.operator_reviewed_head ||
+    preflight.current_head_sha !==
+      launchEnvironment.operator_reviewed_head
+  ) {
+    fail("offline_signer_operator_reviewed_head_mismatch");
+  }
 
   return await withReviewedSigningRuntimeV1(
     preflight.control_contract_git_blob_sha1,
@@ -2014,6 +2030,7 @@ export async function signSelectedLaunchControllerChallengeV1({
         execution_network_isolation_provided: false,
         private_key_path_fixed: true,
         exact_challenge_source_head_required: true,
+        operator_reviewed_head_verified: true,
         current_source_binding_verified: true,
         sanitized_environment_required: true,
         private_key_access: true,
