@@ -55,6 +55,7 @@ for (const key of [
   "credential_request_review_queue_source_ready",
   "credential_lifecycle_source_ready",
   "credential_wc_account_binding_source_ready",
+  "credential_registry_source_ready",
   "authenticated_submission_receiver_source_ready",
   "public_submission_proxy_source_wired",
   "wc_earning_adapter_source_ready",
@@ -135,7 +136,7 @@ assert.ok(
 );
 
 const componentKeys = Object.keys(result.components);
-assert.equal(componentKeys.length, 10);
+assert.equal(componentKeys.length, 11);
 for (const key of componentKeys) {
   assert.equal(typeof result.components[key].path, "string");
   assert.match(result.components[key].sha256, /^[0-9a-f]{64}$/u);
@@ -168,6 +169,7 @@ const workflow = fs.readFileSync(WORKFLOW, "utf8");
 for (const required of [
   "node: [22, 24, 26]",
   "void-agent-paid-work-credentialed-external-readiness-v1.mjs",
+  "scripts/agent_paid_work_credential_registry_v1.ts",
   "git diff --check",
 ]) {
   assert.ok(workflow.includes(required), "missing workflow:" + required);
