@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   TypedDataEncoder,
@@ -22,12 +24,6 @@ import {
   buildWcVoidOpeningRelatedIdentityReviewerRoleV1,
   verifyWcVoidOpeningRelatedIdentityReviewerRoleV1,
 } from "./void-wc-void-opening-related-identity-reviewer-role-v1.mjs";
-
-import {
-  VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_AUTHORITY_V1,
-  VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_MANIFEST_V1,
-  wcVoidOpeningRelatedIdentityClusterIdV1,
-} from "./void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
 
 export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1 =
   "VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1";
@@ -103,6 +99,38 @@ const BYTES32 = /^0x[0-9a-f]{64}$/u;
 const GIT_BLOB = /^[0-9a-f]{40}$/u;
 const REVIEWED_MANIFEST_COMPILER_PATH =
   "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const GIT = "/usr/bin/git";
+const REVIEWED_MANIFEST_MARKER_V1 =
+  "REVIEWED_MANIFEST_MARKER_V1";
+const REVIEWED_MANIFEST_AUTHORITY_V1 = Object.freeze({
+  source_only: true,
+  explicit_input_only: true,
+  eligible_cohort_reverified: true,
+  content_addressed_evidence_required: true,
+  exact_participant_cluster_bijection_required: true,
+  ambiguous_evidence_holds: true,
+  reviewer_role_decision_required: true,
+  review_attestation_verified: false,
+  related_identity_truth_verified: false,
+  privacy_sensitive_attribute_inference: false,
+  browsing_or_social_graph_deanonymization: false,
+  ip_geolocation_or_device_fingerprinting: false,
+  runtime_or_launch_evidence: false,
+  wc_ledger_write: false,
+  wc_balance_mutation: false,
+  wallet_or_signer_access: false,
+  private_key_access: false,
+  transaction_construction: false,
+  transaction_signing: false,
+  transaction_broadcast: false,
+  chain2050_write: false,
+  inventory_funding: false,
+  liquidity_movement: false,
+  market_activation: false,
+  public_presale_activation: false,
+  funds_movement: false,
+});
 export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1 =
   "7bb5c54fcd6a0d188b90c4c17d06145fe792ce66";
 
@@ -131,6 +159,27 @@ function digestSha256IdV1(value) {
     sha256(Buffer.from(canonicalReviewJsonV1(value), "utf8"));
 }
 
+function reviewedManifestClusterIdV1(participantIds) {
+  if (!Array.isArray(participantIds) || participantIds.length < 1) {
+    fail("review_manifest_cluster_participants_invalid");
+  }
+  const canonical = participantIds.map((value) => {
+    if (typeof value !== "string" || !SHA256_ID.test(value)) {
+      fail("review_manifest_cluster_participant_invalid");
+    }
+    return value;
+  }).sort(compareTextV1);
+  for (let index = 1; index < canonical.length; index += 1) {
+    if (canonical[index] === canonical[index - 1]) {
+      fail("review_manifest_cluster_participant_duplicate");
+    }
+  }
+  return digestSha256IdV1({
+    schema: "void.wc-void-opening-related-identity-cluster.v1",
+    participant_ids: canonical,
+  });
+}
+
 function compareTextV1(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
@@ -149,20 +198,36 @@ function currentManifestCompilerBlobV1() {
   let blob;
   try {
     blob = execFileSync(
-      "git",
+      GIT,
       [
         "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.preloadIndex=false",
+        "-c", "submodule.recurse=false",
+        "-C", ROOT,
         "rev-parse",
         "HEAD:" + REVIEWED_MANIFEST_COMPILER_PATH,
       ],
       {
-        cwd: process.cwd(),
+        cwd: "/",
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
         env: {
-          ...process.env,
-          GIT_OPTIONAL_LOCKS: "0",
+          PATH: "/usr/bin:/bin",
+          HOME: "/nonexistent",
+          XDG_CONFIG_HOME: "/nonexistent",
+          LANG: "C",
+          LC_ALL: "C",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_CONFIG_SYSTEM: "/dev/null",
           GIT_CONFIG_NOSYSTEM: "1",
+          GIT_ATTR_NOSYSTEM: "1",
+          GIT_OPTIONAL_LOCKS: "0",
+          GIT_NO_REPLACE_OBJECTS: "1",
+          GIT_TERMINAL_PROMPT: "0",
         },
       },
     ).trim();
@@ -236,7 +301,7 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
   }
   if (
     manifest.marker !==
-      VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_MANIFEST_V1 ||
+      REVIEWED_MANIFEST_MARKER_V1 ||
     manifest.version !== 1 ||
     manifest.status !==
       "RELATED_IDENTITY_EVIDENCE_MANIFEST_READY_REVIEW_ATTESTATION_HOLD" ||
@@ -257,7 +322,7 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
     manifest.privacy_class !== "void_control_evidence_non_personal_v1" ||
     canonicalReviewJsonV1(manifest.authority) !==
       canonicalReviewJsonV1(
-        VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_AUTHORITY_V1,
+        REVIEWED_MANIFEST_AUTHORITY_V1,
       ) ||
     !Number.isSafeInteger(manifest.participant_count) ||
     manifest.participant_count < 1 ||
@@ -461,7 +526,7 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
 
   for (const [clusterId, memberList] of clusterParticipants) {
     const members = [...memberList].sort(compareTextV1);
-    if (wcVoidOpeningRelatedIdentityClusterIdV1(members) !== clusterId) {
+    if (reviewedManifestClusterIdV1(members) !== clusterId) {
       fail("review_manifest_cluster_id_mismatch");
     }
     const clusterEvidence = canonicalEvidence.filter(
