@@ -83,6 +83,15 @@ assert.ok(index.includes(
 assert.ok(index.includes(
   "(e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found)",
 ));
+assert.ok(index.includes(
+  'res.status(held?409:500).json({',
+));
+assert.ok(index.includes(
+  'error: held?m:"payment_verifier_failed"',
+));
+assert.ok(index.includes(
+  'x==="request_launch_authority_expired_or_superseded"?409:500',
+));
 const gateSource = read("src/economic/buy_void_coupled_launch_gate_v1.mjs");
 assert.ok(gateSource.includes("buy-void-coupled-live-generation-v1.jsonl"));
 assert.ok(gateSource.includes("generation_tip_sha256"));
