@@ -108,11 +108,23 @@ existing crash-recoverable filesystem bakery lock. The fixed generation
 authority lock is a sibling of the external high-water mirror. New request
 persistence and `payment_verified` persistence acquire that lock, rederive the
 current request authority while holding it, and keep it held through the exact
-append. The reviewed generation-transition publication boundary is exposed
-through `withBuyLaunchGenerationTransitionPublicationV1(...)` and uses the
-same lock. A generation publisher and a payment/request mutation therefore
-cannot complete concurrently through reviewed paths. This PR does not itself
-invoke generation publication or create activation state.
+append.
+
+Generation publication now has one canonical reviewed writer:
+`ops/precision/void-buy-coupled-live-generation-publish-v1.mjs`. That operator
+entrypoint calls `publishBuyLaunchGenerationTransitionV1(...)`, which routes the
+complete journal + external-anchor publication through
+`withBuyLaunchGenerationTransitionPublicationV1(...)` and therefore the same
+generation-authority lock used by request/payment mutation. The critical
+publication callback is explicitly synchronous: async functions are rejected
+before lock acquisition and thenable-returning callbacks are rejected inside
+the lock. The canonical publisher performs its file writes synchronously while
+the lock is held. A generation transition and a payment/request mutation
+therefore cannot complete concurrently through reviewed paths.
+
+The publisher is not run by this PR. No generation journal, external anchor,
+activation receipt, request intake, market activation, presale activation, or
+funds movement is created merely by merging this source.
 
 The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
@@ -225,6 +237,7 @@ node scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs
 node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
 node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
 npx tsx scripts/prove_buy_void_request_tx_hash_binding_v1.ts
+node ops/precision/void-buy-coupled-live-generation-publish-v1.mjs --help
 ```
 
 The focused proof uses only temporary synthetic EIP-712 signers and a
