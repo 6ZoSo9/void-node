@@ -832,9 +832,19 @@ assert.equal(
   "launcher must reject oversized transferred challenge bytes before parsing",
 );
 assert.equal(
-  launcherSource.includes("total > max_bytes"),
+  launcherSource.includes("stat.st_size < 1 or stat.st_size > 2 * 1024 * 1024"),
   true,
-  "isolated launcher parser must enforce its own bounded read after open",
+  "isolated launcher parser must enforce the same file-size ceiling after nofollow open",
+);
+assert.equal(
+  launcherSource.includes("raw = os.read(fd, stat.st_size + 1)"),
+  true,
+  "isolated launcher parser must bound its single read to the validated file size plus one byte",
+);
+assert.equal(
+  launcherSource.includes("hashlib.sha256(raw).hexdigest() != expected_sha"),
+  true,
+  "launcher source-head parse must bind to the exact transferred challenge SHA-256",
 );
 assert.equal(
   operatorDoc.includes(
