@@ -693,10 +693,30 @@ function removeBuyLaunchGenerationPublicationIntentV1(intentPath) {
   fsyncGenerationDirectoryV1(path.dirname(intentPath));
 }
 
+export function buyLaunchGenerationPublicationRetryMatchesV1(
+  intent,
+  input,
+) {
+  return (
+    intent &&
+    typeof intent === "object" &&
+    !Array.isArray(intent) &&
+    input &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    intent.state === input.state &&
+    intent.generation === input.generation &&
+    intent.occurred_at_ms === input.occurred_at_ms
+  );
+}
+
 function recoverBuyLaunchGenerationPublicationV1({
   journalPath,
   anchorPath,
   intentPath,
+  requestedState,
+  requestedGeneration,
+  requestedOccurredAtMs,
 }) {
   if (!fs.existsSync(intentPath)) return null;
   const recovery = classifyBuyLaunchGenerationPublicationRecoveryV1({
@@ -707,6 +727,20 @@ function recoverBuyLaunchGenerationPublicationV1({
     journal_bytes: generationPublicationObservedBytesV1(journalPath),
     anchor_bytes: generationPublicationObservedBytesV1(anchorPath),
   });
+  if (
+    !buyLaunchGenerationPublicationRetryMatchesV1(
+      recovery.intent,
+      {
+        state: requestedState,
+        generation: requestedGeneration,
+        occurred_at_ms: requestedOccurredAtMs,
+      },
+    )
+  ) {
+    throw new Error(
+      "buy_launch_generation_pending_publication_retry_mismatch",
+    );
+  }
   if (recovery.phase === "intent_only") {
     atomicWritePrivateGenerationBytesV1(
       journalPath,
@@ -787,32 +821,26 @@ export async function publishBuyLaunchGenerationTransitionV1(
       journalPath,
       anchorPath,
       intentPath,
+      requestedState: input.state,
+      requestedGeneration: input.generation,
+      requestedOccurredAtMs: input.occurred_at_ms,
     });
     if (recovered) {
-      if (
-        recovered.state === input.state &&
-        recovered.generation === input.generation &&
-        recovered.occurred_at_ms === input.occurred_at_ms
-      ) {
-        return Object.freeze({
-          marker: "VOID_BUY_COUPLED_LIVE_GENERATION_PUBLISH_V1",
-          version: 1,
-          state: recovered.state,
-          generation: recovered.generation,
-          sequence: recovered.sequence,
-          tip_sha256: recovered.tip_sha256,
-          external_anchor_sha256: recovered.external_anchor_sha256,
-          journal_path: journalPath,
-          anchor_path: anchorPath,
-          publication_locked: true,
-          async_aware_shared_lock: true,
-          crash_recovered: true,
-          funds_movement: false,
-        });
-      }
-      throw new Error(
-        "buy_launch_generation_pending_publication_recovered_retry_required",
-      );
+      return Object.freeze({
+        marker: "VOID_BUY_COUPLED_LIVE_GENERATION_PUBLISH_V1",
+        version: 1,
+        state: recovered.state,
+        generation: recovered.generation,
+        sequence: recovered.sequence,
+        tip_sha256: recovered.tip_sha256,
+        external_anchor_sha256: recovered.external_anchor_sha256,
+        journal_path: journalPath,
+        anchor_path: anchorPath,
+        publication_locked: true,
+        async_aware_shared_lock: true,
+        crash_recovered: true,
+        funds_movement: false,
+      });
     }
 
     const journalExists = fs.existsSync(journalPath);

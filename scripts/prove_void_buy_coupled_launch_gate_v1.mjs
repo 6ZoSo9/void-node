@@ -18,6 +18,7 @@ import {
   buildBuyLaunchGenerationPublicationIntentV1,
   buyLaunchGenerationAuthorityLockPathV1,
   buyLaunchGenerationExternalAnchorPathV1,
+  buyLaunchGenerationPublicationRetryMatchesV1,
   buyLaunchRequestAuthorityMatchesV1,
   buyLaunchLiveActivationReceiptIdV1,
   buyLaunchLiveActivationTypedDataV1,
@@ -235,6 +236,31 @@ try {
     activeEvent.event_sha256,
   );
   assert.equal(genesisRecoveryFromNoWrites.phase, "intent_only");
+  const exactRecoveryRetry = {
+    state: "active",
+    generation: activationGeneration,
+    occurred_at_ms: nowMs - 1000,
+  };
+  assert.equal(
+    buyLaunchGenerationPublicationRetryMatchesV1(
+      genesisRecoveryFromNoWrites.intent,
+      exactRecoveryRetry,
+    ),
+    true,
+  );
+  for (const patch of [
+    { state: "revoked" },
+    { generation: "0x" + "c".repeat(64) },
+    { occurred_at_ms: nowMs - 999 },
+  ]) {
+    assert.equal(
+      buyLaunchGenerationPublicationRetryMatchesV1(
+        genesisRecoveryFromNoWrites.intent,
+        { ...exactRecoveryRetry, ...patch },
+      ),
+      false,
+    );
+  }
   assert.equal(
     classifyBuyLaunchGenerationPublicationRecoveryV1({
       intent_bytes: genesisIntentBytes,
@@ -890,6 +916,20 @@ assert.doesNotMatch(
   /export\s+async\s+function\s+withBuyLaunchGenerationTransitionPublicationV1/,
 );
 assert.match(gateSource, /publishBuyLaunchGenerationTransitionV1/);
+const recoveryFunctionAt = gateSource.indexOf(
+  "function recoverBuyLaunchGenerationPublicationV1",
+);
+const recoveryRetryGuardAt = gateSource.indexOf(
+  "buy_launch_generation_pending_publication_retry_mismatch",
+  recoveryFunctionAt,
+);
+const recoveryFirstWriteAt = gateSource.indexOf(
+  "atomicWritePrivateGenerationBytesV1(",
+  recoveryFunctionAt,
+);
+assert.ok(recoveryFunctionAt >= 0);
+assert.ok(recoveryRetryGuardAt > recoveryFunctionAt);
+assert.ok(recoveryFirstWriteAt > recoveryRetryGuardAt);
 assert.match(gateSource, /buy_launch_generation_publication_pending/);
 assert.match(gateSource, /buy_launch_generation_pending_publication_recovered_retry_required/);
 assert.match(gateSource, /buy_launch_generation_publish_recovery_order_invalid/);
