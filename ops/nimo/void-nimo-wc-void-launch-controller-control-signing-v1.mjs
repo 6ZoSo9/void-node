@@ -274,16 +274,16 @@ function readPrivateKeyV1(file) {
   let text;
   try {
     text = new TextDecoder("utf-8", { fatal: true })
-      .decode(source.bytes)
-      .trim();
+      .decode(source.bytes);
   } catch {
     source.bytes.fill(0);
     fail("launch_controller_private_key_text_invalid");
   }
-  if (!/^(?:0x)?[0-9a-fA-F]{64}$/u.test(text)) {
+  if (!/^(?:0x)?[0-9a-fA-F]{64}\n?$/u.test(text)) {
     source.bytes.fill(0);
     fail("launch_controller_private_key_format_invalid");
   }
+  if (text.endsWith("\n")) text = text.slice(0, -1);
   const normalized = text.startsWith("0x") ? text : "0x" + text;
   source.bytes.fill(0);
   text = "";
