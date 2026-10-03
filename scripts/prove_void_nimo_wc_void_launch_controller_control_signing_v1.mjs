@@ -1384,6 +1384,25 @@ assert.equal(
   true,
   "all launcher worktree/blob hashes must bypass Git filters",
 );
+assert.equal(
+  launcherSource.includes("status --porcelain"),
+  false,
+  "offline cleanliness must not call filter-sensitive git status",
+);
+for (const required of [
+  '"ls-tree", "-r", "-z", "--full-tree", reviewed_head',
+  '"ls-files", "-s", "-z"',
+  '"ls-files", "--others", "--exclude-standard", "-z"',
+  "hashlib.sha1(",
+  'getattr(os, "O_NOFOLLOW", 0)',
+  '"core.excludesFile=/dev/null"',
+]) {
+  assert.equal(
+    launcherSource.includes(required),
+    true,
+    "raw reviewed-tree cleanliness contract missing: " + required,
+  );
+}
 for (const obsolete of [
   "reviewedRuntimeHelperV1",
   "reviewedSigningBridgeSourceV1",
@@ -1616,6 +1635,10 @@ console.log("launcher_challenge_parse_bounded=true");
 console.log("repository_info_attributes_rejected_before_worktree_git=true");
 console.log("repository_local_filter_config_rejected_before_worktree_git=true");
 console.log("worktree_blob_hashing_uses_no_filters=true");
+console.log("git_status_filter_path_used=false");
+console.log("reviewed_tree_index_exact_match_required=true");
+console.log("tracked_worktree_blob_ids_recomputed_from_raw_bytes=true");
+console.log("nonignored_untracked_files_rejected=true");
 console.log("challenge_timestamp_string_types_required=true");
 console.log("production_signing_helper_non_recursive=true");
 console.log("post_runtime_signing_clock_sampled=true");
