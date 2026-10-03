@@ -8,12 +8,15 @@ umask 077
 PID=""
 LEGACY_OUT=""
 LEGACY_TARGET=""
+LEGACY_LINK_CREATED=0"
 
 cleanup() {
   if [ -n "$PID" ]; then
     kill "$PID" 2>/dev/null || true
   fi
-  if [ -n "$LEGACY_OUT" ] && [ -L "$LEGACY_OUT" ]; then
+  if [ "$LEGACY_LINK_CREATED" = "1" ] &&
+     [ -n "$LEGACY_OUT" ] &&
+     [ -L "$LEGACY_OUT" ]; then
     rm -f -- "$LEGACY_OUT"
   fi
   if [ -n "$LEGACY_TARGET" ] && [ -d "$LEGACY_TARGET" ]; then
@@ -34,6 +37,7 @@ printf 'VOID_LOCAL_DATA_DROP_LEGACY_OUT_SENTINEL\n' > "$LEGACY_TARGET/nodeA.key"
 LEGACY_SENTINEL_SHA="$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')"
 LEGACY_SENTINEL_STAT="$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")"
 ln -s -- "$LEGACY_TARGET" "$LEGACY_OUT"
+LEGACY_LINK_CREATED=1
 
 OUT="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof.XXXXXX)"
 test -d "$OUT" && test ! -L "$OUT"
