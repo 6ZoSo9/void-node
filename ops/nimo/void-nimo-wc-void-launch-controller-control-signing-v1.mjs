@@ -145,7 +145,6 @@ export const VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1 =
     transaction_submission: false,
     transaction_broadcast: false,
     chain2050_write: false,
-    credential_access: false,
     wc_ledger_write: false,
     runtime_service_mutation: false,
     deployment_authorized: false,
@@ -394,16 +393,6 @@ function readStableFileV1(file, {
   ) {
     fail(label + "_path_invalid");
   }
-  let canonicalBefore;
-  try {
-    canonicalBefore = fs.realpathSync.native(file);
-  } catch {
-    fail(label + "_realpath_unavailable");
-  }
-  if (canonicalBefore !== file) {
-    fail(label + "_path_alias_forbidden");
-  }
-
   const parent = openPinnedParentDirectoryV1(file, label);
   const pinnedPath = parent.proc_path + "/" + parent.basename;
   let fd = -1;
@@ -439,6 +428,22 @@ function readStableFileV1(file, {
     ) {
       fail(label + "_preopen_identity_mismatch");
     }
+
+    let canonicalBound;
+    let originalPathBefore;
+    try {
+      canonicalBound = fs.realpathSync.native(file);
+      originalPathBefore = fs.lstatSync(file, { bigint: true });
+    } catch {
+      fail(label + "_original_path_unavailable_after_pin");
+    }
+    if (
+      canonicalBound !== file ||
+      !sameOpenedFileIdentityV1(before, originalPathBefore)
+    ) {
+      fail(label + "_original_path_not_bound_to_pinned_file");
+    }
+
     if (
       typeof process.getuid === "function" &&
       before.uid !== BigInt(process.getuid())
@@ -452,14 +457,20 @@ function readStableFileV1(file, {
     const bytes = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
     let pathnameAfter;
+    let canonicalAfter;
+    let originalPathAfter;
     try {
       pathnameAfter = fs.lstatSync(pinnedPath, { bigint: true });
+      canonicalAfter = fs.realpathSync.native(file);
+      originalPathAfter = fs.lstatSync(file, { bigint: true });
     } catch {
       fail(label + "_path_changed_during_read");
     }
     if (
       !sameOpenedFileIdentityV1(before, after) ||
       !sameOpenedFileIdentityV1(after, pathnameAfter) ||
+      canonicalAfter !== file ||
+      !sameOpenedFileIdentityV1(after, originalPathAfter) ||
       before.size !== after.size ||
       before.mtimeNs !== after.mtimeNs ||
       before.ctimeNs !== after.ctimeNs ||
