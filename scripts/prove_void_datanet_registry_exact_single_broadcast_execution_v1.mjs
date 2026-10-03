@@ -159,6 +159,32 @@ const consumedFile=path.join(consumedDir,operationId+".json");
 fs.writeFileSync(consumedFile,JSON.stringify(record,null,2)+"\n",{mode:0o600});
 fs.chmodSync(consumedFile,0o600);
 
+function writeConsumptionForRoot(targetRoot){
+  const targetConsumedDir=path.join(targetRoot,"broadcast-consumed");
+  fs.mkdirSync(targetConsumedDir,{mode:0o700});
+  fs.chmodSync(targetConsumedDir,0o700);
+  const targetBig=fs.lstatSync(targetRoot,{bigint:true});
+  const targetMaterial={
+    ...material,
+    state_store_realpath_sha256:sha256(targetRoot),
+    state_store_root_dev:String(targetBig.dev),
+    state_store_root_ino:String(targetBig.ino),
+  };
+  const targetRecord={
+    ...targetMaterial,
+    consumption_record_id:
+      "voiddrbac1_"+sha256(Buffer.from(canonicalJson(targetMaterial))),
+  };
+  const targetFile=path.join(targetConsumedDir,operationId+".json");
+  fs.writeFileSync(
+    targetFile,
+    JSON.stringify(targetRecord,null,2)+"\n",
+    {mode:0o600},
+  );
+  fs.chmodSync(targetFile,0o600);
+  return targetRecord;
+}
+
 let sendCount=0;
 const dependencies={
   validate_runtime:()=>({request,authorization}),
@@ -181,6 +207,88 @@ const dependencies={
 };
 
 try{
+  const wrongConfirmation=
+    await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+      {
+        broadcast_request:request,
+        broadcast_authorization:authorization,
+        prebroadcast_observation:observation,
+        signed_transaction:signed,
+        state_dir:root,
+        confirmation:"wrong-confirmation",
+      },
+      dependencies,
+    );
+  assert.equal(wrongConfirmation.ok,false);
+  assert.equal(
+    wrongConfirmation.reason,
+    "registry_broadcast_execution_exact_operation_confirmation_required",
+  );
+  assert.equal(wrongConfirmation.rpc_send_invocation_count,0);
+  assert.equal(sendCount,0);
+  assert.equal(
+    fs.existsSync(path.join(root,"broadcast-attempts")),
+    false,
+    "wrong confirmation mutated attempt state",
+  );
+
+  const preSendRoot=fs.mkdtempSync(
+    path.join(os.tmpdir(),"void-registry-broadcast-presend-v1-"),
+  );
+  fs.chmodSync(preSendRoot,0o700);
+  try{
+    writeConsumptionForRoot(preSendRoot);
+    let nowCall=0;
+    let preSendRpcCalls=0;
+    const expiredAtFinalGate=Date.parse("2030-01-01T00:05:00.000Z");
+    const preSendDependencies={
+      ...dependencies,
+      now:()=>{
+        nowCall+=1;
+        return nowCall<=2 ? now : expiredAtFinalGate;
+      },
+      rpc:async ()=>{
+        preSendRpcCalls+=1;
+        throw new Error("rpc_must_not_run_after_final_gate_hold");
+      },
+    };
+    const heldAtFinalGate=
+      await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+        {
+          broadcast_request:request,
+          broadcast_authorization:authorization,
+          prebroadcast_observation:observation,
+          signed_transaction:signed,
+          state_dir:preSendRoot,
+          confirmation:authorization.required_confirmation,
+        },
+        preSendDependencies,
+      );
+    assert.equal(heldAtFinalGate.ok,false);
+    assert.equal(
+      heldAtFinalGate.reason,
+      "registry_broadcast_execution_final_pre_send_gate_failed",
+    );
+    assert.equal(heldAtFinalGate.rpc_send_invocation_count,0);
+    assert.equal(heldAtFinalGate.transaction_submission_performed,false);
+    assert.equal(heldAtFinalGate.transaction_broadcast_performed,false);
+    assert.equal(heldAtFinalGate.attempt_intent_recorded,true);
+    assert.equal(preSendRpcCalls,0);
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          preSendRoot,
+          "broadcast-attempts",
+          operationId+".intent.json",
+        ),
+      ),
+      true,
+      "final-gate hold must leave durable spent-attempt intent",
+    );
+  }finally{
+    fs.rmSync(preSendRoot,{recursive:true,force:true});
+  }
+
   const first=await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
     {
       broadcast_request:request,
@@ -188,6 +296,7 @@ try{
       prebroadcast_observation:observation,
       signed_transaction:signed,
       state_dir:root,
+      confirmation:authorization.required_confirmation,
     },
     dependencies,
   );
@@ -210,6 +319,7 @@ try{
       prebroadcast_observation:observation,
       signed_transaction:signed,
       state_dir:root,
+      confirmation:authorization.required_confirmation,
     },
     dependencies,
   );
@@ -243,6 +353,9 @@ try{
     "SINGLE_BROADCAST_ATTEMPT_INTENT_DURABLE_BEFORE_RPC",
     "eth_sendRawTransaction",
     "registry_broadcast_execution_attempt_already_recorded",
+    "registry_broadcast_execution_exact_operation_confirmation_required",
+    "registry_broadcast_execution_final_pre_send_gate_failed",
+    "fsyncDir(parent);",
     "automatic_retry_performed:false",
     "replacement_transaction_created:false",
   ]){
@@ -250,6 +363,14 @@ try{
   }
   assert.ok(
     runnerSource.includes("exact_operation_bound_broadcast_confirmation_required"),
+  );
+  assert.ok(
+    runnerSource.includes("confirmation:args.confirmation"),
+    "runner must pass confirmation into dangerous API boundary",
+  );
+  assert.ok(
+    runnerSource.includes('redirect:"error"'),
+    "loopback RPC fetch must reject redirects",
   );
   for(const forbidden of [
     "SigningKey",
@@ -270,6 +391,11 @@ try{
   console.log("duplicate_invocation_rpc_send_count=0");
   console.log("exact_consumption_record_required=true");
   console.log("runtime_expiry_rechecked=true");
+  console.log("final_pre_send_hold_returns_error=true");
+  console.log("final_pre_send_hold_rpc_calls=0");
+  console.log("operation_bound_confirmation_enforced_in_submit_api=true");
+  console.log("attempt_directory_parent_fsynced_before_rpc=true");
+  console.log("rpc_redirects_rejected=true");
   console.log("state_root_generation_rechecked=true");
   console.log("signed_transaction_exactly_bound=true");
   console.log("automatic_retry=false");
