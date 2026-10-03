@@ -895,6 +895,8 @@ async function main(): Promise<void> {
       historical_malformed_redeemed_lines_observed:
         historicalMalformedRedeemedLinesObserved,
       wc_state_snapshot_stable: true,
+      wc_data_directory_identity_bound: true,
+      wc_state_directory_identity_bound: true,
       canonical_multi_account_projection_single_pass: true,
       redeemed_file_present: wcStateSnapshot.redeemed_file_present,
     },
