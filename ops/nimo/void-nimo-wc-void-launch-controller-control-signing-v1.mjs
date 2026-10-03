@@ -713,6 +713,22 @@ export async function signControlChallengeCoreV1({
   });
 }
 
+export async function reviewedOfflineSigningRuntimeV1() {
+  return await withReviewedEthersV1(async ({ ethers, profile }) =>
+    Object.freeze({
+      reviewed_runtime_profile_id: profile.profile_id,
+      reviewed_packages_aggregate_sha256:
+        profile.packages_aggregate_sha256,
+      ethers_version:
+        typeof ethers.version === "string" ? ethers.version : null,
+      private_key_access: false,
+      network_access_required: false,
+      transaction_signing: false,
+      funds_movement: false,
+    })
+  );
+}
+
 export async function signSelectedLaunchControllerChallengeV1({
   challengePath,
   challengeSha256,
