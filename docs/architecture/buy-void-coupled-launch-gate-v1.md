@@ -4,64 +4,108 @@ Marker: `VOID_BUY_COUPLED_LAUNCH_GATE_V1_GREEN`
 
 ## Purpose
 
-Restore the source-side prerequisite that keeps public Buy VOID request intake
-coupled to the production WC/VOID opening gate.
+Keep public Buy VOID request intake and the production WC/VOID opening behind
+one fail-closed admission boundary.
 
-This additive module does not mount a public route and does not activate
-anything. The later `src/index.ts` integration remains separate while #2374
-owns that file.
+The runtime must not treat any one of these as sufficient authority:
 
-## Canonical inputs
+- the public Buy intake environment toggle;
+- source-level coupled launch `SOURCE_READY`;
+- the final coupled source-promotion artifact; or
+- a caller-supplied boolean claiming that launch occurred.
 
-The gate reads exactly:
+`SOURCE_READY` grants no funding or activation authority.
+
+## Canonical source inputs
+
+The source half reads exactly:
 
 - `ops/mainnet0/wc-void-production-candidate-v1.json`;
 - `ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json`;
 - `ops/mainnet0/economic-evm-successor-migration-candidate-v1.json`.
 
-The coupled launch ID is:
+It delegates readiness to
+`classifyVoidWcVoidCoupledLaunchReadinessV1(...)` and additionally binds the
+reviewed coupled launch ID:
 
 `sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`
 
-The gate is ready only when the canonical coupled-launch classifier is
-`SOURCE_READY`, the exact reviewed coupled launch ID matches, and the production
-candidate's deployment/custody evidence plus the coupled policy bundle's
-runtime/launch evidence are all production-ready. Canonical source-mechanism
-readiness by itself is necessary but not sufficient for public request intake.
+Nested policy drift is therefore rejected by the canonical classifiers instead
+of being reduced to a hand-picked set of top-level booleans.
 
-The gate requires exact reviewed key sets for:
-- production authority;
-- coupled source gates;
-- coupled authority; and
-- successor launch authority.
+A source-ready result records the canonical coupled composition ID, but it still
+reports activation/funding/presale/market/funds authority false.
 
-Missing or extra authority/gate keys fail closed through
-`classifyVoidWcVoidCoupledLaunchReadinessV1(...)`. Public intake also requires
-the nested launch facts that source classification intentionally does not
-promote on its own: deployed vault/runtime attestations, live WC ledger/custody
-evidence, selected production caps/minimum depth/TTL/budgets, reverse-settlement
-verification, related-identity truth, and shared post-discovery launch evidence.
-A top-level boolean promotion cannot bypass those nested HOLD facts.
+## Live activation evidence
 
-Current canonical successor classification is intentionally `HOLD` because the
-public state-root anchor and public economic verification path are not both ready,
-so restoring this module cannot open Buy VOID intake.
+Public intake additionally requires a separately authorized live coupled-launch
+receipt. No such production receipt is committed by this source lane.
 
-## Integration boundary
+The runtime requires all three environment bindings:
 
-After #2374 clears `src/index.ts`, the public checkout may compose this source
-gate by requiring both the explicit Buy intake toggle and `launch.ready`.
+- `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH`: exact absolute path to a
+  private receipt;
+- `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256`: exact SHA-256 of those
+  receipt bytes; and
+- `VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM`: exact operator confirmation
+  `activate-coupled-public-buy-v1:<receipt_id>:<receipt_sha256>`.
 
-That future integration must continue to expose the coupled launch ID/readiness
-and must not treat this gate as Ethereum verifier/finality authority. #2393/#2396
-remain separate prerequisites for Ethereum public intake.
+The receipt is accepted only when it is a stable, direct, operator-owned private
+regular file under no-follow descriptor traversal, with no group/other
+permissions and no link aliases. Its content must be content-addressed and bind:
+
+- marker `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1`;
+- status `COUPLED_PUBLIC_LAUNCH_ACTIVE`;
+- the exact coupled launch ID;
+- the exact current source composition ID;
+- private Buy VOID runtime active;
+- production WC/VOID market active;
+- public presale active;
+- the same launch ceremony;
+- public Buy request intake explicitly authorized;
+- `runtime_or_launch_evidence=true`; and
+- `source_ready_only=false`.
+
+A missing path, digest, confirmation, insecure file, changed file, stale
+composition ID, malformed receipt, or any false launch fact holds intake closed.
+
+The existing final coupled source-promotion lane is deliberately not accepted as
+live evidence: that lane explicitly retains
+`public_intake_enabled=false`,
+`market_activation_authorized=false`, and
+`public_presale_activation_authorized=false`.
+
+## Runtime admission
+
+The two public Buy VOID surfaces require both:
+
+`VOID_BUY_REQUESTS_ENABLED=1`
+
+and
+
+`readBuyLaunchGateV1().ready === true`.
+
+Thus the environment toggle alone cannot open intake, source readiness alone
+cannot open intake, and live evidence for one side of the coupled opening cannot
+open the other side independently.
+
+Ethereum payment verification/finality remains a separate prerequisite; this
+gate does not replace the Ethereum finality gate.
+
+## Current state
+
+The checked-in canonical economic candidates remain `HOLD`, and no production
+live coupled-activation receipt is installed by this change. Merging this source
+therefore does not open Buy VOID intake, activate WC/VOID, or activate the
+presale.
 
 ## Authority
 
-Source/proof only:
+Source/package/proof only:
 
 - no request-intake activation;
 - no runtime/config mutation;
+- no service restart;
 - no wallet, signer, credential, or private-key access;
 - no payment or transaction action;
 - no inventory reservation or funding;
@@ -71,14 +115,11 @@ Source/proof only:
 ## Verification
 
 ```bash
+node scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs
 node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
+node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
 ```
 
-The proof also:
-- demonstrates that synthetically source-ready production/coupled candidates
-  remain closed against the current canonical successor;
-- proves that even a canonical `SOURCE_READY` composition cannot open intake
-  while nested deployment/runtime/launch evidence remains false;
-- proves canonical classifier drift checks for production/coupled invariants;
-- removes and adds gate/authority keys and requires fail-closed behavior; and
-- proves missing successor public-verification gates prevent readiness.
+The focused proof uses only a temporary synthetic live-receipt fixture. That
+fixture proves parser/custody/digest/confirmation behavior; it is not production
+activation evidence and carries no runtime or economic authority.
