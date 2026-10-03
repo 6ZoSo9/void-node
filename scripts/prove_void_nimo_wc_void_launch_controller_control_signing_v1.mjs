@@ -21,8 +21,9 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   signControlChallengeCoreV1,
   testOnlyExerciseSignatureOutputCleanupReplacementRaceV1,
-  testOnlyExerciseSignatureOutputExpiryCleanupV1,
+  testOnlyExerciseSignatureOutputExpiryQuarantineV1,
   testOnlyExerciseSignatureOutputParentReplacementV1,
+  testOnlyExerciseSignatureOutputReplacementQuarantineV1,
   testOnlyPinnedStandaloneEthersV1,
   testOnlyReadTransferredControlChallengeV1,
   validateSanitizedOfflineSignerEnvironmentV1,
@@ -887,35 +888,39 @@ const outputParentRace =
   testOnlyExerciseSignatureOutputParentReplacementV1();
 assert.match(
   String(outputParentRace.reason || ""),
-  /signature_output_path_changed_after_create/u,
+  /signature_output_quarantined_after_failure:signature_output_path_changed_after_create/u,
 );
 assert.equal(outputParentRace.replacement_output_exists, false);
-assert.equal(outputParentRace.displaced_output_exists, false);
+assert.equal(
+  outputParentRace.displaced_output_exists,
+  true,
+  "published signature must be quarantined in the displaced parent on failure",
+);
 
 const outputExpiry =
-  testOnlyExerciseSignatureOutputExpiryCleanupV1();
+  testOnlyExerciseSignatureOutputExpiryQuarantineV1();
 assert.match(
   String(outputExpiry.reason || ""),
-  /control_challenge_expired_after_output_write/u,
+  /signature_output_quarantined_after_failure:control_challenge_expired_after_output_write/u,
 );
 assert.equal(
   outputExpiry.output_exists,
-  false,
-  "expired durable signature output must be removed before failure returns",
+  true,
+  "expired durable signature remains quarantined and must never be reported as success",
 );
 
-const cleanupReplacementRace =
-  testOnlyExerciseSignatureOutputCleanupReplacementRaceV1();
+const replacementQuarantine =
+  testOnlyExerciseSignatureOutputReplacementQuarantineV1();
 assert.match(
-  String(cleanupReplacementRace.reason || ""),
-  /signature_output_cleanup_failed/u,
+  String(replacementQuarantine.reason || ""),
+  /signature_output_quarantined_after_failure:control_challenge_expired_after_output_write/u,
 );
-assert.equal(cleanupReplacementRace.replacement_output_exists, true);
-assert.equal(cleanupReplacementRace.displaced_signature_exists, true);
+assert.equal(replacementQuarantine.replacement_output_exists, true);
+assert.equal(replacementQuarantine.displaced_signature_exists, true);
 assert.match(
-  String(cleanupReplacementRace.replacement_bytes || ""),
+  String(replacementQuarantine.replacement_bytes || ""),
   /UNRELATED_REPLACEMENT/u,
-  "cleanup must not unlink a replacement basename that is not the created inode",
+  "late failure must not delete an unrelated replacement basename",
 );
 
 const signerSource = fs.readFileSync(
@@ -1410,8 +1415,8 @@ console.log("network_access_required=false");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
-console.log("signature_output_cleanup_inode_bound=true");
-console.log("signature_output_cleanup_replacement_not_deleted=true");
+console.log("signature_output_postpublish_cleanup_disabled=true");
+console.log("signature_output_replacement_quarantined_not_deleted=true");
 console.log("funds_movement=false");
 console.log(
   "marker=" +
