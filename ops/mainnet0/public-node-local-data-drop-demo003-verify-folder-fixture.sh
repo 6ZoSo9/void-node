@@ -942,6 +942,7 @@ try:
     print("network_fetch=false")
     print("trusted_as_network_truth=false")
     print("VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN")
+    sys.stdout.flush()
 finally:
     for _rel, _parent_fd, _leaf, child_fd in opened_children:
         os.close(child_fd)
