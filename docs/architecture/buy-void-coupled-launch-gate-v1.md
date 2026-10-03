@@ -82,6 +82,11 @@ Runtime state is bound through:
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM`: exact operator confirmation
   `activate-coupled-public-buy-v1:<generation>:<generation_tip>:<receipt_id>:<receipt_sha256>`.
 
+Generation event timestamps are also bounded at publication: an event may be at
+most 30 seconds ahead of the publisher's current wall clock. This allows small
+clock skew without allowing an accidental far-future event to wedge later
+append-only revocation through the monotonic timestamp rule.
+
 The generation is not accepted from a mutable environment value. The current
 generation and its content-addressed tip are accepted only when the runtime
 journal and the fixed external high-water mirror are byte-identical and both
@@ -201,7 +206,10 @@ when its lease expires.
 Every accepted public Buy request snapshots the exact current request authority:
 coupled launch/composition, generation, durable generation-journal tip, activation
 receipt ID/SHA-256, and its original lease expiry. The handler revalidates that
-snapshot before persisting or returning payment instructions. The final request
+snapshot before persisting or returning payment instructions. Inside the shared
+generation lock, mutation admission deliberately samples the clock again after
+live-gate derivation; a request that was valid when the gate read began but has
+expired by the final mutation check is rejected. The final request
 append then runs under the shared generation-authority lock and rederives the
 authority inside that critical section. Tx-hash binding and payment verification
 both revalidate the request against a currently live gate on the same
