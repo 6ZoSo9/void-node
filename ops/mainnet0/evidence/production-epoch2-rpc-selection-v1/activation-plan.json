@@ -1,0 +1,146 @@
+{
+  "marker": "VOID_ECONOMIC_EPOCH2_QBFT_PRIVATE_RUNTIME_ACTIVATION_V1",
+  "version": 1,
+  "status": "THREE_HOST_PRESTART_ADMISSION_BOUND_VALIDATOR_START_HOLD",
+  "plan_id": "voide2qprp1_d7dde95603129b3a05b6c60845ddfc10462edb1d3ef2a85962fc6c50196c6227",
+  "bundle_set_id": "voide2qbsv1_d7478ac0c0cd669cdad2675dff67df63870bb693e7bc0d2837c14fa0f33f2f2e",
+  "plan_file_sha256": "81c13f8a9a8ff3361ee25f5234aa9ca9333fbf1f49d20fc7f6b2b09ca132c61c",
+  "start_admission_id": "voide2qsad1_34dc2f6564d892d77628934c3e0421f69cac6dcc96c5906c72d907792a6b04ba",
+  "start_admission_evaluated_at_utc": "2026-10-02T13:46:15.016Z",
+  "start_admission_valid_until_utc": "2026-10-02T13:51:12.366Z",
+  "start_admission_observed_repo_head": "08a0429cafb49c002f4553d562ae260f4670a254",
+  "compiled_at_utc": "2026-10-02T13:46:15.136Z",
+  "chain": {
+    "chain_id": 2050,
+    "chain_id_hex": "0x802",
+    "execution_epoch": 2,
+    "consensus": "QBFT",
+    "validator_count": 3,
+    "required_quorum": 2,
+    "block_period_seconds": 5,
+    "request_timeout_seconds": 10,
+    "expected_validators": [
+      "0xf00436d7e27cec6cd24723ee5a78ce24c0ef5863",
+      "0x02f967953386188397b992c208239d3a25180db6",
+      "0x461bf06270d9d28962f7570182c061b828799b66"
+    ]
+  },
+  "rpc": {
+    "role": "precision",
+    "url": "http://127.0.0.1:18553/",
+    "allowed_observation_methods": [
+      "eth_chainId",
+      "eth_blockNumber",
+      "net_peerCount",
+      "qbft_getValidatorsByBlockNumber"
+    ],
+    "transaction_methods_forbidden": true
+  },
+  "install_receipts": [
+    {
+      "role": "precision",
+      "hostname": "zoso-Precision-Tower-7810",
+      "install_receipt_id": "voide2qinst1_3e95c3b2564f43db340b1ec9d28bc05fef7c8055d9e04d2fbcb1b869bb8ec29b",
+      "materialization_id": "voide2qmat1_c6b191456f305b6a41b5c5e7a0f6ab8a210cff8380745f98375c6f48fe632c47",
+      "installed_repo_head": "c6bcaf7959feda484ffa86d6837b70e96e3fc7c7",
+      "runtime_root": "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/precision",
+      "unit_install_path": "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service",
+      "systemd_unit_sha256": "edcb8cce012f47ea4234ffcf4f4a8a1529e553a000518a2e8c9105b562e090c5",
+      "genesis_sha256": "6a074665f4e282ad02d1f96314509295a0b2c6c8645a04989fd1a4b3ad232941",
+      "static_nodes_sha256": "be620584ac83237f853a9d059b9580f6d71c535910d050830de6b6c67948af92"
+    },
+    {
+      "role": "nimo",
+      "hostname": "Nimo",
+      "install_receipt_id": "voide2qinst1_77237fc9b8d2f3a6658d404b576b940b0bd10c4d863798555e2aaeb9a6258be4",
+      "materialization_id": "voide2qmat1_ba74ca121b400ae6e86e7f0bb7fb38d929b554f7d9a45b03ad43c5da442b7872",
+      "installed_repo_head": "c6bcaf7959feda484ffa86d6837b70e96e3fc7c7",
+      "runtime_root": "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/nimo",
+      "unit_install_path": "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service",
+      "systemd_unit_sha256": "91beb13036e9230b1adcfbeb3f701a41946de40dccfdc1f676796245a97c08f6",
+      "genesis_sha256": "6a074665f4e282ad02d1f96314509295a0b2c6c8645a04989fd1a4b3ad232941",
+      "static_nodes_sha256": "faa731eea23c06eb9ccc2e55e0a33e613d145fe8677364cb3fe6710529c2afdd"
+    },
+    {
+      "role": "xiphos",
+      "hostname": "Xiphos",
+      "install_receipt_id": "voide2qinst1_6269d6db685e70bc9b3c4d8329e257e916ef27d6a5e8fb0096680a46b717277d",
+      "materialization_id": "voide2qmat1_c20728fce51388c4848bc4ac8894d4c45f45cd33e5d256ba12b4752628563189",
+      "installed_repo_head": "c6bcaf7959feda484ffa86d6837b70e96e3fc7c7",
+      "runtime_root": "/home/zoso/.local/share/void/epoch2-qbft-private-runtime-v1/xiphos",
+      "unit_install_path": "/home/zoso/.config/systemd/user/void-economic-epoch2-qbft-validator-v1.service",
+      "systemd_unit_sha256": "88049e78a1c57e1600ee1c9402d2fe402ec9427872dba1cd5386a2addd234080",
+      "genesis_sha256": "6a074665f4e282ad02d1f96314509295a0b2c6c8645a04989fd1a4b3ad232941",
+      "static_nodes_sha256": "00b10aac26fcb6c795fbd8991ef3f5135c094bef67ebf62ba35facc011daa0be"
+    }
+  ],
+  "start_sequence": [
+    {
+      "step": 1,
+      "role": "precision",
+      "quorum_after_start": false,
+      "required_postcondition": "precision_rpc_chain_identity_and_validator_set_exact_height_stalled_without_quorum"
+    },
+    {
+      "step": 2,
+      "role": "nimo",
+      "quorum_after_start": true,
+      "required_postcondition": "precision_rpc_block_progression_proves_two_of_three_qbft_quorum"
+    },
+    {
+      "step": 3,
+      "role": "xiphos",
+      "quorum_after_start": true,
+      "required_postcondition": "precision_rpc_two_peers_validator_set_exact_and_block_progression"
+    }
+  ],
+  "pre_start_revalidation": {
+    "exact_installed_hashes": true,
+    "exact_empty_data_directory": true,
+    "exact_plugin_sha256": true,
+    "exact_rootless_docker_identity": true,
+    "exact_tailnet_ipv4_binding": true,
+    "exact_nodekey_public_identity_required": true,
+    "nodekey_private_bytes_must_not_be_logged": true,
+    "service_disabled_required": true,
+    "service_inactive_required": true,
+    "unit_restart_no_required": true,
+    "p2p_port_vacant_required": true,
+    "precision_rpc_port_vacant_required": true,
+    "repo_main_clean_and_descendant_required": true
+  },
+  "activation": {
+    "authorized": false,
+    "required_confirmation": "startPrivateEpoch2QbftSuccessorV1",
+    "daemon_reload_per_host": true,
+    "service_enable": false,
+    "service_start": true,
+    "service_restart": false,
+    "automatic_retry": false,
+    "rollback_stop_all_started_on_any_failure": true,
+    "first_possible_authoritative_block_production_step": 2,
+    "third_validator_start_after_quorum_proof": true
+  },
+  "authority": {
+    "source_plan_only": true,
+    "runtime_filesystem_write": false,
+    "systemd_reload": false,
+    "service_enable": false,
+    "service_start": false,
+    "service_stop": false,
+    "docker_mutation": false,
+    "private_key_access": false,
+    "transaction_construction": false,
+    "transaction_signing": false,
+    "transaction_submission": false,
+    "transaction_broadcast": false,
+    "authoritative_chain2050_write": false,
+    "validator_set_mutation": false,
+    "token_movement": false,
+    "funds_movement": false,
+    "migration_authorized": false,
+    "public_activation_authorized": false
+  },
+  "next_gate": "explicit_activation_confirmation_then_final_live_revalidation_and_single_attempt_start_sequence",
+  "activation_plan_id": "voide2qactp1_d2c34dccdd0fe4e46fae7da36853f5bbc8f6b0598900a0d4a6510e1fdff9eb3b"
+}

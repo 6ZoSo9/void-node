@@ -26,19 +26,23 @@ const currentTruth=fs.readFileSync(
 
 assert.equal(target.marker,"VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1");
 assert.equal(target.version,1);
-assert.equal(target.status,"HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED");
+assert.equal(
+  target.status,
+  "PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY",
+);
 assert.equal(target.chain_id,2050);
 assert.equal(target.execution_epoch,2);
 
 assert.deepEqual(target.production_execution_layer,{
   client:"Besu",
   client_version:"26.8.1",
-  production_rpc_target_selected:false,
-  rpc_url:null,
-  rpc_url_fingerprint_sha256:null,
-  runtime_active_verified:false,
-  exact_genesis_bound:false,
-  production_validator_set_bound:false,
+  production_rpc_target_selected:true,
+  rpc_url:"http://127.0.0.1:18553/",
+  rpc_url_fingerprint_sha256:
+    "795cf5eb7058632084b66d9cb831e1c7f91db76544a24d145512f71b1932f642",
+  runtime_active_verified:true,
+  exact_genesis_bound:true,
+  production_validator_set_bound:true,
   migration_authorized:false,
   public_activation_authorized:false,
 });
@@ -119,14 +123,14 @@ assert.equal(
 
 assert.match(
   currentTruth,
-  /The source\s+correction is now merged: the runner has \*\*no default RPC\*\*/,
+  /The source\s+correction remains in force: the runner has \*\*no default RPC\*\*/,
 );
 assert.match(
   currentTruth,
-  /HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED/,
+  /PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY/,
 );
 assert.equal(
-  currentTruth.includes("still unselected (`rpc_url=null`)"),
+  currentTruth.includes("selected production Epoch-2 RPC is `http:\/\/127.0.0.1:18553\/`"),
   true,
 );
 assert.equal(
@@ -175,11 +179,12 @@ assert.equal(schema.additionalProperties,false);
 assert.deepEqual([...schema.required].sort(),Object.keys(target).sort());
 
 console.log("VOID_DATANET_REGISTRY_DEPLOYER_RESOLUTION_TARGET_V1_GREEN");
-console.log("production_rpc_target_selected=false");
+console.log("production_rpc_target_selected=true");
+console.log("production_rpc_url=http://127.0.0.1:18553/");
 console.log("legacy_epoch1_archive_rpc_forbidden=true");
 console.log("isolated_proof_rpcs_forbidden=true");
 console.log("environment_override_requires_exact_source_bound_target=true");
-console.log("current_truth_matches_source_bound_hold=true");
+console.log("current_truth_matches_selected_production_rpc=true");
 console.log("rpc_call=false");
 console.log("deployment=false");
 console.log("chain2050_mutation=false");

@@ -6,24 +6,20 @@ Tracks #2316.
 
 ## Purpose
 
-The repository currently has multiple economic consumers that need the same
-production Chain-2050 execution endpoint, but no authoritative Epoch-2 RPC
-target has been selected.
+The repository has multiple economic consumers that need the same production
+Chain-2050 execution endpoint. The reviewed target is now selected as the
+Precision Epoch-2 QBFT RPC.
 
-This contract makes that absence one canonical fact instead of allowing
-DataNet, participant-finality, WC/VOID deployment, or Buy VOID lanes to invent
-their own endpoint.
-
-The checked-in state remains:
+The checked-in state is:
 
 ```text
-status=HOLD_PRODUCTION_EPOCH2_RPC_TARGET_NOT_SELECTED
-production_rpc_target_selected=false
-rpc_url=null
+status=PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY
+production_rpc_target_selected=true
+rpc_url=http://127.0.0.1:18553/
 ```
 
-This source slice does not install or start a runtime and does not promote any
-existing endpoint.
+Selection is source authority only. It does not install/start a runtime or grant
+transaction, migration, market, presale, or funds authority.
 
 ## Reviewed successor identity
 
@@ -49,7 +45,7 @@ Any future selected target must bind the already-reviewed Epoch-2 successor:
   `voide2pse1_a10332cc6dcd89bc0988d865946185a22e9a448ce94bde7861512af2b1b8e973`.
 
 The validator checks the current state-manifest and QBFT file bytes before
-accepting even the HOLD descriptor.
+accepting either HOLD or selected state.
 
 ## Explicitly forbidden targets
 
@@ -104,9 +100,9 @@ independent host observation. No arbitrary spare loopback port can be promoted.
 
 ## Selected-state contract
 
-A future selected descriptor may use
-`PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY` only when all of the
-following are present:
+The selected descriptor uses
+`PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY` and is accepted only
+when all of the following are present:
 
 - exact reviewed RPC URL `http://127.0.0.1:18553/`;
 - URL SHA-256 fingerprint;
@@ -126,17 +122,25 @@ following are present:
 Even that selected-state **structure** grants no transaction, signing,
 submission, broadcast, migration, market, presale, or funds authority.
 
-More importantly, this v1 canonical loader is deliberately HOLD-only. It will
-reject a checked-in selected descriptor with
-`production_epoch2_selected_target_requires_evidence_aware_promotion`.
-Plausible-looking activation/observation IDs in JSON are not evidence by
-themselves.
+The canonical loader now requires evidence-aware selected state. It validates
+the selected descriptor structurally and then requires the exact checked-in
+`ops/mainnet0/production-epoch2-rpc-target-promotion-v1.json` manifest.
 
-A later evidence-aware promotion lane must consume and semantically reverify the
-exact private QBFT activation receipt bytes plus a fresh independent host
-observation before it may write/select the production target. Only after that
-reviewed promotion exists should downstream consumers rebind and repeat fresh
-read-only preflights.
+That manifest pins:
+
+- selected candidate SHA-256
+  `305ed03eebe49b992db76c21ffd8930e9b6d07ed4a97984cf0e48f33a9df63dd`;
+- accepted activation plan/receipt IDs and file hashes;
+- accepted independent runtime-observation ID/hash;
+- promotion admission
+  `voidpe2rpctapply1_f76ce9f3d147a6097910947e3a8735664ff81bea07d1940ebdb663102589b040`;
+- admission receipt SHA-256
+  `ad5aa3b0a99e967207ff63c3040d3b9786e3f1345769298c25a19eed20477ac5`; and
+- source-promotion manifest ID
+  `voidpe2rpctprom1_754cf0701f226a8ac47375757a42aa5dc328110ac89346c699b05565813b382f`.
+
+The earlier compiler and apply-admission lanes remain pre-selection proof tools;
+they cannot themselves write/select the canonical target.
 
 ## Why the WC/VOID preflight HOLD was correct
 
@@ -144,10 +148,10 @@ After #2310 merged, a fresh role/deployment qualification was produced from a
 fresh offline launch-controller proof. The live deployment observation was
 then attempted against `127.0.0.1:8545` and HOLDed at the RPC boundary.
 
-Current truth classifies that endpoint as historical Epoch-1 authority, while
-the production Epoch-2 target remains `null`. Pointing the preflight at 18552
-would also be invalid because it is an isolated/read surface. The correct
-repair is this central target-selection gate, not endpoint substitution.
+Current truth classifies `8545` as historical Epoch-1 authority and `18552`
+as an isolated/read proof surface. The selected production target is now the
+reviewed `18553` QBFT runtime; downstream consumers must rebind through the
+central target rather than substitute an endpoint independently.
 
 ## Verification
 
@@ -184,9 +188,9 @@ public_presale_activation=false
 funds_movement=false
 ```
 
-The next operational gate is to reuse the already-reviewed private QBFT
-lifecycle: locate or regenerate the three-host plan/bundles, perform inactive
-installation, obtain fresh start admission, and only then consider the separate
-explicit `startPrivateEpoch2QbftSuccessorV1` activation ceremony. After a
-green activation receipt, a fresh independent Precision host/RPC observation
-must still precede target selection. This contract alone cannot select one.
+The reviewed private-QBFT activation, independent Precision host/RPC
+observation, selected candidate, authoritative apply admission, and canonical
+source promotion are now bound. The next operational gate is for each
+downstream consumer to rebind to this central target and repeat fresh read-only
+preflights before any later transaction/deployment/public-activation authority
+is considered.

@@ -21,12 +21,46 @@ const target = JSON.parse(
 
 const loaded = loadProductionEpoch2RpcTargetV1();
 assert.equal(loaded.evaluation.marker, VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1);
-assert.equal(loaded.evaluation.status, HOLD_STATUS);
-assert.equal(loaded.evaluation.production_rpc_target_selected, false);
-assert.equal(loaded.evaluation.rpc_url, null);
-assert.equal(loaded.evaluation.evidence_aware_selection_verified, false);
+assert.equal(loaded.evaluation.status, SELECTED_STATUS);
+assert.equal(loaded.evaluation.production_rpc_target_selected, true);
+assert.equal(loaded.evaluation.rpc_url, "http://127.0.0.1:18553/");
+assert.equal(loaded.evaluation.evidence_aware_selection_verified, true);
+assert.equal(
+  loaded.promotion.promotion_id,
+  "voidpe2rpctprom1_754cf0701f226a8ac47375757a42aa5dc328110ac89346c699b05565813b382f",
+);
+assert.equal(
+  loaded.promotion.promotion_admission_id,
+  "voidpe2rpctapply1_f76ce9f3d147a6097910947e3a8735664ff81bea07d1940ebdb663102589b040",
+);
 assert.equal(loaded.evaluation.transaction_authorized, false);
 assert.equal(loaded.evaluation.authoritative_chain2050_write, false);
+
+function holdFixture() {
+  const value = structuredClone(target);
+  value.status = HOLD_STATUS;
+  value.selection = {
+    production_rpc_target_selected: false,
+    rpc_url: null,
+    rpc_url_fingerprint_sha256: null,
+    service_unit: null,
+    activation_plan_id: null,
+    activation_receipt_id: null,
+    activation_receipt_sha256: null,
+    runtime_observation_id: null,
+    runtime_observation_sha256: null,
+    runtime_active_verified: false,
+    exact_genesis_bound: false,
+    production_validator_set_bound: false,
+    production_validator_binding_source_path: null,
+    production_validator_binding_evidence_sha256: null,
+    write_capability_classification: null,
+    independent_host_acceptance: false,
+  };
+  value.next_gate =
+    "observe_and_select_one_real_long_lived_production_epoch2_rpc_runtime";
+  return value;
+}
 
 function selectedFixture(url = "http://127.0.0.1:18553/") {
   const value = structuredClone(target);
@@ -154,7 +188,7 @@ assert.throws(
   /production_epoch2_selected_evidence_incomplete/u,
 );
 
-const forgedHold = structuredClone(target);
+const forgedHold = holdFixture();
 forgedHold.selection.rpc_url = "http://127.0.0.1:28545/";
 assert.throws(
   () => validateProductionEpoch2RpcTargetV1(forgedHold),
@@ -174,7 +208,7 @@ reorderedAuthority.authority = Object.fromEntries(
 );
 assert.equal(
   validateProductionEpoch2RpcTargetV1(reorderedAuthority).status,
-  HOLD_STATUS,
+  SELECTED_STATUS,
 );
 
 const digest = crypto
@@ -185,7 +219,7 @@ const digest = crypto
   .digest("hex");
 
 console.log("VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1_PROOF_GREEN");
-console.log("canonical_status=" + HOLD_STATUS);
+console.log("canonical_status=" + SELECTED_STATUS);
 console.log("canonical_target_sha256=" + digest);
 console.log("reviewed_successor_source_files_verified=true");
 console.log("historical_epoch1_8545_rejected=true");
@@ -201,8 +235,9 @@ console.log("independent_host_acceptance_required=true");
 console.log("reviewed_production_validator_binding_lineage_required=true");
 console.log("promoted_validator_evidence_exactly_bound=true");
 console.log("private_qbft_activation_lineage_required=true");
-console.log("canonical_loader_hold_only=true");
-console.log("selected_target_requires_future_evidence_aware_promotion=true");
+console.log("canonical_loader_selected_evidence_aware=true");
+console.log("promotion_manifest_content_addressed=true");
+console.log("promotion_admission_exactly_pinned=true");
 console.log("production_rpc_18553_exact=true");
 console.log("production_service_unit_exact=true");
 console.log("transaction_authorized=false");

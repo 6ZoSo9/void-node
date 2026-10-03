@@ -504,6 +504,7 @@ for(const required of [
   "precision_private_qbft_service_not_active",
   "activation_plan_file_sha256",
   "activation_receipt_file_sha256",
+  "install_receipt_observed_repo_head??x.installed_repo_head",
   "transaction_construction=false",
   "transaction_signing=false",
   "transaction_submission=false",
@@ -540,6 +541,7 @@ console.log("deployer_balance_observed=true");
 console.log("predicted_create_address_derived=true");
 console.log("predicted_create_address_vacancy_observed=true");
 console.log("activation_height_continuity_verified=true");
+console.log("historical_install_receipt_repo_head_fallback=true");
 console.log("filesystem_secret_read=false");
 console.log("credential_access=false");
 console.log("wallet_access=false");
