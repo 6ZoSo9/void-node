@@ -51,12 +51,15 @@ done
 curl --max-time 10 -fsS "$BASE/public-node" > "$OUT/public-node.html"
 curl --max-time 10 -fsS "$BASE/public-node/route-index.json" > "$OUT/route-index.json"
 curl --max-time 10 -fsS "$BASE/public-node/outside-tester-smoke.json" > "$OUT/outside-tester-smoke.json"
+curl --max-time 10 -fsS "$BASE/public-node/route-manifest.json" > "$OUT/route-manifest.json"
 
-node - "$OUT/self-check-snapshot.json" "$OUT/route-index.json" "$OUT/outside-tester-smoke.json" <<'NODE'
+node - "$OUT/self-check-snapshot.json" "$OUT/route-index.json" "$OUT/outside-tester-smoke.json" "$OUT/route-manifest.json" "$BASE" <<'NODE'
 const fs = require("fs");
 const snap = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const idx = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
 const smoke = JSON.parse(fs.readFileSync(process.argv[4], "utf8"));
+const manifest = JSON.parse(fs.readFileSync(process.argv[5], "utf8"));
+const base = process.argv[6];
 
 function ok(x, msg) {
   if (!x) {
@@ -68,9 +71,10 @@ function ok(x, msg) {
 ok(snap.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1", "snapshot marker");
 ok(snap.purpose === "public_node_self_check_snapshot", "purpose");
 ok(snap.status === "public_node_externally_testable_read_only_surface_ready", "status");
-ok(snap.effective_base_url === "http://127.0.0.1:4140", "effective base");
+ok(snap.effective_base_url === base, "effective base");
 ok(Array.isArray(snap.expected_routes), "expected routes array");
 ok(snap.expected_route_count === snap.expected_routes.length, "route count matches");
+ok(new Set(snap.expected_routes).size === snap.expected_routes.length, "expected routes unique");
 
 const required = [
   "/.well-known/void-public-node.json",
@@ -102,12 +106,12 @@ const required = [
 
 for (const route of required) ok(snap.expected_routes.includes(route), "missing " + route);
 
-ok(snap.links.agent_discovery === "http://127.0.0.1:4140/.well-known/void-public-node.json", "agent discovery link");
-ok(snap.links.public_node === "http://127.0.0.1:4140/public-node", "public node link");
-ok(snap.links.route_index === "http://127.0.0.1:4140/public-node/route-index.json", "route index link");
-ok(snap.links.route_manifest === "http://127.0.0.1:4140/public-node/route-manifest.json", "route manifest link");
-ok(snap.links.smoke_surface === "http://127.0.0.1:4140/public-node/outside-tester-smoke.json", "smoke surface link");
-ok(snap.links.proofs === "http://127.0.0.1:4140/proofs", "proofs link");
+ok(snap.links.agent_discovery === base + "/.well-known/void-public-node.json", "agent discovery link");
+ok(snap.links.public_node === base + "/public-node", "public node link");
+ok(snap.links.route_index === base + "/public-node/route-index.json", "route index link");
+ok(snap.links.route_manifest === base + "/public-node/route-manifest.json", "route manifest link");
+ok(snap.links.smoke_surface === base + "/public-node/outside-tester-smoke.json", "smoke surface link");
+ok(snap.links.proofs === base + "/proofs", "proofs link");
 
 ok(snap.checks.self_check_snapshot === true, "self check true");
 ok(snap.checks.agent_discovery_present === true, "agent discovery present");
@@ -129,12 +133,25 @@ ok(snap.policy.validator_mutation === false, "no validator mutation");
 ok(idx.routes.some(r => r.path === "/public-node/self-check-snapshot.json" && r.marker === "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"), "route index self-check entry");
 ok(smoke.marker === "VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_SURFACE_V1", "smoke surface still works");
 
+ok(manifest.marker === "VOID_PUBLIC_NODE_ROUTE_MANIFEST_V1", "route manifest marker");
+ok(Array.isArray(manifest.routes), "route manifest routes");
+ok(manifest.route_count === manifest.routes.length, "manifest route count matches");
+const manifestPaths = manifest.routes.map((row) => row && row.path);
+ok(new Set(manifestPaths).size === manifestPaths.length, "manifest routes unique");
+for (const route of snap.expected_routes) {
+  ok(manifestPaths.includes(route), "self-check route missing from canonical manifest: " + route);
+}
+ok(manifest.routes.length >= snap.expected_routes.length, "canonical manifest must cover self-check core");
+
 console.log("[ok] json self-check snapshot");
 NODE
 
 grep -Fq "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_UI_V1" "$OUT/public-node.html"
 grep -Fq "/public-node/self-check-snapshot.json" "$OUT/public-node.html"
 grep -Fq "VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_DOC_V1" docs/public/public-node-self-check-snapshot.md
+
+SELF_ROUTE_COUNT="$(node -e 'const fs=require("fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.expected_routes.length));' "$OUT/self-check-snapshot.json")"
+MANIFEST_ROUTE_COUNT="$(node -e 'const fs=require("fs");const d=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(d.routes.length));' "$OUT/route-manifest.json")"
 
 echo "marker=VOID_PUBLIC_NODE_SELF_CHECK_SNAPSHOT_V1"
 echo "route=/public-node/self-check-snapshot.json"
@@ -143,7 +160,9 @@ echo "doc=docs/public/public-node-self-check-snapshot.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=public_node_externally_testable_read_only_surface_ready"
-echo "expected_route_count=25"
+echo "expected_route_count=$SELF_ROUTE_COUNT"
+echo "canonical_manifest_route_count=$MANIFEST_ROUTE_COUNT"
+echo "expected_routes_subset_of_manifest=true"
 echo "public_routes_only=true"
 echo "read_only=true"
 echo "money_movement=false"
