@@ -59,6 +59,7 @@ for (const required of [
   'aria-describedby="buy-void-destination-help buy-void-destination-error"',
   'data-buy-amount-error role="status"',
   'data-buy-destination-error role="status"',
+  'required aria-required="true"',
   "disabled",
   "The selected-rail USDC sender must be this exact same address.",
   "This page never sends funds or connects a wallet.",
@@ -155,6 +156,9 @@ const fieldNode = (value) => {
     setAttribute(name, nextValue) {
       attributes.set(name, String(nextValue));
     },
+    removeAttribute(name) {
+      attributes.delete(name);
+    },
     getAttribute(name) {
       return attributes.get(name) ?? null;
     },
@@ -227,6 +231,7 @@ const instrumentedClient = client + `
   isOpen,
   updateSubmit,
   submitBuy,
+  markFieldTouched,
   setState(snapshot, pending, busy) {
     currentSnapshot = snapshot;
     readinessPending = pending;
@@ -289,23 +294,37 @@ const validSnapshot = buyTest.validateSnapshot(
 assert.equal(buyTest.isOpen(validSnapshot), true);
 buyTest.setState(validSnapshot, false, false);
 buyTest.updateSubmit();
-assert.equal(amountInput.getAttribute("aria-invalid"), "false");
-assert.equal(destinationInput.getAttribute("aria-invalid"), "false");
+assert.equal(amountInput.getAttribute("aria-invalid"), null);
+assert.equal(destinationInput.getAttribute("aria-invalid"), null);
 assert.equal(amountError.textContent, "");
 assert.equal(destinationError.textContent, "");
 
+buyTest.markFieldTouched("amount");
 amountInput.value = "10.1234567";
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, true, "over-precision amount must keep submit disabled");
 assert.equal(amountInput.getAttribute("aria-invalid"), "true");
 assert.match(amountError.textContent, /at most 6 decimals/);
 
+amountInput.value = "";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "cleared required amount must keep submit disabled");
+assert.equal(amountInput.getAttribute("aria-invalid"), "true");
+assert.match(amountError.textContent, /Enter a native USDC amount/);
+
 amountInput.value = "10";
+buyTest.markFieldTouched("destination");
 destinationInput.value = "0x1234";
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, true, "incomplete destination must keep submit disabled");
 assert.equal(destinationInput.getAttribute("aria-invalid"), "true");
 assert.match(destinationError.textContent, /42-character/);
+
+destinationInput.value = "";
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "cleared required destination must keep submit disabled");
+assert.equal(destinationInput.getAttribute("aria-invalid"), "true");
+assert.match(destinationError.textContent, /Enter the native VOID destination address/);
 
 destinationInput.value = "0x1111111111111111111111111111111111111111";
 buyTest.updateSubmit();

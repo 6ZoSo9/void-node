@@ -16,6 +16,7 @@ let requestSerial = 0;
 let currentSnapshot = null;
 let readinessPending = false;
 let submitBusy = false;
+const touchedFields = new Set();
 
 const currentRoute = () => location.hash.replace(/^#\/?/, '').split(/[?\/]/)[0] || 'home';
 const one = (selector) => document.querySelector(selector);
@@ -229,24 +230,38 @@ const validAmount = () => {
   );
 };
 const validDestination = () => ADDRESS_RE.test(String(one('[data-buy-destination]')?.value || '').trim());
-const setFieldError = (fieldSelector, errorSelector, message) => {
+const markFieldTouched = (field) => {
+  if (field === 'amount' || field === 'destination') touchedFields.add(field);
+};
+const setFieldError = (fieldSelector, errorSelector, message, touched) => {
   const field = one(fieldSelector);
   const error = one(errorSelector);
-  if (field) field.setAttribute('aria-invalid', message ? 'true' : 'false');
+  if (field) {
+    if (touched) field.setAttribute('aria-invalid', message ? 'true' : 'false');
+    else field.removeAttribute('aria-invalid');
+  }
   if (error) error.textContent = message;
 };
 const updateFieldErrors = () => {
   const amount = one('[data-buy-amount]');
   const destination = one('[data-buy-destination]');
   const cfg = currentSnapshot?.config;
-  const amountMessage = amount && !amount.disabled && String(amount.value || '').trim() && cfg && !validAmount()
-    ? `Enter ${format(cfg.min_usdc)}–${format(cfg.max_usdc)} USDC using at most 6 decimals.`
+  const amountRaw = String(amount?.value || '').trim();
+  const destinationRaw = String(destination?.value || '').trim();
+  const amountTouched = Boolean(amount && !amount.disabled && touchedFields.has('amount'));
+  const destinationTouched = Boolean(destination && !destination.disabled && touchedFields.has('destination'));
+  const amountMessage = amountTouched && !validAmount()
+    ? (amountRaw && cfg
+      ? `Enter ${format(cfg.min_usdc)}–${format(cfg.max_usdc)} USDC using at most 6 decimals.`
+      : 'Enter a native USDC amount.')
     : '';
-  const destinationMessage = destination && !destination.disabled && String(destination.value || '').trim() && !validDestination()
-    ? 'Enter a complete 42-character 0x VOID address.'
+  const destinationMessage = destinationTouched && !validDestination()
+    ? (destinationRaw
+      ? 'Enter a complete 42-character 0x VOID address.'
+      : 'Enter the native VOID destination address.')
     : '';
-  setFieldError('[data-buy-amount]', '[data-buy-amount-error]', amountMessage);
-  setFieldError('[data-buy-destination]', '[data-buy-destination-error]', destinationMessage);
+  setFieldError('[data-buy-amount]', '[data-buy-amount-error]', amountMessage, amountTouched);
+  setFieldError('[data-buy-destination]', '[data-buy-destination-error]', destinationMessage, destinationTouched);
 };
 const selectedChain = () => String(one('[data-buy-chain]')?.value || '').trim().toLowerCase();
 const selectedRail = () => {
@@ -349,6 +364,8 @@ async function loadBuy() {
 }
 async function submitBuy(event) {
   event.preventDefault();
+  markFieldTouched('amount');
+  markFieldTouched('destination');
   if (
     readinessPending ||
     submitBusy ||
@@ -463,6 +480,8 @@ document.addEventListener('submit', (event) => {
   if (event.target?.matches?.('[data-buy-request-form]')) submitBuy(event);
 });
 document.addEventListener('input', (event) => {
+  if (event.target?.matches?.('[data-buy-amount]')) markFieldTouched('amount');
+  if (event.target?.matches?.('[data-buy-destination]')) markFieldTouched('destination');
   if (event.target?.matches?.('[data-buy-chain], [data-buy-amount], [data-buy-destination], [data-buy-ack]')) updateSubmit();
 });
 document.addEventListener('change', (event) => {
