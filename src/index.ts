@@ -58592,15 +58592,15 @@ APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { /
     .map((name:any) => {
       const objectId = String(name);
       const filePath = path.join(dropDir, objectId);
-      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) return null;
 
-      const st = fs.statSync(filePath);
+      const st = fs.lstatSync(filePath);
       const buf = fs.readFileSync(filePath);
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
 
       const receiptPath = path.join(receiptDir, objectId + ".json");
       let receipt = null;
-      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+      if (fs.existsSync(receiptPath) && fs.lstatSync(receiptPath).isFile()) {
         try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
       }
 
@@ -58692,15 +58692,15 @@ APP.get("/public-node/real-data-import-lane-status.json", (_req:any, res:any) =>
   const records = safeNames.map((name:any) => {
     const objectId = String(name);
     const filePath = path.join(dropDir, objectId);
-    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) return null;
 
-    const st = fs.statSync(filePath);
+    const st = fs.lstatSync(filePath);
     const buf = fs.readFileSync(filePath);
     const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
 
     const receiptPath = path.join(receiptDir, objectId + ".json");
     let receipt = null;
-    if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+    if (fs.existsSync(receiptPath) && fs.lstatSync(receiptPath).isFile()) {
       try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
     }
 
@@ -58794,13 +58794,13 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
     .map((name:any) => {
       const objectId = String(name);
       const filePath = path.join(dropDir, objectId);
-      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
-      const st = fs.statSync(filePath);
+      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) return null;
+      const st = fs.lstatSync(filePath);
       const buf = fs.readFileSync(filePath);
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
       const receiptPath = path.join(receiptDir, objectId + ".json");
       let receipt = null;
-      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+      if (fs.existsSync(receiptPath) && fs.lstatSync(receiptPath).isFile()) {
         try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
       }
       const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
@@ -58859,7 +58859,7 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
   const manifestPath = path.join(latest, "manifest.json");
   const intakePath = path.join(latest, "intake.json");
 
-  if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
+  if (!fs.existsSync(manifestPath) || !fs.lstatSync(manifestPath).isFile()) {
     return res.status(404).json({
       marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
       status: "demo003_folder_fixture_missing",
@@ -58877,7 +58877,7 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
   let intake:any = null;
   try { manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")); } catch (_e) { manifest = null; }
   try {
-    if (fs.existsSync(intakePath) && fs.statSync(intakePath).isFile()) {
+    if (fs.existsSync(intakePath) && fs.lstatSync(intakePath).isFile()) {
       intake = JSON.parse(fs.readFileSync(intakePath, "utf8"));
     }
   } catch (_e) { intake = null; }
@@ -58936,7 +58936,7 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fi
   const filesDir = path.join(latest, "files");
   const filePath = path.join(filesDir, fileName);
 
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+  if (!fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
     return res.status(404).json({
       marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",
       status: "demo003_folder_file_missing",
@@ -58970,13 +58970,13 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
     .filter((name:any) => /^[\\w.:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
       const filePath = path.join(dropDir, name);
-      const st = fs.statSync(filePath);
+      const st = fs.lstatSync(filePath);
       if (!st.isFile()) return null;
       const buf = fs.readFileSync(filePath);
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
       const receiptPath = path.join(receiptDir, String(name) + ".json");
       let receipt = null;
-      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+      if (fs.existsSync(receiptPath) && fs.lstatSync(receiptPath).isFile()) {
         try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
       }
       return {
@@ -59049,15 +59049,15 @@ APP.get("/public-node/local-data-drop/proof/:sha256.json", (req:any, res:any) =>
   for (const name of names) {
     const objectId = String(name);
     const filePath = path.join(dropDir, objectId);
-    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) continue;
+    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) continue;
     const buf = fs.readFileSync(filePath);
     const fileSha = crypto.createHash("sha256").update(buf).digest("hex");
     if (fileSha !== sha256) continue;
 
-    const st = fs.statSync(filePath);
+    const st = fs.lstatSync(filePath);
     const receiptPath = path.join(receiptDir, objectId + ".json");
     let receipt = null;
-    if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
+    if (fs.existsSync(receiptPath) && fs.lstatSync(receiptPath).isFile()) {
       try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
     }
 
@@ -59102,7 +59102,7 @@ APP.get("/public-node/local-data-drop/by-sha256/:sha256", (req:any, res:any) => 
   const names = fs.readdirSync(dropDir).filter((name:any) => /^[\\w.:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const filePath = path.join(dropDir, String(name));
-    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) continue;
+    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) continue;
     const buf = fs.readFileSync(filePath);
     const fileSha = crypto.createHash("sha256").update(buf).digest("hex");
     if (fileSha === sha256) {
@@ -59129,7 +59129,7 @@ APP.get("/public-node/local-data-drop/:objectId", (req:any, res:any) => { // VOI
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const filePath = path.join(dropDir, objectId);
 
-  if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+  if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.lstatSync(filePath).isFile()) {
     return res.status(404).json({ error: "object_not_found", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1" });
   }
 
