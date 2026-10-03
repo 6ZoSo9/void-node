@@ -19,12 +19,9 @@ import {
   SIGNATURE_MARKER_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
-  reviewedOfflineSigningRuntimeV1,
   signControlChallengeCoreV1,
-  nodePermissionFlagV1,
   testOnlyPinnedStandaloneEthersV1,
   testOnlyReadTransferredControlChallengeV1,
-  testOnlyReviewedAncestorPackageFallbackBlockedV1,
   validateSanitizedOfflineSignerEnvironmentV1,
 } from "../ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs";
 
@@ -617,115 +614,9 @@ await assert.rejects(
   );
 }
 
-assert.equal(
-  nodePermissionFlagV1("22.0.0"),
-  "--experimental-permission",
-);
-assert.equal(
-  nodePermissionFlagV1("22.12.0"),
-  "--experimental-permission",
-);
-assert.equal(
-  nodePermissionFlagV1("22.13.0"),
-  "--permission",
-);
-assert.equal(nodePermissionFlagV1("24.0.0"), "--permission");
-assert.equal(nodePermissionFlagV1("26.0.0"), "--permission");
-assert.throws(
-  () => nodePermissionFlagV1("20.19.0"),
-  /offline_signer_node_version_unsupported/u,
-);
-
-{
-  const pinned = await testOnlyPinnedStandaloneEthersV1();
-  assert.equal(pinned.ethers_version, "6.17.0");
-  assert.equal(
-    pinned.ethers_bundle_sha256,
-    "b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c",
-  );
-  assert.equal(pinned.ethers_execution_from_memory, true);
-  assert.equal(pinned.package_resolution_used_for_signing, false);
-  assert.equal(pinned.private_key_access, false);
-  assert.equal(pinned.credential_access, false);
-  assert.equal(pinned.wallet_or_signer_access, false);
-
-  const bundleFile = path.resolve("node_modules/ethers/dist/ethers.min.js");
-  const original = fs.readFileSync(bundleFile);
-  const originalMode = fs.statSync(bundleFile).mode & 0o777;
-  try {
-    fs.chmodSync(bundleFile, 0o600);
-    fs.writeFileSync(
-      bundleFile,
-      Buffer.concat([original, Buffer.from(" ", "utf8")]),
-    );
-    await assert.rejects(
-      () => testOnlyPinnedStandaloneEthersV1(),
-      /offline_signer_ethers_standalone_bundle_sha256_mismatch/u,
-    );
-  } finally {
-    fs.writeFileSync(bundleFile, original);
-    fs.chmodSync(bundleFile, originalMode);
-  }
-}
-
-const runtime = await reviewedOfflineSigningRuntimeV1();
-assert.equal(
-  runtime.reviewed_runtime_profile_id,
-  "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77",
-);
-assert.equal(
-  runtime.reviewed_packages_aggregate_sha256,
-  "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73",
-);
-assert.equal(runtime.ethers_version, "6.17.0");
-assert.equal(runtime.permission_fenced_execution, true);
-assert.equal(runtime.descriptor_bound_runtime, true);
-assert.equal(
-  fs.realpathSync.native(runtime.child_node_executable),
-  fs.realpathSync.native(process.execPath),
-);
-assert.equal(
-  runtime.permission_flag,
-  nodePermissionFlagV1(process.versions.node),
-);
-assert.equal(runtime.ancestor_package_resolution_allowed, false);
-assert.equal(runtime.ambient_node_resolution_overrides_ignored, true);
-assert.equal(runtime.ambient_dynamic_loader_overrides_ignored, true);
-assert.equal(runtime.private_key_access, false);
-assert.equal(runtime.network_access_required, false);
-assert.equal(runtime.execution_network_isolation_provided, false);
-assert.equal(runtime.transaction_signing, false);
-assert.equal(runtime.funds_movement, false);
-
-const ancestorFallback =
-  await testOnlyReviewedAncestorPackageFallbackBlockedV1();
-assert.equal(ancestorFallback.ancestor_package_present, true);
-assert.equal(ancestorFallback.ancestor_package_executed, false);
-assert.equal(ancestorFallback.permission_fenced_execution, true);
-assert.equal(
-  ancestorFallback.ancestor_package_resolution_allowed,
-  false,
-);
-
-{
-  const packageFile = path.resolve("node_modules/ethers/package.json");
-  const original = fs.readFileSync(packageFile);
-  const originalMode = fs.statSync(packageFile).mode & 0o777;
-  try {
-    fs.chmodSync(packageFile, 0o600);
-    fs.writeFileSync(
-      packageFile,
-      Buffer.concat([original, Buffer.from(" ", "utf8")]),
-    );
-    await assert.rejects(
-      () => reviewedOfflineSigningRuntimeV1(),
-      /reviewed_node_runtime_/u,
-    );
-  } finally {
-    fs.writeFileSync(packageFile, original);
-    fs.chmodSync(packageFile, originalMode);
-  }
-}
+// Production signing no longer enters the historical package-tree runtime.
+// The exact standalone ethers bundle self-check above is the authority-bearing
+// package admission proof for this lane.
 
 const launcherSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
@@ -1270,15 +1161,11 @@ console.log("reviewed_launcher_path_reopen=false");
 console.log("reviewed_signer_git_blob_stream_verified=true");
 console.log("outer_temporary_executable_tree=false");
 console.log("reviewed_signer_stdin_execution=true");
-console.log("runtime_helper_test_regression_only=true");
 console.log("production_ethers_bundle_sha256_pinned=true");
 console.log("production_ethers_execution_from_memory=true");
 console.log("production_package_resolution_used_for_signing=false");
 console.log("standalone_ethers_byte_drift_rejected_before_key_access=true");
 console.log("mutable_worktree_signer_execution=false");
-console.log("node_22_0_to_22_12_permission_flag_supported=true");
-console.log("node_22_13_plus_permission_flag_supported=true");
-console.log("reviewed_child_reuses_parent_node=true");
 console.log("exact_head_launcher_preflight_green=true");
 console.log("launcher_critical_blobs_verified=true");
 console.log("private_key_access_reported=true");
@@ -1286,8 +1173,6 @@ console.log("credential_access_reported=true");
 console.log("wallet_or_signer_access_reported=true");
 console.log("sign_mode_access_announced_before_exec=true");
 console.log("sign_mode_ordering_bound_to_actual_node_invocation=true");
-console.log("reviewed_ethers_runtime_test_only_verified=true");
-console.log("ancestor_package_fallback_test_only_blocked=true");
 console.log("production_package_tree_child=false");
 console.log("production_private_key_transport_to_child=false");
 console.log("production_dynamic_ethers_package_import=false");
