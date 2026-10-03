@@ -47,12 +47,15 @@ The production wrapper requires:
 8. re-verification that the supplied opening-window body derives the manifest window ID and admits the exact commitment set;
 9. re-verification that the supplied concentration-policy body derives the manifest policy ID, binds the same launch/window, matches the reviewed policy contract, and was committed before opening;
 10. re-verification of the exact commitments, production-WC provenance, and eligibility records, followed by deterministic re-derivation of `participant_provenance_policy_id` and `eligible_cohort_root`;
-11. fresh re-verification of
+11. exact equality between the manifest assignment `(commitment_id, participant_id)` set and the verified eligible cohort pair set;
+12. exact equality between each eligibility `admission_at` and the canonical opening admission `admitted_at_ms` for the same commitment, participant, and WC account;
+13. launch-controller control reverification executed only from the exact reviewed Git source inside the reviewed private `ethers` package runtime, with package bytes bound to reviewed profile `voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77` and aggregate `5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73`; ambient/ancestor package resolution is not authority;
+14. fresh re-verification of
    `VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1`;
-12. control evidence recovering the exact selected reviewer
+15. control evidence recovering the exact selected reviewer
    `0x2f1e0005e865b772b268bd8c797bf3eaa901d97e`;
-13. an unexpired review-attestation message; and
-14. EIP-712 signature recovery to that exact reviewer address.
+16. an unexpired review-attestation message; and
+17. EIP-712 signature recovery to that exact reviewer address.
 
 Failure of any condition is HOLD.
 
@@ -91,8 +94,18 @@ worktree authority.
 The proof also mutates the concentration-policy worktree module with an execution
 sentinel and requires lineage verification to succeed from the privately
 materialized reviewed Git blobs without executing the dirty bytes. It then
-requires stale policy bodies, stale opening-window bodies, and changed
-eligibility/cohort inputs to fail before review truth can be established.
+requires stale policy bodies, stale opening-window bodies, changed
+eligibility/cohort inputs, substituted manifest participant assignments, and a
+one-second eligibility/opening-admission time mismatch to fail before review
+truth can be established.
+
+The authority-bearing launch-controller control path reuses the merged reviewed
+Node package runtime and reviewed `ethers` profile. The proof first verifies the
+exact profile/package aggregate, then changes installed
+`node_modules/ethers/package.json` bytes without changing its parsed
+name/version and requires the reviewed control path to reject that ambient byte
+drift. The private reviewed package tree, not repository `node_modules`, is the
+execution authority.
 
 The production fixed-address positive path cannot be signed in CI because the
 production private key is intentionally absent.
