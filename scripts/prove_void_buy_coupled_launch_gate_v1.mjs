@@ -338,6 +338,22 @@ try {
   assert.equal(
     buyLaunchRequestAuthorityMatchesV1(
       { launch_authority: requestAuthority },
+      {
+        ready: true,
+        request_authority: {
+          ...requestAuthority,
+          activation_receipt_id: "voidbclive1_" + "d".repeat(64),
+          activation_receipt_sha256: "e".repeat(64),
+          expires_at_ms: requestAuthority.expires_at_ms + 60_000,
+        },
+      },
+      nowMs + 1,
+    ),
+    true,
+  );
+  assert.equal(
+    buyLaunchRequestAuthorityMatchesV1(
+      { launch_authority: requestAuthority },
       currentGateFixture,
       requestAuthority.expires_at_ms,
     ),
