@@ -21,6 +21,7 @@ import {
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1,
   canonicalReviewJsonV1,
   relatedIdentityManifestIdV1,
+  reviewedControlVerifierGenerationV1,
   validateReviewableRelatedIdentityManifestV1,
   verifyReviewManifestLineageV1,
   verifyReviewSignatureForAddressV1,
@@ -241,16 +242,16 @@ const lineageEligibility = {
   credential_registry_id: "voidapwcr1_" + lineageHex("4"),
   credential_registry_sha256: lineageHex("5"),
   credential_scope: "agent_paid_work_submit",
-  credential_issued_at: "2030-01-01T10:00:00.000Z",
-  credential_expires_at: "2030-01-02T10:00:00.000Z",
+  credential_issued_at: "2026-09-25T15:00:00.000Z",
+  credential_expires_at: "2026-09-26T15:00:00.000Z",
   credential_revoked_at: null,
   binding_registry_id: "voidapwcbr1_" + lineageHex("6"),
   binding_registry_sha256: lineageHex("7"),
   binding_status: "active",
-  binding_valid_from: "2030-01-01T10:00:00.000Z",
-  binding_valid_until: "2030-01-02T10:00:00.000Z",
+  binding_valid_from: "2026-09-25T15:00:00.000Z",
+  binding_valid_until: "2026-09-26T15:00:00.000Z",
   binding_revoked_at: null,
-  admission_at: "2030-01-01T12:00:00.000Z",
+  admission_at: "2026-09-25T16:26:40.000Z",
   earning_adapter_receipt_id: "voidapwear1_" + lineageHex("3"),
   earning_adapter_receipt_sha256: lineageHex("3"),
   earning_receipt_agent_id: lineageAgentId,
@@ -369,7 +370,76 @@ assert.equal(
   lineageManifest.eligible_cohort_root,
 );
 assert.equal(verifiedLineage.participant_count, 1);
+assert.equal(verifiedLineage.assignment_eligibility_bijection_verified, true);
+assert.equal(verifiedLineage.eligibility_admission_times_match_opening, true);
 assert.equal(verifiedLineage.mutable_worktree_lineage_execution, false);
+
+{
+  const substitutedParticipantId = h("f");
+  const substitutedClusterId =
+    wcVoidOpeningRelatedIdentityClusterIdV1([substitutedParticipantId]);
+  const substitutedEvidenceInput = {
+    ...lineageEvidenceInput,
+    cluster_id: substitutedClusterId,
+    subject_participant_ids: [substitutedParticipantId],
+  };
+  const substitutedEvidence = {
+    ...lineageManifest.evidence_documents[0],
+    cluster_id: substitutedClusterId,
+    subject_participant_ids: [substitutedParticipantId],
+    evidence_id:
+      wcVoidOpeningRelatedIdentityEvidenceIdV1(substitutedEvidenceInput),
+  };
+  const substitutedAssignment = {
+    ...lineageManifest.cluster_assignments[0],
+    participant_id: substitutedParticipantId,
+    cluster_id: substitutedClusterId,
+    evidence_id: substitutedEvidence.evidence_id,
+  };
+  const substitutedManifest = {
+    ...lineageManifest,
+    cluster_assignments: [substitutedAssignment],
+    evidence_documents: [substitutedEvidence],
+  };
+  substitutedManifest.cluster_assignment_root = digest({
+    schema:
+      "void.wc-void-opening-related-identity-cluster-assignment-root.v1",
+    coupled_launch_id: lineageLaunchId,
+    assignments: substitutedManifest.cluster_assignments,
+  });
+  substitutedManifest.evidence_manifest_root = digest({
+    schema: "void.wc-void-opening-related-identity-evidence-root.v1",
+    coupled_launch_id: lineageLaunchId,
+    evidence: substitutedManifest.evidence_documents,
+  });
+  substitutedManifest.manifest_id =
+    relatedIdentityManifestIdV1(substitutedManifest);
+
+  assert.equal(
+    validateReviewableRelatedIdentityManifestV1(substitutedManifest).manifest_id,
+    substitutedManifest.manifest_id,
+  );
+  await assert.rejects(
+    () => verifyReviewManifestLineageV1(substitutedManifest, lineage),
+    /review_manifest_assignment_eligibility_bijection_mismatch/u,
+  );
+}
+
+await assert.rejects(
+  () => verifyReviewManifestLineageV1(
+    lineageManifest,
+    {
+      ...lineage,
+      eligibility_records: [
+        {
+          ...lineageEligibility,
+          admission_at: "2026-09-25T16:26:41.000Z",
+        },
+      ],
+    },
+  ),
+  /review_manifest_eligibility_admission_time_mismatch/u,
+);
 
 await assert.rejects(
   () => verifyReviewManifestLineageV1(
@@ -414,6 +484,45 @@ await assert.rejects(
   ),
   /review_manifest_eligible_cohort_lineage_mismatch/u,
 );
+
+{
+  const generation = await reviewedControlVerifierGenerationV1();
+  assert.equal(
+    generation.reviewed_package_runtime_profile_id,
+    "voidrnpr1_bb76a6a16b4fb779edffb4f541f7a91d0ddb00bfe404031b4387840e74001e77",
+  );
+  assert.equal(
+    generation.reviewed_packages_aggregate_sha256,
+    "5ac562a4396ef1d7ec302ef3af4eba7de7f2e62d478ee83fc30814d13d8d3b73",
+  );
+  assert.equal(generation.reviewed_package_bytes_verified, true);
+  assert.equal(generation.ancestor_package_resolution_preempted, true);
+  assert.equal(generation.ambient_node_package_bytes_forbidden, true);
+  assert.equal(generation.mutable_worktree_execution, false);
+
+  const ethersPackageJson = path.join(
+    process.cwd(),
+    "node_modules",
+    "ethers",
+    "package.json",
+  );
+  const original = fs.readFileSync(ethersPackageJson);
+  const originalMode = fs.statSync(ethersPackageJson).mode & 0o777;
+  try {
+    fs.chmodSync(ethersPackageJson, 0o600);
+    fs.writeFileSync(
+      ethersPackageJson,
+      Buffer.concat([original, Buffer.from(" ", "utf8")]),
+    );
+    await assert.rejects(
+      () => reviewedControlVerifierGenerationV1(),
+      /reviewed_node_runtime_/u,
+    );
+  } finally {
+    fs.writeFileSync(ethersPackageJson, original);
+    fs.chmodSync(ethersPackageJson, originalMode);
+  }
+}
 
 {
   const toolPath =
@@ -759,6 +868,12 @@ console.log("reviewed_opening_lineage_reverified=true");
 console.log("stale_concentration_policy_body_rejected=true");
 console.log("stale_opening_window_body_rejected=true");
 console.log("forged_eligible_cohort_root_rejected=true");
+console.log("assignment_eligibility_bijection_verified=true");
+console.log("substituted_manifest_participant_rejected=true");
+console.log("eligibility_admission_time_binding=true");
+console.log("admission_time_drift_rejected=true");
+console.log("reviewed_ethers_package_bytes_verified=true");
+console.log("ambient_ethers_byte_drift_rejected=true");
 console.log("dirty_lineage_verifier_sentinel_execution=false");
 console.log(
   "reviewed_lineage_blob_count=" +
