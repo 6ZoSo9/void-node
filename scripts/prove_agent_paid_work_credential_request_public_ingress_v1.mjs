@@ -8,6 +8,13 @@ import path from "node:path";
 import { once } from "node:events";
 import { spawn } from "node:child_process";
 
+import {
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_V1,
+  canonicalVoidJsonV1,
+  deriveVoidEd25519AgentIdV1,
+} from "../tools/void-agent-paid-work-credential-request-public-auth-v1.mjs";
+
 const ROOT = process.cwd();
 const GATEWAY = path.join(ROOT, "ops/void-ai-agent-public-gateway-v1.mjs");
 const DROPIN = path.join(
@@ -21,13 +28,19 @@ const dropin = fs.readFileSync(DROPIN, "utf8");
 for (const token of [
   "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_INGRESS_V1",
   "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM",
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE",
+  "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE",
   "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES",
   "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS",
   "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES",
   "proxyAgentPaidWorkCredentialRequest",
-  "agent_paid_work_credential_request_gateway_unavailable",
-  "agent_paid_work_credential_request_gateway_upstream_failed",
-  "X-Void-Agent-Paid-Work-Credential-Request-Route",
+  "applicant_auth_invalid",
+  "applicant_auth_replay",
+  "applicant_rate_limit_exceeded",
+  "credential_request_preauth_rate_limit_exceeded",
+  "upstream_status_verified",
+  "two_applicant_capacity_reserved",
+  "forwarded_ip_headers_trusted: false",
   "credential_issuance_authority: false",
   "credential_registry_mutation_authority: false",
 ]) {
@@ -47,7 +60,20 @@ assert.match(
   dropin,
   /VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM=http:\/\/127\.0\.0\.1:4113/u,
 );
+assert.match(
+  dropin,
+  /VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE=4/u,
+);
+assert.match(
+  dropin,
+  /VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE=12/u,
+);
 assert.match(dropin, /Example only/u);
+assert.doesNotMatch(
+  dropin,
+  /\\nEnvironment=/u,
+  "systemd drop-in must contain real newlines, not escaped text",
+);
 
 const sha256 = (body) =>
   crypto.createHash("sha256").update(body).digest("hex");
@@ -72,6 +98,8 @@ function startGateway(extraEnv = {}) {
       VOID_OPERATOR_WEBHOOK_RECEIVER_UPSTREAM: "",
       VOID_AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM: "",
       VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM: "",
+      VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "",
+      VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE: "",
       VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_BODY_BYTES: "1024",
       VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES: "4096",
       VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS: "3000",
@@ -110,11 +138,152 @@ async function stopGateway(runtime) {
   await exit;
 }
 
+function identity() {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  const raw = publicKey.export({ format: "jwk" });
+  const publicJwk = Object.freeze({
+    crv: raw.crv,
+    kty: raw.kty,
+    x: raw.x,
+  });
+  return Object.freeze({
+    privateKey,
+    publicJwk,
+    agentId: deriveVoidEd25519AgentIdV1(publicJwk),
+  });
+}
+
+function requestBody(label, agentId) {
+  return Buffer.from(JSON.stringify({
+    marker: "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_V1",
+    version: 1,
+    request_id: "voidapwcrq1_" + sha256(Buffer.from(label, "utf8")),
+    agent_id: agentId,
+    requested_scope: "agent_paid_work_submit",
+  }) + "\n");
+}
+
+function nonce(label) {
+  return crypto
+    .createHash("sha256")
+    .update("nonce:" + label)
+    .digest()
+    .subarray(0, 16)
+    .toString("base64url");
+}
+
+function authHeader({
+  identityValue,
+  body,
+  nonceLabel,
+  issuedAtMs = Date.now() - 1000,
+  expiresAtMs = Date.now() + 30_000,
+  signingKey = identityValue.privateKey,
+  requestIdOverride = null,
+}) {
+  const parsed = JSON.parse(body.toString("utf8"));
+  const unsigned = {
+    agent_id: identityValue.agentId,
+    body_sha256: sha256(body),
+    expires_at: new Date(expiresAtMs).toISOString(),
+    issued_at: new Date(issuedAtMs).toISOString(),
+    marker: VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_V1,
+    method: "POST",
+    network_chain_id: 2050,
+    nonce: nonce(nonceLabel),
+    path: ROUTE,
+    public_key_jwk: identityValue.publicJwk,
+    purpose: "agent_paid_work_credential_request",
+    request_id: requestIdOverride || parsed.request_id,
+    version: 1,
+  };
+  const signature = crypto
+    .sign(
+      null,
+      Buffer.from(canonicalVoidJsonV1(unsigned), "utf8"),
+      signingKey,
+    )
+    .toString("base64url");
+  return Buffer.from(
+    JSON.stringify({ ...unsigned, signature }),
+    "utf8",
+  ).toString("base64url");
+}
+
+async function postCredential(base, body, auth, extraHeaders = {}) {
+  return fetch(base + ROUTE, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-void-payload-sha256": sha256(body),
+      ...(auth
+        ? { [VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1]: auth }
+        : {}),
+      ...extraHeaders,
+    },
+    body,
+    redirect: "manual",
+  });
+}
+
 const upstreamCalls = [];
+let upstreamStatusCalls = 0;
+const UPSTREAM_LIMIT = 8;
+let upstreamStatusLimit = UPSTREAM_LIMIT;
+let upstreamStatusLimitAfterNextPost = null;
+let upstreamStatusDelayMs = 0;
 const upstream = http.createServer(async (req, res) => {
+  if (
+    req.method === "GET" &&
+    req.url === ROUTE + "/status"
+  ) {
+    upstreamStatusCalls += 1;
+    if (upstreamStatusDelayMs > 0) {
+      await sleep(upstreamStatusDelayMs);
+    }
+    const payload = Buffer.from(JSON.stringify({
+      marker: "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_V1",
+      version: 1,
+      ready: true,
+      request_count: upstreamCalls.length,
+      receipt_count: upstreamCalls.length,
+      state_consistent: true,
+      request_path: ROUTE,
+      max_body_bytes: 65536,
+      max_requests_per_minute: upstreamStatusLimit,
+      raw_request_content_exposed: false,
+      callback_uri_exposed: false,
+      credential_issuance_authorized: false,
+      credential_registry_mutation_authorized: false,
+      receiver_restart_authorized: false,
+    }) + "\n");
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "content-length": String(payload.length),
+      "cache-control": "no-store",
+    });
+    res.end(payload);
+    return;
+  }
+
   const chunks = [];
   for await (const chunk of req) chunks.push(Buffer.from(chunk));
   const body = Buffer.concat(chunks);
+
+  if (upstreamCalls.length >= UPSTREAM_LIMIT) {
+    const rejected = Buffer.from(JSON.stringify({
+      ok: false,
+      error: "rate_limit_exceeded",
+    }) + "\n");
+    res.writeHead(429, {
+      "content-type": "application/json; charset=utf-8",
+      "content-length": String(rejected.length),
+      "cache-control": "no-store",
+    });
+    res.end(rejected);
+    return;
+  }
+
   upstreamCalls.push({
     method: req.method,
     url: req.url,
@@ -122,12 +291,18 @@ const upstream = http.createServer(async (req, res) => {
     headers: req.headers,
   });
 
+  if (upstreamStatusLimitAfterNextPost !== null) {
+    upstreamStatusLimit = upstreamStatusLimitAfterNextPost;
+    upstreamStatusLimitAfterNextPost = null;
+  }
+
+  const parsed = JSON.parse(body.toString("utf8"));
   const payload = Buffer.from(JSON.stringify({
     marker: "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_RESPONSE_V1",
     version: 1,
     ok: true,
     duplicate: false,
-    receipt: { request_id: "voidapwcrq1_" + "a".repeat(64) },
+    receipt: { request_id: parsed.request_id },
     credential_created: false,
     credential_registry_mutated: false,
     receiver_restart: false,
@@ -143,9 +318,196 @@ const upstream = http.createServer(async (req, res) => {
 });
 const upstreamPort = await listen(upstream);
 
+const requalRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    String(UPSTREAM_LIMIT),
+});
+const requalReady = await gatewayReady(requalRuntime);
+assert.equal(requalReady.paid_work_credential_request_route.configured, true);
+assert.equal(upstreamStatusCalls, 1);
+const requalBase = `http://127.0.0.1:${requalReady.port}`;
+
+const liveIdentity = identity();
+const liveBody = requestBody("live-requalification-baseline", liveIdentity.agentId);
+const liveResponse = await postCredential(
+  requalBase,
+  liveBody,
+  authHeader({
+    identityValue: liveIdentity,
+    body: liveBody,
+    nonceLabel: "live-requalification-baseline",
+  }),
+);
+assert.equal(liveResponse.status, 202);
+assert.equal(upstreamStatusCalls, 2);
+assert.equal(upstreamCalls.length, 1);
+
+upstreamStatusLimit = 1;
+const driftIdentity = identity();
+const driftBody = requestBody("live-requalification-drift", driftIdentity.agentId);
+const driftResponse = await postCredential(
+  requalBase,
+  driftBody,
+  authHeader({
+    identityValue: driftIdentity,
+    body: driftBody,
+    nonceLabel: "live-requalification-drift",
+  }),
+);
+assert.equal(driftResponse.status, 503);
+assert.equal(
+  (await driftResponse.json()).error,
+  "agent_paid_work_credential_request_gateway_unavailable",
+);
+assert.equal(upstreamStatusCalls, 3);
+assert.equal(
+  upstreamCalls.length,
+  1,
+  "changed upstream rate wall must hold before request proxying",
+);
+
+upstreamStatusLimit = UPSTREAM_LIMIT;
+const recoveredIdentity = identity();
+const recoveredBody = requestBody(
+  "live-requalification-recovered",
+  recoveredIdentity.agentId,
+);
+const recoveredResponse = await postCredential(
+  requalBase,
+  recoveredBody,
+  authHeader({
+    identityValue: recoveredIdentity,
+    body: recoveredBody,
+    nonceLabel: "live-requalification-recovered",
+  }),
+);
+assert.equal(recoveredResponse.status, 202);
+assert.equal(upstreamStatusCalls, 4);
+assert.equal(upstreamCalls.length, 2);
+
+upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimitAfterNextPost = 1;
+const concurrentA = identity();
+const concurrentABody = requestBody(
+  "live-requalification-concurrent-a",
+  concurrentA.agentId,
+);
+const concurrentB = identity();
+const concurrentBBody = requestBody(
+  "live-requalification-concurrent-b",
+  concurrentB.agentId,
+);
+const concurrentResponses = await Promise.all([
+  postCredential(
+    requalBase,
+    concurrentABody,
+    authHeader({
+      identityValue: concurrentA,
+      body: concurrentABody,
+      nonceLabel: "live-requalification-concurrent-a",
+    }),
+  ),
+  postCredential(
+    requalBase,
+    concurrentBBody,
+    authHeader({
+      identityValue: concurrentB,
+      body: concurrentBBody,
+      nonceLabel: "live-requalification-concurrent-b",
+    }),
+  ),
+]);
+const concurrentStatuses =
+  concurrentResponses.map((response) => response.status).sort();
+assert.deepEqual(
+  concurrentStatuses,
+  [202, 503],
+  "concurrent admitted requests must not share one qualification",
+);
+for (const response of concurrentResponses) {
+  if (response.status === 503) {
+    assert.equal(
+      (await response.json()).error,
+      "agent_paid_work_credential_request_gateway_unavailable",
+    );
+  } else {
+    await response.json();
+  }
+}
+assert.equal(upstreamStatusCalls, 6);
+assert.equal(
+  upstreamCalls.length,
+  3,
+  "only the first concurrent request may POST before status drift is reobserved",
+);
+
+upstreamStatusLimit = UPSTREAM_LIMIT;
+const concurrentRecovery = identity();
+const concurrentRecoveryBody = requestBody(
+  "live-requalification-concurrent-recovery",
+  concurrentRecovery.agentId,
+);
+const concurrentRecoveryResponse = await postCredential(
+  requalBase,
+  concurrentRecoveryBody,
+  authHeader({
+    identityValue: concurrentRecovery,
+    body: concurrentRecoveryBody,
+    nonceLabel: "live-requalification-concurrent-recovery",
+  }),
+);
+assert.equal(concurrentRecoveryResponse.status, 202);
+await concurrentRecoveryResponse.json();
+assert.equal(upstreamStatusCalls, 7);
+assert.equal(upstreamCalls.length, 4);
+
+upstreamStatusDelayMs = 1100;
+const expiringQueuedIdentity = identity();
+const expiringQueuedBody = requestBody(
+  "serialized-auth-expiry",
+  expiringQueuedIdentity.agentId,
+);
+const expiringQueuedNow = Date.now();
+const expiringQueuedResponse = await postCredential(
+  requalBase,
+  expiringQueuedBody,
+  authHeader({
+    identityValue: expiringQueuedIdentity,
+    body: expiringQueuedBody,
+    nonceLabel: "serialized-auth-expiry",
+    issuedAtMs: expiringQueuedNow,
+    expiresAtMs: expiringQueuedNow + 1000,
+  }),
+);
+assert.equal(expiringQueuedResponse.status, 401);
+assert.equal(
+  (await expiringQueuedResponse.json()).error,
+  "applicant_auth_invalid",
+);
+assert.equal(upstreamStatusCalls, 8);
+assert.equal(
+  upstreamCalls.length,
+  4,
+  "auth expiring during serialized qualification must not POST",
+);
+upstreamStatusDelayMs = 0;
+await stopGateway(requalRuntime);
+
+upstreamCalls.length = 0;
+upstreamStatusCalls = 0;
+upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimitAfterNextPost = null;
+upstreamStatusDelayMs = 0;
+
 const runtime = startGateway({
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
     `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    String(UPSTREAM_LIMIT),
 });
 const ready = await gatewayReady(runtime);
 assert.equal(ready.bounded_paid_work_credential_request_proxy_authority, true);
@@ -153,29 +515,82 @@ assert.equal(ready.paid_work_credential_request_route.path, ROUTE);
 assert.deepEqual(ready.paid_work_credential_request_route.methods, ["POST"]);
 assert.equal(ready.paid_work_credential_request_route.configured, true);
 assert.equal(ready.paid_work_credential_request_route.accepted_for_review_only, true);
+assert.equal(ready.paid_work_credential_request_route.applicant_auth_required, true);
+assert.equal(
+  ready.paid_work_credential_request_route.applicant_identity_scheme,
+  "void-agent:ed25519",
+);
+assert.equal(
+  ready.paid_work_credential_request_route.applicant_auth_header,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.applicant_max_requests_per_minute,
+  2,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_global_limit_per_minute,
+  UPSTREAM_LIMIT,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_status_verified,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_status_hold_reason,
+  null,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_requalified_per_admitted_request,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_failure_invalidates_qualification,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_qualification_post_serialized,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.applicant_auth_revalidated_after_serial_wait,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route
+    .upstream_observed_max_requests_per_minute,
+  UPSTREAM_LIMIT,
+);
+assert.ok(
+  ready.paid_work_credential_request_route
+    .preauth_max_requests_per_minute >= 60,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.preauth_global_rate_wall,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.two_applicant_capacity_reserved,
+  true,
+);
+assert.equal(upstreamStatusCalls, 1);
+assert.equal(ready.paid_work_credential_request_route.nonce_replay_protection, true);
+assert.equal(ready.paid_work_credential_request_route.edge_global_rate_wall, true);
+assert.equal(ready.paid_work_credential_request_route.forwarded_ip_headers_trusted, false);
 assert.equal(ready.paid_work_credential_request_route.credential_issuance_authority, false);
 assert.equal(ready.paid_work_credential_request_route.credential_registry_mutation_authority, false);
 assert.equal(ready.paid_work_credential_request_route.wc_award_authority, false);
 assert.equal(ready.paid_work_credential_request_route.funds_movement, false);
 
 const base = `http://127.0.0.1:${ready.port}`;
-const validBody = Buffer.from(JSON.stringify({
-  marker: "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_V1",
-  version: 1,
-  request_id: "voidapwcrq1_" + "b".repeat(64),
-  requested_scope: "agent_paid_work_submit",
-}) + "\n");
-const validHash = sha256(validBody);
-
-const validResponse = await fetch(base + ROUTE, {
-  method: "POST",
-  headers: {
-    "content-type": "application/json",
-    "x-void-payload-sha256": validHash,
-  },
-  body: validBody,
-  redirect: "manual",
+const basicIdentity = identity();
+const basicBody = requestBody("basic", basicIdentity.agentId);
+const basicAuth = authHeader({
+  identityValue: basicIdentity,
+  body: basicBody,
+  nonceLabel: "basic",
 });
+const validResponse = await postCredential(base, basicBody, basicAuth);
 assert.equal(validResponse.status, 202);
 assert.equal(
   validResponse.headers.get("x-void-agent-paid-work-credential-request-route"),
@@ -187,10 +602,14 @@ assert.equal(validJson.credential_issuance_authorized, false);
 assert.equal(upstreamCalls.length, 1);
 assert.equal(upstreamCalls[0].method, "POST");
 assert.equal(upstreamCalls[0].url, ROUTE);
-assert.equal(upstreamCalls[0].body.equals(validBody), true);
-assert.equal(upstreamCalls[0].headers["x-void-payload-sha256"], validHash);
-assert.equal(upstreamCalls[0].headers.authorization, undefined);
-assert.equal(upstreamCalls[0].headers["content-type"], "application/json");
+assert.equal(upstreamCalls[0].body.equals(basicBody), true);
+assert.equal(
+  upstreamCalls[0].headers[
+    VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1
+  ],
+  undefined,
+);
+assert.equal(upstreamCalls[0].headers["x-forwarded-for"], undefined);
 
 const methodResponse = await fetch(base + ROUTE, { method: "GET" });
 assert.equal(methodResponse.status, 405);
@@ -201,9 +620,9 @@ const queryResponse = await fetch(base + ROUTE + "?x=1", {
   method: "POST",
   headers: {
     "content-type": "application/json",
-    "x-void-payload-sha256": validHash,
+    "x-void-payload-sha256": sha256(basicBody),
   },
-  body: validBody,
+  body: basicBody,
 });
 assert.equal(queryResponse.status, 400);
 assert.equal((await queryResponse.json()).error, "query_not_allowed");
@@ -211,8 +630,11 @@ assert.equal(upstreamCalls.length, 1);
 
 const noHashResponse = await fetch(base + ROUTE, {
   method: "POST",
-  headers: { "content-type": "application/json" },
-  body: validBody,
+  headers: {
+    "content-type": "application/json",
+    [VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1]: basicAuth,
+  },
+  body: basicBody,
 });
 assert.equal(noHashResponse.status, 400);
 assert.equal((await noHashResponse.json()).error, "payload_sha256_required");
@@ -248,22 +670,349 @@ const siblingResponse = await fetch(base + ROUTE + "/status");
 assert.equal(siblingResponse.status, 404);
 assert.equal(upstreamCalls.length, 1);
 
+const unsignedBody = requestBody("unsigned", basicIdentity.agentId);
+const unsignedResponse = await postCredential(base, unsignedBody, "");
+assert.equal(unsignedResponse.status, 401);
+assert.equal((await unsignedResponse.json()).error, "applicant_auth_invalid");
+assert.equal(upstreamCalls.length, 1);
+
+const wrongSignerIdentity = identity();
+const wrongSignerBody = requestBody("wrong-signer", wrongSignerIdentity.agentId);
+const wrongSignerResponse = await postCredential(
+  base,
+  wrongSignerBody,
+  authHeader({
+    identityValue: wrongSignerIdentity,
+    body: wrongSignerBody,
+    nonceLabel: "wrong-signer",
+    signingKey: basicIdentity.privateKey,
+  }),
+);
+assert.equal(wrongSignerResponse.status, 401);
+assert.equal((await wrongSignerResponse.json()).error, "applicant_auth_invalid");
+assert.equal(upstreamCalls.length, 1);
+
+// This checks a new key against the original inner agent_id. It does not test
+// rate isolation for an actor rotating both the key and the inner agent_id.
+const rotatingIdentity = identity();
+const rotatedBody = requestBody("rotated-key", basicIdentity.agentId);
+const rotatedResponse = await postCredential(
+  base,
+  rotatedBody,
+  authHeader({
+    identityValue: rotatingIdentity,
+    body: rotatedBody,
+    nonceLabel: "rotated-key",
+  }),
+);
+assert.equal(rotatedResponse.status, 401);
+assert.equal((await rotatedResponse.json()).error, "applicant_auth_invalid");
+assert.equal(
+  upstreamCalls.length,
+  1,
+  "a signing key must not authenticate a different inner agent_id",
+);
+
+const expiredIdentity = identity();
+const expiredBody = requestBody("expired", expiredIdentity.agentId);
+const expiredResponse = await postCredential(
+  base,
+  expiredBody,
+  authHeader({
+    identityValue: expiredIdentity,
+    body: expiredBody,
+    nonceLabel: "expired",
+    issuedAtMs: Date.now() - 60_000,
+    expiresAtMs: Date.now() - 1000,
+  }),
+);
+assert.equal(expiredResponse.status, 401);
+assert.equal((await expiredResponse.json()).error, "applicant_auth_invalid");
+assert.equal(upstreamCalls.length, 1);
+
+const mismatchIdentity = identity();
+const mismatchBody = requestBody("mismatch", mismatchIdentity.agentId);
+const mismatchResponse = await postCredential(
+  base,
+  mismatchBody,
+  authHeader({
+    identityValue: mismatchIdentity,
+    body: mismatchBody,
+    nonceLabel: "mismatch",
+    requestIdOverride: "voidapwcrq1_" + "f".repeat(64),
+  }),
+);
+assert.equal(mismatchResponse.status, 401);
+assert.equal((await mismatchResponse.json()).error, "applicant_auth_invalid");
+assert.equal(upstreamCalls.length, 1);
+
+const replayIdentity = identity();
+const replayBody = requestBody("replay", replayIdentity.agentId);
+const replayAuth = authHeader({
+  identityValue: replayIdentity,
+  body: replayBody,
+  nonceLabel: "replay",
+});
+const replayFirst = await postCredential(base, replayBody, replayAuth);
+assert.equal(replayFirst.status, 202);
+assert.equal(upstreamCalls.length, 2);
+const replaySecond = await postCredential(base, replayBody, replayAuth);
+assert.equal(replaySecond.status, 409);
+assert.equal((await replaySecond.json()).error, "applicant_auth_replay");
+assert.equal(upstreamCalls.length, 2);
+
+const applicantA = identity();
+for (let index = 0; index < 2; index += 1) {
+  const body = requestBody("applicant-a-" + index, applicantA.agentId);
+  const response = await postCredential(
+    base,
+    body,
+    authHeader({
+      identityValue: applicantA,
+      body,
+      nonceLabel: "applicant-a-" + index,
+    }),
+    {
+      "x-forwarded-for": `203.0.113.${10 + index}`,
+      forwarded: `for=203.0.113.${20 + index}`,
+    },
+  );
+  assert.equal(response.status, 202);
+}
+assert.equal(upstreamCalls.length, 4);
+
+const applicantAThirdBody = requestBody("applicant-a-third", applicantA.agentId);
+const applicantAThird = await postCredential(
+  base,
+  applicantAThirdBody,
+  authHeader({
+    identityValue: applicantA,
+    body: applicantAThirdBody,
+    nonceLabel: "applicant-a-third",
+  }),
+  {
+    "x-forwarded-for": "198.51.100.200",
+    forwarded: "for=198.51.100.201",
+  },
+);
+assert.equal(applicantAThird.status, 429);
+assert.equal(
+  (await applicantAThird.json()).error,
+  "applicant_rate_limit_exceeded",
+);
+assert.equal(upstreamCalls.length, 4);
+
+const applicantB = identity();
+for (let index = 0; index < 2; index += 1) {
+  const body = requestBody("applicant-b-" + index, applicantB.agentId);
+  const response = await postCredential(
+    base,
+    body,
+    authHeader({
+      identityValue: applicantB,
+      body,
+      nonceLabel: "applicant-b-" + index,
+    }),
+  );
+  assert.equal(response.status, 202);
+}
+assert.equal(
+  upstreamCalls.length,
+  6,
+  "a second signing identity retains its allowance after the first is exhausted",
+);
+assert.ok(upstreamCalls.length < UPSTREAM_LIMIT);
+
+const applicantC = identity();
+for (let index = 0; index < 2; index += 1) {
+  const body = requestBody("applicant-c-" + index, applicantC.agentId);
+  const response = await postCredential(
+    base,
+    body,
+    authHeader({
+      identityValue: applicantC,
+      body,
+      nonceLabel: "applicant-c-" + index,
+    }),
+  );
+  assert.equal(response.status, 202);
+}
+assert.equal(upstreamCalls.length, UPSTREAM_LIMIT);
+
+const applicantD = identity();
+const applicantDBody = requestBody("applicant-d-global-hold", applicantD.agentId);
+const applicantDResponse = await postCredential(
+  base,
+  applicantDBody,
+  authHeader({
+    identityValue: applicantD,
+    body: applicantDBody,
+    nonceLabel: "applicant-d-global-hold",
+  }),
+);
+assert.equal(applicantDResponse.status, 429);
+assert.equal(
+  (await applicantDResponse.json()).error,
+  "public_credential_request_global_rate_limit_exceeded",
+);
+assert.equal(
+  upstreamCalls.length,
+  UPSTREAM_LIMIT,
+  "edge global wall must stop before another upstream request",
+);
+
+for (const call of upstreamCalls) {
+  assert.equal(
+    call.headers[VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1],
+    undefined,
+  );
+  assert.equal(call.headers["x-forwarded-for"], undefined);
+  assert.equal(call.headers.forwarded, undefined);
+}
+
 await stopGateway(runtime);
+
+const mismatchRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    "12",
+});
+const mismatchReady = await gatewayReady(mismatchRuntime);
+assert.equal(
+  mismatchReady.bounded_paid_work_credential_request_proxy_authority,
+  false,
+);
+assert.equal(
+  mismatchReady.paid_work_credential_request_route.configured,
+  false,
+);
+assert.equal(
+  mismatchReady.paid_work_credential_request_route.upstream_status_verified,
+  false,
+);
+assert.equal(
+  mismatchReady.paid_work_credential_request_route.upstream_status_hold_reason,
+  "upstream_status_not_verified",
+);
+const mismatchLimitIdentity = identity();
+const mismatchLimitBody = requestBody(
+  "mismatched-upstream-limit",
+  mismatchLimitIdentity.agentId,
+);
+const mismatchLimitResponse = await postCredential(
+  `http://127.0.0.1:${mismatchReady.port}`,
+  mismatchLimitBody,
+  authHeader({
+    identityValue: mismatchLimitIdentity,
+    body: mismatchLimitBody,
+    nonceLabel: "mismatched-upstream-limit",
+  }),
+);
+assert.equal(mismatchLimitResponse.status, 503);
+assert.equal(
+  (await mismatchLimitResponse.json()).error,
+  "agent_paid_work_credential_request_gateway_unavailable",
+);
+await stopGateway(mismatchRuntime);
+
+const preauthRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    String(UPSTREAM_LIMIT),
+});
+const preauthReady = await gatewayReady(preauthRuntime);
+assert.equal(preauthReady.paid_work_credential_request_route.configured, true);
+const preauthBase = `http://127.0.0.1:${preauthReady.port}`;
+const preauthMax =
+  preauthReady.paid_work_credential_request_route
+    .preauth_max_requests_per_minute;
+assert.ok(Number.isSafeInteger(preauthMax) && preauthMax >= 60);
+const upstreamBeforePreauthFlood = upstreamCalls.length;
+for (let index = 0; index < preauthMax; index += 1) {
+  const floodIdentity = identity();
+  const floodBody = requestBody(
+    "preauth-invalid-" + index,
+    floodIdentity.agentId,
+  );
+  const response = await postCredential(
+    preauthBase,
+    floodBody,
+    "not-a-valid-auth-envelope",
+  );
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error, "applicant_auth_invalid");
+}
+const blockedIdentity = identity();
+const blockedBody = requestBody(
+  "preauth-blocked",
+  blockedIdentity.agentId,
+);
+const blockedResponse = await postCredential(
+  preauthBase,
+  blockedBody,
+  "not-a-valid-auth-envelope",
+);
+assert.equal(blockedResponse.status, 429);
+assert.equal(
+  (await blockedResponse.json()).error,
+  "credential_request_preauth_rate_limit_exceeded",
+);
+assert.equal(
+  upstreamCalls.length,
+  upstreamBeforePreauthFlood,
+  "invalid-auth flood must never reach the loopback gateway",
+);
+await stopGateway(preauthRuntime);
+
+const incompleteRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+});
+const incompleteReady = await gatewayReady(incompleteRuntime);
+assert.equal(
+  incompleteReady.bounded_paid_work_credential_request_proxy_authority,
+  false,
+);
+assert.equal(incompleteReady.paid_work_credential_request_route.configured, false);
+const incompleteIdentity = identity();
+const incompleteBody = requestBody(
+  "incomplete-config",
+  incompleteIdentity.agentId,
+);
+const incompleteResponse = await postCredential(
+  `http://127.0.0.1:${incompleteReady.port}`,
+  incompleteBody,
+  authHeader({
+    identityValue: incompleteIdentity,
+    body: incompleteBody,
+    nonceLabel: "incomplete-config",
+  }),
+);
+assert.equal(incompleteResponse.status, 503);
+assert.equal(
+  (await incompleteResponse.json()).error,
+  "agent_paid_work_credential_request_gateway_unavailable",
+);
+await stopGateway(incompleteRuntime);
 
 const heldRuntime = startGateway();
 const heldReady = await gatewayReady(heldRuntime);
 assert.equal(heldReady.bounded_paid_work_credential_request_proxy_authority, false);
 assert.equal(heldReady.paid_work_credential_request_route.configured, false);
-const heldResponse = await fetch(
-  `http://127.0.0.1:${heldReady.port}${ROUTE}`,
-  {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-void-payload-sha256": validHash,
-    },
-    body: validBody,
-  },
+const heldIdentity = identity();
+const heldBody = requestBody("held", heldIdentity.agentId);
+const heldResponse = await postCredential(
+  `http://127.0.0.1:${heldReady.port}`,
+  heldBody,
+  authHeader({
+    identityValue: heldIdentity,
+    body: heldBody,
+    nonceLabel: "held",
+  }),
 );
 assert.equal(heldResponse.status, 503);
 assert.equal(
@@ -280,7 +1029,31 @@ console.log("VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_INGRESS_V1_GREEN");
 console.log("exact_public_post_route=true");
 console.log("generic_proxy=false");
 console.log("loopback_upstream_only=true");
+console.log("inner_request_bytes_preserved=true");
 console.log("payload_sha256_required=true");
 console.log("query_parameters_allowed=false");
+console.log("applicant_identity=void-agent:ed25519");
+console.log("applicant_signature_required=true");
+console.log("inner_agent_id_must_equal_signing_identity=true");
+console.log("key_body_identity_mismatch_rejected_before_upstream=true");
+console.log("rotation_resistant_fairness_proven=false");
+console.log("auth_ttl_max_seconds=60");
+console.log("nonce_replay_rejected_before_upstream=true");
+console.log("forwarded_ip_headers_trusted=false");
+console.log("single_signing_key_cannot_exhaust_upstream_bucket=true");
+console.log("second_signing_key_isolated_after_first_exhaustion=true");
+console.log("upstream_status_limit_equality_required=true");
+console.log("upstream_requalified_per_admitted_request=true");
+console.log("runtime_upstream_limit_drift_holds_before_proxy=true");
+console.log("runtime_upstream_limit_recovery_requalifies=true");
+console.log("concurrent_requests_do_not_share_qualification=true");
+console.log("qualification_and_post_serialized=true");
+console.log("serialized_wait_auth_expiry_rejected_before_post=true");
+console.log("mismatched_upstream_limit_holds_route_closed=true");
+console.log("preauth_global_rate_wall_before_signature_verification=true");
+console.log("invalid_auth_flood_bounded_before_upstream=true");
+console.log("edge_global_rate_wall_mirrors_verified_upstream_cap=true");
+console.log("upstream_global_rate_wall_preserved=true");
+console.log("rejected_rate_limited_nonces_do_not_fill_replay_cache=true");
 console.log("credential_issuance_authority=false");
 console.log("default_activation=false");

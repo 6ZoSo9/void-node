@@ -32,5 +32,16 @@
   "wc_award_authorized": false,
   "wc_ledger_write_authorized": false,
   "work_dispatched": false,
-  "work_execution_authorized": false
+  "work_execution_authorized": false,
+  "applicant_auth_required": true,
+  "applicant_auth_header": "x-void-applicant-auth-v1",
+  "applicant_auth_marker": "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_V1",
+  "applicant_auth_algorithm": "Ed25519",
+  "applicant_auth_ttl_seconds": 30,
+  "applicant_auth_ttl_seconds_maximum": 60,
+  "applicant_identity_scheme": "void-agent:ed25519",
+  "applicant_identity_must_match_inner_agent_id": true,
+  "applicant_identity_private_key_required_by_client": true,
+  "applicant_identity_private_key_is_wallet_key": false,
+  "applicant_auth_forwarded_to_review_gateway": false
 }

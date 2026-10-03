@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import base64
+from datetime import datetime
 import hashlib
 import importlib.util
 import json
@@ -37,6 +39,11 @@ INTAKE = (
     REPO
     / "scripts"
     / "agent_paid_work_credential_request_intake_v1.ts"
+)
+PUBLIC_AUTH_VERIFIER = (
+    REPO
+    / "tools"
+    / "void-agent-paid-work-credential-request-public-auth-v1.mjs"
 )
 
 
@@ -151,11 +158,141 @@ try:
         check=True,
     )
 
-    module = load_client()
-    request = module.materialize_request(
-        agent_id=(
-            "void.agent.packet-proof"
+    packet_checksum_files = [
+        "README.md",
+        "applicant_auth_v1.py",
+        "credential-request-draft-v1.example.json",
+        "credential_request_client_v1.py",
+        "manifest-v1.json",
+        "verify_packet_v1.py",
+    ]
+
+    def rewrite_packet_checksums(root: Path) -> None:
+        lines: list[str] = []
+
+        for relative in packet_checksum_files:
+            digest = hashlib.sha256(
+                (root / relative).read_bytes()
+            ).hexdigest()
+            lines.append(
+                f"{digest}  {relative}"
+            )
+
+        (root / "SHA256SUMS.txt").write_text(
+            "\n".join(lines) + "\n",
+            encoding="ascii",
+        )
+
+    manifest_adversaries = [
+        (
+            "auth-marker",
+            "applicant_auth_marker",
+            "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_V0",
         ),
+        (
+            "auth-ttl",
+            "applicant_auth_ttl_seconds",
+            31,
+        ),
+        (
+            "auth-max-ttl",
+            "applicant_auth_ttl_seconds_maximum",
+            61,
+        ),
+        (
+            "private-key-required",
+            "applicant_identity_private_key_required_by_client",
+            False,
+        ),
+        (
+            "forwarded-auth",
+            "applicant_auth_forwarded_to_review_gateway",
+            True,
+        ),
+    ]
+
+    for label, field, replacement in manifest_adversaries:
+        adversary = (
+            temporary
+            / f"manifest-adversary-{label}"
+        )
+        shutil.copytree(
+            PACKET,
+            adversary,
+        )
+        manifest_path = (
+            adversary
+            / "manifest-v1.json"
+        )
+        manifest_value = json.loads(
+            manifest_path.read_text(
+                encoding="utf-8"
+            )
+        )
+        manifest_value[field] = replacement
+        manifest_path.write_text(
+            json.dumps(
+                manifest_value,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        rewrite_packet_checksums(
+            adversary
+        )
+        rejected = subprocess.run(
+            [
+                sys.executable,
+                str(
+                    adversary
+                    / "verify_packet_v1.py"
+                ),
+            ],
+            cwd=str(adversary),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        diagnostic = (
+            rejected.stdout
+            + rejected.stderr
+        )
+        if (
+            rejected.returncode == 0
+            or (
+                "HOLD: packet manifest identity mismatch"
+                not in diagnostic
+            )
+        ):
+            raise RuntimeError(
+                "applicant-auth manifest adversary was not rejected: "
+                + label
+            )
+
+    module = load_client()
+    identity_key = (
+        temporary
+        / "credential-request-ed25519.pem"
+    )
+    identity = module.generate_identity_key(
+        identity_key
+    )
+    if (
+        not identity["agent_id"].startswith(
+            "void-agent:ed25519:"
+        )
+        or identity_key.stat().st_mode
+        & 0o077
+    ):
+        raise RuntimeError(
+            "public applicant identity generation mismatch"
+        )
+
+    request = module.materialize_request(
+        agent_id=identity[
+            "agent_id"
+        ],
         callback_uri=(
             "https://agent.example.invalid/void/callback"
         ),
@@ -309,6 +446,7 @@ try:
                     "credential-requests/v1"
                 ),
                 request=request,
+                identity_key=identity_key,
             )
         )
     finally:
@@ -358,6 +496,9 @@ try:
         != hashlib.sha256(
             body
         ).hexdigest()
+        or not headers.get(
+            "x-void-applicant-auth-v1"
+        )
         or "Authorization"
         in headers
     ):
@@ -365,11 +506,134 @@ try:
             "submission framing proof mismatch"
         )
 
+    encoded_auth = headers[
+        "x-void-applicant-auth-v1"
+    ]
+    padded = encoded_auth + (
+        "="
+        * (
+            -len(encoded_auth)
+            % 4
+        )
+    )
+    auth = json.loads(
+        base64.urlsafe_b64decode(
+            padded.encode("ascii")
+        ).decode("utf-8")
+    )
+    if (
+        auth.get("marker")
+        != (
+            "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_V1"
+        )
+        or auth.get("agent_id")
+        != request["agent_id"]
+        or auth.get("request_id")
+        != request["request_id"]
+        or auth.get("body_sha256")
+        != hashlib.sha256(
+            body
+        ).hexdigest()
+        or auth.get("method")
+        != "POST"
+        or auth.get("path")
+        != (
+            "/__void/agents/paid-work/"
+            "credential-requests/v1"
+        )
+        or auth.get("network_chain_id")
+        != 2050
+        or not isinstance(
+            auth.get("signature"),
+            str,
+        )
+    ):
+        raise RuntimeError(
+            "applicant auth envelope binding mismatch"
+        )
+
+    auth_input = temporary / "public-auth-input.json"
+    auth_input.write_text(
+        json.dumps(
+            {
+                "encoded_header": encoded_auth,
+                "method": "POST",
+                "path": (
+                    "/__void/agents/paid-work/"
+                    "credential-requests/v1"
+                ),
+                "body_sha256": hashlib.sha256(
+                    body
+                ).hexdigest(),
+                "request_id": request[
+                    "request_id"
+                ],
+                "inner_agent_id": request[
+                    "agent_id"
+                ],
+                "now_ms": int(
+                    datetime.fromisoformat(
+                        auth["issued_at"].replace(
+                            "Z",
+                            "+00:00",
+                        )
+                    ).timestamp()
+                    * 1000
+                )
+                + 1000,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    auth_verify = temporary / "verify-public-auth.mjs"
+    auth_verify.write_text(
+        "import fs from 'node:fs';\n"
+        + "import { verifyAgentPaidWorkCredentialRequestPublicAuthV1 } "
+        + "from "
+        + json.dumps(
+            PUBLIC_AUTH_VERIFIER.as_uri()
+        )
+        + ";\n"
+        + "const input=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));\n"
+        + "const result=verifyAgentPaidWorkCredentialRequestPublicAuthV1(input);\n"
+        + "process.stdout.write(JSON.stringify(result)+'\\n');\n",
+        encoding="utf-8",
+    )
+    verified_auth = subprocess.run(
+        [
+            "node",
+            str(auth_verify),
+            str(auth_input),
+        ],
+        cwd=str(REPO),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    verified_auth_value = json.loads(
+        verified_auth.stdout
+    )
+    if (
+        verified_auth_value.get(
+            "applicant_id"
+        )
+        != request["agent_id"]
+        or verified_auth_value.get(
+            "request_id"
+        )
+        != request["request_id"]
+    ):
+        raise RuntimeError(
+            "Python/Node applicant auth parity mismatch"
+        )
+
     try:
         module.materialize_request(
-            agent_id=(
-                "void.agent.packet-proof"
-            ),
+            agent_id=identity[
+                "agent_id"
+            ],
             callback_uri=(
                 "http://agent.example.invalid/callback"
             ),
@@ -397,7 +661,13 @@ try:
         "VOID_EXTERNAL_AGENT_CREDENTIAL_REQUEST_PACKET_V1_PROOF_GREEN"
     )
     print(
-        "python_standard_library_client=1"
+        "python_stdlib_plus_openssl_client=1"
+    )
+    print(
+        "stable_ed25519_applicant_identity=1"
+    )
+    print(
+        "python_node_applicant_auth_parity=1"
     )
     print(
         "python_request_matches_typescript_materializer=1"
@@ -422,6 +692,12 @@ try:
     )
     print(
         "authorization_header_required=0"
+    )
+    print(
+        "applicant_auth_header_required=1"
+    )
+    print(
+        "applicant_identity_private_key_is_wallet_key=0"
     )
     print(
         "raw_token_required=0"

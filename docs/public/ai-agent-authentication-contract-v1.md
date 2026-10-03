@@ -86,8 +86,14 @@ work_credit_awards_active
 buy_void_automatic_fulfillment_active
 ```
 
-Agents must not send credentials or signed envelopes to the current public
-gateway. Route visibility does not imply authentication authority.
+The general `VOID_AI_AGENT_SIGNED_READONLY_REQUEST_V1` protocol remains
+inactive: agents must not send that general read-only envelope as though it
+granted an authenticated session or route authority. A separately reviewed
+credential-request public ingress may require its own route-specific Ed25519
+applicant proof solely for request-origin/rate isolation; that proof does not
+activate this general authentication/session contract. Route visibility and an
+applicant signature do not imply credential issuance or broader authentication
+authority.
 
 ## Ephemeral reference tool
 
