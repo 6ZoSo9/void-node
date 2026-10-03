@@ -35,6 +35,7 @@ sale = json.load(open("/tmp/void-buy-public-checkout-sale-state-v1.json"))
 assert cfg.get("marker") == "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1", cfg
 assert cfg.get("payment_chain") == "base", cfg
 assert cfg.get("payment_chain_id") == 8453, cfg
+assert cfg.get("payment_chains") == ["base", "ethereum"], cfg
 assert cfg.get("delivery_chain_id") == 2050, cfg
 assert cfg.get("usdc_contract", "").lower() == (
     "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
