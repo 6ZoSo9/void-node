@@ -745,8 +745,25 @@ assert.equal(
 );
 assert.equal(
   launcherSource.includes(
+    '"$reviewed_runtime_fd_path/$signer_rel"',
+  ),
+  true,
+  "sign mode must execute through the retained reviewed-runtime directory descriptor",
+);
+assert.equal(
+  launcherSource.includes(
     '"$reviewed_runtime_root/$signer_rel"',
   ),
+  false,
+  "sign mode must not reopen the materialized signer through its mutable pathname",
+);
+assert.equal(
+  launcherSource.includes('exec 19<"$reviewed_runtime_root"'),
+  true,
+  "reviewed runtime root must be pinned by descriptor before materialization",
+);
+assert.equal(
+  launcherSource.includes('reviewed_runtime_descriptor_bound=true'),
   true,
 );
 assert.equal(
@@ -776,7 +793,7 @@ assert.equal(
     branchEnd,
   );
   const execIndex = launcherSource.indexOf(
-    '"$reviewed_runtime_root/$signer_rel"',
+    '"$reviewed_runtime_fd_path/$signer_rel"',
   );
   assert.ok(modeBranch >= 0 && branchEnd > modeBranch);
   assert.ok(
@@ -790,7 +807,7 @@ assert.equal(
 }
 assert.equal(
   launcherSource.indexOf("private_key_access=true") <
-    launcherSource.indexOf('"$reviewed_runtime_root/$signer_rel"'),
+    launcherSource.indexOf('"$reviewed_runtime_fd_path/$signer_rel"'),
   true,
   "sign mode must announce key access before exec",
 );
@@ -806,6 +823,38 @@ assert.equal(
   true,
   "sign mode must announce signer access before exec",
 );
+
+{
+  const runtimeCreate = launcherSource.indexOf(
+    'reviewed_runtime_root="$(/usr/bin/mktemp -d',
+  );
+  const descriptorOpen = launcherSource.indexOf(
+    'exec 19<"$reviewed_runtime_root"',
+  );
+  const firstMaterialize = launcherSource.indexOf(
+    'materialize_reviewed_blob "$signer_rel"',
+  );
+  const descriptorExec = launcherSource.indexOf(
+    '"$reviewed_runtime_fd_path/$signer_rel"',
+  );
+  assert.ok(runtimeCreate >= 0);
+  assert.ok(descriptorOpen > runtimeCreate);
+  assert.ok(
+    firstMaterialize > descriptorOpen,
+    "reviewed runtime descriptor must be retained before signer materialization",
+  );
+  assert.ok(
+    descriptorExec > firstMaterialize,
+    "descriptor-bound signer execution must follow reviewed materialization",
+  );
+  assert.equal(
+    launcherSource.includes(
+      'destination="$reviewed_runtime_fd_path/$rel"',
+    ),
+    true,
+    "reviewed blob writes and hashes must use the retained directory descriptor",
+  );
+}
 
 const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
@@ -1082,6 +1131,9 @@ console.log("launcher_path_replacement_after_byte_verification_ignored=true");
 console.log("reviewed_launcher_bootstrap_descriptor_pinned=true");
 console.log("reviewed_launcher_path_reopen=false");
 console.log("reviewed_signer_materialized_before_execution=true");
+console.log("reviewed_signer_tree_pinned_before_materialization=true");
+console.log("reviewed_signer_descriptor_execution=true");
+console.log("materialized_signer_path_reopen=false");
 console.log("mutable_worktree_signer_execution=false");
 console.log("node_22_0_to_22_12_permission_flag_supported=true");
 console.log("node_22_13_plus_permission_flag_supported=true");
