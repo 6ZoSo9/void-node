@@ -674,6 +674,13 @@ await assert.rejects(
     true,
     "control reverification must expose child-process isolation",
   );
+  assert.equal(
+    toolSource.includes(
+      '"    await control.reverifyVoidWcVoidLaunchControllerControlEvidenceV1(input);"',
+    ),
+    true,
+    "reviewed control bridge must await async reverification before JSON output",
+  );
   const prepareStart = toolSource.indexOf(
     "export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1",
   );
@@ -1089,6 +1096,7 @@ console.log("validated_manifest_snapshot_detached=true");
 console.log("prepare_uses_same_detached_manifest_snapshot=true");
 console.log("post_yield_manifest_mutation_ignored=true");
 console.log("control_reverification_child_process_isolated=true");
+console.log("async_control_reverification_awaited=true");
 console.log("process_environment_mutation=false");
 console.log("concurrent_control_reverification_parent_env_stable=true");
 console.log("dirty_lineage_verifier_sentinel_execution=false");
