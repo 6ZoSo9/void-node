@@ -173,7 +173,7 @@ await assert.rejects(
         nowUnix: now,
         ethers,
       }),
-    /control_source_head_not_ancestor_of_current_head/u,
+    /offline_signer_current_head_not_exact_challenge_head/u,
   );
 }
 
@@ -308,6 +308,13 @@ assert.equal(
 );
 assert.equal(
   signerSource.includes(
+    'fail("offline_signer_current_head_not_exact_challenge_head")',
+  ),
+  true,
+  "production signer must require exact challenge source HEAD",
+);
+assert.equal(
+  signerSource.includes(
     "const signingNowUnix = Math.floor(Date.now() / 1000);",
   ),
   true,
@@ -351,6 +358,9 @@ assert.deepEqual(
     current_source_binding_reverification_required: true,
     private_key_path_fixed: true,
     absolute_key_path_fixed: true,
+    private_key_access: true,
+    credential_access: true,
+    wallet_or_signer_access: true,
     private_key_printed: false,
     private_key_copied_to_repository: false,
     private_key_exported: false,
@@ -386,6 +396,9 @@ console.log("sanitized_launch_environment_required=true");
 console.log("node_preload_flags_rejected=true");
 console.log("home_override_rejected=true");
 console.log("current_source_binding_reverified_before_key_access=true");
+console.log("exact_challenge_source_head_required=true");
+console.log("private_key_access_reported=true");
+console.log("wallet_or_signer_access_reported=true");
 console.log("reviewed_ethers_runtime_verified=true");
 console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
 console.log("selected_reviewer_fixed=true");
