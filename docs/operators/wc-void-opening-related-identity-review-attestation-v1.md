@@ -70,6 +70,13 @@ max_evidence_documents=65536
 max_evidence_bytes_per_document=8388608
 max_total_evidence_bytes=67108864
 max_total_evidence_subject_references=1000000
+
+control_input_max_depth=16
+control_input_max_nodes=8192
+control_input_max_object_keys=128
+control_input_max_array_items=512
+control_input_max_string_bytes=2097152
+control_input_max_serialized_bytes=2097152
 ```
 
 The verifier rejects oversized manifests before expensive traversal. Evidence
@@ -144,6 +151,20 @@ an explicit reviewed `GIT_DIR` and private `GIT_WORK_TREE`. The parent process
 does not rewrite `process.env` across an `await`, so concurrent review
 preparations cannot inherit, overwrite, or restore one another's temporary Git
 environment.
+
+Before child serialization, `nowUnix` is normalized through the same uint64
+decimal parser to canonical decimal text, so supported `bigint` timestamps do
+not depend on JSON's lack of bigint support. The control-evidence input is copied
+through a descriptor-only bounded clone with depth/node/object-key/array/string
+budgets and a final 2 MiB serialized ceiling. Oversized, deeply nested, accessor,
+or non-plain inputs fail in the parent before the child is spawned; arbitrary
+caller objects are never passed directly to `JSON.stringify`.
+
+The focused proof exercises both public prepare/verify APIs with bigint
+`nowUnix` values, requires invalid small evidence to reach the canonical child
+rejection rather than a JSON bigint exception, and requires oversized/deep or
+accessor-bearing evidence to fail at the parent input boundary before reviewed
+child execution.
 
 The production fixed-address positive path cannot be signed in CI because the
 production private key is intentionally absent.
