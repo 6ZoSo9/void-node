@@ -60,6 +60,11 @@ const SHA64 = /^[0-9a-f]{64}$/u;
 const BYTES32 = /^0x[0-9a-f]{64}$/u;
 const SIGNATURE65 = /^0x[0-9a-fA-F]{130}$/u;
 const MAX_CHALLENGE_BYTES = 2 * 1024 * 1024;
+const ETHERS_STANDALONE_BUNDLE_RELATIVE_V1 =
+  "node_modules/ethers/dist/ethers.min.js";
+const ETHERS_STANDALONE_BUNDLE_SHA256_V1 =
+  "b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c";
+const ETHERS_STANDALONE_BUNDLE_MAX_BYTES_V1 = 2 * 1024 * 1024;
 const MIN_TTL_SECONDS = 60n;
 const MAX_TTL_SECONDS = 1800n;
 
@@ -81,7 +86,6 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     "VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1",
     "VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1",
     "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1",
-    "VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1",
   ]);
   const keys = Object.keys(env);
   if (
@@ -136,7 +140,10 @@ export const VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1 =
     offline_operator_action: true,
     fixed_selected_reviewer_only: true,
     exact_public_challenge_required: true,
-    reviewed_ethers_runtime_required: true,
+    reviewed_ethers_runtime_required: false,
+    pinned_standalone_ethers_bundle_required: true,
+    ethers_execution_from_memory: true,
+    package_resolution_used_for_signing: false,
     sanitized_process_environment_required: true,
     node_preload_flags_forbidden: true,
     current_source_binding_reverification_required: true,
@@ -2197,6 +2204,45 @@ export async function reviewedOfflineSigningRuntimeV1() {
   );
 }
 
+async function loadPinnedStandaloneEthersV1() {
+  const bundlePath = path.join(ROOT, ETHERS_STANDALONE_BUNDLE_RELATIVE_V1);
+  const source = readStableFileV1(bundlePath, {
+    label: "offline_signer_ethers_standalone_bundle",
+    maxBytes: ETHERS_STANDALONE_BUNDLE_MAX_BYTES_V1,
+    expectedSha256: ETHERS_STANDALONE_BUNDLE_SHA256_V1,
+    privateMode: false,
+  });
+
+  let ethers;
+  try {
+    ethers = await import(
+      "data:text/javascript;base64," + source.bytes.toString("base64")
+    );
+  } catch {
+    fail("offline_signer_ethers_standalone_bundle_import_failed");
+  }
+
+  if (
+    ethers?.version !== "6.17.0" ||
+    typeof ethers.Wallet !== "function" ||
+    typeof ethers.verifyTypedData !== "function" ||
+    typeof ethers.TypedDataEncoder?.hash !== "function" ||
+    typeof ethers.getAddress !== "function" ||
+    typeof ethers.keccak256 !== "function" ||
+    typeof ethers.toUtf8Bytes !== "function"
+  ) {
+    fail("offline_signer_ethers_standalone_bundle_exports_invalid");
+  }
+
+  return Object.freeze({
+    ethers,
+    bundle_sha256: source.sha256,
+    bundle_bytes: source.bytes.length,
+    execution_from_memory: true,
+    package_resolution_used_for_signing: false,
+  });
+}
+
 export async function signSelectedLaunchControllerChallengeV1({
   challengePath,
   challengeSha256,
@@ -2219,91 +2265,72 @@ export async function signSelectedLaunchControllerChallengeV1({
     fail("offline_signer_operator_reviewed_head_mismatch");
   }
 
-  return await withReviewedSigningRuntimeV1(
-    preflight.control_contract_git_blob_sha1,
-    async (runtime) => {
-      if (
-        BigInt(Math.floor(Date.now() / 1000)) >=
-        BigInt(preflight.expires_at_unix)
-      ) {
-        fail("control_challenge_expired");
-      }
+  const standalone = await loadPinnedStandaloneEthersV1();
 
-      let privateKey = readPrivateKeyV1(KEY_PATH_V1);
-      let bridgeResult;
-      try {
-        bridgeResult = runtime.run(
-          "sign",
-          {
-            challenge_envelope: preflight.challenge_envelope,
-            expected_address: SELECTED_REVIEWER_ADDRESS_V1,
-          },
-          privateKey,
-        );
-      } finally {
-        privateKey = "";
-      }
+  const signingNowUnix = Math.floor(Date.now() / 1000);
+  const reviewed = validateChallengeForSigningV1({
+    challengeEnvelope: challenge.value,
+    expectedAddress: SELECTED_REVIEWER_ADDRESS_V1,
+    nowUnix: signingNowUnix,
+    ethers: standalone.ethers,
+  });
 
-      if (
-        BigInt(Math.floor(Date.now() / 1000)) >=
-        BigInt(preflight.expires_at_unix)
-      ) {
-        fail("control_challenge_expired");
-      }
+  if (
+    BigInt(Math.floor(Date.now() / 1000)) >=
+    BigInt(reviewed.expires_at_unix)
+  ) {
+    fail("control_challenge_expired");
+  }
 
-      const envelope = exactDataObject(
-        bridgeResult.envelope,
-        ["marker", "version", "challenge_id", "signature"],
-        "offline_signer_signature_envelope",
-      );
-      if (
-        envelope.marker !== SIGNATURE_MARKER_V1 ||
-        envelope.version !== 1 ||
-        envelope.challenge_id !== preflight.challenge_id ||
-        typeof envelope.signature !== "string" ||
-        !SIGNATURE65.test(envelope.signature)
-      ) {
-        fail("offline_signer_signature_envelope_invalid");
-      }
+  let privateKey = readPrivateKeyV1(KEY_PATH_V1);
+  let envelope;
+  try {
+    envelope = await signValidatedControlChallengeV1({
+      reviewed,
+      privateKey,
+      ethers: standalone.ethers,
+    });
+  } finally {
+    privateKey = "";
+  }
 
-      const written = writeExclusiveJsonV1(outputPath, envelope);
-      return Object.freeze({
-        marker: VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
-        status: "PUBLIC_CONTROL_SIGNATURE_ENVELOPE_WRITTEN",
-        challenge_id: envelope.challenge_id,
-        candidate_address: SELECTED_REVIEWER_ADDRESS_V1,
-        signature_sha256: sha256(
-          Buffer.from(envelope.signature, "utf8"),
-        ),
-        output_sha256: written.sha256,
-        reviewed_runtime_profile_id: runtime.profile.profile_id,
-        reviewed_packages_aggregate_sha256:
-          runtime.profile.packages_aggregate_sha256,
-        permission_fenced_execution: true,
-        descriptor_bound_runtime: runtime.descriptor_bound_runtime,
-        permission_flag: runtime.permission_flag,
-        child_node_executable: runtime.child_node_executable,
-        ancestor_package_resolution_allowed: false,
-        ambient_node_resolution_overrides_ignored: true,
-        ambient_dynamic_loader_overrides_ignored: true,
-        execution_network_isolation_provided: false,
-        private_key_path_fixed: true,
-        exact_challenge_source_head_required: true,
-        operator_reviewed_head_verified: true,
-        current_source_binding_verified: true,
-        sanitized_environment_required: true,
-        private_key_access: true,
-        credential_access: true,
-        wallet_or_signer_access: true,
-        private_key_printed: false,
-        private_key_exported: false,
-        transaction_signing: false,
-        transaction_broadcast: false,
-        chain2050_write: false,
-        funds_movement: false,
-      });
-    },
-  );
+  if (
+    BigInt(Math.floor(Date.now() / 1000)) >=
+    BigInt(reviewed.expires_at_unix)
+  ) {
+    fail("control_challenge_expired");
+  }
+
+  const written = writeExclusiveJsonV1(outputPath, envelope);
+  return Object.freeze({
+    marker: VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
+    status: "PUBLIC_CONTROL_SIGNATURE_ENVELOPE_WRITTEN",
+    challenge_id: envelope.challenge_id,
+    candidate_address: SELECTED_REVIEWER_ADDRESS_V1,
+    signature_sha256: sha256(
+      Buffer.from(envelope.signature, "utf8"),
+    ),
+    output_sha256: written.sha256,
+    ethers_version: standalone.ethers.version,
+    ethers_bundle_sha256: standalone.bundle_sha256,
+    ethers_bundle_bytes: standalone.bundle_bytes,
+    ethers_execution_from_memory: true,
+    package_resolution_used_for_signing: false,
+    private_key_path_fixed: true,
+    exact_challenge_source_head_required: true,
+    operator_reviewed_head_verified: true,
+    current_source_binding_verified: true,
+    sanitized_environment_required: true,
+    private_key_access: true,
+    credential_access: true,
+    wallet_or_signer_access: true,
+    private_key_printed: false,
+    private_key_exported: false,
+    transaction_signing: false,
+    transaction_broadcast: false,
+    chain2050_write: false,
+    funds_movement: false,
+  });
 }
 
 function usage() {
