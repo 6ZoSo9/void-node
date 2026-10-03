@@ -20,6 +20,17 @@ function ticketCount(): number {
     .length;
 }
 
+function currentLinuxStartTicks(): string | null {
+  if (process.platform !== "linux") return null;
+  const stat = fs.readFileSync(`/proc/${process.pid}/stat`, "utf8");
+  const close = stat.lastIndexOf(") ");
+  assert.ok(close >= 0);
+  const fields = stat.slice(close + 2).trim().split(/\s+/u);
+  const ticks = fields[19] || "";
+  assert.match(ticks, /^[1-9][0-9]*$/u);
+  return ticks;
+}
+
 try {
   let resumedWithTicket = false;
 
@@ -85,6 +96,48 @@ try {
   );
   assert.equal(ticketCount(), 0);
 
+  if (process.platform === "linux") {
+    fs.mkdirSync(queuePath, { recursive: true, mode: 0o700 });
+    fs.chmodSync(queuePath, 0o700);
+    const currentTicks = currentLinuxStartTicks();
+    assert.ok(currentTicks);
+    const staleTicks = (BigInt(currentTicks) + 1n).toString();
+    const staleNonce = "a".repeat(32);
+    const staleTicket = path.join(
+      queuePath,
+      `ticket-0000000000000001-${process.pid}-${staleNonce}.json`,
+    );
+    fs.writeFileSync(
+      staleTicket,
+      JSON.stringify({
+        schema: "void_buy_void_filesystem_bakery_lock_claim_v1",
+        pid: process.pid,
+        process_start_ticks: staleTicks,
+        nonce: staleNonce,
+        phase: "ticket",
+        ticket: 1,
+        created_at_utc: new Date().toISOString(),
+      }) + "\n",
+      { mode: 0o600 },
+    );
+    assert.equal(ticketCount(), 1);
+
+    let staleClaimBlocked = true;
+    await withBuyVoidFilesystemBakeryLockAsyncV1(
+      lockPath,
+      async () => {
+        staleClaimBlocked = false;
+        assert.equal(
+          fs.existsSync(staleTicket),
+          false,
+          "same-PID claim from another process incarnation must be reclaimed",
+        );
+      },
+    );
+    assert.equal(staleClaimBlocked, false);
+    assert.equal(ticketCount(), 0);
+  }
+
   console.log(
     "VOID_BUY_VOID_FILESYSTEM_BAKERY_LOCK_ASYNC_V1_GREEN",
   );
@@ -95,6 +148,8 @@ try {
   console.log("lock_claim_removed_after_rejection=true");
   console.log("same_process_async_contender_yields=true");
   console.log("async_wait_poll_does_not_block_event_loop=true");
+  console.log("persistent_volume_pid_reuse_claim_reclaimed=true");
+  console.log("process_incarnation_start_ticks_bound=true");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
