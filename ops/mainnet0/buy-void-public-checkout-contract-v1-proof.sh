@@ -45,6 +45,7 @@ need 'VOID_BUY_VOID_REQUEST_FIRST_WARNING_V1' "$src"
 need 'process.env.VOID_BUY_REQUESTS_ENABLED || "0"' "$src"
 need 'process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1"' "$src"
 need 'buy_void_ethereum_requests_disabled' "$src"
+need 'native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"]))' "$src"
 need 'const payment_ready = !receiverBindingConflict;' "$src"
 need 'mode: !cfg.requests_enabled ? "request_intake_hold"' "$src"
 need 'request_intake_ready: cfg.requests_enabled && cfg.payment_ready' "$src"
@@ -95,6 +96,14 @@ assert "res.status(405)" in request
 assert '"unsupported_usdc_source_chain"' in request
 assert '"buy_void_ethereum_requests_disabled"' in request
 assert '!cfg.ethereum_requests_enabled' in request
+ack_line='native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"]))'
+assert ack_line in request
+assert request.index(ack_line) < request.index("if (errors.length)") < request.index("__voidPersistBuyVoidRequestV1")
+def native_ack(body, ethereum):
+    return body.get("ack_native_usdc") is True or ((not ethereum) and body.get("ack_base_native_usdc") is True)
+assert native_ack({"ack_base_native_usdc": True}, False) is True
+assert native_ack({"ack_base_native_usdc": True}, True) is False
+assert native_ack({"ack_native_usdc": True}, True) is True
 assert 'send_chain: source_chain' in request
 assert "one_active_request_per_void_destination" in request
 assert '(activeForDestination.source_chain || "base") === source_chain' in request
@@ -157,6 +166,8 @@ PY
 
 echo "buy_void_public_checkout_receiver_binding_green=true"
 echo "buy_void_public_checkout_dual_rail_request_contract_green=true"
+echo "buy_void_ethereum_requires_selected_rail_ack=true"
+echo "buy_void_base_legacy_ack_alias_only=true"
 echo "buy_void_public_checkout_void_destination_chain_2050_green=true"
 echo "buy_void_public_checkout_request_first_green=true"
 echo "buy_void_public_checkout_source_default_request_intake=false"
