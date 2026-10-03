@@ -13,10 +13,12 @@ import {
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
   VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
   buildBuyLaunchGenerationEventV1,
+  buyLaunchGenerationExternalAnchorPathV1,
   buyLaunchRequestAuthorityMatchesV1,
   buyLaunchLiveActivationReceiptIdV1,
   buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
+  classifyBuyLaunchGenerationAuthorityV1,
   classifyBuyLaunchGenerationJournalV1,
   classifyBuyLaunchLiveActivationLeaseV1,
   readBuyLaunchGateV1,
@@ -187,10 +189,21 @@ try {
     flag: "wx",
   });
   const activeGenerationState =
-    classifyBuyLaunchGenerationJournalV1(activeJournalBytes);
+    classifyBuyLaunchGenerationAuthorityV1(
+      activeJournalBytes,
+      activeJournalBytes,
+    );
   assert.equal(activeGenerationState.ready, true);
+  assert.equal(activeGenerationState.external_anchor_verified, true);
   assert.equal(activeGenerationState.generation, activationGeneration);
   assert.equal(activeGenerationState.tip_sha256, activeEvent.event_sha256);
+  const fixedAnchorPath = buyLaunchGenerationExternalAnchorPathV1();
+  assert.equal(path.isAbsolute(fixedAnchorPath), true);
+  assert.match(
+    fixedAnchorPath,
+    /\.local\/state\/void-node-authority-v1\/buy-void-coupled-live-generation-anchor-v1\.jsonl$/u,
+  );
+  assert.equal(fixedAnchorPath.startsWith(dataDir + path.sep), false);
   const receiptBody = {
     activated_at_ms: nowMs,
     activation_generation: activationGeneration,
@@ -419,8 +432,19 @@ try {
   );
   fs.writeFileSync(journalPath, revokedJournalBytes, { mode: 0o600 });
   const revokedState =
-    classifyBuyLaunchGenerationJournalV1(revokedJournalBytes);
+    classifyBuyLaunchGenerationAuthorityV1(
+      revokedJournalBytes,
+      revokedJournalBytes,
+    );
   assert.equal(revokedState.ready, false);
+  assert.equal(revokedState.external_anchor_verified, true);
+  assert.throws(
+    () => classifyBuyLaunchGenerationAuthorityV1(
+      activeJournalBytes,
+      revokedJournalBytes,
+    ),
+    /buy_launch_generation_external_anchor_mismatch/u,
+  );
   assert.equal(
     classifyBuyLaunchLiveActivationLeaseV1(
       receipt,
@@ -445,7 +469,10 @@ try {
     "utf8",
   );
   const rotatedState =
-    classifyBuyLaunchGenerationJournalV1(rotatedJournalBytes);
+    classifyBuyLaunchGenerationAuthorityV1(
+      rotatedJournalBytes,
+      rotatedJournalBytes,
+    );
   assert.equal(rotatedState.ready, true);
   assert.equal(rotatedState.generation, rotatedGeneration);
   assert.equal(
@@ -475,7 +502,7 @@ try {
     /buy_launch_generation_active_must_revoke/,
   );
 
-  fs.writeFileSync(journalPath, activeJournalBytes, { mode: 0o600 });
+  fs.writeFileSync(journalPath, revokedJournalBytes, { mode: 0o600 });
 
   assert.equal(
     readBuyLaunchLiveActivationV1(sourceReady, {
@@ -547,6 +574,9 @@ assert.match(gateSource, /classifyVoidWcVoidCoupledLaunchReadinessV1/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256/);
 assert.match(gateSource, /buy-void-coupled-live-generation-v1\.jsonl/);
+assert.match(gateSource, /void-node-authority-v1/);
+assert.match(gateSource, /buy-void-coupled-live-generation-anchor-v1\.jsonl/);
+assert.match(gateSource, /external_anchor_verified/);
 assert.match(gateSource, /generation_tip_sha256/);
 assert.match(gateSource, /VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1/);
 assert.match(gateSource, /buyLaunchRequestAuthorityMatchesV1/);
@@ -572,6 +602,8 @@ console.log("live_receipt_digest_binding_required=true");
 console.log("live_activation_lease_expiry_required=true");
 console.log("live_activation_generation_journal_required=true");
 console.log("durable_generation_revocation_required=true");
+console.log("external_generation_high_water_anchor_required=true");
+console.log("data_dir_rollback_old_generation_replay=false");
 console.log("configuration_rollback_old_generation_replay=false");
 console.log("payment_request_bound_to_generation_tip=true");
 console.log("payment_request_bound_to_exact_activation_receipt=true");
