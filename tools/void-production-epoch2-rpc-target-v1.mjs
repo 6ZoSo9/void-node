@@ -921,6 +921,22 @@ function materializePrivateSelectionTreeV1(generation) {
     throw error;
   }
 }
+export function nodePermissionFlagV1(
+  nodeVersion = process.versions.node,
+) {
+  const match = /^(\\d+)\\.(\\d+)\\.(\\d+)(?:-|$)/u.exec(nodeVersion);
+  if (!match) {
+    fail("production_epoch2_selection_node_version_invalid");
+  }
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  if (major !== 22 && major !== 24 && major !== 26) {
+    fail("production_epoch2_selection_node_version_unsupported");
+  }
+  return major === 22 && minor < 13
+    ? "--experimental-permission"
+    : "--permission";
+}
 function runSelectionEvidenceSemanticVerifierV1() {
   const generation = captureReviewedSelectionGenerationV1();
   const bundle = materializePrivateSelectionTreeV1(generation);
@@ -933,7 +949,7 @@ function runSelectionEvidenceSemanticVerifierV1() {
     const result = spawnSync(
       fs.realpathSync.native(process.execPath),
       [
-        "--permission",
+        nodePermissionFlagV1(),
         "--allow-fs-read=" + bundle.repo_root,
         "--allow-child-process",
         verifierFile,
