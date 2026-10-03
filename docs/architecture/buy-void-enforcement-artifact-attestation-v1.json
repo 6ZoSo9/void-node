@@ -307,9 +307,9 @@
   "inputs": [
     {
       "path": "Dockerfile",
-      "bytes": 781,
-      "sha256": "4b01cd2d1f328bb3dcafdd96fe3d2cddbc9316a24823ff91ddee3a37690b07af",
-      "git_blob_sha1": "a440e5b39c2a73b2a66b4aa06d1ebeffb72397bf"
+      "bytes": 1194,
+      "sha256": "bf812dc7090a60dbcba031d33925241de3a4a44d42e7e5ca1e3edeeccbc9288f",
+      "git_blob_sha1": "54a3fd08e7f7ea542d76e23162e4d59236461bd4"
     },
     {
       "path": "package-lock.json",
@@ -605,5 +605,5 @@
   "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
   "production_source_finality_authority_ready": false,
   "deployed_artifact_generation_verified": false,
-  "enforcement_artifact_set_sha256": "acee19838eda2a3955a8538ed60a964a0b348800e17eba3534d921dfc2d3c25b"
+  "enforcement_artifact_set_sha256": "45eebd80412cacc1b1245e3b8b75f6c879580761e28ee815f901a77fae1de13f"
 }
