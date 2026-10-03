@@ -448,7 +448,7 @@ export function evaluatePublicSubmissionGatewayContractV1(source) {
   );
   matchExactlyOne(
     code,
-    /\x60\$\{AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM\}\$\{AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH\}\x60/gu,
+    /fetch\s*\(\s*\x60\$\{AGENT_PAID_WORK_SUBMISSION_RECEIVER_UPSTREAM\}\$\{AGENT_PAID_WORK_SUBMISSION_RECEIVER_PATH\}\x60/gu,
     "public_submission_exact_upstream_target",
     codeMask,
   );
