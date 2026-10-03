@@ -8,6 +8,7 @@ import path from "node:path";
 
 import {
   HOLD_STATUS,
+  nodePermissionFlagV1,
   SELECTED_STATUS,
   VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1,
   loadProductionEpoch2RpcTargetV1,
@@ -400,6 +401,8 @@ const targetSource = fs.readFileSync(
 for (const marker of [
   "materializePrivateSelectionTreeV1",
   "assertPrivateSelectionTreeV1",
+  "nodePermissionFlagV1",
+  "--experimental-permission",
   "--permission",
   "--allow-child-process",
   "production_epoch2_selection_private_git_object_mismatch",
@@ -407,6 +410,21 @@ for (const marker of [
 ]) {
   assert.equal(targetSource.includes(marker), true, marker);
 }
+assert.equal(
+  nodePermissionFlagV1("22.0.0"),
+  "--experimental-permission",
+);
+assert.equal(
+  nodePermissionFlagV1("22.12.0"),
+  "--experimental-permission",
+);
+assert.equal(nodePermissionFlagV1("22.13.0"), "--permission");
+assert.equal(nodePermissionFlagV1("24.0.0"), "--permission");
+assert.equal(nodePermissionFlagV1("26.0.0"), "--permission");
+assert.throws(
+  () => nodePermissionFlagV1("20.19.0"),
+  /production_epoch2_selection_node_version_unsupported/u,
+);
 assert.equal(
   targetSource.includes(
     "[path.join(ROOT, SELECTION_EVIDENCE_VERIFIER_REL)]",
