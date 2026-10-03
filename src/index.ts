@@ -18879,7 +18879,7 @@ setInterval(refresh, 10000);
             request_id: id
           });
         }
-        if(!__blo(found))throw 0;
+        if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
 
         const tx = String(found.tx_hash || "").trim();
         if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
@@ -18943,7 +18943,7 @@ setInterval(refresh, 10000);
           });
         }
 
-        if(!__blo(found))throw 0;
+        if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
         const event = {
           schema: "void_buy_void_operator_mark_v1",
           ok: true,
