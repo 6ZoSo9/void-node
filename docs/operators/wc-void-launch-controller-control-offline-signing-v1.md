@@ -400,6 +400,11 @@ The launcher receives only the already-verified launcher Git-blob ID as
 the launcher blob at the independently supplied reviewed commit before
 signer/key access. A challenge cannot choose this trust anchor.
 
+Because production execution uses Bash stdin, streamed mode does not require
+`BASH_SOURCE[0]` to resolve a launcher pathname. In that mode the
+already-verified blob ID above is mandatory. Pathname hashing remains only as a
+fail-closed fallback for deliberate direct-file invocation.
+
 Before sign-mode `exec`, the launcher explicitly announces the requested
 operation boundary:
 
