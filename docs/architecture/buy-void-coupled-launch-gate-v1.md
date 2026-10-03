@@ -103,6 +103,17 @@ tip, sequence, external-anchor identity, and active state must remain identical
 across those two observations; a revocation or rotation completing during
 receipt verification therefore fails closed before `ready=true`.
 
+State mutation closes the remaining post-check race with the repository's
+existing crash-recoverable filesystem bakery lock. The fixed generation
+authority lock is a sibling of the external high-water mirror. New request
+persistence and `payment_verified` persistence acquire that lock, rederive the
+current request authority while holding it, and keep it held through the exact
+append. The reviewed generation-transition publication boundary is exposed
+through `withBuyLaunchGenerationTransitionPublicationV1(...)` and uses the
+same lock. A generation publisher and a payment/request mutation therefore
+cannot complete concurrently through reviewed paths. This PR does not itself
+invoke generation publication or create activation state.
+
 The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
 permissions and no link aliases. File ownership, SHA-256, and the confirmation
@@ -167,10 +178,13 @@ when its lease expires.
 Every accepted public Buy request snapshots the exact current request authority:
 coupled launch/composition, generation, durable generation-journal tip, activation
 receipt ID/SHA-256, and its original lease expiry. The handler revalidates that
-snapshot immediately before persisting or returning payment instructions.
-Tx-hash binding and payment verification both revalidate the request against a
-currently live gate on the same generation/tip; payment verification checks once
-before chain observation and again before recording `payment_verified`. A
+snapshot before persisting or returning payment instructions. The final request
+append then runs under the shared generation-authority lock and rederives the
+authority inside that critical section. Tx-hash binding and payment verification
+both revalidate the request against a currently live gate on the same
+generation/tip; the final `payment_verified` append likewise runs under that
+same generation lock (and its request lock), with authority rederived while the
+generation lock remains held through the write. A
 same-generation receipt renewal may keep the launch live, but it never extends
 the request's original payment deadline. An expired, revoked, rotated, or
 otherwise superseded request therefore cannot accept a new payment or advance
