@@ -25,8 +25,8 @@ function sameStampV1(a: fs.BigIntStats, b: fs.BigIntStats): boolean {
 
 function renameProtectedDirectoryV1(st: fs.BigIntStats, euid: bigint): boolean {
   if (!st.isDirectory() || st.isSymbolicLink()) return false;
-  if ((st.mode & 0o022n) === 0n) return true;
-  return (st.mode & 0o1000n) !== 0n && (st.uid === euid || st.uid === 0n);
+  if (st.uid !== euid && st.uid !== 0n) return false;
+  return (st.mode & 0o022n) === 0n || (st.mode & 0o1000n) !== 0n;
 }
 
 function openParentDirectoryV1(filePath: string): { fd: number; name: string } | null {

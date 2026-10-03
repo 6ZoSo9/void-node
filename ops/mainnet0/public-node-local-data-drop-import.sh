@@ -81,11 +81,10 @@ def require_rename_protected_parent(fd, label):
     current = os.fstat(fd)
     if not stat.S_ISDIR(current.st_mode):
         fail(f"{label}_not_directory")
-    if current.st_mode & 0o022:
-        if not (current.st_mode & stat.S_ISVTX):
-            fail(f"{label}_group_or_world_writable_without_sticky")
-        if current.st_uid not in (0, euid):
-            fail(f"{label}_sticky_owner_not_operator_or_root")
+    if current.st_uid not in (0, euid):
+        fail(f"{label}_owner_not_operator_or_root")
+    if current.st_mode & 0o022 and not (current.st_mode & stat.S_ISVTX):
+        fail(f"{label}_group_or_world_writable_without_sticky")
 
 
 def open_data_root(path):
