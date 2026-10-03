@@ -32,7 +32,9 @@ grep -Fq "terminal_child_seals_verified=true" "$VERIFIER" || fail "terminal_chil
 grep -Fq "sealed digest mismatch" "$VERIFIER" || fail "semantic_child_digest_enforcement_missing"
 grep -Fq "terminal_child_digest_mismatch" "$VERIFIER" || fail "terminal_child_digest_enforcement_missing"
 grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
-grep -Fq "fixture visible identity changed during semantic verify" "$VERIFIER" || fail "terminal_visible_identity_check_missing"
+grep -Fq "terminal_fixture_root_identity_mismatch" "$VERIFIER" || fail "terminal_root_identity_check_missing"
+grep -Fq "terminal_child_visible_identity_mismatch" "$VERIFIER" || fail "terminal_child_visible_identity_check_missing"
+grep -Fq "sys.stdout.flush()" "$VERIFIER" || fail "terminal_green_flush_missing"
 grep -Fq "Demo003 invocation path invalid" "$VERIFIER" || fail "invocation_path_guard_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"
 if grep -Fq 'tar -xzf' "$VERIFIER"; then fail "legacy_tar_extract_remains"; fi
