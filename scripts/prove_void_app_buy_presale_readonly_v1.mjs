@@ -339,6 +339,7 @@ assert.doesNotMatch(
 );
 
 buyTest.setState(validSnapshot, false, false);
+buyTest.renderSnapshot(validSnapshot);
 assert.equal(buyTest.beginBuyViewInstance(buyViewNode), true);
 buyTest.setState(validSnapshot, false, false);
 buyTest.updateSubmit();
