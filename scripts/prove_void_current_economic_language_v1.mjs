@@ -415,6 +415,10 @@ assert.match(
   /BTC\/VOID settlement primitives \| Guarded \/ source-only/,
 );
 assert.match(
+  docs.publicStatus,
+  /BTC\/VOID[\s\S]*source-only[\s\S]*post-presale[\s\S]*separately launch-gated/i,
+);
+assert.match(
   docs.releases,
   /client-neutral Epoch-2 successor-state manifest published/,
 );
