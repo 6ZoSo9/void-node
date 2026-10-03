@@ -20,7 +20,6 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   signControlChallengeCoreV1,
-  testOnlyExerciseSignatureOutputCleanupReplacementRaceV1,
   testOnlyExerciseSignatureOutputExpiryQuarantineV1,
   testOnlyExerciseSignatureOutputParentReplacementV1,
   testOnlyExerciseSignatureOutputReplacementQuarantineV1,
@@ -517,6 +516,17 @@ assert.equal(verified.control_verified, true);
 assert.equal(verified.role_binding_authorized, false);
 assert.equal(verified.deployment_authorized, false);
 assert.equal(verified.funds_movement_authorized, false);
+
+await assert.rejects(
+  () =>
+    verifyVoidWcVoidLaunchControllerControlSignatureV1({
+      challengeEnvelope: challenge,
+      signatureEnvelope: envelope,
+      nowUnix: now + 901,
+    }),
+  /control_challenge_expired/u,
+  "an otherwise-valid quarantined/public signature must be non-authoritative after expiry",
+);
 
 await assert.rejects(
   () =>
@@ -1085,8 +1095,13 @@ assert.equal(
   );
   assert.equal(
     writerSource.includes("fs.unlinkSync(pinnedOutput)"),
+    false,
+    "post-publication failure must never path-delete the published basename",
+  );
+  assert.equal(
+    writerSource.includes("signature_output_quarantined_after_failure:"),
     true,
-    "failed redirected or expired output must be removed through the retained parent fd",
+    "post-publication failure must return a quarantine marker instead of cleanup",
   );
   assert.equal(
     writerSource.includes("control_challenge_expired_after_output_write"),
@@ -1416,6 +1431,7 @@ console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
 console.log("chain2050_write=false");
 console.log("signature_output_postpublish_cleanup_disabled=true");
+console.log("expired_public_signature_rejected_by_canonical_verifier=true");
 console.log("signature_output_replacement_quarantined_not_deleted=true");
 console.log("funds_movement=false");
 console.log(
