@@ -692,6 +692,8 @@ assert.equal(wrongSignerResponse.status, 401);
 assert.equal((await wrongSignerResponse.json()).error, "applicant_auth_invalid");
 assert.equal(upstreamCalls.length, 1);
 
+// This checks a new key against the original inner agent_id. It does not test
+// rate isolation for an actor rotating both the key and the inner agent_id.
 const rotatingIdentity = identity();
 const rotatedBody = requestBody("rotated-key", basicIdentity.agentId);
 const rotatedResponse = await postCredential(
@@ -708,7 +710,7 @@ assert.equal((await rotatedResponse.json()).error, "applicant_auth_invalid");
 assert.equal(
   upstreamCalls.length,
   1,
-  "throwaway signing keys must not replace the inner applicant identity",
+  "a signing key must not authenticate a different inner agent_id",
 );
 
 const expiredIdentity = identity();
@@ -817,7 +819,7 @@ for (let index = 0; index < 2; index += 1) {
 assert.equal(
   upstreamCalls.length,
   6,
-  "applicant B must retain its allowance after applicant A is exhausted",
+  "a second signing identity retains its allowance after the first is exhausted",
 );
 assert.ok(upstreamCalls.length < UPSTREAM_LIMIT);
 
@@ -1033,12 +1035,13 @@ console.log("query_parameters_allowed=false");
 console.log("applicant_identity=void-agent:ed25519");
 console.log("applicant_signature_required=true");
 console.log("inner_agent_id_must_equal_signing_identity=true");
-console.log("throwaway_key_rate_identity_rotation_blocked=true");
+console.log("key_body_identity_mismatch_rejected_before_upstream=true");
+console.log("rotation_resistant_fairness_proven=false");
 console.log("auth_ttl_max_seconds=60");
 console.log("nonce_replay_rejected_before_upstream=true");
 console.log("forwarded_ip_headers_trusted=false");
-console.log("single_applicant_cannot_exhaust_upstream_bucket=true");
-console.log("second_applicant_isolated_after_first_exhaustion=true");
+console.log("single_signing_key_cannot_exhaust_upstream_bucket=true");
+console.log("second_signing_key_isolated_after_first_exhaustion=true");
 console.log("upstream_status_limit_equality_required=true");
 console.log("upstream_requalified_per_admitted_request=true");
 console.log("runtime_upstream_limit_drift_holds_before_proxy=true");

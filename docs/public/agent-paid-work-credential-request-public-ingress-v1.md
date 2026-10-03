@@ -56,16 +56,16 @@ The public proxy adds its own:
 - exact binding of that signature to the unchanged inner request ID, exact body
   SHA-256, POST method, exact route, issue/expiry times and nonce;
 - exact equality between the key-derived `void-agent:ed25519:...` identity and
-  the inner credential request's `agent_id`, so throwaway signing keys cannot
-  rotate the rate-limit identity for one applicant;
+  the inner credential request's `agent_id`, rejecting key/body identity
+  mismatch;
 - the existing `void-agent:ed25519:<digest>` identity derivation over a public
   Ed25519 JWK;
 - a 60-second maximum auth lifetime with clock-skew and expiry rejection;
 - nonce replay rejection before upstream proxying;
-- a bounded per-applicant public-edge rate window;
+- a bounded per-key public-edge rate window;
 - a required rate-budget relationship that reserves capacity for at least a
-  second applicant before the shared loopback wall can be exhausted by one
-  identity;
+  second signing identity before the shared loopback wall can be exhausted by
+  one signing identity;
 - no trust in `X-Forwarded-For`, `Forwarded`, or caller-selected network
   identity headers;
 - loopback-only reviewed upstream URL;
@@ -75,9 +75,9 @@ The public proxy adds its own:
 - response-header filtering.
 
 The public route may create one bounded credential-request intake record through
-the reviewed upstream. The public applicant signature authenticates only the
-rate-limit/request origin at this edge; it does **not** approve the credential
-request or grant any credential/session authority. The exact inner
+the reviewed upstream. The public applicant signature authenticates the
+presented signing key and binds it to the request at this edge; it does **not**
+approve the credential request or grant any credential/session authority. The exact inner
 `VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_V1` body is forwarded unchanged after
 edge verification.
 
@@ -87,7 +87,7 @@ wallet/signer, sign or broadcast a transaction, or move funds.
 
 Credential review and issuance remain operator-controlled and separate.
 
-## Applicant authentication and rate isolation
+## Applicant authentication and per-key rate isolation
 
 The public route is configured only when all three operator inputs are present:
 
@@ -99,10 +99,12 @@ VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE=<M>
 
 The gateway requires `2 * N <= M`. The reviewed example is `N=4`,
 `M=12`, matching the existing loopback gateway's reviewed 12/minute global
-wall while preventing one verified applicant from consuming that entire bucket.
+wall while preventing one verified signing identity from consuming that entire
+bucket. This does not prevent one actor using multiple self-issued keys from
+consuming the global budget.
 The public edge also mirrors `M` as its own bounded global rolling window
 before proxying. This keeps verified-but-rejected traffic from growing
-per-applicant/replay state without bound, while the loopback gateway remains the
+per-key/replay state without bound, while the loopback gateway remains the
 independent second/global wall.
 
 The `x-void-applicant-auth-v1` header is base64url-encoded JSON. Its signed
@@ -138,6 +140,14 @@ request/body bindings, then consumes the nonce exactly once. Changing forwarding
 headers, callback data, request IDs, body bytes, timestamps, or public keys
 cannot select or reset the applicant rate key without changing the authenticated
 applicant identity itself.
+
+Before registration, an applicant can create a new key and use its matching
+`agent_id` in a new signed request. Key/body binding therefore proves request
+integrity and per-key accounting, not rotation-resistant applicant fairness.
+The focused proof's new-key/original-`agent_id` case checks mismatch rejection;
+it does not prove that rotating both values preserves one applicant's rate
+budget. A non-rotatable fairness identity or reviewed transport-level source
+identity remains an architecture HOLD for #2400.
 
 Rate-limited requests do not consume new replay-cache entries. Applicant and
 nonce tracking are explicitly bounded, and expired/non-active entries are
@@ -176,9 +186,10 @@ This patch does not change its authentication or activation policy.
 
 ## Runtime implication
 
-This source closes the public-edge isolation defect tracked by #2397/#2400 and
-keeps #2382 step 3 as a bounded HTTPS composition. It does not prove that the
-credential-request gateway is currently running or publicly reachable.
+This source adds signed per-key rate accounting for #2397 and keeps #2382 step 3
+as a bounded HTTPS composition. It does not close #2400: rotation-resistant
+multi-applicant fairness remains an architecture HOLD. It also does not prove
+that the credential-request gateway is currently running or publicly reachable.
 
 Before external outreach, the operator still must prove:
 
