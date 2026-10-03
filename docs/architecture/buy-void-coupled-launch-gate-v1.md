@@ -114,12 +114,18 @@ Generation publication now has one canonical reviewed writer:
 `ops/precision/void-buy-coupled-live-generation-publish-v1.mjs`. That operator
 entrypoint calls `publishBuyLaunchGenerationTransitionV1(...)`, the only
 exported generation-publication operation. Its internal critical section takes
-the same generation-authority lock used by request/payment mutation and performs
-the complete journal + external-anchor transition synchronously before that
-lock can be released. The lower-level callback boundary is deliberately private,
-so callers cannot supply an asynchronous or thenable publication callback.
-A generation transition and a payment/request mutation therefore cannot
-complete concurrently through reviewed paths.
+the same generation-authority lock used by request/payment mutation.
+
+The underlying bakery lock now provides
+`withBuyVoidFilesystemBakeryLockAsyncV1(...)`: its queue claim remains present
+until `await operation()` settles, and cleanup occurs only in the enclosing
+`finally`. The launch gate uses that async-aware lock for both generation
+publication and request-authority mutation. A Promise-returning critical section
+therefore cannot resume after its lock claim has been released. The canonical
+publisher itself still performs the complete journal + external-anchor file
+transition synchronously while that async-aware lock is held. A generation
+transition and a payment/request mutation therefore cannot complete concurrently
+through reviewed paths.
 
 The publisher is not run by this PR. No generation journal, external anchor,
 activation receipt, request intake, market activation, presale activation, or
