@@ -42,7 +42,7 @@ The production wrapper requires:
 3. full cohort coverage and zero ambiguous participants;
 4. a content-addressed manifest ID matching the exact manifest material;
 5. independent revalidation of canonical cluster IDs, evidence IDs, assignment/evidence ordering, cluster-assignment root, and evidence-manifest root;
-6. exact current source binding to the reviewed #2369 compiler Git blob `7bb5c54fcd6a0d188b90c4c17d06145fe792ce66`;
+6. exact current source binding to the reviewed #2369 compiler Git blob `7bb5c54fcd6a0d188b90c4c17d06145fe792ce66`; the verifier does **not** import or execute the compiler worktree module, and instead independently revalidates its pinned marker, authority snapshot, cluster-ID derivation, assignments, evidence IDs/roots and manifest ID;
 7. fresh re-verification of
    `VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1`;
 8. control evidence recovering the exact selected reviewer
@@ -78,8 +78,14 @@ The existing concentration arithmetic must be rerun after evidence admission.
 ## Proof boundary
 
 CI uses an ephemeral random test key only to prove generic EIP-712 recovery and
-wrong-signer rejection. The production fixed-address positive path cannot be
-signed in CI because the production private key is intentionally absent.
+wrong-signer rejection. It also hides a malicious worktree edit to the pinned
+manifest compiler with Git `assume-unchanged`, imports the review verifier in a
+fresh child, and requires the manifest to validate without executing the dirty
+compiler sentinel. The compiler Git blob is provenance input, not executable
+worktree authority.
+
+The production fixed-address positive path cannot be signed in CI because the
+production private key is intentionally absent.
 
 The later operator ceremony must prepare the exact typed data, sign it offline
 with the already-selected reviewer key, and verify it together with fresh
