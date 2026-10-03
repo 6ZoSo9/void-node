@@ -344,12 +344,59 @@ try {
   assert.equal(partial.value.discovery.invalid_adapter_receipt_files, 1);
   assert.equal(partial.value.matched.gross_production_earned_wc, "6");
 
+  const deepRoot = path.join(temp, "depth-limited-receipts");
+  let deepCursor = deepRoot;
+  fs.mkdirSync(deepCursor, { recursive: true, mode: 0o700 });
+  for (let index = 0; index < 18; index += 1) {
+    deepCursor = path.join(deepCursor, "level-" + String(index));
+    fs.mkdirSync(deepCursor, { mode: 0o700 });
+  }
+  const depthLimited = run(dataDir, deepRoot);
+  assert.equal(
+    depthLimited.value.status,
+    "PRODUCTION_WC_CAPACITY_OBSERVED_WITH_DISCOVERY_GAPS",
+  );
+  assert.ok(depthLimited.value.discovery.depth_limited_directories > 0);
+  assert.equal(
+    depthLimited.value.receipt_search_scope_authoritative,
+    false,
+  );
+  assert.equal(depthLimited.raw.includes(accountA), false);
+  assert.equal(depthLimited.raw.includes(accountB), false);
+  assert.equal(depthLimited.raw.includes(deepRoot), false);
+
+  if (process.platform === "linux") {
+    const unreadableRoot = path.join(temp, "unreadable-receipts");
+    const unreadableChild = path.join(unreadableRoot, "locked");
+    fs.mkdirSync(unreadableChild, { recursive: true, mode: 0o700 });
+    fs.chmodSync(unreadableChild, 0o000);
+    try {
+      const unreadable = run(dataDir, unreadableRoot);
+      assert.equal(
+        unreadable.value.status,
+        "PRODUCTION_WC_CAPACITY_OBSERVED_WITH_DISCOVERY_GAPS",
+      );
+      assert.ok(unreadable.value.discovery.unreadable_directories > 0);
+      assert.equal(
+        unreadable.value.receipt_search_scope_authoritative,
+        false,
+      );
+      assert.equal(unreadable.raw.includes(accountA), false);
+      assert.equal(unreadable.raw.includes(accountB), false);
+      assert.equal(unreadable.raw.includes(unreadableRoot), false);
+    } finally {
+      fs.chmodSync(unreadableChild, 0o700);
+    }
+  }
+
   console.log(
     "VOID_WC_VOID_OPENING_PRODUCTION_WC_CAPACITY_CENSUS_V1_PROOF_GREEN",
   );
   console.log("canonical_adapter_receipt_validation=true");
   console.log("canonical_wc_state_projection_reused=true");
   console.log("production_earned_lower_upper_bounds=true");
+  console.log("depth_limited_discovery_gap_fail_closed=true");
+  console.log("unreadable_directory_discovery_gap_fail_closed=" + String(process.platform === "linux"));
   console.log("account_identifiers_not_emitted=true");
   console.log("credential_registry_access=false");
   console.log("wc_ledger_mutation=false");
