@@ -813,13 +813,13 @@ assert.equal(
 );
 assert.equal(
   launcherSource.indexOf("credential_access=true") <
-    launcherSource.indexOf('"$reviewed_runtime_root/$signer_rel"'),
+    launcherSource.indexOf('"$reviewed_runtime_fd_path/$signer_rel"'),
   true,
   "sign mode must announce credential access before exec",
 );
 assert.equal(
   launcherSource.indexOf("wallet_or_signer_access=true") <
-    launcherSource.indexOf('"$reviewed_runtime_root/$signer_rel"'),
+    launcherSource.indexOf('"$reviewed_runtime_fd_path/$signer_rel"'),
   true,
   "sign mode must announce signer access before exec",
 );
