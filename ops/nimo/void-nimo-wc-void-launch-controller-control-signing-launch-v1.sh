@@ -192,8 +192,7 @@ current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
 [[ "$source_head" == "$reviewed_head" ]] ||
   hold "challenge_source_head_not_operator_reviewed_head"
 
-/usr/bin/python3 -I -P - "$repo" "$reviewed_head" <<'PY' ||
-  hold "repository_not_clean"
+if ! /usr/bin/python3 -I -P - "$repo" "$reviewed_head" <<'PY'
 import hashlib
 import os
 import stat
@@ -346,7 +345,9 @@ untracked = git_bytes([
 if untracked:
     raise SystemExit(2)
 PY
-
+then
+  hold "repository_not_clean"
+fi
 critical_paths=(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
@@ -516,8 +517,7 @@ current_head="$("${git_env[@]}" "${git_cmd[@]}" rev-parse HEAD)" ||
 [[ "$source_head" == "$reviewed_head" ]] ||
   hold "challenge_source_head_not_operator_reviewed_head"
 
-/usr/bin/python3 -I -P - "$repo" "$reviewed_head" <<'PY' ||
-  hold "repository_not_clean"
+if ! /usr/bin/python3 -I -P - "$repo" "$reviewed_head" <<'PY'
 import hashlib
 import os
 import stat
@@ -670,7 +670,9 @@ untracked = git_bytes([
 if untracked:
     raise SystemExit(2)
 PY
-
+then
+  hold "repository_not_clean"
+fi
 critical_paths=(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
