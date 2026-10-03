@@ -458,14 +458,14 @@ function buyView() {
       ${pageHeader({
         eyebrow: 'Activation-gated fixed-price presale',
         title: 'Buy VOID',
-        purpose: 'Create a guarded Base USDC purchase request only when the live presale gate is OPEN. This page never sends funds or connects a wallet.',
+        purpose: 'Create a guarded Base or Ethereum native-USDC purchase request only when the live presale gate is OPEN. This page never sends funds or connects a wallet.',
       })}
 
       <div class="alert alert--warning buy-risk-warning" role="alert">
         <span class="alert__icon">!</span>
         <div class="alert__copy">
           <strong>SELF-CUSTODY ONLY — EXCHANGE SENDS ARE TREATED AS LOST</strong>
-          <p>VOID is not listed on any exchange. Do not send USDC from an exchange or custodial wallet. The Base USDC sender address is bound as the VOID destination identity. If an exchange sends for you, resulting VOID can be delivered to an address you do not control. VOID cannot recover those funds. Treat any exchange or custodial send as lost.</p>
+          <p>VOID is not listed on any exchange. Do not send USDC from an exchange or custodial wallet. The selected-rail USDC sender address is bound as the VOID destination identity. If an exchange sends for you, resulting VOID can be delivered to an address you do not control. VOID cannot recover those funds. Treat any exchange or custodial send as lost.</p>
         </div>
       </div>
 
@@ -515,21 +515,29 @@ function buyView() {
 
           <form class="buy-request-form" data-buy-request-form>
             <div class="form-field">
-              <label for="buy-usdc-amount">Base native USDC amount</label>
+              <label for="buy-usdc-chain">Payment network</label>
+              <select class="input" id="buy-usdc-chain" name="source_chain" data-buy-chain disabled>
+                <option value="base">Base Mainnet — native USDC</option>
+                <option value="ethereum">Ethereum Mainnet — native USDC</option>
+              </select>
+              <small>Choose one network and use only the chain/token returned by the request.</small>
+            </div>
+            <div class="form-field">
+              <label for="buy-usdc-amount">Native USDC amount</label>
               <input class="input" id="buy-usdc-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="25" data-buy-amount disabled>
               <small data-buy-limits>Loading live purchase limits.</small>
             </div>
             <div class="form-field">
               <label for="buy-void-destination">Native VOID destination address</label>
               <input class="input mono" id="buy-void-destination" name="void_destination_address" autocomplete="off" spellcheck="false" placeholder="0x…" data-buy-destination disabled>
-              <small>The Base USDC sender must be this exact same address.</small>
+              <small>The selected-rail USDC sender must be this exact same address.</small>
             </div>
 
             <div class="buy-checklist" aria-label="Required purchase acknowledgements">
               <label><input type="checkbox" data-buy-ack="self_custody" disabled> I control this self-custody address and understand exchange/custodial sends are treated as lost.</label>
-              <label><input type="checkbox" data-buy-ack="base_native_usdc" disabled> I will send native USDC on Base Mainnet only.</label>
+              <label><input type="checkbox" data-buy-ack="native_usdc" disabled> I will send native USDC only on the network selected above and verify the returned token contract.</label>
               <label><input type="checkbox" data-buy-ack="request_before_payment" disabled> I will not send funds until this request is created and I verify its instructions.</label>
-              <label><input type="checkbox" data-buy-ack="sender_equals_void_destination" disabled> The Base USDC sender will equal the VOID destination address above.</label>
+              <label><input type="checkbox" data-buy-ack="sender_equals_void_destination" disabled> The selected-rail USDC sender will equal the VOID destination address above.</label>
               <label><input type="checkbox" data-buy-ack="no_automatic_fulfillment" disabled> I understand payment observation alone is not a VOID fulfillment receipt.</label>
             </div>
 
@@ -551,13 +559,12 @@ function buyView() {
             </div>
           </div>
           <dl class="buy-facts">
-            <div><dt>Current launch rail</dt><dd>Base Mainnet · 8453</dd></div>
+            <div><dt>Supported rails</dt><dd>Base Mainnet · 8453<br>Ethereum Mainnet · 1</dd></div>
             <div><dt>Asset</dt><dd>Native USDC</dd></div>
-            <div><dt>Base USDC contract</dt><dd class="mono" data-buy-usdc-contract>—</dd></div>
-            <div><dt>Ethereum USDC</dt><dd>APPROVED · NOT ACTIVE YET</dd></div>
+            <div><dt>Base USDC contract</dt><dd class="mono" data-buy-base-usdc-contract>—</dd></div>
+            <div><dt>Ethereum USDC contract</dt><dd class="mono" data-buy-ethereum-usdc-contract>—</dd></div>
             <div><dt>Approved receiver</dt><dd class="mono" data-buy-receiver>Hidden until verified</dd></div>
             <div><dt>VOID chain</dt><dd>2050</dd></div>
-            <div><dt>Ethereum contract</dt><dd class="mono">0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</dd></div>
             <div><dt>Exchange/custody</dt><dd class="buy-danger-copy">NOT SUPPORTED</dd></div>
           </dl>
         </section>
@@ -579,8 +586,8 @@ function buyView() {
           <div class="alert alert--warning">
             <span class="alert__icon">!</span>
             <div class="alert__copy">
-              <strong>Do not send Ethereum USDC yet</strong>
-              <p>Ethereum mainnet native USDC is policy-approved, but the current purchase-request flow accepts Base only. Ethereum must not be used until this page explicitly marks the Ethereum rail OPEN.</p>
+              <strong>Use the exact rail returned by your request</strong>
+              <p>Base Mainnet and Ethereum Mainnet native USDC are supported request rails. Never switch networks or token contracts after request creation; use only the exact chain, contract, receiver, amount, and sender identity returned by the request.</p>
             </div>
           </div>
           <p class="panel-link-row"><a href="#/market">Open WC / VOID launch status →</a></p>
