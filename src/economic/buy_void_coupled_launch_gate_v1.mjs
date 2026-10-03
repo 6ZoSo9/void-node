@@ -302,6 +302,43 @@ export function buyLaunchGenerationExternalAnchorPathV1() {
   );
 }
 
+export function buyLaunchGenerationAuthorityLockPathV1() {
+  return path.join(
+    path.dirname(buyLaunchGenerationExternalAnchorPathV1()),
+    "buy-void-coupled-live-generation-authority-v1",
+  );
+}
+
+async function withBuyLaunchGenerationAuthorityLockV1(operation) {
+  if (typeof operation !== "function") {
+    throw new Error("buy_launch_generation_lock_operation_required");
+  }
+  let lockModule;
+  try {
+    lockModule = await import(
+      "../../dist/economic/buy_void_filesystem_bakery_lock_v1.js"
+    );
+  } catch (error) {
+    void error;
+    throw new Error("buy_launch_generation_authority_lock_unavailable");
+  }
+  if (
+    typeof lockModule?.withBuyVoidFilesystemBakeryLockV1 !== "function"
+  ) {
+    throw new Error("buy_launch_generation_authority_lock_invalid");
+  }
+  return lockModule.withBuyVoidFilesystemBakeryLockV1(
+    buyLaunchGenerationAuthorityLockPathV1(),
+    operation,
+  );
+}
+
+export async function withBuyLaunchGenerationTransitionPublicationV1(
+  operation,
+) {
+  return withBuyLaunchGenerationAuthorityLockV1(operation);
+}
+
 export function readBuyLaunchGenerationJournalV1(env = process.env) {
   const dataDirRaw = String(env.DATA_DIR || env.VOID_DATA_DIR || "").trim();
   if (!dataDirRaw) {
@@ -910,6 +947,32 @@ export function buyLaunchRequestAuthorityMatchesV1(
     void error;
     return false;
   }
+}
+
+export async function withBuyLaunchRequestAuthorityMutationV1(
+  request,
+  operation,
+  env = process.env,
+) {
+  if (typeof operation !== "function") {
+    throw new Error("buy_launch_request_authority_operation_required");
+  }
+  return withBuyLaunchGenerationAuthorityLockV1(() => {
+    const nowMs = Date.now();
+    const currentGate = readBuyLaunchGateV1(env, nowMs);
+    if (
+      !buyLaunchRequestAuthorityMatchesV1(
+        request,
+        currentGate,
+        nowMs,
+      )
+    ) {
+      throw new Error(
+        "request_launch_authority_expired_or_superseded",
+      );
+    }
+    return operation();
+  });
 }
 
 export function readBuyLaunchGateV1(
