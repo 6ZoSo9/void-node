@@ -58821,8 +58821,9 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
   let manifest:any;
   try{manifest=JSON.parse(manifestBytes.toString("utf8"));}
   catch(_e){return res.status(422).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_invalid_manifest",object_set_id:"demo003-folder-fixture-v1"});}
-  let intake:any=null;
-  try{const b=rf(intakePath);intake=b?JSON.parse(b.toString("utf8")):null;}catch(_e){intake=null;}
+  let intake:any=null; let ib:Buffer|null;
+  try{ib=rf(intakePath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_unsafe_intake",object_set_id:"demo003-folder-fixture-v1"});}
+  if(ib){try{intake=JSON.parse(ib.toString("utf8"));}catch(_e){return res.status(422).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_invalid_intake",object_set_id:"demo003-folder-fixture-v1"});}}
   return res.json({
     marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
     status:"demo003_folder_fixture_served",

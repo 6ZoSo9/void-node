@@ -195,6 +195,8 @@ assert.notEqual(demoManifestStart,-1,"Demo003 manifest route missing");
 assert.notEqual(demoManifestEnd,-1,"Demo003 file route boundary missing");
 const demoManifestRoute=source.slice(demoManifestStart,demoManifestEnd);
 assert.equal(demoManifestRoute.includes("const manifestBytes=rf(manifestPath);"),true,"Demo003 manifest must use custody reader");
+assert.equal(demoManifestRoute.includes("demo003_folder_fixture_unsafe_intake"),true,"Demo003 unsafe intake must fail closed");
+assert.equal(demoManifestRoute.includes("catch(_e){intake=null;}"),false,"Demo003 unsafe intake must not be masked");
 assert.equal(demoManifestRoute.includes("demo003_folder_fixture_missing_or_unsafe"),true,"Demo003 manifest must fail closed on custody rejection");
 assert.ok(demoManifestRoute.indexOf("demo003_folder_fixture_missing_or_unsafe")<demoManifestRoute.indexOf("demo003_folder_fixture_served"),"Demo003 manifest success must follow custody rejection guard");
 
