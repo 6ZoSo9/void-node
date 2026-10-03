@@ -13,7 +13,9 @@ import {
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
   VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
   VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1,
+  VOID_BUY_COUPLED_GENERATION_PUBLICATION_INTENT_V1,
   buildBuyLaunchGenerationEventV1,
+  buildBuyLaunchGenerationPublicationIntentV1,
   buyLaunchGenerationAuthorityLockPathV1,
   buyLaunchGenerationExternalAnchorPathV1,
   buyLaunchRequestAuthorityMatchesV1,
@@ -21,6 +23,7 @@ import {
   buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
   classifyBuyLaunchGenerationAuthorityV1,
+  classifyBuyLaunchGenerationPublicationRecoveryV1,
   classifyBuyLaunchRequestMutationAdmissionV1,
   classifyBuyLaunchGenerationJournalV1,
   classifyBuyLaunchLiveActivationLeaseV1,
@@ -208,6 +211,52 @@ try {
       { ...activeGenerationState },
     ),
     true,
+  );
+  const genesisIntentBytes =
+    buildBuyLaunchGenerationPublicationIntentV1({
+      previous_bytes: Buffer.alloc(0),
+      next_bytes: activeJournalBytes,
+      state: "active",
+      generation: activationGeneration,
+      occurred_at_ms: nowMs - 1000,
+    });
+  const genesisRecoveryFromNoWrites =
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: genesisIntentBytes,
+      journal_bytes: null,
+      anchor_bytes: null,
+    });
+  assert.equal(
+    genesisRecoveryFromNoWrites.intent.marker,
+    VOID_BUY_COUPLED_GENERATION_PUBLICATION_INTENT_V1,
+  );
+  assert.equal(
+    genesisRecoveryFromNoWrites.next_state.tip_sha256,
+    activeEvent.event_sha256,
+  );
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: genesisIntentBytes,
+      journal_bytes: activeJournalBytes,
+      anchor_bytes: null,
+    }).next_state.tip_sha256,
+    activeEvent.event_sha256,
+  );
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: genesisIntentBytes,
+      journal_bytes: activeJournalBytes,
+      anchor_bytes: activeJournalBytes,
+    }).next_state.tip_sha256,
+    activeEvent.event_sha256,
+  );
+  assert.throws(
+    () => classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: genesisIntentBytes,
+      journal_bytes: Buffer.from("unknown\n", "utf8"),
+      anchor_bytes: null,
+    }),
+    /buy_launch_generation_publish_recovery_state_unknown/u,
   );
   for (const patch of [
     { ready: false },
@@ -522,6 +571,38 @@ try {
       revokedJournalBytes,
       revokedJournalBytes,
     );
+  const revocationIntentBytes =
+    buildBuyLaunchGenerationPublicationIntentV1({
+      previous_bytes: activeJournalBytes,
+      next_bytes: revokedJournalBytes,
+      state: "revoked",
+      generation: activationGeneration,
+      occurred_at_ms: nowMs + 2,
+    });
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: revocationIntentBytes,
+      journal_bytes: revokedJournalBytes,
+      anchor_bytes: activeJournalBytes,
+    }).next_state.ready,
+    false,
+  );
+  assert.equal(
+    classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: revocationIntentBytes,
+      journal_bytes: activeJournalBytes,
+      anchor_bytes: activeJournalBytes,
+    }).next_state.tip_sha256,
+    revokedEvent.event_sha256,
+  );
+  assert.throws(
+    () => classifyBuyLaunchGenerationPublicationRecoveryV1({
+      intent_bytes: revocationIntentBytes,
+      journal_bytes: revokedJournalBytes,
+      anchor_bytes: Buffer.from("not-the-prior-or-next\n", "utf8"),
+    }),
+    /buy_launch_generation_publish_recovery_state_unknown/u,
+  );
   assert.equal(revokedState.ready, false);
   assert.equal(revokedState.external_anchor_verified, true);
   assert.throws(
@@ -719,8 +800,30 @@ assert.doesNotMatch(
   /export\s+async\s+function\s+withBuyLaunchGenerationTransitionPublicationV1/,
 );
 assert.match(gateSource, /publishBuyLaunchGenerationTransitionV1/);
+assert.match(
+  gateSource,
+  /buy-void-coupled-live-generation-publication-intent-v1\.json/,
+);
+assert.match(gateSource, /recoverBuyLaunchGenerationPublicationV1/);
+assert.match(gateSource, /classifyBuyLaunchGenerationPublicationRecoveryV1/);
+assert.match(gateSource, /buildBuyLaunchGenerationPublicationIntentV1/);
+assert.match(gateSource, /atomicWritePrivateGenerationBytesV1\(intentPath, intentBytes\)/);
 assert.match(gateSource, /atomicWritePrivateGenerationBytesV1\(journalPath, nextBytes\)/);
 assert.match(gateSource, /atomicWritePrivateGenerationBytesV1\(anchorPath, nextBytes\)/);
+{
+  const intentAt = gateSource.indexOf(
+    "atomicWritePrivateGenerationBytesV1(intentPath, intentBytes)",
+  );
+  const journalAt = gateSource.indexOf(
+    "atomicWritePrivateGenerationBytesV1(journalPath, nextBytes)",
+    intentAt,
+  );
+  const anchorAt = gateSource.indexOf(
+    "atomicWritePrivateGenerationBytesV1(anchorPath, nextBytes)",
+    journalAt,
+  );
+  assert.ok(intentAt >= 0 && journalAt > intentAt && anchorAt > journalAt);
+}
 assert.match(
   gateSource,
   /\.\.\/\.\.\/dist\/economic\/buy_void_filesystem_bakery_lock_v1\.js/,
@@ -796,6 +899,9 @@ console.log("request_mutation_generation_lock_required=true");
 console.log("request_mutation_fresh_post_gate_expiry_check=true");
 console.log("generation_transition_publication_generation_lock_required=true");
 console.log("canonical_generation_publisher_uses_shared_lock=true");
+console.log("generation_publication_write_ahead_intent_required=true");
+console.log("partial_generation_publication_crash_recoverable=true");
+console.log("unknown_partial_generation_state_fails_closed=true");
 console.log("async_generation_publication_lock_lifetime_safe=true");
 console.log("external_generation_high_water_anchor_required=true");
 console.log("data_dir_rollback_old_generation_replay=false");
