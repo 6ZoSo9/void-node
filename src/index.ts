@@ -58559,7 +58559,7 @@ APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { /
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-    
+
   const safeNames = ldn(dropDir)
     .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
 
@@ -58648,7 +58648,7 @@ APP.get("/public-node/real-data-import-lane-status.json", (_req:any, res:any) =>
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-    
+
   const expected:any = {
     "void-real-user-note-v1.txt": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "void-real-user-note-v2.txt": "f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95"
@@ -58749,7 +58749,7 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-    
+
   const objects = ldn(dropDir)
     .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
@@ -58885,7 +58885,7 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-    
+
   const objects = ldn(dropDir)
     .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
@@ -58958,7 +58958,7 @@ APP.get("/public-node/local-data-drop/proof/:sha256.json", (req:any, res:any) =>
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
-    
+
   const names = ldn(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const objectId = String(name);
@@ -59006,7 +59006,7 @@ APP.get("/public-node/local-data-drop/by-sha256/:sha256", (req:any, res:any) => 
 
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
-  
+
   const names = ldn(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const filePath = path.join(dropDir, String(name));
