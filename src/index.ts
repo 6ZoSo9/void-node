@@ -18552,7 +18552,7 @@ small{color:#94a3b8}
       return events;
     }
 
-    async function __voidWriteBuyVoidOperatorEventV1(event:any){
+    async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any){
       const fs = await import("node:fs");
       const path = await import("node:path");
       const { withBuyVoidTerminalCloseoutRequestLockV1 } = await import(
@@ -18563,6 +18563,7 @@ small{color:#94a3b8}
       return withBuyVoidTerminalCloseoutRequestLockV1(
         { request_dir: dir, request_id: String(event?.request_id || "") },
         () => {
+          if(!__blo(request))throw new Error("request_launch_authority_expired_or_superseded");
           fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
           fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
           return { ok:true, dir };
@@ -18971,7 +18972,7 @@ setInterval(refresh, 10000);
           delivery_address: found.delivery_address || ""
         };
 
-        await __voidWriteBuyVoidOperatorEventV1(event);
+        await __voidWriteBuyVoidOperatorEventV1(event,found);
 
         res.json({
           schema: "void_buy_void_payment_verifier_v1",
@@ -19048,7 +19049,7 @@ setInterval(refresh, 10000);
       const r = await g(
         found, id, operator_status, note, void_delivery_tx_hash,
         __voidReadBuyVoidOperatorEventsV1, __voidApplyBuyVoidOperatorEventsV1,
-        __voidWriteBuyVoidOperatorEventV1,
+        (e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found),
       );
       if (!r.ok) {
         return res.status(r.status_code).json(r.body);
@@ -19077,6 +19078,7 @@ setInterval(refresh, 10000);
       const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
       fs.mkdirSync(dir, { recursive: true });
       const json = JSON.stringify(reqObj);
+      if(!__blo(reqObj))throw new Error("request_launch_authority_expired_or_superseded");
       fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\n");
       fs.writeFileSync(path.join(dir, reqObj.request_id + ".json"), JSON.stringify(reqObj, null, 2));
       return { dir, file: path.join(dir, reqObj.request_id + ".json") };
