@@ -23,9 +23,11 @@ The coupled launch ID is:
 
 `sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`
 
-The gate is ready only when the production WC/VOID candidate, coupled successor
-gate, inventory/custody/canary conditions, all coupled source gates, and
-successor migration are mutually consistent.
+The gate is ready only when the canonical coupled-launch classifier is
+`SOURCE_READY`, the exact reviewed coupled launch ID matches, and the production
+candidate's deployment/custody evidence plus the coupled policy bundle's
+runtime/launch evidence are all production-ready. Canonical source-mechanism
+readiness by itself is necessary but not sufficient for public request intake.
 
 The gate requires exact reviewed key sets for:
 - production authority;
@@ -33,10 +35,13 @@ The gate requires exact reviewed key sets for:
 - coupled authority; and
 - successor launch authority.
 
-Missing or extra authority/gate keys fail closed even when every remaining value
-has the expected boolean. The successor candidate must also pass
-`classifyVoidEconomicEvmSuccessorMigrationV1(...)` with `ok=true` and
-`status=SOURCE_READY`; shape-valid source-only authority is not enough.
+Missing or extra authority/gate keys fail closed through
+`classifyVoidWcVoidCoupledLaunchReadinessV1(...)`. Public intake also requires
+the nested launch facts that source classification intentionally does not
+promote on its own: deployed vault/runtime attestations, live WC ledger/custody
+evidence, selected production caps/minimum depth/TTL/budgets, reverse-settlement
+verification, related-identity truth, and shared post-discovery launch evidence.
+A top-level boolean promotion cannot bypass those nested HOLD facts.
 
 Current canonical successor classification is intentionally `HOLD` because the
 public state-root anchor and public economic verification path are not both ready,
@@ -70,8 +75,10 @@ node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
 ```
 
 The proof also:
-- demonstrates that synthetically ready production/coupled candidates remain HOLD
-  against the current canonical successor;
-- constructs a fully classifier-ready successor only for inert proof purposes;
+- demonstrates that synthetically source-ready production/coupled candidates
+  remain closed against the current canonical successor;
+- proves that even a canonical `SOURCE_READY` composition cannot open intake
+  while nested deployment/runtime/launch evidence remains false;
+- proves canonical classifier drift checks for production/coupled invariants;
 - removes and adds gate/authority keys and requires fail-closed behavior; and
 - proves missing successor public-verification gates prevent readiness.
