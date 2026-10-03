@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
+import { listDirectDirectoryNamesV1 as ldn, readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
 import {
   runVoidNativeBlockExecutionPrecommitIntegrationV1,
 } from "./chain/native_block_execution_precommit_integration_v1.js";
@@ -58559,10 +58559,8 @@ APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { /
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir,{recursive:true,mode:0o700});
-  fs.mkdirSync(receiptDir,{recursive:true,mode:0o700});
-
-  const safeNames = fs.readdirSync(dropDir)
+    
+  const safeNames = ldn(dropDir)
     .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
 
   const weighted_records = safeNames
@@ -58650,15 +58648,13 @@ APP.get("/public-node/real-data-import-lane-status.json", (_req:any, res:any) =>
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir,{recursive:true,mode:0o700});
-  fs.mkdirSync(receiptDir,{recursive:true,mode:0o700});
-
+    
   const expected:any = {
     "void-real-user-note-v1.txt": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "void-real-user-note-v2.txt": "f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95"
   };
 
-  const safeNames = fs.readdirSync(dropDir)
+  const safeNames = ldn(dropDir)
     .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
 
   const records = safeNames.map((name:any) => {
@@ -58753,10 +58749,8 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir,{recursive:true,mode:0o700});
-  fs.mkdirSync(receiptDir,{recursive:true,mode:0o700});
-
-  const objects = fs.readdirSync(dropDir)
+    
+  const objects = ldn(dropDir)
     .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
       const objectId = String(name);
@@ -58891,10 +58885,8 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir,{recursive:true,mode:0o700});
-  fs.mkdirSync(receiptDir,{recursive:true,mode:0o700});
-
-  const objects = fs.readdirSync(dropDir)
+    
+  const objects = ldn(dropDir)
     .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
       const filePath = path.join(dropDir, name);
@@ -58966,10 +58958,8 @@ APP.get("/public-node/local-data-drop/proof/:sha256.json", (req:any, res:any) =>
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
-  fs.mkdirSync(dropDir,{recursive:true,mode:0o700});
-  fs.mkdirSync(receiptDir,{recursive:true,mode:0o700});
-
-  const names = fs.readdirSync(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
+    
+  const names = ldn(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const objectId = String(name);
     const filePath = path.join(dropDir, objectId);
@@ -59016,9 +59006,8 @@ APP.get("/public-node/local-data-drop/by-sha256/:sha256", (req:any, res:any) => 
 
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
-  fs.mkdirSync(dropDir,{recursive:true,mode:0o700});
-
-  const names = fs.readdirSync(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
+  
+  const names = ldn(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const filePath = path.join(dropDir, String(name));
     const buf=rf(filePath); if(!buf)continue;

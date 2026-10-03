@@ -90,6 +90,31 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
   }
 }
 
+export function listDirectDirectoryNamesV1(dirPath: string): string[] {
+  const authority = openParentDirectoryV1(path.join(dirPath, ".void-list-v1"));
+  if (!authority) return [];
+  try {
+    const procPath = path.join(PROC_FD_ROOT_V1, String(authority.fd));
+    const before = fs.fstatSync(authority.fd, { bigint: true });
+    const names = fs.readdirSync(procPath, { encoding: "utf8" });
+    const after = fs.fstatSync(authority.fd, { bigint: true });
+    if (
+      !before.isDirectory() ||
+      !after.isDirectory() ||
+      !sameStampV1(before, after)
+    ) {
+      return [];
+    }
+    return names;
+  } catch {
+    return [];
+  } finally {
+    try {
+      fs.closeSync(authority.fd);
+    } catch (_error) { void _error; }
+  }
+}
+
 export function readDirectRegularFileV1(filePath: string): Buffer | null {
   const noFollow = (
     fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }

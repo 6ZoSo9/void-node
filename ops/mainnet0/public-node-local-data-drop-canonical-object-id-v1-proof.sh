@@ -172,9 +172,12 @@ assert.notEqual(clusterStart,-1,"Local Data Drop cluster missing");
 const cluster=source.slice(clusterStart,routeStart+1800);
 assert.equal((cluster.match(/\brf\(/g)||[]).length,15,"all Local Data Drop public reads use descriptor helper");
 assert.equal(cluster.includes("fs.readFileSync("),false,"Local Data Drop cluster retains pathname read");
-assert.equal((cluster.match(/fs\.mkdirSync\((?:dropDir|receiptDir),\{recursive:true,mode:0o700\}\);/g)||[]).length,11,"Local Data Drop route-created storage directories must be private");
+assert.equal((cluster.match(/\bldn\(dropDir\)/g)||[]).length,6,"all Local Data Drop directory listings must be descriptor-bound");
+assert.equal(cluster.includes("fs.readdirSync(dropDir)"),false,"Local Data Drop cluster retains pathname directory listing");
+assert.equal(cluster.includes("fs.mkdirSync(dropDir"),false,"public Local Data Drop routes must not create object storage");
+assert.equal(cluster.includes("fs.mkdirSync(receiptDir"),false,"public Local Data Drop routes must not create receipt storage");
 assert.equal(cluster.includes(".import-staging-v2"),false,"public runtime must not mount importer staging");
-for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","/proc/self/fd","O_NOFOLLOW","O_DIRECTORY","fs.openSync(procPath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(procPath","fs.closeSync(parent.fd)"]){
+for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","listDirectDirectoryNamesV1","fs.readdirSync(procPath","/proc/self/fd","O_NOFOLLOW","O_DIRECTORY","fs.openSync(procPath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(procPath","fs.closeSync(parent.fd)"]){
   assert.equal(reader.includes(needle),true,"reader contract missing "+needle);
 }
 const demoManifestStart=source.indexOf('APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json"');
@@ -215,7 +218,8 @@ console.log("runtime_slash_rejected=true");
 console.log("runtime_backslash_rejected=true");
 console.log("runtime_descriptor_bound_read_calls=15");
 console.log("runtime_pathname_reads=0");
-console.log("runtime_private_storage_mkdirs=11");
+console.log("runtime_descriptor_bound_directory_lists=6");
+console.log("runtime_route_storage_mutation=false");
 console.log("runtime_ancestor_descriptor_walk=true");
 console.log("staging_absent_from_public_runtime=true");
 console.log("index_size_bytes="+sourceBytes);
@@ -982,7 +986,8 @@ echo "runtime_writable_file_rejected=true"
 echo "runtime_hardlink_rejected=true"
 echo "runtime_descriptor_bound_read_calls=15"
 echo "runtime_pathname_reads=0"
-echo "runtime_private_storage_mkdirs=11"
+echo "runtime_descriptor_bound_directory_lists=6"
+echo "runtime_route_storage_mutation=false"
 echo "runtime_ancestor_descriptor_walk=true"
 echo "demo003_latest_atomic_real_directory=true"
 echo "demo003_permissive_umask_modes_normalized=true"
