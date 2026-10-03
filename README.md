@@ -10,37 +10,44 @@ The repository is public and operational, but it is still an early network. Publ
 
 ## Current state
 
-Reviewed: **September 25, 2026**
+Reviewed: **October 2, 2026**
 
 ### Live now
 
 - Mainnet-0 canonical block production and a project-operated three-node mesh.
 - Source-pinned public P2P introductions over direct IPv4 and Tor v3 for ordinary public clone/run synchronization, with exact node-identity binding and live N-1 acceptance across independent introduction paths.
-- Human-facing `https://voidchain.org` access, with machine/API discovery continuing through the documented public-node surfaces while path-preserving custom-domain ingress is hardened.
+- Human-facing `https://voidchain.org` access, with machine/API discovery through the documented public-node surfaces.
 - Public node discovery at `/public-node` and `/.well-known/void-public-node.json`.
 - Read-only public status, proof, DataNet, Work Credit, and validator-candidate evidence.
 - Participant-facing application at `/app/` with Home, Wallet, Earn, Data, Buy, Validate, and Network surfaces.
-- DataNet publish, read, verify, mirror, pin, and public evidence paths.
+- DataNet read, verify, mirror, pin, public evidence, and deployment-attestation paths.
 - Bounded Work Credit earning through coordinator-issued capability tickets and verified remote-executor receipts.
 - Public operator self-checks, offline evidence review, evidence packs, signed attestations, and one-command evidence workflow.
 - Positive-readiness evidence for validator registration while active admission remains disabled.
+- The client-neutral Epoch-2 successor state manifest is published through the public evidence/composition path; that closes the successor-state evidence gate without claiming migration or public economic activation.
 
 ### Guarded or under active proof
 
 - Background follower catch-up is guarded while legacy `proposer.commit-direct.v2fs` compatibility, WAL replay, and exact crash-recovery behavior are being proven. Do not infer global catch-up from a node reporting `ready=true`.
-- Public presale intake and the production WC/VOID market are a coupled launch gate. Neither is authorized to open alone; the checked-in WC/VOID production candidate is currently `HOLD`. Current hardening also separates canonical Chain-2050 `VoidToken` inventory from the executor's native gas balance and requires protected gas/nonce accounting before activation.
-- Economic activation also requires bounded micro-purchase/micro-trade gas-grief protection. No hidden minimum is authorized; if a minimum is selected later it must be explicit and public, while batching, user-paid gas, or another bounded mechanism may satisfy the same gate.
+- Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`; source readiness, funding, signer authority, canary success, and public activation remain separate states.
+- The Buy VOID payment policy is source-allowlisted to native USDC on Ethereum mainnet (chain ID `1`) and Base mainnet (chain ID `8453`) only. Bridged USDbC, lookalike tokens, unsupported chains, blind deposits, and exchange/custodial sends are not supported. Public intake is still closed.
+- A Precision atomic Buy VOID activation apply gate is merged source, but it does not itself open intake, authorize a signer, move inventory, or enable automatic fulfillment.
+- Economic activation still requires bounded micro-purchase/micro-trade gas-grief protection. No hidden minimum is authorized; if a minimum is selected later it must be explicit and public, while batching, user-paid gas, or another bounded mechanism may satisfy the same gate.
 - Any unpaid payment/trade instruction that reserves gas or inventory must also have bounded expiry plus per-identity/global outstanding caps; stale instructions cannot pin capacity indefinitely.
-- WC/VOID's zero-WC-seed opening also needs a fixed price-forming window, participant provenance, concentration/Sybil limits, minimum real-WC depth, and exclusion of non-production/test WC before the reserve-ratio opening price is accepted.
+- WC/VOID's zero-WC-seed opening uses a source-defined absolute opening window with an exclusive close boundary, but the exact launch artifact still must supply the live timestamps. Participant provenance, concentration/Sybil limits, minimum real-WC depth, and exclusion of non-production/test WC remain separate gates.
 - The private economic EVM contains historical standard Anvil prefunded accounts with publicly known keys. Their historical receipts remain evidence, but those balances/keys must be neutralized/reconciled and blocked from public submission before economic public access.
-- Public economic instructions/quotes must disclose every fee component, gas payer/model, gross/net amount, and expiry before money authority. BTC/VOID source currently contains both a 0.50% protocol fee and a separate 1% buyback spread; their combined executable policy is still a reviewed HOLD, not an implicit stacked charge.
-- Private-EVM durability must also be current, not merely valid historically: the checked-in selector packet is undeployed and its planned recovery checkpoint is block 37371, while accepted economic receipt evidence reaches at least block 37391. Launch requires a fresh durable checkpoint covering all accepted economic history plus proven no-stale-fallback restart.
+- Public economic instructions/quotes must disclose every fee component, gas payer/model, gross/net amount, slippage/minimum output, market-state binding, and expiry before money authority.
+- BTC/VOID now has merged deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives with exact terminal VOID balance-delta and adversarial preimage checks. That is source-level settlement progress, not a live market; BTC/VOID remains post-presale and separately launch-gated.
+- The dedicated DataNet content-commitment registry is deployed and attested on the production Epoch-2 successor execution environment. The separate successor state-root commitment/finality/truth-admission gate remains `HOLD`.
+- Private-EVM durability must be current, not merely historically valid: the older planned recovery checkpoint at block 37371 predates accepted economic receipt evidence at block 37391. Launch still requires a fresh durable checkpoint covering accepted economic history plus proven no-stale-fallback restart.
 - Public wallet or signer access.
 - Unrestricted public ledger writes.
 - Permissionless Work Credit issuance or settlement.
 - Automatic Buy VOID fulfillment.
 - Public validator activation or validator mutation.
 - Treasury movement and private operator routes.
+
+Public active validator admission remains disabled. Public validator registration remains candidate/waiting only. Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
 
 See the [current capability matrix](docs/public/current-capability-matrix.md) and [Mainnet-0 current public status](docs/public/mainnet0-current-public-status.md) for the exact boundary.
 
@@ -49,13 +56,17 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 | You are… | Begin with… |
 |---|---|
 | Exploring VOID | [Start here](docs/public/start-here.md) |
-| Checking current status | [Mainnet-0 current public status](docs/public/mainnet0-current-public-status.md) |
+| Getting a node running quickly | [Quick start](docs/public/quick-start.md) |
+| Running on Windows | [Windows WSL2 quick start](docs/public/windows-wsl2-quick-start.md) |
+| Checking current status | [Current public status](docs/public/mainnet0-current-public-status.md) |
 | Running a node | [Run a node](docs/public/run-a-node.md) |
 | Participating or earning Work Credits | [Participant onboarding](docs/public/participant-onboarding.md) |
-| Reviewing public evidence | [Current public status and entrypoints](docs/public/mainnet0-current-public-status.md) |
+| Reviewing the original public-live checkpoint | [Public live announcement](docs/public/mainnet0-public-live-announcement.md) |
 | Operating a public node | [Operator evidence workflow](docs/public-node/public-node-operator-evidence-workflow-v1.md) |
 | Reviewing validator readiness | [Validator positive-readiness release](docs/validators/validator-registration-positive-readiness-public-release-v1.md) |
 | Browsing all public docs | [Public documentation index](docs/public/README.md) |
+
+Policy/reference shortcuts: [Support guide](SUPPORT.md), [Security policy](SECURITY.md), [Contributing guide](CONTRIBUTING.md), [Proof cadence](docs/public/proof-cadence.md), [Branch/release policy](docs/public/branch-release-policy.md), [Developer reference](docs/public/developer-reference.md), and [Whitepaper](docs/public/void-network-whitepaper.md).
 
 ## What VOID is building
 
@@ -63,19 +74,15 @@ See the [current capability matrix](docs/public/current-capability-matrix.md) an
 
 The public VOID node runtime uses chain ID `2050`, segmented storage, peer networking, block and transaction APIs, validator truth surfaces, and explicit mutation guards. Current economic contracts and `VoidToken` state also use a **private loopback EVM/Anvil execution layer** configured with chain ID `2050`. Current source does not yet prove those two histories are identical or anchored to one another. Public economic activation remains `HOLD` until that relationship, independent public economic verification, native-gas accounting, and a reviewed participant path to control and transfer delivered `VoidToken` are explicit.
 
-Merged PR #1851 (`d6bf311291ec66203d2d74922842ee441e67295e`) records the chosen successor direction: freeze the current Anvil
-history as an immutable Economic Genesis Archive and migrate only live economic
-value/obligations into a clean non-Anvil production successor. Participant
-balances remain at the same address; contract-held value is explicitly mapped
-into reviewed successor custody. AdminGate/ConfigGate and other obsolete
-bootstrap plumbing remain archive-only by default. `333,333,333 VOID` is the
-reconciled premine reference; migration preserves final live
-`VoidToken.totalSupply()` exactly, including legitimate emissions already
-present before freeze. No migration has occurred.
+Merged PR #1851 (`d6bf311291ec66203d2d74922842ee441e67295e`) records the chosen successor direction: freeze the current Anvil history as an immutable Economic Genesis Archive and migrate only live economic value/obligations into a clean non-Anvil production successor. Participant balances remain at the same address; contract-held value is explicitly mapped into reviewed successor custody. AdminGate/ConfigGate and other obsolete bootstrap plumbing remain archive-only by default. `333,333,333 VOID` is the reconciled premine reference; migration preserves final live `VoidToken.totalSupply()` exactly, including legitimate emissions already present before freeze.
+
+Since that architecture decision, the frozen-source census and client-neutral Epoch-2 successor state/genesis evidence have been published and the reviewed production successor is validator-set-bound. The dedicated `DatanetContentCommitmentRegistryV1` was also deployed and attested on the production Epoch-2 execution environment in block `5899` at `0xe60b15ed8df7c4ec5334067ead18c924744c2681`. Those are concrete successor/deployment milestones, but no economic migration has occurred and the successor state-root commitment into canonical public truth remains a separate `HOLD` gate.
 
 ### DataNet
 
 A decentralized information layer for storing, serving, mirroring, verifying, weighting, and discovering data. DataNet may preserve bounded unverified, conflicting, experimental, low-value, or incorrect information without promoting it to canonical truth. Persistence, replication, or popularity is not Chain-2050 truth.
+
+The current production Epoch-2 DataNet commitment registry is deployed and independently attested, with a dedicated offline-selected deployer distinct from the dedicated publisher. Deployment proves the registry creation/runtime/immutables; it does **not** authorize the separate successor state-root commitment transaction. The corrected successor state-root payload remains behind exact commitment, finality, event-membership, and truth-admission checks.
 
 See the [DataNet → Chain truth membrane and WC exchange doctrine](docs/governance/void-datanet-chain-truth-membrane-wc-exchange-v1.md).
 
@@ -89,7 +96,9 @@ Work Credits (`WC`) account for useful, verifiable work.
 - Public self-service issuance and settlement are not enabled.
 - The production WC/VOID market is coupled to the presale opening: neither lane may open without the other being ready for the same launch ceremony.
 - WC/VOID starts from a `10,000,000 VOID` allocation and `0 WC` seed. Current hardening defines a balanced opening batch: 5M VOID is allocated pro rata to the verified WC opening cohort and 5M VOID remains with all settled WC as the initial two-sided reserve. The fixed presale price is not WC/VOID price authority.
-- The current production candidate remains `HOLD` pending vault/runtime verification, inventory funding/lock, settlement review, replay protection, bounded canary, gas/nonce/finality controls, native-gas sustainability, reverse VOID→WC settlement, and explicit resolution/public verification of the private economic EVM versus public VOID-chain relationship.
+- The opening window is now source-defined as one absolute content-addressed window committed before opening, with an exclusive close boundary. The launch artifact still has to provide the actual live timestamps and satisfy provenance, concentration/Sybil, depth, and production-WC eligibility gates.
+- WC/VOID public quote disclosure is source-defined around complete fee components, gross/trade/net accounting, slippage/minimum output, expiry, market-state binding, and the Epoch-2 metered zero-gas-price execution model. That proves disclosure shape, not pricing correctness, custody, publication, or trade execution.
+- The current production candidate remains `HOLD` pending vault/runtime verification, inventory funding/lock, durable WC-debit↔claim/transfer-or-refund binding, replay protection, bounded canary, gas/nonce/finality controls, native-gas sustainability, reverse VOID→WC settlement, and explicit resolution/public verification of the private economic EVM versus public VOID-chain relationship.
 - A future `SOURCE_READY` classification still grants no funding, signer, transaction, market-activation, or presale-activation authority.
 - Retired fixed-rate WC→VOID scripts and the development WC relayer remain historical/regression evidence only. Their old 100:1 fixtures, relayer-fee language, and relayer gas mode have no production pricing, gas-sponsorship, or activation authority.
 
@@ -173,7 +182,11 @@ VOID currently distinguishes between:
 - **Guarded** — implemented or demonstrated, but requires explicit trusted action or an unfinished proof/canary gate.
 - **Planned** — not yet available.
 
-Do not send blind deposits, exchange withdrawals, custodial transfers, or funds based only on an unverified message. Buy VOID delivery remains payment-verified and transaction-reference recorded.
+Do not share private keys or seed phrases. Never publish wallet files, `.env` contents, operator credentials, or signing material.
+
+For Buy VOID, use the supported participant flow and a self-custody wallet. Blind deposits, exchange sends, and custodial sends are not supported. The allowlisted payment assets are native USDC on Ethereum mainnet and Base mainnet only; bridged USDbC and lookalike tokens are rejected by policy. Buy VOID fulfillment remains explicit, payment-verified, and tx-ref-recorded only.
+
+Do not send funds based only on an unverified message, page, or address. Payment confirmation is not VOID fulfillment, and a visible UI control does not widen the authority behind it.
 
 ## Maintained proof and beta references
 
@@ -210,13 +223,14 @@ Historical receipts, checkpoint files, launch records, and audit evidence remain
 
 ## Release status
 
-The repository's current package version is `0.1.0`, but there is no `release-v0.1.0` tag and no official stable VOID node GitHub Release as of September 25, 2026.
+The repository's current package version is `0.1.0`. As of October 2, 2026, GitHub Releases still contains no official stable VOID node distribution.
 
-The GitHub Releases page currently contains one immutable historical artifact release, **VOID External-Agent Credential Request Packet V1** (July 27, 2026). That packet is not a stable node distribution.
+The published release inventory contains one immutable historical artifact release, **VOID External-Agent Credential Request Packet V1** (July 27, 2026). That packet is not a stable node distribution.
 
-VOID has implemented and proven substantial release infrastructure, but release infrastructure is not itself a published stable release. An official checkpoint must be bound to a clean exact `main` commit and pass the repository's deterministic build, qualification, approval/time-lock, immutable publication, canary, and stable-promotion gates. Do not cut or promote a stable release while a runtime/storage/follower or release-path regression remains unresolved.
+VOID has implemented and proven substantial deterministic build, installer, update-channel, qualification, immutable-publication, canary, promotion, rollback, and solo-operator time-lock infrastructure. Release infrastructure is not itself a published stable release. An official checkpoint must be bound to a clean exact `main` commit and pass the repository's deterministic build, qualification, approval/time-lock, immutable publication, canary, and stable-promotion gates. Do not cut or promote a stable release while a runtime/storage/follower or release-path regression remains unresolved.
 
-See [Release state and published artifacts](RELEASES.md) for the current release inventory and the first-official-release path.
+See [Release state and published artifacts](RELEASES.md) for the current release inventory and the first-official-release path. 
+<!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
 
 <!-- VOID_PUBLIC_RELEASE_DISTRIBUTION_WALL_V1_BEGIN -->
 ## Verified release installer
