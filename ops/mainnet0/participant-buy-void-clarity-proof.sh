@@ -110,6 +110,45 @@ if [[ "${VOID_PARTICIPANT_BUY_VOID_CLARITY_FIXTURE_MODE:-0}" == "1" ]]; then
   echo "dual_rail_open_case_green=true"
   echo "dual_rail_pending_adversary_green=true"
   echo "dual_rail_stale_base_variants_rejected=true"
+
+  python3 - "$PWD/src/index.ts" <<'PY'
+from pathlib import Path
+import sys
+
+source=Path(sys.argv[1]).read_text(encoding="utf-8")
+marker="VOID_BUY_PUBLIC_SAFETY_CLARITY_V1"
+assert marker in source, "participant safety marker missing"
+
+static_start=source.index(marker)
+static=source[max(0, static_start-1200):static_start+1800]
+render_start=source.index("const buyWalletState = executionWalletAddr")
+render_end=source.index("async function loadLatestBuyVoidDraft()", render_start)
+renderer=source[render_start:render_end]
+actual=static+"\n"+renderer
+
+required=[
+  "Base or Ethereum native USDC by live request only",
+  'setText("buyRailStatus", "Activation-gated")',
+  'setText("buyPlanRail", "Request-returned rail")',
+  "Use only a live request's returned Base or Ethereum rail",
+]
+for token in required:
+    assert token in actual, f"missing rail-neutral participant source: {token}"
+
+for forbidden in [
+  "Base native USDC only now",
+  "Base native USDC now",
+  "Base USDC active",
+  "Base USDC preflight ready",
+  "Base USDC · ETH pending",
+  "Base · ETH pending",
+  "Ethereum native USDC is approved but NOT ACTIVE until OPEN",
+]:
+    assert forbidden not in actual, f"stale participant rail claim: {forbidden}"
+
+print("participant_actual_source_rail_neutral=true")
+PY
+
   exit 0
 fi
 
