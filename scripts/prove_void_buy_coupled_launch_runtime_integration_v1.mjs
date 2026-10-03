@@ -29,6 +29,12 @@ assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
 assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
 assert.ok(index.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1));
 assert.ok(index.includes("m.readBuyLaunchGateV1().ready===true"));
+const gateSource = read("src/economic/buy_void_coupled_launch_gate_v1.mjs");
+assert.ok(gateSource.includes("VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION"));
+assert.ok(gateSource.includes("LIVE_ACTIVATION_MAX_LEASE_MS"));
+assert.ok(gateSource.includes("expires_at_ms"));
+assert.ok(gateSource.includes("readBuyLaunchLiveActivationV1"));
+assert.ok(gateSource.includes("verifyTypedData"));
 assert.equal(
   index.split('=== "1"&&__voidBuyLaunchReadyV1()').length - 1,
   2,
@@ -77,6 +83,8 @@ assert.match(
 console.log("VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_V1_GREEN");
 console.log("request_flag_alone_can_open_intake=false");
 console.log("current_canonical_gate_ready=false");
+console.log("live_activation_generation_bound=true");
+console.log("live_activation_lease_expiry_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
