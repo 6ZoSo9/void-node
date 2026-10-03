@@ -282,6 +282,47 @@ const ethereumSnapshot = buyTest.validateSnapshot(
 buyTest.setState(ethereumSnapshot, false, false);
 buyTest.updateSubmit();
 assert.equal(submitButton.disabled, false, "Ethereum may enable only after its explicit gate is OPEN");
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  const requestBody = {
+    ok: true,
+    schema: "void_public_buy_void_checkout_request_result_v1",
+    request: {
+      request_id: "buyvoid_ethereum_open_v1",
+      receive_address: validConfig.receive_address,
+      void_destination_address: destinationInput.value,
+      source_chain: "ethereum",
+      payment_chain: "ethereum",
+      payment_chain_id: 1,
+      usdc_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      requested_amount_usdc: "10",
+      safety: { automatic_fulfillment: false, manual_review_required: true },
+      payment_instructions: {
+        send_chain: "ethereum",
+        send_chain_id: 1,
+        token_contract: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        token_decimals: 6,
+        send_to: validConfig.receive_address,
+        send_from: destinationInput.value,
+        do_not_send_from_exchange_or_pooled_custody: true,
+      },
+    },
+  };
+  return new Response(JSON.stringify(requestBody), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+};
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, 1, "explicit Ethereum OPEN must issue exactly one POST");
+assert.equal(fetchCalls[0][0], "/__void/buy-void/request");
+assert.equal(fetchCalls[0][1]?.method, "POST");
+assert.equal(JSON.parse(fetchCalls[0][1]?.body || "{}").source_chain, "ethereum");
+fetchCalls.length = 0;
+sandbox.fetch = async (...args) => {
+  fetchCalls.push(args);
+  throw new Error("unexpected_fetch");
+};
 chainInput.value = "base";
 
 for (const malformed of [
