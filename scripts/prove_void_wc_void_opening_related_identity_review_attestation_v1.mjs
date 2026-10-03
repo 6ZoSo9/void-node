@@ -19,6 +19,7 @@ import {
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_AUTHORITY_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1,
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1,
   canonicalReviewJsonV1,
   relatedIdentityManifestIdV1,
   reviewedControlVerifierGenerationV1,
@@ -192,6 +193,39 @@ assert.equal(
   validateReviewableRelatedIdentityManifestV1(manifest).manifest_id,
   manifest.manifest_id,
 );
+
+{
+  const oversized = {
+    ...manifest,
+    participant_count:
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
+        .max_participants + 1,
+  };
+  oversized.manifest_id = relatedIdentityManifestIdV1(oversized);
+  assert.throws(
+    () => validateReviewableRelatedIdentityManifestV1(oversized),
+    /review_manifest_resource_limit_exceeded/u,
+  );
+
+  const oversizedEvidence = {
+    ...evidence,
+    evidence_bytes:
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1
+        .max_evidence_bytes_per_document + 1,
+  };
+  const oversizedEvidenceManifest = {
+    ...manifest,
+    evidence_documents: [oversizedEvidence],
+  };
+  oversizedEvidenceManifest.manifest_id =
+    relatedIdentityManifestIdV1(oversizedEvidenceManifest);
+  assert.throws(
+    () => validateReviewableRelatedIdentityManifestV1(
+      oversizedEvidenceManifest,
+    ),
+    /review_manifest_resource_limit_exceeded/u,
+  );
+}
 
 const lineageHex = (digit) => String(digit).repeat(64);
 const lineageLaunchId = h("a");
@@ -531,6 +565,21 @@ await assert.rejects(
     "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
   const toolSource = fs.readFileSync(toolPath, "utf8");
   assert.equal(
+    toolSource.includes('from "ethers"'),
+    false,
+    "production verifier must not execute ambient ethers at module load",
+  );
+  assert.equal(
+    toolSource.includes("canonicalEvidence.filter("),
+    false,
+    "cluster validation must not rescan the full evidence array",
+  );
+  assert.equal(
+    toolSource.includes("evidenceByCluster.get(clusterId)"),
+    true,
+    "cluster validation must use the bounded evidence index",
+  );
+  assert.equal(
     toolSource.includes(
       'from "./void-wc-void-opening-related-identity-evidence-manifest-v1.mjs"',
     ),
@@ -728,7 +777,7 @@ const signature = await wallet.signTypedData(
   typed.value,
 );
 assert.equal(
-  verifyReviewSignatureForAddressV1({
+  await verifyReviewSignatureForAddressV1({
     material,
     signature,
     expectedReviewerAddress: wallet.address,
@@ -736,12 +785,12 @@ assert.equal(
   wallet.address.toLowerCase(),
 );
 assert.match(
-  voidWcVoidRelatedIdentityReviewDigestV1(material),
+  await voidWcVoidRelatedIdentityReviewDigestV1(material),
   /^0x[0-9a-f]{64}$/u,
 );
 
 const wrongWallet = Wallet.createRandom();
-assert.throws(
+await assert.rejects(
   () =>
     verifyReviewSignatureForAddressV1({
       material,
@@ -756,7 +805,7 @@ const wrongCompiler = {
   manifest_compiler_git_blob_sha1:
     "1111111111111111111111111111111111111111",
 };
-assert.throws(
+await assert.rejects(
   () =>
     verifyReviewSignatureForAddressV1({
       material: wrongCompiler,
@@ -765,6 +814,39 @@ assert.throws(
     }),
   /review_signature_reviewer_mismatch/u,
 );
+
+{
+  const ethersPackageJson = path.join(
+    process.cwd(),
+    "node_modules",
+    "ethers",
+    "package.json",
+  );
+  const original = fs.readFileSync(ethersPackageJson);
+  const originalMode = fs.statSync(ethersPackageJson).mode & 0o777;
+  try {
+    fs.chmodSync(ethersPackageJson, 0o600);
+    fs.writeFileSync(
+      ethersPackageJson,
+      Buffer.concat([original, Buffer.from(" ", "utf8")]),
+    );
+    await assert.rejects(
+      () => voidWcVoidRelatedIdentityReviewDigestV1(material),
+      /reviewed_node_runtime_/u,
+    );
+    await assert.rejects(
+      () => verifyReviewSignatureForAddressV1({
+        material,
+        signature,
+        expectedReviewerAddress: wallet.address,
+      }),
+      /reviewed_node_runtime_/u,
+    );
+  } finally {
+    fs.writeFileSync(ethersPackageJson, original);
+    fs.chmodSync(ethersPackageJson, originalMode);
+  }
+}
 
 const ambiguous = {
   ...manifest,
@@ -861,6 +943,8 @@ console.log(
 );
 console.log("generic_eip712_recovery=true");
 console.log("reviewable_manifest_binding=true");
+console.log("manifest_resource_limits_enforced=true");
+console.log("linear_evidence_by_cluster_index=true");
 console.log("manifest_cluster_evidence_roots_reverified=true");
 console.log("manifest_compiler_worktree_execution=false");
 console.log("dirty_manifest_compiler_sentinel_execution=false");
@@ -873,7 +957,9 @@ console.log("substituted_manifest_participant_rejected=true");
 console.log("eligibility_admission_time_binding=true");
 console.log("admission_time_drift_rejected=true");
 console.log("reviewed_ethers_package_bytes_verified=true");
+console.log("production_module_ambient_ethers_import=false");
 console.log("ambient_ethers_byte_drift_rejected=true");
+console.log("eip712_ambient_ethers_byte_drift_rejected=true");
 console.log("dirty_lineage_verifier_sentinel_execution=false");
 console.log(
   "reviewed_lineage_blob_count=" +
