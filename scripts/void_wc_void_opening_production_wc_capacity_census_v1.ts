@@ -520,19 +520,15 @@ function parseLedgerLineWithHistoricalCompatibility(
 }
 
 
-async function scanLedger(
-  ledger: string,
+function scanLedgerSnapshotV1(
+  ledgerBytes: Buffer,
   targets: Map<string, AdapterReceiptSummary>,
-): Promise<{
+): {
   malformed_lines: number;
   historical_compatibility_repairs: number;
   matching_rows: Map<string, number>;
   invalid_matching_rows: number;
-}> {
-  const stat = fs.lstatSync(ledger);
-  if (!stat.isFile() || stat.isSymbolicLink()) fail("ledger_direct_regular_file_required");
-  if (stat.size < 1 || stat.size > MAX_LEDGER_BYTES) fail("ledger_size_out_of_range");
-
+} {
   const matchingRows = new Map<string, number>();
   const targetReceiptIds = new Set(
     [...targets.values()].map((summary) => summary.receipt_id),
@@ -540,51 +536,41 @@ async function scanLedger(
   const targetJobIds = new Set(
     [...targets.values()].map((summary) => summary.job_id),
   );
-  let malformedLines = 0;
-  let historicalCompatibilityRepairs = 0;
+  const stats: LedgerSnapshotParseStatsV1 = {
+    malformed_lines: 0,
+    historical_compatibility_repairs: 0,
+  };
   let invalidMatchingRows = 0;
-  const input = fs.createReadStream(ledger, { encoding: "utf8" });
-  const lines = readline.createInterface({ input, crlfDelay: Infinity });
-  try {
-    for await (const lineRaw of lines) {
-      const line = lineRaw.trim();
-      if (!line) continue;
-      const parsed = parseLedgerLineWithHistoricalCompatibility(line);
-      if (!parsed) {
-        malformedLines += 1;
-        continue;
-      }
-      const row = parsed.row;
-      if (parsed.repairedKnownHistoricalLine) {
-        historicalCompatibilityRepairs += 1;
-      }
-      if (exactText(row?.kind) !== "credit") continue;
-      const account = exactText(row?.account);
-      const jobId = exactText(row?.job_id);
-      const receiptId = exactText(row?.receipt_id);
-      const intersectsTargetIdentity =
-        (receiptId !== "" && targetReceiptIds.has(receiptId)) ||
-        (jobId !== "" && targetJobIds.has(jobId));
-      if (!intersectsTargetIdentity) continue;
-      if (!account || !jobId || !receiptId) {
-        invalidMatchingRows += 1;
-        continue;
-      }
-      const key = adapterKey(account, jobId, receiptId);
-      const target = targets.get(key);
-      if (!target || !canonicalLedgerCredit(row, target)) {
-        invalidMatchingRows += 1;
-        continue;
-      }
-      matchingRows.set(key, (matchingRows.get(key) || 0) + 1);
+
+  for (const row of canonicalLedgerEntriesFromSnapshotV1(
+    ledgerBytes,
+    stats,
+  )) {
+    if (exactText(row?.kind) !== "credit") continue;
+    const account = exactText(row?.account);
+    const jobId = exactText(row?.job_id);
+    const receiptId = exactText(row?.receipt_id);
+    const intersectsTargetIdentity =
+      (receiptId !== "" && targetReceiptIds.has(receiptId)) ||
+      (jobId !== "" && targetJobIds.has(jobId));
+    if (!intersectsTargetIdentity) continue;
+    if (!account || !jobId || !receiptId) {
+      invalidMatchingRows += 1;
+      continue;
     }
-  } finally {
-    lines.close();
-    input.destroy();
+    const key = adapterKey(account, jobId, receiptId);
+    const target = targets.get(key);
+    if (!target || !canonicalLedgerCredit(row, target)) {
+      invalidMatchingRows += 1;
+      continue;
+    }
+    matchingRows.set(key, (matchingRows.get(key) || 0) + 1);
   }
+
   return {
-    malformed_lines: malformedLines,
-    historical_compatibility_repairs: historicalCompatibilityRepairs,
+    malformed_lines: stats.malformed_lines,
+    historical_compatibility_repairs:
+      stats.historical_compatibility_repairs,
     matching_rows: matchingRows,
     invalid_matching_rows: invalidMatchingRows,
   };
@@ -661,11 +647,11 @@ async function main(): Promise<void> {
     fail("adapter_receipt_duplicate_guard_conflict");
   }
 
-  const ledger = path.join(dataDir, "wc_v1", "ledger.jsonl");
-  const redeemed = path.join(dataDir, "wc_v1", "redeemed.jsonl");
-  if (!fs.existsSync(ledger)) fail("wc_ledger_missing");
-
-  const ledgerScan = await scanLedger(ledger, byLedgerKey);
+  const wcStateSnapshot = readStableWcStateSnapshotV1(dataDir);
+  const ledgerScan = scanLedgerSnapshotV1(
+    wcStateSnapshot.ledger_bytes,
+    byLedgerKey,
+  );
   const matched: AdapterReceiptSummary[] = [];
   let receiptsWithoutCredit = 0;
   let duplicateLedgerMatches = 0;
@@ -693,25 +679,42 @@ async function main(): Promise<void> {
   let totalUpper = 0n;
   let largestGross = 0n;
   let largestLower = 0n;
-  let historicalMalformedRedeemedLinesObserved = 0;
   const accountBounds: Array<{ lower: bigint; upper: bigint }> = [];
 
+  const projectionLedgerStats: LedgerSnapshotParseStatsV1 = {
+    malformed_lines: 0,
+    historical_compatibility_repairs: 0,
+  };
+  const projectionRedeemedStats: RedeemedSnapshotParseStatsV1 = {
+    malformed_lines: 0,
+  };
+  const canonicalStates = projectCanonicalWcStatesFromEntriesV1(
+    [...grossByAccount.keys()],
+    canonicalLedgerEntriesFromSnapshotV1(
+      wcStateSnapshot.ledger_bytes,
+      projectionLedgerStats,
+    ),
+    canonicalRedeemedEntriesFromSnapshotV1(
+      wcStateSnapshot.redeemed_bytes,
+      projectionRedeemedStats,
+    ),
+  );
+  if (
+    projectionLedgerStats.malformed_lines !== ledgerScan.malformed_lines ||
+    projectionLedgerStats.historical_compatibility_repairs !==
+      ledgerScan.historical_compatibility_repairs
+  ) {
+    fail("wc_state_snapshot_ledger_parse_mismatch");
+  }
+  const historicalMalformedRedeemedLinesObserved =
+    projectionRedeemedStats.malformed_lines;
+
   for (const [account, gross] of grossByAccount) {
-    const state = await readCanonicalWcState(account, dataDir);
-    const debited = BigInt(String(state.debited_quanta || "0"));
-    const redeemedQuanta = BigInt(String(state.redeemed_quanta || "0"));
-    const allSourceRedeemable = BigInt(String(state.redeemable_quanta || "0"));
-    const malformedRedeemedLines =
-      Number(state.historical_malformed_redeemed_lines ?? 0);
-    if (
-      !Number.isSafeInteger(malformedRedeemedLines) ||
-      malformedRedeemedLines < 0
-    ) {
-      fail("historical_malformed_redeemed_lines_invalid");
-    }
-    if (malformedRedeemedLines > historicalMalformedRedeemedLinesObserved) {
-      historicalMalformedRedeemedLinesObserved = malformedRedeemedLines;
-    }
+    const state = canonicalStates.get(account);
+    if (!state) fail("canonical_wc_projection_missing_account");
+    const debited = BigInt(state.debited_quanta);
+    const redeemedQuanta = BigInt(state.redeemed_quanta);
+    const allSourceRedeemable = BigInt(state.redeemable_quanta);
     const outflows = debited + redeemedQuanta;
     const lower = gross > outflows ? gross - outflows : 0n;
     const upper = gross < allSourceRedeemable ? gross : allSourceRedeemable;
@@ -781,7 +784,9 @@ async function main(): Promise<void> {
       historical_malformed_ledger_lines_observed: ledgerScan.malformed_lines,
       historical_malformed_redeemed_lines_observed:
         historicalMalformedRedeemedLinesObserved,
-      redeemed_file_present: fs.existsSync(redeemed),
+      wc_state_snapshot_stable: true,
+      canonical_multi_account_projection_single_pass: true,
+      redeemed_file_present: wcStateSnapshot.redeemed_file_present,
     },
     matched: {
       production_earning_receipt_count: matched.length,
@@ -818,19 +823,26 @@ async function main(): Promise<void> {
   process.stdout.write(JSON.stringify(output, null, 2) + "\n");
 }
 
-main().catch((error) => {
-  process.stderr.write(
-    JSON.stringify({
-      marker: VOID_WC_VOID_OPENING_PRODUCTION_WC_CAPACITY_CENSUS_V1,
-      ok: false,
-      error: String(error instanceof Error ? error.message : error),
-      read_only: true,
-      network_access: false,
-      credential_registry_access: false,
-      raw_token_access: false,
-      wallet_or_signer_access: false,
-      wc_ledger_mutation: false,
-    }) + "\n",
-  );
-  process.exitCode = 1;
-});
+const invokedAsMain =
+  Boolean(process.argv[1]) &&
+  path.resolve(process.argv[1]) ===
+    path.resolve(fileURLToPath(import.meta.url));
+
+if (invokedAsMain) {
+  main().catch((error) => {
+    process.stderr.write(
+      JSON.stringify({
+        marker: VOID_WC_VOID_OPENING_PRODUCTION_WC_CAPACITY_CENSUS_V1,
+        ok: false,
+        error: String(error instanceof Error ? error.message : error),
+        read_only: true,
+        network_access: false,
+        credential_registry_access: false,
+        raw_token_access: false,
+        wallet_or_signer_access: false,
+        wc_ledger_mutation: false,
+      }) + "\n",
+    );
+    process.exitCode = 1;
+  });
+}
