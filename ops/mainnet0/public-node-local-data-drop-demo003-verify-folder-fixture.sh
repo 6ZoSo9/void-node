@@ -20,23 +20,28 @@ echo "offline_verify=true"
 echo "network_fetch=false"
 
 umask 0077
-install -d -m 700 "$OUT"
-install -d -m 700 "$EXTRACT"
 
-python3 - "$TARBALL" "$EXTRACT" <<'PY'
+python3 - "$TARBALL" "$OUT" <<'PY'
+import gzip
+import io
+import json
 import os
 import posixpath
 import stat
 import sys
 import tarfile
 
-tarball, extract = sys.argv[1:]
+tarball, out = sys.argv[1:]
+extract = os.path.join(out, "extract")
 euid = os.geteuid()
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 MAX_TARBALL_BYTES = 16 * 1024 * 1024
 MAX_MEMBER_BYTES = 2 * 1024 * 1024
 MAX_TOTAL_BYTES = 8 * 1024 * 1024
+MAX_ARCHIVE_DECOMPRESSED_BYTES = MAX_TOTAL_BYTES + 1024 * 1024
+MAX_DIAGNOSTIC_CHARS = 320
 
 EXPECTED_DIRS = {
     "demo003-folder-fixture",
@@ -56,6 +61,17 @@ def fail(msg):
     raise RuntimeError(msg)
 
 
+def safe_diagnostic(value):
+    text = str(value)
+    if len(text) > MAX_DIAGNOSTIC_CHARS:
+        text = text[:MAX_DIAGNOSTIC_CHARS] + "..."
+    return json.dumps(text, ensure_ascii=True)
+
+
+def member_label(value):
+    return safe_diagnostic(value)
+
+
 def same_stamp(a, b):
     return (
         a.st_dev == b.st_dev
@@ -70,6 +86,16 @@ def same_stamp(a, b):
     )
 
 
+def same_dir_identity(a, b):
+    return (
+        a.st_dev == b.st_dev
+        and a.st_ino == b.st_ino
+        and a.st_mode == b.st_mode
+        and a.st_uid == b.st_uid
+        and a.st_gid == b.st_gid
+    )
+
+
 def write_all(fd, data):
     view = memoryview(data)
     while view:
@@ -79,7 +105,111 @@ def write_all(fd, data):
         view = view[n:]
 
 
-def main():
+class BoundedDecompressedReader:
+    def __init__(self, raw, limit):
+        self.raw = raw
+        self.limit = limit
+        self.total = 0
+
+    def read(self, size=-1):
+        remaining = self.limit - self.total
+        if remaining < 0:
+            fail("archive_decompressed_size_exceeded")
+        maximum = remaining + 1
+        if size is None or size < 0 or size > maximum:
+            size = maximum
+        data = self.raw.read(size)
+        self.total += len(data)
+        if self.total > self.limit:
+            fail("archive_decompressed_size_exceeded")
+        return data
+
+
+def open_private_output_root(pathname):
+    absolute = os.path.abspath(pathname)
+    if absolute != pathname:
+        fail("output_root_not_absolute_normalized")
+    parent = os.path.dirname(absolute)
+    basename = os.path.basename(absolute)
+    if not basename or basename in (".", ".."):
+        fail("output_root_basename_invalid")
+
+    parent_fd = os.open(
+        parent,
+        os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+    )
+    try:
+        try:
+            listed = os.stat(
+                basename,
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            os.mkdir(basename, 0o700, dir_fd=parent_fd)
+            listed = os.stat(
+                basename,
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+
+        if (
+            not stat.S_ISDIR(listed.st_mode)
+            or stat.S_ISLNK(listed.st_mode)
+            or listed.st_uid != euid
+            or listed.st_mode & 0o077
+        ):
+            fail("output_root_not_private_direct_directory")
+
+        out_fd = os.open(
+            basename,
+            os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+            dir_fd=parent_fd,
+        )
+        opened = os.fstat(out_fd)
+        if not same_dir_identity(listed, opened):
+            os.close(out_fd)
+            fail("output_root_identity_changed")
+        return out_fd
+    finally:
+        os.close(parent_fd)
+
+
+def create_extract_root(out_fd):
+    try:
+        existing = os.stat(
+            "extract",
+            dir_fd=out_fd,
+            follow_symlinks=False,
+        )
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        fail("extract_root_already_exists")
+
+    os.mkdir("extract", 0o700, dir_fd=out_fd)
+    listed = os.stat("extract", dir_fd=out_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISDIR(listed.st_mode)
+        or stat.S_ISLNK(listed.st_mode)
+        or listed.st_uid != euid
+        or listed.st_mode & 0o077
+    ):
+        fail("extract_root_not_private_direct_directory")
+
+    extract_fd = os.open(
+        "extract",
+        os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+        dir_fd=out_fd,
+    )
+    opened = os.fstat(extract_fd)
+    if not same_dir_identity(listed, opened):
+        os.close(extract_fd)
+        fail("extract_root_identity_changed")
+    return extract_fd
+
+
+def read_tarball_snapshot():
     listed = os.lstat(tarball)
     if not stat.S_ISREG(listed.st_mode) or stat.S_ISLNK(listed.st_mode):
         fail("tarball_not_direct_regular_file")
@@ -92,66 +222,153 @@ def main():
         if not stat.S_ISREG(opened.st_mode) or not same_stamp(listed, opened):
             fail("tarball_identity_changed")
 
+        chunks = []
+        total = 0
+        while True:
+            chunk = os.read(fd, min(65536, MAX_TARBALL_BYTES - total + 1))
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_TARBALL_BYTES:
+                fail("tarball_size_invalid")
+            chunks.append(chunk)
+        compressed = b"".join(chunks)
+        if len(compressed) != opened.st_size:
+            fail("tarball_short_read")
+
+        after = os.fstat(fd)
+        visible = os.lstat(tarball)
+        if not same_stamp(opened, after) or not same_stamp(after, visible):
+            fail("tarball_changed_during_verify")
+        return compressed
+    finally:
+        os.close(fd)
+
+
+def bounded_tar(compressed):
+    gz = gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb")
+    limited = BoundedDecompressedReader(
+        gz,
+        MAX_ARCHIVE_DECOMPRESSED_BYTES,
+    )
+    tf = tarfile.open(fileobj=limited, mode="r|")
+    return gz, tf
+
+
+def validate_member(member, members_by_name, state):
+    state["count"] += 1
+    if state["count"] > len(EXPECTED):
+        fail("too_many_members")
+
+    raw_name = member.name
+    name = raw_name.rstrip("/")
+    label = member_label(raw_name)
+    if (
+        not name
+        or raw_name.startswith("/")
+        or "\\" in raw_name
+        or posixpath.normpath(name) != name
+        or name == ".."
+        or name.startswith("../")
+    ):
+        fail("unsafe_member_name:" + label)
+    if name not in EXPECTED:
+        fail("unexpected_member:" + label)
+    if name in members_by_name:
+        fail("duplicate_member:" + member_label(name))
+
+    if name in EXPECTED_DIRS:
+        if not member.isdir():
+            fail("member_not_directory:" + member_label(name))
+    else:
+        if (
+            not member.isfile()
+            or member.issym()
+            or member.islnk()
+            or getattr(member, "sparse", None)
+        ):
+            fail("member_not_direct_regular_file:" + member_label(name))
+        if member.size < 0 or member.size > MAX_MEMBER_BYTES:
+            fail("member_size_invalid:" + member_label(name))
+        state["total_bytes"] += member.size
+        if state["total_bytes"] > MAX_TOTAL_BYTES:
+            fail("archive_uncompressed_size_exceeded")
+
+    members_by_name[name] = True
+    return name
+
+
+def preflight_archive(compressed):
+    members_by_name = {}
+    state = {"count": 0, "total_bytes": 0}
+    gz, tf = bounded_tar(compressed)
+    try:
+        with tf:
+            for member in tf:
+                validate_member(member, members_by_name, state)
+    finally:
+        gz.close()
+
+    if set(members_by_name) != EXPECTED:
+        missing = sorted(EXPECTED - set(members_by_name))
+        fail("missing_members:" + ",".join(missing))
+
+
+def make_private_dir(parent_fd, name):
+    os.mkdir(name, 0o700, dir_fd=parent_fd)
+    listed = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISDIR(listed.st_mode)
+        or stat.S_ISLNK(listed.st_mode)
+        or listed.st_uid != euid
+        or listed.st_mode & 0o077
+    ):
+        fail("created_directory_custody_invalid:" + member_label(name))
+    fd = os.open(
+        name,
+        os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+        dir_fd=parent_fd,
+    )
+    if not same_dir_identity(listed, os.fstat(fd)):
+        os.close(fd)
+        fail("created_directory_identity_changed:" + member_label(name))
+    return fd
+
+
+def extract_archive(compressed, extract_fd):
+    fixture_fd = make_private_dir(extract_fd, "demo003-folder-fixture")
+    files_fd = None
+    try:
+        files_fd = make_private_dir(fixture_fd, "files")
         members_by_name = {}
-        total_bytes = 0
-        with os.fdopen(os.dup(fd), "rb") as raw:
-            with tarfile.open(fileobj=raw, mode="r:gz") as tf:
-                member_count = 0
+        state = {"count": 0, "total_bytes": 0}
+        gz, tf = bounded_tar(compressed)
+        try:
+            with tf:
                 for member in tf:
-                    member_count += 1
-                    if member_count > len(EXPECTED):
-                        fail("too_many_members")
-                    raw_name = member.name
-                    name = raw_name.rstrip("/")
-                    if (
-                        not name
-                        or raw_name.startswith("/")
-                        or "\\" in raw_name
-                        or posixpath.normpath(name) != name
-                        or name == ".."
-                        or name.startswith("../")
-                    ):
-                        fail(f"unsafe_member_name:{raw_name}")
-                    if name not in EXPECTED:
-                        fail(f"unexpected_member:{name}")
-                    if name in members_by_name:
-                        fail(f"duplicate_member:{name}")
+                    name = validate_member(member, members_by_name, state)
                     if name in EXPECTED_DIRS:
-                        if not member.isdir():
-                            fail(f"member_not_directory:{name}")
-                    else:
-                        if (
-                            not member.isfile()
-                            or member.issym()
-                            or member.islnk()
-                            or getattr(member, "sparse", None)
-                        ):
-                            fail(f"member_not_direct_regular_file:{name}")
-                        if member.size < 0 or member.size > MAX_MEMBER_BYTES:
-                            fail(f"member_size_invalid:{name}")
-                        total_bytes += member.size
-                        if total_bytes > MAX_TOTAL_BYTES:
-                            fail("archive_uncompressed_size_exceeded")
-                    members_by_name[name] = member
-
-                if set(members_by_name) != EXPECTED:
-                    missing = sorted(EXPECTED - set(members_by_name))
-                    fail("missing_members:" + ",".join(missing))
-
-                for name in sorted(EXPECTED_DIRS, key=lambda value: value.count("/")):
-                    dst = os.path.join(extract, *name.split("/"))
-                    os.mkdir(dst, 0o700)
-
-                for name in sorted(EXPECTED_FILES):
-                    member = members_by_name[name]
+                        continue
                     source = tf.extractfile(member)
                     if source is None:
-                        fail(f"member_stream_missing:{name}")
-                    dst = os.path.join(extract, *name.split("/"))
+                        fail("member_stream_missing:" + member_label(name))
+
+                    if name.startswith("demo003-folder-fixture/files/"):
+                        parent_fd = files_fd
+                        leaf = name.rsplit("/", 1)[1]
+                    else:
+                        parent_fd = fixture_fd
+                        leaf = name.rsplit("/", 1)[1]
+
                     out_fd = os.open(
-                        dst,
-                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW | O_CLOEXEC,
+                        leaf,
+                        os.O_WRONLY
+                        | os.O_CREAT
+                        | os.O_EXCL
+                        | O_NOFOLLOW
+                        | O_CLOEXEC,
                         0o600,
+                        dir_fd=parent_fd,
                     )
                     try:
                         copied = 0
@@ -161,54 +378,128 @@ def main():
                                 break
                             copied += len(chunk)
                             if copied > member.size or copied > MAX_MEMBER_BYTES:
-                                fail(f"member_growth:{name}")
+                                fail("member_growth:" + member_label(name))
                             write_all(out_fd, chunk)
                         if copied != member.size:
-                            fail(f"member_short_read:{name}")
+                            fail("member_short_read:" + member_label(name))
                         os.fsync(out_fd)
+                        created = os.fstat(out_fd)
+                        if (
+                            not stat.S_ISREG(created.st_mode)
+                            or created.st_nlink != 1
+                            or created.st_uid != euid
+                            or created.st_mode & 0o022
+                            or created.st_size != member.size
+                        ):
+                            fail("extracted_file_custody_invalid:" + member_label(name))
                     finally:
                         os.close(out_fd)
-                    source.close()
+                        source.close()
+        finally:
+            gz.close()
 
-        after = os.fstat(fd)
-        visible = os.lstat(tarball)
-        if not same_stamp(opened, after) or not same_stamp(after, visible):
-            fail("tarball_changed_during_verify")
+        if set(members_by_name) != EXPECTED:
+            missing = sorted(EXPECTED - set(members_by_name))
+            fail("missing_members:" + ",".join(missing))
     finally:
-        os.close(fd)
+        if files_fd is not None:
+            os.close(files_fd)
+        os.close(fixture_fd)
 
-    for name in EXPECTED_DIRS:
-        p = os.path.join(extract, *name.split("/"))
-        st = os.lstat(p)
-        if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
-            fail(f"extracted_directory_invalid:{name}")
-        if st.st_uid != euid or st.st_mode & 0o022:
-            fail(f"extracted_directory_custody_invalid:{name}")
 
-    for name in EXPECTED_FILES:
-        p = os.path.join(extract, *name.split("/"))
-        st = os.lstat(p)
-        if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
-            fail(f"extracted_file_invalid:{name}")
-        if st.st_uid != euid or st.st_nlink != 1 or st.st_mode & 0o022:
-            fail(f"extracted_file_custody_invalid:{name}")
+def post_extract_custody(extract_fd):
+    fixture_fd = os.open(
+        "demo003-folder-fixture",
+        os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+        dir_fd=extract_fd,
+    )
+    files_fd = None
+    try:
+        fixture_stat = os.fstat(fixture_fd)
+        if (
+            not fixture_stat.is_dir()
+            if hasattr(fixture_stat, "is_dir")
+            else False
+        ):
+            fail("extracted_fixture_directory_invalid")
+        if fixture_stat.st_uid != euid or fixture_stat.st_mode & 0o022:
+            fail("extracted_fixture_directory_custody_invalid")
+
+        files_fd = os.open(
+            "files",
+            os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+            dir_fd=fixture_fd,
+        )
+        files_stat = os.fstat(files_fd)
+        if not stat.S_ISDIR(files_stat.st_mode):
+            fail("extracted_files_directory_invalid")
+        if files_stat.st_uid != euid or files_stat.st_mode & 0o022:
+            fail("extracted_files_directory_custody_invalid")
+
+        for name in ("manifest.json", "sha256sums.txt"):
+            st = os.stat(name, dir_fd=fixture_fd, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(st.st_mode)
+                or stat.S_ISLNK(st.st_mode)
+                or st.st_uid != euid
+                or st.st_nlink != 1
+                or st.st_mode & 0o022
+            ):
+                fail("extracted_file_custody_invalid:" + member_label(name))
+
+        for name in ("README.txt", "index.html", "metadata.json"):
+            st = os.stat(name, dir_fd=files_fd, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(st.st_mode)
+                or stat.S_ISLNK(st.st_mode)
+                or st.st_uid != euid
+                or st.st_nlink != 1
+                or st.st_mode & 0o022
+            ):
+                fail("extracted_file_custody_invalid:" + member_label(name))
+    finally:
+        if files_fd is not None:
+            os.close(files_fd)
+        os.close(fixture_fd)
+
+
+def main():
+    out_fd = open_private_output_root(out)
+    extract_fd = None
+    try:
+        extract_fd = create_extract_root(out_fd)
+        compressed = read_tarball_snapshot()
+        preflight_archive(compressed)
+        extract_archive(compressed, extract_fd)
+        post_extract_custody(extract_fd)
+        os.fsync(extract_fd)
+        os.fsync(out_fd)
+    finally:
+        if extract_fd is not None:
+            os.close(extract_fd)
+        os.close(out_fd)
 
     print("archive_member_preflight=true")
     print("archive_exact_member_set=true")
     print("archive_links_rejected=true")
     print("archive_special_members_rejected=true")
     print("archive_bounded_uncompressed_bytes=true")
+    print("archive_bounded_decompressed_stream=true")
+    print("output_root_nofollow_custody=true")
     print("post_extract_nofollow_custody=true")
 
 
 try:
     main()
 except Exception as exc:
-    print("[fail] Demo003 archive safety: " + str(exc), file=sys.stderr)
+    print(
+        "[fail] Demo003 archive safety: " + safe_diagnostic(exc),
+        file=sys.stderr,
+    )
     sys.exit(2)
 PY
 
-node - "$FIXTURE_DIR" <<'NODE' | tee "$OUT/sha256-check.log"
+node - "$FIXTURE_DIR" <<'NODE'
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
