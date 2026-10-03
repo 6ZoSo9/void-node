@@ -39,6 +39,48 @@ const persistAt=index.indexOf(persistNeedle);
 assert.ok(persistAt>0);
 const prePersist=index.slice(Math.max(0,persistAt-120),persistAt);
 assert.match(prePersist,/if\(!__blo\(requestObj\)\)throw 0;/);
+
+const persistHelperAt=index.indexOf(
+  "async function __voidPersistBuyVoidRequestV1(reqObj:any)",
+);
+assert.ok(persistHelperAt>0);
+const persistAppendAt=index.indexOf(
+  'fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\\n");',
+  persistHelperAt,
+);
+assert.ok(persistAppendAt>persistHelperAt);
+const persistCritical=index.slice(
+  Math.max(persistHelperAt,persistAppendAt-220),
+  persistAppendAt,
+);
+assert.match(
+  persistCritical,
+  /if\(!__blo\(reqObj\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
+);
+
+const eventWriterAt=index.indexOf(
+  "async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any)",
+);
+assert.ok(eventWriterAt>0);
+const eventAppendAt=index.indexOf(
+  'fs.appendFileSync(path.join(dir, "operator-events.jsonl")',
+  eventWriterAt,
+);
+assert.ok(eventAppendAt>eventWriterAt);
+const eventCritical=index.slice(
+  Math.max(eventWriterAt,eventAppendAt-260),
+  eventAppendAt,
+);
+assert.match(
+  eventCritical,
+  /if\(!__blo\(request\)\)throw new Error\("request_launch_authority_expired_or_superseded"\);/,
+);
+assert.ok(index.includes(
+  "await __voidWriteBuyVoidOperatorEventV1(event,found);",
+));
+assert.ok(index.includes(
+  "(e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found)",
+));
 const gateSource = read("src/economic/buy_void_coupled_launch_gate_v1.mjs");
 assert.ok(gateSource.includes("buy-void-coupled-live-generation-v1.jsonl"));
 assert.ok(gateSource.includes("generation_tip_sha256"));
@@ -101,6 +143,8 @@ console.log("live_activation_generation_bound=true");
 console.log("live_activation_lease_expiry_bound=true");
 console.log("request_launch_authority_snapshot_bound=true");
 console.log("request_launch_authority_revalidated_before_persist=true");
+console.log("request_launch_authority_revalidated_at_request_append=true");
+console.log("request_launch_authority_revalidated_inside_operator_event_lock=true");
 console.log("request_launch_authority_generation_tip_bound=true");
 console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
