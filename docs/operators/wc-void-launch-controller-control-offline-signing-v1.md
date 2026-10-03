@@ -55,6 +55,13 @@ For Node 22.0 through 22.12 the signer uses the documented
 `^22.0.0 || ^24.0.0 || ^26.0.0` runtime range rather than silently requiring
 a newer Node 22 patch release.
 
+The permission-fenced child reuses the exact interpreter already running the
+reviewed signer. Production still requires that parent interpreter to resolve to
+`/usr/bin/node` before private-key access. This makes the child and selected
+permission flag describe the same Node binary, while allowing focused CI to
+exercise the actual 22.12/22.13 setup-node runtimes instead of an unrelated
+runner-system `/usr/bin/node`.
+
 The key-owning parent process never imports `ethers`. The child receives only
 the already-validated public challenge plus the fixed private key over stdin.
 The key is never placed in argv, environment variables, or a temporary key
