@@ -66,9 +66,44 @@ function wcExactFromQuantaV1(value: bigint): string {
   return `${whole}.${fraction.toString().padStart(9, "0").replace(/0+$/, "")}`;
 }
 
+function wcCompatNumberToQuantaV1(value: number): bigint | null {
+  if (
+    !Number.isFinite(value) ||
+    Math.abs(value) > Number.MAX_SAFE_INTEGER
+  ) {
+    return null;
+  }
+
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/.exec(
+    value.toString().toLowerCase(),
+  );
+  if (!match) return null;
+
+  const negative = match[1] === "-";
+  const whole = match[2] || "0";
+  const fraction = match[3] || "";
+  const exponent = Number(match[4] || 0);
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 400) {
+    return null;
+  }
+
+  const digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, "") || "0";
+  let magnitude = BigInt(digits);
+  const power = 9 - fraction.length + exponent;
+  if (power >= 0) {
+    magnitude *= 10n ** BigInt(power);
+  } else {
+    const divisor = 10n ** BigInt(-power);
+    if (magnitude % divisor !== 0n) return null;
+    magnitude /= divisor;
+  }
+  return negative ? -magnitude : magnitude;
+}
+
 function wcCompatFromQuantaV1(value: bigint): number | null {
   const projection = Number(wcExactFromQuantaV1(value));
-  return Number.isSafeInteger(projection) ? projection : null;
+  const roundTrip = wcCompatNumberToQuantaV1(projection);
+  return roundTrip === value ? projection : null;
 }
 
 export function validateCanonicalWcAcceptanceProjectionV1(
