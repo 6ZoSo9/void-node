@@ -297,6 +297,13 @@ disconnected for the entire sign command.
 
 Return only `signature.json` and its printed output SHA-256 to Precision.
 
+Do not advance Nimo to a later main commit between challenge review and signing.
+Nimo intentionally signs from the exact independently reviewed challenge commit.
+Precision verification may run later from an unrelated descendant only when the
+canonical control verifier confirms the challenge commit is an ancestor and all
+bound launch/control/package blobs remain byte-identical. Any relevant blob
+change invalidates the outstanding challenge and requires a fresh ceremony.
+
 ### Precision — verify
 
 Before expiry:
