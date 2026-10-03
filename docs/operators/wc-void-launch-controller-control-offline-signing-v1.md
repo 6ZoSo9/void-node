@@ -99,8 +99,11 @@ The Nimo helper requires:
 The helper signs only after all checks pass. Production signing samples the
 clock after the exact in-memory ethers bundle is admitted, rechecks expiry
 immediately before opening the private key, rechecks inside the signing helper
-before and after the EIP-712 signature operation, and refuses to emit the
-signature envelope if the challenge expires during signing.
+before and after the EIP-712 signature operation, and passes the validated
+decimal-string expiry into the durable output writer. The writer performs its
+last expiry check only after file fsync, parent-directory fsync, rebound read,
+and final path/inode identity validation. An expired artifact is never reported
+as a successful public signature envelope.
 
 ## Key-file boundary
 
@@ -151,9 +154,13 @@ canonical pathname must bind back to that retained directory inode, and the
 output is created only through `/proc/self/fd/<parent-fd>/<basename>` with
 `O_CREAT|O_EXCL|O_NOFOLLOW`. The exact file and retained parent directory are
 fsynced, and the original parent/output pathnames must still rebind to the pinned
-parent and created file after the write. If a parent replacement is detected
-after creation, the redirected evidence is removed through the retained parent
-descriptor before the operation fails closed.
+parent and created file after the write. Expiry cleanup is identity-bound: the
+writer unlinks the basename only when it still resolves to the exact device/inode
+captured from the created output. If another same-UID process renames that output
+and replaces the basename, cleanup fails closed with an identity mismatch and
+does not delete the unrelated replacement. The operation never reports signing
+success in that state; the output directory must be quarantined/reviewed before
+reuse.
 
 The output is:
 
