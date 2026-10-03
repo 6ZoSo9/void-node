@@ -21,6 +21,7 @@ The EIP-712 message binds:
 - eligible-cohort root;
 - cluster-assignment root;
 - evidence-manifest root;
+- exact reviewed #2369 manifest-compiler Git blob `7bb5c54fcd6a0d188b90c4c17d06145fe792ce66`;
 - issued/expiry timestamps; and
 - a 32-byte nonce.
 
@@ -39,13 +40,15 @@ The production wrapper requires:
 2. a #2369 manifest in
    `RELATED_IDENTITY_EVIDENCE_MANIFEST_READY_REVIEW_ATTESTATION_HOLD`;
 3. full cohort coverage and zero ambiguous participants;
-4. a content-addressed manifest ID matching the exact manifest bytes/material;
-5. fresh re-verification of
+4. a content-addressed manifest ID matching the exact manifest material;
+5. independent revalidation of canonical cluster IDs, evidence IDs, assignment/evidence ordering, cluster-assignment root, and evidence-manifest root;
+6. exact current source binding to the reviewed #2369 compiler Git blob `7bb5c54fcd6a0d188b90c4c17d06145fe792ce66`;
+7. fresh re-verification of
    `VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1`;
-6. control evidence recovering the exact selected reviewer
+8. control evidence recovering the exact selected reviewer
    `0x2f1e0005e865b772b268bd8c797bf3eaa901d97e`;
-7. an unexpired review-attestation message; and
-8. EIP-712 signature recovery to that exact reviewer address.
+9. an unexpired review-attestation message; and
+10. EIP-712 signature recovery to that exact reviewer address.
 
 Failure of any condition is HOLD.
 
