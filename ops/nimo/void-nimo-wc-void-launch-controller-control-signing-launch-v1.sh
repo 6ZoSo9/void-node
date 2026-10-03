@@ -17,6 +17,8 @@ repo="${VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1:-/home/zoso/dev/void-node}"
 }
 repo="$(cd -- "$repo" && pwd -P)"
 launcher_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
+signer_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
+runtime_rel="tools/void-reviewed-node-package-runtime-v1.mjs"
 launcher_file="${BASH_SOURCE[0]}"
 [[ "$launcher_file" == /* ]] || launcher_file="$(pwd -P)/$launcher_file"
 
@@ -166,16 +168,70 @@ printf 'transaction_signing=false\n'
 printf 'transaction_broadcast=false\n'
 printf 'funds_movement=false\n'
 
-exec /usr/bin/env -i \
+reviewed_runtime_root="$(/usr/bin/mktemp -d /tmp/void-nimo-reviewed-signer.XXXXXX)" ||
+  hold "reviewed_signer_runtime_mkdir_failed"
+/bin/chmod 700 "$reviewed_runtime_root" ||
+  hold "reviewed_signer_runtime_chmod_failed"
+
+cleanup_reviewed_runtime() {
+  /bin/chmod -R u+rwX "$reviewed_runtime_root" >/dev/null 2>&1 || true
+  /bin/rm -rf -- "$reviewed_runtime_root" >/dev/null 2>&1 || true
+}
+trap cleanup_reviewed_runtime EXIT HUP INT TERM
+
+/bin/mkdir -p \
+  "$reviewed_runtime_root/ops/nimo" \
+  "$reviewed_runtime_root/tools" ||
+  hold "reviewed_signer_runtime_layout_failed"
+
+materialize_reviewed_blob() {
+  rel="$1"
+  destination="$reviewed_runtime_root/$rel"
+  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
+    hold "reviewed_materialization_blob_unavailable:$rel"
+  [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
+    hold "reviewed_materialization_blob_invalid:$rel"
+  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$expected_blob" > "$destination" ||
+    hold "reviewed_materialization_failed:$rel"
+  /bin/chmod 400 "$destination" ||
+    hold "reviewed_materialization_chmod_failed:$rel"
+  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$destination")" ||
+    hold "reviewed_materialization_hash_failed:$rel"
+  [[ "$actual_blob" == "$expected_blob" ]] ||
+    hold "reviewed_materialization_hash_mismatch:$rel"
+}
+
+materialize_reviewed_blob "$signer_rel"
+materialize_reviewed_blob "$runtime_rel"
+
+/bin/chmod 500 \
+  "$reviewed_runtime_root" \
+  "$reviewed_runtime_root/ops" \
+  "$reviewed_runtime_root/ops/nimo" \
+  "$reviewed_runtime_root/tools" ||
+  hold "reviewed_signer_runtime_freeze_failed"
+
+printf 'reviewed_signer_materialized=true\n'
+printf 'reviewed_runtime_helper_materialized=true\n'
+printf 'reviewed_signer_exec_path=%s\n' "$reviewed_runtime_root/$signer_rel"
+
+set +e
+/usr/bin/env -i \
   HOME=/home/zoso \
   PATH=/usr/bin:/bin \
   LANG=C \
   LC_ALL=C \
   VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
   VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
+  VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
   /usr/bin/node \
-  "$repo/ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs" \
+  "$reviewed_runtime_root/$signer_rel" \
   sign \
   --challenge "$challenge" \
   --challenge-sha256 "$challenge_sha" \
   --output "$output"
+status=$?
+set -e
+cleanup_reviewed_runtime
+trap - EXIT HUP INT TERM
+exit "$status"
