@@ -49,7 +49,7 @@ actual_challenge_sha="$(/usr/bin/sha256sum -- "$challenge" | /usr/bin/awk '{prin
   hold "challenge_sha256_mismatch"
 
 source_head="$(
-  /usr/bin/python3 - "$challenge" <<'PY'
+  /usr/bin/python3 -I -P - "$challenge" <<'PY'
 import json
 import re
 import sys
