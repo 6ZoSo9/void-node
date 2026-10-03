@@ -72,10 +72,11 @@ max_total_evidence_bytes=67108864
 max_total_evidence_subject_references=1000000
 ```
 
-The verifier rejects oversized manifests before expensive traversal. Evidence is
-indexed once by cluster and cluster validation does not repeatedly scan the full
-evidence array. These limits do not select an opening cohort size or
-concentration policy.
+The verifier rejects oversized manifests before expensive traversal. Evidence
+subject-array length is checked against the participant/aggregate ceilings
+before the array is copied or iterated. Evidence is indexed once by cluster and
+cluster validation does not repeatedly scan the full evidence array. These
+limits do not select an opening cohort size or concentration policy.
 
 ## Output boundary
 
@@ -134,8 +135,9 @@ inputs in addition to the attestation source itself.
 
 The validated manifest is detached from caller-owned arrays before asynchronous
 lineage verification begins. Normalized assignment/evidence arrays and evidence
-subject lists are frozen snapshots, so caller mutation after validation cannot
-change the material later compared to the eligible cohort or signed roots.
+subject lists are frozen snapshots. Preparation carries that same detached
+snapshot through lineage verification and into the EIP-712 material, so caller
+mutation after validation cannot swap the manifest that is ultimately signed.
 
 Launch-controller control reverification runs in a dedicated child process with
 an explicit reviewed `GIT_DIR` and private `GIT_WORK_TREE`. The parent process
