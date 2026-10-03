@@ -19164,7 +19164,7 @@ setInterval(refresh, 10000);
         const note = __voidBuyVoidReadBodyV1(req, "note").slice(0, 240);
         const acknowledgements = {
           self_custody: __voidBuyVoidReadBooleanBodyV1(req, "ack_self_custody"),
-          native_usdc: __voidBuyVoidReadBooleanBodyV1(req, "ack_native_usdc", "ack_base_native_usdc"),
+          native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"])),
           request_before_payment: __voidBuyVoidReadBooleanBodyV1(req, "ack_request_before_payment"),
           sender_equals_void_destination: __voidBuyVoidReadBooleanBodyV1(req, "ack_sender_equals_void_destination"),
           no_automatic_fulfillment: __voidBuyVoidReadBooleanBodyV1(req, "ack_no_automatic_fulfillment")
