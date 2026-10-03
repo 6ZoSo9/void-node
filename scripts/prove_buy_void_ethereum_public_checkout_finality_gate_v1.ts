@@ -83,6 +83,11 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .canonical_source_finality_capability_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
     .base_behavior_modified,
   false,
 );
@@ -156,26 +161,47 @@ if (missingFinality.ok === false) {
     missingFinality.reason,
     "ethereum_source_finality_source_finality_execution_policy_not_configured",
   );
+  assert.equal(missingFinality.source_finality_policy_configured, false);
+  assert.equal(
+    missingFinality.production_source_finality_capability_ready,
+    false,
+  );
   assert.ok(missingFinality.missing_envs.length > 0);
 }
 
 const env = configuredEnv();
-const ready = readBuyVoidEthereumPublicCheckoutReadinessV1(env);
-assert.equal(ready.ok, true);
-if (ready.ok) {
+const configuredButNotProductionReady =
+  readBuyVoidEthereumPublicCheckoutReadinessV1(env);
+assert.equal(configuredButNotProductionReady.ok, false);
+if (configuredButNotProductionReady.ok === false) {
   assert.equal(
-    ready.status,
-    "ethereum_checkout_finality_prerequisites_configured",
+    configuredButNotProductionReady.reason,
+    "ethereum_source_finality_capability_not_ready",
   );
-  assert.equal(ready.source_chain, "ethereum");
-  assert.equal(ready.chain_id, "1");
-  assert.equal(ready.payment_instructions_finality_gate_ready, true);
-  assert.equal(ready.payment_verified_finality_gate_ready, false);
-  assert.equal(ready.inventory_reservation_authorized, false);
-  assert.equal(ready.runtime_config_mutation_performed, false);
-  assert.equal(ready.payment_event_write_performed, false);
-  assert.equal(ready.inventory_write_performed, false);
-  assert.equal(ready.funds_movement_performed, false);
+  assert.equal(
+    configuredButNotProductionReady.source_finality_policy_configured,
+    true,
+  );
+  assert.equal(
+    configuredButNotProductionReady.production_source_finality_capability_ready,
+    false,
+  );
+  assert.equal(
+    configuredButNotProductionReady.payment_instructions_finality_gate_ready,
+    false,
+  );
+  assert.equal(
+    configuredButNotProductionReady.payment_verified_finality_gate_ready,
+    false,
+  );
+  assert.equal(
+    configuredButNotProductionReady.inventory_reservation_authorized,
+    false,
+  );
+  assert.equal(configuredButNotProductionReady.runtime_config_mutation_performed, false);
+  assert.equal(configuredButNotProductionReady.payment_event_write_performed, false);
+  assert.equal(configuredButNotProductionReady.inventory_write_performed, false);
+  assert.equal(configuredButNotProductionReady.funds_movement_performed, false);
 }
 
 const invalidAttempt =
@@ -333,6 +359,8 @@ console.log(
 );
 console.log("ethereum_payment_instructions_fail_closed=true");
 console.log("server_controlled_finality_policy_required=true");
+console.log("current_production_source_finality_capability_ready=false");
+console.log("ethereum_payment_instructions_currently_hold=true");
 console.log("existing_payment_reconciliation_survives_intake_disable=true");
 console.log("canonical_source_finality_preflight_required=true");
 console.log("synthetic_finality_production_authority=false");
