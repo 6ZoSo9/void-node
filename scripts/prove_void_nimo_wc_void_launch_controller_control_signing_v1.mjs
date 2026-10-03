@@ -86,9 +86,12 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
       .createHash("sha256")
       .update(challengeBytes)
       .digest("hex");
-    const launcher = path.resolve(
+    const sourceLauncher = path.resolve(
       "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
     );
+    const launcher = path.join(temporary, "reviewed-launcher.sh");
+    fs.copyFileSync(sourceLauncher, launcher);
+    fs.chmodSync(launcher, 0o700);
     const result = spawnSync(
       "/usr/bin/env",
       [
@@ -97,6 +100,7 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
         "PATH=/usr/bin:/bin",
         "LANG=C",
         "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
         "/bin/bash",
         "--noprofile",
         "--norc",
@@ -128,6 +132,7 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
       new RegExp("operator_reviewed_head=" + reviewedHead, "u"),
     );
     assert.match(result.stdout, /private_key_access=false/u);
+    assert.match(result.stdout, /executed_launcher_blob=[0-9a-f]{40}/u);
 
     const forgedReviewedHead = spawnSync(
       "/usr/bin/env",
@@ -137,6 +142,7 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
         "PATH=/usr/bin:/bin",
         "LANG=C",
         "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
         "/bin/bash",
         "--noprofile",
         "--norc",
@@ -156,6 +162,43 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     assert.match(
       forgedReviewedHead.stderr,
       /current_head_not_exact_operator_reviewed_head/u,
+    );
+
+    const tamperedLauncher = path.join(temporary, "tampered-launcher.sh");
+    fs.writeFileSync(
+      tamperedLauncher,
+      fs.readFileSync(sourceLauncher, "utf8") + "\n# tampered fixture\n",
+      { mode: 0o700 },
+    );
+    fs.chmodSync(tamperedLauncher, 0o700);
+    const tamperedResult = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        tamperedLauncher,
+        "preflight",
+        challengePath,
+        challengeSha,
+        reviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(tamperedResult.status, 0);
+    assert.match(
+      tamperedResult.stderr,
+      /executed_launcher_not_operator_reviewed_blob/u,
     );
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
@@ -450,6 +493,14 @@ assert.equal(
 );
 assert.equal(
   launcherSource.includes('VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('executed_launcher_not_operator_reviewed_blob'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1'),
   true,
 );
 assert.equal(
@@ -769,6 +820,9 @@ console.log("current_source_binding_reverified_before_key_access=true");
 console.log("exact_challenge_source_head_required=true");
 console.log("independent_operator_reviewed_head_required=true");
 console.log("challenge_head_cannot_self_authorize_signer=true");
+console.log("launcher_materialized_from_reviewed_commit=true");
+console.log("executed_launcher_self_blob_verified=true");
+console.log("tampered_launcher_rejected=true");
 console.log("exact_head_launcher_preflight_green=true");
 console.log("launcher_critical_blobs_verified=true");
 console.log("private_key_access_reported=true");
