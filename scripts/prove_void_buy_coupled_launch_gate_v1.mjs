@@ -24,6 +24,7 @@ import {
   readBuyLaunchGateV1,
   readBuyLaunchLiveActivationV1,
   readBuyLaunchSourceGateV1,
+  sameBuyLaunchGenerationAuthorityV1,
   verifyBuyLaunchLiveActivationSignatureV1,
   verifyBuyLaunchLiveActivationSovereignSignatureV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
@@ -197,6 +198,29 @@ try {
   assert.equal(activeGenerationState.external_anchor_verified, true);
   assert.equal(activeGenerationState.generation, activationGeneration);
   assert.equal(activeGenerationState.tip_sha256, activeEvent.event_sha256);
+  assert.equal(
+    sameBuyLaunchGenerationAuthorityV1(
+      activeGenerationState,
+      { ...activeGenerationState },
+    ),
+    true,
+  );
+  for (const patch of [
+    { ready: false },
+    { generation: "0x" + "d".repeat(64) },
+    { tip_sha256: "sha256:" + "d".repeat(64) },
+    { sequence: activeGenerationState.sequence + 1 },
+    { external_anchor_sha256: "sha256:" + "e".repeat(64) },
+    { external_anchor_verified: false },
+  ]) {
+    assert.equal(
+      sameBuyLaunchGenerationAuthorityV1(
+        activeGenerationState,
+        { ...activeGenerationState, ...patch },
+      ),
+      false,
+    );
+  }
   const fixedAnchorPath = buyLaunchGenerationExternalAnchorPathV1();
   assert.equal(path.isAbsolute(fixedAnchorPath), true);
   assert.match(
@@ -585,6 +609,16 @@ assert.match(gateSource, /LIVE_ACTIVATION_MAX_LEASE_MS/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
 assert.match(gateSource, /readBuyLaunchLiveActivationV1/);
 assert.match(gateSource, /classifyBuyLaunchLiveActivationLeaseV1/);
+assert.match(gateSource, /sameBuyLaunchGenerationAuthorityV1/);
+assert.equal(
+  (gateSource.match(/readBuyLaunchGenerationJournalV1\(env\)/gu) || []).length,
+  2,
+  "live activation must read generation authority before and after receipt verification",
+);
+assert.match(
+  gateSource,
+  /buy_launch_generation_changed_during_activation_verification/,
+);
 assert.doesNotMatch(gateSource, /testOnlyReadBuyLaunchLiveActivationV1/);
 assert.match(gateSource, /verifyTypedData/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1/);
@@ -602,6 +636,8 @@ console.log("live_receipt_digest_binding_required=true");
 console.log("live_activation_lease_expiry_required=true");
 console.log("live_activation_generation_journal_required=true");
 console.log("durable_generation_revocation_required=true");
+console.log("generation_revalidated_after_receipt_verification=true");
+console.log("mid_verification_generation_change_rejected=true");
 console.log("external_generation_high_water_anchor_required=true");
 console.log("data_dir_rollback_old_generation_replay=false");
 console.log("configuration_rollback_old_generation_replay=false");
