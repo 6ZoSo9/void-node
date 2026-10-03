@@ -144,7 +144,18 @@ offline signing process.
 
 ## Output
 
-The output is create-only mode `0600` outside the repository:
+The output is create-only mode `0600` outside the repository. Output custody
+uses the same descriptor-first model rather than trusting a parent pathname:
+the parent directory is pinned through a nofollow descriptor chain, its
+canonical pathname must bind back to that retained directory inode, and the
+output is created only through `/proc/self/fd/<parent-fd>/<basename>` with
+`O_CREAT|O_EXCL|O_NOFOLLOW`. The exact file and retained parent directory are
+fsynced, and the original parent/output pathnames must still rebind to the pinned
+parent and created file after the write. If a parent replacement is detected
+after creation, the redirected evidence is removed through the retained parent
+descriptor before the operation fails closed.
+
+The output is:
 
 ```json
 {
