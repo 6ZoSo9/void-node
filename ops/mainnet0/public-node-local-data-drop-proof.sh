@@ -5,7 +5,8 @@ RUN_PORT="${RUN_PORT:-4150}"
 BASE="${BASE:-http://127.0.0.1:${RUN_PORT}}"
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 OUT="/tmp/public-node-local-data-drop-v1-proof-$STAMP"
-mkdir -p "$OUT/data"
+install -d -m 700 "$OUT/data"
+test "$(stat -c '%a' "$OUT/data")" = "700"
 
 openssl genpkey -algorithm ED25519 -out "$OUT/nodeA.key" >/dev/null 2>&1
 chmod 600 "$OUT/nodeA.key"
@@ -18,6 +19,11 @@ grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_ROUTE_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1" src/index.ts
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DOC_V1" docs/public/public-node-local-data-drop.md
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED" ops/mainnet0/public-node-local-data-drop-import.sh
+OLD_FILTER_COUNT="$(grep -Foc '/^[a-zA-Z0-9._-]{1,160}$/' src/index.ts || true)"
+COLON_FILTER_COUNT="$(grep -Foc '/^[\\w.:-]{1,160}$/' src/index.ts || true)"
+test "$OLD_FILTER_COUNT" = "0"
+test "$COLON_FILTER_COUNT" = "7"
+echo "local_data_drop_colon_filter_count=7"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_OBJECT_V1_GREEN" ops/mainnet0/public-node-local-data-drop-verify-object.sh
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_VERIFY_MANIFEST_V1_GREEN" ops/mainnet0/public-node-local-data-drop-verify-manifest.sh
 
@@ -73,16 +79,21 @@ done
 
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof-sample.txt" > "$OUT/fetched-sample.txt"
 SAMPLE2="$OUT/sample-2.txt"
+COLON_OBJECT_ID="void:proof:sample:v1"
+COLON_OBJECT_ID_URL="void%3Aproof%3Asample%3Av1"
 printf 'VOID public node local data drop second proof sample v1\n' > "$SAMPLE2"
 EXPECTED_SHA2="$(sha256sum "$SAMPLE2" | awk '{print $1}')"
 
-DATA_DIR="$OUT/data" ops/mainnet0/public-node-local-data-drop-import.sh "$SAMPLE2" proof-sample-2.txt > "$OUT/import-2.log"
+DATA_DIR="$OUT/data" ops/mainnet0/public-node-local-data-drop-import.sh "$SAMPLE2" "$COLON_OBJECT_ID" > "$OUT/import-2.log"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED" "$OUT/import-2.log"
+grep -Fq "object_id=$COLON_OBJECT_ID" "$OUT/import-2.log"
+test -f "$OUT/data/public-node/local-data-drop/receipts/$COLON_OBJECT_ID.json"
 
 # Refresh index after importing object 2; the earlier readiness fetch only proved the server was live.
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop.json" > "$OUT/local-data-drop.json"
 
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA" > "$OUT/fetched-sample-by-sha256.txt"
+curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/$COLON_OBJECT_ID_URL" > "$OUT/fetched-sample-2.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/by-sha256/$EXPECTED_SHA2" > "$OUT/fetched-sample-2-by-sha256.txt"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA.json" > "$OUT/object-proof.json"
 curl --max-time 10 -fsS "$BASE/public-node/local-data-drop/proof/$EXPECTED_SHA2.json" > "$OUT/object-proof-2.json"
@@ -100,6 +111,8 @@ curl --max-time 10 -fsS "$BASE/public-node/self-check-snapshot.json" > "$OUT/sel
 
 cmp "$OUT/sample.txt" "$OUT/fetched-sample.txt"
 cmp "$OUT/sample.txt" "$OUT/fetched-sample-by-sha256.txt"
+cmp "$SAMPLE2" "$OUT/fetched-sample-2.txt"
+cmp "$SAMPLE2" "$OUT/fetched-sample-2-by-sha256.txt"
 FETCHED_SHA="$(sha256sum "$OUT/fetched-sample.txt" | awk '{print $1}')"
 FETCHED_BY_SHA256_SHA="$(sha256sum "$OUT/fetched-sample-by-sha256.txt" | awk '{print $1}')"
 test "$FETCHED_SHA" = "$EXPECTED_SHA"
@@ -130,15 +143,15 @@ ok(index.manifest_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MANIFEST_V1", "in
 ok(index.manifest_href === "http://127.0.0.1:4150/public-node/local-data-drop/manifest.json", "index manifest href");
 ok(index.object_count === 2, "object count");
 const object1 = index.objects.find(o => o.object_id === "proof-sample.txt" || o.sha256 === expectedSha);
-const object2 = index.objects.find(o => o.object_id === "proof-sample-2.txt" || o.sha256 === expectedSha2);
+const object2 = index.objects.find(o => o.object_id === "void:proof:sample:v1" || o.sha256 === expectedSha2);
 ok(object1, "object 1 present");
 ok(object2, "object 2 present");
 ok(object1.object_id === "proof-sample.txt", "object id");
 ok(object1.sha256 === expectedSha, "sha256");
-ok(object2.object_id === "proof-sample-2.txt", "object 2 id");
+ok(object2.object_id === "void:proof:sample:v1", "object 2 id");
 ok(object2.sha256 === expectedSha2, "sha256 2");
 ok(index.objects.some(o => o.object_id === "proof-sample.txt" && o.sha256 === expectedSha), "object 1 id/sha");
-ok(index.objects.some(o => o.object_id === "proof-sample-2.txt" && o.sha256 === expectedSha2), "object 2 id/sha");
+ok(index.objects.some(o => o.object_id === "void:proof:sample:v1" && o.sha256 === expectedSha2), "object 2 id/sha");
 ok(object1.href === "http://127.0.0.1:4150/public-node/local-data-drop/proof-sample.txt", "href");
 ok(object1.href_by_sha256 === "http://127.0.0.1:4150/public-node/local-data-drop/by-sha256/" + expectedSha, "href by sha256");
 ok(object1.proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "proof href");
@@ -163,7 +176,7 @@ ok(proof.operator_local_import_only === true, "proof operator local only");
 ok(proof.public_read_only === true, "proof public read only");
 ok(proof.trusted_as_network_truth === false, "proof not network truth");
 ok(proof2.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1", "proof 2 marker");
-ok(proof2.object_id === "proof-sample-2.txt", "proof 2 object id");
+ok(proof2.object_id === "void:proof:sample:v1", "proof 2 object id");
 ok(proof2.sha256 === expectedSha2, "proof 2 sha");
 ok(proof2.receipt_sha256 === expectedSha2, "proof 2 receipt sha");
 ok(proof2.receipt_valid_for_current_object === true, "proof 2 receipt valid");
@@ -178,9 +191,9 @@ ok(/^[a-f0-9]{64}$/.test(storageManifest.manifest_root_sha256), "storage manifes
 ok(storageManifest.object_count === 2, "storage manifest object count");
 ok(storageManifest.total_bytes === object1.bytes + object2.bytes, "storage manifest total bytes");
 ok(storageManifest.objects.some(o => o.object_id === "proof-sample.txt" && o.sha256 === expectedSha), "storage manifest object 1 id/sha");
-ok(storageManifest.objects.some(o => o.object_id === "proof-sample-2.txt" && o.sha256 === expectedSha2), "storage manifest object 2 id/sha");
+ok(storageManifest.objects.some(o => o.object_id === "void:proof:sample:v1" && o.sha256 === expectedSha2), "storage manifest object 2 id/sha");
 const manifestObject1 = storageManifest.objects.find(o => o.object_id === "proof-sample.txt");
-const manifestObject2 = storageManifest.objects.find(o => o.object_id === "proof-sample-2.txt");
+const manifestObject2 = storageManifest.objects.find(o => o.object_id === "void:proof:sample:v1");
 ok(manifestObject1.proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha + ".json", "storage manifest proof 1 href");
 ok(manifestObject2.proof_href === "http://127.0.0.1:4150/public-node/local-data-drop/proof/" + expectedSha2 + ".json", "storage manifest proof 2 href");
 ok(manifestObject1.receipt_valid_for_current_object === true, "storage manifest receipt 1 valid");
@@ -236,9 +249,10 @@ echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "object_count=2"
 echo "object_id=proof-sample.txt"
-echo "object_id_2=proof-sample-2.txt"
+echo "object_id_2=$COLON_OBJECT_ID"
 echo "object_sha256=$EXPECTED_SHA"
 echo "object_sha256_2=$EXPECTED_SHA2"
+echo "colon_object_id_roundtrip=true"
 echo "fetch_sha256=$FETCHED_SHA"
 echo "fetch_by_sha256_sha=$FETCHED_BY_SHA256_SHA"
 echo "content_address_sha256_fetch=true"
