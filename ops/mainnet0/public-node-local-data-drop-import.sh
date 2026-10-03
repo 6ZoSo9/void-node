@@ -16,6 +16,7 @@ if [ -n "$OBJECT_ID" ]; then
 # VOID_PUBLIC_NODE_LOCAL_DATA_DROP_SECURE_STAGED_CREATE_ONLY_V2
 python3 - "$SRC" "$DATA_DIR" "$OBJECT_ID" <<'PY'
 import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -177,6 +178,48 @@ def write_all(fd, data):
         view = view[written:]
 
 
+def open_import_lock(staging_fd):
+    name = ".import.lock"
+    fd = os.open(
+        name,
+        os.O_RDWR | os.O_CREAT | O_NOFOLLOW | O_CLOEXEC,
+        0o600,
+        dir_fd=staging_fd,
+    )
+    before = os.stat(name, dir_fd=staging_fd, follow_symlinks=False)
+    after = os.fstat(fd)
+    if (
+        not stat.S_ISREG(after.st_mode)
+        or not same_identity(before, after)
+        or after.st_uid != euid
+        or (after.st_mode & 0o022)
+    ):
+        os.close(fd)
+        fail("import_lock_unsafe")
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        fail("import_already_in_progress")
+    return fd
+
+
+def reclaim_staging(staging_fd):
+    pattern = re.compile(r"(?:object|receipt)-[0-9]+-[0-9a-f]{32}")
+    removed = 0
+    for name in os.listdir(staging_fd):
+        if name == ".import.lock" or not pattern.fullmatch(name):
+            continue
+        entry = os.stat(name, dir_fd=staging_fd, follow_symlinks=False)
+        if not stat.S_ISREG(entry.st_mode) or entry.st_uid != euid:
+            fail(f"stale_stage_unsafe:{name}")
+        os.unlink(name, dir_fd=staging_fd)
+        removed += 1
+    if removed:
+        os.fsync(staging_fd)
+    return removed
+
+
 def create_stage_file(staging_fd, label):
     for _ in range(32):
         name = f"{label}-{os.getpid()}-{secrets.token_hex(16)}"
@@ -253,6 +296,7 @@ published_receipt = None
 objects_fd = None
 receipts_fd = None
 staging_fd = None
+reclaimed_staging = 0
 
 try:
     src_fd = open_source(src)
@@ -282,6 +326,9 @@ try:
     fds.append(receipts_fd)
     staging_fd = open_child_dir(local_fd, ".import-staging-v2", "staging_dir", True, True)
     fds.append(staging_fd)
+    lock_fd = open_import_lock(staging_fd)
+    fds.append(lock_fd)
+    reclaimed_staging = reclaim_staging(staging_fd)
 
     object_fd, object_stat = open_existing_file(objects_fd, object_id, "object_existing")
     if object_fd is not None:
@@ -381,6 +428,8 @@ try:
     print("create_only=true")
     print("ancestor_nofollow=true")
     print("staged_atomic_publication=true")
+    print("staging_global_lock=true")
+    print(f"reclaimed_staging_entries={reclaimed_staging}")
     print(f"recovered_orphan_receipt={str(receipt_exists and not object_exists).lower()}")
     print(f"recovered_orphan_object={str(object_exists and not receipt_exists).lower()}")
     print("VOID_PUBLIC_NODE_LOCAL_DATA_DROP_IMPORT_V1_IMPORTED")
