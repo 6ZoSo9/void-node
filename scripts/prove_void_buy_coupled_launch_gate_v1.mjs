@@ -12,6 +12,7 @@ import {
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
   VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
+  VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1,
   buildBuyLaunchGenerationEventV1,
   buyLaunchGenerationAuthorityLockPathV1,
   buyLaunchGenerationExternalAnchorPathV1,
@@ -20,12 +21,14 @@ import {
   buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
   classifyBuyLaunchGenerationAuthorityV1,
+  classifyBuyLaunchRequestMutationAdmissionV1,
   classifyBuyLaunchGenerationJournalV1,
   classifyBuyLaunchLiveActivationLeaseV1,
   readBuyLaunchGateV1,
   readBuyLaunchLiveActivationV1,
   readBuyLaunchSourceGateV1,
   sameBuyLaunchGenerationAuthorityV1,
+  validateBuyLaunchGenerationPublicationTimeV1,
   verifyBuyLaunchLiveActivationSignatureV1,
   verifyBuyLaunchLiveActivationSovereignSignatureV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
@@ -404,6 +407,36 @@ try {
     false,
   );
 
+  // Gate derivation may begin while the request is live, but mutation admission
+  // uses a fresh clock sampled after derivation.
+  assert.equal(
+    classifyBuyLaunchRequestMutationAdmissionV1(
+      { launch_authority: requestAuthority },
+      currentGateFixture,
+      requestAuthority.expires_at_ms - 1,
+      requestAuthority.expires_at_ms,
+    ).ready,
+    false,
+  );
+  assert.equal(
+    classifyBuyLaunchRequestMutationAdmissionV1(
+      { launch_authority: requestAuthority },
+      currentGateFixture,
+      requestAuthority.expires_at_ms - 2,
+      requestAuthority.expires_at_ms - 1,
+    ).ready,
+    true,
+  );
+  assert.equal(
+    classifyBuyLaunchRequestMutationAdmissionV1(
+      { launch_authority: requestAuthority },
+      currentGateFixture,
+      requestAuthority.expires_at_ms,
+      requestAuthority.expires_at_ms - 1,
+    ).ready,
+    false,
+  );
+
   // Mutation admission must use a fresh clock sample after gate derivation.
   // Model a lease that is live when the gate read starts but expires before
   // the mutation is admitted under the shared generation-authority lock.
@@ -619,6 +652,34 @@ for (const mutate of [
   );
 }
 
+assert.equal(
+  validateBuyLaunchGenerationPublicationTimeV1(
+    2_000_000_000_000 +
+      VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1,
+    2_000_000_000_000,
+  ),
+  2_000_000_000_000 +
+    VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1,
+);
+assert.throws(
+  () =>
+    validateBuyLaunchGenerationPublicationTimeV1(
+      2_000_000_000_000 +
+        VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1 +
+        1,
+      2_000_000_000_000,
+    ),
+  /buy_launch_generation_publish_time_invalid/u,
+);
+assert.throws(
+  () =>
+    validateBuyLaunchGenerationPublicationTimeV1(
+      2_000_000_000_000,
+      0,
+    ),
+  /buy_launch_generation_publish_time_invalid/u,
+);
+
 const gateSource = fs.readFileSync(
   "src/economic/buy_void_coupled_launch_gate_v1.mjs",
   "utf8",
@@ -641,6 +702,10 @@ assert.match(gateSource, /external_anchor_verified/);
 assert.match(gateSource, /generation_tip_sha256/);
 assert.match(gateSource, /VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1/);
 assert.match(gateSource, /buyLaunchRequestAuthorityMatchesV1/);
+assert.match(gateSource, /classifyBuyLaunchRequestMutationAdmissionV1/);
+assert.match(gateSource, /mutationAdmissionNowMs/);
+assert.match(gateSource, /VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1/);
+assert.match(gateSource, /validateBuyLaunchGenerationPublicationTimeV1/);
 assert.match(gateSource, /expires_at_ms/);
 assert.match(gateSource, /LIVE_ACTIVATION_MAX_LEASE_MS/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM/);
@@ -738,6 +803,8 @@ console.log("configuration_rollback_old_generation_replay=false");
 console.log("payment_request_bound_to_generation_tip=true");
 console.log("payment_request_bound_to_exact_activation_receipt=true");
 console.log("payment_request_bound_to_lease_expiry=true");
+console.log("mutation_admission_fresh_clock_required=true");
+console.log("future_generation_timestamp_skew_bounded=true");
 console.log("stale_live_activation_receipt_replay=false");
 console.log("launch_controller_eip712_signature_required=true");
 console.log("sovereign_eip712_cosignature_required=true");
