@@ -880,6 +880,11 @@ const operatorDoc = fs.readFileSync(
   "utf8",
 );
 
+const signerSource = fs.readFileSync(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
+  "utf8",
+);
+
 {
   const syntax = spawnSync(
     "/bin/bash",
@@ -1180,11 +1185,6 @@ assert.match(
   String(replacementQuarantine.replacement_bytes || ""),
   /UNRELATED_REPLACEMENT/u,
   "late failure must not delete an unrelated replacement basename",
-);
-
-const signerSource = fs.readFileSync(
-  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
-  "utf8",
 );
 
 assert.equal(
