@@ -13,6 +13,7 @@ CHECKSUMS = ROOT / "SHA256SUMS.txt"
 
 EXPECTED_FILES = {
     "README.md",
+    "applicant_auth_v1.py",
     "credential-request-draft-v1.example.json",
     "credential_request_client_v1.py",
     "manifest-v1.json",
@@ -73,6 +74,22 @@ if (
     or manifest.get("activation_state")
     != "public_review_request_live"
     or manifest.get("credential_created")
+    is not False
+    or manifest.get("applicant_auth_required")
+    is not True
+    or manifest.get("applicant_auth_header")
+    != "x-void-applicant-auth-v1"
+    or manifest.get("applicant_auth_algorithm")
+    != "Ed25519"
+    or manifest.get("applicant_identity_scheme")
+    != "void-agent:ed25519"
+    or manifest.get(
+        "applicant_identity_must_match_inner_agent_id"
+    )
+    is not True
+    or manifest.get(
+        "applicant_identity_private_key_is_wallet_key"
+    )
     is not False
 ):
     raise SystemExit(
@@ -152,4 +169,13 @@ print(
 )
 print(
     "raw_token_required=false"
+)
+print(
+    "applicant_auth_required=true"
+)
+print(
+    "applicant_identity_scheme=void-agent:ed25519"
+)
+print(
+    "applicant_identity_private_key_is_wallet_key=false"
 )
