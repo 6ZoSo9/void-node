@@ -51,13 +51,15 @@ if [[ "$mode" == "sign" ]]; then
 fi
 
 source_head="$(
-  /usr/bin/python3 -I -P - "$challenge" <<'PY'
+  /usr/bin/python3 -I -P - "$challenge" "$challenge_sha" <<'PY'
+import hashlib
 import json
 import os
 import re
 import sys
 
 path = sys.argv[1]
+expected_sha = sys.argv[2]
 flags = os.O_RDONLY
 if hasattr(os, "O_NOFOLLOW"):
     flags |= os.O_NOFOLLOW
@@ -72,6 +74,9 @@ try:
         raise SystemExit(2)
 finally:
     os.close(fd)
+
+if hashlib.sha256(raw).hexdigest() != expected_sha:
+    raise SystemExit(3)
 
 try:
     value = json.loads(raw.decode("utf-8"))
