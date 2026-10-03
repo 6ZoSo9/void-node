@@ -25,20 +25,19 @@ const gitBlobSha1 = bytes => crypto.createHash("sha1")
   .digest("hex");
 
 assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
-assert.ok(index.includes("../src/economic/buy_void_coupled_launch_gate_v1.mjs"));
-assert.ok(index.includes("canonical_coupled_launch_runtime_gate_unavailable"));
-assert.ok(index.includes(
-  'const requests_activation_requested = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";',
+assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
+assert.ok(index.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1));
+assert.ok(index.includes("m.readBuyLaunchGateV1().ready===true"));
+assert.equal(
+  index.split('=== "1"&&__voidBuyLaunchReadyV1()').length - 1,
+  2,
+);
+assert.ok(!index.includes(
+  'const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";',
 ));
-assert.ok(index.includes(
-  "const requests_enabled = requests_activation_requested && coupled_launch_gate.ready === true;",
+assert.ok(!index.includes(
+  'const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";',
 ));
-assert.ok(index.includes(
-  "const requestsEnabled = requestsActivationRequested && coupledLaunchGate.ready === true;",
-));
-assert.ok(index.includes('"buy_void_coupled_launch_gate_hold"'));
-assert.ok(index.includes("coupled_launch_gate_ready:coupled_launch_gate.ready===true"));
-assert.ok(index.includes("coupled_launch_gate_ready: coupledLaunchGate.ready === true"));
 
 for (const required of [
   "COPY --from=build /app/src/economic/buy_void_coupled_launch_gate_v1.mjs ./src/economic/",
