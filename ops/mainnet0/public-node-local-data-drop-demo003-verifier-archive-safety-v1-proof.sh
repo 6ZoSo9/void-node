@@ -564,7 +564,7 @@ replacement = '''        if (
             manifest_path = os.path.join(pathname, "manifest.json")
             with open(manifest_path, "wb") as handle:
                 handle.write(
-                    b"VOID_DEMO003_AFTER_FIRST_FINAL_CHECK_MUTATION\n"
+                    b"VOID_DEMO003_AFTER_FIRST_FINAL_CHECK_MUTATION\\n"
                 )
 
     for (
