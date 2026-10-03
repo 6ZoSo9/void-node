@@ -368,7 +368,7 @@ assert.match(
 );
 assert.match(
   docs.readme,
-  /planned recovery checkpoint is block 37371, while accepted economic receipt evidence reaches at least block 37391/,
+  /older planned recovery checkpoint at block 37371 predates accepted economic receipt evidence at block 37391/,
 );
 assert.match(
   docs.currentTruth,
@@ -397,6 +397,34 @@ assert.match(
 assert.match(
   docs.capabilityMatrix,
   /economic execution-layer identity\/public verification, participant post-purchase token control/,
+);
+assert.match(
+  docs.publicStatus,
+  /client-neutral Epoch-2 successor-state manifest is published/,
+);
+assert.match(
+  docs.publicStatus,
+  /native USDC on Ethereum mainnet \(chain ID `1`\) and Base mainnet \(chain ID `8453`\)/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /Epoch-2 successor-state evidence \| Live, public read-only/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /BTC\/VOID settlement primitives \| Guarded \/ source-only/,
+);
+assert.match(
+  docs.releases,
+  /client-neutral Epoch-2 successor-state manifest published/,
+);
+assert.match(
+  docs.releases,
+  /native USDC on Ethereum mainnet \(`1`\) and Base mainnet \(`8453`\)/,
+);
+assert.match(
+  docs.releases,
+  /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID/,
 );
 assert.match(
   docs.gatewayContent,
