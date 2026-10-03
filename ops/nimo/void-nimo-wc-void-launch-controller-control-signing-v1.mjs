@@ -68,7 +68,9 @@ const MIN_TTL_SECONDS = 60n;
 const MAX_TTL_SECONDS = 1800n;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "../..");
+const ROOT = process.env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1
+  ? path.resolve(process.env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1)
+  : path.resolve(HERE, "../..");
 
 export function validateSanitizedOfflineSignerEnvironmentV1(
   env = process.env,
@@ -82,6 +84,7 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     "LC_ALL",
     "VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1",
     "VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1",
+    "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1",
   ]);
   const keys = Object.keys(env);
   if (
@@ -92,7 +95,11 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     env.LC_ALL !== "C" ||
     env.VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1 !== "1" ||
     typeof env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1 !== "string" ||
-    !HEX40.test(env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1)
+    !HEX40.test(env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1) ||
+    typeof env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1 !== "string" ||
+    !path.isAbsolute(env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1) ||
+    path.resolve(env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1) !==
+      env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1
   ) {
     fail("offline_signer_environment_not_sanitized");
   }
@@ -122,6 +129,7 @@ export function validateSanitizedOfflineSignerEnvironmentV1(
     node_preload_flags_absent: true,
     operator_reviewed_head:
       env.VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1,
+    repo_root: env.VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1,
   });
 }
 
@@ -906,6 +914,24 @@ function reviewedChildExecutionEnvV1() {
   };
 }
 
+export function nodePermissionFlagV1(
+  version = process.versions.node,
+) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u.exec(
+    String(version),
+  );
+  if (!match || Number(match[1]) !== 22) {
+    fail("offline_signer_node22_required");
+  }
+  const minor = Number(match[2]);
+  if (!Number.isSafeInteger(minor) || minor < 0) {
+    fail("offline_signer_node_version_invalid");
+  }
+  return minor >= 13
+    ? "--permission"
+    : "--experimental-permission";
+}
+
 function runPermissionFencedReviewedChildV1({
   profile,
   runtimeRoot,
@@ -950,7 +976,7 @@ function runPermissionFencedReviewedChildV1({
   const result = spawnSync(
     NODE_V1,
     [
-      "--permission",
+      nodePermissionFlagV1(),
       "--allow-fs-read=" + root,
       entry,
       ...args,
