@@ -51,19 +51,23 @@ WC/VOID launch-controller identity:
 
 The signed payload binds execution epoch 2, the launch-controller role ID, the
 exact coupled launch ID, the exact source composition ID, a 32-byte activation
-nonce, activation time, the content-addressed receipt ID, and every boolean that
-claims the private Buy runtime / WC/VOID market / presale were activated in the
-same ceremony. A different signer, malformed signature, changed signed field,
-or future-dated activation time fails closed.
+nonce, a 32-byte activation generation, activation and expiry times, the
+content-addressed receipt ID, and every boolean that claims the private Buy
+runtime / WC/VOID market / presale were activated in the same ceremony. A
+different signer, malformed signature, changed signed field, expired lease,
+superseded generation, or future-dated activation time fails closed.
 
-The three environment bindings are:
+The four environment bindings are:
 
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH`: exact absolute path to a
   private receipt;
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256`: exact SHA-256 of those
-  receipt bytes; and
+  receipt bytes;
+- `VOID_BUY_COUPLED_LIVE_ACTIVATION_GENERATION`: exact signed launch
+  generation; deactivation or a replacement ceremony must advance or remove it;
+  and
 - `VOID_BUY_COUPLED_LIVE_ACTIVATION_CONFIRM`: exact operator confirmation
-  `activate-coupled-public-buy-v1:<receipt_id>:<receipt_sha256>`.
+  `activate-coupled-public-buy-v1:<generation>:<receipt_id>:<receipt_sha256>`.
 
 The receipt is accepted only when it is a stable, direct, operator-owned private
 regular file under no-follow descriptor traversal, with no group/other
@@ -77,6 +81,8 @@ Its content must be content-addressed and bind:
 - status `COUPLED_PUBLIC_LAUNCH_ACTIVE`;
 - the fixed launch-controller signer;
 - a unique bytes32 activation nonce;
+- the exact active bytes32 activation generation;
+- activation and expiry timestamps with a maximum five-minute lease;
 - a valid launch-controller EIP-712 signature;
 - the exact coupled launch ID;
 - the exact current source composition ID;
@@ -88,11 +94,13 @@ Its content must be content-addressed and bind:
 - `runtime_or_launch_evidence=true`; and
 - `source_ready_only=false`.
 
-A missing path, digest, confirmation, insecure file, changed file, stale
-composition ID, malformed receipt, wrong/invalid signature, future-dated
-activation, or any false launch fact holds intake closed. A self-authored JSON
-fixture with internally consistent hashes and environment confirmation cannot
-open production intake.
+A missing path, digest, generation, confirmation, insecure file, changed file,
+stale composition ID, expired lease, superseded generation, malformed receipt,
+wrong/invalid signature, future-dated activation, or any false launch fact holds
+intake closed. The receipt is therefore a renewable activation lease rather than
+permanent evidence of a past ceremony. A self-authored JSON fixture with
+internally consistent hashes and environment confirmation cannot open production
+intake.
 
 The existing final coupled source-promotion lane is deliberately not accepted as
 live evidence: that lane explicitly retains
@@ -112,7 +120,9 @@ and
 
 Thus the environment toggle alone cannot open intake, source readiness alone
 cannot open intake, and live evidence for one side of the coupled opening cannot
-open the other side independently.
+open the other side independently. A later shutdown can close intake by removing
+or advancing the active generation, and an unattended activation receipt
+self-closes when its lease expires.
 
 Ethereum payment verification/finality remains a separate prerequisite; this
 gate does not replace the Ethereum finality gate.
@@ -147,7 +157,8 @@ node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
 
 The focused proof uses only a temporary synthetic EIP-712 signer and live-receipt
 fixture. It proves the signature format plus parser/custody/digest/confirmation
-behavior, and explicitly proves that a valid synthetic signature cannot satisfy
-the fixed production launch-controller identity. CI never has the production
+behavior, lease expiry, generation supersession, and explicitly proves that a
+valid synthetic signature cannot satisfy the fixed production launch-controller
+identity. CI never has the production
 launch-controller key, cannot mint production activation evidence, and carries
 no runtime or economic authority.
