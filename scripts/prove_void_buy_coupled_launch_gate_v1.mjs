@@ -357,6 +357,26 @@ try {
     ),
     false,
   );
+  for (const patch of [
+    { activation_receipt_id: "voidbclive1_" + "0".repeat(64) },
+    { activation_receipt_sha256: "0".repeat(64) },
+    { expires_at_ms: requestAuthority.expires_at_ms + 1 },
+  ]) {
+    assert.equal(
+      buyLaunchRequestAuthorityMatchesV1(
+        { launch_authority: requestAuthority },
+        {
+          ready: true,
+          request_authority: {
+            ...requestAuthority,
+            ...patch,
+          },
+        },
+        nowMs + 1,
+      ),
+      false,
+    );
+  }
 
   // The same otherwise-valid signed receipt is no longer live after expiry.
   assert.equal(
@@ -538,6 +558,7 @@ console.log("live_activation_generation_journal_required=true");
 console.log("durable_generation_revocation_required=true");
 console.log("configuration_rollback_old_generation_replay=false");
 console.log("payment_request_bound_to_generation_tip=true");
+console.log("payment_request_bound_to_exact_activation_receipt=true");
 console.log("payment_request_bound_to_lease_expiry=true");
 console.log("stale_live_activation_receipt_replay=false");
 console.log("launch_controller_eip712_signature_required=true");
