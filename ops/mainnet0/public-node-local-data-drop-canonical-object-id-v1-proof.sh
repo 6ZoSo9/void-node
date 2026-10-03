@@ -79,6 +79,7 @@ grep -Fq 'object_id = f"{expected_sha[:16]}-' "$IMPORTER" ||
   fail "secure_default_object_id_derivation_missing"
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1" "$READER" || fail "reader_marker_missing"
 grep -Fq "O_NOFOLLOW" "$READER" || fail "reader_nofollow_missing"
+grep -Fq "/proc/self/fd" "$READER" || fail "reader_ancestor_fd_walk_missing"
 
 node - "$SOURCE" "$READER" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
 const assert=require("node:assert/strict");
@@ -112,7 +113,7 @@ const cluster=source.slice(clusterStart,routeStart+1800);
 assert.equal((cluster.match(/\brf\(/g)||[]).length,15,"all Local Data Drop public reads use descriptor helper");
 assert.equal(cluster.includes("fs.readFileSync("),false,"Local Data Drop cluster retains pathname read");
 assert.equal(cluster.includes(".import-staging-v2"),false,"public runtime must not mount importer staging");
-for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","O_NOFOLLOW","fs.openSync(filePath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(filePath","fs.closeSync(fd)"]){
+for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","/proc/self/fd","O_NOFOLLOW","O_DIRECTORY","fs.openSync(procPath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(procPath","fs.closeSync(parent.fd)"]){
   assert.equal(reader.includes(needle),true,"reader contract missing "+needle);
 }
 const route=source.slice(routeStart,routeStart+1800);
@@ -144,6 +145,7 @@ console.log("runtime_slash_rejected=true");
 console.log("runtime_backslash_rejected=true");
 console.log("runtime_descriptor_bound_read_calls=15");
 console.log("runtime_pathname_reads=0");
+console.log("runtime_ancestor_descriptor_walk=true");
 console.log("staging_absent_from_public_runtime=true");
 console.log("index_size_bytes="+sourceBytes);
 NODE
@@ -414,6 +416,7 @@ echo "store_directory_mode_guard=true"
 echo "operator_owned_recovery_files=true"
 echo "runtime_descriptor_bound_read_calls=15"
 echo "runtime_pathname_reads=0"
+echo "runtime_ancestor_descriptor_walk=true"
 echo "index_size_ceiling_preserved=true"
 echo "staged_atomic_publication=true"
 echo "staging_global_lock=true"
