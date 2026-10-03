@@ -10,6 +10,7 @@ import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1,
+  VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
   buyLaunchLiveActivationReceiptIdV1,
   buyLaunchLiveActivationTypedDataV1,
   classifyBuyLaunchGateV1,
@@ -18,6 +19,7 @@ import {
   readBuyLaunchLiveActivationV1,
   readBuyLaunchSourceGateV1,
   verifyBuyLaunchLiveActivationSignatureV1,
+  verifyBuyLaunchLiveActivationSovereignSignatureV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
 import {
   classifyVoidEconomicEvmSuccessorMigrationV1,
@@ -141,6 +143,9 @@ assert.equal(
 const syntheticActivationWallet = new Wallet(
   "0x1111111111111111111111111111111111111111111111111111111111111111",
 );
+const syntheticSovereignWallet = new Wallet(
+  "0x2222222222222222222222222222222222222222222222222222222222222222",
+);
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-buy-live-"));
 try {
   fs.chmodSync(tmp, 0o700);
@@ -152,6 +157,7 @@ try {
     activation_generation: activationGeneration,
     activation_nonce: "0x" + "a".repeat(64),
     activation_signer: syntheticActivationWallet.address.toLowerCase(),
+    sovereign_signer: syntheticSovereignWallet.address.toLowerCase(),
     buy_void_private_runtime_active: true,
     coupled_launch_id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
     expires_at_ms: nowMs + 120_000,
@@ -178,9 +184,16 @@ try {
       typed.types,
       typed.value,
     );
+  const sovereignSignature =
+    await syntheticSovereignWallet.signTypedData(
+      typed.domain,
+      typed.types,
+      typed.value,
+    );
   const receipt = {
     ...unsignedReceipt,
     activation_signature: activationSignature,
+    sovereign_signature: sovereignSignature,
   };
 
   const syntheticSignature =
@@ -197,6 +210,23 @@ try {
     verifyBuyLaunchLiveActivationSignatureV1(
       receipt,
       VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
+    ).verified,
+    false,
+  );
+  const syntheticSovereignSignature =
+    verifyBuyLaunchLiveActivationSovereignSignatureV1(
+      receipt,
+      syntheticSovereignWallet.address,
+    );
+  assert.equal(syntheticSovereignSignature.verified, true);
+  assert.equal(
+    syntheticSovereignSignature.recovered_signer,
+    syntheticSovereignWallet.address.toLowerCase(),
+  );
+  assert.equal(
+    verifyBuyLaunchLiveActivationSovereignSignatureV1(
+      receipt,
+      VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
     ).verified,
     false,
   );
@@ -338,6 +368,8 @@ assert.match(gateSource, /classifyBuyLaunchLiveActivationLeaseV1/);
 assert.doesNotMatch(gateSource, /testOnlyReadBuyLaunchLiveActivationV1/);
 assert.match(gateSource, /verifyTypedData/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1/);
+assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1/);
+assert.match(gateSource, /verifyBuyLaunchLiveActivationSovereignSignatureV1/);
 
 console.log("VOID_BUY_COUPLED_LAUNCH_GATE_V1_GREEN");
 console.log("current_canonical_source_ready=false");
@@ -351,7 +383,9 @@ console.log("live_activation_lease_expiry_required=true");
 console.log("live_activation_generation_match_required=true");
 console.log("stale_live_activation_receipt_replay=false");
 console.log("launch_controller_eip712_signature_required=true");
+console.log("sovereign_eip712_cosignature_required=true");
 console.log("fixed_launch_controller=" + VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1);
+console.log("fixed_sovereign_cosigner=" + VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1);
 console.log("explicit_operator_confirmation_required=true");
 console.log("self_authored_receipt_cannot_open_intake=true");
 console.log("synthetic_live_receipt_fixture_is_not_production_evidence=true");
