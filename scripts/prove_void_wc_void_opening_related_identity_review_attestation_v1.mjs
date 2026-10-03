@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   Wallet,
 } from "ethers";
-
-import {
-  VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_AUTHORITY_V1,
-  VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_MANIFEST_V1,
-  wcVoidOpeningRelatedIdentityClusterIdV1,
-} from "../tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
 
 import {
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWER_DECISION_ID_V1,
@@ -34,9 +33,48 @@ const digest = (value) =>
     .update(canonicalReviewJsonV1(value), "utf8")
     .digest("hex");
 
+const REVIEWED_MANIFEST_MARKER =
+  "REVIEWED_MANIFEST_MARKER";
+const REVIEWED_MANIFEST_AUTHORITY = Object.freeze({
+  source_only: true,
+  explicit_input_only: true,
+  eligible_cohort_reverified: true,
+  content_addressed_evidence_required: true,
+  exact_participant_cluster_bijection_required: true,
+  ambiguous_evidence_holds: true,
+  reviewer_role_decision_required: true,
+  review_attestation_verified: false,
+  related_identity_truth_verified: false,
+  privacy_sensitive_attribute_inference: false,
+  browsing_or_social_graph_deanonymization: false,
+  ip_geolocation_or_device_fingerprinting: false,
+  runtime_or_launch_evidence: false,
+  wc_ledger_write: false,
+  wc_balance_mutation: false,
+  wallet_or_signer_access: false,
+  private_key_access: false,
+  transaction_construction: false,
+  transaction_signing: false,
+  transaction_broadcast: false,
+  chain2050_write: false,
+  inventory_funding: false,
+  liquidity_movement: false,
+  market_activation: false,
+  public_presale_activation: false,
+  funds_movement: false,
+});
+function reviewedClusterId(participantIds) {
+  const canonical = [...participantIds].sort();
+  assert.equal(new Set(canonical).size, canonical.length);
+  return digest({
+    schema: "void.wc-void-opening-related-identity-cluster.v1",
+    participant_ids: canonical,
+  });
+}
+
 const participantId = h("5");
 const commitmentId = h("4");
-const clusterId = wcVoidOpeningRelatedIdentityClusterIdV1([
+const clusterId = reviewedClusterId([
   participantId,
 ]);
 
@@ -76,7 +114,7 @@ const evidenceManifestRoot = digest({
 });
 
 const manifest = {
-  marker: VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_MANIFEST_V1,
+  marker: REVIEWED_MANIFEST_MARKER,
   version: 1,
   status:
     "RELATED_IDENTITY_EVIDENCE_MANIFEST_READY_REVIEW_ATTESTATION_HOLD",
@@ -109,7 +147,7 @@ const manifest = {
   cluster_assignments: [assignment],
   evidence_documents: [evidence],
   authority:
-    VOID_WC_VOID_OPENING_RELATED_IDENTITY_EVIDENCE_AUTHORITY_V1,
+    REVIEWED_MANIFEST_AUTHORITY,
 };
 manifest.manifest_id = relatedIdentityManifestIdV1(manifest);
 
@@ -117,6 +155,97 @@ assert.equal(
   validateReviewableRelatedIdentityManifestV1(manifest).manifest_id,
   manifest.manifest_id,
 );
+
+{
+  const toolPath =
+    "tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs";
+  const compilerPath =
+    "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
+  const toolSource = fs.readFileSync(toolPath, "utf8");
+  assert.equal(
+    toolSource.includes(
+      'from "./void-wc-void-opening-related-identity-evidence-manifest-v1.mjs"',
+    ),
+    false,
+    "review verifier must not statically execute manifest compiler",
+  );
+
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-related-identity-review-compiler-sentinel-"),
+  );
+  const sentinel = path.join(temp, "compiler-executed");
+  const original = fs.readFileSync(compilerPath);
+  const gitEnv = {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_NO_REPLACE_OBJECTS: "1",
+  };
+  try {
+    const hide = spawnSync(
+      "/usr/bin/git",
+      ["-C", process.cwd(), "update-index", "--assume-unchanged", compilerPath],
+      { env: gitEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    assert.equal(hide.status, 0, String(hide.stderr || ""));
+
+    fs.writeFileSync(
+      compilerPath,
+      Buffer.concat([
+        Buffer.from(
+          'import { writeFileSync as __voidSentinelWrite } from "node:fs";\n' +
+            "__voidSentinelWrite(" +
+            JSON.stringify(sentinel) +
+            ', "executed\\n");\n',
+          "utf8",
+        ),
+        original,
+      ]),
+    );
+
+    const moduleUrl = pathToFileURL(path.resolve(toolPath)).href;
+    const childSource = [
+      "import { validateReviewableRelatedIdentityManifestV1 } from " +
+        JSON.stringify(moduleUrl) + ";",
+      "const manifest=" + JSON.stringify(manifest) + ";",
+      "const result=validateReviewableRelatedIdentityManifestV1(manifest);",
+      "if(result.manifest_id!==manifest.manifest_id) process.exit(31);",
+    ].join("\n");
+    const child = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", childSource],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 60_000,
+      },
+    );
+    assert.equal(
+      child.status,
+      0,
+      String(child.stdout || "") + String(child.stderr || ""),
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "dirty manifest compiler bytes executed",
+    );
+  } finally {
+    fs.writeFileSync(compilerPath, original);
+    spawnSync(
+      "/usr/bin/git",
+      ["-C", process.cwd(), "update-index", "--no-assume-unchanged", compilerPath],
+      { env: gitEnv, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
 
 const wallet = Wallet.createRandom();
 const material = {
@@ -282,6 +411,8 @@ console.log(
 console.log("generic_eip712_recovery=true");
 console.log("reviewable_manifest_binding=true");
 console.log("manifest_cluster_evidence_roots_reverified=true");
+console.log("manifest_compiler_worktree_execution=false");
+console.log("dirty_manifest_compiler_sentinel_execution=false");
 console.log(
   "manifest_compiler_git_blob_sha1=" +
     VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1,
