@@ -79,7 +79,9 @@ The fixed key file must be:
 - no symlink;
 - owned by the current user;
 - exactly mode `0600`;
-- one 32-byte hexadecimal private key, with optional `0x` prefix.
+- one 32-byte hexadecimal private key, with optional `0x` prefix;
+- at most one trailing newline; and
+- no leading/trailing spaces, tabs, blank lines, or other normalization.
 
 The raw key is never printed, returned, copied into the repository, placed in
 process arguments, or written into the public signature envelope.
