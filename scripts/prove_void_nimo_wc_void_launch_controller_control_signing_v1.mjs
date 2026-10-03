@@ -176,6 +176,79 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
     assert.match(result.stdout, /private_key_access=false/u);
     assert.match(result.stdout, /executed_launcher_blob=[0-9a-f]{40}/u);
 
+    const gitDir = path.join(process.cwd(), ".git");
+    const infoAttributes = path.join(gitDir, "info", "attributes");
+    const localGitConfig = path.join(gitDir, "config");
+    const infoAttributesExisted = fs.existsSync(infoAttributes);
+    const infoAttributesBefore = infoAttributesExisted
+      ? fs.readFileSync(infoAttributes)
+      : null;
+    const localGitConfigBefore = fs.readFileSync(localGitConfig);
+    const runMetadataPreflight = () =>
+      spawnSync(
+        "/usr/bin/env",
+        [
+          "-i",
+          "HOME=/home/zoso",
+          "PATH=/usr/bin:/bin",
+          "LANG=C",
+          "LC_ALL=C",
+          "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+          "/bin/bash",
+          "--noprofile",
+          "--norc",
+          launcher,
+          "preflight",
+          challengePath,
+          challengeSha,
+          reviewedHead,
+        ],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+
+    try {
+      fs.mkdirSync(path.dirname(infoAttributes), { recursive: true });
+      fs.writeFileSync(infoAttributes, "* filter=voidprobe\n", "utf8");
+      fs.appendFileSync(
+        localGitConfig,
+        '\n[filter "voidprobe"]\n\tclean = /bin/false\n',
+        "utf8",
+      );
+      const blocked = runMetadataPreflight();
+      assert.notEqual(blocked.status, 0);
+      assert.match(
+        blocked.stderr,
+        /repository_info_attributes_forbidden/u,
+      );
+    } finally {
+      fs.writeFileSync(localGitConfig, localGitConfigBefore);
+      if (infoAttributesExisted) {
+        fs.writeFileSync(infoAttributes, infoAttributesBefore);
+      } else {
+        fs.rmSync(infoAttributes, { force: true });
+      }
+    }
+
+    try {
+      fs.appendFileSync(
+        localGitConfig,
+        '\n[filter "voidprobe"]\n\tclean = /bin/false\n',
+        "utf8",
+      );
+      const blocked = runMetadataPreflight();
+      assert.notEqual(blocked.status, 0);
+      assert.match(
+        blocked.stderr,
+        /repository_local_git_config_forbidden/u,
+      );
+    } finally {
+      fs.writeFileSync(localGitConfig, localGitConfigBefore);
+    }
+
     const oversizedChallengePath = path.join(
       temporary,
       "oversized-challenge.json",
@@ -1298,6 +1371,19 @@ assert.equal(
 );
 assert.equal(signerSource.includes("transaction_broadcast: false"), true);
 assert.equal(signerSource.includes("funds_movement: false"), true);
+assert.equal(
+  launcherSource.includes("repository_info_attributes_forbidden"),
+  true,
+);
+assert.equal(
+  launcherSource.includes("repository_local_git_config_forbidden"),
+  true,
+);
+assert.equal(
+  (launcherSource.match(/hash-object --no-filters/gu) || []).length >= 3,
+  true,
+  "all launcher worktree/blob hashes must bypass Git filters",
+);
 for (const obsolete of [
   "reviewedRuntimeHelperV1",
   "reviewedSigningBridgeSourceV1",
@@ -1527,6 +1613,9 @@ console.log("signature_output_redirect_quarantine_verified=true");
 console.log("signature_output_postwrite_expiry_quarantine_verified=true");
 console.log("history_independent_negative_reviewed_object_proof=true");
 console.log("launcher_challenge_parse_bounded=true");
+console.log("repository_info_attributes_rejected_before_worktree_git=true");
+console.log("repository_local_filter_config_rejected_before_worktree_git=true");
+console.log("worktree_blob_hashing_uses_no_filters=true");
 console.log("challenge_timestamp_string_types_required=true");
 console.log("production_signing_helper_non_recursive=true");
 console.log("post_runtime_signing_clock_sampled=true");
