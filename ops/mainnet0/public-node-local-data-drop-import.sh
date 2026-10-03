@@ -26,6 +26,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import secrets
 import stat
 import sys
