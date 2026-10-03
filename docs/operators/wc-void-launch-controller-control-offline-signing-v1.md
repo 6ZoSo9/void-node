@@ -231,21 +231,26 @@ commit as a separate positional argument and verifies:
 For sign mode, the verified worktree paths are not reopened as execution
 authority. After those checks, the launcher:
 
-1. creates a private temporary reviewed-runtime tree;
-2. immediately opens and retains that tree as directory descriptor 19;
-3. materializes the exact signer and reviewed-runtime-helper Git blobs from the
-   independently reviewed commit through `/proc/self/fd/19/...`;
-4. re-hashes those materialized bytes against the reviewed Git blob IDs;
-5. freezes the private tree; and
-6. invokes Node on
-   `/proc/self/fd/19/ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs`.
+1. resolves the signer and reviewed-runtime-helper Git blob IDs from the
+   independently reviewed commit;
+2. reads each blob with `git cat-file blob` directly into base64 process
+   memory;
+3. decodes and re-hashes those exact transported bytes with
+   `git hash-object --stdin`, requiring the reviewed blob IDs again;
+4. pipes the verified signer bytes directly to
+   `/usr/bin/node --input-type=module -`; and
+5. carries the verified runtime-helper bytes only as non-secret base64 process
+   environment data.
 
-The retained directory descriptor is acquired before materialization, so a
-rename/replacement of the temporary pathname cannot redirect either the bytes
-being materialized or the signer path later opened by Node. The signer’s
-relative import of the reviewed runtime helper resolves inside that same pinned
-tree. Cleanup is also descriptor-bound and removes the original private tree,
-not a path replacement.
+The signer independently re-derives the reviewed runtime-helper Git blob from
+the operator-reviewed commit, verifies the transported helper bytes against that
+blob, performs one exact reviewed transformation that binds the helper's
+repository root to the independently verified repository path, and only then
+imports the helper from an in-memory `data:` URL.
+
+There is therefore no outer signer or runtime-helper executable file, temporary
+executable tree, worktree reopen, or same-UID-owned code inode between byte
+verification and production-key access.
 
 Do not execute the mutable worktree launcher as the bootstrap authority.
 The operator bootstrap reads the launcher directly from the independently
@@ -386,20 +391,18 @@ Preflight mode reports those access facts as false and exits without opening the
 key.
 
 Sign mode does **not** reopen the mutable worktree signer after verification.
-Instead the launcher creates a fresh private runtime directory, materializes the
-exact signer and reviewed-package-runtime helper Git blobs directly from the
-independently reviewed commit, re-hashes both materialized files, removes write
-permission from the materialized tree, and launches that reviewed signer copy
-through a second `/usr/bin/env -i` boundary. The original verified repository
-root is passed separately as
-`VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1` for Git/profile/source-state reads; it
-is not used as the signer executable path.
+The exact reviewed signer Git blob is streamed into Node on stdin, while the
+exact reviewed runtime-helper Git blob is transported in memory and reverified
+inside the signer before import. The original verified repository root is passed
+separately as `VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1` for
+Git/profile/source-state reads; it is never used as an executable signer or
+runtime-helper path.
 
-The materialized signer itself rechecks that the current/source-binding heads
-both equal the environment-carried reviewed commit before private-key access.
-This closes the verify-then-reopen worktree race: a later replacement of the
-worktree signer or runtime helper cannot change the bytes that receive
-production-key access.
+The streamed signer itself rechecks that the current/source-binding heads both
+equal the environment-carried reviewed commit before private-key access. This
+closes both the worktree verify/reopen race and the later same-UID temporary-file
+replacement race: no filesystem code entry is reopened after the reviewed Git
+blob bytes have been captured and verified.
 
 The scrubbed launch also excludes `NODE_OPTIONS`, `NODE_PATH`,
 dynamic-loader variables, shell-specific injection variables, and unrelated
