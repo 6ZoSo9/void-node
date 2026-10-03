@@ -194,11 +194,15 @@ const demoManifestEnd=source.indexOf('APP.get("/public-node/local-data-drop/fold
 assert.notEqual(demoManifestStart,-1,"Demo003 manifest route missing");
 assert.notEqual(demoManifestEnd,-1,"Demo003 file route boundary missing");
 const demoManifestRoute=source.slice(demoManifestStart,demoManifestEnd);
-assert.equal(demoManifestRoute.includes("const manifestBytes=rf(manifestPath);"),true,"Demo003 manifest must use custody reader");
+assert.equal(demoManifestRoute.includes("try{manifestBytes=rf(manifestPath);}"),true,"Demo003 manifest must use typed custody reader");
+assert.equal(demoManifestRoute.includes("demo003_folder_fixture_unsafe_manifest"),true,"Demo003 unsafe manifest must return typed rejection");
+assert.equal(demoManifestRoute.includes("demo003_folder_fixture_missing_manifest"),true,"Demo003 missing manifest must remain distinct");
 assert.equal(demoManifestRoute.includes("demo003_folder_fixture_unsafe_intake"),true,"Demo003 unsafe intake must fail closed");
 assert.equal(demoManifestRoute.includes("catch(_e){intake=null;}"),false,"Demo003 unsafe intake must not be masked");
-assert.equal(demoManifestRoute.includes("demo003_folder_fixture_missing_or_unsafe"),true,"Demo003 manifest must fail closed on custody rejection");
-assert.ok(demoManifestRoute.indexOf("demo003_folder_fixture_missing_or_unsafe")<demoManifestRoute.indexOf("demo003_folder_fixture_served"),"Demo003 manifest success must follow custody rejection guard");
+assert.ok(demoManifestRoute.indexOf("demo003_folder_fixture_unsafe_manifest")<demoManifestRoute.indexOf("demo003_folder_fixture_served"),"Demo003 manifest success must follow unsafe-storage guard");
+const demoFileRoute=source.slice(demoManifestEnd,source.indexOf('APP.get("/public-node/local-data-drop.json"',demoManifestEnd));
+assert.equal(demoFileRoute.includes("demo003_folder_file_unsafe_storage"),true,"Demo003 unsafe file storage must return typed rejection");
+assert.equal(demoFileRoute.includes("try{buf=rf(filePath);}"),true,"Demo003 file route must catch custody reader rejection");
 
 const route=source.slice(routeStart,routeStart+1800);
 assert.equal(

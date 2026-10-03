@@ -58814,9 +58814,10 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
   const latest = path.join(dataDir, "public-node", "local-data-drop-demo003-folder-fixtures", "latest");
   const manifestPath = path.join(latest, "manifest.json");
   const intakePath = path.join(latest, "intake.json");
-  const manifestBytes=rf(manifestPath);
+  let manifestBytes:Buffer|null;
+  try{manifestBytes=rf(manifestPath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_unsafe_manifest",object_set_id:"demo003-folder-fixture-v1"});}
   if(!manifestBytes){
-    return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_missing_or_unsafe",object_set_id:"demo003-folder-fixture-v1",policy:{public_upload:false,operator_local_import_only:true,public_read_only:true,trusted_as_network_truth:false}});
+    return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_missing_manifest",object_set_id:"demo003-folder-fixture-v1",policy:{public_upload:false,operator_local_import_only:true,public_read_only:true,trusted_as_network_truth:false}});
   }
   let manifest:any;
   try{manifest=JSON.parse(manifestBytes.toString("utf8"));}
@@ -58867,7 +58868,9 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fi
   const filesDir = path.join(latest, "files");
   const filePath = path.join(filesDir, fileName);
 
-  const buf=rf(filePath); if(!buf){return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",status:"demo003_folder_file_missing",object_set_id:"demo003-folder-fixture-v1",file_name:fileName,public_read_only:true});}
+  let buf:Buffer|null;
+  try{buf=rf(filePath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",status:"demo003_folder_file_unsafe_storage",object_set_id:"demo003-folder-fixture-v1",file_name:fileName,public_read_only:true});}
+  if(!buf){return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",status:"demo003_folder_file_missing",object_set_id:"demo003-folder-fixture-v1",file_name:fileName,public_read_only:true});}
 
   res.setHeader("Content-Type", allowed[fileName]);
   res.setHeader("Cache-Control", "no-store");
