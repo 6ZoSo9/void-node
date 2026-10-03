@@ -119,8 +119,12 @@ const canonicalNestedDrift = classifyVoidWcVoidCoupledLaunchReadinessV1({
 });
 assert.equal(canonicalNestedDrift.ok, false);
 assert.equal(canonicalNestedDrift.status, "HOLD");
-assert.match(
+assert.equal(
   canonicalNestedDrift.reason,
+  "coupled_readiness_not_source_ready",
+);
+assert.match(
+  String(canonicalNestedDrift.coupled_reason || ""),
   /opening_concentration_sybil_policy_contract_mismatch:runtime_enforcement_verified/,
 );
 assert.equal(
