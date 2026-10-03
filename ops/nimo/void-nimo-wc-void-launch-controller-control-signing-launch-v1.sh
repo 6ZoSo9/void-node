@@ -219,9 +219,16 @@ materialize_reviewed_blob "$runtime_rel"
   "$reviewed_runtime_root/tools" ||
   hold "reviewed_signer_runtime_freeze_failed"
 
+exec 19<"$reviewed_runtime_root" ||
+  hold "reviewed_signer_runtime_descriptor_open_failed"
+reviewed_runtime_fd_path="/proc/self/fd/19"
+[[ -d "$reviewed_runtime_fd_path" ]] ||
+  hold "reviewed_signer_runtime_descriptor_invalid"
+
 printf 'reviewed_signer_materialized=true\n'
 printf 'reviewed_runtime_helper_materialized=true\n'
-printf 'reviewed_signer_exec_path=%s\n' "$reviewed_runtime_root/$signer_rel"
+printf 'reviewed_runtime_descriptor_bound=true\n'
+printf 'reviewed_signer_exec_path=%s\n' "$reviewed_runtime_fd_path/$signer_rel"
 
 set +e
 /usr/bin/env -i \
@@ -233,13 +240,14 @@ set +e
   VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
   VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
   /usr/bin/node \
-  "$reviewed_runtime_root/$signer_rel" \
+  "$reviewed_runtime_fd_path/$signer_rel" \
   sign \
   --challenge "$challenge" \
   --challenge-sha256 "$challenge_sha" \
   --output "$output"
 status=$?
 set -e
+exec 19<&-
 cleanup_reviewed_runtime
 trap - EXIT HUP INT TERM
 exit "$status"
