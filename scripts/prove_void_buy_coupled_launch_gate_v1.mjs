@@ -332,7 +332,7 @@ try {
       journal_bytes: Buffer.from("unknown\n", "utf8"),
       anchor_bytes: null,
     }),
-    /buy_launch_generation_publish_recovery_state_unknown/u,
+    /buy_launch_generation_publish_recovery_order_invalid/u,
   );
   for (const patch of [
     { ready: false },
@@ -717,7 +717,7 @@ try {
       journal_bytes: revokedJournalBytes,
       anchor_bytes: Buffer.from("not-the-prior-or-next\n", "utf8"),
     }),
-    /buy_launch_generation_publish_recovery_state_unknown/u,
+    /buy_launch_generation_publish_recovery_order_invalid/u,
   );
   assert.equal(revokedState.ready, false);
   assert.equal(revokedState.external_anchor_verified, true);
