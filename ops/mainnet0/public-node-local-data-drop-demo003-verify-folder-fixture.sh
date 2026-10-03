@@ -416,11 +416,7 @@ def post_extract_custody(extract_fd):
     files_fd = None
     try:
         fixture_stat = os.fstat(fixture_fd)
-        if (
-            not fixture_stat.is_dir()
-            if hasattr(fixture_stat, "is_dir")
-            else False
-        ):
+        if not stat.S_ISDIR(fixture_stat.st_mode):
             fail("extracted_fixture_directory_invalid")
         if fixture_stat.st_uid != euid or fixture_stat.st_mode & 0o022:
             fail("extracted_fixture_directory_custody_invalid")
