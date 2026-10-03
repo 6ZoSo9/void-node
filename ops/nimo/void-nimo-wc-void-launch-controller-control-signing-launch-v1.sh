@@ -124,12 +124,23 @@ printf 'challenge_sha256=%s\n' "$challenge_sha"
 printf 'repository_clean=true\n'
 printf 'critical_source_blobs_verified=true\n'
 printf 'private_key_access=false\n'
+printf 'credential_access=false\n'
+printf 'wallet_or_signer_access=false\n'
 printf 'transaction_signing=false\n'
+printf 'transaction_broadcast=false\n'
 printf 'funds_movement=false\n'
 
 if [[ "$mode" == "preflight" ]]; then
   exit 0
 fi
+
+printf 'status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED\n'
+printf 'private_key_access=true\n'
+printf 'credential_access=true\n'
+printf 'wallet_or_signer_access=true\n'
+printf 'transaction_signing=false\n'
+printf 'transaction_broadcast=false\n'
+printf 'funds_movement=false\n'
 
 exec /usr/bin/env -i \
   HOME=/home/zoso \
