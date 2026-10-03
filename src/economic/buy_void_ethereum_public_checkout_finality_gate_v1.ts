@@ -20,6 +20,7 @@ export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1 =
     canonical_payment_identity_binding_required: true,
     payment_instructions_fail_closed: true,
     payment_verified_transition_fail_closed: true,
+    existing_payment_reconciliation_independent_of_intake_toggle: true,
     coupled_launch_gate_composed: false,
     overall_checkout_activation_authority: false,
     base_behavior_modified: false,
@@ -183,16 +184,9 @@ function paymentHeld(
   };
 }
 
-export function readBuyVoidEthereumPublicCheckoutReadinessV1(
-  env: NodeJS.ProcessEnv = process.env,
+function readEthereumFinalityPrerequisitesV1(
+  env: NodeJS.ProcessEnv,
 ): BuyVoidEthereumPublicCheckoutReadinessDecisionV1 {
-  if (!enabled(env.VOID_BUY_REQUESTS_ENABLED)) {
-    return readinessHeld("buy_void_requests_disabled");
-  }
-  if (!enabled(env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED)) {
-    return readinessHeld("buy_void_ethereum_requests_disabled");
-  }
-
   const finality = readBuyVoidSourceFinalityExecutionPolicyV1(env);
   if (finality.ok === false) {
     return readinessHeld(
@@ -232,6 +226,18 @@ export function readBuyVoidEthereumPublicCheckoutReadinessV1(
     inventory_write_performed: false,
     funds_movement_performed: false,
   };
+}
+
+export function readBuyVoidEthereumPublicCheckoutReadinessV1(
+  env: NodeJS.ProcessEnv = process.env,
+): BuyVoidEthereumPublicCheckoutReadinessDecisionV1 {
+  if (!enabled(env.VOID_BUY_REQUESTS_ENABLED)) {
+    return readinessHeld("buy_void_requests_disabled");
+  }
+  if (!enabled(env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED)) {
+    return readinessHeld("buy_void_ethereum_requests_disabled");
+  }
+  return readEthereumFinalityPrerequisitesV1(env);
 }
 
 function classifyEthereumFinalityDecision(
@@ -307,10 +313,10 @@ export async function runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(
     return paymentHeld("ethereum_checkout_attempt_id_invalid", null);
   }
 
-  const readiness = readBuyVoidEthereumPublicCheckoutReadinessV1(env);
-  if (readiness.ok === false) {
+  const finalityPrerequisites = readEthereumFinalityPrerequisitesV1(env);
+  if (finalityPrerequisites.ok === false) {
     return paymentHeld(
-      "ethereum_checkout_" + readiness.reason,
+      "ethereum_checkout_" + finalityPrerequisites.reason,
       attemptId,
     );
   }
