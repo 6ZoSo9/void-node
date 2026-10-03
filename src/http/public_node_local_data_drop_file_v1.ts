@@ -114,7 +114,7 @@ function openParentDirectoryV1(filePath: string): { fd: number; name: string } |
   } catch (error) {
     if (isUnsafeStorageV1(error)) throw error;
     if (missingPathV1(error)) return null;
-    unsafeStorageV1("parent_walk_failed", error);
+    return unsafeStorageV1("parent_walk_failed", error);
   } finally {
     if (fd >= 0) {
       try {
@@ -143,7 +143,7 @@ export function listDirectDirectoryNamesV1(dirPath: string): string[] {
   } catch (error) {
     if (isUnsafeStorageV1(error)) throw error;
     if (missingPathV1(error)) return [];
-    unsafeStorageV1("directory_list_failed", error);
+    return unsafeStorageV1("directory_list_failed", error);
   } finally {
     try {
       fs.closeSync(authority.fd);
@@ -219,7 +219,7 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
   } catch (error) {
     if (isUnsafeStorageV1(error)) throw error;
     if (missingPathV1(error)) return null;
-    unsafeStorageV1("file_read_failed", error);
+    return unsafeStorageV1("file_read_failed", error);
   } finally {
     if (fd >= 0) {
       try {
