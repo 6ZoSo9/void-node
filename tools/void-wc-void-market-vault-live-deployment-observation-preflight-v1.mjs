@@ -26,6 +26,11 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     qualification_current_reviewed_bytes_required: true,
     qualification_control_freshness_required: true,
     qualification_control_freshness_revalidation_required: true,
+    launch_controller_signed_evidence_required: true,
+    launch_controller_signed_evidence_sha256_required: true,
+    launch_controller_signed_evidence_reverification_required: true,
+    launch_controller_signed_evidence_reviewed_runtime_required: true,
+    launch_controller_signed_evidence_required_before_rpc: true,
     production_wall_clock_evaluation_required: true,
     production_wall_clock_monotonicity_required: true,
     canonical_source_revalidation_required: true,
@@ -89,6 +94,12 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GIT = "/usr/bin/git";
 const QUALIFICATION_TOOL_REL =
   "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
+const CONTROL_REL =
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
+const REVIEWED_RUNTIME_TOOL_REL =
+  "tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_PROFILE_REL =
+  "ops/security/reviewed-node-package-runtime-ethers-v1.json";
 const PREFLIGHT_TOOL_REL =
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
@@ -117,6 +128,7 @@ const HEX_QUANTITY = /^0x(?:0|[1-9a-f][0-9a-f]*)$/iu;
 const HEX_BYTES = /^0x(?:[0-9a-f]{2})*$/iu;
 const HEX32_BYTES = /^0x[0-9a-f]{64}$/iu;
 const MAX_QUALIFICATION_BYTES = 8 * 1024 * 1024;
+const MAX_CONTROL_EVIDENCE_BYTES = 2 * 1024 * 1024;
 const MAX_DEPLOYMENT_DATA_BYTES = 4 * 1024 * 1024;
 const DEFAULT_TIMEOUT_MS = 5_000;
 const MAX_TIMEOUT_MS = 30_000;
@@ -564,6 +576,330 @@ async function reviewedQualificationContract(repo) {
   }
 }
 
+function makePrivateReviewedTreeRemovable(root) {
+  if (!fs.existsSync(root)) return;
+  const stat = fs.lstatSync(root);
+  if (stat.isSymbolicLink()) return;
+  if (stat.isDirectory()) {
+    fs.chmodSync(root, 0o700);
+    for (const entry of fs.readdirSync(root)) {
+      makePrivateReviewedTreeRemovable(path.join(root, entry));
+    }
+  } else if (stat.isFile()) {
+    fs.chmodSync(root, 0o600);
+  }
+}
+
+function reviewedGitObjectBytes(ref, relativePath, expectedBlob, code) {
+  if (
+    !HEX40.test(String(ref || "")) ||
+    !HEX40.test(String(expectedBlob || ""))
+  ) {
+    fail(code);
+  }
+  const object = git(
+    ["show", ref + ":" + relativePath],
+    code + "_bytes_unavailable",
+    { encoding: null },
+  );
+  const bytes = Buffer.from(object.stdout || Buffer.alloc(0));
+  if (
+    bytes.length < 1 ||
+    bytes.length > 16 * 1024 * 1024 ||
+    gitBlobSha1(bytes) !== expectedBlob
+  ) {
+    fail(code);
+  }
+  return bytes;
+}
+
+function reviewedRepositoryGitDir() {
+  const raw = gitText(
+    ["rev-parse", "--git-dir"],
+    "live_deployment_preflight_git_dir_unavailable",
+  );
+  const resolved = path.isAbsolute(raw) ? raw : path.resolve(ROOT, raw);
+  const stat = fs.lstatSync(resolved);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail("live_deployment_preflight_git_dir_invalid");
+  }
+  return fs.realpathSync.native(resolved);
+}
+
+function reviewedControlExecutionEnv(treeRoot, gitDir) {
+  return {
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    HOME: "/nonexistent",
+    XDG_CONFIG_HOME: "/nonexistent",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_ASKPASS: "/bin/false",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_DIR: gitDir,
+    GIT_WORK_TREE: treeRoot,
+  };
+}
+
+function restoreProcessEnvironment(saved, keys) {
+  for (const key of keys) {
+    if (saved[key] === undefined) delete process.env[key];
+    else process.env[key] = saved[key];
+  }
+}
+
+async function withReviewedLaunchControllerEvidenceReverifierV1(
+  repo,
+  contract,
+  fn,
+) {
+  if (typeof fn !== "function") {
+    fail("live_deployment_preflight_control_reverifier_callback_invalid");
+  }
+  const controlBlob = contract.source_blobs?.[CONTROL_REL];
+  const runtimeToolBlob =
+    contract.source_blobs?.[REVIEWED_RUNTIME_TOOL_REL];
+  const runtimeProfileBlob =
+    contract.source_blobs?.[REVIEWED_RUNTIME_PROFILE_REL];
+  if (
+    !HEX40.test(String(controlBlob || "")) ||
+    !HEX40.test(String(runtimeToolBlob || "")) ||
+    !HEX40.test(String(runtimeProfileBlob || ""))
+  ) {
+    fail("live_deployment_preflight_control_reverifier_source_invalid");
+  }
+
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-market-vault-control-replay-"),
+  );
+  fs.chmodSync(tempRoot, 0o700);
+  try {
+    const runtimeToolBytes = reviewedGitObjectBytes(
+      repo.head,
+      REVIEWED_RUNTIME_TOOL_REL,
+      runtimeToolBlob,
+      "live_deployment_preflight_reviewed_runtime_tool_invalid",
+    );
+    const runtimeToolFile =
+      path.join(tempRoot, "reviewed-node-runtime.mjs");
+    writePrivateReviewedSource(runtimeToolFile, runtimeToolBytes);
+    const runtimeTool = await import(
+      pathToFileURL(runtimeToolFile).href +
+        "?blob=" + runtimeToolBlob
+    );
+    for (const name of [
+      "verifyReviewedNodePackageRuntimeV1",
+      "materializeReviewedNodePackageRuntimeV1",
+      "verifyMaterializedReviewedNodePackageRuntimeV1",
+    ]) {
+      if (typeof runtimeTool[name] !== "function") {
+        fail("live_deployment_preflight_reviewed_runtime_export_missing");
+      }
+    }
+
+    const profileBytes = reviewedGitObjectBytes(
+      repo.head,
+      REVIEWED_RUNTIME_PROFILE_REL,
+      runtimeProfileBlob,
+      "live_deployment_preflight_reviewed_runtime_profile_invalid",
+    );
+    let profile;
+    try {
+      profile = JSON.parse(profileBytes.toString("utf8"));
+    } catch {
+      fail("live_deployment_preflight_reviewed_runtime_profile_invalid");
+    }
+    if (
+      profile?.marker !== "VOID_REVIEWED_NODE_PACKAGE_RUNTIME_V1" ||
+      profile?.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_PROFILE" ||
+      profile?.version !== 1 ||
+      profile?.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      profile?.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 ||
+      canonicalJson(profile?.root_packages) !== canonicalJson(["ethers"])
+    ) {
+      fail("live_deployment_preflight_reviewed_runtime_profile_invalid");
+    }
+
+    const verified = runtimeTool.verifyReviewedNodePackageRuntimeV1({
+      profile,
+      repoRoot: ROOT,
+    });
+    if (
+      verified?.ok !== true ||
+      verified.status !== "REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      verified.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      verified.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256
+    ) {
+      fail("live_deployment_preflight_reviewed_runtime_not_verified");
+    }
+
+    const runtimeRoot = path.join(tempRoot, "runtime");
+    const materialized =
+      runtimeTool.materializeReviewedNodePackageRuntimeV1({
+        profile,
+        repoRoot: ROOT,
+        destinationRoot: runtimeRoot,
+      });
+    if (
+      materialized?.ok !== true ||
+      materialized.status !==
+        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED" ||
+      materialized.profile_id !== REVIEWED_RUNTIME_PROFILE_ID ||
+      materialized.packages_aggregate_sha256 !==
+        REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 ||
+      materialized.read_only_materialization !== true
+    ) {
+      fail("live_deployment_preflight_reviewed_runtime_materialization_invalid");
+    }
+    const reverified =
+      runtimeTool.verifyMaterializedReviewedNodePackageRuntimeV1({
+        profile,
+        repoRoot: ROOT,
+        destinationRoot: runtimeRoot,
+      });
+    if (
+      reverified?.ok !== true ||
+      reverified.status !==
+        "PRIVATE_REVIEWED_NODE_PACKAGE_RUNTIME_VERIFIED"
+    ) {
+      fail("live_deployment_preflight_reviewed_runtime_materialization_reverification_failed");
+    }
+
+    const treeRoot = path.join(runtimeRoot, "source");
+    fs.mkdirSync(treeRoot, { mode: 0o700 });
+    const archive = path.join(runtimeRoot, "source.tar");
+    const archiveResult = spawnSync(
+      GIT,
+      [
+        "--no-replace-objects",
+        ...gitSafetyArgs(),
+        "-C", ROOT,
+        "archive",
+        "--format=tar",
+        "--output=" + archive,
+        repo.head,
+      ],
+      {
+        cwd: "/",
+        env: gitEnv(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 8 * 1024 * 1024,
+        timeout: 60_000,
+      },
+    );
+    if (archiveResult.error || archiveResult.status !== 0) {
+      fail("live_deployment_preflight_control_source_archive_failed");
+    }
+    const extractResult = spawnSync(
+      "/usr/bin/tar",
+      ["-xf", archive, "-C", treeRoot],
+      {
+        cwd: "/",
+        env: gitEnv(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: 8 * 1024 * 1024,
+        timeout: 60_000,
+      },
+    );
+    if (extractResult.error || extractResult.status !== 0) {
+      fail("live_deployment_preflight_control_source_extract_failed");
+    }
+    fs.unlinkSync(archive);
+
+    const controlFile = path.join(treeRoot, CONTROL_REL);
+    const controlBytes = fs.readFileSync(controlFile);
+    if (gitBlobSha1(controlBytes) !== controlBlob) {
+      fail("live_deployment_preflight_control_source_blob_mismatch");
+    }
+
+    const chmodResult = spawnSync(
+      "/usr/bin/chmod",
+      ["-R", "a-w", treeRoot],
+      {
+        cwd: "/",
+        env: gitEnv(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 60_000,
+      },
+    );
+    if (chmodResult.error || chmodResult.status !== 0) {
+      fail("live_deployment_preflight_control_source_readonly_lock_failed");
+    }
+
+    const env = reviewedControlExecutionEnv(
+      treeRoot,
+      reviewedRepositoryGitDir(),
+    );
+    const keys = Object.keys(env);
+    const saved =
+      Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    Object.assign(process.env, env);
+    try {
+      const status = spawnSync(
+        GIT,
+        [
+          "--no-replace-objects",
+          "-c", "core.fsmonitor=false",
+          "-c", "core.hooksPath=/dev/null",
+          "-c", "core.attributesFile=/dev/null",
+          "-c", "core.untrackedCache=false",
+          "-c", "core.preloadIndex=false",
+          "-c", "submodule.recurse=false",
+          "-C", treeRoot,
+          "status", "--porcelain=v1", "--untracked-files=all",
+        ],
+        {
+          cwd: "/",
+          env,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+          maxBuffer: 4 * 1024 * 1024,
+          timeout: 60_000,
+        },
+      );
+      if (
+        status.error ||
+        status.status !== 0 ||
+        String(status.stdout || "").trim() !== ""
+      ) {
+        fail("live_deployment_preflight_control_materialized_repository_not_clean");
+      }
+
+      const controlModule = await import(
+        pathToFileURL(controlFile).href +
+          "?reviewed_blob=" + controlBlob +
+          "&head=" + repo.head
+      );
+      if (
+        typeof controlModule
+          .reverifyVoidWcVoidLaunchControllerControlEvidenceV1 !==
+          "function"
+      ) {
+        fail("live_deployment_preflight_control_reverification_export_invalid");
+      }
+      return await fn(
+        controlModule
+          .reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
+      );
+    } finally {
+      restoreProcessEnvironment(saved, keys);
+    }
+  } finally {
+    makePrivateReviewedTreeRemovable(tempRoot);
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 function currentFileIdentity(relativePath, expectedBlob, code) {
   const file = path.join(ROOT, relativePath);
   const bytes = fs.readFileSync(file);
@@ -964,6 +1300,150 @@ function verifyQualification(
   });
 }
 
+function parsePrettyControlEvidenceV1(bytes, expectedSha) {
+  if (
+    !Buffer.isBuffer(bytes) ||
+    bytes.length < 2 ||
+    bytes.length > MAX_CONTROL_EVIDENCE_BYTES ||
+    typeof expectedSha !== "string" ||
+    !HEX64.test(expectedSha) ||
+    sha256Bytes(bytes) !== expectedSha
+  ) {
+    fail("live_deployment_preflight_control_evidence_bytes_invalid");
+  }
+  let evidence;
+  try {
+    evidence = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    );
+  } catch {
+    fail("live_deployment_preflight_control_evidence_json_invalid");
+  }
+  if (
+    !Buffer.from(
+      JSON.stringify(evidence, null, 2) + "\n",
+      "utf8",
+    ).equals(bytes)
+  ) {
+    fail("live_deployment_preflight_control_evidence_serialization_invalid");
+  }
+  return evidence;
+}
+
+async function replayLaunchControllerControlEvidenceV1(
+  input,
+  verifiedQualification,
+  repo,
+  contract,
+) {
+  const qualification =
+    verifiedQualification.qualification;
+  const expectedSha =
+    String(
+      input?.launch_controller_evidence_file_sha256 || "",
+    ).toLowerCase();
+  if (
+    !HEX64.test(expectedSha) ||
+    expectedSha !==
+      qualification.launch_controller?.evidence_file_sha256
+  ) {
+    fail("live_deployment_preflight_control_evidence_sha256_mismatch");
+  }
+  const evidence = parsePrettyControlEvidenceV1(
+    input?.launch_controller_evidence_bytes,
+    expectedSha,
+  );
+
+  const qualificationSourceHead =
+    String(qualification.source_binding?.source_head_sha || "");
+  const evidenceSourceHead =
+    String(
+      qualification.launch_controller?.evidence_source_head_sha || "",
+    );
+  if (
+    !HEX40.test(qualificationSourceHead) ||
+    !HEX40.test(evidenceSourceHead) ||
+    git(
+      [
+        "merge-base",
+        "--is-ancestor",
+        evidenceSourceHead,
+        qualificationSourceHead,
+      ],
+      "live_deployment_preflight_control_evidence_ancestry_unavailable",
+      { allowFail: true },
+    ).status !== 0
+  ) {
+    fail("live_deployment_preflight_control_evidence_source_not_ancestor");
+  }
+
+  const control =
+    await withReviewedLaunchControllerEvidenceReverifierV1(
+      repo,
+      contract,
+      async (reverify) =>
+        await reverify({
+          evidence,
+          nowUnix:
+            qualification.launch_controller.reverified_at_unix,
+        }),
+    );
+
+  const launchController = qualification.launch_controller;
+  if (
+    control?.status !==
+      "CANDIDATE_CONTROL_VERIFIED_ROLE_NOT_AUTHORIZED" ||
+    control?.evidence_reverified !== true ||
+    control?.control_verified !== true ||
+    canonicalAddress(
+      control?.candidate_address,
+      "live_deployment_preflight_replayed_control_candidate_invalid",
+    ) !== canonicalAddress(
+      launchController?.address,
+      "live_deployment_preflight_launch_controller_invalid",
+    ) ||
+    control?.evidence_id !== launchController?.evidence_id ||
+    control?.source_head_sha !==
+      launchController?.evidence_source_head_sha ||
+    control?.source_binding_sha256 !==
+      launchController?.evidence_source_binding_sha256 ||
+    control?.verified_at_unix !==
+      launchController?.verified_at_unix ||
+    control?.reverified_at_unix !==
+      launchController?.reverified_at_unix ||
+    control?.valid_until_unix !==
+      launchController?.valid_until_unix ||
+    control?.coupled_launch_id !==
+      qualification.coupled_launch_id ||
+    canonicalAddress(
+      control?.void_token,
+      "live_deployment_preflight_replayed_control_token_invalid",
+    ) !== CANONICAL_VOID_TOKEN ||
+    control?.role_binding_authorized !== false ||
+    control?.deployment_authorized !== false ||
+    control?.inventory_funding_authorized !== false ||
+    control?.market_activation_authorized !== false ||
+    control?.public_presale_activation_authorized !== false ||
+    control?.funds_movement_authorized !== false
+  ) {
+    fail("live_deployment_preflight_control_evidence_replay_mismatch");
+  }
+
+  return Object.freeze({
+    evidence_id: control.evidence_id,
+    evidence_file_sha256: expectedSha,
+    evidence_source_head_sha: control.source_head_sha,
+    evidence_source_binding_sha256:
+      control.source_binding_sha256,
+    verified_at_unix: control.verified_at_unix,
+    reverified_at_unix: control.reverified_at_unix,
+    valid_until_unix: control.valid_until_unix,
+    evidence_reverified: true,
+    reviewed_control_execution: true,
+    reviewed_package_bytes_verified: true,
+  });
+}
+
 function boundedPositive(value, fallback, maximum) {
   if (value === undefined || value === null || value === "") return fallback;
   const parsed = Number(value);
@@ -1143,12 +1623,14 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   input,
   {
     requireCanonicalMain = false,
+    requireControlEvidenceReplay = false,
     evaluationTimeUnix = TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
     finalEvaluationTimeUnix = null,
   } = {},
 ) {
   let repo;
   let verifiedQualification;
+  let controlEvidenceReplay = null;
   let deployer;
   let inventorySource;
   let rpcPolicy;
@@ -1169,6 +1651,15 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       qualificationContract,
       evaluationTimeUnix,
     );
+    if (requireControlEvidenceReplay) {
+      controlEvidenceReplay =
+        await replayLaunchControllerControlEvidenceV1(
+          input,
+          verifiedQualification,
+          repo,
+          qualificationContract,
+        );
+    }
     deployer = canonicalAddress(
       input?.deployer_address,
       "live_deployment_preflight_deployer_invalid",
@@ -1383,6 +1874,14 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
         qualification_current_reviewed_bytes_verified:
           verifiedQualification.source_generation
             .dependency_current_bytes_verified,
+        launch_controller_evidence_reverified:
+          controlEvidenceReplay?.evidence_reverified === true,
+        launch_controller_evidence_id:
+          controlEvidenceReplay?.evidence_id || null,
+        launch_controller_evidence_file_sha256:
+          controlEvidenceReplay?.evidence_file_sha256 || null,
+        launch_controller_evidence_reviewed_execution:
+          controlEvidenceReplay?.reviewed_control_execution === true,
         deployment_data_sha256:
           verifiedQualification.qualification.deployment_preparation
             .deployment_data_sha256,
@@ -1464,29 +1963,14 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
     input,
     {
       requireCanonicalMain: true,
+      requireControlEvidenceReplay: true,
       evaluationTimeUnix: String(Math.floor(Date.now() / 1000)),
       finalEvaluationTimeUnix: null,
     },
   );
 }
 
-export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
-  input,
-) {
-  const result =
-    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
-      input,
-      {
-        requireCanonicalMain: false,
-        evaluationTimeUnix:
-          input?.evaluation_time_unix ??
-          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
-        finalEvaluationTimeUnix:
-          input?.final_evaluation_time_unix ??
-          input?.evaluation_time_unix ??
-          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
-      },
-    );
+function projectTestOnlyObservationV1(result) {
   if (!result.ok) {
     return Object.freeze({
       ok: false,
@@ -1523,12 +2007,62 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
       p.qualification.qualification_historical_reviewed_bytes_verified,
     qualification_current_reviewed_bytes_verified:
       p.qualification.qualification_current_reviewed_bytes_verified,
+    launch_controller_evidence_reverified:
+      p.qualification.launch_controller_evidence_reverified,
+    launch_controller_evidence_id:
+      p.qualification.launch_controller_evidence_id,
+    launch_controller_evidence_file_sha256:
+      p.qualification.launch_controller_evidence_file_sha256,
+    launch_controller_evidence_reviewed_execution:
+      p.qualification.launch_controller_evidence_reviewed_execution,
     rpc_methods_used: p.rpc.rpc_methods_used,
     observation: p.observation,
     sufficiency: p.sufficiency,
     authority:
       VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
   });
+}
+
+export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
+  input,
+) {
+  const result =
+    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
+      input,
+      {
+        requireCanonicalMain: false,
+        requireControlEvidenceReplay: false,
+        evaluationTimeUnix:
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+        finalEvaluationTimeUnix:
+          input?.final_evaluation_time_unix ??
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+      },
+    );
+  return projectTestOnlyObservationV1(result);
+}
+
+export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightWithControlEvidenceV1(
+  input,
+) {
+  const result =
+    await observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
+      input,
+      {
+        requireCanonicalMain: false,
+        requireControlEvidenceReplay: true,
+        evaluationTimeUnix:
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+        finalEvaluationTimeUnix:
+          input?.final_evaluation_time_unix ??
+          input?.evaluation_time_unix ??
+          TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
+      },
+    );
+  return projectTestOnlyObservationV1(result);
 }
 
 function outsideRepository(file) {
@@ -1820,6 +2354,8 @@ if (
       options: {
         qualification: { type: "string" },
         "expected-qualification-sha256": { type: "string" },
+        "control-evidence": { type: "string" },
+        "expected-control-evidence-sha256": { type: "string" },
         deployer: { type: "string" },
         "inventory-source": { type: "string" },
         rpc: { type: "string" },
@@ -1830,6 +2366,8 @@ if (
     if (
       !values.qualification ||
       !values["expected-qualification-sha256"] ||
+      !values["control-evidence"] ||
+      !values["expected-control-evidence-sha256"] ||
       !values.deployer ||
       !values["inventory-source"] ||
       !values.rpc ||
@@ -1838,6 +2376,8 @@ if (
       fail(
         "usage: --qualification /absolute/qualification.json " +
         "--expected-qualification-sha256 <64hex> " +
+        "--control-evidence /absolute/control-evidence.json " +
+        "--expected-control-evidence-sha256 <64hex> " +
         "--deployer <0xaddress> --inventory-source <0xaddress> " +
         "--rpc http://127.0.0.1:PORT/ --output /absolute/preflight.json",
       );
@@ -1847,11 +2387,19 @@ if (
       values["expected-qualification-sha256"],
       "live_deployment_preflight_qualification",
     );
+    const controlEvidenceBytes = readPrivateFile(
+      path.resolve(values["control-evidence"]),
+      values["expected-control-evidence-sha256"],
+      "live_deployment_preflight_control_evidence",
+    );
     const result =
       await observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1({
         qualification_bytes: qualificationBytes,
         qualification_file_sha256:
           values["expected-qualification-sha256"],
+        launch_controller_evidence_bytes: controlEvidenceBytes,
+        launch_controller_evidence_file_sha256:
+          values["expected-control-evidence-sha256"],
         deployer_address: values.deployer,
         inventory_source_address: values["inventory-source"],
         rpc_url: values.rpc,
