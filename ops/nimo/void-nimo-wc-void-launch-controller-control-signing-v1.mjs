@@ -2243,6 +2243,23 @@ async function loadPinnedStandaloneEthersV1() {
   });
 }
 
+export async function testOnlyPinnedStandaloneEthersV1() {
+  const standalone = await loadPinnedStandaloneEthersV1();
+  return Object.freeze({
+    ethers_version: standalone.ethers.version,
+    ethers_bundle_sha256: standalone.bundle_sha256,
+    ethers_bundle_bytes: standalone.bundle_bytes,
+    ethers_execution_from_memory: standalone.execution_from_memory,
+    package_resolution_used_for_signing:
+      standalone.package_resolution_used_for_signing,
+    private_key_access: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    transaction_signing: false,
+    funds_movement: false,
+  });
+}
+
 export async function signSelectedLaunchControllerChallengeV1({
   challengePath,
   challengeSha256,
