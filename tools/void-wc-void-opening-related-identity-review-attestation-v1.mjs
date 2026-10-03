@@ -1295,19 +1295,20 @@ export function validateReviewableRelatedIdentityManifestV1(manifest) {
     if (reviewedManifestClusterIdV1(members) !== clusterId) {
       fail("review_manifest_cluster_id_mismatch");
     }
+    const memberEncoding = canonicalReviewJsonV1(members);
     const clusterEvidence = evidenceByCluster.get(clusterId) || [];
     if (members.length > 1) {
       if (!clusterEvidence.some((evidence) =>
         evidence.decision_basis === "common_control" &&
         canonicalReviewJsonV1(evidence.subject_participant_ids) ===
-          canonicalReviewJsonV1(members)
+          memberEncoding
       )) {
         fail("review_manifest_common_control_evidence_incomplete");
       }
     } else if (!clusterEvidence.some((evidence) =>
       evidence.decision_basis === "distinct_cluster_boundary" &&
       canonicalReviewJsonV1(evidence.subject_participant_ids) ===
-        canonicalReviewJsonV1(members)
+        memberEncoding
     )) {
       fail("review_manifest_singleton_boundary_evidence_incomplete");
     }
