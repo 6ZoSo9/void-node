@@ -18373,7 +18373,7 @@ small{color:#94a3b8}
         ? (receiverBindingConflict ? "environment_conflict_hold" : "source_and_environment_exact_match")
         : "source_bound_operator_approved_receiver";
       const usdc_symbol = "USDC";
-      const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
+      const rate_void_per_usdc = String(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
       const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
       const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
       const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
@@ -18409,7 +18409,7 @@ small{color:#94a3b8}
         request_before_payment_required: true,
         tx_hash_at_request_creation_allowed: false,
         rate_void_per_usdc,
-        price_usdc_per_void: Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
+        price_usdc_per_void: String(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
         pool_void_total: Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000"),
         max_raise_usdc: Number(process.env.VOID_BUY_MAX_RAISE_USDC || "5000000"),
         min_usdc,
