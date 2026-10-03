@@ -72,6 +72,10 @@ if any(line == b"FORGED_TARBALL_GREEN=true" for line in data.splitlines()):
     raise SystemExit("forged_tarball_line_reached_diagnostic")
 if data.count(b"tarball=") != 1:
     raise SystemExit("tarball_diagnostic_count_invalid")
+if data.count(b"out=") != 1:
+    raise SystemExit("tarball_case_output_diagnostic_count_invalid")
+if b"[ok]" in data:
+    raise SystemExit("hostile_tarball_path_reached_ok_marker")
 if b"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" in data:
     raise SystemExit("hostile_tarball_path_reached_green")
 PY
@@ -92,6 +96,8 @@ if b"\x1b" in data:
     raise SystemExit("raw_output_escape_reached_diagnostic")
 if any(line == b"FORGED_OUT_OK=true" for line in data.splitlines()):
     raise SystemExit("forged_output_line_reached_diagnostic")
+if data.count(b"tarball=") != 1:
+    raise SystemExit("output_case_tarball_diagnostic_count_invalid")
 if data.count(b"out=") != 1:
     raise SystemExit("output_diagnostic_count_invalid")
 if b"[ok]" in data:
