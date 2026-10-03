@@ -371,11 +371,38 @@ export function readBuyLaunchSourceGateV1() {
   }
 }
 
+export function classifyBuyLaunchLiveActivationLeaseV1(
+  receipt,
+  activeGeneration,
+  nowMs,
+) {
+  const ready =
+    receipt &&
+    typeof receipt === "object" &&
+    !Array.isArray(receipt) &&
+    BYTES32.test(String(activeGeneration || "")) &&
+    BYTES32.test(String(receipt.activation_generation || "")) &&
+    receipt.activation_generation === activeGeneration &&
+    Number.isSafeInteger(nowMs) &&
+    nowMs > 0 &&
+    Number.isSafeInteger(receipt.activated_at_ms) &&
+    Number.isSafeInteger(receipt.expires_at_ms) &&
+    receipt.activated_at_ms > 0 &&
+    receipt.activated_at_ms <= nowMs &&
+    receipt.expires_at_ms > nowMs &&
+    receipt.expires_at_ms > receipt.activated_at_ms &&
+    receipt.expires_at_ms - receipt.activated_at_ms <=
+      LIVE_ACTIVATION_MAX_LEASE_MS;
+  return Object.freeze({
+    ready,
+    reason: ready ? null : "live_coupled_activation_lease_not_ready",
+  });
+}
+
 function readBuyLaunchLiveActivationCoreV1(
   sourceGate,
   env,
   nowMs,
-  expectedSigner,
 ) {
   try {
     if (
@@ -416,6 +443,15 @@ function readBuyLaunchLiveActivationCoreV1(
       throw new Error("buy_launch_live_receipt_shape_invalid");
     }
 
+    const lease = classifyBuyLaunchLiveActivationLeaseV1(
+      receipt,
+      activeGeneration,
+      nowMs,
+    );
+    if (!lease.ready) {
+      throw new Error(lease.reason);
+    }
+
     const body = { ...receipt };
     delete body.activation_receipt_id;
     delete body.activation_signature;
@@ -428,19 +464,9 @@ function readBuyLaunchLiveActivationCoreV1(
       receipt.source_composition_id !== sourceGate.composition_id ||
       receipt.activation_receipt_id !== expectedReceiptId ||
       String(receipt.activation_signer || "").toLowerCase() !==
-        getAddress(expectedSigner).toLowerCase() ||
+        VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
       !BYTES32.test(String(receipt.activation_nonce || "")) ||
-      !BYTES32.test(String(receipt.activation_generation || "")) ||
-      receipt.activation_generation !== activeGeneration ||
       !SIGNATURE.test(String(receipt.activation_signature || "")) ||
-      !Number.isSafeInteger(receipt.activated_at_ms) ||
-      !Number.isSafeInteger(receipt.expires_at_ms) ||
-      receipt.activated_at_ms <= 0 ||
-      receipt.activated_at_ms > nowMs ||
-      receipt.expires_at_ms <= nowMs ||
-      receipt.expires_at_ms <= receipt.activated_at_ms ||
-      receipt.expires_at_ms - receipt.activated_at_ms >
-        LIVE_ACTIVATION_MAX_LEASE_MS ||
       receipt.buy_void_private_runtime_active !== true ||
       receipt.wc_void_market_active !== true ||
       receipt.public_presale_active !== true ||
@@ -454,7 +480,7 @@ function readBuyLaunchLiveActivationCoreV1(
 
     const signed = verifyBuyLaunchLiveActivationSignatureV1(
       receipt,
-      expectedSigner,
+      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
     );
     if (signed.verified !== true) {
       throw new Error("buy_launch_live_receipt_signature_invalid");
@@ -503,21 +529,6 @@ export function readBuyLaunchLiveActivationV1(
     sourceGate,
     env,
     nowMs,
-    VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
-  );
-}
-
-export function testOnlyReadBuyLaunchLiveActivationV1(
-  sourceGate,
-  env,
-  nowMs,
-  expectedSigner,
-) {
-  return readBuyLaunchLiveActivationCoreV1(
-    sourceGate,
-    env,
-    nowMs,
-    expectedSigner,
   );
 }
 
