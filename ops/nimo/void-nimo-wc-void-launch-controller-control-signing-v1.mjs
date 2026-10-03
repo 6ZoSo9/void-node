@@ -586,6 +586,7 @@ function writeExclusiveJsonV1(
     expiresAtUnix = null,
     nowUnix = () => Math.floor(Date.now() / 1000),
     testOnlyAfterParentPinnedBeforeCreate = null,
+    testOnlyAfterDurableIdentityBeforeExpiryCheck = null,
   } = {},
 ) {
   let normalizedExpiry = null;
@@ -629,6 +630,7 @@ function writeExclusiveJsonV1(
     parent.proc_path + "/" + parent.basename;
   let fd = -1;
   let created = false;
+  let createdStat = null;
   try {
     const parentFdStat = fs.fstatSync(parent.fd, { bigint: true });
     let parentPathStat;
@@ -676,7 +678,7 @@ function writeExclusiveJsonV1(
     fs.fchmodSync(fd, 0o600);
     fs.fsyncSync(fd);
 
-    const createdStat = fs.fstatSync(fd, { bigint: true });
+    createdStat = fs.fstatSync(fd, { bigint: true });
     if (
       !createdStat.isFile() ||
       createdStat.isSymbolicLink() ||
@@ -733,6 +735,17 @@ function writeExclusiveJsonV1(
     }
 
     if (
+      testOnlyAfterDurableIdentityBeforeExpiryCheck !== null
+    ) {
+      if (
+        typeof testOnlyAfterDurableIdentityBeforeExpiryCheck !== "function"
+      ) {
+        fail("signature_output_test_hook_invalid");
+      }
+      testOnlyAfterDurableIdentityBeforeExpiryCheck();
+    }
+
+    if (
       normalizedExpiry !== null &&
       decimal(
         nowUnix(),
@@ -749,9 +762,39 @@ function writeExclusiveJsonV1(
   } catch (primary) {
     let cleanup = null;
     try {
-      if (created && fs.existsSync(pinnedOutput)) {
+      if (created) {
+        let boundStat = createdStat;
+        if (boundStat === null && fd >= 0) {
+          boundStat = fs.fstatSync(fd, { bigint: true });
+        }
+        if (boundStat === null) {
+          fail("signature_output_cleanup_identity_unavailable");
+        }
+
+        let currentEntry;
+        try {
+          currentEntry = fs.lstatSync(pinnedOutput, { bigint: true });
+        } catch {
+          fail("signature_output_cleanup_entry_missing");
+        }
+
+        if (
+          !currentEntry.isFile() ||
+          currentEntry.isSymbolicLink() ||
+          !sameOpenedFileIdentityV1(boundStat, currentEntry)
+        ) {
+          fail("signature_output_cleanup_identity_mismatch");
+        }
+
         fs.unlinkSync(pinnedOutput);
         fs.fsyncSync(parent.fd);
+
+        if (fd >= 0) {
+          const afterUnlink = fs.fstatSync(fd, { bigint: true });
+          if (afterUnlink.nlink !== 0n) {
+            fail("signature_output_cleanup_inode_still_linked");
+          }
+        }
         created = false;
       }
     } catch (error) {
@@ -816,6 +859,56 @@ export function testOnlyExerciseSignatureOutputParentReplacementV1() {
         fs.existsSync(path.join(active, "signature.json")),
       displaced_output_exists:
         fs.existsSync(path.join(displaced, "signature.json")),
+    });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+export function testOnlyExerciseSignatureOutputCleanupReplacementRaceV1() {
+  const root = fs.mkdtempSync(
+    path.join(
+      process.env.TMPDIR || "/tmp",
+      "void-offline-signer-output-cleanup-race-",
+    ),
+  );
+  fs.chmodSync(root, 0o700);
+  const output = path.join(root, "signature.json");
+  const displaced = path.join(root, "signature-displaced.json");
+  let reason = null;
+  try {
+    try {
+      writeExclusiveJsonV1(
+        output,
+        Object.freeze({
+          marker: "TEST_ONLY_PUBLIC_SIGNATURE_ENVELOPE",
+          version: 1,
+        }),
+        {
+          expiresAtUnix: "100",
+          nowUnix: () => "100",
+          testOnlyAfterDurableIdentityBeforeExpiryCheck() {
+            fs.renameSync(output, displaced);
+            fs.writeFileSync(
+              output,
+              "{\"marker\":\"UNRELATED_REPLACEMENT\"}\n",
+              { mode: 0o600 },
+            );
+            fs.chmodSync(output, 0o600);
+          },
+        },
+      );
+    } catch (error) {
+      reason =
+        error instanceof Error ? error.message : String(error);
+    }
+    return Object.freeze({
+      reason,
+      replacement_output_exists: fs.existsSync(output),
+      displaced_signature_exists: fs.existsSync(displaced),
+      replacement_bytes: fs.existsSync(output)
+        ? fs.readFileSync(output, "utf8")
+        : null,
     });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
