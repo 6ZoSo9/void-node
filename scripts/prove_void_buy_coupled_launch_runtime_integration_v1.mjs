@@ -21,7 +21,7 @@ const canonical = value => JSON.stringify(value, (_key, item) =>
 );
 const sha256 = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
 const gitBlobSha1 = bytes => crypto.createHash("sha1")
-  .update(Buffer.from(`blob ${bytes.length}\\0`, "utf8"))
+  .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
   .update(bytes)
   .digest("hex");
 
