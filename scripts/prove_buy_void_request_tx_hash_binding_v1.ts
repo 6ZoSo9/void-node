@@ -24,7 +24,7 @@ const sourceRequired = [
   "localOnly: __voidBuyVoidOperatorLocalOnlyV1",
   "readRequests: __voidReadBuyVoidRequestsV1",
   "persistRequest: __voidPersistBuyVoidRequestV1",
-  "requestLaunchAuthorityReady: __voidBuyLaunchRequestOkV1",
+  "requestLaunchAuthorityReady:__blo",
 ];
 
 const moduleRequired = [
