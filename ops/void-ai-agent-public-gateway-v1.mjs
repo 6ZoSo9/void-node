@@ -1271,6 +1271,12 @@ async function proxyAgentPaidWorkCredentialRequest(
     !Array.isArray(parsedBody)
       ? String(parsedBody.request_id || "")
       : "";
+  const innerAgentId =
+    parsedBody &&
+    typeof parsedBody === "object" &&
+    !Array.isArray(parsedBody)
+      ? String(parsedBody.agent_id || "")
+      : "";
   const encodedApplicantAuth = String(
     request.headers[
       VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_AUTH_HEADER_V1
@@ -1287,6 +1293,7 @@ async function proxyAgentPaidWorkCredentialRequest(
         path: AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH,
         body_sha256: bodySha,
         request_id: requestId,
+        inner_agent_id: innerAgentId,
         now_ms: nowMs,
       });
   } catch {
