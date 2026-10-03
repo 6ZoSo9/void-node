@@ -266,7 +266,7 @@ export function classifyBuyLaunchGenerationJournalV1(bytes) {
 }
 
 export function readBuyLaunchGenerationJournalV1(env = process.env) {
-  const dataDirRaw = String(env.DATA_DIR || "").trim();
+  const dataDirRaw = String(env.DATA_DIR || env.VOID_DATA_DIR || "").trim();
   if (!dataDirRaw) {
     throw new Error("buy_launch_generation_data_dir_missing");
   }
@@ -508,9 +508,9 @@ function readStablePrivateFile(filePath) {
     return bytes;
   } finally {
     if (fileFd >= 0) {
-      try { fs.closeSync(fileFd); } catch {}
+      try { fs.closeSync(fileFd); } catch (closeError) { void closeError; }
     }
-    try { fs.closeSync(dirFd); } catch {}
+    try { fs.closeSync(dirFd); } catch (closeError) { void closeError; }
   }
 }
 
@@ -711,6 +711,9 @@ function readBuyLaunchLiveActivationCoreV1(
       receipt_id: receipt.activation_receipt_id,
       receipt_sha256: actualSha256,
       source_composition_id: receipt.source_composition_id,
+      activation_generation: receipt.activation_generation,
+      generation_tip_sha256: receipt.generation_tip_sha256,
+      expires_at_ms: receipt.expires_at_ms,
       activation_signer: signed.recovered_signer,
       sovereign_signer: sovereignSigned.recovered_signer,
       reason: null,
@@ -724,6 +727,9 @@ function readBuyLaunchLiveActivationCoreV1(
         typeof sourceGate?.composition_id === "string"
           ? sourceGate.composition_id
           : null,
+      activation_generation: null,
+      generation_tip_sha256: null,
+      expires_at_ms: null,
       activation_signer: null,
       sovereign_signer: null,
       reason: "live_coupled_activation_evidence_not_ready",
@@ -743,6 +749,61 @@ export function readBuyLaunchLiveActivationV1(
   );
 }
 
+export const VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1 =
+  "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1";
+
+const REQUEST_AUTHORITY_KEYS = Object.freeze([
+  "activation_generation",
+  "activation_receipt_id",
+  "activation_receipt_sha256",
+  "coupled_launch_id",
+  "expires_at_ms",
+  "generation_tip_sha256",
+  "marker",
+  "source_composition_id",
+  "version",
+]);
+
+export function buyLaunchRequestAuthorityMatchesV1(
+  request,
+  currentGate,
+  nowMs = Date.now(),
+) {
+  try {
+    const bound = request?.launch_authority;
+    const current = currentGate?.request_authority;
+    if (
+      currentGate?.ready !== true ||
+      !bound ||
+      typeof bound !== "object" ||
+      Array.isArray(bound) ||
+      !current ||
+      typeof current !== "object" ||
+      Array.isArray(current) ||
+      Object.keys(bound).sort().join("\n") !==
+        [...REQUEST_AUTHORITY_KEYS].sort().join("\n") ||
+      Object.keys(current).sort().join("\n") !==
+        [...REQUEST_AUTHORITY_KEYS].sort().join("\n") ||
+      bound.marker !== VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1 ||
+      bound.version !== 1 ||
+      bound.coupled_launch_id !== VOID_BUY_COUPLED_LAUNCH_ID_V1 ||
+      bound.source_composition_id !== current.source_composition_id ||
+      bound.activation_generation !== current.activation_generation ||
+      bound.generation_tip_sha256 !== current.generation_tip_sha256 ||
+      !Number.isSafeInteger(bound.expires_at_ms) ||
+      !Number.isSafeInteger(nowMs) ||
+      nowMs <= 0 ||
+      bound.expires_at_ms <= nowMs
+    ) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    void error;
+    return false;
+  }
+}
+
 export function readBuyLaunchGateV1(
   env = process.env,
   nowMs = Date.now(),
@@ -756,9 +817,23 @@ export function readBuyLaunchGateV1(
       live_activation_receipt_id: null,
       live_activation_signer: null,
       live_activation_sovereign_signer: null,
+      request_authority: null,
     });
   }
   const live = readBuyLaunchLiveActivationV1(source, env, nowMs);
+  const requestAuthority = live.ready
+    ? Object.freeze({
+        marker: VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
+        version: 1,
+        coupled_launch_id: source.id,
+        source_composition_id: source.composition_id,
+        activation_generation: live.activation_generation,
+        generation_tip_sha256: live.generation_tip_sha256,
+        activation_receipt_id: live.receipt_id,
+        activation_receipt_sha256: live.receipt_sha256,
+        expires_at_ms: live.expires_at_ms,
+      })
+    : null;
   return Object.freeze({
     ready: source.ready && live.ready,
     id: source.id,
@@ -768,6 +843,7 @@ export function readBuyLaunchGateV1(
     live_activation_receipt_id: live.receipt_id,
     live_activation_signer: live.activation_signer,
     live_activation_sovereign_signer: live.sovereign_signer,
+    request_authority: requestAuthority,
     reason: live.ready ? null : live.reason,
   });
 }
