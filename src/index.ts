@@ -64,6 +64,7 @@ import express from "express";
 import { registerSteamReadonlyBridgeBootstrapV3 } from "./http/steam_readonly_bridge_bootstrap_v3.js"; // VOID_STEAM_READONLY_BRIDGE_BOOTSTRAP_V3_IMPORT
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { readBuyLaunchGateV1 as g } from "./economic/buy_void_coupled_launch_gate_v1.mjs";
 import { execFile } from "node:child_process";
 import * as __autoRepairMod from "./chain/auto_repair.js";
 // compat: auto_repair.js may be default-wrapped; extract callable
@@ -18361,23 +18362,20 @@ small{color:#94a3b8}
     // VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1
     const __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1 = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
     const __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1 = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-    const __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1 = 8453;
-    const __VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1 = 2050;
+    const __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1=8453;
+    const __VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1=2050;
 
     function __voidBuyVoidConfigV1(){
-      const configuredReceiveAddress = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
-      const configuredReceiveAddressLower = configuredReceiveAddress.toLowerCase();
-      const boundReceiveAddressLower = __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1.toLowerCase();
-      const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddressLower !== boundReceiveAddressLower;
-      const receiverBindingSource=configuredReceiveAddress?(receiverBindingConflict?"environment_conflict_hold":"source_and_environment_exact_match"):"source_bound_operator_approved_receiver";
+      const a=String(process.env.VOID_BUY_RECEIVE_ADDRESS||process.env.VOID_USDC_RECEIVER||"").trim(),receiverBindingConflict=!!a&&a.toLowerCase()!==__VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1.toLowerCase();
+      const receiverBindingSource=a?(receiverBindingConflict?"environment_conflict_hold":"source_and_environment_exact_match"):"source_bound_operator_approved_receiver";
       const usdc_symbol="USDC",rate_void_per_usdc=String(process.env.VOID_BUY_RATE_VOID_PER_USDC||"2"),min_usdc=Number(process.env.VOID_BUY_MIN_USDC||"1"),max_usdc=Number(process.env.VOID_BUY_MAX_USDC||"500");
-      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
+      const launch=g(),requests_enabled=process.env.VOID_BUY_REQUESTS_ENABLED==="1"&&launch.ready;
       const ethereum_requests_enabled=requests_enabled&&process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1";
-      const payment_ready = !receiverBindingConflict;
+      const payment_ready=!receiverBindingConflict;
       return {
         schema:"void_public_buy_void_config_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:true,mode:"dual_usdc_request_first_checkout",
-        requests_enabled,ethereum_requests_enabled,payment_ready,payment_chains: ["base", "ethereum"],chain:"base",payment_chain:"base",payment_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,usdc_symbol,usdc_contract:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,usdc_decimals:6,
-        receive_address:__VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,receiver_binding_green:!receiverBindingConflict,receiver_binding_source:receiverBindingSource,receiver_binding_conflict:receiverBindingConflict,configured_receive_address_present:!!configuredReceiveAddress,
+        requests_enabled,coupled_launch_ready:launch.ready,coupled_launch_id:launch.id,ethereum_requests_enabled,payment_ready,payment_chains:["base","ethereum"],chain:"base",payment_chain:"base",payment_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,usdc_symbol,usdc_contract:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,usdc_decimals:6,
+        receive_address:__VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,receiver_binding_green:!receiverBindingConflict,receiver_binding_source:receiverBindingSource,receiver_binding_conflict:receiverBindingConflict,configured_receive_address_present:!!a,
         receiver_control_proof_marker:"VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",receiver_control_proof_manifest_sha256:"dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
         request_method: "POST",request_route:"/__void/buy-void/request",legacy_get_request_route:"/__void/buy-void/request.json",one_active_request_per_void_destination:true,void_destination_field:"void_destination_address",delivery_chain:"void",delivery_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,payment_sender_must_equal_void_destination: true,request_before_payment_required:true,tx_hash_at_request_creation_allowed: false,
         rate_void_per_usdc,
@@ -19164,7 +19162,7 @@ setInterval(refresh, 10000);
         const note = __voidBuyVoidReadBodyV1(req, "note").slice(0, 240);
         const acknowledgements = {
           self_custody: __voidBuyVoidReadBooleanBodyV1(req, "ack_self_custody"),
-          native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"])),
+          native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc","ack_base_usdc"])),
           request_before_payment: __voidBuyVoidReadBooleanBodyV1(req, "ack_request_before_payment"),
           sender_equals_void_destination: __voidBuyVoidReadBooleanBodyV1(req, "ack_sender_equals_void_destination"),
           no_automatic_fulfillment: __voidBuyVoidReadBooleanBodyV1(req, "ack_no_automatic_fulfillment")
@@ -19340,7 +19338,7 @@ setInterval(refresh, 10000);
         mode: !cfg.requests_enabled ? "request_intake_hold" : sale_state.sold_out ? "sold_out" : "guarded_request_only",
         requests_enabled: cfg.requests_enabled,
         payment_ready: cfg.payment_ready,
-        request_intake_ready: cfg.requests_enabled && cfg.payment_ready,
+        coupled_launch_ready:cfg.coupled_launch_ready,coupled_launch_id:cfg.coupled_launch_id,request_intake_ready:cfg.requests_enabled&&cfg.payment_ready,
         sale_state,
         funding_model: "guarded_usdc_to_void",
         public_buy_page: "/buy-void",

@@ -6,17 +6,20 @@ Marker: `VOID_BUY_VOID_APP_LAUNCH_READY_V1`
 
 This contract supersedes the earlier static/read-only Buy shell. The Buy view is
 now prepared for the already-reviewed guarded request-creation route, while
-remaining fail-closed until the live checkout configuration reports that intake
-is enabled.
+remaining fail-closed until both the canonical coupled WC/VOID source state and
+the live checkout configuration report that intake is enabled.
 
 The browser reads `/__void/buy-void/config.json`,
 `/__void/buy-void/status.json`, and `/__void/buy-void/sale-state.json`.
-The request form remains disabled unless request intake, payment readiness,
-receiver binding, request-intake readiness, and remaining verified inventory
-are all green. A readiness refresh immediately enters an explicit pending state,
+The request form remains disabled unless the exact coupled launch ID is
+source-ready, request intake is enabled, payment readiness and receiver binding
+are green, status reports the same coupled readiness, and verified inventory
+remains. A readiness refresh immediately enters an explicit pending state,
 invalidates the previously accepted snapshot, and keeps Submit disabled until a
 newly fetched snapshot passes the complete OPEN contract.
 
+The coupled source gate is bound to launch ID
+`sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`.
 The participant-visible policy price remains mechanically bound to the
 canonical `VOID_BUY_PRICE_USDC_PER_VOID` default in `src/index.ts`.
 
@@ -29,7 +32,9 @@ message or transaction, or send funds.
 Request creation retains the reviewed acknowledgements for self-custody,
 native USDC on the explicitly selected Base or Ethereum rail,
 request-before-payment, sender/destination identity, and the fulfillment
-boundary.
+boundary. Base preserves the historical `ack_base_native_usdc` and
+`ack_base_usdc` aliases; Ethereum accepts neither alias and requires
+`ack_native_usdc` explicitly.
 
 Before displaying returned payment instructions, the browser also fails closed
 unless the response has the reviewed checkout-result schema, the returned VOID

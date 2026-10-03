@@ -22,7 +22,7 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "d12061fe29696052903694271089c7dd838826a86393f0e78ae7b76a1c757f91",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "eed27aafc1b31da03ce2ede957ae37f39eaa7142ba76a809e532f3a1f1f6c508",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -61,5 +61,6 @@
   "earn_backend_source_fetch_deadline_refresh_date": "2026-09-30",
   "earn_backend_source_allowlist_refresh_date": "2026-09-30",
   "earn_backend_source_deadline_timer_ref_refresh_date": "2026-09-30",
-  "earn_backend_source_content_length_refresh_date": "2026-09-30"
+  "earn_backend_source_content_length_refresh_date": "2026-09-30",
+  "buy_coupled_launch_source_gate_refresh_date": "2026-10-02"
 }

@@ -9,9 +9,14 @@ any economic authority.
 ## Presale
 
 The Buy view reads the live checkout config, status, and sale-state routes. It
-stays fail-closed unless the node simultaneously reports request intake enabled,
-receiver binding green, payment ready, request-intake ready, and remaining
-inventory.
+stays fail-closed unless canonical WC/VOID production + coupled-successor source
+state is ready for the exact coupled launch ID, the node reports effective
+request intake enabled, receiver binding green, payment ready, matching
+request-intake readiness, and remaining inventory.
+
+The environment activation switch cannot open intake independently of the
+coupled source gate. Existing-payment verification remains available for
+already-created obligations while new intake is held.
 
 When OPEN, the browser may create exactly the already-reviewed guarded Buy VOID
 request. The page does not connect a wallet, sign, approve, or send USDC.

@@ -71,6 +71,9 @@ for (const required of [
   "BUY_REQUEST_ENDPOINT = '/__void/buy-void/request'",
   "method: 'POST'",
   "config.requests_enabled === true",
+  "config.coupled_launch_ready === true",
+  "config.coupled_launch_id",
+  "status.coupled_launch_id",
   "config.payment_ready === true",
   "config.receiver_binding_green === true",
   "snapshot.status.request_intake_ready === true",
@@ -110,6 +113,17 @@ for (const required of [
   "request.payment_instructions?.token_contract",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
+}
+
+for (const token of [
+  'readBuyLaunchGateV1 as g',
+  'process.env.VOID_BUY_REQUESTS_ENABLED==="1"&&launch.ready',
+  'coupled_launch_ready:launch.ready',
+  'coupled_launch_id:launch.id',
+  '"ack_base_native_usdc","ack_base_usdc"',
+  'ethereum?[]:["ack_base_native_usdc","ack_base_usdc"]',
+]) {
+  assert.ok(canonicalSource.includes(token), `server coupled/compat binding missing: ${token}`);
 }
 
 for (const forbidden of [
@@ -241,6 +255,8 @@ const validConfig = {
   payment_sender_must_equal_void_destination: true,
   do_not_send_from_exchange: true,
   requests_enabled: true,
+  coupled_launch_ready: true,
+  coupled_launch_id: "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
   ethereum_requests_enabled: false,
   payment_ready: true,
   receiver_binding_green: true,
@@ -249,6 +265,8 @@ const validConfig = {
 const validStatus = {
   schema: "void_public_buy_void_status_v1",
   ok: true,
+  coupled_launch_ready: true,
+  coupled_launch_id: "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
   request_intake_ready: true,
 };
 const validSale = {
@@ -267,6 +285,20 @@ const validSnapshot = buyTest.validateSnapshot(
   structuredClone(validSale),
 );
 assert.equal(buyTest.isOpen(validSnapshot), true);
+
+const coupledHeldSnapshot = buyTest.validateSnapshot(
+  { ...validConfig, requests_enabled: true, coupled_launch_ready: false },
+  { ...validStatus, coupled_launch_ready: false, request_intake_ready: false },
+  structuredClone(validSale),
+);
+assert.equal(buyTest.isOpen(coupledHeldSnapshot), false);
+buyTest.setState(coupledHeldSnapshot, false, false);
+buyTest.updateSubmit();
+assert.equal(submitButton.disabled, true, "coupled launch HOLD must disable Buy submit");
+const coupledHeldFetchCount = fetchCalls.length;
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, coupledHeldFetchCount, "coupled launch HOLD must not POST");
+
 chainInput.value = "ethereum";
 buyTest.setState(validSnapshot, false, false);
 buyTest.updateSubmit();
@@ -422,6 +454,8 @@ console.log("usdc_limits_bigint_atom_bound=1");
 console.log("refresh_pending_submit_disabled=1");
 console.log("refresh_pending_post_count=0");
 console.log("request_creation_activation_gated=1");
+console.log("coupled_launch_source_gate=true");
+console.log("base_legacy_ack_aliases_preserved=true");
 console.log("dual_rail_selection_bound=true");
 console.log("response_body_max_bytes=131072");
 console.log("returned_request_intent_bound=1");

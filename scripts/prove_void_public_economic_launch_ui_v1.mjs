@@ -40,6 +40,9 @@ for (const token of [
   "BUY_REQUEST_ENDPOINT = '/__void/buy-void/request'",
   "method: 'POST'",
   'config.requests_enabled === true',
+  'config.coupled_launch_ready === true',
+  'config.coupled_launch_id',
+  'status.coupled_launch_id',
   'config.ethereum_requests_enabled',
   'snapshot.status.request_intake_ready === true',
   'snapshot.sale.sold_out === false',
@@ -80,6 +83,7 @@ assert.match(files.home, /WC \/ VOID \/ ACTIVATION-GATED/);
 
 console.log('VOID_PUBLIC_ECONOMIC_LAUNCH_UI_PROOF_V1_GREEN');
 console.log('presale_request_ui_activation_gated=true');
+console.log('presale_coupled_launch_source_gate=true');
 console.log('presale_dual_rail_request_ui=true');
 console.log('exchange_custody_loss_warning=true');
 console.log('browser_wallet_send=false');

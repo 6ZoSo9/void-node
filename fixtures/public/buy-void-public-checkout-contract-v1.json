@@ -46,7 +46,14 @@
     "same_destination_same_amount_same_chain_is_idempotent": true,
     "source_default_ethereum_requests_enabled": false,
     "ethereum_activation_env": "VOID_BUY_ETHEREUM_REQUESTS_ENABLED",
-    "base_open_does_not_open_ethereum": true
+    "base_open_does_not_open_ethereum": true,
+    "coupled_launch_source_required": true,
+    "coupled_launch_id": "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+    "base_legacy_acknowledgement_aliases": [
+      "ack_base_native_usdc",
+      "ack_base_usdc"
+    ],
+    "ethereum_requires_generic_ack_native_usdc": true
   },
   "required_acknowledgements": [
     "ack_self_custody",

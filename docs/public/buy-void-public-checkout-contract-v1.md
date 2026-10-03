@@ -53,14 +53,19 @@ with any returned payment instructions. The self-custody acknowledgement is
 required before a request can be created.
 
 Request intake is fail-closed by default. Source defaults
-`VOID_BUY_REQUESTS_ENABLED=0`; an explicit `VOID_BUY_REQUESTS_ENABLED=1`
-activation is required for Base request intake at the coupled presale/WC launch.
+`VOID_BUY_REQUESTS_ENABLED=0`; that environment switch is necessary but is
+not sufficient. New request intake also requires the canonical WC/VOID
+production and coupled-successor source candidates to be in their final
+SOURCE_READY states for coupled launch ID
+`sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26`.
+If either source generation remains HOLD, `requests_enabled` remains false even
+when the environment switch is set.
+
 Ethereum additionally requires `VOID_BUY_ETHEREUM_REQUESTS_ENABLED=1`, which
 defaults to HOLD and cannot be opened merely by enabling Base. Until the relevant
-rail gate is open, the public surface is inspectable but that rail rejects new
-request/payment intake.
-Payment verification for already-created obligations remains available without
-reopening new-request intake.
+source and rail gates are open, the public surface is inspectable but rejects new
+request/payment intake. Payment verification for already-created obligations
+remains available without reopening new-request intake.
 
 ## Request contract
 
@@ -69,7 +74,9 @@ The buyer creates a JSON `POST` request at
 route returns HTTP 405.
 
 The selected-rail USDC sender must equal the native VOID destination address.
-For backward compatibility, `ack_base_native_usdc` is accepted only for Base requests. Ethereum requests require the generic selected-rail `ack_native_usdc` acknowledgement explicitly.
+For backward compatibility, `ack_base_native_usdc` and `ack_base_usdc` are
+accepted only for Base requests. Ethereum requests accept neither Base alias and
+require the generic selected-rail `ack_native_usdc` acknowledgement explicitly.
 Only one non-terminal request may exist per destination. Repeating the same
 amount on the same payment chain is idempotent. Changing the amount or payment
 chain conflicts until the earlier request is `fulfilled` or `rejected`.

@@ -3,6 +3,7 @@ const BUY_STATUS_ENDPOINT = '/__void/buy-void/status.json';
 const BUY_SALE_ENDPOINT = '/__void/buy-void/sale-state.json';
 const BUY_REQUEST_ENDPOINT = '/__void/buy-void/request';
 const BUY_MARKER = 'VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1';
+const COUPLED_LAUNCH_ID = 'sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26';
 const CANONICAL_RECEIVER = '0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5';
 const CANONICAL_BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const CANONICAL_ETHEREUM_USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
@@ -128,7 +129,9 @@ const validateSnapshot = (config, status, sale) => {
   if (
     config.payment_chain_id !== 8453 ||
     config.delivery_chain_id !== 2050 ||
-    typeof config.ethereum_requests_enabled !== 'boolean'
+    typeof config.ethereum_requests_enabled !== 'boolean' ||
+    typeof config.coupled_launch_ready !== 'boolean' ||
+    config.coupled_launch_id !== COUPLED_LAUNCH_ID
   ) {
     throw new Error('presale chain/readiness identity mismatch');
   }
@@ -157,7 +160,12 @@ const validateSnapshot = (config, status, sale) => {
   ) {
     throw new Error('checkout safety contract mismatch');
   }
-  if (status.schema !== 'void_public_buy_void_status_v1' || status.ok !== true) {
+  if (
+    status.schema !== 'void_public_buy_void_status_v1' ||
+    status.ok !== true ||
+    status.coupled_launch_ready !== config.coupled_launch_ready ||
+    status.coupled_launch_id !== config.coupled_launch_id
+  ) {
     throw new Error('Buy VOID status identity mismatch');
   }
   if (
@@ -193,6 +201,7 @@ const validateSnapshot = (config, status, sale) => {
 };
 const isOpen = (snapshot) =>
   snapshot.config.requests_enabled === true &&
+  snapshot.config.coupled_launch_ready === true &&
   snapshot.config.payment_ready === true &&
   snapshot.config.receiver_binding_green === true &&
   snapshot.status.request_intake_ready === true &&

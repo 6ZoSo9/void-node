@@ -4,11 +4,12 @@ set -euo pipefail
 echo "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1_PROOF_BEGIN"
 
 src="src/index.ts"
+gate="src/economic/buy_void_coupled_launch_gate_v1.mjs"
 fixture="fixtures/public/buy-void-public-checkout-contract-v1.json"
 doc="docs/public/buy-void-public-checkout-contract-v1.md"
 accounting="ops/public/buy-void-public-checkout-contract-v1-runtime-proof.sh"
 
-for file in "$src" "$fixture" "$doc" "$accounting"; do test -f "$file"; done
+for file in "$src" "$gate" "$fixture" "$doc" "$accounting"; do test -f "$file"; done
 
 need(){ grep -qF "$1" "$2" || { echo "missing=$1 file=$2"; exit 1; }; }
 bad(){ if grep -qF "$1" "$2"; then echo "forbidden=$1 file=$2"; exit 1; fi; }
@@ -18,11 +19,21 @@ receiver="0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5"
 base_usdc="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 eth_usdc="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
 proof_sha="dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830"
+launch_id="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26"
 
 for value in "$marker" "$receiver" "$base_usdc" "$eth_usdc" "$proof_sha"; do
   need "$value" "$src"
   need "$value" "$fixture"
 done
+need "$launch_id" "$src"
+need "$launch_id" "$gate"
+need "$launch_id" "$fixture"
+need "$launch_id" "$doc"
+need 'coupled_launch_ready:launch.ready' "$src"
+need 'process.env.VOID_BUY_REQUESTS_ENABLED==="1"&&launch.ready' "$src"
+need '"ack_base_native_usdc","ack_base_usdc"' "$src"
+need '"coupled_launch_source_required": true' "$fixture"
+need '"ethereum_requires_generic_ack_native_usdc": true' "$fixture"
 need "$marker" "$doc"
 
 need 'app.post("/__void/buy-void/request"' "$src"

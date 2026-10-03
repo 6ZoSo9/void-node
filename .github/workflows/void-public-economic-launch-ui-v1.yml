@@ -7,6 +7,11 @@ on:
       - "ops/public/voidchain-org-wordpress-home-v1.html"
       - "docs/public/buy-void-public-checkout-contract-v1.md"
       - "scripts/prove_void_public_economic_launch_ui_v1.mjs"
+      - "src/index.ts"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
       - ".github/workflows/void-public-economic-launch-ui-v1.yml"
   workflow_dispatch:
 

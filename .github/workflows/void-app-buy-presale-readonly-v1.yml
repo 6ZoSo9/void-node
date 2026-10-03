@@ -10,6 +10,11 @@ on:
       - "docs/public/void-app-buy-presale-readonly-v1.md"
       - ".github/workflows/void-app-buy-presale-readonly-v1.yml"
       - "src/index.ts"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "scripts/prove_void_buy_coupled_launch_gate_v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
   push:
     branches: [main]
     paths:
@@ -20,6 +25,11 @@ on:
       - "docs/public/void-app-buy-presale-readonly-v1.md"
       - ".github/workflows/void-app-buy-presale-readonly-v1.yml"
       - "src/index.ts"
+      - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "scripts/prove_void_buy_coupled_launch_gate_v1.mjs"
+      - "ops/mainnet0/wc-void-production-candidate-v1.json"
+      - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
+      - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
 
 permissions:
   contents: read
@@ -40,4 +50,5 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: node --check public/void-app-wave1-v1/assets/js/views.js
       - run: node --check public/void-app-wave1-v1/assets/js/buy-live.js
+      - run: node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
       - run: node scripts/prove_void_app_buy_presale_readonly_v1.mjs
