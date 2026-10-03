@@ -980,8 +980,23 @@ assert.equal(
 );
 assert.equal(
   (launcherSource.match(/executed_launcher_blob_required_for_streamed_execution/g) || []).length,
-  2,
-  "both launcher modes must fail closed if streamed bytes lack the reviewed blob binding",
+  1,
+  "streamed launcher must have exactly one reviewed-blob fallback gate",
+);
+assert.equal(
+  (launcherSource.match(/git_env=\(/g) || []).length,
+  1,
+  "launcher must contain exactly one authority Git environment block",
+);
+assert.equal(
+  (launcherSource.match(/reviewed_signer_b64=/g) || []).length,
+  1,
+  "launcher must contain exactly one reviewed signer transport",
+);
+assert.equal(
+  (launcherSource.match(/exit "\$\{pipe_status\[2\]:-2\}"/g) || []).length,
+  1,
+  "launcher must contain exactly one terminal signer-pipeline exit",
 );
 assert.equal(
   operatorDoc.includes('/proc/self/fd/9'),
