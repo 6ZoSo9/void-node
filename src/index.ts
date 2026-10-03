@@ -106,70 +106,11 @@ import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapC
 import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../tools/void-public-agent-service-order-status-readonly-http-integration-v1.mjs"; // VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_IMPORT
 import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
-const __VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1 =
-  "VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1";
-const __VOID_BUY_COUPLED_LAUNCH_ID_RUNTIME_V1 =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
-
-function __voidBuyCoupledLaunchRuntimeHoldV1(reason:string){
-  return Object.freeze({
-    ready:false,
-    id:__VOID_BUY_COUPLED_LAUNCH_ID_RUNTIME_V1,
-    reason,
-  });
-}
-
-let __voidBuyCoupledLaunchGateReaderV1:any = null;
-void import(
-  new URL(
-    "../src/economic/buy_void_coupled_launch_gate_v1.mjs",
-    import.meta.url,
-  ).href
-).then((mod:any)=>{
-  if (
-    mod?.VOID_BUY_COUPLED_LAUNCH_ID_V1 !==
-      __VOID_BUY_COUPLED_LAUNCH_ID_RUNTIME_V1 ||
-    typeof mod?.readBuyLaunchGateV1 !== "function"
-  ) {
-    return;
-  }
-  __voidBuyCoupledLaunchGateReaderV1 = mod.readBuyLaunchGateV1;
+const __VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1="VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1";
+let __voidBuyLaunchReadyV1=()=>false;
+void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{
+  __voidBuyLaunchReadyV1=()=>{try{return m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26"&&m.readBuyLaunchGateV1().ready===true;}catch{return false;}};
 }).catch(()=>{});
-
-function __voidReadBuyCoupledLaunchGateRuntimeV1(){
-  if (typeof __voidBuyCoupledLaunchGateReaderV1 !== "function") {
-    return __voidBuyCoupledLaunchRuntimeHoldV1(
-      "canonical_coupled_launch_runtime_gate_unavailable",
-    );
-  }
-  try {
-    const decision = __voidBuyCoupledLaunchGateReaderV1();
-    if (
-      !decision ||
-      decision.id !== __VOID_BUY_COUPLED_LAUNCH_ID_RUNTIME_V1 ||
-      typeof decision.ready !== "boolean"
-    ) {
-      return __voidBuyCoupledLaunchRuntimeHoldV1(
-        "canonical_coupled_launch_runtime_gate_invalid",
-      );
-    }
-    return Object.freeze({
-      ready:decision.ready === true,
-      id:__VOID_BUY_COUPLED_LAUNCH_ID_RUNTIME_V1,
-      reason:decision.ready === true
-        ? null
-        : String(
-            decision.reason ||
-            "canonical_coupled_launch_source_not_ready",
-          ),
-    });
-  } catch {
-    return __voidBuyCoupledLaunchRuntimeHoldV1(
-      "canonical_coupled_launch_runtime_gate_unavailable",
-    );
-  }
-}
-
 
 // __VOID_TS_DECLARES_V1__
 declare const app: any;
@@ -18436,14 +18377,12 @@ small{color:#94a3b8}
       const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddressLower !== boundReceiveAddressLower;
       const receiverBindingSource=configuredReceiveAddress?(receiverBindingConflict?"environment_conflict_hold":"source_and_environment_exact_match"):"source_bound_operator_approved_receiver";
       const usdc_symbol="USDC",rate_void_per_usdc=String(process.env.VOID_BUY_RATE_VOID_PER_USDC||"2"),min_usdc=Number(process.env.VOID_BUY_MIN_USDC||"1"),max_usdc=Number(process.env.VOID_BUY_MAX_USDC||"500");
-      const requests_activation_requested = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
-      const coupled_launch_gate = __voidReadBuyCoupledLaunchGateRuntimeV1();
-      const requests_enabled = requests_activation_requested && coupled_launch_gate.ready === true;
+      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__voidBuyLaunchReadyV1();
       const ethereum_requests_enabled=requests_enabled&&process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1";
       const payment_ready = !receiverBindingConflict;
       return {
         schema:"void_public_buy_void_config_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:true,mode:"dual_usdc_request_first_checkout",
-        requests_enabled,requests_activation_requested,coupled_launch_gate_ready:coupled_launch_gate.ready===true,coupled_launch_gate,ethereum_requests_enabled,payment_ready,payment_chains: ["base", "ethereum"],chain:"base",payment_chain:"base",payment_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,usdc_symbol,usdc_contract:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,usdc_decimals:6,
+        requests_enabled,ethereum_requests_enabled,payment_ready,payment_chains: ["base", "ethereum"],chain:"base",payment_chain:"base",payment_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,usdc_symbol,usdc_contract:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,usdc_decimals:6,
         receive_address:__VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,receiver_binding_green:!receiverBindingConflict,receiver_binding_source:receiverBindingSource,receiver_binding_conflict:receiverBindingConflict,configured_receive_address_present:!!configuredReceiveAddress,
         receiver_control_proof_marker:"VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",receiver_control_proof_manifest_sha256:"dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
         request_method: "POST",request_route:"/__void/buy-void/request",legacy_get_request_route:"/__void/buy-void/request.json",one_active_request_per_void_destination:true,void_destination_field:"void_destination_address",delivery_chain:"void",delivery_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,payment_sender_must_equal_void_destination: true,request_before_payment_required:true,tx_hash_at_request_creation_allowed: false,
@@ -19200,14 +19139,7 @@ setInterval(refresh, 10000);
       try {
         const cfg:any = __voidBuyVoidConfigV1();
         if (!cfg.requests_enabled) {
-          return res.status(503).json({
-            schema:"void_public_buy_void_checkout_request_v1",
-            ok:false,
-            error:cfg.requests_activation_requested&&!cfg.coupled_launch_gate_ready
-              ?"buy_void_coupled_launch_gate_hold"
-              :"buy_void_requests_disabled",
-            coupled_launch_gate:cfg.coupled_launch_gate
-          });
+          return res.status(503).json({ schema:"void_public_buy_void_checkout_request_v1", ok:false, error:"buy_void_requests_disabled" });
         }
         if (!cfg.payment_ready || !cfg.receiver_binding_green) {
           return res.status(503).json({
@@ -80337,9 +80269,7 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
   const boundReceiveAddress = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
   const configuredReceiveAddress = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
   const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddress.toLowerCase() !== boundReceiveAddress.toLowerCase();
-  const requestsActivationRequested = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
-  const coupledLaunchGate = __voidReadBuyCoupledLaunchGateRuntimeV1();
-  const requestsEnabled = requestsActivationRequested && coupledLaunchGate.ready === true;
+  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__voidBuyLaunchReadyV1();
   const paymentReady = !receiverBindingConflict;
   const usdcSymbol = "USDC";
   const priceUsdcPerVoid = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
@@ -80396,9 +80326,6 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
     receiver_binding_source: configuredReceiveAddress ? (receiverBindingConflict ? "environment_conflict_hold" : "source_and_environment_exact_match") : "source_bound_operator_approved_receiver",
     receiver_control_proof_marker: "VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",
     requests_enabled: requestsEnabled,
-    requests_activation_requested: requestsActivationRequested,
-    coupled_launch_gate_ready: coupledLaunchGate.ready === true,
-    coupled_launch_gate: coupledLaunchGate,
     request_before_payment_required: true,
     one_active_request_per_void_destination: true,
     payment_sender_must_equal_void_destination: true,
