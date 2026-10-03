@@ -299,6 +299,10 @@ function sleep(ms: number): void {
   Atomics.wait(SLEEP, 0, 0, ms);
 }
 
+function sleepAsync(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function withBuyVoidFilesystemBakeryLockV1<T>(
   lockPath: string,
   operation: () => T,
@@ -455,7 +459,7 @@ export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
       if (Date.now() >= deadline) {
         throw new Error("bakery_lock_wait_timeout");
       }
-      sleep(POLL_MS);
+      await sleepAsync(POLL_MS);
     }
 
     return await operation();

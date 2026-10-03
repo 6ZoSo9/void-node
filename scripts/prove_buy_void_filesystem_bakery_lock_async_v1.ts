@@ -58,6 +58,33 @@ try {
   assert.equal(rejectedWithTicket, true);
   assert.equal(ticketCount(), 0);
 
+  const order: string[] = [];
+  const first = withBuyVoidFilesystemBakeryLockAsyncV1(
+    lockPath,
+    async () => {
+      order.push("first-enter");
+      await new Promise<void>((resolve) => setTimeout(resolve, 30));
+      order.push("first-exit");
+    },
+  );
+  assert.deepEqual(order, ["first-enter"]);
+
+  const second = withBuyVoidFilesystemBakeryLockAsyncV1(
+    lockPath,
+    async () => {
+      order.push("second-enter");
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      order.push("second-exit");
+    },
+  );
+
+  await Promise.all([first, second]);
+  assert.deepEqual(
+    order,
+    ["first-enter", "first-exit", "second-enter", "second-exit"],
+  );
+  assert.equal(ticketCount(), 0);
+
   console.log(
     "VOID_BUY_VOID_FILESYSTEM_BAKERY_LOCK_ASYNC_V1_GREEN",
   );
@@ -66,6 +93,8 @@ try {
   console.log("lock_claim_removed_after_resolution=true");
   console.log("lock_claim_present_before_async_rejection=true");
   console.log("lock_claim_removed_after_rejection=true");
+  console.log("same_process_async_contender_yields=true");
+  console.log("async_wait_poll_does_not_block_event_loop=true");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

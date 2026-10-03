@@ -121,7 +121,10 @@ The underlying bakery lock now provides
 until `await operation()` settles, and cleanup occurs only in the enclosing
 `finally`. The launch gate uses that async-aware lock for both generation
 publication and request-authority mutation. A Promise-returning critical section
-therefore cannot resume after its lock claim has been released. The canonical
+therefore cannot resume after its lock claim has been released. Its contention loop also yields with
+an asynchronous timer rather than blocking the Node event loop, so a second
+same-process contender cannot prevent an existing asynchronous holder from
+resuming and releasing its claim. The canonical
 publisher itself still performs the complete journal + external-anchor file
 transition synchronously while that async-aware lock is held. A generation
 transition and a payment/request mutation therefore cannot complete concurrently
