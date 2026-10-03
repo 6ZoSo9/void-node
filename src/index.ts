@@ -18878,7 +18878,7 @@ setInterval(refresh, 10000);
             request_id: id
           });
         }
-        if(!__voidBLO(found))throw Error("request_launch_authority_closed");
+        if(!__voidBLO(found))throw Error("buy_launch_closed");
 
         const tx = String(found.tx_hash || "").trim();
         if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
@@ -18942,7 +18942,7 @@ setInterval(refresh, 10000);
           });
         }
 
-        if(!__voidBLO(found))throw Error("request_launch_authority_closed");
+        if(!__voidBLO(found))throw Error("buy_launch_closed");
         const event = {
           schema: "void_buy_void_operator_mark_v1",
           ok: true,
@@ -19133,7 +19133,7 @@ setInterval(refresh, 10000);
         if (!cfg.requests_enabled) {
           return res.status(503).json({ schema:"void_public_buy_void_checkout_request_v1", ok:false, error:"buy_void_requests_disabled" });
         }
-        const launch:any=__voidBLD();if(!launch.request_authority)throw Error("buy_void_launch_authority_unavailable");
+        const launch=__voidBLD();if(!launch.request_authority)throw Error("buy_launch_unavailable");
         if (!cfg.payment_ready || !cfg.receiver_binding_green) {
           return res.status(503).json({
             schema:"void_public_buy_void_checkout_request_v1",
