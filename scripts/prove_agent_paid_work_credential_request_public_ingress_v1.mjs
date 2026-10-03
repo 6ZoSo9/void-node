@@ -229,6 +229,7 @@ async function postCredential(base, body, auth, extraHeaders = {}) {
 const upstreamCalls = [];
 let upstreamStatusCalls = 0;
 const UPSTREAM_LIMIT = 8;
+let upstreamStatusLimit = UPSTREAM_LIMIT;
 const upstream = http.createServer(async (req, res) => {
   if (
     req.method === "GET" &&
@@ -244,7 +245,7 @@ const upstream = http.createServer(async (req, res) => {
       state_consistent: true,
       request_path: ROUTE,
       max_body_bytes: 65536,
-      max_requests_per_minute: UPSTREAM_LIMIT,
+      max_requests_per_minute: upstreamStatusLimit,
       raw_request_content_exposed: false,
       callback_uri_exposed: false,
       credential_issuance_authorized: false,
@@ -307,6 +308,81 @@ const upstream = http.createServer(async (req, res) => {
 });
 const upstreamPort = await listen(upstream);
 
+const requalRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    String(UPSTREAM_LIMIT),
+});
+const requalReady = await gatewayReady(requalRuntime);
+assert.equal(requalReady.paid_work_credential_request_route.configured, true);
+assert.equal(upstreamStatusCalls, 1);
+const requalBase = `http://127.0.0.1:${requalReady.port}`;
+
+const liveIdentity = identity();
+const liveBody = requestBody("live-requalification-baseline", liveIdentity.agentId);
+const liveResponse = await postCredential(
+  requalBase,
+  liveBody,
+  authHeader({
+    identityValue: liveIdentity,
+    body: liveBody,
+    nonceLabel: "live-requalification-baseline",
+  }),
+);
+assert.equal(liveResponse.status, 202);
+assert.equal(upstreamStatusCalls, 2);
+assert.equal(upstreamCalls.length, 1);
+
+upstreamStatusLimit = 1;
+const driftIdentity = identity();
+const driftBody = requestBody("live-requalification-drift", driftIdentity.agentId);
+const driftResponse = await postCredential(
+  requalBase,
+  driftBody,
+  authHeader({
+    identityValue: driftIdentity,
+    body: driftBody,
+    nonceLabel: "live-requalification-drift",
+  }),
+);
+assert.equal(driftResponse.status, 503);
+assert.equal(
+  (await driftResponse.json()).error,
+  "agent_paid_work_credential_request_gateway_unavailable",
+);
+assert.equal(upstreamStatusCalls, 3);
+assert.equal(
+  upstreamCalls.length,
+  1,
+  "changed upstream rate wall must hold before request proxying",
+);
+
+upstreamStatusLimit = UPSTREAM_LIMIT;
+const recoveredIdentity = identity();
+const recoveredBody = requestBody(
+  "live-requalification-recovered",
+  recoveredIdentity.agentId,
+);
+const recoveredResponse = await postCredential(
+  requalBase,
+  recoveredBody,
+  authHeader({
+    identityValue: recoveredIdentity,
+    body: recoveredBody,
+    nonceLabel: "live-requalification-recovered",
+  }),
+);
+assert.equal(recoveredResponse.status, 202);
+assert.equal(upstreamStatusCalls, 4);
+assert.equal(upstreamCalls.length, 2);
+await stopGateway(requalRuntime);
+
+upstreamCalls.length = 0;
+upstreamStatusCalls = 0;
+upstreamStatusLimit = UPSTREAM_LIMIT;
+
 const runtime = startGateway({
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
     `http://127.0.0.1:${upstreamPort}`,
@@ -344,6 +420,14 @@ assert.equal(
 assert.equal(
   ready.paid_work_credential_request_route.upstream_status_hold_reason,
   null,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_requalified_per_admitted_request,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_failure_invalidates_qualification,
+  true,
 );
 assert.equal(
   ready.paid_work_credential_request_route
@@ -683,16 +767,16 @@ assert.equal(
   mismatchReady.paid_work_credential_request_route.upstream_status_hold_reason,
   "upstream_status_not_verified",
 );
-const mismatchIdentity = identity();
+const mismatchLimitIdentity = identity();
 const mismatchLimitBody = requestBody(
   "mismatched-upstream-limit",
-  mismatchIdentity.agentId,
+  mismatchLimitIdentity.agentId,
 );
 const mismatchLimitResponse = await postCredential(
   `http://127.0.0.1:${mismatchReady.port}`,
   mismatchLimitBody,
   authHeader({
-    identityValue: mismatchIdentity,
+    identityValue: mismatchLimitIdentity,
     body: mismatchLimitBody,
     nonceLabel: "mismatched-upstream-limit",
   }),
@@ -829,6 +913,9 @@ console.log("forwarded_ip_headers_trusted=false");
 console.log("single_applicant_cannot_exhaust_upstream_bucket=true");
 console.log("second_applicant_isolated_after_first_exhaustion=true");
 console.log("upstream_status_limit_equality_required=true");
+console.log("upstream_requalified_per_admitted_request=true");
+console.log("runtime_upstream_limit_drift_holds_before_proxy=true");
+console.log("runtime_upstream_limit_recovery_requalifies=true");
 console.log("mismatched_upstream_limit_holds_route_closed=true");
 console.log("preauth_global_rate_wall_before_signature_verification=true");
 console.log("invalid_auth_flood_bounded_before_upstream=true");
