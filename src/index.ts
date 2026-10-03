@@ -18982,11 +18982,12 @@ setInterval(refresh, 10000);
           request: found
         });
       } catch(e:any) {
-        res.status(500).json({
+        const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded";
+        res.status(held?409:500).json({
           schema: "void_buy_void_payment_verifier_v1",
           ok: false,
-          error: "payment_verifier_failed",
-          message: String(e?.message || e)
+          error: held?m:"payment_verifier_failed",
+          message: m
         });
       }
     });
