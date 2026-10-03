@@ -53,6 +53,7 @@ on:
       - ".github/workflows/void-nimo-build-admission-v1.yml"
       - ".github/workflows/void-nimo-executed-runtime-v1.yml"
       - ".github/workflows/void-nimo-fresh-sync-session-v1.yml"
+      - ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml"
       - "scripts/prove_ci_feature_push_fanout_v1.mjs"
       - ".github/workflows/ci-feature-push-fanout-v1.yml"
   push:
@@ -108,6 +109,7 @@ on:
       - ".github/workflows/void-nimo-build-admission-v1.yml"
       - ".github/workflows/void-nimo-executed-runtime-v1.yml"
       - ".github/workflows/void-nimo-fresh-sync-session-v1.yml"
+      - ".github/workflows/canonical-txsubmit-admission-dedupe-v1.yml"
       - "scripts/prove_ci_feature_push_fanout_v1.mjs"
       - ".github/workflows/ci-feature-push-fanout-v1.yml"
 
@@ -133,8 +135,8 @@ jobs:
           set -euo pipefail
           node scripts/prove_ci_feature_push_fanout_v1.mjs | tee "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'VOID_CI_FEATURE_PUSH_FANOUT_V1_PROOF_GREEN' "$RUNNER_TEMP/ci-fanout.log"
-          grep -Fx 'feature_push_targets=21' "$RUNNER_TEMP/ci-fanout.log"
-          grep -Fx 'pr_supersession_targets=50' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'feature_push_targets=22' "$RUNNER_TEMP/ci-fanout.log"
+          grep -Fx 'pr_supersession_targets=51' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'feature_branch_push_execution=false' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'main_push_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
           grep -Fx 'manual_dispatch_cancellation=false' "$RUNNER_TEMP/ci-fanout.log"
