@@ -47,6 +47,32 @@ function safeAccount(value: unknown): string {
   return account;
 }
 
+function exactNonnegativeWcQuantaV1(raw: unknown, code: string): bigint {
+  if (
+    typeof raw !== "string" ||
+    !/^(0|[1-9][0-9]*)$/.test(raw)
+  ) {
+    throw new Error(code);
+  }
+  return BigInt(raw);
+}
+
+function exactNonnegativeWcDecimalV1(raw: unknown, code: string): string {
+  if (
+    typeof raw !== "string" ||
+    !/^(0|[1-9][0-9]*)(?:\.[0-9]{1,9})?$/.test(raw)
+  ) {
+    throw new Error(code);
+  }
+  return raw;
+}
+
+function wcCompatProjectionV1(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isFinite(raw)
+    ? raw
+    : null;
+}
+
 function dataDir(): string {
   const raw = String(process.env.DATA_DIR || process.env.VOID_DATA_DIR || "data_a");
   return path.isAbsolute(raw) ? raw : path.join(process.cwd(), raw);
@@ -357,9 +383,12 @@ async function runCapability(req: any, res: any): Promise<any> {
   const base = `http://127.0.0.1:${port}`;
   const encodedAccount = encodeURIComponent(account);
 
-  let before: JsonObject;
   try {
-    before = await fetchJson(`${base}/wc/redeemable?account=${encodedAccount}`, undefined, 10_000);
+    await fetchJson(
+      `${base}/wc/redeemable?account=${encodedAccount}`,
+      undefined,
+      10_000,
+    );
   } catch (error: any) {
     return res.status(503).json({
       ok: false,
@@ -518,22 +547,59 @@ async function runCapability(req: any, res: any): Promise<any> {
       source: "wc_public_capability_v1",
     });
 
+    const acceptedDeltaWc = Number(acceptance?.accepted_delta_wc);
     if (
       acceptance?.credited !== true ||
       acceptance?.duplicate === true ||
-      Number(acceptance?.award_wc || 0) !== 3
+      Number(acceptance?.award_wc || 0) !== 3 ||
+      acceptedDeltaWc !== 3
     ) {
       throw new Error("verified_receipt_acceptance_failed");
     }
 
-    const after = await fetchJson(`${base}/wc/redeemable?account=${encodedAccount}`, undefined, 10_000);
-    const beforeRedeemable = Number(before?.redeemable || 0);
-    const afterRedeemable = Number(after?.redeemable || 0);
-    const delta = Math.round((afterRedeemable - beforeRedeemable) * 1e9) / 1e9;
-
-    if (delta !== Number(acceptance.award_wc || 0)) {
+    const acceptedDeltaQuanta = exactNonnegativeWcQuantaV1(
+      acceptance?.accepted_delta_quanta,
+      "accepted_wc_delta_quanta_invalid",
+    );
+    const beforeQuanta = exactNonnegativeWcQuantaV1(
+      acceptance?.canonical_redeemable_before_quanta,
+      "canonical_wc_before_quanta_invalid",
+    );
+    const afterQuanta = exactNonnegativeWcQuantaV1(
+      acceptance?.canonical_redeemable_after_local_quanta,
+      "canonical_wc_after_quanta_invalid",
+    );
+    const awardQuanta = BigInt(acceptedDeltaWc) * 1_000_000_000n;
+    if (
+      acceptedDeltaQuanta !== awardQuanta ||
+      afterQuanta - beforeQuanta !== acceptedDeltaQuanta
+    ) {
       throw new Error("canonical_wc_delta_mismatch");
     }
+
+    const beforeExact = exactNonnegativeWcDecimalV1(
+      acceptance?.canonical_redeemable_before_exact,
+      "canonical_wc_before_exact_invalid",
+    );
+    const afterExact = exactNonnegativeWcDecimalV1(
+      acceptance?.canonical_redeemable_after_local_exact,
+      "canonical_wc_after_exact_invalid",
+    );
+    const beforeRedeemable = wcCompatProjectionV1(
+      acceptance?.canonical_redeemable_before,
+    );
+    const afterRedeemable = wcCompatProjectionV1(
+      acceptance?.canonical_redeemable_after_local,
+    );
+    const delta = acceptedDeltaWc;
+
+    // Preserve the public canonical-balance reachability gate without using
+    // its nullable compatibility number as delta authority.
+    await fetchJson(
+      `${base}/wc/redeemable?account=${encodedAccount}`,
+      undefined,
+      10_000,
+    );
 
     const disableResult = await disableRunner();
 
@@ -544,7 +610,11 @@ async function runCapability(req: any, res: any): Promise<any> {
       job_id: String(receipt.job_id || ""),
       dataset_id: String(receipt.dataset_id || ""),
       wc_delta: delta,
+      wc_delta_quanta: acceptedDeltaQuanta.toString(),
       canonical_redeemable_after: afterRedeemable,
+      canonical_redeemable_after_exact: afterExact,
+      canonical_redeemable_after_quanta: afterQuanta.toString(),
+      numeric_authority: "nano_wc_fixed_point_v1",
     });
     appendAudit({
       event: "credited",
@@ -553,6 +623,8 @@ async function runCapability(req: any, res: any): Promise<any> {
       receipt_id: String(receipt.receipt_id || ""),
       job_id: String(receipt.job_id || ""),
       wc_delta: delta,
+      wc_delta_quanta: acceptedDeltaQuanta.toString(),
+      numeric_authority: "nano_wc_fixed_point_v1",
     });
 
     return res.status(200).json({
@@ -572,8 +644,14 @@ async function runCapability(req: any, res: any): Promise<any> {
       },
       wc: {
         before: beforeRedeemable,
+        before_exact: beforeExact,
+        before_quanta: beforeQuanta.toString(),
         after: afterRedeemable,
+        after_exact: afterExact,
+        after_quanta: afterQuanta.toString(),
         delta,
+        delta_quanta: acceptedDeltaQuanta.toString(),
+        numeric_authority: "nano_wc_fixed_point_v1",
         canonical_redeemable: true,
       },
       internal: {
