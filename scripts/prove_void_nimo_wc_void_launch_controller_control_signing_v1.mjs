@@ -239,6 +239,54 @@ assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
       tamperedResult.stderr,
       /executed_launcher_not_operator_reviewed_blob/u,
     );
+
+    // Exercise the real sign-mode streamed Node invocation without touching
+    // the production key. This synthetic challenge intentionally names walletA
+    // instead of the fixed selected launch-controller address, so the streamed
+    // signer must pass environment validation and then fail on challenge
+    // semantics before readPrivateKeyV1 can run.
+    const noKeyOutput = path.join(temporary, "must-not-exist-signature.json");
+    const signNoKey = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "sign",
+        challengePath,
+        challengeSha,
+        reviewedHead,
+        noKeyOutput,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(signNoKey.status, 0);
+    assert.doesNotMatch(
+      signNoKey.stderr,
+      /offline_signer_node_preload_flags_forbidden/u,
+      "real streamed sign path must admit only --input-type=module",
+    );
+    assert.match(
+      signNoKey.stderr,
+      /control_challenge_semantics_invalid/u,
+      "synthetic wrong-candidate sign attempt must fail before key access",
+    );
+    assert.match(
+      signNoKey.stdout,
+      /reviewed_signer_transport=verified_git_blob_stdin/u,
+    );
+    assert.equal(fs.existsSync(noKeyOutput), false);
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
   }
@@ -1178,6 +1226,8 @@ console.log("self_authored_source_binding_rejected=true");
 console.log("sanitized_launch_environment_required=true");
 console.log("node_preload_flags_rejected=true");
 console.log("streamed_module_input_type_flag_required=true");
+console.log("real_streamed_sign_environment_validation_green_before_key_access=true");
+console.log("synthetic_sign_path_key_access=false");
 console.log("home_override_rejected=true");
 console.log("current_source_binding_reverified_before_key_access=true");
 console.log("exact_challenge_source_head_required=true");
