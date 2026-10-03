@@ -410,6 +410,6 @@ export function testOnlyClassifyBuyVoidEthereumPublicCheckoutFinalityV1(
     production_transition_authority: false,
     payment_verified_event_write_performed: false,
     inventory_reservation_write_performed: false,
-    reason: classified.ok ? null : classified.reason,
+    reason: classified.ok === false ? classified.reason : null,
   });
 }
