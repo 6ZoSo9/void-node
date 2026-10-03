@@ -18,7 +18,6 @@ repo="${VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1:-/home/zoso/dev/void-node}"
 repo="$(cd -- "$repo" && pwd -P)"
 launcher_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
 signer_rel="ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
-runtime_rel="tools/void-reviewed-node-package-runtime-v1.mjs"
 launcher_file="${BASH_SOURCE[0]}"
 [[ "$launcher_file" == /* ]] || launcher_file="$(pwd -P)/$launcher_file"
 
@@ -126,8 +125,6 @@ status="$("${git_env[@]}" "${git_cmd[@]}" status --porcelain=v1 --untracked-file
 critical_paths=(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"
-  "tools/void-reviewed-node-package-runtime-v1.mjs"
-  "ops/security/reviewed-node-package-runtime-ethers-v1.json"
   "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
   "package.json"
   "package-lock.json"
@@ -178,47 +175,29 @@ printf 'funds_movement=false\n'
 
 reviewed_signer_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$signer_rel")" ||
   hold "reviewed_signer_blob_unavailable"
-reviewed_runtime_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$runtime_rel")" ||
-  hold "reviewed_runtime_helper_blob_unavailable"
 [[ "$reviewed_signer_blob" =~ ^[0-9a-f]{40}$ ]] ||
   hold "reviewed_signer_blob_invalid"
-[[ "$reviewed_runtime_blob" =~ ^[0-9a-f]{40}$ ]] ||
-  hold "reviewed_runtime_helper_blob_invalid"
 
 reviewed_signer_b64="$(
   "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_signer_blob" |
     /usr/bin/base64 -w0
 )" || hold "reviewed_signer_transport_failed"
-reviewed_runtime_b64="$(
-  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_runtime_blob" |
-    /usr/bin/base64 -w0
-)" || hold "reviewed_runtime_helper_transport_failed"
 
 [[ -n "$reviewed_signer_b64" ]] ||
   hold "reviewed_signer_transport_empty"
-[[ -n "$reviewed_runtime_b64" ]] ||
-  hold "reviewed_runtime_helper_transport_empty"
 
 actual_signer_blob="$(
   printf '%s' "$reviewed_signer_b64" |
     /usr/bin/base64 -d |
     "${git_env[@]}" "${git_cmd[@]}" hash-object --stdin
 )" || hold "reviewed_signer_transport_hash_failed"
-actual_runtime_blob="$(
-  printf '%s' "$reviewed_runtime_b64" |
-    /usr/bin/base64 -d |
-    "${git_env[@]}" "${git_cmd[@]}" hash-object --stdin
-)" || hold "reviewed_runtime_helper_transport_hash_failed"
 
 [[ "$actual_signer_blob" == "$reviewed_signer_blob" ]] ||
   hold "reviewed_signer_transport_hash_mismatch"
-[[ "$actual_runtime_blob" == "$reviewed_runtime_blob" ]] ||
-  hold "reviewed_runtime_helper_transport_hash_mismatch"
 
 printf 'reviewed_signer_transport=verified_git_blob_stdin\n'
-printf 'reviewed_runtime_helper_transport=verified_git_blob_environment\n'
 printf 'reviewed_signer_blob=%s\n' "$reviewed_signer_blob"
-printf 'reviewed_runtime_helper_blob=%s\n' "$reviewed_runtime_blob"
+printf 'ethers_execution=in_memory_sha256_pinned_bundle\n'
 printf 'mutable_worktree_signer_execution=false\n'
 printf 'mutable_runtime_helper_execution=false\n'
 
@@ -233,7 +212,6 @@ printf '%s' "$reviewed_signer_b64" |
     VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
     VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
     VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
-    VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1="$reviewed_runtime_b64" \
     /usr/bin/node \
     --input-type=module \
     - \
