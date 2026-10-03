@@ -176,90 +176,76 @@ printf 'transaction_signing=false\n'
 printf 'transaction_broadcast=false\n'
 printf 'funds_movement=false\n'
 
-reviewed_runtime_root="$(/usr/bin/mktemp -d /tmp/void-nimo-reviewed-signer.XXXXXX)" ||
-  hold "reviewed_signer_runtime_mkdir_failed"
-/bin/chmod 700 "$reviewed_runtime_root" ||
-  hold "reviewed_signer_runtime_chmod_failed"
-exec 19<"$reviewed_runtime_root" ||
-  hold "reviewed_signer_runtime_descriptor_open_failed"
-reviewed_runtime_fd_path="/proc/self/fd/19"
-[[ -d "$reviewed_runtime_fd_path" ]] ||
-  hold "reviewed_signer_runtime_descriptor_invalid"
-reviewed_runtime_identity="$(/usr/bin/stat -Lc '%d:%i' "$reviewed_runtime_fd_path")" ||
-  hold "reviewed_signer_runtime_descriptor_stat_failed"
+reviewed_signer_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$signer_rel")" ||
+  hold "reviewed_signer_blob_unavailable"
+reviewed_runtime_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$runtime_rel")" ||
+  hold "reviewed_runtime_helper_blob_unavailable"
+[[ "$reviewed_signer_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_signer_blob_invalid"
+[[ "$reviewed_runtime_blob" =~ ^[0-9a-f]{40}$ ]] ||
+  hold "reviewed_runtime_helper_blob_invalid"
 
-cleanup_reviewed_runtime() {
-  if [[ -d "$reviewed_runtime_fd_path" ]]; then
-    /bin/chmod -R u+rwX "$reviewed_runtime_fd_path" >/dev/null 2>&1 || true
-    /bin/rm -rf -- \
-      "$reviewed_runtime_fd_path/ops" \
-      "$reviewed_runtime_fd_path/tools" >/dev/null 2>&1 || true
-  fi
-  current_identity=""
-  if [[ -d "$reviewed_runtime_root" ]]; then
-    current_identity="$(/usr/bin/stat -Lc '%d:%i' "$reviewed_runtime_root" 2>/dev/null || true)"
-  fi
-  exec 19<&- || true
-  if [[ -n "$current_identity" && "$current_identity" == "$reviewed_runtime_identity" ]]; then
-    /bin/rmdir -- "$reviewed_runtime_root" >/dev/null 2>&1 || true
-  fi
-}
-trap cleanup_reviewed_runtime EXIT HUP INT TERM
+reviewed_signer_b64="$(
+  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_signer_blob" |
+    /usr/bin/base64 -w0
+)" || hold "reviewed_signer_transport_failed"
+reviewed_runtime_b64="$(
+  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$reviewed_runtime_blob" |
+    /usr/bin/base64 -w0
+)" || hold "reviewed_runtime_helper_transport_failed"
 
-/bin/mkdir -p \
-  "$reviewed_runtime_fd_path/ops/nimo" \
-  "$reviewed_runtime_fd_path/tools" ||
-  hold "reviewed_signer_runtime_layout_failed"
+[[ -n "$reviewed_signer_b64" ]] ||
+  hold "reviewed_signer_transport_empty"
+[[ -n "$reviewed_runtime_b64" ]] ||
+  hold "reviewed_runtime_helper_transport_empty"
 
-materialize_reviewed_blob() {
-  rel="$1"
-  destination="$reviewed_runtime_fd_path/$rel"
-  expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
-    hold "reviewed_materialization_blob_unavailable:$rel"
-  [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
-    hold "reviewed_materialization_blob_invalid:$rel"
-  "${git_env[@]}" "${git_cmd[@]}" cat-file blob "$expected_blob" > "$destination" ||
-    hold "reviewed_materialization_failed:$rel"
-  /bin/chmod 400 "$destination" ||
-    hold "reviewed_materialization_chmod_failed:$rel"
-  actual_blob="$("${git_env[@]}" "${git_cmd[@]}" hash-object -- "$destination")" ||
-    hold "reviewed_materialization_hash_failed:$rel"
-  [[ "$actual_blob" == "$expected_blob" ]] ||
-    hold "reviewed_materialization_hash_mismatch:$rel"
-}
+actual_signer_blob="$(
+  printf '%s' "$reviewed_signer_b64" |
+    /usr/bin/base64 -d |
+    "${git_env[@]}" "${git_cmd[@]}" hash-object --stdin
+)" || hold "reviewed_signer_transport_hash_failed"
+actual_runtime_blob="$(
+  printf '%s' "$reviewed_runtime_b64" |
+    /usr/bin/base64 -d |
+    "${git_env[@]}" "${git_cmd[@]}" hash-object --stdin
+)" || hold "reviewed_runtime_helper_transport_hash_failed"
 
-materialize_reviewed_blob "$signer_rel"
-materialize_reviewed_blob "$runtime_rel"
+[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]] ||
+  hold "reviewed_signer_transport_hash_mismatch"
+[[ "$actual_runtime_blob" == "$reviewed_runtime_blob" ]] ||
+  hold "reviewed_runtime_helper_transport_hash_mismatch"
 
-/bin/chmod 500 \
-  "$reviewed_runtime_fd_path" \
-  "$reviewed_runtime_fd_path/ops" \
-  "$reviewed_runtime_fd_path/ops/nimo" \
-  "$reviewed_runtime_fd_path/tools" ||
-  hold "reviewed_signer_runtime_freeze_failed"
-
-printf 'reviewed_signer_materialized=true\n'
-printf 'reviewed_runtime_helper_materialized=true\n'
-printf 'reviewed_runtime_descriptor_bound=true\n'
-printf 'reviewed_signer_exec_path=%s\n' "$reviewed_runtime_fd_path/$signer_rel"
+printf 'reviewed_signer_transport=verified_git_blob_stdin\n'
+printf 'reviewed_runtime_helper_transport=verified_git_blob_environment\n'
+printf 'reviewed_signer_blob=%s\n' "$reviewed_signer_blob"
+printf 'reviewed_runtime_helper_blob=%s\n' "$reviewed_runtime_blob"
+printf 'mutable_worktree_signer_execution=false\n'
+printf 'mutable_runtime_helper_execution=false\n'
 
 set +e
-/usr/bin/env -i \
-  HOME=/home/zoso \
-  PATH=/usr/bin:/bin \
-  LANG=C \
-  LC_ALL=C \
-  VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
-  VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
-  VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
-  /usr/bin/node \
-  "$reviewed_runtime_fd_path/$signer_rel" \
-  sign \
-  --challenge "$challenge" \
-  --challenge-sha256 "$challenge_sha" \
-  --output "$output"
-status=$?
+printf '%s' "$reviewed_signer_b64" |
+  /usr/bin/base64 -d |
+  /usr/bin/env -i \
+    HOME=/home/zoso \
+    PATH=/usr/bin:/bin \
+    LANG=C \
+    LC_ALL=C \
+    VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1=1 \
+    VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1="$reviewed_head" \
+    VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1="$repo" \
+    VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1="$reviewed_runtime_b64" \
+    /usr/bin/node \
+    --input-type=module \
+    - \
+    sign \
+    --challenge "$challenge" \
+    --challenge-sha256 "$challenge_sha" \
+    --output "$output"
+pipe_status=("${PIPESTATUS[@]}")
 set -e
-cleanup_reviewed_runtime
-trap - EXIT HUP INT TERM
-exit "$status"
+
+[[ "${pipe_status[0]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_write_failed"
+[[ "${pipe_status[1]:-1}" == "0" ]] ||
+  hold "reviewed_signer_transport_decode_failed"
+exit "${pipe_status[2]:-2}"
