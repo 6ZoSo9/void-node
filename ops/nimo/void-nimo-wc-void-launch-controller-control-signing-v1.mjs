@@ -530,6 +530,13 @@ function readChallengeV1(file, expectedSha256) {
   return Object.freeze({ value, sha256: source.sha256 });
 }
 
+export function testOnlyReadTransferredControlChallengeV1(
+  file,
+  expectedSha256,
+) {
+  return readChallengeV1(file, expectedSha256);
+}
+
 function readPrivateKeyV1(file) {
   const source = readStableFileV1(file, {
     label: "launch_controller_private_key",
