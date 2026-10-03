@@ -55,9 +55,12 @@ jobs:
           test "$(git rev-parse HEAD:contracts/mainnet/WCVoidMarketVaultV2.sol)" = "bd11190e2c22f58ac60918ecdf603f53427cadd0"
           test "$(git rev-parse HEAD:contracts/epoch2/VoidEpoch2TokenV1.sol)" = "7c4297aadbc17b6214b4dde1f1766523cb499923"
           echo "tested_head_sha=$(git rev-parse HEAD)"
+          echo "pinned_observation_head=1c56a9c0ec074ec198610864462634a66ce26722"
           echo "vault_git_blob_sha1=bd11190e2c22f58ac60918ecdf603f53427cadd0"
           echo "token_git_blob_sha1=7c4297aadbc17b6214b4dde1f1766523cb499923"
-          echo "gas_test_sha256=$(sha256sum test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol | awk '{print $1}')"
+          test "$(sha256sum test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol | awk '{print $1}')" = "bcc5cf5d02a75e979ca201289fc55a951aed11dff8af497aee5f95846767729a"
+          test "$(git rev-parse 1c56a9c0ec074ec198610864462634a66ce26722:test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol)" = "$(git rev-parse HEAD:test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol)"
+          echo "gas_test_sha256=bcc5cf5d02a75e979ca201289fc55a951aed11dff8af497aee5f95846767729a"
 
       - name: Run actual isolated Foundry gas measurement
         env:
@@ -83,9 +86,9 @@ jobs:
 
           docker run --rm             --user "$(id -u):$(id -g)"             --entrypoint forge             -e HOME=/foundry-home             -e FORGE_SNAPSHOT_EMIT=false             -v "$FOUNDRY_HOME:/foundry-home"             -v "$FOUNDRY_OUT:/foundry-out"             -v "$FOUNDRY_CACHE:/foundry-cache"             -v "$FOUNDRY_PROJECT:/proof:ro"             -w /proof             "$FOUNDRY_IMAGE"             test             --root /proof             --contracts contracts             --match-path test/mainnet/WCVoidMarketVaultV2GasCensusV2.t.sol             --use 0.8.24             --evm-version paris             --out /foundry-out             --cache-path /foundry-cache             --isolate             --gas-report             -vvvv 2>&1 | tee "$LOG"
 
-          grep -F "settle_void_first_isolated_tx_gas" "$LOG"
-          grep -F "settle_void_subsequent_isolated_tx_gas" "$LOG"
-          grep -F "settle_void_first_signed_intent_max_gas" "$LOG"
-          grep -F "settle_void_subsequent_signed_intent_max_gas" "$LOG"
+          grep -F "settle_void_first_isolated_tx_gas: 133515" "$LOG"
+          grep -F "settle_void_subsequent_isolated_tx_gas: 99303" "$LOG"
+          grep -F "settle_void_first_signed_intent_max_gas: 3000000" "$LOG"
+          grep -F "settle_void_subsequent_signed_intent_max_gas: 3000000" "$LOG"
 
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
