@@ -110,10 +110,10 @@ The output always records:
 
 The scan proves only what was found beneath the explicitly supplied roots.
 
-Unreadable directories or receipt-search paths truncated by the bounded
-recursive-depth limit are counted explicitly and force the
-`OBSERVED_WITH_DISCOVERY_GAPS` status. They are never silently treated as a
-complete scan.
+Unreadable directories, receipt-search paths truncated by the bounded
+recursive-depth limit, or any malformed canonical WC ledger line are counted
+explicitly and force the `OBSERVED_WITH_DISCOVERY_GAPS` status. They are never
+silently treated as a complete scan.
 
 It also leaves:
 
