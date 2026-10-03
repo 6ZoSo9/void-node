@@ -180,21 +180,40 @@ reviewed_runtime_root="$(/usr/bin/mktemp -d /tmp/void-nimo-reviewed-signer.XXXXX
   hold "reviewed_signer_runtime_mkdir_failed"
 /bin/chmod 700 "$reviewed_runtime_root" ||
   hold "reviewed_signer_runtime_chmod_failed"
+exec 19<"$reviewed_runtime_root" ||
+  hold "reviewed_signer_runtime_descriptor_open_failed"
+reviewed_runtime_fd_path="/proc/self/fd/19"
+[[ -d "$reviewed_runtime_fd_path" ]] ||
+  hold "reviewed_signer_runtime_descriptor_invalid"
+reviewed_runtime_identity="$(/usr/bin/stat -Lc '%d:%i' "$reviewed_runtime_fd_path")" ||
+  hold "reviewed_signer_runtime_descriptor_stat_failed"
 
 cleanup_reviewed_runtime() {
-  /bin/chmod -R u+rwX "$reviewed_runtime_root" >/dev/null 2>&1 || true
-  /bin/rm -rf -- "$reviewed_runtime_root" >/dev/null 2>&1 || true
+  if [[ -d "$reviewed_runtime_fd_path" ]]; then
+    /bin/chmod -R u+rwX "$reviewed_runtime_fd_path" >/dev/null 2>&1 || true
+    /bin/rm -rf -- \
+      "$reviewed_runtime_fd_path/ops" \
+      "$reviewed_runtime_fd_path/tools" >/dev/null 2>&1 || true
+  fi
+  current_identity=""
+  if [[ -d "$reviewed_runtime_root" ]]; then
+    current_identity="$(/usr/bin/stat -Lc '%d:%i' "$reviewed_runtime_root" 2>/dev/null || true)"
+  fi
+  exec 19<&- || true
+  if [[ -n "$current_identity" && "$current_identity" == "$reviewed_runtime_identity" ]]; then
+    /bin/rmdir -- "$reviewed_runtime_root" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup_reviewed_runtime EXIT HUP INT TERM
 
 /bin/mkdir -p \
-  "$reviewed_runtime_root/ops/nimo" \
-  "$reviewed_runtime_root/tools" ||
+  "$reviewed_runtime_fd_path/ops/nimo" \
+  "$reviewed_runtime_fd_path/tools" ||
   hold "reviewed_signer_runtime_layout_failed"
 
 materialize_reviewed_blob() {
   rel="$1"
-  destination="$reviewed_runtime_root/$rel"
+  destination="$reviewed_runtime_fd_path/$rel"
   expected_blob="$("${git_env[@]}" "${git_cmd[@]}" rev-parse "$reviewed_head:$rel")" ||
     hold "reviewed_materialization_blob_unavailable:$rel"
   [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]] ||
@@ -213,17 +232,11 @@ materialize_reviewed_blob "$signer_rel"
 materialize_reviewed_blob "$runtime_rel"
 
 /bin/chmod 500 \
-  "$reviewed_runtime_root" \
-  "$reviewed_runtime_root/ops" \
-  "$reviewed_runtime_root/ops/nimo" \
-  "$reviewed_runtime_root/tools" ||
+  "$reviewed_runtime_fd_path" \
+  "$reviewed_runtime_fd_path/ops" \
+  "$reviewed_runtime_fd_path/ops/nimo" \
+  "$reviewed_runtime_fd_path/tools" ||
   hold "reviewed_signer_runtime_freeze_failed"
-
-exec 19<"$reviewed_runtime_root" ||
-  hold "reviewed_signer_runtime_descriptor_open_failed"
-reviewed_runtime_fd_path="/proc/self/fd/19"
-[[ -d "$reviewed_runtime_fd_path" ]] ||
-  hold "reviewed_signer_runtime_descriptor_invalid"
 
 printf 'reviewed_signer_materialized=true\n'
 printf 'reviewed_runtime_helper_materialized=true\n'
@@ -247,7 +260,6 @@ set +e
   --output "$output"
 status=$?
 set -e
-exec 19<&-
 cleanup_reviewed_runtime
 trap - EXIT HUP INT TERM
 exit "$status"
