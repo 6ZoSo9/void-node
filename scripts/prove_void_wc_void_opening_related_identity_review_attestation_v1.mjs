@@ -238,6 +238,38 @@ assert.equal(
     ),
     /review_manifest_resource_limit_exceeded/u,
   );
+
+  let subjectIteratorRead = false;
+  const oversizedSubjects = new Proxy(
+    [participantId, participantId],
+    {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) {
+          subjectIteratorRead = true;
+          throw new Error("subject_iterator_read_before_limit");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
+  const preCopyLimitManifest = {
+    ...manifest,
+    evidence_documents: [
+      {
+        ...evidence,
+        subject_participant_ids: oversizedSubjects,
+      },
+    ],
+  };
+  assert.throws(
+    () => validateReviewableRelatedIdentityManifestV1(preCopyLimitManifest),
+    /review_manifest_resource_limit_exceeded/u,
+  );
+  assert.equal(
+    subjectIteratorRead,
+    false,
+    "subject list was copied before the resource limit check",
+  );
 }
 
 const lineageHex = (digit) => String(digit).repeat(64);
@@ -607,10 +639,15 @@ await assert.rejects(
   const compilerPath =
     "tools/void-wc-void-opening-related-identity-evidence-manifest-v1.mjs";
   const toolSource = fs.readFileSync(toolPath, "utf8");
+  const importPrefixEnd = toolSource.indexOf(
+    "export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1",
+  );
+  assert.ok(importPrefixEnd > 0, "review verifier import prefix missing");
+  const moduleImportPrefix = toolSource.slice(0, importPrefixEnd);
   assert.equal(
-    toolSource.includes('from "ethers"'),
+    moduleImportPrefix.includes('from "ethers"'),
     false,
-    "production verifier must not execute ambient ethers at module load",
+    "production verifier must not import ambient ethers at module load",
   );
   assert.equal(
     toolSource.includes("canonicalEvidence.filter("),
@@ -636,6 +673,34 @@ await assert.rejects(
     toolSource.includes("child_process_isolation: true"),
     true,
     "control reverification must expose child-process isolation",
+  );
+  const prepareStart = toolSource.indexOf(
+    "export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1",
+  );
+  const verifyStart = toolSource.indexOf(
+    "export async function verifyWcVoidOpeningRelatedIdentityReviewAttestationV1",
+    prepareStart,
+  );
+  assert.ok(prepareStart > 0 && verifyStart > prepareStart);
+  const prepareSource = toolSource.slice(prepareStart, verifyStart);
+  assert.equal(
+    prepareSource.includes(
+      "const reviewed = validateReviewableRelatedIdentityManifestV1(manifest);",
+    ),
+    true,
+    "prepare must detach the manifest before the first await",
+  );
+  assert.equal(
+    prepareSource.includes(
+      "await verifyReviewManifestLineageV1(reviewed, lineage);",
+    ),
+    true,
+    "prepare must verify lineage from the detached manifest",
+  );
+  assert.equal(
+    prepareSource.includes("manifest: reviewed,"),
+    true,
+    "prepare must construct signing material from the detached manifest",
   );
   assert.equal(
     toolSource.includes(
@@ -1003,6 +1068,7 @@ console.log("generic_eip712_recovery=true");
 console.log("review_domain_salt_rederived=true");
 console.log("reviewable_manifest_binding=true");
 console.log("manifest_resource_limits_enforced=true");
+console.log("subject_resource_limit_checked_before_copy=true");
 console.log("linear_evidence_by_cluster_index=true");
 console.log("manifest_cluster_evidence_roots_reverified=true");
 console.log("manifest_compiler_worktree_execution=false");
@@ -1020,6 +1086,7 @@ console.log("production_module_ambient_ethers_import=false");
 console.log("ambient_ethers_byte_drift_rejected=true");
 console.log("eip712_ambient_ethers_byte_drift_rejected=true");
 console.log("validated_manifest_snapshot_detached=true");
+console.log("prepare_uses_same_detached_manifest_snapshot=true");
 console.log("post_yield_manifest_mutation_ignored=true");
 console.log("control_reverification_child_process_isolated=true");
 console.log("process_environment_mutation=false");
