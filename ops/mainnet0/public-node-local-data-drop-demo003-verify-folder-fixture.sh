@@ -705,7 +705,25 @@ function readDirect(rel) {
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
     ok(stamp(listed) === stamp(opened), `identity changed ${rel}`);
-    const buf = fs.readFileSync(fd);
+
+    const chunks = [];
+    const scratch = Buffer.allocUnsafe(65536);
+    let total = 0;
+    while (true) {
+      const count = fs.readSync(
+        fd,
+        scratch,
+        0,
+        scratch.length,
+        null,
+      );
+      if (count === 0) break;
+      ok(count > 0, `semantic short read ${rel}`);
+      total += count;
+      ok(total <= maxFileBytes, `semantic read limit exceeded ${rel}`);
+      chunks.push(Buffer.from(scratch.subarray(0, count)));
+    }
+    const buf = Buffer.concat(chunks, total);
     const after = fs.fstatSync(fd, { bigint: true });
     const visible = fs.lstatSync(p, { bigint: true });
     ok(stamp(opened) === stamp(after), `changed during read ${rel}`);
@@ -850,6 +868,7 @@ def file_identity(st):
     )
 
 opened_root = os.fstat(root_fd)
+euid = os.geteuid()
 try:
     visible_root = os.stat(pathname, follow_symlinks=False)
 except FileNotFoundError:
@@ -875,6 +894,8 @@ if (
     not stat.S_ISDIR(opened_files_dir.st_mode)
     or not stat.S_ISDIR(visible_files_dir.st_mode)
     or stat.S_ISLNK(visible_files_dir.st_mode)
+    or opened_files_dir.st_uid != euid
+    or opened_files_dir.st_mode & 0o022
     or root_identity(opened_files_dir) != root_identity(visible_files_dir)
 ):
     raise SystemExit("terminal_files_directory_identity_mismatch")
@@ -893,7 +914,9 @@ try:
         if (
             not stat.S_ISREG(listed.st_mode)
             or stat.S_ISLNK(listed.st_mode)
+            or listed.st_uid != euid
             or listed.st_nlink != 1
+            or listed.st_mode & 0o022
             or listed.st_size <= 0
             or listed.st_size > MAX_MEMBER_BYTES
         ):
