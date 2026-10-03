@@ -20,15 +20,18 @@ import {
 import {
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_AUTHORITY_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_DOMAIN_V1,
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_CONTROL_INPUT_LIMITS_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_MANIFEST_COMPILER_BLOB_V1,
   VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_RESOURCE_LIMITS_V1,
   canonicalReviewJsonV1,
+  prepareWcVoidOpeningRelatedIdentityReviewAttestationV1,
   relatedIdentityManifestIdV1,
   reviewedControlVerifierGenerationV1,
   validateReviewableRelatedIdentityManifestV1,
   verifyReviewManifestLineageV1,
   verifyReviewSignatureForAddressV1,
+  verifyWcVoidOpeningRelatedIdentityReviewAttestationV1,
   voidWcVoidRelatedIdentityReviewDigestV1,
   voidWcVoidRelatedIdentityReviewTypedDataV1,
 } from "../tools/void-wc-void-opening-related-identity-review-attestation-v1.mjs";
@@ -577,6 +580,101 @@ await assert.rejects(
   /review_manifest_eligible_cohort_lineage_mismatch/u,
 );
 
+assert.deepEqual(
+  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_CONTROL_INPUT_LIMITS_V1,
+  {
+    max_depth: 16,
+    max_nodes: 8_192,
+    max_object_keys: 128,
+    max_array_items: 512,
+    max_string_bytes: 2 * 1024 * 1024,
+    max_serialized_bytes: 2 * 1024 * 1024,
+  },
+);
+
+await assert.rejects(
+  () =>
+    prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+      manifest: lineageManifest,
+      lineage,
+      controlEvidence: {},
+      nowUnix: 1_780_000_000n,
+    }),
+  /review_control_child_execution_failed/u,
+);
+
+await assert.rejects(
+  () =>
+    verifyWcVoidOpeningRelatedIdentityReviewAttestationV1({
+      manifest: lineageManifest,
+      lineage,
+      controlEvidence: {},
+      material: {},
+      signature: "0x" + "11".repeat(65),
+      nowUnix: 1_780_000_000n,
+    }),
+  /review_control_child_execution_failed/u,
+);
+
+await assert.rejects(
+  () =>
+    prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+      manifest: lineageManifest,
+      lineage,
+      controlEvidence: {
+        oversized: new Array(
+          VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_CONTROL_INPUT_LIMITS_V1
+            .max_array_items + 1,
+        ).fill(null),
+      },
+      nowUnix: 1_780_000_000,
+    }),
+  /review_control_input_resource_limit_exceeded/u,
+);
+
+{
+  let deep = "leaf";
+  for (
+    let depth = 0;
+    depth <=
+      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_CONTROL_INPUT_LIMITS_V1
+        .max_depth;
+    depth += 1
+  ) {
+    deep = { nested: deep };
+  }
+  await assert.rejects(
+    () =>
+      prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+        manifest: lineageManifest,
+        lineage,
+        controlEvidence: deep,
+        nowUnix: 1_780_000_000,
+      }),
+    /review_control_input_resource_limit_exceeded/u,
+  );
+}
+
+{
+  const accessorEvidence = {};
+  Object.defineProperty(accessorEvidence, "trap", {
+    enumerable: true,
+    get() {
+      throw new Error("control_evidence_accessor_executed");
+    },
+  });
+  await assert.rejects(
+    () =>
+      prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+        manifest: lineageManifest,
+        lineage,
+        controlEvidence: accessorEvidence,
+        nowUnix: 1_780_000_000,
+      }),
+    /review_control_input_shape_invalid/u,
+  );
+}
+
 {
   const generation = await reviewedControlVerifierGenerationV1();
   assert.equal(
@@ -1097,6 +1195,11 @@ console.log("prepare_uses_same_detached_manifest_snapshot=true");
 console.log("post_yield_manifest_mutation_ignored=true");
 console.log("control_reverification_child_process_isolated=true");
 console.log("async_control_reverification_awaited=true");
+console.log("bigint_control_now_normalized=true");
+console.log("control_input_resource_limits_enforced=true");
+console.log("oversized_control_evidence_rejected_before_child=true");
+console.log("deep_control_evidence_rejected_before_child=true");
+console.log("control_evidence_accessors_not_executed=true");
 console.log("process_environment_mutation=false");
 console.log("concurrent_control_reverification_parent_env_stable=true");
 console.log("dirty_lineage_verifier_sentinel_execution=false");
