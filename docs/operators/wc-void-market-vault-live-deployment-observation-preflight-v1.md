@@ -106,8 +106,9 @@ eth_call
 No send/sign/admin/personal/debug RPC method exists in this lane.
 
 The deployment estimate is not a bare legacy transaction shape. Its
-`eth_estimateGas` transaction object carries the canonical signed Epoch-2
-access-list marker from
+`eth_estimateGas` transaction object explicitly binds `type: 0x2`,
+`chainId: 0x802` (2050), contract creation (`to: null`), and the canonical
+signed Epoch-2 access-list marker from
 `VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1`: exactly one marker
 entry at `0x0000000000000000000000000000000000002050` with storage key
 `0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7`.
