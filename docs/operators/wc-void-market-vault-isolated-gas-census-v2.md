@@ -2,7 +2,7 @@
 
 Marker: `VOID_WC_VOID_MARKET_VAULT_ISOLATED_GAS_CENSUS_V2`
 
-Status: **replacement measurement-only evidence; generation 2 unpinned**.
+Status: **replacement measurement-only evidence; generation 2 pinned**.
 
 Issue: #2380. This lane replaces the policy-evidence interpretation of the
 merged v1 gas census from #2368.
@@ -53,8 +53,8 @@ The test records `snapshotGasLastCall(...)` immediately after the direct
 settlement-executor call to `WCVoidMarketVaultV2.settleVoid`.
 
 Under the mandatory isolation boundary, v2 treats that observation as the
-isolated transaction gas. It does not compute or add a second manual
-`21,000 + calldata` intrinsic-gas term.
+isolated transaction gas. It does not add intrinsic gas a second time and does
+not compute a separate manual `21,000 + calldata` term.
 
 Generation 2 emits:
 
@@ -66,20 +66,22 @@ Both isolated observations must remain below the existing 3,000,000 signed
 intent maximum. That maximum is a ceiling only, not a selected sponsorship
 budget.
 
-## Lifecycle
+## Pinned generation-2 evidence
 
-The first v2 hosted run is observational and unpinned.
+The first successful hosted v2 observation is now pinned:
 
-After exact hosted values are observed, a later commit in this same PR must
-bind:
+- observation head: `1c56a9c0ec074ec198610864462634a66ce26722`;
+- test SHA-256: `bcc5cf5d02a75e979ca201289fc55a951aed11dff8af497aee5f95846767729a`;
+- Foundry image ID: `sha256:186542c36fbcb76ba9e7cbf6711dfed201218f40e762b77a6a2240f8aa6afadb`;
+- first settlement / fresh recipient: `133515` gas;
+- subsequent settlement / fresh recipient: `99303` gas.
 
-- exact test SHA-256;
-- exact tested Git head/generation;
-- resolved Foundry image ID;
-- exact first-settlement isolated transaction gas;
-- exact subsequent-settlement isolated transaction gas.
+The focused workflow re-runs the isolated measurement and requires those exact
+values. The source proof also requires the observation head to remain an
+ancestor and the current gas-test Git blob to equal the observed generation's
+gas-test blob.
 
-Only that pinned rerun may become usable evidence for #2364.
+These are measurement inputs for #2364, not a selected sponsorship budget.
 
 V2 does not select any production TTL, outstanding cap, per-intent gas limit,
 per-identity/global gas budget, market parameter, opening time, presale
