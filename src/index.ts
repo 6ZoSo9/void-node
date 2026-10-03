@@ -19420,13 +19420,13 @@ setInterval(refresh, 10000);
 <title>Buy VOID</title>
 <style>
 body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
-main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}.hero{background:linear-gradient(135deg,#0d1321,#111827)}.warn{border-color:#92400e;background:#1f1305}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.stat{border:1px solid #263244;border-radius:12px;padding:12px;background:#090d1a}.k{color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.v{font-size:20px;font-weight:800;word-break:break-all}a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border:0;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none;cursor:pointer}.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}.btn:disabled{opacity:.55;cursor:not-allowed}.warntext{color:#fbbf24}.ok{color:#86efac}code{background:#111827;padding:2px 5px;border-radius:5px;word-break:break-all}input{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb}label.check{display:block;margin:9px 0}label.check input{width:auto;margin-right:8px}pre{white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:10px;padding:12px;overflow:auto}
+main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}.hero{background:linear-gradient(135deg,#0d1321,#111827)}.warn{border-color:#92400e;background:#1f1305}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.stat{border:1px solid #263244;border-radius:12px;padding:12px;background:#090d1a}.k{color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.v{font-size:20px;font-weight:800;word-break:break-all}a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border:0;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none;cursor:pointer}.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}.btn:disabled{opacity:.55;cursor:not-allowed}.warntext{color:#fbbf24}.ok{color:#86efac}code{background:#111827;padding:2px 5px;border-radius:5px;word-break:break-all}input,select{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb}label.check{display:block;margin:9px 0}label.check input{width:auto;margin-right:8px}pre{white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:10px;padding:12px;overflow:auto}
 </style>
 </head>
 <body>
 <main>
 <section class="hero"><!-- VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1 -->
-  <h1>Buy VOID with Base USDC</h1>
+  <h1>Buy VOID with USDC</h1>
   <p>Create one request before sending payment. The fixed rate is <b>2 VOID per 1 USDC</b> (<b>$0.50 USDC per VOID</b>).</p>
   <p><a class="btn secondary" href="/">Home</a><a class="btn secondary" href="/__void/buy-void/config.json">Checkout Config JSON</a><a class="btn secondary" href="/__void/buy-void/sale-state.json">Sale State JSON</a></p>
 </section>
@@ -19451,14 +19451,15 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 
 <section class="card"><!-- VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1 -->
   <h2>Create a request</h2>
+  <label>Rail<br/><select id="buyChain"><option value="base">Base (8453)</option><option value="ethereum">Ethereum (1)</option></select></label><br/><br/>
   <label>USDC amount<br/><input id="buyUsdcAmount" inputmode="decimal" value="25" /></label>
   <br/><br/>
   <label>Native VOID destination address (chain ID 2050)<br/><input id="buyVoidDestination" placeholder="0x..." autocomplete="off" /></label>
-  <p class="warntext">The Base USDC sender must be this same address. Do not use an exchange or pooled-custody sender.</p>
+  <p class="warntext">The selected USDC sender must be this address. No exchange/custodial sends.</p>
   <label class="check"><input type="checkbox" id="ackSelfCustody"/>I control this self-custody wallet.</label>
-  <label class="check"><input type="checkbox" id="ackBaseUsdc"/>I will send native USDC on Base Mainnet only.</label>
+  <label class="check"><input type="checkbox" id="ackNativeUsdc"/>I will send native USDC on the selected rail.</label>
   <label class="check"><input type="checkbox" id="ackRequestFirst"/>I will not send until this request is created.</label>
-  <label class="check"><input type="checkbox" id="ackSameSender"/>The Base sender will equal the VOID destination address.</label>
+  <label class="check"><input type="checkbox" id="ackSameSender"/>The selected sender will equal the VOID destination address.</label>
   <label class="check"><input type="checkbox" id="ackManual"/>I understand automatic fulfillment is not active.</label>
   <br/>
   <button class="btn" id="buyCreateRequestBtn" type="button">Create Buy VOID Request</button>
@@ -19468,10 +19469,9 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 <section class="card">
   <h2>After request creation</h2>
   <ol>
-    <li>Verify the returned request ID, Base chain ID 8453, USDC contract, amount, approved receiver, and VOID destination.</li>
-    <li>Send the exact Base USDC amount from the exact destination address.</li>
-    <li>Keep the transaction hash. The tx hash is bound after the request; it is not accepted during request creation.</li>
-    <li>VOID delivery remains separately verified and activated. A request or payment alone is not fulfillment.</li>
+    <li>Verify the request ID, network, USDC contract, amount, receiver, and VOID destination.</li>
+    <li>Send only the returned instructions from the same self-custody address.</li>
+    <li>Keep the transaction hash. Payment is not VOID fulfillment.</li>
   </ol>
 </section>
 
@@ -19486,8 +19486,8 @@ async function loadBuyCheckoutV1(){
     var cfg=await pair[0].json();
     var sale=await pair[1].json();
     buyCheckoutConfig=cfg;
-    buyText("buyNetwork","Base Mainnet (8453)");
-    buyText("buyUsdcContract",cfg.usdc_contract || "Unavailable");
+    buyText("buyNetwork","Base 8453 / Ethereum 1");
+    buyText("buyUsdcContract","See request");
     buyText("buyReceiver",cfg.receive_address || "Unavailable");
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
@@ -19509,12 +19509,13 @@ async function createBuyVoidCheckoutRequestV1(){
   var out=document.getElementById("buyRequestResult");
   var amount=String(document.getElementById("buyUsdcAmount").value || "").trim();
   var destination=String(document.getElementById("buyVoidDestination").value || "").trim();
+  var chain=document.getElementById("buyChain").value;
   var payload={
     requested_amount_usdc:amount,
     void_destination_address:destination,
-    source_chain:"base",
+    source_chain:chain,
     ack_self_custody:buyChecked("ackSelfCustody"),
-    ack_base_native_usdc:buyChecked("ackBaseUsdc"),
+    ack_native_usdc:buyChecked("ackNativeUsdc"),
     ack_request_before_payment:buyChecked("ackRequestFirst"),
     ack_sender_equals_void_destination:buyChecked("ackSameSender"),
     ack_no_automatic_fulfillment:buyChecked("ackManual")
