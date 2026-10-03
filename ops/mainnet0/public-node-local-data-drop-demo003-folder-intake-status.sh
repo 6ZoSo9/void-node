@@ -112,6 +112,11 @@ def read_json_file(dir_fd,name,label):
     return json.loads(read_regular_file(dir_fd,name,label).decode("utf-8"))
 
 def sha256(data): return hashlib.sha256(data).hexdigest()
+def canonical_json(value):
+    try:
+        return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False)
+    except (TypeError,ValueError) as exc:
+        fail("canonical_json_invalid:"+str(exc))
 
 def require_boundary_contract(manifest):
     trust=manifest.get("trust_boundary")
@@ -173,7 +178,7 @@ try:
     if manifest.get("object_set_id")!=record.get("object_set_id"): fail("manifest_intake_object_set_mismatch")
     manifest_file_count=manifest.get("file_count")
     if type(manifest_file_count) is not int or manifest_file_count!=3: fail("manifest_file_count")
-    if record.get("source_manifest")!=manifest: fail("intake_source_manifest_mismatch")
+    if canonical_json(record.get("source_manifest"))!=canonical_json(manifest): fail("intake_source_manifest_mismatch")
     require_boundary_contract(manifest)
 
     rows=manifest.get("files")
