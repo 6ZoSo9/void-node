@@ -1,0 +1,1716 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+import * as ethers from "ethers";
+
+import {
+  canonicalJson,
+  prepareVoidWcVoidLaunchControllerControlChallengeV1,
+  verifyVoidWcVoidLaunchControllerControlSignatureV1,
+} from "../tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
+
+import {
+  SELECTED_REVIEWER_ADDRESS_V1,
+  SIGNATURE_MARKER_V1,
+  VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
+  VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
+  signControlChallengeCoreV1,
+  testOnlyExerciseSignatureOutputExpiryQuarantineV1,
+  testOnlyExerciseSignatureOutputParentReplacementV1,
+  testOnlyExerciseSignatureOutputReplacementQuarantineV1,
+  testOnlyPinnedStandaloneEthersV1,
+  testOnlyReadTransferredControlChallengeV1,
+  validateSanitizedOfflineSignerEnvironmentV1,
+} from "../ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs";
+
+const PRIVATE_A =
+  "0x1111111111111111111111111111111111111111111111111111111111111111";
+const PRIVATE_B =
+  "0x2222222222222222222222222222222222222222222222222222222222222222";
+const NONCE =
+  "0x3333333333333333333333333333333333333333333333333333333333333333";
+
+const walletA = new ethers.Wallet(PRIVATE_A);
+const walletB = new ethers.Wallet(PRIVATE_B);
+
+{
+  const bundlePath = path.resolve(
+    "node_modules/ethers/dist/ethers.min.js",
+  );
+  const bundleBytes = fs.readFileSync(bundlePath);
+  const bundleSha256 = crypto
+    .createHash("sha256")
+    .update(bundleBytes)
+    .digest("hex");
+  const bundle = await import(
+    "data:text/javascript;base64," + bundleBytes.toString("base64")
+  );
+  for (const name of [
+    "Wallet",
+    "verifyTypedData",
+    "TypedDataEncoder",
+    "getAddress",
+    "keccak256",
+    "toUtf8Bytes",
+  ]) {
+    assert.equal(
+      typeof bundle[name] === "function" ||
+        (name === "TypedDataEncoder" &&
+          typeof bundle[name]?.hash === "function"),
+      true,
+      "ethers standalone bundle missing " + name,
+    );
+  }
+  assert.equal(
+    typeof bundle.TypedDataEncoder.hash,
+    "function",
+  );
+  assert.equal(
+    bundleSha256,
+    "b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c",
+  );
+  console.log("reviewed_ethers_standalone_bundle_sha256=" + bundleSha256);
+  console.log("reviewed_ethers_standalone_bundle_exports_green=true");
+}
+const now = Math.floor(Date.now() / 1000);
+const reviewedHeadResult = spawnSync(
+  "/usr/bin/git",
+  ["rev-parse", "HEAD"],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  },
+);
+assert.equal(reviewedHeadResult.status, 0);
+const reviewedHead = reviewedHeadResult.stdout.trim();
+assert.match(reviewedHead, /^[0-9a-f]{40}$/u);
+
+const challenge =
+  prepareVoidWcVoidLaunchControllerControlChallengeV1({
+    candidateAddress: walletA.address,
+    nowUnix: now,
+    ttlSeconds: 900,
+    nonce: NONCE,
+  });
+
+const envelope = await signControlChallengeCoreV1({
+  challengeEnvelope: challenge,
+  privateKey: PRIVATE_A,
+  expectedAddress: walletA.address,
+  nowUnix: now,
+  ethers,
+});
+
+assert.equal(envelope.marker, SIGNATURE_MARKER_V1);
+assert.equal(envelope.version, 1);
+assert.equal(envelope.challenge_id, challenge.challenge_id);
+assert.match(envelope.signature, /^0x[0-9a-fA-F]{130}$/u);
+
+{
+  const temporary = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-offline-signer-launch-proof-"),
+  );
+  try {
+    const challengePath = path.join(temporary, "challenge.json");
+    const challengeBytes = Buffer.from(
+      JSON.stringify(challenge, null, 2) + "\n",
+      "utf8",
+    );
+    fs.writeFileSync(challengePath, challengeBytes, { mode: 0o600 });
+    fs.chmodSync(challengePath, 0o600);
+    const challengeSha = crypto
+      .createHash("sha256")
+      .update(challengeBytes)
+      .digest("hex");
+    const sourceLauncher = path.resolve(
+      "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+    );
+    const launcher = path.join(temporary, "reviewed-launcher.sh");
+    fs.copyFileSync(sourceLauncher, launcher);
+    fs.chmodSync(launcher, 0o700);
+    const result = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "preflight",
+        challengePath,
+        challengeSha,
+        reviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.equal(
+      result.status,
+      0,
+      ["launcher preflight failed", result.stdout, result.stderr].join("\n"),
+    );
+    assert.match(
+      result.stdout,
+      /status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN/u,
+    );
+    assert.match(result.stdout, /repository_clean=true/u);
+    assert.match(result.stdout, /critical_source_blobs_verified=true/u);
+    assert.match(
+      result.stdout,
+      new RegExp("operator_reviewed_head=" + reviewedHead, "u"),
+    );
+    assert.match(result.stdout, /private_key_access=false/u);
+    assert.match(result.stdout, /executed_launcher_blob=[0-9a-f]{40}/u);
+
+    const gitDir = path.join(process.cwd(), ".git");
+    const infoAttributes = path.join(gitDir, "info", "attributes");
+    const localGitConfig = path.join(gitDir, "config");
+    const infoAttributesExisted = fs.existsSync(infoAttributes);
+    const infoAttributesBefore = infoAttributesExisted
+      ? fs.readFileSync(infoAttributes)
+      : null;
+    const localGitConfigBefore = fs.readFileSync(localGitConfig);
+    const runMetadataPreflight = () =>
+      spawnSync(
+        "/usr/bin/env",
+        [
+          "-i",
+          "HOME=/home/zoso",
+          "PATH=/usr/bin:/bin",
+          "LANG=C",
+          "LC_ALL=C",
+          "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+          "/bin/bash",
+          "--noprofile",
+          "--norc",
+          launcher,
+          "preflight",
+          challengePath,
+          challengeSha,
+          reviewedHead,
+        ],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+
+    try {
+      fs.mkdirSync(path.dirname(infoAttributes), { recursive: true });
+      fs.writeFileSync(infoAttributes, "* filter=voidprobe\n", "utf8");
+      fs.appendFileSync(
+        localGitConfig,
+        '\n[filter "voidprobe"]\n\tclean = /bin/false\n',
+        "utf8",
+      );
+      const blocked = runMetadataPreflight();
+      assert.notEqual(blocked.status, 0);
+      assert.match(
+        blocked.stderr,
+        /repository_info_attributes_forbidden/u,
+      );
+    } finally {
+      fs.writeFileSync(localGitConfig, localGitConfigBefore);
+      if (infoAttributesExisted) {
+        fs.writeFileSync(infoAttributes, infoAttributesBefore);
+      } else {
+        fs.rmSync(infoAttributes, { force: true });
+      }
+    }
+
+    try {
+      fs.appendFileSync(
+        localGitConfig,
+        '\n[filter "voidprobe"]\n\tclean = /bin/false\n',
+        "utf8",
+      );
+      const blocked = runMetadataPreflight();
+      assert.notEqual(blocked.status, 0);
+      assert.match(
+        blocked.stderr,
+        /repository_local_git_config_forbidden/u,
+      );
+    } finally {
+      fs.writeFileSync(localGitConfig, localGitConfigBefore);
+    }
+
+    const oversizedChallengePath = path.join(
+      temporary,
+      "oversized-challenge.json",
+    );
+    const oversizedChallengeBytes = Buffer.alloc(
+      2 * 1024 * 1024 + 1,
+      0x20,
+    );
+    fs.writeFileSync(
+      oversizedChallengePath,
+      oversizedChallengeBytes,
+      { mode: 0o600 },
+    );
+    fs.chmodSync(oversizedChallengePath, 0o600);
+    const oversizedChallengeSha = crypto
+      .createHash("sha256")
+      .update(oversizedChallengeBytes)
+      .digest("hex");
+    const oversizedResult = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "preflight",
+        oversizedChallengePath,
+        oversizedChallengeSha,
+        reviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(oversizedResult.status, 0);
+    assert.match(oversizedResult.stderr, /challenge_size_invalid/u);
+
+    const priorHeadResult = spawnSync(
+      "/usr/bin/git",
+      ["rev-parse", "HEAD^{tree}"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.equal(
+      priorHeadResult.status,
+      0,
+      ["alternate reviewed object resolution failed", priorHeadResult.stderr].join("\n"),
+    );
+    const priorReviewedHead = priorHeadResult.stdout.trim();
+    assert.match(priorReviewedHead, /^[0-9a-f]{40}$/u);
+    assert.notEqual(priorReviewedHead, reviewedHead);
+
+    const forgedReviewedHead = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "preflight",
+        challengePath,
+        challengeSha,
+        priorReviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(forgedReviewedHead.status, 0);
+    assert.match(
+      forgedReviewedHead.stderr,
+      /current_head_not_exact_operator_reviewed_head/u,
+    );
+
+    const tamperedLauncher = path.join(temporary, "tampered-launcher.sh");
+    fs.writeFileSync(
+      tamperedLauncher,
+      fs.readFileSync(sourceLauncher, "utf8") + "\n# tampered fixture\n",
+      { mode: 0o700 },
+    );
+    fs.chmodSync(tamperedLauncher, 0o700);
+    const tamperedResult = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        tamperedLauncher,
+        "preflight",
+        challengePath,
+        challengeSha,
+        reviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(tamperedResult.status, 0);
+    assert.match(
+      tamperedResult.stderr,
+      /executed_launcher_not_operator_reviewed_blob/u,
+    );
+
+    // Exercise the real sign-mode streamed Node invocation without touching
+    // the production key. This synthetic challenge intentionally names walletA
+    // instead of the fixed selected launch-controller address, so the streamed
+    // signer must pass environment validation and then fail on challenge
+    // semantics before readPrivateKeyV1 can run.
+    const noKeyOutput = path.join(temporary, "must-not-exist-signature.json");
+    const signNoKey = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        launcher,
+        "sign",
+        challengePath,
+        challengeSha,
+        reviewedHead,
+        noKeyOutput,
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    assert.notEqual(signNoKey.status, 0);
+    assert.doesNotMatch(
+      signNoKey.stderr,
+      /offline_signer_node_preload_flags_forbidden/u,
+      "real streamed sign path must admit only --input-type=module",
+    );
+    assert.match(
+      signNoKey.stderr,
+      /control_challenge_semantics_invalid/u,
+      "synthetic wrong-candidate sign attempt must fail before key access",
+    );
+    assert.match(
+      signNoKey.stdout,
+      /reviewed_signer_transport=verified_git_blob_stdin/u,
+    );
+    assert.equal(fs.existsSync(noKeyOutput), false);
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+// Adversary for the reviewed-launcher bootstrap: verify the complete launcher
+// bytes in memory, replace the source pathname, then execute only the already-
+// verified byte buffer through Bash stdin. The replacement path must be inert.
+{
+  const temporary = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-offline-signer-launcher-stream-race-"),
+  );
+  try {
+    const challengePath = path.join(temporary, "challenge.json");
+    const challengeBytes = Buffer.from(
+      JSON.stringify(challenge, null, 2) + "\n",
+      "utf8",
+    );
+    fs.writeFileSync(challengePath, challengeBytes, { mode: 0o600 });
+    fs.chmodSync(challengePath, 0o600);
+    const challengeSha = crypto
+      .createHash("sha256")
+      .update(challengeBytes)
+      .digest("hex");
+
+    const sourceLauncher = path.resolve(
+      "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+    );
+    const stagedLauncher = path.join(temporary, "launcher.sh");
+    fs.copyFileSync(sourceLauncher, stagedLauncher);
+    fs.chmodSync(stagedLauncher, 0o400);
+
+    const verifiedLauncherBytes = fs.readFileSync(stagedLauncher);
+    const verifiedLauncherBlob = crypto
+      .createHash("sha1")
+      .update(
+        Buffer.from(
+          "blob " + verifiedLauncherBytes.length + "\0",
+          "utf8",
+        ),
+      )
+      .update(verifiedLauncherBytes)
+      .digest("hex");
+
+    const expectedBlobResult = spawnSync(
+      "/usr/bin/git",
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "core.preloadIndex=false",
+        "-c", "submodule.recurse=false",
+        "-C", process.cwd(),
+        "rev-parse",
+        reviewedHead +
+          ":ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+      ],
+      {
+        cwd: "/",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          PATH: "/usr/bin:/bin",
+          LANG: "C",
+          LC_ALL: "C",
+          HOME: "/nonexistent",
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_OPTIONAL_LOCKS: "0",
+          GIT_TERMINAL_PROMPT: "0",
+        },
+      },
+    );
+    assert.equal(expectedBlobResult.status, 0);
+    const expectedLauncherBlob = expectedBlobResult.stdout.trim();
+    assert.equal(verifiedLauncherBlob, expectedLauncherBlob);
+
+    fs.writeFileSync(
+      stagedLauncher,
+      [
+        "#!/bin/bash",
+        "printf 'UNREVIEWED_REPLACEMENT_LAUNCHER_EXECUTED\\n'",
+        "exit 0",
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+
+    const result = spawnSync(
+      "/usr/bin/env",
+      [
+        "-i",
+        "HOME=/home/zoso",
+        "PATH=/usr/bin:/bin",
+        "LANG=C",
+        "LC_ALL=C",
+        "VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1=" + process.cwd(),
+        "VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1=" +
+          expectedLauncherBlob,
+        "/bin/bash",
+        "--noprofile",
+        "--norc",
+        "-s",
+        "--",
+        "preflight",
+        challengePath,
+        challengeSha,
+        reviewedHead,
+      ],
+      {
+        cwd: process.cwd(),
+        input: verifiedLauncherBytes,
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+
+    assert.equal(
+      result.status,
+      0,
+      ["buffered launcher preflight failed", result.stdout, result.stderr]
+        .join("\n"),
+    );
+    assert.match(
+      result.stdout,
+      /status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN/u,
+    );
+    assert.equal(
+      result.stdout.includes("UNREVIEWED_REPLACEMENT_LAUNCHER_EXECUTED"),
+      false,
+    );
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+// Adversary for the historical pre-pin realpath race: when the canonical-path
+// observation fires, swap the ancestor directory. Old ordering would then pin
+// and read the replacement; descriptor-first ordering has already pinned the
+// original inode and must reject the original pathname rebinding.
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-offline-signer-path-race-"),
+  );
+  const active = path.join(root, "active");
+  const replacement = path.join(root, "replacement");
+  const displaced = path.join(root, "displaced");
+  fs.mkdirSync(active, { mode: 0o700 });
+  fs.mkdirSync(replacement, { mode: 0o700 });
+  const target = path.join(active, "challenge.json");
+  const replacementTarget = path.join(replacement, "challenge.json");
+  const challengeBytes = Buffer.from(
+    JSON.stringify(challenge, null, 2) + "\n",
+    "utf8",
+  );
+  fs.writeFileSync(target, challengeBytes, { mode: 0o600 });
+  fs.writeFileSync(replacementTarget, challengeBytes, { mode: 0o600 });
+  fs.chmodSync(target, 0o600);
+  fs.chmodSync(replacementTarget, 0o600);
+  const challengeSha = crypto
+    .createHash("sha256")
+    .update(challengeBytes)
+    .digest("hex");
+
+  const originalNative = fs.realpathSync.native;
+  let swapped = false;
+  fs.realpathSync.native = function injectedRealpath(candidate, ...args) {
+    const resolved = originalNative(candidate, ...args);
+    if (!swapped && candidate === target) {
+      fs.renameSync(active, displaced);
+      fs.renameSync(replacement, active);
+      swapped = true;
+    }
+    return resolved;
+  };
+  try {
+    assert.throws(
+      () =>
+        testOnlyReadTransferredControlChallengeV1(
+          target,
+          challengeSha,
+        ),
+      /control_challenge_original_path_not_bound_to_pinned_file/u,
+    );
+    assert.equal(swapped, true);
+  } finally {
+    fs.realpathSync.native = originalNative;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const verified =
+  await verifyVoidWcVoidLaunchControllerControlSignatureV1({
+    challengeEnvelope: challenge,
+    signatureEnvelope: envelope,
+    nowUnix: now,
+  });
+
+assert.equal(
+  verified.candidate_address,
+  walletA.address.toLowerCase(),
+);
+assert.equal(verified.control_verified, true);
+assert.equal(verified.role_binding_authorized, false);
+assert.equal(verified.deployment_authorized, false);
+assert.equal(verified.funds_movement_authorized, false);
+
+await assert.rejects(
+  () =>
+    verifyVoidWcVoidLaunchControllerControlSignatureV1({
+      challengeEnvelope: challenge,
+      signatureEnvelope: envelope,
+      nowUnix: now + 901,
+    }),
+  /control_challenge_expired/u,
+  "an otherwise-valid quarantined/public signature must be non-authoritative after expiry",
+);
+
+await assert.rejects(
+  () =>
+    signControlChallengeCoreV1({
+      challengeEnvelope: challenge,
+      privateKey: PRIVATE_B,
+      expectedAddress: walletA.address,
+      nowUnix: now,
+      ethers,
+    }),
+  /launch_controller_private_key_address_mismatch/u,
+);
+
+await assert.rejects(
+  () =>
+    signControlChallengeCoreV1({
+      challengeEnvelope: challenge,
+      privateKey: PRIVATE_A,
+      expectedAddress: walletB.address,
+      nowUnix: now,
+      ethers,
+    }),
+  /control_challenge_semantics_invalid/u,
+);
+
+await assert.rejects(
+  () =>
+    signControlChallengeCoreV1({
+      challengeEnvelope: challenge,
+      privateKey: PRIVATE_A,
+      expectedAddress: walletA.address,
+      nowUnix: now + 901,
+      ethers,
+    }),
+  /control_challenge_expired/u,
+);
+
+{
+  const tampered = structuredClone(challenge);
+  tampered.typed_data.value.nonce =
+    "0x4444444444444444444444444444444444444444444444444444444444444444";
+  await assert.rejects(
+    () =>
+      signControlChallengeCoreV1({
+        challengeEnvelope: tampered,
+        privateKey: PRIVATE_A,
+        expectedAddress: walletA.address,
+        nowUnix: now,
+        ethers,
+      }),
+    /control_typed_data_semantics_invalid/u,
+  );
+}
+
+{
+  for (const field of ["issued_at_unix", "expires_at_unix"]) {
+    const numeric = structuredClone(challenge);
+    numeric.challenge[field] = Number(numeric.challenge[field]);
+    numeric.typed_data.value[field] = numeric.challenge[field];
+    numeric.typed_data_digest = ethers.TypedDataEncoder.hash(
+      numeric.typed_data.domain,
+      numeric.typed_data.types,
+      numeric.typed_data.value,
+    );
+    const material = {
+      marker: numeric.marker,
+      version: numeric.version,
+      challenge: numeric.challenge,
+      source_binding: numeric.source_binding,
+      typed_data: numeric.typed_data,
+    };
+    numeric.challenge_id =
+      "voidwclcc1_" +
+      crypto
+        .createHash("sha256")
+        .update(Buffer.from(canonicalJson(material), "utf8"))
+        .digest("hex");
+
+    await assert.rejects(
+      () =>
+        signControlChallengeCoreV1({
+          challengeEnvelope: numeric,
+          privateKey: PRIVATE_A,
+          expectedAddress: walletA.address,
+          nowUnix: now,
+          ethers,
+        }),
+      /control_challenge_semantics_invalid/u,
+      field + " must remain a canonical decimal string",
+    );
+  }
+}
+
+{
+  const forged = structuredClone(challenge);
+  forged.source_binding.source_head_sha = "f".repeat(40);
+  const bindingMaterial = {
+    source_head_sha: forged.source_binding.source_head_sha,
+    source_tree_sha: forged.source_binding.source_tree_sha,
+    control_contract_git_blob_sha1:
+      forged.source_binding.control_contract_git_blob_sha1,
+    source_blobs: forged.source_binding.source_blobs,
+    coupled_launch_id: forged.source_binding.coupled_launch_id,
+    coupled_launch_id_bytes32:
+      forged.source_binding.coupled_launch_id_bytes32,
+    compiled_identity_id: forged.source_binding.compiled_identity_id,
+    void_token: forged.source_binding.void_token,
+  };
+  const bindingDigest = crypto
+    .createHash("sha256")
+    .update(Buffer.from(canonicalJson(bindingMaterial), "utf8"))
+    .digest("hex");
+  forged.source_binding.source_binding_sha256 = bindingDigest;
+  forged.challenge.source_binding_sha256 = "0x" + bindingDigest;
+  forged.typed_data.value.source_binding_sha256 = "0x" + bindingDigest;
+  forged.typed_data_digest = ethers.TypedDataEncoder.hash(
+    forged.typed_data.domain,
+    forged.typed_data.types,
+    forged.typed_data.value,
+  );
+  const challengeMaterial = {
+    marker: forged.marker,
+    version: forged.version,
+    challenge: forged.challenge,
+    source_binding: forged.source_binding,
+    typed_data: forged.typed_data,
+  };
+  forged.challenge_id =
+    "voidwclcc1_" +
+    crypto
+      .createHash("sha256")
+      .update(Buffer.from(canonicalJson(challengeMaterial), "utf8"))
+      .digest("hex");
+
+  await assert.rejects(
+    () =>
+      signControlChallengeCoreV1({
+        challengeEnvelope: forged,
+        privateKey: PRIVATE_A,
+        expectedAddress: walletA.address,
+        nowUnix: now,
+        ethers,
+      }),
+    /offline_signer_current_head_not_exact_challenge_head/u,
+  );
+}
+
+{
+  const cleanEnv = {
+    HOME: "/home/zoso",
+    PATH: "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    VOID_NIMO_OFFLINE_SIGNER_LAUNCH_V1: "1",
+    VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1: reviewedHead,
+    VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1: process.cwd(),
+  };
+  const clean = validateSanitizedOfflineSignerEnvironmentV1(
+    cleanEnv,
+    "/usr/bin/node",
+    ["--input-type=module"],
+  );
+  assert.equal(clean.sanitized_environment, true);
+  assert.equal(clean.node_preload_flags_absent, true);
+
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        cleanEnv,
+        "/usr/bin/node",
+        [],
+      ),
+    /offline_signer_node_preload_flags_forbidden/u,
+    "production signer must reject missing streamed-module launch flag",
+  );
+
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        { ...cleanEnv, NODE_OPTIONS: "--import=/tmp/evil.mjs" },
+        "/usr/bin/node",
+        ["--input-type=module"],
+      ),
+    /offline_signer_environment_not_sanitized/u,
+  );
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        cleanEnv,
+        "/usr/bin/node",
+        ["--import=/tmp/evil.mjs"],
+      ),
+    /offline_signer_node_preload_flags_forbidden/u,
+  );
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        { ...cleanEnv, HOME: "/tmp/alternate" },
+        "/usr/bin/node",
+        ["--input-type=module"],
+      ),
+    /offline_signer_environment_not_sanitized/u,
+  );
+  assert.throws(
+    () =>
+      validateSanitizedOfflineSignerEnvironmentV1(
+        {
+          ...cleanEnv,
+          VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1: "/tmp",
+        },
+        "/usr/bin/node",
+        ["--input-type=module"],
+      ),
+    /offline_signer_environment_not_sanitized/u,
+  );
+}
+
+// Production signing no longer enters the historical package-tree runtime.
+// The exact standalone ethers bundle self-check above is the authority-bearing
+// package admission proof for this lane.
+
+const launcherSource = fs.readFileSync(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
+  "utf8",
+);
+const operatorDoc = fs.readFileSync(
+  "docs/operators/wc-void-launch-controller-control-offline-signing-v1.md",
+  "utf8",
+);
+
+{
+  const syntax = spawnSync(
+    "/bin/bash",
+    ["-n", "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  assert.equal(
+    syntax.status,
+    0,
+    ["offline signer launcher must parse under bash -n", syntax.stdout, syntax.stderr].join("\n"),
+  );
+}
+assert.equal(
+  signerSource.includes("status\", \"--porcelain=v1"),
+  false,
+  "streamed signer must not retain filter-sensitive git status",
+);
+assert.equal(
+  signerSource.includes("status --porcelain"),
+  false,
+  "streamed signer must not retain textual git status commands",
+);
+assert.equal(
+  launcherSource.includes("chunks = []"),
+  false,
+  "tracked worktree verification must not buffer whole files",
+);
+assert.equal(
+  launcherSource.includes('digest.update(b"blob " + str(opened.st_size).encode("ascii") + b"\\0")'),
+  true,
+  "tracked worktree blob hashing must seed Git blob SHA-1 incrementally",
+);
+assert.equal(
+  launcherSource.includes("digest.update(chunk)"),
+  true,
+  "tracked worktree blob hashing must update SHA-1 per bounded chunk",
+);
+assert.equal(
+  operatorDoc.includes('cat-file", "blob", expected_blob'),
+  true,
+  "operator bootstrap must read the reviewed launcher by Git blob ID",
+);
+assert.equal(
+  operatorDoc.includes('actual_blob = hashlib.sha1('),
+  true,
+  "operator bootstrap must verify the complete launcher Git blob in memory",
+);
+assert.equal(
+  operatorDoc.includes('input=launcher_bytes'),
+  true,
+  "operator bootstrap must execute the already-verified launcher bytes through Bash stdin",
+);
+assert.equal(
+  operatorDoc.includes('/usr/bin/python3 -I -P -'),
+  true,
+  "operator bootstrap must run Python in isolated safe-path mode",
+);
+assert.equal(
+  launcherSource.includes('/usr/bin/python3 -I -P - "$challenge" "$challenge_sha"'),
+  true,
+  "reviewed launcher challenge parser must run Python in isolated safe-path mode",
+);
+assert.equal(
+  launcherSource.includes("challenge_size > 0 && challenge_size <= 2 * 1024 * 1024"),
+  true,
+  "launcher must reject oversized transferred challenge bytes before parsing",
+);
+assert.equal(
+  launcherSource.includes("stat.st_size < 1 or stat.st_size > 2 * 1024 * 1024"),
+  true,
+  "isolated launcher parser must enforce the same file-size ceiling after nofollow open",
+);
+assert.equal(
+  launcherSource.includes("raw = os.read(fd, stat.st_size + 1)"),
+  true,
+  "isolated launcher parser must bound its single read to the validated file size plus one byte",
+);
+assert.equal(
+  launcherSource.includes("hashlib.sha256(raw).hexdigest() != expected_sha"),
+  true,
+  "launcher source-head parse must bind to the exact transferred challenge SHA-256",
+);
+assert.equal(
+  operatorDoc.includes(
+    '"VOID_NIMO_OFFLINE_SIGNER_EXECUTED_LAUNCHER_BLOB_V1": expected_blob',
+  ),
+  true,
+  "operator bootstrap must pass the verified launcher blob as defense-in-depth",
+);
+assert.equal(
+  operatorDoc.includes('/proc/self/fd/9'),
+  false,
+  "production ceremony must not depend on a mutable staged launcher inode",
+);
+assert.equal(
+  operatorDoc.includes('$stage/launcher.sh'),
+  false,
+  "production ceremony must not stage and reopen a launcher pathname",
+);
+assert.equal(
+  launcherSource.includes('current_head_not_exact_operator_reviewed_head'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('challenge_source_head_not_operator_reviewed_head'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('VOID_NIMO_OFFLINE_SIGNER_REVIEWED_HEAD_V1'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('executed_launcher_not_operator_reviewed_blob'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('VOID_NIMO_OFFLINE_SIGNER_REPO_ROOT_V1'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('critical_worktree_blob_mismatch'),
+  true,
+);
+assert.equal(
+  launcherSource.includes('"ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"'),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    "reviewed_signer_transport=verified_git_blob_stdin",
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    "ethers_execution=in_memory_sha256_pinned_bundle",
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    "reviewed_runtime_helper_transport=verified_git_blob_environment",
+  ),
+  false,
+);
+assert.equal(
+  launcherSource.includes(
+    "VOID_NIMO_OFFLINE_SIGNER_RUNTIME_HELPER_B64_V1",
+  ),
+  false,
+);
+assert.equal(
+  launcherSource.includes(
+    'cat-file blob "$reviewed_signer_blob"',
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    'hash-object --stdin',
+  ),
+  true,
+  "transported signer bytes must be re-hashed before execution",
+);
+assert.equal(
+  launcherSource.includes(
+    '[[ "$actual_signer_blob" == "$reviewed_signer_blob" ]]',
+  ),
+  true,
+);
+assert.equal(
+  launcherSource.includes(
+    '"$repo/ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs"',
+  ),
+  false,
+  "sign mode must not execute the mutable worktree signer path",
+);
+assert.equal(
+  launcherSource.includes("reviewed_runtime_root="),
+  false,
+  "outer authority-bearing signer execution must not use a temporary executable tree",
+);
+assert.equal(
+  launcherSource.includes(
+    "status=EXACT_REVIEWED_SIGNER_SIGN_OPERATION_AUTHORIZED",
+  ),
+  true,
+);
+
+const nodeInvocationNeedle =
+  '/usr/bin/node \\\n' +
+  '    --input-type=module \\\n' +
+  '    - \\\n' +
+  '    sign \\\n';
+const nodeInvocationAt = launcherSource.indexOf(nodeInvocationNeedle);
+assert.ok(
+  nodeInvocationAt >= 0,
+  "reviewed signer must execute exact streamed module bytes on stdin",
+);
+
+{
+  const modeBranch = launcherSource.indexOf(
+    'if [[ "$mode" == "preflight" ]]',
+  );
+  const preflightFalse = launcherSource.indexOf(
+    "private_key_access=false",
+    modeBranch,
+  );
+  const branchEnd = launcherSource.indexOf("\nfi\n", modeBranch);
+  const signTrue = launcherSource.indexOf(
+    "private_key_access=true",
+    branchEnd,
+  );
+  assert.ok(modeBranch >= 0 && branchEnd > modeBranch);
+  assert.ok(
+    preflightFalse > modeBranch && preflightFalse < branchEnd,
+    "false key-access fact must be emitted only in preflight branch",
+  );
+  assert.ok(
+    signTrue > branchEnd && signTrue < nodeInvocationAt,
+    "sign mode must announce true key access before the actual Node invocation",
+  );
+}
+for (const access of [
+  "private_key_access=true",
+  "credential_access=true",
+  "wallet_or_signer_access=true",
+]) {
+  assert.ok(
+    launcherSource.indexOf(access) < nodeInvocationAt,
+    access + " must be announced before streamed signer execution",
+  );
+}
+
+const outputParentRace =
+  testOnlyExerciseSignatureOutputParentReplacementV1();
+assert.match(
+  String(outputParentRace.reason || ""),
+  /signature_output_quarantined_after_failure:signature_output_path_changed_after_create/u,
+);
+assert.equal(outputParentRace.replacement_output_exists, false);
+assert.equal(
+  outputParentRace.displaced_output_exists,
+  true,
+  "published signature must be quarantined in the displaced parent on failure",
+);
+
+const outputExpiry =
+  testOnlyExerciseSignatureOutputExpiryQuarantineV1();
+assert.match(
+  String(outputExpiry.reason || ""),
+  /signature_output_quarantined_after_failure:control_challenge_expired_after_output_write/u,
+);
+assert.equal(
+  outputExpiry.output_exists,
+  true,
+  "expired durable signature remains quarantined and must never be reported as success",
+);
+
+const replacementQuarantine =
+  testOnlyExerciseSignatureOutputReplacementQuarantineV1();
+assert.match(
+  String(replacementQuarantine.reason || ""),
+  /signature_output_quarantined_after_failure:control_challenge_expired_after_output_write/u,
+);
+assert.equal(replacementQuarantine.replacement_output_exists, true);
+assert.equal(replacementQuarantine.displaced_signature_exists, true);
+assert.match(
+  String(replacementQuarantine.replacement_bytes || ""),
+  /UNRELATED_REPLACEMENT/u,
+  "late failure must not delete an unrelated replacement basename",
+);
+
+const signerSource = fs.readFileSync(
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
+  "utf8",
+);
+
+assert.equal(
+  signerSource.includes(
+    'from "../../tools/void-reviewed-node-package-runtime-v1.mjs"',
+  ),
+  false,
+  "production streamed signer must not statically reopen the runtime helper path",
+);
+assert.equal(
+  signerSource.includes(
+    'ETHERS_STANDALONE_BUNDLE_RELATIVE_V1 =\n  "node_modules/ethers/dist/ethers.min.js"',
+  ),
+  true,
+);
+assert.equal(
+  signerSource.includes(
+    '"b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c"',
+  ),
+  true,
+);
+assert.equal(
+  signerSource.includes(
+    "async function loadPinnedStandaloneEthersV1()",
+  ),
+  true,
+);
+assert.equal(
+  signerSource.includes(
+    '"data:text/javascript;base64," + source.bytes.toString("base64")',
+  ),
+  true,
+  "production ethers must execute from exact verified in-memory bytes",
+);
+assert.equal(
+  signerSource.includes('process.argv[1] === "-"'),
+  true,
+  "production streamed module must have an explicit direct-main boundary",
+);
+
+assert.equal(
+  signerSource.includes("const ethersEntry = path.join("),
+  false,
+  "production parent must not construct an in-process ethers entry path",
+);
+assert.equal(
+  /await import\(\s*pathToFileURL\(ethersEntry\)/u.test(signerSource),
+  false,
+  "production parent must not dynamically import reviewed ethers",
+);
+{
+  const selectedStart = signerSource.indexOf(
+    "export async function signSelectedLaunchControllerChallengeV1",
+  );
+  const selectedEnd = signerSource.indexOf(
+    "\nfunction usage()",
+    selectedStart,
+  );
+  assert.ok(selectedStart >= 0 && selectedEnd > selectedStart);
+  const selectedSource = signerSource.slice(selectedStart, selectedEnd);
+  assert.equal(
+    selectedSource.includes("loadPinnedStandaloneEthersV1()"),
+    true,
+  );
+  assert.equal(
+    selectedSource.includes("withReviewedSigningRuntimeV1"),
+    false,
+    "production key path must not enter the mutable package-tree runtime",
+  );
+  assert.equal(
+    selectedSource.includes('runtime.run("sign"'),
+    false,
+    "production key path must not stream the key to a package-tree child",
+  );
+  assert.equal(
+    selectedSource.includes("readPrivateKeyV1(KEY_PATH_V1)"),
+    true,
+  );
+  assert.ok(
+    selectedSource.indexOf("loadPinnedStandaloneEthersV1()") <
+      selectedSource.indexOf("readPrivateKeyV1(KEY_PATH_V1)"),
+    "pinned in-memory ethers must be verified before key access",
+  );
+}
+
+assert.equal(
+  signerSource.includes(
+    '"/home/zoso/.local/share/void/offline-keys/wc-void-launch-controller-v1/private-key.hex"',
+  ),
+  true,
+);
+assert.equal(signerSource.includes("os.homedir()"), false);
+assert.equal(signerSource.includes('"key-file"'), false);
+{
+  const keyReaderStart = signerSource.indexOf("function readPrivateKeyV1");
+  const keyReaderEnd = signerSource.indexOf(
+    "function writeExclusiveJsonV1",
+    keyReaderStart,
+  );
+  assert.ok(keyReaderStart >= 0 && keyReaderEnd > keyReaderStart);
+  const keyReaderSource = signerSource.slice(keyReaderStart, keyReaderEnd);
+  assert.equal(
+    keyReaderSource.includes('/^(?:0x)?[0-9a-fA-F]{64}\\n?$/u'),
+    true,
+  );
+  assert.equal(
+    keyReaderSource.includes(".trim()"),
+    false,
+    "private-key reader must not normalize whitespace",
+  );
+  assert.equal(
+    keyReaderSource.includes('source.bytes.fill(0)'),
+    true,
+    "private-key reader must zero the direct byte buffer",
+  );
+}
+assert.equal(
+  signerSource.includes(
+    'fail(label + "_original_path_not_bound_to_pinned_file")',
+  ),
+  true,
+  "descriptor-first stable reader must bind the original path back to the pinned inode",
+);
+assert.equal(
+  signerSource.includes("function openPinnedParentDirectoryV1"),
+  true,
+);
+{
+  const writerStart = signerSource.indexOf("function writeExclusiveJsonV1");
+  const writerEnd = signerSource.indexOf(
+    "export function testOnlyExerciseSignatureOutputParentReplacementV1",
+    writerStart,
+  );
+  assert.ok(writerStart >= 0 && writerEnd > writerStart);
+  const writerSource = signerSource.slice(writerStart, writerEnd);
+  const pinAt = writerSource.indexOf(
+    'openPinnedParentDirectoryV1(\n    file,\n    "signature_output",',
+  );
+  const canonicalAt = writerSource.indexOf(
+    "parentCanonical = fs.realpathSync.native(parentPath)",
+  );
+  const createAt = writerSource.indexOf(
+    "fd = fs.openSync(\n      pinnedOutput",
+  );
+  assert.ok(pinAt >= 0);
+  assert.ok(canonicalAt > pinAt);
+  assert.ok(createAt > canonicalAt);
+  assert.equal(
+    writerSource.includes("fs.openSync(\n    file,"),
+    false,
+    "signature output must never reopen the mutable original pathname",
+  );
+  assert.equal(
+    writerSource.includes("fs.fsyncSync(parent.fd)"),
+    true,
+    "signature output parent directory must be fsynced",
+  );
+  assert.equal(
+    writerSource.includes("fs.unlinkSync(pinnedOutput)"),
+    false,
+    "post-publication failure must never path-delete the published basename",
+  );
+  assert.equal(
+    writerSource.includes("signature_output_quarantined_after_failure:"),
+    true,
+    "post-publication failure must return a quarantine marker instead of cleanup",
+  );
+  assert.equal(
+    writerSource.includes("control_challenge_expired_after_output_write"),
+    true,
+    "durable output writer must recheck challenge expiry before success",
+  );
+  assert.equal(
+    writerSource.includes(
+      "!sameOpenedFileIdentityV1(parentFdStat, parentAfter)",
+    ),
+    true,
+    "original output parent must still bind to the retained directory inode",
+  );
+  assert.equal(
+    writerSource.includes(
+      "!sameOpenedFileIdentityV1(createdStat, outputAfter)",
+    ),
+    true,
+    "original output pathname must rebind to the created inode",
+  );
+}
+{
+  const readStart = signerSource.indexOf("function readStableFileV1");
+  const readEnd = signerSource.indexOf("function readChallengeV1", readStart);
+  const readSource = signerSource.slice(readStart, readEnd);
+  const pinIndex = readSource.indexOf(
+    "const parent = openPinnedParentDirectoryV1(file, label);",
+  );
+  const canonicalIndex = readSource.indexOf(
+    "canonicalBound = fs.realpathSync.native(file);",
+  );
+  const pinnedOpenIndex = readSource.indexOf(
+    "fd = fs.openSync(\n      pinnedPath",
+  );
+  assert.ok(readStart >= 0 && readEnd > readStart);
+  assert.ok(pinIndex >= 0, "descriptor chain must be acquired");
+  assert.ok(pinnedOpenIndex > pinIndex, "file open must use pinned parent");
+  assert.ok(
+    canonicalIndex > pinnedOpenIndex,
+    "pathname canonicalization must occur only after parent/file pinning",
+  );
+  assert.equal(
+    readSource.includes("canonicalBefore = fs.realpathSync.native(file)"),
+    false,
+    "no unpinned canonical-path authority may precede descriptor acquisition",
+  );
+  assert.equal(
+    readSource.includes(
+      "!sameOpenedFileIdentityV1(before, originalPathBefore)",
+    ),
+    true,
+    "original path must bind back to the pinned opened inode before read",
+  );
+  assert.equal(
+    readSource.includes(
+      "!sameOpenedFileIdentityV1(after, originalPathAfter)",
+    ),
+    true,
+    "original path must still bind to the pinned inode after read",
+  );
+}
+assert.equal(
+  signerSource.includes('"/proc/self/fd/" + fd'),
+  true,
+);
+assert.equal(
+  signerSource.includes("pathnameBefore = fs.lstatSync(pinnedPath"),
+  true,
+);
+assert.equal(
+  signerSource.includes("!sameOpenedFileIdentityV1(pathnameBefore, before)"),
+  true,
+);
+assert.equal(
+  signerSource.includes("!sameOpenedFileIdentityV1(after, pathnameAfter)"),
+  true,
+);
+assert.equal(signerSource.includes("http:"), false);
+assert.equal(signerSource.includes("https:"), false);
+assert.equal(signerSource.includes("fetch("), false);
+assert.equal(signerSource.includes("WebSocket"), false);
+assert.equal(signerSource.includes("JsonRpcProvider"), false);
+assert.equal(signerSource.includes("transaction_signing: false"), true);
+assert.equal(
+  signerSource.includes(
+    'execArgv[0] !== "--input-type=module"',
+  ),
+  true,
+  "production signer must admit only the required streamed-module execArgv flag",
+);
+assert.equal(signerSource.includes("transaction_broadcast: false"), true);
+assert.equal(signerSource.includes("funds_movement: false"), true);
+assert.equal(
+  launcherSource.includes("repository_info_attributes_forbidden"),
+  true,
+);
+assert.equal(
+  launcherSource.includes("repository_local_git_config_forbidden"),
+  true,
+);
+assert.equal(
+  (launcherSource.match(/hash-object --no-filters/gu) || []).length >= 3,
+  true,
+  "all launcher worktree/blob hashes must bypass Git filters",
+);
+assert.equal(
+  launcherSource.includes("status --porcelain"),
+  false,
+  "reviewed launcher must not execute or retain filter-aware git status paths",
+);
+assert.equal(
+  (launcherSource.match(/status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN/gu) || [])
+    .length,
+  1,
+  "reviewed launcher must contain exactly one executable preflight body",
+);
+assert.equal(
+  launcherSource.includes("status --porcelain"),
+  false,
+  "offline cleanliness must not call filter-sensitive git status",
+);
+for (const required of [
+  '"ls-tree", "-r", "-z", "--full-tree", reviewed_head',
+  '"ls-files", "-s", "-z"',
+  '"ls-files", "--others", "--exclude-standard", "-z"',
+  "hashlib.sha1(",
+  'getattr(os, "O_NOFOLLOW", 0)',
+  '"core.excludesFile=/dev/null"',
+]) {
+  assert.equal(
+    launcherSource.includes(required),
+    true,
+    "raw reviewed-tree cleanliness contract missing: " + required,
+  );
+}
+for (const obsolete of [
+  "reviewedRuntimeHelperV1",
+  "reviewedSigningBridgeSourceV1",
+  "runPermissionFencedReviewedChildV1",
+  "withReviewedSigningRuntimeV1",
+  "reviewedOfflineSigningRuntimeV1",
+  "testOnlyReviewedAncestorPackageFallbackBlockedV1",
+]) {
+  assert.equal(
+    signerSource.includes(obsolete),
+    false,
+    "obsolete package-tree runtime must be absent: " + obsolete,
+  );
+}
+assert.equal(
+  signerSource.includes(
+    "return await signValidatedControlChallengeV1({\n    reviewed,\n    privateKey,\n    ethers,\n  });",
+  ),
+  false,
+  "validated signing helper must not recursively call itself",
+);
+assert.equal(
+  signerSource.includes(
+    'fail("offline_signer_current_head_not_exact_challenge_head")',
+  ),
+  true,
+  "production signer must require exact challenge source HEAD",
+);
+{
+  const selectedStart = signerSource.indexOf(
+    "export async function signSelectedLaunchControllerChallengeV1",
+  );
+  const selectedEnd = signerSource.indexOf(
+    "\nfunction usage()",
+    selectedStart,
+  );
+  assert.ok(selectedStart >= 0 && selectedEnd > selectedStart);
+  const selectedSource = signerSource.slice(selectedStart, selectedEnd);
+
+  assert.equal(
+    selectedSource.includes("loadPinnedStandaloneEthersV1()"),
+    true,
+    "production signer must verify the pinned standalone ethers bundle",
+  );
+  assert.equal(
+    selectedSource.includes("withReviewedSigningRuntimeV1"),
+    false,
+    "production key path must not execute a mutable package-tree runtime",
+  );
+  assert.equal(
+    selectedSource.includes('runtime.run("sign"'),
+    false,
+    "production key path must not stream the key to a package-tree child",
+  );
+  assert.equal(
+    selectedSource.includes("readPrivateKeyV1(KEY_PATH_V1)"),
+    true,
+  );
+  assert.ok(
+    selectedSource.indexOf("loadPinnedStandaloneEthersV1()") <
+      selectedSource.indexOf("readPrivateKeyV1(KEY_PATH_V1)"),
+    "exact in-memory ethers bundle must be admitted before private-key access",
+  );
+  assert.equal(
+    selectedSource.includes(
+      "ethers_execution_from_memory: true",
+    ),
+    true,
+  );
+  assert.equal(
+    selectedSource.includes(
+      "package_resolution_used_for_signing: false",
+    ),
+    true,
+  );
+  assert.equal(
+    selectedSource.includes(
+      "BigInt(Math.floor(Date.now() / 1000)) >=\n    BigInt(reviewed.expires_at_unix)",
+    ),
+    true,
+    "production signer must recheck expiry after runtime admission",
+  );
+}
+
+assert.equal(
+  signerSource.includes(
+    'ETHERS_STANDALONE_BUNDLE_RELATIVE_V1 =\n  "node_modules/ethers/dist/ethers.min.js"',
+  ),
+  true,
+);
+assert.equal(
+  signerSource.includes(
+    '"b016b0c3898c78fd8156466eb1ff1f42c9df951c2f0d64c9bdf799fe745b0a6c"',
+  ),
+  true,
+);
+assert.equal(
+  signerSource.includes(
+    '"data:text/javascript;base64," + source.bytes.toString("base64")',
+  ),
+  true,
+  "production ethers must execute only from exact verified in-memory bytes",
+);
+assert.equal(
+  signerSource.includes(
+    "expectedSha256: ETHERS_STANDALONE_BUNDLE_SHA256_V1",
+  ),
+  true,
+  "bundle bytes must be content-bound before import",
+);
+assert.equal(
+  /signSelectedLaunchControllerChallengeV1\(\{[\s\S]*?nowUnix\s*=/u.test(
+    signerSource,
+  ),
+  false,
+  "production selected-key signer must not accept a caller-supplied signing time",
+);
+
+assert.equal(
+  SELECTED_REVIEWER_ADDRESS_V1,
+  "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e",
+);
+assert.deepEqual(
+  VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
+  {
+    offline_operator_action: true,
+    fixed_selected_reviewer_only: true,
+    exact_public_challenge_required: true,
+    reviewed_ethers_runtime_required: false,
+    pinned_standalone_ethers_bundle_required: true,
+    ethers_execution_from_memory: true,
+    package_resolution_used_for_signing: false,
+    sanitized_process_environment_required: true,
+    node_preload_flags_forbidden: true,
+    current_source_binding_reverification_required: true,
+    private_key_path_fixed: true,
+    absolute_key_path_fixed: true,
+    private_key_access: true,
+    credential_access: true,
+    wallet_or_signer_access: true,
+    private_key_printed: false,
+    private_key_copied_to_repository: false,
+    private_key_exported: false,
+    network_access_required: false,
+    rpc_call: false,
+    wallet_provider_access: false,
+    transaction_construction: false,
+    transaction_signing: false,
+    transaction_submission: false,
+    transaction_broadcast: false,
+    chain2050_write: false,
+    wc_ledger_write: false,
+    runtime_service_mutation: false,
+    deployment_authorized: false,
+    inventory_funding_authorized: false,
+    market_activation: false,
+    public_presale_activation: false,
+    funds_movement: false,
+  },
+);
+
+console.log(
+  "VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1_PROOF_GREEN",
+);
+console.log("synthetic_typed_data_signature_verified=true");
+console.log("wrong_private_key_rejected=true");
+console.log("wrong_candidate_rejected=true");
+console.log("expired_challenge_rejected=true");
+console.log("typed_data_tamper_rejected=true");
+console.log("self_authored_source_binding_rejected=true");
+console.log("sanitized_launch_environment_required=true");
+console.log("node_preload_flags_rejected=true");
+console.log("streamed_module_input_type_flag_required=true");
+console.log("real_streamed_sign_environment_validation_green_before_key_access=true");
+console.log("synthetic_sign_path_key_access=false");
+console.log("home_override_rejected=true");
+console.log("current_source_binding_reverified_before_key_access=true");
+console.log("exact_challenge_source_head_required=true");
+console.log("independent_operator_reviewed_head_required=true");
+console.log("challenge_head_cannot_self_authorize_signer=true");
+console.log("launcher_materialized_from_reviewed_commit=true");
+console.log("executed_launcher_self_blob_verified=true");
+console.log("tampered_launcher_rejected=true");
+console.log("content_addressed_launcher_stream_execution=true");
+console.log("launcher_bytes_verified_before_bash_stdin=true");
+console.log("launcher_path_replacement_after_byte_verification_ignored=true");
+console.log("reviewed_launcher_bootstrap_verified_byte_stream=true");
+console.log("reviewed_launcher_path_reopen=false");
+console.log("reviewed_signer_git_blob_stream_verified=true");
+console.log("outer_temporary_executable_tree=false");
+console.log("reviewed_signer_stdin_execution=true");
+console.log("production_ethers_bundle_sha256_pinned=true");
+console.log("production_ethers_execution_from_memory=true");
+console.log("production_package_resolution_used_for_signing=false");
+console.log("standalone_ethers_byte_drift_rejected_before_key_access=true");
+console.log("mutable_worktree_signer_execution=false");
+console.log("exact_head_launcher_preflight_green=true");
+console.log("launcher_critical_blobs_verified=true");
+console.log("private_key_access_reported=true");
+console.log("credential_access_reported=true");
+console.log("wallet_or_signer_access_reported=true");
+console.log("sign_mode_access_announced_before_exec=true");
+console.log("sign_mode_ordering_bound_to_actual_node_invocation=true");
+console.log("production_package_tree_child=false");
+console.log("obsolete_package_tree_runtime_removed=true");
+console.log("production_private_key_transport_to_child=false");
+console.log("production_dynamic_ethers_package_import=false");
+console.log("production_ethers_data_url_import=true");
+console.log("ambient_ethers_byte_drift_rejected_before_key_access=true");
+console.log("selected_reviewer_fixed=true");
+console.log("private_key_path_fixed=true");
+console.log("key_file_cli_override=false");
+console.log("exact_private_key_file_format=true");
+console.log("private_key_whitespace_normalization=false");
+console.log("canonical_input_paths_required=true");
+console.log("descriptor_chain_is_first_trusted_path_observation=true");
+console.log("unpinned_realpath_precheck=false");
+console.log("ancestor_swap_after_pin_rejected=true");
+console.log("original_path_rebound_to_pinned_inode=true");
+console.log("pinned_parent_directory_chain=true");
+console.log("preopen_path_identity_bound=true");
+console.log("parent_symlink_alias_rejected=true");
+console.log("input_path_inode_rebound_after_read=true");
+console.log("signature_output_parent_descriptor_bound=true");
+console.log("signature_output_parent_replacement_rejected=true");
+console.log("signature_output_redirect_quarantine_verified=true");
+console.log("signature_output_postwrite_expiry_quarantine_verified=true");
+console.log("history_independent_negative_reviewed_object_proof=true");
+console.log("launcher_challenge_parse_bounded=true");
+console.log("repository_info_attributes_rejected_before_worktree_git=true");
+console.log("repository_local_filter_config_rejected_before_worktree_git=true");
+console.log("worktree_blob_hashing_uses_no_filters=true");
+console.log("filter_aware_git_status_absent=true");
+console.log("single_launcher_body=true");
+console.log("git_status_filter_path_used=false");
+console.log("launcher_bash_syntax_green=true");
+console.log("streamed_signer_git_status_absent=true");
+console.log("tracked_worktree_hashing_incremental=true");
+console.log("reviewed_tree_index_exact_match_required=true");
+console.log("tracked_worktree_blob_ids_recomputed_from_raw_bytes=true");
+console.log("nonignored_untracked_files_rejected=true");
+console.log("challenge_timestamp_string_types_required=true");
+console.log("production_signing_helper_non_recursive=true");
+console.log("post_runtime_signing_clock_sampled=true");
+console.log("expiry_rechecked_before_and_after_signature=true");
+console.log("production_now_override=false");
+console.log("network_access_required=false");
+console.log("transaction_signing=false");
+console.log("transaction_broadcast=false");
+console.log("chain2050_write=false");
+console.log("signature_output_postpublish_cleanup_disabled=true");
+console.log("expired_public_signature_rejected_by_canonical_verifier=true");
+console.log("signature_output_replacement_quarantined_not_deleted=true");
+console.log("funds_movement=false");
+console.log(
+  "marker=" +
+    VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
+);
