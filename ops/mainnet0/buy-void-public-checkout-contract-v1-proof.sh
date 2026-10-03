@@ -97,6 +97,7 @@ assert '"buy_void_ethereum_requests_disabled"' in request
 assert '!cfg.ethereum_requests_enabled' in request
 assert 'send_chain: source_chain' in request
 assert "one_active_request_per_void_destination" in request
+assert '(activeForDestination.source_chain || "base") === source_chain' in request
 assert "payment_tx_hash_not_allowed_at_request_creation" in request
 assert "send_from: void_destination_address" in request
 assert "automatic_fulfillment: false" in request
