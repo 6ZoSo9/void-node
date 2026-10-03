@@ -26,15 +26,17 @@ for (const [name, source] of Object.entries({
   assert.match(source, /exchange|custodial/i, `${name} must carry exchange custody warning`);
   assert.match(source, /lost/i, `${name} must state loss consequence`);
 }
-assert.match(files.views, /Ethereum mainnet native USDC is policy-approved, but the current purchase-request flow accepts Base only/);
-assert.match(files.home, /Ethereum native USDC is policy-approved but must not be sent until the site explicitly marks that rail OPEN/);
-assert.match(files.checkout, /This checkout remains Base-only/);
-assert.ok(files.checkout.includes(ethereumUsdc), 'checkout contract must identify canonical Ethereum USDC without presenting it as active');
+assert.match(files.views, /Base Mainnet and Ethereum Mainnet native USDC are supported request rails/);
+assert.match(files.home, /Base native USDC and Ethereum Mainnet native USDC are supported request rails/);
+assert.match(files.checkout, /accepts exactly two payment rails/);
+assert.ok(files.checkout.includes(ethereumUsdc), 'checkout contract must identify canonical Ethereum USDC');
 
 
 for (const token of [
   receiver,
   usdc,
+  ethereumUsdc,
+  'data-buy-chain',
   "BUY_REQUEST_ENDPOINT = '/__void/buy-void/request'",
   "method: 'POST'",
   'config.requests_enabled === true',
@@ -42,6 +44,8 @@ for (const token of [
   'snapshot.sale.sold_out === false',
   'snapshot.sale.remaining_void > 0',
   'payment_sender_must_equal_void_destination',
+  'source_chain: chain',
+  'ack_native_usdc',
   'do_not_send_from_exchange',
   'do_not_send_from_exchange_or_pooled_custody',
   'VOID cannot recover exchange/custodial sends',
@@ -75,6 +79,7 @@ assert.match(files.home, /WC \/ VOID \/ ACTIVATION-GATED/);
 
 console.log('VOID_PUBLIC_ECONOMIC_LAUNCH_UI_PROOF_V1_GREEN');
 console.log('presale_request_ui_activation_gated=true');
+console.log('presale_dual_rail_request_ui=true');
 console.log('exchange_custody_loss_warning=true');
 console.log('browser_wallet_send=false');
 console.log('wc_earn_not_void_direct=true');
