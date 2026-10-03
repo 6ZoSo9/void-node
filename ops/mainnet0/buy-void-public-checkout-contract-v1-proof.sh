@@ -105,6 +105,7 @@ assert "Buy VOID with USDC" in page
 assert "Native VOID destination address (chain ID 2050)" in page
 assert 'id="buyChain"' in page
 assert 'value="base"' in page and 'value="ethereum"' in page
+assert 'document.querySelector(\'#buyChain option[value="ethereum"]\').disabled=!cfg.ethereum_requests_enabled;' in page
 assert 'source_chain:chain' in page
 assert 'ack_native_usdc:buyChecked("ackNativeUsdc")' in page
 assert 'fetch("/__void/buy-void/request"' in page

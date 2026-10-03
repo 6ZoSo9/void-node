@@ -18369,13 +18369,8 @@ small{color:#94a3b8}
       const configuredReceiveAddressLower = configuredReceiveAddress.toLowerCase();
       const boundReceiveAddressLower = __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1.toLowerCase();
       const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddressLower !== boundReceiveAddressLower;
-      const receiverBindingSource = configuredReceiveAddress
-        ? (receiverBindingConflict ? "environment_conflict_hold" : "source_and_environment_exact_match")
-        : "source_bound_operator_approved_receiver";
-      const usdc_symbol = "USDC";
-      const rate_void_per_usdc = String(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
-      const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
-      const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
+      const receiverBindingSource=configuredReceiveAddress?(receiverBindingConflict?"environment_conflict_hold":"source_and_environment_exact_match"):"source_bound_operator_approved_receiver";
+      const usdc_symbol="USDC",rate_void_per_usdc=String(process.env.VOID_BUY_RATE_VOID_PER_USDC||"2"),min_usdc=Number(process.env.VOID_BUY_MIN_USDC||"1"),max_usdc=Number(process.env.VOID_BUY_MAX_USDC||"500");
       const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
       const ethereum_requests_enabled=requests_enabled&&process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1";
       const payment_ready = !receiverBindingConflict;
@@ -19464,6 +19459,7 @@ async function loadBuyCheckoutV1(){
     buyCheckoutConfig=cfg;
     buyText("buyNetwork","Base 8453 / Ethereum 1");
     buyText("buyUsdcContract","See request");
+    document.querySelector('#buyChain option[value="ethereum"]').disabled=!cfg.ethereum_requests_enabled;
     buyText("buyReceiver",cfg.receive_address || "Unavailable");
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
