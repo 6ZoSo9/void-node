@@ -171,7 +171,7 @@ if (ready.ok) {
   assert.equal(ready.chain_id, "1");
   assert.equal(ready.payment_instructions_finality_gate_ready, true);
   assert.equal(ready.payment_verified_finality_gate_ready, false);
-  assert.equal(ready.inventory_reservation_finality_gate_ready, false);
+  assert.equal(ready.inventory_reservation_authorized, false);
   assert.equal(ready.runtime_config_mutation_performed, false);
   assert.equal(ready.payment_event_write_performed, false);
   assert.equal(ready.inventory_write_performed, false);
@@ -210,7 +210,7 @@ if (missingAttempt.ok === false) {
     false,
   );
   assert.equal(missingAttempt.payment_verified_finality_gate_ready, false);
-  assert.equal(missingAttempt.inventory_reservation_finality_gate_ready, false);
+  assert.equal(missingAttempt.inventory_reservation_authorized, false);
 }
 
 const disabledIntakeEnv: NodeJS.ProcessEnv = {
