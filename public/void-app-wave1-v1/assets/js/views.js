@@ -524,13 +524,15 @@ function buyView() {
             </div>
             <div class="form-field">
               <label for="buy-usdc-amount">Native USDC amount</label>
-              <input class="input" id="buy-usdc-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="25" data-buy-amount disabled>
-              <small data-buy-limits>Loading live purchase limits.</small>
+              <input class="input" id="buy-usdc-amount" name="amount" inputmode="decimal" autocomplete="off" placeholder="25" aria-invalid="false" aria-describedby="buy-usdc-amount-help buy-usdc-amount-error" data-buy-amount disabled>
+              <small id="buy-usdc-amount-help" data-buy-limits>Loading live purchase limits.</small>
+              <small class="buy-field-error" id="buy-usdc-amount-error" data-buy-amount-error role="status"></small>
             </div>
             <div class="form-field">
               <label for="buy-void-destination">Native VOID destination address</label>
-              <input class="input mono" id="buy-void-destination" name="void_destination_address" autocomplete="off" spellcheck="false" placeholder="0x…" data-buy-destination disabled>
-              <small>The selected-rail USDC sender must be this exact same address.</small>
+              <input class="input mono" id="buy-void-destination" name="void_destination_address" autocomplete="off" spellcheck="false" placeholder="0x…" aria-invalid="false" aria-describedby="buy-void-destination-help buy-void-destination-error" data-buy-destination disabled>
+              <small id="buy-void-destination-help">The selected-rail USDC sender must be this exact same address.</small>
+              <small class="buy-field-error" id="buy-void-destination-error" data-buy-destination-error role="status"></small>
             </div>
 
             <div class="buy-checklist" aria-label="Required purchase acknowledgements">
