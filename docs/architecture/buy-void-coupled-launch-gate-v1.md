@@ -240,6 +240,7 @@ Source/package/proof only:
 ```bash
 node scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs
 node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
+npx tsx scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts
 node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
 npx tsx scripts/prove_buy_void_request_tx_hash_binding_v1.ts
 node ops/precision/void-buy-coupled-live-generation-publish-v1.mjs --help
