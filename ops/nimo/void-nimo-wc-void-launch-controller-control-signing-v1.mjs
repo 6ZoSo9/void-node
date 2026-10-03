@@ -294,6 +294,93 @@ function decimal(value, code) {
   return parsed;
 }
 
+function openPinnedParentDirectoryV1(file, label) {
+  const noFollow = Number(fs.constants.O_NOFOLLOW || 0);
+  const directoryFlag = Number(fs.constants.O_DIRECTORY || 0);
+  if (noFollow === 0 || directoryFlag === 0) {
+    fail(label + "_directory_nofollow_unavailable");
+  }
+
+  const parent = path.dirname(file);
+  const relative = path.relative("/", parent);
+  if (
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  ) {
+    fail(label + "_parent_path_invalid");
+  }
+  const components =
+    relative === "" ? [] : relative.split(path.sep);
+  if (
+    components.some(
+      (component) =>
+        !component ||
+        component === "." ||
+        component === "..",
+    )
+  ) {
+    fail(label + "_parent_path_invalid");
+  }
+
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      "/",
+      fs.constants.O_RDONLY | directoryFlag | noFollow,
+    );
+    for (const component of components) {
+      const nextPath = "/proc/self/fd/" + fd + "/" + component;
+      const nextFd = fs.openSync(
+        nextPath,
+        fs.constants.O_RDONLY | directoryFlag | noFollow,
+      );
+      const stat = fs.fstatSync(nextFd, { bigint: true });
+      if (!stat.isDirectory()) {
+        fs.closeSync(nextFd);
+        fail(label + "_parent_not_directory");
+      }
+      fs.closeSync(fd);
+      fd = nextFd;
+    }
+    const stat = fs.fstatSync(fd, { bigint: true });
+    if (!stat.isDirectory()) {
+      fail(label + "_parent_not_directory");
+    }
+    return Object.freeze({
+      fd,
+      proc_path: "/proc/self/fd/" + fd,
+      basename: path.basename(file),
+    });
+  } catch (error) {
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      String(error.code || "") === "ELOOP"
+    ) {
+      fail(label + "_parent_symlink_forbidden");
+    }
+    throw error;
+  }
+}
+
+function sameOpenedFileIdentityV1(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.nlink === right.nlink &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid
+  );
+}
+
 function readStableFileV1(file, {
   label,
   maxBytes,
@@ -317,10 +404,28 @@ function readStableFileV1(file, {
     fail(label + "_path_alias_forbidden");
   }
 
+  const parent = openPinnedParentDirectoryV1(file, label);
+  const pinnedPath = parent.proc_path + "/" + parent.basename;
   let fd = -1;
   try {
+    let pathnameBefore;
+    try {
+      pathnameBefore = fs.lstatSync(pinnedPath, { bigint: true });
+    } catch {
+      fail(label + "_preopen_identity_unavailable");
+    }
+    if (
+      !pathnameBefore.isFile() ||
+      pathnameBefore.isSymbolicLink() ||
+      pathnameBefore.nlink !== 1n ||
+      pathnameBefore.size < 1n ||
+      pathnameBefore.size > BigInt(maxBytes)
+    ) {
+      fail(label + "_file_invalid");
+    }
+
     fd = fs.openSync(
-      file,
+      pinnedPath,
       fs.constants.O_RDONLY |
         Number(fs.constants.O_NOFOLLOW || 0),
     );
@@ -329,43 +434,40 @@ function readStableFileV1(file, {
       !before.isFile() ||
       before.nlink !== 1n ||
       before.size < 1n ||
-      before.size > BigInt(maxBytes)
+      before.size > BigInt(maxBytes) ||
+      !sameOpenedFileIdentityV1(pathnameBefore, before)
     ) {
-      fail(label + "_file_invalid");
+      fail(label + "_preopen_identity_mismatch");
     }
-    if (typeof process.getuid === "function" && before.uid !== BigInt(process.getuid())) {
+    if (
+      typeof process.getuid === "function" &&
+      before.uid !== BigInt(process.getuid())
+    ) {
       fail(label + "_owner_invalid");
     }
     if (privateMode && Number(before.mode & 0o777n) !== 0o600) {
       fail(label + "_mode_invalid");
     }
+
     const bytes = fs.readFileSync(fd);
     const after = fs.fstatSync(fd, { bigint: true });
-    let canonicalAfter;
     let pathnameAfter;
     try {
-      canonicalAfter = fs.realpathSync.native(file);
-      pathnameAfter = fs.statSync(file, { bigint: true });
+      pathnameAfter = fs.lstatSync(pinnedPath, { bigint: true });
     } catch {
       fail(label + "_path_changed_during_read");
     }
     if (
-      canonicalAfter !== file ||
-      pathnameAfter.dev !== after.dev ||
-      pathnameAfter.ino !== after.ino ||
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
+      !sameOpenedFileIdentityV1(before, after) ||
+      !sameOpenedFileIdentityV1(after, pathnameAfter) ||
       before.size !== after.size ||
       before.mtimeNs !== after.mtimeNs ||
       before.ctimeNs !== after.ctimeNs ||
-      before.mode !== after.mode ||
-      before.uid !== after.uid ||
-      before.gid !== after.gid ||
-      before.nlink !== after.nlink ||
       after.size !== BigInt(bytes.length)
     ) {
       fail(label + "_changed_during_read");
     }
+
     const digest = sha256(bytes);
     if (
       expectedSha256 !== null &&
@@ -390,6 +492,9 @@ function readStableFileV1(file, {
     throw error;
   } finally {
     if (fd >= 0) fs.closeSync(fd);
+    try {
+      fs.closeSync(parent.fd);
+    } catch {}
   }
 }
 
