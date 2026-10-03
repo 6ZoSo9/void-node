@@ -1005,6 +1005,20 @@ assert.equal(
 );
 assert.equal(signerSource.includes("transaction_broadcast: false"), true);
 assert.equal(signerSource.includes("funds_movement: false"), true);
+for (const obsolete of [
+  "reviewedRuntimeHelperV1",
+  "reviewedSigningBridgeSourceV1",
+  "runPermissionFencedReviewedChildV1",
+  "withReviewedSigningRuntimeV1",
+  "reviewedOfflineSigningRuntimeV1",
+  "testOnlyReviewedAncestorPackageFallbackBlockedV1",
+]) {
+  assert.equal(
+    signerSource.includes(obsolete),
+    false,
+    "obsolete package-tree runtime must be absent: " + obsolete,
+  );
+}
 assert.equal(
   signerSource.includes(
     "return await signValidatedControlChallengeV1({\n    reviewed,\n    privateKey,\n    ethers,\n  });",
@@ -1193,6 +1207,7 @@ console.log("wallet_or_signer_access_reported=true");
 console.log("sign_mode_access_announced_before_exec=true");
 console.log("sign_mode_ordering_bound_to_actual_node_invocation=true");
 console.log("production_package_tree_child=false");
+console.log("obsolete_package_tree_runtime_removed=true");
 console.log("production_private_key_transport_to_child=false");
 console.log("production_dynamic_ethers_package_import=false");
 console.log("production_ethers_data_url_import=true");
