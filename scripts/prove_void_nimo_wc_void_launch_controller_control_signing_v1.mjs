@@ -516,6 +516,24 @@ const launcherSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-launch-v1.sh",
   "utf8",
 );
+const operatorDoc = fs.readFileSync(
+  "docs/operators/wc-void-launch-controller-control-offline-signing-v1.md",
+  "utf8",
+);
+assert.equal(operatorDoc.includes('exec 9< "$stage/launcher.sh"'), true);
+assert.equal(
+  operatorDoc.includes('hash-object -- "/proc/self/fd/9"'),
+  true,
+);
+assert.equal(
+  operatorDoc.includes('"/proc/self/fd/9" \\\n  sign'),
+  true,
+);
+assert.equal(
+  operatorDoc.includes('"$stage/launcher.sh" \\\n  sign'),
+  false,
+  "reviewed launcher pathname must not be reopened after verification",
+);
 assert.equal(
   launcherSource.includes('current_head_not_exact_operator_reviewed_head'),
   true,
@@ -895,6 +913,8 @@ console.log("challenge_head_cannot_self_authorize_signer=true");
 console.log("launcher_materialized_from_reviewed_commit=true");
 console.log("executed_launcher_self_blob_verified=true");
 console.log("tampered_launcher_rejected=true");
+console.log("reviewed_launcher_bootstrap_descriptor_pinned=true");
+console.log("reviewed_launcher_path_reopen=false");
 console.log("reviewed_signer_materialized_before_execution=true");
 console.log("mutable_worktree_signer_execution=false");
 console.log("node_22_0_to_22_12_permission_flag_supported=true");
