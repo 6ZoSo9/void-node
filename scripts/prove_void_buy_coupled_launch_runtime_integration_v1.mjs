@@ -13,6 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = relative => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const index = read("src/index.ts");
 const docker = read("Dockerfile");
+assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]))
@@ -75,6 +76,10 @@ console.log("docker_runtime_gate_dependencies_bound=true");
   const body = structuredClone(next);
   delete body.enforcement_artifact_set_sha256;
   const nextSetSha256 = sha256(Buffer.from(canonical(body), "utf8"));
+  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.bytes, dockerInput.bytes);
+  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.sha256, dockerInput.sha256);
+  assert.equal(manifest.inputs.find(entry => entry.path === "Dockerfile")?.git_blob_sha1, dockerInput.git_blob_sha1);
+  assert.equal(manifest.enforcement_artifact_set_sha256, nextSetSha256);
   console.log(`attestation_docker_bytes=${dockerInput.bytes}`);
   console.log(`attestation_docker_sha256=${dockerInput.sha256}`);
   console.log(`attestation_docker_git_blob_sha1=${dockerInput.git_blob_sha1}`);
