@@ -1166,12 +1166,51 @@ async function qualifyPaidWorkCredentialRequestUpstream() {
   }
 }
 
-AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION =
-  await qualifyPaidWorkCredentialRequestUpstream();
-AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED =
-  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED &&
-  AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.verified ===
-    true;
+let paidWorkCredentialRequestQualificationInFlight = null;
+
+function applyPaidWorkCredentialRequestQualificationV1(qualification) {
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION =
+    qualification;
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED =
+    AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED &&
+    qualification?.verified === true;
+  return AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED;
+}
+
+function invalidatePaidWorkCredentialRequestQualificationV1(reason) {
+  return applyPaidWorkCredentialRequestQualificationV1(
+    Object.freeze({
+      verified: false,
+      reason: String(reason || "upstream_status_not_verified"),
+      observed_max_requests_per_minute: null,
+    }),
+  );
+}
+
+async function requalifyPaidWorkCredentialRequestUpstreamV1() {
+  if (!AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED) {
+    invalidatePaidWorkCredentialRequestQualificationV1(
+      "source_configuration_incomplete",
+    );
+    return false;
+  }
+
+  if (!paidWorkCredentialRequestQualificationInFlight) {
+    paidWorkCredentialRequestQualificationInFlight =
+      qualifyPaidWorkCredentialRequestUpstream()
+        .finally(() => {
+          paidWorkCredentialRequestQualificationInFlight = null;
+        });
+  }
+
+  const qualification =
+    await paidWorkCredentialRequestQualificationInFlight;
+  return applyPaidWorkCredentialRequestQualificationV1(
+    qualification,
+  );
+}
+
+await requalifyPaidWorkCredentialRequestUpstreamV1();
 
 const paidWorkCredentialApplicantRateWindows = new Map();
 const paidWorkCredentialApplicantNonceReplay = new Map();
@@ -1179,7 +1218,7 @@ let paidWorkCredentialPublicGlobalWindow = [];
 let paidWorkCredentialPreAuthGlobalWindow = [];
 
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PREAUTH_MAX_PER_MINUTE =
-  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED
     ? Math.min(
         1200,
         Math.max(
@@ -1341,7 +1380,7 @@ async function proxyAgentPaidWorkCredentialRequest(
   response,
   url,
 ) {
-  if (!AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_CONFIGURED) {
+  if (!AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED) {
     jsonResponse(response, 503, {
       ok: false,
       error: "agent_paid_work_credential_request_gateway_unavailable",
@@ -1506,6 +1545,14 @@ async function proxyAgentPaidWorkCredentialRequest(
     return;
   }
 
+  if (!(await requalifyPaidWorkCredentialRequestUpstreamV1())) {
+    jsonResponse(response, 503, {
+      ok: false,
+      error: "agent_paid_work_credential_request_gateway_unavailable",
+    });
+    return;
+  }
+
   try {
     const upstreamAbort = createOwnedUpstreamAbortContext(
       AGENT_PAID_WORK_CREDENTIAL_REQUEST_TIMEOUT_MS,
@@ -1527,6 +1574,15 @@ async function proxyAgentPaidWorkCredentialRequest(
       },
     );
 
+    if (
+      upstreamResponse.status === 429 ||
+      upstreamResponse.status >= 500
+    ) {
+      invalidatePaidWorkCredentialRequestQualificationV1(
+        "upstream_response_requires_requalification",
+      );
+    }
+
     const responseBody = await readBoundedUpstreamResponseBody(
       upstreamResponse,
       AGENT_PAID_WORK_CREDENTIAL_REQUEST_MAX_RESPONSE_BYTES,
@@ -1542,6 +1598,9 @@ async function proxyAgentPaidWorkCredentialRequest(
       "POST",
     );
   } catch (error) {
+    invalidatePaidWorkCredentialRequestQualificationV1(
+      "upstream_transport_requires_requalification",
+    );
     process.stderr.write(
       `${MARKER} paid_work_credential_request_upstream_error=${String(error)}\n`,
     );
@@ -1735,6 +1794,8 @@ server.listen({ host, port, exclusive: true }, () => {
           null,
         upstream_status_verified:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.verified,
+        upstream_requalified_per_admitted_request: true,
+        upstream_failure_invalidates_qualification: true,
         upstream_status_hold_reason:
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.reason,
         upstream_observed_max_requests_per_minute:
