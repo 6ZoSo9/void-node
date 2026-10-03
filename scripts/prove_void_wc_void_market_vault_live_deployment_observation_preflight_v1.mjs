@@ -352,6 +352,21 @@ async function fixture(options = {}) {
             result = "0x3b9aca00";
             break;
           case "eth_estimateGas":
+            assert.equal(
+              call.params?.[0]?.type,
+              "0x2",
+              "deployment estimate must be an EIP-1559 type-2 transaction",
+            );
+            assert.equal(
+              call.params?.[0]?.chainId,
+              "0x802",
+              "deployment estimate must bind Chain-2050",
+            );
+            assert.equal(
+              call.params?.[0]?.to,
+              null,
+              "deployment estimate must remain contract creation",
+            );
             assert.deepEqual(
               call.params?.[0]?.accessList,
               [{
@@ -460,6 +475,8 @@ await withFixture({}, async (f) => {
   assert.equal(result.observation.deployment_gas_estimate, "1000000");
   assert.equal(result.observation.gas_price_wei, "1000000000");
   assert.equal(result.observation.epoch2_transaction_type, "2");
+  assert.equal(result.observation.epoch2_estimate_chain_id, "2050");
+  assert.equal(result.observation.epoch2_estimate_contract_creation, true);
   assert.equal(
     result.observation.epoch2_access_list_marker_address,
     VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
