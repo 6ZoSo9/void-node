@@ -15,6 +15,21 @@ import sys
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+PACKET_ROOT = Path(__file__).resolve().parent
+
+if str(PACKET_ROOT) not in sys.path:
+    sys.path.insert(
+        0,
+        str(PACKET_ROOT),
+    )
+
+from applicant_auth_v1 import (  # noqa: E402
+    AUTH_HEADER,
+    build_public_auth_header,
+    generate_identity_key,
+    identity_from_key,
+)
+
 MARKER = "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_V1"
 RESPONSE_MARKER = (
     "VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_RESPONSE_V1"
@@ -484,6 +499,7 @@ def submit_request(
     *,
     endpoint: str,
     request: dict[str, Any],
+    identity_key: str | Path,
 ) -> tuple[
     int,
     dict[str, Any],
@@ -509,6 +525,13 @@ def submit_request(
         )
         + "\n"
     ).encode("utf-8")
+    applicant_auth, _auth_envelope = (
+        build_public_auth_header(
+            identity_key=identity_key,
+            request=request,
+            body=body,
+        )
+    )
     connection = http.client.HTTPSConnection(
         parsed.hostname,
         parsed.port or 443,
@@ -532,6 +555,7 @@ def submit_request(
                         body
                     ).hexdigest()
                 ),
+                AUTH_HEADER: applicant_auth,
                 "User-Agent": (
                     "void-external-agent-credential-request-packet-v1"
                 ),
@@ -597,9 +621,56 @@ def load_manifest() -> dict[str, Any]:
     return value
 
 
+def command_init_identity(
+    args: argparse.Namespace,
+) -> int:
+    identity = generate_identity_key(
+        args.identity_key
+    )
+
+    print(
+        json.dumps(
+            {
+                "generated": True,
+                "identity_key": identity[
+                    "identity_key"
+                ],
+                "agent_id": identity[
+                    "agent_id"
+                ],
+                "public_key_jwk": identity[
+                    "public_key_jwk"
+                ],
+                "private_key_emitted": False,
+                "wallet_key": False,
+            },
+            indent=2,
+        )
+    )
+    print(
+        "VOID_EXTERNAL_AGENT_CREDENTIAL_REQUEST_IDENTITY_V1_GENERATED"
+    )
+    return 0
+
+
 def command_generate(
     args: argparse.Namespace,
 ) -> int:
+    identity = identity_from_key(
+        args.identity_key
+    )
+
+    if (
+        args.agent_id is not None
+        and args.agent_id
+        != identity[
+            "agent_id"
+        ]
+    ):
+        fail(
+            "--agent-id must match the Ed25519 identity key"
+        )
+
     created = (
         parse_utc_seconds(
             args.created_at_utc,
@@ -632,7 +703,9 @@ def command_generate(
         set(args.capability)
     )
     request = materialize_request(
-        agent_id=args.agent_id,
+        agent_id=identity[
+            "agent_id"
+        ],
         callback_uri=args.callback_uri,
         capability_ids=capabilities,
         lifetime_days=args.lifetime_days,
@@ -669,6 +742,8 @@ def command_generate(
                 "output": str(output),
                 "credential_created": False,
                 "raw_token_read": False,
+                "applicant_identity_private_key_access": True,
+                "wallet_key_access": False,
             },
             indent=2,
         )
@@ -736,6 +811,7 @@ def command_submit(
         submit_request(
             endpoint=endpoint,
             request=request,
+            identity_key=args.identity_key,
         )
     )
     output = {
@@ -791,6 +867,8 @@ def command_submit(
                 ),
                 "credential_created": False,
                 "raw_token_read": False,
+                "applicant_identity_private_key_access": True,
+                "wallet_key_access": False,
             },
             indent=2,
         )
@@ -813,12 +891,26 @@ def parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    identity = subcommands.add_parser(
+        "init-identity"
+    )
+    identity.add_argument(
+        "--identity-key",
+        required=True,
+    )
+    identity.set_defaults(
+        handler=command_init_identity
+    )
+
     generate = subcommands.add_parser(
         "generate"
     )
     generate.add_argument(
-        "--agent-id",
+        "--identity-key",
         required=True,
+    )
+    generate.add_argument(
+        "--agent-id",
     )
     generate.add_argument(
         "--callback-uri",
@@ -879,6 +971,10 @@ def parser() -> argparse.ArgumentParser:
     )
     submit.add_argument(
         "--request",
+        required=True,
+    )
+    submit.add_argument(
+        "--identity-key",
         required=True,
     )
     submit.add_argument(
