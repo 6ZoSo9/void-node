@@ -36,6 +36,12 @@ hold() {
   hold "operator_reviewed_head_invalid"
 [[ -f "$challenge" && ! -L "$challenge" ]] ||
   hold "challenge_file_invalid"
+challenge_size="$(/usr/bin/stat -c '%s' -- "$challenge")" ||
+  hold "challenge_size_unavailable"
+[[ "$challenge_size" =~ ^[0-9]+$ ]] ||
+  hold "challenge_size_invalid"
+(( challenge_size > 0 && challenge_size <= 2 * 1024 * 1024 )) ||
+  hold "challenge_size_invalid"
 
 if [[ "$mode" == "sign" ]]; then
   [[ "$output" == /* ]] || hold "signature_output_path_must_be_absolute"
@@ -44,19 +50,67 @@ if [[ "$mode" == "sign" ]]; then
     hold "signature_output_parent_missing"
 fi
 
-actual_challenge_sha="$(/usr/bin/sha256sum -- "$challenge" | /usr/bin/awk '{print $1}')"
-[[ "$actual_challenge_sha" == "$challenge_sha" ]] ||
-  hold "challenge_sha256_mismatch"
-
 source_head="$(
-  /usr/bin/python3 -I -P - "$challenge" <<'PY'
+  /usr/bin/python3 -I -P - "$challenge" "$challenge_sha" <<'PY'
+import hashlib
 import json
+import os
 import re
+import stat
 import sys
 
 path = sys.argv[1]
-with open(path, "r", encoding="utf-8") as handle:
-    value = json.load(handle)
+expected_sha = sys.argv[2]
+max_bytes = 2 * 1024 * 1024
+no_follow = getattr(os, "O_NOFOLLOW", 0)
+close_on_exec = getattr(os, "O_CLOEXEC", 0)
+
+fd = os.open(path, os.O_RDONLY | no_follow | close_on_exec)
+try:
+    before = os.fstat(fd)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_size <= 0
+        or before.st_size > max_bytes
+    ):
+        raise SystemExit(2)
+
+    chunks = []
+    total = 0
+    while True:
+        remaining = max_bytes + 1 - total
+        if remaining <= 0:
+            raise SystemExit(2)
+        chunk = os.read(fd, min(65536, remaining))
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise SystemExit(2)
+        chunks.append(chunk)
+
+    after = os.fstat(fd)
+    if (
+        before.st_dev != after.st_dev
+        or before.st_ino != after.st_ino
+        or before.st_size != after.st_size
+        or before.st_mtime_ns != after.st_mtime_ns
+        or before.st_ctime_ns != after.st_ctime_ns
+        or total != after.st_size
+    ):
+        raise SystemExit(2)
+finally:
+    os.close(fd)
+
+data = b"".join(chunks)
+if hashlib.sha256(data).hexdigest() != expected_sha:
+    raise SystemExit(3)
+
+try:
+    text = data.decode("utf-8", errors="strict")
+    value = json.loads(text)
+except (UnicodeDecodeError, json.JSONDecodeError):
+    raise SystemExit(2)
 
 source = value.get("source_binding")
 if not isinstance(source, dict):
