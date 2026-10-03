@@ -15,18 +15,6 @@ import {
   verifyTypedData,
 } from "ethers";
 
-import {
-  VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1,
-  reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
-} from "./void-wc-void-launch-controller-control-requalification-v1.mjs";
-
-import {
-  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWER_ADDRESS_V1,
-  VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWER_DECISION_ID_V1,
-  buildWcVoidOpeningRelatedIdentityReviewerRoleV1,
-  verifyWcVoidOpeningRelatedIdentityReviewerRoleV1,
-} from "./void-wc-void-opening-related-identity-reviewer-role-v1.mjs";
-
 export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1 =
   "VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1";
 
@@ -153,6 +141,32 @@ export const VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWED_LINEAGE_BLOBS_V1 =
     "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs":
       "27c686c9bf95bbf9b56f09c692cb59ffba958d0d",
   });
+
+const REVIEWED_REVIEWER_ROLE_PATH_V1 =
+  "tools/void-wc-void-opening-related-identity-reviewer-role-v1.mjs";
+const REVIEWED_REVIEWER_ROLE_BLOB_V1 =
+  "406bb60f44024e0cde7b2737af17d592b2a65fe3";
+const REVIEWED_REVIEWER_ADDRESS_V1 =
+  "0x2f1e0005e865b772b268bd8c797bf3eaa901d97e";
+const REVIEWED_REVIEWER_DECISION_ID_V1 =
+  "voidwcrirr1_27edb03939335d6b6ede05da0b46f57680e86e3fa104f3e85cb2d1c06676d10a";
+const REVIEWED_CONTROL_PATH_V1 =
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
+const REVIEWED_CONTROL_BLOB_V1 =
+  "a17a6da5f85a740c5c38b0c4fb3377c7df05d270";
+const REVIEWED_CONTROL_EVIDENCE_MARKER_V1 =
+  "VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1";
+const REVIEWED_CONTROL_ROLE_LABEL_V1 =
+  "VOID_WC_VOID_MARKET_VAULT_LAUNCH_CONTROLLER_V1";
+const REVIEWED_CONTROL_SOURCE_BLOBS_V1 = Object.freeze({
+  [REVIEWED_CONTROL_PATH_V1]: REVIEWED_CONTROL_BLOB_V1,
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json":
+    "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json":
+    "c85b6bc59caac6bc765cb8e969cb980386161d12",
+  "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+  "package-lock.json": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+});
 
 function fail(code) {
   throw new Error(code);
@@ -309,6 +323,31 @@ function reviewedHeadBlobV1(sourcePath) {
   }
 }
 
+function reviewedWorktreeBlobV1(sourcePath) {
+  try {
+    return execFileSync(
+      GIT,
+      [
+        "--no-replace-objects",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.attributesFile=/dev/null",
+        "-C", ROOT,
+        "hash-object",
+        "--",
+        sourcePath,
+      ],
+      {
+        cwd: "/",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: reviewedGitEnvV1(),
+      },
+    ).trim();
+  } catch {
+    fail("review_control_worktree_blob_unavailable");
+  }
+}
+
 function reviewedBlobBytesV1(blob) {
   try {
     return execFileSync(
@@ -398,6 +437,177 @@ async function loadReviewedLineageVerifiersV1() {
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
+}
+
+function reviewedReviewerRoleV1() {
+  if (
+    reviewedHeadBlobV1(REVIEWED_REVIEWER_ROLE_PATH_V1) !==
+    REVIEWED_REVIEWER_ROLE_BLOB_V1
+  ) {
+    fail("review_reviewer_role_generation_mismatch");
+  }
+  const authority = Object.freeze({
+    source_only_role_decision: true,
+    related_identity_manifest_review_attestation_role: true,
+    fresh_control_evidence_required: true,
+    manifest_signing_performed: false,
+    private_key_access: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    wc_ledger_write: false,
+    wc_balance_mutation: false,
+    runtime_or_service_mutation: false,
+    transaction_construction: false,
+    transaction_signing: false,
+    transaction_broadcast: false,
+    chain2050_write: false,
+    deployment_authorized: false,
+    inventory_funding_authorized: false,
+    market_activation: false,
+    public_presale_activation: false,
+    liquidity_movement: false,
+    treasury_movement: false,
+    funds_movement: false,
+  });
+  const material = Object.freeze({
+    marker: "VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWER_ROLE_V1",
+    version: 1,
+    chain_id: 2050,
+    pair: "WC_VOID",
+    reviewer_role: "related_identity_manifest_reviewer",
+    reviewer_address: canonicalAddress(
+      REVIEWED_REVIEWER_ADDRESS_V1,
+      "review_reviewer_address_invalid",
+    ),
+    launch_controller_role_label: REVIEWED_CONTROL_ROLE_LABEL_V1,
+    authorization_basis: "sovereign_explicit_reviewer_role_selection_v1",
+    attestation_scope: Object.freeze([
+      "manifest_id",
+      "coupled_launch_id",
+      "concentration_policy_id",
+      "opening_window_id",
+      "eligible_cohort_root",
+      "cluster_assignment_root",
+      "evidence_manifest_root",
+      "manifest_compiler_git_blob_sha1",
+    ]),
+    fresh_control_evidence_required: true,
+    control_evidence_marker: REVIEWED_CONTROL_EVIDENCE_MARKER_V1,
+    reviewer_role_selected: true,
+    review_attestation_verified: false,
+    related_identity_truth_verified: false,
+    opening_concentration_and_sybil_limits_ready: false,
+    opening_price_acceptance_allowed: false,
+    authority,
+  });
+  const decisionId =
+    "voidwcrirr1_" +
+    sha256(Buffer.from(canonicalReviewJsonV1(material), "utf8"));
+  if (decisionId !== REVIEWED_REVIEWER_DECISION_ID_V1) {
+    fail("reviewer_role_decision_id_mismatch");
+  }
+  return Object.freeze({
+    ...material,
+    decision_id: decisionId,
+    reviewer_role_git_blob_sha1: REVIEWED_REVIEWER_ROLE_BLOB_V1,
+  });
+}
+
+function reviewedEthersRuntimeVersionV1() {
+  let lock;
+  let installed;
+  try {
+    lock = JSON.parse(
+      reviewedBlobBytesV1(
+        REVIEWED_CONTROL_SOURCE_BLOBS_V1["package-lock.json"],
+      ).toString("utf8"),
+    );
+    installed = JSON.parse(
+      fs.readFileSync(
+        path.join(ROOT, "node_modules", "ethers", "package.json"),
+        "utf8",
+      ),
+    );
+  } catch {
+    fail("review_ethers_runtime_unavailable");
+  }
+  const reviewed = lock?.packages?.["node_modules/ethers"]?.version;
+  if (
+    typeof reviewed !== "string" ||
+    installed?.name !== "ethers" ||
+    installed?.version !== reviewed
+  ) {
+    fail("review_ethers_runtime_version_mismatch");
+  }
+  return reviewed;
+}
+
+async function loadReviewedControlVerifierV1() {
+  for (const [sourcePath, expectedBlob] of Object.entries(
+    REVIEWED_CONTROL_SOURCE_BLOBS_V1,
+  )) {
+    if (
+      reviewedHeadBlobV1(sourcePath) !== expectedBlob ||
+      reviewedWorktreeBlobV1(sourcePath) !== expectedBlob
+    ) {
+      fail("review_control_worktree_blob_mismatch");
+    }
+  }
+  const ethersVersion = reviewedEthersRuntimeVersionV1();
+  const destination = path.join(
+    ROOT,
+    "tools",
+    ".void-reviewed-control-" +
+      process.pid +
+      "-" +
+      crypto.randomBytes(8).toString("hex") +
+      ".tmp.mjs",
+  );
+  try {
+    fs.writeFileSync(
+      destination,
+      reviewedBlobBytesV1(REVIEWED_CONTROL_BLOB_V1),
+      { flag: "wx", mode: 0o600 },
+    );
+    const module = await import(
+      pathToFileURL(destination).href +
+        "?reviewed=" +
+        REVIEWED_CONTROL_BLOB_V1
+    );
+    if (
+      module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1 !==
+        REVIEWED_CONTROL_EVIDENCE_MARKER_V1 ||
+      module.VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_ROLE_ID_V1 !==
+        keccak256(toUtf8Bytes(REVIEWED_CONTROL_ROLE_LABEL_V1)) ||
+      typeof module.reverifyVoidWcVoidLaunchControllerControlEvidenceV1 !==
+        "function"
+    ) {
+      fail("review_control_verifier_exports_mismatch");
+    }
+    return Object.freeze({
+      reverify:
+        module.reverifyVoidWcVoidLaunchControllerControlEvidenceV1,
+      git_blob_sha1: REVIEWED_CONTROL_BLOB_V1,
+      ethers_version: ethersVersion,
+      mutable_worktree_execution: false,
+    });
+  } finally {
+    fs.rmSync(destination, { force: true });
+  }
+}
+
+export async function reviewedControlVerifierGenerationV1() {
+  const verifier = await loadReviewedControlVerifierV1();
+  return Object.freeze({
+    control_verifier_git_blob_sha1: verifier.git_blob_sha1,
+    ethers_version: verifier.ethers_version,
+    mutable_worktree_execution: verifier.mutable_worktree_execution,
+  });
+}
+
+async function reverifyReviewedControlEvidenceV1(input) {
+  const verifier = await loadReviewedControlVerifierV1();
+  return verifier.reverify(input);
 }
 
 function canonicalAddress(value, code) {
@@ -951,8 +1161,7 @@ function attestationMaterialV1({
   nonce,
 }) {
   const reviewed = validateReviewableRelatedIdentityManifestV1(manifest);
-  const role = buildWcVoidOpeningRelatedIdentityReviewerRoleV1();
-  verifyWcVoidOpeningRelatedIdentityReviewerRoleV1(role);
+  const role = reviewedReviewerRoleV1();
 
   const issued = decimal(nowUnix, "review_now_invalid");
   const ttl = decimal(ttlSeconds, "review_ttl_invalid");
@@ -968,10 +1177,8 @@ function attestationMaterialV1({
   return Object.freeze({
     marker: VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEW_ATTESTATION_V1,
     version: 1,
-    reviewer_role_decision_id:
-      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWER_DECISION_ID_V1,
-    reviewer_address:
-      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWER_ADDRESS_V1,
+    reviewer_role_decision_id: role.decision_id,
+    reviewer_address: role.reviewer_address,
     control_evidence_id: controlEvidenceId,
     manifest_id: reviewed.manifest_id,
     coupled_launch_id: reviewed.coupled_launch_id,
@@ -995,19 +1202,17 @@ export async function prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
   ttlSeconds = 900,
   nonce = null,
 } = {}) {
-  const role = buildWcVoidOpeningRelatedIdentityReviewerRoleV1();
-  verifyWcVoidOpeningRelatedIdentityReviewerRoleV1(role);
+  const role = reviewedReviewerRoleV1();
   await verifyReviewManifestLineageV1(manifest, lineage);
 
   const fresh =
-    await reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+    await reverifyReviewedControlEvidenceV1({
       evidence: controlEvidence,
       nowUnix,
     });
   if (
     fresh.evidence_reverified !== true ||
-    fresh.candidate_address.toLowerCase() !==
-      VOID_WC_VOID_OPENING_RELATED_IDENTITY_REVIEWER_ADDRESS_V1
+    fresh.candidate_address.toLowerCase() !== role.reviewer_address
   ) {
     fail("review_control_evidence_reviewer_mismatch");
   }
@@ -1046,13 +1251,12 @@ export async function verifyWcVoidOpeningRelatedIdentityReviewAttestationV1({
   signature,
   nowUnix = Math.floor(Date.now() / 1000),
 } = {}) {
-  const role = buildWcVoidOpeningRelatedIdentityReviewerRoleV1();
-  verifyWcVoidOpeningRelatedIdentityReviewerRoleV1(role);
+  const role = reviewedReviewerRoleV1();
   const reviewed = validateReviewableRelatedIdentityManifestV1(manifest);
   await verifyReviewManifestLineageV1(reviewed, lineage);
 
   const fresh =
-    await reverifyVoidWcVoidLaunchControllerControlEvidenceV1({
+    await reverifyReviewedControlEvidenceV1({
       evidence: controlEvidence,
       nowUnix,
     });
