@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import {
   installBuyVoidRequestTxHashBindingV1,
@@ -48,6 +49,8 @@ const moduleRequired = [
   "idempotent: true",
   "idempotent: false",
   "const persisted = await persistRequest(",
+  "withBuyVoidFilesystemBakeryLockAsyncV1",
+  "txHashBindingLockPath",
 ];
 
 const missingSource = sourceRequired.filter(
@@ -129,6 +132,7 @@ console.log(
       launch_authority_guard: true,
       conflicting_hash_guard: true,
       duplicate_hash_guard: true,
+      duplicate_hash_concurrency_serialized: true,
       same_hash_idempotency: true,
       submitted_status_transition: true,
       direct_route_count: directRouteCount,
@@ -269,6 +273,124 @@ async function exerciseLaunchAuthorityGuard(): Promise<void> {
   assert.equal(allowed.authority_calls, 1);
 }
 
+async function exerciseDuplicateHashConcurrencyGuard(): Promise<void> {
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-buy-tx-hash-binding-lock-"),
+  );
+  try {
+    fs.chmodSync(temp, 0o700);
+    const routes = new Map<string, Function>();
+    const txHash = `0x${"b".repeat(64)}`;
+    const requests: any[] = [
+      {
+        request_id: "buyvoid_racea_aaaaaaaa",
+        status: "awaiting_payment_tx_hash",
+        tx_hash: "",
+        created_at_ms: 1_791_014_400_001,
+        launch_authority: {
+          marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+        },
+      },
+      {
+        request_id: "buyvoid_raceb_bbbbbbbb",
+        status: "awaiting_payment_tx_hash",
+        tx_hash: "",
+        created_at_ms: 1_791_014_400_002,
+        launch_authority: {
+          marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+        },
+      },
+    ];
+    const persisted: any[] = [];
+    const app = {
+      get(pathname: string, handler: Function) {
+        routes.set("GET " + pathname, handler);
+      },
+      post(pathname: string, handler: Function) {
+        routes.set("POST " + pathname, handler);
+      },
+    };
+
+    installBuyVoidRequestTxHashBindingV1({
+      app,
+      localOnly: () => true,
+      readRequests: async () => structuredClone(requests),
+      persistRequest: async (request) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+        const index = requests.findIndex(
+          (value) => value.request_id === request.request_id,
+        );
+        assert.ok(index >= 0);
+        requests[index] = structuredClone(request);
+        persisted.push(structuredClone(request));
+        return { ok: true };
+      },
+      requestLaunchAuthorityReady: () => true,
+      txHashBindingLockPath: path.join(temp, "tx-hash-binding-v1"),
+    });
+
+    const handler = routes.get(
+      "POST /__void/buy-void/operator/request/tx-hash.json",
+    );
+    assert.equal(typeof handler, "function");
+
+    async function invoke(requestId: string): Promise<{
+      status: number;
+      body: any;
+    }> {
+      let status = 200;
+      let body: any = null;
+      const req = {
+        body: {
+          request_id: requestId,
+          tx_hash: txHash,
+          confirmation: "bindBuyVoidPaymentTxHash",
+        },
+      };
+      const res = {
+        status(code: number) {
+          status = code;
+          return this;
+        },
+        json(value: any) {
+          body = value;
+          return this;
+        },
+      };
+      await Promise.resolve(handler!(req, res));
+      return { status, body };
+    }
+
+    const results = await Promise.all([
+      invoke("buyvoid_racea_aaaaaaaa"),
+      invoke("buyvoid_raceb_bbbbbbbb"),
+    ]);
+    const accepted = results.filter(
+      (result) => result.status === 200 && result.body?.ok === true,
+    );
+    const duplicateHeld = results.filter(
+      (result) =>
+        result.status === 409
+        && result.body?.error === "payment_tx_hash_already_bound",
+    );
+    assert.equal(accepted.length, 1);
+    assert.equal(duplicateHeld.length, 1);
+    assert.equal(persisted.length, 1);
+    assert.equal(
+      requests.filter(
+        (request) =>
+          String(request.tx_hash || "").toLowerCase()
+            === txHash.toLowerCase(),
+      ).length,
+      1,
+    );
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+}
+
 await exerciseLaunchAuthorityGuard();
+await exerciseDuplicateHashConcurrencyGuard();
 console.log("launch_authority_runtime_guard_exercised=true");
+console.log("duplicate_tx_hash_concurrency_serialized=true");
 console.log("persistence_time_launch_authority_conflict_409=true");
