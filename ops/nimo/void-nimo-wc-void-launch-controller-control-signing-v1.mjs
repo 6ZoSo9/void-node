@@ -131,6 +131,9 @@ export const VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1 =
     current_source_binding_reverification_required: true,
     private_key_path_fixed: true,
     absolute_key_path_fixed: true,
+    private_key_access: true,
+    credential_access: true,
+    wallet_or_signer_access: true,
     private_key_printed: false,
     private_key_copied_to_repository: false,
     private_key_exported: false,
@@ -641,31 +644,8 @@ function validateCurrentSourceBindingV1(
   if (!HEX40.test(currentHead)) {
     fail("control_current_head_invalid");
   }
-  try {
-    execFileSync(
-      GIT_V1,
-      [
-        "--no-replace-objects",
-        "-c", "core.hooksPath=/dev/null",
-        "-c", "core.attributesFile=/dev/null",
-        "-c", "core.fsmonitor=false",
-        "-c", "core.untrackedCache=false",
-        "-c", "core.preloadIndex=false",
-        "-c", "submodule.recurse=false",
-        "-C", ROOT,
-        "merge-base",
-        "--is-ancestor",
-        binding.source_head_sha,
-        currentHead,
-      ],
-      {
-        cwd: "/",
-        stdio: ["ignore", "ignore", "ignore"],
-        env: reviewedGitEnvV1(),
-      },
-    );
-  } catch {
-    fail("control_source_head_not_ancestor_of_current_head");
+  if (currentHead !== binding.source_head_sha) {
+    fail("offline_signer_current_head_not_exact_challenge_head");
   }
 
   const reviewedTree = gitReadV1(
@@ -1112,8 +1092,12 @@ export async function signSelectedLaunchControllerChallengeV1({
       reviewed_packages_aggregate_sha256:
         profile.packages_aggregate_sha256,
       private_key_path_fixed: true,
+      exact_challenge_source_head_required: true,
       current_source_binding_verified: true,
       sanitized_environment_required: true,
+      private_key_access: true,
+      credential_access: true,
+      wallet_or_signer_access: true,
       private_key_printed: false,
       private_key_exported: false,
       transaction_signing: false,
