@@ -58,6 +58,11 @@ grep -Fq 'source_before = os.lstat(src)' "$IMPORTER" ||
   fail "source_lstat_guard_missing"
 grep -Fq 'os.open(src, os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC)' "$IMPORTER" ||
   fail "source_nofollow_open_missing"
+if grep -Fq 'sha256sum "$SRC"' "$IMPORTER"; then
+  fail "shell_source_hash_read_remains"
+fi
+grep -Fq 'object_id = f"{expected_sha[:16]}-' "$IMPORTER" ||
+  fail "secure_default_object_id_derivation_missing"
 
 node - "$SOURCE" "$OBJECT_ID" "$OBJECT_ID_SHA256" <<'NODE'
 const assert=require("node:assert/strict");
@@ -203,6 +208,27 @@ if grep -R -Fq "VOID_SENTINEL_SECRET_MUST_NOT_PUBLISH" "$source_symlink_root/dat
   fail "source_symlink_secret_leaked_into_data_dir"
 fi
 
+source_symlink_default_root="$tmp/source-symlink-default"
+mkdir -p "$source_symlink_default_root/data"
+ln -s "$source_symlink_root/secret.txt" "$source_symlink_default_root/source-link"
+if DATA_DIR="$source_symlink_default_root/data" bash "$IMPORTER" "$source_symlink_default_root/source-link" >"$tmp/source-symlink-default.log" 2>&1; then
+  fail "source_symlink_without_object_id_accepted"
+fi
+if find "$source_symlink_default_root/data" -mindepth 1 -print -quit | grep -q .; then
+  fail "source_symlink_without_object_id_created_data_artifacts"
+fi
+
+default_root="$tmp/default-object-id"
+default_base="$(basename "$PAYLOAD" | tr -cd 'A-Za-z0-9._-' | cut -c1-120)"
+default_id="${CONTENT_SHA256:0:16}-${default_base:-object.bin}"
+DATA_DIR="$default_root" bash "$IMPORTER" "$PAYLOAD" >"$tmp/default-object-id.log"
+grep -Fq "object_id=$default_id" "$tmp/default-object-id.log" ||
+  fail "default_object_id_drift"
+test "$(sha256sum "$default_root/public-node/local-data-drop/objects/$default_id" | awk '{print $1}')" = "$CONTENT_SHA256" ||
+  fail "default_object_id_content_mismatch"
+test -f "$default_root/public-node/local-data-drop/receipts/$default_id.json" ||
+  fail "default_object_id_receipt_missing"
+
 object_symlink_root="$tmp/object-symlink"
 mkdir -p   "$object_symlink_root/public-node/local-data-drop/objects"   "$object_symlink_root/public-node/local-data-drop/receipts"
 printf 'outside-object-sentinel\n' > "$object_symlink_root/outside-object.txt"
@@ -324,6 +350,8 @@ echo "dotdot_rejected=true"
 echo "create_only=true"
 echo "duplicate_rejected_without_mutation=true"
 echo "source_symlink_rejected_without_publication=true"
+echo "source_symlink_default_id_rejected_without_read_artifact=true"
+echo "secure_default_object_id_compatibility=true"
 echo "object_symlink_rejected_outside_unchanged=true"
 echo "receipt_symlink_rejected_outside_unchanged=true"
 echo "objects_directory_symlink_rejected=true"
