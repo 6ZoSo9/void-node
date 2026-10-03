@@ -790,6 +790,9 @@ export function buyLaunchRequestAuthorityMatchesV1(
       bound.source_composition_id !== current.source_composition_id ||
       bound.activation_generation !== current.activation_generation ||
       bound.generation_tip_sha256 !== current.generation_tip_sha256 ||
+      bound.activation_receipt_id !== current.activation_receipt_id ||
+      bound.activation_receipt_sha256 !== current.activation_receipt_sha256 ||
+      bound.expires_at_ms !== current.expires_at_ms ||
       !Number.isSafeInteger(bound.expires_at_ms) ||
       !Number.isSafeInteger(nowMs) ||
       nowMs <= 0 ||
