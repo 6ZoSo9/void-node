@@ -107,10 +107,12 @@ No send/sign/admin/personal/debug RPC method exists in this lane.
 
 Production mode does not accept an arbitrary loopback Chain-2050 endpoint. It
 reads the reviewed source selection
-`ops/mainnet0/production-epoch2-rpc-target-v1.json`, requires
-`PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY`, verifies the selected
-URL fingerprint, and requires the caller's normalized RPC to match that selected
-target exactly. The current selected target is
+`ops/mainnet0/production-epoch2-rpc-target-v1.json`, first hashes those exact
+worktree bytes and requires them to equal the file's `HEAD` Git blob, then
+requires `PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY`, verifies the
+selected URL fingerprint, and requires the caller's normalized RPC to match that
+selected target exactly. The direct blob check is independent of Git status or
+clean/smudge filter behavior. The current selected target is
 `http://127.0.0.1:18553/`. The retired Epoch-1 archive at `8545` and isolated
 Epoch-2 proof endpoints at `18550`–`18552` therefore fail before any RPC
 call. Test-only loopback fixtures retain ephemeral-port support and cannot emit a
@@ -186,6 +188,7 @@ and records:
 - exact qualification ID/file SHA/source generation;
 - deployer/inventory-source observation subjects;
 - RPC URL fingerprint and method census;
+- canonical production RPC-target path, exact Git blob SHA-1, and file SHA-256;
 - fixed block number/hash/timestamp;
 - latest and pending deployer nonce;
 - deployer native balance;
@@ -266,6 +269,7 @@ node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mj
 ```text
 qualification_reexecution=false
 canonical_production_epoch2_rpc_required=true
+canonical_production_epoch2_rpc_target_head_blob_required=true
 deployer_selection_authorized=false
 inventory_source_selection_authorized=false
 epoch2_signed_access_list_marker_required=true
