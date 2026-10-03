@@ -676,6 +676,57 @@ await assert.rejects(
 }
 
 {
+  const hiddenEvidence = { marker: "visible" };
+  Object.defineProperty(hiddenEvidence, "hidden", {
+    enumerable: false,
+    value: "must-not-be-dropped",
+  });
+  await assert.rejects(
+    () =>
+      prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+        manifest: lineageManifest,
+        lineage,
+        controlEvidence: hiddenEvidence,
+        nowUnix: 1_780_000_000,
+      }),
+    /review_control_input_shape_invalid/u,
+  );
+}
+
+{
+  const symbolEvidence = { marker: "visible" };
+  symbolEvidence[Symbol("hidden")] = "must-not-be-dropped";
+  await assert.rejects(
+    () =>
+      prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+        manifest: lineageManifest,
+        lineage,
+        controlEvidence: symbolEvidence,
+        nowUnix: 1_780_000_000,
+      }),
+    /review_control_input_shape_invalid/u,
+  );
+}
+
+{
+  const decoratedArray = ["ok"];
+  Object.defineProperty(decoratedArray, "hidden", {
+    enumerable: false,
+    value: "must-not-be-dropped",
+  });
+  await assert.rejects(
+    () =>
+      prepareWcVoidOpeningRelatedIdentityReviewAttestationV1({
+        manifest: lineageManifest,
+        lineage,
+        controlEvidence: { decoratedArray },
+        nowUnix: 1_780_000_000,
+      }),
+    /review_control_input_shape_invalid/u,
+  );
+}
+
+{
   const generation = await reviewedControlVerifierGenerationV1();
   assert.equal(
     generation.reviewed_package_runtime_profile_id,
@@ -1200,6 +1251,9 @@ console.log("control_input_resource_limits_enforced=true");
 console.log("oversized_control_evidence_rejected_before_child=true");
 console.log("deep_control_evidence_rejected_before_child=true");
 console.log("control_evidence_accessors_not_executed=true");
+console.log("hidden_control_properties_rejected=true");
+console.log("symbol_control_properties_rejected=true");
+console.log("decorated_control_arrays_rejected=true");
 console.log("process_environment_mutation=false");
 console.log("concurrent_control_reverification_parent_env_stable=true");
 console.log("dirty_lineage_verifier_sentinel_execution=false");
