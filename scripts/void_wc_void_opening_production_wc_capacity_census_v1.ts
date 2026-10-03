@@ -497,6 +497,7 @@ async function main(): Promise<void> {
   let totalUpper = 0n;
   let largestGross = 0n;
   let largestLower = 0n;
+  let historicalMalformedRedeemedLinesObserved = 0;
   const accountBounds: Array<{ lower: bigint; upper: bigint }> = [];
 
   for (const [account, gross] of grossByAccount) {
@@ -504,6 +505,17 @@ async function main(): Promise<void> {
     const debited = BigInt(String(state.debited_quanta || "0"));
     const redeemedQuanta = BigInt(String(state.redeemed_quanta || "0"));
     const allSourceRedeemable = BigInt(String(state.redeemable_quanta || "0"));
+    const malformedRedeemedLines =
+      Number(state.historical_malformed_redeemed_lines ?? 0);
+    if (
+      !Number.isSafeInteger(malformedRedeemedLines) ||
+      malformedRedeemedLines < 0
+    ) {
+      fail("historical_malformed_redeemed_lines_invalid");
+    }
+    if (malformedRedeemedLines > historicalMalformedRedeemedLinesObserved) {
+      historicalMalformedRedeemedLinesObserved = malformedRedeemedLines;
+    }
     const outflows = debited + redeemedQuanta;
     const lower = gross > outflows ? gross - outflows : 0n;
     const upper = gross < allSourceRedeemable ? gross : allSourceRedeemable;
@@ -533,6 +545,7 @@ async function main(): Promise<void> {
     receiptsWithoutCredit === 0 &&
     ledgerScan.invalid_matching_rows === 0 &&
     ledgerScan.malformed_lines === 0 &&
+    historicalMalformedRedeemedLinesObserved === 0 &&
     duplicateLedgerMatches === 0 &&
     receiptScan.unreadable_directories === 0 &&
     receiptScan.depth_limited_directories === 0;
@@ -570,6 +583,8 @@ async function main(): Promise<void> {
       historical_known_compatibility_repairs_applied:
         ledgerScan.historical_compatibility_repairs,
       historical_malformed_ledger_lines_observed: ledgerScan.malformed_lines,
+      historical_malformed_redeemed_lines_observed:
+        historicalMalformedRedeemedLinesObserved,
       redeemed_file_present: fs.existsSync(redeemed),
     },
     matched: {
