@@ -1387,6 +1387,17 @@ assert.equal(
 assert.equal(
   launcherSource.includes("status --porcelain"),
   false,
+  "reviewed launcher must not execute or retain filter-aware git status paths",
+);
+assert.equal(
+  (launcherSource.match(/status=EXACT_REVIEWED_SIGNER_PREFLIGHT_GREEN/gu) || [])
+    .length,
+  1,
+  "reviewed launcher must contain exactly one executable preflight body",
+);
+assert.equal(
+  launcherSource.includes("status --porcelain"),
+  false,
   "offline cleanliness must not call filter-sensitive git status",
 );
 for (const required of [
@@ -1635,6 +1646,8 @@ console.log("launcher_challenge_parse_bounded=true");
 console.log("repository_info_attributes_rejected_before_worktree_git=true");
 console.log("repository_local_filter_config_rejected_before_worktree_git=true");
 console.log("worktree_blob_hashing_uses_no_filters=true");
+console.log("filter_aware_git_status_absent=true");
+console.log("single_launcher_body=true");
 console.log("git_status_filter_path_used=false");
 console.log("reviewed_tree_index_exact_match_required=true");
 console.log("tracked_worktree_blob_ids_recomputed_from_raw_bytes=true");
