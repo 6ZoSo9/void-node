@@ -21,7 +21,7 @@ import {
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
   reviewedOfflineSigningRuntimeV1,
   signControlChallengeCoreV1,
-  testOnlyNodePermissionFlagV1,
+  nodePermissionFlagV1,
   testOnlyReadTransferredControlChallengeV1,
   testOnlyReviewedAncestorPackageFallbackBlockedV1,
   validateSanitizedOfflineSignerEnvironmentV1,
@@ -577,21 +577,21 @@ await assert.rejects(
 }
 
 assert.equal(
-  testOnlyNodePermissionFlagV1("22.0.0"),
+  nodePermissionFlagV1("22.0.0"),
   "--experimental-permission",
 );
 assert.equal(
-  testOnlyNodePermissionFlagV1("22.12.0"),
+  nodePermissionFlagV1("22.12.0"),
   "--experimental-permission",
 );
 assert.equal(
-  testOnlyNodePermissionFlagV1("22.13.0"),
+  nodePermissionFlagV1("22.13.0"),
   "--permission",
 );
-assert.equal(testOnlyNodePermissionFlagV1("24.0.0"), "--permission");
-assert.equal(testOnlyNodePermissionFlagV1("26.0.0"), "--permission");
+assert.equal(nodePermissionFlagV1("24.0.0"), "--permission");
+assert.equal(nodePermissionFlagV1("26.0.0"), "--permission");
 assert.throws(
-  () => testOnlyNodePermissionFlagV1("20.19.0"),
+  () => nodePermissionFlagV1("20.19.0"),
   /offline_signer_node_version_unsupported/u,
 );
 
