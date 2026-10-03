@@ -81,17 +81,23 @@ The fixed key file must be:
 
 - a direct regular file;
 - no symlink at the file or through any parent-directory alias;
-- resolve canonically to the exact absolute path before and after the read;
-- rebind to the same opened inode/device identity after the read;
+- resolve canonically to the exact absolute path before the read;
+- open every parent directory through a retained nofollow directory-descriptor
+  chain;
+- capture the final file identity through that pinned parent before opening it;
+- require the opened file descriptor to match that pre-open device/inode; and
+- require the pinned pathname to still reference that same opened identity after
+  the read;
 - be owned by the current user;
 - be exactly mode `0600`;
 - contain one 32-byte hexadecimal private key, with optional `0x` prefix;
 - contain at most one trailing newline; and
 - contain no leading/trailing spaces, tabs, blank lines, or other normalization.
 
-The transferred public challenge file is subject to the same canonical-path and
-inode-rebind rule. A symlinked parent directory, path alias, replacement, or
-rename during either stable read fails closed before signing.
+The transferred public challenge file is subject to the same pinned-directory,
+pre-open identity and post-read rebind rules. Atomic replacement of an ancestor
+directory between validation and file open cannot redirect the read because the
+final lookup is performed beneath the retained parent descriptor.
 
 The raw key is never printed, returned, copied into the repository, placed in
 process arguments, or written into the public signature envelope.
