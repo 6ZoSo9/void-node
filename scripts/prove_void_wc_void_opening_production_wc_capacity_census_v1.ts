@@ -268,11 +268,17 @@ const productionVisibilitySource = fs.readFileSync(
 );
 for (const token of [
   "0bd1367f924399b979c7ee9f001cd6edbeea2e35ded37283a0e4c10ba9aacbfb",
-  "VOID_WC_PRODUCTION_HISTORICAL_REPAIR_POSITION_V1 = 178",
   "398291f147e64b5590b5467f68756df504aa0876bdcfd78abbd57b9ca49568f2",
 ]) {
   assert.ok(productionVisibilitySource.includes(token), `canonical compatibility missing: ${token}`);
   assert.ok(censusSource.includes(token), `census compatibility drift: ${token}`);
+}
+for (const source of [productionVisibilitySource, censusSource]) {
+  assert.match(
+    source,
+    /VOID_WC_PRODUCTION_HISTORICAL_REPAIR_POSITION_V1\s*=\s*178\s*;/u,
+    "canonical historical repair position drift",
+  );
 }
 
 for (const token of [
