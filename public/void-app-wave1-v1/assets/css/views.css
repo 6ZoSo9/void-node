@@ -125,3 +125,29 @@
   .earn-history-main { align-items: flex-start; }
   .earn-advanced-grid { grid-template-columns: 1fr; gap: .5rem; }
 }
+
+
+/* Economic launch: Buy VOID + WC/VOID */
+.buy-launch-grid { align-items: start; }
+.buy-risk-warning { border-color: rgba(255,113,143,.5); background: rgba(255,113,143,.09); }
+.buy-risk-warning .alert__copy strong { color: var(--void-danger); letter-spacing: .02em; }
+.buy-request-form { display: grid; gap: 1rem; }
+.buy-checklist { display: grid; gap: .7rem; padding: 1rem; border: 1px solid var(--void-border-default); border-radius: var(--void-radius-2); background: rgba(7,9,13,.28); }
+.buy-checklist label { display: grid; grid-template-columns: auto 1fr; gap: .65rem; align-items: start; color: var(--void-text-secondary); line-height: 1.45; }
+.buy-checklist input { margin-top: .2rem; }
+.buy-action-row { display: flex; flex-wrap: wrap; gap: .65rem; }
+.buy-request-result { min-height: 7rem; margin: 0; padding: 1rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--void-border-subtle); border-radius: var(--void-radius-2); background: rgba(7,9,13,.42); color: var(--void-text-secondary); font-family: var(--void-font-mono); font-size: var(--void-text-12); }
+.buy-facts { display: grid; gap: 0; margin: 0; }
+.buy-facts > div { display: grid; grid-template-columns: minmax(8rem,.7fr) minmax(0,1.3fr); gap: 1rem; padding: .8rem 0; border-bottom: 1px solid var(--void-border-subtle); }
+.buy-facts > div:last-child { border-bottom: 0; }
+.buy-facts dt { color: var(--void-text-muted); font-size: var(--void-text-12); font-weight: 700; }
+.buy-facts dd { margin: 0; overflow-wrap: anywhere; text-align: right; }
+.buy-danger-copy { color: var(--void-danger); font-weight: 800; }
+.panel-link-row { margin: 1rem 0 0; }
+.panel-link-row a { color: var(--void-accent-cyan); font-weight: 760; text-decoration: none; }
+.panel-link-row a:hover { text-decoration: underline; }
+@media (max-width: 760px) {
+  .buy-facts > div { grid-template-columns: 1fr; gap: .3rem; }
+  .buy-facts dd { text-align: left; }
+  .buy-action-row .button { flex: 1 1 auto; }
+}
