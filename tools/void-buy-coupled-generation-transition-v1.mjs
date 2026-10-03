@@ -297,6 +297,15 @@ function sameIdentity(left, right) {
   );
 }
 
+function sameFileObservation(left, right) {
+  return (
+    sameIdentity(left, right) &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
 function openPinnedParent(file, label) {
   if (
     typeof file !== "string" ||
@@ -414,7 +423,7 @@ function readPrivateMaybe(file, label) {
         Number(fs.constants.O_NOFOLLOW || 0),
     );
     const before = fs.fstatSync(fd, { bigint: true });
-    if (!sameIdentity(listed, before)) {
+    if (!sameFileObservation(listed, before)) {
       fail(label + "_identity_changed");
     }
     const bytes = fs.readFileSync(fd);
@@ -422,8 +431,8 @@ function readPrivateMaybe(file, label) {
     const visible = fs.lstatSync(procFile, { bigint: true });
     if (
       bytes.length !== Number(after.size) ||
-      !sameIdentity(before, after) ||
-      !sameIdentity(after, visible)
+      !sameFileObservation(before, after) ||
+      !sameFileObservation(after, visible)
     ) {
       fail(label + "_changed_during_read");
     }
@@ -572,19 +581,21 @@ export function applyBuyVoidGenerationTransitionAtPathsV1({
     fail("generation_transition_apply_prestate_mismatch");
   }
 
-  const preBytes =
-    journalClass === "pre"
-      ? journal
-      : anchorClass === "pre"
-        ? anchor
-        : (() => {
-            if (plan.expected_prestate_sha256 === null) return null;
-            fail("generation_transition_prestate_unavailable");
-          })();
-  const targetBytes =
-    journalClass === "target" && anchorClass === "target"
-      ? journal
-      : targetBytesForPlan(plan, preBytes);
+  let targetBytes;
+  if (journalClass === "target" && anchorClass === "target") {
+    targetBytes = journal;
+  } else {
+    const preBytes =
+      journalClass === "pre"
+        ? journal
+        : anchorClass === "pre"
+          ? anchor
+          : (() => {
+              if (plan.expected_prestate_sha256 === null) return null;
+              fail("generation_transition_prestate_unavailable");
+            })();
+    targetBytes = targetBytesForPlan(plan, preBytes);
+  }
 
   if (anchorClass === "pre") {
     atomicReplacePrivateFile(
