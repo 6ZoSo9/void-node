@@ -42,9 +42,9 @@ assert.equal(
   "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
 );
 
-assert.equal(plan.canonical_state_and_policy_updates.length, 16);
-assert.equal(plan.focused_proof_updates.length, 13);
-assert.equal(plan.operator_documentation_updates.length, 9);
+assert.equal(plan.canonical_state_and_policy_updates.length, 21);
+assert.equal(plan.focused_proof_updates.length, 18);
+assert.equal(plan.operator_documentation_updates.length, 14);
 assert.equal(
   plan.historical_evidence_retained_without_identity_rewrite.length,
   6,
@@ -105,6 +105,19 @@ assert.ok(
   ),
 );
 
+for (const required of [
+  "tools/void-wc-void-production-readiness-v1.mjs",
+  "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
+  "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs",
+  "tools/void-wc-void-market-vault-canonical-application-v1.mjs",
+  "tools/void-wc-void-bounded-canary-evidence-v1.mjs",
+]) {
+  assert.ok(
+    plan.canonical_state_and_policy_updates.includes(required),
+    "missing superseded compiled-identity consumer:" + required,
+  );
+}
+
 assert.deepEqual(plan.execution_order, [
   "merge_compiled_identity_correction_v2",
   "merge_corrected_generation_derivation_v2",
@@ -148,6 +161,8 @@ console.log(
   "focused_proof_update_count=" +
     plan.focused_proof_updates.length,
 );
+console.log("compiled_identity_consumer_rebind_count=9");
+console.log("migration_plan_covers_census_compiled_identity_consumers=true");
 console.log(
   "historical_retained_count=" +
     plan.historical_evidence_retained_without_identity_rewrite.length,
