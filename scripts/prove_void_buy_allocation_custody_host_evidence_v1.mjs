@@ -211,6 +211,15 @@ for (const capabilityField of ["CapInh", "CapPrm", "CapEff", "CapAmb"]) {
     "collector must bind live process capability field " + capabilityField,
   );
 }
+assert.ok(
+  source.includes(JSON.stringify("NoNewPrivs")),
+  "collector must bind live kernel no-new-privileges state",
+);
+assert.match(
+  source,
+  /custody_host_evidence_runtime_process_no_new_privileges_not_enforced/u,
+  "configured NoNewPrivileges is insufficient without live process enforcement",
+);
 assert.match(
   source,
   /custody_host_evidence_runtime_process_capabilities_nonzero/u,
@@ -256,6 +265,7 @@ console.log("runtime_service_cgroup_bound=true");
 console.log("reviewed_systemd_major=255");
 console.log("runtime_service_capability_sets_empty=true");
 console.log("runtime_process_capabilities_zero=true");
+console.log("runtime_process_no_new_privileges_enforced=true");
 console.log("pkcheck_noninteractive=true");
 console.log("pkcheck_explicit_denial_only=true");
 console.log("pkcheck_authorized_holds=true");
