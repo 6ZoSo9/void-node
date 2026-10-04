@@ -153,6 +153,7 @@ The classifier fails closed on:
 - any high-water not matching exact prior or next bytes/digest;
 - next ledger whose prior prefix does not match the intent;
 - next ledger whose append differs from the intent append;
+- tampered append payload/hash/base64;
 - tampered prior or next high-water payload/hash/length/base64;
 - noncanonical intent JSON;
 - multi-record jumps;
