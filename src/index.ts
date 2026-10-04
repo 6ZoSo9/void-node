@@ -18824,7 +18824,7 @@ setInterval(refresh, 10000);
         if (logFrom !== expectedFrom) continue;
 
         const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
-        if (amountUnits >= requestedUnits) {
+        if (amountUnits === requestedUnits) {
           return {
             ok: true,
             usdc_contract: usdc,

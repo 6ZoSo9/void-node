@@ -36,6 +36,8 @@ assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
 assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
+assert.ok(index.includes("if (amountUnits === requestedUnits)"));
+assert.equal(index.includes("if (amountUnits >= requestedUnits)"), false);
 assert.ok(index.includes("Funds sent from an exchange/custodial wallet will be treated as lost."));
 assert.ok(index.includes("VOID is not exchange-listed."));
 assert.ok(index.includes("<label>Native USDC rail<br/>"));
