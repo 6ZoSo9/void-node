@@ -54,6 +54,19 @@ const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const BYTES32 = /^0x[0-9a-f]{64}$/u;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const ACTIVATION_RECEIPT_ID = /^voidbclive1_[0-9a-f]{64}$/u;
+const REQUEST_AUTHORITY_MARKER =
+  "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1";
+const REQUEST_AUTHORITY_KEYS = Object.freeze([
+  "activation_generation",
+  "activation_receipt_id",
+  "activation_receipt_sha256",
+  "coupled_launch_id",
+  "expires_at_ms",
+  "generation_tip_sha256",
+  "marker",
+  "source_composition_id",
+  "version",
+]);
 const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
 const MAX_LEDGER_RECORDS = 100_000;
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
@@ -397,7 +410,7 @@ function canonicalHex64V1(value: unknown, code: string): string {
   return text;
 }
 
-function launchAuthorityLineageV1(input: {
+function launchAuthorityLineageFieldsV1(input: {
   coupled_launch_id: unknown;
   source_composition_id: unknown;
   activation_generation: unknown;
@@ -440,7 +453,32 @@ function launchAuthorityLineageV1(input: {
   });
 }
 
-function recordIdV1(
+function requestLaunchAuthorityLineageV1(
+  value: unknown,
+): Readonly<LaunchAuthorityLineageV1> {
+  if (!isRecord(value)) {
+    throw new Error("allocation_reservation_request_launch_authority_invalid");
+  }
+  if (
+    Object.keys(value).sort().join("\n") !==
+    [...REQUEST_AUTHORITY_KEYS].sort().join("\n") ||
+    value.marker !== REQUEST_AUTHORITY_MARKER ||
+    value.version !== 1
+  ) {
+    throw new Error("allocation_reservation_request_launch_authority_invalid");
+  }
+  return launchAuthorityLineageFieldsV1({
+    coupled_launch_id: value.coupled_launch_id,
+    source_composition_id: value.source_composition_id,
+    activation_generation: value.activation_generation,
+    generation_tip_sha256: value.generation_tip_sha256,
+    activation_receipt_id: value.activation_receipt_id,
+    activation_receipt_sha256: value.activation_receipt_sha256,
+    expires_at_ms: value.expires_at_ms,
+  });
+}
+
+function recordIdV1(function recordIdV1(
   requestId: string,
   canonicalPaymentIdentity: string,
   paymentVerifiedEventSha256: string,
@@ -520,7 +558,7 @@ function parseRecordV1(
   if (!REQUEST_ID.test(requestId)) {
     throw new Error("allocation_reservation_request_id_invalid");
   }
-  const launchAuthority = launchAuthorityLineageV1({
+  const launchAuthority = launchAuthorityLineageFieldsV1({
     coupled_launch_id: raw.coupled_launch_id,
     source_composition_id: raw.source_composition_id,
     activation_generation: raw.activation_generation,
@@ -941,13 +979,7 @@ function candidateCoreV1(input: {
   source_chain: unknown;
   payment_transaction_hash: unknown;
   payment_log_index: unknown;
-  coupled_launch_id: unknown;
-  source_composition_id: unknown;
-  activation_generation: unknown;
-  generation_tip_sha256: unknown;
-  activation_receipt_id: unknown;
-  activation_receipt_sha256: unknown;
-  expires_at_ms: unknown;
+  launch_authority: unknown;
   buyer_delivery_wallet: unknown;
   quote_void_amount: unknown;
   quote_usdc_amount: unknown;
@@ -961,7 +993,8 @@ function candidateCoreV1(input: {
   if (!REQUEST_ID.test(requestId)) {
     throw new Error("allocation_reservation_request_id_invalid");
   }
-  const launchAuthority = launchAuthorityLineageV1(input);
+  const launchAuthority =
+    requestLaunchAuthorityLineageV1(input.launch_authority);
   const chain = canonicalChainV1(input.source_chain);
   const txHash = canonicalHashV1(
     input.payment_transaction_hash,
@@ -1031,13 +1064,7 @@ export function planBuyVoidAllocationReservationV1(input: {
   source_chain: unknown;
   payment_transaction_hash: unknown;
   payment_log_index: unknown;
-  coupled_launch_id: unknown;
-  source_composition_id: unknown;
-  activation_generation: unknown;
-  generation_tip_sha256: unknown;
-  activation_receipt_id: unknown;
-  activation_receipt_sha256: unknown;
-  expires_at_ms: unknown;
+  launch_authority: unknown;
   buyer_delivery_wallet: unknown;
   quote_void_amount: unknown;
   quote_usdc_amount: unknown;
