@@ -128,8 +128,10 @@ Accessor properties, prototypes other than plain/null objects, symbols, missing 
 Primitive field types are exact: UUID/digest/decimal fields must already be
 strings and wall time must already be a safe integer. Object-valued substitutes
 are rejected without invoking `toString`, `valueOf`, or
-`Symbol.toPrimitive` hooks. A malformed prior receipt HOLDS before the clock is
-called.
+`Symbol.toPrimitive` hooks. Proxy binding/request/sample/prior objects are
+rejected through Node's non-trapping proxy detector before prototype, key, or
+descriptor reflection, so proxy traps cannot run inside validation. A malformed
+prior receipt HOLDS before the clock is called.
 
 ## Authority boundary
 
@@ -165,6 +167,7 @@ The focused proof covers:
 - object-key order invariance;
 - accessor binding/request/sample rejection without getter execution;
 - nested object-valued sample/prior fields rejected without coercion hooks;
+- proxy binding/request/sample/prior objects rejected without reflection traps;
 - stable clock-provider exception HOLD without provider-detail exposure;
 - corrupt prior receipt rejected before clock read;
 - self-consistent rehashed prior receipt with zero process-start identity rejected before clock read;
