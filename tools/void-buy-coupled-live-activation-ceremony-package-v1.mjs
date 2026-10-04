@@ -337,7 +337,9 @@ export function assembleVoidBuyCoupledLiveActivationReceiptCandidateV1({
       receipt.activation_receipt_id + ":" +
       receiptSha256,
     signatures_verified: false,
-    activation_authority: false,
+    fixed_signer_pair_verified: false,
+    live_source_state_verified: false,
+    generation_authority_verified: false,
     runtime_activation_performed: false,
     funds_movement: false,
   });
@@ -366,6 +368,7 @@ export function finalizeVoidBuyCoupledLiveActivationReceiptV1(input) {
   return Object.freeze({
     ...candidate,
     signatures_verified: true,
+    fixed_signer_pair_verified: true,
     activation_recovered_signer: activation.recovered_signer,
     sovereign_recovered_signer: sovereign.recovered_signer,
   });

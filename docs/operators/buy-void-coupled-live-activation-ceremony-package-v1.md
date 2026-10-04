@@ -51,6 +51,11 @@ returns:
 - receipt SHA-256;
 - exact operator confirmation string consumed by the live gate.
 
+A successful finalization proves only the fixed signer pair over the exact
+package payload. It does not independently prove that source composition,
+generation authority, or lease time are still live when the receipt is later
+used. The runtime gate rechecks all of those conditions.
+
 The assembler does not install the receipt, modify service configuration,
 publish a generation, restart anything, or activate intake.
 

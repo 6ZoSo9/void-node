@@ -154,7 +154,9 @@ const candidate = assembleVoidBuyCoupledLiveActivationReceiptCandidateV1({
 });
 
 assert.equal(candidate.signatures_verified, false);
-assert.equal(candidate.activation_authority, false);
+assert.equal(candidate.fixed_signer_pair_verified, false);
+assert.equal(candidate.live_source_state_verified, false);
+assert.equal(candidate.generation_authority_verified, false);
 assert.equal(candidate.runtime_activation_performed, false);
 assert.equal(candidate.funds_movement, false);
 assert.match(candidate.receipt_sha256, /^[0-9a-f]{64}$/u);
