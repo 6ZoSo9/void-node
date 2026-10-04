@@ -196,7 +196,7 @@ No production store is created or mutated by merging this source.
 
 ```bash
 node --check tools/void-economic-system-sponsored-observation-time-store-v1.mjs
-node --check scripts/prove_void_economic-system-sponsored-observation-time-store-v1.mjs
+node --check scripts/prove_void_economic_system_sponsored_observation_time_store_v1.mjs
 npm run build
 node scripts/prove_void_economic_system_sponsored_observation_time_v1.mjs
 node scripts/prove_void_economic_system_sponsored_observation_time_store_v1.mjs
