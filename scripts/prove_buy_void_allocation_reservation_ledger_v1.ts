@@ -280,6 +280,15 @@ expectHeld(
 expectHeld(
   planBuyVoidAllocationReservationV1({
     ...baseInput,
+    buyer_delivery_wallet:
+      "0x0000000000000000000000000000000000000000",
+  }),
+  "allocation_reservation_buyer_wallet_invalid",
+);
+
+expectHeld(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
     verified_payment_receipt_ref: "not-a-ref",
   }),
   "allocation_reservation_verified_payment_ref_invalid",
