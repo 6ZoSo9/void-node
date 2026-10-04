@@ -22,6 +22,8 @@ The collector binds:
 - the exact merged allocation publication writer source bytes;
 - the exact merged allocation custody service source bytes;
 - `docs/architecture/buy-void-allocation-custody-service-contract-v1.json`;
+- each reviewed repository byte source to the exact captured `HEAD:path`
+  Git object, not merely to a clean worktree claim;
 - effective service properties from `systemctl show`;
 - exact root/ancestor filesystem identity;
 - mount source/UUID/major:minor/statfs identity;
@@ -31,6 +33,36 @@ The collector binds:
 
 The custody service contract remains source-only. Observing it does not install
 or start a service.
+
+All security-sensitive file evidence is read through a retained
+`O_NOFOLLOW` descriptor. The collector binds the visible pathname to the
+opened inode, reads from that exact descriptor, re-`fstat`s it, and finally
+rebinds the visible pathname to the same inode. This prevents a pathname swap
+between census and read from substituting different bytes. Procfs pseudo-files
+whose stat size is zero are still accepted only when the retained descriptor
+returns non-empty bytes within the reviewed ceiling.
+
+Repository cleanliness is observed with `git --no-optional-locks`; the
+collector does not rely on a normal Git status refresh. For the writer source,
+custody-service source, and service contract, the worktree Git-blob SHA-1 must
+equal the exact object resolved from the already captured HEAD. Index hints such
+as assume-unchanged or skip-worktree therefore cannot authorize altered
+reviewed bytes.
+
+## Exact custody-service executable binding
+
+The effective custody-service `ExecStart` is treated as authority evidence,
+not a string hint. The collector accepts exactly one parsed systemd command
+record whose:
+
+- executable path equals the reviewed running Node executable;
+- `argv[0]` equals that same executable;
+- only service argument equals the exact reviewed
+  `tools/void-buy-allocation-custody-service-v1.mjs` path.
+
+Wrappers, shell launchers, source-path-as-data commands, extra arguments, and
+multiple effective `ExecStart` records HOLD. A substring containing the
+reviewed source path is not sufficient.
 
 ## Runtime service-control denial
 
@@ -179,7 +211,11 @@ The packet remains content-addressed by
 
 The host evidence continues to include:
 
-- exact writer Git/SHA-256 identity;
+- exact writer Git/SHA-256 identity bound to the captured HEAD object;
+- reviewed custody-service source and contract bytes bound to their captured
+  HEAD objects;
+- retained-descriptor file-read identity for security evidence;
+- exact effective custody-service executable/argv binding;
 - machine/boot identity digests;
 - runtime/custody UID/GID separation;
 - descriptor-bound root and ancestor identities;
@@ -233,7 +269,12 @@ node scripts/prove_void_buy_allocation_custody_host_evidence_v1.mjs
 
 The proof requires:
 
-- reviewed custody-service source/contract binding;
+- reviewed custody-service source/contract binding to exact HEAD Git objects;
+- retained `O_NOFOLLOW` descriptor read/fstat/rebind semantics;
+- Git inspection with optional locks disabled;
+- exact single-command custody-service `ExecStart` binding;
+- behavioral rejection of wrapper executables, argv spoofing, extra arguments,
+  and multiple `ExecStart` records;
 - `PID,start-time,UID` subject construction;
 - reviewed systemd major 255;
 - exact root-owned, lexically-first global runtime Polkit deny rule;
