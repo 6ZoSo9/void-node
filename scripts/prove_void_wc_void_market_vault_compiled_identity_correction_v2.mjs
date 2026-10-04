@@ -150,10 +150,63 @@ assert.throws(
   /canonical_compiler_artifact_hash_mismatch/u,
 );
 
+{
+  const forgedProvenance = structuredClone(v2);
+  forgedProvenance.accepted_identity.workflow_artifact_zip_sha256 =
+    "0".repeat(64);
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedProvenance,
+    }),
+    /compiler_identity_provenance_mismatch:workflow_artifact_zip_sha256/u,
+  );
+}
+
+{
+  const forgedUnchangedArtifact = structuredClone(v2);
+  forgedUnchangedArtifact.canonical_compiler_artifacts.immutable_layout_sha256 =
+    "0".repeat(64);
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedUnchangedArtifact,
+    }),
+    /canonical_compiler_unchanged_artifact_mismatch:immutable_layout_sha256/u,
+  );
+}
+
+{
+  const forgedCorrectionShape = structuredClone(v2);
+  forgedCorrectionShape.correction.compiler_identity_recompile_required = true;
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedCorrectionShape,
+    }),
+    /superseded_v1_overcapture_shape_invalid/u,
+  );
+}
+
+{
+  const forgedAuthority = structuredClone(v2);
+  forgedAuthority.authority.deployment = true;
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedAuthority,
+    }),
+    /correction_authority_invalid:deployment/u,
+  );
+}
+
 console.log(
   "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2_PROOF_GREEN",
 );
 console.log("canonical_compiler_identity_preserved=true");
+console.log("compiler_identity_provenance_bound=true");
+console.log("unchanged_compiler_artifact_hashes_bound=true");
+console.log("correction_authority_exact_and_zero=true");
 console.log("coupled_launch_id_recomputed_from_canonical_commitment=true");
 console.log("coupled_launch_bytes32_bridge_recomputed=true");
 console.log("v1_deployment_bytes_superseded=true");
