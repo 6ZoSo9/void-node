@@ -520,6 +520,58 @@ function verifySponsorshipSet(raw, policy, ttlState) {
   });
 }
 
+export function verifyEconomicSystemSponsoredStateV1({
+  sponsorship_policy: rawSponsorshipPolicy,
+  ttl_caps_policy: ttlPolicy,
+  outstanding_intents: rawOutstandingIntents,
+  sponsorships: rawSponsorships,
+  observed_at_ms: observedAt,
+}) {
+  const ttlState = verifyEconomicIntentTtlCapsStateV1({
+    policy: ttlPolicy,
+    outstanding_intents: rawOutstandingIntents,
+    observed_at_ms: observedAt,
+  });
+  const policy = verifyPolicy(rawSponsorshipPolicy, ttlPolicy);
+  const existing = verifySponsorshipSet(
+    rawSponsorships,
+    policy,
+    ttlState,
+  );
+
+  return Object.freeze({
+    marker: VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_V1,
+    policy_contract_id:
+      VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_POLICY_CONTRACT
+        .policy_contract_id,
+    policy_id: policy.policy_id,
+    coupled_launch_id: policy.coupled_launch_id,
+    intent_ttl_caps_policy_id: policy.intent_ttl_caps_policy_id,
+    observed_at_ms: ttlState.observed_at_ms,
+    tracked_intent_count: ttlState.tracked_intent_count,
+    outstanding_intent_count: ttlState.outstanding_intent_count,
+    expired_intent_count: ttlState.expired_intent_count,
+    tracked_sponsorship_count: existing.sponsorships.length,
+    active_reserved_gas: existing.global_reserved_gas.toString(),
+    expired_reserved_gas_not_counted:
+      existing.expired_reserved_gas_not_counted.toString(),
+    per_identity_reserved_gas:
+      existing.per_identity_reserved_gas,
+    historical_state_verified: true,
+    expired_sponsorships_not_counted_as_reserved: true,
+    runtime_enforcement_verified: false,
+    reservation_mutation_performed: false,
+    gas_sponsorship_performed: false,
+    wall_clock_read_performed: false,
+    transaction_submission: false,
+    transaction_broadcast: false,
+    authoritative_chain2050_write: false,
+    funds_movement: false,
+    authority:
+      VOID_ECONOMIC_SYSTEM_SPONSORED_ANTI_GRIEF_AUTHORITY_V1,
+  });
+}
+
 function verifyCandidateSignedSubmission(
   raw,
   candidateTtlIntent,
