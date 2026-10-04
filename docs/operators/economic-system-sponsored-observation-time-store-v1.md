@@ -40,8 +40,12 @@ The root must already exist with a private `records/` directory:
   observation-time-v1.queue/
 ```
 
-The queue directory is owned by the existing reviewed async filesystem bakery
-lock. The store does not bootstrap the root or records directory.
+The queue directory is used by the existing reviewed async filesystem bakery
+lock, but it is **not** created or repaired by this store. Root, `records/`,
+and `observation-time-v1.queue/` must all be pre-provisioned direct private
+directories. The store descriptor-binds the queue before entering the bakery
+lock, so a missing/symlinked/wrong-owner/non-private queue HOLDS before the
+lock helper can create or chmod anything.
 
 Each record contains the exact canonical JSON bytes of one
 `VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_RECEIPT_V1` plus one final
@@ -60,7 +64,8 @@ No API accepts:
 lock:
 
 ```text
-descriptor-bind root + records
+descriptor-bind root + records + pre-provisioned lock queue
+  -> enter the reviewed bakery lock using that exact queue
   -> recover reviewed crash temp residue
   -> read and validate all canonical receipts
   -> reconstruct one unique genesis -> head chain
@@ -84,6 +89,13 @@ duplicates.
 
 Generation zero must have no parent. Every later generation must point to the
 immediately previous receipt SHA-256.
+
+Every record is parsed only as JSON transport framing and then
+revalidated/canonicalized through the exported #2459
+`verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1(...)` and
+`canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1(...)`.
+The store adds filename and chain-topology checks; it does not maintain a second
+receipt-semantic validator.
 
 Every record is independently revalidated for:
 
@@ -218,6 +230,9 @@ The focused proof covers:
 - malformed and symlink record HOLD;
 - boot-change HOLD without durable mutation;
 - missing pre-provisioned root HOLD without bootstrap;
+- missing pre-provisioned lock queue HOLD with no mkdir;
+- unsafe lock-queue mode HOLD with no chmod repair;
+- canonical #2459 verifier rejection prevents durable history admission;
 - descriptor/no-follow source guards; and
 - no hidden wall clock, transaction, service, or funds primitive.
 
