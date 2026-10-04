@@ -308,6 +308,26 @@ const observedAt = (BASE_UNIX + 140) * 1000;
     assert.equal(afterCorruptReplay.records.length, 1);
     assert.equal(afterCorruptReplay.active_reserved_gas, "50000");
 
+    const corruptCalldataReplay = {
+      ...first,
+      signed_submission: {
+        ...first.signed_submission,
+        calldata: "0x1235",
+      },
+    };
+    requireHeld(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(
+          f.root,
+          ttl,
+          sponsor,
+          corruptCalldataReplay,
+          observedAt,
+        ),
+      ),
+      "SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_SUBMISSION_INVALID",
+    );
+
     const expiredAt = (BASE_UNIX + 254) * 1000;
     const expired = requireOk(
       listEconomicSystemSponsoredReservationsV1(
@@ -329,6 +349,19 @@ const observedAt = (BASE_UNIX + 140) * 1000;
     assert.equal(expiredReplay.active_reserved_gas, "0");
     assert.equal(expiredReplay.trusted_observation_time_proven, false);
     assert.equal(expiredReplay.monotonic_observation_time_proven, false);
+
+    requireHeld(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(
+          f.root,
+          ttl,
+          sponsor,
+          corruptedReplay,
+          expiredAt,
+        ),
+      ),
+      "SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_SUBMISSION_INVALID",
+    );
 
     const altered = {
       ...first,
