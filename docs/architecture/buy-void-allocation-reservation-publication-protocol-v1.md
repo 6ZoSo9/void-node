@@ -52,17 +52,19 @@ It contains:
 - allocation `record_hash`;
 - prior record count and tip;
 - prior full-ledger SHA-256 and byte length;
-- prior high-water SHA-256 and byte length;
+- prior high-water SHA-256, byte length, and exact bounded base64 bytes;
 - next record count and tip;
 - next full-ledger SHA-256 and byte length;
 - next high-water SHA-256 and byte length;
 - SHA-256 of the exact appended record bytes;
-- base64 of only the appended record bytes; and
+- base64 of only the appended record bytes;
+- base64 of the exact prior high-water bytes; and
 - base64 of the exact next high-water bytes.
 
 The intent does **not** duplicate the complete prior or next ledger. Recovery
-needs only the exact single append plus the exact next high-water. This keeps
-the intent bounded even when the allocation ledger grows toward its reviewed
+needs only the exact single append plus the exact prior/next high-water bytes.
+Each high-water payload is independently bounded to 4096 bytes, so the intent
+remains bounded even when the allocation ledger grows toward its reviewed
 64 MiB ceiling.
 
 Intent JSON is schema-closed, compact/canonical, and final-newline terminated.
@@ -113,8 +115,9 @@ Observed state:
 - high-water = exact prior high-water.
 
 The classifier proves the next ledger consists of the exact prior prefix plus
-the exact intent append and that the derived prior prefix still matches the
-intent's prior count/tip/digest/length.
+the exact intent append, that the derived prior prefix still matches the
+intent's prior count/tip/digest/length, and that the intent-carried exact prior
+high-water bytes semantically bind to that reconstructed prior prefix.
 
 Recovery action required later:
 
@@ -129,6 +132,11 @@ Observed state:
 
 - ledger = exact next ledger;
 - high-water = exact next high-water.
+
+Before accepting this phase, recovery reconstructs the exact prior ledger
+prefix and requires the intent-carried exact prior high-water bytes to bind to
+that prefix. A self-consistent next state therefore cannot make tampered
+prior-state intent fields irrelevant.
 
 Recovery action required later:
 
@@ -145,7 +153,7 @@ The classifier fails closed on:
 - any high-water not matching exact prior or next bytes/digest;
 - next ledger whose prior prefix does not match the intent;
 - next ledger whose append differs from the intent append;
-- tampered intent payload/hash/base64;
+- tampered prior or next high-water payload/hash/length/base64;
 - noncanonical intent JSON;
 - multi-record jumps;
 - alternate same-generation history; and
