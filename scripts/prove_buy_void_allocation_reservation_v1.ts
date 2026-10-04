@@ -217,6 +217,15 @@ for (const [key, value] of Object.entries(
     "utf8",
   );
   assert.match(source, /withBuyVoidFilesystemBakeryLockV1/);
+  assert.match(source, /canonicalRequestDirectoryForLockV1/);
+  assert.match(
+    source,
+    /fs\.realpathSync\.native\(directory\.proc_path\)/,
+  );
+  assert.match(
+    source,
+    /buy_void_allocation_lock_request_directory_canonical_mismatch/,
+  );
   assert.equal(
     (source.match(/export function persistBuyVoidAllocationReservationV1\(/gu) || []).length,
     1,
