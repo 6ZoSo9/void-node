@@ -10,6 +10,9 @@ import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_V1,
   createVoidEconomicSystemSponsoredObservationTimeStoreV1,
 } from "../tools/void-economic-system-sponsored-observation-time-store-v1.mjs";
+import {
+  verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1,
+} from "../tools/void-economic-system-sponsored-observation-time-v1.mjs";
 
 const BOOT_A = "11111111-1111-1111-1111-111111111111";
 const BOOT_B = "22222222-2222-2222-2222-222222222222";
@@ -506,6 +509,43 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const f = fixture();
+  try {
+    const clock = clockQueue([sample()]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock: clock.clock,
+      });
+    const first = requireOk(await store.observe());
+    const validName =
+      first.head_receipt_sha256.slice("sha256:".length) + ".json";
+    const validPath = path.join(f.records, validName);
+    const validReceipt = JSON.parse(fs.readFileSync(validPath, "utf8"));
+    const invalidReceipt = rehash({
+      ...validReceipt,
+      wall_monotonic_skew_allowance_ms:
+        validReceipt.wall_monotonic_skew_allowance_ms + 1,
+    });
+    assert.throws(
+      () =>
+        verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1(
+          invalidReceipt,
+        ),
+      /sponsored_observation_time_prior_receipt_invalid/u,
+    );
+    fs.unlinkSync(validPath);
+    writeReceipt(f.records, invalidReceipt);
+    requireHeld(
+      store.inspect(),
+      "SPONSORED_OBSERVATION_TIME_STORE_RECORD_RECEIPT_INVALID",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-sponsored-time-store-no-queue-"),
   );
@@ -593,6 +633,14 @@ assert.match(source, /withBuyVoidFilesystemBakeryLockAsyncV1/u);
 assert.match(source, /openLockQueueDirectory/u);
 assert.match(source, /LOCK_QUEUE_DIRECTORY/u);
 assert.match(source, /createVoidEconomicSystemSponsoredObservationTimeV1/u);
+assert.match(
+  source,
+  /verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1/u,
+);
+assert.match(
+  source,
+  /canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1/u,
+);
 assert.match(source, /prior_receipt: before\.head\?\.receipt \|\| null/u);
 assert.match(source, /args\.length !== 0/u);
 assert.match(source, /O_NOFOLLOW/u);
@@ -611,6 +659,8 @@ console.log(
 console.log("caller_prior_receipt_input=false");
 console.log("caller_timestamp_input=false");
 console.log("durable_head_supplies_prior_receipt=true");
+console.log("canonical_receipt_verifier_reused=true");
+console.log("canonical_verifier_rejection_blocks_store_history=true");
 console.log("serialized_observation=true");
 console.log("concurrent_observation_serialized=true");
 console.log("restart_reconstructs_durable_head=true");
