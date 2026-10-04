@@ -51,8 +51,10 @@ function fixture() {
   );
   fs.chmodSync(root, 0o700);
   const records = path.join(root, "records");
+  const queue = path.join(root, "observation-time-v1.queue");
   fs.mkdirSync(records, { mode: 0o700 });
-  return { root, records };
+  fs.mkdirSync(queue, { mode: 0o700 });
+  return { root, records, queue };
 }
 
 function cleanup(f) {
@@ -504,6 +506,64 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-sponsored-time-store-no-queue-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const records = path.join(root, "records");
+  const queue = path.join(root, "observation-time-v1.queue");
+  fs.mkdirSync(records, { mode: 0o700 });
+  try {
+    const clock = clockQueue([sample()]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: root,
+        trustedClock: clock.clock,
+      });
+    requireHeld(
+      store.inspect(),
+      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_ANCESTOR_WALK_FAILED",
+    );
+    assert.equal(fs.existsSync(queue), false);
+    requireHeld(
+      await store.observe(),
+      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_ANCESTOR_WALK_FAILED",
+    );
+    assert.equal(clock.calls(), 0);
+    assert.equal(fs.existsSync(queue), false);
+    assert.equal(fs.lstatSync(records).mode & 0o777, 0o700);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    fs.chmodSync(f.queue, 0o755);
+    const beforeMode = fs.lstatSync(f.queue).mode & 0o777;
+    const clock = clockQueue([sample()]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock: clock.clock,
+      });
+    requireHeld(
+      store.inspect(),
+      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_INVALID",
+    );
+    requireHeld(
+      await store.observe(),
+      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_INVALID",
+    );
+    assert.equal(clock.calls(), 0);
+    assert.equal(fs.lstatSync(f.queue).mode & 0o777, beforeMode);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const missingRoot =
     path.join(os.tmpdir(), "void-sponsored-time-store-missing-" + process.pid);
   fs.rmSync(missingRoot, { recursive: true, force: true });
@@ -530,6 +590,8 @@ const source = fs.readFileSync(
   "utf8",
 );
 assert.match(source, /withBuyVoidFilesystemBakeryLockAsyncV1/u);
+assert.match(source, /openLockQueueDirectory/u);
+assert.match(source, /LOCK_QUEUE_DIRECTORY/u);
 assert.match(source, /createVoidEconomicSystemSponsoredObservationTimeV1/u);
 assert.match(source, /prior_receipt: before\.head\?\.receipt \|\| null/u);
 assert.match(source, /args\.length !== 0/u);
@@ -558,6 +620,9 @@ console.log("changed_chain_baseline_hold=true");
 console.log("crash_temp_recovery=true");
 console.log("read_only_temp_cleanup=false");
 console.log("boot_change_holds=true");
+console.log("preprovisioned_lock_queue_required=true");
+console.log("missing_lock_queue_does_not_bootstrap=true");
+console.log("unsafe_lock_queue_mode_not_repaired=true");
 console.log("storage_bootstrap=false");
 console.log("receipt_store_rollback_resistance_proven=false");
 console.log("trusted_clock_source_proven=false");
