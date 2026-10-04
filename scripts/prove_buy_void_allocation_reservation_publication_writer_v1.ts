@@ -437,10 +437,46 @@ for (const [key, value] of Object.entries(
     if (held.ok) throw new Error("expected same-root HOLD");
     assert.equal(
       held.reason,
-      "allocation_reservation_writer_storage_roots_must_be_distinct",
+      "allocation_reservation_writer_storage_roots_must_be_disjoint",
     );
   } finally {
     cleanup(f);
+  }
+}
+
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-allocation-writer-nested-v1-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const ledgerRoot = path.join(root, "ledger");
+  const highWaterRoot = path.join(ledgerRoot, "high-water");
+  fs.mkdirSync(ledgerRoot, { mode: 0o700 });
+  fs.mkdirSync(highWaterRoot, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(ledgerRoot, LEDGER_NAME),
+    "",
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    path.join(highWaterRoot, HIGH_WATER_NAME),
+    genesisHighWater,
+    { mode: 0o600 },
+  );
+  try {
+    const held =
+      recoverBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: ledgerRoot,
+        high_water_root: highWaterRoot,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("expected nested-root HOLD");
+    assert.equal(
+      held.reason,
+      "allocation_reservation_writer_storage_roots_must_be_disjoint",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
@@ -558,6 +594,7 @@ console.log("multi_record_jump_hold=true");
 console.log("rollback_hold=true");
 console.log("descriptor_bound_private_roots=true");
 console.log("separate_storage_roots_required=true");
+console.log("nested_storage_roots_hold=true");
 console.log("storage_bootstrap=false");
 console.log("runtime_integration=false");
 console.log("protected_high_water_custody_proven=false");
