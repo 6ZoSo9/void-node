@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/buy-void-allocation-reservation-v1.yml"
       - "src/economic/buy_void_allocation_reservation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "scripts/prove_buy_void_allocation_reservation_v1.ts"
       - "docs/architecture/buy-void-allocation-reservation-v1.md"
       - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
@@ -16,6 +17,7 @@ on:
     paths:
       - ".github/workflows/buy-void-allocation-reservation-v1.yml"
       - "src/economic/buy_void_allocation_reservation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "scripts/prove_buy_void_allocation_reservation_v1.ts"
       - "docs/architecture/buy-void-allocation-reservation-v1.md"
       - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
