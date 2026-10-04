@@ -76,8 +76,8 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_REVIEWED_RUNTIME_SOURCES_V5 =
     }),
     Object.freeze({
       path: "src/economic/buy_void_verified_payment_v2.ts",
-      source_commit_sha: "885cecc318fb814eef6f8982f86fbfc660e30570",
-      git_blob_sha1: "9ba679d52c74d5590558ccfdb5882597d79b9f31",
+      source_commit_sha: "bc3468e5f3d46073981c333cd3d20cb8c7024aa0",
+      git_blob_sha1: "c0e4660bb238e1b718b8a471890901bd5a59badf",
     }),
   ] as const satisfies readonly SourceGenerationRecordV5[]);
 
