@@ -10,6 +10,32 @@ import {
   writeBuyVoidOperatorEventWithCapacityAdmissionV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
+const capacitySource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src",
+    "economic",
+    "buy_void_verified_payment_capacity_admission_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(
+  capacitySource,
+  /buy_void_verified_payment_capacity_descriptor_safety_unavailable/u,
+);
+assert.match(
+  capacitySource,
+  /!fs\.existsSync\("\/proc\/self\/fd"\)/u,
+);
+assert.doesNotMatch(
+  capacitySource,
+  /fs\.constants\.O_NOFOLLOW[\s\S]{0,120}: 0;/u,
+);
+assert.doesNotMatch(
+  capacitySource,
+  /fs\.constants\.O_DIRECTORY[\s\S]{0,120}: 0;/u,
+);
+
 const root = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-buy-capacity-admission-"),
 );
