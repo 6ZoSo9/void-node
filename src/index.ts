@@ -18805,7 +18805,9 @@ setInterval(refresh, 10000);
 
     // VOID_BUY_VOID_PAYMENT_SENDER_DELIVERY_MATCH_V1
     function __voidBuyVoidUsdcTransferMatchV1(logs:any[],chainCfg:any,receiveAddress:string,deliveryAddress:string,requestedUsdc:any){
-      const usdc=String(chainCfg?.usdc_contract||"").toLowerCase(),to=String(receiveAddress||"").toLowerCase(),expectedFrom=String(deliveryAddress||"").toLowerCase(),transferSig="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",requestedUnits=BigInt(Math.ceil(Number(requestedUsdc||0)*1000000)),matches:any[]=[];
+      const usdc=String(chainCfg?.usdc_contract||"").toLowerCase(),to=String(receiveAddress||"").toLowerCase(),expectedFrom=String(deliveryAddress||"").toLowerCase(),transferSig="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",t=String(requestedUsdc??"").trim(),q=/^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/.exec(t),matches:any[]=[];
+      if(!q)return{ok:false,error:"invalid_requested_usdc_amount",usdc_contract:usdc,expected_from_address:expectedFrom,receive_address:to,requested_units:""};
+      const requestedUnits=BigInt(q[1])*1000000n+BigInt((q[2]||"").padEnd(6,"0"));
       for(const log of logs||[]){
         const topics=log.topics||[];
         if(String(log.address||"").toLowerCase()!==usdc||String(topics[0]||"").toLowerCase()!==transferSig)continue;
