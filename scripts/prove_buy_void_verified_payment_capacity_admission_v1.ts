@@ -144,8 +144,7 @@ try {
     markedAt: number,
     identityLogIndex = markedAt,
   ) => ({
-    schema: "void_buy_void_verified_payment_event_v2",
-    marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
+    schema: "void_buy_void_operator_mark_v1",
     ok: true,
     request_id: request.request_id,
     operator_status: "payment_verified",
