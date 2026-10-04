@@ -54,11 +54,31 @@ const event = (
   },
 });
 
+const liveVerifierEvent = (
+  value: ReturnType<typeof request>,
+  logIndex: number,
+  markedAt: number,
+) => {
+  const out: any = event(value, logIndex, markedAt);
+  out.schema = "void_buy_void_operator_mark_v1";
+  delete out.marker;
+  return out;
+};
+
 const a = request("buyvoid_a_aaaaaaaa", tx("a"));
 const bSamePayment = request("buyvoid_b_bbbbbbbb", tx("a"));
 const bOtherPayment = request("buyvoid_b_bbbbbbbb", tx("b"));
 
 const aEvent = event(a, 7, 1);
+const liveAEvent = liveVerifierEvent(a, 7, 10);
+const liveFresh = classifyBuyVoidVerifiedPaymentIdentityAdmissionV1({
+  request: a,
+  event: liveAEvent,
+  operator_events: [],
+});
+assert.equal(liveFresh.ready, true);
+assert.equal(liveFresh.already_verified, false);
+
 const fresh = classifyBuyVoidVerifiedPaymentIdentityAdmissionV1({
   request: a,
   event: aEvent,
@@ -237,7 +257,7 @@ try {
     logIndex: number,
   ) =>
     writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-      event: event(value, logIndex, markedAt),
+      event: liveVerifierEvent(value, logIndex, markedAt),
       request: value,
       request_dir: root,
       with_launch_authority_mutation: withLaunchAuthorityMutation,
