@@ -45,12 +45,16 @@ function canonicalIdentity(input: {
 }
 
 function verifiedPaymentIdentityFromEventV1(event: any) {
+  const reusableV2Provenance =
+    event?.schema === "void_buy_void_verified_payment_event_v2" &&
+    event?.marker === "VOID_BUY_VOID_VERIFIED_PAYMENT_V2";
+  const liveOperatorVerifierProvenance =
+    event?.schema === "void_buy_void_operator_mark_v1";
   if (
     !event ||
     typeof event !== "object" ||
     Array.isArray(event) ||
-    event.schema !== "void_buy_void_verified_payment_event_v2" ||
-    event.marker !== "VOID_BUY_VOID_VERIFIED_PAYMENT_V2" ||
+    (!reusableV2Provenance && !liveOperatorVerifierProvenance) ||
     event.payment_identity_input_complete !== true ||
     event.payment_verified !== true ||
     String(event.operator_status || "").trim() !== "payment_verified"
