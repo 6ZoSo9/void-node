@@ -8,6 +8,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1,
   testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1,
   testOnlyClassifyBuyVoidAllocationCustodyPolkitStatusV1,
+  testOnlyValidateBuyVoidAllocationCustodyExecStartV1,
 } from "../tools/void-buy-allocation-custody-host-evidence-v1.mjs";
 
 const SOURCE_PATH =
@@ -34,6 +35,18 @@ assert.equal(
     .runtime_service_control_denial_proven,
   true,
 );
+for (const key of [
+  "descriptor_bound_file_reads",
+  "exact_head_object_binding",
+  "exact_service_exec_binding",
+  "git_optional_locks_disabled",
+]) {
+  assert.equal(
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1[key],
+    true,
+    key,
+  );
+}
 for (const key of [
   "service_install",
   "service_start",
@@ -67,6 +80,38 @@ assert.equal(
   sha256Id(service),
   "collector must consume the exact reviewed custody-service source",
 );
+
+const reviewedExecSource =
+  "/repo/tools/void-buy-allocation-custody-service-v1.mjs";
+assert.equal(
+  testOnlyValidateBuyVoidAllocationCustodyExecStartV1(
+    "{ path=/usr/bin/node ; argv[]=/usr/bin/node /repo/tools/void-buy-allocation-custody-service-v1.mjs ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }",
+    "/usr/bin/node",
+    reviewedExecSource,
+  ),
+  true,
+);
+for (const candidate of [
+  "{ path=/usr/bin/printf ; argv[]=/usr/bin/printf " +
+    reviewedExecSource + " ; ignore_errors=no }",
+  "{ path=/usr/bin/node ; argv[]=/bin/sh " +
+    reviewedExecSource + " ; ignore_errors=no }",
+  "{ path=/usr/bin/node ; argv[]=/usr/bin/node " +
+    reviewedExecSource + " --extra ; ignore_errors=no }",
+  "{ path=/usr/bin/node ; argv[]=/usr/bin/node " +
+    reviewedExecSource + " ; ignore_errors=no } " +
+    "{ path=/usr/bin/true ; argv[]=/usr/bin/true ; ignore_errors=no }",
+]) {
+  assert.equal(
+    testOnlyValidateBuyVoidAllocationCustodyExecStartV1(
+      candidate,
+      "/usr/bin/node",
+      reviewedExecSource,
+    ),
+    false,
+    candidate,
+  );
+}
 
 assert.deepEqual(
   [
@@ -321,6 +366,19 @@ for (const mutation of [
     "collector must remain read-only",
   );
 }
+
+assert.match(source, /openReadNoFollow\(file\)/u);
+assert.match(source, /io\.fstat\(fd\)/u);
+assert.match(source, /io\.readFd\(fd, maximum\)/u);
+assert.match(source, /--no-optional-locks/u);
+assert.match(source, /head \+ ":" \+ relativePath/u);
+assert.match(source, /custody_host_evidence_writer_source_head_mismatch/u);
+assert.match(source, /custody_host_evidence_service_source_head_mismatch/u);
+assert.match(source, /validateServiceExecStart\(/u);
+assert.doesNotMatch(
+  source,
+  /execStart\.includes\(serviceContract\.source_path\)/u,
+);
 
 console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1_PROOF_GREEN",
