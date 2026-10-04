@@ -454,6 +454,40 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const f = fixture(ledger1, genesisHighWater);
+  try {
+    const held =
+      recoverBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error(
+        "expected post-publication root-swap mixed state HOLD",
+      );
+    }
+    assert.equal(
+      held.reason,
+      "allocation_reservation_writer_high_water_" +
+        "allocation_reservation_high_water_binding_mismatch",
+    );
+    assert.equal(
+      VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V1
+        .post_admission_root_path_stability_proven,
+      false,
+    );
+    assert.equal(
+      VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V1
+        .single_root_post_publication_recovery,
+      false,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const f = fixture();
   try {
     const written =
@@ -1024,6 +1058,9 @@ console.log("high_water_root_replacement_keeps_shared_lock=true");
 console.log("ledger_root_replacement_keeps_shared_lock=true");
 console.log("single_root_replacement_blocks_valid_competing_publication=true");
 console.log("deterministic_dual_lock_order=true");
+console.log("post_publication_root_swap_mixed_state_hold=true");
+console.log("post_admission_root_path_stability_proven=false");
+console.log("single_root_post_publication_recovery=false");
 console.log("storage_bootstrap=false");
 console.log("runtime_integration=false");
 console.log("protected_high_water_custody_proven=false");
