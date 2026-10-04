@@ -34,7 +34,8 @@ const NONCE =
   "0x3333333333333333333333333333333333333333333333333333333333333333";
 
 const walletA = new ethers.Wallet(PRIVATE_A);
-const walletB = new ethers.Wallet(PRIVATE_B);
+const WRONG_CANDIDATE_ADDRESS =
+  "0x0000000000000000000000000000000000000001";
 
 {
   const bundlePath = path.resolve(
@@ -663,7 +664,7 @@ assert.throws(
   () =>
     validateControlChallengeForSigningCoreV1({
       challengeEnvelope: challenge,
-      expectedAddress: walletB.address,
+      expectedAddress: WRONG_CANDIDATE_ADDRESS,
       nowUnix: now,
       ethers,
     }),
