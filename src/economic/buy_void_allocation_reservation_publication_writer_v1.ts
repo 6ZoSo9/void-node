@@ -267,6 +267,21 @@ function assertDistinctRoots(
   }
 }
 
+function assertWriterRootsVisible(
+  ledgerDirectory: PinnedDirectoryV1,
+  highWaterDirectory: PinnedDirectoryV1,
+): void {
+  assertPinnedDirectoryVisible(
+    ledgerDirectory,
+    "allocation_reservation_writer_ledger_directory",
+  );
+  assertPinnedDirectoryVisible(
+    highWaterDirectory,
+    "allocation_reservation_writer_high_water_directory",
+  );
+  assertDistinctRoots(ledgerDirectory, highWaterDirectory);
+}
+
 function fsyncDirectory(
   directory: PinnedDirectoryV1,
   code: string,
@@ -593,6 +608,7 @@ function atomicReplaceFile(
   maxBytes: number,
   allowEmpty: boolean,
   code: string,
+  beforeReplace: () => void,
 ): void {
   if (
     bytes.length < (allowEmpty ? 0 : 1) ||
@@ -628,6 +644,7 @@ function atomicReplaceFile(
     if (!current.equals(expectedCurrent)) {
       fail(code + "_changed_before_replace");
     }
+    beforeReplace();
     fs.renameSync(tempPath, finalPath);
     fsyncDirectory(directory, code + "_directory");
     const published = readPinnedNamedFile(
@@ -819,6 +836,11 @@ function recoverUnderLock(
       MAX_LEDGER_BYTES,
       true,
       "allocation_reservation_writer_ledger",
+      () =>
+        assertWriterRootsVisible(
+          ledgerDirectory,
+          highWaterDirectory,
+        ),
     );
   }
 
@@ -846,6 +868,11 @@ function recoverUnderLock(
       MAX_HIGH_WATER_BYTES,
       false,
       "allocation_reservation_writer_high_water",
+      () =>
+        assertWriterRootsVisible(
+          ledgerDirectory,
+          highWaterDirectory,
+        ),
     );
   }
 
@@ -898,29 +925,29 @@ function withWriterRoots<T>(
       "allocation_reservation_writer_high_water_directory",
     );
     assertDistinctRoots(ledgerDirectory, highWaterDirectory);
-    const ledgerLockPath = path.join(
-      ledgerDirectory.proc_path,
-      LOCK_NAME,
-    );
-    const highWaterLockPath = path.join(
-      highWaterDirectory.proc_path,
-      LOCK_NAME,
-    );
+    const orderedLocks = [
+      {
+        directory: ledgerDirectory,
+        lock_path: path.join(ledgerDirectory.proc_path, LOCK_NAME),
+      },
+      {
+        directory: highWaterDirectory,
+        lock_path: path.join(highWaterDirectory.proc_path, LOCK_NAME),
+      },
+    ].sort((left, right) => {
+      if (left.directory.stat.dev < right.directory.stat.dev) return -1;
+      if (left.directory.stat.dev > right.directory.stat.dev) return 1;
+      if (left.directory.stat.ino < right.directory.stat.ino) return -1;
+      if (left.directory.stat.ino > right.directory.stat.ino) return 1;
+      return left.directory.path.localeCompare(right.directory.path);
+    });
     return withBuyVoidFilesystemBakeryLockV1(
-      ledgerLockPath,
+      orderedLocks[0].lock_path,
       () =>
         withBuyVoidFilesystemBakeryLockV1(
-          highWaterLockPath,
+          orderedLocks[1].lock_path,
           () => {
-            assertPinnedDirectoryVisible(
-              ledgerDirectory,
-              "allocation_reservation_writer_ledger_directory",
-            );
-            assertPinnedDirectoryVisible(
-              highWaterDirectory!,
-              "allocation_reservation_writer_high_water_directory",
-            );
-            assertDistinctRoots(
+            assertWriterRootsVisible(
               ledgerDirectory,
               highWaterDirectory!,
             );
@@ -1085,6 +1112,11 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
           MAX_LEDGER_BYTES,
           true,
           "allocation_reservation_writer_ledger",
+          () =>
+            assertWriterRootsVisible(
+              ledgerDirectory,
+              highWaterDirectory,
+            ),
         );
         ledger = readLedger(ledgerDirectory);
         highWater = readHighWater(highWaterDirectory);
@@ -1120,6 +1152,11 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
           MAX_HIGH_WATER_BYTES,
           false,
           "allocation_reservation_writer_high_water",
+          () =>
+            assertWriterRootsVisible(
+              ledgerDirectory,
+              highWaterDirectory,
+            ),
         );
 
         ledger = readLedger(ledgerDirectory);
