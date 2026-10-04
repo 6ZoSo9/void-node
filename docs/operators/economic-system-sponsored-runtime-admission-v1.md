@@ -102,6 +102,13 @@ Nested candidate objects are snapshotted before direct field access.
 
 ## Preflight before time mutation
 
+A runtime candidate must have `issued_at_ms` strictly after the exact bound
+bundle's `bundle_committed_at_ms`. This prevents an older economic intent from
+being retroactively paired with a later sponsored-execution bundle merely
+because its lower-level TTL policy ID still matches.
+
+This check occurs before the clock is called or either durable store is touched.
+
 Before touching the durable time store, the binder reuses the canonical
 anti-grief classifier against empty history at the signed intent's own issuance
 time.
