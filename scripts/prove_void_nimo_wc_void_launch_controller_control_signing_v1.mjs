@@ -30,8 +30,6 @@ import {
 
 const PRIVATE_A =
   "0x1111111111111111111111111111111111111111111111111111111111111111";
-const PRIVATE_B =
-  "0x2222222222222222222222222222222222222222222222222222222222222222";
 const NONCE =
   "0x3333333333333333333333333333333333333333333333333333333333333333";
 
@@ -661,23 +659,10 @@ await assert.rejects(
   "an otherwise-valid quarantined/public signature must be non-authoritative after expiry",
 );
 
-await assert.rejects(
+assert.throws(
   () =>
-    signControlChallengeCoreV1({
+    validateControlChallengeForSigningCoreV1({
       challengeEnvelope: challenge,
-      privateKey: PRIVATE_B,
-      expectedAddress: walletA.address,
-      nowUnix: now,
-      ethers,
-    }),
-  /launch_controller_private_key_address_mismatch/u,
-);
-
-await assert.rejects(
-  () =>
-    signControlChallengeCoreV1({
-      challengeEnvelope: challenge,
-      privateKey: PRIVATE_A,
       expectedAddress: walletB.address,
       nowUnix: now,
       ethers,
@@ -685,11 +670,10 @@ await assert.rejects(
   /control_challenge_semantics_invalid/u,
 );
 
-await assert.rejects(
+assert.throws(
   () =>
-    signControlChallengeCoreV1({
+    validateControlChallengeForSigningCoreV1({
       challengeEnvelope: challenge,
-      privateKey: PRIVATE_A,
       expectedAddress: walletA.address,
       nowUnix: now + 901,
       ethers,
@@ -701,11 +685,10 @@ await assert.rejects(
   const tampered = structuredClone(challenge);
   tampered.typed_data.value.nonce =
     "0x4444444444444444444444444444444444444444444444444444444444444444";
-  await assert.rejects(
+  assert.throws(
     () =>
-      signControlChallengeCoreV1({
+      validateControlChallengeForSigningCoreV1({
         challengeEnvelope: tampered,
-        privateKey: PRIVATE_A,
         expectedAddress: walletA.address,
         nowUnix: now,
         ethers,
@@ -738,11 +721,10 @@ await assert.rejects(
         .update(Buffer.from(canonicalJson(material), "utf8"))
         .digest("hex");
 
-    await assert.rejects(
+    assert.throws(
       () =>
-        signControlChallengeCoreV1({
+        validateControlChallengeForSigningCoreV1({
           challengeEnvelope: numeric,
-          privateKey: PRIVATE_A,
           expectedAddress: walletA.address,
           nowUnix: now,
           ethers,
@@ -794,11 +776,10 @@ await assert.rejects(
       .update(Buffer.from(canonicalJson(challengeMaterial), "utf8"))
       .digest("hex");
 
-  await assert.rejects(
+  assert.throws(
     () =>
-      signControlChallengeCoreV1({
+      validateControlChallengeForSigningCoreV1({
         challengeEnvelope: forged,
-        privateKey: PRIVATE_A,
         expectedAddress: walletA.address,
         nowUnix: now,
         ethers,
