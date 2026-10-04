@@ -647,6 +647,7 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       ),
     );
     assert.equal(emptyRecovered.status, "duplicate");
+    assert.equal(emptyRecovered.mutation_performed, true);
     assert.equal(fs.existsSync(emptyTemp), false);
 
     const unpublishedTemp =
@@ -673,6 +674,7 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       ),
     );
     assert.equal(recovered.status, "duplicate");
+    assert.equal(recovered.mutation_performed, true);
     assert.equal(fs.existsSync(unpublishedTemp), false);
 
     const linkedTemp =
@@ -697,6 +699,7 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       ),
     );
     assert.equal(linkedRecovery.status, "duplicate");
+    assert.equal(linkedRecovery.mutation_performed, true);
     assert.equal(fs.existsSync(linkedTemp), false);
     assert.equal(fs.lstatSync(finalPath).nlink, 1);
   } finally {
@@ -963,6 +966,8 @@ console.log("per_identity_budget_enforced=true");
 console.log("global_budget_enforced=true");
 console.log("concurrent_near_budget_serialized=true");
 console.log("crash_temp_recovery=true");
+console.log("crash_temp_cleanup_reports_mutation=true");
+console.log("ordinary_duplicate_replay_reports_mutation=false");
 console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
 console.log("storage_bootstrap=false");
