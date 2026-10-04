@@ -371,7 +371,8 @@ assert.deepEqual(
     deterministic_liability_identity: true,
     buy_void_prepared_plan_reused: true,
     payer_scoped_balance_accounting: true,
-    fee_freshness_recomputed: true,
+    fee_observation_expiry_recomputed: true,
+    trusted_fee_freshness_policy_proven: false,
     nonce_collision_detection: true,
     exact_replay_idempotent: true,
     altered_obligation_conflict_hold: true,
@@ -428,6 +429,8 @@ console.log("exact_replay_idempotent=true");
 console.log("finite_native_balance_enforced=true");
 console.log("nonce_collision_hold=true");
 console.log("fresh_fee_requirement_bound=true");
+console.log("fee_observation_expiry_recomputed=true");
+console.log("trusted_fee_freshness_policy_proven=false");
 console.log("stale_or_future_fee_observation_hold=true");
 console.log("cross_lane_open_liability_counted=true");
 console.log("wc_void_candidate_admission=false");
