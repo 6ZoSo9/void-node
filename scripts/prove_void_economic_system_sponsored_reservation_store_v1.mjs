@@ -289,6 +289,8 @@ const observedAt = (BASE_UNIX + 140) * 1000;
     assert.equal(expired.records.length, 1);
     assert.equal(expired.active_reserved_gas, "0");
     assert.equal(expired.expired_reserved_gas_not_counted, "50000");
+    assert.equal(expired.trusted_observation_time_proven, false);
+    assert.equal(expired.monotonic_observation_time_proven, false);
 
     const expiredReplay = requireOk(
       await persistEconomicSystemSponsoredReservationV1(
@@ -297,6 +299,8 @@ const observedAt = (BASE_UNIX + 140) * 1000;
     );
     assert.equal(expiredReplay.status, "duplicate");
     assert.equal(expiredReplay.active_reserved_gas, "0");
+    assert.equal(expiredReplay.trusted_observation_time_proven, false);
+    assert.equal(expiredReplay.monotonic_observation_time_proven, false);
 
     const altered = {
       ...first,
@@ -782,6 +786,16 @@ const historicalState = verifyEconomicSystemSponsoredStateV1({
 assert.equal(historicalState.historical_state_verified, true);
 assert.equal(historicalState.active_reserved_gas, "0");
 assert.equal(historicalState.runtime_enforcement_verified, false);
+assert.equal(
+  VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_AUTHORITY_V1
+    .trusted_observation_time_proven,
+  false,
+);
+assert.equal(
+  VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_AUTHORITY_V1
+    .monotonic_observation_time_proven,
+  false,
+);
 
 const source = fs.readFileSync(
   "tools/void-economic-system-sponsored-reservation-store-v1.mjs",
@@ -815,6 +829,9 @@ console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
 console.log("storage_bootstrap=false");
 console.log("runtime_route_mount=false");
+console.log("trusted_observation_time_proven=false");
+console.log("monotonic_observation_time_proven=false");
+console.log("caller_supplied_future_time_can_change_source_budget_view=true");
 console.log("runtime_enforcement_verified=false");
 console.log("gas_sponsorship_performed=false");
 console.log("funds_movement=false");
