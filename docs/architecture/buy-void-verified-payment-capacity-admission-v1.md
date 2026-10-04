@@ -24,9 +24,12 @@ For `payment_verified` only, while holding that lock it:
    malformed rows, missing verified requests, changed quote amounts, inode/path
    replacement, size growth, or read-time identity drift fail closed;
 2. requires the candidate request id to exist in the durable request ledger
-   with exactly the same quoted VOID amount supplied to admission, then derives
-   the unique verified-request reservation total and checks whether this request
-   is already verified;
+   with exactly the same quoted VOID amount supplied to admission, reconstructs
+   that request's durable source-chain and payment-transaction binding from the
+   append-only request history, rejects chain/tx regression or substitution,
+   and requires the candidate event plus caller request object to match that
+   durable payment binding before deriving the unique verified-request
+   reservation total and checking whether this request is already verified;
 3. re-reads the legacy sale-state projection only as a cross-check and requires
    it to match the strict ledger recount exactly;
 4. validates exact six-decimal pool/reserved/verified/remaining conservation;
@@ -103,9 +106,11 @@ after the capacity census but before launch/request mutation. Those cases must
 HOLD before any `payment_verified` bytes or sidecar are written to a
 replacement target.
 
-The proof also supplies a candidate absent from `requests.jsonl` and a candidate
-whose caller quote disagrees with the durable request quote. Both must HOLD
-before the launch-authority mutation callback is entered.
+The proof also supplies a candidate absent from `requests.jsonl`, a candidate
+whose caller quote disagrees with the durable request quote, and candidates whose
+caller/event payment tx hash or source chain disagree with the durable latest
+request binding. All must HOLD before the launch-authority mutation callback is
+entered.
 
 All arithmetic is exact micro-VOID integer arithmetic derived from canonical
 decimal text with at most six decimals. The legacy runtime readers may remain
