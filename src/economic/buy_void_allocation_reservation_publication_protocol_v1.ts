@@ -437,7 +437,7 @@ function parseIntentV1(
   if (
     String(appendRow.record_id || "") !== recordId ||
     String(appendRow.allocation_record_hash || "") !== recordHash ||
-    String(appendRow.previous_record_hash || "") !== priorTip ||
+    String(appendRow.previous_allocation_record_hash || "") !== priorTip ||
     recordHash !== nextTip
   ) {
     throw new Error(
