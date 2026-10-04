@@ -78,7 +78,9 @@ descriptor identity and timestamps, and visible-path rebinding.
 The allocation directory is private and append-only. Its child directory is
 opened through the already-pinned request-directory descriptor and compared
 against the visible child before use; the parent is revalidated after the child
-open so parent renames and child-entry swaps fail closed before publication.
+open. This prevents a parent rename or child-entry swap during binding from
+redirecting authority to another tree. Later publication stays on the pinned
+descriptor and subsequent visibility checks fail closed on pathname drift.
 
 Publication uses:
 
