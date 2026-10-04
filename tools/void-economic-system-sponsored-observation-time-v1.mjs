@@ -147,7 +147,8 @@ function exactSnapshot(value, keys, code) {
 }
 
 function decimal(value, code, maximum = MAX_UINT64) {
-  const text = String(value ?? "");
+  if (typeof value !== "string") fail(code);
+  const text = value;
   if (!DECIMAL.test(text) || text.length > 24) fail(code);
   const parsed = BigInt(text);
   if (parsed < 0n || parsed > maximum) fail(code);
@@ -165,7 +166,10 @@ function parseSample(value) {
     SAMPLE_KEYS,
     "sponsored_observation_time_sample_invalid",
   );
-  const bootId = String(raw.boot_id ?? "").toLowerCase();
+  if (typeof raw.boot_id !== "string") {
+    fail("sponsored_observation_time_boot_id_invalid");
+  }
+  const bootId = raw.boot_id.toLowerCase();
   if (!UUID.test(bootId)) {
     fail("sponsored_observation_time_boot_id_invalid");
   }
@@ -243,14 +247,19 @@ function parseReceipt(value) {
   const previous =
     raw.previous_receipt_sha256 === null
       ? null
-      : String(raw.previous_receipt_sha256 ?? "");
+      : typeof raw.previous_receipt_sha256 === "string"
+        ? raw.previous_receipt_sha256
+        : fail("sponsored_observation_time_prior_receipt_invalid");
   if (
     (generation.value === 0n && previous !== null) ||
     (generation.value > 0n && !SHA256_ID.test(previous))
   ) {
     fail("sponsored_observation_time_prior_receipt_invalid");
   }
-  const bootId = String(raw.boot_id ?? "").toLowerCase();
+  if (typeof raw.boot_id !== "string") {
+    fail("sponsored_observation_time_prior_receipt_invalid");
+  }
+  const bootId = raw.boot_id.toLowerCase();
   if (!UUID.test(bootId)) {
     fail("sponsored_observation_time_prior_receipt_invalid");
   }
@@ -327,7 +336,10 @@ function parseReceipt(value) {
     monotonic_ns: monotonic.text,
     wall_monotonic_skew_allowance_ms:
       VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_MAX_SKEW_MS_V1,
-    receipt_sha256: String(raw.receipt_sha256 ?? ""),
+    receipt_sha256:
+      typeof raw.receipt_sha256 === "string"
+        ? raw.receipt_sha256
+        : fail("sponsored_observation_time_prior_receipt_invalid"),
   });
   if (
     !SHA256_ID.test(receipt.receipt_sha256) ||
