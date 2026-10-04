@@ -39,7 +39,7 @@ assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms")
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.ok(index.includes("if (amountUnits === requestedUnits)"));
 assert.equal(index.includes("if (amountUnits >= requestedUnits)"), false);
-assert.ok(index.includes("canonicalLogIndex = parsedLogIndex.toString()"));
+assert.ok(index.includes("canonicalLogIndex=parsedLogIndex.toString()"));
 assert.ok(index.includes("parsedLogIndex>0xffffffffn"));
 assert.ok(index.includes("log_index: match.log_index"));
 assert.ok(index.includes("payment_identity_input_complete: true"));
