@@ -724,6 +724,11 @@ export function classifyBuyVoidAllocationReservationLedgerV1(
         seen_request_ids: seenRequests,
         seen_payment_identities: seenPayments,
       });
+      if (line !== JSON.stringify(record)) {
+        throw new Error(
+          "allocation_reservation_record_serialization_noncanonical",
+        );
+      }
       records.push(record);
       seenHashes.add(record.allocation_record_hash);
       seenRequests.add(record.request_id);
