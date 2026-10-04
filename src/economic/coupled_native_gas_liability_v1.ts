@@ -574,6 +574,9 @@ function validateLiability(
           "wc_void_reviewed_settlement_plan"
         ? "wc_void_reviewed_settlement_plan"
         : null;
+  if (nativeValue === null) {
+    throw new Error("coupled_native_gas_liability_invalid");
+  }
   if (
     value.schema !== LIABILITY_SCHEMA ||
     value.marker !== VOID_COUPLED_NATIVE_GAS_LIABILITY_V1 ||
