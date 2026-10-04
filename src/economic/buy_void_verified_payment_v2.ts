@@ -248,6 +248,7 @@ export function buildBuyVoidVerifiedPaymentEventV2(
 
   const rawLogs = Array.isArray(receipt.logs) ? receipt.logs : [];
   const matches: BuyVoidMatchedUsdcTransferV2[] = [];
+  let matchingTransferLogIndexOutOfDomain = false;
 
   for (const rawLog of rawLogs) {
     const log = (rawLog || {}) as BuyVoidReceiptLogV2;
@@ -270,10 +271,9 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     if (amountUnits === null || amountUnits !== requestedUnits) continue;
 
     const logIndex = parseNonNegativeInteger(log.logIndex);
-    if (
-      logIndex === null ||
-      logIndex > MAX_PAYMENT_LOG_INDEX
-    ) {
+    if (logIndex === null) continue;
+    if (logIndex > MAX_PAYMENT_LOG_INDEX) {
+      matchingTransferLogIndexOutOfDomain = true;
       continue;
     }
 
@@ -303,7 +303,12 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     });
   }
 
-  if (matches.length === 0) return held("matching_usdc_transfer_not_found");
+  if (matches.length === 0) {
+    if (matchingTransferLogIndexOutOfDomain) {
+      return held("log_index_exceeds_1463_domain");
+    }
+    return held("matching_usdc_transfer_not_found");
+  }
   if (matches.length > 1) {
     return held("ambiguous_matching_usdc_transfers", {
       matching_log_indexes: matches.map((match) => match.log_index),
