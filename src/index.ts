@@ -18828,7 +18828,7 @@ setInterval(refresh, 10000);
         let canonicalLogIndex = "";
         try {
           const parsedLogIndex = BigInt(rawLogIndex);
-          if (parsedLogIndex < 0n) continue;
+          if(parsedLogIndex<0n||parsedLogIndex>0xffffffffn)continue;
           canonicalLogIndex = parsedLogIndex.toString();
         } catch {
           continue;
