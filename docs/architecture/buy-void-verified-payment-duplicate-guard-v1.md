@@ -72,29 +72,28 @@ unrelated payment identity.
 - same transaction hash + different transfer-log index: distinct identity;
 - incomplete/malformed candidate identity: HOLD.
 
-## Required later integration
+## Runtime integration layer
 
-This module is not production admission by itself.
+This module remains a pure in-memory classifier and therefore continues to
+report `runtime_integration: false` in its own authority object.
 
-After the active finite-capacity lane clears, runtime integration must occur
-inside the same verification-time serialization boundary that protects finite
-presale capacity:
+The stacked runtime-integration lane applies it inside the existing
+verified-payment capacity serialization boundary documented in
+`buy-void-verified-payment-duplicate-guard-runtime-integration-v1.md`:
 
 ```text
-generation authority
-  -> verified-payment capacity / duplicate-identity admission
+verified-payment capacity / duplicate-identity admission
+  -> launch-generation authority
      -> request closeout
-        -> finality-complete identity check
-        -> duplicate guard
-        -> capacity check
         -> durable payment_verified append/fsync
+        -> duplicate + capacity postcheck
 ```
 
-The exact lock topology must follow the reviewed current implementation at
-integration time. There must be no schedule where two concurrent requests can
-persist the same canonical payment identity.
+The integration introduces no second duplicate-guard lock. A concurrency proof
+requires two requests racing the same canonical identity to produce at most one
+durable verified-payment obligation.
 
-For Ethereum, the candidate must also be downstream of the canonical
+For Ethereum, the candidate must still be downstream of the canonical
 source-finality result tracked by issue #2393. Receipt/log matching alone is not
 production finality authority.
 
@@ -102,7 +101,7 @@ production finality authority.
 
 This contract does not close:
 
-- finite-capacity runtime integration in #2427/#2428;
+- live deployment/requalification of the capacity + duplicate integration;
 - Ethereum source-finality runtime integration in #2393;
 - the dedicated append-only `allocation_reserved` record/ledger;
 - live coupled activation;

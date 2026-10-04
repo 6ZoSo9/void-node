@@ -17,6 +17,12 @@ const compose = read("docker-compose.yml");
 const capacityAdmission = read(
   "src/economic/buy_void_verified_payment_capacity_admission_v1.ts",
 );
+const duplicateGuard = read(
+  "src/economic/buy_void_verified_payment_duplicate_guard_v1.ts",
+);
+const verifiedPaymentV2 = read(
+  "src/economic/buy_void_verified_payment_v2.ts",
+);
 assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
@@ -36,13 +42,34 @@ assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
 assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
-assert.ok(index.includes("if (amountUnits === requestedUnits)"));
-assert.equal(index.includes("if (amountUnits >= requestedUnits)"), false);
+assert.ok(index.includes("VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1"));
+assert.ok(index.includes('import("./economic/buy_void_verified_payment_v2.js")'));
+assert.ok(index.includes("buildBuyVoidVerifiedPaymentEventV2"));
+assert.ok(index.includes('"eth_blockNumber"'));
+assert.ok(index.includes("current_block_number_by_chain"));
+assert.ok(index.includes("request:found,receipt,policy:"));
+assert.ok(index.includes("...verified.event"));
+assert.ok(index.includes("...verified.event.payment_verifier"));
+assert.ok(index.includes("rpc_env:chainCfg.rpc_env"));
+assert.ok(index.includes("receipt_status:receipt.status"));
+assert.equal(index.includes("function __voidBuyVoidUsdcTransferMatchV1"), false);
+assert.equal(index.includes("function __voidBuyVoidHexToBigIntV1"), false);
+assert.equal(index.includes("function __voidBuyVoidTopicAddressV1"), false);
+assert.ok(index.includes('m.startsWith("buy_void_verified_payment_duplicate_guard_")'));
+assert.match(verifiedPaymentV2, /log\.removed === true/);
+assert.match(verifiedPaymentV2, /log\.transactionHash/);
+assert.match(verifiedPaymentV2, /log\.blockNumber/);
+assert.match(verifiedPaymentV2, /ambiguous_matching_usdc_transfers/);
+assert.match(verifiedPaymentV2, /current_block_number_by_chain/);
+assert.match(verifiedPaymentV2, /confirmations\.toString\(\)/);
+assert.match(verifiedPaymentV2, /payment_transaction_hash_mismatch/);
+assert.match(verifiedPaymentV2, /receive_address_binding_mismatch/);
 assert.ok(index.includes("Funds sent from an exchange/custodial wallet will be treated as lost."));
 assert.ok(index.includes("VOID is not exchange-listed."));
 assert.ok(index.includes("<label>Native USDC rail<br/>"));
 assert.ok(index.includes('cfg.ethereum_requests_enabled?"Base 8453 + Ethereum 1":"Base 8453 (Ethereum HOLD)"'));
 assert.equal(index.includes("throw 0;"),false);
+
 assert.ok(index.includes("const __bld="));
 assert.ok(index.includes("__blo=(r:any)"));
 assert.ok(index.includes("__blm=(r:any,f:any)=>__BL.withBuyLaunchRequestAuthorityMutationV1(r,f)"));
@@ -134,6 +161,42 @@ assert.match(capacityAdmission, /appendPaymentVerifiedEventDurableV1/);
 assert.match(capacityAdmission, /fs\.fsyncSync\(descriptor\)/);
 assert.match(capacityAdmission, /recoverPaymentVerifiedSidecarsV1/);
 assert.match(capacityAdmission, /sidecar_recovered/);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_duplicate_guard_v1\.js/,
+);
+assert.match(
+  capacityAdmission,
+  /classifyBuyVoidVerifiedPaymentDuplicateGuardV1/,
+);
+assert.match(
+  capacityAdmission,
+  /duplicate_payment_identity_verification:\s*true/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_duplicate_guard_request_binding_mismatch/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_duplicate_guard_projection_mismatch/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_duplicate_guard_postcheck_failed/,
+);
+assert.match(
+  duplicateGuard,
+  /VOID_BUY_VOID_VERIFIED_PAYMENT_DUPLICATE_GUARD_V1/,
+);
+assert.match(
+  duplicateGuard,
+  /canonicalBuyVoidPaymentIdentityV1/,
+);
+assert.match(
+  duplicateGuard,
+  /runtime_integration:\s*false/,
+);
 {
   const launchMutationAt = capacityAdmission.indexOf(
     "input.with_launch_authority_mutation(\n          request,",
@@ -291,6 +354,21 @@ console.log("generation_lock_spans_request_append=true");
 console.log("generation_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_exhaustion_response_409=true");
+console.log("verified_payment_duplicate_guard_inside_capacity_lock=true");
+console.log("verified_payment_event_v2_persisted=true");
+console.log("verified_payment_log_index_persisted=true");
+console.log("verified_payment_canonical_v2_classifier_mounted=true");
+console.log("verified_payment_receipt_tx_hash_bound=true");
+console.log("verified_payment_receipt_block_bound=true");
+console.log("verified_payment_removed_logs_rejected=true");
+console.log("verified_payment_confirmation_context_bound=true");
+console.log("verified_payment_exact_one_matching_transfer_required=true");
+console.log("verified_payment_requested_usdc_exact_micro_units=true");
+console.log("verified_payment_requested_usdc_exponent_rejected=true");
+console.log("verified_payment_requested_usdc_overprecision_rejected=true");
+console.log("verified_payment_ambiguous_matching_transfers_held=true");
+console.log("verified_payment_log_index_uint32_bound=true");
+console.log("duplicate_guard_conflict_response_409=true");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");

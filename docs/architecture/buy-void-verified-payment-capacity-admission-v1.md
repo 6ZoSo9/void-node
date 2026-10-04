@@ -24,9 +24,12 @@ For `payment_verified` only, while holding that lock it:
    malformed rows, missing verified requests, changed quote amounts, inode/path
    replacement, size growth, or read-time identity drift fail closed;
 2. requires the candidate request id to exist in the durable request ledger
-   with exactly the same quoted VOID amount supplied to admission, then derives
-   the unique verified-request reservation total and checks whether this request
-   is already verified;
+   with exactly the same quoted VOID amount supplied to admission, reconstructs
+   that request's durable source-chain and payment-transaction binding from the
+   append-only request history, rejects chain/tx regression or substitution,
+   and requires the candidate event plus caller request object to match that
+   durable payment binding before deriving the unique verified-request
+   reservation total and checking whether this request is already verified;
 3. re-reads the legacy sale-state projection only as a cross-check and requires
    it to match the strict ledger recount exactly;
 4. validates exact six-decimal pool/reserved/verified/remaining conservation;
@@ -56,6 +59,27 @@ The lock order is:
 
 No reviewed path acquires the capacity lock in reverse order.
 
+### Duplicate-payment identity integration
+
+On the stacked runtime-integration lane, the canonical
+`VOID_BUY_VOID_VERIFIED_PAYMENT_DUPLICATE_GUARD_V1` classifier runs inside
+this same capacity lock after the descriptor-bound ledger census and before
+idempotent/capacity admission.
+
+The candidate must be an identity-complete
+`void_buy_void_verified_payment_event_v2` event. Existing
+`payment_verified` history is validated through the same parent guard. The
+guard rejects one canonical
+`source_chain:transaction_hash:log_index` identity being owned by multiple
+requests and rejects one request changing payment identity. Only exact request
+plus exact payment identity replay is idempotent.
+
+After the durable JSONL append, the same candidate is reclassified against the
+same retained operator-ledger inode and must be idempotent before the capacity
+transition can succeed.
+
+No second duplicate-guard lock is introduced.
+
 ## What this closes
 
 The focused proof races two 6 VOID payments against a 10 VOID pool. Exactly one
@@ -82,9 +106,11 @@ after the capacity census but before launch/request mutation. Those cases must
 HOLD before any `payment_verified` bytes or sidecar are written to a
 replacement target.
 
-The proof also supplies a candidate absent from `requests.jsonl` and a candidate
-whose caller quote disagrees with the durable request quote. Both must HOLD
-before the launch-authority mutation callback is entered.
+The proof also supplies a candidate absent from `requests.jsonl`, a candidate
+whose caller quote disagrees with the durable request quote, and candidates whose
+caller/event payment tx hash or source chain disagree with the durable latest
+request binding. All must HOLD before the launch-authority mutation callback is
+entered.
 
 All arithmetic is exact micro-VOID integer arithmetic derived from canonical
 decimal text with at most six decimals. The legacy runtime readers may remain
@@ -94,10 +120,13 @@ corruption or a projection mismatch.
 
 ## Remaining HOLD
 
-This lane does **not** prove canonical duplicate-payment identity
-(`source_chain:transaction_hash:log_index`) or the final append-only allocation
-reservation record. The parent coupled-launch source gate therefore remains
-hard-HOLD with
+The stacked runtime-integration lane closes canonical duplicate-payment
+identity admission in source, but does not itself prove that a deployed public
+runtime is serving those reviewed bytes.
+
+The dedicated append-only allocation-reservation record remains a separate
+launch gate. The parent coupled-launch source gate therefore remains hard-HOLD
+with
 `VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
 
 That constant must not be promoted by this lane.
