@@ -1,0 +1,125 @@
+# Buy VOID enforcement artifact attestation v2
+
+Marker: `VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V2`
+
+Status: **source/build/package provenance successor; production authority HOLD**.
+
+## Purpose
+
+V2 is the current enforcement-closure successor required by the reviewed
+verified-payment V2 log-index repair and source-finality provenance V5.
+
+It does not rewrite or reinterpret enforcement V1. The historical V1 manifest
+remains immutable predecessor evidence:
+
+- manifest:
+  `docs/architecture/buy-void-enforcement-artifact-attestation-v1.json`;
+- Git blob:
+  `b9d8a57f8a67f2e9180b15a608c178bc95bf84b5`;
+- enforcement artifact set:
+  `f21b4c486ee686f53cb03e858bdff01d4b56be205c819322813538d5273062fb`.
+
+V2 reuses the same closed enforcement derivation rather than introducing a
+second import-graph implementation.
+
+## Reviewed source and compiled lineage
+
+V2 requires the exact reviewed source-finality V5 generation and compiled
+artifact V3 generation:
+
+- reviewed source-files SHA-256:
+  `98dd5dcc6edea14a641ce687c76ec8f6ca521844a96560c7044adbe8d4dc5161`;
+- compiled V3 manifest Git blob:
+  `46267e9433ad8eb6250d4c831dfda2054fe918f4`;
+- compiled V3 generation:
+  `b85a5c8a6a7685876452f21450b154351fc0601e367866b778c1be196bb2bee2`.
+
+The V3 manifest was independently derived byte-identically on Node 22, 24 and
+26 before being committed.
+
+## Exact predecessor delta
+
+The enforcement V1 and V2 closures contain the same number of runtime modules.
+V2 permits exactly this artifact transition:
+
+Removed:
+
+- `dist/economic/buy_void_source_finality_generation_provenance_v4.js`.
+
+Added:
+
+- `dist/economic/buy_void_source_finality_generation_provenance_v5.js`.
+
+Changed in place:
+
+- `dist/economic/buy_void_source_finality_execution_preflight_v1.js`;
+- `dist/economic/buy_void_verified_payment_v2.js`.
+
+Exactly twenty common enforcement artifacts must remain byte-identical to V1.
+
+The bound source/build input set permits the corresponding source transition
+only:
+
+Removed:
+
+- `src/economic/buy_void_source_finality_generation_provenance_v4.ts`.
+
+Added:
+
+- `src/economic/buy_void_source_finality_generation_provenance_v5.ts`.
+
+Changed in place:
+
+- `src/economic/buy_void_source_finality_execution_preflight_v1.ts`;
+- `src/economic/buy_void_verified_payment_v2.ts`.
+
+Exactly twenty-seven common inputs must remain byte-identical to V1. Package
+inputs, compiler inputs, Dockerfile, TypeScript configuration, runtime-copy
+helpers and every unrelated enforcement source remain unchanged.
+
+## Current derived closure
+
+The reviewed current enforcement candidate was independently derived
+byte-identically on Node 22, 24 and 26:
+
+- candidate JSON bytes: 22,575;
+- candidate JSON SHA-256:
+  `a3905213d6a77287673546491e6aed4a95d5e5a38d0c17f79af668384cc15c87`;
+- enforcement artifact set SHA-256:
+  `904c18f848832e5772346b5cbba23dbca257f5715f4263d3ffca533be28e1038`.
+
+The V2 manifest is accepted only when a fresh derivation reproduces the exact
+committed bytes.
+
+## Package and image proof
+
+The current enforcement workflow must:
+
+1. build on Node 22, 24 and 26;
+2. derive one identical V2 manifest;
+3. verify the committed V2 manifest;
+4. rerun the compiled enforcement command gate and adversarial falsifiers;
+5. verify compiled source-finality generation V3;
+6. build a production Docker image without starting it;
+7. extract the enforcement closure from a stopped container;
+8. reverify V2 against the extracted bytes; and
+9. verify the saved image/config/layer identity against the V2 artifact set.
+
+Historical V1 bytes remain predecessor evidence, not current package authority.
+
+## Authority boundary
+
+V2 proves source/build/package identity only. It does not authorize or perform:
+
+- runtime route activation or service restart;
+- production live RPC;
+- wallet, signer, credential or private-key access;
+- transaction construction, signing or broadcast;
+- Chain-2050 mutation;
+- inventory funding or transfer;
+- presale or market activation;
+- treasury or liquidity action; or
+- funds movement.
+
+`production_source_finality_authority_ready=false` and
+`deployed_artifact_generation_verified=false` remain mandatory.
