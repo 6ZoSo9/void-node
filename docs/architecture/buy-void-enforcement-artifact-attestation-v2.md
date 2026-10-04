@@ -28,14 +28,14 @@ V2 requires the exact reviewed source-finality V5 generation and compiled
 artifact V3 generation:
 
 - reviewed source-files SHA-256:
-  `98dd5dcc6edea14a641ce687c76ec8f6ca521844a96560c7044adbe8d4dc5161`;
+  `554eecb2254ecfeb7495314b019247f4a3a7b317a6431e54b78fe95cb675d14e`;
 - compiled V3 manifest Git blob:
-  `46267e9433ad8eb6250d4c831dfda2054fe918f4`;
+  `d6e97784c5d8be93713e733628c7d1ef746bb5c7`;
 - compiled V3 generation:
-  `b85a5c8a6a7685876452f21450b154351fc0601e367866b778c1be196bb2bee2`.
+  `0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add`.
 
-The V3 manifest was independently derived byte-identically on Node 22, 24 and
-26 before being committed.
+The current V3 manifest is locked to the exact rerolled verifier/build identity.
+Fresh exact-head Node 22/24/26 derivations must reproduce those committed bytes.
 
 ## Exact predecessor delta
 
@@ -79,14 +79,14 @@ helpers and every unrelated enforcement source remain unchanged.
 
 ## Current derived closure
 
-The reviewed current enforcement candidate was independently derived
+The reviewed current enforcement raw candidate was independently derived
 byte-identically on Node 22, 24 and 26:
 
 - candidate JSON bytes: 22,575;
 - candidate JSON SHA-256:
-  `a3905213d6a77287673546491e6aed4a95d5e5a38d0c17f79af668384cc15c87`;
+  `a839811d65a94c2428a50a3c36308623fa3b100d00d2a068e9a26f0c3bd01ea4`;
 - enforcement artifact set SHA-256:
-  `904c18f848832e5772346b5cbba23dbca257f5715f4263d3ffca533be28e1038`.
+  `5b35c2c4e1c9c7812ddbcb2f35ea5f309771e5343230331780b81323eb11cc30`.
 
 The V2 manifest is accepted only when a fresh derivation reproduces the exact
 committed bytes.
