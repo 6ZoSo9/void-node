@@ -201,7 +201,12 @@ function assertNoSymlinkAncestors(target, code) {
   }
 }
 
-function assertDirectDirectory(directory, code) {
+function assertDirectDirectory(
+  directory,
+  code,
+  expectedMode = 0o700,
+  expectedGid = null,
+) {
   assertNoSymlinkAncestors(directory, code);
   const stat = fs.lstatSync(directory);
   if (!stat.isDirectory() || stat.isSymbolicLink()) fail(code);
@@ -211,7 +216,8 @@ function assertDirectDirectory(directory, code) {
   ) {
     fail(code);
   }
-  if ((stat.mode & 0o077) !== 0) fail(code);
+  if ((stat.mode & 0o777) !== expectedMode) fail(code);
+  if (expectedGid !== null && stat.gid !== expectedGid) fail(code);
 }
 
 function readBoundedFile(root, name, maximum, allowEmpty, code) {
@@ -223,7 +229,12 @@ function readBoundedFile(root, name, maximum, allowEmpty, code) {
     beforePath.isSymbolicLink() ||
     beforePath.nlink !== 1n ||
     beforePath.size < (allowEmpty ? 0n : 1n) ||
-    beforePath.size > BigInt(maximum)
+    beforePath.size > BigInt(maximum) ||
+    (
+      typeof process.getuid === "function" &&
+      beforePath.uid !== BigInt(process.getuid())
+    ) ||
+    (Number(beforePath.mode) & 0o077) !== 0
   ) {
     fail(code);
   }
@@ -619,15 +630,25 @@ export function createVoidBuyAllocationCustodyServiceV1(rawOptions) {
     assertDirectDirectory(
       path.dirname(options.socket_path),
       "allocation_custody_service_socket_parent_invalid",
+      0o750,
+      options.socket_group_gid,
     );
     assertDirectDirectory(
       options.ledger_root,
       "allocation_custody_service_ledger_root_invalid",
+      0o700,
     );
     assertDirectDirectory(
       options.custody_root,
       "allocation_custody_service_custody_root_invalid",
+      0o700,
     );
+    if (
+      typeof process.getgroups === "function" &&
+      !process.getgroups().includes(options.socket_group_gid)
+    ) {
+      fail("allocation_custody_service_socket_group_not_granted");
+    }
     try {
       fs.lstatSync(options.socket_path);
       fail("allocation_custody_service_socket_path_exists");
