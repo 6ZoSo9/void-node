@@ -183,7 +183,7 @@ assert.equal(first.payer_address, wallet);
 assert.equal(first.requested_max_liability_wei, "210001");
 assert.equal(first.reserved_before_wei, "0");
 assert.equal(first.reserved_after_wei, "210001");
-assert.equal(first.unreserved_after_wei, "790000");
+assert.equal(first.unreserved_after_wei, "789999");
 assert.equal(first.liability.lane, "presale");
 assert.equal(first.liability.attempt_limit, 1);
 assert.equal(first.liability.maximum_reserved_wei, "210001");
@@ -324,7 +324,7 @@ function wcLiabilityFrom(
 const wcExisting = wcLiabilityFrom(first.liability);
 requireHeld(
   classify({
-    obs: observation({ balance: "410001" }),
+    obs: observation({ balance: "410000" }),
     open: [wcExisting],
   }),
   "coupled_native_gas_insufficient_unreserved_native_balance",
@@ -332,7 +332,7 @@ requireHeld(
 
 const withCrossLaneCapacity = requireOk(
   classify({
-    obs: observation({ balance: "410000" }),
+    obs: observation({ balance: "410001" }),
     open: [wcExisting],
   }),
 );
