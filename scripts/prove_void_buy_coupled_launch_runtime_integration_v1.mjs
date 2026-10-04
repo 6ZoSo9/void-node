@@ -113,6 +113,26 @@ assert.match(
 );
 assert.match(
   capacityAdmission,
+  /canonicalBuyVoidPaymentIdentityV1/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_identity_already_claimed/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_identity_request_conflict/,
+);
+assert.match(
+  capacityAdmission,
+  /canonical_payment_identity: paymentIdentity/,
+);
+assert.ok(index.includes("log_index: match.log_index"));
+assert.ok(index.includes(
+  'm.startsWith("buy_void_verified_payment_identity_")',
+));
+assert.match(
+  capacityAdmission,
   /with_launch_authority_mutation\(request, append\)/,
 );
 assert.ok(index.includes('"operator_mark_failed"'));
@@ -248,6 +268,9 @@ console.log("generation_lock_spans_request_append=true");
 console.log("generation_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_exhaustion_response_409=true");
+console.log("verified_payment_log_index_preserved=true");
+console.log("verified_payment_canonical_identity_bound=true");
+console.log("duplicate_verified_payment_identity_response_409=true");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
