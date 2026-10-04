@@ -117,10 +117,14 @@ for (const action of [
 }
 for (const verb of [
   "start",
+  "verify-active",
   "stop",
   "reload",
+  "reload-or-start",
   "restart",
   "try-restart",
+  "try-reload",
+  "nop",
   "reload-or-restart",
   "reload-or-try-restart",
   "kill",
@@ -130,7 +134,6 @@ for (const verb of [
   "ref",
   "bind-mount",
   "mount-image",
-  "kill-subgroup",
 ]) {
   assert.ok(
     source.includes(JSON.stringify(verb)),
@@ -182,6 +185,16 @@ assert.match(
   "collector must require runtime no-new-privileges",
 );
 
+assert.match(
+  source,
+  /REVIEWED_SYSTEMD_MAJOR = 255/u,
+  "collector authorization model must bind reviewed systemd v255",
+);
+assert.match(
+  source,
+  /custody_host_evidence_systemd_major_not_reviewed/u,
+  "unreviewed systemd major must HOLD",
+);
 assert.match(
   source,
   /CapabilityBoundingSet/u,
@@ -240,6 +253,7 @@ console.log(
 console.log("runtime_process_pid_starttime_uid_bound=true");
 console.log("runtime_process_uid_gid_revalidated=true");
 console.log("runtime_service_cgroup_bound=true");
+console.log("reviewed_systemd_major=255");
 console.log("runtime_service_capability_sets_empty=true");
 console.log("runtime_process_capabilities_zero=true");
 console.log("pkcheck_noninteractive=true");
