@@ -100,6 +100,19 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     fail("compiler_identity_lineage_mismatch");
   }
 
+  for (const key of [
+    "identity_json_bytes",
+    "workflow_run_id",
+    "workflow_job_id",
+    "workflow_artifact_id",
+    "workflow_artifact_zip_sha256",
+    "reviewed_at_utc",
+  ]) {
+    if (v2.accepted_identity?.[key] !== v1.accepted_identity?.[key]) {
+      fail("compiler_identity_provenance_mismatch:" + key);
+    }
+  }
+
   if (
     v1.artifacts?.creation_bytecode_bytes !==
       v2.superseded_v1?.creation_bytecode_bytes ||
@@ -141,11 +154,32 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     fail("canonical_compiler_artifact_hash_mismatch");
   }
 
+  for (const key of [
+    "immutable_layout_sha256",
+    "abi_sha256",
+    "metadata_sha256",
+    "storage_layout_sha256",
+    "method_identifiers_sha256",
+  ]) {
+    if (
+      v2.canonical_compiler_artifacts?.[key] !==
+      v1.artifacts?.[key]
+    ) {
+      fail("canonical_compiler_unchanged_artifact_mismatch:" + key);
+    }
+  }
+
   if (
     (creationHex.length - 2) / 2 - creationBytes !== 963 ||
     (runtimeHex.length - 2) / 2 - runtimeBytes !== 953 ||
+    v2.correction?.creation_prefix_bytes_from_v1 !== creationBytes ||
+    v2.correction?.runtime_prefix_bytes_from_v1 !== runtimeBytes ||
     v2.correction?.creation_v1_extra_bytes !== 963 ||
-    v2.correction?.runtime_v1_extra_bytes !== 953
+    v2.correction?.runtime_v1_extra_bytes !== 953 ||
+    v2.correction?.compiler_identity_recompile_required !== false ||
+    v2.correction?.solidity_source_change_required !== false ||
+    v2.correction?.contract_semantics_change_required !== false ||
+    v2.correction?.v1_deployment_bytes_superseded !== true
   ) {
     fail("superseded_v1_overcapture_shape_invalid");
   }
@@ -161,6 +195,27 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     v2.coupled_launch_effect?.old_control_signature_generation_reusable !== false
   ) {
     fail("coupled_launch_correction_binding_invalid");
+  }
+
+  const authorityKeys = Object.keys(
+    VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_AUTHORITY_V2,
+  ).sort();
+  const packetAuthorityKeys = Object.keys(v2.authority || {}).sort();
+  if (
+    authorityKeys.length !== packetAuthorityKeys.length ||
+    authorityKeys.some(
+      (key, index) => key !== packetAuthorityKeys[index],
+    )
+  ) {
+    fail("correction_authority_shape_invalid");
+  }
+  for (const key of authorityKeys) {
+    if (
+      v2.authority?.[key] !==
+      VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_AUTHORITY_V2[key]
+    ) {
+      fail("correction_authority_invalid:" + key);
+    }
   }
 
   for (const key of [
