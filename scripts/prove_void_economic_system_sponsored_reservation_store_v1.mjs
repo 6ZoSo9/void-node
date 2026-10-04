@@ -34,6 +34,12 @@ import {
   persistEconomicSystemSponsoredReservationV1,
 } from "../tools/void-economic-system-sponsored-reservation-store-v1.mjs";
 
+const {
+  withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1,
+} = await import(
+  "../dist/economic/buy_void_filesystem_bakery_lock_v1.js"
+);
+
 const launchId = "sha256:" + "a".repeat(64);
 const target = "0x4444444444444444444444444444444444444444";
 const BASE_UNIX = 1_790_400_000;
@@ -245,6 +251,51 @@ for (const [key, value] of Object.entries(
 const ttl = ttlPolicy();
 const sponsor = sponsorPolicy(ttl);
 const observedAt = (BASE_UNIX + 140) * 1000;
+
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-bakery-existing-queue-v1-"),
+  );
+  fs.chmodSync(root, 0o700);
+  try {
+    const missing = path.join(root, "missing.queue");
+    await assert.rejects(
+      () =>
+        withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
+          missing,
+          async () => "unexpected",
+        ),
+      /bakery_lock_directory_missing/u,
+    );
+    assert.equal(fs.existsSync(missing), false);
+
+    const weak = path.join(root, "weak.queue");
+    fs.mkdirSync(weak, { mode: 0o755 });
+    fs.chmodSync(weak, 0o755);
+    await assert.rejects(
+      () =>
+        withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
+          weak,
+          async () => "unexpected",
+        ),
+      /bakery_lock_directory_must_be_private/u,
+    );
+    assert.equal(fs.statSync(weak).mode & 0o777, 0o755);
+
+    const valid = path.join(root, "valid.queue");
+    fs.mkdirSync(valid, { mode: 0o700 });
+    const result =
+      await withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
+        valid,
+        async () => "locked",
+      );
+    assert.equal(result, "locked");
+    assert.deepEqual(fs.readdirSync(valid), []);
+    assert.equal(fs.statSync(valid).mode & 0o777, 0o700);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 
 {
   const f = fixture();
@@ -1322,7 +1373,10 @@ const source = fs.readFileSync(
   "tools/void-economic-system-sponsored-reservation-store-v1.mjs",
   "utf8",
 );
-assert.match(source, /withBuyVoidFilesystemBakeryLockAsyncV1/u);
+assert.match(
+  source,
+  /withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1/u,
+);
 assert.match(source, /openLockQueueDirectory/u);
 assert.match(source, /LOCK_QUEUE_DIRECTORY/u);
 assert.match(source, /inspectEconomicSystemSponsoredReservationStoreV1/u);
@@ -1378,6 +1432,9 @@ console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
 console.log("duplicate_root_path_revalidated=true");
 console.log("duplicate_path_swap_holds_without_store_mutation=true");
+console.log("existing_queue_lock_missing_queue_bootstrap=false");
+console.log("existing_queue_lock_permission_normalization=false");
+console.log("existing_queue_lock_valid_queue_cleanup=true");
 console.log("preprovisioned_lock_queue_required=true");
 console.log("missing_lock_queue_bootstrap=false");
 console.log("structural_inspection_available=true");
