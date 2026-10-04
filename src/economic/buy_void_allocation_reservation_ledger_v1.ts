@@ -491,6 +491,16 @@ function parseRecordV1(
   }
 
   if (
+    input.prior_pool_micro === null &&
+    (reservedBefore.micro !== 0n ||
+      remainingBefore.micro !== pool.micro)
+  ) {
+    throw new Error(
+      "allocation_reservation_genesis_inventory_state_invalid",
+    );
+  }
+
+  if (
     input.prior_pool_micro !== null &&
     (pool.micro !== input.prior_pool_micro ||
       reservedBefore.micro !== input.prior_reserved_micro ||
