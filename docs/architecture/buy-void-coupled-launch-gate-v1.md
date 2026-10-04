@@ -52,14 +52,18 @@ Production therefore hardcodes
 `buy_void_verified_payment_capacity_admission_not_ready` even when the
 coupled WC/VOID source classifier is otherwise `SOURCE_READY`.
 
-That constant must not become true merely because the verifier recognizes a
-payment. A later reviewed lane must prove atomic verified-payment admission:
-serialize the finite-capacity transition, re-read the current verified
-reservation total inside that serialization boundary, reject an obligation
-that exceeds remaining inventory, and prove concurrent near-sellout
-verifications cannot both reserve the same remaining VOID. Duplicate-payment
-identity and the append-only allocation/reservation contract remain separate
-required gates.
+This implementation lane supplies the atomic verified-payment capacity
+boundary described in
+`src/economic/buy_void_verified_payment_capacity_admission_v1.ts`: it
+serializes the finite-capacity transition, re-reads current verified
+reservations while holding that lock, rejects obligations above remaining
+inventory, and proves concurrent near-sellout verifications cannot both reserve
+the same remaining VOID.
+
+The source-ready constant intentionally remains false. Duplicate-payment
+identity (`source_chain:transaction_hash:log_index`) and the final append-only
+allocation/reservation contract remain separate required gates and must be
+closed before any later promotion may set capacity admission ready.
 
 The focused proof has an explicitly test-only classifier helper so the deeper
 generation/lease machinery can still be exercised synthetically. Production

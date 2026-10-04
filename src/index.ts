@@ -18552,7 +18552,7 @@ small{color:#94a3b8}
       return events;
     }
 
-    async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any){const fs=await import("node:fs");const path=await import("node:path");const {withBuyVoidTerminalCloseoutRequestLockV1}=await import("./economic/buy_void_terminal_closeout_request_lock_v1.js");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});const op=()=>withBuyVoidTerminalCloseoutRequestLockV1({request_dir:dir,request_id:String(event?.request_id||"")},()=>{fs.appendFileSync(path.join(dir,"operator-events.jsonl"),JSON.stringify(event)+"\n");fs.writeFileSync(path.join(dir,"operator-event-"+event.request_id+"-"+event.marked_at_ms+".json"),JSON.stringify(event,null,2));return{ok:true,dir}});return event?.operator_status==="payment_verified"?await __blm(request,op):op()}
+    async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any){const m=await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");return m.writeBuyVoidOperatorEventWithCapacityAdmissionV1({event:e,request:r,request_dir:String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1"),with_launch_authority_mutation:__blm,read_sale_state:__voidBuyVoidSaleStateV1})}
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
     function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){
@@ -18824,7 +18824,7 @@ setInterval(refresh, 10000);
         if (logFrom !== expectedFrom) continue;
 
         const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
-        if (amountUnits >= requestedUnits) {
+        if (amountUnits === requestedUnits) {
           return {
             ok: true,
             usdc_contract: usdc,
@@ -18965,7 +18965,7 @@ setInterval(refresh, 10000);
           request: found
         });
       } catch(e:any) {
-        const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded";
+        const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded";
         res.status(held?409:500).json({
           schema: "void_buy_void_payment_verifier_v1",
           ok: false,
