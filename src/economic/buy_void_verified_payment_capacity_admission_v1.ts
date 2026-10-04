@@ -452,6 +452,7 @@ function readStrictCapacityLedgerV1(
   }
   return Object.freeze({
     verified_ids: verifiedIds,
+    request_quotes: quotes,
     verified_void_micro: verifiedVoidMicro,
     reserved_void_micro: verifiedVoidMicro,
     remaining_void_micro: poolVoidMicro - verifiedVoidMicro,
@@ -814,7 +815,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   ) {
     fail("buy_void_verified_payment_capacity_input_invalid");
   }
-  microVoid(
+  const candidateQuoteMicro = microVoid(
     input.quoted_void,
     "buy_void_verified_payment_capacity_quote_invalid",
     true,
@@ -851,6 +852,14 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           operatorLedger,
           poolBefore,
         );
+        const durableRequestQuote =
+          strictBefore.request_quotes.get(requestId);
+        if (durableRequestQuote === undefined) {
+          fail("buy_void_verified_payment_capacity_candidate_request_missing");
+        }
+        if (durableRequestQuote !== candidateQuoteMicro) {
+          fail("buy_void_verified_payment_capacity_candidate_quote_mismatch");
+        }
         const alreadyVerified = strictBefore.verified_ids.has(requestId);
         const before = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
           sale_state: saleBefore,
@@ -885,6 +894,11 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           operatorLedger,
           poolAfter,
         );
+        const durableRequestQuoteAfter =
+          strictAfter.request_quotes.get(requestId);
+        if (durableRequestQuoteAfter !== candidateQuoteMicro) {
+          fail("buy_void_verified_payment_capacity_candidate_quote_changed");
+        }
         const after = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
           sale_state: saleAfter,
           quoted_void: input.quoted_void,

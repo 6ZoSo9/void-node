@@ -118,6 +118,15 @@ assert.match(
 );
 assert.match(
   capacityAdmission,
+  /buy_void_verified_payment_capacity_candidate_request_missing/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_candidate_quote_mismatch/,
+);
+assert.match(capacityAdmission, /request_quotes:\s*quotes/);
+assert.match(
+  capacityAdmission,
   /buy_void_verified_payment_capacity_operator_events/,
 );
 assert.match(capacityAdmission, /_json_invalid/);

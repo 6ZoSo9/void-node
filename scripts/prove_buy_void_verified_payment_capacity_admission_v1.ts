@@ -233,6 +233,81 @@ try {
   state = await readSaleState();
   assert.equal(state.allocation_reserved_void, 10);
 
+  // Capacity admission must bind the candidate to the durable request ledger,
+  // not only to the caller-supplied request object/event envelope.
+  {
+    const bindingRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-request-binding-"),
+    );
+    try {
+      fs.chmodSync(bindingRoot, 0o700);
+      const durableRequest = {
+        request_id: "buyvoid_bound_56565656",
+        quoted_void: 2,
+      };
+      fs.writeFileSync(
+        path.join(bindingRoot, "requests.jsonl"),
+        JSON.stringify(durableRequest) + "\n",
+        { mode: 0o600 },
+      );
+      let bindingMutationCalls = 0;
+      const bindingMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        bindingMutationCalls += 1;
+        return operation();
+      };
+      const bindingSaleState = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+
+      const missingRequest = {
+        request_id: "buyvoid_missing_78787878",
+        quoted_void: 1,
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(missingRequest, 103),
+            request: missingRequest,
+            request_dir: bindingRoot,
+            with_launch_authority_mutation: bindingMutation,
+            read_sale_state: bindingSaleState,
+          }),
+        /buy_void_verified_payment_capacity_candidate_request_missing/u,
+      );
+
+      const mismatchedQuote = {
+        ...durableRequest,
+        quoted_void: 1,
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(mismatchedQuote, 104),
+            request: mismatchedQuote,
+            request_dir: bindingRoot,
+            with_launch_authority_mutation: bindingMutation,
+            read_sale_state: bindingSaleState,
+          }),
+        /buy_void_verified_payment_capacity_candidate_quote_mismatch/u,
+      );
+      assert.equal(bindingMutationCalls, 0);
+      const bindingEvents = path.join(
+        bindingRoot,
+        "operator-events.jsonl",
+      );
+      assert.equal(fs.existsSync(bindingEvents), true);
+      assert.equal(fs.statSync(bindingEvents).size, 0);
+    } finally {
+      fs.rmSync(bindingRoot, { recursive: true, force: true });
+    }
+  }
+
   fs.appendFileSync(eventsPath, "{malformed-json}\n");
   assert.equal(
     (await readEvents()).filter(
@@ -473,6 +548,8 @@ try {
   console.log("capacity_exhaustion_rejected=true");
   console.log("malformed_authoritative_ledger_fails_closed=true");
   console.log("legacy_lenient_projection_is_not_capacity_authority=true");
+  console.log("candidate_request_must_exist_in_durable_ledger=true");
+  console.log("candidate_quote_bound_to_durable_request=true");
   console.log("duplicate_request_reverification_idempotent=true");
   console.log("payment_verified_jsonl_append_fsync=true");
   console.log("requests_ledger_descriptor_bound_bounded_read=true");
