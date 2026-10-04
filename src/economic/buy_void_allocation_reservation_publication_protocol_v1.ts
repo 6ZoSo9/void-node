@@ -68,6 +68,7 @@ const INTENT_KEYS = Object.freeze([
   "next_record_count",
   "next_tip_hash",
   "prior_high_water_bytes",
+  "prior_high_water_bytes_base64",
   "prior_high_water_sha256",
   "prior_ledger_bytes",
   "prior_ledger_sha256",
@@ -91,6 +92,7 @@ type PublicationIntentBodyV1 = {
   prior_ledger_bytes: number;
   prior_high_water_sha256: string;
   prior_high_water_bytes: number;
+  prior_high_water_bytes_base64: string;
   next_record_count: number;
   next_tip_hash: string;
   next_ledger_sha256: string;
@@ -214,6 +216,8 @@ function canonicalIntentJsonV1(
       prior_ledger_bytes: body.prior_ledger_bytes,
       prior_high_water_sha256: body.prior_high_water_sha256,
       prior_high_water_bytes: body.prior_high_water_bytes,
+      prior_high_water_bytes_base64:
+        body.prior_high_water_bytes_base64,
       next_record_count: body.next_record_count,
       next_tip_hash: body.next_tip_hash,
       next_ledger_sha256: body.next_ledger_sha256,
@@ -249,6 +253,7 @@ function parseIntentV1(
 ): {
   body: Readonly<PublicationIntentBodyV1>;
   append_bytes: Buffer;
+  prior_high_water_bytes: Buffer;
   next_high_water_bytes: Buffer;
 } {
   const bytes = bytesV1(
@@ -373,10 +378,17 @@ function parseIntentV1(
   }
 
   const appendText = String(raw.append_bytes_base64 ?? "");
+  const priorHighWaterText = String(
+    raw.prior_high_water_bytes_base64 ?? "",
+  );
   const nextHighWaterText = String(
     raw.next_high_water_bytes_base64 ?? "",
   );
   const appendBytes = Buffer.from(appendText, "base64");
+  const priorHighWaterBuffer = Buffer.from(
+    priorHighWaterText,
+    "base64",
+  );
   const highWaterBytes = Buffer.from(
     nextHighWaterText,
     "base64",
@@ -388,6 +400,10 @@ function parseIntentV1(
     !appendBytes.toString("utf8").endsWith("\n") ||
     sha256Id(appendBytes) !== appendSha ||
     nextLedgerBytes !== priorLedgerBytes + appendBytes.length ||
+    priorHighWaterBuffer.length < 2 ||
+    priorHighWaterBuffer.length !== priorHighWaterBytes ||
+    priorHighWaterBuffer.toString("base64") !== priorHighWaterText ||
+    sha256Id(priorHighWaterBuffer) !== priorHighWaterSha ||
     highWaterBytes.length < 2 ||
     highWaterBytes.length !== nextHighWaterBytes ||
     highWaterBytes.toString("base64") !== nextHighWaterText ||
@@ -443,6 +459,7 @@ function parseIntentV1(
     prior_ledger_bytes: priorLedgerBytes,
     prior_high_water_sha256: priorHighWaterSha,
     prior_high_water_bytes: priorHighWaterBytes,
+    prior_high_water_bytes_base64: priorHighWaterText,
     next_record_count: nextRecordCount,
     next_tip_hash: nextTip,
     next_ledger_sha256: nextLedgerSha,
@@ -462,6 +479,7 @@ function parseIntentV1(
   return {
     body: Object.freeze(body),
     append_bytes: appendBytes,
+    prior_high_water_bytes: priorHighWaterBuffer,
     next_high_water_bytes: highWaterBytes,
   };
 }
@@ -572,6 +590,8 @@ export function buildBuyVoidAllocationReservationPublicationIntentV1(
       prior_ledger_bytes: prior.ledger_bytes,
       prior_high_water_sha256: sha256Id(currentHighWater),
       prior_high_water_bytes: currentHighWater.length,
+      prior_high_water_bytes_base64:
+        currentHighWater.toString("base64"),
       next_record_count: next.record_count,
       next_tip_hash: next.tip_hash,
       next_ledger_sha256: next.ledger_sha256,
@@ -692,10 +712,12 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
     const observedHighWaterSha = sha256Id(observedHighWater);
     const highWaterIsPrior =
       observedHighWater.length === body.prior_high_water_bytes &&
-      observedHighWaterSha === body.prior_high_water_sha256;
+      observedHighWaterSha === body.prior_high_water_sha256 &&
+      observedHighWater.equals(parsed.prior_high_water_bytes);
     const highWaterIsNext =
       observedHighWater.length === body.next_high_water_bytes &&
-      observedHighWaterSha === body.next_high_water_sha256;
+      observedHighWaterSha === body.next_high_water_sha256 &&
+      observedHighWater.equals(parsed.next_high_water_bytes);
     if (!highWaterIsPrior && !highWaterIsNext) {
       throw new Error(
         "allocation_reservation_publication_observed_high_water_unknown",
@@ -786,6 +808,17 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
     if (!fingerprintMatchesV1(priorFingerprint, body, "prior")) {
       throw new Error(
         "allocation_reservation_publication_prior_prefix_mismatch",
+      );
+    }
+    const intentPriorBinding =
+      classifyBuyVoidAllocationReservationHighWaterBindingV1({
+        ledger_jsonl: priorPrefix,
+        high_water_json: parsed.prior_high_water_bytes,
+      });
+    if (intentPriorBinding.ok === false) {
+      throw new Error(
+        "allocation_reservation_publication_prior_intent_binding_" +
+          intentPriorBinding.reason,
       );
     }
 
