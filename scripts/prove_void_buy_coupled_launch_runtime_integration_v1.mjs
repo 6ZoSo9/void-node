@@ -14,6 +14,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const index = read("src/index.ts");
 const docker = read("Dockerfile");
 const compose = read("docker-compose.yml");
+const capacityAdmission = read(
+  "src/economic/buy_void_verified_payment_capacity_admission_v1.ts",
+);
 assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
@@ -73,14 +76,9 @@ assert.doesNotMatch(
 );
 
 const eventWriterAt=index.indexOf(
-  "async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any)",
+  "async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any)",
 );
 assert.ok(eventWriterAt>0);
-const eventAppendAt=index.indexOf(
-  'fs.appendFileSync(path.join(dir,"operator-events.jsonl")',
-  eventWriterAt,
-);
-assert.ok(eventAppendAt>eventWriterAt);
 const eventWriterEnd=index.indexOf(
   "// VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1",
   eventWriterAt,
@@ -88,11 +86,34 @@ const eventWriterEnd=index.indexOf(
 const eventCritical=index.slice(eventWriterAt,eventWriterEnd);
 assert.match(
   eventCritical,
-  /const op=\(\)=>withBuyVoidTerminalCloseoutRequestLockV1/,
+  /buy_void_verified_payment_capacity_admission_v1\.js/,
 );
 assert.match(
   eventCritical,
-  /event\?\.operator_status==="payment_verified"\?await __blm\(request,op\):op\(\)/,
+  /writeBuyVoidOperatorEventWithCapacityAdmissionV1/,
+);
+assert.match(eventCritical, /with_launch_authority_mutation:__blm/);
+assert.match(eventCritical, /read_sale_state:__voidBuyVoidSaleStateV1/);
+assert.match(
+  eventCritical,
+  /read_operator_events:__voidReadBuyVoidOperatorEventsV1/,
+);
+assert.equal(eventCritical.includes("operator-events.jsonl"), false);
+assert.match(
+  capacityAdmission,
+  /withBuyVoidFilesystemBakeryLockAsyncV1/,
+);
+assert.match(
+  capacityAdmission,
+  /withBuyVoidTerminalCloseoutRequestLockV1/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_exceeded/,
+);
+assert.match(
+  capacityAdmission,
+  /with_launch_authority_mutation\(request, append\)/,
 );
 assert.ok(index.includes('"operator_mark_failed"'));
 assert.ok(index.includes(
@@ -113,6 +134,9 @@ assert.ok(index.includes(
 ));
 assert.ok(index.includes(
   'error: held?m:"payment_verifier_failed"',
+));
+assert.ok(index.includes(
+  'm==="buy_void_verified_payment_capacity_exceeded"',
 ));
 assert.ok(index.includes(
   'x==="request_launch_authority_expired_or_superseded"?409:500',
@@ -222,6 +246,8 @@ console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
 console.log("generation_lock_spans_request_append=true");
 console.log("generation_lock_spans_payment_verified_append=true");
+console.log("verified_payment_capacity_lock_spans_payment_verified_append=true");
+console.log("verified_payment_capacity_exhaustion_response_409=true");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
