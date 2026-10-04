@@ -31,13 +31,14 @@ For `payment_verified` only, while holding that lock it:
    it to match the strict ledger recount exactly;
 4. validates exact six-decimal pool/reserved/verified/remaining conservation;
 5. rejects if the new quoted VOID exceeds current remaining inventory;
-6. keeps the capacity lock held while the retained
-   `operator-events.jsonl` descriptor crosses the existing launch-generation
-   authority mutation and per-request closeout lock;
-7. rebinds the visible operator-ledger path to that exact opened inode
-   immediately before append, writes with `O_APPEND` through the retained
-   descriptor, fsyncs that inode, and rebinds the visible path again before
-   accepting post-state;
+6. keeps both admitted `requests.jsonl` and `operator-events.jsonl`
+   descriptors open while the capacity lock crosses the existing
+   launch-generation authority mutation and per-request closeout lock;
+7. immediately before append, requires both retained ledgers to match their
+   exact post-census size/mtime/ctime/inode/custody snapshots, then rebinds the
+   visible operator-ledger path to that exact opened inode, writes with
+   `O_APPEND` through the retained descriptor, fsyncs that inode, and
+   rebinds the visible path again before accepting post-state;
 8. strictly re-reads the same operator-ledger inode plus a descriptor-bound
    request ledger and requires verified/reserved inventory to increase by
    exactly the quote and remaining inventory to decrease by exactly the quote.
@@ -67,7 +68,8 @@ sidecar from the JSONL record, creates no sidecar for the retry timestamp, and
 does not invoke launch-authority mutation or change the reserved total.
 
 Filesystem adversaries additionally replace or grow the authoritative request
-ledger after its admitted `fstat`, and replace or grow the operator ledger
+ledger after its admitted `fstat`, mutate either retained ledger on the same
+inode after the pre-census snapshot, and replace or grow the operator ledger
 after the capacity census but before launch/request mutation. Those cases must
 HOLD before any `payment_verified` bytes or sidecar are written to a
 replacement target.
