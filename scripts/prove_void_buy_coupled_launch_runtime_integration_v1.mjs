@@ -41,6 +41,10 @@ assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms")
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.ok(index.includes("if (amountUnits === requestedUnits)"));
 assert.equal(index.includes("if (amountUnits >= requestedUnits)"), false);
+assert.ok(index.includes("canonicalLogIndex = parsedLogIndex.toString()"));
+assert.ok(index.includes("log_index: match.log_index"));
+assert.ok(index.includes("payment_identity_input_complete: true"));
+assert.ok(index.includes('m.startsWith("buy_void_verified_payment_identity_")'));
 assert.ok(index.includes("Funds sent from an exchange/custodial wallet will be treated as lost."));
 assert.ok(index.includes("VOID is not exchange-listed."));
 assert.ok(index.includes("<label>Native USDC rail<br/>"));
@@ -303,6 +307,9 @@ console.log("verified_payment_capacity_lock_spans_payment_verified_append=true")
 console.log("verified_payment_capacity_exhaustion_response_409=true");
 console.log("verified_payment_identity_guard_inside_capacity_lock=true");
 console.log("verified_payment_identity_cross_request_reuse=false");
+console.log("verified_payment_log_index_persisted=true");
+console.log("verified_payment_identity_complete_flag_persisted=true");
+console.log("verified_payment_identity_conflict_response_409=true");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
