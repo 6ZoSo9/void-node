@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 import {
   planBuyVoidAllocationReservationV1,
@@ -119,6 +120,23 @@ function expectHeld(
     throw new Error("expected publication HOLD");
   }
   assert.equal(decision.reason, reason);
+}
+
+{
+  const publicationSource = fs.readFileSync(
+    "src/economic/buy_void_allocation_reservation_publication_protocol_v1.ts",
+    "utf8",
+  );
+  assert.match(
+    publicationSource,
+    /appendRow\.previous_allocation_record_hash/,
+    "publication append binding must use the canonical ledger previous-hash field",
+  );
+  assert.equal(
+    publicationSource.includes("appendRow.previous_record_hash"),
+    false,
+    "stale noncanonical previous_record_hash binding must not return",
+  );
 }
 
 const emptyHighWater = requireHighWater("");
