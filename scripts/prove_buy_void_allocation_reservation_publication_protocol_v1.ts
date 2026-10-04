@@ -144,6 +144,21 @@ assert.equal(
   firstIntent.record_hash,
   first.record.allocation_record_hash,
 );
+const firstIntentObject = JSON.parse(firstIntent.intent_json);
+assert.equal(
+  Buffer.from(
+    firstIntentObject.prior_high_water_bytes_base64,
+    "base64",
+  ).toString("utf8"),
+  emptyHighWater.high_water_json,
+);
+assert.equal(
+  Buffer.from(
+    firstIntentObject.next_high_water_bytes_base64,
+    "base64",
+  ).toString("utf8"),
+  high1.high_water_json,
+);
 assert.match(
   firstIntent.intent_sha256,
   /^sha256:[0-9a-f]{64}$/u,
@@ -345,6 +360,49 @@ const secondComplete = requireRecovery(
 );
 assert.equal(secondComplete.phase, "complete");
 
+const wrongPriorHighWaterIntentObject = JSON.parse(
+  secondIntent.intent_json,
+);
+wrongPriorHighWaterIntentObject.prior_high_water_bytes =
+  Buffer.byteLength(emptyHighWater.high_water_json, "utf8");
+wrongPriorHighWaterIntentObject.prior_high_water_sha256 =
+  sha256Id(emptyHighWater.high_water_json);
+wrongPriorHighWaterIntentObject.prior_high_water_bytes_base64 =
+  Buffer.from(
+    emptyHighWater.high_water_json,
+    "utf8",
+  ).toString("base64");
+const wrongPriorHighWaterIntent =
+  JSON.stringify(wrongPriorHighWaterIntentObject) + "\n";
+expectHeld(
+  classifyBuyVoidAllocationReservationPublicationRecoveryV1({
+    intent_bytes: wrongPriorHighWaterIntent,
+    observed_ledger_jsonl: ledger2,
+    observed_high_water_json: high2.high_water_json,
+  }),
+  "allocation_reservation_publication_prior_intent_binding_" +
+    "allocation_reservation_high_water_binding_mismatch",
+);
+
+const malformedPriorHighWaterIntentObject = JSON.parse(
+  secondIntent.intent_json,
+);
+malformedPriorHighWaterIntentObject.prior_high_water_bytes_base64 =
+  Buffer.from(
+    "not canonical high-water\n",
+    "utf8",
+  ).toString("base64");
+const malformedPriorHighWaterIntent =
+  JSON.stringify(malformedPriorHighWaterIntentObject) + "\n";
+expectHeld(
+  classifyBuyVoidAllocationReservationPublicationRecoveryV1({
+    intent_bytes: malformedPriorHighWaterIntent,
+    observed_ledger_jsonl: ledger2,
+    observed_high_water_json: high2.high_water_json,
+  }),
+  "allocation_reservation_publication_intent_payload_invalid",
+);
+
 expectHeld(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
     intent_bytes: secondIntent.intent_json,
@@ -515,7 +573,10 @@ console.log(
 console.log("intent_exact_prior_state_bound=true");
 console.log("intent_exact_next_state_bound=true");
 console.log("intent_contains_only_single_append_bytes=true");
+console.log("intent_prior_high_water_bytes_bound=true");
 console.log("intent_next_high_water_bytes_bound=true");
+console.log("complete_phase_prior_high_water_rederived=true");
+console.log("tampered_prior_high_water_payload_rejected=true");
 console.log("intent_only_phase_recoverable=true");
 console.log("ledger_committed_phase_recoverable=true");
 console.log("ledger_committed_next_high_water_semantically_bound=true");
