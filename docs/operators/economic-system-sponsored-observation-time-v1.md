@@ -55,6 +55,8 @@ generation
 previous_receipt_sha256
 boot_id
 process_start_ticks
+baseline_wall_time_ms
+baseline_monotonic_ns
 observed_at_ms
 monotonic_ns
 wall_monotonic_skew_allowance_ms
@@ -71,7 +73,14 @@ For the same `boot_id` and `process_start_ticks`:
 
 - `monotonic_ns` must increase strictly;
 - wall time may not move backward;
-- wall-time elapsed and monotonic elapsed must stay within the fixed v1 fail-closed tolerance of 5000 ms.
+- generation zero fixes one immutable wall/monotonic baseline;
+- every later receipt carries that exact baseline unchanged; and
+- cumulative wall elapsed versus cumulative monotonic elapsed from that baseline
+  must stay within the fixed v1 fail-closed tolerance of 5000 ms.
+
+Using the generation-zero baseline is deliberate. A per-step-only skew check
+would allow repeated near-threshold wall-clock jumps to ratchet accepted time
+arbitrarily ahead of monotonic time.
 
 The 5000 ms value is a source safety ceiling, not an economic parameter and not a trade minimum. If the wall clock diverges farther from the monotonic clock, sponsored-time admission HOLDS.
 
@@ -148,6 +157,8 @@ The focused proof covers:
 - wall regression;
 - monotonic regression/equality;
 - skew overflow and exact boundary acceptance;
+- cumulative per-step clock-ratchet rejection against the generation-zero
+  baseline;
 - boot-change HOLD;
 - process-instance-change HOLD;
 - captured clock-reference behavior;
