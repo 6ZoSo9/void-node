@@ -54,6 +54,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_AUTHORITY_V1 
 
 const RECORDS_DIRECTORY = "records";
 const LOCK_NAME = "observation-time-v1";
+const LOCK_QUEUE_DIRECTORY = LOCK_NAME + ".queue";
 const MAX_RECORD_BYTES = 64 * 1024;
 const MAX_RECORDS = 1_000_000;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
@@ -260,30 +261,24 @@ function assertPinnedDirectoryVisible(directory, code) {
   }
 }
 
-function openRecordsDirectory(root) {
+function openChildPrivateDirectory(root, name, code) {
   assertPinnedDirectoryVisible(
     root,
     "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
   );
-  const visiblePath = path.join(root.path, RECORDS_DIRECTORY);
-  const pinnedPath = path.join(root.proc_path, RECORDS_DIRECTORY);
+  const visiblePath = path.join(root.path, name);
+  const pinnedPath = path.join(root.proc_path, name);
   const visible = fs.lstatSync(visiblePath, { bigint: true });
-  validatePrivateDirectory(
-    visible,
-    "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY_INVALID",
-  );
+  validatePrivateDirectory(visible, code + "_INVALID");
   const fd = fs.openSync(
     pinnedPath,
     fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
   );
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
-    validatePrivateDirectory(
-      opened,
-      "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY_INVALID",
-    );
+    validatePrivateDirectory(opened, code + "_INVALID");
     if (!sameDirectoryIdentity(visible, opened)) {
-      fail("SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY_PATH_NOT_BOUND");
+      fail(code + "_PATH_NOT_BOUND");
     }
     return Object.freeze({
       path: visiblePath,
@@ -295,6 +290,22 @@ function openRecordsDirectory(root) {
     fs.closeSync(fd);
     throw error;
   }
+}
+
+function openRecordsDirectory(root) {
+  return openChildPrivateDirectory(
+    root,
+    RECORDS_DIRECTORY,
+    "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
+  );
+}
+
+function openLockQueueDirectory(root) {
+  return openChildPrivateDirectory(
+    root,
+    LOCK_QUEUE_DIRECTORY,
+    "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY",
+  );
 }
 
 function validateRecordStat(stat, allowedLinks = 1n) {
@@ -757,6 +768,7 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
       }
       let root = null;
       let records = null;
+      let lockQueue = null;
       let mutationPerformed = false;
       let observationPerformed = false;
       const markMutation = () => {
@@ -768,9 +780,14 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
           "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
         );
         records = openRecordsDirectory(root);
+        lockQueue = openLockQueueDirectory(root);
         const withLock = await canonicalLock();
         const lockPath = path.join(root.proc_path, LOCK_NAME);
         return await withLock(lockPath, async () => {
+          assertPinnedDirectoryVisible(
+            lockQueue,
+            "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY",
+          );
           assertPinnedDirectoryVisible(
             root,
             "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
@@ -832,6 +849,10 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
             records,
             "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
           );
+          assertPinnedDirectoryVisible(
+            lockQueue,
+            "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY",
+          );
           return success(
             candidate.receipt,
             mutationPerformed,
@@ -847,6 +868,13 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
           observationPerformed,
         );
       } finally {
+        if (lockQueue?.fd >= 0) {
+          try {
+            fs.closeSync(lockQueue.fd);
+          } catch (error) {
+            void error;
+          }
+        }
         if (records?.fd >= 0) {
           try {
             fs.closeSync(records.fd);
@@ -874,12 +902,14 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
       }
       let root = null;
       let records = null;
+      let lockQueue = null;
       try {
         root = openPinnedDirectory(
           rootPath,
           "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
         );
         records = openRecordsDirectory(root);
+        lockQueue = openLockQueueDirectory(root);
         const history = readHistory(records);
         assertPinnedDirectoryVisible(
           root,
@@ -888,6 +918,10 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
         assertPinnedDirectoryVisible(
           records,
           "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
+        );
+        assertPinnedDirectoryVisible(
+          lockQueue,
+          "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY",
         );
         return inspectSuccess(history);
       } catch (error) {
@@ -899,6 +933,13 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
           false,
         );
       } finally {
+        if (lockQueue?.fd >= 0) {
+          try {
+            fs.closeSync(lockQueue.fd);
+          } catch (error) {
+            void error;
+          }
+        }
         if (records?.fd >= 0) {
           try {
             fs.closeSync(records.fd);
