@@ -9,11 +9,6 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-import {
-  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
-} from "./void-economic-epoch2-raw-transaction-domain-v1.mjs";
-
-
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1 =
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1";
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1 =
@@ -55,6 +50,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     block_bound_deployer_balance_required: true,
     exact_deployment_data_gas_estimate_required: true,
     epoch2_signed_access_list_marker_required: true,
+    epoch2_transaction_domain_reviewed_before_use_required: true,
     gas_price_observation_required: true,
     canonical_void_balance_of_required: true,
     opening_inventory_atoms_required:
@@ -99,6 +95,23 @@ const PREFLIGHT_TOOL_REL =
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
 const PRODUCTION_EPOCH2_RPC_TARGET_REL =
   "ops/mainnet0/production-epoch2-rpc-target-v1.json";
+const EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_REL =
+  "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
+const EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1 =
+  "f7cb1910923725581d1ff9b31abfb910a64eba14";
+
+export const VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1 =
+  Object.freeze({
+    chain_id: 2050n,
+    execution_epoch: 2,
+    transaction_type: 2,
+    marker_address:
+      "0x0000000000000000000000000000000000002050",
+    marker_storage_key:
+      "0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7",
+    reviewed_domain_tool_git_blob_sha1:
+      EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1,
+  });
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
 const CANONICAL_COUPLED_LAUNCH_ID =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
@@ -465,12 +478,18 @@ function repositoryIdentity({ requireCanonicalMain = false } = {}) {
     ["rev-parse", "HEAD:" + PREFLIGHT_TOOL_REL],
     "live_deployment_preflight_tool_blob_unavailable",
   );
+  const epoch2DomainToolBlob = gitText(
+    ["rev-parse", "HEAD:" + EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_REL],
+    "live_deployment_preflight_epoch2_domain_tool_blob_unavailable",
+  );
   if (
     !HEX40.test(head) ||
     !HEX40.test(tree) ||
     status !== "" ||
     !HEX40.test(qualificationToolBlob) ||
-    !HEX40.test(preflightToolBlob)
+    !HEX40.test(preflightToolBlob) ||
+    epoch2DomainToolBlob !==
+      EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1
   ) {
     fail("live_deployment_preflight_repository_identity_invalid");
   }
@@ -496,7 +515,83 @@ function repositoryIdentity({ requireCanonicalMain = false } = {}) {
     remote_main_sha: remoteMainSha,
     qualification_tool_git_blob_sha1: qualificationToolBlob,
     preflight_tool_git_blob_sha1: preflightToolBlob,
+    epoch2_domain_tool_git_blob_sha1: epoch2DomainToolBlob,
   });
+}
+
+function requireReviewedEpoch2EstimateDomainV1(repo) {
+  if (
+    !repo ||
+    repo.epoch2_domain_tool_git_blob_sha1 !==
+      EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1
+  ) {
+    fail("live_deployment_preflight_epoch2_domain_reviewed_blob_mismatch");
+  }
+
+  const file = path.join(ROOT, EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_REL);
+  let fd = -1;
+  let before;
+  let bytes;
+  let after;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      before.size < 1 ||
+      before.size > 1024 * 1024
+    ) {
+      fail("live_deployment_preflight_epoch2_domain_worktree_file_invalid");
+    }
+    bytes = fs.readFileSync(fd);
+    after = fs.fstatSync(fd);
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+
+  if (
+    before.dev !== after.dev ||
+    before.ino !== after.ino ||
+    before.size !== after.size ||
+    before.mtimeMs !== after.mtimeMs ||
+    before.ctimeMs !== after.ctimeMs ||
+    gitBlobSha1(bytes) !== repo.epoch2_domain_tool_git_blob_sha1
+  ) {
+    fail("live_deployment_preflight_epoch2_domain_worktree_blob_mismatch");
+  }
+
+  return VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1;
+}
+
+export function testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1() {
+  try {
+    const repo = repositoryIdentity({ requireCanonicalMain: false });
+    const domain = requireReviewedEpoch2EstimateDomainV1(repo);
+    return Object.freeze({
+      ok: true,
+      status: "TEST_ONLY_EPOCH2_DOMAIN_REVIEWED_SOURCE_GREEN",
+      reviewed_domain_tool_git_blob_sha1:
+        repo.epoch2_domain_tool_git_blob_sha1,
+      chain_id: Number(domain.chain_id),
+      transaction_type: domain.transaction_type,
+      marker_address: domain.marker_address,
+      marker_storage_key: domain.marker_storage_key,
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      status: "TEST_ONLY_HOLD",
+      reason: error instanceof Error ? error.message : String(error),
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  }
 }
 
 function writePrivateReviewedSource(file, bytes) {
@@ -1283,6 +1378,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   let deployer;
   let inventorySource;
   let rpcPolicy;
+  let epoch2Domain;
   let canonicalProductionRpcTarget = null;
   try {
     if (
@@ -1293,6 +1389,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       fail("live_deployment_preflight_transport_injection_forbidden");
     }
     repo = repositoryIdentity({ requireCanonicalMain });
+    epoch2Domain = requireReviewedEpoch2EstimateDomainV1(repo);
     const qualificationContract = await reviewedQualificationContract(repo);
     verifiedQualification = verifyQualification(
       input?.qualification_bytes,
@@ -1390,8 +1487,6 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       await call("eth_gasPrice", []),
       "live_deployment_preflight_gas_price_invalid",
     );
-    const epoch2Domain =
-      VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1;
     if (
       epoch2Domain.chain_id !== 2050n ||
       epoch2Domain.transaction_type !== 2 ||
@@ -1585,6 +1680,9 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
         epoch2_access_list_marker_storage_key:
           epoch2Domain.marker_storage_key,
         epoch2_signed_access_list_marker_bound: true,
+        epoch2_transaction_domain_reviewed_before_use: true,
+        epoch2_transaction_domain_tool_git_blob_sha1:
+          repo.epoch2_domain_tool_git_blob_sha1,
         deployment_gas_estimate: gasEstimate.toString(),
         bare_estimated_deployment_cost_wei: bareEstimatedCost.toString(),
         deployer_balance_covers_bare_estimate: deployerBalanceSufficient,
