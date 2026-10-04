@@ -122,9 +122,14 @@ only by a serialized mutating invocation.
 A reviewed two-link temp/final crash residue must refer to the same inode; the
 temp link may then be removed and the final record remains authoritative.
 
-The read-only listing API never performs that cleanup. If any crash temp exists
-it returns HOLD with
-`SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED`.
+The read-only listing API never performs that cleanup. It requires a stable
+before/after directory-name census around exact record parsing. If any crash
+temp is visible at either edge it returns HOLD with
+`SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED`; if the final-name set changes
+during the read it returns
+`SPONSORED_RESERVATION_STORE_DIRECTORY_CHANGED_DURING_READ`. This prevents a
+concurrent publication from being reported as clean history while its
+temp/fsync/postcheck phase is still in progress.
 
 ## Storage contract
 
@@ -248,6 +253,7 @@ The store proof covers:
 - exact global budget boundary and overflow;
 - read-only listing;
 - unpublished crash-temp HOLD for read-only listing;
+- concurrent temp/publication appearing between read-only directory censuses;
 - serialized unpublished-temp recovery;
 - linked temp/final crash recovery;
 - malformed record HOLD;
