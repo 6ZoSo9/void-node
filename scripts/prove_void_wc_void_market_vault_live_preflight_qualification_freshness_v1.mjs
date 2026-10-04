@@ -475,7 +475,7 @@ await withValidRpcFixture(async (fixture) => {
 });
 
 {
-  const q = qualificationFixture({ sourceRef: ANCESTOR_SOURCE_REF });
+  const q = qualificationFixture();
   q.source_binding.source_tree_sha = "0".repeat(40);
   q.qualification_id = qualificationId(q);
   let rpcCalls = 0;
