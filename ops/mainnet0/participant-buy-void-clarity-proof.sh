@@ -161,11 +161,12 @@ echo "=== [3] rendered Buy VOID safety copy ==="
 curl -fsS "$BASE/participant" > "$HTML"
 
 grep -q 'VOID_BUY_PUBLIC_SAFETY_CLARITY_V1' "$HTML"
-grep -q 'Guided Base or Ethereum USDC request only' "$HTML"
-grep -q 'create a Buy VOID request first' "$HTML"
-grep -q 'use a self-custody wallet' "$HTML"
-grep -q 'exchange/custodial sends and blind direct deposits are not supported' "$HTML"
-grep -q 'payment confirmation is not VOID fulfillment' "$HTML"
+grep -Fq 'Guided Base or Ethereum USDC request only' "$HTML"
+grep -Fq 'Base or Ethereum native USDC by live request only' "$HTML"
+grep -Fq 'request first' "$HTML"
+grep -Fq 'self-custody only' "$HTML"
+grep -Fq 'no exchange/custodial or blind deposits' "$HTML"
+grep -Fq 'payment confirmation is not VOID fulfillment' "$HTML"
 
 echo "[ok] Buy VOID public safety copy rendered"
 
