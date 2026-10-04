@@ -39,6 +39,8 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     canonical_ttl_policy_semantics_reused: true,
     canonical_sponsored_policy_semantics_reused: true,
     candidate_preflight_before_time_mutation: true,
+    current_candidate_revalidation_after_time: true,
+    expired_duplicate_execution_admission: false,
     durable_time_observation_before_reservation: true,
     durable_reservation_before_execution: true,
     caller_timestamp_input: false,
@@ -566,6 +568,7 @@ function held(
   reason,
   {
     preflightVerified = false,
+    currentCandidateVerified = false,
     timeMutation = false,
     timeObservation = false,
     timeReceiptSha = null,
@@ -579,6 +582,7 @@ function held(
     version: 1,
     reason,
     preflight_verified: preflightVerified,
+    current_candidate_verified: currentCandidateVerified,
     time_mutation_performed: timeMutation,
     time_observation_performed: timeObservation,
     time_receipt_sha256: timeReceiptSha,
@@ -618,6 +622,7 @@ function success(
     sponsorship_id: preflight.sponsorship_id,
     signed_submission_digest: preflight.signed_submission_digest,
     preflight_verified: true,
+    current_candidate_verified: true,
     accepted_observed_at_ms:
       timeResult.accepted_observed_at_ms,
     time_generation: timeResult.generation,
@@ -725,6 +730,44 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
           );
         }
 
+        try {
+          const current = classifyEconomicSystemSponsoredAdmissionV1({
+            sponsorship_policy: policies.sponsored_policy,
+            ttl_caps_policy: policies.ttl_policy,
+            outstanding_intents: [],
+            sponsorships: [],
+            candidate_intent: request.candidate_intent,
+            candidate_sponsorship:
+              request.candidate_sponsorship,
+            candidate_signed_submission:
+              preflight.signed_submission,
+            observed_at_ms:
+              timeResult.accepted_observed_at_ms,
+          });
+          if (
+            current.signed_submission_signature_verified !== true ||
+            current.candidate_intent_id !== preflight.intent_id ||
+            current.candidate_sponsorship_id !==
+              preflight.sponsorship_id ||
+            current.sponsorship_allowed !== true
+          ) {
+            fail("SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID");
+          }
+        } catch {
+          return held(
+            "SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID",
+            {
+              preflightVerified: true,
+              currentCandidateVerified: false,
+              timeMutation:
+                timeResult.mutation_performed === true,
+              timeObservation: true,
+              timeReceiptSha:
+                timeResult.head_receipt_sha256,
+            },
+          );
+        }
+
         reservation =
           await persistEconomicSystemSponsoredReservationV1({
             root_dir: reservationRoot,
@@ -751,6 +794,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
               "SPONSORED_RUNTIME_RESERVATION_HELD",
             {
               preflightVerified: true,
+              currentCandidateVerified: true,
               timeMutation:
                 timeResult.mutation_performed === true,
               timeObservation: true,
@@ -775,6 +819,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             : "SPONSORED_RUNTIME_ADMISSION_FAILED",
           {
             preflightVerified: preflight !== null,
+            currentCandidateVerified:
+              preflight !== null && reservation !== null,
             timeMutation:
               timeResult?.mutation_performed === true,
             timeObservation:
