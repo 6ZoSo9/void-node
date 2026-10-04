@@ -3,6 +3,9 @@ import crypto from "node:crypto";
 import {
   canonicalBuyVoidPaymentIdentityV1,
 } from "./buy_void_auto_fulfillment_v1.js";
+import {
+  VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1,
+} from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 
 export const VOID_BUY_VOID_ALLOCATION_RESERVATION_LEDGER_V1 =
   "VOID_BUY_VOID_ALLOCATION_RESERVATION_LEDGER_V1";
@@ -22,6 +25,7 @@ export const VOID_BUY_VOID_ALLOCATION_RESERVATION_LEDGER_AUTHORITY_V1 =
     duplicate_request_rejection: true,
     duplicate_payment_identity_rejection: true,
     exact_inventory_arithmetic: true,
+    canonical_presale_economics_bound: true,
     runtime_integration: false,
     filesystem_read: false,
     filesystem_write: false,
@@ -242,6 +246,39 @@ function amountTextFromMicroV1(value: bigint): string {
     : whole.toString();
 }
 
+function assertCanonicalPresaleEconomicsV1(
+  pool: AmountV1,
+  quoteVoid: AmountV1,
+  quoteUsdc: AmountV1,
+): void {
+  if (
+    pool.text !==
+    VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1
+      .canonical_presale_max_void
+  ) {
+    throw new Error(
+      "allocation_reservation_canonical_pool_mismatch",
+    );
+  }
+  const numerator = BigInt(
+    VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1
+      .rate_void_units_numerator,
+  );
+  const denominator = BigInt(
+    VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1
+      .rate_void_units_denominator,
+  );
+  if (
+    quoteVoid.micro * denominator !==
+    quoteUsdc.micro * numerator
+  ) {
+    throw new Error(
+      "allocation_reservation_presale_rate_mismatch",
+    );
+  }
+}
+
+
 function nonNegativeIntegerTextV1(
   value: unknown,
   code: string,
@@ -435,6 +472,12 @@ function parseRecordV1(
   const remainingAfter = amountV1(
     raw.remaining_void_after,
     "allocation_reservation_remaining_after_invalid",
+  );
+
+  assertCanonicalPresaleEconomicsV1(
+    pool,
+    quoteVoid,
+    quoteUsdc,
   );
 
   for (const [observed, canonical, code] of [
@@ -851,6 +894,16 @@ export function planBuyVoidAllocationReservationV1(input: {
       core.quote_void_amount,
       "allocation_reservation_quote_void_invalid",
       true,
+    );
+    const quoteUsdc = amountV1(
+      core.quote_usdc_amount,
+      "allocation_reservation_quote_usdc_invalid",
+      true,
+    );
+    assertCanonicalPresaleEconomicsV1(
+      pool,
+      quoteVoid,
+      quoteUsdc,
     );
 
     const priorByRequest = ledger.records.find(
