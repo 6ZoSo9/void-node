@@ -17,6 +17,7 @@ export const VOID_COUPLED_NATIVE_GAS_LIABILITY_AUTHORITY_V1 =
     pure_admission_classifier: true,
     deterministic_liability_identity: true,
     buy_void_prepared_plan_reused: true,
+    transaction_native_value_bound: true,
     payer_scoped_balance_accounting: true,
     fee_observation_expiry_recomputed: true,
     trusted_fee_freshness_policy_proven: false,
@@ -84,6 +85,7 @@ export type CoupledNativeGasLiabilityRecordV1 = {
   payer_address: string;
   nonce: number;
   transaction_plan_fingerprint_sha256: string;
+  transaction_native_value_wei: string;
   gas_limit: string;
   admitted_max_fee_per_gas_wei: string;
   attempt_limit: 1 | 2;
@@ -188,6 +190,7 @@ const LIABILITY_KEYS = Object.freeze([
   "payer_address",
   "nonce",
   "transaction_plan_fingerprint_sha256",
+  "transaction_native_value_wei",
   "gas_limit",
   "admitted_max_fee_per_gas_wei",
   "attempt_limit",
@@ -327,6 +330,7 @@ function validateBuyVoidPlan(
     nonce === null ||
     !delivery ||
     delivery === wallet ||
+    nativeValue === null ||
     nativeValue === null ||
     gasLimit === null ||
     maxFee === null ||
@@ -513,6 +517,8 @@ function liabilityBody(
     nonce: input.nonce,
     transaction_plan_fingerprint_sha256:
       input.transaction_plan_fingerprint_sha256,
+    transaction_native_value_wei:
+      input.transaction_native_value_wei,
     gas_limit: input.gas_limit,
     admitted_max_fee_per_gas_wei:
       input.admitted_max_fee_per_gas_wei,
@@ -551,6 +557,7 @@ function validateLiability(
         : null;
   const payer = address(value.payer_address);
   const nonce = safeInteger(value.nonce);
+  const nativeValue = decimal(value.transaction_native_value_wei);
   const gasLimit = positive(value.gas_limit);
   const maxFee = positive(value.admitted_max_fee_per_gas_wei);
   const reserved = positive(value.maximum_reserved_wei);
@@ -590,8 +597,10 @@ function validateLiability(
   ) {
     throw new Error("coupled_native_gas_liability_invalid");
   }
-  const computed = gasLimit * maxFee * BigInt(attemptLimit);
+  const gasEnvelope = gasLimit * maxFee * BigInt(attemptLimit);
+  const computed = nativeValue + gasEnvelope;
   if (
+    gasEnvelope > UINT256_MAX ||
     computed > UINT256_MAX ||
     reserved !== computed ||
     (lane === "presale" &&
@@ -611,6 +620,7 @@ function validateLiability(
     transaction_plan_fingerprint_sha256: String(
       value.transaction_plan_fingerprint_sha256,
     ),
+    transaction_native_value_wei: nativeValue.toString(),
     gas_limit: gasLimit.toString(),
     admitted_max_fee_per_gas_wei: maxFee.toString(),
     attempt_limit: attemptLimit,
@@ -631,10 +641,17 @@ function candidateFromBuyVoid(
   plan: BuyVoidPreparedTransactionPlanReservationV1,
   observation: CoupledNativeGasPayerObservationV1,
 ): CoupledNativeGasLiabilityRecordV1 {
+  const nativeValue = BigInt(plan.native_value_wei);
   const gasLimit = BigInt(plan.gas_limit);
   const maxFee = BigInt(plan.max_fee_per_gas_wei);
-  const maximum = gasLimit * maxFee;
-  if (maximum <= 0n || maximum > UINT256_MAX) {
+  const gasEnvelope = gasLimit * maxFee;
+  const maximum = nativeValue + gasEnvelope;
+  if (
+    gasEnvelope <= 0n ||
+    gasEnvelope > UINT256_MAX ||
+    maximum <= 0n ||
+    maximum > UINT256_MAX
+  ) {
     throw new Error(
       "coupled_native_gas_candidate_liability_out_of_range",
     );
@@ -646,6 +663,7 @@ function candidateFromBuyVoid(
     nonce: plan.nonce,
     transaction_plan_fingerprint_sha256:
       plan.transaction_plan_fingerprint_sha256,
+    transaction_native_value_wei: nativeValue.toString(),
     gas_limit: gasLimit.toString(),
     admitted_max_fee_per_gas_wei: maxFee.toString(),
     attempt_limit: 1,
