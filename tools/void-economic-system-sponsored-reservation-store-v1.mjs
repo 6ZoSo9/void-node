@@ -308,6 +308,19 @@ function validateRecordStat(stat, allowedLinks = 1n) {
   }
 }
 
+function validateTemporaryStat(stat, allowedLinks) {
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== currentUid() ||
+    stat.nlink !== allowedLinks ||
+    (stat.mode & 0o077n) !== 0n ||
+    stat.size > BigInt(MAX_RECORD_BYTES)
+  ) {
+    fail("SPONSORED_RESERVATION_STORE_TEMP_FILE_INVALID");
+  }
+}
+
 function readExactRecord(records, name) {
   if (!RECORD_NAME.test(name)) {
     fail("SPONSORED_RESERVATION_STORE_RECORD_NAME_INVALID");
@@ -460,12 +473,12 @@ function cleanupTemps(records) {
     const tempPath = path.join(records.proc_path, name);
     const temp = fs.lstatSync(tempPath, { bigint: true });
     if (temp.nlink === 1n) {
-      validateRecordStat(temp);
+      validateTemporaryStat(temp, 1n);
       fs.unlinkSync(tempPath);
       changed = true;
       continue;
     }
-    validateRecordStat(temp, 2n);
+    validateTemporaryStat(temp, 2n);
     const finalPath = path.join(records.proc_path, match[1]);
     const final = fs.lstatSync(finalPath, { bigint: true });
     validateRecordStat(final, 2n);
