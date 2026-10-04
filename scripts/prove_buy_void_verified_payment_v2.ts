@@ -61,6 +61,71 @@ assert.equal(verification.event.payment_verifier.confirmations, "2");
 assert.equal(verification.event.payment_verifier.amount_units, "12500000");
 assert.equal(verification.event.payment_identity_input_complete, true);
 
+const maxLogIndexVerification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
+    logs: [
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0xffffffff",
+        transactionHash: txHash,
+        blockNumber: "0x64",
+      },
+    ],
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
+});
+if ("reason" in maxLogIndexVerification) {
+  throw new Error(maxLogIndexVerification.reason);
+}
+assert.equal(
+  maxLogIndexVerification.event.payment_verifier.log_index,
+  "4294967295",
+);
+
+const overflowLogIndexVerification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
+    logs: [
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0x100000000",
+        transactionHash: txHash,
+        blockNumber: "0x64",
+      },
+    ],
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
+});
+assert.equal(overflowLogIndexVerification.ok, false);
+if (overflowLogIndexVerification.ok) {
+  throw new Error("expected uint32 log-index overflow hold");
+}
+assert.equal(
+  overflowLogIndexVerification.reason,
+  "matching_usdc_transfer_not_found",
+);
+
 const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
   automatic_fulfillment_enabled: true,
   allowed_chains: ["base"],
@@ -112,4 +177,6 @@ assert.deepEqual(VOID_BUY_VOID_VERIFIED_PAYMENT_AUTHORITY_V2, {
   money_movement: false,
 });
 
+console.log("payment_log_index_uint32_boundary=true");
+console.log("payment_log_index_uint32_overflow_hold=true");
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_GREEN");
