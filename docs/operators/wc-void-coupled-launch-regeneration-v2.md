@@ -45,6 +45,14 @@ This stage does **not** update:
 - market-vault qualification;
 - any runtime state.
 
+The later atomic application must also rebind every current consumer of the
+superseded V1 compiled identity, even where the old coupled-launch ID is not
+present literally. That includes production readiness, market-vault runtime
+attestation and import, market-vault canonical application, and bounded-canary
+evidence, in addition to the launch-ID authority surfaces. The migration plan
+now carries the complete 9-consumer compiled-identity set identified by the
+regeneration census; a launch-ID-only migration is explicitly incomplete.
+
 No RPC call, key access, signing, broadcast, Chain-2050 write, inventory
 funding, market/presale activation, or funds movement is permitted.
 
