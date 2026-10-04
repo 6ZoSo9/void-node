@@ -64,6 +64,7 @@ const SERVICE_CONTRACT_RELATIVE_PATH =
   "docs/architecture/buy-void-allocation-custody-service-contract-v1.json";
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const MAX_COMMAND_BYTES = 512 * 1024;
+const REVIEWED_SYSTEMD_MAJOR = 255;
 const EVIDENCE_TTL_MS = 60_000;
 const SAFE_NAME = /^[A-Za-z0-9_.@:-]{1,160}$/u;
 const ABSOLUTE_PATH_MAX = 4096;
@@ -142,10 +143,14 @@ const RUNTIME_SYSTEMD_PROPERTIES = Object.freeze([
 
 const SYSTEMD_MANAGE_UNIT_VERBS = Object.freeze([
   "start",
+  "verify-active",
   "stop",
   "reload",
+  "reload-or-start",
   "restart",
   "try-restart",
+  "try-reload",
+  "nop",
   "reload-or-restart",
   "reload-or-try-restart",
   "kill",
@@ -155,7 +160,6 @@ const SYSTEMD_MANAGE_UNIT_VERBS = Object.freeze([
   "ref",
   "bind-mount",
   "mount-image",
-  "kill-subgroup",
 ]);
 
 const SYSTEMD_GLOBAL_CONTROL_ACTIONS = Object.freeze([
@@ -825,6 +829,22 @@ function pkcheckDenial(io, actionId, subject, details = []) {
 }
 
 function collectRuntimeServiceControlEvidence(io, config, runtime) {
+  const systemdVersionLine = run(
+    io,
+    "systemctl",
+    ["--version"],
+    "custody_host_evidence_systemd_version_failed",
+  ).split("\n", 1)[0].trim();
+  const versionMatch = /^systemd\s+([0-9]+)(?:\s|$)/u.exec(
+    systemdVersionLine,
+  );
+  if (
+    !versionMatch ||
+    Number(versionMatch[1]) !== REVIEWED_SYSTEMD_MAJOR
+  ) {
+    fail("custody_host_evidence_systemd_major_not_reviewed");
+  }
+
   const args = [
     "show",
     config.runtime_service_unit,
@@ -927,6 +947,8 @@ function collectRuntimeServiceControlEvidence(io, config, runtime) {
   }
 
   return Object.freeze({
+    reviewed_systemd_major: REVIEWED_SYSTEMD_MAJOR,
+    observed_systemd_version_line: systemdVersionLine,
     runtime_service_unit: config.runtime_service_unit,
     runtime_main_pid: pid,
     runtime_control_group: controlGroup,
