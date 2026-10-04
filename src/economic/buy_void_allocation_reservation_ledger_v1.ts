@@ -26,6 +26,8 @@ export const VOID_BUY_VOID_ALLOCATION_RESERVATION_LEDGER_AUTHORITY_V1 =
     duplicate_payment_identity_rejection: true,
     exact_inventory_arithmetic: true,
     canonical_presale_economics_bound: true,
+    external_high_water_binding: false,
+    rollback_detection: false,
     runtime_integration: false,
     filesystem_read: false,
     filesystem_write: false,
