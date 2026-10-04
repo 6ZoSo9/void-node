@@ -167,6 +167,7 @@ export function assembleBuyCoupledLiveActivationReceiptV1({
 
   const assemblyBody = Object.freeze({
     schema: "void.buy-void-coupled-live-activation-receipt-assembly.v1",
+    signing_request: signingRequest,
     signing_request_id: signingRequest.signing_request_id,
     typed_data_digest: signingRequest.typed_data_digest,
     activation_receipt_id: receipt.activation_receipt_id,
@@ -228,6 +229,50 @@ export function verifyBuyCoupledLiveActivationReceiptAssemblyV1(assembly) {
     sha256Bytes(Buffer.from(canonicalJson(assemblyBody), "utf8"));
   if (assembly.assembly_id !== expectedId) {
     fail("activation_receipt_assembly_id_mismatch");
+  }
+
+  verifyBuyCoupledLiveActivationSigningRequestV1(
+    assembly.signing_request,
+  );
+  if (
+    assembly.signing_request_id !==
+      assembly.signing_request.signing_request_id ||
+    assembly.typed_data_digest !==
+      assembly.signing_request.typed_data_digest ||
+    assembly.activation_receipt_id !==
+      assembly.signing_request.activation_receipt_id
+  ) {
+    fail("activation_receipt_assembly_request_binding_invalid");
+  }
+
+  const activationSignature =
+    assembly.receipt?.activation_signature;
+  const sovereignSignature =
+    assembly.receipt?.sovereign_signature;
+  verifyCoupledLiveActivationTypedDataSignaturesV1({
+    typedData: assembly.signing_request.typed_data,
+    activationSignature,
+    sovereignSignature,
+    expectedActivationSigner:
+      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
+    expectedSovereignSigner:
+      VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
+  });
+
+  const expectedReceipt = {
+    ...assembly.signing_request.unsigned_receipt,
+    activation_signature: activationSignature,
+    sovereign_signature: sovereignSignature,
+  };
+  if (
+    canonicalJson(assembly.receipt) !==
+      canonicalJson(expectedReceipt) ||
+    assembly.activation_signer !==
+      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
+    assembly.sovereign_signer !==
+      VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1
+  ) {
+    fail("activation_receipt_assembly_receipt_binding_invalid");
   }
 
   const receiptBytes = Buffer.from(
