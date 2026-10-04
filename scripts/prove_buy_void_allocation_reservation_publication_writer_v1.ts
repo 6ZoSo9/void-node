@@ -65,6 +65,34 @@ if (process.argv[2] === "--dual-root-lock-child") {
   process.exit(0);
 }
 
+if (process.argv[2] === "--writer-persist-child") {
+  const [
+    ledgerRoot,
+    highWaterRoot,
+    nextLedgerPath,
+    startedPath,
+    resultPath,
+  ] = process.argv.slice(3);
+  assert.ok(ledgerRoot);
+  assert.ok(highWaterRoot);
+  assert.ok(nextLedgerPath);
+  assert.ok(startedPath);
+  assert.ok(resultPath);
+  fs.writeFileSync(startedPath, "started\n", { mode: 0o600 });
+  const decision =
+    persistBuyVoidAllocationReservationPublicationWriterV1({
+      ledger_root: ledgerRoot,
+      high_water_root: highWaterRoot,
+      next_ledger_jsonl: fs.readFileSync(nextLedgerPath),
+    });
+  fs.writeFileSync(
+    resultPath,
+    JSON.stringify(decision) + "\n",
+    { mode: 0o600 },
+  );
+  process.exit(decision.ok ? 0 : 2);
+}
+
 type LockChildV1 = {
   child: ReturnType<typeof spawn>;
   stdout: () => string;
@@ -101,6 +129,70 @@ function spawnLockChild(
   child.stdout?.on("data", (chunk) => { stdout += String(chunk); });
   child.stderr?.on("data", (chunk) => { stderr += String(chunk); });
   return { child, stdout: () => stdout, stderr: () => stderr };
+}
+
+function spawnPersistChild(
+  ledgerRoot: string,
+  highWaterRoot: string,
+  nextLedgerPath: string,
+  startedPath: string,
+  resultPath: string,
+): LockChildV1 {
+  assert.equal(
+    fs.existsSync(TSX_BIN),
+    true,
+    "tsx binary required for cross-process writer persistence proof",
+  );
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(
+    TSX_BIN,
+    [
+      SELF,
+      "--writer-persist-child",
+      ledgerRoot,
+      highWaterRoot,
+      nextLedgerPath,
+      startedPath,
+      resultPath,
+    ],
+    { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
+  );
+  child.stdout?.on("data", (chunk) => { stdout += String(chunk); });
+  child.stderr?.on("data", (chunk) => { stderr += String(chunk); });
+  return { child, stdout: () => stdout, stderr: () => stderr };
+}
+
+async function waitForTicketCount(
+  queue: string,
+  minimum: number,
+  child: LockChildV1,
+  label: string,
+  timeoutMs = 10_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    let count = 0;
+    try {
+      count = fs
+        .readdirSync(queue)
+        .filter((name) => name.startsWith("ticket-"))
+        .length;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+        throw error;
+      }
+    }
+    if (count >= minimum) return;
+    if (child.child.exitCode !== null) {
+      throw new Error(
+        label + "_child_exited:" + String(child.child.exitCode) +
+        "\nstdout:\n" + child.stdout() + "\nstderr:\n" + child.stderr(),
+      );
+    }
+    if (Date.now() >= deadline) throw new Error(label + "_timeout");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
 
 async function waitForPath(
@@ -193,8 +285,23 @@ assert.match(
 );
 assert.match(
   writerSource,
-  /withBuyVoidFilesystemBakeryLockV1\(\s*ledgerLockPath,[\s\S]*withBuyVoidFilesystemBakeryLockV1\(\s*highWaterLockPath,/u,
-  "writer must acquire ledger-root then high-water-root serialization locks",
+  /const orderedLocks = \[/u,
+  "writer must derive a dual-root lock order",
+);
+assert.match(
+  writerSource,
+  /left\.directory\.stat\.dev[\s\S]*left\.directory\.stat\.ino/u,
+  "writer lock order must bind pinned directory identity",
+);
+assert.match(
+  writerSource,
+  /withBuyVoidFilesystemBakeryLockV1\(\s*orderedLocks\[0\]\.lock_path,[\s\S]*withBuyVoidFilesystemBakeryLockV1\(\s*orderedLocks\[1\]\.lock_path,/u,
+  "writer must hold both pinned-root queues",
+);
+assert.match(
+  writerSource,
+  /beforeReplace\(\);\s*fs\.renameSync/u,
+  "writer must revalidate both roots immediately before authoritative rename",
 );
 
 const sha = (hex: string): string =>
@@ -787,10 +894,12 @@ async function proveSingleRootReplacementLock(
   const aEntered = path.join(f.root, replaceRoot + "-a-entered");
   const aRelease = path.join(f.root, replaceRoot + "-a-release");
   const bStarted = path.join(f.root, replaceRoot + "-b-started");
-  const bEntered = path.join(f.root, replaceRoot + "-b-entered");
+  const bResult = path.join(f.root, replaceRoot + "-b-result.json");
+  const nextLedgerPath = path.join(f.root, replaceRoot + "-next.jsonl");
   let first: LockChildV1 | null = null;
   let secondChild: LockChildV1 | null = null;
   try {
+    fs.writeFileSync(nextLedgerPath, ledger1, { mode: 0o600 });
     first = spawnLockChild(
       f.ledgerRoot, f.highWaterRoot, aStarted, aEntered, aRelease,
     );
@@ -815,25 +924,72 @@ async function proveSingleRootReplacementLock(
       );
     }
 
-    secondChild = spawnLockChild(
-      f.ledgerRoot, f.highWaterRoot, bStarted, bEntered, "-",
+    secondChild = spawnPersistChild(
+      f.ledgerRoot,
+      f.highWaterRoot,
+      nextLedgerPath,
+      bStarted,
+      bResult,
     );
     await waitForPath(
       bStarted, secondChild, replaceRoot + "_second_started",
     );
-    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const sharedQueue =
+      replaceRoot === "high-water"
+        ? path.join(
+            f.ledgerRoot,
+            ".allocation-reservation-publication-v1.queue",
+          )
+        : path.join(
+            f.highWaterRoot,
+            ".allocation-reservation-publication-v1.queue",
+          );
+    await waitForTicketCount(
+      sharedQueue,
+      2,
+      secondChild,
+      replaceRoot + "_shared_lock_wait",
+    );
     assert.equal(
-      fs.existsSync(bEntered),
+      fs.existsSync(bResult),
       false,
-      replaceRoot + " replacement must not split the writer serialization domain",
+      replaceRoot +
+        " replacement must not let a valid competing publication enter",
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.ledgerRoot, LEDGER_NAME),
+        "utf8",
+      ),
+      "",
+      replaceRoot + " replacement must not split ledger serialization",
     );
 
     fs.writeFileSync(aRelease, "release\n", { mode: 0o600 });
     await waitForChild(first, replaceRoot + "_first");
     await waitForPath(
-      bEntered, secondChild, replaceRoot + "_second_entered",
+      bResult, secondChild, replaceRoot + "_second_result",
     );
     await waitForChild(secondChild, replaceRoot + "_second");
+
+    const decision = JSON.parse(fs.readFileSync(bResult, "utf8"));
+    assert.equal(decision.ok, true);
+    assert.equal(decision.status, "persisted");
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.ledgerRoot, LEDGER_NAME),
+        "utf8",
+      ),
+      ledger1,
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.highWaterRoot, HIGH_WATER_NAME),
+        "utf8",
+      ),
+      nextHighWater,
+    );
   } finally {
     for (const child of [first, secondChild]) {
       if (child && child.child.exitCode === null) child.child.kill("SIGKILL");
@@ -866,6 +1022,8 @@ console.log("pre_replace_authority_revalidation=true");
 console.log("dual_root_serialization_lock=true");
 console.log("high_water_root_replacement_keeps_shared_lock=true");
 console.log("ledger_root_replacement_keeps_shared_lock=true");
+console.log("single_root_replacement_blocks_valid_competing_publication=true");
+console.log("deterministic_dual_lock_order=true");
 console.log("storage_bootstrap=false");
 console.log("runtime_integration=false");
 console.log("protected_high_water_custody_proven=false");
