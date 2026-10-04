@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { inflateRawSync } from "node:zlib";
 
 import {
   VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_AUTHORITY_V2,
@@ -44,6 +45,98 @@ assert.equal(
   crypto.createHash("sha256").update(preservedArtifactZip).digest("hex"),
   v2.canonical_identity_evidence.workflow_artifact_zip_sha256,
 );
+
+function readSingleDeflatedZipEntryV1(zipBytes, expectedName) {
+  assert.ok(Buffer.isBuffer(zipBytes));
+  assert.equal(zipBytes.readUInt32LE(0), 0x04034b50);
+  const flags = zipBytes.readUInt16LE(6);
+  const method = zipBytes.readUInt16LE(8);
+  const nameLength = zipBytes.readUInt16LE(26);
+  const extraLength = zipBytes.readUInt16LE(28);
+  assert.equal(flags & 0x0008, 0x0008, "ZIP data descriptor required");
+  assert.equal(flags & ~0x0808, 0, "unsupported ZIP flags");
+  assert.equal(method, 8, "identity.json must use DEFLATE");
+  const name = zipBytes.subarray(30, 30 + nameLength).toString("utf8");
+  assert.equal(name, expectedName);
+
+  const dataStart = 30 + nameLength + extraLength;
+  const central = zipBytes.indexOf(Buffer.from("PK\x01\x02", "binary"));
+  assert.ok(central > dataStart + 16, "central directory missing");
+  const descriptor = central - 16;
+  assert.equal(zipBytes.readUInt32LE(descriptor), 0x08074b50);
+  const compressedSize = zipBytes.readUInt32LE(descriptor + 8);
+  const uncompressedSize = zipBytes.readUInt32LE(descriptor + 12);
+  assert.equal(dataStart + compressedSize, descriptor);
+
+  const inflated = inflateRawSync(
+    zipBytes.subarray(dataStart, dataStart + compressedSize),
+  );
+  assert.equal(inflated.length, uncompressedSize);
+  assert.equal(
+    zipBytes.indexOf(Buffer.from("PK\x03\x04", "binary"), dataStart),
+    -1,
+    "unexpected second ZIP entry",
+  );
+  return inflated;
+}
+
+const archivedIdentityBytes =
+  readSingleDeflatedZipEntryV1(preservedArtifactZip, "identity.json");
+assert.equal(
+  archivedIdentityBytes.length,
+  v2.canonical_identity_evidence.identity_json_bytes,
+);
+assert.equal(
+  crypto.createHash("sha256").update(archivedIdentityBytes).digest("hex"),
+  v2.canonical_identity_evidence.identity_json_sha256,
+);
+const archivedIdentity = JSON.parse(archivedIdentityBytes.toString("utf8"));
+assert.equal(archivedIdentity.identity_id, v2.accepted_identity.identity_id);
+
+function artifactHexBytesV1(hex, expectedBytes) {
+  assert.match(String(hex || ""), /^0x[0-9a-f]+$/u);
+  const bytes = Buffer.from(hex.slice(2), "hex");
+  assert.equal(bytes.length, expectedBytes);
+  return bytes;
+}
+
+const archivedCreation = artifactHexBytesV1(
+  archivedIdentity.artifacts?.creation_bytecode_hex,
+  archivedIdentity.artifacts?.creation_bytecode_bytes,
+);
+const archivedRuntime = artifactHexBytesV1(
+  archivedIdentity.artifacts?.runtime_template_hex,
+  archivedIdentity.artifacts?.runtime_template_bytes,
+);
+assert.equal(
+  archivedCreation.length,
+  v2.canonical_compiler_artifacts.creation_bytecode_bytes,
+);
+assert.equal(
+  crypto.createHash("sha256").update(archivedCreation).digest("hex"),
+  v2.canonical_compiler_artifacts.creation_bytecode_sha256,
+);
+assert.equal(
+  archivedRuntime.length,
+  v2.canonical_compiler_artifacts.runtime_template_bytes,
+);
+assert.equal(
+  crypto.createHash("sha256").update(archivedRuntime).digest("hex"),
+  v2.canonical_compiler_artifacts.runtime_template_sha256,
+);
+for (const key of [
+  "abi_sha256",
+  "metadata_sha256",
+  "storage_layout_sha256",
+  "method_identifiers_sha256",
+  "immutable_layout_sha256",
+]) {
+  assert.equal(
+    archivedIdentity.artifacts?.[key],
+    v2.canonical_compiler_artifacts?.[key],
+    "archived compiler artifact mismatch: " + key,
+  );
+}
 
 assert.equal(
   VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2,
@@ -386,4 +479,6 @@ console.log("deployment_authorized=false");
 console.log("canonical_compiler_artifact_archive_preserved=true");
 console.log("canonical_compiler_artifact_archive_zip_sha256=" +
   v2.canonical_identity_evidence.workflow_artifact_zip_sha256);
+console.log("preserved_artifact_identity_json_extracted=true");
+console.log("corrected_bytecode_hashes_derived_from_preserved_artifact=true");
 console.log("funds_movement=false");
