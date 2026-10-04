@@ -39,6 +39,31 @@ and actual EIP-712 digest, but bind different expected signer roles. Package
 creation does not claim that source readiness or generation authority was live-
 verified; those remain separate ceremony inputs and gate checks.
 
+## CLI example
+
+Prepare prints only the unsigned package:
+
+```bash
+node tools/void-buy-coupled-live-activation-ceremony-package-v1.mjs prepare \
+  --source-composition-id sha256:<64hex> \
+  --activation-generation 0x<64hex> \
+  --generation-tip-sha256 sha256:<64hex> \
+  --activation-nonce 0x<64hex> \
+  --activated-at-ms <ms> \
+  --expires-at-ms <ms> \
+  --evaluated-at-ms <ms>
+```
+
+After the two public signatures exist, assembly verifies the fixed production
+identities and prints the receipt package; it still does not install or activate it:
+
+```bash
+node tools/void-buy-coupled-live-activation-ceremony-package-v1.mjs assemble \
+  --package /absolute/package.json \
+  --activation-signature 0x<130hex> \
+  --sovereign-signature 0x<130hex>
+```
+
 ## Assemble
 
 `assemble` accepts the package plus the two public signatures. It rebuilds the
