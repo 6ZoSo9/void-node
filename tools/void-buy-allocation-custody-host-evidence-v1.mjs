@@ -65,6 +65,18 @@ const SERVICE_CONTRACT_RELATIVE_PATH =
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const MAX_COMMAND_BYTES = 512 * 1024;
 const REVIEWED_SYSTEMD_MAJOR = 255;
+const POLKIT_DENY_RULE_PATH =
+  "/etc/polkit-1/rules.d/00-void-buy-allocation-custody-runtime-deny-v1.rules";
+const POLKIT_RULE_DIRECTORIES = Object.freeze([
+  "/etc/polkit-1/rules.d",
+  "/usr/share/polkit-1/rules.d",
+]);
+const POLKIT_DENY_ACTIONS = Object.freeze([
+  "org.freedesktop.systemd1.manage-units",
+  "org.freedesktop.systemd1.manage-unit-files",
+  "org.freedesktop.systemd1.reload-daemon",
+  "org.freedesktop.systemd1.set-environment",
+]);
 const EVIDENCE_TTL_MS = 60_000;
 const SAFE_NAME = /^[A-Za-z0-9_.@:-]{1,160}$/u;
 const ABSOLUTE_PATH_MAX = 4096;
@@ -727,6 +739,133 @@ function parseSystemdShow(
   return Object.freeze(out);
 }
 
+function expectedPolkitDenyRule(runtimeUser) {
+  const user = JSON.stringify(runtimeUser);
+  const actions = POLKIT_DENY_ACTIONS.map(
+    (action) =>
+      "      action.id === " + JSON.stringify(action),
+  ).join(" ||\n");
+  return (
+    "polkit.addRule(function(action, subject) {\n" +
+    "  if (\n" +
+    "    subject.user === " + user + " &&\n" +
+    "    (\n" +
+    actions + "\n" +
+    "    )\n" +
+    "  ) {\n" +
+    "    return polkit.Result.NO;\n" +
+    "  }\n" +
+    "  return polkit.Result.NOT_HANDLED;\n" +
+    "});\n"
+  );
+}
+
+export function testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1(
+  runtimeUser,
+) {
+  return expectedPolkitDenyRule(
+    safeName(
+      runtimeUser,
+      "custody_host_evidence_runtime_user_invalid",
+    ),
+  );
+}
+
+function collectPolkitRuleNames(io, directory) {
+  const raw = run(
+    io,
+    "find",
+    [
+      directory,
+      "-mindepth",
+      "1",
+      "-maxdepth",
+      "1",
+      "-name",
+      "*.rules",
+      "-printf",
+      "%f\\n",
+    ],
+    "custody_host_evidence_polkit_rules_inventory_failed",
+  );
+  return raw
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((name) => {
+      if (!/^[A-Za-z0-9_.-]{1,200}\.rules$/u.test(name)) {
+        fail("custody_host_evidence_polkit_rule_name_invalid");
+      }
+      return name;
+    });
+}
+
+function collectPolkitDenyRuleEvidence(io, runtimeUser) {
+  const expected = Buffer.from(
+    expectedPolkitDenyRule(runtimeUser),
+    "utf8",
+  );
+  const observed = readBounded(
+    io,
+    POLKIT_DENY_RULE_PATH,
+    16 * 1024,
+    "custody_host_evidence_polkit_deny_rule_invalid",
+  );
+  if (!observed.equals(expected)) {
+    fail("custody_host_evidence_polkit_deny_rule_bytes_mismatch");
+  }
+  const stat = io.lstat(POLKIT_DENY_RULE_PATH);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    Number(stat.uid) !== 0 ||
+    Number(stat.gid) !== 0 ||
+    stat.nlink !== 1n ||
+    (Number(stat.mode) & 0o022) !== 0
+  ) {
+    fail("custody_host_evidence_polkit_deny_rule_custody_invalid");
+  }
+
+  const entries = [];
+  for (let rank = 0; rank < POLKIT_RULE_DIRECTORIES.length; rank += 1) {
+    const directory = POLKIT_RULE_DIRECTORIES[rank];
+    for (const name of collectPolkitRuleNames(io, directory)) {
+      entries.push(
+        Object.freeze({
+          name,
+          directory,
+          rank,
+          path: path.join(directory, name),
+        }),
+      );
+    }
+  }
+  entries.sort((left, right) => {
+    const byName = left.name.localeCompare(right.name);
+    if (byName !== 0) return byName;
+    return left.rank - right.rank;
+  });
+  if (
+    entries.length < 1 ||
+    entries[0].path !== POLKIT_DENY_RULE_PATH
+  ) {
+    fail("custody_host_evidence_polkit_deny_rule_not_first");
+  }
+
+  return Object.freeze({
+    path: POLKIT_DENY_RULE_PATH,
+    sha256: sha256Id(observed),
+    bytes: observed.length,
+    owner_uid: Number(stat.uid),
+    owner_gid: Number(stat.gid),
+    mode: modeText(stat),
+    lexically_first: true,
+    runtime_user: runtimeUser,
+    denied_action_ids: POLKIT_DENY_ACTIONS,
+    rule_inventory: Object.freeze(entries),
+  });
+}
+
 function processStartTimeTicks(io, pid) {
   const raw = run(
     io,
@@ -834,6 +973,10 @@ function pkcheckDenial(io, actionId, subject, details = []) {
 }
 
 function collectRuntimeServiceControlEvidence(io, config, runtime) {
+  const polkitDenyRule = collectPolkitDenyRuleEvidence(
+    io,
+    config.runtime_user,
+  );
   const systemdVersionLine = run(
     io,
     "systemctl",
@@ -954,6 +1097,7 @@ function collectRuntimeServiceControlEvidence(io, config, runtime) {
   return Object.freeze({
     reviewed_systemd_major: REVIEWED_SYSTEMD_MAJOR,
     observed_systemd_version_line: systemdVersionLine,
+    polkit_deny_rule: polkitDenyRule,
     runtime_service_unit: config.runtime_service_unit,
     runtime_main_pid: pid,
     runtime_control_group: controlGroup,
