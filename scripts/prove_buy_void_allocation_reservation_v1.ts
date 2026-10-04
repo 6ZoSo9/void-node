@@ -10,6 +10,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_RESERVATION_V1,
   listBuyVoidAllocationReservationsV1,
   persistBuyVoidAllocationReservationV1,
+  testOnlyBuyVoidAllocationReservationLockPathV1,
   testOnlyOpenBuyVoidAllocationChildDirectoryV1,
   testOnlyReadBuyVoidAllocationAuthorityFileV1,
 } from "../src/economic/buy_void_allocation_reservation_v1.js";
@@ -24,7 +25,7 @@ const POOL_VOID = "10000000";
 const SELF = fileURLToPath(import.meta.url);
 
 function allocationLockPath(requestDir: string): string {
-  return path.resolve(requestDir) + ".allocation-reservation-v1";
+  return testOnlyBuyVoidAllocationReservationLockPathV1(requestDir);
 }
 
 function launchAuthority(seed: string) {
@@ -327,6 +328,90 @@ for (const [key, value] of Object.entries(
     );
   } finally {
     rm(f);
+  }
+}
+
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-buy-allocation-alias-lock-v1-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const actualParent = path.join(root, "actual");
+  fs.mkdirSync(actualParent, { mode: 0o700 });
+  const requestDir = path.join(actualParent, "requests");
+  fs.mkdirSync(requestDir, { mode: 0o700 });
+  const aliasParent = path.join(root, "alias");
+  fs.symlinkSync(actualParent, aliasParent, "dir");
+  const aliasRequestDir = path.join(aliasParent, "requests");
+
+  const idA = "buyvoid_alia_00000001";
+  const idB = "buyvoid_alib_00000002";
+  const txA = "0x" + "c".repeat(64);
+  const txB = "0x" + "d".repeat(64);
+  writeJsonl(path.join(requestDir, "requests.jsonl"), [
+    request(idA, "6000000", txA, "1"),
+    request(idB, "6000000", txB, "2"),
+  ]);
+  writeJsonl(path.join(requestDir, "operator-events.jsonl"), [
+    verifiedEvent(idA, txA, "0", "6000000", 5101),
+    verifiedEvent(idB, txB, "1", "6000000", 5102),
+  ]);
+
+  try {
+    assert.equal(
+      allocationLockPath(requestDir),
+      allocationLockPath(aliasRequestDir),
+      "canonical and symlink-parent aliases must converge on one lock identity",
+    );
+
+    const sentinel = path.join(root, "alias-lock-held");
+    const holder = spawnProofChild([
+      "--child-hold-allocation-lock",
+      requestDir,
+      sentinel,
+    ]);
+    await waitForFile(sentinel);
+
+    const started = Date.now();
+    const contender = spawnProofChild([
+      "--child-persist-allocation",
+      aliasRequestDir,
+      idA,
+    ]);
+    const contenderResult = await contender.done;
+    const elapsed = Date.now() - started;
+    const holderResult = await holder.done;
+
+    assert.equal(holderResult.code, 0, holderResult.stderr);
+    assert.equal(contenderResult.code, 0, contenderResult.stderr);
+    assert.ok(
+      elapsed >= 1500,
+      "symlink-parent alias persistence must wait on canonical reservation lock",
+    );
+    const firstDecision = JSON.parse(contenderResult.stdout.trim());
+    assert.equal(firstDecision.ok, true);
+
+    const second = persistBuyVoidAllocationReservationV1({
+      request_dir: requestDir,
+      request_id: idB,
+    });
+    assert.equal(second.ok, false);
+    if (second.ok) throw new Error("expected aliased allocation capacity HOLD");
+    assert.equal(second.reason, "buy_void_allocation_capacity_exceeded");
+
+    const canonicalRows = listBuyVoidAllocationReservationsV1(requestDir);
+    const aliasRows = listBuyVoidAllocationReservationsV1(aliasRequestDir);
+    assert.equal(canonicalRows.length, 1);
+    assert.deepEqual(aliasRows, canonicalRows);
+    assert.equal(
+      canonicalRows.reduce(
+        (total, row) => total + BigInt(row.quoted_void_micro),
+        0n,
+      ),
+      6_000_000n * 1_000_000n,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 }
 
@@ -791,6 +876,8 @@ console.log("exported_persistence_uses_global_lock=true");
 console.log("prepublication_capacity_admission=true");
 console.log("oversubscribing_record_published=false");
 console.log("cross_process_lock_contention_proven=true");
+console.log("symlink_parent_alias_lock_identity_converges=true");
+console.log("alias_near_sellout_oversubscription_rejected=true");
 console.log("allocation_history_completeness_authority=false");
 console.log("external_high_water_binding=false");
 console.log("rollback_detection=false");
