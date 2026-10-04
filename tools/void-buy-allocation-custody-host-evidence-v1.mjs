@@ -783,11 +783,16 @@ function processCapabilityState(io, pid) {
     }
     out[key] = "0";
   }
+  const noNewPrivs = raw.match(/^NoNewPrivs:\\s*([01])$/mu);
+  if (!noNewPrivs || noNewPrivs[1] !== "1") {
+    fail("custody_host_evidence_runtime_process_no_new_privileges_not_enforced");
+  }
   return Object.freeze({
     inheritable: out.CapInh,
     permitted: out.CapPrm,
     effective: out.CapEff,
     ambient: out.CapAmb,
+    no_new_privileges: true,
   });
 }
 
