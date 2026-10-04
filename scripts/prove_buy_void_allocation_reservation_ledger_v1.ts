@@ -118,7 +118,7 @@ expectHeld(
     ledger_jsonl: ledger1,
     pool_void_total: "11",
   }),
-  "allocation_reservation_idempotent_pool_mismatch",
+  "allocation_reservation_canonical_pool_mismatch",
 );
 
 expectHeld(
@@ -228,6 +228,22 @@ expectHeld(
     quote_void_amount: "0",
   }),
   "allocation_reservation_quote_void_invalid",
+);
+
+expectHeld(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    quote_usdc_amount: "4",
+  }),
+  "allocation_reservation_presale_rate_mismatch",
+);
+
+expectHeld(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    pool_void_total: "9999999",
+  }),
+  "allocation_reservation_canonical_pool_mismatch",
 );
 
 expectHeld(
@@ -365,6 +381,7 @@ assert.deepEqual(
     duplicate_request_rejection: true,
     duplicate_payment_identity_rejection: true,
     exact_inventory_arithmetic: true,
+    canonical_presale_economics_bound: true,
     runtime_integration: false,
     filesystem_read: false,
     filesystem_write: false,
@@ -396,6 +413,8 @@ console.log("genesis_previous_hash_bound=true");
 console.log("genesis_reserved_inventory_zero=true");
 console.log("truncated_history_as_genesis_rejected=true");
 console.log("exact_micro_void_inventory_math=true");
+console.log("canonical_presale_pool_void=10000000");
+console.log("canonical_presale_rate_void_per_usdc=2");
 console.log("exact_retry_idempotent_without_append=true");
 console.log("oversell_rejected=true");
 console.log("closed_record_schema=true");
