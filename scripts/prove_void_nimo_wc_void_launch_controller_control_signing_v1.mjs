@@ -19,7 +19,7 @@ import {
   SIGNATURE_MARKER_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_AUTHORITY_V1,
   VOID_NIMO_WC_VOID_LAUNCH_CONTROLLER_CONTROL_SIGNING_V1,
-  signControlChallengeCoreV1,
+  validateControlChallengeForSigningCoreV1,
   testOnlyExerciseSignatureOutputExpiryQuarantineV1,
   testOnlyExerciseSignatureOutputParentReplacementV1,
   testOnlyExerciseSignatureOutputReplacementQuarantineV1,
@@ -99,13 +99,23 @@ const challenge =
     nonce: NONCE,
   });
 
-const envelope = await signControlChallengeCoreV1({
-  challengeEnvelope: challenge,
-  privateKey: PRIVATE_A,
-  expectedAddress: walletA.address,
-  nowUnix: now,
-  ethers,
-});
+const reviewedSynthetic =
+  validateControlChallengeForSigningCoreV1({
+    challengeEnvelope: challenge,
+    expectedAddress: walletA.address,
+    nowUnix: now,
+    ethers,
+  });
+const envelope = {
+  marker: SIGNATURE_MARKER_V1,
+  version: 1,
+  challenge_id: challenge.challenge_id,
+  signature: await walletA.signTypedData(
+    reviewedSynthetic.typed_data.domain,
+    reviewedSynthetic.typed_data.types,
+    reviewedSynthetic.typed_data.value,
+  ),
+};
 
 assert.equal(envelope.marker, SIGNATURE_MARKER_V1);
 assert.equal(envelope.version, 1);
@@ -884,6 +894,17 @@ const signerSource = fs.readFileSync(
   "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
   "utf8",
 );
+assert.equal(
+  signerSource.includes("export async function signControlChallengeCoreV1"),
+  false,
+  "generic private-key signing primitive must not be exported",
+);
+assert.equal(
+  signerSource.includes("export function validateControlChallengeForSigningCoreV1"),
+  true,
+  "generic proof surface is validation-only",
+);
+
 
 {
   const syntax = spawnSync(
