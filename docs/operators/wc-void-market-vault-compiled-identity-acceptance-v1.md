@@ -1,3 +1,8 @@
+> **Superseded for deployment use.** The bytecode fields in this v1 acceptance
+> packet are retained as historical evidence but are not deployment-authoritative.
+> See `wc-void-market-vault-compiled-identity-correction-v2.md` for the
+> corrected compiler-artifact lineage and fail-closed launch-generation hold.
+
 # WC/VOID market vault compiled identity acceptance v1
 
 Marker: `VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_V1`
