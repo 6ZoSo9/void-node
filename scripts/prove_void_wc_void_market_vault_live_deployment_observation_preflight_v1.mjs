@@ -385,6 +385,39 @@ async function fixture(options = {}) {
             result = options.badGasEstimate ? "0x0" : "0xf4240";
             break;
           case "eth_call":
+            assert.equal(
+              call.params?.[0]?.type,
+              "0x2",
+              "inventory eth_call must be an EIP-1559 type-2 transaction",
+            );
+            assert.equal(
+              call.params?.[0]?.chainId,
+              "0x802",
+              "inventory eth_call must bind Chain-2050",
+            );
+            assert.equal(
+              call.params?.[0]?.from,
+              DEPLOYER,
+              "inventory eth_call must use the observed deployer as caller",
+            );
+            assert.equal(
+              call.params?.[0]?.value,
+              "0x0",
+              "inventory eth_call must carry zero value",
+            );
+            assert.deepEqual(
+              call.params?.[0]?.accessList,
+              [{
+                address:
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+                    .marker_address,
+                storageKeys: [
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+                    .marker_storage_key,
+                ],
+              }],
+              "inventory eth_call must carry the exact signed Epoch-2 access-list marker",
+            );
             result = balanceHex(
               options.lowInventory
                 ? OPENING_ATOMS - 1n
@@ -542,7 +575,22 @@ await withFixture({}, async (f) => {
   );
   assert.equal(estimate.params[1], "0x64");
   const balanceCall = f.calls.find((call) => call.method === "eth_call");
+  assert.equal(balanceCall.params[0].type, "0x2");
+  assert.equal(balanceCall.params[0].chainId, "0x802");
+  assert.equal(balanceCall.params[0].from, DEPLOYER);
   assert.equal(balanceCall.params[0].to, TOKEN);
+  assert.equal(balanceCall.params[0].value, "0x0");
+  assert.deepEqual(
+    balanceCall.params[0].accessList,
+    [{
+      address:
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_address,
+      storageKeys: [
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+          .marker_storage_key,
+      ],
+    }],
+  );
   assert.equal(balanceCall.params[1], "0x64");
   assert.equal(
     balanceCall.params[0].data,
