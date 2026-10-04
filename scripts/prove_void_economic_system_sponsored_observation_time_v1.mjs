@@ -284,6 +284,22 @@ assert.equal(reordered.receipt.generation, "1");
 }
 
 {
+  const forgedZeroProcessStart = rehashReceiptProof({
+    ...first.receipt,
+    process_start_ticks: "0",
+  });
+  const clock = clockQueue([sample()]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: forgedZeroProcessStart }),
+    "sponsored_observation_time_prior_receipt_invalid",
+    false,
+  );
+  assert.equal(clock.calls(), 0);
+}
+
+{
   const forgedSkewedPrior = rehashReceiptProof({
     ...second.receipt,
     observed_at_ms: BASE_WALL + 7_000,
@@ -554,6 +570,7 @@ console.log("wall_time_non_regression_enforced=true");
 console.log("wall_monotonic_skew_bounded=true");
 console.log("cumulative_baseline_skew_enforced=true");
 console.log("per_step_clock_ratchet_rejected=true");
+console.log("prior_receipt_process_start_positive_revalidated=true");
 console.log("self_consistent_invalid_prior_skew_rejected=true");
 console.log("self_consistent_nonforward_prior_rejected=true");
 console.log("boot_change_holds=true");
