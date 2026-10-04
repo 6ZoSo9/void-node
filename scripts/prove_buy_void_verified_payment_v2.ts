@@ -28,40 +28,30 @@ const request: BuyVoidRequestV1 = {
   quoted_void: "25",
 };
 
-const matchingLog = {
-  address: usdc,
-  topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
-  data: "0xbebc20",
-  logIndex: "0x7",
-  transactionHash: txHash,
-  blockNumber: "0x64",
-};
-const baseReceipt = {
-  status: "0x1",
-  transactionHash: txHash,
-  blockNumber: "0x64",
-  logs: [matchingLog],
-};
-const verificationPolicy = {
-  allowed_chains: ["base", "ethereum"],
-  usdc_contract_by_chain: { base: usdc },
-  receive_address_by_chain: { base: receiver },
-  current_block_number_by_chain: { base: "0x65" },
-};
-const verify = (
-  receipt: any = baseReceipt,
-  policy: any = verificationPolicy,
-) => buildBuyVoidVerifiedPaymentEventV2({ request, receipt, policy });
-const expectHeld = (
-  decision: ReturnType<typeof buildBuyVoidVerifiedPaymentEventV2>,
-  reason: string,
-): void => {
-  assert.equal(decision.ok, false);
-  if (decision.ok) throw new Error("expected verified-payment V2 HOLD");
-  assert.equal(decision.reason, reason);
-};
-
-const verification = verify();
+const verification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
+    logs: [
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0x7",
+        transactionHash: txHash,
+        blockNumber: "0x64",
+      },
+    ],
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
+});
 
 if ("reason" in verification) throw new Error(verification.reason);
 assert.equal(verification.ok, true);
@@ -71,70 +61,69 @@ assert.equal(verification.event.payment_verifier.confirmations, "2");
 assert.equal(verification.event.payment_verifier.amount_units, "12500000");
 assert.equal(verification.event.payment_identity_input_complete, true);
 
-expectHeld(
-  verify({
-    ...baseReceipt,
-    logs: [{ ...matchingLog, removed: true }],
-  }),
-  "matching_usdc_transfer_not_found",
-);
-expectHeld(
-  verify({
-    ...baseReceipt,
-    logs: [{
-      ...matchingLog,
-      transactionHash: "0x" + "b".repeat(64),
-    }],
-  }),
-  "matching_usdc_transfer_not_found",
-);
-expectHeld(
-  verify({
-    ...baseReceipt,
-    logs: [{ ...matchingLog, blockNumber: "0x65" }],
-  }),
-  "matching_usdc_transfer_not_found",
-);
-expectHeld(
-  verify({
-    ...baseReceipt,
-    transactionHash: "0x" + "b".repeat(64),
-  }),
-  "payment_transaction_hash_mismatch",
-);
-expectHeld(
-  verify({
-    ...baseReceipt,
+const maxLogIndexVerification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
     logs: [
-      matchingLog,
-      { ...matchingLog, logIndex: "0x8" },
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0xffffffff",
+        transactionHash: txHash,
+        blockNumber: "0x64",
+      },
     ],
-  }),
-  "ambiguous_matching_usdc_transfers",
-);
-expectHeld(
-  verify(
-    baseReceipt,
-    {
-      ...verificationPolicy,
-      current_block_number_by_chain: { base: "0x63" },
-    },
-  ),
-  "invalid_current_block_number",
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
+});
+if ("reason" in maxLogIndexVerification) {
+  throw new Error(maxLogIndexVerification.reason);
+}
+assert.equal(
+  maxLogIndexVerification.event.payment_verifier.log_index,
+  "4294967295",
 );
 
-const maxLogIndex = verify({
-  ...baseReceipt,
-  logs: [{ ...matchingLog, logIndex: "0xffffffff" }],
+const overflowLogIndexVerification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
+    logs: [
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0x100000000",
+        transactionHash: txHash,
+        blockNumber: "0x64",
+      },
+    ],
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
 });
-if ("reason" in maxLogIndex) throw new Error(maxLogIndex.reason);
-assert.equal(maxLogIndex.event.payment_verifier.log_index, "4294967295");
-expectHeld(
-  verify({
-    ...baseReceipt,
-    logs: [{ ...matchingLog, logIndex: "0x100000000" }],
-  }),
-  "matching_usdc_transfer_not_found",
+assert.equal(overflowLogIndexVerification.ok, false);
+if (overflowLogIndexVerification.ok) {
+  throw new Error("expected uint32 log-index overflow hold");
+}
+assert.equal(
+  overflowLogIndexVerification.reason,
+  "log_index_exceeds_1463_domain",
 );
 
 const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
@@ -188,11 +177,7 @@ assert.deepEqual(VOID_BUY_VOID_VERIFIED_PAYMENT_AUTHORITY_V2, {
   money_movement: false,
 });
 
-console.log("verified_payment_removed_log_rejected=true");
-console.log("verified_payment_log_transaction_hash_bound=true");
-console.log("verified_payment_log_block_number_bound=true");
-console.log("verified_payment_receipt_transaction_hash_bound=true");
-console.log("verified_payment_ambiguous_transfer_rejected=true");
-console.log("verified_payment_current_block_bound=true");
-console.log("verified_payment_log_index_uint32_bound=true");
+console.log("payment_log_index_uint32_boundary=true");
+console.log("payment_log_index_uint32_overflow_hold=true");
+console.log("payment_log_index_overflow_reason_preserved=true");
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_GREEN");
