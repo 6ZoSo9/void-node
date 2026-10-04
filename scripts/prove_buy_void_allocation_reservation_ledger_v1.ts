@@ -18,11 +18,19 @@ const baseInput = {
   source_chain: "base",
   payment_transaction_hash: "0x" + "a".repeat(64),
   payment_log_index: 7,
+  coupled_launch_id: sha("a"),
+  source_composition_id: sha("b"),
+  activation_generation: "0x" + "c".repeat(64),
+  generation_tip_sha256: sha("d"),
+  activation_receipt_id: "voidbclive1_" + "e".repeat(64),
+  activation_receipt_sha256: "f".repeat(64),
+  expires_at_ms: 1_800_000_300_000,
   buyer_delivery_wallet: "0x" + "1".repeat(40),
   quote_void_amount: "6",
   quote_usdc_amount: "3",
   pool_void_total: "10000000",
   verified_payment_receipt_ref: sha("1"),
+  payment_verified_event_sha256: sha("0"),
   duplicate_payment_guard_result: sha("2"),
   inventory_allocation_guard_result: sha("3"),
   operator_activation_record_ref: sha("4"),
@@ -66,6 +74,32 @@ assert.equal(first.operation_performed, false);
 assert.equal(first.record.record_type, "allocation_reserved");
 assert.match(first.record.record_id, /^voidalloc1_[0-9a-f]{64}$/u);
 assert.equal(first.record.source_chain, "base");
+assert.equal(first.record.coupled_launch_id, baseInput.coupled_launch_id);
+assert.equal(
+  first.record.source_composition_id,
+  baseInput.source_composition_id,
+);
+assert.equal(
+  first.record.activation_generation,
+  baseInput.activation_generation,
+);
+assert.equal(
+  first.record.generation_tip_sha256,
+  baseInput.generation_tip_sha256,
+);
+assert.equal(
+  first.record.activation_receipt_id,
+  baseInput.activation_receipt_id,
+);
+assert.equal(
+  first.record.activation_receipt_sha256,
+  baseInput.activation_receipt_sha256,
+);
+assert.equal(first.record.expires_at_ms, baseInput.expires_at_ms);
+assert.equal(
+  first.record.payment_verified_event_sha256,
+  baseInput.payment_verified_event_sha256,
+);
 assert.equal(
   first.record.canonical_payment_identity,
   "voidpay1:base:0x" + "a".repeat(64) + ":7",
@@ -112,6 +146,56 @@ assert.equal(
   first.record.allocation_record_hash,
 );
 
+for (const [key, value] of [
+  ["coupled_launch_id", sha("9")],
+  ["source_composition_id", sha("8")],
+  ["activation_generation", "0x" + "7".repeat(64)],
+  ["generation_tip_sha256", sha("6")],
+  ["activation_receipt_id", "voidbclive1_" + "5".repeat(64)],
+  ["activation_receipt_sha256", "4".repeat(64)],
+  ["expires_at_ms", baseInput.expires_at_ms + 1],
+  ["payment_verified_event_sha256", sha("3")],
+] as const) {
+  expectHeld(
+    planBuyVoidAllocationReservationV1({
+      ...baseInput,
+      ledger_jsonl: ledger1,
+      [key]: value,
+    }),
+    "allocation_reservation_idempotent_binding_mismatch",
+  );
+}
+
+const changedEventIdentity =
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    payment_verified_event_sha256: sha("3"),
+  });
+assert.equal(changedEventIdentity.ok, true);
+if (!changedEventIdentity.ok) {
+  throw new Error("expected changed event lineage planned on empty ledger");
+}
+assert.notEqual(
+  changedEventIdentity.record.record_id,
+  first.record.record_id,
+  "record ID must bind exact durable payment_verified event bytes",
+);
+
+const changedLaunchIdentity =
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    activation_generation: "0x" + "7".repeat(64),
+  });
+assert.equal(changedLaunchIdentity.ok, true);
+if (!changedLaunchIdentity.ok) {
+  throw new Error("expected changed launch lineage planned on empty ledger");
+}
+assert.notEqual(
+  changedLaunchIdentity.record.record_id,
+  first.record.record_id,
+  "record ID must bind immutable request launch authority",
+);
+
 expectHeld(
   planBuyVoidAllocationReservationV1({
     ...baseInput,
@@ -140,6 +224,14 @@ const second = planBuyVoidAllocationReservationV1({
   quote_void_amount: "9999994.000000",
   quote_usdc_amount: "4999997.000000",
   verified_payment_receipt_ref: sha("5"),
+  payment_verified_event_sha256: sha("e"),
+  coupled_launch_id: sha("1"),
+  source_composition_id: sha("2"),
+  activation_generation: "0x" + "3".repeat(64),
+  generation_tip_sha256: sha("4"),
+  activation_receipt_id: "voidbclive1_" + "5".repeat(64),
+  activation_receipt_sha256: "6".repeat(64),
+  expires_at_ms: baseInput.expires_at_ms + 1,
   duplicate_payment_guard_result: sha("6"),
   inventory_allocation_guard_result: sha("7"),
   operator_activation_record_ref: sha("8"),
@@ -203,6 +295,14 @@ expectHeld(
     quote_void_amount: "0.000002",
     quote_usdc_amount: "0.000001",
     verified_payment_receipt_ref: sha("9"),
+    payment_verified_event_sha256: sha("8"),
+    coupled_launch_id: sha("7"),
+    source_composition_id: sha("6"),
+    activation_generation: "0x" + "5".repeat(64),
+    generation_tip_sha256: sha("4"),
+    activation_receipt_id: "voidbclive1_" + "3".repeat(64),
+    activation_receipt_sha256: "2".repeat(64),
+    expires_at_ms: baseInput.expires_at_ms + 2,
     duplicate_payment_guard_result: sha("a"),
     inventory_allocation_guard_result: sha("b"),
     operator_activation_record_ref: sha("c"),
@@ -318,6 +418,60 @@ expectHeld(
   }),
   "allocation_reservation_verified_payment_ref_invalid",
 );
+
+expectHeld(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    payment_verified_event_sha256: "not-a-ref",
+  }),
+  "allocation_reservation_payment_verified_event_sha256_invalid",
+);
+
+for (const [key, value, reason] of [
+  [
+    "coupled_launch_id",
+    "sha256:bad",
+    "allocation_reservation_coupled_launch_id_invalid",
+  ],
+  [
+    "source_composition_id",
+    "sha256:bad",
+    "allocation_reservation_source_composition_id_invalid",
+  ],
+  [
+    "activation_generation",
+    "0x1234",
+    "allocation_reservation_activation_generation_invalid",
+  ],
+  [
+    "generation_tip_sha256",
+    "sha256:bad",
+    "allocation_reservation_generation_tip_invalid",
+  ],
+  [
+    "activation_receipt_id",
+    "voidbclive1_bad",
+    "allocation_reservation_activation_receipt_id_invalid",
+  ],
+  [
+    "activation_receipt_sha256",
+    "bad",
+    "allocation_reservation_activation_receipt_sha256_invalid",
+  ],
+  [
+    "expires_at_ms",
+    0,
+    "allocation_reservation_launch_expiry_invalid",
+  ],
+] as const) {
+  expectHeld(
+    planBuyVoidAllocationReservationV1({
+      ...baseInput,
+      [key]: value,
+    }),
+    reason,
+  );
+}
 
 const ethereum = planBuyVoidAllocationReservationV1({
   ...baseInput,
