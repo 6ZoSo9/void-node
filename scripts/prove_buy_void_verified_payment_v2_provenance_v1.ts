@@ -80,7 +80,7 @@ function requireVerified(
   value: ReturnType<typeof verify>,
 ) {
   assert.equal(value.ok, true);
-  if (!value.ok) throw new Error(value.reason);
+  if (value.ok === false) throw new Error(value.reason);
   return value;
 }
 
