@@ -175,6 +175,36 @@ assert.throws(
   /mountinfo_missing/u,
 );
 
+const preflightSource = fs.readFileSync(
+  "tools/void-buy-void-allocation-custody-preflight-v1.mjs",
+  "utf8",
+);
+for (const token of [
+  "O_NOFOLLOW",
+  "O_DIRECTORY",
+  "fs.fstatSync(",
+  "sameDirectoryIdentity(",
+  "assertObservedRootStable(",
+  "mountinfo_changed_during_observation",
+  "observation_descriptor_bound: true",
+  "mountinfo_stable_across_observation: true",
+]) {
+  assert.equal(
+    preflightSource.includes(token),
+    true,
+    "missing live-observation stability token: " + token,
+  );
+}
+assert.equal(
+  (
+    preflightSource.match(
+      /fs\.readFileSync\(\s*"\/proc\/self\/mountinfo"/gu,
+    ) || []
+  ).length,
+  2,
+  "live custody observation must bracket root inspection with two mountinfo reads",
+);
+
 const temp = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-allocation-custody-preflight-"),
 );
@@ -234,6 +264,8 @@ console.log("synthetic_snapshot_authority=false");
 console.log("synthetic_mountinfo_authority=false");
 console.log("designated_hostname_required=true");
 console.log("live_observation_required_for_domain_proof=true");
+console.log("live_observation_descriptor_bound=true");
+console.log("mountinfo_stability_recheck_required=true");
 console.log("distinct_local_storage_domains_required=true");
 console.log("network_filesystems_accepted=false");
 console.log("shared_device_domains_accepted=false");
