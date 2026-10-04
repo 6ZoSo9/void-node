@@ -15,9 +15,10 @@ voidpay1:<source_chain>:<transaction_hash>:<log_index>
 
 The source chain and transaction hash are normalized and the log index is
 canonical uint32 decimal (`0..4294967295`), matching the reviewed
-verified-payment/finality authority. The existing
-`canonicalBuyVoidPaymentIdentityV1(...)` helper is used only after this
-stricter boundary is enforced.
+verified-payment/finality authority. The shared canonical helper itself now enforces
+the same uint32 ceiling and pre-bounds textual indexes before `BigInt` parsing,
+so auto-fulfillment, fulfillment-journal, duplicate-guard, and admission callers
+cannot create a wider alternate payment-identity domain.
 
 ## Admission boundary
 

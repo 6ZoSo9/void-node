@@ -104,6 +104,31 @@ assert.equal(
   `voidpay1:base:${txHash}:7`,
 );
 
+assert.equal(
+  canonicalBuyVoidPaymentIdentityV1({
+    source_chain: "base",
+    payment_transaction_hash: txHash,
+    payment_log_index: "4294967295",
+  }),
+  `voidpay1:base:${txHash}:4294967295`,
+);
+assert.throws(
+  () => canonicalBuyVoidPaymentIdentityV1({
+    source_chain: "base",
+    payment_transaction_hash: txHash,
+    payment_log_index: "4294967296",
+  }),
+  /invalid_payment_log_index/u,
+);
+assert.throws(
+  () => canonicalBuyVoidPaymentIdentityV1({
+    source_chain: "base",
+    payment_transaction_hash: txHash,
+    payment_log_index: "0x100000000",
+  }),
+  /invalid_payment_log_index/u,
+);
+
 const approved = decideBuyVoidAutoFulfillmentV1(baseInput());
 assert.equal(approved.ok, true);
 assert.equal(approved.status, "approved");
