@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   planBuyVoidAllocationReservationV1,
@@ -19,6 +21,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_V1,
   persistBuyVoidAllocationReservationPublicationWriterV1,
   recoverBuyVoidAllocationReservationPublicationWriterV1,
+  testOnlyWithBuyVoidAllocationReservationPublicationWriterLocksV1,
 } from "../src/economic/buy_void_allocation_reservation_publication_writer_v1.js";
 
 const LEDGER_NAME = "allocation-reservations-v1.jsonl";
@@ -57,6 +60,11 @@ assert.match(
 assert.match(
   writerSource,
   /_changed_before_replace/u,
+);
+assert.match(
+  writerSource,
+  /withBuyVoidFilesystemBakeryLockV1\(\s*ledgerLockPath,[\s\S]*withBuyVoidFilesystemBakeryLockV1\(\s*highWaterLockPath,/u,
+  "writer must acquire ledger-root then high-water-root serialization locks",
 );
 
 const sha = (hex: string): string =>
@@ -196,6 +204,7 @@ for (const [key, value] of Object.entries(
     "same_uid_private_storage",
     "separate_storage_roots_required",
     "shared_serialization_lock",
+    "dual_root_serialization_lock",
     "publication_intent_write",
     "allocation_ledger_write",
     "high_water_write",
