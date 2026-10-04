@@ -33,13 +33,13 @@ assert.equal(
   first.corrected_generation.vault_bytes32_id,
   "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
 );
-assert.match(
+assert.equal(
   first.corrected_generation.wc_opening_state_id,
-  /^sha256:[0-9a-f]{64}$/u,
+  "sha256:8f027c95e3b2376a50957600c57e9afe4c0e06422de05f1f8691fe44f0da54af",
 );
-assert.match(
+assert.equal(
   first.corrected_generation.reconciliation_id,
-  /^sha256:[0-9a-f]{64}$/u,
+  "sha256:9b74e695f3988b4bcaa7abcdbdb767ea927fc294440a1ff2ecfbcd4db9bf7f04",
 );
 assert.notEqual(
   first.corrected_generation.wc_opening_state_id,
