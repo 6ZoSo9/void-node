@@ -34,8 +34,11 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_V1 =
 export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
   Object.freeze({
     source_only_binding: true,
-    compiled_policy_bundle_content_address_verified: true,
+    policy_bundle_content_address_verified: true,
+    policy_bundle_marker_schema_verified: true,
     exact_expected_bundle_id_required: true,
+    reviewed_policy_compiler_proven: false,
+    canonical_main_bundle_proven: false,
     full_policy_bundle_semantics_reexecuted: false,
     canonical_ttl_policy_semantics_reused: true,
     canonical_sponsored_policy_semantics_reused: true,
