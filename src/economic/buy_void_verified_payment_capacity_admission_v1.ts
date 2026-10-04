@@ -387,13 +387,15 @@ export function testOnlyReadStrictCapacityLedgerFileV1(
 }
 
 function readStrictCapacityLedgerV1(
-  directory: PinnedRequestDirectoryV1,
+  requestLedger: PinnedLedgerV1,
   operatorLedger: PinnedLedgerV1,
   poolVoidMicro: bigint,
 ) {
-  const requestRows = readStrictJsonLinesFromDirectoryV1(
-    directory,
-    "requests.jsonl",
+  const requestRows = parseStrictJsonLinesV1(
+    readPinnedLedgerBytesV1(
+      requestLedger,
+      "buy_void_verified_payment_capacity_requests",
+    ),
     "buy_void_verified_payment_capacity_requests",
   );
   const quotes = new Map<string, bigint>();
@@ -457,6 +459,14 @@ function readStrictCapacityLedgerV1(
     verified_ids: verifiedIds,
     request_quotes: quotes,
     operator_events: eventRows,
+    request_ledger_stat: assertPinnedLedgerVisibleV1(
+      requestLedger,
+      "buy_void_verified_payment_capacity_requests",
+    ),
+    operator_ledger_stat: assertPinnedLedgerVisibleV1(
+      operatorLedger,
+      "buy_void_verified_payment_capacity_operator_events",
+    ),
     verified_void_micro: verifiedVoidMicro,
     reserved_void_micro: verifiedVoidMicro,
     remaining_void_micro: poolVoidMicro - verifiedVoidMicro,
@@ -492,11 +502,15 @@ function fsyncDirectoryV1(directory: string): void {
 
 function appendPaymentVerifiedEventDurableV1(
   operatorLedger: PinnedLedgerV1,
+  expectedBefore: any,
   event: Record<string, any>,
 ): void {
   const code = "buy_void_verified_payment_capacity_operator_events";
   const bytes = Buffer.from(JSON.stringify(event) + "\n", "utf8");
   const before = assertPinnedLedgerVisibleV1(operatorLedger, code);
+  if (!sameFileIdentityV1(expectedBefore, before)) {
+    fail("buy_void_verified_payment_capacity_operator_events_changed_since_census");
+  }
   if (
     before.size + BigInt(bytes.length) >
     BigInt(LEDGER_MAX_BYTES)
@@ -801,7 +815,12 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   verified_payment_event: any;
   request: any;
   read_sale_state: () => Promise<any>;
-  operation: (ledger: PinnedLedgerV1) => Promise<T> | T;
+  operation: (authority: {
+    request_ledger: PinnedLedgerV1;
+    operator_ledger: PinnedLedgerV1;
+    request_ledger_stat: any;
+    operator_ledger_stat: any;
+  }) => Promise<T> | T;
 }): Promise<{
   ok: true;
   idempotent: boolean;
@@ -847,6 +866,16 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
     lockPath,
     async () => {
       const directory = openPinnedRequestDirectoryV1(requestDir);
+      const requestLedger = openPinnedLedgerV1(
+        directory,
+        "requests.jsonl",
+        "buy_void_verified_payment_capacity_requests",
+        { writable: false, create: false },
+      );
+      if (requestLedger === null) {
+        fs.closeSync(directory.fd);
+        fail("buy_void_verified_payment_capacity_candidate_request_missing");
+      }
       const operatorLedger = openPinnedLedgerV1(
         directory,
         "operator-events.jsonl",
@@ -854,6 +883,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
         { writable: true, create: true },
       );
       if (operatorLedger === null) {
+        fs.closeSync(requestLedger.fd);
         fs.closeSync(directory.fd);
         fail("buy_void_verified_payment_capacity_operator_events_unavailable");
       }
@@ -865,7 +895,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           true,
         );
         const strictBefore = readStrictCapacityLedgerV1(
-          directory,
+          requestLedger,
           operatorLedger,
           poolBefore,
         );
@@ -906,7 +936,12 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           });
         }
 
-        const result = await input.operation(operatorLedger);
+        const result = await input.operation({
+          request_ledger: requestLedger,
+          operator_ledger: operatorLedger,
+          request_ledger_stat: strictBefore.request_ledger_stat,
+          operator_ledger_stat: strictBefore.operator_ledger_stat,
+        });
         const saleAfter = await input.read_sale_state();
         const poolAfter = microVoid(
           saleAfter?.pool_void_total,
@@ -917,7 +952,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           fail("buy_void_verified_payment_capacity_pool_changed");
         }
         const strictAfter = readStrictCapacityLedgerV1(
-          directory,
+          requestLedger,
           operatorLedger,
           poolAfter,
         );
@@ -976,6 +1011,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
         });
       } finally {
         fs.closeSync(operatorLedger.fd);
+        fs.closeSync(requestLedger.fd);
         fs.closeSync(directory.fd);
       }
     },
@@ -1066,7 +1102,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       verified_payment_event: event,
       request,
       read_sale_state: input.read_sale_state,
-      operation: (operatorLedger) =>
+      operation: (authority) =>
         input.with_launch_authority_mutation(
           request,
           () =>
@@ -1076,12 +1112,24 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
                 request_id: requestId,
               },
               () => {
+                const requestBeforeAppend =
+                  assertPinnedLedgerVisibleV1(
+                    authority.request_ledger,
+                    "buy_void_verified_payment_capacity_requests",
+                  );
+                if (
+                  !sameFileIdentityV1(
+                    authority.request_ledger_stat,
+                    requestBeforeAppend,
+                  )
+                ) {
+                  fail(
+                    "buy_void_verified_payment_capacity_requests_changed_since_census",
+                  );
+                }
                 appendPaymentVerifiedEventDurableV1(
-                  operatorLedger,
-                  event,
-                );
-                ensurePaymentVerifiedSidecarExactV1(
-                  requestDir,
+                  authority.operator_ledger,
+                  authority.operator_ledger_stat,
                   event,
                 );
                 return { ok: true, dir: requestDir };
@@ -1104,9 +1152,16 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       payment_identity_admission: admission.payment_identity_admission,
     };
   }
+  const sidecarState = withBuyVoidTerminalCloseoutRequestLockV1(
+    { request_dir: requestDir, request_id: requestId },
+    () => ensurePaymentVerifiedSidecarExactV1(requestDir, event),
+  );
   return {
     ...(admission.result as any),
     idempotent: false,
+    sidecar_recovered: false,
+    recovered_sidecar_count: 0,
+    sidecar_state: sidecarState,
     capacity_admission: admission.decision,
     payment_identity_admission: admission.payment_identity_admission,
   };
