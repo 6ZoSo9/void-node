@@ -127,9 +127,9 @@ function assertExactInput(input, nowMs) {
   }
 }
 
-export function buildBuyCoupledLiveActivationSigningRequestV1(
+function buildBuyCoupledLiveActivationSigningRequestAtTimeV1(
   input,
-  nowMs = Date.now(),
+  nowMs,
 ) {
   assertExactInput(input, nowMs);
 
@@ -225,6 +225,23 @@ export function buildBuyCoupledLiveActivationSigningRequestV1(
   });
 }
 
+export function buildBuyCoupledLiveActivationSigningRequestV1(input) {
+  return buildBuyCoupledLiveActivationSigningRequestAtTimeV1(
+    input,
+    Date.now(),
+  );
+}
+
+export function testOnlyBuildBuyCoupledLiveActivationSigningRequestAtTimeV1(
+  input,
+  nowMs,
+) {
+  return buildBuyCoupledLiveActivationSigningRequestAtTimeV1(
+    input,
+    nowMs,
+  );
+}
+
 export function verifyBuyCoupledLiveActivationSigningRequestV1(request) {
   if (
     !request ||
@@ -257,7 +274,7 @@ export function verifyBuyCoupledLiveActivationSigningRequestV1(request) {
     source_composition_id: receipt.source_composition_id,
   });
   const expected =
-    buildBuyCoupledLiveActivationSigningRequestV1(
+    buildBuyCoupledLiveActivationSigningRequestAtTimeV1(
       input,
       request.prepared_at_ms,
     );
