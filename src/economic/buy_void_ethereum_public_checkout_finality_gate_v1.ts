@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
   bindBuyVoidSourceFinalityPaymentV1,
@@ -5,6 +6,7 @@ import {
   runBuyVoidSourceFinalityExecutionPreflightV1,
   type BuyVoidSourceFinalityExecutionPreflightDecisionV1,
   type BuyVoidSourceFinalityExecutionPreflightReadyV1,
+  type BuyVoidSourceFinalityExecutionRailV1,
 } from "./buy_void_source_finality_execution_preflight_v1.js";
 import type {
   BuyVoidRequestV1,
@@ -15,7 +17,10 @@ import {
   type BuyVoidVerifiedPaymentEventV2,
 } from "./buy_void_verified_payment_v2.js";
 import {
+  createBuyVoidPaymentHttpTransportV1,
   observeBuyVoidPaymentV1,
+  type BuyVoidPaymentRpcCallV1,
+  type BuyVoidPaymentRpcTransportV1,
 } from "./buy_void_payment_rpc_observer_v1.js";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5,
@@ -74,6 +79,7 @@ const PAYMENT_ID =
 const PROCESS_SOURCE_MARKER =
   "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1";
 const SHA40 = /^[0-9a-f]{40}$/u;
+const MAX_PRE_ATTEMPT_TOTAL_TIMEOUT_MS = 120_000;
 
 export type BuyVoidEthereumPublicCheckoutReadinessReadyV1 = {
   ok: true;
@@ -283,6 +289,88 @@ function positiveUintV1(value: unknown): bigint | null {
     return null;
   }
 }
+
+function preAttemptTotalTimeoutMsV1(value: unknown): number | null {
+  const raw = String(value ?? "").trim();
+  if (!/^[1-9][0-9]*$/u.test(raw)) return null;
+  const parsed = Number(raw);
+  return (
+    Number.isSafeInteger(parsed) &&
+    parsed > 0 &&
+    parsed <= MAX_PRE_ATTEMPT_TOTAL_TIMEOUT_MS
+  ) ? parsed : null;
+}
+
+function preAttemptDeadlineBudgetV1(input: {
+  deadline_at_monotonic_ms: number;
+  request_timeout_ms: unknown;
+  now_monotonic_ms: number;
+}): { remaining_ms: number; rpc_timeout_ms: number } | null {
+  const requestTimeout = Number(input.request_timeout_ms);
+  if (
+    !Number.isFinite(input.deadline_at_monotonic_ms) ||
+    !Number.isFinite(input.now_monotonic_ms) ||
+    !Number.isSafeInteger(requestTimeout) ||
+    requestTimeout <= 0
+  ) {
+    return null;
+  }
+  const remaining = Math.floor(
+    input.deadline_at_monotonic_ms - input.now_monotonic_ms,
+  );
+  if (!Number.isSafeInteger(remaining) || remaining <= 0) return null;
+  return {
+    remaining_ms: remaining,
+    rpc_timeout_ms: Math.max(1, Math.min(requestTimeout, remaining)),
+  };
+}
+
+function createPreAttemptDeadlineBoundPaymentTransportV1(input: {
+  rail: BuyVoidSourceFinalityExecutionRailV1;
+  deadline_at_monotonic_ms: number;
+}): BuyVoidPaymentRpcTransportV1 {
+  return {
+    async call(call: BuyVoidPaymentRpcCallV1): Promise<unknown> {
+      const budget = preAttemptDeadlineBudgetV1({
+        deadline_at_monotonic_ms: input.deadline_at_monotonic_ms,
+        request_timeout_ms: input.rail.timeout_ms,
+        now_monotonic_ms: performance.now(),
+      });
+      if (!budget) {
+        throw new Error("ethereum_pre_attempt_total_deadline_exceeded");
+      }
+      const transport = createBuyVoidPaymentHttpTransportV1({
+        enabled: true,
+        source_chain: "ethereum",
+        chain_id: input.rail.evm_chain_id,
+        rpc_url: input.rail.rpc_url,
+        timeout_ms: budget.rpc_timeout_ms,
+        max_response_bytes: input.rail.max_response_bytes,
+      });
+      if ("reason" in transport) {
+        throw new Error(transport.reason);
+      }
+      return transport.call(call);
+    },
+  };
+}
+
+export function testOnlyClassifyBuyVoidEthereumPreAttemptDeadlineV1(input: {
+  deadline_at_monotonic_ms: number;
+  request_timeout_ms: unknown;
+  now_monotonic_ms: number;
+}) {
+  const budget = preAttemptDeadlineBudgetV1(input);
+  return Object.freeze({
+    marker:
+      "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_DEADLINE_TEST_ONLY_V1",
+    would_be_within_deadline: budget !== null,
+    remaining_ms: budget?.remaining_ms ?? 0,
+    rpc_timeout_ms: budget?.rpc_timeout_ms ?? 0,
+    production_transition_authority: false,
+  });
+}
+
 
 function decimalUsdcUnitsV1(value: unknown): string | null {
   const raw = String(value ?? "").trim();
@@ -754,6 +842,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
   },
 ): Promise<BuyVoidEthereumPublicCheckoutPreAttemptFinalityDecisionV1> {
   const env = input.env || process.env;
+  const operationStartedAtMonotonicMs = performance.now();
   const processIdentity = processSourceIdentityVerifiedV1(env);
   if (!processIdentity) {
     return preAttemptHeld(
@@ -791,7 +880,31 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     );
   }
 
+  const totalTimeoutMs =
+    preAttemptTotalTimeoutMsV1(policy.policy.total_timeout_ms);
+  if (totalTimeoutMs === null) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_timeout_invalid",
+      null,
+      true,
+    );
+  }
+  const deadlineAtMonotonicMs =
+    operationStartedAtMonotonicMs + totalTimeoutMs;
+
   const rail = policy.policy.ethereum;
+  const latestBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!latestBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
+      null,
+      true,
+    );
+  }
   const latestPayment = await observeBuyVoidPaymentV1({
     request: input.request,
     policy: {
@@ -799,11 +912,27 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
       source_chain: "ethereum",
       chain_id: rail.evm_chain_id,
       rpc_url: rail.rpc_url,
-      timeout_ms: rail.timeout_ms,
+      timeout_ms: latestBudget.rpc_timeout_ms,
       max_response_bytes: rail.max_response_bytes,
     },
+    transport: createPreAttemptDeadlineBoundPaymentTransportV1({
+      rail,
+      deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    }),
   });
   if (latestPayment.ok === false) {
+    const afterLatestBudget = preAttemptDeadlineBudgetV1({
+      deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+      request_timeout_ms: rail.timeout_ms,
+      now_monotonic_ms: performance.now(),
+    });
+    if (!afterLatestBudget) {
+      return preAttemptHeld(
+        "ethereum_pre_attempt_total_deadline_exceeded",
+        null,
+        true,
+      );
+    }
     return preAttemptHeld(
       "ethereum_pre_attempt_latest_payment_" + latestPayment.reason,
       null,
@@ -852,6 +981,19 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
   }
   const requestTx = String(input.request.tx_hash).trim().toLowerCase();
 
+  const finalityBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!finalityBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
+
   const observation =
     await observeBuyVoidSourceFinalityGenerationProvenanceV5({
       request: input.request,
@@ -873,9 +1015,22 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
         },
         authority_policy_generation:
           policy.policy.authority_policy_generation,
-        total_timeout_ms: policy.policy.total_timeout_ms,
+        total_timeout_ms: String(finalityBudget.remaining_ms),
       },
     });
+
+  const afterFinalityBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!afterFinalityBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
 
   const classified = classifyEthereumPreAttemptObservationV1({
     observation,
@@ -887,6 +1042,19 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
   if (classified.ok === false) {
     return preAttemptHeld(
       classified.reason,
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
+
+  const readyBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!readyBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
       canonicalPaymentIdentity,
       true,
     );
