@@ -9,7 +9,7 @@ import {
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
 import {
-  buildBuyCoupledLiveActivationSigningRequestV1,
+  testOnlyBuildBuyCoupledLiveActivationSigningRequestAtTimeV1,
 } from "../tools/void-buy-coupled-live-activation-signing-request-v1.mjs";
 import {
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_ASSEMBLY_AUTHORITY_V1,
@@ -20,17 +20,18 @@ import {
 } from "../tools/void-buy-coupled-live-activation-receipt-assembly-v1.mjs";
 
 const NOW = 1791014400000;
-const request = buildBuyCoupledLiveActivationSigningRequestV1(
-  {
-    activated_at_ms: NOW,
-    activation_generation: "0x" + "a".repeat(64),
-    activation_nonce: "0x" + "b".repeat(64),
-    expires_at_ms: NOW + 120_000,
-    generation_tip_sha256: "sha256:" + "c".repeat(64),
-    source_composition_id: "sha256:" + "d".repeat(64),
-  },
-  NOW + 1,
-);
+const request =
+  testOnlyBuildBuyCoupledLiveActivationSigningRequestAtTimeV1(
+    {
+      activated_at_ms: NOW,
+      activation_generation: "0x" + "a".repeat(64),
+      activation_nonce: "0x" + "b".repeat(64),
+      expires_at_ms: NOW + 120_000,
+      generation_tip_sha256: "sha256:" + "c".repeat(64),
+      source_composition_id: "sha256:" + "d".repeat(64),
+    },
+    NOW + 1,
+  );
 
 const syntheticController = new Wallet(
   "0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -167,6 +168,11 @@ assert.match(
 assert.doesNotMatch(
   source,
   /export function assembleBuyCoupledLiveActivationReceiptV1\([^)]*nowMs/u,
+);
+assert.equal(
+  source.includes("testOnlyBuildBuyCoupledLiveActivationSigningRequestAtTimeV1"),
+  false,
+  "production assembler must not import the signing-request test clock",
 );
 
 for (const required of [
