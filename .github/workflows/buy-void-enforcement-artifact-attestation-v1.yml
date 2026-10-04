@@ -67,6 +67,7 @@ jobs:
           npm run typecheck
           npm run build
           node --import tsx scripts/prove_buy_void_source_finality_execution_preflight_v1.ts
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs --derive > enforcement-raw-candidate.json
           node scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs --derive > enforcement-candidate-v2.json
           cmp enforcement-candidate-v2.json docs/architecture/buy-void-enforcement-artifact-attestation-v2.json
           node scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs | tee enforcement-proof.log
@@ -78,6 +79,7 @@ jobs:
         with:
           name: enforcement-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
+            enforcement-raw-candidate.json
             enforcement-candidate-v2.json
             enforcement-proof.log
           if-no-files-found: error
