@@ -458,6 +458,7 @@ for (const [key, value] of Object.entries(
     "shared_serialization_lock",
     "dual_root_serialization_lock",
     "redundant_publication_intent",
+    "single_root_mid_publication_recovery",
     "publication_intent_write",
     "allocation_ledger_write",
     "high_water_write",
@@ -1256,6 +1257,9 @@ console.log("high_water_root_replacement_keeps_shared_lock=true");
 console.log("ledger_root_replacement_keeps_shared_lock=true");
 console.log("single_root_replacement_blocks_valid_competing_publication=true");
 console.log("redundant_publication_intent=true");
+console.log("single_root_mid_publication_recovery=true");
+console.log("post_admission_root_path_stability_proven=false");
+console.log("single_root_post_publication_recovery=false");
 console.log("divergent_intent_copies_hold=true");
 console.log("high_water_root_postcheck_swap_self_recovers=true");
 console.log("ledger_root_postcheck_swap_self_recovers=true");
