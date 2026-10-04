@@ -4,9 +4,16 @@ Marker: `VOID_BUY_VOID_ALLOCATION_CUSTODY_QUALIFICATION_V1`
 
 Status: **source-only host/storage evidence classifier; no host I/O and no production authority**.
 
-Reviewed writer parent:
+Reviewed writer provenance head:
 
 `62ad83462c35b404e1a4cea1e28f68664977df45`
+
+Reviewed writer source blob (Git SHA-1):
+
+`2db8493d1ee84878ef5fa2b0f655070622335d0d`
+
+The blob identity, not unrelated repository ancestry, is the authority-bearing
+implementation binding. Commit head remains provenance evidence.
 
 ## Purpose
 
@@ -22,6 +29,12 @@ its own authority deliberately keeps these false:
 This classifier defines the exact evidence shape required for the next
 privilege-separated custody gate without pretending source code can prove live
 host ownership, mount stability, or external receipt trust by itself.
+
+The writer implementation is pinned by the exact Git blob identity of
+`buy_void_allocation_reservation_publication_writer_v1.ts`. A later commit
+that only merges unrelated repository files does not invalidate custody
+continuity when that reviewed writer blob is unchanged. Any writer-file byte
+change invalidates the binding and requires review.
 
 ## Trust split
 
@@ -139,7 +152,8 @@ at canonical genesis, an exact prior receipt is required.
 Receipt fields include:
 
 - custody epoch and previous receipt digest;
-- reviewed writer source head;
+- writer commit-head provenance;
+- exact reviewed writer source blob identity;
 - host and qualification-policy identity;
 - ledger/custody mount-instance fingerprints;
 - ledger/custody storage-failure-domain fingerprints;
@@ -172,8 +186,9 @@ creates the first allocation obligation.
 For a supplied prior receipt:
 
 1. receipt schema and self-hash are verified;
-2. reviewed writer head, host policy, mount instance, and storage-domain
-   fingerprints must match current evidence;
+2. reviewed writer source blob, host policy, mount instance, and storage-domain
+   fingerprints must match current evidence; commit head is retained as
+   provenance rather than as the security identity;
 3. unchanged current allocation state returns the same receipt idempotently;
 4. otherwise current record count must equal prior count + 1;
 5. the prior ledger prefix is reconstructed using the prior receipt's exact
