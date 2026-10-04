@@ -20,8 +20,9 @@ recovery boundaries.
 Each planned record has:
 
 - `record_type=allocation_reserved`;
-- deterministic `record_id=voidalloc1_<sha256>`, bound to the request ID and
-  canonical payment identity;
+- deterministic `record_id=voidalloc1_<sha256>`, bound to the request ID,
+  canonical payment identity, exact durable `payment_verified` event digest,
+  and immutable request launch-authority lineage;
 - canonical payment identity from the existing
   `canonicalBuyVoidPaymentIdentityV1(...)` primitive:
   `voidpay1:<chain>:<tx_hash>:<log_index>`;
@@ -31,9 +32,26 @@ Each planned record has:
   non-negative decimal text so the reservation identity cannot diverge from the
   verified-payment/finality authority;
 - content-addressed refs for verified-payment evidence, duplicate-guard result,
-  inventory-guard result, and explicit operator activation record.
+  inventory-guard result, and explicit operator activation record;
+- exact `payment_verified_event_sha256`, committing the durable accepted
+  operator-event bytes rather than only upstream receipt/finality evidence; and
+- the exact immutable request-authority tuple copied from the durable request:
+  `coupled_launch_id`, `source_composition_id`,
+  `activation_generation`, `generation_tip_sha256`,
+  `activation_receipt_id`, `activation_receipt_sha256`, and the original
+  `expires_at_ms`.
 
-No second payment-identity scheme is introduced.
+The planner accepts that launch lineage only through one schema-closed
+`VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1` object. It does not accept seven
+independent launch fields. Runtime integration must read that object from the
+durable request that produced the verified payment; it must not reconstruct or
+caller-select the lineage independently.
+
+The original expiry is historical acceptance lineage. A later crash-recovery
+reservation does not require that lease to still be live; it must preserve the
+exact authority that accepted the obligation.
+
+No second payment-identity or launch-identity scheme is introduced.
 
 ## Canonical presale economics
 
@@ -150,9 +168,11 @@ validated ledger and refuses oversell.
 
 An exact retry for a request/payment pair already present in the ledger returns
 `idempotent` and returns the unchanged ledger bytes. It does not append a
-second record. A reused request ID with a different payment identity, a reused
-payment identity with another request, or changed economic/evidence bindings
-HOLDs.
+second record. Exact replay also requires the same durable
+`payment_verified_event_sha256` and the same complete request-authority tuple.
+A reused request ID with a different payment identity, changed event bytes,
+changed launch generation/receipt/tip/expiry, a reused payment identity with
+another request, or changed economic/evidence bindings HOLDs.
 
 ## Required record fields
 
@@ -161,10 +181,18 @@ The source contract implements the already-published record shape:
 - `record_type`
 - `record_id`
 - `request_id`
+- `coupled_launch_id`
+- `source_composition_id`
+- `activation_generation`
+- `generation_tip_sha256`
+- `activation_receipt_id`
+- `activation_receipt_sha256`
+- `expires_at_ms`
 - `source_chain`
 - `payment_transaction_hash`
 - `payment_log_index`
 - `canonical_payment_identity`
+- `payment_verified_event_sha256`
 - `buyer_delivery_wallet`
 - `quote_void_amount`
 - `quote_usdc_amount`
@@ -198,6 +226,13 @@ until a separate runtime-integration generation is reviewed:
 
 The parent coupled Buy VOID gate must therefore remain HOLD.
 
+The older public shape-only descriptor for
+`/public-node/usdc-void-buy-pool/allocation-reservation-record-v1.json`
+predates these immutable lineage commitments and remains non-authoritative
+because record writes are disabled. Before any runtime/public activation, the
+integration lane must update that descriptor/proof to the reviewed durable
+record schema; this source contract does not silently widen a live public API.
+
 ## Remaining integration work
 
 A later lane must, in one reviewed serialization boundary:
@@ -205,18 +240,23 @@ A later lane must, in one reviewed serialization boundary:
 1. produce a canonical finality-complete verified-payment v2 event;
 2. apply the canonical duplicate-payment identity guard;
 3. apply finite-capacity admission;
-4. verify explicit operator activation;
-5. re-read and validate the private allocation ledger under its writer lock;
-6. plan the exact next reservation record with this contract;
-7. require the current ledger count/tip to equal a separately protected
+4. read the exact durable request and pass its schema-closed
+   `VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1` object unchanged into this planner;
+5. commit the exact durable canonical `payment_verified` event bytes as
+   `payment_verified_event_sha256`;
+6. verify explicit operator activation;
+7. re-read and validate the private allocation ledger under its writer lock;
+8. plan the exact next reservation record with this contract;
+9. require the current ledger count/tip to equal a separately protected
    monotonic high-water;
-8. durably append/fsync the record and advance the high-water through one
-   crash-recoverable publication protocol;
-9. re-read and prove the new count, tip, high-water, and inventory totals,
-   rejecting valid-prefix/empty-ledger rollback;
-10. publish any recovery index/sidecar only from the accepted durable state;
-11. require allocation reservation before any fulfillment instruction can
-   execute.
+10. durably append/fsync the record and advance the high-water through one
+    crash-recoverable publication protocol;
+11. re-read and prove the new count, tip, high-water, inventory totals, launch
+    lineage, and payment-event commitment, rejecting valid-prefix/empty-ledger
+    rollback;
+12. publish any recovery index/sidecar only from the accepted durable state;
+13. require allocation reservation before any fulfillment instruction can
+    execute.
 
 That later writer must establish private path custody, no-follow semantics,
 crash recovery, shared lock ordering, and deterministic conflict responses.
