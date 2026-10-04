@@ -138,6 +138,7 @@ This first source slice intentionally leaves false:
 
 - durable liability journal read/write;
 - atomic serialized persistence;
+- one durable cross-lane nonce scheduler;
 - live payer-balance observation;
 - live fee observation;
 - trusted time;
