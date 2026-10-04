@@ -50,6 +50,14 @@ assert.doesNotMatch(
   writerSource,
   /fs\.constants\.O_DIRECTORY[\s\S]{0,120}: 0;/u,
 );
+assert.match(
+  writerSource,
+  /allocation_reservation_writer_intent_presence_mismatch/u,
+);
+assert.match(
+  writerSource,
+  /_changed_before_replace/u,
+);
 
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
@@ -530,6 +538,28 @@ for (const [key, value] of Object.entries(
 {
   const f = fixture();
   try {
+    const foreign = path.join(f.highWaterRoot, "foreign-intent.json");
+    fs.writeFileSync(foreign, "{}\n", { mode: 0o600 });
+    fs.symlinkSync(foreign, path.join(f.highWaterRoot, INTENT_NAME));
+    const held =
+      recoverBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("expected optional-intent symlink HOLD");
+    assert.match(
+      held.reason,
+      /allocation_reservation_writer_intent_file_invalid/u,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
     const tempName =
       "." +
       INTENT_NAME +
@@ -622,6 +652,8 @@ console.log("descriptor_bound_private_roots=true");
 console.log("descriptor_safety_missing_fails_closed=true");
 console.log("separate_storage_roots_required=true");
 console.log("nested_storage_roots_hold=true");
+console.log("optional_intent_symlink_hold=true");
+console.log("pre_replace_authority_revalidation=true");
 console.log("storage_bootstrap=false");
 console.log("runtime_integration=false");
 console.log("protected_high_water_custody_proven=false");
