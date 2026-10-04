@@ -202,7 +202,6 @@ try {
     request_dir: root,
     with_launch_authority_mutation: withLaunchAuthorityMutation,
     read_sale_state: readSaleState,
-    read_operator_events: readEvents,
   });
   assert.equal(reviewed.ok, true);
   assert.equal(mutationCalls, 2);
