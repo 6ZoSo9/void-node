@@ -59,26 +59,33 @@ const baseInput = {
   operator_activation_record_green: true,
 } as const;
 
+function requireOk<T>(
+  value: T,
+): Extract<T, { ok: true }> {
+  const runtime = value as T & {
+    ok: boolean;
+    reason?: string;
+  };
+  if (runtime.ok !== true) {
+    throw new Error(runtime.reason ?? "unexpected_hold");
+  }
+  return value as Extract<T, { ok: true }>;
+}
+
 function requireLedgerPlan(
   decision: ReturnType<
     typeof planBuyVoidAllocationReservationV1
   >,
 ) {
-  if (decision.ok === false) {
-    throw new Error(decision.reason);
-  }
-  return decision;
+  return requireOk(decision);
 }
 
 function requireHighWater(
   ledger: string,
 ) {
-  const decision =
-    deriveBuyVoidAllocationReservationHighWaterV1(ledger);
-  if (decision.ok === false) {
-    throw new Error(decision.reason);
-  }
-  return decision;
+  return requireOk(
+    deriveBuyVoidAllocationReservationHighWaterV1(ledger),
+  );
 }
 
 function requireIntent(
@@ -86,10 +93,7 @@ function requireIntent(
     typeof buildBuyVoidAllocationReservationPublicationIntentV1
   >,
 ) {
-  if (decision.ok === false) {
-    throw new Error(decision.reason);
-  }
-  return decision;
+  return requireOk(decision);
 }
 
 function requireRecovery(
@@ -97,10 +101,7 @@ function requireRecovery(
     typeof classifyBuyVoidAllocationReservationPublicationRecoveryV1
   >,
 ) {
-  if (decision.ok === false) {
-    throw new Error(decision.reason);
-  }
-  return decision;
+  return requireOk(decision);
 }
 
 function expectHeld(
