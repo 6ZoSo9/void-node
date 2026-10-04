@@ -8,6 +8,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_RESERVATION_V1,
   listBuyVoidAllocationReservationsV1,
   persistBuyVoidAllocationReservationV1,
+  testOnlyOpenBuyVoidAllocationChildDirectoryV1,
   testOnlyReadBuyVoidAllocationAuthorityFileV1,
 } from "../src/economic/buy_void_allocation_reservation_v1.js";
 import {
@@ -406,6 +407,59 @@ for (const [key, value] of Object.entries(
   }
 }
 
+{
+  const f = fixture("25", "b", "1");
+  try {
+    const allocationDir = path.join(
+      f.requestDir,
+      "allocation-reservations-v1",
+    );
+    fs.mkdirSync(allocationDir, { mode: 0o700 });
+    const movedRequestDir = f.requestDir + ".old";
+    assert.throws(
+      () =>
+        testOnlyOpenBuyVoidAllocationChildDirectoryV1(
+          f.requestDir,
+          () => {
+            fs.renameSync(f.requestDir, movedRequestDir);
+            fs.mkdirSync(f.requestDir, { mode: 0o700 });
+            fs.mkdirSync(
+              path.join(f.requestDir, "allocation-reservations-v1"),
+              { mode: 0o700 },
+            );
+          },
+        ),
+      /buy_void_allocation_test_history_directory_parent_changed/u,
+    );
+  } finally {
+    rm(f);
+  }
+}
+
+{
+  const f = fixture("25", "c", "1");
+  try {
+    const allocationDir = path.join(
+      f.requestDir,
+      "allocation-reservations-v1",
+    );
+    fs.mkdirSync(allocationDir, { mode: 0o700 });
+    assert.throws(
+      () =>
+        testOnlyOpenBuyVoidAllocationChildDirectoryV1(
+          f.requestDir,
+          () => {
+            fs.renameSync(allocationDir, allocationDir + ".old");
+            fs.mkdirSync(allocationDir, { mode: 0o700 });
+          },
+        ),
+      /buy_void_allocation_test_history_directory_path_not_bound/u,
+    );
+  } finally {
+    rm(f);
+  }
+}
+
 function capacitySaleState(requestDir: string) {
   const requests = fs
     .readFileSync(path.join(requestDir, "requests.jsonl"), "utf8")
@@ -542,6 +596,8 @@ console.log("quote_drift_hold=true");
 console.log("orphan_allocation_hold=true");
 console.log("descriptor_bound_authority_reads=true");
 console.log("path_swap_hold=true");
+console.log("allocation_parent_path_swap_hold=true");
+console.log("allocation_child_path_swap_hold=true");
 console.log("growth_during_read_hold=true");
 console.log("near_sellout_capacity_composition_green=true");
 console.log("capacity_obligation_created=false");
