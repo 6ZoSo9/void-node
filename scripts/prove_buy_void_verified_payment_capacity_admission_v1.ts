@@ -394,6 +394,152 @@ try {
     }
   }
 
+  // A same-inode request-ledger change after the pre-census snapshot must
+  // HOLD inside the final request lock before payment verification is written.
+  {
+    const snapshotRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-request-snapshot-"),
+    );
+    try {
+      fs.chmodSync(snapshotRoot, 0o700);
+      const snapshotRequest = {
+        request_id: "buyvoid_snapr_56565656",
+        quoted_void: 1,
+      };
+      const snapshotRequests = path.join(snapshotRoot, "requests.jsonl");
+      const snapshotEvents = path.join(
+        snapshotRoot,
+        "operator-events.jsonl",
+      );
+      fs.writeFileSync(
+        snapshotRequests,
+        JSON.stringify(snapshotRequest) + "\n",
+        { mode: 0o600 },
+      );
+      fs.writeFileSync(snapshotEvents, "", { mode: 0o600 });
+      const snapshotSale = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+      const snapshotMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        fs.appendFileSync(
+          snapshotRequests,
+          JSON.stringify({
+            request_id: "buyvoid_other_78787878",
+            quoted_void: 1,
+          }) + "\n",
+        );
+        return operation();
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(snapshotRequest, 91),
+            request: snapshotRequest,
+            request_dir: snapshotRoot,
+            with_launch_authority_mutation: snapshotMutation,
+            read_sale_state: snapshotSale,
+          }),
+        /buy_void_verified_payment_capacity_requests_changed_since_census/u,
+      );
+      assert.equal(fs.statSync(snapshotEvents).size, 0);
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            snapshotRoot,
+            "operator-event-" + snapshotRequest.request_id + "-91.json",
+          ),
+        ),
+        false,
+      );
+    } finally {
+      fs.rmSync(snapshotRoot, { recursive: true, force: true });
+    }
+  }
+
+  // A same-inode operator-ledger change after the pre-census snapshot must
+  // likewise HOLD before this request's payment_verified event is appended.
+  {
+    const snapshotRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-operator-snapshot-"),
+    );
+    try {
+      fs.chmodSync(snapshotRoot, 0o700);
+      const snapshotRequest = {
+        request_id: "buyvoid_snapo_90909090",
+        quoted_void: 1,
+      };
+      fs.writeFileSync(
+        path.join(snapshotRoot, "requests.jsonl"),
+        JSON.stringify(snapshotRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const snapshotEvents = path.join(
+        snapshotRoot,
+        "operator-events.jsonl",
+      );
+      fs.writeFileSync(snapshotEvents, "", { mode: 0o600 });
+      const snapshotSale = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+      const snapshotMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        fs.appendFileSync(
+          snapshotEvents,
+          JSON.stringify({
+            schema: "void_buy_void_operator_mark_v1",
+            ok: true,
+            request_id: snapshotRequest.request_id,
+            operator_status: "reviewed",
+            marked_at_ms: 90,
+            quoted_void: 1,
+          }) + "\n",
+        );
+        return operation();
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(snapshotRequest, 92),
+            request: snapshotRequest,
+            request_dir: snapshotRoot,
+            with_launch_authority_mutation: snapshotMutation,
+            read_sale_state: snapshotSale,
+          }),
+        /buy_void_verified_payment_capacity_operator_events_changed_since_census/u,
+      );
+      const rows = fs
+        .readFileSync(snapshotEvents, "utf8")
+        .trimEnd()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].operator_status, "reviewed");
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            snapshotRoot,
+            "operator-event-" + snapshotRequest.request_id + "-92.json",
+          ),
+        ),
+        false,
+      );
+    } finally {
+      fs.rmSync(snapshotRoot, { recursive: true, force: true });
+    }
+  }
+
   // The payment append must use the exact operator-ledger inode admitted by
   // the capacity census. Replacing the visible path after census but before
   // launch-authority mutation must HOLD before any event bytes are written.
@@ -554,6 +700,8 @@ try {
   console.log("payment_verified_jsonl_append_fsync=true");
   console.log("requests_ledger_descriptor_bound_bounded_read=true");
   console.log("operator_ledger_same_inode_census_append=true");
+  console.log("request_ledger_preappend_snapshot_required=true");
+  console.log("operator_ledger_preappend_snapshot_required=true");
   console.log("operator_ledger_visible_swap_before_append_rejected=true");
   console.log("ledger_growth_after_admission_metadata_rejected=true");
   console.log("missing_payment_verified_sidecar_recovered=true");
