@@ -74,6 +74,41 @@ assert.equal(
   "CORRECTED_GENERATION_DERIVED_REBIND_REQUIRED",
 );
 assert.equal(census.corrected_generation_derived, true);
+const atomicMigrationPlanPath =
+  "ops/mainnet0/wc-void-coupled-launch-atomic-migration-plan-v2.json";
+assert.equal(
+  VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2.includes(
+    atomicMigrationPlanPath,
+  ),
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_COMPILED_IDENTITY_NON_AUTHORITY_PATHS_V2.includes(
+    atomicMigrationPlanPath,
+  ),
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.includes(
+    atomicMigrationPlanPath,
+  ),
+  false,
+);
+assert.equal(
+  VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2.includes(
+    atomicMigrationPlanPath,
+  ),
+  false,
+);
+const atomicMigrationPlan = JSON.parse(
+  fs.readFileSync(atomicMigrationPlanPath, "utf8"),
+);
+assert.equal(atomicMigrationPlan.authority.source_plan_only, true);
+assert.equal(atomicMigrationPlan.authority.repository_application, false);
+assert.equal(atomicMigrationPlan.authority.deployment, false);
+assert.equal(atomicMigrationPlan.authority.market_activation, false);
+assert.equal(atomicMigrationPlan.authority.public_presale_activation, false);
+assert.equal(atomicMigrationPlan.authority.funds_movement, false);
 assert.equal(
   census.corrected_coupled_launch_id,
   VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_ID_V2,
