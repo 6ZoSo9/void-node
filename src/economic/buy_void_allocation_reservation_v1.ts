@@ -437,21 +437,6 @@ function readPinnedNamedFile(
   }
 }
 
-function readOptionalPinnedNamedFile(
-  directory: PinnedDirectoryV1,
-  name: string,
-  maxBytes: number,
-  code: string,
-): Buffer | null {
-  const pinnedPath = path.join(directory.proc_path, name);
-  try {
-    fs.accessSync(pinnedPath, fs.constants.F_OK);
-  } catch {
-    return null;
-  }
-  return readPinnedNamedFile(directory, name, maxBytes, code);
-}
-
 function parseStrictJsonLines(
   bytes: Buffer,
   code: string,
@@ -702,7 +687,7 @@ function allocationBody(
   });
 }
 
-export function buildBuyVoidAllocationReservationRecordV1(input: {
+function buildBuyVoidAllocationReservationRecordV1(input: {
   request_projection: RequestProjectionV1;
   verified_projection: VerifiedProjectionV1;
 }): BuyVoidAllocationReservationRecordV1 {
@@ -802,6 +787,60 @@ function fsyncDirectory(directory: PinnedDirectoryV1): void {
     "buy_void_allocation_history_directory",
   );
   fs.fsyncSync(directory.fd);
+}
+
+function normalizePublishedAllocationTemps(
+  directory: PinnedDirectoryV1,
+): void {
+  const names = fs.readdirSync(directory.proc_path).sort();
+  for (const name of names) {
+    const match =
+      /^\.(voidalloc1_[0-9a-f]{64})\.tmp-[0-9]+-[0-9a-f]{16}$/u.exec(
+        name,
+      );
+    if (!match) continue;
+    const tempPath = path.join(directory.proc_path, name);
+    const temp = fs.lstatSync(tempPath, { bigint: true });
+    if (temp.nlink === 1n) {
+      validateFileStat(
+        temp,
+        RECORD_MAX_BYTES,
+        "buy_void_allocation_history_temp_invalid",
+      );
+      continue;
+    }
+    validateFileStat(
+      temp,
+      RECORD_MAX_BYTES,
+      "buy_void_allocation_history_temp_invalid",
+      2n,
+    );
+    const finalName = match[1] + ".json";
+    const finalPath = path.join(directory.proc_path, finalName);
+    let final;
+    try {
+      final = fs.lstatSync(finalPath, { bigint: true });
+    } catch {
+      fail("buy_void_allocation_linked_final_missing");
+    }
+    validateFileStat(
+      final,
+      RECORD_MAX_BYTES,
+      "buy_void_allocation_record_file_invalid",
+      2n,
+    );
+    if (final.dev !== temp.dev || final.ino !== temp.ino) {
+      fail("buy_void_allocation_linked_temp_identity_mismatch");
+    }
+    fs.unlinkSync(tempPath);
+    fsyncDirectory(directory);
+    const normalized = fs.lstatSync(finalPath, { bigint: true });
+    validateFileStat(
+      normalized,
+      RECORD_MAX_BYTES,
+      "buy_void_allocation_record_file_invalid",
+    );
+  }
 }
 
 function cleanupExpectedTempFiles(
@@ -1008,6 +1047,7 @@ function scanAllocationHistory(
   requests: Map<string, RequestProjectionV1>,
   verified: ReturnType<typeof buildVerifiedMaps>,
 ) {
+  normalizePublishedAllocationTemps(allocationDirectory);
   const byRequest = new Map<string, BuyVoidAllocationReservationRecordV1>();
   const byPayment = new Map<string, BuyVoidAllocationReservationRecordV1>();
   const byEvent = new Map<string, BuyVoidAllocationReservationRecordV1>();
@@ -1094,6 +1134,39 @@ function scanAllocationHistory(
   });
 }
 
+function emptyAllocationHistory() {
+  return Object.freeze({
+    byRequest: new Map<string, BuyVoidAllocationReservationRecordV1>(),
+    byPayment: new Map<string, BuyVoidAllocationReservationRecordV1>(),
+    byEvent: new Map<string, BuyVoidAllocationReservationRecordV1>(),
+    byId: new Map<string, BuyVoidAllocationReservationRecordV1>(),
+    count: 0,
+    total_micro: 0n,
+  });
+}
+
+function openExistingAllocationDirectory(
+  requestDirectory: PinnedDirectoryV1,
+): PinnedDirectoryV1 | null {
+  assertPinnedDirectoryVisible(
+    requestDirectory,
+    "buy_void_allocation_request_directory",
+  );
+  const visiblePath = path.join(requestDirectory.path, ALLOCATION_DIR);
+  try {
+    fs.accessSync(
+      path.join(requestDirectory.proc_path, ALLOCATION_DIR),
+      fs.constants.F_OK,
+    );
+  } catch {
+    return null;
+  }
+  return openPinnedDirectory(
+    visiblePath,
+    "buy_void_allocation_history_directory",
+  );
+}
+
 function loadAuthorityState(requestDir: string) {
   const requestDirectory = openPinnedDirectory(
     requestDir,
@@ -1127,12 +1200,14 @@ function loadAuthorityState(requestDir: string) {
       requests,
     );
     allocationDirectory =
-      openOrCreateAllocationDirectory(requestDirectory);
-    const history = scanAllocationHistory(
-      allocationDirectory,
-      requests,
-      verified,
-    );
+      openExistingAllocationDirectory(requestDirectory);
+    const history = allocationDirectory
+      ? scanAllocationHistory(
+          allocationDirectory,
+          requests,
+          verified,
+        )
+      : emptyAllocationHistory();
     return {
       requestDirectory,
       allocationDirectory,
@@ -1188,6 +1263,10 @@ export function persistBuyVoidAllocationReservationV1(input: {
       }
     }
 
+    if (!loaded.allocationDirectory) {
+      loaded.allocationDirectory =
+        openOrCreateAllocationDirectory(loaded.requestDirectory);
+    }
     const publication = ensureAllocationRecord(
       loaded.allocationDirectory,
       record,
@@ -1233,7 +1312,9 @@ export function persistBuyVoidAllocationReservationV1(input: {
     return held(String((error as Error)?.message || error));
   } finally {
     if (loaded) {
-      try { fs.closeSync(loaded.allocationDirectory.fd); } catch { /* best effort */ }
+      if (loaded.allocationDirectory) {
+        try { fs.closeSync(loaded.allocationDirectory.fd); } catch { /* best effort */ }
+      }
       try { fs.closeSync(loaded.requestDirectory.fd); } catch { /* best effort */ }
     }
   }
@@ -1252,7 +1333,9 @@ export function listBuyVoidAllocationReservationsV1(
         ),
     ) as unknown as BuyVoidAllocationReservationRecordV1[];
   } finally {
-    fs.closeSync(loaded.allocationDirectory.fd);
+    if (loaded.allocationDirectory) {
+      fs.closeSync(loaded.allocationDirectory.fd);
+    }
     fs.closeSync(loaded.requestDirectory.fd);
   }
 }
