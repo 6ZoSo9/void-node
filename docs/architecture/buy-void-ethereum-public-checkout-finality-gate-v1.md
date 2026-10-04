@@ -69,11 +69,16 @@ payment. Treating a public request ID as an execution-attempt ID would therefore
 invent authority and create a circular dependency.
 
 `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)` closes that
-abstraction gap without writing any state. It accepts only a server-owned Buy
-request plus a canonical V2 verified-payment event, derives the exact
-`voidpay1:ethereum:<tx_hash>:<log_index>` identity, loads the same
-server-controlled finality policy, and invokes
-`observeBuyVoidSourceFinalityGenerationProvenanceV5(...)` directly.
+abstraction gap without writing any state. Production accepts only the
+server-owned Buy request; it does **not** accept a caller-supplied verified
+payment event. After process/policy/capability checks, it uses the canonical
+read-only payment observer to fetch the exact Ethereum receipt plus latest
+block, rebuilds V2 internally with
+`buildBuyVoidVerifiedPaymentEventV2(...)`, derives the exact
+`voidpay1:ethereum:<tx_hash>:<log_index>` identity from that rebuilt event,
+and then invokes
+`observeBuyVoidSourceFinalityGenerationProvenanceV5(...)` directly for the
+separate finalized-head authority.
 
 A production-ready result additionally requires:
 
@@ -81,12 +86,15 @@ A production-ready result additionally requires:
   matching the same process-source boundary used by the execution preflight;
 - source chain exactly `ethereum` and chain ID exactly `1`;
 - the exact request transaction hash and canonical `voidpay1` identity;
-- V2 payment-event payer/delivery/receive addresses and exact 6-decimal USDC
-  units rebound to the server-owned request;
-- the V2 event's transaction/log/block, token, payer, receiver, delivery and
-  amount fields re-bound to the independently generated V5 finality observation;
-- the V2 latest-head confirmation count and V5 finalized-head confirmation
-  count validated independently; they are not required to be numerically equal;
+- canonical V2 receipt/log/payment metadata built internally from the
+  server-controlled latest-head observation; caller-supplied V2 event authority
+  is exactly false;
+- the internally rebuilt V2 event's transaction/log/block, token, payer,
+  receiver, delivery and amount fields re-bound to the independently generated
+  V5 finality observation;
+- the V2 latest-head confirmation count comes only from the internal canonical
+  rebuild, while V5 finalized-head confirmations remain a distinct clock; the
+  two counts are not required to be numerically equal;
 - the finalized-head count must meet the exact server-controlled Ethereum rail
   `min_confirmations` policy that was passed into the canonical V5 observer;
 - freshly rebound payment-key SHA-256;
@@ -104,9 +112,11 @@ A production-ready result additionally requires:
 - no wallet/signing/transaction-construction/broadcast/inventory-mutation/
   money-movement side effects.
 
-The production function exposes no observer/finality injection dependency.
-It also refuses before policy/finality work when the current process source
-identity is unavailable or not `main`. Current V5 authority deliberately keeps
+The production function exposes no observer/finality or verified-payment-event
+injection dependency. It also returns the exact internally rebuilt canonical V2
+event for any later reviewed persistence composition. The function refuses
+before any RPC when the current process source identity, server policy, or V5
+capability is unavailable/not production-ready. Current V5 authority deliberately keeps
 source/deployed generation, remote provider identity, ancestry, quorum, and
 production authority false, so a correctly identified current process still
 returns HOLD **before making RPC calls**.
@@ -181,9 +191,10 @@ A later integration step must:
 
 - require `readBuyVoidEthereumPublicCheckoutReadinessV1(...)` before returning
   any new Ethereum payment instructions;
-- after canonical V2 receipt/log verification, require
-  `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)` before writing
-  the exact Ethereum `payment_verified` event;
+- call `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)` with the
+  server-owned request only; if it becomes ready, any later
+  `payment_verified` persistence must use its returned
+  `canonical_verified_payment_event`, not caller-supplied payment evidence;
 - keep the execution-attempt
   `runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(...)` check for later
   attempt-bound fulfillment/execution authority;
@@ -196,10 +207,11 @@ Until that runtime composition lands, Ethereum public intake remains HOLD.
 
 ## Authority boundary
 
-This module may cause read-only RPC activity through the canonical V5
-request-level finality composition or, after an execution attempt exists, through
-the existing canonical source-finality execution preflight. Current pre-attempt
-production authority is false, so that bridge fails before RPC.
+This module may cause read-only RPC activity through the canonical payment
+observer and V5 request-level finality composition or, after an execution attempt
+exists, through the existing canonical source-finality execution preflight.
+Current pre-attempt production authority is false, so the bridge fails before
+either production RPC observation.
 
 It does not:
 
