@@ -134,10 +134,30 @@ assert.match(capacityAdmission, /appendPaymentVerifiedEventDurableV1/);
 assert.match(capacityAdmission, /fs\.fsyncSync\(descriptor\)/);
 assert.match(capacityAdmission, /recoverPaymentVerifiedSidecarsV1/);
 assert.match(capacityAdmission, /sidecar_recovered/);
-assert.match(
-  capacityAdmission,
-  /with_launch_authority_mutation\(request, append\)/,
-);
+{
+  const launchMutationAt = capacityAdmission.indexOf(
+    "input.with_launch_authority_mutation(\n          request,",
+  );
+  const requestLockAt = capacityAdmission.indexOf(
+    "withBuyVoidTerminalCloseoutRequestLockV1(",
+    launchMutationAt,
+  );
+  const requestSnapshotAt = capacityAdmission.indexOf(
+    "const requestBeforeAppend =",
+    requestLockAt,
+  );
+  const appendAt = capacityAdmission.indexOf(
+    "appendPaymentVerifiedEventDurableV1(",
+    requestSnapshotAt,
+  );
+  assert.ok(
+    launchMutationAt >= 0 &&
+      requestLockAt > launchMutationAt &&
+      requestSnapshotAt > requestLockAt &&
+      appendAt > requestSnapshotAt,
+    "launch authority must wrap request lock, ledger snapshot revalidation, and durable append",
+  );
+}
 assert.ok(index.includes('"operator_mark_failed"'));
 assert.ok(index.includes(
   'res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1"',
