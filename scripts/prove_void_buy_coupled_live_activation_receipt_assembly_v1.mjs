@@ -14,6 +14,7 @@ import {
 import {
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_ASSEMBLY_AUTHORITY_V1,
   assembleBuyCoupledLiveActivationReceiptV1,
+  testOnlyAssembleBuyCoupledLiveActivationReceiptAtTimeV1,
   verifyBuyCoupledLiveActivationReceiptAssemblyV1,
   verifyCoupledLiveActivationTypedDataSignaturesV1,
 } from "../tools/void-buy-coupled-live-activation-receipt-assembly-v1.mjs";
@@ -65,7 +66,7 @@ assert.deepEqual(
 
 assert.throws(
   () =>
-    assembleBuyCoupledLiveActivationReceiptV1({
+    testOnlyAssembleBuyCoupledLiveActivationReceiptAtTimeV1({
       signingRequest: request,
       activationSignature,
       sovereignSignature,
@@ -76,7 +77,7 @@ assert.throws(
 
 assert.throws(
   () =>
-    assembleBuyCoupledLiveActivationReceiptV1({
+    testOnlyAssembleBuyCoupledLiveActivationReceiptAtTimeV1({
       signingRequest: request,
       activationSignature,
       sovereignSignature,
@@ -159,6 +160,15 @@ const source = fs.readFileSync(
   "tools/void-buy-coupled-live-activation-receipt-assembly-v1.mjs",
   "utf8",
 );
+assert.match(
+  source,
+  /export function assembleBuyCoupledLiveActivationReceiptV1\(input\) \{[\s\S]*Date\.now\(\)/u,
+);
+assert.doesNotMatch(
+  source,
+  /export function assembleBuyCoupledLiveActivationReceiptV1\([^)]*nowMs/u,
+);
+
 for (const required of [
   "verifyBuyCoupledLiveActivationSigningRequestV1(signingRequest)",
   "assembleBuyCoupledLiveActivationReceiptV1(\n    {",
@@ -197,6 +207,8 @@ console.log("synthetic_signatures_can_assemble_production_receipt=false");
 console.log("standalone_assembly_reverifies_signing_request=true");
 console.log("standalone_assembly_reverifies_dual_signatures=true");
 console.log("assembly_requires_active_lease=true");
+console.log("production_assembly_wall_clock_bound=true");
+console.log("caller_supplied_production_time=false");
 console.log("assembly_verifier_rederives_canonical_artifact=true");
 console.log("private_key_access=false");
 console.log("signature_creation=false");
