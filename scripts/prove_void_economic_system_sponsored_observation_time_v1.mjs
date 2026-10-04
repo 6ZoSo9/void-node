@@ -660,6 +660,37 @@ for (const mono of [BASE_MONO, BASE_MONO - 1n]) {
 }
 
 {
+  const revoked = Proxy.revocable(sample(), {});
+  revoked.revoke();
+  const clock = clockQueue([revoked.proxy]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: null }),
+    "sponsored_observation_time_sample_invalid",
+    true,
+  );
+  assert.equal(clock.calls(), 1);
+}
+
+{
+  const revoked = Proxy.revocable(
+    { prior_receipt: null },
+    {},
+  );
+  revoked.revoke();
+  const clock = clockQueue([sample()]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe(revoked.proxy),
+    "sponsored_observation_time_request_invalid",
+    false,
+  );
+  assert.equal(clock.calls(), 0);
+}
+
+{
   let coercions = 0;
   const hostile = {
     toString() {
@@ -802,6 +833,11 @@ const source = fs.readFileSync(
 assert.doesNotMatch(source, /Date\.now\s*\(/u);
 assert.doesNotMatch(source, /process\.hrtime/u);
 assert.match(source, /utilTypes\.isProxy\(value\)/u);
+assert.equal(
+  source.indexOf("utilTypes.isProxy(value)") <
+    source.indexOf("Array.isArray(value)", source.indexOf("function exactSnapshot")),
+  true,
+);
 assert.doesNotMatch(
   source,
   /String\(raw\.(?:boot_id|generation|previous_receipt_sha256|process_start_ticks|baseline_monotonic_ns|monotonic_ns|receipt_sha256)/u,
@@ -833,6 +869,7 @@ console.log("accessor_request_rejected_without_getter_read=true");
 console.log("accessor_clock_sample_rejected_without_getter_read=true");
 console.log("nested_value_coercion_hooks_executed=false");
 console.log("proxy_reflection_traps_executed=false");
+console.log("revoked_proxy_rejected_before_isarray=true");
 console.log("revoked_proxy_native_errors_exposed=false");
 console.log("accessor_clock_binding_rejected_without_getter_read=true");
 console.log("clock_exception_detail_not_exposed=true");
