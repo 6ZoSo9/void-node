@@ -90,8 +90,10 @@ const available =
     candidate_event: eventA,
     existing_events: [],
   });
+if (available.ok !== true) {
+  throw new Error("expected duplicate guard available");
+}
 assert.equal(available.ok, true);
-if (!available.ok) throw new Error(available.reason);
 assert.equal(available.status, "available");
 assert.equal(available.idempotent, false);
 assert.equal(
@@ -107,8 +109,10 @@ const idempotent =
       eventA,
     ],
   });
+if (idempotent.ok !== true) {
+  throw new Error("expected duplicate guard idempotent");
+}
 assert.equal(idempotent.ok, true);
-if (!idempotent.ok) throw new Error(idempotent.reason);
 assert.equal(idempotent.status, "idempotent");
 assert.equal(idempotent.idempotent, true);
 assert.equal(idempotent.existing_verified_payment_event_count, 1);
@@ -130,8 +134,10 @@ const distinctLog =
     candidate_event: eventC,
     existing_events: [eventA],
   });
+if (distinctLog.ok !== true) {
+  throw new Error("expected distinct transfer-log identity available");
+}
 assert.equal(distinctLog.ok, true);
-if (!distinctLog.ok) throw new Error(distinctLog.reason);
 assert.equal(distinctLog.status, "available");
 assert.equal(
   distinctLog.canonical_payment_identity,
