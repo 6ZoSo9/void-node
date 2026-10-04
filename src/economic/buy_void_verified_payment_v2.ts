@@ -1,6 +1,7 @@
-import type {
-  BuyVoidRequestV1,
-  BuyVoidVerifiedPaymentEventV1,
+import {
+  canonicalBuyVoidPaymentIdentityV1,
+  type BuyVoidRequestV1,
+  type BuyVoidVerifiedPaymentEventV1,
 } from "./buy_void_auto_fulfillment_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2 =
@@ -270,6 +271,15 @@ export function buildBuyVoidVerifiedPaymentEventV2(
 
     const logIndex = parseNonNegativeInteger(log.logIndex);
     if (logIndex === null) continue;
+    try {
+      canonicalBuyVoidPaymentIdentityV1({
+        source_chain: chain,
+        payment_transaction_hash: receiptTxHash,
+        payment_log_index: logIndex,
+      });
+    } catch {
+      continue;
+    }
 
     const logTxHash = log.transactionHash
       ? normalizeHash(log.transactionHash)
