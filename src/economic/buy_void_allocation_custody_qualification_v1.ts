@@ -721,6 +721,18 @@ function normalizeSocket(
     socket.parent_mode,
     "custody_socket_authority_invalid",
   );
+  const parentUid = safeInt(
+    socket.parent_uid,
+    0,
+    0x7fff_ffff,
+    "custody_socket_authority_invalid",
+  );
+  const parentGid = safeInt(
+    socket.parent_gid,
+    0,
+    0x7fff_ffff,
+    "custody_socket_authority_invalid",
+  );
   const ownerUid = safeInt(
     socket.owner_uid,
     0,
@@ -735,14 +747,10 @@ function normalizeSocket(
   );
   if (
     path.dirname(resolved) !== parent ||
-    safeInt(
-      socket.parent_uid,
-      0,
-      0x7fff_ffff,
-      "custody_socket_authority_invalid",
-    ) !== 0 ||
+    parentUid !== custodyUid ||
+    parentGid !== groupGid ||
+    parentMode.text !== "0750" ||
     socket.parent_symlink !== false ||
-    (parentMode.bits & 0o022) !== 0 ||
     ownerUid !== custodyUid ||
     groupGid === runtimeGid ||
     groupGid === custodyGid ||
@@ -785,13 +793,8 @@ function normalizeSocket(
   return Object.freeze({
     resolved_path: resolved,
     parent_path: parent,
-    parent_uid: 0,
-    parent_gid: safeInt(
-      socket.parent_gid,
-      0,
-      0x7fff_ffff,
-      "custody_socket_authority_invalid",
-    ),
+    parent_uid: parentUid,
+    parent_gid: parentGid,
     parent_mode: parentMode.text,
     parent_symlink: false,
     owner_uid: ownerUid,
