@@ -20,14 +20,28 @@ try {
     { request_id: "buyvoid_c_cccccccc", quoted_void: 4 },
     { request_id: "buyvoid_d_dddddddd", quoted_void: 1 },
   ];
+  const requestsPath = path.join(root, "requests.jsonl");
+  fs.writeFileSync(
+    requestsPath,
+    requests.map((request) => JSON.stringify(request)).join("\n") + "\n",
+    { mode: 0o600 },
+  );
   const eventsPath = path.join(root, "operator-events.jsonl");
   const readEvents = async () => {
     if (!fs.existsSync(eventsPath)) return [];
-    return fs
+    const out: any[] = [];
+    for (const line of fs
       .readFileSync(eventsPath, "utf8")
       .split(/\n+/u)
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
+      .filter(Boolean)) {
+      try {
+        out.push(JSON.parse(line));
+      } catch {
+        // Mirror the legacy runtime projection. Capacity authority must not
+        // rely on this lenient reader to detect ledger corruption.
+      }
+    }
+    return out;
   };
   const readSaleState = async () => {
     const events = await readEvents();
@@ -123,7 +137,6 @@ try {
       request_dir: root,
       with_launch_authority_mutation: withLaunchAuthorityMutation,
       read_sale_state: readSaleState,
-      read_operator_events: readEvents,
     });
 
   const race = await Promise.allSettled([
@@ -196,6 +209,20 @@ try {
   state = await readSaleState();
   assert.equal(state.allocation_reserved_void, 10);
 
+  fs.appendFileSync(eventsPath, "{malformed-json}\n");
+  assert.equal(
+    (await readEvents()).filter(
+      (event) => event.operator_status === "payment_verified",
+    ).length,
+    2,
+    "legacy projection intentionally skips malformed row",
+  );
+  await assert.rejects(
+    () => write(requests[3], 7),
+    /buy_void_verified_payment_capacity_operator_events_json_invalid/u,
+  );
+  assert.equal(mutationCalls, 2);
+
   for (const [key, value] of Object.entries(
     VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1,
   )) {
@@ -205,6 +232,7 @@ try {
         "request_directory_read",
         "request_directory_write",
         "serialized_capacity_admission",
+        "strict_ledger_recount",
       ].includes(key)
     ) {
       assert.equal(value, true, key);
@@ -218,6 +246,8 @@ try {
   console.log("capacity_lock_spans_payment_verified_append=true");
   console.log("exact_remaining_capacity_admitted=true");
   console.log("capacity_exhaustion_rejected=true");
+  console.log("malformed_authoritative_ledger_fails_closed=true");
+  console.log("legacy_lenient_projection_is_not_capacity_authority=true");
   console.log("duplicate_request_reverification_idempotent=true");
   console.log("duplicate_payment_identity_guard_proven=false");
   console.log("public_presale_activation=false");

@@ -17,6 +17,7 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1 =
     request_directory_read: true,
     request_directory_write: true,
     serialized_capacity_admission: true,
+    strict_ledger_recount: true,
     payment_receipt_verification: false,
     duplicate_payment_identity_verification: false,
     wallet_or_signer_access: false,
@@ -48,6 +49,125 @@ function microVoid(value: unknown, code: string, positive = false): bigint {
   const units = whole * MICRO + fraction;
   if (positive ? units < 1n : units < 0n) fail(code);
   return units;
+}
+
+const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
+
+function readStrictJsonLinesV1(filePath: string, code: string): any[] {
+  if (!fs.existsSync(filePath)) return [];
+  const metadata = fs.lstatSync(filePath);
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.size > LEDGER_MAX_BYTES
+  ) {
+    fail(code + "_file_invalid");
+  }
+  const text = fs.readFileSync(filePath, "utf8");
+  if (text.length === 0) return [];
+  const lines = text.endsWith("\n")
+    ? text.slice(0, -1).split("\n")
+    : text.split("\n");
+  if (lines.some((line) => line.length === 0)) {
+    fail(code + "_empty_row");
+  }
+  return lines.map((line) => {
+    let value: any;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      fail(code + "_json_invalid");
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      fail(code + "_row_invalid");
+    }
+    return value;
+  });
+}
+
+function readStrictCapacityLedgerV1(
+  requestDir: string,
+  poolVoidMicro: bigint,
+) {
+  const requestRows = readStrictJsonLinesV1(
+    path.join(requestDir, "requests.jsonl"),
+    "buy_void_verified_payment_capacity_requests",
+  );
+  const quotes = new Map<string, bigint>();
+  for (const row of requestRows) {
+    const requestId = String(row.request_id || "").trim();
+    if (!REQUEST_ID.test(requestId)) {
+      fail("buy_void_verified_payment_capacity_request_id_invalid");
+    }
+    const quote = microVoid(
+      row.quoted_void,
+      "buy_void_verified_payment_capacity_request_quote_invalid",
+      true,
+    );
+    const prior = quotes.get(requestId);
+    if (prior !== undefined && prior !== quote) {
+      fail("buy_void_verified_payment_capacity_request_quote_changed");
+    }
+    quotes.set(requestId, quote);
+  }
+
+  const eventRows = readStrictJsonLinesV1(
+    path.join(requestDir, "operator-events.jsonl"),
+    "buy_void_verified_payment_capacity_operator_events",
+  );
+  const verifiedIds = new Set<string>();
+  for (const row of eventRows) {
+    const requestId = String(row.request_id || "").trim();
+    const status = String(row.operator_status || "").trim();
+    if (!REQUEST_ID.test(requestId) || !status) {
+      fail("buy_void_verified_payment_capacity_operator_event_invalid");
+    }
+    if (status !== "payment_verified") continue;
+    const quote = quotes.get(requestId);
+    if (quote === undefined) {
+      fail("buy_void_verified_payment_capacity_verified_request_missing");
+    }
+    if (row.quoted_void !== undefined && row.quoted_void !== null) {
+      const eventQuote = microVoid(
+        row.quoted_void,
+        "buy_void_verified_payment_capacity_event_quote_invalid",
+        true,
+      );
+      if (eventQuote !== quote) {
+        fail("buy_void_verified_payment_capacity_event_quote_mismatch");
+      }
+    }
+    verifiedIds.add(requestId);
+  }
+
+  let verifiedVoidMicro = 0n;
+  for (const requestId of verifiedIds) {
+    verifiedVoidMicro += quotes.get(requestId) || 0n;
+  }
+  if (verifiedVoidMicro > poolVoidMicro) {
+    fail("buy_void_verified_payment_capacity_ledger_oversubscribed");
+  }
+  return Object.freeze({
+    verified_ids: verifiedIds,
+    verified_void_micro: verifiedVoidMicro,
+    reserved_void_micro: verifiedVoidMicro,
+    remaining_void_micro: poolVoidMicro - verifiedVoidMicro,
+  });
+}
+
+function assertProjectionMatchesStrictLedgerV1(
+  decision: ReturnType<
+    typeof classifyBuyVoidVerifiedPaymentCapacityAdmissionV1
+  >,
+  strict: ReturnType<typeof readStrictCapacityLedgerV1>,
+): void {
+  if (
+    BigInt(decision.verified_void_micro) !== strict.verified_void_micro ||
+    BigInt(decision.reserved_void_micro) !== strict.reserved_void_micro ||
+    BigInt(decision.remaining_void_micro) !== strict.remaining_void_micro
+  ) {
+    fail("buy_void_verified_payment_capacity_projection_mismatch");
+  }
 }
 
 function freezeDecision(input: {
@@ -155,7 +275,6 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   request_id: string;
   quoted_void: unknown;
   read_sale_state: () => Promise<any>;
-  read_operator_events: () => Promise<any[]>;
   operation: () => Promise<T> | T;
 }): Promise<{
   ok: true;
@@ -172,7 +291,6 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
     !rawDir ||
     !REQUEST_ID.test(requestId) ||
     typeof input?.read_sale_state !== "function" ||
-    typeof input?.read_operator_events !== "function" ||
     typeof input?.operation !== "function"
   ) {
     fail("buy_void_verified_payment_capacity_input_invalid");
@@ -191,20 +309,23 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   return withBuyVoidFilesystemBakeryLockAsyncV1(
     lockPath,
     async () => {
-      const events = await input.read_operator_events();
-      if (!Array.isArray(events)) {
-        fail("buy_void_verified_payment_capacity_events_invalid");
-      }
-      const alreadyVerified = events.some(
-        (event: any) =>
-          String(event?.request_id || "") === requestId &&
-          String(event?.operator_status || "") === "payment_verified",
+      const saleBefore = await input.read_sale_state();
+      const poolBefore = microVoid(
+        saleBefore?.pool_void_total,
+        "buy_void_verified_payment_capacity_state_invalid",
+        true,
       );
+      const strictBefore = readStrictCapacityLedgerV1(
+        requestDir,
+        poolBefore,
+      );
+      const alreadyVerified = strictBefore.verified_ids.has(requestId);
       const before = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
-        sale_state: await input.read_sale_state(),
+        sale_state: saleBefore,
         quoted_void: input.quoted_void,
         already_verified: alreadyVerified,
       });
+      assertProjectionMatchesStrictLedgerV1(before, strictBefore);
       if (!before.ready) fail(String(before.reason));
 
       if (alreadyVerified) {
@@ -218,11 +339,25 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
       }
 
       const result = await input.operation();
+      const saleAfter = await input.read_sale_state();
+      const poolAfter = microVoid(
+        saleAfter?.pool_void_total,
+        "buy_void_verified_payment_capacity_state_invalid",
+        true,
+      );
+      if (poolAfter !== poolBefore) {
+        fail("buy_void_verified_payment_capacity_pool_changed");
+      }
+      const strictAfter = readStrictCapacityLedgerV1(
+        requestDir,
+        poolAfter,
+      );
       const after = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
-        sale_state: await input.read_sale_state(),
+        sale_state: saleAfter,
         quoted_void: input.quoted_void,
         already_verified: true,
       });
+      assertProjectionMatchesStrictLedgerV1(after, strictAfter);
       if (!after.ready) {
         fail("buy_void_verified_payment_capacity_postcheck_failed");
       }
@@ -233,6 +368,10 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
         BigInt(before.remaining_void_micro) -
         BigInt(before.quoted_void_micro);
       if (
+        !strictAfter.verified_ids.has(requestId) ||
+        strictAfter.verified_void_micro !== expectedVerified ||
+        strictAfter.reserved_void_micro !== expectedVerified ||
+        strictAfter.remaining_void_micro !== expectedRemaining ||
         BigInt(after.verified_void_micro) !== expectedVerified ||
         BigInt(after.reserved_void_micro) !== expectedVerified ||
         BigInt(after.remaining_void_micro) !== expectedRemaining ||
@@ -260,7 +399,6 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     operation: () => any,
   ) => Promise<any>;
   read_sale_state: () => Promise<any>;
-  read_operator_events: () => Promise<any[]>;
 }) {
   const event = input?.event;
   const request = input?.request;
@@ -277,8 +415,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     requestId !== String(request?.request_id || "").trim() ||
     !requestDirRaw ||
     typeof input?.with_launch_authority_mutation !== "function" ||
-    typeof input?.read_sale_state !== "function" ||
-    typeof input?.read_operator_events !== "function"
+    typeof input?.read_sale_state !== "function"
   ) {
     fail("buy_void_operator_event_capacity_writer_input_invalid");
   }
@@ -335,7 +472,6 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       request_id: requestId,
       quoted_void: request.quoted_void,
       read_sale_state: input.read_sale_state,
-      read_operator_events: input.read_operator_events,
       operation: () =>
         input.with_launch_authority_mutation(request, append),
     });

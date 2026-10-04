@@ -18552,7 +18552,7 @@ small{color:#94a3b8}
       return events;
     }
 
-    async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any){const m=await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");return m.writeBuyVoidOperatorEventWithCapacityAdmissionV1({event:e,request:r,request_dir:String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1"),with_launch_authority_mutation:__blm,read_sale_state:__voidBuyVoidSaleStateV1,read_operator_events:__voidReadBuyVoidOperatorEventsV1})}
+    async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any){const m=await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");return m.writeBuyVoidOperatorEventWithCapacityAdmissionV1({event:e,request:r,request_dir:String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1"),with_launch_authority_mutation:__blm,read_sale_state:__voidBuyVoidSaleStateV1})}
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
     function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){

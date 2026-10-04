@@ -94,10 +94,7 @@ assert.match(
 );
 assert.match(eventCritical, /with_launch_authority_mutation:__blm/);
 assert.match(eventCritical, /read_sale_state:__voidBuyVoidSaleStateV1/);
-assert.match(
-  eventCritical,
-  /read_operator_events:__voidReadBuyVoidOperatorEventsV1/,
-);
+assert.doesNotMatch(eventCritical, /read_operator_events:/);
 assert.equal(eventCritical.includes("operator-events.jsonl"), false);
 assert.match(
   capacityAdmission,
@@ -110,6 +107,16 @@ assert.match(
 assert.match(
   capacityAdmission,
   /buy_void_verified_payment_capacity_exceeded/,
+);
+assert.match(capacityAdmission, /requests\.jsonl/);
+assert.match(capacityAdmission, /operator-events\.jsonl/);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_projection_mismatch/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_operator_events_json_invalid/,
 );
 assert.match(
   capacityAdmission,
