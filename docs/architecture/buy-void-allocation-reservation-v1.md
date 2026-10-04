@@ -111,6 +111,29 @@ non-identical allocation. Unknown entries, malformed/truncated ledgers, quote
 drift, source/tx drift, orphan records, path swaps, growth during read, or total
 allocation history above 10,000,000 VOID HOLD.
 
+## Rollback / high-water boundary
+
+This module validates every allocation record that is present, but the directory
+by itself is not a protected monotonic high-water. A genuine earlier valid
+directory state, or deletion of an allocation record after it was once durable,
+cannot be distinguished from a historical state using these files alone.
+
+That limitation does not create extra presale capacity because the finite
+capacity obligation is the durable `payment_verified` history, not the
+allocation directory. It does mean this source capability is not sufficient as
+the complete production allocation-history authority.
+
+Production integration therefore still requires a separately protected
+monotonic high-water (or stronger equivalent), exact history/high-water
+agreement, and one crash-recoverable publication/recovery protocol under the
+same Buy VOID serialization boundary. Until that exists and is integrated:
+
+- `allocation_history_completeness_authority=false`;
+- `external_high_water_binding=false`;
+- `rollback_detection=false`;
+- `production_gate_ready=false`; and
+- `runtime_integration=false`.
+
 ## Verification
 
 ```bash
