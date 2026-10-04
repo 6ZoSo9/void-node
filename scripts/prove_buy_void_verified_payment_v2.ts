@@ -123,7 +123,7 @@ if (overflowLogIndexVerification.ok) {
 }
 assert.equal(
   overflowLogIndexVerification.reason,
-  "matching_usdc_transfer_not_found",
+  "log_index_exceeds_1463_domain",
 );
 
 const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
@@ -179,4 +179,5 @@ assert.deepEqual(VOID_BUY_VOID_VERIFIED_PAYMENT_AUTHORITY_V2, {
 
 console.log("payment_log_index_uint32_boundary=true");
 console.log("payment_log_index_uint32_overflow_hold=true");
+console.log("payment_log_index_overflow_reason_preserved=true");
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_GREEN");
