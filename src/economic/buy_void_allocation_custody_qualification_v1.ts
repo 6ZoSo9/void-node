@@ -48,6 +48,10 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_QUALIFICATION_AUTHORITY_V1 =
     private_unix_socket_policy_required: true,
     hardened_service_policy_required: true,
     no_fallback_storage_required: true,
+    evidence_snapshot_bound: true,
+    bounded_evidence_freshness_checked: true,
+    verification_clock_input_required: true,
+    verification_clock_authority_proven: false,
     prior_receipt_external_trust_proven: false,
     live_host_qualification_performed: false,
     host_mutation: false,
@@ -86,12 +90,14 @@ const MAX_ANCESTORS = 64;
 const MAX_MOUNT_OPTIONS = 64;
 const MAX_IPC_BYTES = 64 * 1024;
 const MAX_IPC_TIMEOUT_MS = 10_000;
+const MAX_EVIDENCE_TTL_MS = 5 * 60 * 1000;
 const MAX_EPOCH = (1n << 64n) - 1n;
 
 const INPUT_KEYS = Object.freeze([
   "writer_source_head",
   "writer_source_blob_sha1",
   "writer_source_sha256",
+  "verification_now_ms",
   "host_evidence",
   "current_ledger_jsonl",
   "current_high_water_json",
@@ -99,6 +105,7 @@ const INPUT_KEYS = Object.freeze([
 ]);
 const HOST_KEYS = Object.freeze([
   "host_id",
+  "evidence_snapshot",
   "runtime_uid",
   "runtime_gid",
   "custody_uid",
@@ -109,6 +116,12 @@ const HOST_KEYS = Object.freeze([
   "service_policy",
   "fallback_storage_enabled",
   "custody_medium_absence_holds",
+]);
+const EVIDENCE_SNAPSHOT_KEYS = Object.freeze([
+  "observed_at_ms",
+  "expires_at_ms",
+  "evidence_generation",
+  "boot_id_sha256",
 ]);
 const ROOT_KEYS = Object.freeze([
   "resolved_path",
@@ -257,6 +270,13 @@ export type BuyVoidAllocationCustodyQualificationDecisionV1 =
       writer_source_blob_sha1: string;
       writer_source_sha256: string;
       host_id: string;
+      evidence_snapshot_fingerprint_sha256: string;
+      evidence_generation: string;
+      evidence_observed_at_ms: number;
+      evidence_expires_at_ms: number;
+      boot_id_sha256: string;
+      evidence_freshness_checked: true;
+      verification_clock_authority_proven: false;
       qualification_policy_fingerprint_sha256: string;
       ledger_mount_instance_fingerprint_sha256: string;
       ledger_storage_failure_domain_fingerprint_sha256: string;
@@ -280,6 +300,8 @@ export type BuyVoidAllocationCustodyQualificationDecisionV1 =
       version: 1;
       reason: string;
       qualification_id_sha256: null;
+      evidence_freshness_checked: false;
+      verification_clock_authority_proven: false;
       root_path_stability_evidence_qualified: false;
       separate_storage_domain_evidence_qualified: false;
       monotonic_continuity_against_supplied_prior: false;
@@ -319,8 +341,17 @@ type RootV1 = {
   mount: MountV1;
 };
 
+type EvidenceSnapshotV1 = {
+  observed_at_ms: number;
+  expires_at_ms: number;
+  evidence_generation: string;
+  boot_id_sha256: string;
+  fingerprint_sha256: string;
+};
+
 type HostV1 = {
   host_id: string;
+  evidence_snapshot: EvidenceSnapshotV1;
   runtime_uid: number;
   runtime_gid: number;
   custody_uid: number;
@@ -345,6 +376,8 @@ function held(reason: string): BuyVoidAllocationCustodyQualificationDecisionV1 {
     version: 1,
     reason,
     qualification_id_sha256: null,
+    evidence_freshness_checked: false,
+    verification_clock_authority_proven: false,
     root_path_stability_evidence_qualified: false,
     separate_storage_domain_evidence_qualified: false,
     monotonic_continuity_against_supplied_prior: false,
@@ -939,7 +972,60 @@ function normalizeServicePolicy(
   });
 }
 
-function normalizeHost(value: unknown): HostV1 {
+function normalizeEvidenceSnapshot(
+  value: unknown,
+  verificationNowMs: number,
+): EvidenceSnapshotV1 {
+  const snapshot = exactObject(
+    value,
+    EVIDENCE_SNAPSHOT_KEYS,
+    "custody_evidence_freshness_invalid",
+  );
+  const observedAtMs = safeInt(
+    snapshot.observed_at_ms,
+    1,
+    Number.MAX_SAFE_INTEGER,
+    "custody_evidence_freshness_invalid",
+  );
+  const expiresAtMs = safeInt(
+    snapshot.expires_at_ms,
+    1,
+    Number.MAX_SAFE_INTEGER,
+    "custody_evidence_freshness_invalid",
+  );
+  const generation = decimal(
+    snapshot.evidence_generation,
+    "custody_evidence_freshness_invalid",
+  );
+  if (
+    BigInt(generation) < 1n ||
+    observedAtMs > verificationNowMs ||
+    expiresAtMs < verificationNowMs ||
+    expiresAtMs <= observedAtMs ||
+    expiresAtMs - observedAtMs > MAX_EVIDENCE_TTL_MS
+  ) {
+    fail("custody_evidence_freshness_invalid");
+  }
+  const bootIdSha256 = sha(
+    snapshot.boot_id_sha256,
+    "custody_evidence_freshness_invalid",
+  );
+  const body = Object.freeze({
+    observed_at_ms: observedAtMs,
+    expires_at_ms: expiresAtMs,
+    evidence_generation: generation,
+    boot_id_sha256: bootIdSha256,
+  });
+  return Object.freeze({
+    ...body,
+    fingerprint_sha256: sha256Id(canonicalJson(body)),
+  });
+}
+
+function normalizeHost(
+  value: unknown,
+  verificationNowMs: number,
+): HostV1 {
   const host = exactObject(
     value,
     HOST_KEYS,
@@ -949,6 +1035,10 @@ function normalizeHost(value: unknown): HostV1 {
     host.host_id,
     /^[A-Za-z0-9._:-]{1,160}$/u,
     "custody_host_evidence_invalid",
+  );
+  const evidenceSnapshot = normalizeEvidenceSnapshot(
+    host.evidence_snapshot,
+    verificationNowMs,
   );
   const runtimeUid = safeInt(
     host.runtime_uid,
@@ -1038,6 +1128,7 @@ function normalizeHost(value: unknown): HostV1 {
   }
   return Object.freeze({
     host_id: hostId,
+    evidence_snapshot: evidenceSnapshot,
     runtime_uid: runtimeUid,
     runtime_gid: runtimeGid,
     custody_uid: custodyUid,
@@ -1082,11 +1173,16 @@ function policyFingerprint(
   writerSourceSha256: string,
   host: HostV1,
 ): string {
+  const policyHost = Object.fromEntries(
+    Object.entries(host).filter(
+      ([key]) => key !== "evidence_snapshot",
+    ),
+  );
   return sha256Id(
     canonicalJson({
       domain: QUALIFICATION_DOMAIN,
       writer_source_sha256: writerSourceSha256,
-      host,
+      host: policyHost,
     }),
   );
 }
@@ -1143,6 +1239,18 @@ function buildReceipt(input: {
     writer_source_blob_sha1: input.writer_source_blob_sha1,
     writer_source_sha256: input.writer_source_sha256,
     host_id: input.host.host_id,
+    evidence_snapshot_fingerprint_sha256:
+      input.host.evidence_snapshot.fingerprint_sha256,
+    evidence_generation:
+      input.host.evidence_snapshot.evidence_generation,
+    evidence_observed_at_ms:
+      input.host.evidence_snapshot.observed_at_ms,
+    evidence_expires_at_ms:
+      input.host.evidence_snapshot.expires_at_ms,
+    boot_id_sha256:
+      input.host.evidence_snapshot.boot_id_sha256,
+    evidence_freshness_checked: true,
+    verification_clock_authority_proven: false,
     qualification_policy_fingerprint_sha256:
       input.qualification_policy_fingerprint_sha256,
     ledger_mount_instance_fingerprint_sha256:
@@ -1330,12 +1438,15 @@ function bytes(value: string | Buffer): Buffer {
 
 function qualificationId(
   policyFingerprintValue: string,
+  evidenceSnapshotFingerprint: string,
   receiptSha: string,
 ): string {
   return sha256Id(
     QUALIFICATION_DOMAIN +
       "\n" +
       policyFingerprintValue +
+      "\n" +
+      evidenceSnapshotFingerprint +
       "\n" +
       receiptSha,
   );
@@ -1357,6 +1468,7 @@ function success(input: {
     version: 1,
     qualification_id_sha256: qualificationId(
       input.policy_fingerprint,
+      input.host.evidence_snapshot.fingerprint_sha256,
       input.receipt.receipt_sha256,
     ),
     writer_source_head: input.writer_head,
@@ -1395,6 +1507,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
     writer_source_head: unknown;
     writer_source_blob_sha1: unknown;
     writer_source_sha256: unknown;
+    verification_now_ms: unknown;
     host_evidence: unknown;
     current_ledger_jsonl: string | Buffer;
     current_high_water_json: string | Buffer;
@@ -1436,7 +1549,16 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
       fail("custody_source_binding_invalid");
     }
 
-    const host = normalizeHost(input.host_evidence);
+    const verificationNowMs = safeInt(
+      input.verification_now_ms,
+      1,
+      Number.MAX_SAFE_INTEGER,
+      "custody_evidence_freshness_invalid",
+    );
+    const host = normalizeHost(
+      input.host_evidence,
+      verificationNowMs,
+    );
     const policy = policyFingerprint(writerSourceSha256, host);
     const currentLedger = bytes(input.current_ledger_jsonl);
     const currentBinding =
