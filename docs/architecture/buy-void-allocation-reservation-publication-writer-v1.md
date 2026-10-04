@@ -167,14 +167,31 @@ The authority object therefore keeps:
 
 - \`protected_high_water_custody_proven=false\`;
 - \`independent_custody_proven=false\`;
+- \`post_admission_root_path_stability_proven=false\`;
+- \`single_root_post_publication_recovery=false\`;
 - \`storage_bootstrap=false\`;
 - \`runtime_integration=false\`;
 - \`production_gate_ready=false\`.
 
-A later designated-host gate must prove the chosen high-water root cannot be
-rolled back together with the allocation ledger root. That may require separate
-mount/storage policy, external anchoring, or another reviewed host-level
-monotonic mechanism.
+The dual-root lock guarantee is intentionally narrower than arbitrary
+post-admission pathname replacement. It proves that replacing either one visible
+root does not create two concurrently admitted writers because the unchanged
+root still supplies a shared queue.
+
+It does **not** claim automatic recovery if a same-UID actor replaces one visible
+custody root after the writer's final root-identity revalidation and before or
+after an authoritative rename. In particular, the exact visible state
+
+\`next ledger + prior high-water + no visible intent\`
+
+must HOLD. The writer does not reinterpret that mixed state as success and does
+not synthesize missing intent authority.
+
+A later designated-host gate must therefore prove root-path stability across the
+whole admitted publication interval and prove the chosen high-water root cannot
+be rolled back together with the allocation ledger root. That may require
+separate mount/storage policy, external anchoring, a separately protected intent
+domain, or another reviewed host-level monotonic mechanism.
 
 ## Focused proof
 
@@ -205,7 +222,10 @@ The focused writer proof covers:
 - cross-process serialization after replacing only the visible ledger root;
 - ticket-backed proof that the valid competing publication remains blocked on
   the unchanged root until the holder releases;
-- exact competing publication completion after release; and
+- exact competing publication completion after release;
+- deterministic HOLD for \`next ledger + prior high-water + no intent\`;
+- explicit false authority for post-admission root-path stability and
+  single-root post-publication recovery; and
 - missing authoritative storage HOLD.
 
 ## Authority boundary
