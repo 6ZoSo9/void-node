@@ -560,6 +560,30 @@ const observedAt = (BASE_UNIX + 140) * 1000;
     const finalPath = path.join(f.records, finalName);
     const bytes = fs.readFileSync(finalPath);
 
+    const emptyTemp =
+      path.join(
+        f.records,
+        "." +
+          finalName +
+          ".tmp-" +
+          String(process.pid) +
+          "-0000000000000000",
+      );
+    fs.writeFileSync(emptyTemp, Buffer.alloc(0), { mode: 0o600 });
+    requireHeld(
+      listEconomicSystemSponsoredReservationsV1(
+        listInput(f.root, ttl, sponsor, observedAt),
+      ),
+      "SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED",
+    );
+    const emptyRecovered = requireOk(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      ),
+    );
+    assert.equal(emptyRecovered.status, "duplicate");
+    assert.equal(fs.existsSync(emptyTemp), false);
+
     const unpublishedTemp =
       path.join(
         f.records,
@@ -785,6 +809,7 @@ console.log("per_identity_budget_enforced=true");
 console.log("global_budget_enforced=true");
 console.log("concurrent_near_budget_serialized=true");
 console.log("crash_temp_recovery=true");
+console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
 console.log("storage_bootstrap=false");
 console.log("runtime_route_mount=false");
