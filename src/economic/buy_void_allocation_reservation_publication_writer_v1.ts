@@ -44,8 +44,6 @@ export const VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V
     runtime_integration: false,
     protected_high_water_custody_proven: false,
     independent_custody_proven: false,
-    post_admission_root_path_stability_proven: false,
-    single_root_post_publication_recovery: false,
     payment_verified_event_write: false,
     wallet_or_signer_access: false,
     private_key_access: false,
