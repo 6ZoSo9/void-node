@@ -4,7 +4,6 @@ import path from "node:path";
 import { types as utilTypes } from "node:util";
 
 import {
-  VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1,
   canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1,
   createVoidEconomicSystemSponsoredObservationTimeV1,
   verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1,
@@ -59,14 +58,7 @@ const MAX_RECORD_BYTES = 64 * 1024;
 const MAX_RECORDS = 1_000_000;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const DECIMAL = /^(0|[1-9][0-9]*)$/u;
-const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const RECORD_NAME = /^[0-9a-f]{64}\.json$/u;
-const MAX_UINT64 = (1n << 64n) - 1n;
-const MAX_MONOTONIC = (1n << 127n) - 1n;
-const NS_PER_MS = 1_000_000n;
 
 function fail(code) {
   throw new Error(code);
