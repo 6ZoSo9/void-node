@@ -21,6 +21,7 @@ const HEX_32 = /^0x[0-9a-f]{64}$/;
 const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
 
 export type BuyVoidReceiptLogV2 = {
   address?: unknown;
@@ -269,7 +270,12 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     if (amountUnits === null || amountUnits !== requestedUnits) continue;
 
     const logIndex = parseNonNegativeInteger(log.logIndex);
-    if (logIndex === null) continue;
+    if (
+      logIndex === null ||
+      logIndex > MAX_PAYMENT_LOG_INDEX
+    ) {
+      continue;
+    }
 
     const logTxHash = log.transactionHash
       ? normalizeHash(log.transactionHash)
