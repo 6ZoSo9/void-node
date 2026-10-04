@@ -25,9 +25,12 @@ The high-water closes rollback only if ledger and high-water cannot silently
 diverge across a process crash.
 
 A writer that appends the ledger and then crashes before updating high-water
-creates a legitimate intermediate state. A writer that updates high-water
-first creates an unsafe state: the protected authority claims history that the
-ledger does not yet contain.
+creates a legitimate intermediate state. The normal writer must not
+intentionally update high-water first. If an external path replacement or
+equivalent failure nevertheless exposes the exact intent-bound next high-water
+while the ledger is still the exact prior ledger, the durable intent makes that
+one mixed state safely forward-recoverable by replaying only the exact bound
+append.
 
 The publication protocol therefore has one forward order:
 
@@ -126,7 +129,30 @@ Recovery action required later:
 - postcheck;
 - remove intent.
 
-### 3. `complete`
+### 3. `high_water_committed`
+
+Observed state:
+
+- ledger = exact prior ledger;
+- high-water = exact next high-water.
+
+This phase is accepted only because the intent independently binds the exact
+prior ledger/high-water, the exact one-record append, and the exact next
+ledger/high-water. Recovery revalidates the intent-carried prior high-water
+against the observed prior ledger and the intent-carried next high-water
+against the reconstructed next ledger.
+
+Recovery action required later:
+
+- append the exact intent-bound allocation record bytes;
+- do **not** publish high-water again;
+- postcheck;
+- remove intent.
+
+This is forward recovery only. It does not authorize an intentional
+high-water-first publication order.
+
+### 4. `complete`
 
 Observed state:
 
@@ -148,7 +174,6 @@ Recovery action required later:
 
 The classifier fails closed on:
 
-- prior ledger + next high-water (**high-water ahead**);
 - any ledger not matching exact prior or next fingerprint;
 - any high-water not matching exact prior or next bytes/digest;
 - next ledger whose prior prefix does not match the intent;
@@ -169,8 +194,8 @@ pattern for coupled-launch generation publication. This allocation protocol
 reuses that **shape**:
 
 - intent before mutation;
-- one forward publication order;
-- recoverable known intermediate state;
+- one normal forward publication order;
+- recoverable exact intent-bound intermediate states;
 - separately bound authority state;
 - exact postcheck before intent removal; and
 - unknown/mixed states fail closed.
