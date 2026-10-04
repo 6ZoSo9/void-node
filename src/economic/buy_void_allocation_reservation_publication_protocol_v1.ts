@@ -398,6 +398,37 @@ function parseIntentV1(
     );
   }
 
+  let appendRecord: unknown;
+  try {
+    appendRecord = JSON.parse(
+      appendBytes.toString("utf8").slice(0, -1),
+    );
+  } catch {
+    throw new Error(
+      "allocation_reservation_publication_append_record_invalid",
+    );
+  }
+  if (
+    !appendRecord ||
+    typeof appendRecord !== "object" ||
+    Array.isArray(appendRecord)
+  ) {
+    throw new Error(
+      "allocation_reservation_publication_append_record_invalid",
+    );
+  }
+  const appendRow = appendRecord as Record<string, unknown>;
+  if (
+    String(appendRow.record_id || "") !== recordId ||
+    String(appendRow.allocation_record_hash || "") !== recordHash ||
+    String(appendRow.previous_record_hash || "") !== priorTip ||
+    recordHash !== nextTip
+  ) {
+    throw new Error(
+      "allocation_reservation_publication_append_record_binding_invalid",
+    );
+  }
+
   const body: PublicationIntentBodyV1 = {
     schema:
       VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_INTENT_SCHEMA_V1,
