@@ -132,8 +132,20 @@ export function assembleBuyCoupledLiveActivationReceiptV1({
   signingRequest,
   activationSignature,
   sovereignSignature,
-}) {
+}, nowMs = Date.now()) {
   verifyBuyCoupledLiveActivationSigningRequestV1(signingRequest);
+  if (
+    !Number.isSafeInteger(nowMs) ||
+    nowMs <= 0 ||
+    !Number.isSafeInteger(signingRequest.prepared_at_ms) ||
+    nowMs < signingRequest.prepared_at_ms ||
+    !Number.isSafeInteger(signingRequest.unsigned_receipt?.activated_at_ms) ||
+    !Number.isSafeInteger(signingRequest.unsigned_receipt?.expires_at_ms) ||
+    signingRequest.unsigned_receipt.activated_at_ms > nowMs ||
+    signingRequest.unsigned_receipt.expires_at_ms <= nowMs
+  ) {
+    fail("activation_receipt_assembly_lease_not_ready");
+  }
 
   const verified = verifyCoupledLiveActivationTypedDataSignaturesV1({
     typedData: signingRequest.typed_data,
@@ -167,6 +179,7 @@ export function assembleBuyCoupledLiveActivationReceiptV1({
 
   const assemblyBody = Object.freeze({
     schema: "void.buy-void-coupled-live-activation-receipt-assembly.v1",
+    assembled_at_ms: nowMs,
     signing_request: signingRequest,
     signing_request_id: signingRequest.signing_request_id,
     typed_data_digest: signingRequest.typed_data_digest,
@@ -212,98 +225,36 @@ export function verifyBuyCoupledLiveActivationReceiptAssemblyV1(assembly) {
     assembly.version !== 1 ||
     assembly.status !==
       "HOLD_PENDING_PRIVATE_RECEIPT_INSTALLATION_AND_LIVE_REVALIDATION" ||
-    !/^voidbclara1_[0-9a-f]{64}$/u.test(String(assembly.assembly_id || ""))
+    !/^voidbclara1_[0-9a-f]{64}$/u.test(
+      String(assembly.assembly_id || ""),
+    ) ||
+    !Number.isSafeInteger(assembly.assembled_at_ms) ||
+    assembly.assembled_at_ms <= 0 ||
+    !assembly.receipt ||
+    typeof assembly.receipt !== "object" ||
+    Array.isArray(assembly.receipt)
   ) {
     fail("activation_receipt_assembly_invalid");
   }
 
-  const {
-    marker: _marker,
-    version: _version,
-    status: _status,
-    assembly_id: _assemblyId,
-    ...assemblyBody
-  } = assembly;
-  const expectedId =
-    "voidbclara1_" +
-    sha256Bytes(Buffer.from(canonicalJson(assemblyBody), "utf8"));
-  if (assembly.assembly_id !== expectedId) {
-    fail("activation_receipt_assembly_id_mismatch");
-  }
-
-  verifyBuyCoupledLiveActivationSigningRequestV1(
-    assembly.signing_request,
+  const expected = assembleBuyCoupledLiveActivationReceiptV1(
+    {
+      signingRequest: assembly.signing_request,
+      activationSignature: assembly.receipt.activation_signature,
+      sovereignSignature: assembly.receipt.sovereign_signature,
+    },
+    assembly.assembled_at_ms,
   );
-  if (
-    assembly.signing_request_id !==
-      assembly.signing_request.signing_request_id ||
-    assembly.typed_data_digest !==
-      assembly.signing_request.typed_data_digest ||
-    assembly.activation_receipt_id !==
-      assembly.signing_request.activation_receipt_id
-  ) {
-    fail("activation_receipt_assembly_request_binding_invalid");
-  }
 
-  const activationSignature =
-    assembly.receipt?.activation_signature;
-  const sovereignSignature =
-    assembly.receipt?.sovereign_signature;
-  verifyCoupledLiveActivationTypedDataSignaturesV1({
-    typedData: assembly.signing_request.typed_data,
-    activationSignature,
-    sovereignSignature,
-    expectedActivationSigner:
-      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
-    expectedSovereignSigner:
-      VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
-  });
-
-  const expectedReceipt = {
-    ...assembly.signing_request.unsigned_receipt,
-    activation_signature: activationSignature,
-    sovereign_signature: sovereignSignature,
-  };
-  if (
-    canonicalJson(assembly.receipt) !==
-      canonicalJson(expectedReceipt) ||
-    assembly.activation_signer !==
-      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
-    assembly.sovereign_signer !==
-      VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1
-  ) {
-    fail("activation_receipt_assembly_receipt_binding_invalid");
-  }
-
-  const receiptBytes = Buffer.from(
-    JSON.stringify(assembly.receipt, null, 2) + "\n",
-    "utf8",
-  );
-  if (
-    receiptBytes.length !== assembly.receipt_bytes ||
-    sha256Bytes(receiptBytes) !== assembly.receipt_sha256 ||
-    assembly.operator_confirmation !==
-      "activate-coupled-public-buy-v1:" +
-        assembly.receipt.activation_generation +
-        ":" +
-        assembly.receipt.generation_tip_sha256 +
-        ":" +
-        assembly.receipt.activation_receipt_id +
-        ":" +
-        assembly.receipt_sha256 ||
-    assembly.authority_boundary?.private_key_access !== false ||
-    assembly.authority_boundary?.signature_creation !== false ||
-    assembly.authority_boundary?.runtime_mutation !== false ||
-    assembly.authority_boundary?.funds_movement !== false
-  ) {
+  if (canonicalJson(assembly) !== canonicalJson(expected)) {
     fail("activation_receipt_assembly_binding_invalid");
   }
 
   return Object.freeze({
     verified: true,
-    assembly_id: assembly.assembly_id,
-    activation_receipt_id: assembly.activation_receipt_id,
-    receipt_sha256: assembly.receipt_sha256,
-    operator_confirmation: assembly.operator_confirmation,
+    assembly_id: expected.assembly_id,
+    activation_receipt_id: expected.activation_receipt_id,
+    receipt_sha256: expected.receipt_sha256,
+    operator_confirmation: expected.operator_confirmation,
   });
 }
