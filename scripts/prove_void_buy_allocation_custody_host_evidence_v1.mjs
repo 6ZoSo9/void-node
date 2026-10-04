@@ -276,8 +276,9 @@ for (const capabilityField of ["CapInh", "CapPrm", "CapEff", "CapAmb"]) {
     "collector must bind live process capability field " + capabilityField,
   );
 }
-assert.ok(
-  source.includes(JSON.stringify("NoNewPrivs")),
+assert.match(
+  source,
+  /NoNewPrivs/u,
   "collector must bind live kernel no-new-privileges state",
 );
 assert.match(
