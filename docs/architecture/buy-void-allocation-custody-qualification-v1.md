@@ -146,6 +146,43 @@ match:
 - reserved total; and
 - remaining total.
 
+## Evidence freshness boundary
+
+Static custody policy and dynamic host observation are deliberately separate.
+
+Every supplied host-evidence object carries one exact snapshot:
+
+- `observed_at_ms`;
+- `expires_at_ms`;
+- positive decimal `evidence_generation`; and
+- content-addressed `boot_id_sha256`.
+
+The caller must also supply an explicit `verification_now_ms`. V1 rejects a
+snapshot when observation is in the future, the snapshot is expired at the
+verification instant, expiry is not after observation, the generation is zero
+or outside the reviewed integer domain, or the observation-to-expiry window is
+greater than five minutes.
+
+The canonical snapshot digest is included in the qualification ID. It is
+**excluded** from the static custody-policy fingerprint and from the monotonic
+allocation custody receipt. Therefore reacquiring fresh evidence for the same
+unchanged host/storage policy changes the qualification ID but does not invent a
+new allocation custody epoch or alter the prior receipt.
+
+This source contract does not prove where the verification clock came from and
+does not prove evidence-generation monotonicity across independently supplied
+snapshots. It therefore keeps:
+
+```text
+verification_clock_authority_proven=false
+evidence_generation_monotonicity_proven=false
+live_host_qualification_performed=false
+```
+
+A later designated-host collector must own the clock, reacquire the evidence
+after boot/remount/service-policy changes, and bind that acquisition to reviewed
+host evidence.
+
 ## Why a prior receipt is required
 
 A valid current ledger + matching current high-water cannot detect a coordinated
@@ -216,6 +253,7 @@ The final qualification ID is derived from:
 ```text
 void-buy-allocation-custody-qualification-v1
 qualification_policy_fingerprint_sha256
+evidence_snapshot_fingerprint_sha256
 receipt_sha256
 ```
 
@@ -235,6 +273,9 @@ It is not called live-ready.
 
 Positive results report:
 
+- `evidence_freshness_checked=true`;
+- `verification_clock_authority_proven=false`;
+- `evidence_generation_monotonicity_proven=false`;
 - `root_path_stability_evidence_qualified=true`;
 - `separate_storage_domain_evidence_qualified=true`;
 - `monotonic_continuity_against_supplied_prior=true`; but
@@ -248,7 +289,9 @@ This classifier performs no filesystem, systemd, mount, permission, RPC, wallet,
 signer, transaction, chain, inventory, market, presale, treasury, liquidity, or
 funds mutation.
 
-It does not collect live host evidence. It only classifies supplied evidence.
+It does not collect live host evidence and does not own an authoritative wall
+clock. It only classifies supplied evidence against the caller-supplied
+verification instant.
 
 The next gate is a read-only designated-host evidence collector plus separately
 protected receipt custody. Only after that evidence is reviewed may a later lane
@@ -266,7 +309,9 @@ git diff --check
 ```
 
 The focused proof covers genesis, object-key order invariance, idempotent
-replay, one-record advance, missing prior receipt, multi-record jump, forged
-prior prefix, same-count conflict, bind alias, missing custody medium, identity
+replay, fresh evidence reacquisition without custody-epoch advancement, stale
+evidence, future observation, overlong evidence TTL, zero evidence generation,
+one-record advance, missing prior receipt, multi-record jump, forged prior
+prefix, same-count conflict, bind alias, missing custody medium, identity
 separation, writable root, unsafe ancestor, IPC policy, service policy, fallback
 storage, source-head mismatch, and changed-host prior-receipt mismatch.
