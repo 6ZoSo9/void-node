@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { types as utilTypes } from "node:util";
 
 export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1 =
   "VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1";
@@ -113,7 +114,12 @@ function sha256Id(value) {
 }
 
 function exactSnapshot(value, keys, code) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    utilTypes.isProxy(value)
+  ) {
     fail(code);
   }
   const prototype = Object.getPrototypeOf(value);
