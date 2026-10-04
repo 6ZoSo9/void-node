@@ -49,14 +49,25 @@ const baseInput = {
   operator_activation_record_green: true,
 } as const;
 
+function requireOk<T>(
+  value: T,
+): Extract<T, { ok: true }> {
+  const runtime = value as T & {
+    ok: boolean;
+    reason?: string;
+  };
+  if (runtime.ok !== true) {
+    throw new Error(runtime.reason ?? "unexpected_hold");
+  }
+  return value as Extract<T, { ok: true }>;
+}
+
 function requireDerived(
   ledger: string,
 ) {
-  const out =
-    deriveBuyVoidAllocationReservationHighWaterV1(ledger);
-  if (out.ok === false) throw new Error(out.reason);
-  assert.equal(out.ok, true);
-  return out;
+  return requireOk(
+    deriveBuyVoidAllocationReservationHighWaterV1(ledger),
+  );
 }
 
 function requirePlanned(
@@ -64,9 +75,7 @@ function requirePlanned(
     typeof planBuyVoidAllocationReservationV1
   >,
 ) {
-  if (decision.ok === false) throw new Error(decision.reason);
-  assert.equal(decision.ok, true);
-  return decision;
+  return requireOk(decision);
 }
 
 function expectHeld(
@@ -102,13 +111,12 @@ assert.equal(empty.high_water.pool_void_total, "10000000");
 assert.equal(empty.high_water.reserved_void_total, "0");
 assert.equal(empty.high_water.remaining_void, "10000000");
 
-const emptyBound =
+const emptyBound = requireOk(
   classifyBuyVoidAllocationReservationHighWaterBindingV1({
     ledger_jsonl: "",
     high_water_json: empty.high_water_json,
-  });
-if (emptyBound.ok === false) throw new Error(emptyBound.reason);
-assert.equal(emptyBound.ok, true);
+  }),
+);
 assert.equal(
   emptyBound.rollback_safe_for_presented_authoritative_high_water,
   true,
@@ -127,26 +135,24 @@ assert.equal(
 assert.equal(high1.high_water.reserved_void_total, "6");
 assert.equal(high1.high_water.remaining_void, "9999994");
 
-const firstAdvance =
+const firstAdvance = requireOk(
   planBuyVoidAllocationReservationHighWaterAdvanceV1({
     current_ledger_jsonl: "",
     current_high_water_json: empty.high_water_json,
     next_ledger_jsonl: ledger1,
-  });
-if (firstAdvance.ok === false) throw new Error(firstAdvance.reason);
-assert.equal(firstAdvance.ok, true);
+  }),
+);
 assert.equal(firstAdvance.status, "planned");
 assert.equal(firstAdvance.idempotent, false);
 assert.equal(firstAdvance.next_high_water.record_count, 1);
 
-const firstRetry =
+const firstRetry = requireOk(
   planBuyVoidAllocationReservationHighWaterAdvanceV1({
     current_ledger_jsonl: ledger1,
     current_high_water_json: high1.high_water_json,
     next_ledger_jsonl: ledger1,
-  });
-if (firstRetry.ok === false) throw new Error(firstRetry.reason);
-assert.equal(firstRetry.ok, true);
+  }),
+);
 assert.equal(firstRetry.status, "idempotent");
 assert.equal(firstRetry.idempotent, true);
 assert.equal(
@@ -178,14 +184,13 @@ assert.equal(high2.high_water.record_count, 2);
 assert.equal(high2.high_water.reserved_void_total, "10");
 assert.equal(high2.high_water.remaining_void, "9999990");
 
-const secondAdvance =
+const secondAdvance = requireOk(
   planBuyVoidAllocationReservationHighWaterAdvanceV1({
     current_ledger_jsonl: ledger1,
     current_high_water_json: high1.high_water_json,
     next_ledger_jsonl: ledger2,
-  });
-if (secondAdvance.ok === false) throw new Error(secondAdvance.reason);
-assert.equal(secondAdvance.ok, true);
+  }),
+);
 assert.equal(secondAdvance.status, "planned");
 assert.equal(secondAdvance.next_high_water.record_count, 2);
 
