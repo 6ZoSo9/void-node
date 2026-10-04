@@ -50,6 +50,35 @@ assert.equal(
   6,
 );
 
+const expectedCanonicalStateAndPolicyUpdates = [
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+  "ops/mainnet0/wc-void-production-candidate-v1.json",
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
+  "src/economic/buy_void_coupled_launch_gate_v1.mjs",
+  "tools/void-btc-void-atomic-settlement-state-invariants-v1.mjs",
+  "tools/void-coupled-economic-successor-gate-v1.mjs",
+  "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs",
+  "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs",
+  "tools/void-wc-void-bounded-canary-canonical-application-v1.mjs",
+  "tools/void-wc-void-bounded-canary-evidence-v1.mjs",
+  "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs",
+  "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs",
+  "tools/void-wc-void-coupled-launch-policy-reviewed-core-v1.mjs",
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs",
+  "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs",
+  "tools/void-wc-void-market-vault-canonical-application-v1.mjs",
+  "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs",
+  "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs",
+  "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs",
+  "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
+  "tools/void-wc-void-production-readiness-v1.mjs"
+];
+assert.deepEqual(
+  [...plan.canonical_state_and_policy_updates].sort(),
+  expectedCanonicalStateAndPolicyUpdates,
+  "canonical migration source set must exactly match reviewed census union",
+);
+
 for (const key of [
   "canonical_state_and_policy_updates",
   "focused_proof_updates",
