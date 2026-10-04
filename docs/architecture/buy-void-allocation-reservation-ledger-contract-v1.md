@@ -53,6 +53,11 @@ inventory authority.
 All VOID and USDC amounts use exact integer micro-unit arithmetic with at most
 six decimal places.
 
+Decimal input text is bounded to 32 characters before any trim, regular-expression,
+or `BigInt` conversion. This is intentionally much larger than the canonical
+10,000,000-VOID / 5,000,000-USDC presale domain while preventing a near-ledger-size
+numeric field from turning the pure classifier into pathological bigint work.
+
 For every new record:
 
 ```text

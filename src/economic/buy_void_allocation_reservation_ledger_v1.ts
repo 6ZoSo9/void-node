@@ -55,6 +55,7 @@ const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
 const MAX_LEDGER_RECORDS = 100_000;
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
 const MICRO = 1_000_000n;
+const MAX_AMOUNT_TEXT_CHARS = 32;
 
 const RECORD_KEYS = Object.freeze([
   "allocation_record_hash",
@@ -218,7 +219,12 @@ function amountV1(
   code: string,
   positive = false,
 ): AmountV1 {
-  const raw = String(value ?? "").trim();
+  const source = String(value ?? "");
+  // allocation_reservation_amount_text_too_long_guard
+  // Bound attacker-controlled decimal text before trim/regex/BigInt work.
+  if (source.length > MAX_AMOUNT_TEXT_CHARS) throw new Error(code);
+  const raw = source.trim();
+  if (raw.length > MAX_AMOUNT_TEXT_CHARS) throw new Error(code);
   const match =
     /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u.exec(raw);
   if (!match) throw new Error(code);

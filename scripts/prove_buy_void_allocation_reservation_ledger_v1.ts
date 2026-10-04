@@ -253,6 +253,31 @@ expectHeld(
   "allocation_reservation_quote_void_invalid",
 );
 
+const oversizedAmount = "9".repeat(33);
+expectHeld(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    quote_void_amount: oversizedAmount,
+  }),
+  "allocation_reservation_quote_void_invalid",
+);
+
+{
+  const oversizedRecord = JSON.parse(ledger1.trimEnd());
+  oversizedRecord.quote_void_amount = oversizedAmount;
+  const oversizedLedger = JSON.stringify(oversizedRecord) + "\n";
+  const oversizedLedgerDecision =
+    classifyBuyVoidAllocationReservationLedgerV1(oversizedLedger);
+  assert.equal(oversizedLedgerDecision.ok, false);
+  if (oversizedLedgerDecision.ok) {
+    throw new Error("expected oversized ledger amount HOLD");
+  }
+  assert.equal(
+    oversizedLedgerDecision.reason,
+    "allocation_reservation_quote_void_invalid",
+  );
+}
+
 expectHeld(
   planBuyVoidAllocationReservationV1({
     ...baseInput,
@@ -513,4 +538,5 @@ console.log("runtime_integration=false");
 console.log("filesystem_write=false");
 console.log("allocation_reservation_write=false");
 console.log("production_gate_ready=false");
+console.log("amount_text_prebounded_before_bigint=true");
 console.log("funds_movement=false");
