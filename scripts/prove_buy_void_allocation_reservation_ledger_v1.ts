@@ -297,6 +297,31 @@ assert.equal(
   "voidpay1:ethereum:0x" + "a".repeat(64) + ":7",
 );
 
+const u32Max = planBuyVoidAllocationReservationV1({
+  ...baseInput,
+  payment_log_index: "4294967295",
+});
+assert.equal(u32Max.ok, true);
+if (!u32Max.ok) throw new Error("expected uint32 max log index");
+assert.equal(u32Max.record.payment_log_index, "4294967295");
+
+for (const overflow of ["4294967296", "0x100000000"]) {
+  expectHeld(
+    planBuyVoidAllocationReservationV1({
+      ...baseInput,
+      payment_log_index: overflow,
+    }),
+    "allocation_reservation_payment_log_index_invalid",
+  );
+}
+expectHeld(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    payment_log_index: "9".repeat(1000),
+  }),
+  "allocation_reservation_payment_log_index_invalid",
+);
+
 const malformed =
   classifyBuyVoidAllocationReservationLedgerV1("{bad}\n");
 assert.equal(malformed.ok, false);
@@ -456,6 +481,8 @@ console.log(
 );
 console.log("record_type=allocation_reserved");
 console.log("canonical_payment_identity_bound=true");
+console.log("payment_log_index_uint32_bound=true");
+console.log("oversized_payment_log_index_rejected_before_bigint=true");
 console.log("request_id_unique=true");
 console.log("canonical_payment_identity_unique=true");
 console.log("hash_chain_append_only=true");
