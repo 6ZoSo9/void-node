@@ -13,15 +13,14 @@ import {
   VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1,
 } from "../tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 import {
-  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1,
-} from "../tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
-import {
+  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
   observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
   testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1,
+  testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1,
   testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1,
   testOnlyExerciseVoidWcVoidMarketVaultOutputParentReplacementV1,
   testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
@@ -374,10 +373,10 @@ async function fixture(options = {}) {
               call.params?.[0]?.accessList,
               [{
                 address:
-                  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
                     .marker_address,
                 storageKeys: [
-                  VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
                     .marker_storage_key,
                 ],
               }],
@@ -482,11 +481,11 @@ await withFixture({}, async (f) => {
   assert.equal(result.observation.epoch2_estimate_contract_creation, true);
   assert.equal(
     result.observation.epoch2_access_list_marker_address,
-    VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
+    VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_address,
   );
   assert.equal(
     result.observation.epoch2_access_list_marker_storage_key,
-    VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_storage_key,
+    VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_storage_key,
   );
   assert.equal(
     result.observation.epoch2_signed_access_list_marker_bound,
@@ -534,9 +533,9 @@ await withFixture({}, async (f) => {
     estimate.params[0].accessList,
     [{
       address:
-        VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1.marker_address,
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_address,
       storageKeys: [
-        VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
           .marker_storage_key,
       ],
     }],
@@ -608,6 +607,77 @@ await withFixture({}, async (f) => {
     );
   }
 });
+
+{
+  const exactDomain =
+    testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1();
+  assert.equal(exactDomain.ok, true);
+  assert.equal(
+    exactDomain.status,
+    "TEST_ONLY_EPOCH2_DOMAIN_REVIEWED_SOURCE_GREEN",
+  );
+  assert.equal(
+    exactDomain.reviewed_domain_tool_git_blob_sha1,
+    "f7cb1910923725581d1ff9b31abfb910a64eba14",
+  );
+  assert.equal(exactDomain.chain_id, 2050);
+  assert.equal(exactDomain.transaction_type, 2);
+  assert.equal(exactDomain.production_artifact_authorized, false);
+  assert.equal(exactDomain.rpc_call, false);
+}
+
+{
+  const domainPath =
+    "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
+  const sentinel = path.join(
+    os.tmpdir(),
+    "void-epoch2-domain-import-sentinel-" + process.pid + ".txt",
+  );
+  const original = fs.readFileSync(domainPath);
+  execFileSync(
+    "/usr/bin/git",
+    ["update-index", "--assume-unchanged", "--", domainPath],
+    {
+      cwd: process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitEnv(),
+    },
+  );
+  try {
+    fs.writeFileSync(
+      domainPath,
+      original.toString("utf8") +
+        "\nimport fs from \"node:fs\";" +
+        "\nfs.writeFileSync(" +
+        JSON.stringify(sentinel) +
+        ", \"EXECUTED\\n\");\n",
+    );
+    const held =
+      testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1();
+    assert.equal(held.ok, false);
+    assert.equal(
+      held.reason,
+      "live_deployment_preflight_epoch2_domain_worktree_blob_mismatch",
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "mutated domain module executed before reviewed-source rejection",
+    );
+  } finally {
+    fs.writeFileSync(domainPath, original);
+    execFileSync(
+      "/usr/bin/git",
+      ["update-index", "--no-assume-unchanged", "--", domainPath],
+      {
+        cwd: process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+        env: gitEnv(),
+      },
+    );
+    if (fs.existsSync(sentinel)) fs.unlinkSync(sentinel);
+  }
+}
 
 {
   const selected = JSON.parse(
@@ -953,6 +1023,7 @@ for (const [key, expected] of Object.entries({
   block_bound_deployer_balance_required: true,
   exact_deployment_data_gas_estimate_required: true,
   epoch2_signed_access_list_marker_required: true,
+  epoch2_transaction_domain_reviewed_before_use_required: true,
   gas_price_observation_required: true,
   canonical_void_balance_of_required: true,
   opening_inventory_atoms_required: OPENING_ATOMS.toString(),
@@ -1050,7 +1121,9 @@ for (const required of [
   "eth_gasPrice",
   "eth_estimateGas",
   "eth_call",
-  "VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1",
+  "VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1",
+  "requireReviewedEpoch2EstimateDomainV1",
+  "live_deployment_preflight_epoch2_domain_worktree_blob_mismatch",
   "accessList: deploymentAccessList",
   "epoch2_signed_access_list_marker_bound: true",
   "O_NOFOLLOW",
@@ -1118,6 +1191,9 @@ console.log("pending_nonce_revalidated=true");
 console.log("deployer_balance_block_bound=true");
 console.log("deployment_gas_estimate_read_only=true");
 console.log("epoch2_signed_access_list_marker_bound=true");
+console.log("epoch2_domain_module_not_executed_before_review=true");
+console.log("epoch2_domain_worktree_head_blob_required=true");
+console.log("epoch2_domain_assume_unchanged_sentinel_rejected=true");
 console.log("gas_price_observed=true");
 console.log("inventory_balance_of_block_bound=true");
 console.log("opening_inventory_required_atoms="+OPENING_ATOMS.toString());
