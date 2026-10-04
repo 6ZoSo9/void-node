@@ -88,9 +88,12 @@ function expectHeld(
       >,
   reason: string,
 ): void {
-  assert.equal(decision.ok, false);
-  if (decision.ok) throw new Error("expected high-water HOLD");
-  assert.equal(decision.reason, reason);
+  const runtime = decision as {
+    ok: boolean;
+    reason?: string;
+  };
+  assert.equal(runtime.ok, false);
+  assert.equal(runtime.reason, reason);
 }
 
 const empty = requireDerived("");
