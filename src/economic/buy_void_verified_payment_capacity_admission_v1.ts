@@ -25,6 +25,7 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1 =
     durable_payment_verified_append: true,
     payment_verified_sidecar_recovery: true,
     payment_receipt_verification: false,
+    durable_request_payment_binding: true,
     duplicate_payment_identity_verification: true,
     wallet_or_signer_access: false,
     private_key_access: false,
@@ -41,6 +42,26 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1 =
 
 const MICRO = 1_000_000n;
 const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
+const TX_HASH = /^0x[0-9a-f]{64}$/u;
+
+function canonicalRequestSourceChainV1(value: any): string {
+  const raw = String(
+    value?.source_chain || value?.payment_chain || value?.chain || "base",
+  ).trim().toLowerCase();
+  const chain = raw === "eth" ? "ethereum" : raw;
+  if (chain !== "base" && chain !== "ethereum") {
+    fail("buy_void_verified_payment_capacity_request_source_chain_invalid");
+  }
+  return chain;
+}
+
+function canonicalRequestTxHashV1(value: any): string {
+  const raw = String(value?.tx_hash || "").trim().toLowerCase();
+  if (raw && !TX_HASH.test(raw)) {
+    fail("buy_void_verified_payment_capacity_request_tx_hash_invalid");
+  }
+  return raw;
+}
 
 function fail(code: string): never {
   throw new Error(code);
@@ -404,6 +425,10 @@ function readStrictCapacityLedgerV1(
     "buy_void_verified_payment_capacity_requests",
   );
   const quotes = new Map<string, bigint>();
+  const requestPaymentBindings = new Map<
+    string,
+    { source_chain: string; tx_hash: string }
+  >();
   for (const row of requestRows) {
     const requestId = String(row.request_id || "").trim();
     if (!REQUEST_ID.test(requestId)) {
@@ -419,6 +444,32 @@ function readStrictCapacityLedgerV1(
       fail("buy_void_verified_payment_capacity_request_quote_changed");
     }
     quotes.set(requestId, quote);
+
+    const sourceChain = canonicalRequestSourceChainV1(row);
+    const txHash = canonicalRequestTxHashV1(row);
+    const priorBinding = requestPaymentBindings.get(requestId);
+    if (priorBinding) {
+      if (priorBinding.source_chain !== sourceChain) {
+        fail("buy_void_verified_payment_capacity_request_source_chain_changed");
+      }
+      if (
+        priorBinding.tx_hash &&
+        txHash !== priorBinding.tx_hash
+      ) {
+        fail("buy_void_verified_payment_capacity_request_tx_hash_changed");
+      }
+      if (!priorBinding.tx_hash && txHash) {
+        requestPaymentBindings.set(
+          requestId,
+          Object.freeze({ source_chain: sourceChain, tx_hash: txHash }),
+        );
+      }
+    } else {
+      requestPaymentBindings.set(
+        requestId,
+        Object.freeze({ source_chain: sourceChain, tx_hash: txHash }),
+      );
+    }
   }
 
   const eventRows = parseStrictJsonLinesV1(
@@ -464,6 +515,7 @@ function readStrictCapacityLedgerV1(
     verified_ids: verifiedIds,
     operator_events: eventRows,
     request_quotes: quotes,
+    request_payment_bindings: requestPaymentBindings,
     request_ledger_stat: assertPinnedLedgerVisibleV1(
       requestLedger,
       "buy_void_verified_payment_capacity_requests",
@@ -913,6 +965,14 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           fail("buy_void_verified_payment_capacity_candidate_quote_mismatch");
         }
 
+        const durablePaymentBinding =
+          strictBefore.request_payment_bindings.get(requestId);
+        if (!durablePaymentBinding?.tx_hash) {
+          fail(
+            "buy_void_verified_payment_capacity_candidate_payment_binding_missing",
+          );
+        }
+
         const requestTxHash = String(input.request.tx_hash || "")
           .trim()
           .toLowerCase();
@@ -937,7 +997,9 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           !requestTxHash ||
           requestTxHash !== eventTxHash ||
           !requestChain ||
-          requestChain !== verifierChain
+          requestChain !== verifierChain ||
+          requestTxHash !== durablePaymentBinding.tx_hash ||
+          requestChain !== durablePaymentBinding.source_chain
         ) {
           fail("buy_void_verified_payment_duplicate_guard_request_binding_mismatch");
         }
@@ -1001,6 +1063,18 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           strictAfter.request_quotes.get(requestId);
         if (durableRequestQuoteAfter !== candidateQuoteMicro) {
           fail("buy_void_verified_payment_capacity_candidate_quote_changed");
+        }
+        const durablePaymentBindingAfter =
+          strictAfter.request_payment_bindings.get(requestId);
+        if (
+          !durablePaymentBindingAfter ||
+          durablePaymentBindingAfter.source_chain !==
+            durablePaymentBinding.source_chain ||
+          durablePaymentBindingAfter.tx_hash !== durablePaymentBinding.tx_hash
+        ) {
+          fail(
+            "buy_void_verified_payment_capacity_candidate_payment_binding_changed",
+          );
         }
         const duplicateAfter =
           classifyBuyVoidVerifiedPaymentDuplicateGuardV1({
