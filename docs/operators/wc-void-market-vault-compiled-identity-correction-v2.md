@@ -47,6 +47,15 @@ It records `corrected_bytes_derived_from_superseded_packet=false`: the
 over-captured V1 byte arrays are defect evidence, not derivation authority for
 the corrected identities.
 
+The original GitHub Actions artifact is also preserved verbatim in-repository as
+`ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64`.
+Decoding that file yields the exact artifact ZIP with SHA-256
+`d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc`.
+This is archival evidence only; preserving the bytes does not authorize
+deployment. The focused correction proof requires canonical base64, ZIP magic,
+the exact 11,283-byte archive length, and the packet-pinned ZIP digest. This
+removes dependence on GitHub's temporary Actions-artifact retention window.
+
 The source, compiler profile, ABI, metadata, storage layout, method identifiers,
 and immutable layout remain unchanged. No Solidity source change or recompile is
 required by this correction.
@@ -103,6 +112,8 @@ Verification:
 ```bash
 node scripts/prove_void_wc_void_market_vault_compiled_identity_correction_v2.mjs
 node scripts/prove_void_wc_void_market_vault_role_deployment_qualification_v1.mjs
+# Optional local recovery of the original compiler artifact:
+base64 -d ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64 > /tmp/wc-void-market-vault-compiler-identity-v1.zip
 ```
 
 Next gate:
