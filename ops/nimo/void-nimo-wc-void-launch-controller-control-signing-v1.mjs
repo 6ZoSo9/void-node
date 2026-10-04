@@ -1591,17 +1591,14 @@ async function signValidatedControlChallengeV1({
   });
 }
 
-export async function signControlChallengeCoreV1({
+export function validateControlChallengeForSigningCoreV1({
   challengeEnvelope,
-  privateKey,
   expectedAddress,
   nowUnix = Math.floor(Date.now() / 1000),
   ethers,
 }) {
   if (
     !ethers ||
-    typeof ethers.Wallet !== "function" ||
-    typeof ethers.verifyTypedData !== "function" ||
     typeof ethers.TypedDataEncoder?.hash !== "function" ||
     typeof ethers.getAddress !== "function" ||
     typeof ethers.keccak256 !== "function" ||
@@ -1610,18 +1607,11 @@ export async function signControlChallengeCoreV1({
     fail("offline_signer_ethers_exports_invalid");
   }
 
-  const reviewed = validateChallengeForSigningV1({
+  return validateChallengeForSigningV1({
     challengeEnvelope,
     expectedAddress,
     nowUnix,
     ethers,
-  });
-
-  return await signValidatedControlChallengeV1({
-    reviewed,
-    privateKey,
-    ethers,
-    nowUnix,
   });
 }
 
