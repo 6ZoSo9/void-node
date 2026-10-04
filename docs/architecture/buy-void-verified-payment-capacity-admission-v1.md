@@ -18,36 +18,49 @@ bakery lock rooted inside the Buy VOID request directory.
 
 For `payment_verified` only, while holding that lock it:
 
-1. strictly parses the raw `requests.jsonl` and `operator-events.jsonl`
-   authority files; malformed rows, missing verified requests, or changed quote
-   amounts fail closed;
-2. validates the candidate's canonical
-   `source_chain:transaction_hash:log_index` identity against every historical
-   V2 `payment_verified` event while the same capacity lock is held;
-3. rejects cross-request payment-identity reuse and same-request identity
-   changes; only an exact same-request + same-identity replay is idempotent;
-4. derives the unique verified-request reservation total directly from those
-   raw ledgers and checks whether this request is already verified;
-5. re-reads the legacy sale-state projection only as a cross-check and requires
+1. pins the request directory with `O_DIRECTORY|O_NOFOLLOW`, opens the
+   authoritative `requests.jsonl` and `operator-events.jsonl` through that
+   retained directory descriptor, and strictly parses bounded descriptor reads;
+   malformed rows, missing verified requests, changed quote amounts, inode/path
+   replacement, size growth, or read-time identity drift fail closed;
+2. requires the candidate request id to exist in the durable request ledger
+   with exactly the same quoted VOID amount supplied to admission, then derives
+   the unique verified-request reservation total and checks whether this request
+   is already verified;
+3. re-reads the legacy sale-state projection only as a cross-check and requires
    it to match the strict ledger recount exactly;
-6. validates exact six-decimal pool/reserved/verified/remaining conservation;
-7. rejects if the new quoted VOID exceeds current remaining inventory;
-8. keeps the capacity lock held while the existing launch-generation authority
-   mutation and per-request closeout lock append the event;
-9. strictly re-reads identity, raw-ledger, and sale-state projections after the
-   append and requires both the same canonical payment identity and the expected
-   verified/reserved inventory delta;
-10. durably fsyncs the `payment_verified` JSONL append before publishing the
-   per-event sidecar used by bounded orchestration. If a crash leaves the
-   durable JSONL event without that sidecar, exact re-verification reconstructs
-   the original timestamped sidecar from the authoritative event under the
-   request lock without appending another reservation.
+4. validates exact six-decimal pool/reserved/verified/remaining conservation;
+5. rejects if the new quoted VOID exceeds current remaining inventory;
+6. keeps both admitted `requests.jsonl` and `operator-events.jsonl`
+   descriptors open while the capacity lock crosses the existing
+   launch-generation authority mutation and per-request closeout lock;
+7. immediately before append, requires both retained ledgers to match their
+   exact post-census size/mtime/ctime/inode/custody snapshots, then rebinds the
+   visible operator-ledger path to that exact opened inode, writes with
+   `O_APPEND` through the retained descriptor, fsyncs that inode, and
+   rebinds the visible path again before accepting post-state;
+8. strictly re-reads the same operator-ledger inode plus a descriptor-bound
+   request ledger and requires verified/reserved inventory to increase by
+   exactly the quote and remaining inventory to decrease by exactly the quote;
+9. only after that authoritative postcheck succeeds, publishes the per-event
+   sidecar used by bounded orchestration. The `payment_verified` JSONL event
+   is fsynced before the postcheck, but a failed postcheck exposes no sidecar.
+   If a crash or failed postcheck leaves the durable JSONL event without that
+   sidecar, exact re-verification reconstructs the original timestamped sidecar
+   from the authoritative event under the request lock without appending
+   another reservation.
 
 The lock order is:
 
 `verified-payment capacity -> launch-generation authority -> request closeout`.
 
 No reviewed path acquires the capacity lock in reverse order.
+
+### Stacked payment-identity admission
+
+The stacked verified-payment identity guard runs inside this same capacity lock after the descriptor-bound ledger census and before idempotent/capacity admission. It derives the canonical `source_chain:transaction_hash:log_index` key from identity-complete verified payment events, rejects cross-request reuse, rejects one request changing to a different verified identity, and treats only exact request + identity replay as idempotent. After append, the same identity is revalidated from the retained operator-ledger inode before the capacity transition is accepted.
+
+This adds no second lock domain, so payment-identity uniqueness cannot race the finite-capacity decision or invert the existing lock order.
 
 ## What this closes
 
@@ -62,6 +75,23 @@ append to model the crash window. Re-verification restores the historical
 sidecar from the JSONL record, creates no sidecar for the retry timestamp, and
 does not invoke launch-authority mutation or change the reserved total.
 
+A separate adversary deliberately returns a stale sale-state projection after
+the durable event append. The authoritative postcheck rejects that invocation
+with the JSONL event still recoverable but no orchestration sidecar published;
+an exact retry against a corrected projection is idempotent and recovers that
+single historical sidecar without appending a second event.
+
+Filesystem adversaries additionally replace or grow the authoritative request
+ledger after its admitted `fstat`, mutate either retained ledger on the same
+inode after the pre-census snapshot, and replace or grow the operator ledger
+after the capacity census but before launch/request mutation. Those cases must
+HOLD before any `payment_verified` bytes or sidecar are written to a
+replacement target.
+
+The proof also supplies a candidate absent from `requests.jsonl` and a candidate
+whose caller quote disagrees with the durable request quote. Both must HOLD
+before the launch-authority mutation callback is entered.
+
 All arithmetic is exact micro-VOID integer arithmetic derived from canonical
 decimal text with at most six decimals. The legacy runtime readers may remain
 lenient for operator display, but they are not capacity authority: the admission
@@ -70,14 +100,9 @@ corruption or a projection mismatch.
 
 ## Remaining HOLD
 
-The stacked verified-payment identity admission lane now proves canonical
-`source_chain:transaction_hash:log_index` uniqueness inside this same
-serialization boundary. That source advance does not itself activate the public
-verifier.
+The stacked identity lane proves canonical `source_chain:transaction_hash:log_index` uniqueness in source, but that does not itself prove a deployed public verifier is running the reviewed source.
 
-The final append-only allocation-reservation record remains a separate required
-gate. The parent coupled-launch source gate therefore remains hard-HOLD with
-`VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
+The final append-only allocation-reservation record remains a separate launch gate. The parent coupled-launch source gate therefore remains hard-HOLD with `VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
 
 That constant must not be promoted by this lane.
 

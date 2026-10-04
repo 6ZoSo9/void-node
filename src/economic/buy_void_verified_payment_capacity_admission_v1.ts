@@ -58,18 +58,245 @@ function microVoid(value: unknown, code: string, positive = false): bigint {
 }
 
 const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
+const O_NOFOLLOW =
+  typeof fs.constants.O_NOFOLLOW === "number"
+    ? fs.constants.O_NOFOLLOW
+    : 0;
+const O_DIRECTORY =
+  typeof fs.constants.O_DIRECTORY === "number"
+    ? fs.constants.O_DIRECTORY
+    : 0;
 
-function readStrictJsonLinesV1(filePath: string, code: string): any[] {
-  if (!fs.existsSync(filePath)) return [];
-  const metadata = fs.lstatSync(filePath);
+type PinnedRequestDirectoryV1 = {
+  path: string;
+  fd: number;
+  stat: any;
+  proc_path: string;
+};
+
+type PinnedLedgerV1 = {
+  path: string;
+  name: string;
+  fd: number;
+  directory: PinnedRequestDirectoryV1;
+};
+
+function sameDirectoryIdentityV1(left: any, right: any): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode
+  );
+}
+
+function sameFileIdentityV1(left: any, right: any): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.nlink === right.nlink
+  );
+}
+
+function sameFileInodeCustodyV1(left: any, right: any): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.nlink === right.nlink
+  );
+}
+
+function validateLedgerStatV1(stat: any, code: string): void {
   if (
-    !metadata.isFile() ||
-    metadata.isSymbolicLink() ||
-    metadata.size > LEDGER_MAX_BYTES
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1n ||
+    stat.size < 0n ||
+    stat.size > BigInt(LEDGER_MAX_BYTES) ||
+    (
+      typeof process.getuid === "function" &&
+      stat.uid !== BigInt(process.getuid())
+    ) ||
+    (Number(stat.mode) & 0o022) !== 0
   ) {
     fail(code + "_file_invalid");
   }
-  const text = fs.readFileSync(filePath, "utf8");
+}
+
+function openPinnedRequestDirectoryV1(
+  requestDir: string,
+): PinnedRequestDirectoryV1 {
+  const visible = fs.lstatSync(requestDir, { bigint: true });
+  if (
+    !visible.isDirectory() ||
+    visible.isSymbolicLink() ||
+    (
+      typeof process.getuid === "function" &&
+      visible.uid !== BigInt(process.getuid())
+    ) ||
+    (Number(visible.mode) & 0o022) !== 0
+  ) {
+    fail("buy_void_verified_payment_capacity_request_directory_invalid");
+  }
+  const fd = fs.openSync(
+    requestDir,
+    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+  );
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    if (
+      !opened.isDirectory() ||
+      !sameDirectoryIdentityV1(visible, opened)
+    ) {
+      fail("buy_void_verified_payment_capacity_request_directory_changed");
+    }
+    return {
+      path: requestDir,
+      fd,
+      stat: opened,
+      proc_path: "/proc/self/fd/" + String(fd),
+    };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function assertPinnedRequestDirectoryVisibleV1(
+  directory: PinnedRequestDirectoryV1,
+): void {
+  const visible = fs.lstatSync(directory.path, { bigint: true });
+  const opened = fs.fstatSync(directory.fd, { bigint: true });
+  if (
+    !visible.isDirectory() ||
+    visible.isSymbolicLink() ||
+    !sameDirectoryIdentityV1(directory.stat, opened) ||
+    !sameDirectoryIdentityV1(opened, visible)
+  ) {
+    fail("buy_void_verified_payment_capacity_request_directory_changed");
+  }
+}
+
+function openPinnedLedgerV1(
+  directory: PinnedRequestDirectoryV1,
+  name: string,
+  code: string,
+  options: { writable: boolean; create: boolean },
+): PinnedLedgerV1 | null {
+  assertPinnedRequestDirectoryVisibleV1(directory);
+  const visiblePath = path.join(directory.path, name);
+  const pinnedPath = path.join(directory.proc_path, name);
+  const access = options.writable
+    ? fs.constants.O_RDWR | fs.constants.O_APPEND
+    : fs.constants.O_RDONLY;
+  let fd = -1;
+  try {
+    fd = fs.openSync(pinnedPath, access | O_NOFOLLOW);
+  } catch (error: any) {
+    if (String(error?.code || "") !== "ENOENT") throw error;
+    if (!options.create) return null;
+    fd = fs.openSync(
+      pinnedPath,
+      access |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        O_NOFOLLOW,
+      0o600,
+    );
+    fs.fsyncSync(fd);
+    fs.fsyncSync(directory.fd);
+  }
+
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    validateLedgerStatV1(opened, code);
+    const visible = fs.lstatSync(visiblePath, { bigint: true });
+    validateLedgerStatV1(visible, code);
+    if (!sameFileIdentityV1(opened, visible)) {
+      fail(code + "_path_not_bound");
+    }
+    return {
+      path: visiblePath,
+      name,
+      fd,
+      directory,
+    };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function assertPinnedLedgerVisibleV1(
+  ledger: PinnedLedgerV1,
+  code: string,
+): any {
+  assertPinnedRequestDirectoryVisibleV1(ledger.directory);
+  const opened = fs.fstatSync(ledger.fd, { bigint: true });
+  validateLedgerStatV1(opened, code);
+  const visible = fs.lstatSync(ledger.path, { bigint: true });
+  validateLedgerStatV1(visible, code);
+  if (!sameFileIdentityV1(opened, visible)) {
+    fail(code + "_path_not_bound");
+  }
+  return opened;
+}
+
+function readPinnedLedgerBytesV1(
+  ledger: PinnedLedgerV1,
+  code: string,
+  testOnlyAfterStatBeforeRead: (() => void) | null = null,
+): Buffer {
+  const before = assertPinnedLedgerVisibleV1(ledger, code);
+  if (testOnlyAfterStatBeforeRead !== null) {
+    testOnlyAfterStatBeforeRead();
+  }
+  const size = Number(before.size);
+  if (
+    !Number.isSafeInteger(size) ||
+    size < 0 ||
+    size > LEDGER_MAX_BYTES
+  ) {
+    fail(code + "_file_invalid");
+  }
+  const bytes = Buffer.alloc(size);
+  let offset = 0;
+  while (offset < size) {
+    const count = fs.readSync(
+      ledger.fd,
+      bytes,
+      offset,
+      size - offset,
+      offset,
+    );
+    if (count <= 0) fail(code + "_short_read");
+    offset += count;
+  }
+  const after = fs.fstatSync(ledger.fd, { bigint: true });
+  validateLedgerStatV1(after, code);
+  if (!sameFileIdentityV1(before, after)) {
+    fail(code + "_changed_during_read");
+  }
+  const visible = fs.lstatSync(ledger.path, { bigint: true });
+  validateLedgerStatV1(visible, code);
+  if (!sameFileIdentityV1(after, visible)) {
+    fail(code + "_path_not_bound");
+  }
+  return bytes;
+}
+
+function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
+  const text = bytes.toString("utf8");
   if (text.length === 0) return [];
   const lines = text.endsWith("\n")
     ? text.slice(0, -1).split("\n")
@@ -91,12 +318,84 @@ function readStrictJsonLinesV1(filePath: string, code: string): any[] {
   });
 }
 
+function readStrictJsonLinesFromDirectoryV1(
+  directory: PinnedRequestDirectoryV1,
+  name: string,
+  code: string,
+): any[] {
+  const ledger = openPinnedLedgerV1(
+    directory,
+    name,
+    code,
+    { writable: false, create: false },
+  );
+  if (ledger === null) return [];
+  try {
+    return parseStrictJsonLinesV1(
+      readPinnedLedgerBytesV1(ledger, code),
+      code,
+    );
+  } finally {
+    fs.closeSync(ledger.fd);
+  }
+}
+
+function readStrictJsonLinesV1(filePath: string, code: string): any[] {
+  const requestDir = path.dirname(filePath);
+  const directory = openPinnedRequestDirectoryV1(requestDir);
+  try {
+    return readStrictJsonLinesFromDirectoryV1(
+      directory,
+      path.basename(filePath),
+      code,
+    );
+  } finally {
+    fs.closeSync(directory.fd);
+  }
+}
+
+export function testOnlyReadStrictCapacityLedgerFileV1(
+  filePath: string,
+  code: string,
+  testOnlyAfterStatBeforeRead: () => void,
+): any[] {
+  const requestDir = path.dirname(filePath);
+  const directory = openPinnedRequestDirectoryV1(requestDir);
+  try {
+    const ledger = openPinnedLedgerV1(
+      directory,
+      path.basename(filePath),
+      code,
+      { writable: false, create: false },
+    );
+    if (ledger === null) return [];
+    try {
+      return parseStrictJsonLinesV1(
+        readPinnedLedgerBytesV1(
+          ledger,
+          code,
+          testOnlyAfterStatBeforeRead,
+        ),
+        code,
+      );
+    } finally {
+      fs.closeSync(ledger.fd);
+    }
+  } finally {
+    fs.closeSync(directory.fd);
+  }
+}
+
 function readStrictCapacityLedgerV1(
-  requestDir: string,
+  requestLedger: PinnedLedgerV1,
+  operatorLedger: PinnedLedgerV1,
   poolVoidMicro: bigint,
 ) {
-  const requestRows = readStrictJsonLinesV1(
-    path.join(requestDir, "requests.jsonl"),
+  const requestRows = parseStrictJsonLinesV1(
+    readPinnedLedgerBytesV1(
+      requestLedger,
+      "buy_void_verified_payment_capacity_requests",
+    ),
     "buy_void_verified_payment_capacity_requests",
   );
   const quotes = new Map<string, bigint>();
@@ -117,8 +416,11 @@ function readStrictCapacityLedgerV1(
     quotes.set(requestId, quote);
   }
 
-  const eventRows = readStrictJsonLinesV1(
-    path.join(requestDir, "operator-events.jsonl"),
+  const eventRows = parseStrictJsonLinesV1(
+    readPinnedLedgerBytesV1(
+      operatorLedger,
+      "buy_void_verified_payment_capacity_operator_events",
+    ),
     "buy_void_verified_payment_capacity_operator_events",
   );
   const verifiedIds = new Set<string>();
@@ -156,6 +458,15 @@ function readStrictCapacityLedgerV1(
   return Object.freeze({
     verified_ids: verifiedIds,
     operator_events: eventRows,
+    request_quotes: quotes,
+    request_ledger_stat: assertPinnedLedgerVisibleV1(
+      requestLedger,
+      "buy_void_verified_payment_capacity_requests",
+    ),
+    operator_ledger_stat: assertPinnedLedgerVisibleV1(
+      operatorLedger,
+      "buy_void_verified_payment_capacity_operator_events",
+    ),
     verified_void_micro: verifiedVoidMicro,
     reserved_void_micro: verifiedVoidMicro,
     remaining_void_micro: poolVoidMicro - verifiedVoidMicro,
@@ -190,29 +501,49 @@ function fsyncDirectoryV1(directory: string): void {
 }
 
 function appendPaymentVerifiedEventDurableV1(
-  requestDir: string,
+  operatorLedger: PinnedLedgerV1,
+  expectedBefore: any,
   event: Record<string, any>,
 ): void {
-  const journal = path.join(requestDir, "operator-events.jsonl");
+  const code = "buy_void_verified_payment_capacity_operator_events";
   const bytes = Buffer.from(JSON.stringify(event) + "\n", "utf8");
-  const descriptor = fs.openSync(journal, "a", 0o600);
-  try {
-    const written = fs.writeSync(
-      descriptor,
-      bytes,
-      0,
-      bytes.length,
-      null,
-    );
-    if (written !== bytes.length) {
-      fail("buy_void_verified_payment_capacity_event_append_short_write");
-    }
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
+  const before = assertPinnedLedgerVisibleV1(operatorLedger, code);
+  if (!sameFileIdentityV1(expectedBefore, before)) {
+    fail("buy_void_verified_payment_capacity_operator_events_changed_since_census");
   }
-  fs.chmodSync(journal, 0o600);
-  fsyncDirectoryV1(requestDir);
+  if (
+    before.size + BigInt(bytes.length) >
+    BigInt(LEDGER_MAX_BYTES)
+  ) {
+    fail("buy_void_verified_payment_capacity_event_append_size_exceeded");
+  }
+
+  const written = fs.writeSync(
+    operatorLedger.fd,
+    bytes,
+    0,
+    bytes.length,
+    null,
+  );
+  if (written !== bytes.length) {
+    fail("buy_void_verified_payment_capacity_event_append_short_write");
+  }
+  fs.fsyncSync(operatorLedger.fd);
+
+  const after = fs.fstatSync(operatorLedger.fd, { bigint: true });
+  validateLedgerStatV1(after, code);
+  if (
+    !sameFileInodeCustodyV1(before, after) ||
+    after.size !== before.size + BigInt(bytes.length)
+  ) {
+    fail("buy_void_verified_payment_capacity_event_append_identity_changed");
+  }
+  const visible = fs.lstatSync(operatorLedger.path, { bigint: true });
+  validateLedgerStatV1(visible, code);
+  if (!sameFileIdentityV1(after, visible)) {
+    fail("buy_void_verified_payment_capacity_event_append_path_changed");
+  }
+  fs.fsyncSync(operatorLedger.directory.fd);
 }
 
 function paymentVerifiedSidecarPathV1(
@@ -484,7 +815,12 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   verified_payment_event: any;
   request: any;
   read_sale_state: () => Promise<any>;
-  operation: () => Promise<T> | T;
+  operation: (authority: {
+    request_ledger: PinnedLedgerV1;
+    operator_ledger: PinnedLedgerV1;
+    request_ledger_stat: any;
+    operator_ledger_stat: any;
+  }) => Promise<T> | T;
 }): Promise<{
   ok: true;
   idempotent: boolean;
@@ -508,15 +844,14 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
     !input?.request ||
     typeof input.request !== "object" ||
     Array.isArray(input.request) ||
-    String(input.verified_payment_event.request_id || "").trim() !==
-      requestId ||
+    String(input.verified_payment_event.request_id || "").trim() !== requestId ||
     String(input.request.request_id || "").trim() !== requestId ||
     typeof input?.read_sale_state !== "function" ||
     typeof input?.operation !== "function"
   ) {
     fail("buy_void_verified_payment_capacity_input_invalid");
   }
-  microVoid(
+  const candidateQuoteMicro = microVoid(
     input.quoted_void,
     "buy_void_verified_payment_capacity_quote_invalid",
     true,
@@ -530,107 +865,149 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   return withBuyVoidFilesystemBakeryLockAsyncV1(
     lockPath,
     async () => {
-      const saleBefore = await input.read_sale_state();
-      const poolBefore = microVoid(
-        saleBefore?.pool_void_total,
-        "buy_void_verified_payment_capacity_state_invalid",
-        true,
+      const directory = openPinnedRequestDirectoryV1(requestDir);
+      const requestLedger = openPinnedLedgerV1(
+        directory,
+        "requests.jsonl",
+        "buy_void_verified_payment_capacity_requests",
+        { writable: false, create: false },
       );
-      const strictBefore = readStrictCapacityLedgerV1(
-        requestDir,
-        poolBefore,
+      if (requestLedger === null) {
+        fs.closeSync(directory.fd);
+        fail("buy_void_verified_payment_capacity_candidate_request_missing");
+      }
+      const operatorLedger = openPinnedLedgerV1(
+        directory,
+        "operator-events.jsonl",
+        "buy_void_verified_payment_capacity_operator_events",
+        { writable: true, create: true },
       );
-      const identityBefore =
-        assertBuyVoidVerifiedPaymentIdentityAdmissionV1({
+      if (operatorLedger === null) {
+        fs.closeSync(requestLedger.fd);
+        fs.closeSync(directory.fd);
+        fail("buy_void_verified_payment_capacity_operator_events_unavailable");
+      }
+      try {
+        const saleBefore = await input.read_sale_state();
+        const poolBefore = microVoid(
+          saleBefore?.pool_void_total,
+          "buy_void_verified_payment_capacity_state_invalid",
+          true,
+        );
+        const strictBefore = readStrictCapacityLedgerV1(
+          requestLedger,
+          operatorLedger,
+          poolBefore,
+        );
+        const durableRequestQuote =
+          strictBefore.request_quotes.get(requestId);
+        if (durableRequestQuote === undefined) {
+          fail("buy_void_verified_payment_capacity_candidate_request_missing");
+        }
+        if (durableRequestQuote !== candidateQuoteMicro) {
+          fail("buy_void_verified_payment_capacity_candidate_quote_mismatch");
+        }
+        const identityBefore = assertBuyVoidVerifiedPaymentIdentityAdmissionV1({
           request: input.request,
           event: input.verified_payment_event,
           operator_events: strictBefore.operator_events,
         });
-      const alreadyVerified = strictBefore.verified_ids.has(requestId);
-      if (identityBefore.already_verified !== alreadyVerified) {
-        fail("buy_void_verified_payment_identity_projection_mismatch");
-      }
-      const before = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
-        sale_state: saleBefore,
-        quoted_void: input.quoted_void,
-        already_verified: alreadyVerified,
-      });
-      assertProjectionMatchesStrictLedgerV1(before, strictBefore);
-      if (!before.ready) fail(String(before.reason));
-
-      if (alreadyVerified) {
-        return Object.freeze({
-          ok: true as const,
-          idempotent: true,
-          operation_performed: false,
-          decision: before,
-          payment_identity_admission: identityBefore,
-          result: null,
+        const alreadyVerified = strictBefore.verified_ids.has(requestId);
+        if (identityBefore.already_verified !== alreadyVerified) {
+          fail("buy_void_verified_payment_identity_projection_mismatch");
+        }
+        const before = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
+          sale_state: saleBefore,
+          quoted_void: input.quoted_void,
+          already_verified: alreadyVerified,
         });
-      }
+        assertProjectionMatchesStrictLedgerV1(before, strictBefore);
+        if (!before.ready) fail(String(before.reason));
 
-      const result = await input.operation();
-      const saleAfter = await input.read_sale_state();
-      const poolAfter = microVoid(
-        saleAfter?.pool_void_total,
-        "buy_void_verified_payment_capacity_state_invalid",
-        true,
-      );
-      if (poolAfter !== poolBefore) {
-        fail("buy_void_verified_payment_capacity_pool_changed");
-      }
-      const strictAfter = readStrictCapacityLedgerV1(
-        requestDir,
-        poolAfter,
-      );
-      const identityAfter =
-        assertBuyVoidVerifiedPaymentIdentityAdmissionV1({
+        if (alreadyVerified) {
+          return Object.freeze({
+            ok: true as const,
+            idempotent: true,
+            operation_performed: false,
+            decision: before,
+            payment_identity_admission: identityBefore,
+            result: null,
+          });
+        }
+
+        const result = await input.operation({
+          request_ledger: requestLedger,
+          operator_ledger: operatorLedger,
+          request_ledger_stat: strictBefore.request_ledger_stat,
+          operator_ledger_stat: strictBefore.operator_ledger_stat,
+        });
+        const saleAfter = await input.read_sale_state();
+        const poolAfter = microVoid(
+          saleAfter?.pool_void_total,
+          "buy_void_verified_payment_capacity_state_invalid",
+          true,
+        );
+        if (poolAfter !== poolBefore) {
+          fail("buy_void_verified_payment_capacity_pool_changed");
+        }
+        const strictAfter = readStrictCapacityLedgerV1(
+          requestLedger,
+          operatorLedger,
+          poolAfter,
+        );
+        const durableRequestQuoteAfter =
+          strictAfter.request_quotes.get(requestId);
+        if (durableRequestQuoteAfter !== candidateQuoteMicro) {
+          fail("buy_void_verified_payment_capacity_candidate_quote_changed");
+        }
+        const identityAfter = assertBuyVoidVerifiedPaymentIdentityAdmissionV1({
           request: input.request,
           event: input.verified_payment_event,
           operator_events: strictAfter.operator_events,
         });
-      if (
-        identityAfter.already_verified !== true ||
-        identityAfter.canonical_payment_identity !==
-          identityBefore.canonical_payment_identity
-      ) {
-        fail("buy_void_verified_payment_identity_postcheck_failed");
+        if (identityAfter.already_verified !== true || identityAfter.canonical_payment_identity !== identityBefore.canonical_payment_identity) {
+          fail("buy_void_verified_payment_identity_postcheck_failed");
+        }
+        const after = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
+          sale_state: saleAfter,
+          quoted_void: input.quoted_void,
+          already_verified: true,
+        });
+        assertProjectionMatchesStrictLedgerV1(after, strictAfter);
+        if (!after.ready) {
+          fail("buy_void_verified_payment_capacity_postcheck_failed");
+        }
+        const expectedVerified =
+          BigInt(before.verified_void_micro) +
+          BigInt(before.quoted_void_micro);
+        const expectedRemaining =
+          BigInt(before.remaining_void_micro) -
+          BigInt(before.quoted_void_micro);
+        if (
+          !strictAfter.verified_ids.has(requestId) ||
+          strictAfter.verified_void_micro !== expectedVerified ||
+          strictAfter.reserved_void_micro !== expectedVerified ||
+          strictAfter.remaining_void_micro !== expectedRemaining ||
+          BigInt(after.verified_void_micro) !== expectedVerified ||
+          BigInt(after.reserved_void_micro) !== expectedVerified ||
+          BigInt(after.remaining_void_micro) !== expectedRemaining ||
+          after.pool_void_micro !== before.pool_void_micro
+        ) {
+          fail("buy_void_verified_payment_capacity_postcheck_failed");
+        }
+        return Object.freeze({
+          ok: true as const,
+          idempotent: false,
+          operation_performed: true,
+          decision: before,
+          payment_identity_admission: identityAfter,
+          result,
+        });
+      } finally {
+        fs.closeSync(operatorLedger.fd);
+        fs.closeSync(requestLedger.fd);
+        fs.closeSync(directory.fd);
       }
-      const after = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
-        sale_state: saleAfter,
-        quoted_void: input.quoted_void,
-        already_verified: true,
-      });
-      assertProjectionMatchesStrictLedgerV1(after, strictAfter);
-      if (!after.ready) {
-        fail("buy_void_verified_payment_capacity_postcheck_failed");
-      }
-      const expectedVerified =
-        BigInt(before.verified_void_micro) +
-        BigInt(before.quoted_void_micro);
-      const expectedRemaining =
-        BigInt(before.remaining_void_micro) -
-        BigInt(before.quoted_void_micro);
-      if (
-        !strictAfter.verified_ids.has(requestId) ||
-        strictAfter.verified_void_micro !== expectedVerified ||
-        strictAfter.reserved_void_micro !== expectedVerified ||
-        strictAfter.remaining_void_micro !== expectedRemaining ||
-        BigInt(after.verified_void_micro) !== expectedVerified ||
-        BigInt(after.reserved_void_micro) !== expectedVerified ||
-        BigInt(after.remaining_void_micro) !== expectedRemaining ||
-        after.pool_void_micro !== before.pool_void_micro
-      ) {
-        fail("buy_void_verified_payment_capacity_postcheck_failed");
-      }
-      return Object.freeze({
-        ok: true as const,
-        idempotent: false,
-        operation_performed: true,
-        decision: before,
-        payment_identity_admission: identityAfter,
-        result,
-      });
     },
   );
 }
@@ -669,39 +1046,32 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
 
   const paymentVerified =
     String(event.operator_status || "") === "payment_verified";
-  const append = () =>
-    withBuyVoidTerminalCloseoutRequestLockV1(
+
+  if (!paymentVerified) {
+    return withBuyVoidTerminalCloseoutRequestLockV1(
       {
         request_dir: requestDir,
         request_id: requestId,
       },
       () => {
-        if (paymentVerified) {
-          appendPaymentVerifiedEventDurableV1(requestDir, event);
-          ensurePaymentVerifiedSidecarExactV1(requestDir, event);
-        } else {
-          fs.appendFileSync(
-            path.join(requestDir, "operator-events.jsonl"),
-            JSON.stringify(event) + "\n",
-          );
-          fs.writeFileSync(
-            path.join(
-              requestDir,
-              "operator-event-" +
-                requestId +
-                "-" +
-                String(event.marked_at_ms || "") +
-                ".json",
-            ),
-            JSON.stringify(event, null, 2),
-          );
-        }
+        fs.appendFileSync(
+          path.join(requestDir, "operator-events.jsonl"),
+          JSON.stringify(event) + "\n",
+        );
+        fs.writeFileSync(
+          path.join(
+            requestDir,
+            "operator-event-" +
+              requestId +
+              "-" +
+              String(event.marked_at_ms || "") +
+              ".json",
+          ),
+          JSON.stringify(event, null, 2),
+        );
         return { ok: true, dir: requestDir };
       },
     );
-
-  if (!paymentVerified) {
-    return append();
   }
 
   const requestQuoted = microVoid(
@@ -726,8 +1096,40 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       verified_payment_event: event,
       request,
       read_sale_state: input.read_sale_state,
-      operation: () =>
-        input.with_launch_authority_mutation(request, append),
+      operation: (authority) =>
+        input.with_launch_authority_mutation(
+          request,
+          () =>
+            withBuyVoidTerminalCloseoutRequestLockV1(
+              {
+                request_dir: requestDir,
+                request_id: requestId,
+              },
+              () => {
+                const requestBeforeAppend =
+                  assertPinnedLedgerVisibleV1(
+                    authority.request_ledger,
+                    "buy_void_verified_payment_capacity_requests",
+                  );
+                if (
+                  !sameFileIdentityV1(
+                    authority.request_ledger_stat,
+                    requestBeforeAppend,
+                  )
+                ) {
+                  fail(
+                    "buy_void_verified_payment_capacity_requests_changed_since_census",
+                  );
+                }
+                appendPaymentVerifiedEventDurableV1(
+                  authority.operator_ledger,
+                  authority.operator_ledger_stat,
+                  event,
+                );
+                return { ok: true, dir: requestDir };
+              },
+            ),
+        ),
     });
   if (admission.idempotent) {
     const recovery = recoverPaymentVerifiedSidecarsV1(
@@ -744,9 +1146,16 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       payment_identity_admission: admission.payment_identity_admission,
     };
   }
+  const sidecarState = withBuyVoidTerminalCloseoutRequestLockV1(
+    { request_dir: requestDir, request_id: requestId },
+    () => ensurePaymentVerifiedSidecarExactV1(requestDir, event),
+  );
   return {
     ...(admission.result as any),
     idempotent: false,
+    sidecar_recovered: false,
+    recovered_sidecar_count: 0,
+    sidecar_state: sidecarState,
     capacity_admission: admission.decision,
     payment_identity_admission: admission.payment_identity_admission,
   };
