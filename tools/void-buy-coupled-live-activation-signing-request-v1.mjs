@@ -237,49 +237,39 @@ export function verifyBuyCoupledLiveActivationSigningRequestV1(request) {
       "HOLD_PENDING_DUAL_OFFLINE_SIGNATURES_AND_LIVE_REVALIDATION" ||
     !/^voidbclasr1_[0-9a-f]{64}$/u.test(
       String(request.signing_request_id || ""),
-    )
+    ) ||
+    !Number.isSafeInteger(request.prepared_at_ms) ||
+    request.prepared_at_ms <= 0 ||
+    !request.unsigned_receipt ||
+    typeof request.unsigned_receipt !== "object" ||
+    Array.isArray(request.unsigned_receipt)
   ) {
     fail("activation_signing_request_invalid");
   }
 
-  const {
-    marker: _marker,
-    version: _version,
-    status: _status,
-    signing_request_id: _requestId,
-    ...requestBody
-  } = request;
-  const expectedId =
-    "voidbclasr1_" + sha256Text(canonicalJson(requestBody));
-  if (request.signing_request_id !== expectedId) {
-    fail("activation_signing_request_id_mismatch");
-  }
+  const receipt = request.unsigned_receipt;
+  const input = Object.freeze({
+    activated_at_ms: receipt.activated_at_ms,
+    activation_generation: receipt.activation_generation,
+    activation_nonce: receipt.activation_nonce,
+    expires_at_ms: receipt.expires_at_ms,
+    generation_tip_sha256: receipt.generation_tip_sha256,
+    source_composition_id: receipt.source_composition_id,
+  });
+  const expected =
+    buildBuyCoupledLiveActivationSigningRequestV1(
+      input,
+      request.prepared_at_ms,
+    );
 
-  const typed = request.typed_data;
-  if (
-    typed?.primary_type !== "CoupledPublicLaunchActivation" ||
-    TypedDataEncoder.hash(
-      typed.domain,
-      typed.types,
-      typed.value,
-    ).toLowerCase() !== request.typed_data_digest ||
-    request.unsigned_receipt?.activation_receipt_id !==
-      request.activation_receipt_id ||
-    request.required_signers?.[0]?.signer_address !==
-      VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 ||
-    request.required_signers?.[1]?.signer_address !==
-      VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1 ||
-    request.authority_boundary?.signature_creation !== false ||
-    request.authority_boundary?.private_key_access !== false ||
-    request.authority_boundary?.funds_movement !== false
-  ) {
+  if (canonicalJson(request) !== canonicalJson(expected)) {
     fail("activation_signing_request_binding_invalid");
   }
 
   return Object.freeze({
     verified: true,
-    signing_request_id: request.signing_request_id,
-    activation_receipt_id: request.activation_receipt_id,
-    typed_data_digest: request.typed_data_digest,
+    signing_request_id: expected.signing_request_id,
+    activation_receipt_id: expected.activation_receipt_id,
+    typed_data_digest: expected.typed_data_digest,
   });
 }
