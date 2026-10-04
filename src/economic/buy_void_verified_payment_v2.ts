@@ -1,7 +1,6 @@
-import {
-  canonicalBuyVoidPaymentIdentityV1,
-  type BuyVoidRequestV1,
-  type BuyVoidVerifiedPaymentEventV1,
+import type {
+  BuyVoidRequestV1,
+  BuyVoidVerifiedPaymentEventV1,
 } from "./buy_void_auto_fulfillment_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2 =
@@ -22,6 +21,7 @@ const HEX_32 = /^0x[0-9a-f]{64}$/;
 const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
 const TRANSFER_TOPIC =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
 
 export type BuyVoidReceiptLogV2 = {
   address?: unknown;
@@ -248,6 +248,7 @@ export function buildBuyVoidVerifiedPaymentEventV2(
 
   const rawLogs = Array.isArray(receipt.logs) ? receipt.logs : [];
   const matches: BuyVoidMatchedUsdcTransferV2[] = [];
+  let matchingTransferLogIndexOutOfDomain = false;
 
   for (const rawLog of rawLogs) {
     const log = (rawLog || {}) as BuyVoidReceiptLogV2;
@@ -271,13 +272,8 @@ export function buildBuyVoidVerifiedPaymentEventV2(
 
     const logIndex = parseNonNegativeInteger(log.logIndex);
     if (logIndex === null) continue;
-    try {
-      canonicalBuyVoidPaymentIdentityV1({
-        source_chain: chain,
-        payment_transaction_hash: receiptTxHash,
-        payment_log_index: logIndex,
-      });
-    } catch {
+    if (logIndex > MAX_PAYMENT_LOG_INDEX) {
+      matchingTransferLogIndexOutOfDomain = true;
       continue;
     }
 
@@ -307,7 +303,12 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     });
   }
 
-  if (matches.length === 0) return held("matching_usdc_transfer_not_found");
+  if (matches.length === 0) {
+    if (matchingTransferLogIndexOutOfDomain) {
+      return held("log_index_exceeds_1463_domain");
+    }
+    return held("matching_usdc_transfer_not_found");
+  }
   if (matches.length > 1) {
     return held("ambiguous_matching_usdc_transfers", {
       matching_log_indexes: matches.map((match) => match.log_index),
