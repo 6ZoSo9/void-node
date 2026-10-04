@@ -379,7 +379,7 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       reservationDigit: "8",
       walletDigit: "3",
       issuedUnix: BASE_UNIX + 135,
-      gasLimit: 1,
+      gasLimit: 21000,
     });
 
     assert.equal(
@@ -460,7 +460,7 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       reservationDigit: "c",
       walletDigit: "4",
       issuedUnix: BASE_UNIX + 137,
-      gasLimit: 1,
+      gasLimit: 21000,
     });
     requireHeld(
       await persistEconomicSystemSponsoredReservationV1(
