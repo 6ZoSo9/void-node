@@ -358,6 +358,26 @@ assert.equal(
   "allocation_reservation_hash_mismatch",
 );
 
+const reorderedRecord = JSON.parse(firstLine);
+const reorderedLine = JSON.stringify(
+  Object.fromEntries(
+    Object.entries(reorderedRecord).reverse(),
+  ),
+);
+assert.notEqual(reorderedLine, firstLine);
+const reordered =
+  classifyBuyVoidAllocationReservationLedgerV1(
+    reorderedLine + "\n",
+  );
+assert.equal(reordered.ok, false);
+if (reordered.ok) {
+  throw new Error("expected noncanonical serialization HOLD");
+}
+assert.equal(
+  reordered.reason,
+  "allocation_reservation_record_serialization_noncanonical",
+);
+
 const extraField = JSON.parse(firstLine);
 extraField.unreviewed = true;
 const extra =
@@ -418,6 +438,7 @@ console.log("canonical_presale_rate_void_per_usdc=2");
 console.log("exact_retry_idempotent_without_append=true");
 console.log("oversell_rejected=true");
 console.log("closed_record_schema=true");
+console.log("canonical_jsonl_serialization_required=true");
 console.log("runtime_integration=false");
 console.log("filesystem_write=false");
 console.log("allocation_reservation_write=false");
