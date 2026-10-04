@@ -161,9 +161,12 @@ continuity.
 ## Rollback boundary
 
 A filesystem snapshot rollback could remove later durable receipts while leaving
-an internally valid earlier chain. This source lane therefore keeps:
+an internally valid earlier chain. This source lane distinguishes the reviewed persistence mechanism from live
+host custody:
 
 ```text
+durable_receipt_store_source_verified=true
+live_durable_receipt_storage_proven=false
 receipt_store_rollback_resistance_proven=false
 trusted_clock_source_proven=false
 trusted_clock_host_binding_proven=false
@@ -220,10 +223,10 @@ The focused proof covers:
 - empty read-only inspection;
 - no request/prior/timestamp input;
 - deterministic genesis and forward append;
-- restart reconstruction from durable head;
+- new binding reconstruction from the durable head within the same process identity;
 - concurrent observations serialized as generations 0 then 1;
 - zero-byte unpublished temp recovery;
-- linked post-publication temp recovery;
+- linked post-publication temp recovery only after canonical final-receipt validation;\n- malformed linked-final residue HOLD without unlink;
 - read-only recovery HOLD with no cleanup;
 - duplicate-generation/fork HOLD;
 - changed baseline HOLD;
