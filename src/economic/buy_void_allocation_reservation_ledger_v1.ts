@@ -887,7 +887,7 @@ export function planBuyVoidAllocationReservationV1(input: {
       classifyBuyVoidAllocationReservationLedgerV1(
         input.ledger_jsonl,
       );
-    if (!ledger.ok) return ledger;
+    if (ledger.ok === false) return ledger;
 
     const core = candidateCoreV1(input);
     const pool = amountV1(
