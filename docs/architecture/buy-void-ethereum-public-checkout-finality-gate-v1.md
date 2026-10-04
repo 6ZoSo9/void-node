@@ -81,6 +81,8 @@ A production-ready result additionally requires:
   matching the same process-source boundary used by the execution preflight;
 - source chain exactly `ethereum` and chain ID exactly `1`;
 - the exact request transaction hash and canonical `voidpay1` identity;
+- V2 payment-event payer/delivery/receive addresses and exact 6-decimal USDC
+  units rebound to the server-owned request;
 - freshly rebound payment-key SHA-256;
 - reviewed source files;
 - authenticated transport identity;
@@ -93,7 +95,8 @@ A production-ready result additionally requires:
 - ancestry;
 - provider quorum;
 - `production_source_finality_authority_ready=true`; and
-- no wallet/signing/broadcast/money-movement side effects.
+- no wallet/signing/transaction-construction/broadcast/inventory-mutation/
+  money-movement side effects.
 
 The production function exposes no observer/finality injection dependency.
 It also refuses before policy/finality work when the current process source
