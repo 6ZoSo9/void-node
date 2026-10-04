@@ -314,9 +314,14 @@ assert.equal(
   "allocation_reservation_genesis_inventory_state_invalid",
 );
 
+const duplicateHashRows = ledger2.trimEnd().split("\n").map(
+  (line) => JSON.parse(line),
+);
+duplicateHashRows[1].allocation_record_hash =
+  duplicateHashRows[0].allocation_record_hash;
 const exactDuplicate =
   classifyBuyVoidAllocationReservationLedgerV1(
-    firstLine + "\n" + firstLine + "\n",
+    duplicateHashRows.map((row) => JSON.stringify(row)).join("\n") + "\n",
   );
 assert.equal(exactDuplicate.ok, false);
 if (exactDuplicate.ok) {
