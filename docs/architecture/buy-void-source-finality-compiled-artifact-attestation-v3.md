@@ -29,7 +29,7 @@ The successor records a real source/artifact change rather than describing it as
 an unchanged build-input rollover.
 
 The canonical verified-payment source is bound to Git blob
-`9ba679d52c74d5590558ccfdb5882597d79b9f31`.
+`c0e4660bb238e1b718b8a471890901bd5a59badf`.
 
 The compiled verifier is bound independently by exact byte length and SHA-256.
 The V5 provenance artifact is also a new artifact because the source-generation
