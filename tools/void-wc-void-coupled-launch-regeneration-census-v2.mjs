@@ -87,6 +87,7 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2 =
     CORRECTION_REL,
     "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
     "tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs",
+    "ops/mainnet0/wc-void-coupled-launch-atomic-migration-plan-v2.json",
     "tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs",
   ]);
 
@@ -122,6 +123,7 @@ export const VOID_WC_VOID_COMPILED_IDENTITY_NON_AUTHORITY_PATHS_V2 =
     CORRECTION_REL,
     "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
     "tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs",
+    "ops/mainnet0/wc-void-coupled-launch-atomic-migration-plan-v2.json",
   ]);
 
 const SOURCE_SCAN_ROOTS_V2 = Object.freeze([
