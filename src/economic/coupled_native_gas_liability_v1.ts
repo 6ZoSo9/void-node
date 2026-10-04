@@ -728,7 +728,7 @@ export function classifyCoupledNativeGasBuyVoidAdmissionV1(input: {
     }
     if (
       nowMs < observation.observed_at_ms ||
-      nowMs > observation.expires_at_ms
+      nowMs >= observation.expires_at_ms
     ) {
       return held("coupled_native_gas_fee_observation_stale");
     }
