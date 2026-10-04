@@ -7,6 +7,9 @@ import {
 import {
   withBuyVoidTerminalCloseoutRequestLockV1,
 } from "./buy_void_terminal_closeout_request_lock_v1.js";
+import {
+  canonicalBuyVoidPaymentIdentityV1,
+} from "./buy_void_auto_fulfillment_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1 =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1";
@@ -19,7 +22,7 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1 =
     serialized_capacity_admission: true,
     strict_ledger_recount: true,
     payment_receipt_verification: false,
-    duplicate_payment_identity_verification: false,
+    duplicate_payment_identity_verification: true,
     wallet_or_signer_access: false,
     private_key_access: false,
     transaction_construction: false,
@@ -35,6 +38,8 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1 =
 
 const MICRO = 1_000_000n;
 const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
+const PAYMENT_IDENTITY =
+  /^voidpay1:(?:base|ethereum):0x[0-9a-f]{64}:(?:0|[1-9][0-9]*)$/u;
 
 function fail(code: string): never {
   throw new Error(code);
@@ -49,6 +54,40 @@ function microVoid(value: unknown, code: string, positive = false): bigint {
   const units = whole * MICRO + fraction;
   if (positive ? units < 1n : units < 0n) fail(code);
   return units;
+}
+
+function canonicalIdentityFromVerifiedEventV1(
+  event: any,
+  code: string,
+): string {
+  if (
+    !event ||
+    typeof event !== "object" ||
+    Array.isArray(event) ||
+    String(event.operator_status || "").trim() !== "payment_verified" ||
+    !event.payment_verifier ||
+    typeof event.payment_verifier !== "object" ||
+    Array.isArray(event.payment_verifier)
+  ) {
+    fail(code);
+  }
+  let identity = "";
+  try {
+    identity = canonicalBuyVoidPaymentIdentityV1({
+      source_chain: event.payment_verifier.chain,
+      payment_transaction_hash:
+        event.payment_verifier.transaction_hash || event.tx_hash,
+      payment_log_index: event.payment_verifier.log_index,
+    });
+  } catch {
+    fail(code);
+  }
+  if (!PAYMENT_IDENTITY.test(identity)) fail(code);
+  const stored = String(event.canonical_payment_identity || "").trim();
+  if (stored && stored !== identity) {
+    fail("buy_void_verified_payment_identity_stored_mismatch");
+  }
+  return identity;
 }
 
 const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
@@ -116,6 +155,8 @@ function readStrictCapacityLedgerV1(
     "buy_void_verified_payment_capacity_operator_events",
   );
   const verifiedIds = new Set<string>();
+  const paymentIdentityToRequest = new Map<string, string>();
+  const requestToPaymentIdentity = new Map<string, string>();
   for (const row of eventRows) {
     const requestId = String(row.request_id || "").trim();
     const status = String(row.operator_status || "").trim();
@@ -137,6 +178,20 @@ function readStrictCapacityLedgerV1(
         fail("buy_void_verified_payment_capacity_event_quote_mismatch");
       }
     }
+    const paymentIdentity = canonicalIdentityFromVerifiedEventV1(
+      row,
+      "buy_void_verified_payment_identity_history_incomplete",
+    );
+    const claimedRequest = paymentIdentityToRequest.get(paymentIdentity);
+    if (claimedRequest !== undefined && claimedRequest !== requestId) {
+      fail("buy_void_verified_payment_identity_already_claimed");
+    }
+    const claimedIdentity = requestToPaymentIdentity.get(requestId);
+    if (claimedIdentity !== undefined && claimedIdentity !== paymentIdentity) {
+      fail("buy_void_verified_payment_identity_request_conflict");
+    }
+    paymentIdentityToRequest.set(paymentIdentity, requestId);
+    requestToPaymentIdentity.set(requestId, paymentIdentity);
     verifiedIds.add(requestId);
   }
 
@@ -149,6 +204,8 @@ function readStrictCapacityLedgerV1(
   }
   return Object.freeze({
     verified_ids: verifiedIds,
+    payment_identity_to_request: paymentIdentityToRequest,
+    request_to_payment_identity: requestToPaymentIdentity,
     verified_void_micro: verifiedVoidMicro,
     reserved_void_micro: verifiedVoidMicro,
     remaining_void_micro: poolVoidMicro - verifiedVoidMicro,
@@ -274,6 +331,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   request_dir: string;
   request_id: string;
   quoted_void: unknown;
+  canonical_payment_identity: string;
   read_sale_state: () => Promise<any>;
   operation: () => Promise<T> | T;
 }): Promise<{
@@ -287,9 +345,13 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
 }> {
   const rawDir = String(input?.request_dir || "").trim();
   const requestId = String(input?.request_id || "").trim();
+  const paymentIdentity = String(
+    input?.canonical_payment_identity || "",
+  ).trim();
   if (
     !rawDir ||
     !REQUEST_ID.test(requestId) ||
+    !PAYMENT_IDENTITY.test(paymentIdentity) ||
     typeof input?.read_sale_state !== "function" ||
     typeof input?.operation !== "function"
   ) {
@@ -319,7 +381,17 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
         requestDir,
         poolBefore,
       );
-      const alreadyVerified = strictBefore.verified_ids.has(requestId);
+      const priorRequest =
+        strictBefore.payment_identity_to_request.get(paymentIdentity);
+      if (priorRequest !== undefined && priorRequest !== requestId) {
+        fail("buy_void_verified_payment_identity_already_claimed");
+      }
+      const priorIdentity =
+        strictBefore.request_to_payment_identity.get(requestId);
+      if (priorIdentity !== undefined && priorIdentity !== paymentIdentity) {
+        fail("buy_void_verified_payment_identity_request_conflict");
+      }
+      const alreadyVerified = priorIdentity === paymentIdentity;
       const before = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
         sale_state: saleBefore,
         quoted_void: input.quoted_void,
@@ -369,6 +441,10 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
         BigInt(before.quoted_void_micro);
       if (
         !strictAfter.verified_ids.has(requestId) ||
+        strictAfter.request_to_payment_identity.get(requestId) !==
+          paymentIdentity ||
+        strictAfter.payment_identity_to_request.get(paymentIdentity) !==
+          requestId ||
         strictAfter.verified_void_micro !== expectedVerified ||
         strictAfter.reserved_void_micro !== expectedVerified ||
         strictAfter.remaining_void_micro !== expectedRemaining ||
@@ -422,6 +498,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   const requestDir = path.resolve(requestDirRaw);
   fs.mkdirSync(requestDir, { recursive: true });
 
+  let eventToWrite = event;
   const append = () =>
     withBuyVoidTerminalCloseoutRequestLockV1(
       {
@@ -431,7 +508,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       () => {
         fs.appendFileSync(
           path.join(requestDir, "operator-events.jsonl"),
-          JSON.stringify(event) + "\n",
+          JSON.stringify(eventToWrite) + "\n",
         );
         fs.writeFileSync(
           path.join(
@@ -442,7 +519,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
               String(event.marked_at_ms || "") +
               ".json",
           ),
-          JSON.stringify(event, null, 2),
+          JSON.stringify(eventToWrite, null, 2),
         );
         return { ok: true, dir: requestDir };
       },
@@ -451,6 +528,15 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   if (String(event.operator_status || "") !== "payment_verified") {
     return append();
   }
+
+  const paymentIdentity = canonicalIdentityFromVerifiedEventV1(
+    event,
+    "buy_void_verified_payment_identity_event_invalid",
+  );
+  eventToWrite = {
+    ...event,
+    canonical_payment_identity: paymentIdentity,
+  };
 
   const requestQuoted = microVoid(
     request.quoted_void,
@@ -471,6 +557,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       request_dir: requestDir,
       request_id: requestId,
       quoted_void: request.quoted_void,
+      canonical_payment_identity: paymentIdentity,
       read_sale_state: input.read_sale_state,
       operation: () =>
         input.with_launch_authority_mutation(request, append),
