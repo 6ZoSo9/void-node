@@ -53,6 +53,7 @@ const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
 const MAX_LEDGER_RECORDS = 100_000;
+const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
 const MICRO = 1_000_000n;
 
 const RECORD_KEYS = Object.freeze([
@@ -281,32 +282,38 @@ function assertCanonicalPresaleEconomicsV1(
 }
 
 
-function nonNegativeIntegerTextV1(
+function paymentLogIndexV1(
   value: unknown,
   code: string,
 ): string {
+  let parsed: bigint;
   if (typeof value === "bigint") {
-    if (value < 0n) throw new Error(code);
-    return value.toString();
-  }
-  if (typeof value === "number") {
+    parsed = value;
+  } else if (typeof value === "number") {
     if (!Number.isSafeInteger(value) || value < 0) {
       throw new Error(code);
     }
-    return String(value);
-  }
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (!raw) throw new Error(code);
-  try {
-    if (/^0x[0-9a-f]+$/u.test(raw) || /^[0-9]+$/u.test(raw)) {
-      const parsed = BigInt(raw);
-      if (parsed < 0n) throw new Error(code);
-      return parsed.toString();
+    parsed = BigInt(value);
+  } else {
+    const raw = String(value ?? "").trim().toLowerCase();
+    if (!raw) throw new Error(code);
+    if (/^0x[0-9a-f]+$/u.test(raw)) {
+      if (raw.length > 10) throw new Error(code);
+    } else if (/^[0-9]+$/u.test(raw)) {
+      if (raw.length > 10) throw new Error(code);
+    } else {
+      throw new Error(code);
     }
-  } catch {
+    try {
+      parsed = BigInt(raw);
+    } catch {
+      throw new Error(code);
+    }
+  }
+  if (parsed < 0n || parsed > MAX_PAYMENT_LOG_INDEX) {
     throw new Error(code);
   }
-  throw new Error(code);
+  return parsed.toString();
 }
 
 function canonicalChainV1(value: unknown): "base" | "ethereum" {
@@ -418,7 +425,7 @@ function parseRecordV1(
   if (raw.payment_transaction_hash !== txHash) {
     throw new Error("allocation_reservation_payment_tx_hash_noncanonical");
   }
-  const logIndex = nonNegativeIntegerTextV1(
+  const logIndex = paymentLogIndexV1(
     raw.payment_log_index,
     "allocation_reservation_payment_log_index_invalid",
   );
@@ -805,7 +812,7 @@ function candidateCoreV1(input: {
   const txHash = canonicalHashV1(
     input.payment_transaction_hash,
   );
-  const logIndex = nonNegativeIntegerTextV1(
+  const logIndex = paymentLogIndexV1(
     input.payment_log_index,
     "allocation_reservation_payment_log_index_invalid",
   );
