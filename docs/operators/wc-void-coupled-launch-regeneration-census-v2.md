@@ -24,6 +24,15 @@ corrected compiler artifacts plus the unchanged canonical presale/WC-opening
 policy, then inventories the current authoritative source bindings still tied to
 the superseded `fe02b5...fdc26` generation.
 
+The correction input is accepted only through the canonical #2435 correction
+verifier against the superseded v1 acceptance packet; a copied set of corrected
+hash constants or a forged correction ID is insufficient. The census also
+performs a bounded scan of current source-authority roots for the superseded
+digest. Exact-head proof requires the discovered set to contain all 14
+authoritative paths and only the explicitly classified correction/census/
+historical source files beyond them. Any unknown old-generation source pin or
+partial authoritative rebind fails closed.
+
 A launch-wide identity is not safe to migrate by search/replace. Candidate
 state, runtime admission, policy bundles, vault revalidation, controller
 challenges, offline signing requests, canary promotion, participant post-use

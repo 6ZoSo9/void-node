@@ -4,6 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2,
+} from "./void-wc-void-market-vault-compiled-identity-correction-v2.mjs";
+
 export const VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2 =
   "VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2";
 
@@ -38,6 +42,8 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_AUTHORITY_V2 =
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORRECTION_REL =
   "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json";
+const ACCEPTANCE_REL =
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
 const CANDIDATE_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const PRESALE_REL =
@@ -75,6 +81,24 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2 =
     "tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs",
     "docs/operators/wc-void-coupled-launch-identity-reconciliation-v1.md",
   ]);
+
+export const VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2 =
+  Object.freeze([
+    CORRECTION_REL,
+    "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
+    "tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs",
+    "tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs",
+  ]);
+
+const SOURCE_SCAN_ROOTS_V2 = Object.freeze([
+  Object.freeze({ path: "src/economic", recursive: true }),
+  Object.freeze({ path: "tools", recursive: true }),
+  Object.freeze({ path: "ops/nimo", recursive: true }),
+  Object.freeze({ path: "ops/mainnet0", recursive: false }),
+]);
+const SOURCE_SCAN_EXTENSIONS_V2 =
+  new Set([".cjs", ".js", ".json", ".mjs", ".sh", ".ts"]);
+const MAX_SOURCE_SCAN_FILES_V2 = 10_000;
 
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 
@@ -149,26 +173,68 @@ function countDigest(text, digest) {
   return text.split(digest).length - 1;
 }
 
+export function discoverVoidWcVoidSupersededGenerationSourcePathsV2() {
+  const found = [];
+  let visited = 0;
+  const inspectFile = (relativePath) => {
+    if (!SOURCE_SCAN_EXTENSIONS_V2.has(path.extname(relativePath))) return;
+    visited += 1;
+    if (visited > MAX_SOURCE_SCAN_FILES_V2) {
+      fail("coupled_launch_regeneration_source_scan_file_limit");
+    }
+    const text = readText(relativePath);
+    if (
+      countDigest(
+        text,
+        VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
+      ) > 0
+    ) {
+      found.push(relativePath);
+    }
+  };
+  const walk = (relativeRoot, recursive) => {
+    const absoluteRoot = path.join(ROOT, relativeRoot);
+    for (const entry of fs.readdirSync(absoluteRoot, {
+      withFileTypes: true,
+    })) {
+      const relativePath = relativeRoot + "/" + entry.name;
+      if (entry.isSymbolicLink()) {
+        fail("coupled_launch_regeneration_source_scan_symlink:" + relativePath);
+      }
+      if (entry.isDirectory()) {
+        if (recursive) walk(relativePath, true);
+        continue;
+      }
+      if (!entry.isFile()) {
+        fail("coupled_launch_regeneration_source_scan_type:" + relativePath);
+      }
+      inspectFile(relativePath);
+    }
+  };
+  for (const root of SOURCE_SCAN_ROOTS_V2) {
+    walk(root.path, root.recursive);
+  }
+  return Object.freeze([...new Set(found)].sort());
+}
+
 function validateCorrectionV2(correction) {
+  let verified;
+  try {
+    verified =
+      verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+        supersededV1: readJson(ACCEPTANCE_REL),
+        correctionV2: correction,
+      });
+  } catch {
+    fail("coupled_launch_regeneration_correction_v2_invalid");
+  }
   if (
-    correction?.marker !==
-      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2" ||
-    correction?.version !== 2 ||
-    correction?.status !==
-      "COMPILED_IDENTITY_V1_BYTECODE_SUPERSEDED_DEPLOYMENT_HOLD" ||
-    correction?.accepted_identity?.identity_id !==
-      "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a" ||
-    correction?.accepted_identity?.identity_json_sha256 !==
-      "fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b" ||
-    correction?.canonical_compiler_artifacts?.creation_bytecode_sha256 !==
+    verified?.ok !== true ||
+    verified.corrected_creation_bytecode_sha256 !==
       "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540" ||
-    correction?.canonical_compiler_artifacts?.runtime_template_sha256 !==
+    verified.corrected_runtime_template_sha256 !==
       "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e" ||
-    correction?.canonical_compiler_artifacts?.immutable_layout_sha256 !==
-      "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b" ||
-    correction?.coupled_launch_effect?.superseded_coupled_launch_id !==
-      "sha256:" + VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1 ||
-    correction?.coupled_launch_effect?.corrected_coupled_launch_id !==
+    verified.corrected_coupled_launch_id !==
       VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_ID_V2 ||
     correction?.coupled_launch_effect?.corrected_vault_bytes32 !==
       VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_BYTES32_V2 ||
@@ -180,7 +246,6 @@ function validateCorrectionV2(correction) {
     fail("coupled_launch_regeneration_correction_v2_invalid");
   }
 }
-
 function validateOpening(candidate) {
   const opening = candidate?.wc_void_opening;
   if (
@@ -319,6 +384,27 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
   const remaining = bindings.filter(
     (entry) => entry.superseded_digest_occurrences > 0,
   );
+  const discoveredSourcePaths =
+    discoverVoidWcVoidSupersededGenerationSourcePathsV2();
+  const expectedSourcePaths = [
+    ...VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2,
+    ...VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
+  ].sort();
+  const unknownSourcePaths = discoveredSourcePaths.filter(
+    (relativePath) => !expectedSourcePaths.includes(relativePath),
+  );
+  const missingAuthoritativePaths =
+    VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2
+      .filter((relativePath) => !discoveredSourcePaths.includes(relativePath));
+  if (unknownSourcePaths.length > 0) {
+    fail("coupled_launch_regeneration_unknown_superseded_source_path");
+  }
+  if (
+    missingAuthoritativePaths.length > 0 ||
+    remaining.length !== bindings.length
+  ) {
+    fail("coupled_launch_regeneration_partial_authoritative_rebind_detected");
+  }
   const body = {
     marker: VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2,
     version: 2,
@@ -334,6 +420,12 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
     authoritative_bindings: bindings,
     authoritative_path_count: bindings.length,
     remaining_superseded_authoritative_path_count: remaining.length,
+    discovered_superseded_source_paths: discoveredSourcePaths,
+    discovered_superseded_source_path_count: discoveredSourcePaths.length,
+    expected_non_authority_superseded_source_paths:
+      VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
+    unknown_superseded_source_paths: Object.freeze([]),
+    all_authoritative_old_generation_pins_present: true,
     all_authoritative_rebindings_complete: false,
     canonical_candidate_update_authorized: false,
     controller_resigning_authorized: false,

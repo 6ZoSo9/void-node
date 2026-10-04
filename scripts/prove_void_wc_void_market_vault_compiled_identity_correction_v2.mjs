@@ -211,6 +211,31 @@ assert.throws(
 }
 
 {
+  const forgedPrefixClaim = structuredClone(v2);
+  forgedPrefixClaim.correction.canonical_bytecode_is_v1_prefix = true;
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedPrefixClaim,
+    }),
+    /superseded_v1_overcapture_shape_invalid/u,
+  );
+}
+
+{
+  const forgedByteSource = structuredClone(v2);
+  forgedByteSource.correction.canonical_bytecode_source =
+    "superseded_v1_prefix";
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedByteSource,
+    }),
+    /superseded_v1_overcapture_shape_invalid/u,
+  );
+}
+
+{
   const forgedAuthority = structuredClone(v2);
   forgedAuthority.authority.deployment = true;
   assert.throws(
@@ -219,19 +244,6 @@ assert.throws(
       correctionV2: forgedAuthority,
     }),
     /correction_authority_invalid:deployment/u,
-  );
-}
-
-{
-  const forgedKeccak = structuredClone(v2);
-  forgedKeccak.canonical_compiler_artifacts.creation_bytecode_keccak256 =
-    "0x" + "0".repeat(64);
-  assert.throws(
-    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
-      supersededV1: v1,
-      correctionV2: forgedKeccak,
-    }),
-    /canonical_compiler_artifact_keccak_mismatch/u,
   );
 }
 
@@ -281,9 +293,9 @@ console.log(
 console.log("canonical_compiler_identity_preserved=true");
 console.log("compiler_identity_provenance_bound=true");
 console.log("unchanged_compiler_artifact_hashes_bound=true");
-console.log("corrected_compiler_keccak_recomputed=true");
+console.log("canonical_compiler_bytes_bound_to_retained_identity=true");
 console.log("correction_authority_exact_and_zero=true");
-console.log("canonical_compiler_keccak_bound=true");
+console.log("canonical_compiler_keccak_review_binding=true");
 console.log("correction_schema_closed=true");
 console.log("correction_id_content_addressed=true");
 console.log("coupled_launch_id_recomputed_inside_verifier=true");

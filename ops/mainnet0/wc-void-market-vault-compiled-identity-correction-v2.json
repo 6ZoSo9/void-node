@@ -35,13 +35,13 @@
     "method_identifiers_sha256": "e8ad68bd3137823246432c9b6126da8f2c9f3fdabe097b95227bf9f47c5a0702"
   },
   "correction": {
-    "creation_prefix_bytes_from_v1": 9441,
-    "creation_v1_extra_bytes": 963,
-    "runtime_prefix_bytes_from_v1": 8342,
-    "runtime_v1_extra_bytes": 953,
+    "canonical_bytecode_is_v1_prefix": false,
+    "canonical_bytecode_source": "retained_compiler_identity_artifact_10988626461",
     "compiler_identity_recompile_required": false,
-    "solidity_source_change_required": false,
     "contract_semantics_change_required": false,
+    "creation_v1_overcapture_bytes": 963,
+    "runtime_v1_overcapture_bytes": 953,
+    "solidity_source_change_required": false,
     "v1_deployment_bytes_superseded": true
   },
   "coupled_launch_effect": {
@@ -76,5 +76,5 @@
     "public_presale_activation_authorized": false,
     "next_gate": "regenerate_coupled_launch_generation_from_corrected_compiler_identity"
   },
-  "correction_id": "voidwcvcic2_0dddc5d6f1896adfe09a326260552ad86d1d5eea15c60a331bf0bccf404f5efe"
+  "correction_id": "voidwcvcic2_a894165ef0306ff654a8351f37f7e4a038383e4608a475992eb88a7a820239d1"
 }

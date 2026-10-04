@@ -5,6 +5,7 @@ import fs from "node:fs";
 import {
   VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2,
   VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2,
+  VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
   VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_AUTHORITY_V2,
   VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2,
   VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_BYTES32_V2,
@@ -12,6 +13,7 @@ import {
   VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
   buildVoidWcVoidCoupledLaunchRegenerationCensusV2,
   deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2,
+  discoverVoidWcVoidSupersededGenerationSourcePathsV2,
 } from "../tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs";
 
 const correction = JSON.parse(fs.readFileSync(
@@ -90,7 +92,23 @@ assert.equal(
   VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.length,
 );
 assert.equal(census.authoritative_path_count, 14);
-assert.ok(census.remaining_superseded_authoritative_path_count >= 10);
+assert.equal(
+  census.remaining_superseded_authoritative_path_count,
+  census.authoritative_path_count,
+);
+assert.equal(census.all_authoritative_old_generation_pins_present, true);
+assert.deepEqual(census.unknown_superseded_source_paths, []);
+const discoveredSourcePaths =
+  discoverVoidWcVoidSupersededGenerationSourcePathsV2();
+assert.deepEqual(census.discovered_superseded_source_paths, discoveredSourcePaths);
+assert.equal(
+  census.discovered_superseded_source_path_count,
+  discoveredSourcePaths.length,
+);
+assert.deepEqual(
+  census.expected_non_authority_superseded_source_paths,
+  VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
+);
 assert.equal(census.all_authoritative_rebindings_complete, false);
 assert.equal(census.canonical_candidate_update_authorized, false);
 assert.equal(census.controller_resigning_authorized, false);
@@ -105,14 +123,10 @@ assert.equal(
 );
 assert.match(census.census_id, /^voidwclregen2_[0-9a-f]{64}$/u);
 
-for (const required of [
-  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
-  "src/economic/buy_void_coupled_launch_gate_v1.mjs",
-  "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs",
-  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs",
-  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
-  "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs",
-]) {
+for (
+  const required of
+  VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2
+) {
   const entry = census.authoritative_bindings.find(
     (item) => item.path === required,
   );
@@ -130,6 +144,15 @@ for (const historical of VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS
     false,
   );
 }
+for (const historical of VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2) {
+  assert.ok(
+    fs.readFileSync(historical, "utf8").includes(
+      VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
+    ),
+    historical + ": historical old-generation lineage must remain explicit",
+  );
+}
+
 
 for (const [key, value] of Object.entries(
   VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_AUTHORITY_V2,
@@ -149,6 +172,20 @@ for (const [key, value] of Object.entries(
   const tampered = structuredClone(correction);
   tampered.canonical_compiler_artifacts.runtime_template_sha256 =
     "0".repeat(64);
+  assert.throws(
+    () => deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2({
+      correction: tampered,
+      candidate,
+      presale_source: presaleSource,
+    }),
+    /coupled_launch_regeneration_correction_v2_invalid/u,
+  );
+}
+
+{
+  const tampered = structuredClone(correction);
+  tampered.correction_id =
+    "voidwcvcic2_" + "0".repeat(64);
   assert.throws(
     () => deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2({
       correction: tampered,
@@ -198,6 +235,9 @@ console.log(
   "remaining_superseded_authoritative_path_count=" +
     String(census.remaining_superseded_authoritative_path_count),
 );
+console.log("authoritative_source_census_exhaustive=true");
+console.log("unknown_superseded_source_paths=0");
+console.log("canonical_correction_verifier_required=true");
 console.log("old_control_signature_generation_reusable=false");
 console.log("partial_rebind_authorized=false");
 console.log("canonical_candidate_update_authorized=false");
