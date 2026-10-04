@@ -78,9 +78,11 @@ content-addressed input packet containing:
 - source-evidence identity.
 
 The classifier recomputes only the observation packet's time-window validity
-from `now_ms`. It accepts no caller `fresh=true` boolean. The source does
-not prove who selected that window or that it satisfies a production freshness
-policy; `trusted_fee_freshness_policy_proven=false` remains explicit.
+from `now_ms`. The window is half-open: `observed_at_ms <= now_ms <
+expires_at_ms`; the exact expiry millisecond is already stale. It accepts no
+caller `fresh=true` boolean. The source does not prove who selected that
+window or that it satisfies a production freshness policy;
+`trusted_fee_freshness_policy_proven=false` remains explicit.
 
 This packet is **not** proof that the balance, fee, time, or observation source
 is live/trusted. Those remain later runtime evidence gates.
