@@ -42,10 +42,10 @@ const root = fs.mkdtempSync(
 try {
   fs.chmodSync(root, 0o700);
   const requests = [
-    { request_id: "buyvoid_a_aaaaaaaa", quoted_void: 6 },
-    { request_id: "buyvoid_b_bbbbbbbb", quoted_void: 6 },
-    { request_id: "buyvoid_c_cccccccc", quoted_void: 4 },
-    { request_id: "buyvoid_d_dddddddd", quoted_void: 1 },
+    { request_id: "buyvoid_a_aaaaaaaa", quoted_void: 6, source_chain: "base", tx_hash: "0x" + "a".repeat(64) },
+    { request_id: "buyvoid_b_bbbbbbbb", quoted_void: 6, source_chain: "base", tx_hash: "0x" + "b".repeat(64) },
+    { request_id: "buyvoid_c_cccccccc", quoted_void: 4, source_chain: "base", tx_hash: "0x" + "c".repeat(64) },
+    { request_id: "buyvoid_d_dddddddd", quoted_void: 1, source_chain: "base", tx_hash: "0x" + "d".repeat(64) },
   ];
   const requestsPath = path.join(root, "requests.jsonl");
   fs.writeFileSync(
@@ -291,6 +291,8 @@ try {
       const postcheckRequest = {
         request_id: "buyvoid_post_90909090",
         quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "9".repeat(64),
       };
       fs.writeFileSync(
         path.join(postcheckRoot, "requests.jsonl"),
@@ -413,6 +415,8 @@ try {
       const durableRequest = {
         request_id: "buyvoid_bound_56565656",
         quoted_void: 2,
+        source_chain: "base",
+        tx_hash: "0x" + "5".repeat(64),
       };
       fs.writeFileSync(
         path.join(bindingRoot, "requests.jsonl"),
@@ -464,6 +468,39 @@ try {
             read_sale_state: bindingSaleState,
           }),
         /buy_void_verified_payment_capacity_candidate_quote_mismatch/u,
+      );
+      assert.equal(bindingMutationCalls, 0);
+
+      const mismatchedPaymentBinding = {
+        ...durableRequest,
+        tx_hash: "0x" + "6".repeat(64),
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(mismatchedPaymentBinding, 105),
+            request: mismatchedPaymentBinding,
+            request_dir: bindingRoot,
+            with_launch_authority_mutation: bindingMutation,
+            read_sale_state: bindingSaleState,
+          }),
+        /buy_void_verified_payment_duplicate_guard_request_binding_mismatch/u,
+      );
+
+      const mismatchedSourceChain = {
+        ...durableRequest,
+        source_chain: "ethereum",
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(mismatchedSourceChain, 106),
+            request: mismatchedSourceChain,
+            request_dir: bindingRoot,
+            with_launch_authority_mutation: bindingMutation,
+            read_sale_state: bindingSaleState,
+          }),
+        /buy_void_verified_payment_duplicate_guard_request_binding_mismatch/u,
       );
       assert.equal(bindingMutationCalls, 0);
       const bindingEvents = path.join(
@@ -574,6 +611,8 @@ try {
       const snapshotRequest = {
         request_id: "buyvoid_snapr_56565656",
         quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "6".repeat(64),
       };
       const snapshotRequests = path.join(snapshotRoot, "requests.jsonl");
       const snapshotEvents = path.join(
@@ -642,6 +681,8 @@ try {
       const snapshotRequest = {
         request_id: "buyvoid_snapo_90909090",
         quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "7".repeat(64),
       };
       fs.writeFileSync(
         path.join(snapshotRoot, "requests.jsonl"),
@@ -721,6 +762,8 @@ try {
       const swapRequest = {
         request_id: "buyvoid_swap2_12121212",
         quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "8".repeat(64),
       };
       fs.writeFileSync(
         path.join(swapRoot, "requests.jsonl"),
@@ -787,6 +830,8 @@ try {
       const growRequest = {
         request_id: "buyvoid_grow2_34343434",
         quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "9".repeat(64),
       };
       fs.writeFileSync(
         path.join(growRoot, "requests.jsonl"),
@@ -848,6 +893,7 @@ try {
         "strict_ledger_recount",
         "durable_payment_verified_append",
         "payment_verified_sidecar_recovery",
+        "durable_request_payment_binding",
         "duplicate_payment_identity_verification",
       ].includes(key)
     ) {
@@ -866,6 +912,8 @@ try {
   console.log("legacy_lenient_projection_is_not_capacity_authority=true");
   console.log("candidate_request_must_exist_in_durable_ledger=true");
   console.log("candidate_quote_bound_to_durable_request=true");
+  console.log("candidate_payment_tx_bound_to_durable_request=true");
+  console.log("candidate_source_chain_bound_to_durable_request=true");
   console.log("duplicate_request_reverification_idempotent=true");
   console.log("payment_verified_jsonl_append_fsync=true");
   console.log("requests_ledger_descriptor_bound_bounded_read=true");
