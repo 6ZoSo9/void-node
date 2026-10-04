@@ -942,7 +942,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
             candidate_event: input.verified_payment_event,
             existing_events: strictBefore.operator_events,
           });
-        if (!duplicateBefore.ok) {
+        if (duplicateBefore.ok === false) {
           fail(
             "buy_void_verified_payment_duplicate_guard_" +
               duplicateBefore.reason,
