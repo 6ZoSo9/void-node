@@ -63,6 +63,8 @@ const MAX_EVIDENCE_BYTES = 2 * 1024 * 1024;
 
 const ACCEPTANCE_REL =
   "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
+const CORRECTION_REL =
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json";
 const COUPLED_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SOVEREIGN_REL =
@@ -88,6 +90,7 @@ const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256 =
 export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOBS_V1 =
   Object.freeze({
     [ACCEPTANCE_REL]: "c85b6bc59caac6bc765cb8e969cb980386161d12",
+    [CORRECTION_REL]: "4f12b641928abad3a5b807a0f811aa3ee18b47f7",
     [COUPLED_REL]: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
     [SOVEREIGN_REL]: "ab51f2095aee1537a417a13014fa5b973c4c0645",
     [WALLET_REL]: "0999f773bdc4befb3e82676304f0d69f5cab42ef",
@@ -745,6 +748,29 @@ function deriveCurrentRoleAndVaultSources(source) {
     source.bytes[ACCEPTANCE_REL],
     "compiled_identity_acceptance",
   );
+  const correction = parseJsonBytes(
+    source.bytes[CORRECTION_REL],
+    "compiled_identity_correction_v2",
+  );
+  if (
+    correction?.marker !==
+      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2" ||
+    correction?.version !== 2 ||
+    correction?.status !==
+      "COMPILED_IDENTITY_V1_BYTECODE_SUPERSEDED_DEPLOYMENT_HOLD" ||
+    correction?.accepted_identity?.identity_id !== EXPECTED.compiled_identity_id ||
+    correction?.canonical_compiler_artifacts?.creation_bytecode_sha256 !==
+      "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540" ||
+    correction?.canonical_compiler_artifacts?.runtime_template_sha256 !==
+      "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e" ||
+    correction?.coupled_launch_effect?.corrected_coupled_launch_id !==
+      "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d" ||
+    correction?.decision?.v1_acceptance_deployment_artifact_superseded !== true ||
+    correction?.decision?.deployment_authorized !== false
+  ) {
+    fail("compiled_identity_correction_v2_invalid");
+  }
+  fail("compiled_identity_v1_superseded_by_correction_v2");
   const coupled = parseJsonBytes(source.bytes[COUPLED_REL], "coupled_candidate");
   const sovereign = parseJsonBytes(
     source.bytes[SOVEREIGN_REL],
