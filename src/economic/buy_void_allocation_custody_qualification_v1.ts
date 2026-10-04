@@ -383,8 +383,16 @@ function exactObject(
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     fail(code);
   }
-  const record = value as Record<string, unknown>;
-  const actual = Object.keys(record).sort();
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    fail(code);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const ownKeys = Reflect.ownKeys(descriptors);
+  if (ownKeys.some((key) => typeof key !== "string")) {
+    fail(code);
+  }
+  const actual = (ownKeys as string[]).sort();
   const expected = [...keys].sort();
   if (
     actual.length !== expected.length ||
@@ -392,7 +400,20 @@ function exactObject(
   ) {
     fail(code);
   }
-  return record;
+  const snapshot: Record<string, unknown> =
+    Object.create(null);
+  for (const key of keys) {
+    const descriptor = descriptors[key];
+    if (
+      !descriptor ||
+      descriptor.enumerable !== true ||
+      !Object.hasOwn(descriptor, "value")
+    ) {
+      fail(code);
+    }
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
 }
 
 function safeText(
