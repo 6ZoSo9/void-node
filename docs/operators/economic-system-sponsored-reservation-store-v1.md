@@ -158,8 +158,14 @@ therefore keeps `root_path_stability_proven=false`.
 If the exact canonical sponsorship file already exists and its complete record
 bytes match the supplied exact intent+sponsorship record, replay still requires
 the supplied signed submission to verify cryptographically and bind the same
-typed-data digest, gas limit, and intent lifetime. Only then does replay return
-`status=duplicate` with no mutation.
+typed-data digest, gas limit, and intent lifetime. An ordinary clean replay then
+returns `status=duplicate` with `mutation_performed=false`.
+
+If that same serialized replay also repairs a reviewed crash-temp residue,
+the canonical reservation/budget remains unchanged but filesystem recovery did
+occur, so the response truthfully returns `mutation_performed=true`. A HOLD
+after any such cleanup likewise reports that mutation instead of claiming a
+read-only outcome.
 
 A corrupt or mismatched replay signature HOLDS without changing the durable
 record or budget state.
