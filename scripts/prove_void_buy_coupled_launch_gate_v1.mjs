@@ -116,7 +116,7 @@ assert.equal(
   VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1,
   false,
 );
-const capacityHeld = testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1({
+const capacityHeld = classifyBuyLaunchGateV1({
   production: readyProduction,
   coupled: readyCoupled,
   successor: readySuccessor,
