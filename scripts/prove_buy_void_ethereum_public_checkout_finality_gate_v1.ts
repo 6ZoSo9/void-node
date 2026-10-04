@@ -94,6 +94,16 @@ assert.equal(
 );
 assert.equal(
   VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .pre_attempt_verified_payment_rebuilt_internally,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .caller_supplied_verified_payment_event_authority,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
     .canonical_source_finality_preflight_required,
   true,
 );
@@ -290,9 +300,6 @@ const authoritative: BuyVoidSourceFinalityExecutionPreflightReadyV1 = {
   process_source_identity_verified: true,
   reviewed_source_files_verified: true,
   authenticated_transport_identity_verified: true,
-  observation_generated_in_composition: true,
-  same_provider_consistency_verified: true,
-  provider_consistency_verified: true,
   total_operation_deadline_verified: true,
   source_generation_verified: true,
   deployed_artifact_generation_verified: true,
@@ -381,7 +388,6 @@ const preAttemptVerifiedEvent = {
 const preAttemptCurrent =
   await runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({
     request: preAttemptRequest,
-    verified_payment_event: preAttemptVerifiedEvent,
     env,
   });
 assert.equal(preAttemptCurrent.ok, false);
@@ -392,7 +398,7 @@ if (preAttemptCurrent.ok === false) {
   );
   assert.equal(
     preAttemptCurrent.canonical_payment_identity,
-    canonicalIdentity,
+    null,
   );
   assert.equal(
     preAttemptCurrent.payment_verified_transition_ready,
@@ -408,61 +414,9 @@ if (preAttemptCurrent.ok === false) {
   );
 }
 
-for (const mutate of [
-  (event: any) => {
-    event.payment_verifier.from_address = "0x" + "7".repeat(40);
-  },
-  (event: any) => {
-    event.payment_verifier.delivery_address = "0x" + "7".repeat(40);
-  },
-  (event: any) => {
-    event.payment_verifier.receive_address = "0x" + "7".repeat(40);
-  },
-  (event: any) => {
-    event.payment_verifier.amount_units = "2000000";
-  },
-  (event: any) => {
-    event.payment_verifier.requested_units = "2000000";
-  },
-]) {
-  const altered = structuredClone(preAttemptVerifiedEvent) as any;
-  mutate(altered);
-  const held =
-    await runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({
-      request: preAttemptRequest,
-      verified_payment_event: altered,
-      env,
-    });
-  assert.equal(held.ok, false);
-  if (held.ok === false) {
-    assert.equal(
-      held.reason,
-      "ethereum_pre_attempt_verified_payment_binding_invalid",
-    );
-  }
-}
-
-const amountMismatch =
-  await runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({
-    request: {
-      ...preAttemptRequest,
-      usdc_amount: "2",
-    },
-    verified_payment_event: preAttemptVerifiedEvent,
-    env,
-  });
-assert.equal(amountMismatch.ok, false);
-if (amountMismatch.ok === false) {
-  assert.equal(
-    amountMismatch.reason,
-    "ethereum_pre_attempt_verified_payment_binding_invalid",
-  );
-}
-
 const missingProcessIdentity =
   await runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1({
     request: preAttemptRequest,
-    verified_payment_event: preAttemptVerifiedEvent,
     env: {
       ...env,
       VOID_PROCESS_SOURCE_IDENTITY_MARKER: "",
@@ -499,6 +453,9 @@ const futureReadyObservation = {
   min_confirmations: "12",
   reviewed_source_files_verified: true,
   authenticated_transport_identity_verified: true,
+  observation_generated_in_composition: true,
+  same_provider_consistency_verified: true,
+  provider_consistency_verified: true,
   total_operation_deadline_verified: true,
   source_generation_verified: true,
   deployed_artifact_generation_verified: true,
@@ -632,6 +589,40 @@ assert.match(
 );
 assert.match(
   source,
+  /observeBuyVoidPaymentV1\(\{/u,
+);
+assert.match(
+  source,
+  /buildBuyVoidVerifiedPaymentEventV2\(\{/u,
+);
+assert.match(
+  source,
+  /canonical_verified_payment_event: canonicalVerifiedPaymentEvent/u,
+);
+assert.match(
+  source,
+  /caller_supplied_verified_payment_event_authority: false/u,
+);
+const productionPreAttemptSource = source.slice(
+  source.indexOf(
+    "export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1",
+  ),
+  source.indexOf(
+    "export function testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1",
+  ),
+);
+assert.doesNotMatch(
+  productionPreAttemptSource,
+  /verified_payment_event:\s*BuyVoidVerifiedPaymentEventV2/u,
+  "production pre-attempt API must not accept a caller-supplied verified event",
+);
+assert.doesNotMatch(
+  productionPreAttemptSource,
+  /input\.verified_payment_event/u,
+  "production pre-attempt path must not consume caller-supplied verified evidence",
+);
+assert.match(
+  source,
   /runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1/u,
 );
 assert.match(
@@ -719,6 +710,8 @@ console.log("ethereum_payment_instructions_currently_hold=true");
 console.log("existing_payment_reconciliation_survives_intake_disable=true");
 console.log("canonical_source_finality_preflight_required=true");
 console.log("pre_attempt_request_level_v5_bridge_present=true");
+console.log("pre_attempt_verified_payment_rebuilt_internally=true");
+console.log("caller_supplied_verified_payment_event_authority=false");
 console.log("pre_attempt_process_source_identity_required=true");
 console.log("pre_attempt_module_generated_observation_required=true");
 console.log("pre_attempt_provider_consistency_required=true");
