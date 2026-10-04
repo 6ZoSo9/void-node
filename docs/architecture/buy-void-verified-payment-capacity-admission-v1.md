@@ -18,21 +18,28 @@ bakery lock rooted inside the Buy VOID request directory.
 
 For `payment_verified` only, while holding that lock it:
 
-1. strictly parses the raw `requests.jsonl` and `operator-events.jsonl`
-   authority files; malformed rows, missing verified requests, or changed quote
-   amounts fail closed;
+1. pins the request directory with `O_DIRECTORY|O_NOFOLLOW`, opens the
+   authoritative `requests.jsonl` and `operator-events.jsonl` through that
+   retained directory descriptor, and strictly parses bounded descriptor reads;
+   malformed rows, missing verified requests, changed quote amounts, inode/path
+   replacement, size growth, or read-time identity drift fail closed;
 2. derives the unique verified-request reservation total directly from those
    raw ledgers and checks whether this request is already verified;
 3. re-reads the legacy sale-state projection only as a cross-check and requires
    it to match the strict ledger recount exactly;
 4. validates exact six-decimal pool/reserved/verified/remaining conservation;
 5. rejects if the new quoted VOID exceeds current remaining inventory;
-6. keeps the capacity lock held while the existing launch-generation authority
-   mutation and per-request closeout lock append the event;
-7. strictly re-reads the raw ledgers and sale-state projection and requires
-   verified/reserved inventory to increase by exactly the quote and remaining
-   inventory to decrease by exactly the quote.
-8. durably fsyncs the `payment_verified` JSONL append before publishing the
+6. keeps the capacity lock held while the retained
+   `operator-events.jsonl` descriptor crosses the existing launch-generation
+   authority mutation and per-request closeout lock;
+7. rebinds the visible operator-ledger path to that exact opened inode
+   immediately before append, writes with `O_APPEND` through the retained
+   descriptor, fsyncs that inode, and rebinds the visible path again before
+   accepting post-state;
+8. strictly re-reads the same operator-ledger inode plus a descriptor-bound
+   request ledger and requires verified/reserved inventory to increase by
+   exactly the quote and remaining inventory to decrease by exactly the quote.
+9. durably fsyncs the `payment_verified` JSONL append before publishing the
    per-event sidecar used by bounded orchestration. If a crash leaves the
    durable JSONL event without that sidecar, exact re-verification reconstructs
    the original timestamped sidecar from the authoritative event under the
@@ -56,6 +63,12 @@ The same proof deletes the exact 4 VOID event sidecar after its durable JSONL
 append to model the crash window. Re-verification restores the historical
 sidecar from the JSONL record, creates no sidecar for the retry timestamp, and
 does not invoke launch-authority mutation or change the reserved total.
+
+Filesystem adversaries additionally replace or grow the authoritative request
+ledger after its admitted `fstat`, and replace or grow the operator ledger
+after the capacity census but before launch/request mutation. Those cases must
+HOLD before any `payment_verified` bytes or sidecar are written to a
+replacement target.
 
 All arithmetic is exact micro-VOID integer arithmetic derived from canonical
 decimal text with at most six decimals. The legacy runtime readers may remain
