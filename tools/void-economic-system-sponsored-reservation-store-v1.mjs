@@ -776,11 +776,12 @@ async function canonicalLock() {
     "../dist/economic/buy_void_filesystem_bakery_lock_v1.js"
   );
   if (
-    typeof module.withBuyVoidFilesystemBakeryLockAsyncV1 !== "function"
+    typeof module.withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1 !==
+    "function"
   ) {
     fail("SPONSORED_RESERVATION_STORE_LOCK_UNAVAILABLE");
   }
-  return module.withBuyVoidFilesystemBakeryLockAsyncV1;
+  return module.withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1;
 }
 
 function held(reason, mutationPerformed = false) {
@@ -853,9 +854,8 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
     records = openRecordsDirectory(root);
     lockQueue = openLockQueueDirectory(root);
     const withLock = await canonicalLock();
-    const lockPath = path.join(root.proc_path, LOCK_NAME);
 
-    return await withLock(lockPath, async () => {
+    return await withLock(lockQueue.proc_path, async () => {
       assertPinnedDirectoryVisible(
         root,
         "SPONSORED_RESERVATION_STORE_ROOT",
