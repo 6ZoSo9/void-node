@@ -387,6 +387,40 @@ expectHeld(
   "allocation_reservation_publication_intent_payload_invalid",
 );
 
+const relabeledIntentObject = JSON.parse(
+  firstIntent.intent_json,
+);
+relabeledIntentObject.record_id =
+  "voidalloc1_" + "9".repeat(64);
+const relabeledIntent =
+  JSON.stringify(relabeledIntentObject) + "\n";
+expectHeld(
+  classifyBuyVoidAllocationReservationPublicationRecoveryV1({
+    intent_bytes: relabeledIntent,
+    observed_ledger_jsonl: "",
+    observed_high_water_json:
+      emptyHighWater.high_water_json,
+  }),
+  "allocation_reservation_publication_append_record_binding_invalid",
+);
+
+const rehashedIntentObject = JSON.parse(
+  firstIntent.intent_json,
+);
+rehashedIntentObject.record_hash = sha("9");
+rehashedIntentObject.next_tip_hash = sha("9");
+const rehashedIntent =
+  JSON.stringify(rehashedIntentObject) + "\n";
+expectHeld(
+  classifyBuyVoidAllocationReservationPublicationRecoveryV1({
+    intent_bytes: rehashedIntent,
+    observed_ledger_jsonl: "",
+    observed_high_water_json:
+      emptyHighWater.high_water_json,
+  }),
+  "allocation_reservation_publication_append_record_binding_invalid",
+);
+
 const prettyIntent =
   JSON.stringify(
     JSON.parse(firstIntent.intent_json),
@@ -453,6 +487,8 @@ console.log("unknown_mixed_state_rejected=true");
 console.log("multi_record_jump_rejected=true");
 console.log("alternate_history_rejected=true");
 console.log("retry_record_binding=true");
+console.log("intent_record_id_bound_to_append=true");
+console.log("intent_record_hash_bound_to_append_and_next_tip=true");
 console.log("runtime_integration=false");
 console.log("protected_high_water_storage=false");
 console.log("filesystem_write=false");
