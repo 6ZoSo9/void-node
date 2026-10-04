@@ -471,6 +471,46 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const f = fixture();
+  try {
+    fs.writeFileSync(
+      path.join(f.ledgerRoot, INTENT_NAME),
+      "{\"bad\":true}\n",
+      { mode: 0o600 },
+    );
+    const held =
+      recoverBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error("expected malformed lone intent HOLD");
+    }
+    assert.match(
+      held.reason,
+      /allocation_reservation_publication_intent_shape_invalid/u,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(f.highWaterRoot, INTENT_NAME),
+      ),
+      false,
+      "malformed lone intent must not be copied into the second root",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(f.ledgerRoot, INTENT_NAME),
+      ),
+      true,
+      "invalid authority evidence must remain visible for operator inspection",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const f = fixture(ledger1, genesisHighWater);
   try {
     const held =
@@ -713,22 +753,40 @@ for (const [key, value] of Object.entries(
   const f = fixture("", nextHighWater);
   try {
     writeIntent(f);
-    const held =
+    const recovered =
       recoverBuyVoidAllocationReservationPublicationWriterV1({
         ledger_root: f.ledgerRoot,
         high_water_root: f.highWaterRoot,
       });
-    assert.equal(held.ok, false);
-    if (held.ok) throw new Error("expected high-water-ahead HOLD");
-    assert.match(
-      held.reason,
-      /allocation_reservation_publication_high_water_ahead/u,
+    assert.equal(recovered.ok, true);
+    if (!recovered.ok) throw new Error(recovered.reason);
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.operation_performed, true);
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.ledgerRoot, LEDGER_NAME),
+        "utf8",
+      ),
+      ledger1,
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.highWaterRoot, HIGH_WATER_NAME),
+        "utf8",
+      ),
+      nextHighWater,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(f.ledgerRoot, INTENT_NAME),
+      ),
+      false,
     );
     assert.equal(
       fs.existsSync(
         path.join(f.highWaterRoot, INTENT_NAME),
       ),
-      true,
+      false,
     );
   } finally {
     cleanup(f);
@@ -1243,7 +1301,7 @@ console.log("intent_only_recovery=true");
 console.log("ledger_committed_recovery=true");
 console.log("recovery_terminal_before_new_transition=true");
 console.log("complete_recovery=true");
-console.log("high_water_ahead_hold=true");
+console.log("high_water_committed_recovery=true");
 console.log("multi_record_jump_hold=true");
 console.log("rollback_hold=true");
 console.log("descriptor_bound_private_roots=true");
@@ -1261,12 +1319,12 @@ console.log("single_root_mid_publication_recovery=true");
 console.log("post_admission_root_path_stability_proven=false");
 console.log("single_root_post_publication_recovery=false");
 console.log("divergent_intent_copies_hold=true");
+console.log("invalid_single_intent_not_replicated=true");
 console.log("high_water_root_postcheck_swap_self_recovers=true");
 console.log("ledger_root_postcheck_swap_self_recovers=true");
+console.log("high_water_committed_recovery=true");
 console.log("deterministic_dual_lock_order=true");
 console.log("post_publication_root_swap_mixed_state_hold=true");
-console.log("post_admission_root_path_stability_proven=false");
-console.log("single_root_post_publication_recovery=false");
 console.log("storage_bootstrap=false");
 console.log("runtime_integration=false");
 console.log("protected_high_water_custody_proven=false");
