@@ -18746,16 +18746,6 @@ setInterval(refresh, 10000);
     });
 
     // VOID_BUY_VOID_PAYMENT_VERIFIER_V1
-    function __voidBuyVoidHexToBigIntV1(x:any){
-      const s = String(x || "0x0");
-      try { return BigInt(s); } catch { return 0n; }
-    }
-
-    function __voidBuyVoidTopicAddressV1(topic:any){
-      const s = String(topic || "").toLowerCase();
-      if (!s.startsWith("0x") || s.length < 66) return "";
-      return "0x" + s.slice(-40);
-    }
 
     // VOID_BUY_VOID_MULTI_CHAIN_USDC_VERIFIER_V1
     function __voidBuyVoidPaymentChainV1(sourceChain:any){
@@ -18803,25 +18793,7 @@ setInterval(refresh, 10000);
       return j.result;
     }
 
-    // VOID_BUY_VOID_PAYMENT_SENDER_DELIVERY_MATCH_V1
-    function __voidBuyVoidUsdcTransferMatchV1(logs:any[],chainCfg:any,receiveAddress:string,deliveryAddress:string,requestedUsdc:any){
-      const usdc=String(chainCfg?.usdc_contract||"").toLowerCase(),to=String(receiveAddress||"").toLowerCase(),expectedFrom=String(deliveryAddress||"").toLowerCase(),transferSig="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",t=String(requestedUsdc??"").trim(),q=/^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/.exec(t),matches:any[]=[];
-      if(!q)return{ok:false,error:"invalid_requested_usdc_amount",usdc_contract:usdc,expected_from_address:expectedFrom,receive_address:to,requested_units:""};
-      const requestedUnits=BigInt(q[1])*1000000n+BigInt((q[2]||"").padEnd(6,"0"));
-      for(const log of logs||[]){
-        const topics=log.topics||[];
-        if(String(log.address||"").toLowerCase()!==usdc||String(topics[0]||"").toLowerCase()!==transferSig)continue;
-        const logFrom=__voidBuyVoidTopicAddressV1(topics[1]),logTo=__voidBuyVoidTopicAddressV1(topics[2]);
-        if(logTo!==to||logFrom!==expectedFrom)continue;
-        const amountUnits=__voidBuyVoidHexToBigIntV1(log.data||"0x0");
-        let parsedLogIndex=0n;
-        try{parsedLogIndex=BigInt(log.logIndex);}catch{continue;}
-        if(parsedLogIndex<0n||parsedLogIndex>0xffff_ffffn||amountUnits!==requestedUnits)continue;
-        matches.push({ok:true,log_index:parsedLogIndex.toString(),usdc_contract:usdc,from_address:logFrom,receive_address:to,delivery_address:expectedFrom,amount_units:amountUnits.toString(),requested_units:requestedUnits.toString()});
-      }
-      if(matches.length===1)return matches[0];return {ok:false,error:matches.length?"ambiguous_matching_usdc_transfers":"matching_usdc_transfer_not_found",...(matches.length?{matching_log_indexes:matches.map((m:any)=>m.log_index),match_count:matches.length}:{}),usdc_contract:usdc,expected_from_address:expectedFrom,receive_address:to,requested_units:requestedUnits.toString()};
-    }
-
+    // VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1
     app.get("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
       if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
 
@@ -18870,63 +18842,15 @@ setInterval(refresh, 10000);
           });
         }
 
-        const receipt:any = await __voidBuyVoidRpcV1(chainCfg, "eth_getTransactionReceipt", [tx]);
-        if (!receipt) {
-          return res.status(404).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "payment_tx_receipt_not_found",
-            tx_hash: tx
-          });
-        }
-
-        if (String(receipt.status || "").toLowerCase() !== "0x1") {
-          return res.status(400).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "payment_tx_failed",
-            tx_hash: tx,
-            receipt_status: receipt.status || ""
-          });
-        }
-
-        const match = __voidBuyVoidUsdcTransferMatchV1(receipt.logs || [], chainCfg, cfg.receive_address, found.delivery_address || "", found.usdc_amount);
-        if (!match.ok) {
-          return res.status(400).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error:match.error||"matching_usdc_transfer_not_found",
-            tx_hash: tx,
-            request_id: id,
-            match
-          });
-        }
+        const receipt:any=await __voidBuyVoidRpcV1(chainCfg,"eth_getTransactionReceipt",[tx]);
+        if(!receipt)return res.status(404).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"payment_tx_receipt_not_found",tx_hash:tx});
+        const currentBlock:any=await __voidBuyVoidRpcV1(chainCfg,"eth_blockNumber",[]);
+        const v:any=await import("./economic/buy_void_verified_payment_v2.js");
+        const verified=v.buildBuyVoidVerifiedPaymentEventV2({request:found,receipt,policy:{allowed_chains:[chainCfg.chain],usdc_contract_by_chain:{[chainCfg.chain]:chainCfg.usdc_contract},receive_address_by_chain:{[chainCfg.chain]:cfg.receive_address},current_block_number_by_chain:{[chainCfg.chain]:currentBlock}}});
+        if(!verified.ok)return res.status(400).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:verified.reason,tx_hash:tx,request_id:id,...(verified.detail?{detail:verified.detail}:{})});
 
         if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
-        const event={schema:"void_buy_void_verified_payment_event_v2",marker:"VOID_BUY_VOID_VERIFIED_PAYMENT_V2",ok:true,
-          request_id: id,
-          operator_status: "payment_verified",
-          note: "USDC receipt/log verified",
-          marked_at_ms: Date.now(),
-          prior_status: found.status || "",
-          tx_hash: tx,
-          payment_verified:true,payment_identity_input_complete:true,payment_verifier:{
-            chain: chainCfg.chain,
-            rpc_env: chainCfg.rpc_env,
-            receipt_status: receipt.status,
-            block_number: receipt.blockNumber || "",
-            transaction_hash:receipt.transactionHash||tx,log_index:match.log_index,
-            usdc_contract: match.usdc_contract,
-            from_address: match.from_address,
-            receive_address: match.receive_address,
-            delivery_address: match.delivery_address,
-            amount_units: match.amount_units,
-            requested_units: match.requested_units
-          },
-          usdc_amount: found.usdc_amount,
-          quoted_void: found.quoted_void,
-          delivery_address: found.delivery_address || ""
-        };
+        const event={...verified.event,ok:true,note:"USDC receipt/log verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verified.event.payment_verifier,rpc_env:chainCfg.rpc_env,receipt_status:receipt.status},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
 
         await __voidWriteBuyVoidOperatorEventV1(event,found);
 
