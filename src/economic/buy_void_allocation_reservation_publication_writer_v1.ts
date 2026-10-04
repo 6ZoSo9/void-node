@@ -239,14 +239,25 @@ function assertDistinctRoots(
   ledgerDirectory: PinnedDirectoryV1,
   highWaterDirectory: PinnedDirectoryV1,
 ): void {
+  const nestedUnder = (parent: string, child: string): boolean => {
+    const relative = path.relative(parent, child);
+    return (
+      relative !== "" &&
+      relative !== ".." &&
+      !relative.startsWith(".." + path.sep) &&
+      !path.isAbsolute(relative)
+    );
+  };
   if (
     ledgerDirectory.path === highWaterDirectory.path ||
+    nestedUnder(ledgerDirectory.path, highWaterDirectory.path) ||
+    nestedUnder(highWaterDirectory.path, ledgerDirectory.path) ||
     (
       ledgerDirectory.stat.dev === highWaterDirectory.stat.dev &&
       ledgerDirectory.stat.ino === highWaterDirectory.stat.ino
     )
   ) {
-    fail("allocation_reservation_writer_storage_roots_must_be_distinct");
+    fail("allocation_reservation_writer_storage_roots_must_be_disjoint");
   }
 }
 
