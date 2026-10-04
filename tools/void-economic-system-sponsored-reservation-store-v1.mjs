@@ -13,6 +13,9 @@ import {
   VOID_ECONOMIC_INTENT_RESERVATION_SCHEMA_V1,
   economicIntentReservationIdV1,
 } from "./void-economic-intent-ttl-caps-policy-v1.mjs";
+import {
+  verifyVoidEconomicEpoch2SignedSubmissionIntentV1,
+} from "./void-economic-epoch2-signed-submission-intent-v1.mjs";
 
 export const VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1 =
   "VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1";
@@ -24,6 +27,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_AUTHORITY_V1 =
     canonical_historical_state_verifier_reused: true,
     canonical_ttl_intent_identity_reused: true,
     canonical_sponsorship_identity_reused: true,
+    duplicate_signed_submission_identity_required: true,
     compound_intent_sponsorship_record: true,
     append_only_history: true,
     expired_history_retained: true,
@@ -539,6 +543,83 @@ function readHistory(records, cleanupReviewedTemps) {
   return Object.freeze(parsed);
 }
 
+const REPLAY_SIGNED_SUBMISSION_KEYS = Object.freeze([
+  "intent",
+  "calldata",
+  "signature",
+  "allowed_targets",
+  "consumed_digests",
+]);
+
+function verifyDuplicateSignedSubmissionV1(candidate, rawSigned) {
+  const signed = directObject(
+    rawSigned,
+    "SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_SUBMISSION_REQUIRED",
+  );
+  exactKeys(
+    signed,
+    REPLAY_SIGNED_SUBMISSION_KEYS,
+    "SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_SUBMISSION_SHAPE_INVALID",
+  );
+  const signedIntent = directObject(
+    signed.intent,
+    "SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_INTENT_REQUIRED",
+  );
+  const issuedAtUnix = String(signedIntent.issued_at_unix ?? "");
+  if (!/^(0|[1-9][0-9]*)$/u.test(issuedAtUnix)) {
+    fail("SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_INTENT_TIME_INVALID");
+  }
+
+  let verified;
+  try {
+    verified = verifyVoidEconomicEpoch2SignedSubmissionIntentV1({
+      intent: signed.intent,
+      calldata: signed.calldata,
+      signature: signed.signature,
+      nowUnix: issuedAtUnix,
+      allowedTargets: [signedIntent.target],
+      consumedDigests: new Set(),
+    });
+  } catch {
+    fail("SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_SUBMISSION_INVALID");
+  }
+
+  if (
+    verified.typed_data_digest !==
+      candidate.record.sponsorship.signed_submission_digest ||
+    verified.gas_limit !==
+      String(candidate.record.sponsorship.gas_limit)
+  ) {
+    fail("SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_SUBMISSION_MISMATCH");
+  }
+
+  try {
+    if (
+      BigInt(signedIntent.issued_at_unix) * 1000n !==
+        BigInt(candidate.record.intent.issued_at_ms) ||
+      BigInt(signedIntent.expires_at_unix) * 1000n !==
+        BigInt(candidate.record.intent.expires_at_ms)
+    ) {
+      fail("SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_LIFETIME_MISMATCH");
+    }
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message ===
+        "SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_LIFETIME_MISMATCH"
+    ) {
+      throw error;
+    }
+    fail("SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_INTENT_TIME_INVALID");
+  }
+
+  return Object.freeze({
+    signature_verified: true,
+    signed_submission_digest: verified.typed_data_digest,
+    gas_limit: verified.gas_limit,
+  });
+}
+
 function candidateRecord(intentRaw, sponsorshipRaw) {
   const intent = directObject(
     intentRaw,
@@ -752,6 +833,10 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         if (!same.bytes.equals(candidate.bytes)) {
           return held("SPONSORED_RESERVATION_STORE_REPLAY_CONFLICT");
         }
+        verifyDuplicateSignedSubmissionV1(
+          candidate,
+          input.candidate_signed_submission,
+        );
         return success("duplicate", candidate, false, state);
       }
 
