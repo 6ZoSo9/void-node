@@ -167,6 +167,11 @@ occur, so the response truthfully returns `mutation_performed=true`. A HOLD
 after any such cleanup likewise reports that mutation instead of claiming a
 read-only outcome.
 
+The same rule applies after a new record crosses a filesystem mutation boundary:
+if later history/budget postchecks HOLD, the response keeps
+`mutation_performed=true`. Callers must reconcile durable history before retrying;
+they must not infer from `status=held` that no store mutation occurred.
+
 A corrupt or mismatched replay signature HOLDS without changing the durable
 record or budget state.
 
@@ -260,6 +265,7 @@ The store proof covers:
 - read-only listing;
 - unpublished crash-temp HOLD for read-only listing;
 - concurrent temp/publication appearing between read-only directory censuses;
+- post-publication HOLD with truthful `mutation_performed=true` and durable final record;
 - serialized unpublished-temp recovery;
 - linked temp/final crash recovery;
 - malformed record HOLD;
