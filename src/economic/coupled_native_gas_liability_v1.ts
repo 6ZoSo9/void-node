@@ -18,7 +18,8 @@ export const VOID_COUPLED_NATIVE_GAS_LIABILITY_AUTHORITY_V1 =
     deterministic_liability_identity: true,
     buy_void_prepared_plan_reused: true,
     payer_scoped_balance_accounting: true,
-    fee_freshness_recomputed: true,
+    fee_observation_expiry_recomputed: true,
+    trusted_fee_freshness_policy_proven: false,
     nonce_collision_detection: true,
     exact_replay_idempotent: true,
     altered_obligation_conflict_hold: true,
@@ -303,6 +304,7 @@ function validateBuyVoidPlan(
   );
   const wallet = address(value.wallet_address);
   const delivery = address(value.delivery_address);
+  const reservedAt = safeInteger(value.reserved_at_ms);
   const nonce = safeInteger(value.nonce);
   const nativeValue = positive(value.native_value_wei);
   const gasLimit = positive(value.gas_limit);
@@ -315,8 +317,8 @@ function validateBuyVoidPlan(
       VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1 ||
     value.version !== 1 ||
     !SHA256.test(String(value.reservation_id ?? "")) ||
-    !Number.isSafeInteger(value.reserved_at_ms) ||
-    Number(value.reserved_at_ms) <= 0 ||
+    reservedAt === null ||
+    reservedAt <= 0 ||
     !SAGA_ID.test(String(value.saga_id ?? "")) ||
     !SHA256.test(String(value.attempt_id ?? "")) ||
     value.chain_id !== "2050" ||
