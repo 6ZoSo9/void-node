@@ -706,6 +706,73 @@ const observedAt = (BASE_UNIX + 140) * 1000;
 
 {
   const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
+  let racingTemp = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "7",
+      reservationDigit: "7",
+      walletDigit: "7",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    requireOk(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      ),
+    );
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    racingTemp = path.join(
+      f.records,
+      "." +
+        finalName +
+        ".tmp-" +
+        String(process.pid) +
+        "-aaaaaaaaaaaaaaaa",
+    );
+    let recordDirectoryReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      let result = originalReaddirSync.call(fs, target, ...args);
+      if (
+        Array.isArray(result) &&
+        result.includes(finalName)
+      ) {
+        recordDirectoryReads += 1;
+        if (recordDirectoryReads === 2) {
+          fs.writeFileSync(racingTemp, Buffer.alloc(0), {
+            mode: 0o600,
+          });
+          result = originalReaddirSync.call(fs, target, ...args);
+        }
+      }
+      return result;
+    };
+    requireHeld(
+      listEconomicSystemSponsoredReservationsV1(
+        listInput(f.root, ttl, sponsor, observedAt),
+      ),
+      "SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED",
+    );
+    assert.equal(fs.existsSync(racingTemp), true);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    if (racingTemp) {
+      try {
+        fs.unlinkSync(racingTemp);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
   try {
     fs.writeFileSync(
       path.join(f.records, "f".repeat(64) + ".json"),
@@ -863,6 +930,14 @@ const source = fs.readFileSync(
   "utf8",
 );
 assert.match(source, /withBuyVoidFilesystemBakeryLockAsyncV1/u);
+assert.match(
+  source,
+  /SPONSORED_RESERVATION_STORE_DIRECTORY_CHANGED_DURING_READ/u,
+);
+assert.match(
+  source,
+  /namesAfter\.some\(\(name, index\) => name !== namesBefore\[index\]\)/u,
+);
 assert.match(source, /classifyEconomicSystemSponsoredAdmissionV1/u);
 assert.match(source, /verifyEconomicSystemSponsoredStateV1/u);
 assert.match(source, /O_NOFOLLOW/u);

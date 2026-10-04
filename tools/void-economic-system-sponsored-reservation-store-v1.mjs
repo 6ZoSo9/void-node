@@ -498,22 +498,34 @@ function cleanupTemps(records) {
 }
 
 function readHistory(records, cleanupReviewedTemps) {
-  const before = fs.readdirSync(records.proc_path);
   if (cleanupReviewedTemps) {
     cleanupTemps(records);
-  } else if (before.some((name) => name.startsWith("."))) {
+  }
+  const namesBefore = fs
+    .readdirSync(records.proc_path)
+    .sort(compareText);
+  if (namesBefore.some((name) => name.startsWith("."))) {
     fail("SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED");
   }
-  const names = fs
-    .readdirSync(records.proc_path)
-    .filter((name) => !name.startsWith("."))
-    .sort(compareText);
+  const names = namesBefore.filter((name) => !name.startsWith("."));
   if (names.length > MAX_RECORDS) {
     fail("SPONSORED_RESERVATION_STORE_RECORD_COUNT_EXCEEDED");
   }
   const parsed = names.map((name) =>
     parseRecordBytes(readExactRecord(records, name), name),
   );
+  const namesAfter = fs
+    .readdirSync(records.proc_path)
+    .sort(compareText);
+  if (namesAfter.some((name) => name.startsWith("."))) {
+    fail("SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED");
+  }
+  if (
+    namesAfter.length !== namesBefore.length ||
+    namesAfter.some((name, index) => name !== namesBefore[index])
+  ) {
+    fail("SPONSORED_RESERVATION_STORE_DIRECTORY_CHANGED_DURING_READ");
+  }
   const sponsorshipIds = new Set();
   const intentIds = new Set();
   const reservationIds = new Set();
