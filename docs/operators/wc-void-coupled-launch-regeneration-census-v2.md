@@ -33,6 +33,14 @@ authoritative paths and only the explicitly classified correction/census/
 historical source files beyond them. Any unknown old-generation source pin or
 partial authoritative rebind fails closed.
 
+The census also inventories a second dependency class that does not necessarily
+contain the old launch digest: current authority surfaces that directly carry
+the superseded V1 market-vault creation/runtime hashes or import the V1 compiled
+identity acceptance module. That class is scanned independently, so correcting
+the launch-ID pins alone cannot make the rebind appear complete while production
+readiness, runtime attestation, canonical application, bounded-canary evidence,
+or related vault checks still consume the superseded deployment identity.
+
 A launch-wide identity is not safe to migrate by search/replace. Candidate
 state, runtime admission, policy bundles, vault revalidation, controller
 challenges, offline signing requests, canary promotion, participant post-use
@@ -83,6 +91,27 @@ reviewed together in the later application lane:
 The v1 reconciliation generator and its documentation are historical lineage,
 not current generation authority. They must remain explicitly superseded rather
 than being rewritten to pretend the old generation never existed.
+
+### Superseded compiled-identity consumers
+
+The corrected-generation application must also rebind these current consumers
+of the old V1 deployment identity:
+
+1. WC/VOID production candidate;
+2. production-readiness classifier;
+3. market-vault runtime attestation;
+4. runtime-attestation import;
+5. market-vault canonical application;
+6. bounded-canary evidence;
+7. bounded-canary candidate promotion;
+8. market-vault at-use revalidation; and
+9. market-vault role/deployment qualification.
+
+The V1 compiled-identity acceptance JSON/module and the V1 launch-identity
+reconciliation tool remain explicit historical lineage. The correction-v2
+packet/verifier and this census are non-authority evidence surfaces. Any other
+source-authority path that still carries the superseded creation/runtime hashes
+or imports the V1 acceptance module makes the census fail closed.
 
 ## Fail-closed rule
 

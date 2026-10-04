@@ -4,6 +4,9 @@ import fs from "node:fs";
 
 import {
   VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2,
+  VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2,
+  VOID_WC_VOID_COMPILED_IDENTITY_HISTORICAL_PATHS_V2,
+  VOID_WC_VOID_COMPILED_IDENTITY_NON_AUTHORITY_PATHS_V2,
   VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2,
   VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
   VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_AUTHORITY_V2,
@@ -14,6 +17,7 @@ import {
   buildVoidWcVoidCoupledLaunchRegenerationCensusV2,
   deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2,
   discoverVoidWcVoidSupersededGenerationSourcePathsV2,
+  discoverVoidWcVoidSupersededCompiledIdentitySourcePathsV2,
 } from "../tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs";
 
 const correction = JSON.parse(fs.readFileSync(
@@ -97,6 +101,56 @@ assert.equal(
   census.authoritative_path_count,
 );
 assert.equal(census.all_authoritative_old_generation_pins_present, true);
+assert.equal(
+  census.compiled_identity_authoritative_consumer_count,
+  VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2.length,
+);
+assert.equal(census.compiled_identity_authoritative_consumer_count, 9);
+assert.equal(
+  census.remaining_superseded_compiled_identity_consumer_count,
+  census.compiled_identity_authoritative_consumer_count,
+);
+assert.equal(
+  census.all_current_authority_compiled_identity_rebindings_complete,
+  false,
+);
+assert.deepEqual(
+  census.unknown_superseded_compiled_identity_source_paths,
+  [],
+);
+const discoveredCompiledIdentityPaths =
+  discoverVoidWcVoidSupersededCompiledIdentitySourcePathsV2();
+assert.deepEqual(
+  census.discovered_superseded_compiled_identity_source_paths,
+  discoveredCompiledIdentityPaths,
+);
+assert.equal(
+  census.discovered_superseded_compiled_identity_source_path_count,
+  discoveredCompiledIdentityPaths.length,
+);
+assert.deepEqual(
+  census.expected_historical_compiled_identity_paths,
+  VOID_WC_VOID_COMPILED_IDENTITY_HISTORICAL_PATHS_V2,
+);
+assert.deepEqual(
+  census.expected_non_authority_compiled_identity_paths,
+  VOID_WC_VOID_COMPILED_IDENTITY_NON_AUTHORITY_PATHS_V2,
+);
+for (
+  const required of
+  VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2
+) {
+  const entry = census.compiled_identity_authoritative_consumers.find(
+    (item) => item.path === required,
+  );
+  assert.ok(entry, required);
+  assert.ok(
+    entry.superseded_creation_sha256_occurrences > 0 ||
+      entry.superseded_runtime_sha256_occurrences > 0 ||
+      entry.v1_acceptance_module_occurrences > 0,
+    required + ": superseded compiled-identity dependency must remain visible",
+  );
+}
 assert.deepEqual(census.unknown_superseded_source_paths, []);
 const discoveredSourcePaths =
   discoverVoidWcVoidSupersededGenerationSourcePathsV2();
@@ -152,6 +206,19 @@ for (const historical of VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS
     historical + ": historical old-generation lineage must remain explicit",
   );
 }
+for (
+  const historical of
+  VOID_WC_VOID_COMPILED_IDENTITY_HISTORICAL_PATHS_V2
+) {
+  const text = fs.readFileSync(historical, "utf8");
+  assert.ok(
+    text.includes("9fae041d06d317b326fd1a9cee6efc34fa0e214b74a9447e44131969d886a5af") ||
+      text.includes("421f6e2ecbea1ccf02e20a52119323014a0f65906ff08d060d602ebebb327409") ||
+      text.includes("void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"),
+    historical + ": superseded compiled-identity lineage must remain explicit",
+  );
+}
+
 
 
 for (const [key, value] of Object.entries(
@@ -237,6 +304,16 @@ console.log(
 );
 console.log("authoritative_source_census_exhaustive=true");
 console.log("unknown_superseded_source_paths=0");
+console.log(
+  "compiled_identity_authoritative_consumer_count=" +
+    String(census.compiled_identity_authoritative_consumer_count),
+);
+console.log(
+  "remaining_superseded_compiled_identity_consumer_count=" +
+    String(census.remaining_superseded_compiled_identity_consumer_count),
+);
+console.log("unknown_superseded_compiled_identity_source_paths=0");
+console.log("compiled_identity_dependency_census_exhaustive=true");
 console.log("canonical_correction_verifier_required=true");
 console.log("old_control_signature_generation_reusable=false");
 console.log("partial_rebind_authorized=false");
