@@ -940,6 +940,14 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
       ) {
         fail("SPONSORED_RESERVATION_STORE_BUDGET_POSTCHECK_FAILED");
       }
+      assertPinnedDirectoryVisible(
+        root,
+        "SPONSORED_RESERVATION_STORE_ROOT",
+      );
+      assertPinnedDirectoryVisible(
+        records,
+        "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+      );
       return success(
         "reserved",
         candidate,
@@ -988,6 +996,14 @@ export function listEconomicSystemSponsoredReservationsV1(input) {
       sponsorships: history.map((row) => row.sponsorship),
       observed_at_ms: input.observed_at_ms,
     });
+    assertPinnedDirectoryVisible(
+      root,
+      "SPONSORED_RESERVATION_STORE_ROOT",
+    );
+    assertPinnedDirectoryVisible(
+      records,
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+    );
     return Object.freeze({
       ok: true,
       status: "listed",
