@@ -102,7 +102,11 @@ A production-ready result additionally requires:
 - authenticated transport identity;
 - observation generated inside the reviewed composition;
 - same-provider consistency and provider consistency;
-- total operation deadline;
+- one end-to-end total operation deadline spanning both the latest-head payment
+  observation and the V5 finalized-head observation; the latest-head transport
+  recomputes the remaining budget before every RPC call, each call timeout is
+  capped by that remaining budget, and V5 receives only the still-remaining
+  total budget;
 - source generation;
 - deployed artifact generation;
 - remote provider identity;
@@ -112,9 +116,18 @@ A production-ready result additionally requires:
 - no wallet/signing/transaction-construction/broadcast/inventory-mutation/
   money-movement side effects.
 
-The production function exposes no observer/finality or verified-payment-event
-injection dependency. It also returns the exact internally rebuilt canonical V2
-event for any later reviewed persistence composition. The function refuses
+The production function exposes no caller-supplied observer/finality or
+verified-payment-event injection dependency. Its internal latest-head transport
+is constructed from the same server-controlled Ethereum rail policy and is
+deadline-bound: before each RPC it refreshes the monotonic remaining budget and
+sets that call's timeout to the smaller of the reviewed per-request timeout and
+the remaining end-to-end budget. After the latest-head stage, only the remaining
+budget is passed into V5, and the bridge rechecks the outer deadline before any
+ready result. Thus the sequential latest-head and finalized-head stages cannot
+each consume a fresh full `total_timeout_ms`.
+
+It also returns the exact internally rebuilt canonical V2 event for any later
+reviewed persistence composition. The function refuses
 before any RPC when the current process source identity, server policy, or V5
 capability is unavailable/not production-ready. Current V5 authority deliberately keeps
 source/deployed generation, remote provider identity, ancestry, quorum, and
