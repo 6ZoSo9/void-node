@@ -62,14 +62,18 @@ const LOCK_NAME = ".allocation-reservation-publication-v1";
 const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
 const MAX_HIGH_WATER_BYTES = 4096;
 const MAX_INTENT_BYTES = 256 * 1024;
-const O_NOFOLLOW =
-  typeof fs.constants.O_NOFOLLOW === "number"
-    ? fs.constants.O_NOFOLLOW
-    : 0;
-const O_DIRECTORY =
-  typeof fs.constants.O_DIRECTORY === "number"
-    ? fs.constants.O_DIRECTORY
-    : 0;
+const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
+const O_DIRECTORY = fs.constants.O_DIRECTORY;
+
+function requireDescriptorSafetyV1(): void {
+  if (
+    typeof O_NOFOLLOW !== "number" ||
+    typeof O_DIRECTORY !== "number" ||
+    !fs.existsSync("/proc/self/fd")
+  ) {
+    fail("allocation_reservation_writer_descriptor_safety_unavailable");
+  }
+}
 
 type PinnedDirectoryV1 = {
   path: string;
@@ -190,6 +194,7 @@ function openPinnedDirectory(
   directoryPath: string,
   code: string,
 ): PinnedDirectoryV1 {
+  requireDescriptorSafetyV1();
   const raw = String(directoryPath || "").trim();
   if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
     fail(code + "_path_invalid");
