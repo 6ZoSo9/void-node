@@ -658,6 +658,15 @@ assert.match(
   source,
   /positiveUintV1/u,
 );
+assert.match(
+  source,
+  /required_min_confirmations: rail\.min_confirmations/u,
+);
+assert.doesNotMatch(
+  source,
+  /positiveUintV1\(observation\?\.min_confirmations\)/u,
+  "production threshold must come from server-controlled rail policy",
+);
 assert.doesNotMatch(
   source,
   /verifier\?\.confirmations[\s\S]{0,120}confirmations_observed/u,
