@@ -8,13 +8,18 @@ import {
   VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1,
   readBuyVoidEthereumPublicCheckoutReadinessV1,
   runBuyVoidEthereumPublicCheckoutPaymentFinalityV1,
+  runBuyVoidEthereumPublicCheckoutRequestFinalityV1,
   testOnlyClassifyBuyVoidEthereumPublicCheckoutFinalityV1,
+  testOnlyClassifyBuyVoidEthereumPublicCheckoutRequestFinalityV1,
 } from "../src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.js";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_POLICY_ENVS_V1,
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
   type BuyVoidSourceFinalityExecutionPreflightReadyV1,
 } from "../src/economic/buy_void_source_finality_execution_preflight_v1.js";
+import {
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4,
+} from "../src/economic/buy_void_source_finality_generation_provenance_v4.js";
 import {
   VOID_BUY_VOID_CANONICAL_DUAL_RAIL_PAYMENT_ENVS_V1,
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
@@ -104,6 +109,16 @@ assert.equal(
 assert.equal(
   VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
     .existing_payment_reconciliation_independent_of_intake_toggle,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .public_request_bound_finality_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
+    .execution_attempt_not_required_for_public_payment_verification,
   true,
 );
 for (const key of [
@@ -202,6 +217,126 @@ if (configuredButNotProductionReady.ok === false) {
   assert.equal(configuredButNotProductionReady.payment_event_write_performed, false);
   assert.equal(configuredButNotProductionReady.inventory_write_performed, false);
   assert.equal(configuredButNotProductionReady.funds_movement_performed, false);
+}
+
+const publicEthereumRequest = {
+  request_id: "buyvoid_proof_1234abcd",
+  source_chain: "ethereum",
+  tx_hash: "0x" + "b".repeat(64),
+  delivery_address: "0x" + "6".repeat(40),
+  receive_address: "0x" + "5".repeat(40),
+  usdc_amount: "7",
+  quoted_void: "14",
+};
+
+const currentRequestFinality =
+  await runBuyVoidEthereumPublicCheckoutRequestFinalityV1({
+    request: publicEthereumRequest,
+    env,
+  });
+assert.equal(currentRequestFinality.ok, false);
+if (currentRequestFinality.ok === false) {
+  assert.equal(
+    currentRequestFinality.reason,
+    "ethereum_request_source_finality_capability_not_ready",
+  );
+  assert.equal(currentRequestFinality.execution_attempt_required, false);
+  assert.equal(
+    currentRequestFinality.payment_verified_finality_gate_ready,
+    false,
+  );
+}
+
+const requestCanonicalIdentity =
+  `voidpay1:ethereum:${publicEthereumRequest.tx_hash}:7`;
+const requestPaymentKey = expectedPaymentKey(requestCanonicalIdentity);
+const requestAuthoritative = {
+  ok: true,
+  status: "source_finality_reviewed_source_files_verified",
+  marker: VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V4,
+  version: 4,
+  source_chain: "ethereum",
+  transaction_hash: publicEthereumRequest.tx_hash,
+  canonical_payment_identity: requestCanonicalIdentity,
+  payment_key_sha256: requestPaymentKey,
+  reviewed_source_files_verified: true,
+  authenticated_transport_identity_verified: true,
+  remote_provider_identity_verified: true,
+  total_operation_deadline_verified: true,
+  source_generation_verified: true,
+  deployed_artifact_generation_verified: true,
+  ancestry_verified: true,
+  provider_quorum_verified: true,
+  production_source_finality_authority_ready: true,
+  wallet_access: false,
+  signing: false,
+  transaction_broadcast: false,
+  money_movement: false,
+  verified_payment_event: {
+    request_id: publicEthereumRequest.request_id,
+    operator_status: "payment_verified",
+    payment_verified: true,
+    payment_identity_input_complete: true,
+    tx_hash: publicEthereumRequest.tx_hash,
+  },
+};
+const requestReady =
+  testOnlyClassifyBuyVoidEthereumPublicCheckoutRequestFinalityV1(
+    publicEthereumRequest,
+    requestAuthoritative,
+  );
+assert.equal(requestReady.would_be_transition_ready, true);
+assert.equal(requestReady.production_transition_authority, false);
+assert.equal(requestReady.execution_attempt_required, false);
+
+for (const [label, mutation] of [
+  ["wrong_request_id", {
+    verified_payment_event: {
+      ...requestAuthoritative.verified_payment_event,
+      request_id: "buyvoid_other_1234abcd",
+    },
+  }],
+  ["wrong_tx", { transaction_hash: "0x" + "c".repeat(64) }],
+  ["source_generation", { source_generation_verified: false }],
+  ["deployed_artifact", { deployed_artifact_generation_verified: false }],
+  ["remote_provider", { remote_provider_identity_verified: false }],
+  ["ancestry", { ancestry_verified: false }],
+  ["provider_quorum", { provider_quorum_verified: false }],
+  ["production_authority", { production_source_finality_authority_ready: false }],
+  ["payment_identity", {
+    canonical_payment_identity:
+      `voidpay1:ethereum:${publicEthereumRequest.tx_hash}:8`,
+  }],
+  ["payment_key", { payment_key_sha256: "f".repeat(64) }],
+] as const) {
+  const candidate = {
+    ...requestAuthoritative,
+    ...mutation,
+  } as any;
+  const decision =
+    testOnlyClassifyBuyVoidEthereumPublicCheckoutRequestFinalityV1(
+      publicEthereumRequest,
+      candidate,
+    );
+  assert.equal(
+    decision.would_be_transition_ready,
+    false,
+    label,
+  );
+  assert.equal(decision.production_transition_authority, false);
+}
+
+const invalidPublicRequest =
+  await runBuyVoidEthereumPublicCheckoutRequestFinalityV1({
+    request: {
+      ...publicEthereumRequest,
+      source_chain: "base",
+    },
+    env,
+  });
+assert.equal(invalidPublicRequest.ok, false);
+if (invalidPublicRequest.ok === false) {
+  assert.equal(invalidPublicRequest.reason, "ethereum_request_invalid");
 }
 
 const invalidAttempt =
@@ -334,6 +469,27 @@ assert.match(
   source,
   /runBuyVoidSourceFinalityExecutionPreflightV1\(\{/u,
 );
+const requestFinalityStart = source.indexOf(
+  "export async function runBuyVoidEthereumPublicCheckoutRequestFinalityV1(",
+);
+const requestFinalityEnd = source.indexOf(
+  "export async function runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(",
+  requestFinalityStart,
+);
+assert.ok(requestFinalityStart >= 0 && requestFinalityEnd > requestFinalityStart);
+const requestFinalitySource = source.slice(
+  requestFinalityStart,
+  requestFinalityEnd,
+);
+assert.match(
+  requestFinalitySource,
+  /observeBuyVoidSourceFinalityGenerationProvenanceV4\(\{/u,
+);
+assert.doesNotMatch(
+  requestFinalitySource,
+  /runBuyVoidSourceFinalityExecutionPreflightV1|readBuyVoidExecutionAttemptV1|attempt_id/u,
+  "public payment verification must not depend on downstream execution attempts",
+);
 assert.doesNotMatch(
   source,
   /observe_source_finality/u,
@@ -363,6 +519,9 @@ console.log("current_production_source_finality_capability_ready=false");
 console.log("ethereum_payment_instructions_currently_hold=true");
 console.log("existing_payment_reconciliation_survives_intake_disable=true");
 console.log("canonical_source_finality_preflight_required=true");
+console.log("public_request_bound_finality_required=true");
+console.log("public_payment_verification_execution_attempt_required=false");
+console.log("current_request_bound_finality_authority_ready=false");
 console.log("synthetic_finality_production_authority=false");
 console.log("base_behavior_modified=false");
 console.log("payment_verified_event_write_performed=false");
