@@ -41,7 +41,9 @@ assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms")
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.ok(index.includes("if (amountUnits === requestedUnits)"));
 assert.equal(index.includes("if (amountUnits >= requestedUnits)"), false);
-assert.ok(index.includes("canonicalLogIndex = parsedLogIndex.toString()"));
+assert.ok(index.includes("parsedLogIndex>0xffff_ffffn"));
+assert.ok(index.includes('"ambiguous_matching_usdc_transfers"'));
+assert.ok(index.includes('error: match.error || "matching_usdc_transfer_not_found"'));
 assert.ok(index.includes('schema: "void_buy_void_verified_payment_event_v2"'));
 assert.ok(index.includes('marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2"'));
 assert.ok(index.includes("payment_identity_input_complete: true"));
@@ -52,6 +54,55 @@ assert.ok(index.includes("VOID is not exchange-listed."));
 assert.ok(index.includes("<label>Native USDC rail<br/>"));
 assert.ok(index.includes('cfg.ethereum_requests_enabled?"Base 8453 + Ethereum 1":"Base 8453 (Ethereum HOLD)"'));
 assert.equal(index.includes("throw 0;"),false);
+
+{
+  const hexStart=index.indexOf("function __voidBuyVoidHexToBigIntV1");
+  const chainMarker=index.indexOf("// VOID_BUY_VOID_MULTI_CHAIN_USDC_VERIFIER_V1",hexStart);
+  const matchStart=index.indexOf("function __voidBuyVoidUsdcTransferMatchV1",chainMarker);
+  const routeStart=index.indexOf('app.get("/__void/buy-void/operator/verify-payment.json"',matchStart);
+  assert.ok(hexStart>0&&chainMarker>hexStart&&matchStart>chainMarker&&routeStart>matchStart);
+  const helperSource=(
+    index.slice(hexStart,chainMarker)+
+    index.slice(matchStart,routeStart)
+  )
+    .replace(/:any\[\]/gu,"")
+    .replace(/:any/gu,"")
+    .replace(/:string/gu,"");
+  const matchTransfer=Function(
+    helperSource+"\nreturn __voidBuyVoidUsdcTransferMatchV1;"
+  )();
+  const transferSig="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const delivery="0x"+"1".repeat(40);
+  const receive="0x"+"2".repeat(40);
+  const usdc="0x"+"3".repeat(40);
+  const topic=a=>"0x"+"0".repeat(24)+a.slice(2);
+  const log=i=>({
+    address:usdc,
+    topics:[transferSig,topic(delivery),topic(receive)],
+    data:"0xf4240",
+    logIndex:i,
+  });
+  const cfg={usdc_contract:usdc};
+
+  const single=matchTransfer([log("0x7")],cfg,receive,delivery,"1");
+  assert.equal(single.ok,true);
+  assert.equal(single.log_index,"7");
+
+  const max=matchTransfer([log("0xffffffff")],cfg,receive,delivery,"1");
+  assert.equal(max.ok,true);
+  assert.equal(max.log_index,"4294967295");
+
+  const tooLarge=matchTransfer([log("0x100000000")],cfg,receive,delivery,"1");
+  assert.equal(tooLarge.ok,false);
+  assert.equal(tooLarge.error,"matching_usdc_transfer_not_found");
+
+  const ambiguous=matchTransfer([log("0x7"),log("0x8")],cfg,receive,delivery,"1");
+  assert.equal(ambiguous.ok,false);
+  assert.equal(ambiguous.error,"ambiguous_matching_usdc_transfers");
+  assert.equal(ambiguous.match_count,2);
+  assert.deepEqual(ambiguous.matching_log_indexes,["7","8"]);
+}
+
 assert.ok(index.includes("const __bld="));
 assert.ok(index.includes("__blo=(r:any)"));
 assert.ok(index.includes("__blm=(r:any,f:any)=>__BL.withBuyLaunchRequestAuthorityMutationV1(r,f)"));
@@ -339,6 +390,9 @@ console.log("verified_payment_capacity_exhaustion_response_409=true");
 console.log("verified_payment_duplicate_guard_inside_capacity_lock=true");
 console.log("verified_payment_event_v2_persisted=true");
 console.log("verified_payment_log_index_persisted=true");
+console.log("verified_payment_exact_one_matching_transfer_required=true");
+console.log("verified_payment_ambiguous_matching_transfers_held=true");
+console.log("verified_payment_log_index_uint32_bound=true");
 console.log("duplicate_guard_conflict_response_409=true");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
