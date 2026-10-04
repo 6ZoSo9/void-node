@@ -29,6 +29,7 @@ import {
 import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_AUTHORITY_V1,
   VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1,
+  inspectEconomicSystemSponsoredReservationStoreV1,
   listEconomicSystemSponsoredReservationsV1,
   persistEconomicSystemSponsoredReservationV1,
 } from "../tools/void-economic-system-sponsored-reservation-store-v1.mjs";
@@ -159,14 +160,18 @@ async function candidate({
   });
 }
 
-function fixture() {
+function fixture({ lockQueue = true } = {}) {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-sponsored-reservation-store-v1-"),
   );
   fs.chmodSync(root, 0o700);
   const records = path.join(root, "records");
+  const queue = path.join(root, "sponsorship-admission-v1.queue");
   fs.mkdirSync(records, { mode: 0o700 });
-  return { root, records };
+  if (lockQueue) {
+    fs.mkdirSync(queue, { mode: 0o700 });
+  }
+  return { root, records, queue };
 }
 
 function cleanup(f) {
@@ -229,6 +234,8 @@ for (const [key, value] of Object.entries(
     "filesystem_write",
     "descriptor_bound_reads",
     "create_once_publication",
+    "preprovisioned_lock_queue_required",
+    "structural_inspection_available",
     "policy_observation_time_explicit",
     "lock_housekeeping_wall_clock_read",
   ]);
@@ -238,6 +245,95 @@ for (const [key, value] of Object.entries(
 const ttl = ttlPolicy();
 const sponsor = sponsorPolicy(ttl);
 const observedAt = (BASE_UNIX + 140) * 1000;
+
+{
+  const f = fixture();
+  try {
+    const inspected = requireOk(
+      inspectEconomicSystemSponsoredReservationStoreV1({
+        root_dir: f.root,
+      }),
+    );
+    assert.equal(inspected.status, "inspected");
+    assert.equal(inspected.tracked_reservation_count, 0);
+    assert.equal(inspected.policy_state_evaluated, false);
+    assert.equal(inspected.observation_time_evaluated, false);
+    assert.equal(inspected.mutation_performed, false);
+    assert.equal(inspected.storage_bootstrap, false);
+    assert.equal(inspected.preprovisioned_lock_queue_required, true);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture({ lockQueue: false });
+  try {
+    assert.equal(fs.existsSync(f.queue), false);
+    requireHeld(
+      inspectEconomicSystemSponsoredReservationStoreV1({
+        root_dir: f.root,
+      }),
+      "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY_MISSING",
+    );
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "1",
+      reservationDigit: "3",
+      walletDigit: "1",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 30000,
+    });
+    requireHeld(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      ),
+      "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY_MISSING",
+    );
+    assert.equal(
+      fs.existsSync(f.queue),
+      false,
+      "missing queue must not be silently bootstrapped",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    fs.chmodSync(f.queue, 0o755);
+    requireHeld(
+      inspectEconomicSystemSponsoredReservationStoreV1({
+        root_dir: f.root,
+      }),
+      "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY_INVALID",
+    );
+    assert.equal(fs.statSync(f.queue).mode & 0o777, 0o755);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture({ lockQueue: false });
+  const targetQueue = path.join(f.root, "queue-target");
+  try {
+    fs.mkdirSync(targetQueue, { mode: 0o700 });
+    fs.symlinkSync(targetQueue, f.queue, "dir");
+    requireHeld(
+      inspectEconomicSystemSponsoredReservationStoreV1({
+        root_dir: f.root,
+      }),
+      "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY_INVALID",
+    );
+    assert.equal(fs.lstatSync(f.queue).isSymbolicLink(), true);
+  } finally {
+    cleanup(f);
+  }
+}
 
 {
   const f = fixture();
@@ -1227,6 +1323,9 @@ const source = fs.readFileSync(
   "utf8",
 );
 assert.match(source, /withBuyVoidFilesystemBakeryLockAsyncV1/u);
+assert.match(source, /openLockQueueDirectory/u);
+assert.match(source, /LOCK_QUEUE_DIRECTORY/u);
+assert.match(source, /inspectEconomicSystemSponsoredReservationStoreV1/u);
 assert.match(
   source,
   /SPONSORED_RESERVATION_STORE_DIRECTORY_CHANGED_DURING_READ/u,
@@ -1279,6 +1378,11 @@ console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
 console.log("duplicate_root_path_revalidated=true");
 console.log("duplicate_path_swap_holds_without_store_mutation=true");
+console.log("preprovisioned_lock_queue_required=true");
+console.log("missing_lock_queue_bootstrap=false");
+console.log("structural_inspection_available=true");
+console.log("structural_inspection_policy_state_evaluated=false");
+console.log("structural_inspection_observation_time_evaluated=false");
 console.log("storage_bootstrap=false");
 console.log("runtime_route_mount=false");
 console.log("trusted_observation_time_proven=false");
