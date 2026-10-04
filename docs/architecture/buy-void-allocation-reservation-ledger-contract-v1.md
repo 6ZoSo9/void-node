@@ -27,7 +27,9 @@ Each planned record has:
   `voidpay1:<chain>:<tx_hash>:<log_index>`;
 - exact Base or Ethereum source-chain normalization;
 - canonical lower-case payment transaction hash and buyer delivery address;
-- canonical non-negative decimal payment log index;
+- canonical uint32 payment log index (`0..4294967295`), normalized to
+  non-negative decimal text so the reservation identity cannot diverge from the
+  verified-payment/finality authority;
 - content-addressed refs for verified-payment evidence, duplicate-guard result,
   inventory-guard result, and explicit operator activation record.
 
