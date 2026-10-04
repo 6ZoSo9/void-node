@@ -35,10 +35,12 @@
     "method_identifiers_sha256": "e8ad68bd3137823246432c9b6126da8f2c9f3fdabe097b95227bf9f47c5a0702"
   },
   "correction": {
-    "canonical_bytecode_source": "retained_compiler_identity_artifact_10988626461",
-    "canonical_bytecode_is_v1_prefix": false,
+    "canonical_creation_bytecode_bytes": 9441,
     "creation_v1_overcapture_bytes": 963,
+    "canonical_runtime_template_bytes": 8342,
     "runtime_v1_overcapture_bytes": 953,
+    "canonical_artifacts_derived_from_reviewed_identity": true,
+    "canonical_artifacts_derived_from_v1_prefix": false,
     "compiler_identity_recompile_required": false,
     "solidity_source_change_required": false,
     "contract_semantics_change_required": false,
@@ -76,5 +78,5 @@
     "public_presale_activation_authorized": false,
     "next_gate": "regenerate_coupled_launch_generation_from_corrected_compiler_identity"
   },
-  "correction_id": "voidwcvcic2_1e27625e0f64b417b5dab47a902514de281244fbf14b1bea99579333f7852306"
+  "correction_id": "voidwcvcic2_4e1bb8c5496b7d23c01ae3c828d9678254944ab6a93d55ce6d3f7dcbdee4be82"
 }
