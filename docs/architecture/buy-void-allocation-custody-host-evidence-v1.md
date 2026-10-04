@@ -69,8 +69,37 @@ It then forms the race-resistant Polkit subject:
 
 `PID,START_TIME,UID`.
 
-For the protected allocation-custody service the collector performs
-**non-interactive** `pkcheck` authorization queries.
+Before live authorization probes, the collector requires an exact reviewed
+global deny rule at:
+
+`/etc/polkit-1/rules.d/00-void-buy-allocation-custody-runtime-deny-v1.rules`.
+
+The expected ES5 rule returns `polkit.Result.NO` for the exact runtime user
+whenever the action identifier is any of:
+
+- `org.freedesktop.systemd1.manage-units`;
+- `org.freedesktop.systemd1.manage-unit-files`;
+- `org.freedesktop.systemd1.reload-daemon`; or
+- `org.freedesktop.systemd1.set-environment`.
+
+For all other subjects/actions it returns `NOT_HANDLED`.
+
+The installed bytes must equal the collector-derived reviewed rule exactly.
+The file must be root:root, a direct regular file, single-linked, and not
+group/world writable. The collector inventories `*.rules` from both
+`/etc/polkit-1/rules.d` and `/usr/share/polkit-1/rules.d`, applies Polkit's
+basename ordering with `/etc` before `/usr` on ties, and requires this deny
+rule to be the first rule processed. A later allow rule therefore cannot
+override the runtime denial because Polkit stops when the first rule returns a
+value.
+
+This global rule closes indirect control paths too: a compromised runtime
+cannot rely on a per-unit exception for another transient unit (for example a
+`systemd-run`-style path) to obtain root authority and attack the custody
+state indirectly.
+
+The collector then performs **non-interactive** `pkcheck` authorization
+queries to prove that the installed rule is effective.
 
 Required unit-control action:
 
@@ -207,6 +236,7 @@ The proof requires:
 - reviewed custody-service source/contract binding;
 - `PID,start-time,UID` subject construction;
 - reviewed systemd major 255;
+- exact root-owned, lexically-first global runtime Polkit deny rule;
 - empty configured runtime capability sets and zero live process capabilities;
 - explicit status-1 denial as the only accepted Polkit result;
 - authorization/challenge/dismiss/error fail-closed semantics;
@@ -221,8 +251,8 @@ The proof requires:
 A later explicitly authorized operator lane must:
 
 1. install/bootstrap the reviewed custody service and storage policy;
-2. configure an explicit Polkit policy that denies the public runtime identity
-   the reviewed systemd control actions;
+2. install the exact reviewed early Polkit deny-rule bytes for the configured
+   public runtime identity; any different rule remains unqualified;
 3. run this collector read-only on the designated host;
 4. feed the exact collector host evidence to the merged pure qualification
    classifier;
