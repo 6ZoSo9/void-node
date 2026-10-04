@@ -28,6 +28,7 @@ export const VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V
     same_uid_private_storage: true,
     separate_storage_roots_required: true,
     shared_serialization_lock: true,
+    dual_root_serialization_lock: true,
     publication_intent_write: true,
     allocation_ledger_write: true,
     high_water_write: true,
@@ -897,30 +898,38 @@ function withWriterRoots<T>(
       "allocation_reservation_writer_high_water_directory",
     );
     assertDistinctRoots(ledgerDirectory, highWaterDirectory);
-    const lockPath = path.join(
+    const ledgerLockPath = path.join(
+      ledgerDirectory.proc_path,
+      LOCK_NAME,
+    );
+    const highWaterLockPath = path.join(
       highWaterDirectory.proc_path,
       LOCK_NAME,
     );
     return withBuyVoidFilesystemBakeryLockV1(
-      lockPath,
-      () => {
-        assertPinnedDirectoryVisible(
-          ledgerDirectory,
-          "allocation_reservation_writer_ledger_directory",
-        );
-        assertPinnedDirectoryVisible(
-          highWaterDirectory!,
-          "allocation_reservation_writer_high_water_directory",
-        );
-        assertDistinctRoots(
-          ledgerDirectory,
-          highWaterDirectory!,
-        );
-        return operation(
-          ledgerDirectory,
-          highWaterDirectory!,
-        );
-      },
+      ledgerLockPath,
+      () =>
+        withBuyVoidFilesystemBakeryLockV1(
+          highWaterLockPath,
+          () => {
+            assertPinnedDirectoryVisible(
+              ledgerDirectory,
+              "allocation_reservation_writer_ledger_directory",
+            );
+            assertPinnedDirectoryVisible(
+              highWaterDirectory!,
+              "allocation_reservation_writer_high_water_directory",
+            );
+            assertDistinctRoots(
+              ledgerDirectory,
+              highWaterDirectory!,
+            );
+            return operation(
+              ledgerDirectory,
+              highWaterDirectory!,
+            );
+          },
+        ),
     );
   } finally {
     if (highWaterDirectory) {
@@ -936,6 +945,23 @@ function withWriterRoots<T>(
       // Best effort only.
     }
   }
+}
+
+export function testOnlyWithBuyVoidAllocationReservationPublicationWriterLocksV1<T>(
+  input: {
+    ledger_root: string;
+    high_water_root: string;
+  },
+  operation: () => T,
+): T {
+  if (typeof operation !== "function") {
+    fail("allocation_reservation_writer_test_operation_required");
+  }
+  return withWriterRoots(
+    String(input?.ledger_root || "").trim(),
+    String(input?.high_water_root || "").trim(),
+    () => operation(),
+  );
 }
 
 export function recoverBuyVoidAllocationReservationPublicationWriterV1(
