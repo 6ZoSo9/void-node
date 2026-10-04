@@ -51,6 +51,10 @@ from server-controlled configuration and binds:
 - live process UID/GID; and
 - Linux process start-time ticks from `/proc/<pid>/stat`.
 
+The service-control model is explicitly reviewed for **systemd major 255**.
+The collector reads `systemctl --version` and HOLDS on any other major so a
+future systemd authorization surface cannot silently inherit this qualification.
+
 Before Polkit is accepted as evidence, the collector also closes systemd's
 Linux-capability bypass path. The configured runtime service must expose empty
 `CapabilityBoundingSet` and `AmbientCapabilities`, and the live runtime
@@ -69,13 +73,17 @@ Required unit-control action:
 `org.freedesktop.systemd1.manage-units`.
 
 The collector checks the action generally and with the exact protected custody
-unit plus each reviewed management verb:
+unit plus the complete reviewed v255 unit/job control verb set:
 
 - `start`;
+- `verify-active`;
 - `stop`;
 - `reload`;
+- `reload-or-start`;
 - `restart`;
 - `try-restart`;
+- `try-reload`;
+- `nop`;
 - `reload-or-restart`;
 - `reload-or-try-restart`;
 - `kill`;
@@ -83,14 +91,13 @@ unit plus each reviewed management verb:
 - `set-property`;
 - `reset-failed`;
 - `ref`;
-- `bind-mount`;
-- `mount-image`; and
-- `kill-subgroup`.
+- `bind-mount`; and
+- `mount-image`.
 
-For systemd v255, freeze/thaw authorization is represented by the existing
-`stop`/`start` verbs, so those operations are already covered. The generic
-no-detail `manage-units` probe is retained for manager/job paths that do not
-supply unit/verb details.
+For systemd v255, freeze/thaw authorization resolves through the existing
+`stop`/`start` verbs. Manager/job operations that invoke
+`manage-units` without unit/verb details are covered by the separate generic
+no-detail denial probe.
 
 It separately requires denial for:
 
@@ -195,6 +202,7 @@ The proof requires:
 
 - reviewed custody-service source/contract binding;
 - `PID,start-time,UID` subject construction;
+- reviewed systemd major 255;
 - empty configured runtime capability sets and zero live process capabilities;
 - explicit status-1 denial as the only accepted Polkit result;
 - authorization/challenge/dismiss/error fail-closed semantics;
