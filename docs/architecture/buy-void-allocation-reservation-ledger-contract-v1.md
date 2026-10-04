@@ -78,8 +78,9 @@ The first record carries:
 and must begin from the complete presale inventory state:
 `reserved_void_total_before=0` and
 `remaining_void_before=pool_void_total_before`. A nonzero pre-reserved
-"genesis" is rejected so a truncated older history cannot be relabeled as a
-fresh ledger.
+"genesis" is rejected, so a later nonzero-state row cannot simply be detached
+and relabeled as genesis. This check does **not** detect rollback to a genuine
+earlier valid prefix or to an empty ledger.
 
 Every later record carries the exact preceding
 `allocation_record_hash`.
@@ -103,6 +104,26 @@ record before the hash field is inserted. The ledger classifier rejects:
 - record-ID mismatch;
 - content tampering without a matching record hash;
 - more than 100,000 records or more than 64 MiB of ledger bytes.
+
+## Rollback / high-water limitation
+
+This source classifier proves internal continuity only for the ledger bytes it
+is given. A valid two-record ledger, its genuine one-record prefix, and an empty
+ledger can each be internally valid when considered in isolation. Therefore
+the JSONL hash chain is **not** rollback-safe persistence by itself.
+
+Production runtime integration must bind the ledger to a separately protected
+monotonic high-water containing at least the latest accepted
+`record_count + tip_hash` (or a stronger equivalent). Before planning or
+appending, the writer must require the presented ledger to match that high-water
+exactly. Ledger growth and high-water advancement must use one reviewed
+crash-recoverable publication protocol; an empty ledger after a non-genesis
+high-water, a shorter valid prefix, or any tip/count mismatch must HOLD.
+
+The source authority therefore keeps
+`external_high_water_binding=false`,
+`rollback_detection=false`, and
+`production_gate_ready=false`.
 
 ## Planning and idempotence
 
@@ -180,9 +201,14 @@ A later lane must, in one reviewed serialization boundary:
 4. verify explicit operator activation;
 5. re-read and validate the private allocation ledger under its writer lock;
 6. plan the exact next reservation record with this contract;
-7. durably append/fsync the record and publish any recovery index/sidecar;
-8. re-read and prove the new tip/inventory totals;
-9. require allocation reservation before any fulfillment instruction can
+7. require the current ledger count/tip to equal a separately protected
+   monotonic high-water;
+8. durably append/fsync the record and advance the high-water through one
+   crash-recoverable publication protocol;
+9. re-read and prove the new count, tip, high-water, and inventory totals,
+   rejecting valid-prefix/empty-ledger rollback;
+10. publish any recovery index/sidecar only from the accepted durable state;
+11. require allocation reservation before any fulfillment instruction can
    execute.
 
 That later writer must establish private path custody, no-follow semantics,
@@ -193,6 +219,8 @@ None of those authorities are inferred from this source-green contract.
 
 `VOID_BUY_VOID_ALLOCATION_RESERVATION_LEDGER_AUTHORITY_V1` explicitly keeps:
 
+- `external_high_water_binding=false`;
+- `rollback_detection=false`;
 - `runtime_integration=false`;
 - `filesystem_read=false`;
 - `filesystem_write=false`;
