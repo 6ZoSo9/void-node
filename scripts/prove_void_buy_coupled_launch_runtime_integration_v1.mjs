@@ -17,6 +17,9 @@ const compose = read("docker-compose.yml");
 const capacityAdmission = read(
   "src/economic/buy_void_verified_payment_capacity_admission_v1.ts",
 );
+const identityAdmission = read(
+  "src/economic/buy_void_verified_payment_identity_admission_v1.ts",
+);
 assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
@@ -122,6 +125,42 @@ assert.match(capacityAdmission, /appendPaymentVerifiedEventDurableV1/);
 assert.match(capacityAdmission, /fs\.fsyncSync\(descriptor\)/);
 assert.match(capacityAdmission, /recoverPaymentVerifiedSidecarsV1/);
 assert.match(capacityAdmission, /sidecar_recovered/);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_identity_admission_v1\.js/,
+);
+assert.match(
+  capacityAdmission,
+  /assertBuyVoidVerifiedPaymentIdentityAdmissionV1/,
+);
+assert.match(
+  capacityAdmission,
+  /duplicate_payment_identity_verification:\s*true/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_identity_projection_mismatch/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_identity_postcheck_failed/,
+);
+assert.match(
+  identityAdmission,
+  /VOID_BUY_VOID_VERIFIED_PAYMENT_IDENTITY_ADMISSION_V1/,
+);
+assert.match(
+  identityAdmission,
+  /canonicalBuyVoidPaymentIdentityV1/,
+);
+assert.match(
+  identityAdmission,
+  /buy_void_verified_payment_identity_reused/,
+);
+assert.match(
+  identityAdmission,
+  /buy_void_verified_payment_identity_request_changed/,
+);
 assert.match(
   capacityAdmission,
   /with_launch_authority_mutation\(request, append\)/,
@@ -259,6 +298,8 @@ console.log("generation_lock_spans_request_append=true");
 console.log("generation_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_exhaustion_response_409=true");
+console.log("verified_payment_identity_guard_inside_capacity_lock=true");
+console.log("verified_payment_identity_cross_request_reuse=false");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");
