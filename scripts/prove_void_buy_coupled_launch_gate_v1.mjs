@@ -13,6 +13,7 @@ import {
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
   VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1,
   VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1,
+  VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1,
   VOID_BUY_COUPLED_GENERATION_PUBLICATION_INTENT_V1,
   buildBuyLaunchGenerationEventV1,
   buildBuyLaunchGenerationPublicationIntentV1,
@@ -32,6 +33,7 @@ import {
   readBuyLaunchLiveActivationV1,
   readBuyLaunchSourceGateV1,
   sameBuyLaunchGenerationAuthorityV1,
+  testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1,
   validateBuyLaunchGenerationPublicationTimeV1,
   verifyBuyLaunchLiveActivationSignatureV1,
   verifyBuyLaunchLiveActivationSovereignSignatureV1,
@@ -110,8 +112,24 @@ const canonicalReady = classifyVoidWcVoidCoupledLaunchReadinessV1({
 assert.equal(canonicalReady.ok, true);
 assert.equal(canonicalReady.status, "SOURCE_READY");
 assert.equal(canonicalReady.marker, VOID_WC_VOID_COUPLED_LAUNCH_READINESS_V1);
+assert.equal(
+  VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1,
+  false,
+);
+const capacityHeld = testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1({
+  production: readyProduction,
+  coupled: readyCoupled,
+  successor: readySuccessor,
+});
+assert.equal(capacityHeld.ready, false);
+assert.equal(
+  capacityHeld.reason,
+  "buy_void_verified_payment_capacity_admission_not_ready",
+);
+assert.equal(capacityHeld.composition_id, null);
 
-const sourceReady = classifyBuyLaunchGateV1({
+const sourceReady =
+  testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1({
   production: readyProduction,
   coupled: readyCoupled,
   successor: readySuccessor,
@@ -145,7 +163,7 @@ assert.match(
   /opening_concentration_sybil_policy_contract_mismatch:runtime_enforcement_verified/,
 );
 assert.equal(
-  classifyBuyLaunchGateV1({
+  testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1({
     production: readyProduction,
     coupled: nestedPolicyDrift,
     successor: readySuccessor,
@@ -876,7 +894,7 @@ for (const mutate of [
   const s = structuredClone(readySuccessor);
   mutate(p, c, s);
   assert.equal(
-    classifyBuyLaunchGateV1({
+    testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1({
       production: p,
       coupled: c,
       successor: s,
@@ -926,6 +944,18 @@ const bakeryLockSource = fs.readFileSync(
   "utf8",
 );
 assert.match(gateSource, /classifyVoidWcVoidCoupledLaunchReadinessV1/);
+assert.match(
+  gateSource,
+  /VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1[\s\S]*false/u,
+);
+assert.match(
+  gateSource,
+  /export function classifyBuyLaunchGateV1[\s\S]*VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1/u,
+);
+assert.match(
+  gateSource,
+  /export function testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1/u,
+);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_PATH/);
 assert.match(gateSource, /VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_SHA256/);
 assert.match(gateSource, /buy-void-coupled-live-generation-v1\.jsonl/);
@@ -1094,6 +1124,8 @@ console.log("VOID_BUY_COUPLED_LAUNCH_GATE_V1_GREEN");
 console.log("current_canonical_source_ready=false");
 console.log("coupled_launch_id=" + VOID_BUY_COUPLED_LAUNCH_ID_V1);
 console.log("canonical_coupled_launch_classifier_required=true");
+console.log("verified_payment_capacity_admission_source_ready=false");
+console.log("verified_payment_capacity_admission_test_override_only=true");
 console.log("nested_policy_false_positive_blocked=true");
 console.log("source_ready_alone_can_open_intake=false");
 console.log("live_coupled_activation_receipt_required=true");

@@ -75,6 +75,8 @@ const LIVE_GENERATION_JOURNAL_MAX_BYTES = 64 * 1024;
 const LIVE_GENERATION_JOURNAL_MAX_EVENTS = 128;
 const LIVE_ACTIVATION_MAX_LEASE_MS = 5 * 60 * 1000;
 export const VOID_BUY_COUPLED_GENERATION_MAX_FUTURE_SKEW_MS_V1 = 30_000;
+export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1 =
+  false;
 const HEX64 = /^[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 export const VOID_BUY_COUPLED_LIVE_GENERATION_EVENT_V1 =
@@ -1201,7 +1203,12 @@ function readStablePrivateFile(
   }
 }
 
-export function classifyBuyLaunchGateV1({ production, coupled, successor }) {
+function classifyBuyLaunchGateWithVerifiedPaymentCapacityV1({
+  production,
+  coupled,
+  successor,
+  verified_payment_capacity_admission_ready,
+}) {
   let decision = null;
   try {
     decision = classifyVoidWcVoidCoupledLaunchReadinessV1({
@@ -1213,7 +1220,7 @@ export function classifyBuyLaunchGateV1({ production, coupled, successor }) {
     decision = null;
   }
 
-  const ready =
+  const coupledSourceReady =
     decision?.ok === true &&
     decision.status === "SOURCE_READY" &&
     decision.marker === VOID_WC_VOID_COUPLED_LAUNCH_READINESS_V1 &&
@@ -1225,12 +1232,48 @@ export function classifyBuyLaunchGateV1({ production, coupled, successor }) {
     decision.funds_movement_authorized === false &&
     coupled?.shared_post_discovery_reconciliation?.coupled_launch_id ===
       VOID_BUY_COUPLED_LAUNCH_ID_V1;
+  const verifiedPaymentCapacityAdmissionReady =
+    verified_payment_capacity_admission_ready === true;
+  const ready =
+    coupledSourceReady && verifiedPaymentCapacityAdmissionReady;
 
   return Object.freeze({
     ready,
     id: VOID_BUY_COUPLED_LAUNCH_ID_V1,
     composition_id: ready ? decision.composition_id : null,
-    reason: ready ? null : "canonical_coupled_launch_source_not_ready",
+    reason:
+      ready
+        ? null
+        : coupledSourceReady && !verifiedPaymentCapacityAdmissionReady
+          ? "buy_void_verified_payment_capacity_admission_not_ready"
+          : "canonical_coupled_launch_source_not_ready",
+  });
+}
+
+export function classifyBuyLaunchGateV1({
+  production,
+  coupled,
+  successor,
+}) {
+  return classifyBuyLaunchGateWithVerifiedPaymentCapacityV1({
+    production,
+    coupled,
+    successor,
+    verified_payment_capacity_admission_ready:
+      VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1,
+  });
+}
+
+export function testOnlyClassifyBuyLaunchGateWithVerifiedPaymentCapacityReadyV1({
+  production,
+  coupled,
+  successor,
+}) {
+  return classifyBuyLaunchGateWithVerifiedPaymentCapacityV1({
+    production,
+    coupled,
+    successor,
+    verified_payment_capacity_admission_ready: true,
   });
 }
 
