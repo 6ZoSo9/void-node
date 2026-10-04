@@ -270,13 +270,6 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     const amountUnits = parseNonNegativeInteger(log.data);
     if (amountUnits === null || amountUnits !== requestedUnits) continue;
 
-    const logIndex = parseNonNegativeInteger(log.logIndex);
-    if (logIndex === null) continue;
-    if (logIndex > MAX_PAYMENT_LOG_INDEX) {
-      matchingTransferLogIndexOutOfDomain = true;
-      continue;
-    }
-
     const logTxHash = log.transactionHash
       ? normalizeHash(log.transactionHash)
       : receiptTxHash;
@@ -287,6 +280,13 @@ export function buildBuyVoidVerifiedPaymentEventV2(
         ? parseNonNegativeInteger(log.blockNumber)
         : receiptBlockNumber;
     if (logBlockNumber === null || logBlockNumber !== receiptBlockNumber) {
+      continue;
+    }
+
+    const logIndex = parseNonNegativeInteger(log.logIndex);
+    if (logIndex === null) continue;
+    if (logIndex > MAX_PAYMENT_LOG_INDEX) {
+      matchingTransferLogIndexOutOfDomain = true;
       continue;
     }
 
