@@ -841,8 +841,8 @@ function collectPolkitDenyRuleEvidence(io, runtimeUser) {
     }
   }
   entries.sort((left, right) => {
-    const byName = left.name.localeCompare(right.name);
-    if (byName !== 0) return byName;
+    if (left.name < right.name) return -1;
+    if (left.name > right.name) return 1;
     return left.rank - right.rank;
   });
   if (
