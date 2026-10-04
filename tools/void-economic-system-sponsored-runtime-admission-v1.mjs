@@ -43,6 +43,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     canonical_ttl_policy_semantics_reused: true,
     canonical_sponsored_policy_semantics_reused: true,
     candidate_preflight_before_time_mutation: true,
+    candidate_issued_after_bundle_commit_required: true,
     current_candidate_revalidation_after_time: true,
     expired_duplicate_execution_admission: false,
     durable_time_observation_before_reservation: true,
@@ -396,9 +397,19 @@ function verifyPolicyBundle(raw, expectedBundleId) {
     fail("SPONSORED_RUNTIME_POLICY_BUNDLE_POLICY_BINDING_INVALID");
   }
 
+  if (
+    !Number.isSafeInteger(bundle.bundle_committed_at_ms) ||
+    bundle.bundle_committed_at_ms <= 0 ||
+    bundle.bundle_committed_at_ms <=
+      sponsor.policy_committed_at_ms
+  ) {
+    fail("SPONSORED_RUNTIME_POLICY_BUNDLE_COMMIT_ORDER_INVALID");
+  }
+
   return Object.freeze({
     bundle,
     bundle_id: bundle.bundle_id,
+    bundle_committed_at_ms: bundle.bundle_committed_at_ms,
     ttl_policy: ttl,
     sponsored_policy: sponsor,
   });
@@ -497,6 +508,16 @@ function normalizeRequest(input) {
 }
 
 function preflightCandidate(request, policies, allowedTargets) {
+  if (
+    !Number.isSafeInteger(
+      request.candidate_intent?.issued_at_ms,
+    ) ||
+    request.candidate_intent.issued_at_ms <=
+      policies.bundle_committed_at_ms
+  ) {
+    fail("SPONSORED_RUNTIME_CANDIDATE_PREDATES_BUNDLE");
+  }
+
   let intentId;
   let sponsorshipId;
   try {
