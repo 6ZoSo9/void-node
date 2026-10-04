@@ -100,14 +100,23 @@ ok(pack.policy.wc_to_void_swap === false, "no wc swap");
 ok(pack.policy.buy_void_fulfillment === false, "no buy fulfillment");
 ok(pack.policy.validator_mutation === false, "no validator mutation");
 
+ok(Array.isArray(manifest.routes), "manifest routes array");
+ok(manifest.route_count === manifest.routes.length, "manifest route count matches routes length");
+ok(Array.isArray(snap.expected_routes), "self-check expected routes array");
+ok(snap.expected_route_count === snap.expected_routes.length, "self-check route count matches expected routes length");
+const manifestPaths = new Set(manifest.routes.map(r => r && r.path).filter(Boolean));
+for (const route of snap.expected_routes) {
+  ok(manifestPaths.has(route), "self-check route absent from manifest " + route);
+}
 ok(manifest.routes.some(r => r.path === "/public-node/external-tester-copy-pack.json" && r.marker === "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_V1"), "manifest has copy pack");
-ok(manifest.route_count === 25, "manifest route count 15");
 ok(snap.expected_routes.includes("/public-node/external-tester-copy-pack.json"), "self-check has copy pack");
-ok(snap.expected_route_count === 25, "self-check route count 15");
 ok(discovery.links.public_node === "http://127.0.0.1:4143/public-node", "discovery still valid");
 
 console.log("[ok] json external tester copy pack");
 NODE
+
+route_manifest_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(x.route_count));' "$OUT/route-manifest.json")"
+self_check_expected_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(x.expected_route_count));' "$OUT/self-check-snapshot.json")"
 
 grep -Fq "VOID_PUBLIC_NODE_EXTERNAL_TESTER_COPY_PACK_UI_V1" "$OUT/public-node.html"
 
@@ -118,8 +127,8 @@ echo "doc=docs/public/public-node-external-tester-copy-pack.md"
 echo "npm_start=true"
 echo "public_node_base=$BASE"
 echo "status=external_tester_copy_pack_ready"
-echo "route_manifest_route_count=25"
-echo "self_check_expected_route_count=25"
+echo "route_manifest_route_count=$route_manifest_route_count"
+echo "self_check_expected_route_count=$self_check_expected_route_count"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "public_routes_only=true"
 echo "read_only=true"

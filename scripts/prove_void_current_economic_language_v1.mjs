@@ -368,7 +368,7 @@ assert.match(
 );
 assert.match(
   docs.readme,
-  /planned recovery checkpoint is block 37371, while accepted economic receipt evidence reaches at least block 37391/,
+  /older planned recovery checkpoint at block 37371 predates accepted economic receipt evidence at block 37391/,
 );
 assert.match(
   docs.currentTruth,
@@ -397,6 +397,83 @@ assert.match(
 assert.match(
   docs.capabilityMatrix,
   /economic execution-layer identity\/public verification, participant post-purchase token control/,
+);
+assert.match(
+  docs.publicStatus,
+  /client-neutral Epoch-2 successor-state manifest is published/,
+);
+assert.match(
+  docs.publicStatus,
+  /native USDC on Ethereum mainnet \(chain ID `1`\) and Base mainnet \(chain ID `8453`\)/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /Epoch-2 successor-state evidence \| Live, public read-only/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /BTC\/VOID settlement primitives \| Guarded \/ source-only/,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /BTC\/VOID settlement primitives \| Guarded \/ source-only \| Deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives are merged[\s\S]*exact terminal VOID balance-delta[\s\S]*adversarial preimage checks[\s\S]*post-presale[\s\S]*separately launch-gated/i,
+  "capability matrix must preserve BTC/VOID primitives, safety details, source-only state, and separate launch boundary",
+);
+assert.match(
+  docs.publicStatus,
+  /Deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives are merged[\s\S]*exact terminal VOID[\s\S]*balance-delta[\s\S]*adversarial preimage checks[\s\S]*source-only settlement[\s\S]*not current runtime or activation truth[\s\S]*BTC\/VOID remains post-presale[\s\S]*separately launch-gated/i,
+  "public status must preserve BTC/VOID safety details plus source-only/non-live and separate launch boundaries",
+);
+assert.match(
+  docs.readme,
+  /BTC\/VOID now has merged deterministic Bitcoin HTLC[\s\S]*Chain-2050 hashlock-settlement primitives[\s\S]*exact terminal VOID balance-delta[\s\S]*adversarial preimage checks[\s\S]*source-level settlement progress[\s\S]*not a live market[\s\S]*BTC\/VOID remains post-presale and separately launch-gated/i,
+  "README must preserve BTC/VOID safety details plus source-level/non-live and separate launch boundaries",
+);
+assert.match(
+  docs.releases,
+  /client-neutral Epoch-2 successor-state manifest published/,
+);
+assert.match(
+  docs.releases,
+  /native USDC on Ethereum mainnet \(`1`\) and Base mainnet \(`8453`\)/,
+);
+assert.match(
+  docs.releases,
+  /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID/,
+);
+assert.match(
+  docs.releases,
+  /deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC\/VOID[\s\S]*exact terminal VOID balance-delta[\s\S]*adversarial preimage checks[\s\S]*post-presale and separately launch-gated/i,
+  "RELEASES must preserve BTC/VOID primitives, safety details, and separate launch boundary",
+);
+assert.match(
+  docs.releases,
+  /Merged BTC\/VOID and coupled-gas hardening remain source-level controls; they are[\s\S]*not current runtime or activation truth/i,
+  "RELEASES must keep merged BTC/VOID controls source-only/non-live",
+);
+assert.match(
+  docs.readme,
+  /Buy VOID public request admission is now source-bound to the full canonical WC\/VOID coupled-readiness classifier[\s\S]*SOURCE_READY[\s\S]*no live authority[\s\S]*generation journal plus external high-water mirror[\s\S]*launch controller and Sovereign co-signer[\s\S]*remain `HOLD`[\s\S]*public intake remains closed/i,
+);
+assert.match(
+  docs.publicStatus,
+  /Public Buy request admission now delegates to the full canonical WC\/VOID coupled-readiness classifier[\s\S]*not live activation authority[\s\S]*generation journal and external high-water mirror[\s\S]*launch controller and Sovereign co-signer[\s\S]*remain `HOLD`[\s\S]*public intake remains closed/i,
+);
+assert.match(
+  docs.capabilityMatrix,
+  /Buy VOID coupled source launch gate \| Guarded \/ `HOLD`[\s\S]*full canonical WC\/VOID coupled-readiness classifier[\s\S]*Source readiness is not live activation authority[\s\S]*co-signed activation lease[\s\S]*canonical candidates remain `HOLD`[\s\S]*public activation remains closed/i,
+);
+assert.match(
+  docs.releases,
+  /merged full-canonical coupled Buy VOID admission gate[\s\S]*canonical source readiness is not live activation authority[\s\S]*generation\/high-water agreement[\s\S]*co-signed activation receipt[\s\S]*canonical candidates remain `HOLD`[\s\S]*public intake remains closed/i,
+);
+assert.match(
+  docs.releases,
+  /merged Buy VOID admission path now[\s\S]*full canonical coupled-readiness classifier[\s\S]*source readiness alone cannot activate intake[\s\S]*canonical candidates still classify `HOLD`[\s\S]*no authorized live[\s\S]*activation generation\/lease/i,
+);
+assert.match(
+  docs.whitepaper,
+  /Buy VOID request admission delegates to the full canonical WC\/VOID coupled-readiness classifier[\s\S]*co-signed live activation lease[\s\S]*durable generation journal\/external-anchor state[\s\S]*Source readiness alone cannot open intake/i,
 );
 assert.match(
   docs.gatewayContent,

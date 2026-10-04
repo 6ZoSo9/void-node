@@ -13,12 +13,15 @@ import {
   VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1,
 } from "../tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 import {
+  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUTHORITY_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1,
   VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORITY_V1,
   observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
   testOnlyEvaluateVoidWcVoidMarketVaultCanonicalMainIdentityV1,
+  testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1,
+  testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1,
   testOnlyExerciseVoidWcVoidMarketVaultOutputParentReplacementV1,
   testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1,
 } from "../tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
@@ -27,6 +30,8 @@ const QUALIFICATION_TOOL =
   "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 const PREFLIGHT_TOOL =
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
+const PRODUCTION_RPC_TARGET =
+  "ops/mainnet0/production-epoch2-rpc-target-v1.json";
 const COUPLED_LAUNCH_ID =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 const TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
@@ -349,9 +354,70 @@ async function fixture(options = {}) {
             result = "0x3b9aca00";
             break;
           case "eth_estimateGas":
+            assert.equal(
+              call.params?.[0]?.type,
+              "0x2",
+              "deployment estimate must be an EIP-1559 type-2 transaction",
+            );
+            assert.equal(
+              call.params?.[0]?.chainId,
+              "0x802",
+              "deployment estimate must bind Chain-2050",
+            );
+            assert.equal(
+              call.params?.[0]?.to,
+              null,
+              "deployment estimate must remain contract creation",
+            );
+            assert.deepEqual(
+              call.params?.[0]?.accessList,
+              [{
+                address:
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+                    .marker_address,
+                storageKeys: [
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+                    .marker_storage_key,
+                ],
+              }],
+              "deployment estimate must carry the exact signed Epoch-2 access-list marker",
+            );
             result = options.badGasEstimate ? "0x0" : "0xf4240";
             break;
           case "eth_call":
+            assert.equal(
+              call.params?.[0]?.type,
+              "0x2",
+              "inventory eth_call must be an EIP-1559 type-2 transaction",
+            );
+            assert.equal(
+              call.params?.[0]?.chainId,
+              "0x802",
+              "inventory eth_call must bind Chain-2050",
+            );
+            assert.equal(
+              call.params?.[0]?.from,
+              DEPLOYER,
+              "inventory eth_call must use the observed deployer as caller",
+            );
+            assert.equal(
+              call.params?.[0]?.value,
+              "0x0",
+              "inventory eth_call must carry zero value",
+            );
+            assert.deepEqual(
+              call.params?.[0]?.accessList,
+              [{
+                address:
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+                    .marker_address,
+                storageKeys: [
+                  VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+                    .marker_storage_key,
+                ],
+              }],
+              "inventory eth_call must carry the exact signed Epoch-2 access-list marker",
+            );
             result = balanceHex(
               options.lowInventory
                 ? OPENING_ATOMS - 1n
@@ -443,6 +509,21 @@ await withFixture({}, async (f) => {
   assert.equal(result.observation.pending_nonce_revalidated, true);
   assert.equal(result.observation.deployment_gas_estimate, "1000000");
   assert.equal(result.observation.gas_price_wei, "1000000000");
+  assert.equal(result.observation.epoch2_transaction_type, "2");
+  assert.equal(result.observation.epoch2_estimate_chain_id, "2050");
+  assert.equal(result.observation.epoch2_estimate_contract_creation, true);
+  assert.equal(
+    result.observation.epoch2_access_list_marker_address,
+    VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_address,
+  );
+  assert.equal(
+    result.observation.epoch2_access_list_marker_storage_key,
+    VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_storage_key,
+  );
+  assert.equal(
+    result.observation.epoch2_signed_access_list_marker_bound,
+    true,
+  );
   assert.equal(
     result.observation.bare_estimated_deployment_cost_wei,
     "1000000000000000",
@@ -481,9 +562,35 @@ await withFixture({}, async (f) => {
     estimate.params[0].data,
     q.deployment_preparation.deployment_data_hex,
   );
+  assert.deepEqual(
+    estimate.params[0].accessList,
+    [{
+      address:
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_address,
+      storageKeys: [
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+          .marker_storage_key,
+      ],
+    }],
+  );
   assert.equal(estimate.params[1], "0x64");
   const balanceCall = f.calls.find((call) => call.method === "eth_call");
+  assert.equal(balanceCall.params[0].type, "0x2");
+  assert.equal(balanceCall.params[0].chainId, "0x802");
+  assert.equal(balanceCall.params[0].from, DEPLOYER);
   assert.equal(balanceCall.params[0].to, TOKEN);
+  assert.equal(balanceCall.params[0].value, "0x0");
+  assert.deepEqual(
+    balanceCall.params[0].accessList,
+    [{
+      address:
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1.marker_address,
+      storageKeys: [
+        VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1
+          .marker_storage_key,
+      ],
+    }],
+  );
   assert.equal(balanceCall.params[1], "0x64");
   assert.equal(
     balanceCall.params[0].data,
@@ -548,6 +655,148 @@ await withFixture({}, async (f) => {
     );
   }
 });
+
+{
+  const exactDomain =
+    testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1();
+  assert.equal(exactDomain.ok, true);
+  assert.equal(
+    exactDomain.status,
+    "TEST_ONLY_EPOCH2_DOMAIN_REVIEWED_SOURCE_GREEN",
+  );
+  assert.equal(
+    exactDomain.reviewed_domain_tool_git_blob_sha1,
+    "f7cb1910923725581d1ff9b31abfb910a64eba14",
+  );
+  assert.equal(exactDomain.chain_id, 2050);
+  assert.equal(exactDomain.transaction_type, 2);
+  assert.equal(exactDomain.production_artifact_authorized, false);
+  assert.equal(exactDomain.rpc_call, false);
+}
+
+{
+  const domainPath =
+    "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
+  const sentinel = path.join(
+    os.tmpdir(),
+    "void-epoch2-domain-import-sentinel-" + process.pid + ".txt",
+  );
+  const original = fs.readFileSync(domainPath);
+  execFileSync(
+    "/usr/bin/git",
+    ["update-index", "--assume-unchanged", "--", domainPath],
+    {
+      cwd: process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+      env: gitEnv(),
+    },
+  );
+  try {
+    fs.writeFileSync(
+      domainPath,
+      original.toString("utf8") +
+        "\nimport fs from \"node:fs\";" +
+        "\nfs.writeFileSync(" +
+        JSON.stringify(sentinel) +
+        ", \"EXECUTED\\n\");\n",
+    );
+    const held =
+      testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1();
+    assert.equal(held.ok, false);
+    assert.equal(
+      held.reason,
+      "live_deployment_preflight_epoch2_domain_worktree_blob_mismatch",
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "mutated domain module executed before reviewed-source rejection",
+    );
+  } finally {
+    fs.writeFileSync(domainPath, original);
+    execFileSync(
+      "/usr/bin/git",
+      ["update-index", "--no-assume-unchanged", "--", domainPath],
+      {
+        cwd: process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+        env: gitEnv(),
+      },
+    );
+    if (fs.existsSync(sentinel)) fs.unlinkSync(sentinel);
+  }
+}
+
+{
+  const selected = JSON.parse(
+    fs.readFileSync(PRODUCTION_RPC_TARGET, "utf8"),
+  );
+  const exact =
+    testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1({
+      rpc_url: selected.selection.rpc_url,
+    });
+  assert.equal(exact.ok, true);
+  assert.equal(
+    exact.status,
+    "TEST_ONLY_PRODUCTION_EPOCH2_RPC_POLICY_GREEN",
+  );
+  assert.equal(exact.production_artifact_authorized, false);
+  assert.equal(exact.rpc_call, false);
+  assert.equal(
+    exact.rpc_url_fingerprint_sha256,
+    selected.selection.rpc_url_fingerprint_sha256,
+  );
+  assert.equal(
+    exact.selected_rpc_target_git_blob_sha1,
+    gitText(["rev-parse", "HEAD:" + PRODUCTION_RPC_TARGET]),
+  );
+  for (const rpc_url of [
+    "http://127.0.0.1:8545/",
+    "http://127.0.0.1:18550/",
+    "http://127.0.0.1:18551/",
+    "http://127.0.0.1:18552/",
+    "http://[::1]:18553/",
+    "http://127.0.0.1:18553/not-production",
+  ]) {
+    const held =
+      testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1({
+        rpc_url,
+      });
+    assert.equal(held.ok, false, rpc_url);
+    assert.equal(
+      held.reason,
+      "live_deployment_preflight_production_rpc_mismatch",
+      rpc_url,
+    );
+    assert.equal(held.rpc_call, false);
+  }
+}
+
+{
+  const original = fs.readFileSync(PRODUCTION_RPC_TARGET);
+  try {
+    const tampered = JSON.parse(original.toString("utf8"));
+    tampered.selection.rpc_url = "http://127.0.0.1:18553/tampered";
+    tampered.selection.rpc_url_fingerprint_sha256 =
+      sha256(Buffer.from(tampered.selection.rpc_url, "utf8"));
+    fs.writeFileSync(
+      PRODUCTION_RPC_TARGET,
+      JSON.stringify(tampered, null, 2) + "\n",
+    );
+    const held =
+      testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1({
+        rpc_url: tampered.selection.rpc_url,
+      });
+    assert.equal(held.ok, false);
+    assert.equal(
+      held.reason,
+      "live_deployment_preflight_production_rpc_target_worktree_blob_mismatch",
+    );
+    assert.equal(held.rpc_call, false);
+  } finally {
+    fs.writeFileSync(PRODUCTION_RPC_TARGET, original);
+  }
+}
 
 {
   const head = gitText(["rev-parse", "HEAD"]);
@@ -806,6 +1055,7 @@ for (const [key, expected] of Object.entries({
   canonical_remote_main_read_required: true,
   canonical_remote_main_head_match_required: true,
   canonical_remote_main_external_network_read: true,
+  canonical_production_epoch2_rpc_required: true,
   caller_transport_injection_forbidden: true,
   production_transport_internal_only: true,
   private_output_parent_fd_bound: true,
@@ -820,6 +1070,8 @@ for (const [key, expected] of Object.entries({
   observation_block_hash_revalidation_required: true,
   block_bound_deployer_balance_required: true,
   exact_deployment_data_gas_estimate_required: true,
+  epoch2_signed_access_list_marker_required: true,
+  epoch2_transaction_domain_reviewed_before_use_required: true,
   gas_price_observation_required: true,
   canonical_void_balance_of_required: true,
   opening_inventory_atoms_required: OPENING_ATOMS.toString(),
@@ -858,6 +1110,7 @@ for (const [key, expected] of Object.entries({
   production_artifact_authorized: false,
   production_preflight_id_emitted: false,
   canonical_remote_main_required: false,
+  canonical_production_epoch2_rpc_required: false,
   real_loopback_http_required: true,
   caller_transport_injection_forbidden: true,
   rpc_write: false,
@@ -916,6 +1169,11 @@ for (const required of [
   "eth_gasPrice",
   "eth_estimateGas",
   "eth_call",
+  "VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1",
+  "requireReviewedEpoch2EstimateDomainV1",
+  "live_deployment_preflight_epoch2_domain_worktree_blob_mismatch",
+  "accessList: deploymentAccessList",
+  "epoch2_signed_access_list_marker_bound: true",
   "O_NOFOLLOW",
   "O_DIRECTORY",
   '"/proc/self/fd/"',
@@ -929,6 +1187,10 @@ for (const required of [
   '"refs/heads/main"',
   "live_deployment_preflight_canonical_main_branch_required",
   "live_deployment_preflight_remote_main_head_mismatch",
+  "PRODUCTION_EPOCH2_RPC_TARGET_REL",
+  "live_deployment_preflight_production_rpc_target_worktree_blob_mismatch",
+  "live_deployment_preflight_production_rpc_mismatch",
+  "requireCanonicalProductionRpc: true",
   "live_deployment_preflight_transport_injection_forbidden",
   "testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPreflightV1",
   "TEST_ONLY_LOOPBACK_OBSERVATION_SEMANTICS_GREEN",
@@ -955,6 +1217,10 @@ console.log("qualification_current_reviewed_bytes_required=true");
 console.log("canonical_main_branch_required=true");
 console.log("canonical_remote_main_read_required=true");
 console.log("canonical_remote_main_head_match_required=true");
+console.log("canonical_production_epoch2_rpc_required=true");
+console.log("canonical_production_epoch2_rpc_target_head_blob_required=true");
+console.log("retired_epoch1_rpc_8545_rejected=true");
+console.log("isolated_epoch2_proof_rpcs_rejected=true");
 console.log("caller_transport_injection_forbidden=true");
 console.log("production_transport_internal_only=true");
 console.log("test_only_loopback_http_green=true");
@@ -972,6 +1238,10 @@ console.log("fixed_block_observation=true");
 console.log("pending_nonce_revalidated=true");
 console.log("deployer_balance_block_bound=true");
 console.log("deployment_gas_estimate_read_only=true");
+console.log("epoch2_signed_access_list_marker_bound=true");
+console.log("epoch2_domain_module_not_executed_before_review=true");
+console.log("epoch2_domain_worktree_head_blob_required=true");
+console.log("epoch2_domain_assume_unchanged_sentinel_rejected=true");
 console.log("gas_price_observed=true");
 console.log("inventory_balance_of_block_bound=true");
 console.log("opening_inventory_required_atoms="+OPENING_ATOMS.toString());

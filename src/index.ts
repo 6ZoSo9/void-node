@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { listDirectDirectoryNamesV1 as ldn, readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
 import {
   runVoidNativeBlockExecutionPrecommitIntegrationV1,
 } from "./chain/native_block_execution_precommit_integration_v1.js";
@@ -105,6 +106,9 @@ import { executePublicAgentServiceAcceptancePersistenceHttpRouteServerBootstrapC
 import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../tools/void-public-agent-service-order-status-readonly-http-integration-v1.mjs"; // VOID_PUBLIC_AGENT_SERVICE_ORDER_STATUS_READONLY_HTTP_INTEGRATION_V1_IMPORT
 import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
+// VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1
+let __BL:any;void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26")__BL=m}).catch(()=>0);
+const __bld=()=>{try{return __BL?.readBuyLaunchGateV1()||{ready:0}}catch{return{ready:0}}},__blo=(r:any)=>{try{return __BL?.buyLaunchRequestAuthorityMatchesV1(r,__bld())}catch{return false}},__blm=(r:any,f:any)=>__BL.withBuyLaunchRequestAuthorityMutationV1(r,f);
 
 // __VOID_TS_DECLARES_V1__
 declare const app: any;
@@ -18369,47 +18373,19 @@ small{color:#94a3b8}
       const configuredReceiveAddressLower = configuredReceiveAddress.toLowerCase();
       const boundReceiveAddressLower = __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1.toLowerCase();
       const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddressLower !== boundReceiveAddressLower;
-      const receiverBindingSource = configuredReceiveAddress
-        ? (receiverBindingConflict ? "environment_conflict_hold" : "source_and_environment_exact_match")
-        : "source_bound_operator_approved_receiver";
-      const usdc_symbol = "USDC";
-      const rate_void_per_usdc = Number(process.env.VOID_BUY_RATE_VOID_PER_USDC || "2");
-      const min_usdc = Number(process.env.VOID_BUY_MIN_USDC || "1");
-      const max_usdc = Number(process.env.VOID_BUY_MAX_USDC || "500");
-      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
+      const receiverBindingSource=configuredReceiveAddress?(receiverBindingConflict?"environment_conflict_hold":"source_and_environment_exact_match"):"source_bound_operator_approved_receiver";
+      const usdc_symbol="USDC",rate_void_per_usdc=String(process.env.VOID_BUY_RATE_VOID_PER_USDC||"2"),min_usdc=Number(process.env.VOID_BUY_MIN_USDC||"1"),max_usdc=Number(process.env.VOID_BUY_MAX_USDC||"500");
+      const requests_enabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__bld().ready;
+      const ethereum_requests_enabled=requests_enabled&&process.env.VOID_BUY_ETHEREUM_REQUESTS_ENABLED==="1";
       const payment_ready = !receiverBindingConflict;
       return {
-        schema: "void_public_buy_void_config_v1",
-        marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-        ok: true,
-        mode: "base_usdc_request_first_checkout",
-        requests_enabled,
-        payment_ready,
-        chain: "base",
-        payment_chain: "base",
-        payment_chain_id: __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,
-        usdc_symbol,
-        usdc_contract: __VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,
-        usdc_decimals: 6,
-        receive_address: __VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,
-        receiver_binding_green: !receiverBindingConflict,
-        receiver_binding_source: receiverBindingSource,
-        receiver_binding_conflict: receiverBindingConflict,
-        configured_receive_address_present: !!configuredReceiveAddress,
-        receiver_control_proof_marker: "VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",
-        receiver_control_proof_manifest_sha256: "dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
-        request_method: "POST",
-        request_route: "/__void/buy-void/request",
-        legacy_get_request_route: "/__void/buy-void/request.json",
-        one_active_request_per_void_destination: true,
-        void_destination_field: "void_destination_address",
-        delivery_chain: "void",
-        delivery_chain_id: __VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,
-        payment_sender_must_equal_void_destination: true,
-        request_before_payment_required: true,
-        tx_hash_at_request_creation_allowed: false,
+        schema:"void_public_buy_void_config_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:true,mode:"dual_usdc_request_first_checkout",
+        requests_enabled,ethereum_requests_enabled,payment_ready,payment_chains: ["base", "ethereum"],chain:"base",payment_chain:"base",payment_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_CHAIN_ID_V1,usdc_symbol,usdc_contract:__VOID_BUY_VOID_PUBLIC_CHECKOUT_BASE_USDC_V1,usdc_decimals:6,
+        receive_address:__VOID_BUY_VOID_PUBLIC_CHECKOUT_RECEIVER_V1,receiver_binding_green:!receiverBindingConflict,receiver_binding_source:receiverBindingSource,receiver_binding_conflict:receiverBindingConflict,configured_receive_address_present:!!configuredReceiveAddress,
+        receiver_control_proof_marker:"VOID_BUY_VOID_BASE_RECEIVER_HTTPS_CONTROL_PROOF_CORRECTED_V4",receiver_control_proof_manifest_sha256:"dbb0334f7ab01ed11b8200c36d4d94cfc5879032119b530b3709e4b240967830",
+        request_method: "POST",request_route:"/__void/buy-void/request",legacy_get_request_route:"/__void/buy-void/request.json",one_active_request_per_void_destination:true,void_destination_field:"void_destination_address",delivery_chain:"void",delivery_chain_id:__VOID_BUY_VOID_PUBLIC_CHECKOUT_DELIVERY_CHAIN_ID_V1,payment_sender_must_equal_void_destination: true,request_before_payment_required:true,tx_hash_at_request_creation_allowed: false,
         rate_void_per_usdc,
-        price_usdc_per_void: Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
+        price_usdc_per_void: String(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50"),
         pool_void_total: Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000"),
         max_raise_usdc: Number(process.env.VOID_BUY_MAX_RAISE_USDC || "5000000"),
         min_usdc,
@@ -18482,8 +18458,6 @@ small{color:#94a3b8}
       }
 
       // VOID_BUY_VOID_PAID_ONLY_POOL_RESERVATION_V1
-      // Unpaid quote/request records and unverified tx-hash submissions do not reserve presale capacity.
-      // Available presale inventory is reduced only after operator_status === "payment_verified".
       const reserved_void = Math.min(pool_void_total, submitted_void_total);
       const remaining_void = Math.max(0, Math.floor((pool_void_total - reserved_void) * 1e6) / 1e6);
       const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
@@ -18578,23 +18552,7 @@ small{color:#94a3b8}
       return events;
     }
 
-    async function __voidWriteBuyVoidOperatorEventV1(event:any){
-      const fs = await import("node:fs");
-      const path = await import("node:path");
-      const { withBuyVoidTerminalCloseoutRequestLockV1 } = await import(
-        "./economic/buy_void_terminal_closeout_request_lock_v1.js"
-      );
-      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
-      fs.mkdirSync(dir, { recursive: true });
-      return withBuyVoidTerminalCloseoutRequestLockV1(
-        { request_dir: dir, request_id: String(event?.request_id || "") },
-        () => {
-          fs.appendFileSync(path.join(dir, "operator-events.jsonl"), JSON.stringify(event) + "\n");
-          fs.writeFileSync(path.join(dir, "operator-event-" + event.request_id + "-" + event.marked_at_ms + ".json"), JSON.stringify(event, null, 2));
-          return { ok:true, dir };
-        },
-      );
-    }
+    async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any){const m=await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");return m.writeBuyVoidOperatorEventWithCapacityAdmissionV1({event:e,request:r,request_dir:String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1"),with_launch_authority_mutation:__blm,read_sale_state:__voidBuyVoidSaleStateV1})}
 
     // VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1
     function __voidApplyBuyVoidOperatorEventsV1(requests:any[], events:any[]){
@@ -18788,16 +18746,6 @@ setInterval(refresh, 10000);
     });
 
     // VOID_BUY_VOID_PAYMENT_VERIFIER_V1
-    function __voidBuyVoidHexToBigIntV1(x:any){
-      const s = String(x || "0x0");
-      try { return BigInt(s); } catch { return 0n; }
-    }
-
-    function __voidBuyVoidTopicAddressV1(topic:any){
-      const s = String(topic || "").toLowerCase();
-      if (!s.startsWith("0x") || s.length < 66) return "";
-      return "0x" + s.slice(-40);
-    }
 
     // VOID_BUY_VOID_MULTI_CHAIN_USDC_VERIFIER_V1
     function __voidBuyVoidPaymentChainV1(sourceChain:any){
@@ -18845,49 +18793,7 @@ setInterval(refresh, 10000);
       return j.result;
     }
 
-    // VOID_BUY_VOID_PAYMENT_SENDER_DELIVERY_MATCH_V1
-    function __voidBuyVoidUsdcTransferMatchV1(logs:any[], chainCfg:any, receiveAddress:string, deliveryAddress:string, requestedUsdc:any){
-      const usdc = String(chainCfg?.usdc_contract || "").toLowerCase();
-      const to = String(receiveAddress || "").toLowerCase();
-      const expectedFrom = String(deliveryAddress || "").toLowerCase();
-      const transferSig = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-      const requestedUnits = BigInt(Math.ceil(Number(requestedUsdc || 0) * 1000000));
-
-      for (const log of logs || []) {
-        const addr = String(log.address || "").toLowerCase();
-        const topics = log.topics || [];
-        if (addr !== usdc) continue;
-        if (String(topics[0] || "").toLowerCase() !== transferSig) continue;
-
-        const logFrom = __voidBuyVoidTopicAddressV1(topics[1]);
-        const logTo = __voidBuyVoidTopicAddressV1(topics[2]);
-
-        if (logTo !== to) continue;
-        if (logFrom !== expectedFrom) continue;
-
-        const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
-        if (amountUnits >= requestedUnits) {
-          return {
-            ok: true,
-            usdc_contract: usdc,
-            from_address: logFrom,
-            receive_address: to,
-            delivery_address: expectedFrom,
-            amount_units: amountUnits.toString(),
-            requested_units: requestedUnits.toString()
-          };
-        }
-      }
-
-      return {
-        ok: false,
-        usdc_contract: usdc,
-        expected_from_address: expectedFrom,
-        receive_address: to,
-        requested_units: requestedUnits.toString()
-      };
-    }
-
+    // VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1
     app.get("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
       if (!__voidBuyVoidOperatorLocalOnlyV1(req,res)) return;
 
@@ -18904,6 +18810,7 @@ setInterval(refresh, 10000);
             request_id: id
           });
         }
+        if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
 
         const tx = String(found.tx_hash || "").trim();
         if (!/^0x[a-fA-F0-9]{64}$/.test(tx)) {
@@ -18935,67 +18842,17 @@ setInterval(refresh, 10000);
           });
         }
 
-        const receipt:any = await __voidBuyVoidRpcV1(chainCfg, "eth_getTransactionReceipt", [tx]);
-        if (!receipt) {
-          return res.status(404).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "payment_tx_receipt_not_found",
-            tx_hash: tx
-          });
-        }
+        const receipt:any=await __voidBuyVoidRpcV1(chainCfg,"eth_getTransactionReceipt",[tx]);
+        if(!receipt)return res.status(404).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:"payment_tx_receipt_not_found",tx_hash:tx});
+        const currentBlock:any=await __voidBuyVoidRpcV1(chainCfg,"eth_blockNumber",[]);
+        const v:any=await import("./economic/buy_void_verified_payment_v2.js");
+        const verified=v.buildBuyVoidVerifiedPaymentEventV2({request:found,receipt,policy:{allowed_chains:[chainCfg.chain],usdc_contract_by_chain:{[chainCfg.chain]:chainCfg.usdc_contract},receive_address_by_chain:{[chainCfg.chain]:cfg.receive_address},current_block_number_by_chain:{[chainCfg.chain]:currentBlock}}});
+        if(!verified.ok)return res.status(400).json({schema:"void_buy_void_payment_verifier_v1",ok:false,error:verified.reason,tx_hash:tx,request_id:id,...(verified.detail?{detail:verified.detail}:{})});
 
-        if (String(receipt.status || "").toLowerCase() !== "0x1") {
-          return res.status(400).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "payment_tx_failed",
-            tx_hash: tx,
-            receipt_status: receipt.status || ""
-          });
-        }
+        if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
+        const event={...verified.event,ok:true,note:"USDC receipt/log verified",marked_at_ms:Date.now(),prior_status:found.status||"",payment_verifier:{...verified.event.payment_verifier,rpc_env:chainCfg.rpc_env,receipt_status:receipt.status},usdc_amount:found.usdc_amount,quoted_void:found.quoted_void,delivery_address:found.delivery_address||""};
 
-        const match = __voidBuyVoidUsdcTransferMatchV1(receipt.logs || [], chainCfg, cfg.receive_address, found.delivery_address || "", found.usdc_amount);
-        if (!match.ok) {
-          return res.status(400).json({
-            schema: "void_buy_void_payment_verifier_v1",
-            ok: false,
-            error: "matching_usdc_transfer_not_found",
-            tx_hash: tx,
-            request_id: id,
-            match
-          });
-        }
-
-        const event = {
-          schema: "void_buy_void_operator_mark_v1",
-          ok: true,
-          request_id: id,
-          operator_status: "payment_verified",
-          note: "Base USDC payment verified by receipt/log check",
-          marked_at_ms: Date.now(),
-          prior_status: found.status || "",
-          tx_hash: tx,
-          payment_verified: true,
-          payment_verifier: {
-            chain: chainCfg.chain,
-            rpc_env: chainCfg.rpc_env,
-            receipt_status: receipt.status,
-            block_number: receipt.blockNumber || "",
-            transaction_hash: receipt.transactionHash || tx,
-            usdc_contract: match.usdc_contract,
-            from_address: match.from_address,
-            receive_address: match.receive_address,
-            delivery_address: match.delivery_address,
-            amount_units: match.amount_units,
-            requested_units: match.requested_units
-          },
-          usdc_amount: found.usdc_amount,
-          quoted_void: found.quoted_void,
-          delivery_address: found.delivery_address || ""
-        };
-
-        await __voidWriteBuyVoidOperatorEventV1(event);
+        await __voidWriteBuyVoidOperatorEventV1(event,found);
 
         res.json({
           schema: "void_buy_void_payment_verifier_v1",
@@ -19005,11 +18862,12 @@ setInterval(refresh, 10000);
           request: found
         });
       } catch(e:any) {
-        res.status(500).json({
+        const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded"||m.startsWith("buy_void_verified_payment_duplicate_guard_");
+        res.status(held?409:500).json({
           schema: "void_buy_void_payment_verifier_v1",
           ok: false,
-          error: "payment_verifier_failed",
-          message: String(e?.message || e)
+          error: held?m:"payment_verifier_failed",
+          message: m
         });
       }
     });
@@ -19025,19 +18883,6 @@ setInterval(refresh, 10000);
       const void_delivery_tx_hash = String(q.void_tx_hash || q.delivery_tx_hash || "").trim();
 
       // VOID_BUY_VOID_FULFILLMENT_TX_HASH_GUARD_V1
-      if (operator_status === "fulfilled") {
-        if (!/^0x[a-fA-F0-9]{64}$/.test(void_delivery_tx_hash)) {
-          return res.status(400).json({
-            schema: "void_buy_void_operator_mark_v1",
-            ok: false,
-            error: "invalid_void_delivery_tx_hash",
-            message: "fulfilled status requires a real 0x-prefixed 32-byte VOID delivery transaction hash",
-            request_id: id,
-            operator_status,
-            void_delivery_tx_hash
-          });
-        }
-      }
       const allowed = new Set(["reviewed", "fulfilled", "rejected"]);
 
       if (!id || !allowed.has(operator_status)) {
@@ -19069,48 +18914,25 @@ setInterval(refresh, 10000);
         });
       }
 
+      try{
       const r = await g(
-        found, id, operator_status, note, void_delivery_tx_hash,
-        __voidReadBuyVoidOperatorEventsV1, __voidApplyBuyVoidOperatorEventsV1,
-        __voidWriteBuyVoidOperatorEventV1,
+        found,id,operator_status,note,void_delivery_tx_hash,
+        __voidReadBuyVoidOperatorEventsV1,__voidApplyBuyVoidOperatorEventsV1,
+        (e:any)=>__voidWriteBuyVoidOperatorEventV1(e,found),
       );
-      if (!r.ok) {
-        return res.status(r.status_code).json(r.body);
-      }
-      const event = r.body;
-
-
-      res.json({
-        schema: "void_buy_void_operator_mark_result_v1",
-        ok: true,
-        event,
-        request: found
-      });
+      if(!r.ok)return res.status(r.status_code).json(r.body);
+      return res.json({schema:"void_buy_void_operator_mark_result_v1",ok:true,event:r.body,request:found});
+      }catch(e:any){const x=String(e?.message||"");return res.status(x==="request_launch_authority_expired_or_superseded"?409:500).json({schema:"void_buy_void_operator_mark_v1",ok:false,error:x==="request_launch_authority_expired_or_superseded"?x:"operator_mark_failed",request_id:id})}
     });
 
-    require("./economic/buy_void_request_tx_hash_binding_v1")
-      .installBuyVoidRequestTxHashBindingV1({
-        app,
-        localOnly: __voidBuyVoidOperatorLocalOnlyV1,
-        readRequests: __voidReadBuyVoidRequestsV1,
-        persistRequest: __voidPersistBuyVoidRequestV1
-      });
+    require("./economic/buy_void_request_tx_hash_binding_v1").installBuyVoidRequestTxHashBindingV1({app,localOnly:__voidBuyVoidOperatorLocalOnlyV1,readRequests:__voidReadBuyVoidRequestsV1,persistRequest:__voidPersistBuyVoidRequestV1,requestLaunchAuthorityReady:__blo});
 
     app.get("/__void/buy-void/sale-state.json", async (_req:any,res:any)=>{
       res.json(await __voidBuyVoidSaleStateV1());
     });
 
 
-    async function __voidPersistBuyVoidRequestV1(reqObj:any){
-      const fs = await import("node:fs");
-      const path = await import("node:path");
-      const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
-      fs.mkdirSync(dir, { recursive: true });
-      const json = JSON.stringify(reqObj);
-      fs.appendFileSync(path.join(dir, "requests.jsonl"), json + "\n");
-      fs.writeFileSync(path.join(dir, reqObj.request_id + ".json"), JSON.stringify(reqObj, null, 2));
-      return { dir, file: path.join(dir, reqObj.request_id + ".json") };
-    }
+    async function __voidPersistBuyVoidRequestV1(reqObj:any){const fs=await import("node:fs");const path=await import("node:path");const dir=String(process.env.VOID_BUY_REQUEST_DIR||".runtime/public-buy-void-requests-v1");fs.mkdirSync(dir,{recursive:true});return await __blm(reqObj,()=>{const json=JSON.stringify(reqObj);fs.appendFileSync(path.join(dir,"requests.jsonl"),json+"\n");fs.writeFileSync(path.join(dir,reqObj.request_id+".json"),JSON.stringify(reqObj,null,2));return{dir,file:path.join(dir,reqObj.request_id+".json")}})}
 
     function __voidBuyVoidReadParamV1(req:any, name:string){
       const q = (req && req.query) || {};
@@ -19163,6 +18985,7 @@ setInterval(refresh, 10000);
         if (!cfg.requests_enabled) {
           return res.status(503).json({ schema:"void_public_buy_void_checkout_request_v1", ok:false, error:"buy_void_requests_disabled" });
         }
+        const launch=__bld();if(!launch.request_authority)throw new Error("request_launch_authority_expired_or_superseded");
         if (!cfg.payment_ready || !cfg.receiver_binding_green) {
           return res.status(503).json({
             schema:"void_public_buy_void_checkout_request_v1",
@@ -19185,12 +19008,14 @@ setInterval(refresh, 10000);
         const rawAmount = __voidBuyVoidReadBodyV1(req, "requested_amount_usdc", "usdc_amount", "amount_usdc", "amount");
         const void_destination_address = __voidBuyVoidReadBodyV1(req, "void_destination_address", "delivery_address", "delivery_wallet", "wallet");
         const source_chain = (__voidBuyVoidReadBodyV1(req, "source_chain", "payment_chain", "chain") || "base").toLowerCase();
+        const ethereum = source_chain === "ethereum";
+        const usdc_contract = ethereum ? "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" : cfg.usdc_contract;
         const account = __voidBuyVoidReadBodyV1(req, "account", "participant_account").slice(0, 128);
         const txHashAtCreation = __voidBuyVoidReadBodyV1(req, "tx_hash", "payment_tx_hash");
         const note = __voidBuyVoidReadBodyV1(req, "note").slice(0, 240);
         const acknowledgements = {
           self_custody: __voidBuyVoidReadBooleanBodyV1(req, "ack_self_custody"),
-          base_native_usdc: __voidBuyVoidReadBooleanBodyV1(req, "ack_base_native_usdc", "ack_base_usdc"),
+          native_usdc: __voidBuyVoidReadBooleanBodyV1(req,"ack_native_usdc",...(ethereum?[]:["ack_base_native_usdc"])),
           request_before_payment: __voidBuyVoidReadBooleanBodyV1(req, "ack_request_before_payment"),
           sender_equals_void_destination: __voidBuyVoidReadBooleanBodyV1(req, "ack_sender_equals_void_destination"),
           no_automatic_fulfillment: __voidBuyVoidReadBooleanBodyV1(req, "ack_no_automatic_fulfillment")
@@ -19204,7 +19029,7 @@ setInterval(refresh, 10000);
         if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
         if (Number.isFinite(usdc_amount) && Math.round(usdc_amount * 1_000_000) / 1_000_000 !== usdc_amount) errors.push("usdc_amount_exceeds_6_decimals");
         if (!/^0x[a-fA-F0-9]{40}$/.test(void_destination_address)) errors.push("invalid_void_destination_address");
-        if (source_chain !== "base") errors.push("base_mainnet_only");
+        if(source_chain!=="base"&&(!ethereum||!cfg.ethereum_requests_enabled))errors.push(ethereum?"buy_void_ethereum_requests_disabled":"unsupported_usdc_source_chain");
         if (txHashAtCreation) errors.push("payment_tx_hash_not_allowed_at_request_creation");
         for (const [key, value] of Object.entries(acknowledgements)) {
           if (!value) errors.push("acknowledgement_required_" + key);
@@ -19238,12 +19063,12 @@ setInterval(refresh, 10000);
         const destinationLower = void_destination_address.toLowerCase();
         const activeForDestination = effectiveRequests.find((request:any)=>{
           const boundDestination = String(request.void_destination_address || request.delivery_address || request.delivery_wallet || "").trim().toLowerCase();
-          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status);
+          return boundDestination === destinationLower && !__voidBuyVoidTerminalStatusV1(request.effective_status || request.status)&&__blo(request);
         });
 
         if (activeForDestination) {
           const activeAmount = Number(activeForDestination.usdc_amount ?? activeForDestination.requested_amount_usdc ?? 0);
-          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount) {
+          if (Number.isFinite(activeAmount) && activeAmount === usdc_amount && (activeForDestination.source_chain || "base") === source_chain) {
             return res.json({
               schema: "void_public_buy_void_checkout_request_result_v1",
               marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
@@ -19275,13 +19100,14 @@ setInterval(refresh, 10000);
           request_id,
           created_at_ms,
           status: "awaiting_payment_tx_hash",
-          funding_model: "request_first_base_usdc_to_native_void",
+          launch_authority:launch.request_authority,
+          funding_model: "request_first_usdc_to_native_void",
           account: account || null,
-          source_chain: "base",
-          payment_chain: "base",
-          payment_chain_id: cfg.payment_chain_id,
+          source_chain,
+          payment_chain: source_chain,
+          payment_chain_id: ethereum ? 1 : cfg.payment_chain_id,
           asset_in: "USDC",
-          usdc_contract: cfg.usdc_contract,
+          usdc_contract,
           usdc_decimals: cfg.usdc_decimals,
           usdc_amount,
           requested_amount_usdc: usdc_amount,
@@ -19309,13 +19135,14 @@ setInterval(refresh, 10000);
           payment_instructions: {
             request_id,
             send_asset: "USDC",
-            send_chain: "base",
-            send_chain_id: cfg.payment_chain_id,
-            token_contract: cfg.usdc_contract,
+            send_chain: source_chain,
+            send_chain_id: ethereum ? 1 : cfg.payment_chain_id,
+            token_contract: usdc_contract,
             token_decimals: cfg.usdc_decimals,
             send_to: cfg.receive_address,
             send_from: void_destination_address,
             amount: usdc_amount,
+            expires_at_ms:launch.request_authority.expires_at_ms,
             do_not_send_before_request: true,
             do_not_send_from_exchange_or_pooled_custody: true,
             keep_transaction_hash: true
@@ -19333,6 +19160,7 @@ setInterval(refresh, 10000);
           }
         };
 
+        if(!__blo(requestObj))throw new Error("request_launch_authority_expired_or_superseded");
         const persisted = await __voidPersistBuyVoidRequestV1(requestObj);
         requestObj.persisted = { ok:true, file:persisted.file };
 
@@ -19344,15 +19172,7 @@ setInterval(refresh, 10000);
           one_active_request_cap_enforced: true,
           request: requestObj
         });
-      } catch(e:any) {
-        return res.status(500).json({
-          schema: "void_public_buy_void_checkout_request_result_v1",
-          marker: "VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",
-          ok: false,
-          error: "buy_void_checkout_request_failed",
-          message: String(e?.message || e)
-        });
-      }
+      }catch(e:any){const m=String(e?.message||e),h=m==="request_launch_authority_expired_or_superseded";return res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1",marker:"VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1",ok:false,error:h?m:"buy_void_checkout_request_failed",message:m})}
     });
 
 
@@ -19417,13 +19237,13 @@ setInterval(refresh, 10000);
 <title>Buy VOID</title>
 <style>
 body{margin:0;background:#050814;color:#e5e7eb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.45}
-main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}.hero{background:linear-gradient(135deg,#0d1321,#111827)}.warn{border-color:#92400e;background:#1f1305}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.stat{border:1px solid #263244;border-radius:12px;padding:12px;background:#090d1a}.k{color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.v{font-size:20px;font-weight:800;word-break:break-all}a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border:0;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none;cursor:pointer}.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}.btn:disabled{opacity:.55;cursor:not-allowed}.warntext{color:#fbbf24}.ok{color:#86efac}code{background:#111827;padding:2px 5px;border-radius:5px;word-break:break-all}input{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb}label.check{display:block;margin:9px 0}label.check input{width:auto;margin-right:8px}pre{white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:10px;padding:12px;overflow:auto}
+main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1px solid #263244;background:#0b1020;border-radius:16px;padding:18px;margin:14px 0}.hero{background:linear-gradient(135deg,#0d1321,#111827)}.warn{border-color:#92400e;background:#1f1305}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.stat{border:1px solid #263244;border-radius:12px;padding:12px;background:#090d1a}.k{color:#93c5fd;font-size:12px;text-transform:uppercase;letter-spacing:.06em}.v{font-size:20px;font-weight:800;word-break:break-all}a{color:#93c5fd}.btn{display:inline-block;background:#1d4ed8;color:#fff;padding:10px 14px;border:0;border-radius:10px;margin:6px 8px 6px 0;text-decoration:none;cursor:pointer}.btn.secondary{background:#1f2937;color:#dbeafe;border:1px solid #334155}.btn:disabled{opacity:.55;cursor:not-allowed}.warntext{color:#fbbf24}.ok{color:#86efac}code{background:#111827;padding:2px 5px;border-radius:5px;word-break:break-all}input,select{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px solid #334155;background:#111827;color:#e5e7eb}label.check{display:block;margin:9px 0}label.check input{width:auto;margin-right:8px}pre{white-space:pre-wrap;background:#020617;border:1px solid #1f2937;border-radius:10px;padding:12px;overflow:auto}
 </style>
 </head>
 <body>
 <main>
 <section class="hero"><!-- VOID_BUY_VOID_PUBLIC_CHECKOUT_CONTRACT_V1 -->
-  <h1>Buy VOID with Base USDC</h1>
+  <h1>Buy VOID with USDC</h1>
   <p>Create one request before sending payment. The fixed rate is <b>2 VOID per 1 USDC</b> (<b>$0.50 USDC per VOID</b>).</p>
   <p><a class="btn secondary" href="/">Home</a><a class="btn secondary" href="/__void/buy-void/config.json">Checkout Config JSON</a><a class="btn secondary" href="/__void/buy-void/sale-state.json">Sale State JSON</a></p>
 </section>
@@ -19448,14 +19268,15 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 
 <section class="card"><!-- VOID_PUBLIC_BUY_VOID_CHECKOUT_FORM_V1 -->
   <h2>Create a request</h2>
+  <label>Native USDC rail<br/><select id="buyChain"><option value="base">Base (8453)</option><option value="ethereum">Ethereum (1)</option></select></label><br/><br/>
   <label>USDC amount<br/><input id="buyUsdcAmount" inputmode="decimal" value="25" /></label>
   <br/><br/>
   <label>Native VOID destination address (chain ID 2050)<br/><input id="buyVoidDestination" placeholder="0x..." autocomplete="off" /></label>
-  <p class="warntext">The Base USDC sender must be this same address. Do not use an exchange or pooled-custody sender.</p>
+  <p class="warntext"><b>Funds sent from an exchange/custodial wallet will be treated as lost.</b> VOID is not exchange-listed. Use this same self-custody address only.</p>
   <label class="check"><input type="checkbox" id="ackSelfCustody"/>I control this self-custody wallet.</label>
-  <label class="check"><input type="checkbox" id="ackBaseUsdc"/>I will send native USDC on Base Mainnet only.</label>
+  <label class="check"><input type="checkbox" id="ackNativeUsdc"/>I will send native USDC on the selected rail.</label>
   <label class="check"><input type="checkbox" id="ackRequestFirst"/>I will not send until this request is created.</label>
-  <label class="check"><input type="checkbox" id="ackSameSender"/>The Base sender will equal the VOID destination address.</label>
+  <label class="check"><input type="checkbox" id="ackSameSender"/>The selected sender will equal the VOID destination address.</label>
   <label class="check"><input type="checkbox" id="ackManual"/>I understand automatic fulfillment is not active.</label>
   <br/>
   <button class="btn" id="buyCreateRequestBtn" type="button">Create Buy VOID Request</button>
@@ -19465,10 +19286,9 @@ main{max-width:920px;margin:0 auto;padding:34px 18px}.card,.hero,.warn{border:1p
 <section class="card">
   <h2>After request creation</h2>
   <ol>
-    <li>Verify the returned request ID, Base chain ID 8453, USDC contract, amount, approved receiver, and VOID destination.</li>
-    <li>Send the exact Base USDC amount from the exact destination address.</li>
-    <li>Keep the transaction hash. The tx hash is bound after the request; it is not accepted during request creation.</li>
-    <li>VOID delivery remains separately verified and activated. A request or payment alone is not fulfillment.</li>
+    <li>Verify the request ID, network, USDC contract, amount, receiver, and VOID destination.</li>
+    <li>Send only the returned instructions from the same self-custody address.</li>
+    <li>Keep the transaction hash. Payment is not VOID fulfillment.</li>
   </ol>
 </section>
 
@@ -19483,8 +19303,9 @@ async function loadBuyCheckoutV1(){
     var cfg=await pair[0].json();
     var sale=await pair[1].json();
     buyCheckoutConfig=cfg;
-    buyText("buyNetwork","Base Mainnet (8453)");
-    buyText("buyUsdcContract",cfg.usdc_contract || "Unavailable");
+    buyText("buyNetwork",cfg.ethereum_requests_enabled?"Base 8453 + Ethereum 1":"Base 8453 (Ethereum HOLD)");
+    buyText("buyUsdcContract","See request");
+    document.querySelector('#buyChain option[value="ethereum"]').disabled=!cfg.ethereum_requests_enabled;
     buyText("buyReceiver",cfg.receive_address || "Unavailable");
     buyText("buyDeliveryChain","VOID Mainnet (2050)");
     buyText("buyLimits",String(cfg.min_usdc)+"–"+String(cfg.max_usdc)+" USDC");
@@ -19506,12 +19327,13 @@ async function createBuyVoidCheckoutRequestV1(){
   var out=document.getElementById("buyRequestResult");
   var amount=String(document.getElementById("buyUsdcAmount").value || "").trim();
   var destination=String(document.getElementById("buyVoidDestination").value || "").trim();
+  var chain=document.getElementById("buyChain").value;
   var payload={
     requested_amount_usdc:amount,
     void_destination_address:destination,
-    source_chain:"base",
+    source_chain:chain,
     ack_self_custody:buyChecked("ackSelfCustody"),
-    ack_base_native_usdc:buyChecked("ackBaseUsdc"),
+    ack_native_usdc:buyChecked("ackNativeUsdc"),
     ack_request_before_payment:buyChecked("ackRequestFirst"),
     ack_sender_equals_void_destination:buyChecked("ackSameSender"),
     ack_no_automatic_fulfillment:buyChecked("ackManual")
@@ -58582,29 +58404,22 @@ APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { /
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir, { recursive: true });
-  fs.mkdirSync(receiptDir, { recursive: true });
 
-  const safeNames = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+  const safeNames = ldn(dropDir)
+    .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
 
   const weighted_records = safeNames
     .map((name:any) => {
       const objectId = String(name);
       const filePath = path.join(dropDir, objectId);
-      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
-
-      const st = fs.statSync(filePath);
-      const buf = fs.readFileSync(filePath);
+      const buf=rf(filePath); if(!buf)return null;
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
 
       const receiptPath = path.join(receiptDir, objectId + ".json");
       let receipt = null;
-      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
-        try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
-      }
+      const rb=rf(receiptPath); if(rb){try{receipt=JSON.parse(rb.toString("utf8"));}catch(_e){receipt=null;}}
 
-      const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
+      const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === buf.length);
       const trustScore = receiptValid ? 0.90 : 0.55;
       const storageTier = receiptValid ? "hot" : "warm";
       const aiVisibility = receiptValid ? "high" : "medium";
@@ -58614,7 +58429,7 @@ APP.get("/public-node/local-data-drop/weighted.json", (_req:any, res:any) => { /
         record_id: "dwr_local_drop_" + sha256.slice(0, 16),
         object_id: objectId,
         sha256,
-        bytes: st.size,
+        bytes: buf.length,
         source_id: "operator_local_data_drop",
         source_weight: receiptValid ? 0.90 : 0.65,
         verification_state: receiptValid ? "verified" : "unverified_local",
@@ -58678,38 +58493,31 @@ APP.get("/public-node/real-data-import-lane-status.json", (_req:any, res:any) =>
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir, { recursive: true });
-  fs.mkdirSync(receiptDir, { recursive: true });
 
   const expected:any = {
     "void-real-user-note-v1.txt": "ea2fc1377408b245001eb43133988d968c7949b40b58aa6d11fb30744a75ff8b",
     "void-real-user-note-v2.txt": "f172a41ad8e1731ec3cb887954049122821dfe17fe4c3b474137f26f6393ee95"
   };
 
-  const safeNames = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+  const safeNames = ldn(dropDir)
+    .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
 
   const records = safeNames.map((name:any) => {
     const objectId = String(name);
     const filePath = path.join(dropDir, objectId);
-    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
-
-    const st = fs.statSync(filePath);
-    const buf = fs.readFileSync(filePath);
+    const buf=rf(filePath); if(!buf)return null;
     const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
 
     const receiptPath = path.join(receiptDir, objectId + ".json");
     let receipt = null;
-    if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
-      try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
-    }
+    const rb=rf(receiptPath); if(rb){try{receipt=JSON.parse(rb.toString("utf8"));}catch(_e){receipt=null;}}
 
-    const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
+    const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === buf.length);
 
     return {
       object_id: objectId,
       sha256,
-      bytes: st.size,
+      bytes: buf.length,
       expected_real_data_object: expected[objectId] === sha256,
       verification_state: receiptValid ? "verified" : "unverified_local",
       storage_tier: receiptValid ? "hot" : "warm",
@@ -58786,27 +58594,21 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir, { recursive: true });
-  fs.mkdirSync(receiptDir, { recursive: true });
 
-  const objects = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
+  const objects = ldn(dropDir)
+    .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
       const objectId = String(name);
       const filePath = path.join(dropDir, objectId);
-      if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
-      const st = fs.statSync(filePath);
-      const buf = fs.readFileSync(filePath);
+      const buf=rf(filePath); if(!buf)return null;
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
       const receiptPath = path.join(receiptDir, objectId + ".json");
       let receipt = null;
-      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
-        try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
-      }
-      const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size);
+      const rb=rf(receiptPath); if(rb){try{receipt=JSON.parse(rb.toString("utf8"));}catch(_e){receipt=null;}}
+      const receiptValid = !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === buf.length);
       return {
         object_id: objectId,
-        bytes: st.size,
+        bytes: buf.length,
         sha256,
         receipt_marker: receipt && receipt.marker || null,
         receipt_sha256: receipt && receipt.sha256 || null,
@@ -58852,62 +58654,37 @@ APP.get("/public-node/local-data-drop/manifest.json", (_req:any, res:any) => { /
 });
 
 APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json", (_req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1
-  const fs = require("fs");
   const path = require("path");
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const latest = path.join(dataDir, "public-node", "local-data-drop-demo003-folder-fixtures", "latest");
   const manifestPath = path.join(latest, "manifest.json");
   const intakePath = path.join(latest, "intake.json");
-
-  if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
-    return res.status(404).json({
-      marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
-      status: "demo003_folder_fixture_missing",
-      object_set_id: "demo003-folder-fixture-v1",
-      policy: {
-        public_upload: false,
-        operator_local_import_only: true,
-        public_read_only: true,
-        trusted_as_network_truth: false
-      }
-    });
+  let manifestBytes:Buffer|null;
+  try{manifestBytes=rf(manifestPath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_unsafe_manifest",object_set_id:"demo003-folder-fixture-v1"});}
+  if(!manifestBytes){
+    return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_missing_manifest",object_set_id:"demo003-folder-fixture-v1",policy:{public_upload:false,operator_local_import_only:true,public_read_only:true,trusted_as_network_truth:false}});
   }
-
-  let manifest:any = null;
-  let intake:any = null;
-  try { manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")); } catch (_e) { manifest = null; }
-  try {
-    if (fs.existsSync(intakePath) && fs.statSync(intakePath).isFile()) {
-      intake = JSON.parse(fs.readFileSync(intakePath, "utf8"));
-    }
-  } catch (_e) { intake = null; }
-
+  let manifest:any;
+  try{manifest=JSON.parse(manifestBytes.toString("utf8"));}
+  catch(_e){return res.status(422).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_invalid_manifest",object_set_id:"demo003-folder-fixture-v1"});}
+  let intake:any=null; let ib:Buffer|null;
+  try{ib=rf(intakePath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_unsafe_intake",object_set_id:"demo003-folder-fixture-v1"});}
+  if(ib){try{intake=JSON.parse(ib.toString("utf8"));}catch(_e){return res.status(422).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_invalid_intake",object_set_id:"demo003-folder-fixture-v1"});}}
   return res.json({
-    marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
-    status: "demo003_folder_fixture_served",
-    object_set_id: "demo003-folder-fixture-v1",
+    marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
+    status:"demo003_folder_fixture_served",
+    object_set_id:"demo003-folder-fixture-v1",
     manifest,
-    intake_marker: intake && intake.marker || null,
-    offline_verified: !!(intake && intake.offline_verified === true),
-    network_fetch_during_import: !!(intake && intake.network_fetch_during_import === true),
-    trusted_as_network_truth: !!(intake && intake.trusted_as_network_truth === true),
-    files: {
-      index_html: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
-      readme_txt: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
-      metadata_json: "/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json"
+    intake_marker:intake&&intake.marker||null,
+    offline_verified:!!(intake&&intake.offline_verified===true),
+    network_fetch_during_import:!!(intake&&intake.network_fetch_during_import===true),
+    trusted_as_network_truth:!!(intake&&intake.trusted_as_network_truth===true),
+    files:{
+      index_html:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
+      readme_txt:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
+      metadata_json:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/metadata.json"
     },
-    policy: {
-      public_upload: false,
-      operator_local_import_only: true,
-      public_read_only: true,
-      mutation_from_public: false,
-      money_movement: false,
-      wallet_send: false,
-      wc_to_void_swap: false,
-      buy_void_fulfillment: false,
-      validator_mutation: false,
-      trusted_as_network_truth: false
-    }
+    policy:{public_upload:false,operator_local_import_only:true,public_read_only:true,mutation_from_public:false,money_movement:false,wallet_send:false,wc_to_void_swap:false,buy_void_fulfillment:false,validator_mutation:false,trusted_as_network_truth:false}
   });
 });
 
@@ -58936,19 +58713,13 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fi
   const filesDir = path.join(latest, "files");
   const filePath = path.join(filesDir, fileName);
 
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    return res.status(404).json({
-      marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",
-      status: "demo003_folder_file_missing",
-      object_set_id: "demo003-folder-fixture-v1",
-      file_name: fileName,
-      public_read_only: true
-    });
-  }
+  let buf:Buffer|null;
+  try{buf=rf(filePath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",status:"demo003_folder_file_unsafe_storage",object_set_id:"demo003-folder-fixture-v1",file_name:fileName,public_read_only:true});}
+  if(!buf){return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",status:"demo003_folder_file_missing",object_set_id:"demo003-folder-fixture-v1",file_name:fileName,public_read_only:true});}
 
   res.setHeader("Content-Type", allowed[fileName]);
   res.setHeader("Cache-Control", "no-store");
-  return res.send(fs.readFileSync(filePath));
+  return res.send(buf);
 });
 
 
@@ -58963,25 +58734,19 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
 
-  fs.mkdirSync(dropDir, { recursive: true });
-  fs.mkdirSync(receiptDir, { recursive: true });
 
-  const objects = fs.readdirSync(dropDir)
-    .filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)))
+  const objects = ldn(dropDir)
+    .filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)))
     .map((name:any) => {
       const filePath = path.join(dropDir, name);
-      const st = fs.statSync(filePath);
-      if (!st.isFile()) return null;
-      const buf = fs.readFileSync(filePath);
+      const buf=rf(filePath); if(!buf)return null;
       const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
       const receiptPath = path.join(receiptDir, String(name) + ".json");
       let receipt = null;
-      if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
-        try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
-      }
+      const rb=rf(receiptPath); if(rb){try{receipt=JSON.parse(rb.toString("utf8"));}catch(_e){receipt=null;}}
       return {
         object_id: String(name),
-        bytes: st.size,
+        bytes: buf.length,
         sha256,
         href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(String(name)),
         href_by_sha256: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + sha256,
@@ -58989,7 +58754,7 @@ APP.get("/public-node/local-data-drop.json", (_req:any, res:any) => { // VOID_PU
         receipt_marker: receipt && receipt.marker || null,
         receipt_sha256: receipt && receipt.sha256 || null,
         receipt_imported_at: receipt && receipt.imported_at || null,
-        receipt_valid_for_current_object: !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === st.size)
+        receipt_valid_for_current_object: !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === sha256 && receipt.bytes === buf.length)
       };
     })
     .filter(Boolean);
@@ -59042,30 +58807,23 @@ APP.get("/public-node/local-data-drop/proof/:sha256.json", (req:any, res:any) =>
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const receiptDir = path.join(dataDir, "public-node", "local-data-drop", "receipts");
-  fs.mkdirSync(dropDir, { recursive: true });
-  fs.mkdirSync(receiptDir, { recursive: true });
 
-  const names = fs.readdirSync(dropDir).filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+  const names = ldn(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const objectId = String(name);
     const filePath = path.join(dropDir, objectId);
-    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) continue;
-    const buf = fs.readFileSync(filePath);
+    const buf=rf(filePath); if(!buf)continue;
     const fileSha = crypto.createHash("sha256").update(buf).digest("hex");
     if (fileSha !== sha256) continue;
-
-    const st = fs.statSync(filePath);
     const receiptPath = path.join(receiptDir, objectId + ".json");
     let receipt = null;
-    if (fs.existsSync(receiptPath) && fs.statSync(receiptPath).isFile()) {
-      try { receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8")); } catch (_e) { receipt = null; }
-    }
+    const rb=rf(receiptPath); if(rb){try{receipt=JSON.parse(rb.toString("utf8"));}catch(_e){receipt=null;}}
 
     return res.json({
       marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1",
       proof_type: "operator_local_public_read_only_object_proof",
       object_id: objectId,
-      bytes: st.size,
+      bytes: buf.length,
       sha256: fileSha,
       object_href: effectiveBaseUrl + "/public-node/local-data-drop/" + encodeURIComponent(objectId),
       content_address_href: effectiveBaseUrl + "/public-node/local-data-drop/by-sha256/" + fileSha,
@@ -59073,7 +58831,7 @@ APP.get("/public-node/local-data-drop/proof/:sha256.json", (req:any, res:any) =>
       receipt_marker: receipt && receipt.marker || null,
       receipt_sha256: receipt && receipt.sha256 || null,
       receipt_imported_at: receipt && receipt.imported_at || null,
-      receipt_valid_for_current_object: !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === fileSha && receipt.bytes === st.size),
+      receipt_valid_for_current_object: !!(receipt && receipt.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_RECEIPT_LEDGER_V1" && receipt.sha256 === fileSha && receipt.bytes === buf.length),
       public_upload: false,
       operator_local_import_only: true,
       public_read_only: true,
@@ -59097,13 +58855,11 @@ APP.get("/public-node/local-data-drop/by-sha256/:sha256", (req:any, res:any) => 
 
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
-  fs.mkdirSync(dropDir, { recursive: true });
 
-  const names = fs.readdirSync(dropDir).filter((name:any) => /^[a-zA-Z0-9._-]{1,160}$/.test(String(name)));
+  const names = ldn(dropDir).filter((name:any) => /^[\w.:-]{1,160}$/.test(String(name)));
   for (const name of names) {
     const filePath = path.join(dropDir, String(name));
-    if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) continue;
-    const buf = fs.readFileSync(filePath);
+    const buf=rf(filePath); if(!buf)continue;
     const fileSha = crypto.createHash("sha256").update(buf).digest("hex");
     if (fileSha === sha256) {
       res.setHeader("X-VOID-Marker", "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1");
@@ -59121,7 +58877,7 @@ APP.get("/public-node/local-data-drop/:objectId", (req:any, res:any) => { // VOI
   const fs = require("fs");
   const path = require("path");
   const objectId = String(req.params.objectId || "");
-  if (!/^[a-zA-Z0-9._-]{1,160}$/.test(objectId)) {
+  if(!/^[\w.:-]{1,160}$/.test(objectId)||/^\.\.?$/.test(objectId)){
     return res.status(400).json({ error: "invalid_object_id", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1" });
   }
 
@@ -59129,14 +58885,14 @@ APP.get("/public-node/local-data-drop/:objectId", (req:any, res:any) => { // VOI
   const dropDir = path.join(dataDir, "public-node", "local-data-drop", "objects");
   const filePath = path.join(dropDir, objectId);
 
-  if (!filePath.startsWith(dropDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    return res.status(404).json({ error: "object_not_found", marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1" });
-  }
+  const buf=rf(filePath); if(!buf){return res.status(404).json({error:"object_not_found",marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1"});}
 
   res.setHeader("X-VOID-Marker", "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1");
-  res.type("application/octet-stream").send(fs.readFileSync(filePath));
+  res.type("application/octet-stream").send(buf);
 });
 
+
+APP.use((err:any,req:any,res:any,next:any)=>{const m=String(err&&err.message||""),p=String(req.path||"");if(m.startsWith("VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1:")&&(p.startsWith("/public-node/local-data-drop")||p==="/public-node/real-data-import-lane-status.json"))return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1",status:"local_data_drop_unsafe_storage",public_read_only:true});return next(err);});
 
 APP.get("/public-node", (_req:any, res:any) => { // VOID_PUBLIC_NODE_PROFILE_ROUTE_V1
           res.type("html").send(`<!doctype html>
@@ -69916,7 +69672,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Buy VOID<span class="help" tabindex="0" data-help="Shows the planned Base or Ethereum USDC purchase rail, self-custody wallet requirements, and the participant wallet that would receive VOID.">?</span></h2>
+              <h2>Buy VOID<span class="help" tabindex="0" data-help="Checkout is activation-gated. Use only a live request's returned rail. Self-custody only.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -69947,14 +69703,14 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Purchase Rules<span class="help" tabindex="0" data-help="This Buy VOID surface reflects Mainnet-0 funding safety rules: Base or Ethereum native USDC only, participant-page initiation only, and no exchange or custodial sends.">?</span></h2>
+              <h2>Purchase Rules<span class="help" tabindex="0" data-help="Checkout is activation-gated. Use only the rail returned by a live request. Self-custody and request-first only.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip" style="margin-top:6px">
             <div class="mini">
               <div class="k">Asset</div>
               <div class="v">USDC</div>
-              <div class="s">Base or Ethereum native USDC only</div>
+              <div class="s">Base / Ethereum · activation-gated</div>
             </div>
             <div class="mini">
               <div class="k">Flow</div>
@@ -69978,7 +69734,7 @@ a{color:#93c5fd;text-decoration:none}
       <div class="panel buy-handoff-panel" style="margin-top:12px;padding:12px 14px">
         <div class="section-head">
           <div>
-            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Shows the participant-side preflight payload for the Base or Ethereum native USDC Buy VOID flow. This does not claim payment or send VOID; it records delivery wallet truth and policy checks.">?</span></h2>
+            <h2>Buy VOID Handoff<span class="help" tabindex="0" data-help="Preflight only. Use the exact Base or Ethereum rail returned by a live request. No payment or VOID send occurs here.">?</span></h2>
           </div>
         </div>
         <div class="metric-strip" style="margin-top:6px">
@@ -70019,8 +69775,8 @@ a{color:#93c5fd;text-decoration:none}
         <div class="action-rail" style="margin-top:10px">
           <button class="btn btn-primary" id="buyDraftCreateBtn" type="button"><!-- VOID_BUY_CREATE_GUIDED_REQUEST_BUTTON_V1 -->Create Guided Buy Request</button>
         </div>
-        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount, confirm your delivery wallet, then create a Buy VOID request before sending Base or Ethereum USDC.</div>
-        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base or Ethereum native USDC only • create a Buy VOID request first • use a self-custody wallet • start from this page • exchange/custodial sends and blind direct deposits are not supported • payment confirmation is not VOID fulfillment.</div>
+        <div class="hero-note" id="buyDraftSummary" style="margin-top:12px">Enter an amount and self-custody delivery wallet, then create a live request before any payment.</div>
+        <div class="buy-checkout-rules"><!-- VOID_BUY_PUBLIC_SAFETY_CLARITY_V1 -->Base or Ethereum native USDC by live request only • request first • use only its returned rail • self-custody only • no exchange/custodial or blind deposits • payment confirmation is not VOID fulfillment.</div>
         <div class="hero-note" id="buyFulfillmentTxRefWarning" style="margin-top:10px"><!-- VOID_BUY_EXPLICIT_TXREF_FULFILLMENT_V1 --><b>No automatic VOID delivery:</b> a Buy VOID request, payment reference, or payment confirmation is not fulfillment. VOID is delivered only after operator verification records an explicit VOID tx ref.</div>
         <div class="subtle-tab-copy" id="buyDraftLatestCard" style="margin-top:8px">Latest request: none</div>
         <details class="adv" style="margin-top:10px">
@@ -72494,7 +72250,7 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     const buyWalletState = executionWalletAddr
       ? (executionWalletUnlocked ? "Ready" : "Stored")
       : "Missing";
-    setText("buyRailStatus", "Base/Ethereum USDC");
+    setText("buyRailStatus", "Activation-gated");
     setText("buyWalletAddr", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyWalletState", buyWalletState);
     setText("buyWalletVoid", executionWalletVoidText);
@@ -72507,8 +72263,8 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
     setText(
       "buyPathNote",
       executionWalletAddr
-        ? ("Base or Ethereum native USDC only • start from this participant page • use your own self-custody wallet only • do not send from Coinbase, Binance, Robinhood, or any exchange/custodial account • blind direct deposits are not supported.")
-        : "Base or Ethereum native USDC only • participant-page initiation only • blind direct deposits are not supported • link a wallet first."
+        ? ("Use only a live request's returned Base or Ethereum rail • self-custody only • no exchange/custodial sends • no blind deposits.")
+        : "Use only a live request's returned rail • participant page only • no blind deposits • link a wallet first."
     );
 
     const buyHandoffReady = !!executionWalletAddr;
@@ -72517,22 +72273,23 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       delivery_wallet: executionWalletAddr || null,
       execution_wallet_unlocked: !!executionWalletUnlocked,
       current_void_balance: executionWalletVoidText,
-      accepted_asset: "base_or_ethereum_native_usdc",
-      accepted_assets: ["base_native_usdc", "ethereum_native_usdc"],
-      accepted_chains: ["base", "ethereum"],
+      accepted_asset: "native_usdc",
+      accepted_assets_policy: ["base_native_usdc", "ethereum_native_usdc"],
+      current_checkout_chain: "request_returned",
+      ethereum_usdc_status: "activation_gated",
       initiation: "participant_page_only",
       blind_direct_deposits: "blocked",
       exchange_or_custodial_wallet_sends: "blocked",
       status: buyHandoffReady ? "ready_for_buy_void_fulfillment_lane" : "missing_execution_wallet"
     };
 
-    setText("buyPlanRail", "Base/Ethereum USDC");
+    setText("buyPlanRail", "Request-returned rail");
     setText("buyPlanDelivery", executionWalletAddr ? shortAddr(executionWalletAddr) : "No wallet");
     setText("buyPlanState", buyHandoffReady ? "Ready" : "Missing");
     setText(
       "buyPlanSummary",
       buyHandoffReady
-        ? ("Buy VOID participant preflight is ready. After an operator verifies the real Base or Ethereum USDC transaction hash, VOID delivery should target the stored participant wallet " + shortAddr(executionWalletAddr) + ".")
+        ? ("Request-first preflight only. Use the exact returned rail; VOID targets " + shortAddr(executionWalletAddr) + ".")
         : "No execution wallet linked yet. Link a wallet first before the Buy VOID fulfillment lane can target delivery."
     );
     setText("buyPlanOut", JSON.stringify(buyHandoffPayload, null, 2));
@@ -80352,7 +80109,7 @@ function __voidUsdcVoidFixedPriceBuyPoolPublicPageV1Config() {
   const boundReceiveAddress = "0x17a26d4f0c51bd28fbcf5cdd4d20853bfa112ae5";
   const configuredReceiveAddress = String(process.env.VOID_BUY_RECEIVE_ADDRESS || process.env.VOID_USDC_RECEIVER || "").trim();
   const receiverBindingConflict = !!configuredReceiveAddress && configuredReceiveAddress.toLowerCase() !== boundReceiveAddress.toLowerCase();
-  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1";
+  const requestsEnabled = String(process.env.VOID_BUY_REQUESTS_ENABLED || "0") === "1"&&__bld().ready;
   const paymentReady = !receiverBindingConflict;
   const usdcSymbol = "USDC";
   const priceUsdcPerVoid = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
