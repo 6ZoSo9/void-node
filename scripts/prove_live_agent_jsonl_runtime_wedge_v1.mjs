@@ -7,8 +7,14 @@ import net from "node:net";
 
 const sourcePath = path.resolve("src/index.ts");
 const source = fs.readFileSync(sourcePath, "utf8");
-const lines = source.split("\n");
-const agentRegion = lines.slice(24899, 27150).join("\n");
+const agentStart = source.indexOf("(function agentV0EnqueueShim()");
+const agentEnd = source.indexOf(
+  "// --------- DEV ROUTE KILL-SWITCH",
+  agentStart,
+);
+assert.ok(agentStart >= 0, "Agent-v0 semantic start marker missing");
+assert.ok(agentEnd > agentStart, "Agent-v0 semantic end marker missing");
+const agentRegion = source.slice(agentStart, agentEnd);
 const buggySplit = '.split("\\\\n")';
 const fixedSplit = '.split("\\n")';
 const buggyJoin = '.join("\\\\n")';
