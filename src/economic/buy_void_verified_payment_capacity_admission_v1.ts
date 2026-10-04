@@ -106,6 +106,11 @@ type PinnedLedgerV1 = {
   directory: PinnedRequestDirectoryV1;
 };
 
+type PinnedLedgerReadV1 = {
+  bytes: Buffer;
+  stat: any;
+};
+
 function sameDirectoryIdentityV1(left: any, right: any): boolean {
   return (
     left.dev === right.dev &&
@@ -282,7 +287,7 @@ function readPinnedLedgerBytesV1(
   ledger: PinnedLedgerV1,
   code: string,
   testOnlyAfterStatBeforeRead: (() => void) | null = null,
-): Buffer {
+): PinnedLedgerReadV1 {
   const before = assertPinnedLedgerVisibleV1(ledger, code);
   if (testOnlyAfterStatBeforeRead !== null) {
     testOnlyAfterStatBeforeRead();
@@ -318,7 +323,10 @@ function readPinnedLedgerBytesV1(
   if (!sameFileIdentityV1(after, visible)) {
     fail(code + "_path_not_bound");
   }
-  return bytes;
+  return Object.freeze({
+    bytes,
+    stat: after,
+  });
 }
 
 function parseStrictJsonLinesV1(bytes: Buffer, code: string): any[] {
@@ -357,10 +365,8 @@ function readStrictJsonLinesFromDirectoryV1(
   );
   if (ledger === null) return [];
   try {
-    return parseStrictJsonLinesV1(
-      readPinnedLedgerBytesV1(ledger, code),
-      code,
-    );
+    const read = readPinnedLedgerBytesV1(ledger, code);
+    return parseStrictJsonLinesV1(read.bytes, code);
   } finally {
     fs.closeSync(ledger.fd);
   }
@@ -396,14 +402,12 @@ export function testOnlyReadStrictCapacityLedgerFileV1(
     );
     if (ledger === null) return [];
     try {
-      return parseStrictJsonLinesV1(
-        readPinnedLedgerBytesV1(
-          ledger,
-          code,
-          testOnlyAfterStatBeforeRead,
-        ),
+      const read = readPinnedLedgerBytesV1(
+        ledger,
         code,
+        testOnlyAfterStatBeforeRead,
       );
+      return parseStrictJsonLinesV1(read.bytes, code);
     } finally {
       fs.closeSync(ledger.fd);
     }
@@ -412,16 +416,61 @@ export function testOnlyReadStrictCapacityLedgerFileV1(
   }
 }
 
+
+export function testOnlyReadStrictCapacityCensusV1(
+  requestDirInput: string,
+  poolVoidMicro: bigint,
+  testOnlyAfterLedgerReadsBeforeCensusReturn: () => void,
+): ReturnType<typeof readStrictCapacityLedgerV1> {
+  const requestDir = path.resolve(requestDirInput);
+  const directory = openPinnedRequestDirectoryV1(requestDir);
+  const requestLedger = openPinnedLedgerV1(
+    directory,
+    "requests.jsonl",
+    "buy_void_verified_payment_capacity_requests",
+    { writable: false, create: false },
+  );
+  if (requestLedger === null) {
+    fs.closeSync(directory.fd);
+    fail("buy_void_verified_payment_capacity_candidate_request_missing");
+  }
+  const operatorLedger = openPinnedLedgerV1(
+    directory,
+    "operator-events.jsonl",
+    "buy_void_verified_payment_capacity_operator_events",
+    { writable: false, create: false },
+  );
+  if (operatorLedger === null) {
+    fs.closeSync(requestLedger.fd);
+    fs.closeSync(directory.fd);
+    fail("buy_void_verified_payment_capacity_operator_events_unavailable");
+  }
+  try {
+    return readStrictCapacityLedgerV1(
+      requestLedger,
+      operatorLedger,
+      poolVoidMicro,
+      testOnlyAfterLedgerReadsBeforeCensusReturn,
+    );
+  } finally {
+    fs.closeSync(operatorLedger.fd);
+    fs.closeSync(requestLedger.fd);
+    fs.closeSync(directory.fd);
+  }
+}
+
 function readStrictCapacityLedgerV1(
   requestLedger: PinnedLedgerV1,
   operatorLedger: PinnedLedgerV1,
   poolVoidMicro: bigint,
+  testOnlyAfterLedgerReadsBeforeCensusReturn: (() => void) | null = null,
 ) {
+  const requestRead = readPinnedLedgerBytesV1(
+    requestLedger,
+    "buy_void_verified_payment_capacity_requests",
+  );
   const requestRows = parseStrictJsonLinesV1(
-    readPinnedLedgerBytesV1(
-      requestLedger,
-      "buy_void_verified_payment_capacity_requests",
-    ),
+    requestRead.bytes,
     "buy_void_verified_payment_capacity_requests",
   );
   const quotes = new Map<string, bigint>();
@@ -472,11 +521,12 @@ function readStrictCapacityLedgerV1(
     }
   }
 
+  const operatorRead = readPinnedLedgerBytesV1(
+    operatorLedger,
+    "buy_void_verified_payment_capacity_operator_events",
+  );
   const eventRows = parseStrictJsonLinesV1(
-    readPinnedLedgerBytesV1(
-      operatorLedger,
-      "buy_void_verified_payment_capacity_operator_events",
-    ),
+    operatorRead.bytes,
     "buy_void_verified_payment_capacity_operator_events",
   );
   const verifiedIds = new Set<string>();
@@ -511,19 +561,33 @@ function readStrictCapacityLedgerV1(
   if (verifiedVoidMicro > poolVoidMicro) {
     fail("buy_void_verified_payment_capacity_ledger_oversubscribed");
   }
+
+  if (testOnlyAfterLedgerReadsBeforeCensusReturn !== null) {
+    testOnlyAfterLedgerReadsBeforeCensusReturn();
+  }
+
+  const requestLedgerCurrent = assertPinnedLedgerVisibleV1(
+    requestLedger,
+    "buy_void_verified_payment_capacity_requests",
+  );
+  if (!sameFileIdentityV1(requestRead.stat, requestLedgerCurrent)) {
+    fail("buy_void_verified_payment_capacity_requests_changed_since_read");
+  }
+  const operatorLedgerCurrent = assertPinnedLedgerVisibleV1(
+    operatorLedger,
+    "buy_void_verified_payment_capacity_operator_events",
+  );
+  if (!sameFileIdentityV1(operatorRead.stat, operatorLedgerCurrent)) {
+    fail("buy_void_verified_payment_capacity_operator_events_changed_since_read");
+  }
+
   return Object.freeze({
     verified_ids: verifiedIds,
     operator_events: eventRows,
     request_quotes: quotes,
     request_payment_bindings: requestPaymentBindings,
-    request_ledger_stat: assertPinnedLedgerVisibleV1(
-      requestLedger,
-      "buy_void_verified_payment_capacity_requests",
-    ),
-    operator_ledger_stat: assertPinnedLedgerVisibleV1(
-      operatorLedger,
-      "buy_void_verified_payment_capacity_operator_events",
-    ),
+    request_ledger_stat: requestRead.stat,
+    operator_ledger_stat: operatorRead.stat,
     verified_void_micro: verifiedVoidMicro,
     reserved_void_micro: verifiedVoidMicro,
     remaining_void_micro: poolVoidMicro - verifiedVoidMicro,

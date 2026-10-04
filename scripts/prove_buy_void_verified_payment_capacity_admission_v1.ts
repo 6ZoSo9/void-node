@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1,
   classifyBuyVoidVerifiedPaymentCapacityAdmissionV1,
+  testOnlyReadStrictCapacityCensusV1,
   testOnlyReadStrictCapacityLedgerFileV1,
   writeBuyVoidOperatorEventWithCapacityAdmissionV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
@@ -597,6 +598,89 @@ try {
       );
     } finally {
       fs.rmSync(ledgerRoot, { recursive: true, force: true });
+    }
+  }
+
+
+  // The census must not pair bytes from one ledger state with metadata sampled
+  // from a later state. Mutate only after both stable reads have completed.
+  {
+    const censusRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-byte-bound-census-"),
+    );
+    try {
+      fs.chmodSync(censusRoot, 0o700);
+      const censusRequests = path.join(censusRoot, "requests.jsonl");
+      const censusEvents = path.join(censusRoot, "operator-events.jsonl");
+      const censusRequest = {
+        request_id: "buyvoid_census_34343434",
+        quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "4".repeat(64),
+      };
+      fs.writeFileSync(
+        censusRequests,
+        JSON.stringify(censusRequest) + "\n",
+        { mode: 0o600 },
+      );
+      fs.writeFileSync(censusEvents, "", { mode: 0o600 });
+
+      assert.throws(
+        () =>
+          testOnlyReadStrictCapacityCensusV1(
+            censusRoot,
+            10_000_000n,
+            () => {
+              fs.appendFileSync(
+                censusRequests,
+                JSON.stringify({
+                  request_id: "buyvoid_census2_45454545",
+                  quoted_void: 1,
+                  source_chain: "base",
+                  tx_hash: "0x" + "5".repeat(64),
+                }) + "\n",
+              );
+            },
+          ),
+        /buy_void_verified_payment_capacity_requests_changed_since_read/u,
+      );
+
+      fs.writeFileSync(
+        censusRequests,
+        JSON.stringify(censusRequest) + "\n",
+        { mode: 0o600 },
+      );
+      fs.writeFileSync(censusEvents, "", { mode: 0o600 });
+
+      assert.throws(
+        () =>
+          testOnlyReadStrictCapacityCensusV1(
+            censusRoot,
+            10_000_000n,
+            () => {
+              fs.appendFileSync(
+                censusEvents,
+                JSON.stringify({
+                  schema: "void_buy_void_operator_mark_v1",
+                  ok: true,
+                  request_id: censusRequest.request_id,
+                  operator_status: "reviewed",
+                  marked_at_ms: 34,
+                  quoted_void: 1,
+                }) + "\n",
+              );
+            },
+          ),
+        /buy_void_verified_payment_capacity_operator_events_changed_since_read/u,
+      );
+
+      assert.equal(
+        fs.readFileSync(censusEvents, "utf8").includes("payment_verified"),
+        false,
+        "byte/stat census rejection must occur before any candidate payment append",
+      );
+    } finally {
+      fs.rmSync(censusRoot, { recursive: true, force: true });
     }
   }
 
