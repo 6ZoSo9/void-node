@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
@@ -26,6 +27,43 @@ function sample({
     process_start_ticks: start,
     wall_time_ms: wall,
     monotonic_ns: mono.toString(),
+  };
+}
+
+function canonicalJsonProof(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) + ":" + canonicalJsonProof(value[key]),
+        )
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("proof_noncanonical_value");
+}
+
+function rehashReceiptProof(receipt) {
+  const body = { ...receipt };
+  delete body.receipt_sha256;
+  return {
+    ...receipt,
+    receipt_sha256:
+      "sha256:" +
+      crypto
+        .createHash("sha256")
+        .update(canonicalJsonProof(body))
+        .digest("hex"),
   };
 }
 
@@ -239,6 +277,50 @@ assert.equal(reordered.receipt.generation, "1");
     createVoidEconomicSystemSponsoredObservationTimeV1({
       trustedClock: clock.clock,
     }).observe({ prior_receipt: tampered }),
+    "sponsored_observation_time_prior_receipt_invalid",
+    false,
+  );
+  assert.equal(clock.calls(), 0);
+}
+
+{
+  const forgedSkewedPrior = rehashReceiptProof({
+    ...second.receipt,
+    observed_at_ms: BASE_WALL + 7_000,
+    monotonic_ns: (BASE_MONO + 1_000_000_000n).toString(),
+  });
+  const clock = clockQueue([
+    sample({
+      wall: BASE_WALL + 7_000,
+      mono: BASE_MONO + 2_000_000_000n,
+    }),
+  ]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: forgedSkewedPrior }),
+    "sponsored_observation_time_prior_receipt_invalid",
+    false,
+  );
+  assert.equal(clock.calls(), 0);
+}
+
+{
+  const forgedNonForwardPrior = rehashReceiptProof({
+    ...second.receipt,
+    observed_at_ms: BASE_WALL,
+    monotonic_ns: BASE_MONO.toString(),
+  });
+  const clock = clockQueue([
+    sample({
+      wall: BASE_WALL + 1,
+      mono: BASE_MONO + 1_000_000n,
+    }),
+  ]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: forgedNonForwardPrior }),
     "sponsored_observation_time_prior_receipt_invalid",
     false,
   );
@@ -472,6 +554,8 @@ console.log("wall_time_non_regression_enforced=true");
 console.log("wall_monotonic_skew_bounded=true");
 console.log("cumulative_baseline_skew_enforced=true");
 console.log("per_step_clock_ratchet_rejected=true");
+console.log("self_consistent_invalid_prior_skew_rejected=true");
+console.log("self_consistent_nonforward_prior_rejected=true");
 console.log("boot_change_holds=true");
 console.log("process_instance_change_holds=true");
 console.log("accessor_request_rejected_without_getter_read=true");
