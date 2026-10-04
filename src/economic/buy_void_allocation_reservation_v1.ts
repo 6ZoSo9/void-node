@@ -376,6 +376,51 @@ function assertPinnedDirectoryVisible(
   }
 }
 
+function openPinnedChildDirectory(
+  parent: PinnedDirectoryV1,
+  name: string,
+  code: string,
+  testOnlyAfterVisibleBeforeOpen: (() => void) | null = null,
+): PinnedDirectoryV1 {
+  if (
+    !name ||
+    name.includes("/") ||
+    name === "." ||
+    name === ".."
+  ) {
+    fail(code + "_name_invalid");
+  }
+  assertPinnedDirectoryVisible(parent, code + "_parent");
+  const visiblePath = path.join(parent.path, name);
+  const pinnedPath = path.join(parent.proc_path, name);
+  const visible = fs.lstatSync(visiblePath, { bigint: true });
+  validateDirectoryStat(visible, code + "_invalid");
+  if (testOnlyAfterVisibleBeforeOpen !== null) {
+    testOnlyAfterVisibleBeforeOpen();
+  }
+  const fd = fs.openSync(
+    pinnedPath,
+    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+  );
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    validateDirectoryStat(opened, code + "_invalid");
+    if (!sameDirectoryIdentity(visible, opened)) {
+      fail(code + "_path_not_bound");
+    }
+    assertPinnedDirectoryVisible(parent, code + "_parent");
+    return Object.freeze({
+      path: visiblePath,
+      fd,
+      stat: opened,
+      proc_path: "/proc/self/fd/" + String(fd),
+    });
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
 function readPinnedNamedFile(
   directory: PinnedDirectoryV1,
   name: string,
@@ -768,15 +813,15 @@ function openOrCreateAllocationDirectory(
     "buy_void_allocation_request_directory",
   );
   const pinnedPath = path.join(requestDirectory.proc_path, ALLOCATION_DIR);
-  const visiblePath = path.join(requestDirectory.path, ALLOCATION_DIR);
   try {
     fs.mkdirSync(pinnedPath, { mode: 0o700 });
     fs.fsyncSync(requestDirectory.fd);
   } catch (error: any) {
     if (String(error?.code || "") !== "EEXIST") throw error;
   }
-  return openPinnedDirectory(
-    visiblePath,
+  return openPinnedChildDirectory(
+    requestDirectory,
+    ALLOCATION_DIR,
     "buy_void_allocation_history_directory",
   );
 }
@@ -1152,17 +1197,16 @@ function openExistingAllocationDirectory(
     requestDirectory,
     "buy_void_allocation_request_directory",
   );
-  const visiblePath = path.join(requestDirectory.path, ALLOCATION_DIR);
+  const pinnedPath = path.join(requestDirectory.proc_path, ALLOCATION_DIR);
   try {
-    fs.accessSync(
-      path.join(requestDirectory.proc_path, ALLOCATION_DIR),
-      fs.constants.F_OK,
-    );
-  } catch {
-    return null;
+    fs.lstatSync(pinnedPath, { bigint: true });
+  } catch (error: any) {
+    if (String(error?.code || "") === "ENOENT") return null;
+    throw error;
   }
-  return openPinnedDirectory(
-    visiblePath,
+  return openPinnedChildDirectory(
+    requestDirectory,
+    ALLOCATION_DIR,
     "buy_void_allocation_history_directory",
   );
 }
@@ -1337,6 +1381,31 @@ export function listBuyVoidAllocationReservationsV1(
       fs.closeSync(loaded.allocationDirectory.fd);
     }
     fs.closeSync(loaded.requestDirectory.fd);
+  }
+}
+
+export function testOnlyOpenBuyVoidAllocationChildDirectoryV1(
+  requestDirRaw: string,
+  testOnlyAfterVisibleBeforeOpen: () => void,
+): void {
+  const requestDir = path.resolve(String(requestDirRaw || "").trim());
+  const requestDirectory = openPinnedDirectory(
+    requestDir,
+    "buy_void_allocation_test_request_directory",
+  );
+  let child: PinnedDirectoryV1 | null = null;
+  try {
+    child = openPinnedChildDirectory(
+      requestDirectory,
+      ALLOCATION_DIR,
+      "buy_void_allocation_test_history_directory",
+      testOnlyAfterVisibleBeforeOpen,
+    );
+  } finally {
+    if (child) {
+      fs.closeSync(child.fd);
+    }
+    fs.closeSync(requestDirectory.fd);
   }
 }
 
