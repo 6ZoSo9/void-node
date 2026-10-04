@@ -710,6 +710,78 @@ const observedAt = (BASE_UNIX + 140) * 1000;
 {
   const f = fixture();
   const originalReaddirSync = fs.readdirSync;
+  let injectedTemp = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "8",
+      reservationDigit: "8",
+      walletDigit: "8",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    const finalPath = path.join(f.records, finalName);
+    let postPublicationHistoryReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      const result = originalReaddirSync.call(fs, target, ...args);
+      if (
+        Array.isArray(result) &&
+        result.includes(finalName)
+      ) {
+        postPublicationHistoryReads += 1;
+        if (postPublicationHistoryReads === 1) {
+          injectedTemp = path.join(
+            f.records,
+            "." +
+              finalName +
+              ".tmp-" +
+              String(process.pid) +
+              "-bbbbbbbbbbbbbbbb",
+          );
+          fs.writeFileSync(injectedTemp, Buffer.alloc(0), {
+            mode: 0o600,
+          });
+        }
+      }
+      return result;
+    };
+    const held =
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      );
+    assert.equal(held.ok, false, JSON.stringify(held));
+    assert.equal(held.status, "held");
+    assert.equal(
+      held.reason,
+      "SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED",
+    );
+    assert.equal(held.mutation_performed, true);
+    assert.equal(fs.existsSync(finalPath), true);
+    assert.equal(fs.existsSync(injectedTemp), true);
+    assert.equal(held.gas_sponsorship_performed, false);
+    assert.equal(held.transaction_submission, false);
+    assert.equal(held.transaction_broadcast, false);
+    assert.equal(held.funds_movement, false);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    if (injectedTemp) {
+      try {
+        fs.unlinkSync(injectedTemp);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
   let racingTemp = "";
   try {
     const value = await candidate({
@@ -940,6 +1012,10 @@ assert.match(
 assert.match(
   source,
   /namesAfter\.some\(\(name, index\) => name !== namesBefore\[index\]\)/u,
+);
+assert.match(
+  source,
+  /return held\([\s\S]*mutationPerformed[\s\S]*\);/u,
 );
 assert.match(source, /classifyEconomicSystemSponsoredAdmissionV1/u);
 assert.match(source, /verifyEconomicSystemSponsoredStateV1/u);
