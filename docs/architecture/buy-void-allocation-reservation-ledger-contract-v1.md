@@ -90,6 +90,8 @@ record before the hash field is inserted. The ledger classifier rejects:
 - malformed JSON;
 - a missing final JSONL newline;
 - blank rows;
+- non-canonical JSON serialization, including alternate key order or
+  duplicate-key ambiguity;
 - unknown or missing fields;
 - non-canonical chain/hash/address/amount/index encodings;
 - invalid inventory arithmetic;
