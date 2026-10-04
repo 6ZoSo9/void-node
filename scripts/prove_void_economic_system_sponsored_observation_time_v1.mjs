@@ -86,6 +86,7 @@ for (const [key, value] of Object.entries(
     "content_addressed_receipt_chain",
     "same_process_monotonicity_enforced",
     "wall_monotonic_skew_bounded",
+    "cumulative_baseline_skew_enforced",
     "wall_time_non_regression_enforced",
     "process_instance_change_holds",
     "boot_change_holds",
@@ -115,6 +116,8 @@ assert.equal(first.receipt.generation, "0");
 assert.equal(first.receipt.previous_receipt_sha256, null);
 assert.equal(first.receipt.boot_id, BOOT_A);
 assert.equal(first.receipt.process_start_ticks, "123456");
+assert.equal(first.receipt.baseline_wall_time_ms, BASE_WALL);
+assert.equal(first.receipt.baseline_monotonic_ns, BASE_MONO.toString());
 assert.equal(first.receipt.observed_at_ms, BASE_WALL);
 assert.equal(first.receipt.monotonic_ns, BASE_MONO.toString());
 assert.equal(
@@ -144,6 +147,8 @@ assert.equal(
   first.receipt.receipt_sha256,
 );
 assert.equal(second.accepted_observed_at_ms, BASE_WALL + 1000);
+assert.equal(second.receipt.baseline_wall_time_ms, BASE_WALL);
+assert.equal(second.receipt.baseline_monotonic_ns, BASE_MONO.toString());
 
 const deterministicClock = clockQueue([sample()]);
 const deterministic = requireOk(
@@ -302,6 +307,21 @@ for (const mono of [BASE_MONO, BASE_MONO - 1n]) {
     }).observe({ prior_receipt: first.receipt }),
   );
   assert.equal(edge.accepted_observed_at_ms, BASE_WALL + 6000);
+
+  const ratchetClock = clockQueue([
+    sample({
+      wall: BASE_WALL + 11000,
+      mono: BASE_MONO + 2_000_000_000n,
+    }),
+  ]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: ratchetClock.clock,
+    }).observe({ prior_receipt: edge.receipt }),
+    "sponsored_observation_time_wall_monotonic_skew_exceeded",
+    true,
+  );
+  assert.equal(ratchetClock.calls(), 1);
 }
 
 {
@@ -450,6 +470,8 @@ console.log("content_addressed_receipt_chain=true");
 console.log("same_process_monotonicity_enforced=true");
 console.log("wall_time_non_regression_enforced=true");
 console.log("wall_monotonic_skew_bounded=true");
+console.log("cumulative_baseline_skew_enforced=true");
+console.log("per_step_clock_ratchet_rejected=true");
 console.log("boot_change_holds=true");
 console.log("process_instance_change_holds=true");
 console.log("accessor_request_rejected_without_getter_read=true");
