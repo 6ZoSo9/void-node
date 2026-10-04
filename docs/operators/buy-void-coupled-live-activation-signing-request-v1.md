@@ -41,6 +41,13 @@ It rejects extra fields, malformed identities, expired requests, a lease longer
 than five minutes, or an activation timestamp more than 30 seconds ahead of the
 compiler clock.
 
+Production preparation samples that compiler clock internally; callers cannot
+supply or backdate the production preparation time. The content-addressed request
+records `prepared_at_ms`. Verification may rederive an already-existing request
+at that recorded time to check its historical bytes, but that verification path
+does not mint a new production request. Deterministic time injection exists only
+through an explicitly test-only proof helper.
+
 The activation booleans, signer addresses, receipt marker/status, coupled launch
 ID, and `source_ready_only=false` are fixed by source rather than caller input.
 
