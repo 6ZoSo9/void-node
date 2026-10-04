@@ -156,6 +156,10 @@ function validateCorrectionV2(correction) {
     correction?.version !== 2 ||
     correction?.status !==
       "COMPILED_IDENTITY_V1_BYTECODE_SUPERSEDED_DEPLOYMENT_HOLD" ||
+    correction?.accepted_identity?.identity_id !==
+      "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a" ||
+    correction?.accepted_identity?.identity_json_sha256 !==
+      "fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b" ||
     correction?.canonical_compiler_artifacts?.creation_bytecode_sha256 !==
       "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540" ||
     correction?.canonical_compiler_artifacts?.runtime_template_sha256 !==
@@ -170,7 +174,8 @@ function validateCorrectionV2(correction) {
       VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_BYTES32_V2 ||
     correction?.coupled_launch_effect?.old_control_signature_generation_reusable !==
       false ||
-    correction?.decision?.coupled_launch_regeneration_required === false
+    correction?.coupled_launch_effect?.coupled_launch_regeneration_required !==
+      true
   ) {
     fail("coupled_launch_regeneration_correction_v2_invalid");
   }
