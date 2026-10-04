@@ -75,13 +75,17 @@ request plus a canonical V2 verified-payment event, derives the exact
 server-controlled finality policy, and invokes
 `observeBuyVoidSourceFinalityGenerationProvenanceV5(...)` directly.
 
-A production-ready result additionally requires the observation to prove all of:
+A production-ready result additionally requires:
 
+- immutable process-source marker, commit, tree, and `main` branch identity,
+  matching the same process-source boundary used by the execution preflight;
 - source chain exactly `ethereum` and chain ID exactly `1`;
 - the exact request transaction hash and canonical `voidpay1` identity;
 - freshly rebound payment-key SHA-256;
 - reviewed source files;
 - authenticated transport identity;
+- observation generated inside the reviewed composition;
+- same-provider consistency and provider consistency;
 - total operation deadline;
 - source generation;
 - deployed artifact generation;
@@ -92,9 +96,11 @@ A production-ready result additionally requires the observation to prove all of:
 - no wallet/signing/broadcast/money-movement side effects.
 
 The production function exposes no observer/finality injection dependency.
-Current V5 authority deliberately keeps source/deployed generation, remote
-provider identity, ancestry, quorum, and production authority false, so this
-bridge currently returns HOLD **before making RPC calls**.
+It also refuses before policy/finality work when the current process source
+identity is unavailable or not `main`. Current V5 authority deliberately keeps
+source/deployed generation, remote provider identity, ancestry, quorum, and
+production authority false, so a correctly identified current process still
+returns HOLD **before making RPC calls**.
 
 The test-only classifier can exercise a synthetic future-ready observation, but
 it always returns `production_transition_authority=false` and cannot mint the
