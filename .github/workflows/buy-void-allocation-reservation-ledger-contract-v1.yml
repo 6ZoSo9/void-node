@@ -6,6 +6,8 @@ on:
       - ".github/workflows/buy-void-allocation-reservation-ledger-contract-v1.yml"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "scripts/prove_buy_void_canonical_presale_economics_v1.ts"
       - "scripts/prove_buy_void_allocation_reservation_ledger_v1.ts"
       - "docs/architecture/buy-void-allocation-reservation-ledger-contract-v1.md"
       - "docs/public/public-node-usdc-to-void-presale-allocation-reservation-record-v1.md"
@@ -22,6 +24,8 @@ on:
       - ".github/workflows/buy-void-allocation-reservation-ledger-contract-v1.yml"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "scripts/prove_buy_void_canonical_presale_economics_v1.ts"
       - "scripts/prove_buy_void_allocation_reservation_ledger_v1.ts"
       - "docs/architecture/buy-void-allocation-reservation-ledger-contract-v1.md"
       - "docs/public/public-node-usdc-to-void-presale-allocation-reservation-record-v1.md"
@@ -78,6 +82,9 @@ jobs:
 
       - name: Prove allocation reservation ledger contract
         run: npx tsx scripts/prove_buy_void_allocation_reservation_ledger_v1.ts
+
+      - name: Preserve canonical presale economics
+        run: npx tsx scripts/prove_buy_void_canonical_presale_economics_v1.ts
 
       - name: Preserve public allocation reservation HOLD
         run: bash ops/mainnet0/usdc-to-void-presale-allocation-reservation-record-v1-proof.sh
