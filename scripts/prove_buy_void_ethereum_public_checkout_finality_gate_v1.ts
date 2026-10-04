@@ -11,6 +11,7 @@ import {
   runBuyVoidEthereumPublicCheckoutPaymentFinalityV1,
   runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1,
   testOnlyClassifyBuyVoidEthereumPublicCheckoutFinalityV1,
+  testOnlyClassifyBuyVoidEthereumPreAttemptDeadlineV1,
   testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1,
 } from "../src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.js";
 import {
@@ -132,6 +133,46 @@ assert.equal(
     .existing_payment_reconciliation_independent_of_intake_toggle,
   true,
 );
+
+const deadlineBudget = testOnlyClassifyBuyVoidEthereumPreAttemptDeadlineV1({
+  deadline_at_monotonic_ms: 10_000,
+  request_timeout_ms: 3_000,
+  now_monotonic_ms: 6_500,
+});
+assert.equal(deadlineBudget.would_be_within_deadline, true);
+assert.equal(deadlineBudget.remaining_ms, 3_500);
+assert.equal(deadlineBudget.rpc_timeout_ms, 3_000);
+assert.equal(deadlineBudget.production_transition_authority, false);
+
+const deadlineShrinksRpc =
+  testOnlyClassifyBuyVoidEthereumPreAttemptDeadlineV1({
+    deadline_at_monotonic_ms: 10_000,
+    request_timeout_ms: 8_000,
+    now_monotonic_ms: 9_250,
+  });
+assert.equal(deadlineShrinksRpc.would_be_within_deadline, true);
+assert.equal(deadlineShrinksRpc.remaining_ms, 750);
+assert.equal(deadlineShrinksRpc.rpc_timeout_ms, 750);
+
+for (const candidate of [
+  {
+    deadline_at_monotonic_ms: 10_000,
+    request_timeout_ms: 1_000,
+    now_monotonic_ms: 10_000,
+  },
+  {
+    deadline_at_monotonic_ms: 10_000,
+    request_timeout_ms: 0,
+    now_monotonic_ms: 9_000,
+  },
+] as const) {
+  const held =
+    testOnlyClassifyBuyVoidEthereumPreAttemptDeadlineV1(candidate);
+  assert.equal(held.would_be_within_deadline, false);
+  assert.equal(held.remaining_ms, 0);
+  assert.equal(held.rpc_timeout_ms, 0);
+  assert.equal(held.production_transition_authority, false);
+}
 for (const key of [
   "rpc_write",
   "request_intake_mutation",
@@ -651,6 +692,31 @@ assert.match(
 );
 assert.match(
   source,
+  /createPreAttemptDeadlineBoundPaymentTransportV1/u,
+);
+assert.match(
+  productionPreAttemptSource,
+  /const operationStartedAtMonotonicMs = performance\.now\(\);/u,
+);
+assert.match(
+  productionPreAttemptSource,
+  /transport: createPreAttemptDeadlineBoundPaymentTransportV1\(\{/u,
+);
+assert.match(
+  productionPreAttemptSource,
+  /total_timeout_ms: String\(finalityBudget\.remaining_ms\)/u,
+);
+assert.equal(
+  (
+    productionPreAttemptSource.match(
+      /preAttemptDeadlineBudgetV1\(\{/gu,
+    ) || []
+  ).length >= 4,
+  true,
+  "pre-attempt bridge must refresh total-deadline budget across both observation stages",
+);
+assert.match(
+  source,
   /required_min_confirmations: rail\.min_confirmations/u,
 );
 assert.doesNotMatch(
@@ -727,6 +793,9 @@ console.log("caller_supplied_verified_payment_event_authority=false");
 console.log("pre_attempt_process_source_identity_required=true");
 console.log("pre_attempt_module_generated_observation_required=true");
 console.log("pre_attempt_provider_consistency_required=true");
+console.log("pre_attempt_end_to_end_total_deadline_required=true");
+console.log("pre_attempt_latest_rpc_timeout_shrinks_to_remaining_budget=true");
+console.log("pre_attempt_v5_receives_remaining_total_budget=true");
 console.log("pre_attempt_verified_payment_request_binding_required=true");
 console.log("pre_attempt_verified_payment_observation_binding_required=true");
 console.log("pre_attempt_forbidden_side_effects_required=true");
