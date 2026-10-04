@@ -2,7 +2,7 @@
   "schema": "void_buy_void_allocation_custody_service_contract_v1",
   "marker": "VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_CONTRACT_V1",
   "version": 1,
-  "service_source_sha256": "sha256:de5a873d4661c0a6cea62421496543b3a890d3cbfca1089dc42cbf107caa6483",
+  "service_source_sha256": "sha256:bbc42447cc5b21f524cb7d1fb76a94c6322ffd36c901b5e5b2a8cbfe09918cd5",
   "exact_request_schema": true,
   "exact_response_schema": true,
   "max_request_bytes": 65536,
