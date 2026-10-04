@@ -4,7 +4,6 @@ import path from "node:path";
 import { types as utilTypes } from "node:util";
 
 import {
-  VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_RECEIPT_V1,
   VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1,
   canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1,
   createVoidEconomicSystemSponsoredObservationTimeV1,
@@ -18,6 +17,9 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_AUTHORITY_V1 
   Object.freeze({
     source_only_store: true,
     canonical_observation_contract_reused: true,
+    canonical_receipt_verifier_reused: true,
+    durable_receipt_store_source_verified: true,
+    live_durable_receipt_storage_proven: false,
     caller_prior_receipt_input: false,
     caller_timestamp_input: false,
     append_only_history: true,
@@ -50,8 +52,6 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_AUTHORITY_V1 
     funds_movement: false,
   });
 
-const RECEIPT_SCHEMA =
-  "void.economic-system-sponsored-observation-time-receipt.v1";
 const RECORDS_DIRECTORY = "records";
 const LOCK_NAME = "observation-time-v1";
 const MAX_RECORD_BYTES = 64 * 1024;
@@ -73,29 +73,6 @@ function fail(code) {
 
 function compareText(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function canonicalJson(value) {
-  if (value === null) return "null";
-  if (typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number" && Number.isSafeInteger(value)) {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return "[" + value.map(canonicalJson).join(",") + "]";
-  }
-  if (value && typeof value === "object") {
-    return (
-      "{" +
-      Object.keys(value)
-        .sort(compareText)
-        .map((key) => JSON.stringify(key) + ":" + canonicalJson(value[key]))
-        .join(",") +
-      "}"
-    );
-  }
-  fail("SPONSORED_OBSERVATION_TIME_STORE_NONCANONICAL_VALUE");
 }
 
 function exactSnapshot(value, keys, code) {
@@ -664,6 +641,8 @@ function held(reason, mutationPerformed = false, observationPerformed = false) {
     observation_performed: observationPerformed === true,
     accepted_observed_at_ms: null,
     head_receipt_sha256: null,
+    durable_receipt_store_source_verified: true,
+    live_durable_receipt_storage_proven: false,
     trusted_clock_source_proven: false,
     trusted_clock_host_binding_proven: false,
     receipt_store_rollback_resistance_proven: false,
@@ -691,7 +670,8 @@ function success(receipt, mutationPerformed, count) {
     generation: receipt.generation,
     head_receipt_sha256: receipt.receipt_sha256,
     durable_receipt_count: count,
-    durable_receipt_storage_proven: true,
+    durable_receipt_store_source_verified: true,
+    live_durable_receipt_storage_proven: false,
     trusted_clock_source_proven: false,
     trusted_clock_host_binding_proven: false,
     receipt_store_rollback_resistance_proven: false,
@@ -721,7 +701,8 @@ function inspectSuccess(history) {
       history.head?.receipt.generation || null,
     head_observed_at_ms:
       history.head?.receipt.observed_at_ms ?? null,
-    durable_receipt_storage_proven: true,
+    durable_receipt_store_source_verified: true,
+    live_durable_receipt_storage_proven: false,
     trusted_clock_source_proven: false,
     trusted_clock_host_binding_proven: false,
     receipt_store_rollback_resistance_proven: false,
