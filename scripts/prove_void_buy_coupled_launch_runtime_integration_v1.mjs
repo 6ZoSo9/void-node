@@ -40,6 +40,7 @@ assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.ok(index.includes("if (amountUnits === requestedUnits)"));
 assert.equal(index.includes("if (amountUnits >= requestedUnits)"), false);
 assert.ok(index.includes("canonicalLogIndex = parsedLogIndex.toString()"));
+assert.ok(index.includes("parsedLogIndex>0xffffffffn"));
 assert.ok(index.includes("log_index: match.log_index"));
 assert.ok(index.includes("payment_identity_input_complete: true"));
 assert.ok(index.includes('m.startsWith("buy_void_verified_payment_identity_")'));
@@ -146,6 +147,8 @@ assert.match(capacityAdmission, /buy_void_verified_payment_identity_projection_m
 assert.match(capacityAdmission, /buy_void_verified_payment_identity_postcheck_failed/);
 assert.match(identityAdmission, /VOID_BUY_VOID_VERIFIED_PAYMENT_IDENTITY_ADMISSION_V1/);
 assert.match(identityAdmission, /canonicalBuyVoidPaymentIdentityV1/);
+assert.match(identityAdmission, /MAX_PAYMENT_LOG_INDEX\s*=\s*0xffff_ffffn/);
+assert.match(identityAdmission, /buy_void_verified_payment_identity_log_index_invalid/);
 assert.match(identityAdmission, /buy_void_verified_payment_identity_reused/);
 assert.match(identityAdmission, /buy_void_verified_payment_identity_request_changed/);
 assert.match(
@@ -288,6 +291,7 @@ console.log("verified_payment_capacity_exhaustion_response_409=true");
 console.log("verified_payment_identity_guard_inside_capacity_lock=true");
 console.log("verified_payment_identity_cross_request_reuse=false");
 console.log("verified_payment_log_index_persisted=true");
+console.log("verified_payment_log_index_uint32_bound=true");
 console.log("verified_payment_identity_complete_flag_persisted=true");
 console.log("verified_payment_identity_conflict_response_409=true");
 console.log("generation_transition_publication_uses_same_lock=true");
