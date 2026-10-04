@@ -126,6 +126,72 @@ assert.equal(
   "log_index_exceeds_1463_domain",
 );
 
+const overflowForeignTxVerification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
+    logs: [
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0x100000000",
+        transactionHash: "0x" + "b".repeat(64),
+        blockNumber: "0x64",
+      },
+    ],
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
+});
+assert.equal(overflowForeignTxVerification.ok, false);
+if (overflowForeignTxVerification.ok) {
+  throw new Error("expected foreign-tx oversized log HOLD");
+}
+assert.equal(
+  overflowForeignTxVerification.reason,
+  "matching_usdc_transfer_not_found",
+);
+
+const overflowForeignBlockVerification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
+    logs: [
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0x100000000",
+        transactionHash: txHash,
+        blockNumber: "0x65",
+      },
+    ],
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
+});
+assert.equal(overflowForeignBlockVerification.ok, false);
+if (overflowForeignBlockVerification.ok) {
+  throw new Error("expected foreign-block oversized log HOLD");
+}
+assert.equal(
+  overflowForeignBlockVerification.reason,
+  "matching_usdc_transfer_not_found",
+);
+
 const fulfillmentPolicy: BuyVoidAutoFulfillmentPolicyV1 = {
   automatic_fulfillment_enabled: true,
   allowed_chains: ["base"],
@@ -179,5 +245,6 @@ assert.deepEqual(VOID_BUY_VOID_VERIFIED_PAYMENT_AUTHORITY_V2, {
 
 console.log("payment_log_index_uint32_boundary=true");
 console.log("payment_log_index_uint32_overflow_hold=true");
+console.log("payment_log_index_overflow_requires_receipt_provenance=true");
 console.log("payment_log_index_overflow_reason_preserved=true");
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_GREEN");
