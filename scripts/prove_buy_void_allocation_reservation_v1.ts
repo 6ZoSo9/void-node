@@ -216,6 +216,33 @@ for (const [key, value] of Object.entries(
     "utf8",
   );
   assert.match(source, /withBuyVoidFilesystemBakeryLockV1/);
+  assert.equal(
+    (source.match(/export function persistBuyVoidAllocationReservationV1\(/gu) || []).length,
+    1,
+  );
+  assert.equal(
+    (source.match(/function persistBuyVoidAllocationReservationUnlockedV1\(/gu) || []).length,
+    1,
+  );
+  const exportedPersistAt = source.indexOf(
+    "export function persistBuyVoidAllocationReservationV1(",
+  );
+  const unlockedPersistAt = source.indexOf(
+    "function persistBuyVoidAllocationReservationUnlockedV1(",
+  );
+  assert.ok(exportedPersistAt >= 0 && unlockedPersistAt > exportedPersistAt);
+  const exportedPersistSource = source.slice(
+    exportedPersistAt,
+    unlockedPersistAt,
+  );
+  assert.match(
+    exportedPersistSource,
+    /withBuyVoidFilesystemBakeryLockV1\(/,
+  );
+  assert.match(
+    exportedPersistSource,
+    /persistBuyVoidAllocationReservationUnlockedV1\(input\)/,
+  );
   assert.match(source, /buy_void_allocation_capacity_exceeded/);
   assert.match(source, /loaded\.history\.total_micro \+ capacityDelta/);
   assert.match(source, /\.allocation-reservation-v1/);
@@ -760,6 +787,7 @@ console.log("growth_during_read_hold=true");
 console.log("near_sellout_capacity_composition_green=true");
 console.log("capacity_obligation_created=false");
 console.log("global_allocation_serialization=true");
+console.log("exported_persistence_uses_global_lock=true");
 console.log("prepublication_capacity_admission=true");
 console.log("oversubscribing_record_published=false");
 console.log("cross_process_lock_contention_proven=true");
