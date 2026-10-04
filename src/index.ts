@@ -18819,8 +18819,7 @@ setInterval(refresh, 10000);
         if(parsedLogIndex<0n||parsedLogIndex>0xffff_ffffn||amountUnits!==requestedUnits)continue;
         matches.push({ok:true,log_index:parsedLogIndex.toString(),usdc_contract:usdc,from_address:logFrom,receive_address:to,delivery_address:expectedFrom,amount_units:amountUnits.toString(),requested_units:requestedUnits.toString()});
       }
-      if(matches.length===1)return matches[0];
-      return {ok:false,error:matches.length?"ambiguous_matching_usdc_transfers":"matching_usdc_transfer_not_found",...(matches.length?{matching_log_indexes:matches.map((m:any)=>m.log_index),match_count:matches.length}:{}),usdc_contract:usdc,expected_from_address:expectedFrom,receive_address:to,requested_units:requestedUnits.toString()};
+      if(matches.length===1)return matches[0];return {ok:false,error:matches.length?"ambiguous_matching_usdc_transfers":"matching_usdc_transfer_not_found",...(matches.length?{matching_log_indexes:matches.map((m:any)=>m.log_index),match_count:matches.length}:{}),usdc_contract:usdc,expected_from_address:expectedFrom,receive_address:to,requested_units:requestedUnits.toString()};
     }
 
     app.get("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
@@ -18896,7 +18895,7 @@ setInterval(refresh, 10000);
           return res.status(400).json({
             schema: "void_buy_void_payment_verifier_v1",
             ok: false,
-            error: match.error || "matching_usdc_transfer_not_found",
+            error:match.error||"matching_usdc_transfer_not_found",
             tx_hash: tx,
             request_id: id,
             match
@@ -18904,25 +18903,19 @@ setInterval(refresh, 10000);
         }
 
         if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");
-        const event = {
-          schema: "void_buy_void_verified_payment_event_v2",
-          marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
-          ok: true,
+        const event={schema:"void_buy_void_verified_payment_event_v2",marker:"VOID_BUY_VOID_VERIFIED_PAYMENT_V2",ok:true,
           request_id: id,
           operator_status: "payment_verified",
           note: "USDC receipt/log verified",
           marked_at_ms: Date.now(),
           prior_status: found.status || "",
           tx_hash: tx,
-          payment_verified: true,
-          payment_identity_input_complete: true,
-          payment_verifier: {
+          payment_verified:true,payment_identity_input_complete:true,payment_verifier:{
             chain: chainCfg.chain,
             rpc_env: chainCfg.rpc_env,
             receipt_status: receipt.status,
             block_number: receipt.blockNumber || "",
-            transaction_hash: receipt.transactionHash || tx,
-            log_index: match.log_index,
+            transaction_hash:receipt.transactionHash||tx,log_index:match.log_index,
             usdc_contract: match.usdc_contract,
             from_address: match.from_address,
             receive_address: match.receive_address,
