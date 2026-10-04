@@ -44,6 +44,13 @@ Each root must be:
 - non-writable by group/other; and
 - resolvable to its longest matching Linux mount-info record.
 
+The live observer additionally descriptor-binds each root with
+`O_DIRECTORY|O_NOFOLLOW`, compares visible and descriptor identities before
+classification, rereads `/proc/self/mountinfo` after both roots are pinned,
+requires the mount table bytes to be unchanged, and rechecks both visible root
+identities again before a GREEN result. A concurrent pathname replacement or
+mount-table transition therefore HOLDS instead of producing live domain proof.
+
 ## Storage-domain requirements
 
 The first version accepts only local filesystem classes:
@@ -144,7 +151,9 @@ The proof covers:
 - missing designated-host expectation HOLD;
 - designated-host mismatch HOLD;
 - synthetic snapshot classification cannot claim live observed proof;
-- symlink alias HOLD; and
+- symlink alias HOLD;
+- descriptor/visible root identity binding;
+- mountinfo stability across the live observation window; and
 - a real temporary same-host fixture that cannot claim independent custody.
 
 ## Authority boundary
