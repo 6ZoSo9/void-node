@@ -597,10 +597,12 @@ function validateLiability(
   ) {
     throw new Error("coupled_native_gas_liability_invalid");
   }
-  const gasEnvelope = gasLimit * maxFee * BigInt(attemptLimit);
-  const computed = nativeValue + gasEnvelope;
+  const oneAttemptGas = gasLimit * maxFee;
+  const oneAttemptEnvelope = nativeValue + oneAttemptGas;
+  const computed = oneAttemptEnvelope * BigInt(attemptLimit);
   if (
-    gasEnvelope > UINT256_MAX ||
+    oneAttemptGas > UINT256_MAX ||
+    oneAttemptEnvelope > UINT256_MAX ||
     computed > UINT256_MAX ||
     reserved !== computed ||
     (lane === "presale" &&
