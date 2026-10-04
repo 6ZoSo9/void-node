@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 import {
@@ -19,6 +20,46 @@ import {
   buildBuyCoupledLiveActivationSigningRequestV1,
   verifyBuyCoupledLiveActivationSigningRequestV1,
 } from "../tools/void-buy-coupled-live-activation-signing-request-v1.mjs";
+
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .map((key) => JSON.stringify(key) + ":" + canonicalJson(value[key]))
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("noncanonical_test_value");
+}
+
+function readdressSigningRequest(candidate) {
+  const {
+    marker: _marker,
+    version: _version,
+    status: _status,
+    signing_request_id: _requestId,
+    ...requestBody
+  } = candidate;
+  candidate.signing_request_id =
+    "voidbclasr1_" +
+    crypto
+      .createHash("sha256")
+      .update(canonicalJson(requestBody), "utf8")
+      .digest("hex");
+  return candidate;
+}
 
 const NOW = 1791014400000;
 const input = Object.freeze({
@@ -154,16 +195,62 @@ for (const [label, mutate] of [
   );
 }
 
-for (const mutate of [
-  (v) => { v.typed_data_digest = "0x" + "0".repeat(64); },
-  (v) => { v.activation_receipt_id = "voidbclive1_" + "0".repeat(64); },
-  (v) => { v.required_signers[0].signer_address = syntheticController.address; },
-  (v) => { v.authority_boundary.signature_creation = true; },
+for (const [label, mutate] of [
+  ["typed_digest", (v) => {
+    v.typed_data_digest = "0x" + "0".repeat(64);
+  }],
+  ["receipt_id", (v) => {
+    v.activation_receipt_id = "voidbclive1_" + "0".repeat(64);
+    v.unsigned_receipt.activation_receipt_id = v.activation_receipt_id;
+  }],
+  ["required_signer", (v) => {
+    v.required_signers[0].signer_address = syntheticController.address;
+  }],
+  ["authority_boundary", (v) => {
+    v.authority_boundary.signature_creation = true;
+  }],
+  ["receipt_activation_signer", (v) => {
+    v.unsigned_receipt.activation_signer = syntheticController.address;
+  }],
+  ["receipt_sovereign_signer", (v) => {
+    v.unsigned_receipt.sovereign_signer = syntheticSovereign.address;
+  }],
+  ["receipt_market_active", (v) => {
+    v.unsigned_receipt.wc_void_market_active = false;
+  }],
+  ["receipt_presale_active", (v) => {
+    v.unsigned_receipt.public_presale_active = false;
+  }],
+  ["receipt_source_ready_only", (v) => {
+    v.unsigned_receipt.source_ready_only = true;
+  }],
+  ["typed_domain", (v) => {
+    v.typed_data.domain.chainId = 1;
+    v.typed_data_digest = TypedDataEncoder.hash(
+      v.typed_data.domain,
+      v.typed_data.types,
+      v.typed_data.value,
+    ).toLowerCase();
+  }],
+  ["typed_value", (v) => {
+    v.typed_data.value.public_presale_active = false;
+    v.typed_data_digest = TypedDataEncoder.hash(
+      v.typed_data.domain,
+      v.typed_data.types,
+      v.typed_data.value,
+    ).toLowerCase();
+  }],
+  ["extra_request_field", (v) => {
+    v.extra = "forged";
+  }],
 ]) {
   const candidate = structuredClone(request);
   mutate(candidate);
+  readdressSigningRequest(candidate);
   assert.throws(
     () => verifyBuyCoupledLiveActivationSigningRequestV1(candidate),
+    /activation_signing_request_(?:binding|lease|identity|input)/u,
+    label,
   );
 }
 
@@ -226,6 +313,8 @@ console.log("activation_receipt_id=" + request.activation_receipt_id);
 console.log("typed_data_digest=" + request.typed_data_digest);
 console.log("launch_controller_signature_created=false");
 console.log("sovereign_signature_created=false");
+console.log("canonical_request_rederived_on_verify=true");
+console.log("self_consistent_forgery_rejected=true");
 console.log("live_generation_verified=false");
 console.log("runtime_activation=false");
 console.log("funds_movement=false");
