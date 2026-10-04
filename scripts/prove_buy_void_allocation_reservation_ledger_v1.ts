@@ -279,6 +279,25 @@ assert.equal(
 );
 
 const firstLine = ledger1.trimEnd();
+
+const truncatedGenesis = JSON.parse(firstLine);
+truncatedGenesis.reserved_void_total_before = "1";
+truncatedGenesis.remaining_void_before = "9";
+truncatedGenesis.reserved_void_total_after = "7";
+truncatedGenesis.remaining_void_after = "3";
+const truncatedGenesisDecision =
+  classifyBuyVoidAllocationReservationLedgerV1(
+    JSON.stringify(truncatedGenesis) + "\n",
+  );
+assert.equal(truncatedGenesisDecision.ok, false);
+if (truncatedGenesisDecision.ok) {
+  throw new Error("expected truncated genesis HOLD");
+}
+assert.equal(
+  truncatedGenesisDecision.reason,
+  "allocation_reservation_genesis_inventory_state_invalid",
+);
+
 const exactDuplicate =
   classifyBuyVoidAllocationReservationLedgerV1(
     firstLine + "\n" + firstLine + "\n",
@@ -374,6 +393,8 @@ console.log("request_id_unique=true");
 console.log("canonical_payment_identity_unique=true");
 console.log("hash_chain_append_only=true");
 console.log("genesis_previous_hash_bound=true");
+console.log("genesis_reserved_inventory_zero=true");
+console.log("truncated_history_as_genesis_rejected=true");
 console.log("exact_micro_void_inventory_math=true");
 console.log("exact_retry_idempotent_without_append=true");
 console.log("oversell_rejected=true");
