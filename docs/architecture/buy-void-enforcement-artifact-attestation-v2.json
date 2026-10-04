@@ -1,0 +1,42 @@
+{
+  "schema": "void_buy_void_enforcement_artifact_attestation_v2",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V2",
+  "version": 2,
+  "repository": "6ZoSo9/void-node",
+  "predecessor": {
+    "manifest_path": "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
+    "manifest_git_blob_sha1": "b9d8a57f8a67f2e9180b15a608c178bc95bf84b5",
+    "enforcement_artifact_set_sha256": "f21b4c486ee686f53cb03e858bdff01d4b56be205c819322813538d5273062fb"
+  },
+  "current_derivation": {
+    "generator": "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs --derive",
+    "candidate_schema": "void_buy_void_enforcement_artifact_attestation_v1",
+    "candidate_version": 1,
+    "candidate_json_bytes": 22575,
+    "candidate_json_sha256": "a3905213d6a77287673546491e6aed4a95d5e5a38d0c17f79af668384cc15c87",
+    "enforcement_artifact_set_sha256": "904c18f848832e5772346b5cbba23dbca257f5715f4263d3ffca533be28e1038",
+    "candidate_source_head_label": "26983cd89a30bcd09c52004c7f45bb968c470122",
+    "candidate_source_tree_label": "6061038e977622acafd8db70c937eb190743621f"
+  },
+  "compiled_source_finality": {
+    "manifest_path": "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json",
+    "manifest_git_blob_sha1": "46267e9433ad8eb6250d4c831dfda2054fe918f4",
+    "compiled_artifact_generation_sha256": "b85a5c8a6a7685876452f21450b154351fc0601e367866b778c1be196bb2bee2",
+    "reviewed_source_files_sha256": "98dd5dcc6edea14a641ce687c76ec8f6ca521844a96560c7044adbe8d4dc5161",
+    "entry_artifact_sha256": "c55879a2d7e577c34067e5053e5342abd4d547fc4c1327723dee1d49eaea8010",
+    "verified_payment_v2_artifact_sha256": "babf9920062c0faec9ae525ea7c7557a77c2c5d9164c065fb1b3a31e395a8701"
+  },
+  "change_reason": "verified_payment_log_index_uint32_domain_and_reviewed_source_rollover_v5",
+  "predecessor_immutable": true,
+  "current_derivation_cross_node_identical": true,
+  "derivation_node_majors": [
+    22,
+    24,
+    26
+  ],
+  "production_source_finality_authority_ready": false,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "funds_movement_authority": false,
+  "successor_enforcement_generation_sha256": "0b0debdf4bd94b0082f2ef99182c29afcd324545d3bdbee034b7ce0a89e6eabb"
+}
