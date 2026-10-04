@@ -496,6 +496,7 @@ const futureReadyObservation = {
   payment_usdc_atoms: "1000000",
   receipt_block_number: "900000",
   confirmations_observed: "15",
+  min_confirmations: "12",
   reviewed_source_files_verified: true,
   authenticated_transport_identity_verified: true,
   total_operation_deadline_verified: true,
@@ -527,6 +528,35 @@ assert.equal(preAttemptTestReady.would_be_transition_ready, true);
 assert.equal(preAttemptTestReady.production_transition_authority, false);
 assert.equal(preAttemptTestReady.payment_verified_event_write_performed, false);
 assert.equal(preAttemptTestReady.inventory_reservation_write_performed, false);
+
+const higherLatestConfirmationEvent =
+  structuredClone(preAttemptVerifiedEvent) as any;
+higherLatestConfirmationEvent.payment_verifier.confirmations = "18";
+const confirmationClockDecoupled =
+  testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1({
+    observation: futureReadyObservation,
+    verified_payment_event: higherLatestConfirmationEvent,
+    canonical_payment_identity: canonicalIdentity,
+    transaction_hash: transactionHash,
+  });
+assert.equal(confirmationClockDecoupled.would_be_transition_ready, true);
+assert.equal(confirmationClockDecoupled.production_transition_authority, false);
+
+const belowFinalityThreshold =
+  testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1({
+    observation: {
+      ...futureReadyObservation,
+      confirmations_observed: "11",
+    },
+    verified_payment_event: preAttemptVerifiedEvent,
+    canonical_payment_identity: canonicalIdentity,
+    transaction_hash: transactionHash,
+  });
+assert.equal(belowFinalityThreshold.would_be_transition_ready, false);
+assert.equal(
+  belowFinalityThreshold.reason,
+  "ethereum_pre_attempt_verified_payment_observation_mismatch",
+);
 
 const inconsistentEvent = structuredClone(preAttemptVerifiedEvent) as any;
 inconsistentEvent.payment_verifier.block_number = "900001";
@@ -623,6 +653,15 @@ assert.match(
 assert.match(
   source,
   /decimalUsdcUnitsV1/u,
+);
+assert.match(
+  source,
+  /positiveUintV1/u,
+);
+assert.doesNotMatch(
+  source,
+  /verifier\?\.confirmations[\s\S]{0,120}confirmations_observed/u,
+  "latest-head and finalized-head confirmation counts must not be equated",
 );
 assert.match(
   source,
