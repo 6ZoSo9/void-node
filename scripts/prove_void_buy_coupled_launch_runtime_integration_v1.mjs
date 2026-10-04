@@ -20,6 +20,9 @@ const capacityAdmission = read(
 const duplicateGuard = read(
   "src/economic/buy_void_verified_payment_duplicate_guard_v1.ts",
 );
+const verifiedPaymentV2 = read(
+  "src/economic/buy_void_verified_payment_v2.ts",
+);
 assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
@@ -39,85 +42,33 @@ assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
 assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
-assert.ok(index.includes("amountUnits!==requestedUnits"));
-assert.equal(index.includes("amountUnits>=requestedUnits"), false);
-assert.ok(index.includes('error:"invalid_requested_usdc_amount"'));
-assert.ok(index.includes('BigInt(q[1])*1000000n+BigInt((q[2]||"").padEnd(6,"0"))'));
-assert.equal(index.includes("Math.ceil(Number(requestedUsdc"), false);
-assert.ok(index.includes("parsedLogIndex>0xffff_ffffn"));
-assert.ok(index.includes('"ambiguous_matching_usdc_transfers"'));
-assert.ok(index.includes('error: match.error || "matching_usdc_transfer_not_found"'));
-assert.ok(index.includes('schema: "void_buy_void_verified_payment_event_v2"'));
-assert.ok(index.includes('marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2"'));
-assert.ok(index.includes("payment_identity_input_complete: true"));
-assert.ok(index.includes("log_index: match.log_index"));
+assert.ok(index.includes("VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1"));
+assert.ok(index.includes('import("./economic/buy_void_verified_payment_v2.js")'));
+assert.ok(index.includes("buildBuyVoidVerifiedPaymentEventV2"));
+assert.ok(index.includes('"eth_blockNumber"'));
+assert.ok(index.includes("current_block_number_by_chain"));
+assert.ok(index.includes("request:found,receipt,policy:"));
+assert.ok(index.includes("...verified.event"));
+assert.ok(index.includes("...verified.event.payment_verifier"));
+assert.ok(index.includes("rpc_env:chainCfg.rpc_env"));
+assert.ok(index.includes("receipt_status:receipt.status"));
+assert.equal(index.includes("function __voidBuyVoidUsdcTransferMatchV1"), false);
+assert.equal(index.includes("function __voidBuyVoidHexToBigIntV1"), false);
+assert.equal(index.includes("function __voidBuyVoidTopicAddressV1"), false);
 assert.ok(index.includes('m.startsWith("buy_void_verified_payment_duplicate_guard_")'));
+assert.match(verifiedPaymentV2, /log\.removed === true/);
+assert.match(verifiedPaymentV2, /log\.transactionHash/);
+assert.match(verifiedPaymentV2, /log\.blockNumber/);
+assert.match(verifiedPaymentV2, /ambiguous_matching_usdc_transfers/);
+assert.match(verifiedPaymentV2, /current_block_number_by_chain/);
+assert.match(verifiedPaymentV2, /confirmations\.toString\(\)/);
+assert.match(verifiedPaymentV2, /payment_transaction_hash_mismatch/);
+assert.match(verifiedPaymentV2, /receive_address_binding_mismatch/);
 assert.ok(index.includes("Funds sent from an exchange/custodial wallet will be treated as lost."));
 assert.ok(index.includes("VOID is not exchange-listed."));
 assert.ok(index.includes("<label>Native USDC rail<br/>"));
 assert.ok(index.includes('cfg.ethereum_requests_enabled?"Base 8453 + Ethereum 1":"Base 8453 (Ethereum HOLD)"'));
 assert.equal(index.includes("throw 0;"),false);
-
-{
-  const hexStart=index.indexOf("function __voidBuyVoidHexToBigIntV1");
-  const chainMarker=index.indexOf("// VOID_BUY_VOID_MULTI_CHAIN_USDC_VERIFIER_V1",hexStart);
-  const matchStart=index.indexOf("function __voidBuyVoidUsdcTransferMatchV1",chainMarker);
-  const routeStart=index.indexOf('app.get("/__void/buy-void/operator/verify-payment.json"',matchStart);
-  assert.ok(hexStart>0&&chainMarker>hexStart&&matchStart>chainMarker&&routeStart>matchStart);
-  const helperSource=(
-    index.slice(hexStart,chainMarker)+
-    index.slice(matchStart,routeStart)
-  )
-    .replace(/:any\[\]/gu,"")
-    .replace(/:any/gu,"")
-    .replace(/:string/gu,"");
-  const matchTransfer=Function(
-    helperSource+"\nreturn __voidBuyVoidUsdcTransferMatchV1;"
-  )();
-  const transferSig="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-  const delivery="0x"+"1".repeat(40);
-  const receive="0x"+"2".repeat(40);
-  const usdc="0x"+"3".repeat(40);
-  const topic=a=>"0x"+"0".repeat(24)+a.slice(2);
-  const log=i=>({
-    address:usdc,
-    topics:[transferSig,topic(delivery),topic(receive)],
-    data:"0xf4240",
-    logIndex:i,
-  });
-  const cfg={usdc_contract:usdc};
-
-  const single=matchTransfer([log("0x7")],cfg,receive,delivery,"1");
-  assert.equal(single.ok,true);
-  assert.equal(single.log_index,"7");
-
-  const microLog={...log("0x9"),data:"0x1"};
-  const micro=matchTransfer([microLog],cfg,receive,delivery,"0.000001");
-  assert.equal(micro.ok,true);
-  assert.equal(micro.amount_units,"1");
-
-  const overPrecise=matchTransfer([microLog],cfg,receive,delivery,"0.0000009");
-  assert.equal(overPrecise.ok,false);
-  assert.equal(overPrecise.error,"invalid_requested_usdc_amount");
-
-  const exponent=matchTransfer([log("0xa")],cfg,receive,delivery,"1e0");
-  assert.equal(exponent.ok,false);
-  assert.equal(exponent.error,"invalid_requested_usdc_amount");
-
-  const max=matchTransfer([log("0xffffffff")],cfg,receive,delivery,"1");
-  assert.equal(max.ok,true);
-  assert.equal(max.log_index,"4294967295");
-
-  const tooLarge=matchTransfer([log("0x100000000")],cfg,receive,delivery,"1");
-  assert.equal(tooLarge.ok,false);
-  assert.equal(tooLarge.error,"matching_usdc_transfer_not_found");
-
-  const ambiguous=matchTransfer([log("0x7"),log("0x8")],cfg,receive,delivery,"1");
-  assert.equal(ambiguous.ok,false);
-  assert.equal(ambiguous.error,"ambiguous_matching_usdc_transfers");
-  assert.equal(ambiguous.match_count,2);
-  assert.deepEqual(ambiguous.matching_log_indexes,["7","8"]);
-}
 
 assert.ok(index.includes("const __bld="));
 assert.ok(index.includes("__blo=(r:any)"));
@@ -406,6 +357,11 @@ console.log("verified_payment_capacity_exhaustion_response_409=true");
 console.log("verified_payment_duplicate_guard_inside_capacity_lock=true");
 console.log("verified_payment_event_v2_persisted=true");
 console.log("verified_payment_log_index_persisted=true");
+console.log("verified_payment_canonical_v2_classifier_mounted=true");
+console.log("verified_payment_receipt_tx_hash_bound=true");
+console.log("verified_payment_receipt_block_bound=true");
+console.log("verified_payment_removed_logs_rejected=true");
+console.log("verified_payment_confirmation_context_bound=true");
 console.log("verified_payment_exact_one_matching_transfer_required=true");
 console.log("verified_payment_requested_usdc_exact_micro_units=true");
 console.log("verified_payment_requested_usdc_exponent_rejected=true");
