@@ -36,18 +36,19 @@ The high-water root also contains the crash-recovery intent
 
 Writer serialization is anchored under **both** pinned roots. Each root owns a
 filesystem-bakery-lock queue named from
-\`.allocation-reservation-publication-v1\`. The writer always acquires them in
-one fixed order:
+\`.allocation-reservation-publication-v1\`. Before entering the transaction, the writer sorts the two pinned roots by
+descriptor identity (`dev`, then `ino`, with pathname only as a deterministic
+final tie-breaker) and acquires both queues in that order.
 
-1. ledger-root queue;
-2. high-water-root queue.
-
-Both pinned root identities are revalidated after both locks are held and before
-publication or recovery begins. Replacing only the visible ledger root therefore
-still contends on the unchanged high-water queue; replacing only the visible
-high-water root still contends on the unchanged ledger queue. Replacing or
-rolling back both custody roots together remains outside this source-level
-guarantee and stays behind the separate independent-custody HOLD.
+This ordering is independent of caller role ordering and prevents a reversed
+ledger/high-water argument pair from creating a lock-order cycle. Both pinned
+root identities are revalidated after both locks are held, before publication
+or recovery begins, and again immediately before each authoritative rename.
+Replacing only the visible ledger root therefore still contends on the
+unchanged high-water queue; replacing only the visible high-water root still
+contends on the unchanged ledger queue. Replacing or rolling back both custody
+roots together remains outside this source-level guarantee and stays behind the
+separate independent-custody HOLD.
 
 Storage bootstrap is intentionally not implemented by this module. Missing
 authoritative ledger/high-water files HOLD. A later deployment gate must
@@ -85,12 +86,13 @@ changed authority file HOLDs instead of being silently overwritten.
 
 ## Durable forward order
 
-Under fixed-order nested crash-recoverable filesystem bakery locks:
+Under deterministic dual-root crash-recoverable filesystem bakery locks:
 
 \`\`\`text
 descriptor-bind ledger root + high-water root
-  -> acquire pinned ledger-root queue
-  -> acquire pinned high-water-root queue
+  -> sort pinned roots by dev/ino identity
+  -> acquire first pinned-root queue
+  -> acquire second pinned-root queue
   -> revalidate both visible root identities
   -> recover any prior durable intent
   -> require exact current ledger/high-water binding
@@ -200,7 +202,10 @@ The focused writer proof covers:
 - symlink-root rejection;
 - unpublished intent-temp cleanup;
 - cross-process serialization after replacing only the visible high-water root;
-- cross-process serialization after replacing only the visible ledger root; and
+- cross-process serialization after replacing only the visible ledger root;
+- ticket-backed proof that the valid competing publication remains blocked on
+  the unchanged root until the holder releases;
+- exact competing publication completion after release; and
 - missing authoritative storage HOLD.
 
 ## Authority boundary
