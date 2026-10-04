@@ -26,6 +26,8 @@ import {
 const sha = (digit: string): string =>
   "sha256:" + digit.repeat(64);
 
+const NOW_MS = 1_900_000_000_000;
+
 function requireOk<T>(
   value: T,
 ): Extract<T, { ok: true }> {
@@ -50,6 +52,9 @@ function expectHeld(
   assert.equal(value.status, "held");
   assert.equal(value.reason, reason);
   assert.equal(value.qualification_id_sha256, null);
+  assert.equal(value.evidence_freshness_checked, false);
+  assert.equal(value.verification_clock_authority_proven, false);
+  assert.equal(value.evidence_generation_monotonicity_proven, false);
   assert.equal(value.independent_custody_proven, false);
   assert.equal(value.production_gate_ready, false);
   assert.equal(value.operation_performed, false);
@@ -189,6 +194,12 @@ function hostEvidence(): Record<string, unknown> {
   const custodyRoot = "/var/lib/void-allocation-custody-v1";
   return {
     host_id: "precision-mainnet0",
+    evidence_snapshot: {
+      observed_at_ms: NOW_MS - 1_000,
+      expires_at_ms: NOW_MS + 60_000,
+      evidence_generation: "1",
+      boot_id_sha256: sha("b"),
+    },
     runtime_uid: 1001,
     runtime_gid: 1001,
     custody_uid: 2001,
@@ -366,11 +377,13 @@ function classify(
     VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1,
   writerSourceSha256: unknown =
     VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_SOURCE_SHA256_V1,
+  verificationNowMs: unknown = NOW_MS,
 ) {
   return classifyBuyVoidAllocationCustodyQualificationV1({
     writer_source_head: writerHead,
     writer_source_blob_sha1: writerBlobSha1,
     writer_source_sha256: writerSourceSha256,
+    verification_now_ms: verificationNowMs,
     host_evidence: host,
     current_ledger_jsonl: currentLedger,
     current_high_water_json: currentHighWater,
@@ -386,6 +399,14 @@ assert.equal(genesis.receipt.custody_epoch, "0");
 assert.equal(genesis.receipt.previous_receipt_sha256, null);
 assert.equal(genesis.receipt.record_count, 0);
 assert.equal(genesis.receipt.ledger_bytes, 0);
+assert.equal(genesis.evidence_freshness_checked, true);
+assert.equal(genesis.verification_clock_authority_proven, false);
+assert.equal(genesis.evidence_generation_monotonicity_proven, false);
+assert.equal(genesis.evidence_generation, "1");
+assert.equal(genesis.evidence_observed_at_ms, NOW_MS - 1_000);
+assert.equal(genesis.evidence_expires_at_ms, NOW_MS + 60_000);
+assert.equal(genesis.boot_id_sha256, sha("b"));
+assert.equal(genesis.verification_now_ms, NOW_MS);
 assert.equal(genesis.root_path_stability_evidence_qualified, true);
 assert.equal(
   genesis.separate_storage_domain_evidence_qualified,
@@ -429,6 +450,96 @@ assert.equal(
   genesis.qualification_id_sha256,
 );
 assert.deepEqual(idempotent.receipt, genesis.receipt);
+
+{
+  const refreshedHost = structuredClone(hostEvidence());
+  const snapshot =
+    refreshedHost.evidence_snapshot as Record<string, unknown>;
+  snapshot.observed_at_ms = NOW_MS + 5_000;
+  snapshot.expires_at_ms = NOW_MS + 65_000;
+  snapshot.evidence_generation = "2";
+  const refreshed = requireOk(
+    classify(
+      "",
+      emptyHigh.high_water_json,
+      genesis.receipt,
+      refreshedHost,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_SOURCE_SHA256_V1,
+      NOW_MS + 10_000,
+    ),
+  );
+  assert.equal(refreshed.status, "idempotent");
+  assert.equal(refreshed.evidence_generation, "2");
+  assert.equal(refreshed.verification_now_ms, NOW_MS + 10_000);
+  assert.equal(
+    refreshed.qualification_policy_fingerprint_sha256,
+    genesis.qualification_policy_fingerprint_sha256,
+  );
+  assert.notEqual(
+    refreshed.evidence_snapshot_fingerprint_sha256,
+    genesis.evidence_snapshot_fingerprint_sha256,
+  );
+  assert.notEqual(
+    refreshed.qualification_id_sha256,
+    genesis.qualification_id_sha256,
+  );
+  assert.deepEqual(refreshed.receipt, genesis.receipt);
+  assert.equal(refreshed.receipt.custody_epoch, "0");
+}
+
+{
+  const staleHost = structuredClone(hostEvidence());
+  const snapshot =
+    staleHost.evidence_snapshot as Record<string, unknown>;
+  snapshot.observed_at_ms = NOW_MS - 120_000;
+  snapshot.expires_at_ms = NOW_MS - 1;
+  expectHeld(
+    classify("", emptyHigh.high_water_json, null, staleHost),
+    "custody_evidence_freshness_invalid",
+  );
+}
+
+{
+  const futureHost = structuredClone(hostEvidence());
+  const snapshot =
+    futureHost.evidence_snapshot as Record<string, unknown>;
+  snapshot.observed_at_ms = NOW_MS + 1;
+  expectHeld(
+    classify("", emptyHigh.high_water_json, null, futureHost),
+    "custody_evidence_freshness_invalid",
+  );
+}
+
+{
+  const overlongHost = structuredClone(hostEvidence());
+  const snapshot =
+    overlongHost.evidence_snapshot as Record<string, unknown>;
+  snapshot.observed_at_ms = NOW_MS - 1_000;
+  snapshot.expires_at_ms =
+    (snapshot.observed_at_ms as number) + 300_001;
+  expectHeld(
+    classify("", emptyHigh.high_water_json, null, overlongHost),
+    "custody_evidence_freshness_invalid",
+  );
+}
+
+{
+  const zeroGenerationHost = structuredClone(hostEvidence());
+  const snapshot =
+    zeroGenerationHost.evidence_snapshot as Record<string, unknown>;
+  snapshot.evidence_generation = "0";
+  expectHeld(
+    classify(
+      "",
+      emptyHigh.high_water_json,
+      null,
+      zeroGenerationHost,
+    ),
+    "custody_evidence_freshness_invalid",
+  );
+}
 
 const advanced = requireOk(
   classify(
@@ -736,6 +847,11 @@ for (const [key, expected] of Object.entries({
   private_unix_socket_policy_required: true,
   hardened_service_policy_required: true,
   no_fallback_storage_required: true,
+  evidence_snapshot_bound: true,
+  bounded_evidence_freshness_checked: true,
+  verification_clock_input_required: true,
+  verification_clock_authority_proven: false,
+  evidence_generation_monotonicity_proven: false,
   prior_receipt_external_trust_proven: false,
   live_host_qualification_performed: false,
   host_mutation: false,
@@ -804,6 +920,14 @@ console.log("dedicated_custody_identity_required=true");
 console.log("private_af_unix_boundary_required=true");
 console.log("hardened_service_policy_required=true");
 console.log("fallback_storage_forbidden=true");
+console.log("evidence_snapshot_bound=true");
+console.log("bounded_evidence_freshness_checked=true");
+console.log("stale_evidence_hold=true");
+console.log("future_evidence_hold=true");
+console.log("overlong_evidence_ttl_hold=true");
+console.log("evidence_refresh_does_not_advance_custody_epoch=true");
+console.log("verification_clock_authority_proven=false");
+console.log("evidence_generation_monotonicity_proven=false");
 console.log("accessor_evidence_rejected_without_getter_read=true");
 console.log("prior_receipt_external_trust_proven=false");
 console.log("live_host_qualification_performed=false");
