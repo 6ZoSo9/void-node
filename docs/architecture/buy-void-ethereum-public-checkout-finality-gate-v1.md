@@ -29,7 +29,7 @@ identity, URL fingerprint inputs, canonical USDC/receive-address policy,
 minimum-confirmation policy, and total timeout policy.
 
 Configuration is still not sufficient. Payment-instruction readiness also binds
-the canonical V4 finality capability authority. Current V4 deliberately reports:
+the canonical V5 finality capability authority. Current V5 deliberately reports:
 
 ```text
 source_generation_verified_on_success=false
@@ -59,6 +59,46 @@ This gate does not alter Base behavior.
 A GREEN result here is only a **finality prerequisite**. It does not mean the
 overall checkout may open. The separate coupled-launch gate tracked by #2394
 must also be composed before route integration can expose payment instructions.
+
+## Pre-attempt payment-finality bridge
+
+The public checkout route cannot use the execution-attempt preflight before
+`payment_verified`: execution attempts are created downstream from a
+fulfillment claim, and that claim itself is derived from a canonical verified
+payment. Treating a public request ID as an execution-attempt ID would therefore
+invent authority and create a circular dependency.
+
+`runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)` closes that
+abstraction gap without writing any state. It accepts only a server-owned Buy
+request plus a canonical V2 verified-payment event, derives the exact
+`voidpay1:ethereum:<tx_hash>:<log_index>` identity, loads the same
+server-controlled finality policy, and invokes
+`observeBuyVoidSourceFinalityGenerationProvenanceV5(...)` directly.
+
+A production-ready result additionally requires the observation to prove all of:
+
+- source chain exactly `ethereum` and chain ID exactly `1`;
+- the exact request transaction hash and canonical `voidpay1` identity;
+- freshly rebound payment-key SHA-256;
+- reviewed source files;
+- authenticated transport identity;
+- total operation deadline;
+- source generation;
+- deployed artifact generation;
+- remote provider identity;
+- ancestry;
+- provider quorum;
+- `production_source_finality_authority_ready=true`; and
+- no wallet/signing/broadcast/money-movement side effects.
+
+The production function exposes no observer/finality injection dependency.
+Current V5 authority deliberately keeps source/deployed generation, remote
+provider identity, ancestry, quorum, and production authority false, so this
+bridge currently returns HOLD **before making RPC calls**.
+
+The test-only classifier can exercise a synthetic future-ready observation, but
+it always returns `production_transition_authority=false` and cannot mint the
+production bridge result.
 
 ## Payment verification / inventory readiness
 
@@ -117,27 +157,34 @@ inventory_reservation_write_performed=false
 It can prove whether a synthetic object *would* satisfy the strict structural
 checks, but cannot mint the production gate marker/status.
 
-## Deferred integration
+## Deferred runtime integration
 
-This source lane intentionally does not edit `src/index.ts` because Draft
-#2374 currently owns that file.
+The old `src/index.ts` ownership collision is gone, but runtime wiring must not
+skip the newly exposed pre-attempt boundary.
 
-After that collision clears, #2393 still requires a separate integration step:
+A later integration step must:
 
-- use this readiness gate before returning Ethereum payment instructions;
-- use this payment-finality gate before writing the exact
-  `payment_verified` event;
+- require `readBuyVoidEthereumPublicCheckoutReadinessV1(...)` before returning
+  any new Ethereum payment instructions;
+- after canonical V2 receipt/log verification, require
+  `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)` before writing
+  the exact Ethereum `payment_verified` event;
+- keep the execution-attempt
+  `runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(...)` check for later
+  attempt-bound fulfillment/execution authority;
 - keep reorg/stale/non-finalized outcomes unreserved;
 - expose the same Ethereum HOLD/readiness state through config/API/browser and
   legacy participant copy; and
 - preserve Base behavior.
 
-Until that integration lands, Ethereum public intake remains HOLD.
+Until that runtime composition lands, Ethereum public intake remains HOLD.
 
 ## Authority boundary
 
-This module may cause read-only RPC activity only indirectly through the
-existing canonical source-finality preflight during real payment verification.
+This module may cause read-only RPC activity through the canonical V5
+request-level finality composition or, after an execution attempt exists, through
+the existing canonical source-finality execution preflight. Current pre-attempt
+production authority is false, so that bridge fails before RPC.
 
 It does not:
 
