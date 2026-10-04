@@ -478,8 +478,13 @@ function cleanupTemps(records) {
   if (changed) fs.fsyncSync(records.fd);
 }
 
-function readHistory(records) {
-  cleanupTemps(records);
+function readHistory(records, cleanupReviewedTemps) {
+  const before = fs.readdirSync(records.proc_path);
+  if (cleanupReviewedTemps) {
+    cleanupTemps(records);
+  } else if (before.some((name) => name.startsWith("."))) {
+    fail("SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED");
+  }
   const names = fs
     .readdirSync(records.proc_path)
     .filter((name) => !name.startsWith("."))
@@ -710,7 +715,7 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
       );
 
-      let history = readHistory(records);
+      let history = readHistory(records, true);
       let state = verifyEconomicSystemSponsoredStateV1({
         sponsorship_policy: input.sponsorship_policy,
         ttl_caps_policy: input.ttl_caps_policy,
@@ -770,7 +775,7 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
       );
       createOnceRecord(records, candidate);
 
-      history = readHistory(records);
+      history = readHistory(records, true);
       state = verifyEconomicSystemSponsoredStateV1({
         sponsorship_policy: input.sponsorship_policy,
         ttl_caps_policy: input.ttl_caps_policy,
@@ -779,9 +784,7 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         observed_at_ms: input.observed_at_ms,
       });
       if (
-        state.tracked_sponsorship_count !==
-          admission.existing_global_reserved_gas.length * 0 +
-            history.length ||
+        state.tracked_sponsorship_count !== history.length ||
         !history.some(
           (row) =>
             row.sponsorship.sponsorship_id ===
@@ -828,7 +831,7 @@ export function listEconomicSystemSponsoredReservationsV1(input) {
       "SPONSORED_RESERVATION_STORE_ROOT",
     );
     records = openRecordsDirectory(root);
-    const history = readHistory(records);
+    const history = readHistory(records, false);
     const state = verifyEconomicSystemSponsoredStateV1({
       sponsorship_policy: input.sponsorship_policy,
       ttl_caps_policy: input.ttl_caps_policy,
