@@ -1,0 +1,207 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+import {
+  VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2,
+  VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2,
+  VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_AUTHORITY_V2,
+  VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2,
+  VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_BYTES32_V2,
+  VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_ID_V2,
+  VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
+  buildVoidWcVoidCoupledLaunchRegenerationCensusV2,
+  deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2,
+} from "../tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs";
+
+const correction = JSON.parse(fs.readFileSync(
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json",
+  "utf8",
+));
+const candidate = JSON.parse(fs.readFileSync(
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+  "utf8",
+));
+const presaleSource = fs.readFileSync(
+  "src/economic/buy_void_source_finality_authority_v2.ts",
+  "utf8",
+);
+
+const derived = deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2({
+  correction,
+  candidate,
+  presale_source: presaleSource,
+});
+assert.equal(
+  derived.opening_domain_id,
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
+);
+assert.equal(
+  derived.vault_bytes32_id,
+  "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
+);
+assert.equal(
+  derived.opening_domain_id,
+  VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_ID_V2,
+);
+assert.equal(
+  derived.vault_bytes32_id,
+  VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_BYTES32_V2,
+);
+assert.equal(
+  derived.commitment.market_vault.creation_bytecode_sha256,
+  "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+);
+assert.equal(
+  derived.commitment.market_vault.runtime_template_sha256,
+  "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+);
+
+const census = buildVoidWcVoidCoupledLaunchRegenerationCensusV2();
+assert.equal(
+  census.marker,
+  VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2,
+);
+assert.equal(census.version, 2);
+assert.equal(
+  census.status,
+  "CORRECTED_GENERATION_DERIVED_REBIND_REQUIRED",
+);
+assert.equal(census.corrected_generation_derived, true);
+assert.equal(
+  census.corrected_coupled_launch_id,
+  VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_ID_V2,
+);
+assert.equal(
+  census.corrected_vault_bytes32,
+  VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_BYTES32_V2,
+);
+assert.equal(
+  census.superseded_coupled_launch_id,
+  "sha256:" + VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
+);
+assert.equal(census.old_control_signature_generation_reusable, false);
+assert.equal(
+  census.canonical_candidate_current_launch_id,
+  census.superseded_coupled_launch_id,
+);
+assert.equal(
+  census.authoritative_path_count,
+  VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.length,
+);
+assert.equal(census.authoritative_path_count, 14);
+assert.ok(census.remaining_superseded_authoritative_path_count >= 10);
+assert.equal(census.all_authoritative_rebindings_complete, false);
+assert.equal(census.canonical_candidate_update_authorized, false);
+assert.equal(census.controller_resigning_authorized, false);
+assert.equal(census.live_activation_receipt_reuse_authorized, false);
+assert.equal(census.deployment_authorized, false);
+assert.equal(census.market_activation_authorized, false);
+assert.equal(census.public_presale_activation_authorized, false);
+assert.equal(census.funds_movement_authorized, false);
+assert.equal(
+  census.next_gate,
+  "apply_corrected_coupled_launch_generation_as_one_reviewed_rebind_set",
+);
+assert.match(census.census_id, /^voidwclregen2_[0-9a-f]{64}$/u);
+
+for (const required of [
+  "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+  "src/economic/buy_void_coupled_launch_gate_v1.mjs",
+  "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs",
+  "tools/void-wc-void-launch-controller-control-requalification-v1.mjs",
+  "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
+  "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs",
+]) {
+  const entry = census.authoritative_bindings.find(
+    (item) => item.path === required,
+  );
+  assert.ok(entry, required);
+  assert.ok(
+    entry.superseded_digest_occurrences > 0,
+    required + ": superseded generation must still be visible in census",
+  );
+}
+for (const historical of VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2) {
+  assert.equal(
+    VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.includes(
+      historical,
+    ),
+    false,
+  );
+}
+
+for (const [key, value] of Object.entries(
+  VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_AUTHORITY_V2,
+)) {
+  assert.equal(
+    value,
+    [
+      "source_census_only",
+      "canonical_generation_derivation",
+      "repository_source_read",
+    ].includes(key),
+    key,
+  );
+}
+
+{
+  const tampered = structuredClone(correction);
+  tampered.canonical_compiler_artifacts.runtime_template_sha256 =
+    "0".repeat(64);
+  assert.throws(
+    () => deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2({
+      correction: tampered,
+      candidate,
+      presale_source: presaleSource,
+    }),
+    /coupled_launch_regeneration_correction_v2_invalid/u,
+  );
+}
+
+{
+  const tampered = structuredClone(candidate);
+  tampered.wc_void_opening.opening_sale_tranche_void_atoms = "1";
+  assert.throws(
+    () => deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2({
+      correction,
+      candidate: tampered,
+      presale_source: presaleSource,
+    }),
+    /coupled_launch_regeneration_opening_policy_invalid/u,
+  );
+}
+
+assert.throws(
+  () => deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2({
+    correction,
+    candidate,
+    presale_source: presaleSource.replace(
+      'canonical_presale_max_void: "10000000"',
+      'canonical_presale_max_void: "9999999"',
+    ),
+  }),
+  /coupled_launch_regeneration_presale_policy_invalid/u,
+);
+
+console.log(
+  "VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2_PROOF_GREEN",
+);
+console.log(
+  "corrected_coupled_launch_id=" +
+    VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_ID_V2,
+);
+console.log(
+  "authoritative_path_count=" + String(census.authoritative_path_count),
+);
+console.log(
+  "remaining_superseded_authoritative_path_count=" +
+    String(census.remaining_superseded_authoritative_path_count),
+);
+console.log("old_control_signature_generation_reusable=false");
+console.log("partial_rebind_authorized=false");
+console.log("canonical_candidate_update_authorized=false");
+console.log("controller_resigning_authorized=false");
+console.log("deployment_authorized=false");
+console.log("public_presale_activation_authorized=false");
+console.log("funds_movement=false");
