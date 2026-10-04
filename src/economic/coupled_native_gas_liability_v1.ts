@@ -22,6 +22,7 @@ export const VOID_COUPLED_NATIVE_GAS_LIABILITY_AUTHORITY_V1 =
     fee_observation_expiry_recomputed: true,
     trusted_fee_freshness_policy_proven: false,
     nonce_collision_detection: true,
+    cross_lane_nonce_scheduler_proven: false,
     exact_replay_idempotent: true,
     altered_obligation_conflict_hold: true,
     cross_lane_record_accounting: true,
