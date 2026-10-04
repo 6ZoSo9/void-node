@@ -105,6 +105,38 @@ eth_call
 
 No send/sign/admin/personal/debug RPC method exists in this lane.
 
+Production mode does not accept an arbitrary loopback Chain-2050 endpoint. It
+reads the reviewed source selection
+`ops/mainnet0/production-epoch2-rpc-target-v1.json`, first hashes those exact
+worktree bytes and requires them to equal the file's `HEAD` Git blob, then
+requires `PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY`, verifies the
+selected URL fingerprint, and requires the caller's normalized RPC to match that
+selected target exactly. The direct blob check is independent of Git status or
+clean/smudge filter behavior. The current selected target is
+`http://127.0.0.1:18553/`. The retired Epoch-1 archive at `8545` and isolated
+Epoch-2 proof endpoints at `18550`–`18552` therefore fail before any RPC
+call. Test-only loopback fixtures retain ephemeral-port support and cannot emit a
+production preflight.
+
+The Epoch-2 transaction-domain module is **not imported from mutable worktree
+source** by this production preflight. The preflight binds the exact estimate
+domain constants locally, pins the reviewed domain source to Git blob
+`f7cb1910923725581d1ff9b31abfb910a64eba14`, and only after repository
+identity admission reads the tracked module through a nofollow descriptor and
+requires its current bytes to hash to that exact HEAD blob. An
+`assume-unchanged` worktree mutation therefore HOLDs without executing the
+mutated module.
+
+The deployment estimate is not a bare legacy transaction shape. Its
+`eth_estimateGas` transaction object explicitly binds `type: 0x2`,
+`chainId: 0x802` (2050), contract creation (`to: null`), and the canonical
+signed Epoch-2 access-list marker from
+`VOID_ECONOMIC_EPOCH2_RAW_TRANSACTION_DOMAIN_POLICY_V1`: exactly one marker
+entry at `0x0000000000000000000000000000000000002050` with storage key
+`0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7`.
+This is read-only estimation compatibility with the production validator domain;
+it does not construct, sign, or authorize a transaction.
+
 The fixed canonical GitHub `ls-remote` source-generation read is a separate
 read-only external Git/TLS observation. `loopback_http_only` refers to
 Chain-2050 JSON-RPC, not that canonical source read.
@@ -119,8 +151,8 @@ The preflight:
 4. reads pending deployer nonce;
 5. reads deployer native balance at the fixed block;
 6. reads current gas-price observation;
-7. calls `eth_estimateGas` for the **exact qualification deployment data** at
-   the fixed block;
+7. calls `eth_estimateGas` for the **exact qualification deployment data**
+   plus the exact signed Epoch-2 access-list marker at the fixed block;
 8. calls canonical VOID `balanceOf(inventorySource)` at the same fixed block;
 9. re-reads pending nonce; and
 10. re-reads the exact fixed block and requires identical hash/number/timestamp.
@@ -165,10 +197,12 @@ and records:
 - exact qualification ID/file SHA/source generation;
 - deployer/inventory-source observation subjects;
 - RPC URL fingerprint and method census;
+- canonical production RPC-target path, exact Git blob SHA-1, and file SHA-256;
 - fixed block number/hash/timestamp;
 - latest and pending deployer nonce;
 - deployer native balance;
 - gas-price observation;
+- exact signed Epoch-2 access-list marker identity;
 - exact deployment-data gas estimate;
 - bare estimated deployment cost;
 - canonical VOID inventory-source balance;
@@ -235,7 +269,7 @@ node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mj
   --expected-qualification-sha256 <64hex> \
   --deployer 0x... \
   --inventory-source 0x... \
-  --rpc http://127.0.0.1:8545/ \
+  --rpc http://127.0.0.1:18553/ \
   --output /absolute/live-observation-preflight.json
 ```
 
@@ -243,8 +277,12 @@ node tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mj
 
 ```text
 qualification_reexecution=false
+canonical_production_epoch2_rpc_required=true
+canonical_production_epoch2_rpc_target_head_blob_required=true
 deployer_selection_authorized=false
 inventory_source_selection_authorized=false
+epoch2_signed_access_list_marker_required=true
+epoch2_transaction_domain_reviewed_before_use_required=true
 gas_limit_policy_selected=false
 fee_policy_selected=false
 transaction_envelope_construction=false
