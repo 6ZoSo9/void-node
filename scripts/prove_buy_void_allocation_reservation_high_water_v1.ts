@@ -54,8 +54,8 @@ function requireDerived(
 ) {
   const out =
     deriveBuyVoidAllocationReservationHighWaterV1(ledger);
-  assert.equal(out.ok, true);
   if (out.ok === false) throw new Error(out.reason);
+  assert.equal(out.ok, true);
   return out;
 }
 
@@ -64,8 +64,8 @@ function requirePlanned(
     typeof planBuyVoidAllocationReservationV1
   >,
 ) {
-  assert.equal(decision.ok, true);
   if (decision.ok === false) throw new Error(decision.reason);
+  assert.equal(decision.ok, true);
   return decision;
 }
 
@@ -107,8 +107,8 @@ const emptyBound =
     ledger_jsonl: "",
     high_water_json: empty.high_water_json,
   });
-assert.equal(emptyBound.ok, true);
 if (emptyBound.ok === false) throw new Error(emptyBound.reason);
+assert.equal(emptyBound.ok, true);
 assert.equal(
   emptyBound.rollback_safe_for_presented_authoritative_high_water,
   true,
@@ -133,8 +133,8 @@ const firstAdvance =
     current_high_water_json: empty.high_water_json,
     next_ledger_jsonl: ledger1,
   });
-assert.equal(firstAdvance.ok, true);
 if (firstAdvance.ok === false) throw new Error(firstAdvance.reason);
+assert.equal(firstAdvance.ok, true);
 assert.equal(firstAdvance.status, "planned");
 assert.equal(firstAdvance.idempotent, false);
 assert.equal(firstAdvance.next_high_water.record_count, 1);
@@ -145,8 +145,8 @@ const firstRetry =
     current_high_water_json: high1.high_water_json,
     next_ledger_jsonl: ledger1,
   });
-assert.equal(firstRetry.ok, true);
 if (firstRetry.ok === false) throw new Error(firstRetry.reason);
+assert.equal(firstRetry.ok, true);
 assert.equal(firstRetry.status, "idempotent");
 assert.equal(firstRetry.idempotent, true);
 assert.equal(
@@ -184,8 +184,8 @@ const secondAdvance =
     current_high_water_json: high1.high_water_json,
     next_ledger_jsonl: ledger2,
   });
-assert.equal(secondAdvance.ok, true);
 if (secondAdvance.ok === false) throw new Error(secondAdvance.reason);
+assert.equal(secondAdvance.ok, true);
 assert.equal(secondAdvance.status, "planned");
 assert.equal(secondAdvance.next_high_water.record_count, 2);
 
