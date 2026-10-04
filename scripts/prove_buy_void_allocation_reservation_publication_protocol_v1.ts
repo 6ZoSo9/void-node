@@ -264,13 +264,25 @@ assert.equal(complete.phase, "complete");
 assert.equal(complete.write_ledger_append_required, false);
 assert.equal(complete.write_high_water_required, false);
 
-expectHeld(
+const highWaterCommitted = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
     intent_bytes: firstIntent.intent_json,
     observed_ledger_jsonl: "",
     observed_high_water_json: high1.high_water_json,
   }),
-  "allocation_reservation_publication_high_water_ahead",
+);
+assert.equal(highWaterCommitted.phase, "high_water_committed");
+assert.equal(
+  highWaterCommitted.write_ledger_append_required,
+  true,
+);
+assert.equal(highWaterCommitted.write_high_water_required, false);
+assert.equal(
+  Buffer.from(
+    highWaterCommitted.append_bytes_base64,
+    "base64",
+  ).toString("utf8"),
+  ledger1,
 );
 
 const second = requireLedgerPlan(
@@ -418,13 +430,34 @@ expectHeld(
   "allocation_reservation_publication_intent_payload_invalid",
 );
 
-expectHeld(
+const secondHighWaterCommitted = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
     intent_bytes: secondIntent.intent_json,
     observed_ledger_jsonl: ledger1,
     observed_high_water_json: high2.high_water_json,
   }),
-  "allocation_reservation_publication_high_water_ahead",
+);
+assert.equal(
+  secondHighWaterCommitted.phase,
+  "high_water_committed",
+);
+assert.equal(
+  secondHighWaterCommitted.write_ledger_append_required,
+  true,
+);
+assert.equal(
+  secondHighWaterCommitted.write_high_water_required,
+  false,
+);
+assert.equal(
+  Buffer.concat([
+    Buffer.from(ledger1, "utf8"),
+    Buffer.from(
+      secondHighWaterCommitted.append_bytes_base64,
+      "base64",
+    ),
+  ]).toString("utf8"),
+  ledger2,
 );
 
 expectHeld(
@@ -558,8 +591,9 @@ assert.deepEqual(
     single_append_publication: true,
     recoverable_intent_only_phase: true,
     recoverable_ledger_committed_phase: true,
+    recoverable_high_water_committed_phase: true,
     recoverable_complete_phase: true,
-    high_water_ahead_rejected: true,
+    high_water_ahead_rejected: false,
     unknown_mixed_state_rejected: true,
     runtime_integration: false,
     protected_high_water_storage: false,
@@ -595,8 +629,10 @@ console.log("tampered_prior_high_water_payload_rejected=true");
 console.log("intent_only_phase_recoverable=true");
 console.log("ledger_committed_phase_recoverable=true");
 console.log("ledger_committed_next_high_water_semantically_bound=true");
+console.log("high_water_committed_phase_recoverable=true");
+console.log("high_water_committed_replays_exact_ledger_append_only=true");
 console.log("complete_phase_recoverable=true");
-console.log("high_water_ahead_rejected=true");
+console.log("high_water_ahead_rejected=false");
 console.log("unknown_mixed_state_rejected=true");
 console.log("multi_record_jump_rejected=true");
 console.log("alternate_history_rejected=true");
