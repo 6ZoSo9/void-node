@@ -16,10 +16,10 @@ const root = fs.mkdtempSync(
 try {
   fs.chmodSync(root, 0o700);
   const requests = [
-    { request_id: "buyvoid_a_aaaaaaaa", quoted_void: 6, source_chain: "base", tx_hash: "0x" + "1".repeat(64) },
-    { request_id: "buyvoid_b_bbbbbbbb", quoted_void: 6, source_chain: "base", tx_hash: "0x" + "2".repeat(64) },
-    { request_id: "buyvoid_c_cccccccc", quoted_void: 4, source_chain: "base", tx_hash: "0x" + "3".repeat(64) },
-    { request_id: "buyvoid_d_dddddddd", quoted_void: 1, source_chain: "base", tx_hash: "0x" + "4".repeat(64) },
+    { request_id: "buyvoid_a_aaaaaaaa", quoted_void: 6 },
+    { request_id: "buyvoid_b_bbbbbbbb", quoted_void: 6 },
+    { request_id: "buyvoid_c_cccccccc", quoted_void: 4 },
+    { request_id: "buyvoid_d_dddddddd", quoted_void: 1 },
   ];
   const requestsPath = path.join(root, "requests.jsonl");
   fs.writeFileSync(
@@ -116,50 +116,44 @@ try {
   };
 
   const eventFor = (
-    request: {
-      request_id: string;
-      quoted_void: number;
-      source_chain: string;
-      tx_hash: string;
-    },
+    request: any,
     markedAt: number,
-    identityLogIndex = markedAt,
-  ) => ({
-    schema: "void_buy_void_operator_mark_v1",
-    ok: true,
-    request_id: request.request_id,
-    operator_status: "payment_verified",
-    marked_at_ms: markedAt,
-    tx_hash: request.tx_hash,
-    payment_verified: true,
-    payment_identity_input_complete: true,
-    quoted_void: request.quoted_void,
-    payment_verifier: {
-      chain: request.source_chain,
-      transaction_hash: request.tx_hash,
-      log_index: String(identityLogIndex),
-      block_number: "100",
-      confirmations: "12",
-      usdc_contract: "0x" + "a".repeat(40),
-      from_address: "0x" + "b".repeat(40),
-      receive_address: "0x" + "c".repeat(40),
-      delivery_address: "0x" + "d".repeat(40),
-      amount_units: "1000000",
-      requested_units: "1000000",
-    },
-  });
+  ) => {
+    request.source_chain ||= "base";
+    request.tx_hash ||=
+      "0x" + String(markedAt).padStart(64, "0").slice(-64);
+    request.payment_log_index ??= markedAt;
+    return {
+      schema: "void_buy_void_operator_mark_v1",
+      ok: true,
+      request_id: request.request_id,
+      operator_status: "payment_verified",
+      marked_at_ms: markedAt,
+      tx_hash: request.tx_hash,
+      payment_verified: true,
+      payment_identity_input_complete: true,
+      quoted_void: request.quoted_void,
+      payment_verifier: {
+        chain: request.source_chain,
+        transaction_hash: request.tx_hash,
+        log_index: String(request.payment_log_index),
+        block_number: "100",
+        confirmations: "12",
+        usdc_contract: "0x" + "a".repeat(40),
+        from_address: "0x" + "b".repeat(40),
+        receive_address: "0x" + "c".repeat(40),
+        delivery_address: "0x" + "d".repeat(40),
+        amount_units: "1000000",
+        requested_units: "1000000",
+      },
+    };
+  };
   const write = (
-    request: {
-      request_id: string;
-      quoted_void: number;
-      source_chain: string;
-      tx_hash: string;
-    },
+    request: any,
     markedAt: number,
-    identityLogIndex = markedAt,
   ) =>
     writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-      event: eventFor(request, markedAt, identityLogIndex),
+      event: eventFor(request, markedAt),
       request,
       request_dir: root,
       with_launch_authority_mutation: withLaunchAuthorityMutation,
@@ -216,7 +210,7 @@ try {
   // not append another capacity reservation or publish a new timestamped event.
   fs.unlinkSync(fourSidecar);
   assert.equal(fs.existsSync(fourSidecar), false);
-  const duplicate = await write(requests[2], 5, 3);
+  const duplicate = await write(requests[2], 5);
   assert.equal(duplicate.idempotent, true);
   assert.equal(duplicate.sidecar_recovered, true);
   assert.equal(duplicate.recovered_sidecar_count, 1);
@@ -238,6 +232,109 @@ try {
     ).length,
     2,
   );
+
+  // If the legacy/public projection is stale after the durable append,
+  // the authoritative postcheck must fail before orchestration sidecar
+  // publication. An exact retry may then recover the sidecar idempotently.
+  {
+    const postcheckRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-postcheck-sidecar-"),
+    );
+    try {
+      fs.chmodSync(postcheckRoot, 0o700);
+      const postcheckRequest = {
+        request_id: "buyvoid_post_90909090",
+        quoted_void: 1,
+      };
+      fs.writeFileSync(
+        path.join(postcheckRoot, "requests.jsonl"),
+        JSON.stringify(postcheckRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const postcheckEvents = path.join(
+        postcheckRoot,
+        "operator-events.jsonl",
+      );
+      const postcheckSidecar = path.join(
+        postcheckRoot,
+        "operator-event-" + postcheckRequest.request_id + "-105.json",
+      );
+      const postcheckMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => operation();
+      const staleSaleState = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(postcheckRequest, 105),
+            request: postcheckRequest,
+            request_dir: postcheckRoot,
+            with_launch_authority_mutation: postcheckMutation,
+            read_sale_state: staleSaleState,
+          }),
+        /buy_void_verified_payment_capacity_projection_mismatch/u,
+      );
+      assert.equal(fs.existsSync(postcheckSidecar), false);
+      const durableRows = fs
+        .readFileSync(postcheckEvents, "utf8")
+        .trimEnd()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      assert.equal(durableRows.length, 1);
+      assert.equal(
+        durableRows[0].operator_status,
+        "payment_verified",
+      );
+
+      const accurateSaleState = async () => {
+        const rows = fs.existsSync(postcheckEvents)
+          ? fs
+              .readFileSync(postcheckEvents, "utf8")
+              .split(/\n+/u)
+              .filter(Boolean)
+              .map((line) => JSON.parse(line))
+          : [];
+        const verified = rows.some(
+          (event) =>
+            event.request_id === postcheckRequest.request_id &&
+            event.operator_status === "payment_verified",
+        );
+        return {
+          pool_void_total: 10,
+          allocation_reserved_void: verified ? 1 : 0,
+          verified_void_total: verified ? 1 : 0,
+          remaining_void: verified ? 9 : 10,
+        };
+      };
+      const recovered = await writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+        event: eventFor(postcheckRequest, 105),
+        request: postcheckRequest,
+        request_dir: postcheckRoot,
+        with_launch_authority_mutation: postcheckMutation,
+        read_sale_state: accurateSaleState,
+      });
+      assert.equal(recovered.idempotent, true);
+      assert.equal(recovered.sidecar_recovered, true);
+      assert.equal(recovered.recovered_sidecar_count, 1);
+      assert.equal(fs.existsSync(postcheckSidecar), true);
+      const finalRows = fs
+        .readFileSync(postcheckEvents, "utf8")
+        .trimEnd()
+        .split("\n")
+        .filter(Boolean);
+      assert.equal(finalRows.length, 1);
+    } finally {
+      fs.rmSync(postcheckRoot, { recursive: true, force: true });
+    }
+  }
 
   const reviewEvent = {
     schema: "void_buy_void_operator_mark_v1",
@@ -270,8 +367,6 @@ try {
       const durableRequest = {
         request_id: "buyvoid_bound_56565656",
         quoted_void: 2,
-        source_chain: "base",
-        tx_hash: "0x" + "5".repeat(64),
       };
       fs.writeFileSync(
         path.join(bindingRoot, "requests.jsonl"),
@@ -296,8 +391,6 @@ try {
       const missingRequest = {
         request_id: "buyvoid_missing_78787878",
         quoted_void: 1,
-        source_chain: "base",
-        tx_hash: "0x" + "6".repeat(64),
       };
       await assert.rejects(
         () =>
@@ -424,6 +517,152 @@ try {
     }
   }
 
+  // A same-inode request-ledger change after the pre-census snapshot must
+  // HOLD inside the final request lock before payment verification is written.
+  {
+    const snapshotRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-request-snapshot-"),
+    );
+    try {
+      fs.chmodSync(snapshotRoot, 0o700);
+      const snapshotRequest = {
+        request_id: "buyvoid_snapr_56565656",
+        quoted_void: 1,
+      };
+      const snapshotRequests = path.join(snapshotRoot, "requests.jsonl");
+      const snapshotEvents = path.join(
+        snapshotRoot,
+        "operator-events.jsonl",
+      );
+      fs.writeFileSync(
+        snapshotRequests,
+        JSON.stringify(snapshotRequest) + "\n",
+        { mode: 0o600 },
+      );
+      fs.writeFileSync(snapshotEvents, "", { mode: 0o600 });
+      const snapshotSale = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+      const snapshotMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        fs.appendFileSync(
+          snapshotRequests,
+          JSON.stringify({
+            request_id: "buyvoid_other_78787878",
+            quoted_void: 1,
+          }) + "\n",
+        );
+        return operation();
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(snapshotRequest, 91),
+            request: snapshotRequest,
+            request_dir: snapshotRoot,
+            with_launch_authority_mutation: snapshotMutation,
+            read_sale_state: snapshotSale,
+          }),
+        /buy_void_verified_payment_capacity_requests_changed_since_census/u,
+      );
+      assert.equal(fs.statSync(snapshotEvents).size, 0);
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            snapshotRoot,
+            "operator-event-" + snapshotRequest.request_id + "-91.json",
+          ),
+        ),
+        false,
+      );
+    } finally {
+      fs.rmSync(snapshotRoot, { recursive: true, force: true });
+    }
+  }
+
+  // A same-inode operator-ledger change after the pre-census snapshot must
+  // likewise HOLD before this request's payment_verified event is appended.
+  {
+    const snapshotRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-operator-snapshot-"),
+    );
+    try {
+      fs.chmodSync(snapshotRoot, 0o700);
+      const snapshotRequest = {
+        request_id: "buyvoid_snapo_90909090",
+        quoted_void: 1,
+      };
+      fs.writeFileSync(
+        path.join(snapshotRoot, "requests.jsonl"),
+        JSON.stringify(snapshotRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const snapshotEvents = path.join(
+        snapshotRoot,
+        "operator-events.jsonl",
+      );
+      fs.writeFileSync(snapshotEvents, "", { mode: 0o600 });
+      const snapshotSale = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+      const snapshotMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        fs.appendFileSync(
+          snapshotEvents,
+          JSON.stringify({
+            schema: "void_buy_void_operator_mark_v1",
+            ok: true,
+            request_id: snapshotRequest.request_id,
+            operator_status: "reviewed",
+            marked_at_ms: 90,
+            quoted_void: 1,
+          }) + "\n",
+        );
+        return operation();
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(snapshotRequest, 92),
+            request: snapshotRequest,
+            request_dir: snapshotRoot,
+            with_launch_authority_mutation: snapshotMutation,
+            read_sale_state: snapshotSale,
+          }),
+        /buy_void_verified_payment_capacity_operator_events_changed_since_census/u,
+      );
+      const rows = fs
+        .readFileSync(snapshotEvents, "utf8")
+        .trimEnd()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].operator_status, "reviewed");
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            snapshotRoot,
+            "operator-event-" + snapshotRequest.request_id + "-92.json",
+          ),
+        ),
+        false,
+      );
+    } finally {
+      fs.rmSync(snapshotRoot, { recursive: true, force: true });
+    }
+  }
+
   // The payment append must use the exact operator-ledger inode admitted by
   // the capacity census. Replacing the visible path after census but before
   // launch-authority mutation must HOLD before any event bytes are written.
@@ -436,8 +675,6 @@ try {
       const swapRequest = {
         request_id: "buyvoid_swap2_12121212",
         quoted_void: 1,
-        source_chain: "base",
-        tx_hash: "0x" + "7".repeat(64),
       };
       fs.writeFileSync(
         path.join(swapRoot, "requests.jsonl"),
@@ -504,8 +741,6 @@ try {
       const growRequest = {
         request_id: "buyvoid_grow2_34343434",
         quoted_void: 1,
-        source_chain: "base",
-        tx_hash: "0x" + "8".repeat(64),
       };
       fs.writeFileSync(
         path.join(growRoot, "requests.jsonl"),
@@ -589,9 +824,13 @@ try {
   console.log("payment_verified_jsonl_append_fsync=true");
   console.log("requests_ledger_descriptor_bound_bounded_read=true");
   console.log("operator_ledger_same_inode_census_append=true");
+  console.log("request_ledger_preappend_snapshot_required=true");
+  console.log("operator_ledger_preappend_snapshot_required=true");
   console.log("operator_ledger_visible_swap_before_append_rejected=true");
   console.log("ledger_growth_after_admission_metadata_rejected=true");
   console.log("missing_payment_verified_sidecar_recovered=true");
+  console.log("postcheck_failure_sidecar_publication=false");
+  console.log("postcheck_failure_exact_retry_recovers_sidecar=true");
   console.log("idempotent_recovery_does_not_append_new_event=true");
   console.log("duplicate_payment_identity_guard_proven=true");
   console.log("public_presale_activation=false");
