@@ -56,10 +56,14 @@ The collector reads `systemctl --version` and HOLDS on any other major so a
 future systemd authorization surface cannot silently inherit this qualification.
 
 Before Polkit is accepted as evidence, the collector also closes systemd's
-Linux-capability bypass path. The configured runtime service must expose empty
-`CapabilityBoundingSet` and `AmbientCapabilities`, and the live runtime
-process must report zero `CapInh`, `CapPrm`, `CapEff`, and `CapAmb`
-masks from `/proc/<pid>/status`. Any nonzero live capability HOLDS.
+Linux-capability and privilege-gain bypass paths. The configured runtime service
+must expose empty `CapabilityBoundingSet` and `AmbientCapabilities`, while
+the live runtime process must report zero `CapInh`, `CapPrm`, `CapEff`,
+and `CapAmb` masks **and** `NoNewPrivs: 1` from
+`/proc/<pid>/status`. This binds the kernel state actually inherited by the
+running process rather than trusting a unit property that could have changed
+after that process started. Any nonzero live capability or missing live
+no-new-privileges enforcement HOLDS.
 
 It then forms the race-resistant Polkit subject:
 
