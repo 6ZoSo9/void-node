@@ -15,10 +15,30 @@ const root = fs.mkdtempSync(
 try {
   fs.chmodSync(root, 0o700);
   const requests = [
-    { request_id: "buyvoid_a_aaaaaaaa", quoted_void: 6 },
-    { request_id: "buyvoid_b_bbbbbbbb", quoted_void: 6 },
-    { request_id: "buyvoid_c_cccccccc", quoted_void: 4 },
-    { request_id: "buyvoid_d_dddddddd", quoted_void: 1 },
+    {
+      request_id: "buyvoid_a_aaaaaaaa",
+      quoted_void: 6,
+      source_chain: "base",
+      tx_hash: "0x" + "1".repeat(64),
+    },
+    {
+      request_id: "buyvoid_b_bbbbbbbb",
+      quoted_void: 6,
+      source_chain: "base",
+      tx_hash: "0x" + "2".repeat(64),
+    },
+    {
+      request_id: "buyvoid_c_cccccccc",
+      quoted_void: 4,
+      source_chain: "base",
+      tx_hash: "0x" + "3".repeat(64),
+    },
+    {
+      request_id: "buyvoid_d_dddddddd",
+      quoted_void: 1,
+      source_chain: "base",
+      tx_hash: "0x" + "4".repeat(64),
+    },
   ];
   const requestsPath = path.join(root, "requests.jsonl");
   fs.writeFileSync(
@@ -115,24 +135,50 @@ try {
   };
 
   const eventFor = (
-    request: { request_id: string; quoted_void: number },
+    request: {
+      request_id: string;
+      quoted_void: number;
+      source_chain: string;
+      tx_hash: string;
+    },
     markedAt: number,
+    identityLogIndex = markedAt,
   ) => ({
     schema: "void_buy_void_operator_mark_v1",
     ok: true,
     request_id: request.request_id,
     operator_status: "payment_verified",
     marked_at_ms: markedAt,
-    tx_hash: "0x" + String(markedAt).padStart(64, "0").slice(-64),
+    tx_hash: request.tx_hash,
     payment_verified: true,
+    payment_identity_input_complete: true,
     quoted_void: request.quoted_void,
+    payment_verifier: {
+      chain: request.source_chain,
+      transaction_hash: request.tx_hash,
+      log_index: String(identityLogIndex),
+      block_number: "100",
+      confirmations: "12",
+      usdc_contract: "0x" + "a".repeat(40),
+      from_address: "0x" + "b".repeat(40),
+      receive_address: "0x" + "c".repeat(40),
+      delivery_address: "0x" + "d".repeat(40),
+      amount_units: "1000000",
+      requested_units: "1000000",
+    },
   });
   const write = (
-    request: { request_id: string; quoted_void: number },
+    request: {
+      request_id: string;
+      quoted_void: number;
+      source_chain: string;
+      tx_hash: string;
+    },
     markedAt: number,
+    identityLogIndex = markedAt,
   ) =>
     writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-      event: eventFor(request, markedAt),
+      event: eventFor(request, markedAt, identityLogIndex),
       request,
       request_dir: root,
       with_launch_authority_mutation: withLaunchAuthorityMutation,
@@ -189,7 +235,7 @@ try {
   // not append another capacity reservation or publish a new timestamped event.
   fs.unlinkSync(fourSidecar);
   assert.equal(fs.existsSync(fourSidecar), false);
-  const duplicate = await write(requests[2], 5);
+  const duplicate = await write(requests[2], 5, 3);
   assert.equal(duplicate.idempotent, true);
   assert.equal(duplicate.sidecar_recovered, true);
   assert.equal(duplicate.recovered_sidecar_count, 1);
@@ -258,6 +304,7 @@ try {
         "strict_ledger_recount",
         "durable_payment_verified_append",
         "payment_verified_sidecar_recovery",
+        "duplicate_payment_identity_verification",
       ].includes(key)
     ) {
       assert.equal(value, true, key);
@@ -277,7 +324,7 @@ try {
   console.log("payment_verified_jsonl_append_fsync=true");
   console.log("missing_payment_verified_sidecar_recovered=true");
   console.log("idempotent_recovery_does_not_append_new_event=true");
-  console.log("duplicate_payment_identity_guard_proven=false");
+  console.log("duplicate_payment_identity_guard_proven=true");
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
 } finally {
