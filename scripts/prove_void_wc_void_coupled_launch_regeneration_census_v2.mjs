@@ -74,6 +74,26 @@ assert.equal(
   "CORRECTED_GENERATION_DERIVED_REBIND_REQUIRED",
 );
 assert.equal(census.corrected_generation_derived, true);
+const parentRegenerationPath =
+  "tools/void-wc-void-coupled-launch-regeneration-v2.mjs";
+assert.equal(
+  VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2.includes(
+    parentRegenerationPath,
+  ),
+  true,
+);
+assert.equal(
+  VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.includes(
+    parentRegenerationPath,
+  ),
+  false,
+);
+assert.ok(
+  fs.readFileSync(parentRegenerationPath, "utf8").includes(
+    VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
+  ),
+  "parent corrected-generation derivation must retain explicit old-generation lineage",
+);
 const atomicMigrationPlanPath =
   "ops/mainnet0/wc-void-coupled-launch-atomic-migration-plan-v2.json";
 assert.equal(
