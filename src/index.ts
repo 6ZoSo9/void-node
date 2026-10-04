@@ -69775,7 +69775,7 @@ a{color:#93c5fd;text-decoration:none}
         <div class="panel">
           <div class="section-head">
             <div>
-              <h2>Buy VOID<span class="help" tabindex="0" data-help="Current checkout is Base native USDC. Ethereum native USDC is policy-approved but not active. Self-custody only.">?</span></h2>
+              <h2>Buy VOID<span class="help" tabindex="0" data-help="Checkout is activation-gated. Use only a live request's returned rail. Self-custody only.">?</span></h2>
             </div>
           </div>
           <div class="metric-strip top-kpis" style="margin-top:6px">
@@ -72376,10 +72376,10 @@ window.__VOID_LOCAL_RELAYER_BASE = (window.__VOID_LOCAL_RELAYER_BASE || (locatio
       delivery_wallet: executionWalletAddr || null,
       execution_wallet_unlocked: !!executionWalletUnlocked,
       current_void_balance: executionWalletVoidText,
-      accepted_asset: "base_native_usdc",
+      accepted_asset: "native_usdc",
       accepted_assets_policy: ["base_native_usdc", "ethereum_native_usdc"],
-      current_checkout_chain: "base",
-      ethereum_usdc_status: "approved_not_active",
+      current_checkout_chain: "request_returned",
+      ethereum_usdc_status: "activation_gated",
       initiation: "participant_page_only",
       blind_direct_deposits: "blocked",
       exchange_or_custodial_wallet_sends: "blocked",
