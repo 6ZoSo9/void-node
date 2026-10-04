@@ -268,27 +268,39 @@ function openChildPrivateDirectory(root, name, code) {
   );
   const visiblePath = path.join(root.path, name);
   const pinnedPath = path.join(root.proc_path, name);
-  const visible = fs.lstatSync(visiblePath, { bigint: true });
+  let visible;
+  try {
+    visible = fs.lstatSync(visiblePath, { bigint: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") fail(code + "_MISSING");
+    fail(code + "_OPEN_FAILED");
+  }
   validatePrivateDirectory(visible, code + "_INVALID");
-  const fd = fs.openSync(
-    pinnedPath,
-    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
-  );
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      pinnedPath,
+      fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+    );
+  } catch {
+    fail(code + "_OPEN_FAILED");
+  }
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
     validatePrivateDirectory(opened, code + "_INVALID");
     if (!sameDirectoryIdentity(visible, opened)) {
       fail(code + "_PATH_NOT_BOUND");
     }
-    return Object.freeze({
+    const result = Object.freeze({
       path: visiblePath,
       fd,
       stat: opened,
       proc_path: "/proc/self/fd/" + String(fd),
     });
-  } catch (error) {
-    fs.closeSync(fd);
-    throw error;
+    fd = -1;
+    return result;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
   }
 }
 
