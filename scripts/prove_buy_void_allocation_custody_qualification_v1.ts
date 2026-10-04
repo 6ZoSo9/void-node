@@ -16,6 +16,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_QUALIFICATION_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_RECEIPT_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1,
   classifyBuyVoidAllocationCustodyQualificationV1,
   type BuyVoidAllocationCustodyReceiptV1,
 } from "../src/economic/buy_void_allocation_custody_qualification_v1.js";
@@ -334,9 +335,12 @@ function classify(
   host: unknown = hostEvidence(),
   writerHead: unknown =
     VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1,
+  writerBlobSha1: unknown =
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1,
 ) {
   return classifyBuyVoidAllocationCustodyQualificationV1({
     writer_source_head: writerHead,
+    writer_source_blob_sha1: writerBlobSha1,
     host_evidence: host,
     current_ledger_jsonl: currentLedger,
     current_high_water_json: currentHighWater,
@@ -602,9 +606,26 @@ expectHeld(
     emptyHigh.high_water_json,
     null,
     hostEvidence(),
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1,
     "f".repeat(40),
   ),
   "custody_source_binding_invalid",
+);
+
+const unrelatedHeadSameWriterBlob = requireOk(
+  classify(
+    "",
+    emptyHigh.high_water_json,
+    genesis.receipt,
+    hostEvidence(),
+    "f".repeat(40),
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1,
+  ),
+);
+assert.equal(unrelatedHeadSameWriterBlob.status, "idempotent");
+assert.equal(
+  unrelatedHeadSameWriterBlob.qualification_id_sha256,
+  genesis.qualification_id_sha256,
 );
 
 {
@@ -655,7 +676,8 @@ for (const [key, expected] of Object.entries({
   source_only_contract: true,
   io_performed: false,
   host_evidence_input_only: true,
-  exact_reviewed_writer_head_required: true,
+  writer_head_provenance_required: true,
+  exact_reviewed_writer_blob_required: true,
   canonical_current_high_water_binding_reused: true,
   canonical_single_append_planner_reused: true,
   exact_prior_ledger_prefix_required: true,
@@ -714,6 +736,11 @@ console.log(
   "reviewed_writer_head=" +
     VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1,
 );
+console.log(
+  "reviewed_writer_blob_sha1=" +
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1,
+);
+console.log("unrelated_head_change_same_writer_blob_allowed=true");
 console.log("genesis_receipt_required=true");
 console.log("key_order_invariant_qualification_id=true");
 console.log("exact_one_record_continuity=true");
