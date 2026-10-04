@@ -58,14 +58,18 @@ function microVoid(value: unknown, code: string, positive = false): bigint {
 }
 
 const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
-const O_NOFOLLOW =
-  typeof fs.constants.O_NOFOLLOW === "number"
-    ? fs.constants.O_NOFOLLOW
-    : 0;
-const O_DIRECTORY =
-  typeof fs.constants.O_DIRECTORY === "number"
-    ? fs.constants.O_DIRECTORY
-    : 0;
+const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
+const O_DIRECTORY = fs.constants.O_DIRECTORY;
+
+function requireCapacityDescriptorSafetyV1(): void {
+  if (
+    typeof O_NOFOLLOW !== "number" ||
+    typeof O_DIRECTORY !== "number" ||
+    !fs.existsSync("/proc/self/fd")
+  ) {
+    fail("buy_void_verified_payment_capacity_descriptor_safety_unavailable");
+  }
+}
 
 type PinnedRequestDirectoryV1 = {
   path: string;
@@ -136,6 +140,7 @@ function validateLedgerStatV1(stat: any, code: string): void {
 function openPinnedRequestDirectoryV1(
   requestDir: string,
 ): PinnedRequestDirectoryV1 {
+  requireCapacityDescriptorSafetyV1();
   const visible = fs.lstatSync(requestDir, { bigint: true });
   if (
     !visible.isDirectory() ||
