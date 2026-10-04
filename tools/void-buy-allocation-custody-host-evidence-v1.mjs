@@ -11,6 +11,10 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1 =
   Object.freeze({
     source_only_tool: true,
     read_only_host_observation: true,
+    descriptor_bound_file_reads: true,
+    exact_head_object_binding: true,
+    exact_service_exec_binding: true,
+    git_optional_locks_disabled: true,
     exact_writer_identity_derived: true,
     machine_identity_hashed: true,
     boot_identity_hashed: true,
@@ -343,13 +347,54 @@ function normalizedMountOptions(value) {
   return Object.freeze([...new Set(values)]);
 }
 
+function sameFileIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.nlink === right.nlink
+  );
+}
+
 function defaultIo() {
   return Object.freeze({
-    readFile(file) {
-      return fs.readFileSync(file);
-    },
     lstat(file) {
       return fs.lstatSync(file, { bigint: true });
+    },
+    openReadNoFollow(file) {
+      if (typeof fs.constants.O_NOFOLLOW !== "number") {
+        throw new Error("o_nofollow_unavailable");
+      }
+      return fs.openSync(
+        file,
+        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+      );
+    },
+    fstat(fd) {
+      return fs.fstatSync(fd, { bigint: true });
+    },
+    readFd(fd, maximum) {
+      const chunks = [];
+      let total = 0;
+      while (true) {
+        const remaining = maximum + 1 - total;
+        if (remaining <= 0) break;
+        const buffer = Buffer.alloc(Math.min(16 * 1024, remaining));
+        const count = fs.readSync(fd, buffer, 0, buffer.length, null);
+        if (count === 0) break;
+        if (count < 0) throw new Error("fd_read_failed");
+        chunks.push(buffer.subarray(0, count));
+        total += count;
+      }
+      return Buffer.concat(chunks, total);
+    },
+    closeFd(fd) {
+      fs.closeSync(fd);
     },
     statfs(file) {
       return fs.statfsSync(file, { bigint: true });
@@ -422,40 +467,67 @@ function runStatus(io, command, args, code) {
 }
 
 function readBounded(io, file, maximum, code) {
-  let stat;
-  let bytes;
+  let fd = null;
   try {
-    stat = io.lstat(file);
+    const visibleBefore = io.lstat(file);
     if (
-      !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      stat.size < 1n ||
-      stat.size > BigInt(maximum)
+      !visibleBefore.isFile() ||
+      visibleBefore.isSymbolicLink() ||
+      visibleBefore.size < 0n ||
+      visibleBefore.size > BigInt(maximum)
     ) {
       fail(code);
     }
-    bytes = Buffer.from(io.readFile(file));
-    const after = io.lstat(file);
     if (
-      bytes.length !== Number(stat.size) ||
-      stat.dev !== after.dev ||
-      stat.ino !== after.ino ||
-      stat.size !== after.size ||
-      stat.mtimeNs !== after.mtimeNs ||
-      stat.ctimeNs !== after.ctimeNs
+      typeof io.openReadNoFollow !== "function" ||
+      typeof io.fstat !== "function" ||
+      typeof io.readFd !== "function" ||
+      typeof io.closeFd !== "function"
     ) {
       fail(code);
     }
+    fd = io.openReadNoFollow(file);
+    const opened = io.fstat(fd);
+    if (
+      !opened.isFile() ||
+      opened.isSymbolicLink() ||
+      !sameFileIdentity(visibleBefore, opened)
+    ) {
+      fail(code);
+    }
+    const bytes = Buffer.from(io.readFd(fd, maximum));
+    if (bytes.length < 1 || bytes.length > maximum) {
+      fail(code);
+    }
+    if (
+      opened.size > 0n &&
+      bytes.length !== Number(opened.size)
+    ) {
+      fail(code);
+    }
+    const after = io.fstat(fd);
+    const visibleAfter = io.lstat(file);
+    if (
+      !sameFileIdentity(opened, after) ||
+      !sameFileIdentity(after, visibleAfter)
+    ) {
+      fail(code);
+    }
+    return bytes;
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === code
-    ) {
+    if (error instanceof Error && error.message === code) {
       throw error;
     }
     fail(code);
+  } finally {
+    if (fd !== null) {
+      try {
+        io.closeFd(fd);
+      } catch {
+        fail(code);
+      }
+    }
   }
-  return bytes;
 }
 
 function userIds(io, user, code) {
@@ -1116,7 +1188,24 @@ function collectRuntimeServiceControlEvidence(io, config, runtime) {
   });
 }
 
-function readServiceContract(io, repoRoot) {
+function exactHeadBlobSha1(io, repoRoot, head, relativePath, code) {
+  const objectId = run(
+    io,
+    "git",
+    [
+      "--no-optional-locks",
+      "-C",
+      repoRoot,
+      "rev-parse",
+      head + ":" + relativePath,
+    ],
+    code,
+  );
+  if (!SHA1.test(objectId)) fail(code);
+  return objectId;
+}
+
+function readServiceContract(io, repoRoot, head) {
   const contractPath = path.join(
     repoRoot,
     SERVICE_CONTRACT_RELATIVE_PATH,
@@ -1195,6 +1284,26 @@ function readServiceContract(io, repoRoot) {
   if (sourceSha !== expectedSourceSha) {
     fail("custody_host_evidence_service_source_mismatch");
   }
+  const contractHeadBlob = exactHeadBlobSha1(
+    io,
+    repoRoot,
+    head,
+    SERVICE_CONTRACT_RELATIVE_PATH,
+    "custody_host_evidence_service_contract_head_blob_invalid",
+  );
+  const sourceHeadBlob = exactHeadBlobSha1(
+    io,
+    repoRoot,
+    head,
+    SERVICE_SOURCE_RELATIVE_PATH,
+    "custody_host_evidence_service_source_head_blob_invalid",
+  );
+  if (
+    gitBlobSha1(contractBytes) !== contractHeadBlob ||
+    gitBlobSha1(sourceBytes) !== sourceHeadBlob
+  ) {
+    fail("custody_host_evidence_service_source_head_mismatch");
+  }
   return Object.freeze({
     contract: Object.freeze({
       ...contract,
@@ -1206,6 +1315,66 @@ function readServiceContract(io, repoRoot) {
     service_source_sha256: sourceSha,
     source_path: sourcePath,
   });
+}
+
+function validateServiceExecStart(
+  raw,
+  expectedExecutable,
+  expectedSourcePath,
+) {
+  const text = String(raw ?? "").trim();
+  const match = /^\{\s*([^{}]+?)\s*\}$/u.exec(text);
+  if (!match) {
+    fail("custody_host_evidence_service_exec_mismatch");
+  }
+  const fields = Object.create(null);
+  for (const segment of match[1].split(";")) {
+    const item = segment.trim();
+    if (!item) continue;
+    const equals = item.indexOf("=");
+    if (equals <= 0) {
+      fail("custody_host_evidence_service_exec_mismatch");
+    }
+    const key = item.slice(0, equals).trim();
+    const value = item.slice(equals + 1).trim();
+    if (!key || Object.hasOwn(fields, key)) {
+      fail("custody_host_evidence_service_exec_mismatch");
+    }
+    fields[key] = value;
+  }
+  const executable = path.normalize(String(fields.path ?? ""));
+  const expectedExec = path.normalize(String(expectedExecutable ?? ""));
+  const sourcePath = path.normalize(String(expectedSourcePath ?? ""));
+  const argv = String(fields["argv[]"] ?? "")
+    .trim()
+    .split(/\s+/u)
+    .filter(Boolean);
+  if (
+    !path.isAbsolute(executable) ||
+    executable !== expectedExec ||
+    argv.length !== 2 ||
+    path.normalize(argv[0]) !== executable ||
+    path.normalize(argv[1]) !== sourcePath
+  ) {
+    fail("custody_host_evidence_service_exec_mismatch");
+  }
+  return true;
+}
+
+export function testOnlyValidateBuyVoidAllocationCustodyExecStartV1(
+  raw,
+  expectedExecutable,
+  expectedSourcePath,
+) {
+  try {
+    return validateServiceExecStart(
+      raw,
+      expectedExecutable,
+      expectedSourcePath,
+    );
+  } catch {
+    return false;
+  }
 }
 
 function collectServicePolicy(
@@ -1234,10 +1403,11 @@ function collectServicePolicy(
   ) {
     fail("custody_host_evidence_service_identity_invalid");
   }
-  const execStart = String(show.ExecStart ?? "");
-  if (!execStart.includes(serviceContract.source_path)) {
-    fail("custody_host_evidence_service_exec_mismatch");
-  }
+  validateServiceExecStart(
+    show.ExecStart,
+    path.resolve(process.execPath),
+    serviceContract.source_path,
+  );
   const readWritePaths = normalizedList(show.ReadWritePaths);
   return Object.freeze({
     user_uid: custody.uid,
@@ -1367,7 +1537,7 @@ function collectWriterIdentity(io, repoRoot) {
   const head = run(
     io,
     "git",
-    ["-C", repoRoot, "rev-parse", "HEAD"],
+    ["--no-optional-locks", "-C", repoRoot, "rev-parse", "HEAD"],
     "custody_host_evidence_git_head_failed",
   );
   if (!SHA1.test(head)) {
@@ -1377,6 +1547,7 @@ function collectWriterIdentity(io, repoRoot) {
     io,
     "git",
     [
+      "--no-optional-locks",
       "-C",
       repoRoot,
       "status",
@@ -1388,6 +1559,13 @@ function collectWriterIdentity(io, repoRoot) {
   if (status) {
     fail("custody_host_evidence_repository_not_clean");
   }
+  const expectedWriterBlob = exactHeadBlobSha1(
+    io,
+    repoRoot,
+    head,
+    WRITER_RELATIVE_PATH,
+    "custody_host_evidence_writer_head_blob_invalid",
+  );
   const writerPath = path.join(repoRoot, WRITER_RELATIVE_PATH);
   const bytes = readBounded(
     io,
@@ -1395,9 +1573,13 @@ function collectWriterIdentity(io, repoRoot) {
     MAX_SOURCE_BYTES,
     "custody_host_evidence_writer_source_invalid",
   );
+  const observedWriterBlob = gitBlobSha1(bytes);
+  if (observedWriterBlob !== expectedWriterBlob) {
+    fail("custody_host_evidence_writer_source_head_mismatch");
+  }
   return Object.freeze({
     writer_source_head: head,
-    writer_source_blob_sha1: gitBlobSha1(bytes),
+    writer_source_blob_sha1: observedWriterBlob,
     writer_source_sha256: sha256Id(bytes),
   });
 }
@@ -1512,7 +1694,11 @@ function collectStaticEvidence(config, io) {
   if (ipcGid === runtime.gid || ipcGid === custody.gid) {
     fail("custody_host_evidence_ipc_group_not_separate");
   }
-  const serviceContract = readServiceContract(io, config.repo_root);
+  const serviceContract = readServiceContract(
+    io,
+    config.repo_root,
+    writer.writer_source_head,
+  );
   const ledgerRoot = collectRoot(
     io,
     config.ledger_root,
