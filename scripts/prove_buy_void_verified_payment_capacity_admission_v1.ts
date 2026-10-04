@@ -213,6 +213,109 @@ try {
     2,
   );
 
+  // If the legacy/public projection is stale after the durable append,
+  // the authoritative postcheck must fail before orchestration sidecar
+  // publication. An exact retry may then recover the sidecar idempotently.
+  {
+    const postcheckRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-postcheck-sidecar-"),
+    );
+    try {
+      fs.chmodSync(postcheckRoot, 0o700);
+      const postcheckRequest = {
+        request_id: "buyvoid_post_90909090",
+        quoted_void: 1,
+      };
+      fs.writeFileSync(
+        path.join(postcheckRoot, "requests.jsonl"),
+        JSON.stringify(postcheckRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const postcheckEvents = path.join(
+        postcheckRoot,
+        "operator-events.jsonl",
+      );
+      const postcheckSidecar = path.join(
+        postcheckRoot,
+        "operator-event-" + postcheckRequest.request_id + "-105.json",
+      );
+      const postcheckMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => operation();
+      const staleSaleState = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(postcheckRequest, 105),
+            request: postcheckRequest,
+            request_dir: postcheckRoot,
+            with_launch_authority_mutation: postcheckMutation,
+            read_sale_state: staleSaleState,
+          }),
+        /buy_void_verified_payment_capacity_projection_mismatch/u,
+      );
+      assert.equal(fs.existsSync(postcheckSidecar), false);
+      const durableRows = fs
+        .readFileSync(postcheckEvents, "utf8")
+        .trimEnd()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      assert.equal(durableRows.length, 1);
+      assert.equal(
+        durableRows[0].operator_status,
+        "payment_verified",
+      );
+
+      const accurateSaleState = async () => {
+        const rows = fs.existsSync(postcheckEvents)
+          ? fs
+              .readFileSync(postcheckEvents, "utf8")
+              .split(/\n+/u)
+              .filter(Boolean)
+              .map((line) => JSON.parse(line))
+          : [];
+        const verified = rows.some(
+          (event) =>
+            event.request_id === postcheckRequest.request_id &&
+            event.operator_status === "payment_verified",
+        );
+        return {
+          pool_void_total: 10,
+          allocation_reserved_void: verified ? 1 : 0,
+          verified_void_total: verified ? 1 : 0,
+          remaining_void: verified ? 9 : 10,
+        };
+      };
+      const recovered = await writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+        event: eventFor(postcheckRequest, 105),
+        request: postcheckRequest,
+        request_dir: postcheckRoot,
+        with_launch_authority_mutation: postcheckMutation,
+        read_sale_state: accurateSaleState,
+      });
+      assert.equal(recovered.idempotent, true);
+      assert.equal(recovered.sidecar_recovered, true);
+      assert.equal(recovered.recovered_sidecar_count, 1);
+      assert.equal(fs.existsSync(postcheckSidecar), true);
+      const finalRows = fs
+        .readFileSync(postcheckEvents, "utf8")
+        .trimEnd()
+        .split("\n")
+        .filter(Boolean);
+      assert.equal(finalRows.length, 1);
+    } finally {
+      fs.rmSync(postcheckRoot, { recursive: true, force: true });
+    }
+  }
+
   const reviewEvent = {
     schema: "void_buy_void_operator_mark_v1",
     ok: true,
@@ -705,6 +808,8 @@ try {
   console.log("operator_ledger_visible_swap_before_append_rejected=true");
   console.log("ledger_growth_after_admission_metadata_rejected=true");
   console.log("missing_payment_verified_sidecar_recovered=true");
+  console.log("postcheck_failure_sidecar_publication=false");
+  console.log("postcheck_failure_exact_retry_recovers_sidecar=true");
   console.log("idempotent_recovery_does_not_append_new_event=true");
   console.log("duplicate_payment_identity_guard_proven=false");
   console.log("public_presale_activation=false");
