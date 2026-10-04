@@ -31,8 +31,13 @@ descriptor-bound, visible at their reviewed paths, and path-disjoint: neither
 root may be the same directory as, an ancestor of, or a descendant of the
 other.
 
-The high-water root also contains the crash-recovery intent
+Both roots contain the same crash-recovery intent
 \`allocation-reservation-publication-intent-v1.json\`.
+
+The intent is published create-once under both pinned roots before either
+authoritative ledger/high-water mutation. If recovery finds one exact copy and
+the other copy missing, it restores the missing twin before any recovery write.
+If both copies exist but differ byte-for-byte, recovery HOLDs.
 
 Writer serialization is anchored under **both** pinned roots. Each root owns a
 filesystem-bakery-lock queue named from
@@ -97,37 +102,46 @@ descriptor-bind ledger root + high-water root
   -> recover any prior durable intent
   -> require exact current ledger/high-water binding
   -> require proposed ledger is one canonical append
-  -> create/fsync create-once publication intent
+  -> create/fsync identical intent copy under ledger root
+  -> create/fsync identical intent copy under high-water root
   -> atomically publish/fsync exact next ledger
   -> classify ledger_committed
   -> atomically publish/fsync exact next high-water
   -> classify complete
   -> require exact ledger/high-water binding
-  -> remove/fsync publication intent
+  -> remove/fsync both publication-intent copies
 \`\`\`
 
-The create-once intent itself uses a private temp file, file fsync, create-only
+Each create-once intent copy uses a private temp file, file fsync, create-only
 hard link, directory fsync, temp unlink, and a second directory fsync. A crash
-after final intent publication but before temp cleanup is normalized by exact
-same-inode recovery.
+after one copy is durable but before the twin is durable is safe because no
+authoritative state has been mutated yet; the next invocation restores the
+missing exact copy before recovery proceeds. A crash after final intent
+publication but before temp cleanup is normalized by exact same-inode recovery.
 
 ## Recovery
 
-\`recoverBuyVoidAllocationReservationPublicationWriterV1(...)\` accepts only
-the three #2446 intent states:
+\`recoverBuyVoidAllocationReservationPublicationWriterV1(...)\` accepts the
+four #2446 intent states:
 
 - **intent_only**: publish the exact reconstructed next ledger, then high-water;
 - **ledger_committed**: do not publish the ledger again; advance high-water;
+- **high_water_committed**: replay only the exact intent-bound ledger append;
 - **complete**: perform no ledger/high-water write; postcheck and remove intent.
 
-Unknown ledger state, unknown high-water state, high-water-ahead, altered
-intent, alternate history, rollback, malformed storage, or mixed fingerprints
-HOLD without intent deletion. Optional-intent absence is checked explicitly
-through both the visible and descriptor-relative paths; an `ENOENT` arising
-after a file was observed is not converted into "no intent."
+The \`high_water_committed\` state is not an intentional high-water-first write
+order. It exists so a single-root replacement in the narrow post-revalidation
+rename window can still converge forward when the surviving redundant intent
+proves the exact prior and next states.
+
+Unknown ledger state, unknown high-water bytes, divergent intent copies,
+altered intent, alternate history, rollback, malformed storage, or other mixed
+fingerprints HOLD without intent deletion. Optional-intent absence is checked
+explicitly through both the visible and descriptor-relative paths; an \`ENOENT\`
+arising after a file was observed is not converted into "no intent."
 
 Recovery is terminal for the current writer invocation. If an existing durable
-intent is recovered, the writer returns `status=recovered` immediately even if
+intent is recovered, the writer returns \`status=recovered\` immediately even if
 the caller supplied bytes for a further valid append. The outer
 payment/duplicate/capacity authority must re-read durable state and re-plan
 before another allocation can be admitted. One invocation therefore cannot
@@ -136,7 +150,6 @@ silently combine recovery of one allocation with publication of another.
 When no intent exists, the writer requires the current ledger and high-water to
 bind exactly. A genuine earlier ledger prefix therefore cannot be silently
 accepted against a later high-water.
-
 ## Source API
 
 \`\`\`ts
@@ -163,8 +176,9 @@ This source writer requires the ledger and high-water to live in distinct
 private directory inodes. That is useful isolation but is **not** a proof of
 independent rollback-resistant custody.
 
-The authority object therefore keeps:
+The authority object therefore reports:
 
+- \`single_root_mid_publication_recovery=true\`;
 - \`protected_high_water_custody_proven=false\`;
 - \`independent_custody_proven=false\`;
 - \`post_admission_root_path_stability_proven=false\`;
@@ -173,26 +187,24 @@ The authority object therefore keeps:
 - \`runtime_integration=false\`;
 - \`production_gate_ready=false\`.
 
-The dual-root lock guarantee is intentionally narrower than arbitrary
-post-admission pathname replacement. It proves that replacing either one visible
-root does not create two concurrently admitted writers because the unchanged
-root still supplies a shared queue.
+The source-level guarantee is now two-part. First, dual-root queues ensure that
+replacing either one visible root does not split mutual exclusion because the
+unchanged root still supplies a shared queue. Second, redundant intent custody
+under both roots lets a fresh invocation recover the two narrow
+post-revalidation rename races:
 
-It does **not** claim automatic recovery if a same-UID actor replaces one visible
-custody root after the writer's final root-identity revalidation and before or
-after an authoritative rename. In particular, the exact visible state
+- high-water root replaced while the exact next ledger is being published; and
+- ledger root replaced while the exact next high-water is being published.
 
-\`next ledger + prior high-water + no visible intent\`
+In either case one exact intent copy survives, the missing copy is restored
+under the newly pinned replacement root, and #2446 permits only the exact
+forward transition needed to converge to the reviewed next pair.
 
-must HOLD. The writer does not reinterpret that mixed state as success and does
-not synthesize missing intent authority.
-
-A later designated-host gate must therefore prove root-path stability across the
-whole admitted publication interval and prove the chosen high-water root cannot
-be rolled back together with the allocation ledger root. That may require
-separate mount/storage policy, external anchoring, a separately protected intent
-domain, or another reviewed host-level monotonic mechanism.
-
+This still does **not** prove arbitrary pathname stability or rollback-resistant
+custody after a completed publication, and it does not cover simultaneous
+replacement/rollback of both roots. A later designated-host gate must prove
+those stronger custody properties using mount/storage policy, external
+anchoring, or another reviewed host-level monotonic mechanism.
 ## Focused proof
 
 \`\`\`bash
@@ -211,8 +223,8 @@ The focused writer proof covers:
 - exact replay idempotence;
 - \`intent_only\` recovery;
 - \`ledger_committed\` recovery;
+- \`high_water_committed\` recovery;
 - \`complete\` recovery;
-- high-water-ahead HOLD;
 - multi-record jump HOLD;
 - valid-prefix rollback HOLD;
 - distinct-root enforcement;
@@ -223,9 +235,13 @@ The focused writer proof covers:
 - ticket-backed proof that the valid competing publication remains blocked on
   the unchanged root until the holder releases;
 - exact competing publication completion after release;
-- deterministic HOLD for \`next ledger + prior high-water + no intent\`;
+- exact redundant intent restoration from either surviving root;
+- byte-divergent intent copies HOLD;
+- deterministic fresh recovery after a high-water-root swap at ledger rename;
+- deterministic fresh recovery after a ledger-root swap at high-water rename;
+- explicit true authority only for single-root mid-publication recovery;
 - explicit false authority for post-admission root-path stability and
-  single-root post-publication recovery; and
+  arbitrary single-root post-publication recovery; and
 - missing authoritative storage HOLD.
 
 ## Authority boundary
