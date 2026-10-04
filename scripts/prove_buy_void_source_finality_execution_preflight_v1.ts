@@ -26,8 +26,8 @@ const preflightSource = fs.readFileSync(
   path.join(ROOT, "src/economic/buy_void_source_finality_execution_preflight_v1.ts"),
   "utf8",
 );
-const v4Source = fs.readFileSync(
-  path.join(ROOT, "src/economic/buy_void_source_finality_generation_provenance_v4.ts"),
+const v5Source = fs.readFileSync(
+  path.join(ROOT, "src/economic/buy_void_source_finality_generation_provenance_v5.ts"),
   "utf8",
 );
 
@@ -399,7 +399,7 @@ for (const requiredReadyFlag of [
 }
 assert.match(
   preflightSource,
-  /observeBuyVoidSourceFinalityGenerationProvenanceV4\(value\)/,
+  /observeBuyVoidSourceFinalityGenerationProvenanceV5\(value\)/,
 );
 
 for (const currentV4Hold of [
@@ -410,8 +410,8 @@ for (const currentV4Hold of [
   "production_source_finality_authority_ready: false",
 ]) {
   assert.ok(
-    v4Source.includes(currentV4Hold),
-    `V4 truth boundary unexpectedly moved: ${currentV4Hold}`,
+    v5Source.includes(currentV4Hold),
+    `V5 truth boundary unexpectedly moved: ${currentV4Hold}`,
   );
 }
 
@@ -497,7 +497,7 @@ console.log("lazy_dependency_gate=true");
 console.log("signer_access_guarded=true");
 console.log("broadcast_call_guarded=true");
 console.log("reconciliation_not_eagerly_gated=true");
-console.log("current_v4_production_authority_ready=false");
+console.log("current_v5_production_authority_ready=false");
 console.log("canonical_dual_rail_preflight_configurable=true");
 console.log("partial_or_mixed_dual_rail_config_rejected=true");
 console.log("wallet_or_signer_action_performed=false");

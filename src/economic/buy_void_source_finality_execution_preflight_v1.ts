@@ -21,8 +21,8 @@ import type {
   BuyVoidSourceChainFinalityRpcPolicyV1,
 } from "./buy_void_source_chain_finality_rpc_adapter_v1.js";
 import {
-  observeBuyVoidSourceFinalityGenerationProvenanceV4,
-} from "./buy_void_source_finality_generation_provenance_v4.js";
+  observeBuyVoidSourceFinalityGenerationProvenanceV5,
+} from "./buy_void_source_finality_generation_provenance_v5.js";
 
 export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1 =
   "VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1";
@@ -46,7 +46,7 @@ export const VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_AUTHORITY_V1 =
     server_controlled_policy: true,
     fulfillment_journal_reconstruction: true,
     immutable_process_source_identity_required: true,
-    v4_runtime_source_file_verification_reused: true,
+    v5_runtime_source_file_verification_reused: true,
     authenticated_source_rpc_transport_reused: true,
     total_operation_deadline_reused: true,
     production_source_finality_authority_required: true,
@@ -654,7 +654,7 @@ export async function runBuyVoidSourceFinalityExecutionPreflightV1(
 
   const observe =
     dependencies.observe_source_finality ||
-    ((value) => observeBuyVoidSourceFinalityGenerationProvenanceV4(value));
+    ((value) => observeBuyVoidSourceFinalityGenerationProvenanceV5(value));
   let observation: unknown;
   try {
     observation = await observe({
