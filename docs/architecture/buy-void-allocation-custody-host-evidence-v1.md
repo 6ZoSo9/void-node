@@ -51,6 +51,12 @@ from server-controlled configuration and binds:
 - live process UID/GID; and
 - Linux process start-time ticks from `/proc/<pid>/stat`.
 
+Before Polkit is accepted as evidence, the collector also closes systemd's
+Linux-capability bypass path. The configured runtime service must expose empty
+`CapabilityBoundingSet` and `AmbientCapabilities`, and the live runtime
+process must report zero `CapInh`, `CapPrm`, `CapEff`, and `CapAmb`
+masks from `/proc/<pid>/status`. Any nonzero live capability HOLDS.
+
 It then forms the race-resistant Polkit subject:
 
 `PID,START_TIME,UID`.
@@ -74,10 +80,17 @@ unit plus each reviewed management verb:
 - `reload-or-try-restart`;
 - `kill`;
 - `clean`;
-- `freeze`;
-- `thaw`;
-- `set-property`; and
-- `reset-failed`.
+- `set-property`;
+- `reset-failed`;
+- `ref`;
+- `bind-mount`;
+- `mount-image`; and
+- `kill-subgroup`.
+
+For systemd v255, freeze/thaw authorization is represented by the existing
+`stop`/`start` verbs, so those operations are already covered. The generic
+no-detail `manage-units` probe is retained for manager/job paths that do not
+supply unit/verb details.
 
 It separately requires denial for:
 
@@ -182,6 +195,7 @@ The proof requires:
 
 - reviewed custody-service source/contract binding;
 - `PID,start-time,UID` subject construction;
+- empty configured runtime capability sets and zero live process capabilities;
 - explicit status-1 denial as the only accepted Polkit result;
 - authorization/challenge/dismiss/error fail-closed semantics;
 - the reviewed systemd action/verb set;
