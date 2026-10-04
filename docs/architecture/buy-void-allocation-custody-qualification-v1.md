@@ -12,8 +12,12 @@ Reviewed writer source blob (Git SHA-1):
 
 `2db8493d1ee84878ef5fa2b0f655070622335d0d`
 
-The blob identity, not unrelated repository ancestry, is the authority-bearing
-implementation binding. Commit head remains provenance evidence.
+Reviewed writer source SHA-256:
+
+`sha256:620ccfbdc26268b0f09e0282776ef88a9848a8f4307f71b5f7f7894558ae1cfb`
+
+The source SHA-256 is the primary authority-bearing implementation binding.
+Git blob SHA-1 and commit head remain provenance/cross-check evidence.
 
 ## Purpose
 
@@ -30,11 +34,12 @@ This classifier defines the exact evidence shape required for the next
 privilege-separated custody gate without pretending source code can prove live
 host ownership, mount stability, or external receipt trust by itself.
 
-The writer implementation is pinned by the exact Git blob identity of
-`buy_void_allocation_reservation_publication_writer_v1.ts`. A later commit
-that only merges unrelated repository files does not invalidate custody
-continuity when that reviewed writer blob is unchanged. Any writer-file byte
-change invalidates the binding and requires review.
+The writer implementation is pinned by the exact SHA-256 of
+`buy_void_allocation_reservation_publication_writer_v1.ts`, with the Git blob
+identity retained as an additional repository cross-check. A later commit that
+only merges unrelated repository files does not invalidate custody continuity
+when those reviewed writer bytes are unchanged. Any writer-file byte change
+invalidates the binding and requires review.
 
 ## Trust split
 
@@ -153,7 +158,8 @@ Receipt fields include:
 
 - custody epoch and previous receipt digest;
 - writer commit-head provenance;
-- exact reviewed writer source blob identity;
+- reviewed writer Git blob identity;
+- exact reviewed writer source SHA-256;
 - host and qualification-policy identity;
 - ledger/custody mount-instance fingerprints;
 - ledger/custody storage-failure-domain fingerprints;
@@ -186,9 +192,9 @@ creates the first allocation obligation.
 For a supplied prior receipt:
 
 1. receipt schema and self-hash are verified;
-2. reviewed writer source blob, host policy, mount instance, and storage-domain
-   fingerprints must match current evidence; commit head is retained as
-   provenance rather than as the security identity;
+2. reviewed writer source SHA-256 (plus Git blob cross-check), host policy,
+   mount instance, and storage-domain fingerprints must match current evidence;
+   commit head is retained as provenance rather than as the security identity;
 3. unchanged current allocation state returns the same receipt idempotently;
 4. otherwise current record count must equal prior count + 1;
 5. the prior ledger prefix is reconstructed using the prior receipt's exact
