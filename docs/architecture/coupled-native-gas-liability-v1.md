@@ -114,12 +114,15 @@ this contract.
 
 ## Exact replay versus changed evidence
 
-An exact existing liability is idempotent.
+An existing liability for the exact same canonical Buy VOID reservation/plan is
+idempotent even when the retry carries a newer valid fee observation. The
+historical liability keeps its original admission observation; a retry does not
+rewrite the record or mint a second reserve. The current observation is still
+checked, and its required fee must fit within the already-reserved max-fee cap.
 
-Changing the fee-observation identity, obligation identity, plan fingerprint,
-nonce, gas limit, fee cap, or any liability field creates a different liability
-identity. Reusing the same obligation with different liability material HOLDS;
-it does not increase the reserve silently.
+Changing the obligation's payer, plan fingerprint, nonce, native value, gas
+limit, fee cap, attempt allowance, maximum reserve, or source evidence conflicts
+with the existing obligation and HOLDS. The reserve is never silently increased.
 
 ## Remaining required #2460 layers
 
