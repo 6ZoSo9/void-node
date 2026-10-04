@@ -257,10 +257,12 @@ function removeOwnClaim(file: string): void {
 function scanQueue(queue: string): {
   choosing: ScannedClaimV1[];
   tickets: ScannedClaimV1[];
+  requiresRescan: boolean;
 } {
   const choosing: ScannedClaimV1[] = [];
   const tickets: ScannedClaimV1[] = [];
   let changed = false;
+  let requiresRescan = false;
 
   for (const entry of fs.readdirSync(queue, { withFileTypes: true })) {
     const full = path.join(queue, entry.name);
@@ -300,7 +302,12 @@ function scanQueue(queue: string): {
       try {
         metadata = fs.lstatSync(full);
       } catch (statError) {
-        if ((statError as NodeJS.ErrnoException)?.code === "ENOENT") continue;
+        if ((statError as NodeJS.ErrnoException)?.code === "ENOENT") {
+          // A listed choosing claim may have become a ticket after readdir.
+          // This snapshot cannot prove admission; retry under the wait deadline.
+          requiresRescan = true;
+          continue;
+        }
         throw statError;
       }
       if (Date.now() - metadata.mtimeMs > STALE_TEMP_MS) {
@@ -345,7 +352,7 @@ function scanQueue(queue: string): {
   }
 
   if (changed) fsyncDirectory(queue);
-  return { choosing, tickets };
+  return { choosing, tickets, requiresRescan };
 }
 
 function sleep(ms: number): void {
@@ -417,7 +424,7 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
       const scanned = scanQueue(queue);
       const own = scanned.tickets.find((claim) => claim.path === ticketPath);
       if (!own) throw new Error("bakery_lock_ownership_lost");
-      if (scanned.choosing.length === 0) {
+      if (!scanned.requiresRescan && scanned.choosing.length === 0) {
         scanned.tickets.sort((left, right) =>
           (left.ticket || 0) - (right.ticket || 0) ||
           left.pid - right.pid ||
@@ -507,7 +514,7 @@ export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
         (claim) => claim.path === ticketPath,
       );
       if (!own) throw new Error("bakery_lock_ownership_lost");
-      if (scanned.choosing.length === 0) {
+      if (!scanned.requiresRescan && scanned.choosing.length === 0) {
         scanned.tickets.sort((left, right) =>
           (left.ticket || 0) - (right.ticket || 0) ||
           left.pid - right.pid ||
