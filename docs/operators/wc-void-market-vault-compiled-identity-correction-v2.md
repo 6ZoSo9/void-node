@@ -39,12 +39,18 @@ The source, compiler profile, ABI, metadata, storage layout, method identifiers,
 and immutable layout remain unchanged. No Solidity source change or recompile is
 required by this correction.
 
-The v2 verifier is schema-closed and self-verifying. It recomputes SHA-256 and
-Keccak-256 for the corrected creation/runtime prefixes, binds every unchanged
-compiler-artifact digest, reconstructs the old and corrected coupled-launch IDs
-from the canonical launch commitment, and verifies the content-addressed
-`correction_id` as SHA-256 of canonical v2 JSON with only that ID omitted.
-Unknown top-level or nested correction fields fail closed.
+The v2 verifier is schema-closed and fail-closed. It validates the complete
+over-captured v1 byte arrays against the v1 packet, binds the canonical
+9,441/8,342-byte artifact identities to the retained compiler identity
+(run `36464403015`, artifact `10988626461`, identity JSON SHA-256
+`fb9a92e2...64a4b`), and explicitly records that the canonical bytecode is
+**not** derived by truncating or prefixing the superseded v1 arrays. The
+canonical SHA-256 and independently reviewed Keccak-256 identities are fixed
+source review inputs. The verifier also binds every unchanged compiler-artifact
+digest, reconstructs the old and corrected coupled-launch IDs from the canonical
+launch commitment, and verifies the content-addressed `correction_id` as
+SHA-256 of canonical v2 JSON with only that ID omitted. Unknown top-level or
+nested correction fields fail closed.
 
 ## Coupled-launch consequence
 

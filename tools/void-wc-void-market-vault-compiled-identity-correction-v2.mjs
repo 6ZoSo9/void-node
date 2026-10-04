@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
-import { keccak256 } from "ethers";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +35,13 @@ const ORIGINAL_IDENTITY_ID =
   "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a";
 const ORIGINAL_IDENTITY_SHA256 =
   "fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b";
+const ORIGINAL_IDENTITY_BYTES = 57245;
+const ORIGINAL_WORKFLOW_RUN_ID = 36464403015;
+const ORIGINAL_WORKFLOW_JOB_ID = 109070717228;
+const ORIGINAL_WORKFLOW_ARTIFACT_ID = 10988626461;
+const ORIGINAL_WORKFLOW_ARTIFACT_ZIP_SHA256 =
+  "d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc";
+const ORIGINAL_REVIEWED_AT_UTC = "2026-09-28T18:20:05.000Z";
 const CORRECT_CREATION_SHA256 =
   "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540";
 const CORRECT_RUNTIME_SHA256 =
@@ -73,9 +79,9 @@ const CANONICAL_ARTIFACT_KEYS = Object.freeze([
   "storage_layout_sha256",
 ]);
 const CORRECTION_KEYS = Object.freeze([
+  "canonical_bytecode_is_v1_prefix", "canonical_bytecode_source",
   "compiler_identity_recompile_required", "contract_semantics_change_required",
-  "creation_prefix_bytes_from_v1", "creation_v1_extra_bytes",
-  "runtime_prefix_bytes_from_v1", "runtime_v1_extra_bytes",
+  "creation_v1_overcapture_bytes", "runtime_v1_overcapture_bytes",
   "solidity_source_change_required", "v1_deployment_bytes_superseded",
 ]);
 const COUPLED_EFFECT_KEYS = Object.freeze([
@@ -233,15 +239,19 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     fail("compiler_identity_lineage_mismatch");
   }
 
-  for (const key of [
-    "identity_json_bytes",
-    "workflow_run_id",
-    "workflow_job_id",
-    "workflow_artifact_id",
-    "workflow_artifact_zip_sha256",
-    "reviewed_at_utc",
-  ]) {
-    if (v2.accepted_identity?.[key] !== v1.accepted_identity?.[key]) {
+  const expectedProvenance = Object.freeze({
+    identity_json_bytes: ORIGINAL_IDENTITY_BYTES,
+    workflow_run_id: ORIGINAL_WORKFLOW_RUN_ID,
+    workflow_job_id: ORIGINAL_WORKFLOW_JOB_ID,
+    workflow_artifact_id: ORIGINAL_WORKFLOW_ARTIFACT_ID,
+    workflow_artifact_zip_sha256: ORIGINAL_WORKFLOW_ARTIFACT_ZIP_SHA256,
+    reviewed_at_utc: ORIGINAL_REVIEWED_AT_UTC,
+  });
+  for (const [key, expected] of Object.entries(expectedProvenance)) {
+    if (
+      v1.accepted_identity?.[key] !== expected ||
+      v2.accepted_identity?.[key] !== expected
+    ) {
       fail("compiler_identity_provenance_mismatch:" + key);
     }
   }
@@ -278,15 +288,23 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
 
   const creationHex = String(v1.artifacts?.creation_bytecode_hex || "");
   const runtimeHex = String(v1.artifacts?.runtime_template_hex || "");
-
-  const creationPrefix =
-    "0x" + creationHex.slice(2, 2 + creationBytes * 2);
-  const runtimePrefix =
-    "0x" + runtimeHex.slice(2, 2 + runtimeBytes * 2);
+  const v1CreationBytes = v1.artifacts?.creation_bytecode_bytes;
+  const v1RuntimeBytes = v1.artifacts?.runtime_template_bytes;
 
   if (
-    sha256Hex(creationPrefix) !== CORRECT_CREATION_SHA256 ||
-    sha256Hex(runtimePrefix) !== CORRECT_RUNTIME_SHA256 ||
+    !/^0x[0-9a-f]+$/u.test(creationHex) ||
+    !/^0x[0-9a-f]+$/u.test(runtimeHex) ||
+    creationHex.length % 2 !== 0 ||
+    runtimeHex.length % 2 !== 0 ||
+    (creationHex.length - 2) / 2 !== v1CreationBytes ||
+    (runtimeHex.length - 2) / 2 !== v1RuntimeBytes ||
+    sha256Hex(creationHex) !== v1.artifacts?.creation_bytecode_sha256 ||
+    sha256Hex(runtimeHex) !== v1.artifacts?.runtime_template_sha256
+  ) {
+    fail("superseded_v1_artifact_bytes_invalid");
+  }
+
+  if (
     v2.canonical_compiler_artifacts?.creation_bytecode_sha256 !==
       CORRECT_CREATION_SHA256 ||
     v2.canonical_compiler_artifacts?.runtime_template_sha256 !==
@@ -296,8 +314,6 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
   }
 
   if (
-    keccak256(creationPrefix) !== CORRECT_CREATION_KECCAK256 ||
-    keccak256(runtimePrefix) !== CORRECT_RUNTIME_KECCAK256 ||
     v2.canonical_compiler_artifacts?.creation_bytecode_keccak256 !==
       CORRECT_CREATION_KECCAK256 ||
     v2.canonical_compiler_artifacts?.runtime_template_keccak256 !==
@@ -322,12 +338,13 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
   }
 
   if (
-    (creationHex.length - 2) / 2 - creationBytes !== 963 ||
-    (runtimeHex.length - 2) / 2 - runtimeBytes !== 953 ||
-    v2.correction?.creation_prefix_bytes_from_v1 !== creationBytes ||
-    v2.correction?.runtime_prefix_bytes_from_v1 !== runtimeBytes ||
-    v2.correction?.creation_v1_extra_bytes !== 963 ||
-    v2.correction?.runtime_v1_extra_bytes !== 953 ||
+    v1CreationBytes - creationBytes !== 963 ||
+    v1RuntimeBytes - runtimeBytes !== 953 ||
+    v2.correction?.creation_v1_overcapture_bytes !== 963 ||
+    v2.correction?.runtime_v1_overcapture_bytes !== 953 ||
+    v2.correction?.canonical_bytecode_source !==
+      "retained_compiler_identity_artifact_10988626461" ||
+    v2.correction?.canonical_bytecode_is_v1_prefix !== false ||
     v2.correction?.compiler_identity_recompile_required !== false ||
     v2.correction?.solidity_source_change_required !== false ||
     v2.correction?.contract_semantics_change_required !== false ||
