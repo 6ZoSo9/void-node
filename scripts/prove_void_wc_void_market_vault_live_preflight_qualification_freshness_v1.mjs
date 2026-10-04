@@ -460,14 +460,18 @@ await withValidRpcFixture(async (fixture) => {
         "1800000599",
       ),
     );
-  assert.equal(result.ok, true, result.ok ? "" : result.reason);
-  assert.equal(result.qualification_source_head_sha, ANCESTOR_SOURCE_HEAD);
-  assert.equal(result.qualification_source_head_ancestor_current_main, true);
-  assert.equal(result.qualification_historical_reviewed_bytes_verified, true);
-  assert.equal(result.qualification_current_reviewed_bytes_verified, true);
+  assert.equal(result.ok, false);
+  assert.equal(
+    result.reason,
+    "live_deployment_preflight_source_generation_mismatch",
+  );
   assert.equal(result.production_artifact_authorized, false);
   assert.equal(result.production_preflight_id_emitted, false);
-  assert.equal(fixture.rpcCalls() > 0, true);
+  assert.equal(
+    fixture.rpcCalls(),
+    0,
+    "pre-correction qualification generation reached RPC",
+  );
 });
 
 {
