@@ -449,6 +449,7 @@ assert.deepEqual(
     fee_observation_expiry_recomputed: true,
     trusted_fee_freshness_policy_proven: false,
     nonce_collision_detection: true,
+    cross_lane_nonce_scheduler_proven: false,
     exact_replay_idempotent: true,
     altered_obligation_conflict_hold: true,
     cross_lane_record_accounting: true,
@@ -506,6 +507,7 @@ console.log("fresh_observation_existing_liability_idempotent=true");
 console.log("altered_same_obligation_conflict_hold=true");
 console.log("finite_native_balance_enforced=true");
 console.log("nonce_collision_hold=true");
+console.log("cross_lane_nonce_scheduler_proven=false");
 console.log("fresh_fee_requirement_bound=true");
 console.log("fee_observation_expiry_recomputed=true");
 console.log("trusted_fee_freshness_policy_proven=false");
