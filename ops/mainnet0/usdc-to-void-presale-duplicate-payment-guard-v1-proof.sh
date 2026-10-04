@@ -8,6 +8,9 @@ from pathlib import Path
 import re
 
 src = Path("src/index.ts").read_text()
+capacity = Path("src/economic/buy_void_verified_payment_capacity_admission_v1.ts").read_text()
+identity = Path("src/economic/buy_void_verified_payment_identity_admission_v1.ts").read_text()
+identity_proof = Path("scripts/prove_buy_void_verified_payment_identity_admission_v1.ts").read_text()
 doc = Path("docs/public/public-node-usdc-to-void-presale-duplicate-payment-guard-v1.md").read_text()
 
 marker = "VOID_USDC_TO_VOID_PRESALE_DUPLICATE_PAYMENT_GUARD_V1"
@@ -73,12 +76,44 @@ for item in bad_src:
     if item in src:
         raise SystemExit(f"forbidden_true_authority_present={item}")
 
+required_source_guard = [
+    "buy_void_verified_payment_identity_admission_v1.js",
+    "assertBuyVoidVerifiedPaymentIdentityAdmissionV1",
+    "duplicate_payment_identity_verification: true",
+    "buy_void_verified_payment_identity_projection_mismatch",
+    "buy_void_verified_payment_identity_postcheck_failed",
+]
+for item in required_source_guard:
+    if item not in capacity:
+        raise SystemExit(f"capacity_identity_binding_missing={item}")
+
+for item in [
+    "VOID_BUY_VOID_VERIFIED_PAYMENT_IDENTITY_ADMISSION_V1",
+    "canonicalBuyVoidPaymentIdentityV1",
+    "buy_void_verified_payment_identity_reused",
+    "buy_void_verified_payment_identity_request_changed",
+    "buy_void_verified_payment_identity_history_reused",
+]:
+    if item not in identity:
+        raise SystemExit(f"identity_guard_source_missing={item}")
+
+for item in [
+    "concurrent_duplicate_payment_identity_double_admission=false",
+    "same_request_exact_identity_reverification_idempotent=true",
+    "different_identity_for_losing_request_can_use_fresh_capacity=true",
+    "durable_restart_recount_enforced=true",
+]:
+    if item not in identity_proof:
+        raise SystemExit(f"identity_guard_proof_missing={item}")
+
 required_doc = [
     marker,
     "duplicate-payment guard contract",
     "does not enable automatic fulfillment",
     "same USDC transaction or the same matching transfer log must not be allowed",
-    "Current request accounting can count payment-verified events by `request_id`",
+    "Historical request accounting could count payment-verified events by `request_id`",
+    "reviewed source writer now enforces payment identity",
+    "public/live verifier remains fail-closed",
     "source chain",
     "transaction hash",
     "receipt transaction hash",
@@ -94,8 +129,9 @@ required_doc = [
     "A request id alone is not a duplicate-payment guard",
     "A submitted tx hash alone is not a verified payment",
     "Duplicate guard must be green before allocation reservation or automatic fulfillment",
+    "`source_verified_payment_duplicate_identity_enforced`: true",
     "`duplicate_payment_guard_green`: false",
-    "`current_verifier_duplicate_payment_guard_enforced`: false",
+    "`current_public_runtime_duplicate_payment_guard_enforced`: false",
     "`void_transfer_now`: false",
 ]
 for item in required_doc:
@@ -135,10 +171,11 @@ for item in [
         raise SystemExit(f"verified_payment_gate_link_missing={item}")
 
 print("duplicate_payment_guard_source_green=true")
+print("source_verified_payment_duplicate_identity_enforced=true")
 print("request_id_dedupe_not_payment_dedupe_declared=true")
 print("canonical_payment_identity_required=true")
-print("duplicate_payment_guard_green_false=true")
-print("current_verifier_duplicate_payment_guard_enforced_false=true")
+print("duplicate_payment_guard_public_green=false")
+print("current_public_runtime_duplicate_payment_guard_enforced=false")
 print("automatic_fulfillment_still_false=true")
 print("VOID_USDC_TO_VOID_PRESALE_DUPLICATE_PAYMENT_GUARD_V1_ASSERT_GREEN")
 PY
