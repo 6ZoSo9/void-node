@@ -522,12 +522,12 @@ for (const [key, value] of Object.entries(
       });
     requireHeld(
       store.inspect(),
-      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_ANCESTOR_WALK_FAILED",
+      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_MISSING",
     );
     assert.equal(fs.existsSync(queue), false);
     requireHeld(
       await store.observe(),
-      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_ANCESTOR_WALK_FAILED",
+      "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY_MISSING",
     );
     assert.equal(clock.calls(), 0);
     assert.equal(fs.existsSync(queue), false);
