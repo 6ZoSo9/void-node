@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1,
   classifyBuyVoidVerifiedPaymentCapacityAdmissionV1,
+  testOnlyReadStrictCapacityLedgerFileV1,
   writeBuyVoidOperatorEventWithCapacityAdmissionV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
@@ -15,30 +16,10 @@ const root = fs.mkdtempSync(
 try {
   fs.chmodSync(root, 0o700);
   const requests = [
-    {
-      request_id: "buyvoid_a_aaaaaaaa",
-      quoted_void: 6,
-      source_chain: "base",
-      tx_hash: "0x" + "1".repeat(64),
-    },
-    {
-      request_id: "buyvoid_b_bbbbbbbb",
-      quoted_void: 6,
-      source_chain: "base",
-      tx_hash: "0x" + "2".repeat(64),
-    },
-    {
-      request_id: "buyvoid_c_cccccccc",
-      quoted_void: 4,
-      source_chain: "base",
-      tx_hash: "0x" + "3".repeat(64),
-    },
-    {
-      request_id: "buyvoid_d_dddddddd",
-      quoted_void: 1,
-      source_chain: "base",
-      tx_hash: "0x" + "4".repeat(64),
-    },
+    { request_id: "buyvoid_a_aaaaaaaa", quoted_void: 6, source_chain: "base", tx_hash: "0x" + "1".repeat(64) },
+    { request_id: "buyvoid_b_bbbbbbbb", quoted_void: 6, source_chain: "base", tx_hash: "0x" + "2".repeat(64) },
+    { request_id: "buyvoid_c_cccccccc", quoted_void: 4, source_chain: "base", tx_hash: "0x" + "3".repeat(64) },
+    { request_id: "buyvoid_d_dddddddd", quoted_void: 1, source_chain: "base", tx_hash: "0x" + "4".repeat(64) },
   ];
   const requestsPath = path.join(root, "requests.jsonl");
   fs.writeFileSync(
@@ -278,6 +259,85 @@ try {
   state = await readSaleState();
   assert.equal(state.allocation_reserved_void, 10);
 
+  // Capacity admission must bind the candidate to the durable request ledger,
+  // not only to the caller-supplied request object/event envelope.
+  {
+    const bindingRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-request-binding-"),
+    );
+    try {
+      fs.chmodSync(bindingRoot, 0o700);
+      const durableRequest = {
+        request_id: "buyvoid_bound_56565656",
+        quoted_void: 2,
+        source_chain: "base",
+        tx_hash: "0x" + "5".repeat(64),
+      };
+      fs.writeFileSync(
+        path.join(bindingRoot, "requests.jsonl"),
+        JSON.stringify(durableRequest) + "\n",
+        { mode: 0o600 },
+      );
+      let bindingMutationCalls = 0;
+      const bindingMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        bindingMutationCalls += 1;
+        return operation();
+      };
+      const bindingSaleState = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+
+      const missingRequest = {
+        request_id: "buyvoid_missing_78787878",
+        quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "6".repeat(64),
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(missingRequest, 103),
+            request: missingRequest,
+            request_dir: bindingRoot,
+            with_launch_authority_mutation: bindingMutation,
+            read_sale_state: bindingSaleState,
+          }),
+        /buy_void_verified_payment_capacity_candidate_request_missing/u,
+      );
+
+      const mismatchedQuote = {
+        ...durableRequest,
+        quoted_void: 1,
+      };
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(mismatchedQuote, 104),
+            request: mismatchedQuote,
+            request_dir: bindingRoot,
+            with_launch_authority_mutation: bindingMutation,
+            read_sale_state: bindingSaleState,
+          }),
+        /buy_void_verified_payment_capacity_candidate_quote_mismatch/u,
+      );
+      assert.equal(bindingMutationCalls, 0);
+      const bindingEvents = path.join(
+        bindingRoot,
+        "operator-events.jsonl",
+      );
+      assert.equal(fs.existsSync(bindingEvents), true);
+      assert.equal(fs.statSync(bindingEvents).size, 0);
+    } finally {
+      fs.rmSync(bindingRoot, { recursive: true, force: true });
+    }
+  }
+
   fs.appendFileSync(eventsPath, "{malformed-json}\n");
   assert.equal(
     (await readEvents()).filter(
@@ -291,6 +351,209 @@ try {
     /buy_void_verified_payment_capacity_operator_events_json_invalid/u,
   );
   assert.equal(mutationCalls, 2);
+
+  // Descriptor-bound strict reads must reject a visible-path replacement
+  // after the opened inode has already passed its initial stat.
+  {
+    const ledgerRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-read-swap-"),
+    );
+    try {
+      fs.chmodSync(ledgerRoot, 0o700);
+      const ledger = path.join(ledgerRoot, "requests.jsonl");
+      const detached = path.join(ledgerRoot, "requests.detached.jsonl");
+      const replacement =
+        Buffer.from(
+          JSON.stringify({
+            request_id: "buyvoid_swap_eeeeeeee",
+            quoted_void: 1,
+          }) + "\n",
+          "utf8",
+        );
+      fs.writeFileSync(ledger, replacement, { mode: 0o600 });
+
+      assert.throws(
+        () =>
+          testOnlyReadStrictCapacityLedgerFileV1(
+            ledger,
+            "buy_void_verified_payment_capacity_requests",
+            () => {
+              fs.renameSync(ledger, detached);
+              fs.writeFileSync(ledger, replacement, { mode: 0o600 });
+            },
+          ),
+        /buy_void_verified_payment_capacity_requests_path_not_bound/u,
+      );
+      assert.equal(fs.readFileSync(ledger).equals(replacement), true);
+      assert.equal(fs.readFileSync(detached).equals(replacement), true);
+    } finally {
+      fs.rmSync(ledgerRoot, { recursive: true, force: true });
+    }
+  }
+
+  // Growth after the admitted fstat must be detected from the retained
+  // descriptor without allocating or reading the enlarged 65 MiB object.
+  {
+    const ledgerRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-read-growth-"),
+    );
+    try {
+      fs.chmodSync(ledgerRoot, 0o700);
+      const ledger = path.join(ledgerRoot, "requests.jsonl");
+      fs.writeFileSync(
+        ledger,
+        JSON.stringify({
+          request_id: "buyvoid_grow_ffffffff",
+          quoted_void: 1,
+        }) + "\n",
+        { mode: 0o600 },
+      );
+      assert.throws(
+        () =>
+          testOnlyReadStrictCapacityLedgerFileV1(
+            ledger,
+            "buy_void_verified_payment_capacity_requests",
+            () => {
+              fs.truncateSync(ledger, 65 * 1024 * 1024);
+            },
+          ),
+        /buy_void_verified_payment_capacity_requests_(?:file_invalid|changed_during_read)/u,
+      );
+    } finally {
+      fs.rmSync(ledgerRoot, { recursive: true, force: true });
+    }
+  }
+
+  // The payment append must use the exact operator-ledger inode admitted by
+  // the capacity census. Replacing the visible path after census but before
+  // launch-authority mutation must HOLD before any event bytes are written.
+  {
+    const swapRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-append-swap-"),
+    );
+    try {
+      fs.chmodSync(swapRoot, 0o700);
+      const swapRequest = {
+        request_id: "buyvoid_swap2_12121212",
+        quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "7".repeat(64),
+      };
+      fs.writeFileSync(
+        path.join(swapRoot, "requests.jsonl"),
+        JSON.stringify(swapRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const swapEvents = path.join(swapRoot, "operator-events.jsonl");
+      const detached = path.join(
+        swapRoot,
+        "operator-events.detached.jsonl",
+      );
+      fs.writeFileSync(swapEvents, "", { mode: 0o600 });
+      const sentinel = Buffer.from('{"replacement":true}\n', "utf8");
+
+      const swapSaleState = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+      const swapMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        fs.renameSync(swapEvents, detached);
+        fs.writeFileSync(swapEvents, sentinel, { mode: 0o600 });
+        return operation();
+      };
+
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(swapRequest, 101),
+            request: swapRequest,
+            request_dir: swapRoot,
+            with_launch_authority_mutation: swapMutation,
+            read_sale_state: swapSaleState,
+          }),
+        /buy_void_verified_payment_capacity_operator_events_path_not_bound/u,
+      );
+      assert.equal(fs.readFileSync(swapEvents).equals(sentinel), true);
+      assert.equal(fs.statSync(detached).size, 0);
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            swapRoot,
+            "operator-event-" + swapRequest.request_id + "-101.json",
+          ),
+        ),
+        false,
+      );
+    } finally {
+      fs.rmSync(swapRoot, { recursive: true, force: true });
+    }
+  }
+
+  // Same-inode growth after census is also rejected before the append.
+  {
+    const growRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-append-growth-"),
+    );
+    try {
+      fs.chmodSync(growRoot, 0o700);
+      const growRequest = {
+        request_id: "buyvoid_grow2_34343434",
+        quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "8".repeat(64),
+      };
+      fs.writeFileSync(
+        path.join(growRoot, "requests.jsonl"),
+        JSON.stringify(growRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const growEvents = path.join(growRoot, "operator-events.jsonl");
+      fs.writeFileSync(growEvents, "", { mode: 0o600 });
+
+      const growSaleState = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
+      const growMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        fs.truncateSync(growEvents, 65 * 1024 * 1024);
+        return operation();
+      };
+
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(growRequest, 102),
+            request: growRequest,
+            request_dir: growRoot,
+            with_launch_authority_mutation: growMutation,
+            read_sale_state: growSaleState,
+          }),
+        /buy_void_verified_payment_capacity_operator_events_file_invalid/u,
+      );
+      assert.equal(fs.statSync(growEvents).size, 65 * 1024 * 1024);
+      assert.equal(
+        fs.existsSync(
+          path.join(
+            growRoot,
+            "operator-event-" + growRequest.request_id + "-102.json",
+          ),
+        ),
+        false,
+      );
+    } finally {
+      fs.rmSync(growRoot, { recursive: true, force: true });
+    }
+  }
 
   for (const [key, value] of Object.entries(
     VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1,
@@ -320,8 +583,14 @@ try {
   console.log("capacity_exhaustion_rejected=true");
   console.log("malformed_authoritative_ledger_fails_closed=true");
   console.log("legacy_lenient_projection_is_not_capacity_authority=true");
+  console.log("candidate_request_must_exist_in_durable_ledger=true");
+  console.log("candidate_quote_bound_to_durable_request=true");
   console.log("duplicate_request_reverification_idempotent=true");
   console.log("payment_verified_jsonl_append_fsync=true");
+  console.log("requests_ledger_descriptor_bound_bounded_read=true");
+  console.log("operator_ledger_same_inode_census_append=true");
+  console.log("operator_ledger_visible_swap_before_append_rejected=true");
+  console.log("ledger_growth_after_admission_metadata_rejected=true");
   console.log("missing_payment_verified_sidecar_recovered=true");
   console.log("idempotent_recovery_does_not_append_new_event=true");
   console.log("duplicate_payment_identity_guard_proven=true");
