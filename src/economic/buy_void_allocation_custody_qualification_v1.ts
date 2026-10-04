@@ -22,12 +22,16 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_RECEIPT_V1 =
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1 =
   "62ad83462c35b404e1a4cea1e28f68664977df45";
 
+export const VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1 =
+  "2db8493d1ee84878ef5fa2b0f655070622335d0d";
+
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_QUALIFICATION_AUTHORITY_V1 =
   Object.freeze({
     source_only_contract: true,
     io_performed: false,
     host_evidence_input_only: true,
-    exact_reviewed_writer_head_required: true,
+    writer_head_provenance_required: true,
+    exact_reviewed_writer_blob_required: true,
     canonical_current_high_water_binding_reused: true,
     canonical_single_append_planner_reused: true,
     exact_prior_ledger_prefix_required: true,
@@ -82,6 +86,7 @@ const MAX_EPOCH = (1n << 64n) - 1n;
 
 const INPUT_KEYS = Object.freeze([
   "writer_source_head",
+  "writer_source_blob_sha1",
   "host_evidence",
   "current_ledger_jsonl",
   "current_high_water_json",
@@ -191,6 +196,7 @@ const RECEIPT_KEYS = Object.freeze([
   "custody_epoch",
   "previous_receipt_sha256",
   "writer_source_head",
+  "writer_source_blob_sha1",
   "host_id",
   "qualification_policy_fingerprint_sha256",
   "ledger_mount_instance_fingerprint_sha256",
@@ -215,6 +221,7 @@ export type BuyVoidAllocationCustodyReceiptV1 = {
   custody_epoch: string;
   previous_receipt_sha256: string | null;
   writer_source_head: string;
+  writer_source_blob_sha1: string;
   host_id: string;
   qualification_policy_fingerprint_sha256: string;
   ledger_mount_instance_fingerprint_sha256: string;
@@ -240,6 +247,7 @@ export type BuyVoidAllocationCustodyQualificationDecisionV1 =
       version: 1;
       qualification_id_sha256: string;
       writer_source_head: string;
+      writer_source_blob_sha1: string;
       host_id: string;
       qualification_policy_fingerprint_sha256: string;
       ledger_mount_instance_fingerprint_sha256: string;
@@ -1063,13 +1071,13 @@ function assertReviewedWriterBoundary(): void {
 }
 
 function policyFingerprint(
-  writerHead: string,
+  writerBlobSha1: string,
   host: HostV1,
 ): string {
   return sha256Id(
     canonicalJson({
       domain: QUALIFICATION_DOMAIN,
-      writer_source_head: writerHead,
+      writer_source_blob_sha1: writerBlobSha1,
       host,
     }),
   );
@@ -1109,6 +1117,7 @@ function buildReceipt(input: {
   custody_epoch: string;
   previous_receipt_sha256: string | null;
   writer_source_head: string;
+  writer_source_blob_sha1: string;
   host: HostV1;
   qualification_policy_fingerprint_sha256: string;
   ledger_bytes: number;
@@ -1122,6 +1131,7 @@ function buildReceipt(input: {
     custody_epoch: input.custody_epoch,
     previous_receipt_sha256: input.previous_receipt_sha256,
     writer_source_head: input.writer_source_head,
+    writer_source_blob_sha1: input.writer_source_blob_sha1,
     host_id: input.host.host_id,
     qualification_policy_fingerprint_sha256:
       input.qualification_policy_fingerprint_sha256,
@@ -1197,6 +1207,11 @@ function parseReceipt(
     previous_receipt_sha256: previous,
     writer_source_head: safeText(
       raw.writer_source_head,
+      SHA1,
+      "custody_prior_receipt_invalid",
+    ),
+    writer_source_blob_sha1: safeText(
+      raw.writer_source_blob_sha1,
       SHA1,
       "custody_prior_receipt_invalid",
     ),
@@ -1315,6 +1330,7 @@ function qualificationId(
 function success(input: {
   status: "source_qualified" | "idempotent";
   writer_head: string;
+  writer_blob_sha1: string;
   host: HostV1;
   policy_fingerprint: string;
   receipt: Readonly<BuyVoidAllocationCustodyReceiptV1>;
@@ -1329,6 +1345,7 @@ function success(input: {
       input.receipt.receipt_sha256,
     ),
     writer_source_head: input.writer_head,
+    writer_source_blob_sha1: input.writer_blob_sha1,
     host_id: input.host.host_id,
     qualification_policy_fingerprint_sha256:
       input.policy_fingerprint,
@@ -1360,6 +1377,7 @@ function success(input: {
 export function classifyBuyVoidAllocationCustodyQualificationV1(
   input: {
     writer_source_head: unknown;
+    writer_source_blob_sha1: unknown;
     host_evidence: unknown;
     current_ledger_jsonl: string | Buffer;
     current_high_water_json: string | Buffer;
@@ -1378,15 +1396,20 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
       SHA1,
       "custody_source_binding_invalid",
     );
+    const writerBlobSha1 = safeText(
+      input.writer_source_blob_sha1,
+      SHA1,
+      "custody_source_binding_invalid",
+    );
     if (
-      writerHead !==
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1
+      writerBlobSha1 !==
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1
     ) {
       fail("custody_source_binding_invalid");
     }
 
     const host = normalizeHost(input.host_evidence);
-    const policy = policyFingerprint(writerHead, host);
+    const policy = policyFingerprint(writerBlobSha1, host);
     const currentLedger = bytes(input.current_ledger_jsonl);
     const currentBinding =
       classifyBuyVoidAllocationReservationHighWaterBindingV1({
@@ -1414,6 +1437,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
         custody_epoch: "0",
         previous_receipt_sha256: null,
         writer_source_head: writerHead,
+        writer_source_blob_sha1: writerBlobSha1,
         host,
         qualification_policy_fingerprint_sha256: policy,
         ledger_bytes: currentLedger.length,
@@ -1423,6 +1447,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
       return success({
         status: "source_qualified",
         writer_head: writerHead,
+        writer_blob_sha1: writerBlobSha1,
         host,
         policy_fingerprint: policy,
         receipt,
@@ -1430,7 +1455,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
     }
 
     if (
-      prior.writer_source_head !== writerHead ||
+      prior.writer_source_blob_sha1 !== writerBlobSha1 ||
       prior.host_id !== host.host_id ||
       prior.qualification_policy_fingerprint_sha256 !== policy ||
       prior.ledger_mount_instance_fingerprint_sha256 !==
@@ -1466,6 +1491,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
       return success({
         status: "idempotent",
         writer_head: writerHead,
+        writer_blob_sha1: writerBlobSha1,
         host,
         policy_fingerprint: policy,
         receipt: prior,
@@ -1518,6 +1544,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
       custody_epoch: (priorEpoch + 1n).toString(),
       previous_receipt_sha256: prior.receipt_sha256,
       writer_source_head: writerHead,
+      writer_source_blob_sha1: writerBlobSha1,
       host,
       qualification_policy_fingerprint_sha256: policy,
       ledger_bytes: currentLedger.length,
@@ -1527,6 +1554,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
     return success({
       status: "source_qualified",
       writer_head: writerHead,
+      writer_blob_sha1: writerBlobSha1,
       host,
       policy_fingerprint: policy,
       receipt,
