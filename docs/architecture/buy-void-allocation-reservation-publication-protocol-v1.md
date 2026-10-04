@@ -94,7 +94,7 @@ record ID/hash are carried in the intent for retry binding.
 ## Recovery classification
 
 `classifyBuyVoidAllocationReservationPublicationRecoveryV1(...)` accepts
-exactly three observed states while an intent exists.
+exactly four observed states while an intent exists.
 
 ### 1. `intent_only`
 
@@ -172,7 +172,7 @@ Recovery action required later:
 
 ## Rejected mixed states
 
-The classifier fails closed on:
+The classifier fails closed on every mixed state except the explicitly intent-bound `high_water_committed` recovery phase. In particular it rejects:
 
 - any ledger not matching exact prior or next fingerprint;
 - any high-water not matching exact prior or next bytes/digest;
