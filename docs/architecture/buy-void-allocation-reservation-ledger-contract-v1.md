@@ -62,6 +62,12 @@ The first record carries:
 
 `previous_allocation_record_hash = sha256:000...000`
 
+and must begin from the complete presale inventory state:
+`reserved_void_total_before=0` and
+`remaining_void_before=pool_void_total_before`. A nonzero pre-reserved
+"genesis" is rejected so a truncated older history cannot be relabeled as a
+fresh ledger.
+
 Every later record carries the exact preceding
 `allocation_record_hash`.
 
