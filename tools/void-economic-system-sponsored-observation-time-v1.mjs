@@ -258,6 +258,9 @@ function parseReceipt(value) {
     raw.process_start_ticks,
     "sponsored_observation_time_prior_receipt_invalid",
   );
+  if (processStart.value < 1n) {
+    fail("sponsored_observation_time_prior_receipt_invalid");
+  }
   const baselineWall = safeMs(
     raw.baseline_wall_time_ms,
     "sponsored_observation_time_prior_receipt_invalid",
@@ -285,6 +288,26 @@ function parseReceipt(value) {
         baselineWall !== observedAt ||
         baselineMonotonic.value !== monotonic.value
       )
+    ) ||
+    (
+      generation.value > 0n &&
+      monotonic.value <= baselineMonotonic.value
+    )
+  ) {
+    fail("sponsored_observation_time_prior_receipt_invalid");
+  }
+  const priorMonotonicElapsedMs =
+    (monotonic.value - baselineMonotonic.value) / NS_PER_MS;
+  const priorWallElapsedMs =
+    BigInt(observedAt) - BigInt(baselineWall);
+  const priorDifference =
+    priorWallElapsedMs >= priorMonotonicElapsedMs
+      ? priorWallElapsedMs - priorMonotonicElapsedMs
+      : priorMonotonicElapsedMs - priorWallElapsedMs;
+  if (
+    priorDifference >
+    BigInt(
+      VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_MAX_SKEW_MS_V1,
     )
   ) {
     fail("sponsored_observation_time_prior_receipt_invalid");
