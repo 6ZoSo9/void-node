@@ -18804,55 +18804,21 @@ setInterval(refresh, 10000);
     }
 
     // VOID_BUY_VOID_PAYMENT_SENDER_DELIVERY_MATCH_V1
-    function __voidBuyVoidUsdcTransferMatchV1(logs:any[], chainCfg:any, receiveAddress:string, deliveryAddress:string, requestedUsdc:any){
-      const usdc = String(chainCfg?.usdc_contract || "").toLowerCase();
-      const to = String(receiveAddress || "").toLowerCase();
-      const expectedFrom = String(deliveryAddress || "").toLowerCase();
-      const transferSig = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-      const requestedUnits = BigInt(Math.ceil(Number(requestedUsdc || 0) * 1000000));
-
-      for (const log of logs || []) {
-        const addr = String(log.address || "").toLowerCase();
-        const topics = log.topics || [];
-        if (addr !== usdc) continue;
-        if (String(topics[0] || "").toLowerCase() !== transferSig) continue;
-
-        const logFrom = __voidBuyVoidTopicAddressV1(topics[1]);
-        const logTo = __voidBuyVoidTopicAddressV1(topics[2]);
-
-        if (logTo !== to) continue;
-        if (logFrom !== expectedFrom) continue;
-
-        const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
-        let canonicalLogIndex="";
-        try {
-          const parsedLogIndex = BigInt(log.logIndex);
-          if (parsedLogIndex < 0n) continue;
-          canonicalLogIndex = parsedLogIndex.toString();
-        } catch {
-          continue;
-        }
-        if (amountUnits === requestedUnits) {
-          return {
-            ok: true,
-            log_index: canonicalLogIndex,
-            usdc_contract: usdc,
-            from_address: logFrom,
-            receive_address: to,
-            delivery_address: expectedFrom,
-            amount_units: amountUnits.toString(),
-            requested_units: requestedUnits.toString()
-          };
-        }
+    function __voidBuyVoidUsdcTransferMatchV1(logs:any[],chainCfg:any,receiveAddress:string,deliveryAddress:string,requestedUsdc:any){
+      const usdc=String(chainCfg?.usdc_contract||"").toLowerCase(),to=String(receiveAddress||"").toLowerCase(),expectedFrom=String(deliveryAddress||"").toLowerCase(),transferSig="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",requestedUnits=BigInt(Math.ceil(Number(requestedUsdc||0)*1000000)),matches:any[]=[];
+      for(const log of logs||[]){
+        const topics=log.topics||[];
+        if(String(log.address||"").toLowerCase()!==usdc||String(topics[0]||"").toLowerCase()!==transferSig)continue;
+        const logFrom=__voidBuyVoidTopicAddressV1(topics[1]),logTo=__voidBuyVoidTopicAddressV1(topics[2]);
+        if(logTo!==to||logFrom!==expectedFrom)continue;
+        const amountUnits=__voidBuyVoidHexToBigIntV1(log.data||"0x0");
+        let parsedLogIndex=0n;
+        try{parsedLogIndex=BigInt(log.logIndex);}catch{continue;}
+        if(parsedLogIndex<0n||parsedLogIndex>0xffff_ffffn||amountUnits!==requestedUnits)continue;
+        matches.push({ok:true,log_index:parsedLogIndex.toString(),usdc_contract:usdc,from_address:logFrom,receive_address:to,delivery_address:expectedFrom,amount_units:amountUnits.toString(),requested_units:requestedUnits.toString()});
       }
-
-      return {
-        ok: false,
-        usdc_contract: usdc,
-        expected_from_address: expectedFrom,
-        receive_address: to,
-        requested_units: requestedUnits.toString()
-      };
+      if(matches.length===1)return matches[0];
+      return {ok:false,error:matches.length?"ambiguous_matching_usdc_transfers":"matching_usdc_transfer_not_found",...(matches.length?{matching_log_indexes:matches.map((m:any)=>m.log_index),match_count:matches.length}:{}),usdc_contract:usdc,expected_from_address:expectedFrom,receive_address:to,requested_units:requestedUnits.toString()};
     }
 
     app.get("/__void/buy-void/operator/verify-payment.json", async (req:any,res:any)=>{
@@ -18928,7 +18894,7 @@ setInterval(refresh, 10000);
           return res.status(400).json({
             schema: "void_buy_void_payment_verifier_v1",
             ok: false,
-            error: "matching_usdc_transfer_not_found",
+            error: match.error || "matching_usdc_transfer_not_found",
             tx_hash: tx,
             request_id: id,
             match
