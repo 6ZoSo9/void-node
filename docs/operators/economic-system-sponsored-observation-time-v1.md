@@ -65,6 +65,14 @@ receipt_sha256
 
 Generation zero has no previous receipt. Later generations chain exactly to the prior receipt SHA-256.
 
+A supplied prior receipt is not accepted merely because its content-addressed
+SHA-256 is self-consistent. Parsing re-validates the same receipt-level
+producibility invariants: positive process-start identity, generation-zero
+baseline equality, strict monotonic advance above the baseline for later
+generations, and the cumulative wall-vs-monotonic skew ceiling from the
+generation-zero baseline. A fully rehashed but semantically impossible prior
+receipt therefore HOLDS before the clock provider is called.
+
 The receipt is source evidence only. This lane does not prove durable receipt storage.
 
 ## Same-process monotonic rule
@@ -154,6 +162,8 @@ The focused proof covers:
 - accessor binding/request/sample rejection without getter execution;
 - stable clock-provider exception HOLD without provider-detail exposure;
 - corrupt prior receipt rejected before clock read;
+- self-consistent rehashed prior receipt with excessive cumulative skew rejected before clock read;
+- self-consistent later-generation prior receipt without monotonic advance rejected before clock read;
 - wall regression;
 - monotonic regression/equality;
 - skew overflow and exact boundary acceptance;
