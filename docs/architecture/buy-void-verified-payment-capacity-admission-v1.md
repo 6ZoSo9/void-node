@@ -41,12 +41,14 @@ For `payment_verified` only, while holding that lock it:
    rebinds the visible path again before accepting post-state;
 8. strictly re-reads the same operator-ledger inode plus a descriptor-bound
    request ledger and requires verified/reserved inventory to increase by
-   exactly the quote and remaining inventory to decrease by exactly the quote.
-9. durably fsyncs the `payment_verified` JSONL append before publishing the
-   per-event sidecar used by bounded orchestration. If a crash leaves the
-   durable JSONL event without that sidecar, exact re-verification reconstructs
-   the original timestamped sidecar from the authoritative event under the
-   request lock without appending another reservation.
+   exactly the quote and remaining inventory to decrease by exactly the quote;
+9. only after that authoritative postcheck succeeds, publishes the per-event
+   sidecar used by bounded orchestration. The `payment_verified` JSONL event
+   is fsynced before the postcheck, but a failed postcheck exposes no sidecar.
+   If a crash or failed postcheck leaves the durable JSONL event without that
+   sidecar, exact re-verification reconstructs the original timestamped sidecar
+   from the authoritative event under the request lock without appending
+   another reservation.
 
 The lock order is:
 
@@ -66,6 +68,12 @@ The same proof deletes the exact 4 VOID event sidecar after its durable JSONL
 append to model the crash window. Re-verification restores the historical
 sidecar from the JSONL record, creates no sidecar for the retry timestamp, and
 does not invoke launch-authority mutation or change the reserved total.
+
+A separate adversary deliberately returns a stale sale-state projection after
+the durable event append. The authoritative postcheck rejects that invocation
+with the JSONL event still recoverable but no orchestration sidecar published;
+an exact retry against a corrected projection is idempotent and recovers that
+single historical sidecar without appending a second event.
 
 Filesystem adversaries additionally replace or grow the authoritative request
 ledger after its admitted `fstat`, mutate either retained ledger on the same
