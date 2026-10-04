@@ -375,20 +375,37 @@ function readOptionalPinnedNamedFile(
   allowEmpty: boolean,
   code: string,
 ): Buffer | null {
+  assertPinnedDirectoryVisible(directory, code + "_directory");
+  const visiblePath = path.join(directory.path, name);
+  const pinnedPath = path.join(directory.proc_path, name);
+  let visibleMissing = false;
+  let pinnedMissing = false;
   try {
-    return readPinnedNamedFile(
-      directory,
-      name,
-      maxBytes,
-      allowEmpty,
-      code,
-    );
+    fs.lstatSync(visiblePath, { bigint: true });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-      return null;
-    }
-    throw error;
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+    visibleMissing = true;
   }
+  try {
+    fs.lstatSync(pinnedPath, { bigint: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+    pinnedMissing = true;
+  }
+  if (visibleMissing || pinnedMissing) {
+    if (visibleMissing !== pinnedMissing) {
+      fail(code + "_presence_mismatch");
+    }
+    assertPinnedDirectoryVisible(directory, code + "_directory");
+    return null;
+  }
+  return readPinnedNamedFile(
+    directory,
+    name,
+    maxBytes,
+    allowEmpty,
+    code,
+  );
 }
 
 function writeAll(fd: number, bytes: Buffer, code: string): void {
@@ -571,6 +588,7 @@ function atomicReplaceFile(
   directory: PinnedDirectoryV1,
   name: string,
   bytes: Buffer,
+  expectedCurrent: Buffer,
   maxBytes: number,
   allowEmpty: boolean,
   code: string,
@@ -599,6 +617,16 @@ function atomicReplaceFile(
     fs.fsyncSync(fd);
     fs.closeSync(fd);
     fd = -1;
+    const current = readPinnedNamedFile(
+      directory,
+      name,
+      maxBytes,
+      allowEmpty,
+      code + "_pre_replace",
+    );
+    if (!current.equals(expectedCurrent)) {
+      fail(code + "_changed_before_replace");
+    }
     fs.renameSync(tempPath, finalPath);
     fsyncDirectory(directory, code + "_directory");
     const published = readPinnedNamedFile(
@@ -786,6 +814,7 @@ function recoverUnderLock(
       ledgerDirectory,
       LEDGER_NAME,
       nextLedger,
+      ledger,
       MAX_LEDGER_BYTES,
       true,
       "allocation_reservation_writer_ledger",
@@ -812,6 +841,7 @@ function recoverUnderLock(
       highWaterDirectory,
       HIGH_WATER_NAME,
       Buffer.from(afterLedger.next_high_water_json, "utf8"),
+      highWater,
       MAX_HIGH_WATER_BYTES,
       false,
       "allocation_reservation_writer_high_water",
@@ -1025,6 +1055,7 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
           ledgerDirectory,
           LEDGER_NAME,
           nextLedger,
+          ledger,
           MAX_LEDGER_BYTES,
           true,
           "allocation_reservation_writer_ledger",
@@ -1059,6 +1090,7 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
             ledgerCommitted.next_high_water_json,
             "utf8",
           ),
+          highWater,
           MAX_HIGH_WATER_BYTES,
           false,
           "allocation_reservation_writer_high_water",
