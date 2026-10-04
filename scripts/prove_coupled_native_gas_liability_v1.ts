@@ -180,13 +180,13 @@ const first = requireOk(classify());
 assert.equal(first.status, "admitted");
 assert.equal(first.duplicate, false);
 assert.equal(first.payer_address, wallet);
-assert.equal(first.requested_max_liability_wei, "210000");
+assert.equal(first.requested_max_liability_wei, "210001");
 assert.equal(first.reserved_before_wei, "0");
-assert.equal(first.reserved_after_wei, "210000");
+assert.equal(first.reserved_after_wei, "210001");
 assert.equal(first.unreserved_after_wei, "790000");
 assert.equal(first.liability.lane, "presale");
 assert.equal(first.liability.attempt_limit, 1);
-assert.equal(first.liability.maximum_reserved_wei, "210000");
+assert.equal(first.liability.maximum_reserved_wei, "210001");
 assert.equal(
   first.liability.source_evidence_kind,
   "buy_void_prepared_plan_v1",
@@ -196,8 +196,8 @@ assert.equal(first.mutation_performed, false);
 const replay = requireOk(classify({ open: [first.liability] }));
 assert.equal(replay.status, "idempotent");
 assert.equal(replay.duplicate, true);
-assert.equal(replay.reserved_before_wei, "210000");
-assert.equal(replay.reserved_after_wei, "210000");
+assert.equal(replay.reserved_before_wei, "210001");
+assert.equal(replay.reserved_after_wei, "210001");
 assert.equal(replay.liability.liability_id, first.liability.liability_id);
 
 requireHeld(
@@ -305,6 +305,7 @@ function wcLiabilityFrom(
     payer_address: record.payer_address,
     nonce: 99,
     transaction_plan_fingerprint_sha256: "7".repeat(64),
+    transaction_native_value_wei: "0",
     gas_limit: "10000",
     admitted_max_fee_per_gas_wei: "10",
     attempt_limit: 2 as const,
@@ -323,7 +324,7 @@ function wcLiabilityFrom(
 const wcExisting = wcLiabilityFrom(first.liability);
 requireHeld(
   classify({
-    obs: observation({ balance: "409999" }),
+    obs: observation({ balance: "410001" }),
     open: [wcExisting],
   }),
   "coupled_native_gas_insufficient_unreserved_native_balance",
@@ -336,7 +337,7 @@ const withCrossLaneCapacity = requireOk(
   }),
 );
 assert.equal(withCrossLaneCapacity.reserved_before_wei, "200000");
-assert.equal(withCrossLaneCapacity.reserved_after_wei, "410000");
+assert.equal(withCrossLaneCapacity.reserved_after_wei, "410001");
 assert.equal(withCrossLaneCapacity.unreserved_after_wei, "0");
 
 requireHeld(
@@ -370,6 +371,7 @@ assert.deepEqual(
     pure_admission_classifier: true,
     deterministic_liability_identity: true,
     buy_void_prepared_plan_reused: true,
+    transaction_native_value_bound: true,
     payer_scoped_balance_accounting: true,
     fee_observation_expiry_recomputed: true,
     trusted_fee_freshness_policy_proven: false,
@@ -425,6 +427,7 @@ assert.doesNotMatch(
 console.log("VOID_COUPLED_NATIVE_GAS_LIABILITY_V1_PROOF_GREEN");
 console.log("buy_void_plan_identity_rederived=true");
 console.log("single_obligation_admission=true");
+console.log("transaction_native_value_bound=true");
 console.log("exact_replay_idempotent=true");
 console.log("finite_native_balance_enforced=true");
 console.log("nonce_collision_hold=true");
