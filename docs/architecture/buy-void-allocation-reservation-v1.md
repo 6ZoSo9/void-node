@@ -42,6 +42,14 @@ No response time or caller timestamp participates in uniqueness.
 
 ## Ordering and crash semantics
 
+Standalone reservation persistence is globally serialized per request directory
+with the existing crash-recoverable filesystem bakery lock. The lock spans the
+authoritative request/payment/history census, exact replay detection,
+pre-publication 10,000,000 VOID capacity admission, create-once publication, and
+post-publication verification. A new record contributes its quoted micro-VOID
+exactly once; an exact replay contributes zero. A reservation that would exceed
+the canonical pool is rejected before any allocation file is published.
+
 The later runtime integration must compose this capability after the merged
 verification-time capacity transition:
 
@@ -109,7 +117,10 @@ Every published allocation must still resolve to:
 One payment, request, verified event, or allocation ID cannot map to a second
 non-identical allocation. Unknown entries, malformed/truncated ledgers, quote
 drift, source/tx drift, orphan records, path swaps, growth during read, or total
-allocation history above 10,000,000 VOID HOLD.
+allocation history above 10,000,000 VOID HOLD. The proposed new record is also
+checked against the already-published total before publication while the global
+reservation lock is held, so detecting oversubscription cannot itself leave an
+oversubscribing record durable.
 
 ## Rollback / high-water boundary
 
@@ -145,8 +156,10 @@ git diff --check
 
 The focused proof includes exact replay, both crash recovery shapes, duplicate
 payment/request adversaries, quote drift, malformed and orphan allocation
-history, path replacement, growth during descriptor read, and a concurrent
-near-sellout composition with the merged verified-payment capacity admission.
+history, path replacement, growth during descriptor read, direct 6M + 6M
+pre-publication oversubscription rejection, cross-process contention on the
+global reservation lock, and a concurrent near-sellout composition with the
+merged verified-payment capacity admission.
 
 ## Authority boundary
 
