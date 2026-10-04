@@ -4,10 +4,11 @@ import path from "node:path";
 import { types as utilTypes } from "node:util";
 
 import {
-  VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_MAX_SKEW_MS_V1,
   VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_RECEIPT_V1,
   VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1,
+  canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1,
   createVoidEconomicSystemSponsoredObservationTimeV1,
+  verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1,
 } from "./void-economic-system-sponsored-observation-time-v1.mjs";
 
 export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_V1 =
@@ -65,21 +66,6 @@ const RECORD_NAME = /^[0-9a-f]{64}\.json$/u;
 const MAX_UINT64 = (1n << 64n) - 1n;
 const MAX_MONOTONIC = (1n << 127n) - 1n;
 const NS_PER_MS = 1_000_000n;
-const RECEIPT_KEYS = Object.freeze([
-  "schema",
-  "marker",
-  "version",
-  "generation",
-  "previous_receipt_sha256",
-  "boot_id",
-  "process_start_ticks",
-  "baseline_wall_time_ms",
-  "baseline_monotonic_ns",
-  "observed_at_ms",
-  "monotonic_ns",
-  "wall_monotonic_skew_allowance_ms",
-  "receipt_sha256",
-]);
 
 function fail(code) {
   throw new Error(code);
@@ -412,38 +398,6 @@ function readExactRecord(records, name) {
   }
 }
 
-function decimal(value, code, maximum = MAX_UINT64) {
-  if (typeof value !== "string" || !DECIMAL.test(value) || value.length > 40) {
-    fail(code);
-  }
-  const parsed = BigInt(value);
-  if (parsed < 0n || parsed > maximum) fail(code);
-  return parsed;
-}
-
-function safeMs(value, code) {
-  if (!Number.isSafeInteger(value) || value < 0) fail(code);
-  return value;
-}
-
-function receiptBody(receipt) {
-  return Object.freeze({
-    schema: RECEIPT_SCHEMA,
-    marker: VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_RECEIPT_V1,
-    version: 1,
-    generation: receipt.generation,
-    previous_receipt_sha256: receipt.previous_receipt_sha256,
-    boot_id: receipt.boot_id,
-    process_start_ticks: receipt.process_start_ticks,
-    baseline_wall_time_ms: receipt.baseline_wall_time_ms,
-    baseline_monotonic_ns: receipt.baseline_monotonic_ns,
-    observed_at_ms: receipt.observed_at_ms,
-    monotonic_ns: receipt.monotonic_ns,
-    wall_monotonic_skew_allowance_ms:
-      VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_MAX_SKEW_MS_V1,
-  });
-}
-
 function parseReceiptBytes(bytes, expectedName) {
   let value;
   try {
@@ -451,119 +405,29 @@ function parseReceiptBytes(bytes, expectedName) {
   } catch {
     fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_JSON_INVALID");
   }
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_OBJECT_INVALID");
+  let receipt;
+  let canonicalBytes;
+  try {
+    receipt =
+      verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1(value);
+    canonicalBytes =
+      canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1(
+        receipt,
+      );
+  } catch {
+    fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_RECEIPT_INVALID");
   }
-  const keys = Object.keys(value).sort(compareText);
-  const wanted = [...RECEIPT_KEYS].sort(compareText);
-  if (
-    keys.length !== wanted.length ||
-    keys.some((key, index) => key !== wanted[index])
-  ) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_KEYS_INVALID");
-  }
-  if (
-    value.schema !== RECEIPT_SCHEMA ||
-    value.marker !==
-      VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_RECEIPT_V1 ||
-    value.version !== 1 ||
-    value.wall_monotonic_skew_allowance_ms !==
-      VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_MAX_SKEW_MS_V1
-  ) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_HEADER_INVALID");
-  }
-  const generation = decimal(
-    value.generation,
-    "SPONSORED_OBSERVATION_TIME_STORE_GENERATION_INVALID",
-  );
-  const previous = value.previous_receipt_sha256;
-  if (
-    (generation === 0n && previous !== null) ||
-    (generation > 0n &&
-      (typeof previous !== "string" || !SHA256_ID.test(previous)))
-  ) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_PREVIOUS_INVALID");
-  }
-  if (typeof value.boot_id !== "string") {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_BOOT_ID_INVALID");
-  }
-  const bootId = value.boot_id.toLowerCase();
-  if (bootId !== value.boot_id || !UUID.test(bootId)) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_BOOT_ID_INVALID");
-  }
-  const processStart = decimal(
-    value.process_start_ticks,
-    "SPONSORED_OBSERVATION_TIME_STORE_PROCESS_START_INVALID",
-  );
-  if (processStart < 1n) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_PROCESS_START_INVALID");
-  }
-  const baselineWall = safeMs(
-    value.baseline_wall_time_ms,
-    "SPONSORED_OBSERVATION_TIME_STORE_BASELINE_WALL_INVALID",
-  );
-  const observedAt = safeMs(
-    value.observed_at_ms,
-    "SPONSORED_OBSERVATION_TIME_STORE_OBSERVED_AT_INVALID",
-  );
-  const baselineMono = decimal(
-    value.baseline_monotonic_ns,
-    "SPONSORED_OBSERVATION_TIME_STORE_BASELINE_MONOTONIC_INVALID",
-    MAX_MONOTONIC,
-  );
-  const monotonic = decimal(
-    value.monotonic_ns,
-    "SPONSORED_OBSERVATION_TIME_STORE_MONOTONIC_INVALID",
-    MAX_MONOTONIC,
-  );
-  if (
-    baselineWall > observedAt ||
-    baselineMono > monotonic ||
-    (generation === 0n &&
-      (baselineWall !== observedAt || baselineMono !== monotonic)) ||
-    (generation > 0n && monotonic <= baselineMono)
-  ) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECEIPT_SEMANTICS_INVALID");
-  }
-  const monoElapsedMs = (monotonic - baselineMono) / NS_PER_MS;
-  const wallElapsedMs = BigInt(observedAt) - BigInt(baselineWall);
-  const delta =
-    wallElapsedMs >= monoElapsedMs
-      ? wallElapsedMs - monoElapsedMs
-      : monoElapsedMs - wallElapsedMs;
-  if (
-    delta >
-    BigInt(VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_MAX_SKEW_MS_V1)
-  ) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECEIPT_SKEW_INVALID");
-  }
-  if (
-    typeof value.receipt_sha256 !== "string" ||
-    !SHA256_ID.test(value.receipt_sha256)
-  ) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECEIPT_SHA_INVALID");
-  }
-  const expectedSha =
-    "sha256:" +
-    crypto
-      .createHash("sha256")
-      .update(canonicalJson(receiptBody(value)))
-      .digest("hex");
-  if (value.receipt_sha256 !== expectedSha) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECEIPT_SHA_MISMATCH");
-  }
-  const expectedFile =
-    value.receipt_sha256.slice("sha256:".length) + ".json";
-  if (expectedName !== expectedFile) {
-    fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_FILENAME_MISMATCH");
-  }
-  const canonicalBytes = Buffer.from(canonicalJson(value) + "\n", "utf8");
   if (!bytes.equals(canonicalBytes)) {
     fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_BYTES_NOT_CANONICAL");
   }
+  const expectedFile =
+    receipt.receipt_sha256.slice("sha256:".length) + ".json";
+  if (expectedName !== expectedFile) {
+    fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_FILENAME_MISMATCH");
+  }
   return Object.freeze({
-    receipt: Object.freeze({ ...value }),
-    generation,
+    receipt,
+    generation: BigInt(receipt.generation),
     bytes,
     name: expectedFile,
   });
@@ -684,6 +548,10 @@ function cleanupTemps(records, markMutation) {
     if (temp.dev !== final.dev || temp.ino !== final.ino) {
       fail("SPONSORED_OBSERVATION_TIME_STORE_TEMP_BINDING_INVALID");
     }
+    parseReceiptBytes(
+      readExactRecord(records, match[1]),
+      match[1],
+    );
     fs.unlinkSync(tempPath);
     markMutation();
     changed = true;
@@ -692,9 +560,14 @@ function cleanupTemps(records, markMutation) {
 }
 
 function candidateReceipt(receipt) {
+  const verified =
+    verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1(receipt);
   const name =
-    String(receipt?.receipt_sha256 || "").replace(/^sha256:/u, "") + ".json";
-  const bytes = Buffer.from(canonicalJson(receipt) + "\n", "utf8");
+    verified.receipt_sha256.slice("sha256:".length) + ".json";
+  const bytes =
+    canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1(
+      verified,
+    );
   return parseReceiptBytes(bytes, name);
 }
 
@@ -881,6 +754,9 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
     fail("SPONSORED_OBSERVATION_TIME_STORE_CLOCK_INVALID");
   }
   const rootPath = path.resolve(binding.root_dir);
+  if (rootPath !== binding.root_dir) {
+    fail("SPONSORED_OBSERVATION_TIME_STORE_ROOT_PATH_INVALID");
+  }
   const trustedClock = binding.trustedClock;
 
   return Object.freeze({
@@ -940,6 +816,14 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
             );
           }
           const candidate = candidateReceipt(observed.receipt);
+          assertPinnedDirectoryVisible(
+            root,
+            "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
+          );
+          assertPinnedDirectoryVisible(
+            records,
+            "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
+          );
           publishReceipt(records, candidate, markMutation);
           assertPinnedDirectoryVisible(
             root,
@@ -959,6 +843,14 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
           ) {
             fail("SPONSORED_OBSERVATION_TIME_STORE_POSTCHECK_FAILED");
           }
+          assertPinnedDirectoryVisible(
+            root,
+            "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
+          );
+          assertPinnedDirectoryVisible(
+            records,
+            "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
+          );
           return success(
             candidate.receipt,
             mutationPerformed,
@@ -1008,6 +900,14 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
         );
         records = openRecordsDirectory(root);
         const history = readHistory(records);
+        assertPinnedDirectoryVisible(
+          root,
+          "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
+        );
+        assertPinnedDirectoryVisible(
+          records,
+          "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
+        );
         return inspectSuccess(history);
       } catch (error) {
         return held(
