@@ -29,6 +29,7 @@ export const VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_WRITER_AUTHORITY_V
     separate_storage_roots_required: true,
     shared_serialization_lock: true,
     dual_root_serialization_lock: true,
+    redundant_publication_intent: true,
     publication_intent_write: true,
     allocation_ledger_write: true,
     high_water_write: true,
@@ -457,7 +458,7 @@ function cleanupIntentTemps(
 ): void {
   assertPinnedDirectoryVisible(
     directory,
-    "allocation_reservation_writer_high_water_directory",
+    "allocation_reservation_writer_intent_directory",
   );
   const prefix = "." + INTENT_NAME + ".tmp-";
   let changed = false;
@@ -511,7 +512,7 @@ function cleanupIntentTemps(
   if (changed) {
     fsyncDirectory(
       directory,
-      "allocation_reservation_writer_high_water_directory",
+      "allocation_reservation_writer_intent_directory",
     );
   }
 }
@@ -563,12 +564,12 @@ function createOnceIntent(
     fs.linkSync(tempPath, finalPath);
     fsyncDirectory(
       directory,
-      "allocation_reservation_writer_high_water_directory",
+      "allocation_reservation_writer_intent_directory",
     );
     fs.unlinkSync(tempPath);
     fsyncDirectory(
       directory,
-      "allocation_reservation_writer_high_water_directory",
+      "allocation_reservation_writer_intent_directory",
     );
     const published = readPinnedNamedFile(
       directory,
@@ -593,7 +594,7 @@ function createOnceIntent(
         fs.unlinkSync(tempPath);
         fsyncDirectory(
           directory,
-          "allocation_reservation_writer_high_water_directory",
+          "allocation_reservation_writer_intent_directory",
         );
       }
     } catch {
@@ -695,8 +696,99 @@ function removeIntent(
   fs.unlinkSync(path.join(directory.proc_path, INTENT_NAME));
   fsyncDirectory(
     directory,
-    "allocation_reservation_writer_high_water_directory",
+    "allocation_reservation_writer_intent_directory",
   );
+}
+
+function readRedundantIntent(
+  ledgerDirectory: PinnedDirectoryV1,
+  highWaterDirectory: PinnedDirectoryV1,
+): Buffer | null {
+  cleanupIntentTemps(ledgerDirectory);
+  cleanupIntentTemps(highWaterDirectory);
+  let ledgerIntent = readOptionalPinnedNamedFile(
+    ledgerDirectory,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "allocation_reservation_writer_intent",
+  );
+  let highWaterIntent = readOptionalPinnedNamedFile(
+    highWaterDirectory,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "allocation_reservation_writer_intent",
+  );
+  if (ledgerIntent === null && highWaterIntent === null) {
+    return null;
+  }
+  const intent = ledgerIntent ?? highWaterIntent!;
+  if (
+    ledgerIntent !== null &&
+    highWaterIntent !== null &&
+    !ledgerIntent.equals(highWaterIntent)
+  ) {
+    fail("allocation_reservation_writer_intent_copies_mismatch");
+  }
+  if (ledgerIntent === null) {
+    createOnceIntent(ledgerDirectory, intent);
+    ledgerIntent = intent;
+  }
+  if (highWaterIntent === null) {
+    createOnceIntent(highWaterDirectory, intent);
+    highWaterIntent = intent;
+  }
+  assertWriterRootsVisible(ledgerDirectory, highWaterDirectory);
+  if (!ledgerIntent.equals(intent) || !highWaterIntent.equals(intent)) {
+    fail("allocation_reservation_writer_intent_redundancy_postcheck_failed");
+  }
+  return intent;
+}
+
+function createRedundantIntent(
+  ledgerDirectory: PinnedDirectoryV1,
+  highWaterDirectory: PinnedDirectoryV1,
+  intent: Buffer,
+): void {
+  createOnceIntent(ledgerDirectory, intent);
+  createOnceIntent(highWaterDirectory, intent);
+  const rebound = readRedundantIntent(
+    ledgerDirectory,
+    highWaterDirectory,
+  );
+  if (rebound === null || !rebound.equals(intent)) {
+    fail("allocation_reservation_writer_intent_redundancy_postcheck_failed");
+  }
+}
+
+function removeRedundantIntent(
+  ledgerDirectory: PinnedDirectoryV1,
+  highWaterDirectory: PinnedDirectoryV1,
+  expected: Buffer,
+): void {
+  const ledgerIntent = readPinnedNamedFile(
+    ledgerDirectory,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "allocation_reservation_writer_intent",
+  );
+  const highWaterIntent = readPinnedNamedFile(
+    highWaterDirectory,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "allocation_reservation_writer_intent",
+  );
+  if (
+    !ledgerIntent.equals(expected) ||
+    !highWaterIntent.equals(expected)
+  ) {
+    fail("allocation_reservation_writer_intent_copies_changed_before_remove");
+  }
+  removeIntent(ledgerDirectory, expected);
+  removeIntent(highWaterDirectory, expected);
 }
 
 function readLedger(
@@ -792,15 +884,11 @@ function recoverUnderLock(
   ledger: Buffer;
   high_water: Buffer;
 } {
-  cleanupIntentTemps(highWaterDirectory);
   let ledger = readLedger(ledgerDirectory);
   let highWater = readHighWater(highWaterDirectory);
-  const intent = readOptionalPinnedNamedFile(
+  const intent = readRedundantIntent(
+    ledgerDirectory,
     highWaterDirectory,
-    INTENT_NAME,
-    MAX_INTENT_BYTES,
-    false,
-    "allocation_reservation_writer_intent",
   );
   if (intent === null) {
     requireCurrentBinding(ledger, highWater);
@@ -900,7 +988,11 @@ function recoverUnderLock(
     );
   }
   requireCurrentBinding(ledger, highWater);
-  removeIntent(highWaterDirectory, intent);
+  removeRedundantIntent(
+    ledgerDirectory,
+    highWaterDirectory,
+    intent,
+  );
   return Object.freeze({
     recovered: true,
     ledger,
@@ -1084,7 +1176,11 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
           );
         }
         const intent = Buffer.from(built.intent_json, "utf8");
-        createOnceIntent(highWaterDirectory, intent);
+        createRedundantIntent(
+          ledgerDirectory,
+          highWaterDirectory,
+          intent,
+        );
 
         const intentOnly =
           classifyBuyVoidAllocationReservationPublicationRecoveryV1({
@@ -1183,7 +1279,11 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
           );
         }
         requireCurrentBinding(ledger, highWater);
-        removeIntent(highWaterDirectory, intent);
+        removeRedundantIntent(
+    ledgerDirectory,
+    highWaterDirectory,
+    intent,
+  );
 
         return success(
           "persisted",
