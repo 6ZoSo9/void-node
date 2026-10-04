@@ -86,6 +86,32 @@ const REQUEST_KEYS = Object.freeze([
   "calldata",
   "signature",
 ]);
+const BUNDLE_KEYS = Object.freeze([
+  "marker",
+  "schema",
+  "version",
+  "coupled_launch_id",
+  "bundle_generation",
+  "bundle_committed_at_ms",
+  "opening_window",
+  "concentration_policy",
+  "minimum_depth_policy",
+  "intent_ttl_caps_policy",
+  "sponsored_execution_policy",
+  "source_contract_ids",
+  "exact_values_supplied_explicitly",
+  "values_selected_by_source",
+  "all_policy_commitments_precede_open",
+  "hidden_minimum_trade_amount_applied",
+  "runtime_enforcement_verified",
+  "launch_authority",
+  "market_activation_authorized",
+  "public_presale_activation_authorized",
+  "funds_movement_authorized",
+  "canonical_launch_source",
+  "authority",
+  "bundle_id",
+]);
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const LOWER_ADDRESS = /^0x[0-9a-f]{40}$/u;
 const MAX_CANONICAL_DEPTH = 40;
@@ -278,6 +304,10 @@ function verifyPolicyBundle(raw, expectedBundleId) {
     !bundle ||
     typeof bundle !== "object" ||
     Array.isArray(bundle) ||
+    Object.keys(bundle).length !== BUNDLE_KEYS.length ||
+    BUNDLE_KEYS.some(
+      (key) => !Object.hasOwn(bundle, key),
+    ) ||
     bundle.marker !==
       VOID_WC_VOID_COUPLED_LAUNCH_POLICY_BUNDLE_V1 ||
     bundle.schema !==
@@ -398,8 +428,10 @@ function pathsOverlap(left, right) {
 
 function exactTargets(value) {
   if (
-    !Array.isArray(value) ||
+    !value ||
+    typeof value !== "object" ||
     utilTypes.isProxy(value) ||
+    !Array.isArray(value) ||
     Object.getPrototypeOf(value) !== Array.prototype ||
     value.length < 1 ||
     value.length > MAX_ALLOWED_TARGETS
@@ -430,6 +462,30 @@ function exactTargets(value) {
     fail("SPONSORED_RUNTIME_ALLOWED_TARGETS_INVALID");
   }
   return Object.freeze(out);
+}
+
+function normalizeRequest(input) {
+  const raw = exactSnapshot(
+    input,
+    REQUEST_KEYS,
+    "SPONSORED_RUNTIME_REQUEST_INVALID",
+  );
+  if (
+    typeof raw.calldata !== "string" ||
+    typeof raw.signature !== "string"
+  ) {
+    fail("SPONSORED_RUNTIME_REQUEST_INVALID");
+  }
+  return Object.freeze({
+    candidate_intent:
+      snapshotCanonical(raw.candidate_intent, { nodes: 0 }),
+    candidate_sponsorship:
+      snapshotCanonical(raw.candidate_sponsorship, { nodes: 0 }),
+    signed_intent:
+      snapshotCanonical(raw.signed_intent, { nodes: 0 }),
+    calldata: raw.calldata,
+    signature: raw.signature,
+  });
 }
 
 function preflightCandidate(request, policies, allowedTargets) {
@@ -639,11 +695,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
       let timeResult = null;
       let reservation = null;
       try {
-        const request = exactSnapshot(
-          inputRequest,
-          REQUEST_KEYS,
-          "SPONSORED_RUNTIME_REQUEST_INVALID",
-        );
+        const request = normalizeRequest(inputRequest);
         preflight = preflightCandidate(
           request,
           policies,
