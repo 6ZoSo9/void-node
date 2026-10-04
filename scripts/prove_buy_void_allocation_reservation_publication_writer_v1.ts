@@ -35,6 +35,15 @@ function sleepSync(ms: number): void {
   Atomics.wait(CHILD_SLEEP, 0, 0, ms);
 }
 
+function requireOkProof<T extends { ok: boolean }>(
+  value: T,
+): asserts value is Extract<T, { ok: true }> {
+  const runtime = value as T & { reason?: string };
+  if (runtime.ok !== true) {
+    throw new Error(runtime.reason ?? "unexpected_hold");
+  }
+}
+
 if (process.argv[2] === "--dual-root-lock-child") {
   const [ledgerRoot, highWaterRoot, startedPath, enteredPath, releasePath] =
     process.argv.slice(3);
@@ -277,7 +286,11 @@ assert.doesNotMatch(
 );
 assert.match(
   writerSource,
-  /allocation_reservation_writer_intent_presence_mismatch/u,
+  /allocation_reservation_writer_intent_copies_mismatch/u,
+);
+assert.match(
+  writerSource,
+  /ensureRedundantIntentCopies/u,
 );
 assert.match(
   writerSource,
@@ -357,7 +370,7 @@ const baseInput = {
 
 const first = planBuyVoidAllocationReservationV1(baseInput);
 assert.equal(first.ok, true);
-if (!first.ok) throw new Error(first.reason);
+requireOkProof(first);
 assert.equal(first.status, "planned");
 const ledger1 = first.next_ledger_jsonl;
 
@@ -378,18 +391,18 @@ const second = planBuyVoidAllocationReservationV1({
   created_at_ms: baseInput.created_at_ms + 1,
 });
 assert.equal(second.ok, true);
-if (!second.ok) throw new Error(second.reason);
+requireOkProof(second);
 assert.equal(second.status, "planned");
 const ledger2 = second.next_ledger_jsonl;
 
 const genesis = deriveBuyVoidAllocationReservationHighWaterV1("");
 assert.equal(genesis.ok, true);
-if (!genesis.ok) throw new Error(genesis.reason);
+requireOkProof(genesis);
 const genesisHighWater = genesis.high_water_json;
 
 const next = deriveBuyVoidAllocationReservationHighWaterV1(ledger1);
 assert.equal(next.ok, true);
-if (!next.ok) throw new Error(next.reason);
+requireOkProof(next);
 const nextHighWater = next.high_water_json;
 
 const built =
@@ -399,7 +412,7 @@ const built =
     next_ledger_jsonl: ledger1,
   });
 assert.equal(built.ok, true);
-if (!built.ok) throw new Error(built.reason);
+requireOkProof(built);
 const intent = built.intent_json;
 
 type Fixture = {
@@ -554,7 +567,7 @@ for (const [key, value] of Object.entries(
         next_ledger_jsonl: ledger1,
       });
     assert.equal(written.ok, true);
-    if (!written.ok) throw new Error(written.reason);
+    requireOkProof(written);
     assert.equal(written.status, "persisted");
     assert.equal(written.operation_performed, true);
     assert.equal(written.record_count, 1);
@@ -599,7 +612,7 @@ for (const [key, value] of Object.entries(
         high_water_json: nextHighWater,
       });
     assert.equal(binding.ok, true);
-    if (!binding.ok) throw new Error(binding.reason);
+    requireOkProof(binding);
 
     const replay =
       persistBuyVoidAllocationReservationPublicationWriterV1({
@@ -608,7 +621,7 @@ for (const [key, value] of Object.entries(
         next_ledger_jsonl: ledger1,
       });
     assert.equal(replay.ok, true);
-    if (!replay.ok) throw new Error(replay.reason);
+    requireOkProof(replay);
     assert.equal(replay.status, "idempotent");
     assert.equal(replay.operation_performed, false);
   } finally {
@@ -626,7 +639,7 @@ for (const [key, value] of Object.entries(
         high_water_root: f.highWaterRoot,
       });
     assert.equal(recovered.ok, true);
-    if (!recovered.ok) throw new Error(recovered.reason);
+    requireOkProof(recovered);
     assert.equal(recovered.status, "recovered");
     assert.equal(recovered.operation_performed, true);
     assert.equal(
@@ -665,7 +678,7 @@ for (const [key, value] of Object.entries(
         next_ledger_jsonl: ledger2,
       });
     assert.equal(recoveredOnly.ok, true);
-    if (!recoveredOnly.ok) throw new Error(recoveredOnly.reason);
+    requireOkProof(recoveredOnly);
     assert.equal(recoveredOnly.status, "recovered");
     assert.equal(recoveredOnly.operation_performed, true);
     assert.equal(
@@ -704,7 +717,7 @@ for (const [key, value] of Object.entries(
         high_water_root: f.highWaterRoot,
       });
     assert.equal(recovered.ok, true);
-    if (!recovered.ok) throw new Error(recovered.reason);
+    requireOkProof(recovered);
     assert.equal(recovered.status, "recovered");
     assert.equal(
       fs.readFileSync(
@@ -735,7 +748,7 @@ for (const [key, value] of Object.entries(
         high_water_root: f.highWaterRoot,
       });
     assert.equal(recovered.ok, true);
-    if (!recovered.ok) throw new Error(recovered.reason);
+    requireOkProof(recovered);
     assert.equal(recovered.status, "recovered");
     assert.equal(recovered.record_count, 1);
     assert.equal(
@@ -759,7 +772,7 @@ for (const [key, value] of Object.entries(
         high_water_root: f.highWaterRoot,
       });
     assert.equal(recovered.ok, true);
-    if (!recovered.ok) throw new Error(recovered.reason);
+    requireOkProof(recovered);
     assert.equal(recovered.status, "recovered");
     assert.equal(recovered.operation_performed, true);
     assert.equal(
@@ -970,7 +983,7 @@ for (const [key, value] of Object.entries(
         high_water_root: f.highWaterRoot,
       });
     assert.equal(clean.ok, true);
-    if (!clean.ok) throw new Error(clean.reason);
+    requireOkProof(clean);
     assert.equal(clean.status, "clean");
     assert.equal(
       fs.existsSync(path.join(f.highWaterRoot, tempName)),
@@ -991,7 +1004,7 @@ for (const [key, value] of Object.entries(
         next_ledger_jsonl: ledger1,
       });
     assert.equal(written.ok, true);
-    if (!written.ok) throw new Error(written.reason);
+    requireOkProof(written);
 
     fs.writeFileSync(
       path.join(f.ledgerRoot, LEDGER_NAME),
@@ -1141,7 +1154,7 @@ function provePostRevalidationRootSwapRecovery(
         high_water_root: f.highWaterRoot,
       });
     assert.equal(recovered.ok, true);
-    if (!recovered.ok) throw new Error(recovered.reason);
+    requireOkProof(recovered);
     assert.equal(recovered.status, "recovered");
     assert.equal(
       fs.readFileSync(
