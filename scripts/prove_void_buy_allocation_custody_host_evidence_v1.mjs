@@ -6,6 +6,7 @@ import fs from "node:fs";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1,
+  testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1,
   testOnlyClassifyBuyVoidAllocationCustodyPolkitStatusV1,
 } from "../tools/void-buy-allocation-custody-host-evidence-v1.mjs";
 
@@ -92,6 +93,60 @@ assert.deepEqual(
     [-1, "error", "error"],
     ["x", "error", "error"],
   ],
+);
+
+const denyRule =
+  testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1(
+    "void-buy-runtime",
+  );
+assert.equal(
+  denyRule,
+  [
+    "polkit.addRule(function(action, subject) {",
+    "  if (",
+    '    subject.user === "void-buy-runtime" &&',
+    "    (",
+    '      action.id === "org.freedesktop.systemd1.manage-units" ||',
+    '      action.id === "org.freedesktop.systemd1.manage-unit-files" ||',
+    '      action.id === "org.freedesktop.systemd1.reload-daemon" ||',
+    '      action.id === "org.freedesktop.systemd1.set-environment"',
+    "    )",
+    "  ) {",
+    "    return polkit.Result.NO;",
+    "  }",
+    "  return polkit.Result.NOT_HANDLED;",
+    "});",
+    "",
+  ].join("\n"),
+);
+assert.doesNotMatch(
+  denyRule,
+  /YES|AUTH_|KEEP/u,
+  "deny rule must not contain an authorization path",
+);
+assert.match(
+  source,
+  /00-void-buy-allocation-custody-runtime-deny-v1\.rules/u,
+);
+assert.match(
+  source,
+  /custody_host_evidence_polkit_deny_rule_not_first/u,
+  "deny rule must be lexically first across /etc and /usr rule sets",
+);
+assert.match(
+  source,
+  /custody_host_evidence_polkit_deny_rule_bytes_mismatch/u,
+  "installed deny rule must match exact reviewed bytes",
+);
+assert.match(
+  source,
+  /Number\(stat\.uid\) !== 0/u,
+  "deny rule must be root-owned",
+);
+assert.match(
+  source,
+  /\(Number\(stat\.mode\) & 0o022\) !== 0/u,
+  "deny rule must not be group/world writable",
 );
 
 assert.match(
@@ -266,6 +321,9 @@ console.log("reviewed_systemd_major=255");
 console.log("runtime_service_capability_sets_empty=true");
 console.log("runtime_process_capabilities_zero=true");
 console.log("runtime_process_no_new_privileges_enforced=true");
+console.log("global_polkit_runtime_deny_rule_bound=true");
+console.log("global_polkit_deny_rule_lexically_first=true");
+console.log("global_polkit_deny_rule_root_owned=true");
 console.log("pkcheck_noninteractive=true");
 console.log("pkcheck_explicit_denial_only=true");
 console.log("pkcheck_authorized_holds=true");
