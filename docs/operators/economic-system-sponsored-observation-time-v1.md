@@ -162,6 +162,7 @@ The focused proof covers:
 - accessor binding/request/sample rejection without getter execution;
 - stable clock-provider exception HOLD without provider-detail exposure;
 - corrupt prior receipt rejected before clock read;
+- self-consistent rehashed prior receipt with zero process-start identity rejected before clock read;
 - self-consistent rehashed prior receipt with excessive cumulative skew rejected before clock read;
 - self-consistent later-generation prior receipt without monotonic advance rejected before clock read;
 - wall regression;
