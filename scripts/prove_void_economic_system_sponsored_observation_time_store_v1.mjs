@@ -75,8 +75,6 @@ function requireOk(value) {
   assert.equal(value.receipt_store_rollback_resistance_proven, false);
   assert.equal(value.cross_process_restart_continuity_proven, false);
   assert.equal(value.cross_boot_restart_continuity_proven, false);
-  assert.equal(value.durable_receipt_store_source_verified, true);
-  assert.equal(value.live_durable_receipt_storage_proven, false);
   assert.equal(value.runtime_enforcement_verified, false);
   assert.equal(value.gas_sponsorship_performed, false);
   assert.equal(value.transaction_submission, false);
@@ -88,6 +86,8 @@ function requireHeld(value, reason = null) {
   assert.equal(value.ok, false, JSON.stringify(value));
   assert.equal(value.status, "held");
   if (reason !== null) assert.equal(value.reason, reason);
+  assert.equal(value.durable_receipt_store_source_verified, true);
+  assert.equal(value.live_durable_receipt_storage_proven, false);
   assert.equal(value.runtime_enforcement_verified, false);
   assert.equal(value.gas_sponsorship_performed, false);
   assert.equal(value.transaction_submission, false);
