@@ -467,7 +467,7 @@ function requestLaunchAuthorityLineageV1(
   ) {
     throw new Error("allocation_reservation_request_launch_authority_invalid");
   }
-  return launchAuthorityLineageFieldsV1({
+  const lineage = launchAuthorityLineageFieldsV1({
     coupled_launch_id: value.coupled_launch_id,
     source_composition_id: value.source_composition_id,
     activation_generation: value.activation_generation,
@@ -476,6 +476,22 @@ function requestLaunchAuthorityLineageV1(
     activation_receipt_sha256: value.activation_receipt_sha256,
     expires_at_ms: value.expires_at_ms,
   });
+  for (const key of [
+    "coupled_launch_id",
+    "source_composition_id",
+    "activation_generation",
+    "generation_tip_sha256",
+    "activation_receipt_id",
+    "activation_receipt_sha256",
+    "expires_at_ms",
+  ] as const) {
+    if (value[key] !== lineage[key]) {
+      throw new Error(
+        "allocation_reservation_request_launch_authority_noncanonical",
+      );
+    }
+  }
+  return lineage;
 }
 
 function recordIdV1(function recordIdV1(
