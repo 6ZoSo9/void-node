@@ -1089,10 +1089,6 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
                   authority.operator_ledger_stat,
                   event,
                 );
-                ensurePaymentVerifiedSidecarExactV1(
-                  requestDir,
-                  event,
-                );
                 return { ok: true, dir: requestDir };
               },
             ),
@@ -1112,9 +1108,16 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       capacity_admission: admission.decision,
     };
   }
+  const sidecarState = withBuyVoidTerminalCloseoutRequestLockV1(
+    { request_dir: requestDir, request_id: requestId },
+    () => ensurePaymentVerifiedSidecarExactV1(requestDir, event),
+  );
   return {
     ...(admission.result as any),
     idempotent: false,
+    sidecar_recovered: false,
+    recovered_sidecar_count: 0,
+    sidecar_state: sidecarState,
     capacity_admission: admission.decision,
   };
 }
