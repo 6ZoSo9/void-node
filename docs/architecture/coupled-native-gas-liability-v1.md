@@ -53,8 +53,16 @@ same unreserved payer wei.
 
 The current Buy VOID execution source does not authorize an automatic retry.
 A later reviewed recovery/attempt policy must reserve any extra attempt allowance
-**before** that allowance can consume the same payer balance. V1 does not
-silently reserve or authorize a second attempt.
+**before** that allowance can consume the same payer balance. Generic record
+validation conservatively requires:
+
+```text
+attempt_limit * (transaction_native_value_wei + gas_limit * max_fee_per_gas)
+```
+
+unless a later, stronger retry contract proves that principal value cannot be
+spent more than once. Buy VOID V1 does not silently reserve or authorize a
+second attempt.
 
 ## Payer observation
 
