@@ -133,6 +133,16 @@ assert.match(
   /custody_host_evidence_polkit_deny_rule_not_first/u,
   "deny rule must be lexically first across /etc and /usr rule sets",
 );
+assert.doesNotMatch(
+  source,
+  /localeCompare/u,
+  "rule ordering must not depend on host locale",
+);
+assert.match(
+  source,
+  /left\.name < right\.name/u,
+  "ASCII rule names must use deterministic raw lexical order",
+);
 assert.match(
   source,
   /custody_host_evidence_polkit_deny_rule_bytes_mismatch/u,
