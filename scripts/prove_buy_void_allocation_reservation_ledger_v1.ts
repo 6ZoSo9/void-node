@@ -516,6 +516,31 @@ for (const launchAuthority of [
   );
 }
 
+for (const launchAuthority of [
+  {
+    ...baseInput.launch_authority,
+    activation_generation:
+      baseInput.launch_authority.activation_generation.toUpperCase(),
+  },
+  {
+    ...baseInput.launch_authority,
+    activation_receipt_sha256:
+      baseInput.launch_authority.activation_receipt_sha256.toUpperCase(),
+  },
+  {
+    ...baseInput.launch_authority,
+    expires_at_ms: String(baseInput.launch_authority.expires_at_ms),
+  },
+]) {
+  expectHeld(
+    planBuyVoidAllocationReservationV1({
+      ...baseInput,
+      launch_authority: launchAuthority,
+    }),
+    "allocation_reservation_request_launch_authority_noncanonical",
+  );
+}
+
 const ethereum = planBuyVoidAllocationReservationV1({
   ...baseInput,
   source_chain: "eth",
