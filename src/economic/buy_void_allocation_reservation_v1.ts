@@ -1284,7 +1284,7 @@ function allocationReservationLockPathV1(
   return requestDir + ALLOCATION_LOCK_SUFFIX;
 }
 
-function persistBuyVoidAllocationReservationUnlockedV1(input: {
+export function persistBuyVoidAllocationReservationV1(input: {
   request_dir: string;
   request_id: string;
 }): BuyVoidAllocationReservationDecisionV1 {
@@ -1300,7 +1300,7 @@ function persistBuyVoidAllocationReservationUnlockedV1(input: {
   );
 }
 
-export function persistBuyVoidAllocationReservationV1(input: {
+function persistBuyVoidAllocationReservationUnlockedV1(input: {
   request_dir: string;
   request_id: string;
 }): BuyVoidAllocationReservationDecisionV1 {
