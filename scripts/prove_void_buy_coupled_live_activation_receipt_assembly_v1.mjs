@@ -171,7 +171,7 @@ assert.doesNotMatch(
 
 for (const required of [
   "verifyBuyCoupledLiveActivationSigningRequestV1(signingRequest)",
-  "assembleBuyCoupledLiveActivationReceiptV1(\n    {",
+  "assembleBuyCoupledLiveActivationReceiptAtTimeV1(",
   "canonicalJson(assembly) !== canonicalJson(expected)",
   "activation_receipt_assembly_lease_not_ready",
   "signingRequest: assembly.signing_request",
