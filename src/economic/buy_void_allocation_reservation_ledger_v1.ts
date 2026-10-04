@@ -51,6 +51,9 @@ const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
 const TX_HASH = /^0x[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
+const BYTES32 = /^0x[0-9a-f]{64}$/u;
+const HEX64 = /^[0-9a-f]{64}$/u;
+const ACTIVATION_RECEIPT_ID = /^voidbclive1_[0-9a-f]{64}$/u;
 const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
 const MAX_LEDGER_RECORDS = 100_000;
 const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
@@ -58,15 +61,22 @@ const MICRO = 1_000_000n;
 const MAX_AMOUNT_TEXT_CHARS = 32;
 
 const RECORD_KEYS = Object.freeze([
+  "activation_generation",
+  "activation_receipt_id",
+  "activation_receipt_sha256",
   "allocation_record_hash",
   "buyer_delivery_wallet",
   "canonical_payment_identity",
+  "coupled_launch_id",
   "created_at_ms",
   "duplicate_payment_guard_result",
+  "expires_at_ms",
+  "generation_tip_sha256",
   "inventory_allocation_guard_result",
   "operator_activation_record_ref",
   "payment_log_index",
   "payment_transaction_hash",
+  "payment_verified_event_sha256",
   "pool_void_total_before",
   "previous_allocation_record_hash",
   "quote_usdc_amount",
@@ -79,6 +89,7 @@ const RECORD_KEYS = Object.freeze([
   "reserved_void_total_after",
   "reserved_void_total_before",
   "source_chain",
+  "source_composition_id",
   "verified_payment_receipt_ref",
 ]);
 
@@ -86,10 +97,18 @@ export type BuyVoidAllocationReservationRecordV1 = {
   record_type: typeof RECORD_TYPE;
   record_id: string;
   request_id: string;
+  coupled_launch_id: string;
+  source_composition_id: string;
+  activation_generation: string;
+  generation_tip_sha256: string;
+  activation_receipt_id: string;
+  activation_receipt_sha256: string;
+  expires_at_ms: number;
   source_chain: "base" | "ethereum";
   payment_transaction_hash: string;
   payment_log_index: string;
   canonical_payment_identity: string;
+  payment_verified_event_sha256: string;
   buyer_delivery_wallet: string;
   quote_void_amount: string;
   quote_usdc_amount: string;
@@ -356,9 +375,76 @@ function contentRefV1(value: unknown, code: string): string {
   return ref;
 }
 
+type LaunchAuthorityLineageV1 = {
+  coupled_launch_id: string;
+  source_composition_id: string;
+  activation_generation: string;
+  generation_tip_sha256: string;
+  activation_receipt_id: string;
+  activation_receipt_sha256: string;
+  expires_at_ms: number;
+};
+
+function canonicalBytes32V1(value: unknown, code: string): string {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!BYTES32.test(text)) throw new Error(code);
+  return text;
+}
+
+function canonicalHex64V1(value: unknown, code: string): string {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!HEX64.test(text)) throw new Error(code);
+  return text;
+}
+
+function launchAuthorityLineageV1(input: {
+  coupled_launch_id: unknown;
+  source_composition_id: unknown;
+  activation_generation: unknown;
+  generation_tip_sha256: unknown;
+  activation_receipt_id: unknown;
+  activation_receipt_sha256: unknown;
+  expires_at_ms: unknown;
+}): Readonly<LaunchAuthorityLineageV1> {
+  const receiptId = String(input.activation_receipt_id ?? "").trim();
+  if (!ACTIVATION_RECEIPT_ID.test(receiptId)) {
+    throw new Error("allocation_reservation_activation_receipt_id_invalid");
+  }
+  const expiresAt = Number(input.expires_at_ms);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt < 1) {
+    throw new Error("allocation_reservation_launch_expiry_invalid");
+  }
+  return Object.freeze({
+    coupled_launch_id: contentRefV1(
+      input.coupled_launch_id,
+      "allocation_reservation_coupled_launch_id_invalid",
+    ),
+    source_composition_id: contentRefV1(
+      input.source_composition_id,
+      "allocation_reservation_source_composition_id_invalid",
+    ),
+    activation_generation: canonicalBytes32V1(
+      input.activation_generation,
+      "allocation_reservation_activation_generation_invalid",
+    ),
+    generation_tip_sha256: contentRefV1(
+      input.generation_tip_sha256,
+      "allocation_reservation_generation_tip_invalid",
+    ),
+    activation_receipt_id: receiptId,
+    activation_receipt_sha256: canonicalHex64V1(
+      input.activation_receipt_sha256,
+      "allocation_reservation_activation_receipt_sha256_invalid",
+    ),
+    expires_at_ms: expiresAt,
+  });
+}
+
 function recordIdV1(
   requestId: string,
   canonicalPaymentIdentity: string,
+  paymentVerifiedEventSha256: string,
+  launchAuthority: LaunchAuthorityLineageV1,
 ): string {
   return (
     "voidalloc1_" +
@@ -367,6 +453,14 @@ function recordIdV1(
         VOID_BUY_VOID_ALLOCATION_RESERVATION_RECORD_V1,
         requestId,
         canonicalPaymentIdentity,
+        paymentVerifiedEventSha256,
+        launchAuthority.coupled_launch_id,
+        launchAuthority.source_composition_id,
+        launchAuthority.activation_generation,
+        launchAuthority.generation_tip_sha256,
+        launchAuthority.activation_receipt_id,
+        launchAuthority.activation_receipt_sha256,
+        String(launchAuthority.expires_at_ms),
       ].join("\n"),
     )
   );
@@ -426,6 +520,29 @@ function parseRecordV1(
   if (!REQUEST_ID.test(requestId)) {
     throw new Error("allocation_reservation_request_id_invalid");
   }
+  const launchAuthority = launchAuthorityLineageV1({
+    coupled_launch_id: raw.coupled_launch_id,
+    source_composition_id: raw.source_composition_id,
+    activation_generation: raw.activation_generation,
+    generation_tip_sha256: raw.generation_tip_sha256,
+    activation_receipt_id: raw.activation_receipt_id,
+    activation_receipt_sha256: raw.activation_receipt_sha256,
+    expires_at_ms: raw.expires_at_ms,
+  });
+  for (const key of [
+    "coupled_launch_id",
+    "source_composition_id",
+    "activation_generation",
+    "generation_tip_sha256",
+    "activation_receipt_id",
+    "activation_receipt_sha256",
+    "expires_at_ms",
+  ] as const) {
+    if (raw[key] !== launchAuthority[key]) {
+      throw new Error("allocation_reservation_launch_authority_noncanonical");
+    }
+  }
+
   const chain = canonicalChainV1(raw.source_chain);
   if (raw.source_chain !== chain) {
     throw new Error("allocation_reservation_source_chain_noncanonical");
@@ -574,6 +691,15 @@ function parseRecordV1(
     raw.verified_payment_receipt_ref,
     "allocation_reservation_verified_payment_ref_invalid",
   );
+  const paymentVerifiedEventSha256 = contentRefV1(
+    raw.payment_verified_event_sha256,
+    "allocation_reservation_payment_verified_event_sha256_invalid",
+  );
+  if (raw.payment_verified_event_sha256 !== paymentVerifiedEventSha256) {
+    throw new Error(
+      "allocation_reservation_payment_verified_event_sha256_noncanonical",
+    );
+  }
   const duplicateRef = contentRefV1(
     raw.duplicate_payment_guard_result,
     "allocation_reservation_duplicate_guard_ref_invalid",
@@ -634,6 +760,8 @@ function parseRecordV1(
     recordId !== recordIdV1(
       requestId,
       canonicalPaymentIdentity,
+      paymentVerifiedEventSha256,
+      launchAuthority,
     )
   ) {
     throw new Error("allocation_reservation_record_id_invalid");
@@ -643,6 +771,13 @@ function parseRecordV1(
     record_type: RECORD_TYPE,
     record_id: recordId,
     request_id: requestId,
+    coupled_launch_id: launchAuthority.coupled_launch_id,
+    source_composition_id: launchAuthority.source_composition_id,
+    activation_generation: launchAuthority.activation_generation,
+    generation_tip_sha256: launchAuthority.generation_tip_sha256,
+    activation_receipt_id: launchAuthority.activation_receipt_id,
+    activation_receipt_sha256: launchAuthority.activation_receipt_sha256,
+    expires_at_ms: launchAuthority.expires_at_ms,
     source_chain: chain,
     payment_transaction_hash: txHash,
     payment_log_index: logIndex,
@@ -656,6 +791,7 @@ function parseRecordV1(
     reserved_void_total_after: reservedAfter.text,
     remaining_void_after: remainingAfter.text,
     verified_payment_receipt_ref: verifiedRef,
+    payment_verified_event_sha256: paymentVerifiedEventSha256,
     duplicate_payment_guard_result: duplicateRef,
     inventory_allocation_guard_result: inventoryRef,
     operator_activation_record_ref: activationRef,
@@ -805,10 +941,18 @@ function candidateCoreV1(input: {
   source_chain: unknown;
   payment_transaction_hash: unknown;
   payment_log_index: unknown;
+  coupled_launch_id: unknown;
+  source_composition_id: unknown;
+  activation_generation: unknown;
+  generation_tip_sha256: unknown;
+  activation_receipt_id: unknown;
+  activation_receipt_sha256: unknown;
+  expires_at_ms: unknown;
   buyer_delivery_wallet: unknown;
   quote_void_amount: unknown;
   quote_usdc_amount: unknown;
   verified_payment_receipt_ref: unknown;
+  payment_verified_event_sha256: unknown;
   duplicate_payment_guard_result: unknown;
   inventory_allocation_guard_result: unknown;
   operator_activation_record_ref: unknown;
@@ -817,6 +961,7 @@ function candidateCoreV1(input: {
   if (!REQUEST_ID.test(requestId)) {
     throw new Error("allocation_reservation_request_id_invalid");
   }
+  const launchAuthority = launchAuthorityLineageV1(input);
   const chain = canonicalChainV1(input.source_chain);
   const txHash = canonicalHashV1(
     input.payment_transaction_hash,
@@ -833,6 +978,13 @@ function candidateCoreV1(input: {
     });
   return Object.freeze({
     request_id: requestId,
+    coupled_launch_id: launchAuthority.coupled_launch_id,
+    source_composition_id: launchAuthority.source_composition_id,
+    activation_generation: launchAuthority.activation_generation,
+    generation_tip_sha256: launchAuthority.generation_tip_sha256,
+    activation_receipt_id: launchAuthority.activation_receipt_id,
+    activation_receipt_sha256: launchAuthority.activation_receipt_sha256,
+    expires_at_ms: launchAuthority.expires_at_ms,
     source_chain: chain,
     payment_transaction_hash: txHash,
     payment_log_index: logIndex,
@@ -853,6 +1005,10 @@ function candidateCoreV1(input: {
     verified_payment_receipt_ref: contentRefV1(
       input.verified_payment_receipt_ref,
       "allocation_reservation_verified_payment_ref_invalid",
+    ),
+    payment_verified_event_sha256: contentRefV1(
+      input.payment_verified_event_sha256,
+      "allocation_reservation_payment_verified_event_sha256_invalid",
     ),
     duplicate_payment_guard_result: contentRefV1(
       input.duplicate_payment_guard_result,
@@ -875,11 +1031,19 @@ export function planBuyVoidAllocationReservationV1(input: {
   source_chain: unknown;
   payment_transaction_hash: unknown;
   payment_log_index: unknown;
+  coupled_launch_id: unknown;
+  source_composition_id: unknown;
+  activation_generation: unknown;
+  generation_tip_sha256: unknown;
+  activation_receipt_id: unknown;
+  activation_receipt_sha256: unknown;
+  expires_at_ms: unknown;
   buyer_delivery_wallet: unknown;
   quote_void_amount: unknown;
   quote_usdc_amount: unknown;
   pool_void_total: unknown;
   verified_payment_receipt_ref: unknown;
+  payment_verified_event_sha256: unknown;
   duplicate_payment_guard_result: unknown;
   inventory_allocation_guard_result: unknown;
   operator_activation_record_ref: unknown;
@@ -952,6 +1116,13 @@ export function planBuyVoidAllocationReservationV1(input: {
         );
       }
       for (const key of [
+        "coupled_launch_id",
+        "source_composition_id",
+        "activation_generation",
+        "generation_tip_sha256",
+        "activation_receipt_id",
+        "activation_receipt_sha256",
+        "expires_at_ms",
         "source_chain",
         "payment_transaction_hash",
         "payment_log_index",
@@ -960,6 +1131,7 @@ export function planBuyVoidAllocationReservationV1(input: {
         "quote_void_amount",
         "quote_usdc_amount",
         "verified_payment_receipt_ref",
+        "payment_verified_event_sha256",
         "duplicate_payment_guard_result",
         "inventory_allocation_guard_result",
         "operator_activation_record_ref",
@@ -1042,8 +1214,17 @@ export function planBuyVoidAllocationReservationV1(input: {
       record_id: recordIdV1(
         core.request_id,
         core.canonical_payment_identity,
+        core.payment_verified_event_sha256,
+        core,
       ),
       request_id: core.request_id,
+      coupled_launch_id: core.coupled_launch_id,
+      source_composition_id: core.source_composition_id,
+      activation_generation: core.activation_generation,
+      generation_tip_sha256: core.generation_tip_sha256,
+      activation_receipt_id: core.activation_receipt_id,
+      activation_receipt_sha256: core.activation_receipt_sha256,
+      expires_at_ms: core.expires_at_ms,
       source_chain: core.source_chain,
       payment_transaction_hash:
         core.payment_transaction_hash,
@@ -1064,6 +1245,8 @@ export function planBuyVoidAllocationReservationV1(input: {
         amountTextFromMicroV1(remainingAfter),
       verified_payment_receipt_ref:
         core.verified_payment_receipt_ref,
+      payment_verified_event_sha256:
+        core.payment_verified_event_sha256,
       duplicate_payment_guard_result:
         core.duplicate_payment_guard_result,
       inventory_allocation_guard_result:
