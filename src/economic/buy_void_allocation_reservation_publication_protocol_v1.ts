@@ -118,7 +118,7 @@ export type BuyVoidAllocationReservationPublicationIntentBuiltV1 = {
   marker: typeof VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_PROTOCOL_V1;
   version: 1;
   operation_performed: false;
-  intent_bytes: Buffer;
+  intent_json: string;
   intent_sha256: string;
   record_id: string;
   record_hash: string;
@@ -138,8 +138,10 @@ export type BuyVoidAllocationReservationPublicationRecoveryV1 = {
   write_ledger_append_required: boolean;
   write_high_water_required: boolean;
   remove_intent_after_postcheck: true;
-  append_bytes: Buffer;
-  next_high_water_bytes: Buffer;
+  append_sha256: string;
+  append_bytes_base64: string;
+  next_high_water_sha256: string;
+  next_high_water_json: string;
   authority:
     typeof VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_AUTHORITY_V1;
 };
@@ -568,7 +570,7 @@ export function buildBuyVoidAllocationReservationPublicationIntentV1(
         VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_PROTOCOL_V1,
       version: 1,
       operation_performed: false,
-      intent_bytes: intentBytes,
+      intent_json: intentBytes.toString("utf8"),
       intent_sha256: sha256Id(intentBytes),
       record_id: body.record_id,
       record_hash: body.record_hash,
@@ -724,10 +726,11 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
         write_ledger_append_required: true,
         write_high_water_required: true,
         remove_intent_after_postcheck: true,
-        append_bytes: Buffer.from(parsed.append_bytes),
-        next_high_water_bytes: Buffer.from(
-          parsed.next_high_water_bytes,
-        ),
+        append_sha256: body.append_sha256,
+        append_bytes_base64: body.append_bytes_base64,
+        next_high_water_sha256: body.next_high_water_sha256,
+        next_high_water_json:
+          parsed.next_high_water_bytes.toString("utf8"),
         authority:
           VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_AUTHORITY_V1,
       });
@@ -780,10 +783,11 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
         write_ledger_append_required: false,
         write_high_water_required: true,
         remove_intent_after_postcheck: true,
-        append_bytes: Buffer.from(parsed.append_bytes),
-        next_high_water_bytes: Buffer.from(
-          parsed.next_high_water_bytes,
-        ),
+        append_sha256: body.append_sha256,
+        append_bytes_base64: body.append_bytes_base64,
+        next_high_water_sha256: body.next_high_water_sha256,
+        next_high_water_json:
+          parsed.next_high_water_bytes.toString("utf8"),
         authority:
           VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_AUTHORITY_V1,
       });
@@ -814,10 +818,11 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
       write_ledger_append_required: false,
       write_high_water_required: false,
       remove_intent_after_postcheck: true,
-      append_bytes: Buffer.from(parsed.append_bytes),
-      next_high_water_bytes: Buffer.from(
-        parsed.next_high_water_bytes,
-      ),
+      append_sha256: body.append_sha256,
+      append_bytes_base64: body.append_bytes_base64,
+      next_high_water_sha256: body.next_high_water_sha256,
+      next_high_water_json:
+        parsed.next_high_water_bytes.toString("utf8"),
       authority:
         VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_AUTHORITY_V1,
     });
