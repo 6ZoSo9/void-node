@@ -169,6 +169,29 @@ assert.equal(classified2.record_count, 2);
 assert.equal(classified2.reserved_void_total, "10000000");
 assert.equal(classified2.remaining_void, "0");
 
+// Internal hash-chain validation alone cannot distinguish current history from a
+// genuine older valid prefix or an empty genesis. Runtime integration must bind
+// record_count + tip_hash to a separately protected monotonic high-water.
+const rollbackPrefix =
+  classifyBuyVoidAllocationReservationLedgerV1(ledger1);
+assert.equal(rollbackPrefix.ok, true);
+if (!rollbackPrefix.ok) {
+  throw new Error("expected genuine prefix internally valid");
+}
+assert.equal(rollbackPrefix.record_count, 1);
+assert.equal(rollbackPrefix.tip_hash, first.record.allocation_record_hash);
+const rollbackEmpty =
+  classifyBuyVoidAllocationReservationLedgerV1("");
+assert.equal(rollbackEmpty.ok, true);
+if (!rollbackEmpty.ok) {
+  throw new Error("expected empty ledger internally valid");
+}
+assert.equal(rollbackEmpty.record_count, 0);
+assert.equal(
+  rollbackEmpty.tip_hash,
+  VOID_BUY_VOID_ALLOCATION_RESERVATION_GENESIS_HASH_V1,
+);
+
 expectHeld(
   planBuyVoidAllocationReservationV1({
     ...baseInput,
@@ -407,6 +430,8 @@ assert.deepEqual(
     duplicate_payment_identity_rejection: true,
     exact_inventory_arithmetic: true,
     canonical_presale_economics_bound: true,
+    external_high_water_binding: false,
+    rollback_detection: false,
     runtime_integration: false,
     filesystem_read: false,
     filesystem_write: false,
@@ -444,6 +469,10 @@ console.log("exact_retry_idempotent_without_append=true");
 console.log("oversell_rejected=true");
 console.log("closed_record_schema=true");
 console.log("canonical_jsonl_serialization_required=true");
+console.log("valid_prefix_internal_continuity_only=true");
+console.log("empty_ledger_internal_continuity_only=true");
+console.log("external_high_water_binding=false");
+console.log("rollback_detection=false");
 console.log("runtime_integration=false");
 console.log("filesystem_write=false");
 console.log("allocation_reservation_write=false");
