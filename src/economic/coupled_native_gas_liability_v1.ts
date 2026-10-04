@@ -637,6 +637,32 @@ function validateLiability(
   return value as unknown as CoupledNativeGasLiabilityRecordV1;
 }
 
+function sameBuyVoidObligationSemantics(
+  existing: CoupledNativeGasLiabilityRecordV1,
+  candidate: CoupledNativeGasLiabilityRecordV1,
+): boolean {
+  return (
+    existing.lane === "presale" &&
+    existing.obligation_id === candidate.obligation_id &&
+    existing.payer_address === candidate.payer_address &&
+    existing.nonce === candidate.nonce &&
+    existing.transaction_plan_fingerprint_sha256 ===
+      candidate.transaction_plan_fingerprint_sha256 &&
+    existing.transaction_native_value_wei ===
+      candidate.transaction_native_value_wei &&
+    existing.gas_limit === candidate.gas_limit &&
+    existing.admitted_max_fee_per_gas_wei ===
+      candidate.admitted_max_fee_per_gas_wei &&
+    existing.attempt_limit === 1 &&
+    existing.maximum_reserved_wei ===
+      candidate.maximum_reserved_wei &&
+    existing.source_evidence_kind ===
+      "buy_void_prepared_plan_v1" &&
+    existing.source_evidence_id === candidate.source_evidence_id &&
+    existing.status === "open"
+  );
+}
+
 function candidateFromBuyVoid(
   plan: BuyVoidPreparedTransactionPlanReservationV1,
   observation: CoupledNativeGasPayerObservationV1,
@@ -718,7 +744,7 @@ export function classifyCoupledNativeGasBuyVoidAdmissionV1(input: {
     const candidate = candidateFromBuyVoid(plan, observation);
     const seen = new Set<string>();
     let reservedBefore = 0n;
-    let exactReplay: CoupledNativeGasLiabilityRecordV1 | null = null;
+    let existingReplay: CoupledNativeGasLiabilityRecordV1 | null = null;
     for (const raw of input.open_liabilities) {
       const record = validateLiability(raw);
       if (record.payer_address !== candidate.payer_address) {
@@ -732,12 +758,15 @@ export function classifyCoupledNativeGasBuyVoidAdmissionV1(input: {
       if (reservedBefore > UINT256_MAX) {
         return held("coupled_native_gas_reserved_total_overflow");
       }
-      if (record.liability_id === candidate.liability_id) {
-        exactReplay = record;
-        continue;
-      }
       if (record.obligation_id === candidate.obligation_id) {
-        return held("coupled_native_gas_obligation_conflict");
+        if (
+          existingReplay !== null ||
+          !sameBuyVoidObligationSemantics(record, candidate)
+        ) {
+          return held("coupled_native_gas_obligation_conflict");
+        }
+        existingReplay = record;
+        continue;
       }
       if (
         record.transaction_plan_fingerprint_sha256 ===
@@ -765,7 +794,7 @@ export function classifyCoupledNativeGasBuyVoidAdmissionV1(input: {
     }
 
     const requested = BigInt(candidate.maximum_reserved_wei);
-    if (exactReplay) {
+    if (existingReplay) {
       return Object.freeze({
         ok: true,
         status: "idempotent",
@@ -780,7 +809,7 @@ export function classifyCoupledNativeGasBuyVoidAdmissionV1(input: {
         reserved_after_wei: reservedBefore.toString(),
         unreserved_after_wei:
           (observedBalance - reservedBefore).toString(),
-        liability: exactReplay,
+        liability: existingReplay,
         authority: VOID_COUPLED_NATIVE_GAS_LIABILITY_AUTHORITY_V1,
       });
     }
