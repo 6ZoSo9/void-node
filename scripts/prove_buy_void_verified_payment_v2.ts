@@ -49,8 +49,8 @@ const verificationPolicy = {
   current_block_number_by_chain: { base: "0x65" },
 };
 const verify = (
-  receipt: typeof baseReceipt = baseReceipt,
-  policy: typeof verificationPolicy = verificationPolicy,
+  receipt: any = baseReceipt,
+  policy: any = verificationPolicy,
 ) => buildBuyVoidVerifiedPaymentEventV2({ request, receipt, policy });
 const expectHeld = (
   decision: ReturnType<typeof buildBuyVoidVerifiedPaymentEventV2>,
