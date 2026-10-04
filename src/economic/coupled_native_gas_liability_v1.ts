@@ -213,7 +213,11 @@ function held(
 
 function canonical(value: unknown): string {
   if (value === null || typeof value !== "object") {
-    return JSON.stringify(value);
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) {
+      throw new Error("coupled_native_gas_noncanonical_value");
+    }
+    return encoded;
   }
   if (Array.isArray(value)) {
     return `[${value.map(canonical).join(",")}]`;
