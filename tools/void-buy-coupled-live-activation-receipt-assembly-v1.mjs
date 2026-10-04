@@ -128,11 +128,11 @@ export function verifyCoupledLiveActivationTypedDataSignaturesV1({
   });
 }
 
-export function assembleBuyCoupledLiveActivationReceiptV1({
+function assembleBuyCoupledLiveActivationReceiptAtTimeV1({
   signingRequest,
   activationSignature,
   sovereignSignature,
-}, nowMs = Date.now()) {
+}, nowMs) {
   verifyBuyCoupledLiveActivationSigningRequestV1(signingRequest);
   if (
     !Number.isSafeInteger(nowMs) ||
@@ -216,6 +216,23 @@ export function assembleBuyCoupledLiveActivationReceiptV1({
   });
 }
 
+export function assembleBuyCoupledLiveActivationReceiptV1(input) {
+  return assembleBuyCoupledLiveActivationReceiptAtTimeV1(
+    input,
+    Date.now(),
+  );
+}
+
+export function testOnlyAssembleBuyCoupledLiveActivationReceiptAtTimeV1(
+  input,
+  nowMs,
+) {
+  return assembleBuyCoupledLiveActivationReceiptAtTimeV1(
+    input,
+    nowMs,
+  );
+}
+
 export function verifyBuyCoupledLiveActivationReceiptAssemblyV1(assembly) {
   if (
     !assembly ||
@@ -237,7 +254,7 @@ export function verifyBuyCoupledLiveActivationReceiptAssemblyV1(assembly) {
     fail("activation_receipt_assembly_invalid");
   }
 
-  const expected = assembleBuyCoupledLiveActivationReceiptV1(
+  const expected = assembleBuyCoupledLiveActivationReceiptAtTimeV1(
     {
       signingRequest: assembly.signing_request,
       activationSignature: assembly.receipt.activation_signature,
