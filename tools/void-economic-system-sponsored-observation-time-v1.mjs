@@ -117,8 +117,8 @@ function exactSnapshot(value, keys, code) {
   if (
     !value ||
     typeof value !== "object" ||
-    Array.isArray(value) ||
-    utilTypes.isProxy(value)
+    utilTypes.isProxy(value) ||
+    Array.isArray(value)
   ) {
     fail(code);
   }
