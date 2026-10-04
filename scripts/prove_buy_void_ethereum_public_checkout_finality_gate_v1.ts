@@ -658,10 +658,22 @@ assert.doesNotMatch(
   /positiveUintV1\(observation\?\.min_confirmations\)/u,
   "production threshold must come from server-controlled rail policy",
 );
+assert.match(
+  source,
+  /const eventConfirmations = positiveUintV1\(verifier\?\.confirmations\);/u,
+);
+assert.match(
+  source,
+  /const finalizedConfirmations =\s*positiveUintV1\(observation\?\.confirmations_observed\);/u,
+);
+assert.match(
+  source,
+  /finalizedConfirmations < minimumConfirmations/u,
+);
 assert.doesNotMatch(
   source,
-  /verifier\?\.confirmations[\s\S]{0,120}confirmations_observed/u,
-  "latest-head and finalized-head confirmation counts must not be equated",
+  /eventConfirmations\s*[!=]==?\s*finalizedConfirmations|finalizedConfirmations\s*[!=]==?\s*eventConfirmations/u,
+  "latest-head and finalized-head confirmation counts must remain independent",
 );
 assert.match(
   source,
