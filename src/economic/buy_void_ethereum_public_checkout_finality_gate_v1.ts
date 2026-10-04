@@ -7,8 +7,8 @@ import {
   type BuyVoidSourceFinalityExecutionPreflightReadyV1,
 } from "./buy_void_source_finality_execution_preflight_v1.js";
 import {
-  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4,
-} from "./buy_void_source_finality_generation_provenance_v4.js";
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5,
+} from "./buy_void_source_finality_generation_provenance_v5.js";
 
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1 =
   "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1";
@@ -254,7 +254,7 @@ export function readBuyVoidEthereumPublicCheckoutReadinessV1(
   if (prerequisites.ok === false) return prerequisites;
 
   const capability =
-    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4;
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
   const capabilityReady =
     Boolean(capability.source_generation_verified_on_success) &&
     Boolean(capability.deployed_artifact_generation_verified) &&
