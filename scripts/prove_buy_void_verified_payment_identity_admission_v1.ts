@@ -181,9 +181,9 @@ try {
   fs.chmodSync(root, 0o700);
   const sameTx = tx("e");
   const requests = [
-    request("buyvoid_race_a_aaaaaaaa", sameTx),
-    request("buyvoid_race_b_bbbbbbbb", sameTx),
-    request("buyvoid_race_c_cccccccc", tx("f")),
+    request("buyvoid_racea_aaaaaaaa", sameTx),
+    request("buyvoid_raceb_bbbbbbbb", sameTx),
+    request("buyvoid_racec_cccccccc", tx("f")),
   ];
   fs.writeFileSync(
     path.join(root, "requests.jsonl"),
