@@ -303,10 +303,10 @@ export function buildBuyVoidVerifiedPaymentEventV2(
     });
   }
 
+  if (matchingTransferLogIndexOutOfDomain) {
+    return held("log_index_exceeds_1463_domain");
+  }
   if (matches.length === 0) {
-    if (matchingTransferLogIndexOutOfDomain) {
-      return held("log_index_exceeds_1463_domain");
-    }
     return held("matching_usdc_transfer_not_found");
   }
   if (matches.length > 1) {
