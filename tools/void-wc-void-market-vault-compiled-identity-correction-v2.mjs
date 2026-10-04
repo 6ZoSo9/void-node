@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import { keccak256 } from "ethers";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -294,6 +295,19 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
       CORRECT_RUNTIME_SHA256
   ) {
     fail("canonical_compiler_artifact_hash_mismatch");
+  }
+
+  if (
+    keccak256(creationPrefix).toLowerCase() !==
+      String(
+        v2.canonical_compiler_artifacts?.creation_bytecode_keccak256 || "",
+      ).toLowerCase() ||
+    keccak256(runtimePrefix).toLowerCase() !==
+      String(
+        v2.canonical_compiler_artifacts?.runtime_template_keccak256 || "",
+      ).toLowerCase()
+  ) {
+    fail("canonical_compiler_artifact_keccak_mismatch");
   }
 
   if (
