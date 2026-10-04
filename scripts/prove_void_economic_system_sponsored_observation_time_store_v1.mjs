@@ -355,6 +355,37 @@ for (const [key, value] of Object.entries(
 {
   const f = fixture();
   try {
+    const badName = "c".repeat(64) + ".json";
+    const badFinal = path.join(f.records, badName);
+    const badTemp = path.join(
+      f.records,
+      "." + badName + ".tmp-" + process.pid + "-cccccccccccccccc",
+    );
+    fs.writeFileSync(badFinal, "{}\n", { mode: 0o600 });
+    fs.linkSync(badFinal, badTemp);
+    const clock = clockQueue([sample()]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock: clock.clock,
+      });
+    const held = requireHeld(
+      await store.observe(),
+      "SPONSORED_OBSERVATION_TIME_STORE_RECORD_RECEIPT_INVALID",
+    );
+    assert.equal(held.observation_performed, false);
+    assert.equal(clock.calls(), 0);
+    assert.equal(fs.existsSync(badFinal), true);
+    assert.equal(fs.existsSync(badTemp), true);
+    assert.equal(fs.lstatSync(badFinal).nlink, 2);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
     const clock = clockQueue([
       sample(),
       sample({
@@ -651,6 +682,7 @@ assert.match(source, /args\.length !== 0/u);
 assert.match(source, /O_NOFOLLOW/u);
 assert.match(source, /O_DIRECTORY/u);
 assert.match(source, /fs\.fsyncSync/u);
+assert.doesNotMatch(source, /function canonicalJson\s*\(/u);
 assert.doesNotMatch(source, /Date\.now\s*\(/u);
 assert.doesNotMatch(source, /process\.hrtime/u);
 assert.doesNotMatch(
@@ -669,9 +701,10 @@ console.log("durable_receipt_store_source_verified=true");
 console.log("live_durable_receipt_storage_proven=false");
 console.log("canonical_receipt_verifier_reused=true");
 console.log("canonical_verifier_rejection_blocks_store_history=true");
+console.log("malformed_linked_final_cleanup_forbidden=true");
 console.log("serialized_observation=true");
 console.log("concurrent_observation_serialized=true");
-console.log("restart_reconstructs_durable_head=true");
+console.log("new_binding_reconstructs_durable_head=true");
 console.log("unique_genesis_to_head_chain_required=true");
 console.log("forked_or_discontinuous_history_hold=true");
 console.log("changed_chain_baseline_hold=true");
