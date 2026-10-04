@@ -100,19 +100,35 @@ try {
     }
   };
 
+  const paymentSeed = new Map([
+    [requests[0].request_id, 101],
+    [requests[1].request_id, 102],
+    [requests[2].request_id, 103],
+    [requests[3].request_id, 104],
+  ]);
   const eventFor = (
     request: { request_id: string; quoted_void: number },
     markedAt: number,
-  ) => ({
-    schema: "void_buy_void_operator_mark_v1",
-    ok: true,
-    request_id: request.request_id,
-    operator_status: "payment_verified",
-    marked_at_ms: markedAt,
-    tx_hash: "0x" + String(markedAt).padStart(64, "0").slice(-64),
-    payment_verified: true,
-    quoted_void: request.quoted_void,
-  });
+    seed = paymentSeed.get(request.request_id) || 999,
+  ) => {
+    const txHash =
+      "0x" + String(seed).padStart(64, "0").slice(-64);
+    return {
+      schema: "void_buy_void_operator_mark_v1",
+      ok: true,
+      request_id: request.request_id,
+      operator_status: "payment_verified",
+      marked_at_ms: markedAt,
+      tx_hash: txHash,
+      payment_verified: true,
+      payment_verifier: {
+        chain: "base",
+        transaction_hash: txHash,
+        log_index: "0",
+      },
+      quoted_void: request.quoted_void,
+    };
+  };
   const write = (
     request: { request_id: string; quoted_void: number },
     markedAt: number,
@@ -143,12 +159,47 @@ try {
   );
   assert.equal(peakMutations, 1);
   assert.equal(mutationCalls, 1);
-  assert.equal(
-    (await readEvents()).filter(
-      (event) => event.operator_status === "payment_verified",
-    ).length,
-    1,
+  const raceVerified = (await readEvents()).filter(
+    (event) => event.operator_status === "payment_verified",
   );
+  assert.equal(raceVerified.length, 1);
+  assert.match(
+    String(raceVerified[0].canonical_payment_identity || ""),
+    /^voidpay1:base:0x[0-9a-f]{64}:0$/u,
+  );
+  const winningRequest = requests.find(
+    (request) => request.request_id === raceVerified[0].request_id,
+  );
+  assert.ok(winningRequest);
+  const winningSeed = paymentSeed.get(winningRequest.request_id);
+  assert.ok(winningSeed);
+
+  await assert.rejects(
+    () =>
+      writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+        event: eventFor(requests[3], 20, winningSeed),
+        request: requests[3],
+        request_dir: root,
+        with_launch_authority_mutation: withLaunchAuthorityMutation,
+        read_sale_state: readSaleState,
+        read_operator_events: readEvents,
+      }),
+    /buy_void_verified_payment_identity_already_claimed/u,
+  );
+
+  await assert.rejects(
+    () =>
+      writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+        event: eventFor(winningRequest, 21, 901),
+        request: winningRequest,
+        request_dir: root,
+        with_launch_authority_mutation: withLaunchAuthorityMutation,
+        read_sale_state: readSaleState,
+        read_operator_events: readEvents,
+      }),
+    /buy_void_verified_payment_identity_request_conflict/u,
+  );
+
   let state = await readSaleState();
   assert.equal(state.allocation_reserved_void, 6);
   assert.equal(state.remaining_void, 4);
@@ -168,6 +219,16 @@ try {
   const duplicate = await write(requests[2], 5);
   assert.equal(duplicate.idempotent, true);
   assert.equal(mutationCalls, 2);
+  const requestCEvents = (await readEvents()).filter(
+    (event) =>
+      event.request_id === requests[2].request_id &&
+      event.operator_status === "payment_verified",
+  );
+  assert.equal(requestCEvents.length, 1);
+  assert.match(
+    String(requestCEvents[0].canonical_payment_identity || ""),
+    /^voidpay1:base:0x[0-9a-f]{64}:0$/u,
+  );
   assert.equal(
     (await readEvents()).filter(
       (event) => event.operator_status === "payment_verified",
@@ -205,6 +266,7 @@ try {
         "request_directory_read",
         "request_directory_write",
         "serialized_capacity_admission",
+        "duplicate_payment_identity_verification",
       ].includes(key)
     ) {
       assert.equal(value, true, key);
@@ -219,7 +281,10 @@ try {
   console.log("exact_remaining_capacity_admitted=true");
   console.log("capacity_exhaustion_rejected=true");
   console.log("duplicate_request_reverification_idempotent=true");
-  console.log("duplicate_payment_identity_guard_proven=false");
+  console.log("duplicate_payment_identity_guard_proven=true");
+  console.log("canonical_payment_identity_source_chain_tx_log_index=true");
+  console.log("cross_request_payment_reuse_rejected=true");
+  console.log("same_request_payment_identity_conflict_rejected=true");
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
 } finally {
