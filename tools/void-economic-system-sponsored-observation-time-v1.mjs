@@ -446,6 +446,7 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1(
     fail("sponsored_observation_time_clock_invalid");
   }
   const clock = binding.trustedClock;
+  let latestAcceptedReceiptSha256 = null;
 
   return Object.freeze({
     marker: VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1,
@@ -466,6 +467,15 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1(
           request.prior_receipt === null
             ? null
             : parseReceipt(request.prior_receipt);
+        if (
+          latestAcceptedReceiptSha256 !== null &&
+          (
+            prior === null ||
+            prior.receipt_sha256 !== latestAcceptedReceiptSha256
+          )
+        ) {
+          fail("sponsored_observation_time_prior_receipt_not_current");
+        }
 
         observationPerformed = true;
         let rawSample;
@@ -487,6 +497,7 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1(
             observed_at_ms: sample.wall_time_ms,
             monotonic_ns: sample.monotonic_ns,
           });
+          latestAcceptedReceiptSha256 = receipt.receipt_sha256;
           return success(receipt);
         }
 
@@ -505,6 +516,7 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1(
           observed_at_ms: sample.wall_time_ms,
           monotonic_ns: sample.monotonic_ns,
         });
+        latestAcceptedReceiptSha256 = receipt.receipt_sha256;
         return success(receipt);
       } catch (error) {
         return held(
