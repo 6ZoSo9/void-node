@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1 =
@@ -18,6 +19,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1 =
     mount_evidence_derived: true,
     statfs_evidence_derived: true,
     effective_systemd_policy_derived: true,
+    runtime_service_control_denial_proven: false,
     unix_socket_evidence_derived: true,
     reviewed_service_contract_required: true,
     evidence_snapshot_derived: true,
@@ -378,6 +380,10 @@ function userIds(io, user, code) {
     0x7fff_ffff,
     code,
   );
+  const primaryGroup = safeName(
+    run(io, "id", ["-gn", user], code),
+    code,
+  );
   const groups = run(io, "id", ["-G", user], code)
     .split(/\s+/u)
     .filter(Boolean)
@@ -387,6 +393,7 @@ function userIds(io, user, code) {
   return Object.freeze({
     uid,
     gid,
+    primary_group: primaryGroup,
     groups: Object.freeze([...new Set(groups)].sort((a, b) => a - b)),
   });
 }
@@ -751,7 +758,7 @@ function collectServicePolicy(
   const show = parseSystemdShow(raw);
   if (
     show.User !== config.custody_user ||
-    show.Group !== config.custody_user
+    show.Group !== custody.primary_group
   ) {
     fail("custody_host_evidence_service_identity_invalid");
   }
@@ -809,7 +816,7 @@ function collectServicePolicy(
     restrict_address_families:
       normalizedList(show.RestrictAddressFamilies),
     read_write_paths: readWritePaths,
-    runtime_can_control_service: false,
+    runtime_can_control_service: true,
   });
 }
 
@@ -1178,7 +1185,7 @@ function main() {
 if (
   process.argv[1] &&
   path.resolve(process.argv[1]) ===
-    path.resolve(new URL(import.meta.url).pathname)
+    path.resolve(fileURLToPath(import.meta.url))
 ) {
   main();
 }
