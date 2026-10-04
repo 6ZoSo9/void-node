@@ -31,12 +31,23 @@ descriptor-bound, visible at their reviewed paths, and path-disjoint: neither
 root may be the same directory as, an ancestor of, or a descendant of the
 other.
 
-The high-water root also contains:
+The high-water root also contains the crash-recovery intent
+\`allocation-reservation-publication-intent-v1.json\`.
 
-- the crash-recovery intent
-  \`allocation-reservation-publication-intent-v1.json\`; and
-- the existing filesystem-bakery-lock queue for the writer serialization
-  domain.
+Writer serialization is anchored under **both** pinned roots. Each root owns a
+filesystem-bakery-lock queue named from
+\`.allocation-reservation-publication-v1\`. The writer always acquires them in
+one fixed order:
+
+1. ledger-root queue;
+2. high-water-root queue.
+
+Both pinned root identities are revalidated after both locks are held and before
+publication or recovery begins. Replacing only the visible ledger root therefore
+still contends on the unchanged high-water queue; replacing only the visible
+high-water root still contends on the unchanged ledger queue. Replacing or
+rolling back both custody roots together remains outside this source-level
+guarantee and stays behind the separate independent-custody HOLD.
 
 Storage bootstrap is intentionally not implemented by this module. Missing
 authoritative ledger/high-water files HOLD. A later deployment gate must
@@ -74,10 +85,13 @@ changed authority file HOLDs instead of being silently overwritten.
 
 ## Durable forward order
 
-Under the existing crash-recoverable filesystem bakery lock:
+Under fixed-order nested crash-recoverable filesystem bakery locks:
 
 \`\`\`text
 descriptor-bind ledger root + high-water root
+  -> acquire pinned ledger-root queue
+  -> acquire pinned high-water-root queue
+  -> revalidate both visible root identities
   -> recover any prior durable intent
   -> require exact current ledger/high-water binding
   -> require proposed ledger is one canonical append
@@ -184,7 +198,9 @@ The focused writer proof covers:
 - valid-prefix rollback HOLD;
 - distinct-root enforcement;
 - symlink-root rejection;
-- unpublished intent-temp cleanup; and
+- unpublished intent-temp cleanup;
+- cross-process serialization after replacing only the visible high-water root;
+- cross-process serialization after replacing only the visible ledger root; and
 - missing authoritative storage HOLD.
 
 ## Authority boundary
