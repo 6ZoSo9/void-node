@@ -86,8 +86,9 @@ A production-ready result additionally requires:
 - the V2 event's transaction/log/block, token, payer, receiver, delivery and
   amount fields re-bound to the independently generated V5 finality observation;
 - the V2 latest-head confirmation count and V5 finalized-head confirmation
-  count validated independently; they are not required to be numerically equal,
-  while the finalized-head count must meet the V5 minimum-confirmation policy;
+  count validated independently; they are not required to be numerically equal;
+- the finalized-head count must meet the exact server-controlled Ethereum rail
+  `min_confirmations` policy that was passed into the canonical V5 observer;
 - freshly rebound payment-key SHA-256;
 - reviewed source files;
 - authenticated transport identity;
