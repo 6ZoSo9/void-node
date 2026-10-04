@@ -186,6 +186,19 @@ assert.throws(
 }
 
 {
+  const forgedKeccak = structuredClone(v2);
+  forgedKeccak.canonical_compiler_artifacts.creation_bytecode_keccak256 =
+    "0x" + "0".repeat(64);
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedKeccak,
+    }),
+    /canonical_compiler_artifact_keccak_mismatch/u,
+  );
+}
+
+{
   const forgedCorrectionShape = structuredClone(v2);
   forgedCorrectionShape.correction.compiler_identity_recompile_required = true;
   assert.throws(
@@ -268,6 +281,7 @@ console.log(
 console.log("canonical_compiler_identity_preserved=true");
 console.log("compiler_identity_provenance_bound=true");
 console.log("unchanged_compiler_artifact_hashes_bound=true");
+console.log("corrected_compiler_keccak_recomputed=true");
 console.log("correction_authority_exact_and_zero=true");
 console.log("canonical_compiler_keccak_bound=true");
 console.log("correction_schema_closed=true");
