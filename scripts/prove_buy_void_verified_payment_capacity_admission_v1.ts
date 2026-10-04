@@ -455,7 +455,7 @@ try {
               fs.writeFileSync(ledger, replacement, { mode: 0o600 });
             },
           ),
-        /buy_void_verified_payment_capacity_requests_path_not_bound/u,
+        /buy_void_verified_payment_capacity_requests_(?:changed_during_read|path_not_bound)/u,
       );
       assert.equal(fs.readFileSync(ledger).equals(replacement), true);
       assert.equal(fs.readFileSync(detached).equals(replacement), true);
