@@ -947,16 +947,16 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
           ledgerDirectory,
           highWaterDirectory,
         );
+        if (recovered.recovered) {
+          return success("recovered", true, recovered.ledger);
+        }
+
         let ledger = recovered.ledger;
         let highWater = recovered.high_water;
 
         if (ledger.equals(nextLedger)) {
           requireCurrentBinding(ledger, highWater);
-          return success(
-            recovered.recovered ? "recovered" : "idempotent",
-            recovered.recovered,
-            ledger,
-          );
+          return success("idempotent", false, ledger);
         }
 
         const nextClassified =
