@@ -131,6 +131,8 @@ const source = fs.readFileSync(
 );
 for (const required of [
   "verifyBuyCoupledLiveActivationSigningRequestV1(signingRequest)",
+  "verifyBuyCoupledLiveActivationSigningRequestV1(\n    assembly.signing_request",
+  "assembly.signing_request.unsigned_receipt",
   "VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1",
   "VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1",
   "verifyTypedData(",
@@ -159,6 +161,8 @@ for (const forbidden of [
 console.log("VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_ASSEMBLY_V1_GREEN");
 console.log("production_positive_fixture_present=false");
 console.log("synthetic_signatures_can_assemble_production_receipt=false");
+console.log("standalone_assembly_reverifies_signing_request=true");
+console.log("standalone_assembly_reverifies_dual_signatures=true");
 console.log("private_key_access=false");
 console.log("signature_creation=false");
 console.log("filesystem_write=false");
