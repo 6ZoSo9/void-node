@@ -20,11 +20,16 @@ claim independent rollback-resistant custody.
 
 ## Read-only observation
 
-The preflight reads only:
+The observation-backed preflight reads only:
 
 - the two already-existing root directory metadata records;
-- `/proc/self/mountinfo`; and
-- the current hostname when a designated hostname is supplied.
+- the real `/proc/self/mountinfo`; and
+- the current hostname, which must equal a required designated-host expectation.
+
+Caller-supplied mountinfo or arbitrary snapshot objects cannot produce the live
+`distinct_local_storage_domains_proven=true` flag. Synthetic snapshot
+classification is exported only through an explicitly test-only helper and
+leaves that proof flag false.
 
 It does not create either root, create files, mount/unmount storage, modify
 permissions, write a ledger/high-water, restart a service, access credentials or
@@ -103,9 +108,15 @@ node tools/void-buy-void-allocation-custody-preflight-v1.mjs \
   --expected-hostname HOST
 ```
 
-A GREEN result is:
+A live observation-backed GREEN result is:
 
 `DISTINCT_LOCAL_STORAGE_DOMAINS_GREEN_NOT_AUTHORIZED`
+
+It includes the observed/expected hostname and records
+`mountinfo_source=/proc/self/mountinfo`. A missing designated-host expectation
+HOLDs. Synthetic classification uses
+`DISTINCT_LOCAL_STORAGE_DOMAINS_CLASSIFIED_TEST_ONLY`, keeps
+`ready=false`, and cannot set the live proof flag.
 
 It is not permission to activate anything.
 
@@ -130,7 +141,9 @@ The proof covers:
 - non-device mount source HOLD;
 - root ancestry HOLD;
 - malformed mountinfo rejection;
+- missing designated-host expectation HOLD;
 - designated-host mismatch HOLD;
+- synthetic snapshot classification cannot claim live observed proof;
 - symlink alias HOLD; and
 - a real temporary same-host fixture that cannot claim independent custody.
 
@@ -140,6 +153,11 @@ The proof covers:
 designated_host_read_only_preflight=true
 proc_mountinfo_read=true
 filesystem_metadata_read=true
+distinct_local_storage_domains_required=true
+live_observation_required_for_domain_proof=true
+designated_hostname_required=true
+caller_supplied_snapshot_authority=false
+synthetic_mountinfo_authority=false
 source_mutation=false
 filesystem_write=false
 mount_mutation=false
