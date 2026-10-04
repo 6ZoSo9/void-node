@@ -16,7 +16,6 @@ import {
 
 export const VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V3 =
   "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V3";
-
 export const MANIFEST =
   "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json";
 
@@ -28,7 +27,6 @@ const PREDECESSOR_ENFORCEMENT_SET_SHA256 =
   "5b35c2c4e1c9c7812ddbcb2f35ea5f309771e5343230331780b81323eb11cc30";
 const CURRENT_ENFORCEMENT_SET_SHA256 =
   "7d6e000770a83a32e3c4706ac29f3474041a5376f2009c71e5ba00d04a1cdc3f";
-
 const CHANGED_ARTIFACT =
   "dist/economic/buy_void_filesystem_bakery_lock_v1.js";
 const CHANGED_INPUT =
@@ -52,47 +50,18 @@ function recordDelta(previousRecords, currentRecords) {
   const previous = byPath(previousRecords);
   const current = byPath(currentRecords);
   return Object.freeze({
-    removed: [...previous.keys()]
-      .filter((key) => !current.has(key)).sort(),
-    added: [...current.keys()]
-      .filter((key) => !previous.has(key)).sort(),
-    changed: [...previous.keys()]
-      .filter(
-        (key) =>
-          current.has(key) &&
-          canonical(previous.get(key)) !== canonical(current.get(key)),
-      ).sort(),
-    unchanged: [...previous.keys()]
-      .filter(
-        (key) =>
-          current.has(key) &&
-          canonical(previous.get(key)) === canonical(current.get(key)),
-      ).sort(),
-  });
-}
-
-function currentCandidateFromManifest(manifest) {
-  return Object.freeze({
-    schema: "void_buy_void_enforcement_artifact_attestation_v1",
-    version: 1,
-    repository: manifest.repository,
-    source_head: manifest.source_head,
-    source_tree: manifest.source_tree,
-    entry_artifact: manifest.entry_artifact,
-    artifacts: manifest.artifacts,
-    inputs: manifest.inputs,
-    source_artifact_mapping: manifest.source_artifact_mapping,
-    compiler: manifest.compiler,
-    absent_build_inputs: manifest.absent_build_inputs,
-    build_command: manifest.build_command,
-    derivation_node_majors: manifest.derivation_node_majors,
-    external_dependency_boundary: manifest.external_dependency_boundary,
-    production_source_finality_authority_ready:
-      manifest.production_source_finality_authority_ready,
-    deployed_artifact_generation_verified:
-      manifest.deployed_artifact_generation_verified,
-    enforcement_artifact_set_sha256:
-      manifest.enforcement_artifact_set_sha256,
+    removed: [...previous.keys()].filter((key) => !current.has(key)).sort(),
+    added: [...current.keys()].filter((key) => !previous.has(key)).sort(),
+    changed: [...previous.keys()].filter(
+      (key) =>
+        current.has(key) &&
+        canonical(previous.get(key)) !== canonical(current.get(key)),
+    ).sort(),
+    unchanged: [...previous.keys()].filter(
+      (key) =>
+        current.has(key) &&
+        canonical(previous.get(key)) === canonical(current.get(key)),
+    ).sort(),
   });
 }
 
@@ -139,6 +108,11 @@ export function deriveBuyVoidEnforcementArtifactAttestationV3(root = ROOT) {
   assert.deepEqual(inputDelta.changed, [CHANGED_INPUT]);
   assert.equal(inputDelta.unchanged.length, 29);
 
+  const artifact = byPath(candidate.artifacts).get(CHANGED_ARTIFACT);
+  const input = byPath(candidate.inputs).get(CHANGED_INPUT);
+  assert.ok(artifact);
+  assert.ok(input);
+
   return Object.freeze({
     schema: "void_buy_void_enforcement_artifact_attestation_v3",
     marker: VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V3,
@@ -156,18 +130,14 @@ export function deriveBuyVoidEnforcementArtifactAttestationV3(root = ROOT) {
       Object.freeze({ ...predecessor.reviewed_source_generation }),
     compiled_artifact_generation:
       Object.freeze({ ...predecessor.compiled_artifact_generation }),
-    source_head: candidate.source_head,
-    source_tree: candidate.source_tree,
-    entry_artifact: candidate.entry_artifact,
-    artifacts: candidate.artifacts,
-    inputs: candidate.inputs,
-    source_artifact_mapping: candidate.source_artifact_mapping,
-    compiler: candidate.compiler,
-    absent_build_inputs: candidate.absent_build_inputs,
-    build_command: candidate.build_command,
-    derivation_node_majors: candidate.derivation_node_majors,
-    external_dependency_boundary:
-      candidate.external_dependency_boundary,
+    current_enforcement: Object.freeze({
+      enforcement_artifact_set_sha256:
+        candidate.enforcement_artifact_set_sha256,
+      artifact_count: candidate.artifacts.length,
+      input_count: candidate.inputs.length,
+      changed_artifact: Object.freeze({ ...artifact }),
+      changed_input: Object.freeze({ ...input }),
+    }),
     predecessor_delta: Object.freeze({
       removed_artifact_paths: artifactDelta.removed,
       added_artifact_paths: artifactDelta.added,
@@ -178,8 +148,6 @@ export function deriveBuyVoidEnforcementArtifactAttestationV3(root = ROOT) {
       changed_input_paths: inputDelta.changed,
       unchanged_input_count: inputDelta.unchanged.length,
     }),
-    enforcement_artifact_set_sha256:
-      candidate.enforcement_artifact_set_sha256,
     production_source_finality_authority_ready: false,
     deployed_artifact_generation_verified: false,
   });
@@ -198,7 +166,11 @@ function verifyCommitted(root = ROOT) {
     "enforcement V3 manifest mismatch",
   );
   const parsed = JSON.parse(manifestBytes.toString("utf8"));
-  const candidate = currentCandidateFromManifest(parsed);
+  assert.equal(
+    parsed.current_enforcement.enforcement_artifact_set_sha256,
+    CURRENT_ENFORCEMENT_SET_SHA256,
+  );
+  const candidate = deriveEnforcementV1(root);
   verifyEnforcementV1(root, candidate);
   return Object.freeze({ expected: parsed, candidate });
 }
@@ -232,7 +204,8 @@ if (
     );
     console.log(
       "enforcement_artifact_set_sha256=" +
-        verified.expected.enforcement_artifact_set_sha256,
+        verified.expected.current_enforcement
+          .enforcement_artifact_set_sha256,
     );
     console.log("predecessor_v2_manifest_bound=true");
     console.log("bakery_lock_delta_exact=true");
