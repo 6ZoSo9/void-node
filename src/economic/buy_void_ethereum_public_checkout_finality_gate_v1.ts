@@ -358,6 +358,7 @@ function canonicalEthereumVerifiedPaymentIdentityV1(input: {
 
 function classifyEthereumPreAttemptObservationV1(input: {
   observation: unknown;
+  verified_payment_event: BuyVoidVerifiedPaymentEventV2;
   canonical_payment_identity: string;
   transaction_hash: string;
 }):
@@ -406,6 +407,44 @@ function classifyEthereumPreAttemptObservationV1(input: {
     return {
       ok: false,
       reason: "ethereum_pre_attempt_source_finality_not_authoritative",
+    };
+  }
+
+  const event = input.verified_payment_event;
+  const verifier = event?.payment_verifier;
+  if (
+    event?.schema !== "void_buy_void_verified_payment_event_v2" ||
+    event?.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 ||
+    event?.payment_identity_input_complete !== true ||
+    event?.payment_verified !== true ||
+    event?.operator_status !== "payment_verified" ||
+    String(event?.tx_hash || "").trim().toLowerCase() !==
+      input.transaction_hash ||
+    String(verifier?.chain || "").trim().toLowerCase() !== "ethereum" ||
+    String(verifier?.transaction_hash || "").trim().toLowerCase() !==
+      input.transaction_hash ||
+    String(verifier?.log_index ?? "").trim() !==
+      String(observation.log_index ?? "").trim() ||
+    String(verifier?.block_number ?? "").trim() !==
+      String(observation.receipt_block_number ?? "").trim() ||
+    String(verifier?.confirmations ?? "").trim() !==
+      String(observation.confirmations_observed ?? "").trim() ||
+    String(verifier?.usdc_contract || "").trim().toLowerCase() !==
+      String(observation.usdc_contract || "").trim().toLowerCase() ||
+    String(verifier?.from_address || "").trim().toLowerCase() !==
+      String(observation.payer_address || "").trim().toLowerCase() ||
+    String(verifier?.receive_address || "").trim().toLowerCase() !==
+      String(observation.receive_address || "").trim().toLowerCase() ||
+    String(verifier?.delivery_address || "").trim().toLowerCase() !==
+      String(observation.delivery_address || "").trim().toLowerCase() ||
+    String(verifier?.amount_units ?? "").trim() !==
+      String(observation.payment_usdc_atoms ?? "").trim() ||
+    String(verifier?.requested_units ?? "").trim() !==
+      String(observation.payment_usdc_atoms ?? "").trim()
+  ) {
+    return {
+      ok: false,
+      reason: "ethereum_pre_attempt_verified_payment_observation_mismatch",
     };
   }
 
@@ -763,6 +802,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
 
   const classified = classifyEthereumPreAttemptObservationV1({
     observation,
+    verified_payment_event: input.verified_payment_event,
     canonical_payment_identity: canonicalPaymentIdentity,
     transaction_hash: requestTx,
   });
@@ -813,6 +853,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
 export function testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1(
   input: {
     observation: unknown;
+    verified_payment_event: BuyVoidVerifiedPaymentEventV2;
     canonical_payment_identity: string;
     transaction_hash: string;
   },
