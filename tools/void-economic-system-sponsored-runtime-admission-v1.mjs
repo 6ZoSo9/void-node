@@ -700,6 +700,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
 
     async admit(inputRequest) {
       let preflight = null;
+      let currentCandidateVerified = false;
       let timeResult = null;
       let reservation = null;
       try {
@@ -756,6 +757,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
           ) {
             fail("SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID");
           }
+          currentCandidateVerified = true;
         } catch {
           return held(
             "SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID",
@@ -822,8 +824,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             : "SPONSORED_RUNTIME_ADMISSION_FAILED",
           {
             preflightVerified: preflight !== null,
-            currentCandidateVerified:
-              preflight !== null && reservation !== null,
+            currentCandidateVerified,
             timeMutation:
               timeResult?.mutation_performed === true,
             timeObservation:
