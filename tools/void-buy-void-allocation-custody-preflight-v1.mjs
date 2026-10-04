@@ -126,36 +126,94 @@ function pathAncestor(left, right) {
   );
 }
 
-function inspectRoot(rootPath, records, label) {
-  const raw = String(rootPath || "").trim();
-  if (!raw || !path.isAbsolute(raw) || path.resolve(raw) !== raw) {
-    throw new Error(label + "_path_invalid");
-  }
-  const real = fs.realpathSync(raw);
-  if (real !== raw) throw new Error(label + "_symlink_ancestor_or_alias");
-  const stat = fs.lstatSync(raw, { bigint: true });
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    throw new Error(label + "_directory_invalid");
-  }
+function sameDirectoryIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.nlink === right.nlink
+  );
+}
+
+function validateObservedRootStat(stat, label) {
   if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
     typeof process.geteuid !== "function" ||
     stat.uid !== BigInt(process.geteuid()) ||
     (stat.mode & 0o022n) !== 0n
   ) {
     throw new Error(label + "_custody_invalid");
   }
-  const mount = resolveMountForPathV1(records, raw);
-  return Object.freeze({
-    path: raw,
-    dev: String(stat.dev),
-    ino: String(stat.ino),
-    mode: Number(stat.mode & 0o777n),
-    mount_id: mount.mount_id,
-    major_minor: mount.major_minor,
-    fs_type: mount.fs_type,
-    mount_source: mount.mount_source,
-    mount_point: mount.mount_point,
-  });
+}
+
+function openObservedRoot(rootPath, records, label) {
+  if (process.platform !== "linux") {
+    throw new Error("custody_linux_required");
+  }
+  const raw = String(rootPath || "").trim();
+  if (!raw || !path.isAbsolute(raw) || path.resolve(raw) !== raw) {
+    throw new Error(label + "_path_invalid");
+  }
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directory = fs.constants.O_DIRECTORY;
+  if (typeof noFollow !== "number" || typeof directory !== "number") {
+    throw new Error("custody_directory_flags_unavailable");
+  }
+  const real = fs.realpathSync(raw);
+  if (real !== raw) throw new Error(label + "_symlink_ancestor_or_alias");
+  const listed = fs.lstatSync(raw, { bigint: true });
+  validateObservedRootStat(listed, label);
+
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      raw,
+      fs.constants.O_RDONLY | directory | noFollow,
+    );
+    const opened = fs.fstatSync(fd, { bigint: true });
+    validateObservedRootStat(opened, label);
+    if (!sameDirectoryIdentity(listed, opened)) {
+      throw new Error(label + "_directory_drift");
+    }
+    const mount = resolveMountForPathV1(records, raw);
+    const binding = Object.freeze({
+      fd,
+      path: raw,
+      initial_stat: opened,
+      snapshot: Object.freeze({
+        path: raw,
+        dev: String(opened.dev),
+        ino: String(opened.ino),
+        mode: Number(opened.mode & 0o777n),
+        mount_id: mount.mount_id,
+        major_minor: mount.major_minor,
+        fs_type: mount.fs_type,
+        mount_source: mount.mount_source,
+        mount_point: mount.mount_point,
+      }),
+    });
+    fd = -1;
+    return binding;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
+function assertObservedRootStable(binding, label) {
+  const descriptor = fs.fstatSync(binding.fd, { bigint: true });
+  const visible = fs.lstatSync(binding.path, { bigint: true });
+  validateObservedRootStat(descriptor, label);
+  validateObservedRootStat(visible, label);
+  if (
+    fs.realpathSync(binding.path) !== binding.path ||
+    !sameDirectoryIdentity(binding.initial_stat, descriptor) ||
+    !sameDirectoryIdentity(binding.initial_stat, visible)
+  ) {
+    throw new Error(label + "_directory_drift");
+  }
 }
 
 function classifyAllocationCustodySnapshotV1(snapshot) {
@@ -257,33 +315,60 @@ export function inspectBuyVoidAllocationCustodyPreflightV1({
         expected_hostname: expectedHostname,
       });
     }
-    const mountInfo = parseMountInfoV1(
-      fs.readFileSync("/proc/self/mountinfo", "utf8"),
+    const mountInfoBefore = fs.readFileSync(
+      "/proc/self/mountinfo",
+      "utf8",
     );
-    const ledger = inspectRoot(ledger_root, mountInfo, "ledger");
-    const highWater = inspectRoot(
-      high_water_root,
-      mountInfo,
-      "high_water",
-    );
-    const classified = classifyAllocationCustodySnapshotV1({
-      ledger,
-      high_water: highWater,
-    });
-    if (!classified.ok) return classified;
-    return Object.freeze({
-      ...classified,
-      status: "DISTINCT_LOCAL_STORAGE_DOMAINS_GREEN_NOT_AUTHORIZED",
-      ready: true,
-      test_only: false,
-      live_observation_backed: true,
-      observed_hostname: hostname,
-      expected_hostname: expectedHostname,
-      mountinfo_source: "/proc/self/mountinfo",
-      distinct_local_storage_domains_proven: true,
-      next_gate:
-        "designated_host_snapshot_backup_and_rollback_independence_qualification",
-    });
+    const mountInfo = parseMountInfoV1(mountInfoBefore);
+    let ledgerBinding = null;
+    let highWaterBinding = null;
+    try {
+      ledgerBinding = openObservedRoot(
+        ledger_root,
+        mountInfo,
+        "ledger",
+      );
+      highWaterBinding = openObservedRoot(
+        high_water_root,
+        mountInfo,
+        "high_water",
+      );
+      assertObservedRootStable(ledgerBinding, "ledger");
+      assertObservedRootStable(highWaterBinding, "high_water");
+      const mountInfoAfter = fs.readFileSync(
+        "/proc/self/mountinfo",
+        "utf8",
+      );
+      if (mountInfoAfter !== mountInfoBefore) {
+        throw new Error("mountinfo_changed_during_observation");
+      }
+      assertObservedRootStable(ledgerBinding, "ledger");
+      assertObservedRootStable(highWaterBinding, "high_water");
+
+      const classified = classifyAllocationCustodySnapshotV1({
+        ledger: ledgerBinding.snapshot,
+        high_water: highWaterBinding.snapshot,
+      });
+      if (!classified.ok) return classified;
+      return Object.freeze({
+        ...classified,
+        status: "DISTINCT_LOCAL_STORAGE_DOMAINS_GREEN_NOT_AUTHORIZED",
+        ready: true,
+        test_only: false,
+        live_observation_backed: true,
+        observation_descriptor_bound: true,
+        mountinfo_stable_across_observation: true,
+        observed_hostname: hostname,
+        expected_hostname: expectedHostname,
+        mountinfo_source: "/proc/self/mountinfo",
+        distinct_local_storage_domains_proven: true,
+        next_gate:
+          "designated_host_snapshot_backup_and_rollback_independence_qualification",
+      });
+    } finally {
+      if (highWaterBinding) fs.closeSync(highWaterBinding.fd);
+      if (ledgerBinding) fs.closeSync(ledgerBinding.fd);
+    }
   } catch (error) {
     return hold(String(error?.message || error || "custody_preflight_failure"));
   }
