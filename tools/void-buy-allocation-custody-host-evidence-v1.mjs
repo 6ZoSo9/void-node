@@ -136,6 +136,8 @@ const RUNTIME_SYSTEMD_PROPERTIES = Object.freeze([
   "MainPID",
   "ControlGroup",
   "NoNewPrivileges",
+  "CapabilityBoundingSet",
+  "AmbientCapabilities",
 ]);
 
 const SYSTEMD_MANAGE_UNIT_VERBS = Object.freeze([
@@ -148,10 +150,12 @@ const SYSTEMD_MANAGE_UNIT_VERBS = Object.freeze([
   "reload-or-try-restart",
   "kill",
   "clean",
-  "freeze",
-  "thaw",
   "set-property",
   "reset-failed",
+  "ref",
+  "bind-mount",
+  "mount-image",
+  "kill-subgroup",
 ]);
 
 const SYSTEMD_GLOBAL_CONTROL_ACTIONS = Object.freeze([
@@ -754,6 +758,35 @@ export function testOnlyClassifyBuyVoidAllocationCustodyPolkitStatusV1(
   return "error";
 }
 
+function processCapabilityState(io, pid) {
+  const raw = run(
+    io,
+    "cat",
+    ["/proc/" + String(pid) + "/status"],
+    "custody_host_evidence_runtime_process_status_failed",
+  );
+  const out = Object.create(null);
+  for (const key of ["CapInh", "CapPrm", "CapEff", "CapAmb"]) {
+    const match = raw.match(
+      new RegExp("^" + key + ":\\s*([0-9A-Fa-f]+)$", "mu"),
+    );
+    if (!match) {
+      fail("custody_host_evidence_runtime_process_capabilities_invalid");
+    }
+    const normalized = match[1].replace(/^0+/u, "") || "0";
+    if (normalized !== "0") {
+      fail("custody_host_evidence_runtime_process_capabilities_nonzero");
+    }
+    out[key] = "0";
+  }
+  return Object.freeze({
+    inheritable: out.CapInh,
+    permitted: out.CapPrm,
+    effective: out.CapEff,
+    ambient: out.CapAmb,
+  });
+}
+
 function pkcheckDenial(io, actionId, subject, details = []) {
   const args = [
     "--action-id",
@@ -825,6 +858,16 @@ function collectRuntimeServiceControlEvidence(io, config, runtime) {
     0x7fff_ffff,
     "custody_host_evidence_runtime_service_pid_invalid",
   );
+  const capabilityBoundingSet =
+    normalizedList(show.CapabilityBoundingSet);
+  const ambientCapabilities =
+    normalizedList(show.AmbientCapabilities);
+  if (
+    capabilityBoundingSet.length !== 0 ||
+    ambientCapabilities.length !== 0
+  ) {
+    fail("custody_host_evidence_runtime_service_capabilities_not_empty");
+  }
   const controlGroup = String(show.ControlGroup ?? "").trim();
   if (!/^\/[A-Za-z0-9_.@:+\/-]{1,500}$/u.test(controlGroup)) {
     fail("custody_host_evidence_runtime_service_cgroup_invalid");
@@ -856,6 +899,7 @@ function collectRuntimeServiceControlEvidence(io, config, runtime) {
   }
 
   const startTimeTicks = processStartTimeTicks(io, pid);
+  const processCapabilities = processCapabilityState(io, pid);
   const subject =
     String(pid) + "," + startTimeTicks + "," + String(runtime.uid);
   const checks = [
@@ -889,6 +933,11 @@ function collectRuntimeServiceControlEvidence(io, config, runtime) {
     runtime_process_start_time_ticks: startTimeTicks,
     runtime_process_uid: runtime.uid,
     runtime_process_gid: runtime.gid,
+    runtime_service_capability_bounding_set:
+      capabilityBoundingSet,
+    runtime_service_ambient_capabilities:
+      ambientCapabilities,
+    runtime_process_capabilities: processCapabilities,
     pkcheck_subject: subject,
     checked_actions: Object.freeze(checks),
     all_systemd_control_actions_explicitly_denied: true,
