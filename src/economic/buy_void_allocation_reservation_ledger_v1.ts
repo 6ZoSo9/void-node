@@ -335,7 +335,10 @@ function canonicalHashV1(value: unknown): string {
 
 function canonicalAddressV1(value: unknown): string {
   const address = String(value ?? "").trim().toLowerCase();
-  if (!ADDRESS.test(address)) {
+  if (
+    !ADDRESS.test(address) ||
+    address === "0x0000000000000000000000000000000000000000"
+  ) {
     throw new Error("allocation_reservation_buyer_wallet_invalid");
   }
   return address;
