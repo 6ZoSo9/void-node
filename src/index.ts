@@ -18824,12 +18824,11 @@ setInterval(refresh, 10000);
         if (logFrom !== expectedFrom) continue;
 
         const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
-        const rawLogIndex = log.logIndex;
-        let canonicalLogIndex = "";
+        let canonicalLogIndex="";
         try {
-          const parsedLogIndex = BigInt(rawLogIndex);
+          const parsedLogIndex=BigInt(log.logIndex);
           if(parsedLogIndex<0n||parsedLogIndex>0xffffffffn)continue;
-          canonicalLogIndex = parsedLogIndex.toString();
+          canonicalLogIndex=parsedLogIndex.toString();
         } catch {
           continue;
         }
