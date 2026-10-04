@@ -372,6 +372,7 @@ function classifyEthereumPreAttemptObservationV1(input: {
   verified_payment_event: BuyVoidVerifiedPaymentEventV2;
   canonical_payment_identity: string;
   transaction_hash: string;
+  required_min_confirmations: unknown;
 }):
   | {
       ok: true;
@@ -427,7 +428,7 @@ function classifyEthereumPreAttemptObservationV1(input: {
   const finalizedConfirmations =
     positiveUintV1(observation?.confirmations_observed);
   const minimumConfirmations =
-    positiveUintV1(observation?.min_confirmations);
+    positiveUintV1(input.required_min_confirmations);
   if (
     event?.schema !== "void_buy_void_verified_payment_event_v2" ||
     event?.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 ||
@@ -823,6 +824,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
     verified_payment_event: input.verified_payment_event,
     canonical_payment_identity: canonicalPaymentIdentity,
     transaction_hash: requestTx,
+    required_min_confirmations: rail.min_confirmations,
   });
   if (classified.ok === false) {
     return preAttemptHeld(
@@ -876,7 +878,17 @@ export function testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1(
     transaction_hash: string;
   },
 ) {
-  const classified = classifyEthereumPreAttemptObservationV1(input);
+  const observation =
+    input.observation &&
+    typeof input.observation === "object" &&
+    !Array.isArray(input.observation)
+      ? input.observation as Record<string, unknown>
+      : null;
+  const classified = classifyEthereumPreAttemptObservationV1({
+    ...input,
+    required_min_confirmations:
+      observation?.min_confirmations,
+  });
   return Object.freeze({
     marker:
       "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_TEST_ONLY_V1",
