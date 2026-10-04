@@ -378,6 +378,48 @@ for (const mono of [BASE_MONO, BASE_MONO - 1n]) {
   assert.equal(clock.calls(), 0);
 }
 
+{
+  let bindingGetterReads = 0;
+  const bindingInput = {};
+  Object.defineProperty(bindingInput, "trustedClock", {
+    enumerable: true,
+    get() {
+      bindingGetterReads += 1;
+      return () => sample();
+    },
+  });
+  assert.throws(
+    () =>
+      createVoidEconomicSystemSponsoredObservationTimeV1(
+        bindingInput,
+      ),
+    /sponsored_observation_time_binding_invalid/u,
+  );
+  assert.equal(bindingGetterReads, 0);
+}
+
+{
+  let calls = 0;
+  const binding =
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock() {
+        calls += 1;
+        throw new Error("secret-clock-provider-detail");
+      },
+    });
+  const held = binding.observe({ prior_receipt: null });
+  expectHeld(
+    held,
+    "sponsored_observation_time_clock_read_failed",
+    true,
+  );
+  assert.equal(calls, 1);
+  assert.equal(
+    JSON.stringify(held).includes("secret-clock-provider-detail"),
+    false,
+  );
+}
+
 assert.throws(
   () =>
     createVoidEconomicSystemSponsoredObservationTimeV1({
@@ -412,6 +454,8 @@ console.log("boot_change_holds=true");
 console.log("process_instance_change_holds=true");
 console.log("accessor_request_rejected_without_getter_read=true");
 console.log("accessor_clock_sample_rejected_without_getter_read=true");
+console.log("accessor_clock_binding_rejected_without_getter_read=true");
+console.log("clock_exception_detail_not_exposed=true");
 console.log("trusted_clock_source_proven=false");
 console.log("cross_process_restart_continuity_proven=false");
 console.log("cross_boot_restart_continuity_proven=false");
