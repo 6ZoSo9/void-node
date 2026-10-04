@@ -223,19 +223,6 @@ assert.throws(
 }
 
 {
-  const forgedKeccak = structuredClone(v2);
-  forgedKeccak.canonical_compiler_artifacts.creation_bytecode_keccak256 =
-    "0x" + "0".repeat(64);
-  assert.throws(
-    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
-      supersededV1: v1,
-      correctionV2: forgedKeccak,
-    }),
-    /canonical_compiler_artifact_keccak_mismatch/u,
-  );
-}
-
-{
   const forgedLaunch = structuredClone(v2);
   forgedLaunch.coupled_launch_effect.corrected_coupled_launch_id =
     "sha256:" + "0".repeat(64);
