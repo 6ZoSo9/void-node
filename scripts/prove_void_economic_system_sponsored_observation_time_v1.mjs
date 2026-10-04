@@ -152,6 +152,12 @@ const first = requireOk(
 assert.equal(firstClock.calls(), 1);
 assert.equal(first.receipt.generation, "0");
 assert.equal(first.receipt.previous_receipt_sha256, null);
+expectHeld(
+  firstBinding.observe({ prior_receipt: null }),
+  "sponsored_observation_time_prior_receipt_not_current",
+  false,
+);
+assert.equal(firstClock.calls(), 1);
 assert.equal(first.receipt.boot_id, BOOT_A);
 assert.equal(first.receipt.process_start_ticks, "123456");
 assert.equal(first.receipt.baseline_wall_time_ms, BASE_WALL);
@@ -420,6 +426,33 @@ for (const mono of [BASE_MONO, BASE_MONO - 1n]) {
     true,
   );
   assert.equal(ratchetClock.calls(), 1);
+}
+
+{
+  const clock = clockQueue([
+    sample(),
+    sample({
+      wall: BASE_WALL + 1000,
+      mono: BASE_MONO + 1_000_000_000n,
+    }),
+  ]);
+  const binding =
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    });
+  const genesis = requireOk(
+    binding.observe({ prior_receipt: null }),
+  );
+  const next = requireOk(
+    binding.observe({ prior_receipt: genesis.receipt }),
+  );
+  assert.equal(next.receipt.generation, "1");
+  expectHeld(
+    binding.observe({ prior_receipt: genesis.receipt }),
+    "sponsored_observation_time_prior_receipt_not_current",
+    false,
+  );
+  assert.equal(clock.calls(), 2);
 }
 
 {
@@ -856,6 +889,8 @@ console.log("request_timestamp_input=false");
 console.log("clock_read_exactly_once_per_observation=true");
 console.log("content_addressed_receipt_chain=true");
 console.log("same_process_monotonicity_enforced=true");
+console.log("same_binding_genesis_reset_rejected=true");
+console.log("same_binding_stale_prior_rejected=true");
 console.log("wall_time_non_regression_enforced=true");
 console.log("wall_monotonic_skew_bounded=true");
 console.log("cumulative_baseline_skew_enforced=true");
