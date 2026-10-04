@@ -345,13 +345,20 @@ for (const [key, value] of Object.entries(
 {
   const f = fixture();
   try {
-    const clock = clockQueue([sample()]);
+    const clock = clockQueue([
+      sample(),
+      sample({
+        wall: BASE_WALL + 1000,
+        mono: BASE_MONO + 1_000_000_000n,
+      }),
+    ]);
     const store =
       createVoidEconomicSystemSponsoredObservationTimeStoreV1({
         root_dir: f.root,
         trustedClock: clock.clock,
       });
     const first = requireOk(await store.observe());
+    requireOk(await store.observe());
     const firstFile =
       first.head_receipt_sha256.slice("sha256:".length) + ".json";
     const firstReceipt = JSON.parse(
@@ -361,8 +368,8 @@ for (const [key, value] of Object.entries(
       ...firstReceipt,
       generation: "1",
       previous_receipt_sha256: firstReceipt.receipt_sha256,
-      observed_at_ms: firstReceipt.observed_at_ms + 1,
-      monotonic_ns: (BigInt(firstReceipt.monotonic_ns) + 1_000_000n).toString(),
+      observed_at_ms: firstReceipt.observed_at_ms + 2,
+      monotonic_ns: (BigInt(firstReceipt.monotonic_ns) + 2_000_000n).toString(),
     });
     writeReceipt(f.records, alt);
     requireHeld(
