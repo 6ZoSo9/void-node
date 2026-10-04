@@ -64,7 +64,22 @@ assert.equal(
   false,
   "legacy Agent-v0 receipt metrics whole-file JSONL reader remains",
 );
-assert.ok(agentRegion.split(fixedJoin).length - 1 >= 10, "expected repaired newline JSONL writers/metrics joins");
+const requiredRealNewlineFraming = [
+  'appendAgentPick2JsonlCanonicalV1(jobsFile, JSON.stringify(rec) + "\\n"',
+  'appendAgentPick2JsonlCanonicalV1(out, JSON.stringify(rec) + "\\n"',
+  'appendAgentPick2JsonlCanonicalV1(receiptsFile, JSON.stringify(rec)+"\\n"',
+  'fs.writeSync(fd, JSON.stringify(__lineObj)+"\\n")',
+  'appendAgentPick2JsonlCanonicalV1(FILE_LEASES, JSON.stringify(lease)+"\\n")',
+  'res.type("text/plain").send(out.join("\\n")+"\\n")',
+  'res.type("text/plain").send(lines.join("\\n")+"\\n")',
+];
+for (const framing of requiredRealNewlineFraming) {
+  assert.equal(
+    agentRegion.includes(framing),
+    true,
+    `required Agent-v0 real-newline framing missing: ${framing}`,
+  );
+}
 
 const badReceiptsTail = String.raw`lines.join("\n")+"\\n"`;
 const goodReceiptsTail = String.raw`lines.join("\n")+"\n"`;
