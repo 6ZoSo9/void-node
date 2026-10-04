@@ -151,8 +151,13 @@ therefore keeps `root_path_stability_proven=false`.
 ## Exact replay
 
 If the exact canonical sponsorship file already exists and its complete record
-bytes match the supplied exact intent+sponsorship record, replay returns
+bytes match the supplied exact intent+sponsorship record, replay still requires
+the supplied signed submission to verify cryptographically and bind the same
+typed-data digest, gas limit, and intent lifetime. Only then does replay return
 `status=duplicate` with no mutation.
+
+A corrupt or mismatched replay signature HOLDS without changing the durable
+record or budget state.
 
 This remains true after the economic intent expires. Expiry changes whether the
 gas counts toward the active budget; it does not erase the durable historical
@@ -233,7 +238,8 @@ git diff --check
 The store proof covers:
 
 - first durable reservation;
-- exact replay;
+- exact replay with signed-submission re-verification;
+- corrupt replay-signature HOLD;
 - exact replay after expiry;
 - expired historical gas excluded from active reserved gas;
 - same-intent conflicting sponsorship HOLD;
