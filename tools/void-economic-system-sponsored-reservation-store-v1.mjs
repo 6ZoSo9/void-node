@@ -681,7 +681,10 @@ function candidateRecord(intentRaw, sponsorshipRaw) {
   });
 }
 
-function createOnceRecord(records, candidate) {
+function createOnceRecord(records, candidate, markMutation = () => {}) {
+  if (typeof markMutation !== "function") {
+    fail("SPONSORED_RESERVATION_STORE_PUBLICATION_TRACKER_INVALID");
+  }
   if (candidate.bytes.length > MAX_RECORD_BYTES) {
     fail("SPONSORED_RESERVATION_STORE_CANDIDATE_TOO_LARGE");
   }
@@ -698,6 +701,7 @@ function createOnceRecord(records, candidate) {
         O_NOFOLLOW,
       0o600,
     );
+    markMutation();
     let offset = 0;
     while (offset < candidate.bytes.length) {
       const written = fs.writeSync(
@@ -909,8 +913,7 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         records,
         "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
       );
-      mutationPerformed = true;
-      createOnceRecord(records, candidate);
+      createOnceRecord(records, candidate, markMutation);
 
       history = readHistory(records);
       state = verifyEconomicSystemSponsoredStateV1({
