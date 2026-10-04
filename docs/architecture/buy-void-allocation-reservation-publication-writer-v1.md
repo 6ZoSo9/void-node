@@ -67,7 +67,10 @@ in-place tail write because every observable authority state is one of its
 reviewed prior/next fingerprints.
 
 The protected high-water is published using the same temp + fsync + atomic
-rename + directory-fsync pattern.
+rename + directory-fsync pattern. Immediately before either authoritative
+rename, the writer descriptor-re-reads the current ledger/high-water pathname
+and requires exact equality with the prior bytes used to build the intent. A
+changed authority file HOLDs instead of being silently overwritten.
 
 ## Durable forward order
 
@@ -103,7 +106,9 @@ the three #2446 intent states:
 
 Unknown ledger state, unknown high-water state, high-water-ahead, altered
 intent, alternate history, rollback, malformed storage, or mixed fingerprints
-HOLD without intent deletion.
+HOLD without intent deletion. Optional-intent absence is checked explicitly
+through both the visible and descriptor-relative paths; an `ENOENT` arising
+after a file was observed is not converted into "no intent."
 
 Recovery is terminal for the current writer invocation. If an existing durable
 intent is recovered, the writer returns `status=recovered` immediately even if
