@@ -381,6 +381,7 @@ function createBinding({
 function requireOk(value) {
   assert.equal(value.ok, true, JSON.stringify(value));
   assert.equal(value.preflight_verified, true);
+  assert.equal(value.current_candidate_verified, true);
   assert.equal(value.durable_time_before_reservation, true);
   assert.equal(value.durable_reservation_before_execution, true);
   assert.equal(value.runtime_route_active, false);
@@ -419,6 +420,7 @@ for (const [key, value] of Object.entries(
     "canonical_ttl_policy_semantics_reused",
     "canonical_sponsored_policy_semantics_reused",
     "candidate_preflight_before_time_mutation",
+    "current_candidate_revalidation_after_time",
     "durable_time_observation_before_reservation",
     "durable_reservation_before_execution",
     "trusted_clock_dependency_injected",
@@ -494,6 +496,7 @@ const bundle = policyBundle(ttl, sponsor);
       sample(1_000, 1_000_000_000n),
       sample(2_000, 2_000_000_000n),
       sample(3_000, 3_000_000_000n),
+      sample(130_000, 130_000_000_000n),
     ]);
     const binding = createBinding({
       bundle,
@@ -511,6 +514,7 @@ const bundle = policyBundle(ttl, sponsor);
       "SPONSORED_RUNTIME_CANDIDATE_PREFLIGHT_INVALID",
     );
     assert.equal(invalid.preflight_verified, false);
+    assert.equal(invalid.current_candidate_verified, false);
     assert.equal(invalid.time_observation_performed, false);
     assert.equal(clock.calls(), 0);
     assert.equal(countRecords(f.timeRoot), 0);
@@ -568,6 +572,7 @@ const bundle = policyBundle(ttl, sponsor);
       "sponsored_gas_budget_exhausted",
     );
     assert.equal(denied.preflight_verified, true);
+    assert.equal(denied.current_candidate_verified, true);
     assert.equal(denied.time_observation_performed, true);
     assert.equal(denied.time_mutation_performed, true);
     assert.equal(denied.reservation_mutation_performed, false);
@@ -580,6 +585,36 @@ const bundle = policyBundle(ttl, sponsor);
       false,
     );
 
+    const expiredDuplicate = requireHeld(
+      await binding.admit(first),
+      "SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID",
+    );
+    assert.equal(expiredDuplicate.preflight_verified, true);
+    assert.equal(
+      expiredDuplicate.current_candidate_verified,
+      false,
+    );
+    assert.equal(
+      expiredDuplicate.time_observation_performed,
+      true,
+    );
+    assert.equal(
+      expiredDuplicate.time_mutation_performed,
+      true,
+    );
+    assert.equal(
+      expiredDuplicate.reservation_mutation_performed,
+      false,
+    );
+    assert.equal(clock.calls(), 4);
+    assert.equal(countRecords(f.timeRoot), 4);
+    assert.equal(countRecords(f.reservationRoot), 1);
+    assert.equal(
+      VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1
+        .expired_duplicate_execution_admission,
+      false,
+    );
+
     const noPolicyOverride = {
       ...overBudget,
       sponsorship_policy: sponsor,
@@ -589,7 +624,8 @@ const bundle = policyBundle(ttl, sponsor);
       "SPONSORED_RUNTIME_REQUEST_INVALID",
     );
     assert.equal(override.time_observation_performed, false);
-    assert.equal(clock.calls(), 3);
+    assert.equal(override.current_candidate_verified, false);
+    assert.equal(clock.calls(), 4);
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }
@@ -639,6 +675,7 @@ const bundle = policyBundle(ttl, sponsor);
       "sponsored_observation_time_process_instance_changed",
     );
     assert.equal(held.preflight_verified, true);
+    assert.equal(held.current_candidate_verified, false);
     assert.equal(held.time_observation_performed, true);
     assert.equal(held.time_mutation_performed, false);
     assert.equal(restartClock.calls(), 1);
@@ -725,6 +762,8 @@ console.log(
 );
 console.log("compiled_policy_bundle_content_address_verified=true");
 console.log("candidate_preflight_before_time_mutation=true");
+console.log("current_candidate_revalidation_after_time=true");
+console.log("expired_duplicate_execution_admission=false");
 console.log("invalid_signature_clock_calls=0");
 console.log("caller_timestamp_input=false");
 console.log("caller_policy_override=false");
