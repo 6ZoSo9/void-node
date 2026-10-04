@@ -295,6 +295,14 @@ requireHeld(
 
 requireHeld(
   classify({
+    obs: observation({ observed_at_ms: 1000, expires_at_ms: 1200 }),
+    now: 1200,
+  }),
+  "coupled_native_gas_fee_observation_stale",
+);
+
+requireHeld(
+  classify({
     obs: observation({ observed_at_ms: 1600, expires_at_ms: 2000 }),
     now: 1500,
   }),
@@ -512,6 +520,7 @@ console.log("fresh_fee_requirement_bound=true");
 console.log("fee_observation_expiry_recomputed=true");
 console.log("trusted_fee_freshness_policy_proven=false");
 console.log("stale_or_future_fee_observation_hold=true");
+console.log("expiry_millisecond_is_not_fresh=true");
 console.log("cross_lane_open_liability_counted=true");
 console.log("full_native_envelope_reserved_per_attempt=true");
 console.log("wc_void_candidate_admission=false");
