@@ -909,6 +909,66 @@ const observedAt = (BASE_UNIX + 140) * 1000;
     const value = await candidate({
       ttl,
       sponsor,
+      identityDigit: "7",
+      reservationDigit: "7",
+      walletDigit: "7",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    requireOk(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      ),
+    );
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    let finalNameReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      const result = originalReaddirSync.call(fs, target, ...args);
+      if (Array.isArray(result) && result.includes(finalName)) {
+        finalNameReads += 1;
+        if (finalNameReads === 2) {
+          movedRecords = f.records + "-moved";
+          fs.renameSync(f.records, movedRecords);
+          fs.mkdirSync(f.records, { mode: 0o700 });
+        }
+      }
+      return result;
+    };
+    const held =
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      );
+    assert.equal(held.ok, false, JSON.stringify(held));
+    assert.equal(held.status, "held");
+    assert.equal(
+      held.reason,
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_CHANGED",
+    );
+    assert.equal(held.mutation_performed, false);
+    assert.equal(
+      fs.existsSync(path.join(movedRecords, finalName)),
+      true,
+    );
+    assert.equal(held.gas_sponsorship_performed, false);
+    assert.equal(held.transaction_submission, false);
+    assert.equal(held.transaction_broadcast, false);
+    assert.equal(held.funds_movement, false);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
+  let movedRecords = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
       identityDigit: "6",
       reservationDigit: "6",
       walletDigit: "6",
@@ -1153,6 +1213,7 @@ console.log("global_budget_enforced=true");
 console.log("concurrent_near_budget_serialized=true");
 console.log("crash_temp_recovery=true");
 console.log("crash_temp_cleanup_reports_mutation=true");
+console.log("duplicate_visible_store_swap_rejected=true");
 console.log("ordinary_duplicate_replay_reports_mutation=false");
 console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
