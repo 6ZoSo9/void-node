@@ -60,10 +60,12 @@ reservations while holding that lock, rejects obligations above remaining
 inventory, and proves concurrent near-sellout verifications cannot both reserve
 the same remaining VOID.
 
-The source-ready constant intentionally remains false. Duplicate-payment
-identity (`source_chain:transaction_hash:log_index`) and the final append-only
-allocation/reservation contract remain separate required gates and must be
-closed before any later promotion may set capacity admission ready.
+The stacked canonical payment-identity admission lane closes
+`source_chain:transaction_hash:log_index` reuse at the same serialized
+`payment_verified` boundary. The source-ready constant intentionally remains
+false because the final append-only allocation/reservation contract is still a
+separate required gate. Only after that last reservation record is reviewed and
+proven may a later promotion consider setting capacity admission ready.
 
 The focused proof has an explicitly test-only classifier helper so the deeper
 generation/lease machinery can still be exercised synthetically. Production
