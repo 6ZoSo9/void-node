@@ -30,6 +30,11 @@ The roots must be absolute, direct directories, same-UID owned, mode-private,
 descriptor-bound, visible at their reviewed paths, and path-disjoint: neither
 root may be the same directory as, an ancestor of, or a descendant of the
 other.
+Every root path is opened component-by-component from the filesystem root with
+descriptor-relative `O_DIRECTORY|O_NOFOLLOW`. A symlink in any ancestor
+component therefore HOLDS even when the final ledger/high-water directory is a
+real private directory. Ancestors must be owned by the runtime UID or root and
+must be non-writable by group/other unless protected by the sticky bit.
 
 Both roots contain the same crash-recovery intent
 \`allocation-reservation-publication-intent-v1.json\`.
@@ -229,6 +234,7 @@ The focused writer proof covers:
 - valid-prefix rollback HOLD;
 - distinct-root enforcement;
 - symlink-root rejection;
+- symlinked-ancestor rejection;
 - unpublished intent-temp cleanup;
 - cross-process serialization after replacing only the visible high-water root;
 - cross-process serialization after replacing only the visible ledger root;
