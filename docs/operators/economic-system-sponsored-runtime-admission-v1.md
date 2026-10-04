@@ -44,6 +44,14 @@ properties only. Proxy/accessor/function/non-canonical values HOLD.
 
 The complete production bundle key set is required.
 
+The constructor verifies bundle shape/content but does not prove compiler
+provenance. Its authority therefore keeps:
+
+```text
+reviewed_policy_compiler_proven=false
+canonical_main_bundle_proven=false
+```
+
 The constructor:
 
 1. requires production bundle marker/schema/version;
