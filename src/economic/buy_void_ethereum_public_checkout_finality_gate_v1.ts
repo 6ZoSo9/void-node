@@ -265,6 +265,20 @@ function processSourceIdentityVerifiedV1(
   );
 }
 
+function decimalUsdcUnitsV1(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u.exec(raw);
+  if (!match) return null;
+  try {
+    const units =
+      BigInt(match[1]) * 1_000_000n +
+      BigInt((match[2] || "").padEnd(6, "0") || "0");
+    return units > 0n ? units.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function canonicalEthereumVerifiedPaymentIdentityV1(input: {
   request: BuyVoidRequestV1;
   verified_payment_event: BuyVoidVerifiedPaymentEventV2;
@@ -281,8 +295,29 @@ function canonicalEthereumVerifiedPaymentIdentityV1(input: {
   const verifierChain = String(
     event?.payment_verifier?.chain || "",
   ).trim().toLowerCase();
-  const logIndex = String(
-    event?.payment_verifier?.log_index ?? "",
+  const verifier = event?.payment_verifier;
+  const logIndex = String(verifier?.log_index ?? "").trim();
+  const requestDelivery = String(
+    request?.delivery_address || "",
+  ).trim().toLowerCase();
+  const requestReceive = String(
+    request?.receive_address || "",
+  ).trim().toLowerCase();
+  const expectedUnits = decimalUsdcUnitsV1(request?.usdc_amount);
+  const verifierDelivery = String(
+    verifier?.delivery_address || "",
+  ).trim().toLowerCase();
+  const verifierFrom = String(
+    verifier?.from_address || "",
+  ).trim().toLowerCase();
+  const verifierReceive = String(
+    verifier?.receive_address || "",
+  ).trim().toLowerCase();
+  const verifierAmount = String(
+    verifier?.amount_units ?? "",
+  ).trim();
+  const verifierRequested = String(
+    verifier?.requested_units ?? "",
   ).trim();
 
   if (
@@ -297,6 +332,14 @@ function canonicalEthereumVerifiedPaymentIdentityV1(input: {
     eventTx !== requestTx ||
     verifierChain !== "ethereum" ||
     verifierTx !== requestTx ||
+    !/^0x[0-9a-f]{40}$/u.test(requestDelivery) ||
+    !/^0x[0-9a-f]{40}$/u.test(requestReceive) ||
+    verifierDelivery !== requestDelivery ||
+    verifierFrom !== requestDelivery ||
+    verifierReceive !== requestReceive ||
+    expectedUnits === null ||
+    verifierAmount !== expectedUnits ||
+    verifierRequested !== expectedUnits ||
     !/^(0|[1-9][0-9]*)$/u.test(logIndex)
   ) {
     return null;
@@ -355,7 +398,9 @@ function classifyEthereumPreAttemptObservationV1(input: {
     observation.production_source_finality_authority_ready !== true ||
     observation.wallet_access !== false ||
     observation.signing !== false ||
+    observation.transaction_construction !== false ||
     observation.transaction_broadcast !== false ||
+    observation.inventory_mutation !== false ||
     observation.money_movement !== false
   ) {
     return {
