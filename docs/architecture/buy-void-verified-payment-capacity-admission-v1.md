@@ -21,18 +21,23 @@ For `payment_verified` only, while holding that lock it:
 1. strictly parses the raw `requests.jsonl` and `operator-events.jsonl`
    authority files; malformed rows, missing verified requests, or changed quote
    amounts fail closed;
-2. derives the unique verified-request reservation total directly from those
+2. validates the candidate's canonical
+   `source_chain:transaction_hash:log_index` identity against every historical
+   V2 `payment_verified` event while the same capacity lock is held;
+3. rejects cross-request payment-identity reuse and same-request identity
+   changes; only an exact same-request + same-identity replay is idempotent;
+4. derives the unique verified-request reservation total directly from those
    raw ledgers and checks whether this request is already verified;
-3. re-reads the legacy sale-state projection only as a cross-check and requires
+5. re-reads the legacy sale-state projection only as a cross-check and requires
    it to match the strict ledger recount exactly;
-4. validates exact six-decimal pool/reserved/verified/remaining conservation;
-5. rejects if the new quoted VOID exceeds current remaining inventory;
-6. keeps the capacity lock held while the existing launch-generation authority
+6. validates exact six-decimal pool/reserved/verified/remaining conservation;
+7. rejects if the new quoted VOID exceeds current remaining inventory;
+8. keeps the capacity lock held while the existing launch-generation authority
    mutation and per-request closeout lock append the event;
-7. strictly re-reads the raw ledgers and sale-state projection and requires
-   verified/reserved inventory to increase by exactly the quote and remaining
-   inventory to decrease by exactly the quote.
-8. durably fsyncs the `payment_verified` JSONL append before publishing the
+9. strictly re-reads identity, raw-ledger, and sale-state projections after the
+   append and requires both the same canonical payment identity and the expected
+   verified/reserved inventory delta;
+10. durably fsyncs the `payment_verified` JSONL append before publishing the
    per-event sidecar used by bounded orchestration. If a crash leaves the
    durable JSONL event without that sidecar, exact re-verification reconstructs
    the original timestamped sidecar from the authoritative event under the
@@ -65,10 +70,13 @@ corruption or a projection mismatch.
 
 ## Remaining HOLD
 
-This lane does **not** prove canonical duplicate-payment identity
-(`source_chain:transaction_hash:log_index`) or the final append-only allocation
-reservation record. The parent coupled-launch source gate therefore remains
-hard-HOLD with
+The stacked verified-payment identity admission lane now proves canonical
+`source_chain:transaction_hash:log_index` uniqueness inside this same
+serialization boundary. That source advance does not itself activate the public
+verifier.
+
+The final append-only allocation-reservation record remains a separate required
+gate. The parent coupled-launch source gate therefore remains hard-HOLD with
 `VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
 
 That constant must not be promoted by this lane.
