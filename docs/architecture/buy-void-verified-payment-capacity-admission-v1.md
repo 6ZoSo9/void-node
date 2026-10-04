@@ -45,12 +45,22 @@ verification of the already-reserved request is idempotent.
 All arithmetic is exact micro-VOID integer arithmetic derived from canonical
 decimal text with at most six decimals.
 
+## Canonical payment identity extension
+
+The stacked payment-identity lane now preserves the matched transfer log index
+and derives the existing canonical identity
+`voidpay1:<source_chain>:<transaction_hash>:<log_index>` inside this same
+serialized admission boundary. Cross-request reuse is rejected, a verified
+request cannot switch to a different payment identity, and exact re-verification
+remains idempotent.
+
+See
+`docs/architecture/buy-void-verified-payment-identity-admission-v1.md`.
+
 ## Remaining HOLD
 
-This lane does **not** prove canonical duplicate-payment identity
-(`source_chain:transaction_hash:log_index`) or the final append-only allocation
-reservation record. The parent coupled-launch source gate therefore remains
-hard-HOLD with
+The final append-only allocation reservation record is still a separate required
+gate. The parent coupled-launch source gate therefore remains hard-HOLD with
 `VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
 
 That constant must not be promoted by this lane.
