@@ -50,6 +50,8 @@ const RECEIPT_KEYS = Object.freeze([
   "previous_receipt_sha256",
   "boot_id",
   "process_start_ticks",
+  "baseline_wall_time_ms",
+  "baseline_monotonic_ns",
   "observed_at_ms",
   "monotonic_ns",
   "wall_monotonic_skew_allowance_ms",
@@ -66,7 +68,6 @@ const UUID =
 const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const MAX_UINT64 = (1n << 64n) - 1n;
-const MAX_SAFE_MS = BigInt(Number.MAX_SAFE_INTEGER);
 const NS_PER_MS = 1_000_000n;
 
 export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_MAX_SKEW_MS_V1 =
@@ -201,6 +202,8 @@ function receiptBody(value) {
     previous_receipt_sha256: value.previous_receipt_sha256,
     boot_id: value.boot_id,
     process_start_ticks: value.process_start_ticks,
+    baseline_wall_time_ms: value.baseline_wall_time_ms,
+    baseline_monotonic_ns: value.baseline_monotonic_ns,
     observed_at_ms: value.observed_at_ms,
     monotonic_ns: value.monotonic_ns,
     wall_monotonic_skew_allowance_ms:
@@ -254,6 +257,15 @@ function parseReceipt(value) {
     raw.process_start_ticks,
     "sponsored_observation_time_prior_receipt_invalid",
   );
+  const baselineWall = safeMs(
+    raw.baseline_wall_time_ms,
+    "sponsored_observation_time_prior_receipt_invalid",
+  );
+  const baselineMonotonic = decimal(
+    raw.baseline_monotonic_ns,
+    "sponsored_observation_time_prior_receipt_invalid",
+    (1n << 127n) - 1n,
+  );
   const observedAt = safeMs(
     raw.observed_at_ms,
     "sponsored_observation_time_prior_receipt_invalid",
@@ -263,6 +275,19 @@ function parseReceipt(value) {
     "sponsored_observation_time_prior_receipt_invalid",
     (1n << 127n) - 1n,
   );
+  if (
+    baselineWall > observedAt ||
+    baselineMonotonic.value > monotonic.value ||
+    (
+      generation.value === 0n &&
+      (
+        baselineWall !== observedAt ||
+        baselineMonotonic.value !== monotonic.value
+      )
+    )
+  ) {
+    fail("sponsored_observation_time_prior_receipt_invalid");
+  }
   const receipt = Object.freeze({
     schema: RECEIPT_SCHEMA,
     marker:
@@ -272,6 +297,8 @@ function parseReceipt(value) {
     previous_receipt_sha256: previous,
     boot_id: bootId,
     process_start_ticks: processStart.text,
+    baseline_wall_time_ms: baselineWall,
+    baseline_monotonic_ns: baselineMonotonic.text,
     observed_at_ms: observedAt,
     monotonic_ns: monotonic.text,
     wall_monotonic_skew_allowance_ms:
@@ -346,14 +373,15 @@ function compareForwardSample(prior, sample) {
   if (sample.wall_time_ms < prior.observed_at_ms) {
     fail("sponsored_observation_time_wall_regressed");
   }
-  const monotonicDeltaMs = (nextMono - priorMono) / NS_PER_MS;
-  const wallDeltaMs =
+  const baselineMono = BigInt(prior.baseline_monotonic_ns);
+  const monotonicElapsedMs = (nextMono - baselineMono) / NS_PER_MS;
+  const wallElapsedMs =
     BigInt(sample.wall_time_ms) -
-    BigInt(prior.observed_at_ms);
+    BigInt(prior.baseline_wall_time_ms);
   const difference =
-    wallDeltaMs >= monotonicDeltaMs
-      ? wallDeltaMs - monotonicDeltaMs
-      : monotonicDeltaMs - wallDeltaMs;
+    wallElapsedMs >= monotonicElapsedMs
+      ? wallElapsedMs - monotonicElapsedMs
+      : monotonicElapsedMs - wallElapsedMs;
   if (
     difference >
     BigInt(
@@ -412,6 +440,8 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1(
             previous_receipt_sha256: null,
             boot_id: sample.boot_id,
             process_start_ticks: sample.process_start_ticks,
+            baseline_wall_time_ms: sample.wall_time_ms,
+            baseline_monotonic_ns: sample.monotonic_ns,
             observed_at_ms: sample.wall_time_ms,
             monotonic_ns: sample.monotonic_ns,
           });
@@ -428,6 +458,8 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1(
           previous_receipt_sha256: prior.receipt_sha256,
           boot_id: sample.boot_id,
           process_start_ticks: sample.process_start_ticks,
+          baseline_wall_time_ms: prior.baseline_wall_time_ms,
+          baseline_monotonic_ns: prior.baseline_monotonic_ns,
           observed_at_ms: sample.wall_time_ms,
           monotonic_ns: sample.monotonic_ns,
         });
