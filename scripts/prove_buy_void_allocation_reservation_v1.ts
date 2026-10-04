@@ -85,7 +85,9 @@ function verifiedEvent(
 function writeJsonl(file: string, rows: any[]) {
   fs.writeFileSync(
     file,
-    rows.map((row) => JSON.stringify(row)).join("\n") + "\n",
+    rows.length > 0
+      ? rows.map((row) => JSON.stringify(row)).join("\n") + "\n"
+      : "",
     { mode: 0o600 },
   );
   fs.chmodSync(file, 0o600);

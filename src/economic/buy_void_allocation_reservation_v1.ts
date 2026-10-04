@@ -430,6 +430,7 @@ function readPinnedNamedFile(
     ) {
       fail(code + "_changed_during_read");
     }
+    assertPinnedDirectoryVisible(directory, code + "_directory");
     return bytes;
   } finally {
     fs.closeSync(fd);
@@ -1015,7 +1016,25 @@ function scanAllocationHistory(
   let count = 0;
 
   for (const name of fs.readdirSync(allocationDirectory.proc_path).sort()) {
-    if (name.startsWith(".")) continue;
+    if (name.startsWith(".")) {
+      if (
+        !/^\.voidalloc1_[0-9a-f]{64}\.tmp-[0-9]+-[0-9a-f]{16}$/u.test(
+          name,
+        )
+      ) {
+        fail("buy_void_allocation_history_unknown_hidden_entry");
+      }
+      const tempStat = fs.lstatSync(
+        path.join(allocationDirectory.proc_path, name),
+        { bigint: true },
+      );
+      validateFileStat(
+        tempStat,
+        RECORD_MAX_BYTES,
+        "buy_void_allocation_history_temp_invalid",
+      );
+      continue;
+    }
     if (!/^voidalloc1_[0-9a-f]{64}\.json$/u.test(name)) {
       fail("buy_void_allocation_history_unknown_entry");
     }
