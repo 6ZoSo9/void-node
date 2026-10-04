@@ -1278,10 +1278,51 @@ function loadAuthorityState(requestDir: string) {
   }
 }
 
-function allocationReservationLockPathV1(
-  requestDir: string,
+function canonicalRequestDirectoryForLockV1(
+  requestDirRaw: string,
 ): string {
-  return requestDir + ALLOCATION_LOCK_SUFFIX;
+  const requestDir = path.resolve(String(requestDirRaw || "").trim());
+  const directory = openPinnedDirectory(
+    requestDir,
+    "buy_void_allocation_lock_request_directory",
+  );
+  try {
+    const canonical = fs.realpathSync.native(directory.proc_path);
+    const canonicalStat = fs.lstatSync(canonical, { bigint: true });
+    const opened = fs.fstatSync(directory.fd, { bigint: true });
+    validateDirectoryStat(
+      canonicalStat,
+      "buy_void_allocation_lock_request_directory_canonical_invalid",
+    );
+    if (
+      !sameDirectoryIdentity(opened, canonicalStat) ||
+      !sameDirectoryIdentity(directory.stat, opened)
+    ) {
+      fail("buy_void_allocation_lock_request_directory_canonical_mismatch");
+    }
+    assertPinnedDirectoryVisible(
+      directory,
+      "buy_void_allocation_lock_request_directory",
+    );
+    return canonical;
+  } finally {
+    fs.closeSync(directory.fd);
+  }
+}
+
+function allocationReservationLockPathV1(
+  requestDirRaw: string,
+): string {
+  return (
+    canonicalRequestDirectoryForLockV1(requestDirRaw) +
+    ALLOCATION_LOCK_SUFFIX
+  );
+}
+
+export function testOnlyBuyVoidAllocationReservationLockPathV1(
+  requestDirRaw: string,
+): string {
+  return allocationReservationLockPathV1(requestDirRaw);
 }
 
 export function persistBuyVoidAllocationReservationV1(input: {
@@ -1293,10 +1334,19 @@ export function persistBuyVoidAllocationReservationV1(input: {
   if (!requestDirRaw || !REQUEST_ID.test(requestId)) {
     return held("buy_void_allocation_input_invalid");
   }
-  const requestDir = path.resolve(requestDirRaw);
+  let requestDir: string;
+  try {
+    requestDir = canonicalRequestDirectoryForLockV1(requestDirRaw);
+  } catch (error) {
+    return held(String((error as Error)?.message || error));
+  }
   return withBuyVoidFilesystemBakeryLockV1(
     allocationReservationLockPathV1(requestDir),
-    () => persistBuyVoidAllocationReservationUnlockedV1(input),
+    () =>
+      persistBuyVoidAllocationReservationUnlockedV1({
+        ...input,
+        request_dir: requestDir,
+      }),
   );
 }
 
@@ -1412,7 +1462,7 @@ export function listBuyVoidAllocationReservationsV1(
 ): BuyVoidAllocationReservationRecordV1[] {
   const raw = String(requestDirRaw || "").trim();
   if (!raw) throw new Error("buy_void_allocation_input_invalid");
-  const requestDir = path.resolve(raw);
+  const requestDir = canonicalRequestDirectoryForLockV1(raw);
   return withBuyVoidFilesystemBakeryLockV1(
     allocationReservationLockPathV1(requestDir),
     () => listBuyVoidAllocationReservationsUnlockedV1(requestDir),
