@@ -265,6 +265,17 @@ function processSourceIdentityVerifiedV1(
   );
 }
 
+function positiveUintV1(value: unknown): bigint | null {
+  const raw = String(value ?? "").trim();
+  if (!/^[1-9][0-9]*$/u.test(raw)) return null;
+  try {
+    const parsed = BigInt(raw);
+    return parsed > 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function decimalUsdcUnitsV1(value: unknown): string | null {
   const raw = String(value ?? "").trim();
   const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u.exec(raw);
@@ -412,6 +423,11 @@ function classifyEthereumPreAttemptObservationV1(input: {
 
   const event = input.verified_payment_event;
   const verifier = event?.payment_verifier;
+  const eventConfirmations = positiveUintV1(verifier?.confirmations);
+  const finalizedConfirmations =
+    positiveUintV1(observation?.confirmations_observed);
+  const minimumConfirmations =
+    positiveUintV1(observation?.min_confirmations);
   if (
     event?.schema !== "void_buy_void_verified_payment_event_v2" ||
     event?.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 ||
@@ -427,8 +443,10 @@ function classifyEthereumPreAttemptObservationV1(input: {
       String(observation.log_index ?? "").trim() ||
     String(verifier?.block_number ?? "").trim() !==
       String(observation.receipt_block_number ?? "").trim() ||
-    String(verifier?.confirmations ?? "").trim() !==
-      String(observation.confirmations_observed ?? "").trim() ||
+    eventConfirmations === null ||
+    finalizedConfirmations === null ||
+    minimumConfirmations === null ||
+    finalizedConfirmations < minimumConfirmations ||
     String(verifier?.usdc_contract || "").trim().toLowerCase() !==
       String(observation.usdc_contract || "").trim().toLowerCase() ||
     String(verifier?.from_address || "").trim().toLowerCase() !==
