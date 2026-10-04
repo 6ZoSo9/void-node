@@ -415,7 +415,8 @@ for (const [key, value] of Object.entries(
 )) {
   const trueKeys = new Set([
     "source_only_binding",
-    "compiled_policy_bundle_content_address_verified",
+    "policy_bundle_content_address_verified",
+    "policy_bundle_marker_schema_verified",
     "exact_expected_bundle_id_required",
     "canonical_ttl_policy_semantics_reused",
     "canonical_sponsored_policy_semantics_reused",
@@ -871,7 +872,10 @@ assert.doesNotMatch(
 console.log(
   "VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_V1_PROOF_GREEN",
 );
-console.log("compiled_policy_bundle_content_address_verified=true");
+console.log("policy_bundle_content_address_verified=true");
+console.log("policy_bundle_marker_schema_verified=true");
+console.log("reviewed_policy_compiler_proven=false");
+console.log("canonical_main_bundle_proven=false");
 console.log("candidate_preflight_before_time_mutation=true");
 console.log("current_candidate_revalidation_after_time=true");
 console.log("expired_duplicate_execution_admission=false");
