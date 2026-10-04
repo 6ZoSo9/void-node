@@ -27,8 +27,9 @@ The writer requires two already-provisioned private roots:
   \`allocation-reservation-high-water-v1.json\`.
 
 The roots must be absolute, direct directories, same-UID owned, mode-private,
-descriptor-bound, visible at their reviewed paths, and distinct directory
-inodes.
+descriptor-bound, visible at their reviewed paths, and path-disjoint: neither
+root may be the same directory as, an ancestor of, or a descendant of the
+other.
 
 The high-water root also contains:
 
