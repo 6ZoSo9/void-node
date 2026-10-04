@@ -52,6 +52,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_QUALIFICATION_AUTHORITY_V1 =
     bounded_evidence_freshness_checked: true,
     verification_clock_input_required: true,
     verification_clock_authority_proven: false,
+    evidence_generation_monotonicity_proven: false,
     prior_receipt_external_trust_proven: false,
     live_host_qualification_performed: false,
     host_mutation: false,
@@ -275,8 +276,10 @@ export type BuyVoidAllocationCustodyQualificationDecisionV1 =
       evidence_observed_at_ms: number;
       evidence_expires_at_ms: number;
       boot_id_sha256: string;
+      verification_now_ms: number;
       evidence_freshness_checked: true;
       verification_clock_authority_proven: false;
+      evidence_generation_monotonicity_proven: false;
       qualification_policy_fingerprint_sha256: string;
       ledger_mount_instance_fingerprint_sha256: string;
       ledger_storage_failure_domain_fingerprint_sha256: string;
@@ -302,6 +305,7 @@ export type BuyVoidAllocationCustodyQualificationDecisionV1 =
       qualification_id_sha256: null;
       evidence_freshness_checked: false;
       verification_clock_authority_proven: false;
+      evidence_generation_monotonicity_proven: false;
       root_path_stability_evidence_qualified: false;
       separate_storage_domain_evidence_qualified: false;
       monotonic_continuity_against_supplied_prior: false;
@@ -378,6 +382,7 @@ function held(reason: string): BuyVoidAllocationCustodyQualificationDecisionV1 {
     qualification_id_sha256: null,
     evidence_freshness_checked: false,
     verification_clock_authority_proven: false,
+    evidence_generation_monotonicity_proven: false,
     root_path_stability_evidence_qualified: false,
     separate_storage_domain_evidence_qualified: false,
     monotonic_continuity_against_supplied_prior: false,
@@ -999,8 +1004,9 @@ function normalizeEvidenceSnapshot(
   );
   if (
     BigInt(generation) < 1n ||
+    BigInt(generation) > MAX_EPOCH ||
     observedAtMs > verificationNowMs ||
-    expiresAtMs < verificationNowMs ||
+    expiresAtMs <= verificationNowMs ||
     expiresAtMs <= observedAtMs ||
     expiresAtMs - observedAtMs > MAX_EVIDENCE_TTL_MS
   ) {
@@ -1239,18 +1245,6 @@ function buildReceipt(input: {
     writer_source_blob_sha1: input.writer_source_blob_sha1,
     writer_source_sha256: input.writer_source_sha256,
     host_id: input.host.host_id,
-    evidence_snapshot_fingerprint_sha256:
-      input.host.evidence_snapshot.fingerprint_sha256,
-    evidence_generation:
-      input.host.evidence_snapshot.evidence_generation,
-    evidence_observed_at_ms:
-      input.host.evidence_snapshot.observed_at_ms,
-    evidence_expires_at_ms:
-      input.host.evidence_snapshot.expires_at_ms,
-    boot_id_sha256:
-      input.host.evidence_snapshot.boot_id_sha256,
-    evidence_freshness_checked: true,
-    verification_clock_authority_proven: false,
     qualification_policy_fingerprint_sha256:
       input.qualification_policy_fingerprint_sha256,
     ledger_mount_instance_fingerprint_sha256:
@@ -1459,6 +1453,7 @@ function success(input: {
   writer_source_sha256: string;
   host: HostV1;
   policy_fingerprint: string;
+  verification_now_ms: number;
   receipt: Readonly<BuyVoidAllocationCustodyReceiptV1>;
 }): BuyVoidAllocationCustodyQualificationDecisionV1 {
   return Object.freeze({
@@ -1475,6 +1470,20 @@ function success(input: {
     writer_source_blob_sha1: input.writer_blob_sha1,
     writer_source_sha256: input.writer_source_sha256,
     host_id: input.host.host_id,
+    evidence_snapshot_fingerprint_sha256:
+      input.host.evidence_snapshot.fingerprint_sha256,
+    evidence_generation:
+      input.host.evidence_snapshot.evidence_generation,
+    evidence_observed_at_ms:
+      input.host.evidence_snapshot.observed_at_ms,
+    evidence_expires_at_ms:
+      input.host.evidence_snapshot.expires_at_ms,
+    boot_id_sha256:
+      input.host.evidence_snapshot.boot_id_sha256,
+    verification_now_ms: input.verification_now_ms,
+    evidence_freshness_checked: true,
+    verification_clock_authority_proven: false,
+    evidence_generation_monotonicity_proven: false,
     qualification_policy_fingerprint_sha256:
       input.policy_fingerprint,
     ledger_mount_instance_fingerprint_sha256:
@@ -1602,6 +1611,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
         writer_source_sha256: writerSourceSha256,
         host,
         policy_fingerprint: policy,
+      verification_now_ms: verificationNowMs,
         receipt,
       });
     }
@@ -1648,6 +1658,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
         writer_source_sha256: writerSourceSha256,
         host,
         policy_fingerprint: policy,
+      verification_now_ms: verificationNowMs,
         receipt: prior,
       });
     }
@@ -1713,6 +1724,7 @@ export function classifyBuyVoidAllocationCustodyQualificationV1(
       writer_source_sha256: writerSourceSha256,
       host,
       policy_fingerprint: policy,
+      verification_now_ms: verificationNowMs,
       receipt,
     });
   } catch (error) {
