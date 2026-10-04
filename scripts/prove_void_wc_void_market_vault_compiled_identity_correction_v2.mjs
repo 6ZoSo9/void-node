@@ -8,6 +8,10 @@ import {
   verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2,
 } from "../tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs";
 
+import {
+  deriveWcVoidCoupledLaunchIdentityV1,
+} from "../tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs";
+
 const v1 = JSON.parse(fs.readFileSync(
   "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
   "utf8",
@@ -27,6 +31,57 @@ const result =
     supersededV1: v1,
     correctionV2: v2,
   });
+
+const canonicalCommitment = (creationSha256, runtimeSha256) => ({
+  schema: "void.presale-wc-void-current-deployment-commitment.v1",
+  version: 1,
+  chain_id: 2050,
+  presale: {
+    policy_marker: "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1",
+    canonical_presale_max_void: "10000000",
+    rate_void_units_numerator: "2",
+    rate_void_units_denominator: "1",
+  },
+  wc_void: {
+    pair: "WC_VOID",
+    protocol_void_inventory_atoms: "10000000000000000000000000",
+    opening_sale_tranche_void_atoms: "5000000000000000000000000",
+    post_opening_void_reserve_atoms: "5000000000000000000000000",
+    protocol_wc_seed_units: "0",
+    fixed_conversion: false,
+    fixed_opening_price: false,
+    opening_price_source: "settled_wc_over_opening_sale_tranche",
+    opening_allocation_policy: "pro_rata_largest_remainder_v1",
+  },
+  market_vault: {
+    contract_name: "WCVoidMarketVaultV2",
+    compiled_identity_id: v2.accepted_identity.identity_id,
+    creation_bytecode_sha256: creationSha256,
+    runtime_template_sha256: runtimeSha256,
+    immutable_layout_sha256:
+      v2.canonical_compiler_artifacts.immutable_layout_sha256,
+  },
+  launch_order: {
+    presale_wc_void_simultaneous_launch: true,
+    presale_launch_requires_wc_void_activation_ready: true,
+    wc_void_launch_requires_presale_activation_ready: true,
+  },
+});
+
+const supersededDerived =
+  deriveWcVoidCoupledLaunchIdentityV1(
+    canonicalCommitment(
+      v2.superseded_v1.creation_bytecode_sha256,
+      v2.superseded_v1.runtime_template_sha256,
+    ),
+  );
+const correctedDerived =
+  deriveWcVoidCoupledLaunchIdentityV1(
+    canonicalCommitment(
+      v2.canonical_compiler_artifacts.creation_bytecode_sha256,
+      v2.canonical_compiler_artifacts.runtime_template_sha256,
+    ),
+  );
 
 assert.equal(result.ok, true);
 assert.equal(
@@ -50,6 +105,26 @@ assert.equal(
 assert.equal(
   result.corrected_coupled_launch_id,
   "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
+);
+assert.equal(
+  supersededDerived.opening_domain_id,
+  result.superseded_coupled_launch_id,
+  "superseded coupled launch ID must derive from the canonical launch commitment",
+);
+assert.equal(
+  correctedDerived.opening_domain_id,
+  result.corrected_coupled_launch_id,
+  "corrected coupled launch ID must derive from the canonical launch commitment",
+);
+assert.equal(
+  correctedDerived.vault_bytes32_id,
+  v2.coupled_launch_effect.corrected_vault_bytes32,
+  "corrected vault bytes32 must be the lossless launch-ID encoding bridge",
+);
+assert.notEqual(
+  correctedDerived.opening_domain_id,
+  supersededDerived.opening_domain_id,
+  "corrected bytecode hashes must change the coupled launch identity",
 );
 assert.equal(result.deployment_authorized, false);
 assert.equal(result.funds_movement, false);
@@ -79,6 +154,8 @@ console.log(
   "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2_PROOF_GREEN",
 );
 console.log("canonical_compiler_identity_preserved=true");
+console.log("coupled_launch_id_recomputed_from_canonical_commitment=true");
+console.log("coupled_launch_bytes32_bridge_recomputed=true");
 console.log("v1_deployment_bytes_superseded=true");
 console.log("corrected_creation_bytecode_bytes=9441");
 console.log("corrected_runtime_template_bytes=8342");
