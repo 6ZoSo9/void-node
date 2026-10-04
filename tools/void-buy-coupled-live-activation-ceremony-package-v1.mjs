@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
 import process from "node:process";
 
 import { TypedDataEncoder } from "ethers";
@@ -328,13 +329,81 @@ export function finalizeVoidBuyCoupledLiveActivationReceiptV1(input) {
   });
 }
 
-function readJsonFileBounded(filePath) {
+function sameFileIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
+}
+
+export function readVoidBuyCoupledLiveActivationCeremonyPackageFileV1(
+  filePath,
+) {
   if (!filePath) fail("activation_ceremony_package_file_required");
-  const stat = fs.statSync(filePath);
-  if (!stat.isFile() || stat.size < 2 || stat.size > MAX_PACKAGE_BYTES) {
+  const resolved = path.resolve(String(filePath));
+  const listed = fs.lstatSync(resolved);
+  if (
+    !listed.isFile() ||
+    listed.isSymbolicLink() ||
+    listed.size < 2 ||
+    listed.size > MAX_PACKAGE_BYTES
+  ) {
     fail("activation_ceremony_package_file_size_invalid");
   }
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number") {
+    fail("activation_ceremony_package_nofollow_unavailable");
+  }
+
+  let fd = -1;
+  try {
+    fd = fs.openSync(resolved, fs.constants.O_RDONLY | noFollow);
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile() || !sameFileIdentity(listed, opened)) {
+      fail("activation_ceremony_package_file_identity_changed");
+    }
+
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const remaining = MAX_PACKAGE_BYTES + 1 - total;
+      if (remaining <= 0) {
+        fail("activation_ceremony_package_stream_size_exceeded");
+      }
+      const chunk = Buffer.allocUnsafe(Math.min(16 * 1024, remaining));
+      const count = fs.readSync(fd, chunk, 0, chunk.length, null);
+      if (count === 0) break;
+      chunks.push(chunk.subarray(0, count));
+      total += count;
+      if (total > MAX_PACKAGE_BYTES) {
+        fail("activation_ceremony_package_stream_size_exceeded");
+      }
+    }
+
+    const after = fs.fstatSync(fd);
+    const visible = fs.lstatSync(resolved);
+    if (
+      total !== after.size ||
+      !sameFileIdentity(opened, after) ||
+      !sameFileIdentity(after, visible)
+    ) {
+      fail("activation_ceremony_package_file_changed_during_read");
+    }
+
+    return JSON.parse(Buffer.concat(chunks, total).toString("utf8"));
+  } finally {
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        void error;
+      }
+    }
+  }
 }
 
 function arg(name) {
@@ -392,7 +461,9 @@ if (
       }));
     } else if (command === "assemble") {
       print(finalizeVoidBuyCoupledLiveActivationReceiptV1({
-        ceremony_package: readJsonFileBounded(arg("--package")),
+        ceremony_package: readVoidBuyCoupledLiveActivationCeremonyPackageFileV1(
+          arg("--package"),
+        ),
         activation_signature: arg("--activation-signature"),
         sovereign_signature: arg("--sovereign-signature"),
       }));
