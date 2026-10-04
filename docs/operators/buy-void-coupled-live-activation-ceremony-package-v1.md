@@ -84,6 +84,15 @@ used. The runtime gate rechecks all of those conditions.
 The assembler does not install the receipt, modify service configuration,
 publish a generation, restart anything, or activate intake.
 
+The `--package` input is treated as untrusted local file input. Assembly
+resolves the path once, rejects a symbolic-link final component, opens with
+`O_NOFOLLOW`, binds the opened descriptor to the listed file identity, and
+reads through the descriptor with an absolute 128 KiB ceiling. The first byte
+beyond that ceiling fails closed before JSON parsing. The descriptor and visible
+path must retain the same device/inode/size/mtime/ctime identity after the read,
+so replacement or same-file growth during assembly is rejected.
+
+
 ## Boundary
 
 This lane performs no:
