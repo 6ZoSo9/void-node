@@ -4,6 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { keccak256 } from "ethers";
+
 export const VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2 =
   "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2";
 
@@ -44,6 +46,51 @@ const CORRECTED_COUPLED_LAUNCH_ID =
 const SUPERSEDED_COUPLED_LAUNCH_ID =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
 
+const CORRECT_CREATION_KECCAK256 =
+  "0xa741a938f6570d3b8de727e7487460a0dda04244e6e45a79ab22756b16369c41";
+const CORRECT_RUNTIME_KECCAK256 =
+  "0xea29fc4564e552b4b16a824f9f9566edc82d886b81d908f6205091cbe6ce24af";
+
+const V2_TOP_KEYS = Object.freeze([
+  "accepted_identity", "authority", "canonical_compiler_artifacts",
+  "correction", "correction_id", "coupled_launch_effect", "decision",
+  "marker", "status", "superseded_v1", "version",
+]);
+const ACCEPTED_IDENTITY_KEYS = Object.freeze([
+  "identity_id", "identity_json_bytes", "identity_json_sha256",
+  "reviewed_at_utc", "workflow_artifact_id", "workflow_artifact_zip_sha256",
+  "workflow_job_id", "workflow_run_id",
+]);
+const SUPERSEDED_V1_KEYS = Object.freeze([
+  "creation_bytecode_bytes", "creation_bytecode_sha256",
+  "deployment_artifact_usable", "packet_id", "packet_path",
+  "runtime_template_bytes", "runtime_template_sha256",
+]);
+const CANONICAL_ARTIFACT_KEYS = Object.freeze([
+  "abi_sha256", "creation_bytecode_bytes", "creation_bytecode_keccak256",
+  "creation_bytecode_sha256", "immutable_layout_sha256", "metadata_sha256",
+  "method_identifiers_sha256", "runtime_template_bytes",
+  "runtime_template_keccak256", "runtime_template_sha256",
+  "storage_layout_sha256",
+]);
+const CORRECTION_KEYS = Object.freeze([
+  "compiler_identity_recompile_required", "contract_semantics_change_required",
+  "creation_prefix_bytes_from_v1", "creation_v1_extra_bytes",
+  "runtime_prefix_bytes_from_v1", "runtime_v1_extra_bytes",
+  "solidity_source_change_required", "v1_deployment_bytes_superseded",
+]);
+const COUPLED_EFFECT_KEYS = Object.freeze([
+  "corrected_coupled_launch_id", "corrected_vault_bytes32",
+  "coupled_launch_regeneration_required", "old_control_signature_generation_reusable",
+  "superseded_coupled_launch_id",
+]);
+const DECISION_KEYS = Object.freeze([
+  "canonical_compiler_identity_preserved", "deployment_authorized",
+  "inventory_funding_authorized", "market_activation_authorized", "next_gate",
+  "public_presale_activation_authorized",
+  "v1_acceptance_deployment_artifact_superseded",
+]);
+
 function fail(code) {
   throw new Error(code);
 }
@@ -66,12 +113,99 @@ function parse(value, label) {
   return value;
 }
 
+function exactObject(value, keys, label) {
+  const object = parse(value, label);
+  const actual = Object.keys(object).sort();
+  const expected = [...keys].sort();
+  if (
+    actual.length !== expected.length ||
+    actual.some((key, index) => key !== expected[index])
+  ) {
+    fail(label + "_keys_mismatch");
+  }
+  return object;
+}
+
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+  if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map(
+      (key) => JSON.stringify(key) + ":" + canonicalJson(value[key]),
+    ).join(",") + "}";
+  }
+  fail("compiled_identity_correction_canonical_value_invalid");
+}
+
+function sha256Text(text) {
+  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+function coupledLaunchCommitmentV1({
+  identityId,
+  creationSha256,
+  runtimeSha256,
+  immutableLayoutSha256,
+}) {
+  return Object.freeze({
+    schema: "void.presale-wc-void-current-deployment-commitment.v1",
+    version: 1,
+    chain_id: 2050,
+    presale: Object.freeze({
+      policy_marker: "VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_DUAL_RAIL_V1",
+      canonical_presale_max_void: "10000000",
+      rate_void_units_numerator: "2",
+      rate_void_units_denominator: "1",
+    }),
+    wc_void: Object.freeze({
+      pair: "WC_VOID",
+      protocol_void_inventory_atoms: "10000000000000000000000000",
+      opening_sale_tranche_void_atoms: "5000000000000000000000000",
+      post_opening_void_reserve_atoms: "5000000000000000000000000",
+      protocol_wc_seed_units: "0",
+      fixed_conversion: false,
+      fixed_opening_price: false,
+      opening_price_source: "settled_wc_over_opening_sale_tranche",
+      opening_allocation_policy: "pro_rata_largest_remainder_v1",
+    }),
+    market_vault: Object.freeze({
+      contract_name: "WCVoidMarketVaultV2",
+      compiled_identity_id: identityId,
+      creation_bytecode_sha256: creationSha256,
+      runtime_template_sha256: runtimeSha256,
+      immutable_layout_sha256: immutableLayoutSha256,
+    }),
+    launch_order: Object.freeze({
+      presale_wc_void_simultaneous_launch: true,
+      presale_launch_requires_wc_void_activation_ready: true,
+      wc_void_launch_requires_presale_activation_ready: true,
+    }),
+  });
+}
+
+function deriveCoupledLaunchIdV1(input) {
+  return "sha256:" + sha256Text(canonicalJson(coupledLaunchCommitmentV1(input)));
+}
+
 export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
   supersededV1,
   correctionV2,
 }) {
   const v1 = parse(supersededV1, "superseded_v1");
-  const v2 = parse(correctionV2, "correction_v2");
+  const v2 = exactObject(correctionV2, V2_TOP_KEYS, "correction_v2");
+  exactObject(v2.accepted_identity, ACCEPTED_IDENTITY_KEYS, "accepted_identity");
+  exactObject(v2.superseded_v1, SUPERSEDED_V1_KEYS, "superseded_v1_binding");
+  exactObject(
+    v2.canonical_compiler_artifacts,
+    CANONICAL_ARTIFACT_KEYS,
+    "canonical_compiler_artifacts",
+  );
+  exactObject(v2.correction, CORRECTION_KEYS, "correction");
+  exactObject(v2.coupled_launch_effect, COUPLED_EFFECT_KEYS, "coupled_launch_effect");
+  exactObject(v2.decision, DECISION_KEYS, "decision");
 
   if (
     v1.marker !==
@@ -126,6 +260,14 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     fail("superseded_v1_bytecode_binding_mismatch");
   }
 
+  if (
+    v2.superseded_v1?.packet_path !== V1_REL ||
+    v2.superseded_v1?.packet_id !== v1.packet_id ||
+    v2.superseded_v1?.deployment_artifact_usable !== false
+  ) {
+    fail("superseded_v1_packet_binding_mismatch");
+  }
+
   const creationBytes =
     v2.canonical_compiler_artifacts?.creation_bytecode_bytes;
   const runtimeBytes =
@@ -152,6 +294,17 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
       CORRECT_RUNTIME_SHA256
   ) {
     fail("canonical_compiler_artifact_hash_mismatch");
+  }
+
+  if (
+    keccak256(creationPrefix) !== CORRECT_CREATION_KECCAK256 ||
+    keccak256(runtimePrefix) !== CORRECT_RUNTIME_KECCAK256 ||
+    v2.canonical_compiler_artifacts?.creation_bytecode_keccak256 !==
+      CORRECT_CREATION_KECCAK256 ||
+    v2.canonical_compiler_artifacts?.runtime_template_keccak256 !==
+      CORRECT_RUNTIME_KECCAK256
+  ) {
+    fail("canonical_compiler_artifact_keccak_mismatch");
   }
 
   for (const key of [
@@ -184,13 +337,31 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     fail("superseded_v1_overcapture_shape_invalid");
   }
 
+  const derivedSupersededLaunchId = deriveCoupledLaunchIdV1({
+    identityId: v2.accepted_identity.identity_id,
+    creationSha256: v2.superseded_v1.creation_bytecode_sha256,
+    runtimeSha256: v2.superseded_v1.runtime_template_sha256,
+    immutableLayoutSha256:
+      v2.canonical_compiler_artifacts.immutable_layout_sha256,
+  });
+  const derivedCorrectedLaunchId = deriveCoupledLaunchIdV1({
+    identityId: v2.accepted_identity.identity_id,
+    creationSha256:
+      v2.canonical_compiler_artifacts.creation_bytecode_sha256,
+    runtimeSha256:
+      v2.canonical_compiler_artifacts.runtime_template_sha256,
+    immutableLayoutSha256:
+      v2.canonical_compiler_artifacts.immutable_layout_sha256,
+  });
   if (
+    derivedSupersededLaunchId !== SUPERSEDED_COUPLED_LAUNCH_ID ||
+    derivedCorrectedLaunchId !== CORRECTED_COUPLED_LAUNCH_ID ||
     v2.coupled_launch_effect?.superseded_coupled_launch_id !==
-      SUPERSEDED_COUPLED_LAUNCH_ID ||
+      derivedSupersededLaunchId ||
     v2.coupled_launch_effect?.corrected_coupled_launch_id !==
-      CORRECTED_COUPLED_LAUNCH_ID ||
+      derivedCorrectedLaunchId ||
     v2.coupled_launch_effect?.corrected_vault_bytes32 !==
-      CORRECTED_COUPLED_LAUNCH_ID.replace(/^sha256:/u, "0x") ||
+      derivedCorrectedLaunchId.replace(/^sha256:/u, "0x") ||
     v2.coupled_launch_effect?.coupled_launch_regeneration_required !== true ||
     v2.coupled_launch_effect?.old_control_signature_generation_reusable !== false
   ) {
@@ -237,6 +408,14 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     fail("correction_decision_invalid");
   }
 
+  const correctionBody = { ...v2 };
+  delete correctionBody.correction_id;
+  const expectedCorrectionId =
+    "voidwcvcic2_" + sha256Text(canonicalJson(correctionBody));
+  if (v2.correction_id !== expectedCorrectionId) {
+    fail("correction_id_content_mismatch");
+  }
+
   return Object.freeze({
     ok: true,
     status: "COMPILED_IDENTITY_CORRECTION_V2_PROOF_GREEN",
@@ -244,10 +423,13 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
     identity_json_sha256: ORIGINAL_IDENTITY_SHA256,
     corrected_creation_bytecode_bytes: creationBytes,
     corrected_creation_bytecode_sha256: CORRECT_CREATION_SHA256,
+    corrected_creation_bytecode_keccak256: CORRECT_CREATION_KECCAK256,
     corrected_runtime_template_bytes: runtimeBytes,
     corrected_runtime_template_sha256: CORRECT_RUNTIME_SHA256,
-    superseded_coupled_launch_id: SUPERSEDED_COUPLED_LAUNCH_ID,
-    corrected_coupled_launch_id: CORRECTED_COUPLED_LAUNCH_ID,
+    corrected_runtime_template_keccak256: CORRECT_RUNTIME_KECCAK256,
+    correction_id: expectedCorrectionId,
+    superseded_coupled_launch_id: derivedSupersededLaunchId,
+    corrected_coupled_launch_id: derivedCorrectedLaunchId,
     deployment_authorized: false,
     funds_movement: false,
   });

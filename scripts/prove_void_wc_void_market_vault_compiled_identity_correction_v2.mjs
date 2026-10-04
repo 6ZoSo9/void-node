@@ -99,6 +99,15 @@ assert.equal(
   "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
 );
 assert.equal(
+  result.corrected_creation_bytecode_keccak256,
+  "0xa741a938f6570d3b8de727e7487460a0dda04244e6e45a79ab22756b16369c41",
+);
+assert.equal(
+  result.corrected_runtime_template_keccak256,
+  "0xea29fc4564e552b4b16a824f9f9566edc82d886b81d908f6205091cbe6ce24af",
+);
+assert.equal(result.correction_id, v2.correction_id);
+assert.equal(
   result.superseded_coupled_launch_id,
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
 );
@@ -200,6 +209,59 @@ assert.throws(
   );
 }
 
+{
+  const forgedKeccak = structuredClone(v2);
+  forgedKeccak.canonical_compiler_artifacts.creation_bytecode_keccak256 =
+    "0x" + "0".repeat(64);
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedKeccak,
+    }),
+    /canonical_compiler_artifact_keccak_mismatch/u,
+  );
+}
+
+{
+  const forgedLaunch = structuredClone(v2);
+  forgedLaunch.coupled_launch_effect.corrected_coupled_launch_id =
+    "sha256:" + "0".repeat(64);
+  forgedLaunch.coupled_launch_effect.corrected_vault_bytes32 =
+    "0x" + "0".repeat(64);
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedLaunch,
+    }),
+    /coupled_launch_correction_binding_invalid/u,
+  );
+}
+
+{
+  const forgedCorrectionId = structuredClone(v2);
+  forgedCorrectionId.correction_id =
+    "voidwcvcic2_" + "0".repeat(64);
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedCorrectionId,
+    }),
+    /correction_id_content_mismatch/u,
+  );
+}
+
+{
+  const forgedShape = structuredClone(v2);
+  forgedShape.unexpected = false;
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedShape,
+    }),
+    /correction_v2_keys_mismatch/u,
+  );
+}
+
 console.log(
   "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2_PROOF_GREEN",
 );
@@ -207,6 +269,10 @@ console.log("canonical_compiler_identity_preserved=true");
 console.log("compiler_identity_provenance_bound=true");
 console.log("unchanged_compiler_artifact_hashes_bound=true");
 console.log("correction_authority_exact_and_zero=true");
+console.log("canonical_compiler_keccak_bound=true");
+console.log("correction_schema_closed=true");
+console.log("correction_id_content_addressed=true");
+console.log("coupled_launch_id_recomputed_inside_verifier=true");
 console.log("coupled_launch_id_recomputed_from_canonical_commitment=true");
 console.log("coupled_launch_bytes32_bridge_recomputed=true");
 console.log("v1_deployment_bytes_superseded=true");
