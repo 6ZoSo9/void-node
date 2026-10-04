@@ -13,6 +13,10 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_PREFLIGHT_AUTHORITY_V1 =
     proc_mountinfo_read: true,
     filesystem_metadata_read: true,
     distinct_local_storage_domains_required: true,
+    live_observation_required_for_domain_proof: true,
+    designated_hostname_required: true,
+    caller_supplied_snapshot_authority: false,
+    synthetic_mountinfo_authority: false,
     source_mutation: false,
     filesystem_write: false,
     mount_mutation: false,
@@ -154,7 +158,7 @@ function inspectRoot(rootPath, records, label) {
   });
 }
 
-export function classifyAllocationCustodySnapshotV1(snapshot) {
+function classifyAllocationCustodySnapshotV1(snapshot) {
   try {
     if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
       return hold("custody_snapshot_invalid");
@@ -208,18 +212,21 @@ export function classifyAllocationCustodySnapshotV1(snapshot) {
     }
     return Object.freeze({
       ok: true,
-      status: "DISTINCT_LOCAL_STORAGE_DOMAINS_GREEN_NOT_AUTHORIZED",
+      status: "DISTINCT_LOCAL_STORAGE_DOMAINS_CLASSIFIED_TEST_ONLY",
       marker: VOID_BUY_VOID_ALLOCATION_CUSTODY_PREFLIGHT_V1,
       version: 1,
-      ready: true,
+      ready: false,
+      test_only: true,
+      live_observation_backed: false,
       ledger,
       high_water: highWater,
-      distinct_local_storage_domains_proven: true,
+      storage_domain_classification_green: true,
+      distinct_local_storage_domains_proven: false,
       protected_high_water_custody_proven: false,
       independent_custody_proven: false,
       production_gate_ready: false,
       next_gate:
-        "designated_host_snapshot_backup_and_rollback_independence_qualification",
+        "designated_host_live_observation_required",
       authority: VOID_BUY_VOID_ALLOCATION_CUSTODY_PREFLIGHT_AUTHORITY_V1,
     });
   } catch (error) {
@@ -227,27 +234,31 @@ export function classifyAllocationCustodySnapshotV1(snapshot) {
   }
 }
 
+export function testOnlyClassifyAllocationCustodySnapshotV1(snapshot) {
+  return classifyAllocationCustodySnapshotV1(snapshot);
+}
+
 export function inspectBuyVoidAllocationCustodyPreflightV1({
   ledger_root,
   high_water_root,
-  expected_hostname = "",
-  mountinfo_text = null,
+  expected_hostname,
 } = {}) {
   try {
     const hostname = os.hostname();
-    if (
-      expected_hostname &&
-      hostname !== String(expected_hostname)
-    ) {
+    const expectedHostname = String(expected_hostname || "").trim();
+    if (!expectedHostname) {
+      return hold("designated_host_expectation_required", {
+        observed_hostname: hostname,
+      });
+    }
+    if (hostname !== expectedHostname) {
       return hold("designated_host_mismatch", {
         observed_hostname: hostname,
-        expected_hostname: String(expected_hostname),
+        expected_hostname: expectedHostname,
       });
     }
     const mountInfo = parseMountInfoV1(
-      mountinfo_text === null
-        ? fs.readFileSync("/proc/self/mountinfo", "utf8")
-        : String(mountinfo_text),
+      fs.readFileSync("/proc/self/mountinfo", "utf8"),
     );
     const ledger = inspectRoot(ledger_root, mountInfo, "ledger");
     const highWater = inspectRoot(
@@ -255,10 +266,23 @@ export function inspectBuyVoidAllocationCustodyPreflightV1({
       mountInfo,
       "high_water",
     );
-    return classifyAllocationCustodySnapshotV1({
-      hostname,
+    const classified = classifyAllocationCustodySnapshotV1({
       ledger,
       high_water: highWater,
+    });
+    if (!classified.ok) return classified;
+    return Object.freeze({
+      ...classified,
+      status: "DISTINCT_LOCAL_STORAGE_DOMAINS_GREEN_NOT_AUTHORIZED",
+      ready: true,
+      test_only: false,
+      live_observation_backed: true,
+      observed_hostname: hostname,
+      expected_hostname: expectedHostname,
+      mountinfo_source: "/proc/self/mountinfo",
+      distinct_local_storage_domains_proven: true,
+      next_gate:
+        "designated_host_snapshot_backup_and_rollback_independence_qualification",
     });
   } catch (error) {
     return hold(String(error?.message || error || "custody_preflight_failure"));
@@ -283,7 +307,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(im
       "  node tools/void-buy-void-allocation-custody-preflight-v1.mjs \\",
       "    --ledger-root /absolute/private/ledger-root \\",
       "    --high-water-root /absolute/private/high-water-root \\",
-      "    [--expected-hostname HOST]",
+      "    --expected-hostname HOST",
       "",
     ].join("\n"));
   } else {
