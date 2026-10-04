@@ -183,6 +183,29 @@ for (const [key, value] of Object.entries(
     const records = listBuyVoidAllocationReservationsV1(f.requestDir);
     assert.equal(records.length, 1);
     assert.equal(records[0].allocation_id, first.record.allocation_id);
+
+    const allocationDirectory = path.join(
+      f.requestDir,
+      "allocation-reservations-v1",
+    );
+    const allocationName = fs.readdirSync(allocationDirectory).find(
+      (name) => name.endsWith(".json"),
+    );
+    assert.ok(allocationName);
+    const allocationBytes = fs.readFileSync(
+      path.join(allocationDirectory, allocationName!),
+      "utf8",
+    );
+    const parsedAllocation = JSON.parse(allocationBytes);
+    const canonicalAllocationBytes =
+      JSON.stringify(
+        Object.fromEntries(
+          Object.keys(parsedAllocation)
+            .sort()
+            .map((key) => [key, parsedAllocation[key]]),
+        ),
+      ) + "\n";
+    assert.equal(allocationBytes, canonicalAllocationBytes);
   } finally {
     rm(f);
   }
