@@ -494,7 +494,7 @@ function requestLaunchAuthorityLineageV1(
   return lineage;
 }
 
-function recordIdV1(function recordIdV1(
+function recordIdV1(
   requestId: string,
   canonicalPaymentIdentity: string,
   paymentVerifiedEventSha256: string,
