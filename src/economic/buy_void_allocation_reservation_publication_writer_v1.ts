@@ -707,14 +707,14 @@ function readRedundantIntent(
 ): Buffer | null {
   cleanupIntentTemps(ledgerDirectory);
   cleanupIntentTemps(highWaterDirectory);
-  let ledgerIntent = readOptionalPinnedNamedFile(
+  const ledgerIntent = readOptionalPinnedNamedFile(
     ledgerDirectory,
     INTENT_NAME,
     MAX_INTENT_BYTES,
     false,
     "allocation_reservation_writer_intent",
   );
-  let highWaterIntent = readOptionalPinnedNamedFile(
+  const highWaterIntent = readOptionalPinnedNamedFile(
     highWaterDirectory,
     INTENT_NAME,
     MAX_INTENT_BYTES,
@@ -732,6 +732,33 @@ function readRedundantIntent(
   ) {
     fail("allocation_reservation_writer_intent_copies_mismatch");
   }
+  return intent;
+}
+
+function ensureRedundantIntentCopies(
+  ledgerDirectory: PinnedDirectoryV1,
+  highWaterDirectory: PinnedDirectoryV1,
+  intent: Buffer,
+): void {
+  let ledgerIntent = readOptionalPinnedNamedFile(
+    ledgerDirectory,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "allocation_reservation_writer_intent",
+  );
+  let highWaterIntent = readOptionalPinnedNamedFile(
+    highWaterDirectory,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "allocation_reservation_writer_intent",
+  );
+  for (const observed of [ledgerIntent, highWaterIntent]) {
+    if (observed !== null && !observed.equals(intent)) {
+      fail("allocation_reservation_writer_intent_copies_mismatch");
+    }
+  }
   if (ledgerIntent === null) {
     createOnceIntent(ledgerDirectory, intent);
     ledgerIntent = intent;
@@ -744,7 +771,6 @@ function readRedundantIntent(
   if (!ledgerIntent.equals(intent) || !highWaterIntent.equals(intent)) {
     fail("allocation_reservation_writer_intent_redundancy_postcheck_failed");
   }
-  return intent;
 }
 
 function createRedundantIntent(
@@ -912,6 +938,11 @@ function recoverUnderLock(
         recovery.reason,
     );
   }
+  ensureRedundantIntentCopies(
+    ledgerDirectory,
+    highWaterDirectory,
+    intent,
+  );
 
   if (recovery.write_ledger_append_required) {
     const append = Buffer.from(
