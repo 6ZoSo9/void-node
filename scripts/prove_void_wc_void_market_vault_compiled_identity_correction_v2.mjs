@@ -108,6 +108,18 @@ assert.equal(
 );
 assert.equal(result.correction_id, v2.correction_id);
 assert.equal(
+  v2.canonical_identity_evidence.source,
+  "pinned_github_actions_compiler_identity_artifact",
+);
+assert.equal(
+  v2.canonical_identity_evidence.corrected_bytes_derived_from_superseded_packet,
+  false,
+);
+assert.equal(v2.correction.canonical_creation_bytecode_bytes, 9441);
+assert.equal(v2.correction.v1_creation_excess_bytes_vs_canonical, 963);
+assert.equal(v2.correction.canonical_runtime_template_bytes, 8342);
+assert.equal(v2.correction.v1_runtime_excess_bytes_vs_canonical, 953);
+assert.equal(
   result.superseded_coupled_launch_id,
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
 );
@@ -156,7 +168,7 @@ assert.throws(
     supersededV1: v1,
     correctionV2: forged,
   }),
-  /canonical_compiler_artifact_binding_mismatch/u,
+  /canonical_compiler_artifact_hash_mismatch/u,
 );
 
 {
@@ -211,25 +223,62 @@ assert.throws(
 }
 
 {
-  const forgedPrefixClaim = structuredClone(v2);
-  forgedPrefixClaim.correction.canonical_bytecode_is_v1_prefix = true;
+  const forgedEvidenceSource = structuredClone(v2);
+  forgedEvidenceSource.canonical_identity_evidence.source =
+    "superseded_v1_packet";
   assert.throws(
     () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
       supersededV1: v1,
-      correctionV2: forgedPrefixClaim,
+      correctionV2: forgedEvidenceSource,
+    }),
+    /canonical_identity_evidence_mismatch:source/u,
+  );
+}
+
+{
+  const forgedEvidenceDerivation = structuredClone(v2);
+  forgedEvidenceDerivation.canonical_identity_evidence
+    .corrected_bytes_derived_from_superseded_packet = true;
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedEvidenceDerivation,
+    }),
+    /canonical_identity_evidence_mismatch:corrected_bytes_derived_from_superseded_packet/u,
+  );
+}
+
+{
+  const forgedEvidenceShape = structuredClone(v2);
+  forgedEvidenceShape.canonical_identity_evidence.unexpected = false;
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedEvidenceShape,
+    }),
+    /canonical_identity_evidence_keys_mismatch/u,
+  );
+}
+
+{
+  const forgedCanonicalBytes = structuredClone(v2);
+  forgedCanonicalBytes.correction.canonical_creation_bytecode_bytes = 10404;
+  assert.throws(
+    () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1: v1,
+      correctionV2: forgedCanonicalBytes,
     }),
     /superseded_v1_overcapture_shape_invalid/u,
   );
 }
 
 {
-  const forgedByteSource = structuredClone(v2);
-  forgedByteSource.correction.canonical_bytecode_source =
-    "superseded_v1_prefix";
+  const forgedExcess = structuredClone(v2);
+  forgedExcess.correction.v1_runtime_excess_bytes_vs_canonical = 0;
   assert.throws(
     () => verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
       supersededV1: v1,
-      correctionV2: forgedByteSource,
+      correctionV2: forgedExcess,
     }),
     /superseded_v1_overcapture_shape_invalid/u,
   );
@@ -294,6 +343,8 @@ console.log("canonical_compiler_identity_preserved=true");
 console.log("compiler_identity_provenance_bound=true");
 console.log("unchanged_compiler_artifact_hashes_bound=true");
 console.log("canonical_compiler_bytes_bound_to_retained_identity=true");
+console.log("canonical_identity_evidence_schema_closed=true");
+console.log("corrected_bytes_derived_from_superseded_packet=false");
 console.log("correction_authority_exact_and_zero=true");
 console.log("canonical_compiler_keccak_review_binding=true");
 console.log("correction_schema_closed=true");

@@ -35,12 +35,25 @@ The retained compiler identity contains the canonical artifacts instead:
 - runtime template: 8,342 bytes,
   SHA-256 `99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e`.
 
+The correction packet binds those canonical identities directly to the pinned
+GitHub Actions compiler-identity artifact: run `36464403015`, job
+`109070717228`, artifact `10988626461`, artifact name
+`void-wc-void-market-vault-compiler-identity-v1-dba4a50b444dc5b1369d96fd63f5aa79f185e3e4`,
+artifact ZIP SHA-256
+`d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc`,
+and identity JSON SHA-256
+`fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b`.
+It records `corrected_bytes_derived_from_superseded_packet=false`: the
+over-captured V1 byte arrays are defect evidence, not derivation authority for
+the corrected identities.
+
 The source, compiler profile, ABI, metadata, storage layout, method identifiers,
 and immutable layout remain unchanged. No Solidity source change or recompile is
 required by this correction.
 
 The v2 verifier is schema-closed and fail-closed. It validates the complete
-over-captured v1 byte arrays against the v1 packet, binds the canonical
+over-captured v1 byte arrays against the v1 packet, requires the exact closed
+`canonical_identity_evidence` tuple above, binds the canonical
 9,441/8,342-byte artifact identities to the retained compiler identity
 (run `36464403015`, artifact `10988626461`, identity JSON SHA-256
 `fb9a92e2...64a4b`), and explicitly records that the canonical bytecode is
