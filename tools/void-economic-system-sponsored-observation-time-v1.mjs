@@ -15,6 +15,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_AUTHORITY_V1 =
     content_addressed_receipt_chain: true,
     same_process_monotonicity_enforced: true,
     wall_monotonic_skew_bounded: true,
+    cumulative_baseline_skew_enforced: true,
     wall_time_non_regression_enforced: true,
     process_instance_change_holds: true,
     boot_change_holds: true,
