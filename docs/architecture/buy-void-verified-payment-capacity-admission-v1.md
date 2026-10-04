@@ -53,12 +53,23 @@ lenient for operator display, but they are not capacity authority: the admission
 module independently parses every authoritative ledger row and HOLDs on
 corruption or a projection mismatch.
 
+## Canonical payment identity extension
+
+The stacked payment-identity lane preserves the matched transfer log index and
+derives the existing canonical identity
+`voidpay1:<source_chain>:<transaction_hash>:<log_index>` inside this same
+serialized admission boundary. Cross-request reuse is rejected, a verified
+request cannot switch to a different payment identity, exact re-verification is
+idempotent, and incomplete historical verified-payment identity provenance
+fails closed.
+
+See
+`docs/architecture/buy-void-verified-payment-identity-admission-v1.md`.
+
 ## Remaining HOLD
 
-This lane does **not** prove canonical duplicate-payment identity
-(`source_chain:transaction_hash:log_index`) or the final append-only allocation
-reservation record. The parent coupled-launch source gate therefore remains
-hard-HOLD with
+The final append-only allocation reservation record remains a separate required
+gate. The parent coupled-launch source gate therefore remains hard-HOLD with
 `VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
 
 That constant must not be promoted by this lane.
