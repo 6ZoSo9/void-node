@@ -6,8 +6,17 @@ import {
   type BuyVoidSourceFinalityExecutionPreflightDecisionV1,
   type BuyVoidSourceFinalityExecutionPreflightReadyV1,
 } from "./buy_void_source_finality_execution_preflight_v1.js";
+import type {
+  BuyVoidRequestV1,
+} from "./buy_void_auto_fulfillment_v1.js";
+import {
+  VOID_BUY_VOID_VERIFIED_PAYMENT_V2,
+  type BuyVoidVerifiedPaymentEventV2,
+} from "./buy_void_verified_payment_v2.js";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5,
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5,
+  observeBuyVoidSourceFinalityGenerationProvenanceV5,
 } from "./buy_void_source_finality_generation_provenance_v5.js";
 
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1 =
@@ -15,6 +24,9 @@ export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1 =
 
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_TEST_ONLY_V1 =
   "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_TEST_ONLY_V1";
+
+export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1 =
+  "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1";
 
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1 =
   Object.freeze({
@@ -142,8 +154,206 @@ export type BuyVoidEthereumPublicCheckoutPaymentDecisionV1 =
   | BuyVoidEthereumPublicCheckoutPaymentReadyV1
   | BuyVoidEthereumPublicCheckoutPaymentHeldV1;
 
+
+export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1 = {
+  ok: true;
+  status: "ethereum_pre_attempt_source_finality_ready";
+  marker:
+    typeof VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1;
+  version: 1;
+  source_chain: "ethereum";
+  canonical_payment_identity: string;
+  payment_key_sha256: string;
+  verified_payment_marker: typeof VOID_BUY_VOID_VERIFIED_PAYMENT_V2;
+  source_finality_marker:
+    typeof VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5;
+  reviewed_source_files_verified: true;
+  authenticated_transport_identity_verified: true;
+  total_operation_deadline_verified: true;
+  source_generation_verified: true;
+  deployed_artifact_generation_verified: true;
+  remote_provider_identity_verified: true;
+  ancestry_verified: true;
+  provider_quorum_verified: true;
+  production_source_finality_authority_ready: true;
+  payment_verified_transition_ready: true;
+  filesystem_write_performed: false;
+  wallet_access_performed: false;
+  signing_performed: false;
+  transaction_broadcast_performed: false;
+  inventory_reservation_write_performed: false;
+  funds_movement_performed: false;
+};
+
+export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityHeldV1 = {
+  ok: false;
+  status: "held";
+  marker:
+    typeof VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1;
+  version: 1;
+  reason: string;
+  source_chain: "ethereum";
+  canonical_payment_identity: string | null;
+  production_source_finality_authority_ready: false;
+  payment_verified_transition_ready: false;
+  filesystem_write_performed: false;
+  wallet_access_performed: false;
+  signing_performed: false;
+  transaction_broadcast_performed: false;
+  inventory_reservation_write_performed: false;
+  funds_movement_performed: false;
+};
+
+export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityDecisionV1 =
+  | BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1
+  | BuyVoidEthereumPublicCheckoutPreAttemptFinalityHeldV1;
+
 function enabled(value: unknown): boolean {
   return String(value ?? "").trim() === "1";
+}
+
+
+function preAttemptHeld(
+  reason: string,
+  canonicalPaymentIdentity: string | null = null,
+): BuyVoidEthereumPublicCheckoutPreAttemptFinalityHeldV1 {
+  return {
+    ok: false,
+    status: "held",
+    marker:
+      VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1,
+    version: 1,
+    reason,
+    source_chain: "ethereum",
+    canonical_payment_identity: canonicalPaymentIdentity,
+    production_source_finality_authority_ready: false,
+    payment_verified_transition_ready: false,
+    filesystem_write_performed: false,
+    wallet_access_performed: false,
+    signing_performed: false,
+    transaction_broadcast_performed: false,
+    inventory_reservation_write_performed: false,
+    funds_movement_performed: false,
+  };
+}
+
+function canonicalEthereumVerifiedPaymentIdentityV1(input: {
+  request: BuyVoidRequestV1;
+  verified_payment_event: BuyVoidVerifiedPaymentEventV2;
+}): string | null {
+  const request = input?.request;
+  const event = input?.verified_payment_event;
+  const requestChain = String(request?.source_chain || "").trim().toLowerCase();
+  const chain = requestChain === "eth" ? "ethereum" : requestChain;
+  const requestTx = String(request?.tx_hash || "").trim().toLowerCase();
+  const eventTx = String(event?.tx_hash || "").trim().toLowerCase();
+  const verifierTx = String(
+    event?.payment_verifier?.transaction_hash || "",
+  ).trim().toLowerCase();
+  const verifierChain = String(
+    event?.payment_verifier?.chain || "",
+  ).trim().toLowerCase();
+  const logIndex = String(
+    event?.payment_verifier?.log_index ?? "",
+  ).trim();
+
+  if (
+    chain !== "ethereum" ||
+    !/^0x[0-9a-f]{64}$/u.test(requestTx) ||
+    event?.schema !== "void_buy_void_verified_payment_event_v2" ||
+    event?.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 ||
+    event?.payment_identity_input_complete !== true ||
+    event?.payment_verified !== true ||
+    event?.operator_status !== "payment_verified" ||
+    event?.request_id !== request?.request_id ||
+    eventTx !== requestTx ||
+    verifierChain !== "ethereum" ||
+    verifierTx !== requestTx ||
+    !/^(0|[1-9][0-9]*)$/u.test(logIndex)
+  ) {
+    return null;
+  }
+  let parsedLogIndex: bigint;
+  try {
+    parsedLogIndex = BigInt(logIndex);
+  } catch {
+    return null;
+  }
+  if (parsedLogIndex < 0n || parsedLogIndex > 0xffff_ffffn) {
+    return null;
+  }
+  return `voidpay1:ethereum:${requestTx}:${logIndex}`;
+}
+
+function classifyEthereumPreAttemptObservationV1(input: {
+  observation: unknown;
+  canonical_payment_identity: string;
+  transaction_hash: string;
+}):
+  | {
+      ok: true;
+      canonical_payment_identity: string;
+      payment_key_sha256: string;
+    }
+  | { ok: false; reason: string } {
+  const observation =
+    input.observation &&
+    typeof input.observation === "object" &&
+    !Array.isArray(input.observation)
+      ? input.observation as Record<string, unknown>
+      : null;
+  if (
+    !observation ||
+    observation.ok !== true ||
+    observation.marker !==
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5 ||
+    observation.source_chain !== "ethereum" ||
+    observation.evm_chain_id !== "1" ||
+    String(observation.transaction_hash || "").toLowerCase() !==
+      input.transaction_hash ||
+    observation.canonical_payment_identity !==
+      input.canonical_payment_identity ||
+    observation.reviewed_source_files_verified !== true ||
+    observation.authenticated_transport_identity_verified !== true ||
+    observation.total_operation_deadline_verified !== true ||
+    observation.source_generation_verified !== true ||
+    observation.deployed_artifact_generation_verified !== true ||
+    observation.remote_provider_identity_verified !== true ||
+    observation.ancestry_verified !== true ||
+    observation.provider_quorum_verified !== true ||
+    observation.production_source_finality_authority_ready !== true ||
+    observation.wallet_access !== false ||
+    observation.signing !== false ||
+    observation.transaction_broadcast !== false ||
+    observation.money_movement !== false
+  ) {
+    return {
+      ok: false,
+      reason: "ethereum_pre_attempt_source_finality_not_authoritative",
+    };
+  }
+
+  const rebound = bindBuyVoidSourceFinalityPaymentV1({
+    source_chain: "ethereum",
+    transaction_hash: input.transaction_hash,
+    reservation_canonical_payment_identity:
+      input.canonical_payment_identity,
+    observed_canonical_payment_identity:
+      observation.canonical_payment_identity,
+    observed_payment_key_sha256:
+      observation.payment_key_sha256,
+  });
+  if (!rebound) {
+    return {
+      ok: false,
+      reason: "ethereum_pre_attempt_payment_binding_invalid",
+    };
+  }
+  return {
+    ok: true,
+    canonical_payment_identity: rebound.canonical_payment_identity,
+    payment_key_sha256: rebound.payment_key_sha256,
+  };
 }
 
 function readinessHeld(
@@ -393,6 +603,141 @@ export async function runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(
     transaction_broadcast_performed: false,
     funds_movement_performed: false,
   };
+}
+
+export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
+  input: {
+    request: BuyVoidRequestV1;
+    verified_payment_event: BuyVoidVerifiedPaymentEventV2;
+    env?: NodeJS.ProcessEnv;
+  },
+): Promise<BuyVoidEthereumPublicCheckoutPreAttemptFinalityDecisionV1> {
+  const canonicalPaymentIdentity =
+    canonicalEthereumVerifiedPaymentIdentityV1(input);
+  if (!canonicalPaymentIdentity) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_verified_payment_binding_invalid",
+    );
+  }
+  const requestTx = String(input.request.tx_hash).trim().toLowerCase();
+
+  const policy = readBuyVoidSourceFinalityExecutionPolicyV1(
+    input.env || process.env,
+  );
+  if (policy.ok === false) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_" + policy.reason,
+      canonicalPaymentIdentity,
+    );
+  }
+
+  const capability =
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
+  if (
+    capability.reviewed_source_files_verified_on_success !== true ||
+    capability.source_generation_verified_on_success !== true ||
+    capability.deployed_artifact_generation_verified !== true ||
+    capability.authenticated_transport_identity_verified !== true ||
+    capability.remote_provider_identity_verified !== true ||
+    capability.total_operation_deadline_verified !== true ||
+    capability.ancestry_verified !== true ||
+    capability.provider_quorum_verified !== true ||
+    capability.production_source_finality_authority_ready !== true
+  ) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_source_finality_capability_not_ready",
+      canonicalPaymentIdentity,
+    );
+  }
+
+  const rail = policy.policy.ethereum;
+  const observation =
+    await observeBuyVoidSourceFinalityGenerationProvenanceV5({
+      request: input.request,
+      policy: {
+        source_finality_policy: {
+          enabled: true,
+          source_chain: "ethereum",
+          chain_id: rail.evm_chain_id,
+          rpc_url: rail.rpc_url,
+          rpc_url_fingerprint_sha256:
+            rail.rpc_url_fingerprint_sha256,
+          rpc_identity: rail.rpc_identity,
+          finality_adapter_id: rail.finality_adapter_id,
+          min_confirmations: rail.min_confirmations,
+          usdc_contract: rail.usdc_contract,
+          receive_address: rail.receive_address,
+          timeout_ms: rail.timeout_ms,
+          max_response_bytes: rail.max_response_bytes,
+        },
+        authority_policy_generation:
+          policy.policy.authority_policy_generation,
+        total_timeout_ms: policy.policy.total_timeout_ms,
+      },
+    });
+
+  const classified = classifyEthereumPreAttemptObservationV1({
+    observation,
+    canonical_payment_identity: canonicalPaymentIdentity,
+    transaction_hash: requestTx,
+  });
+  if (classified.ok === false) {
+    return preAttemptHeld(
+      classified.reason,
+      canonicalPaymentIdentity,
+    );
+  }
+
+  return {
+    ok: true,
+    status: "ethereum_pre_attempt_source_finality_ready",
+    marker:
+      VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1,
+    version: 1,
+    source_chain: "ethereum",
+    canonical_payment_identity:
+      classified.canonical_payment_identity,
+    payment_key_sha256: classified.payment_key_sha256,
+    verified_payment_marker: VOID_BUY_VOID_VERIFIED_PAYMENT_V2,
+    source_finality_marker:
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5,
+    reviewed_source_files_verified: true,
+    authenticated_transport_identity_verified: true,
+    total_operation_deadline_verified: true,
+    source_generation_verified: true,
+    deployed_artifact_generation_verified: true,
+    remote_provider_identity_verified: true,
+    ancestry_verified: true,
+    provider_quorum_verified: true,
+    production_source_finality_authority_ready: true,
+    payment_verified_transition_ready: true,
+    filesystem_write_performed: false,
+    wallet_access_performed: false,
+    signing_performed: false,
+    transaction_broadcast_performed: false,
+    inventory_reservation_write_performed: false,
+    funds_movement_performed: false,
+  };
+}
+
+export function testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1(
+  input: {
+    observation: unknown;
+    canonical_payment_identity: string;
+    transaction_hash: string;
+  },
+) {
+  const classified = classifyEthereumPreAttemptObservationV1(input);
+  return Object.freeze({
+    marker:
+      "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_TEST_ONLY_V1",
+    would_be_transition_ready: classified.ok === true,
+    production_transition_authority: false,
+    filesystem_write_performed: false,
+    payment_verified_event_write_performed: false,
+    inventory_reservation_write_performed: false,
+    reason: classified.ok === false ? classified.reason : null,
+  });
 }
 
 export function testOnlyClassifyBuyVoidEthereumPublicCheckoutFinalityV1(
