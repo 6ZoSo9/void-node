@@ -41,6 +41,9 @@ assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms")
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
 assert.ok(index.includes("amountUnits!==requestedUnits"));
 assert.equal(index.includes("amountUnits>=requestedUnits"), false);
+assert.ok(index.includes('error:"invalid_requested_usdc_amount"'));
+assert.ok(index.includes('BigInt(q[1])*1000000n+BigInt((q[2]||"").padEnd(6,"0"))'));
+assert.equal(index.includes("Math.ceil(Number(requestedUsdc"), false);
 assert.ok(index.includes("parsedLogIndex>0xffff_ffffn"));
 assert.ok(index.includes('"ambiguous_matching_usdc_transfers"'));
 assert.ok(index.includes('error: match.error || "matching_usdc_transfer_not_found"'));
@@ -87,6 +90,19 @@ assert.equal(index.includes("throw 0;"),false);
   const single=matchTransfer([log("0x7")],cfg,receive,delivery,"1");
   assert.equal(single.ok,true);
   assert.equal(single.log_index,"7");
+
+  const microLog={...log("0x9"),data:"0x1"};
+  const micro=matchTransfer([microLog],cfg,receive,delivery,"0.000001");
+  assert.equal(micro.ok,true);
+  assert.equal(micro.amount_units,"1");
+
+  const overPrecise=matchTransfer([microLog],cfg,receive,delivery,"0.0000009");
+  assert.equal(overPrecise.ok,false);
+  assert.equal(overPrecise.error,"invalid_requested_usdc_amount");
+
+  const exponent=matchTransfer([log("0xa")],cfg,receive,delivery,"1e0");
+  assert.equal(exponent.ok,false);
+  assert.equal(exponent.error,"invalid_requested_usdc_amount");
 
   const max=matchTransfer([log("0xffffffff")],cfg,receive,delivery,"1");
   assert.equal(max.ok,true);
@@ -391,6 +407,9 @@ console.log("verified_payment_duplicate_guard_inside_capacity_lock=true");
 console.log("verified_payment_event_v2_persisted=true");
 console.log("verified_payment_log_index_persisted=true");
 console.log("verified_payment_exact_one_matching_transfer_required=true");
+console.log("verified_payment_requested_usdc_exact_micro_units=true");
+console.log("verified_payment_requested_usdc_exponent_rejected=true");
+console.log("verified_payment_requested_usdc_overprecision_rejected=true");
 console.log("verified_payment_ambiguous_matching_transfers_held=true");
 console.log("verified_payment_log_index_uint32_bound=true");
 console.log("duplicate_guard_conflict_response_409=true");
