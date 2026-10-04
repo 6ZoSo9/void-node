@@ -288,14 +288,14 @@ function parseReceipt(value) {
   return receipt;
 }
 
-function held(reason) {
+function held(reason, observationPerformed = false) {
   return Object.freeze({
     ok: false,
     status: "held",
     marker: VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1,
     version: 1,
     reason,
-    observation_performed: false,
+    observation_performed: observationPerformed,
     accepted_observed_at_ms: null,
     receipt: null,
     trusted_clock_source_proven: false,
@@ -348,7 +348,8 @@ function compareForwardSample(prior, sample) {
   }
   const monotonicDeltaMs = (nextMono - priorMono) / NS_PER_MS;
   const wallDeltaMs =
-    BigInt(sample.wall_time_ms - prior.observed_at_ms);
+    BigInt(sample.wall_time_ms) -
+    BigInt(prior.observed_at_ms);
   const difference =
     wallDeltaMs >= monotonicDeltaMs
       ? wallDeltaMs - monotonicDeltaMs
@@ -378,13 +379,20 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1({
     trusted_clock_dependency_injected: true,
     runtime_enforcement_verified: false,
 
-    observe({ prior_receipt = null } = {}) {
+    observe(input = { prior_receipt: null }) {
+      let observationPerformed = false;
       try {
+        const request = exactSnapshot(
+          input,
+          ["prior_receipt"],
+          "sponsored_observation_time_request_invalid",
+        );
         const prior =
-          prior_receipt === null
+          request.prior_receipt === null
             ? null
-            : parseReceipt(prior_receipt);
+            : parseReceipt(request.prior_receipt);
 
+        observationPerformed = true;
         const sample = parseSample(clock());
 
         if (prior === null) {
@@ -418,6 +426,7 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1({
           error instanceof Error
             ? error.message
             : "sponsored_observation_time_failed",
+          observationPerformed,
         );
       }
     },
