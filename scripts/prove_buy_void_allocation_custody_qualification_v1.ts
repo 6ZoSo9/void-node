@@ -608,6 +608,23 @@ expectHeld(
 );
 
 {
+  const host = hostEvidence();
+  let getterReads = 0;
+  Object.defineProperty(host, "host_id", {
+    enumerable: true,
+    get() {
+      getterReads += 1;
+      return "precision-mainnet0";
+    },
+  });
+  expectHeld(
+    classify("", emptyHigh.high_water_json, null, host),
+    "custody_host_evidence_invalid",
+  );
+  assert.equal(getterReads, 0);
+}
+
+{
   const changed = structuredClone(hostEvidence());
   changed.host_id = "precision-mainnet0-changed";
   expectHeld(
@@ -708,6 +725,7 @@ console.log("dedicated_custody_identity_required=true");
 console.log("private_af_unix_boundary_required=true");
 console.log("hardened_service_policy_required=true");
 console.log("fallback_storage_forbidden=true");
+console.log("accessor_evidence_rejected_without_getter_read=true");
 console.log("prior_receipt_external_trust_proven=false");
 console.log("live_host_qualification_performed=false");
 console.log("independent_custody_proven=false");
