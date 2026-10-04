@@ -185,9 +185,9 @@ function hostEvidence(): Record<string, unknown> {
       resolved_path:
         "/run/void-allocation-custody-v1/custody.sock",
       parent_path: "/run/void-allocation-custody-v1",
-      parent_uid: 0,
-      parent_gid: 0,
-      parent_mode: "0755",
+      parent_uid: 2001,
+      parent_gid: 3001,
+      parent_mode: "0750",
       parent_symlink: false,
       owner_uid: 2001,
       group_gid: 3001,
