@@ -156,7 +156,7 @@ assert.throws(
     supersededV1: v1,
     correctionV2: forged,
   }),
-  /canonical_compiler_artifact_hash_mismatch/u,
+  /canonical_compiler_artifact_binding_mismatch/u,
 );
 
 {
