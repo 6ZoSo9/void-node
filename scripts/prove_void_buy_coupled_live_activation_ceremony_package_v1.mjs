@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-import { Wallet } from "ethers";
+import { Wallet, verifyTypedData } from "ethers";
 
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
@@ -17,7 +17,6 @@ import {
   buildVoidBuyCoupledLiveActivationCeremonyPackageV1,
   finalizeVoidBuyCoupledLiveActivationReceiptV1,
   validateVoidBuyCoupledLiveActivationCeremonyPackageV1,
-  verifyVoidBuyCoupledLiveActivationCeremonySignaturesV1,
 } from "../tools/void-buy-coupled-live-activation-ceremony-package-v1.mjs";
 
 const input = {
@@ -169,25 +168,34 @@ assert.equal(
     candidate.receipt_sha256,
 );
 
-const generic = verifyVoidBuyCoupledLiveActivationCeremonySignaturesV1(
-  candidate.receipt,
-  {
-    activation_signer: activationWallet.address,
-    sovereign_signer: sovereignWallet.address,
-  },
+const recoveredActivation = verifyTypedData(
+  typed.domain,
+  typed.types,
+  typed.value,
+  activationSignature,
 );
-assert.equal(generic.activation_verified, true);
-assert.equal(generic.sovereign_verified, true);
-
-const swapped = verifyVoidBuyCoupledLiveActivationCeremonySignaturesV1(
-  candidate.receipt,
-  {
-    activation_signer: sovereignWallet.address,
-    sovereign_signer: activationWallet.address,
-  },
+const recoveredSovereign = verifyTypedData(
+  typed.domain,
+  typed.types,
+  typed.value,
+  sovereignSignature,
 );
-assert.equal(swapped.activation_verified, false);
-assert.equal(swapped.sovereign_verified, false);
+assert.equal(
+  recoveredActivation.toLowerCase(),
+  activationWallet.address.toLowerCase(),
+);
+assert.equal(
+  recoveredSovereign.toLowerCase(),
+  sovereignWallet.address.toLowerCase(),
+);
+assert.notEqual(
+  recoveredActivation.toLowerCase(),
+  sovereignWallet.address.toLowerCase(),
+);
+assert.notEqual(
+  recoveredSovereign.toLowerCase(),
+  activationWallet.address.toLowerCase(),
+);
 
 assert.throws(
   () => finalizeVoidBuyCoupledLiveActivationReceiptV1({
@@ -209,6 +217,12 @@ const source = fs.readFileSync(
   "tools/void-buy-coupled-live-activation-ceremony-package-v1.mjs",
   "utf8",
 );
+assert.equal(
+  source.includes("verifyVoidBuyCoupledLiveActivationCeremonySignaturesV1"),
+  false,
+  "production tool must not expose arbitrary expected-signer verification",
+);
+
 for (const forbidden of [
   "new Wallet(",
   ".signTypedData(",

@@ -99,7 +99,8 @@ This lane performs no:
 
 Synthetic proof signatures are deliberately unable to finalize a production
 receipt because finalization always verifies against the two fixed production
-addresses.
+addresses. The production tool exposes no arbitrary expected-signer override;
+synthetic recovery checks exist only in the proof.
 
 ## Stacking
 

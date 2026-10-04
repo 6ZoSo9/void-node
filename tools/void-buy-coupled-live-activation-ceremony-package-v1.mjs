@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import process from "node:process";
 
-import { TypedDataEncoder, verifyTypedData } from "ethers";
+import { TypedDataEncoder } from "ethers";
 
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
@@ -252,52 +252,6 @@ export function validateVoidBuyCoupledLiveActivationCeremonyPackageV1(value) {
     fail("activation_ceremony_package_binding_mismatch");
   }
   return rebuilt;
-}
-
-export function verifyVoidBuyCoupledLiveActivationCeremonySignaturesV1(
-  receipt,
-  {
-    activation_signer,
-    sovereign_signer,
-  },
-) {
-  if (!plain(receipt)) {
-    fail("activation_ceremony_signed_receipt_invalid");
-  }
-
-  try {
-    const typed = buyLaunchLiveActivationTypedDataV1(receipt);
-    const activationRecovered = verifyTypedData(
-      typed.domain,
-      typed.types,
-      typed.value,
-      receipt.activation_signature,
-    ).toLowerCase();
-    const sovereignRecovered = verifyTypedData(
-      typed.domain,
-      typed.types,
-      typed.value,
-      receipt.sovereign_signature,
-    ).toLowerCase();
-
-    return Object.freeze({
-      activation_verified:
-        activationRecovered ===
-          String(activation_signer || "").toLowerCase(),
-      sovereign_verified:
-        sovereignRecovered ===
-          String(sovereign_signer || "").toLowerCase(),
-      activation_recovered: activationRecovered,
-      sovereign_recovered: sovereignRecovered,
-    });
-  } catch {
-    return Object.freeze({
-      activation_verified: false,
-      sovereign_verified: false,
-      activation_recovered: null,
-      sovereign_recovered: null,
-    });
-  }
 }
 
 export function assembleVoidBuyCoupledLiveActivationReceiptCandidateV1({
