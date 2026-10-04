@@ -15,7 +15,20 @@ introduce a second lock.
 
 ## Canonical payment event
 
-The live local-only payment verifier persists an identity-complete verified
+The live local-only payment verifier delegates receipt classification to
+`buildBuyVoidVerifiedPaymentEventV2(...)` before persistence. The mounted route
+supplies the durable request, exact receipt, configured chain/USDC/receive
+policy, and a fresh `eth_blockNumber` observation; it does not maintain a
+second receipt/log classifier.
+
+The canonical V2 classifier therefore enforces receipt/request transaction-hash
+equality, successful receipt status, current-block/receipt-block ordering,
+removed-log exclusion, per-log transaction/block binding when those fields are
+present, exact-one matching ERC-20 transfer, exact six-decimal USDC amount,
+receive/delivery binding, uint32 canonical log-index identity, and a recorded
+confirmation count.
+
+The live local-only payment verifier persists that identity-complete verified
 payment event with:
 
 - schema `void_buy_void_verified_payment_event_v2`;
@@ -25,7 +38,9 @@ payment event with:
 - `payment_identity_input_complete=true`;
 - source chain;
 - receipt transaction hash;
-- matched ERC-20 transfer log index in canonical unsigned decimal form; and
+- matched ERC-20 transfer log index in canonical unsigned decimal form;
+- receipt block number and confirmation count produced by the canonical V2
+  classifier; and
 - the existing request/payment amount and delivery bindings.
 
 The operator queue projection remains schema-neutral: it keys on
