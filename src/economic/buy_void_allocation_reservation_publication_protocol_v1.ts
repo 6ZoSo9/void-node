@@ -27,8 +27,9 @@ export const VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_AUTHORITY_V1 =
     single_append_publication: true,
     recoverable_intent_only_phase: true,
     recoverable_ledger_committed_phase: true,
+    recoverable_high_water_committed_phase: true,
     recoverable_complete_phase: true,
-    high_water_ahead_rejected: true,
+    high_water_ahead_rejected: false,
     unknown_mixed_state_rejected: true,
     runtime_integration: false,
     protected_high_water_storage: false,
@@ -133,7 +134,11 @@ export type BuyVoidAllocationReservationPublicationRecoveryV1 = {
   status: "recoverable";
   marker: typeof VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_PROTOCOL_V1;
   version: 1;
-  phase: "intent_only" | "ledger_committed" | "complete";
+  phase:
+    | "intent_only"
+    | "ledger_committed"
+    | "high_water_committed"
+    | "complete";
   operation_performed: false;
   record_id: string;
   record_hash: string;
@@ -725,15 +730,12 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
     }
 
     if (ledgerIsPrior) {
-      if (highWaterIsNext) {
-        throw new Error(
-          "allocation_reservation_publication_high_water_ahead",
-        );
-      }
       const priorBinding =
         classifyBuyVoidAllocationReservationHighWaterBindingV1({
           ledger_jsonl: observedLedger,
-          high_water_json: observedHighWater,
+          high_water_json: highWaterIsPrior
+            ? observedHighWater
+            : parsed.prior_high_water_bytes,
         });
       if (priorBinding.ok === false) {
         throw new Error(
@@ -772,12 +774,14 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
         marker:
           VOID_BUY_VOID_ALLOCATION_RESERVATION_PUBLICATION_PROTOCOL_V1,
         version: 1,
-        phase: "intent_only",
+        phase: highWaterIsNext
+          ? "high_water_committed"
+          : "intent_only",
         operation_performed: false,
         record_id: body.record_id,
         record_hash: body.record_hash,
         write_ledger_append_required: true,
-        write_high_water_required: true,
+        write_high_water_required: !highWaterIsNext,
         remove_intent_after_postcheck: true,
         append_sha256: body.append_sha256,
         append_bytes_base64: body.append_bytes_base64,
