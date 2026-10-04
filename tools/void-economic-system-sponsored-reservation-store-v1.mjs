@@ -466,7 +466,10 @@ function temporaryName(finalName) {
   );
 }
 
-function cleanupTemps(records) {
+function cleanupTemps(records, markMutation = () => {}) {
+  if (typeof markMutation !== "function") {
+    fail("SPONSORED_RESERVATION_STORE_CLEANUP_TRACKER_INVALID");
+  }
   const tempPattern =
     /^\.([0-9a-f]{64}\.json)\.tmp-[1-9][0-9]*-[0-9a-f]{16}$/u;
   let changed = false;
@@ -481,6 +484,7 @@ function cleanupTemps(records) {
     if (temp.nlink === 1n) {
       validateTemporaryStat(temp, 1n);
       fs.unlinkSync(tempPath);
+      markMutation();
       changed = true;
       continue;
     }
@@ -492,15 +496,14 @@ function cleanupTemps(records) {
       fail("SPONSORED_RESERVATION_STORE_TEMP_BINDING_INVALID");
     }
     fs.unlinkSync(tempPath);
+    markMutation();
     changed = true;
   }
   if (changed) fs.fsyncSync(records.fd);
+  return changed;
 }
 
-function readHistory(records, cleanupReviewedTemps) {
-  if (cleanupReviewedTemps) {
-    cleanupTemps(records);
-  }
+function readHistory(records) {
   const namesBefore = fs
     .readdirSync(records.proc_path)
     .sort(compareText);
@@ -678,7 +681,10 @@ function candidateRecord(intentRaw, sponsorshipRaw) {
   });
 }
 
-function createOnceRecord(records, candidate) {
+function createOnceRecord(records, candidate, markMutation = () => {}) {
+  if (typeof markMutation !== "function") {
+    fail("SPONSORED_RESERVATION_STORE_PUBLICATION_TRACKER_INVALID");
+  }
   if (candidate.bytes.length > MAX_RECORD_BYTES) {
     fail("SPONSORED_RESERVATION_STORE_CANDIDATE_TOO_LARGE");
   }
@@ -695,6 +701,7 @@ function createOnceRecord(records, candidate) {
         O_NOFOLLOW,
       0o600,
     );
+    markMutation();
     let offset = 0;
     while (offset < candidate.bytes.length) {
       const written = fs.writeSync(
@@ -751,14 +758,14 @@ async function canonicalLock() {
   return module.withBuyVoidFilesystemBakeryLockAsyncV1;
 }
 
-function held(reason) {
+function held(reason, mutationPerformed = false) {
   return Object.freeze({
     ok: false,
     status: "held",
     marker: VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1,
     version: 1,
     reason: String(reason || "SPONSORED_RESERVATION_STORE_HELD").slice(0, 220),
-    mutation_performed: false,
+    mutation_performed: mutationPerformed === true,
     trusted_observation_time_proven: false,
     monotonic_observation_time_proven: false,
     runtime_enforcement_verified: false,
@@ -804,6 +811,10 @@ function success(status, candidate, mutation, state, admission = null) {
 export async function persistEconomicSystemSponsoredReservationV1(input) {
   let root = null;
   let records = null;
+  let mutationPerformed = false;
+  const markMutation = () => {
+    mutationPerformed = true;
+  };
   try {
     const candidate = candidateRecord(
       input?.candidate_intent,
@@ -827,7 +838,8 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
       );
 
-      let history = readHistory(records, true);
+      cleanupTemps(records, markMutation);
+      let history = readHistory(records);
       let state = verifyEconomicSystemSponsoredStateV1({
         sponsorship_policy: input.sponsorship_policy,
         ttl_caps_policy: input.ttl_caps_policy,
@@ -843,13 +855,29 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
       );
       if (same) {
         if (!same.bytes.equals(candidate.bytes)) {
-          return held("SPONSORED_RESERVATION_STORE_REPLAY_CONFLICT");
+          return held(
+            "SPONSORED_RESERVATION_STORE_REPLAY_CONFLICT",
+            mutationPerformed,
+          );
         }
         verifyDuplicateSignedSubmissionV1(
           candidate,
           input.candidate_signed_submission,
         );
-        return success("duplicate", candidate, false, state);
+        assertPinnedDirectoryVisible(
+          root,
+          "SPONSORED_RESERVATION_STORE_ROOT",
+        );
+        assertPinnedDirectoryVisible(
+          records,
+          "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+        );
+        return success(
+          "duplicate",
+          candidate,
+          mutationPerformed,
+          state,
+        );
       }
 
       for (const row of history) {
@@ -860,7 +888,10 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
           row.sponsorship.signed_submission_digest ===
             candidate.record.sponsorship.signed_submission_digest
         ) {
-          return held("SPONSORED_RESERVATION_STORE_IDENTITY_CONFLICT");
+          return held(
+            "SPONSORED_RESERVATION_STORE_IDENTITY_CONFLICT",
+            mutationPerformed,
+          );
         }
       }
 
@@ -878,6 +909,7 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         return held(
           admission.denial_reason ||
             "SPONSORED_RESERVATION_STORE_ADMISSION_DENIED",
+          mutationPerformed,
         );
       }
 
@@ -889,9 +921,9 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         records,
         "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
       );
-      createOnceRecord(records, candidate);
+      createOnceRecord(records, candidate, markMutation);
 
-      history = readHistory(records, true);
+      history = readHistory(records);
       state = verifyEconomicSystemSponsoredStateV1({
         sponsorship_policy: input.sponsorship_policy,
         ttl_caps_policy: input.ttl_caps_policy,
@@ -916,10 +948,27 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
       ) {
         fail("SPONSORED_RESERVATION_STORE_BUDGET_POSTCHECK_FAILED");
       }
-      return success("reserved", candidate, true, state, admission);
+      assertPinnedDirectoryVisible(
+        root,
+        "SPONSORED_RESERVATION_STORE_ROOT",
+      );
+      assertPinnedDirectoryVisible(
+        records,
+        "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+      );
+      return success(
+        "reserved",
+        candidate,
+        mutationPerformed,
+        state,
+        admission,
+      );
     });
   } catch (error) {
-    return held(error instanceof Error ? error.message : String(error));
+    return held(
+      error instanceof Error ? error.message : String(error),
+      mutationPerformed,
+    );
   } finally {
     if (records) {
       try {
@@ -947,7 +996,7 @@ export function listEconomicSystemSponsoredReservationsV1(input) {
       "SPONSORED_RESERVATION_STORE_ROOT",
     );
     records = openRecordsDirectory(root);
-    const history = readHistory(records, false);
+    const history = readHistory(records);
     const state = verifyEconomicSystemSponsoredStateV1({
       sponsorship_policy: input.sponsorship_policy,
       ttl_caps_policy: input.ttl_caps_policy,
@@ -955,6 +1004,14 @@ export function listEconomicSystemSponsoredReservationsV1(input) {
       sponsorships: history.map((row) => row.sponsorship),
       observed_at_ms: input.observed_at_ms,
     });
+    assertPinnedDirectoryVisible(
+      root,
+      "SPONSORED_RESERVATION_STORE_ROOT",
+    );
+    assertPinnedDirectoryVisible(
+      records,
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+    );
     return Object.freeze({
       ok: true,
       status: "listed",

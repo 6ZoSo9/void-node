@@ -148,7 +148,13 @@ The root path is opened component-by-component from the filesystem root with
 
 The source rejects unsafe/symlinked ancestry and descriptor/path identity drift.
 Record reads are bounded, no-follow, descriptor-bound, and require exact
-before/after visible identity.
+before/after visible identity. Every successful externally visible result—read-only listing, new
+reservation, and exact duplicate replay—revalidates the pinned root and
+records-directory identities after history/budget/replay evaluation, so
+replacing a visible directory cannot return a clean result from an orphaned
+descriptor. A post-publication path swap after a durable write HOLDS with
+`mutation_performed=true`; a duplicate-path swap with no store mutation HOLDS
+with `mutation_performed=false`.
 
 This is filesystem integrity hardening, not independent custody. The authority
 therefore keeps `root_path_stability_proven=false`.
@@ -158,8 +164,19 @@ therefore keeps `root_path_stability_proven=false`.
 If the exact canonical sponsorship file already exists and its complete record
 bytes match the supplied exact intent+sponsorship record, replay still requires
 the supplied signed submission to verify cryptographically and bind the same
-typed-data digest, gas limit, and intent lifetime. Only then does replay return
-`status=duplicate` with no mutation.
+typed-data digest, gas limit, and intent lifetime. An ordinary clean replay then
+returns `status=duplicate` with `mutation_performed=false`.
+
+If that same serialized replay also repairs a reviewed crash-temp residue,
+the canonical reservation/budget remains unchanged but filesystem recovery did
+occur, so the response truthfully returns `mutation_performed=true`. A HOLD
+after any such cleanup likewise reports that mutation instead of claiming a
+read-only outcome.
+
+The same rule applies after a new record crosses a filesystem mutation boundary:
+if later history/budget postchecks HOLD, the response keeps
+`mutation_performed=true`. Callers must reconcile durable history before retrying;
+they must not infer from `status=held` that no store mutation occurred.
 
 A corrupt or mismatched replay signature HOLDS without changing the durable
 record or budget state.
@@ -254,6 +271,10 @@ The store proof covers:
 - read-only listing;
 - unpublished crash-temp HOLD for read-only listing;
 - concurrent temp/publication appearing between read-only directory censuses;
+- post-publication HOLD with truthful `mutation_performed=true` and durable final record;
+- post-publication records-directory replacement detected before success;
+- read-only records-directory replacement detected before listing success;
+- duplicate replay records-directory replacement detected before duplicate success;
 - serialized unpublished-temp recovery;
 - linked temp/final crash recovery;
 - malformed record HOLD;

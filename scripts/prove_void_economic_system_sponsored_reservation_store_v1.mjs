@@ -647,6 +647,7 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       ),
     );
     assert.equal(emptyRecovered.status, "duplicate");
+    assert.equal(emptyRecovered.mutation_performed, true);
     assert.equal(fs.existsSync(emptyTemp), false);
 
     const unpublishedTemp =
@@ -673,6 +674,7 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       ),
     );
     assert.equal(recovered.status, "duplicate");
+    assert.equal(recovered.mutation_performed, true);
     assert.equal(fs.existsSync(unpublishedTemp), false);
 
     const linkedTemp =
@@ -697,9 +699,82 @@ const observedAt = (BASE_UNIX + 140) * 1000;
       ),
     );
     assert.equal(linkedRecovery.status, "duplicate");
+    assert.equal(linkedRecovery.mutation_performed, true);
     assert.equal(fs.existsSync(linkedTemp), false);
     assert.equal(fs.lstatSync(finalPath).nlink, 1);
   } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
+  let injectedTemp = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "8",
+      reservationDigit: "8",
+      walletDigit: "8",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    const finalPath = path.join(f.records, finalName);
+    let postPublicationHistoryReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      const result = originalReaddirSync.call(fs, target, ...args);
+      if (
+        Array.isArray(result) &&
+        result.includes(finalName)
+      ) {
+        postPublicationHistoryReads += 1;
+        if (postPublicationHistoryReads === 1) {
+          injectedTemp = path.join(
+            f.records,
+            "." +
+              finalName +
+              ".tmp-" +
+              String(process.pid) +
+              "-bbbbbbbbbbbbbbbb",
+          );
+          fs.writeFileSync(injectedTemp, Buffer.alloc(0), {
+            mode: 0o600,
+          });
+        }
+      }
+      return result;
+    };
+    const held =
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      );
+    assert.equal(held.ok, false, JSON.stringify(held));
+    assert.equal(held.status, "held");
+    assert.equal(
+      held.reason,
+      "SPONSORED_RESERVATION_STORE_RECOVERY_REQUIRED",
+    );
+    assert.equal(held.mutation_performed, true);
+    assert.equal(fs.existsSync(finalPath), true);
+    assert.equal(fs.existsSync(injectedTemp), true);
+    assert.equal(held.gas_sponsorship_performed, false);
+    assert.equal(held.transaction_submission, false);
+    assert.equal(held.transaction_broadcast, false);
+    assert.equal(held.funds_movement, false);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    if (injectedTemp) {
+      try {
+        fs.unlinkSync(injectedTemp);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
     cleanup(f);
   }
 }
@@ -767,6 +842,228 @@ const observedAt = (BASE_UNIX + 140) * 1000;
         if (error?.code !== "ENOENT") throw error;
       }
     }
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
+  let movedRecords = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "9",
+      reservationDigit: "9",
+      walletDigit: "9",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    let finalNameReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      const result = originalReaddirSync.call(fs, target, ...args);
+      if (Array.isArray(result) && result.includes(finalName)) {
+        finalNameReads += 1;
+        if (finalNameReads === 2) {
+          movedRecords = f.records + "-moved";
+          fs.renameSync(f.records, movedRecords);
+          fs.mkdirSync(f.records, { mode: 0o700 });
+        }
+      }
+      return result;
+    };
+    const held =
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      );
+    assert.equal(held.ok, false, JSON.stringify(held));
+    assert.equal(held.status, "held");
+    assert.equal(
+      held.reason,
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_CHANGED",
+    );
+    assert.equal(held.mutation_performed, true);
+    assert.equal(
+      fs.existsSync(path.join(movedRecords, finalName)),
+      true,
+    );
+    assert.equal(held.gas_sponsorship_performed, false);
+    assert.equal(held.transaction_submission, false);
+    assert.equal(held.transaction_broadcast, false);
+    assert.equal(held.funds_movement, false);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
+  let movedRecords = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "7",
+      reservationDigit: "7",
+      walletDigit: "7",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    requireOk(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      ),
+    );
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    let finalNameReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      const result = originalReaddirSync.call(fs, target, ...args);
+      if (Array.isArray(result) && result.includes(finalName)) {
+        finalNameReads += 1;
+        if (finalNameReads === 2) {
+          movedRecords = f.records + "-moved";
+          fs.renameSync(f.records, movedRecords);
+          fs.mkdirSync(f.records, { mode: 0o700 });
+        }
+      }
+      return result;
+    };
+    const held =
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      );
+    assert.equal(held.ok, false, JSON.stringify(held));
+    assert.equal(held.status, "held");
+    assert.equal(
+      held.reason,
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_CHANGED",
+    );
+    assert.equal(held.mutation_performed, false);
+    assert.equal(
+      fs.existsSync(path.join(movedRecords, finalName)),
+      true,
+    );
+    assert.equal(held.gas_sponsorship_performed, false);
+    assert.equal(held.transaction_submission, false);
+    assert.equal(held.transaction_broadcast, false);
+    assert.equal(held.funds_movement, false);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
+  let movedRecords = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "6",
+      reservationDigit: "6",
+      walletDigit: "6",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    requireOk(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      ),
+    );
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    let finalNameReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      const result = originalReaddirSync.call(fs, target, ...args);
+      if (Array.isArray(result) && result.includes(finalName)) {
+        finalNameReads += 1;
+        if (finalNameReads === 2) {
+          movedRecords = f.records + "-moved";
+          fs.renameSync(f.records, movedRecords);
+          fs.mkdirSync(f.records, { mode: 0o700 });
+        }
+      }
+      return result;
+    };
+    requireHeld(
+      listEconomicSystemSponsoredReservationsV1(
+        listInput(f.root, ttl, sponsor, observedAt),
+      ),
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_CHANGED",
+    );
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalReaddirSync = fs.readdirSync;
+  let movedRecords = "";
+  try {
+    const value = await candidate({
+      ttl,
+      sponsor,
+      identityDigit: "5",
+      reservationDigit: "5",
+      walletDigit: "5",
+      issuedUnix: BASE_UNIX + 133,
+      gasLimit: 50000,
+    });
+    requireOk(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      ),
+    );
+    const finalName =
+      value.sponsorship.sponsorship_id.replace(/^sha256:/u, "") +
+      ".json";
+    let finalNameReads = 0;
+    fs.readdirSync = function patchedReaddirSync(target, ...args) {
+      const result = originalReaddirSync.call(fs, target, ...args);
+      if (Array.isArray(result) && result.includes(finalName)) {
+        finalNameReads += 1;
+        if (finalNameReads === 2) {
+          movedRecords = f.records + "-duplicate-moved";
+          fs.renameSync(f.records, movedRecords);
+          fs.mkdirSync(f.records, { mode: 0o700 });
+        }
+      }
+      return result;
+    };
+    const held =
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(f.root, ttl, sponsor, value, observedAt),
+      );
+    assert.equal(held.ok, false, JSON.stringify(held));
+    assert.equal(held.status, "held");
+    assert.equal(
+      held.reason,
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_CHANGED",
+    );
+    assert.equal(held.mutation_performed, false);
+    assert.equal(
+      fs.existsSync(path.join(movedRecords, finalName)),
+      true,
+    );
+    assert.equal(held.gas_sponsorship_performed, false);
+    assert.equal(held.transaction_submission, false);
+    assert.equal(held.transaction_broadcast, false);
+    assert.equal(held.funds_movement, false);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
     cleanup(f);
   }
 }
@@ -938,6 +1235,18 @@ assert.match(
   source,
   /namesAfter\.some\(\(name, index\) => name !== namesBefore\[index\]\)/u,
 );
+assert.match(
+  source,
+  /return held\([\s\S]*mutationPerformed[\s\S]*\);/u,
+);
+assert.equal(
+  (
+    source.match(
+      /assertPinnedDirectoryVisible\([\s\S]{0,120}SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY/g,
+    ) || []
+  ).length >= 4,
+  true,
+);
 assert.match(source, /classifyEconomicSystemSponsoredAdmissionV1/u);
 assert.match(source, /verifyEconomicSystemSponsoredStateV1/u);
 assert.match(source, /O_NOFOLLOW/u);
@@ -963,8 +1272,13 @@ console.log("per_identity_budget_enforced=true");
 console.log("global_budget_enforced=true");
 console.log("concurrent_near_budget_serialized=true");
 console.log("crash_temp_recovery=true");
+console.log("crash_temp_cleanup_reports_mutation=true");
+console.log("duplicate_visible_store_swap_rejected=true");
+console.log("ordinary_duplicate_replay_reports_mutation=false");
 console.log("zero_byte_unpublished_temp_recovery=true");
 console.log("read_only_listing_temp_cleanup=false");
+console.log("duplicate_root_path_revalidated=true");
+console.log("duplicate_path_swap_holds_without_store_mutation=true");
 console.log("storage_bootstrap=false");
 console.log("runtime_route_mount=false");
 console.log("trusted_observation_time_proven=false");
