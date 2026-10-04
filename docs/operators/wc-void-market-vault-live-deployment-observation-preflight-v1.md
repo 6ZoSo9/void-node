@@ -118,6 +118,15 @@ Epoch-2 proof endpoints at `18550`–`18552` therefore fail before any RPC
 call. Test-only loopback fixtures retain ephemeral-port support and cannot emit a
 production preflight.
 
+The Epoch-2 transaction-domain module is **not imported from mutable worktree
+source** by this production preflight. The preflight binds the exact estimate
+domain constants locally, pins the reviewed domain source to Git blob
+`f7cb1910923725581d1ff9b31abfb910a64eba14`, and only after repository
+identity admission reads the tracked module through a nofollow descriptor and
+requires its current bytes to hash to that exact HEAD blob. An
+`assume-unchanged` worktree mutation therefore HOLDs without executing the
+mutated module.
+
 The deployment estimate is not a bare legacy transaction shape. Its
 `eth_estimateGas` transaction object explicitly binds `type: 0x2`,
 `chainId: 0x802` (2050), contract creation (`to: null`), and the canonical
@@ -273,6 +282,7 @@ canonical_production_epoch2_rpc_target_head_blob_required=true
 deployer_selection_authorized=false
 inventory_source_selection_authorized=false
 epoch2_signed_access_list_marker_required=true
+epoch2_transaction_domain_reviewed_before_use_required=true
 gas_limit_policy_selected=false
 fee_policy_selected=false
 transaction_envelope_construction=false
