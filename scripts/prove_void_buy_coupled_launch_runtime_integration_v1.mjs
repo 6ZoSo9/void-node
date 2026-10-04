@@ -125,6 +125,15 @@ assert.match(
 );
 assert.match(
   capacityAdmission,
+  /buy_void_verified_payment_capacity_candidate_request_missing/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_candidate_quote_mismatch/,
+);
+assert.match(capacityAdmission, /request_quotes:\s*quotes/);
+assert.match(
+  capacityAdmission,
   /buy_void_verified_payment_capacity_operator_events/,
 );
 assert.match(capacityAdmission, /_json_invalid/);
@@ -156,22 +165,23 @@ assert.match(
   identityAdmission,
   /VOID_BUY_VOID_VERIFIED_PAYMENT_IDENTITY_ADMISSION_V1/,
 );
-assert.match(
-  identityAdmission,
-  /canonicalBuyVoidPaymentIdentityV1/,
-);
-assert.match(
-  identityAdmission,
-  /buy_void_verified_payment_identity_reused/,
-);
+assert.match(identityAdmission, /canonicalBuyVoidPaymentIdentityV1/);
+assert.match(identityAdmission, /buy_void_verified_payment_identity_reused/);
 assert.match(
   identityAdmission,
   /buy_void_verified_payment_identity_request_changed/,
 );
+assert.match(capacityAdmission, /request_ledger_stat/);
+assert.match(capacityAdmission, /operator_ledger_stat/);
 assert.match(
   capacityAdmission,
-  /with_launch_authority_mutation\(request, append\)/,
+  /buy_void_verified_payment_capacity_requests_changed_since_census/,
 );
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_operator_events_changed_since_census/,
+);
+assert.match(capacityAdmission, /input\.with_launch_authority_mutation\(/);
 assert.ok(index.includes('"operator_mark_failed"'));
 assert.ok(index.includes(
   'res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1"',
@@ -305,6 +315,7 @@ console.log("generation_lock_spans_request_append=true");
 console.log("generation_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_exhaustion_response_409=true");
+console.log("verified_payment_capacity_preappend_snapshots_bound=true");
 console.log("verified_payment_identity_guard_inside_capacity_lock=true");
 console.log("verified_payment_identity_cross_request_reuse=false");
 console.log("verified_payment_log_index_persisted=true");
