@@ -278,6 +278,46 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const f = fixture();
+  try {
+    writeIntent(f);
+    const recoveredOnly =
+      persistBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+        next_ledger_jsonl: ledger2,
+      });
+    assert.equal(recoveredOnly.ok, true);
+    if (!recoveredOnly.ok) throw new Error(recoveredOnly.reason);
+    assert.equal(recoveredOnly.status, "recovered");
+    assert.equal(recoveredOnly.operation_performed, true);
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.ledgerRoot, LEDGER_NAME),
+        "utf8",
+      ),
+      ledger1,
+      "recovery must be terminal for the invocation",
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.highWaterRoot, HIGH_WATER_NAME),
+        "utf8",
+      ),
+      nextHighWater,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(f.highWaterRoot, INTENT_NAME),
+      ),
+      false,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const f = fixture(ledger1, genesisHighWater);
   try {
     writeIntent(f);
@@ -511,6 +551,7 @@ console.log("canonical_jsonl_authority=true");
 console.log("copy_on_write_exact_single_append=true");
 console.log("intent_only_recovery=true");
 console.log("ledger_committed_recovery=true");
+console.log("recovery_terminal_before_new_transition=true");
 console.log("complete_recovery=true");
 console.log("high_water_ahead_hold=true");
 console.log("multi_record_jump_hold=true");
