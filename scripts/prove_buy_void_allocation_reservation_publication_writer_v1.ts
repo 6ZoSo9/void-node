@@ -25,6 +25,32 @@ const LEDGER_NAME = "allocation-reservations-v1.jsonl";
 const HIGH_WATER_NAME = "allocation-reservation-high-water-v1.json";
 const INTENT_NAME = "allocation-reservation-publication-intent-v1.json";
 
+const writerSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src",
+    "economic",
+    "buy_void_allocation_reservation_publication_writer_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(
+  writerSource,
+  /allocation_reservation_writer_descriptor_safety_unavailable/u,
+);
+assert.match(
+  writerSource,
+  /!fs\.existsSync\("\/proc\/self\/fd"\)/u,
+);
+assert.doesNotMatch(
+  writerSource,
+  /fs\.constants\.O_NOFOLLOW[\s\S]{0,120}: 0;/u,
+);
+assert.doesNotMatch(
+  writerSource,
+  /fs\.constants\.O_DIRECTORY[\s\S]{0,120}: 0;/u,
+);
+
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
 
@@ -593,6 +619,7 @@ console.log("high_water_ahead_hold=true");
 console.log("multi_record_jump_hold=true");
 console.log("rollback_hold=true");
 console.log("descriptor_bound_private_roots=true");
+console.log("descriptor_safety_missing_fails_closed=true");
 console.log("separate_storage_roots_required=true");
 console.log("nested_storage_roots_hold=true");
 console.log("storage_bootstrap=false");
