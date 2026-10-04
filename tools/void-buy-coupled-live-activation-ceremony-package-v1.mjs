@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import process from "node:process";
 
-import { verifyTypedData } from "ethers";
+import { TypedDataEncoder, verifyTypedData } from "ethers";
 
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
@@ -28,6 +28,8 @@ export const VOID_BUY_COUPLED_LIVE_ACTIVATION_CEREMONY_AUTHORITY_V1 =
     source_only_unsigned_package_creation: true,
     public_signature_assembly: true,
     fixed_production_signer_verification: true,
+    live_source_state_verified: false,
+    generation_authority_verified: false,
     filesystem_read: true,
     filesystem_write: false,
     wallet_access: false,
@@ -100,13 +102,17 @@ function packageId(body) {
   );
 }
 
-function validateLeaseTimes(activatedAtMs, expiresAtMs) {
+function validateLeaseTimes(activatedAtMs, expiresAtMs, evaluatedAtMs) {
   if (
     !Number.isSafeInteger(activatedAtMs) ||
     activatedAtMs <= 0 ||
     !Number.isSafeInteger(expiresAtMs) ||
     expiresAtMs <= activatedAtMs ||
-    expiresAtMs - activatedAtMs > MAX_LEASE_MS
+    expiresAtMs - activatedAtMs > MAX_LEASE_MS ||
+    !Number.isSafeInteger(evaluatedAtMs) ||
+    evaluatedAtMs <= 0 ||
+    activatedAtMs > evaluatedAtMs ||
+    expiresAtMs <= evaluatedAtMs
   ) {
     fail("activation_ceremony_lease_invalid");
   }
@@ -132,7 +138,11 @@ export function buildVoidBuyCoupledLiveActivationCeremonyPackageV1(input) {
   if (!BYTES32.test(activationNonce)) {
     fail("activation_ceremony_nonce_invalid");
   }
-  validateLeaseTimes(input.activated_at_ms, input.expires_at_ms);
+  validateLeaseTimes(
+    input.activated_at_ms,
+    input.expires_at_ms,
+    input.evaluated_at_ms,
+  );
 
   const receiptBody = Object.freeze({
     activated_at_ms: input.activated_at_ms,
@@ -167,8 +177,13 @@ export function buildVoidBuyCoupledLiveActivationCeremonyPackageV1(input) {
   const typedData = normalizeTypedDataJson(
     buyLaunchLiveActivationTypedDataV1(unsignedReceipt),
   );
-  const typedDataSha256 = "sha256:" + sha256Hex(
+  const typedDataJsonSha256 = "sha256:" + sha256Hex(
     Buffer.from(canonicalJson(typedData), "utf8"),
+  );
+  const eip712Digest = TypedDataEncoder.hash(
+    typedData.domain,
+    typedData.types,
+    typedData.value,
   );
 
   const body = Object.freeze({
@@ -181,17 +196,20 @@ export function buildVoidBuyCoupledLiveActivationCeremonyPackageV1(input) {
     generation_tip_sha256: generationTipSha256,
     activated_at_ms: input.activated_at_ms,
     expires_at_ms: input.expires_at_ms,
+    evaluated_at_ms: input.evaluated_at_ms,
     unsigned_receipt: unsignedReceipt,
     activation_signing_request: Object.freeze({
       role: "activation_signer",
       expected_signer: VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1,
-      typed_data_sha256: typedDataSha256,
+      typed_data_json_sha256: typedDataJsonSha256,
+      eip712_digest: eip712Digest,
       typed_data: typedData,
     }),
     sovereign_signing_request: Object.freeze({
       role: "sovereign_signer",
       expected_signer: VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
-      typed_data_sha256: typedDataSha256,
+      typed_data_json_sha256: typedDataJsonSha256,
+      eip712_digest: eip712Digest,
       typed_data: typedData,
     }),
     authority: VOID_BUY_COUPLED_LIVE_ACTIVATION_CEREMONY_AUTHORITY_V1,
@@ -227,6 +245,7 @@ export function validateVoidBuyCoupledLiveActivationCeremonyPackageV1(value) {
     activation_nonce: receipt.activation_nonce,
     activated_at_ms: value.activated_at_ms,
     expires_at_ms: value.expires_at_ms,
+    evaluated_at_ms: value.evaluated_at_ms,
   });
 
   if (canonicalJson(rebuilt) !== canonicalJson(value)) {
@@ -396,6 +415,7 @@ if (
         "  --activation-nonce 0x<64hex>",
         "  --activated-at-ms <positive-safe-integer>",
         "  --expires-at-ms <positive-safe-integer>",
+        "  --evaluated-at-ms <positive-safe-integer>",
         "",
         "assemble:",
         "  --package <json-file>",
@@ -411,6 +431,7 @@ if (
         activation_nonce: arg("--activation-nonce"),
         activated_at_ms: Number(arg("--activated-at-ms")),
         expires_at_ms: Number(arg("--expires-at-ms")),
+        evaluated_at_ms: Number(arg("--evaluated-at-ms")),
       }));
     } else if (command === "assemble") {
       print(finalizeVoidBuyCoupledLiveActivationReceiptV1({

@@ -25,15 +25,19 @@ key and does not sign.
 - exact source composition ID;
 - active generation and journal tip;
 - activation nonce;
-- activation time and expiry.
+- activation time and expiry;
+- package evaluation time.
 
+The package refuses future-dated or already-expired leases at preparation time.
 The maximum lease is five minutes. The package fixes every live fact required by
 the gate: private Buy runtime active, production WC/VOID active, public presale
 active, same launch ceremony, public Buy intake authorized,
 `runtime_or_launch_evidence=true`, and `source_ready_only=false`.
 
-Both signing requests contain the same EIP-712 payload and typed-data digest,
-but bind different expected signer roles.
+Both signing requests contain the same EIP-712 payload, canonical JSON SHA-256,
+and actual EIP-712 digest, but bind different expected signer roles. Package
+creation does not claim that source readiness or generation authority was live-
+verified; those remain separate ceremony inputs and gate checks.
 
 ## Assemble
 

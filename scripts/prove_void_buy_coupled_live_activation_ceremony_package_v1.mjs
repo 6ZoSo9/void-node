@@ -27,6 +27,7 @@ const input = {
   activation_nonce: "0x" + "4".repeat(64),
   activated_at_ms: 1791014400000,
   expires_at_ms: 1791014700000,
+  evaluated_at_ms: 1791014401000,
 };
 
 const pkg = buildVoidBuyCoupledLiveActivationCeremonyPackageV1(input);
@@ -45,8 +46,16 @@ assert.equal(
   VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1,
 );
 assert.equal(
-  pkg.activation_signing_request.typed_data_sha256,
-  pkg.sovereign_signing_request.typed_data_sha256,
+  pkg.activation_signing_request.typed_data_json_sha256,
+  pkg.sovereign_signing_request.typed_data_json_sha256,
+);
+assert.equal(
+  pkg.activation_signing_request.eip712_digest,
+  pkg.sovereign_signing_request.eip712_digest,
+);
+assert.match(
+  pkg.activation_signing_request.eip712_digest,
+  /^0x[0-9a-f]{64}$/u,
 );
 assert.deepEqual(
   validateVoidBuyCoupledLiveActivationCeremonyPackageV1(pkg),
@@ -87,6 +96,20 @@ assert.throws(
   () => buildVoidBuyCoupledLiveActivationCeremonyPackageV1({
     ...input,
     expires_at_ms: input.activated_at_ms + 300001,
+  }),
+  /activation_ceremony_lease_invalid/u,
+);
+assert.throws(
+  () => buildVoidBuyCoupledLiveActivationCeremonyPackageV1({
+    ...input,
+    activated_at_ms: input.evaluated_at_ms + 1,
+  }),
+  /activation_ceremony_lease_invalid/u,
+);
+assert.throws(
+  () => buildVoidBuyCoupledLiveActivationCeremonyPackageV1({
+    ...input,
+    evaluated_at_ms: input.expires_at_ms,
   }),
   /activation_ceremony_lease_invalid/u,
 );
