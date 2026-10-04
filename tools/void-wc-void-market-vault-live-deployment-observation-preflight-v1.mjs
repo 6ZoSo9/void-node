@@ -1527,8 +1527,13 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
     const balanceRaw = text(
       await call("eth_call", [
         {
+          type: "0x2",
+          chainId: "0x802",
+          from: deployer,
           to: verifiedQualification.void_token,
           data: balanceOfCalldata(inventorySource),
+          value: "0x0",
+          accessList: deploymentAccessList,
         },
         blockTag,
       ]),
