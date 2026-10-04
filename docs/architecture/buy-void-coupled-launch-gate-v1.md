@@ -36,6 +36,36 @@ of being reduced to a hand-picked set of top-level booleans.
 A source-ready result records the canonical coupled composition ID, but it still
 reports activation/funding/presale/market/funds authority false.
 
+## Verified-payment capacity admission HOLD
+
+Canonical WC/VOID `SOURCE_READY` is not yet sufficient to open Buy VOID
+intake. The current manual payment verifier can recognize a successful USDC
+payment and append `payment_verified`, while presale accounting treats that
+event as reserved VOID. Unpaid requests intentionally reserve nothing, so
+request-time remaining-inventory checks alone cannot prevent multiple
+outstanding quotes from later becoming verified obligations beyond the finite
+presale pool.
+
+Production therefore hardcodes
+`VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
+`classifyBuyLaunchGateV1(...)` returns
+`buy_void_verified_payment_capacity_admission_not_ready` even when the
+coupled WC/VOID source classifier is otherwise `SOURCE_READY`.
+
+That constant must not become true merely because the verifier recognizes a
+payment. A later reviewed lane must prove atomic verified-payment admission:
+serialize the finite-capacity transition, re-read the current verified
+reservation total inside that serialization boundary, reject an obligation
+that exceeds remaining inventory, and prove concurrent near-sellout
+verifications cannot both reserve the same remaining VOID. Duplicate-payment
+identity and the append-only allocation/reservation contract remain separate
+required gates.
+
+The focused proof has an explicitly test-only classifier helper so the deeper
+generation/lease machinery can still be exercised synthetically. Production
+`readBuyLaunchSourceGateV1()` uses only the frozen false capacity-admission
+constant and has no runtime/environment override.
+
 ## Live activation evidence
 
 Public intake additionally requires a separately authorized live coupled-launch
