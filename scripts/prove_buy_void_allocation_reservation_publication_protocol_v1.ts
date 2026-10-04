@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 
 import {
   planBuyVoidAllocationReservationV1,
@@ -17,6 +18,13 @@ import {
 
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
+
+const sha256Id = (value: string | Buffer): string =>
+  "sha256:" +
+  crypto
+    .createHash("sha256")
+    .update(Buffer.isBuffer(value) ? value : Buffer.from(value, "utf8"))
+    .digest("hex");
 
 const baseInput = {
   ledger_jsonl: "",
@@ -299,6 +307,34 @@ assert.equal(
   "ledger_committed",
 );
 
+const badNextHighWaterObject = JSON.parse(
+  high2.high_water_json,
+);
+badNextHighWaterObject.remaining_void = "9999991";
+const badNextHighWaterJson =
+  JSON.stringify(badNextHighWaterObject) + "\n";
+const badNextHighWaterIntentObject = JSON.parse(
+  secondIntent.intent_json,
+);
+badNextHighWaterIntentObject.next_high_water_bytes =
+  Buffer.byteLength(badNextHighWaterJson, "utf8");
+badNextHighWaterIntentObject.next_high_water_sha256 =
+  sha256Id(badNextHighWaterJson);
+badNextHighWaterIntentObject.next_high_water_bytes_base64 =
+  Buffer.from(badNextHighWaterJson, "utf8").toString("base64");
+const badNextHighWaterIntent =
+  JSON.stringify(badNextHighWaterIntentObject) + "\n";
+
+expectHeld(
+  classifyBuyVoidAllocationReservationPublicationRecoveryV1({
+    intent_bytes: badNextHighWaterIntent,
+    observed_ledger_jsonl: ledger2,
+    observed_high_water_json: high1.high_water_json,
+  }),
+  "allocation_reservation_publication_next_binding_" +
+    "allocation_reservation_high_water_binding_mismatch",
+);
+
 const secondComplete = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
     intent_bytes: secondIntent.intent_json,
@@ -481,6 +517,7 @@ console.log("intent_contains_only_single_append_bytes=true");
 console.log("intent_next_high_water_bytes_bound=true");
 console.log("intent_only_phase_recoverable=true");
 console.log("ledger_committed_phase_recoverable=true");
+console.log("ledger_committed_next_high_water_semantically_bound=true");
 console.log("complete_phase_recoverable=true");
 console.log("high_water_ahead_rejected=true");
 console.log("unknown_mixed_state_rejected=true");
