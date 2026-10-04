@@ -440,13 +440,25 @@ async function withValidRpcFixture(callback) {
 }
 
 
-const ANCESTOR_SOURCE_REF = "HEAD^";
+const CURRENT_QUALIFICATION_SOURCE_CHANGE = gitText([
+  "rev-list",
+  "-1",
+  "HEAD",
+  "--",
+  QUALIFICATION_TOOL,
+]);
+const ANCESTOR_SOURCE_REF = CURRENT_QUALIFICATION_SOURCE_CHANGE + "^";
 const ANCESTOR_SOURCE_HEAD = gitText(["rev-parse", ANCESTOR_SOURCE_REF]);
 const CURRENT_HEAD = gitText(["rev-parse", "HEAD"]);
 assert.notEqual(
   ANCESTOR_SOURCE_HEAD,
   CURRENT_HEAD,
   "ancestor qualification test requires distinct generations",
+);
+assert.notEqual(
+  gitText(["rev-parse", ANCESTOR_SOURCE_HEAD + ":" + QUALIFICATION_TOOL]),
+  gitText(["rev-parse", CURRENT_HEAD + ":" + QUALIFICATION_TOOL]),
+  "ancestor qualification fixture must predate qualification authority refresh",
 );
 
 await withValidRpcFixture(async (fixture) => {
@@ -475,7 +487,7 @@ await withValidRpcFixture(async (fixture) => {
 });
 
 {
-  const q = qualificationFixture({ sourceRef: ANCESTOR_SOURCE_REF });
+  const q = qualificationFixture();
   q.source_binding.source_tree_sha = "0".repeat(40);
   q.qualification_id = qualificationId(q);
   let rpcCalls = 0;

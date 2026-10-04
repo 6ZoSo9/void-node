@@ -563,6 +563,13 @@ async function main(): Promise<void> {
     new URL("../src/index.ts", import.meta.url),
     "utf8",
   );
+  const capacityAdmissionSource = fs.readFileSync(
+    new URL(
+      "../src/economic/buy_void_verified_payment_capacity_admission_v1.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   const requestLockSource = fs.readFileSync(
     new URL(
       "../src/economic/buy_void_terminal_closeout_request_lock_v1.ts",
@@ -586,12 +593,28 @@ async function main(): Promise<void> {
     ),
     true,
   );
-  for (const source of [artifactSource, confirmedCloseoutSource, indexSource]) {
+  for (const source of [
+    artifactSource,
+    confirmedCloseoutSource,
+    capacityAdmissionSource,
+  ]) {
     assert.equal(
       source.includes("withBuyVoidTerminalCloseoutRequestLockV1"),
       true,
     );
   }
+  assert.equal(
+    indexSource.includes(
+      "buy_void_verified_payment_capacity_admission_v1.js",
+    ),
+    true,
+  );
+  assert.equal(
+    indexSource.includes(
+      "writeBuyVoidOperatorEventWithCapacityAdmissionV1",
+    ),
+    true,
+  );
   const applyStart = artifactSource.indexOf(
     "export function applyTerminalCloseoutArtifactsV1(",
   );

@@ -58,13 +58,20 @@ const CORRECT_RUNTIME_KECCAK256 =
 
 const V2_TOP_KEYS = Object.freeze([
   "accepted_identity", "authority", "canonical_compiler_artifacts",
-  "correction", "correction_id", "coupled_launch_effect", "decision",
-  "marker", "status", "superseded_v1", "version",
+  "canonical_identity_evidence", "correction", "correction_id",
+  "coupled_launch_effect", "decision", "marker", "status",
+  "superseded_v1", "version",
 ]);
 const ACCEPTED_IDENTITY_KEYS = Object.freeze([
   "identity_id", "identity_json_bytes", "identity_json_sha256",
   "reviewed_at_utc", "workflow_artifact_id", "workflow_artifact_zip_sha256",
   "workflow_job_id", "workflow_run_id",
+]);
+const CANONICAL_IDENTITY_EVIDENCE_KEYS = Object.freeze([
+  "corrected_bytes_derived_from_superseded_packet",
+  "identity_json_bytes", "identity_json_sha256", "source",
+  "workflow_artifact_id", "workflow_artifact_name",
+  "workflow_artifact_zip_sha256", "workflow_job_id", "workflow_run_id",
 ]);
 const SUPERSEDED_V1_KEYS = Object.freeze([
   "creation_bytecode_bytes", "creation_bytecode_sha256",
@@ -79,10 +86,12 @@ const CANONICAL_ARTIFACT_KEYS = Object.freeze([
   "storage_layout_sha256",
 ]);
 const CORRECTION_KEYS = Object.freeze([
-  "canonical_bytecode_is_v1_prefix", "canonical_bytecode_source",
+  "canonical_creation_bytecode_bytes", "canonical_runtime_template_bytes",
   "compiler_identity_recompile_required", "contract_semantics_change_required",
-  "creation_v1_overcapture_bytes", "runtime_v1_overcapture_bytes",
-  "solidity_source_change_required", "v1_deployment_bytes_superseded",
+  "solidity_source_change_required",
+  "v1_creation_excess_bytes_vs_canonical",
+  "v1_deployment_bytes_superseded",
+  "v1_runtime_excess_bytes_vs_canonical",
 ]);
 const COUPLED_EFFECT_KEYS = Object.freeze([
   "corrected_coupled_launch_id", "corrected_vault_bytes32",
@@ -202,6 +211,11 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
   const v1 = parse(supersededV1, "superseded_v1");
   const v2 = exactObject(correctionV2, V2_TOP_KEYS, "correction_v2");
   exactObject(v2.accepted_identity, ACCEPTED_IDENTITY_KEYS, "accepted_identity");
+  exactObject(
+    v2.canonical_identity_evidence,
+    CANONICAL_IDENTITY_EVIDENCE_KEYS,
+    "canonical_identity_evidence",
+  );
   exactObject(v2.superseded_v1, SUPERSEDED_V1_KEYS, "superseded_v1_binding");
   exactObject(
     v2.canonical_compiler_artifacts,
@@ -253,6 +267,24 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
       v2.accepted_identity?.[key] !== expected
     ) {
       fail("compiler_identity_provenance_mismatch:" + key);
+    }
+  }
+
+  const expectedCanonicalEvidence = Object.freeze({
+    source: "pinned_github_actions_compiler_identity_artifact",
+    workflow_run_id: ORIGINAL_WORKFLOW_RUN_ID,
+    workflow_job_id: ORIGINAL_WORKFLOW_JOB_ID,
+    workflow_artifact_id: ORIGINAL_WORKFLOW_ARTIFACT_ID,
+    workflow_artifact_name:
+      "void-wc-void-market-vault-compiler-identity-v1-dba4a50b444dc5b1369d96fd63f5aa79f185e3e4",
+    workflow_artifact_zip_sha256: ORIGINAL_WORKFLOW_ARTIFACT_ZIP_SHA256,
+    identity_json_sha256: ORIGINAL_IDENTITY_SHA256,
+    identity_json_bytes: ORIGINAL_IDENTITY_BYTES,
+    corrected_bytes_derived_from_superseded_packet: false,
+  });
+  for (const [key, expected] of Object.entries(expectedCanonicalEvidence)) {
+    if (v2.canonical_identity_evidence?.[key] !== expected) {
+      fail("canonical_identity_evidence_mismatch:" + key);
     }
   }
 
@@ -340,11 +372,10 @@ export function verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
   if (
     v1CreationBytes - creationBytes !== 963 ||
     v1RuntimeBytes - runtimeBytes !== 953 ||
-    v2.correction?.creation_v1_overcapture_bytes !== 963 ||
-    v2.correction?.runtime_v1_overcapture_bytes !== 953 ||
-    v2.correction?.canonical_bytecode_source !==
-      "retained_compiler_identity_artifact_10988626461" ||
-    v2.correction?.canonical_bytecode_is_v1_prefix !== false ||
+    v2.correction?.canonical_creation_bytecode_bytes !== creationBytes ||
+    v2.correction?.v1_creation_excess_bytes_vs_canonical !== 963 ||
+    v2.correction?.canonical_runtime_template_bytes !== runtimeBytes ||
+    v2.correction?.v1_runtime_excess_bytes_vs_canonical !== 953 ||
     v2.correction?.compiler_identity_recompile_required !== false ||
     v2.correction?.solidity_source_change_required !== false ||
     v2.correction?.contract_semantics_change_required !== false ||
