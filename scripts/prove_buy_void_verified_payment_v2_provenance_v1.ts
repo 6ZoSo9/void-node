@@ -78,19 +78,29 @@ function verify(
 
 function requireVerified(
   value: ReturnType<typeof verify>,
-) {
-  assert.equal(value.ok, true);
-  if (value.ok === false) throw new Error(value.reason);
-  return value;
+): Extract<ReturnType<typeof verify>, { ok: true }> {
+  const runtime = value as ReturnType<typeof verify> & {
+    ok: boolean;
+    reason?: string;
+  };
+  if (runtime.ok !== true) {
+    throw new Error(runtime.reason ?? "unexpected_verified_payment_hold");
+  }
+  return value as Extract<ReturnType<typeof verify>, { ok: true }>;
 }
 
 function expectHeld(
   value: ReturnType<typeof verify>,
   reason: string,
 ): void {
-  assert.equal(value.ok, false);
-  if (value.ok) throw new Error("expected verified-payment V2 HOLD");
-  assert.equal(value.reason, reason);
+  const runtime = value as ReturnType<typeof verify> & {
+    ok: boolean;
+    reason?: string;
+  };
+  if (runtime.ok !== false) {
+    throw new Error("expected verified-payment V2 HOLD");
+  }
+  assert.equal(runtime.reason, reason);
 }
 
 const baseline = requireVerified(verify());
