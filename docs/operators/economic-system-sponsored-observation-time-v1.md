@@ -65,6 +65,8 @@ receipt_sha256
 
 Generation zero has no previous receipt. Later generations chain exactly to the prior receipt SHA-256.
 
+Within one constructed binding, the first accepted observation establishes an in-memory latest-receipt high-water. After that point, `prior_receipt: null` and any stale/forked prior receipt are rejected before the clock provider is called. This prevents a caller from resetting generation zero or replaying an older same-process branch to evade cumulative monotonic/skew checks.
+
 A supplied prior receipt is not accepted merely because its content-addressed
 SHA-256 is self-consistent. Parsing re-validates the same receipt-level
 producibility invariants: positive process-start identity, generation-zero
@@ -102,6 +104,8 @@ This first contract intentionally fails closed on:
 It therefore proves a safe restart behavior: **no expired sponsored-gas budget can be released across a process/boot transition until a later gate establishes trusted restart continuity**.
 
 A later host/runtime lane must bind an external synchronized wall-time authority before starting a new time chain or advancing beyond a durable prior high-water.
+
+The in-memory high-water above is intentionally not restart authority. A newly constructed binding may still be seeded from a supplied prior receipt, so durable receipt provenance and restart continuity remain later fail-closed gates rather than being implied by this source contract.
 
 ## Trust boundary
 
@@ -166,6 +170,8 @@ The focused proof covers:
 - deterministic genesis receipt;
 - exact one-call clock behavior;
 - receipt chaining;
+- repeated generation-zero reset rejected before clock read;
+- stale/forked same-binding prior receipt rejected before clock read;
 - object-key order invariance;
 - accessor binding/request/sample rejection without getter execution;
 - nested object-valued sample/prior fields rejected without coercion hooks;
