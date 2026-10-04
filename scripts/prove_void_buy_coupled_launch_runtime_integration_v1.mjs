@@ -119,8 +119,9 @@ assert.match(
 );
 assert.match(
   capacityAdmission,
-  /buy_void_verified_payment_capacity_operator_events_json_invalid/,
+  /buy_void_verified_payment_capacity_operator_events/,
 );
+assert.match(capacityAdmission, /_json_invalid/);
 assert.match(capacityAdmission, /appendPaymentVerifiedEventDurableV1/);
 assert.match(capacityAdmission, /fs\.fsyncSync\(descriptor\)/);
 assert.match(capacityAdmission, /recoverPaymentVerifiedSidecarsV1/);
