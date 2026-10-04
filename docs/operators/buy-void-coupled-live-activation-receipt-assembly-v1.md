@@ -23,6 +23,11 @@ requires the fixed identities from the coupled-launch gate:
 
 Callers cannot override those identities in the production assembly function.
 
+Assembly is permitted only while the frozen lease is already active and not
+expired. The assembly records exact `assembled_at_ms`; historical verification
+rebuilds the canonical assembly at that recorded time rather than using the
+current wall clock.
+
 The final receipt is serialized exactly as pretty JSON plus one terminal newline.
 The assembler derives:
 
@@ -32,7 +37,11 @@ The assembler derives:
   `activate-coupled-public-buy-v1:<generation>:<generation_tip>:<receipt_id>:<receipt_sha256>`.
 
 The assembly object is itself content-addressed as
-`voidbclara1_<sha256(canonical-assembly-body)>`.
+`voidbclara1_<sha256(canonical-assembly-body)>`. Its verifier does not trust
+selected fields from that body: it reruns the production assembler from the
+embedded canonical signing request, embedded signatures, and recorded
+`assembled_at_ms`, then requires canonical equality with the supplied
+assembly.
 
 ## Deliberate CI limitation
 
