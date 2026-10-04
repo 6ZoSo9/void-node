@@ -361,6 +361,39 @@ function wcLiabilityFrom(
   };
 }
 
+const twoAttemptNativeBody = {
+  schema: "void_coupled_native_gas_liability_v1",
+  marker: VOID_COUPLED_NATIVE_GAS_LIABILITY_V1,
+  version: 1,
+  lane: "wc_void" as const,
+  obligation_id: "4".repeat(64),
+  payer_address: first.liability.payer_address,
+  nonce: 98,
+  transaction_plan_fingerprint_sha256: "5".repeat(64),
+  transaction_native_value_wei: "5",
+  gas_limit: "10",
+  admitted_max_fee_per_gas_wei: "10",
+  attempt_limit: 2 as const,
+  maximum_reserved_wei: "210",
+  fee_observation_sha256: first.liability.fee_observation_sha256,
+  source_evidence_kind: "wc_void_reviewed_settlement_plan" as const,
+  source_evidence_id: "3".repeat(64),
+  status: "open" as const,
+};
+const twoAttemptNative: CoupledNativeGasLiabilityRecordV1 = {
+  ...twoAttemptNativeBody,
+  liability_id: sha256(canonical(twoAttemptNativeBody)),
+};
+const twoAttemptCounted = requireOk(
+  classify({
+    obs: observation({ balance: "210211" }),
+    open: [twoAttemptNative],
+  }),
+);
+assert.equal(twoAttemptCounted.reserved_before_wei, "210");
+assert.equal(twoAttemptCounted.reserved_after_wei, "210211");
+assert.equal(twoAttemptCounted.unreserved_after_wei, "0");
+
 const wcExisting = wcLiabilityFrom(first.liability);
 requireHeld(
   classify({
@@ -478,6 +511,7 @@ console.log("fee_observation_expiry_recomputed=true");
 console.log("trusted_fee_freshness_policy_proven=false");
 console.log("stale_or_future_fee_observation_hold=true");
 console.log("cross_lane_open_liability_counted=true");
+console.log("full_native_envelope_reserved_per_attempt=true");
 console.log("wc_void_candidate_admission=false");
 console.log("durable_journal_write=false");
 console.log("live_balance_observation=false");
