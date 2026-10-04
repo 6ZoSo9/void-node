@@ -497,6 +497,123 @@ for (const mono of [BASE_MONO, BASE_MONO - 1n]) {
 }
 
 {
+  let traps = 0;
+  const handler = {
+    getPrototypeOf() {
+      traps += 1;
+      return Object.prototype;
+    },
+    ownKeys() {
+      traps += 1;
+      return [];
+    },
+    getOwnPropertyDescriptor() {
+      traps += 1;
+      return undefined;
+    },
+  };
+  const bindingProxy = new Proxy(
+    { trustedClock: () => sample() },
+    handler,
+  );
+  assert.throws(
+    () =>
+      createVoidEconomicSystemSponsoredObservationTimeV1(
+        bindingProxy,
+      ),
+    /sponsored_observation_time_binding_invalid/u,
+  );
+  assert.equal(traps, 0);
+}
+
+{
+  let traps = 0;
+  const sampleProxy = new Proxy(sample(), {
+    getPrototypeOf() {
+      traps += 1;
+      return Object.prototype;
+    },
+    ownKeys() {
+      traps += 1;
+      return [];
+    },
+    getOwnPropertyDescriptor() {
+      traps += 1;
+      return undefined;
+    },
+  });
+  const clock = clockQueue([sampleProxy]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: null }),
+    "sponsored_observation_time_sample_invalid",
+    true,
+  );
+  assert.equal(traps, 0);
+  assert.equal(clock.calls(), 1);
+}
+
+{
+  let traps = 0;
+  const priorProxy = new Proxy(first.receipt, {
+    getPrototypeOf() {
+      traps += 1;
+      return Object.prototype;
+    },
+    ownKeys() {
+      traps += 1;
+      return [];
+    },
+    getOwnPropertyDescriptor() {
+      traps += 1;
+      return undefined;
+    },
+  });
+  const clock = clockQueue([sample()]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: priorProxy }),
+    "sponsored_observation_time_prior_receipt_invalid",
+    false,
+  );
+  assert.equal(traps, 0);
+  assert.equal(clock.calls(), 0);
+}
+
+{
+  let traps = 0;
+  const requestProxy = new Proxy(
+    { prior_receipt: null },
+    {
+      getPrototypeOf() {
+        traps += 1;
+        return Object.prototype;
+      },
+      ownKeys() {
+        traps += 1;
+        return [];
+      },
+      getOwnPropertyDescriptor() {
+        traps += 1;
+        return undefined;
+      },
+    },
+  );
+  const clock = clockQueue([sample()]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe(requestProxy),
+    "sponsored_observation_time_request_invalid",
+    false,
+  );
+  assert.equal(traps, 0);
+  assert.equal(clock.calls(), 0);
+}
+
+{
   let coercions = 0;
   const hostile = {
     toString() {
@@ -638,6 +755,7 @@ const source = fs.readFileSync(
 );
 assert.doesNotMatch(source, /Date\.now\s*\(/u);
 assert.doesNotMatch(source, /process\.hrtime/u);
+assert.match(source, /utilTypes\.isProxy\(value\)/u);
 assert.doesNotMatch(
   source,
   /String\(raw\.(?:boot_id|generation|previous_receipt_sha256|process_start_ticks|baseline_monotonic_ns|monotonic_ns|receipt_sha256)/u,
@@ -668,6 +786,7 @@ console.log("process_instance_change_holds=true");
 console.log("accessor_request_rejected_without_getter_read=true");
 console.log("accessor_clock_sample_rejected_without_getter_read=true");
 console.log("nested_value_coercion_hooks_executed=false");
+console.log("proxy_reflection_traps_executed=false");
 console.log("accessor_clock_binding_rejected_without_getter_read=true");
 console.log("clock_exception_detail_not_exposed=true");
 console.log("trusted_clock_source_proven=false");
