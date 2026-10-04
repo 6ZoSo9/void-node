@@ -84,16 +84,25 @@ function ok(x, msg) {
   }
 }
 
+ok(Array.isArray(manifest.routes), "manifest routes array");
+ok(manifest.route_count === manifest.routes.length, "manifest route count matches routes length");
+ok(Array.isArray(snap.expected_routes), "self-check expected routes array");
+ok(snap.expected_route_count === snap.expected_routes.length, "self-check route count matches expected routes length");
+const manifestPaths = new Set(manifest.routes.map(r => r && r.path).filter(Boolean));
+for (const route of snap.expected_routes) {
+  ok(manifestPaths.has(route), "self-check route absent from manifest " + route);
+}
 ok(manifest.routes.some(r => r.path === "/public-node/standalone-outside-tester-smoke.sh" && r.marker === "VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1"), "manifest has standalone smoke script");
-ok(manifest.route_count === 25, "manifest route count 17");
 ok(snap.expected_routes.includes("/public-node/standalone-outside-tester-smoke.sh"), "self-check has standalone smoke script");
-ok(snap.expected_route_count === 25, "self-check route count 17");
 ok(pack.copy_pack.standalone_smoke_script_url === "http://127.0.0.1:4146/public-node/standalone-outside-tester-smoke.sh", "copy pack standalone script url");
 ok(String(pack.copy_pack.standalone_smoke_command || "").includes("PUBLIC_NODE_BASE=http://127.0.0.1:4146"), "copy pack standalone smoke command base");
 ok(String(pack.copy_pack.standalone_smoke_command || "").includes("/public-node/standalone-outside-tester-smoke.sh"), "copy pack standalone smoke command route");
 
 console.log("[ok] json standalone outside tester smoke script");
 NODE
+
+route_manifest_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(x.route_count));' "$OUT/route-manifest.json")"
+self_check_expected_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String(x.expected_route_count));' "$OUT/self-check-snapshot.json")"
 
 echo "marker=VOID_PUBLIC_NODE_STANDALONE_OUTSIDE_TESTER_SMOKE_SCRIPT_V1"
 echo "route=/public-node/standalone-outside-tester-smoke.sh"
@@ -104,8 +113,8 @@ echo "public_node_base=$BASE"
 echo "standalone_script_fetched=true"
 echo "standalone_script_executed=true"
 echo "receipt_written=true"
-echo "route_manifest_route_count=25"
-echo "self_check_expected_route_count=25"
+echo "route_manifest_route_count=$route_manifest_route_count"
+echo "self_check_expected_route_count=$self_check_expected_route_count"
 echo "expected_receipt_marker=VOID_PUBLIC_NODE_TESTER_RESULT_RECEIPT_V1"
 echo "expected_green_marker=VOID_PUBLIC_NODE_OUTSIDE_TESTER_SMOKE_V1_GREEN"
 echo "public_routes_only=true"

@@ -18,6 +18,36 @@ import {
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "void-wc-verified-acceptance-v1-"));
 
+const acceptanceSource = fs.readFileSync(
+  path.resolve("src/economic/wc_verified_receipt_acceptance_v1.ts"),
+  "utf8",
+);
+const canonicalReadStart = acceptanceSource.indexOf(
+  "export async function readCanonicalWcState",
+);
+const canonicalReadEnd = acceptanceSource.indexOf(
+  "\nfunction atomicWriteJson",
+  canonicalReadStart,
+);
+assert.ok(canonicalReadStart >= 0);
+assert.ok(canonicalReadEnd > canonicalReadStart);
+const canonicalReadSource = acceptanceSource.slice(
+  canonicalReadStart,
+  canonicalReadEnd,
+);
+assert.match(
+  canonicalReadSource,
+  /VOID_WC_CANONICAL_STATE_STREAMING_ACCUMULATION_V1/,
+);
+assert.doesNotMatch(
+  canonicalReadSource,
+  /const\s+(?:ledgerEntries|redeemedEntries)\s*:/,
+);
+assert.doesNotMatch(
+  canonicalReadSource,
+  /(?:ledgerEntries|redeemedEntries)\.push\(/,
+);
+
 function append(file: string, value: any): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.appendFileSync(file, JSON.stringify(value) + "\n");
@@ -554,6 +584,64 @@ try {
   assert.equal(fractional.redeemable_exact, "1.15");
   assert.equal(fractional.redeemable_quanta, "1150000000");
   assert.equal(fractional.redeemable, 1.15);
+
+
+  const streamingRoot = path.join(tmp, "streaming-canonical-state");
+  const streamingAccount = "streaming-canonical-state";
+  const streamingLedgerFile =
+    path.join(streamingRoot, "wc_v1", "ledger.jsonl");
+  const streamingRedeemedFile =
+    path.join(streamingRoot, "wc_v1", "redeemed.jsonl");
+  fs.mkdirSync(path.dirname(streamingLedgerFile), {
+    recursive: true,
+    mode: 0o700,
+  });
+  const streamingLedgerLines: string[] = [];
+  for (let index = 0; index < 4_096; index += 1) {
+    streamingLedgerLines.push(JSON.stringify({
+      kind: "credit",
+      account: streamingAccount,
+      delta: 1,
+    }));
+  }
+  for (let index = 0; index < 1_024; index += 1) {
+    streamingLedgerLines.push(JSON.stringify({
+      kind: "debit",
+      account: streamingAccount,
+      amount: 1,
+    }));
+  }
+  streamingLedgerLines.push(JSON.stringify({
+    kind: "credit",
+    account: "streaming-unrelated-account",
+    delta: 999,
+  }));
+  fs.writeFileSync(
+    streamingLedgerFile,
+    streamingLedgerLines.join("\n") + "\n",
+    { mode: 0o600 },
+  );
+  const streamingRedeemedLines: string[] = [];
+  for (let index = 0; index < 512; index += 1) {
+    streamingRedeemedLines.push(JSON.stringify({
+      account: streamingAccount,
+      amount: 1,
+    }));
+  }
+  fs.writeFileSync(
+    streamingRedeemedFile,
+    streamingRedeemedLines.join("\n") + "\n",
+    { mode: 0o600 },
+  );
+  const streamingState = await readCanonicalWcState(
+    streamingAccount,
+    streamingRoot,
+  );
+  assert.equal(streamingState.earned_exact, "4096");
+  assert.equal(streamingState.debited_exact, "1024");
+  assert.equal(streamingState.redeemed_exact, "512");
+  assert.equal(streamingState.redeemable_exact, "2560");
+  assert.equal(streamingState.redeemable_quanta, "2560000000000");
 
   const highRoot = path.join(tmp, "strict-high-balance");
   const highAccount = "strict-high-balance";
