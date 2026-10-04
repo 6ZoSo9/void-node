@@ -14,6 +14,9 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const index = read("src/index.ts");
 const docker = read("Dockerfile");
 const compose = read("docker-compose.yml");
+const capacityAdmission = read(
+  "src/economic/buy_void_verified_payment_capacity_admission_v1.ts",
+);
 assert.ok(Buffer.byteLength(index, "utf8") <= 3851076, "src/index.ts size ceiling");
 const canonical = value => JSON.stringify(value, (_key, item) =>
   item && typeof item === "object" && !Array.isArray(item)
@@ -33,6 +36,8 @@ assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
 assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
 assert.ok(index.includes("requestLaunchAuthorityReady:__blo"));
+assert.ok(index.includes("if (amountUnits === requestedUnits)"));
+assert.equal(index.includes("if (amountUnits >= requestedUnits)"), false);
 assert.ok(index.includes("Funds sent from an exchange/custodial wallet will be treated as lost."));
 assert.ok(index.includes("VOID is not exchange-listed."));
 assert.ok(index.includes("<label>Native USDC rail<br/>"));
@@ -73,14 +78,9 @@ assert.doesNotMatch(
 );
 
 const eventWriterAt=index.indexOf(
-  "async function __voidWriteBuyVoidOperatorEventV1(event:any,request:any)",
+  "async function __voidWriteBuyVoidOperatorEventV1(e:any,r:any)",
 );
 assert.ok(eventWriterAt>0);
-const eventAppendAt=index.indexOf(
-  'fs.appendFileSync(path.join(dir,"operator-events.jsonl")',
-  eventWriterAt,
-);
-assert.ok(eventAppendAt>eventWriterAt);
 const eventWriterEnd=index.indexOf(
   "// VOID_BUY_VOID_OPERATOR_QUEUE_APPLY_EVENTS_V1",
   eventWriterAt,
@@ -88,12 +88,76 @@ const eventWriterEnd=index.indexOf(
 const eventCritical=index.slice(eventWriterAt,eventWriterEnd);
 assert.match(
   eventCritical,
-  /const op=\(\)=>withBuyVoidTerminalCloseoutRequestLockV1/,
+  /buy_void_verified_payment_capacity_admission_v1\.js/,
 );
 assert.match(
   eventCritical,
-  /event\?\.operator_status==="payment_verified"\?await __blm\(request,op\):op\(\)/,
+  /writeBuyVoidOperatorEventWithCapacityAdmissionV1/,
 );
+assert.match(eventCritical, /with_launch_authority_mutation:__blm/);
+assert.match(eventCritical, /read_sale_state:__voidBuyVoidSaleStateV1/);
+assert.doesNotMatch(eventCritical, /read_operator_events:/);
+assert.equal(eventCritical.includes("operator-events.jsonl"), false);
+assert.match(
+  capacityAdmission,
+  /withBuyVoidFilesystemBakeryLockAsyncV1/,
+);
+assert.match(
+  capacityAdmission,
+  /withBuyVoidTerminalCloseoutRequestLockV1/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_exceeded/,
+);
+assert.match(capacityAdmission, /requests\.jsonl/);
+assert.match(capacityAdmission, /operator-events\.jsonl/);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_projection_mismatch/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_candidate_request_missing/,
+);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_candidate_quote_mismatch/,
+);
+assert.match(capacityAdmission, /request_quotes:\s*quotes/);
+assert.match(
+  capacityAdmission,
+  /buy_void_verified_payment_capacity_operator_events/,
+);
+assert.match(capacityAdmission, /_json_invalid/);
+assert.match(capacityAdmission, /appendPaymentVerifiedEventDurableV1/);
+assert.match(capacityAdmission, /fs\.fsyncSync\(descriptor\)/);
+assert.match(capacityAdmission, /recoverPaymentVerifiedSidecarsV1/);
+assert.match(capacityAdmission, /sidecar_recovered/);
+{
+  const launchMutationAt = capacityAdmission.indexOf(
+    "input.with_launch_authority_mutation(\n          request,",
+  );
+  const requestLockAt = capacityAdmission.indexOf(
+    "withBuyVoidTerminalCloseoutRequestLockV1(",
+    launchMutationAt,
+  );
+  const requestSnapshotAt = capacityAdmission.indexOf(
+    "const requestBeforeAppend =",
+    requestLockAt,
+  );
+  const appendAt = capacityAdmission.indexOf(
+    "appendPaymentVerifiedEventDurableV1(",
+    requestSnapshotAt,
+  );
+  assert.ok(
+    launchMutationAt >= 0 &&
+      requestLockAt > launchMutationAt &&
+      requestSnapshotAt > requestLockAt &&
+      appendAt > requestSnapshotAt,
+    "launch authority must wrap request lock, ledger snapshot revalidation, and durable append",
+  );
+}
 assert.ok(index.includes('"operator_mark_failed"'));
 assert.ok(index.includes(
   'res.status(h?409:500).json({schema:"void_public_buy_void_checkout_request_result_v1"',
@@ -113,6 +177,9 @@ assert.ok(index.includes(
 ));
 assert.ok(index.includes(
   'error: held?m:"payment_verifier_failed"',
+));
+assert.ok(index.includes(
+  'm==="buy_void_verified_payment_capacity_exceeded"',
 ));
 assert.ok(index.includes(
   'x==="request_launch_authority_expired_or_superseded"?409:500',
@@ -222,6 +289,8 @@ console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
 console.log("generation_lock_spans_request_append=true");
 console.log("generation_lock_spans_payment_verified_append=true");
+console.log("verified_payment_capacity_lock_spans_payment_verified_append=true");
+console.log("verified_payment_capacity_exhaustion_response_409=true");
 console.log("generation_transition_publication_uses_same_lock=true");
 console.log("sovereign_launch_lease_cosignature_bound=true");
 console.log("docker_runtime_gate_dependencies_bound=true");

@@ -16,6 +16,7 @@ export const VOID_BUY_VOID_AUTO_FULFILLMENT_AUTHORITY_V1 = {
 const HEX_32 = /^0x[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
+const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
 
 export type BuyVoidRequestV1 = {
   request_id: string;
@@ -224,7 +225,12 @@ export function canonicalBuyVoidPaymentIdentityV1(input: {
 
   if (!chain) throw new Error("invalid_source_chain");
   if (!txHash) throw new Error("invalid_payment_transaction_hash");
-  if (logIndex === null) throw new Error("invalid_payment_log_index");
+  if (
+    logIndex === null ||
+    logIndex > MAX_PAYMENT_LOG_INDEX
+  ) {
+    throw new Error("invalid_payment_log_index");
+  }
 
   return `voidpay1:${chain}:${txHash}:${logIndex.toString()}`;
 }
