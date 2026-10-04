@@ -23,10 +23,15 @@ requires the fixed identities from the coupled-launch gate:
 
 Callers cannot override those identities in the production assembly function.
 
-Assembly is permitted only while the frozen lease is already active and not
-expired. The assembly records exact `assembled_at_ms`; historical verification
-rebuilds the canonical assembly at that recorded time rather than using the
-current wall clock.
+Production assembly is permitted only while the frozen lease is already active
+and not expired against the process wall clock sampled inside the production
+assembler. Callers cannot supply or backdate the production assembly time.
+
+The resulting artifact records exact `assembled_at_ms`. Historical verification
+rebuilds the canonical assembly at that already-recorded time only to verify the
+content-addressed artifact; that verification path does not mint a new production
+assembly. Deterministic clock injection is exposed only through an explicitly
+test-only proof helper.
 
 The final receipt is serialized exactly as pretty JSON plus one terminal newline.
 The assembler derives:
