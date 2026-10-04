@@ -97,9 +97,17 @@ public runtime and a systemd-style hardening profile including:
 - `RestrictAddressFamilies=AF_UNIX`; and
 - an exact writable-path allowlist containing only the two authority roots.
 
-The Unix socket evidence requires a server-controlled direct socket, protected
-parent, bounded request/response bytes and timeout, exact schemas, and no
-arbitrary path/bytes write or caller-selected rollback generation.
+The Unix socket evidence requires a server-controlled direct socket, bounded
+request/response bytes and timeout, exact schemas, and no arbitrary path/bytes
+write or caller-selected rollback generation.
+
+The socket's runtime directory is a different authority boundary from the
+durable storage parents. It must be owned by the custody UID, use the dedicated
+IPC group, and be mode `0750`: the custody service can create/remove its own
+socket, while the public runtime can traverse the directory through the IPC
+group but cannot replace directory entries. The socket itself is mode `0660`
+and both runtime and custody identities must be members of that dedicated IPC
+group. The IPC group must be distinct from both services' primary groups.
 
 This lane does not install or start that service.
 
