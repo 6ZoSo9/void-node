@@ -13,9 +13,14 @@ on:
       - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs"
+      - "scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.md"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.md"
+      - "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json"
       - "scripts/prove_buy_void_source_finality_packaged_compiled_artifact_attestation_v1.mjs"
       - "docs/architecture/buy-void-source-finality-packaged-compiled-artifact-attestation-v1.md"
       - "docs/architecture/buy-void-source-finality-packaged-compiled-artifact-attestation-v1-review-checklist.md"
@@ -62,10 +67,10 @@ jobs:
       - name: Build exact repository artifacts
         run: npm run build
 
-      - name: Preserve successor compiled artifact generation v2
+      - name: Preserve current compiled artifact generation v3
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
 
       - name: Committed-range diff hygiene
         env:
@@ -125,7 +130,8 @@ jobs:
           test "$(docker inspect --format '{{.State.Status}}' "$CID")" = "created"
           test "$(docker inspect --format '{{.State.Running}}' "$CID")" = "false"
 
-          node scripts/prove_buy_void_source_finality_packaged_compiled_artifact_attestation_v1.mjs \
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
+          node scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs \
             --packaged-root "$PWD/packaged-root" \
             | tee buy-void-source-finality-packaged-compiled-artifact-attestation.log
 

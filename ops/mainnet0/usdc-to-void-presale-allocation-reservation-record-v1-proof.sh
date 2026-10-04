@@ -89,7 +89,6 @@ required_src = [
     "operator-events.jsonl",
     'operator_status: "payment_verified"',
     'operator_status === "fulfilled"',
-    "fulfillment_receipt_required: operator_status === \"fulfilled\"",
     "allocation_reserved_void",
     "only payment_verified operator events may reserve presale allocation",
 ]

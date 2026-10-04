@@ -26,7 +26,7 @@ V5 verifies exactly five runtime source files:
 
 The first four retain their historical reviewed commit/blob identities. The
 verified-payment source is bound to Git blob
-`9ba679d52c74d5590558ccfdb5882597d79b9f31`.
+`c0e4660bb238e1b718b8a471890901bd5a59badf`.
 
 Each record carries a reviewed commit containing the exact recorded blob. The
 runtime verifier derives paths from `import.meta.url`, rejects symlink or

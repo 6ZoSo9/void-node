@@ -126,6 +126,47 @@ assert.equal(
   "log_index_exceeds_1463_domain",
 );
 
+const mixedValidAndOverflowVerification = buildBuyVoidVerifiedPaymentEventV2({
+  request,
+  receipt: {
+    status: "0x1",
+    transactionHash: txHash,
+    blockNumber: "0x64",
+    logs: [
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0x7",
+        transactionHash: txHash,
+        blockNumber: "0x64",
+      },
+      {
+        address: usdc,
+        topics: [transferTopic, addressTopic(delivery), addressTopic(receiver)],
+        data: "0xbebc20",
+        logIndex: "0x100000000",
+        transactionHash: txHash,
+        blockNumber: "0x64",
+      },
+    ],
+  },
+  policy: {
+    allowed_chains: ["base", "ethereum"],
+    usdc_contract_by_chain: { base: usdc },
+    receive_address_by_chain: { base: receiver },
+    current_block_number_by_chain: { base: "0x65" },
+  },
+});
+assert.equal(mixedValidAndOverflowVerification.ok, false);
+if (mixedValidAndOverflowVerification.ok) {
+  throw new Error("expected mixed valid/overflow matching log HOLD");
+}
+assert.equal(
+  mixedValidAndOverflowVerification.reason,
+  "log_index_exceeds_1463_domain",
+);
+
 const overflowForeignTxVerification = buildBuyVoidVerifiedPaymentEventV2({
   request,
   receipt: {
@@ -245,6 +286,7 @@ assert.deepEqual(VOID_BUY_VOID_VERIFIED_PAYMENT_AUTHORITY_V2, {
 
 console.log("payment_log_index_uint32_boundary=true");
 console.log("payment_log_index_uint32_overflow_hold=true");
+console.log("payment_log_index_mixed_valid_overflow_hold=true");
 console.log("payment_log_index_overflow_requires_receipt_provenance=true");
 console.log("payment_log_index_overflow_reason_preserved=true");
 console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_GREEN");

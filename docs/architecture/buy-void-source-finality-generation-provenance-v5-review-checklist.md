@@ -9,7 +9,7 @@ Review the exact successor generation only.
   and payment RPC observer V1 records retain their reviewed predecessor
   commit/blob identities.
 - `buy_void_verified_payment_v2.ts` resolves to reviewed Git blob
-  `9ba679d52c74d5590558ccfdb5882597d79b9f31`.
+  `c0e4660bb238e1b718b8a471890901bd5a59badf`.
 - Every recorded commit must contain the exact recorded blob whenever the commit
   object is available in the non-shallow review checkout.
 - V5 recomputes the current runtime Git blob for every reviewed source.
