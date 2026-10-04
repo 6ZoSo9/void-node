@@ -421,6 +421,7 @@ for (const [key, value] of Object.entries(
     "canonical_ttl_policy_semantics_reused",
     "canonical_sponsored_policy_semantics_reused",
     "candidate_preflight_before_time_mutation",
+    "candidate_issued_after_bundle_commit_required",
     "current_candidate_revalidation_after_time",
     "durable_time_observation_before_reservation",
     "durable_reservation_before_execution",
@@ -571,6 +572,24 @@ const bundle = policyBundle(ttl, sponsor);
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
     });
+
+    const preBundleRequest = await makeRequest({
+      ttl,
+      sponsor,
+      walletDigit: "5",
+      identityDigit: "5",
+      reservationDigit: "e",
+      issuedUnix: BASE_UNIX - 6,
+      gasLimit: 30000,
+    });
+    const preBundle = requireHeld(
+      await binding.admit(preBundleRequest),
+      "SPONSORED_RUNTIME_CANDIDATE_PREDATES_BUNDLE",
+    );
+    assert.equal(preBundle.preflight_verified, false);
+    assert.equal(preBundle.time_observation_performed, false);
+    assert.equal(clock.calls(), 0);
+    assert.equal(countRecords(f.timeRoot), 0);
 
     const badSignature = {
       ...first,
@@ -877,6 +896,8 @@ console.log("policy_bundle_marker_schema_verified=true");
 console.log("reviewed_policy_compiler_proven=false");
 console.log("canonical_main_bundle_proven=false");
 console.log("candidate_preflight_before_time_mutation=true");
+console.log("candidate_issued_after_bundle_commit_required=true");
+console.log("retroactive_sponsorship_before_bundle_commit=false");
 console.log("current_candidate_revalidation_after_time=true");
 console.log("expired_duplicate_execution_admission=false");
 console.log("invalid_signature_clock_calls=0");
