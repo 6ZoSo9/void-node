@@ -18824,9 +18824,19 @@ setInterval(refresh, 10000);
         if (logFrom !== expectedFrom) continue;
 
         const amountUnits = __voidBuyVoidHexToBigIntV1(log.data || "0x0");
+        const rawLogIndex = log.logIndex;
+        let canonicalLogIndex = "";
+        try {
+          const parsedLogIndex = BigInt(rawLogIndex);
+          if (parsedLogIndex < 0n) continue;
+          canonicalLogIndex = parsedLogIndex.toString();
+        } catch {
+          continue;
+        }
         if (amountUnits === requestedUnits) {
           return {
             ok: true,
+            log_index: canonicalLogIndex,
             usdc_contract: usdc,
             from_address: logFrom,
             receive_address: to,
@@ -18937,12 +18947,14 @@ setInterval(refresh, 10000);
           prior_status: found.status || "",
           tx_hash: tx,
           payment_verified: true,
+          payment_identity_input_complete: true,
           payment_verifier: {
             chain: chainCfg.chain,
             rpc_env: chainCfg.rpc_env,
             receipt_status: receipt.status,
             block_number: receipt.blockNumber || "",
             transaction_hash: receipt.transactionHash || tx,
+            log_index: match.log_index,
             usdc_contract: match.usdc_contract,
             from_address: match.from_address,
             receive_address: match.receive_address,
@@ -18965,7 +18977,7 @@ setInterval(refresh, 10000);
           request: found
         });
       } catch(e:any) {
-        const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded";
+        const m=String(e?.message||e),held=m==="request_launch_authority_expired_or_superseded"||m==="buy_void_verified_payment_capacity_exceeded"||m.startsWith("buy_void_verified_payment_identity_");
         res.status(held?409:500).json({
           schema: "void_buy_void_payment_verifier_v1",
           ok: false,
