@@ -7,7 +7,7 @@ import path from "node:path";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_PREFLIGHT_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_PREFLIGHT_V1,
-  classifyAllocationCustodySnapshotV1,
+  testOnlyClassifyAllocationCustodySnapshotV1,
   inspectBuyVoidAllocationCustodyPreflightV1,
   parseMountInfoV1,
   resolveMountForPathV1,
@@ -24,6 +24,10 @@ assert.deepEqual(
     proc_mountinfo_read: true,
     filesystem_metadata_read: true,
     distinct_local_storage_domains_required: true,
+    live_observation_required_for_domain_proof: true,
+    designated_hostname_required: true,
+    caller_supplied_snapshot_authority: false,
+    synthetic_mountinfo_authority: false,
     source_mutation: false,
     filesystem_write: false,
     mount_mutation: false,
@@ -93,13 +97,17 @@ const greenSnapshot = Object.freeze({
   }),
 });
 
-const green = classifyAllocationCustodySnapshotV1(greenSnapshot);
+const green = testOnlyClassifyAllocationCustodySnapshotV1(greenSnapshot);
 assert.equal(green.ok, true);
 assert.equal(
   green.status,
-  "DISTINCT_LOCAL_STORAGE_DOMAINS_GREEN_NOT_AUTHORIZED",
+  "DISTINCT_LOCAL_STORAGE_DOMAINS_CLASSIFIED_TEST_ONLY",
 );
-assert.equal(green.distinct_local_storage_domains_proven, true);
+assert.equal(green.ready, false);
+assert.equal(green.test_only, true);
+assert.equal(green.live_observation_backed, false);
+assert.equal(green.storage_domain_classification_green, true);
+assert.equal(green.distinct_local_storage_domains_proven, false);
 assert.equal(green.protected_high_water_custody_proven, false);
 assert.equal(green.independent_custody_proven, false);
 assert.equal(green.production_gate_ready, false);
@@ -124,7 +132,7 @@ for (const patch of [
 ]) {
   const snapshot = structuredClone(greenSnapshot);
   Object.assign(snapshot.high_water, patch.high_water);
-  const decision = classifyAllocationCustodySnapshotV1(snapshot);
+  const decision = testOnlyClassifyAllocationCustodySnapshotV1(snapshot);
   assert.equal(decision.ok, false);
   assert.equal(
     decision.reason,
@@ -141,7 +149,7 @@ for (const patch of [
 ]) {
   const snapshot = structuredClone(greenSnapshot);
   Object.assign(snapshot.high_water, patch);
-  const decision = classifyAllocationCustodySnapshotV1(snapshot);
+  const decision = testOnlyClassifyAllocationCustodySnapshotV1(snapshot);
   assert.equal(decision.ok, false);
   assert.equal(
     decision.reason,
@@ -153,7 +161,7 @@ for (const patch of [
 {
   const snapshot = structuredClone(greenSnapshot);
   snapshot.high_water.path = "/ledger/alloc/high-water";
-  const decision = classifyAllocationCustodySnapshotV1(snapshot);
+  const decision = testOnlyClassifyAllocationCustodySnapshotV1(snapshot);
   assert.equal(decision.ok, false);
   assert.equal(decision.reason, "custody_roots_not_path_disjoint");
 }
@@ -186,6 +194,16 @@ try {
   assert.equal(actual.independent_custody_proven, false);
   assert.equal(actual.production_gate_ready, false);
 
+  const missingHost = inspectBuyVoidAllocationCustodyPreflightV1({
+    ledger_root: ledgerRoot,
+    high_water_root: highWaterRoot,
+  });
+  assert.equal(missingHost.ok, false);
+  assert.equal(
+    missingHost.reason,
+    "designated_host_expectation_required",
+  );
+
   const wrongHost = inspectBuyVoidAllocationCustodyPreflightV1({
     ledger_root: ledgerRoot,
     high_water_root: highWaterRoot,
@@ -212,6 +230,10 @@ try {
 
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_PREFLIGHT_V1_GREEN");
 console.log("read_only=true");
+console.log("synthetic_snapshot_authority=false");
+console.log("synthetic_mountinfo_authority=false");
+console.log("designated_hostname_required=true");
+console.log("live_observation_required_for_domain_proof=true");
 console.log("distinct_local_storage_domains_required=true");
 console.log("network_filesystems_accepted=false");
 console.log("shared_device_domains_accepted=false");
