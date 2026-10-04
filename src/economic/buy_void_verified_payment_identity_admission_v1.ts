@@ -27,6 +27,7 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_IDENTITY_ADMISSION_AUTHORITY_V1 =
   });
 
 const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
+const MAX_PAYMENT_LOG_INDEX = 0xffff_ffffn;
 
 function fail(code: string): never {
   throw new Error(code);
@@ -43,6 +44,37 @@ function canonicalIdentity(input: {
     fail(code);
   }
 }
+
+function canonicalPaymentLogIndexV1(
+  value: unknown,
+  code: string,
+): string {
+  let parsed: bigint;
+  if (typeof value === "bigint") {
+    parsed = value;
+  } else if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 0) fail(code);
+    parsed = BigInt(value);
+  } else {
+    const raw = String(value ?? "").trim().toLowerCase();
+    if (!raw) fail(code);
+    if (/^0x[0-9a-f]+$/u.test(raw)) {
+      if (raw.length > 10) fail(code);
+    } else if (/^[0-9]+$/u.test(raw)) {
+      if (raw.length > 10) fail(code);
+    } else {
+      fail(code);
+    }
+    try {
+      parsed = BigInt(raw);
+    } catch {
+      fail(code);
+    }
+  }
+  if (parsed < 0n || parsed > MAX_PAYMENT_LOG_INDEX) fail(code);
+  return parsed.toString();
+}
+
 
 function verifiedPaymentIdentityFromEventV1(event: any) {
   const reusableV2Provenance =
@@ -71,12 +103,16 @@ function verifiedPaymentIdentityFromEventV1(event: any) {
   if (!verifier || typeof verifier !== "object" || Array.isArray(verifier)) {
     fail("buy_void_verified_payment_identity_verifier_missing");
   }
+  const logIndex = canonicalPaymentLogIndexV1(
+    verifier.log_index,
+    "buy_void_verified_payment_identity_log_index_invalid",
+  );
 
   const identity = canonicalIdentity(
     {
       source_chain: verifier.chain,
       payment_transaction_hash: verifier.transaction_hash,
-      payment_log_index: verifier.log_index,
+      payment_log_index: logIndex,
     },
     "buy_void_verified_payment_identity_invalid",
   );
@@ -84,7 +120,7 @@ function verifiedPaymentIdentityFromEventV1(event: any) {
     {
       source_chain: verifier.chain,
       payment_transaction_hash: event.tx_hash,
-      payment_log_index: verifier.log_index,
+      payment_log_index: logIndex,
     },
     "buy_void_verified_payment_identity_outer_tx_invalid",
   );
@@ -95,6 +131,7 @@ function verifiedPaymentIdentityFromEventV1(event: any) {
   return Object.freeze({
     request_id: requestId,
     canonical_payment_identity: identity,
+    payment_log_index: logIndex,
   });
 }
 
@@ -114,7 +151,7 @@ function candidatePaymentIdentityV1(request: any, event: any) {
     {
       source_chain: request.source_chain,
       payment_transaction_hash: request.tx_hash,
-      payment_log_index: verifier.log_index,
+      payment_log_index: candidate.payment_log_index,
     },
     "buy_void_verified_payment_identity_request_binding_invalid",
   );
