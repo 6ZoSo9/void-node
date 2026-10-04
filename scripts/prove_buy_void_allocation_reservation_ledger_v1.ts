@@ -18,13 +18,17 @@ const baseInput = {
   source_chain: "base",
   payment_transaction_hash: "0x" + "a".repeat(64),
   payment_log_index: 7,
-  coupled_launch_id: sha("a"),
-  source_composition_id: sha("b"),
-  activation_generation: "0x" + "c".repeat(64),
-  generation_tip_sha256: sha("d"),
-  activation_receipt_id: "voidbclive1_" + "e".repeat(64),
-  activation_receipt_sha256: "f".repeat(64),
-  expires_at_ms: 1_800_000_300_000,
+  launch_authority: {
+    marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+    version: 1,
+    coupled_launch_id: sha("a"),
+    source_composition_id: sha("b"),
+    activation_generation: "0x" + "c".repeat(64),
+    generation_tip_sha256: sha("d"),
+    activation_receipt_id: "voidbclive1_" + "e".repeat(64),
+    activation_receipt_sha256: "f".repeat(64),
+    expires_at_ms: 1_800_000_300_000,
+  },
   buyer_delivery_wallet: "0x" + "1".repeat(40),
   quote_void_amount: "6",
   quote_usdc_amount: "3",
@@ -74,28 +78,28 @@ assert.equal(first.operation_performed, false);
 assert.equal(first.record.record_type, "allocation_reserved");
 assert.match(first.record.record_id, /^voidalloc1_[0-9a-f]{64}$/u);
 assert.equal(first.record.source_chain, "base");
-assert.equal(first.record.coupled_launch_id, baseInput.coupled_launch_id);
+assert.equal(first.record.coupled_launch_id, baseInput.launch_authority.coupled_launch_id);
 assert.equal(
   first.record.source_composition_id,
-  baseInput.source_composition_id,
+  baseInput.launch_authority.source_composition_id,
 );
 assert.equal(
   first.record.activation_generation,
-  baseInput.activation_generation,
+  baseInput.launch_authority.activation_generation,
 );
 assert.equal(
   first.record.generation_tip_sha256,
-  baseInput.generation_tip_sha256,
+  baseInput.launch_authority.generation_tip_sha256,
 );
 assert.equal(
   first.record.activation_receipt_id,
-  baseInput.activation_receipt_id,
+  baseInput.launch_authority.activation_receipt_id,
 );
 assert.equal(
   first.record.activation_receipt_sha256,
-  baseInput.activation_receipt_sha256,
+  baseInput.launch_authority.activation_receipt_sha256,
 );
-assert.equal(first.record.expires_at_ms, baseInput.expires_at_ms);
+assert.equal(first.record.expires_at_ms, baseInput.launch_authority.expires_at_ms);
 assert.equal(
   first.record.payment_verified_event_sha256,
   baseInput.payment_verified_event_sha256,
@@ -153,18 +157,28 @@ for (const [key, value] of [
   ["generation_tip_sha256", sha("6")],
   ["activation_receipt_id", "voidbclive1_" + "5".repeat(64)],
   ["activation_receipt_sha256", "4".repeat(64)],
-  ["expires_at_ms", baseInput.expires_at_ms + 1],
-  ["payment_verified_event_sha256", sha("3")],
+  ["expires_at_ms", baseInput.launch_authority.expires_at_ms + 1],
 ] as const) {
   expectHeld(
     planBuyVoidAllocationReservationV1({
       ...baseInput,
       ledger_jsonl: ledger1,
-      [key]: value,
+      launch_authority: {
+        ...baseInput.launch_authority,
+        [key]: value,
+      },
     }),
     "allocation_reservation_idempotent_binding_mismatch",
   );
 }
+expectHeld(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    ledger_jsonl: ledger1,
+    payment_verified_event_sha256: sha("3"),
+  }),
+  "allocation_reservation_idempotent_binding_mismatch",
+);
 
 const changedEventIdentity =
   planBuyVoidAllocationReservationV1({
@@ -184,7 +198,10 @@ assert.notEqual(
 const changedLaunchIdentity =
   planBuyVoidAllocationReservationV1({
     ...baseInput,
-    activation_generation: "0x" + "7".repeat(64),
+    launch_authority: {
+      ...baseInput.launch_authority,
+      activation_generation: "0x" + "7".repeat(64),
+    },
   });
 assert.equal(changedLaunchIdentity.ok, true);
 if (!changedLaunchIdentity.ok) {
@@ -225,13 +242,17 @@ const second = planBuyVoidAllocationReservationV1({
   quote_usdc_amount: "4999997.000000",
   verified_payment_receipt_ref: sha("5"),
   payment_verified_event_sha256: sha("e"),
-  coupled_launch_id: sha("1"),
-  source_composition_id: sha("2"),
-  activation_generation: "0x" + "3".repeat(64),
-  generation_tip_sha256: sha("4"),
-  activation_receipt_id: "voidbclive1_" + "5".repeat(64),
-  activation_receipt_sha256: "6".repeat(64),
-  expires_at_ms: baseInput.expires_at_ms + 1,
+  launch_authority: {
+    marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+    version: 1,
+    coupled_launch_id: sha("1"),
+    source_composition_id: sha("2"),
+    activation_generation: "0x" + "3".repeat(64),
+    generation_tip_sha256: sha("4"),
+    activation_receipt_id: "voidbclive1_" + "5".repeat(64),
+    activation_receipt_sha256: "6".repeat(64),
+    expires_at_ms: baseInput.launch_authority.expires_at_ms + 1,
+  },
   duplicate_payment_guard_result: sha("6"),
   inventory_allocation_guard_result: sha("7"),
   operator_activation_record_ref: sha("8"),
@@ -296,13 +317,17 @@ expectHeld(
     quote_usdc_amount: "0.000001",
     verified_payment_receipt_ref: sha("9"),
     payment_verified_event_sha256: sha("8"),
-    coupled_launch_id: sha("7"),
-    source_composition_id: sha("6"),
-    activation_generation: "0x" + "5".repeat(64),
-    generation_tip_sha256: sha("4"),
-    activation_receipt_id: "voidbclive1_" + "3".repeat(64),
-    activation_receipt_sha256: "2".repeat(64),
-    expires_at_ms: baseInput.expires_at_ms + 2,
+    launch_authority: {
+      marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+      version: 1,
+      coupled_launch_id: sha("7"),
+      source_composition_id: sha("6"),
+      activation_generation: "0x" + "5".repeat(64),
+      generation_tip_sha256: sha("4"),
+      activation_receipt_id: "voidbclive1_" + "3".repeat(64),
+      activation_receipt_sha256: "2".repeat(64),
+      expires_at_ms: baseInput.launch_authority.expires_at_ms + 2,
+    },
     duplicate_payment_guard_result: sha("a"),
     inventory_allocation_guard_result: sha("b"),
     operator_activation_record_ref: sha("c"),
@@ -467,9 +492,27 @@ for (const [key, value, reason] of [
   expectHeld(
     planBuyVoidAllocationReservationV1({
       ...baseInput,
-      [key]: value,
+      launch_authority: {
+        ...baseInput.launch_authority,
+        [key]: value,
+      },
     }),
     reason,
+  );
+}
+
+for (const launchAuthority of [
+  null,
+  { ...baseInput.launch_authority, marker: "WRONG" },
+  { ...baseInput.launch_authority, version: 2 },
+  { ...baseInput.launch_authority, unexpected: true },
+]) {
+  expectHeld(
+    planBuyVoidAllocationReservationV1({
+      ...baseInput,
+      launch_authority: launchAuthority,
+    }),
+    "allocation_reservation_request_launch_authority_invalid",
   );
 }
 
