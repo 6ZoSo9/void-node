@@ -34,14 +34,22 @@ The liability then binds the already-reserved:
 - payer wallet;
 - nonce;
 - transaction-plan fingerprint;
+- exact transaction native value;
 - gas limit; and
 - maximum fee per gas.
 
-The V1 liability reserves exactly:
+Current Buy VOID custody/signing carries `plan.native_value_wei` into the
+actual transaction `value`. The payer-balance envelope must therefore cover
+that value as well as worst-case gas. V1 reserves exactly:
 
 ```text
-gas_limit * admitted_max_fee_per_gas_wei * 1 attempt
+transaction_native_value_wei
+  + (gas_limit * admitted_max_fee_per_gas_wei * 1 attempt)
 ```
+
+This is balance solvency accounting, not a second inventory reservation. It
+prevents native transaction value and native gas from silently consuming the
+same unreserved payer wei.
 
 The current Buy VOID execution source does not authorize an automatic retry.
 A later reviewed recovery/attempt policy must reserve any extra attempt allowance
