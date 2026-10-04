@@ -237,10 +237,50 @@ const changedObservation = observation({
   expires_at_ms: 2100,
   source: "f".repeat(64),
 });
-requireHeld(
+const freshReplay = requireOk(
   classify({
     obs: changedObservation,
     open: [first.liability],
+  }),
+);
+assert.equal(freshReplay.status, "idempotent");
+assert.equal(freshReplay.duplicate, true);
+assert.equal(
+  freshReplay.liability.liability_id,
+  first.liability.liability_id,
+  "fresh fee evidence must not mint a second liability for one plan",
+);
+
+const alteredBody = {
+  schema: first.liability.schema,
+  marker: first.liability.marker,
+  version: first.liability.version,
+  lane: first.liability.lane,
+  obligation_id: first.liability.obligation_id,
+  payer_address: first.liability.payer_address,
+  nonce: first.liability.nonce,
+  transaction_plan_fingerprint_sha256:
+    first.liability.transaction_plan_fingerprint_sha256,
+  transaction_native_value_wei:
+    first.liability.transaction_native_value_wei,
+  gas_limit: "21001",
+  admitted_max_fee_per_gas_wei:
+    first.liability.admitted_max_fee_per_gas_wei,
+  attempt_limit: first.liability.attempt_limit,
+  maximum_reserved_wei: "210011",
+  fee_observation_sha256:
+    first.liability.fee_observation_sha256,
+  source_evidence_kind: first.liability.source_evidence_kind,
+  source_evidence_id: first.liability.source_evidence_id,
+  status: first.liability.status,
+};
+const alteredSameObligation: CoupledNativeGasLiabilityRecordV1 = {
+  ...alteredBody,
+  liability_id: sha256(canonical(alteredBody)),
+};
+requireHeld(
+  classify({
+    open: [alteredSameObligation],
   }),
   "coupled_native_gas_obligation_conflict",
 );
@@ -429,6 +469,8 @@ console.log("buy_void_plan_identity_rederived=true");
 console.log("single_obligation_admission=true");
 console.log("transaction_native_value_bound=true");
 console.log("exact_replay_idempotent=true");
+console.log("fresh_observation_existing_liability_idempotent=true");
+console.log("altered_same_obligation_conflict_hold=true");
 console.log("finite_native_balance_enforced=true");
 console.log("nonce_collision_hold=true");
 console.log("fresh_fee_requirement_bound=true");
