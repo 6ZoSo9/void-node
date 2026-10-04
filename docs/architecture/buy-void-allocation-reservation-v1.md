@@ -75,7 +75,12 @@ Authority reads use pinned directories/direct files, `O_NOFOLLOW`, same-UID
 ownership, private modes, bounded sizes, bounded descriptor reads, before/after
 descriptor identity and timestamps, and visible-path rebinding.
 
-The allocation directory is private and append-only. Publication uses:
+The allocation directory is private and append-only. Its child directory is
+opened through the already-pinned request-directory descriptor and compared
+against the visible child before use; the parent is revalidated after the child
+open so parent renames and child-entry swaps fail closed before publication.
+
+Publication uses:
 
 1. exclusive private temp file;
 2. exact canonical JSON bytes;
