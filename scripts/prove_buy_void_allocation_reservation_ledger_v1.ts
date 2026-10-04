@@ -21,7 +21,7 @@ const baseInput = {
   buyer_delivery_wallet: "0x" + "1".repeat(40),
   quote_void_amount: "6",
   quote_usdc_amount: "3",
-  pool_void_total: "10",
+  pool_void_total: "10000000",
   verified_payment_receipt_ref: sha("1"),
   duplicate_payment_guard_result: sha("2"),
   inventory_allocation_guard_result: sha("3"),
@@ -74,11 +74,11 @@ assert.equal(
   first.record.previous_allocation_record_hash,
   VOID_BUY_VOID_ALLOCATION_RESERVATION_GENESIS_HASH_V1,
 );
-assert.equal(first.record.pool_void_total_before, "10");
+assert.equal(first.record.pool_void_total_before, "10000000");
 assert.equal(first.record.reserved_void_total_before, "0");
-assert.equal(first.record.remaining_void_before, "10");
+assert.equal(first.record.remaining_void_before, "10000000");
 assert.equal(first.record.reserved_void_total_after, "6");
-assert.equal(first.record.remaining_void_after, "4");
+assert.equal(first.record.remaining_void_after, "9999994");
 assert.match(
   first.record.allocation_record_hash,
   /^sha256:[0-9a-f]{64}$/u,
@@ -91,9 +91,9 @@ const classified1 =
 assert.equal(classified1.ok, true);
 if (!classified1.ok) throw new Error("expected first ledger valid");
 assert.equal(classified1.record_count, 1);
-assert.equal(classified1.pool_void_total, "10");
+assert.equal(classified1.pool_void_total, "10000000");
 assert.equal(classified1.reserved_void_total, "6");
-assert.equal(classified1.remaining_void, "4");
+assert.equal(classified1.remaining_void, "9999994");
 assert.equal(classified1.tip_hash, first.record.allocation_record_hash);
 
 const retry = planBuyVoidAllocationReservationV1({
@@ -116,7 +116,7 @@ expectHeld(
   planBuyVoidAllocationReservationV1({
     ...baseInput,
     ledger_jsonl: ledger1,
-    pool_void_total: "11",
+    pool_void_total: "10000001",
   }),
   "allocation_reservation_canonical_pool_mismatch",
 );
@@ -137,8 +137,8 @@ const second = planBuyVoidAllocationReservationV1({
   payment_transaction_hash: "0x" + "b".repeat(64),
   payment_log_index: "0x8",
   buyer_delivery_wallet: "0x" + "2".repeat(40),
-  quote_void_amount: "4.000000",
-  quote_usdc_amount: "2.000000",
+  quote_void_amount: "9999994.000000",
+  quote_usdc_amount: "4999997.000000",
   verified_payment_receipt_ref: sha("5"),
   duplicate_payment_guard_result: sha("6"),
   inventory_allocation_guard_result: sha("7"),
@@ -149,15 +149,15 @@ assert.equal(second.ok, true);
 if (!second.ok) throw new Error("expected second reservation planned");
 assert.equal(second.status, "planned");
 assert.equal(second.record.payment_log_index, "8");
-assert.equal(second.record.quote_void_amount, "4");
-assert.equal(second.record.quote_usdc_amount, "2");
+assert.equal(second.record.quote_void_amount, "9999994");
+assert.equal(second.record.quote_usdc_amount, "4999997");
 assert.equal(
   second.record.previous_allocation_record_hash,
   first.record.allocation_record_hash,
 );
 assert.equal(second.record.reserved_void_total_before, "6");
-assert.equal(second.record.remaining_void_before, "4");
-assert.equal(second.record.reserved_void_total_after, "10");
+assert.equal(second.record.remaining_void_before, "9999994");
+assert.equal(second.record.reserved_void_total_after, "10000000");
 assert.equal(second.record.remaining_void_after, "0");
 
 const ledger2 = second.next_ledger_jsonl;
@@ -166,7 +166,7 @@ const classified2 =
 assert.equal(classified2.ok, true);
 if (!classified2.ok) throw new Error("expected sold-out ledger valid");
 assert.equal(classified2.record_count, 2);
-assert.equal(classified2.reserved_void_total, "10");
+assert.equal(classified2.reserved_void_total, "10000000");
 assert.equal(classified2.remaining_void, "0");
 
 expectHeld(
@@ -298,9 +298,9 @@ const firstLine = ledger1.trimEnd();
 
 const truncatedGenesis = JSON.parse(firstLine);
 truncatedGenesis.reserved_void_total_before = "1";
-truncatedGenesis.remaining_void_before = "9";
+truncatedGenesis.remaining_void_before = "9999999";
 truncatedGenesis.reserved_void_total_after = "7";
-truncatedGenesis.remaining_void_after = "3";
+truncatedGenesis.remaining_void_after = "9999993";
 const truncatedGenesisDecision =
   classifyBuyVoidAllocationReservationLedgerV1(
     JSON.stringify(truncatedGenesis) + "\n",
