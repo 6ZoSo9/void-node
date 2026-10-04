@@ -113,7 +113,7 @@ assert.equal(green.independent_custody_proven, false);
 assert.equal(green.production_gate_ready, false);
 assert.equal(
   green.next_gate,
-  "designated_host_snapshot_backup_and_rollback_independence_qualification",
+  "designated_host_live_observation_required",
 );
 
 for (const patch of [
