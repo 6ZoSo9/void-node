@@ -35,6 +35,13 @@ an exact match with the canonical candidate. Only then does it derive the
 corrected opening-state and shared reconciliation IDs using the same canonical
 opening and shared-market modules.
 
+Before any regeneration math, the tool invokes the canonical compiled-identity
+correction-v2 verifier against both the correction packet and the retained v1
+acceptance packet. The full closed schema, provenance, correction ID, archived
+compiler lineage, corrected byte identities, and fail-closed authority fields
+must therefore verify; matching only the headline creation/runtime hashes is not
+sufficient input authority.
+
 This stage does **not** update:
 
 - the canonical coupled-successor candidate;
