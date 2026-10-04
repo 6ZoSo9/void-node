@@ -364,13 +364,18 @@ function compareForwardSample(prior, sample) {
   }
 }
 
-export function createVoidEconomicSystemSponsoredObservationTimeV1({
-  trustedClock,
-}) {
-  if (typeof trustedClock !== "function") {
+export function createVoidEconomicSystemSponsoredObservationTimeV1(
+  input,
+) {
+  const binding = exactSnapshot(
+    input,
+    ["trustedClock"],
+    "sponsored_observation_time_binding_invalid",
+  );
+  if (typeof binding.trustedClock !== "function") {
     fail("sponsored_observation_time_clock_invalid");
   }
-  const clock = trustedClock;
+  const clock = binding.trustedClock;
 
   return Object.freeze({
     marker: VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_V1,
@@ -393,7 +398,13 @@ export function createVoidEconomicSystemSponsoredObservationTimeV1({
             : parseReceipt(request.prior_receipt);
 
         observationPerformed = true;
-        const sample = parseSample(clock());
+        let rawSample;
+        try {
+          rawSample = clock();
+        } catch {
+          fail("sponsored_observation_time_clock_read_failed");
+        }
+        const sample = parseSample(rawSample);
 
         if (prior === null) {
           const receipt = buildReceipt({
