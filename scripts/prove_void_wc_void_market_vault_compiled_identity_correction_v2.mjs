@@ -21,6 +21,29 @@ const v2 = JSON.parse(fs.readFileSync(
   "utf8",
 ));
 
+const preservedArtifactBase64 = fs.readFileSync(
+  "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64",
+  "utf8",
+).trim();
+assert.match(
+  preservedArtifactBase64,
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u,
+);
+const preservedArtifactZip = Buffer.from(preservedArtifactBase64, "base64");
+assert.equal(
+  preservedArtifactZip.toString("base64"),
+  preservedArtifactBase64,
+);
+assert.equal(preservedArtifactZip.length, 11283);
+assert.equal(
+  preservedArtifactZip.subarray(0, 4).toString("hex"),
+  "504b0304",
+);
+assert.equal(
+  crypto.createHash("sha256").update(preservedArtifactZip).digest("hex"),
+  v2.canonical_identity_evidence.workflow_artifact_zip_sha256,
+);
+
 assert.equal(
   VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2,
   "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2",
@@ -359,4 +382,7 @@ console.log(
   "corrected_coupled_launch_id=sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
 );
 console.log("deployment_authorized=false");
+console.log("canonical_compiler_artifact_archive_preserved=true");
+console.log("canonical_compiler_artifact_archive_zip_sha256=" +
+  v2.canonical_identity_evidence.workflow_artifact_zip_sha256);
 console.log("funds_movement=false");
