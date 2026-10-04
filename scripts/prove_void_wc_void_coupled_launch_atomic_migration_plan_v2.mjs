@@ -42,6 +42,14 @@ assert.equal(
   "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
 );
 
+assert.equal(plan.canonical_state_and_policy_updates.length, 16);
+assert.equal(plan.focused_proof_updates.length, 13);
+assert.equal(plan.operator_documentation_updates.length, 9);
+assert.equal(
+  plan.historical_evidence_retained_without_identity_rewrite.length,
+  6,
+);
+
 for (const key of [
   "canonical_state_and_policy_updates",
   "focused_proof_updates",
