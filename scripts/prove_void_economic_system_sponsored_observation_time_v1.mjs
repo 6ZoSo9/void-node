@@ -497,6 +497,92 @@ for (const mono of [BASE_MONO, BASE_MONO - 1n]) {
 }
 
 {
+  let coercions = 0;
+  const hostile = {
+    toString() {
+      coercions += 1;
+      return BOOT_A;
+    },
+    [Symbol.toPrimitive]() {
+      coercions += 1;
+      return BOOT_A;
+    },
+  };
+  const clock = clockQueue([
+    {
+      ...sample(),
+      boot_id: hostile,
+    },
+  ]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: null }),
+    "sponsored_observation_time_boot_id_invalid",
+    true,
+  );
+  assert.equal(coercions, 0);
+  assert.equal(clock.calls(), 1);
+}
+
+{
+  let coercions = 0;
+  const hostile = {
+    toString() {
+      coercions += 1;
+      return "123456";
+    },
+    [Symbol.toPrimitive]() {
+      coercions += 1;
+      return "123456";
+    },
+  };
+  const clock = clockQueue([
+    {
+      ...sample(),
+      process_start_ticks: hostile,
+    },
+  ]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: null }),
+    "sponsored_observation_time_process_start_invalid",
+    true,
+  );
+  assert.equal(coercions, 0);
+}
+
+{
+  let coercions = 0;
+  const hostile = {
+    toString() {
+      coercions += 1;
+      return "1";
+    },
+    [Symbol.toPrimitive]() {
+      coercions += 1;
+      return "1";
+    },
+  };
+  const clock = clockQueue([sample()]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({
+      prior_receipt: {
+        ...first.receipt,
+        generation: hostile,
+      },
+    }),
+    "sponsored_observation_time_prior_receipt_invalid",
+    false,
+  );
+  assert.equal(coercions, 0);
+  assert.equal(clock.calls(), 0);
+}
+
+{
   let bindingGetterReads = 0;
   const bindingInput = {};
   Object.defineProperty(bindingInput, "trustedClock", {
@@ -552,6 +638,10 @@ const source = fs.readFileSync(
 );
 assert.doesNotMatch(source, /Date\.now\s*\(/u);
 assert.doesNotMatch(source, /process\.hrtime/u);
+assert.doesNotMatch(
+  source,
+  /String\(raw\.(?:boot_id|generation|previous_receipt_sha256|process_start_ticks|baseline_monotonic_ns|monotonic_ns|receipt_sha256)/u,
+);
 assert.doesNotMatch(source, /node:fs|from ["']fs["']/u);
 assert.doesNotMatch(
   source,
@@ -577,6 +667,7 @@ console.log("boot_change_holds=true");
 console.log("process_instance_change_holds=true");
 console.log("accessor_request_rejected_without_getter_read=true");
 console.log("accessor_clock_sample_rejected_without_getter_read=true");
+console.log("nested_value_coercion_hooks_executed=false");
 console.log("accessor_clock_binding_rejected_without_getter_read=true");
 console.log("clock_exception_detail_not_exposed=true");
 console.log("trusted_clock_source_proven=false");
