@@ -324,7 +324,7 @@ function validateTempStat(stat, allowedLinks) {
   }
 }
 
-function readExactRecord(records, name) {
+function readExactRecord(records, name, allowedLinks = 1n) {
   if (!RECORD_NAME.test(name)) {
     fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_NAME_INVALID");
   }
@@ -335,14 +335,14 @@ function readExactRecord(records, name) {
   const visiblePath = path.join(records.path, name);
   const pinnedPath = path.join(records.proc_path, name);
   const before = fs.lstatSync(visiblePath, { bigint: true });
-  validateRecordStat(before);
+  validateRecordStat(before, allowedLinks);
   const fd = fs.openSync(
     pinnedPath,
     fs.constants.O_RDONLY | O_NOFOLLOW,
   );
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
-    validateRecordStat(opened);
+    validateRecordStat(opened, allowedLinks);
     if (!sameFileIdentity(before, opened)) {
       fail("SPONSORED_OBSERVATION_TIME_STORE_RECORD_PATH_NOT_BOUND");
     }
@@ -361,8 +361,8 @@ function readExactRecord(records, name) {
     }
     const after = fs.fstatSync(fd, { bigint: true });
     const visibleAfter = fs.lstatSync(visiblePath, { bigint: true });
-    validateRecordStat(after);
-    validateRecordStat(visibleAfter);
+    validateRecordStat(after, allowedLinks);
+    validateRecordStat(visibleAfter, allowedLinks);
     if (
       !sameFileIdentity(opened, after) ||
       !sameFileIdentity(after, visibleAfter)
@@ -526,7 +526,7 @@ function cleanupTemps(records, markMutation) {
       fail("SPONSORED_OBSERVATION_TIME_STORE_TEMP_BINDING_INVALID");
     }
     parseReceiptBytes(
-      readExactRecord(records, match[1]),
+      readExactRecord(records, match[1], 2n),
       match[1],
     );
     fs.unlinkSync(tempPath);
