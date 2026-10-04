@@ -12,6 +12,17 @@
     "workflow_artifact_zip_sha256": "d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc",
     "reviewed_at_utc": "2026-09-28T18:20:05.000Z"
   },
+  "canonical_identity_evidence": {
+    "source": "pinned_github_actions_compiler_identity_artifact",
+    "workflow_run_id": 36464403015,
+    "workflow_job_id": 109070717228,
+    "workflow_artifact_id": 10988626461,
+    "workflow_artifact_name": "void-wc-void-market-vault-compiler-identity-v1-dba4a50b444dc5b1369d96fd63f5aa79f185e3e4",
+    "workflow_artifact_zip_sha256": "d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc",
+    "identity_json_sha256": "fb9a92e24afa9d7611364ca30b6eff4fe2df2cc2aa8002b77307bead4b864a4b",
+    "identity_json_bytes": 57245,
+    "corrected_bytes_derived_from_superseded_packet": false
+  },
   "superseded_v1": {
     "packet_path": "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
     "packet_id": "voidwcvcia1_cf17de1bb774c1c06f2f396063458c9b3a879a9022ffd73a611edafdee14d202",
@@ -35,13 +46,13 @@
     "method_identifiers_sha256": "e8ad68bd3137823246432c9b6126da8f2c9f3fdabe097b95227bf9f47c5a0702"
   },
   "correction": {
-    "canonical_bytecode_is_v1_prefix": false,
-    "canonical_bytecode_source": "retained_compiler_identity_artifact_10988626461",
+    "canonical_creation_bytecode_bytes": 9441,
+    "v1_creation_excess_bytes_vs_canonical": 963,
+    "canonical_runtime_template_bytes": 8342,
+    "v1_runtime_excess_bytes_vs_canonical": 953,
     "compiler_identity_recompile_required": false,
-    "contract_semantics_change_required": false,
-    "creation_v1_overcapture_bytes": 963,
-    "runtime_v1_overcapture_bytes": 953,
     "solidity_source_change_required": false,
+    "contract_semantics_change_required": false,
     "v1_deployment_bytes_superseded": true
   },
   "coupled_launch_effect": {
@@ -76,5 +87,5 @@
     "public_presale_activation_authorized": false,
     "next_gate": "regenerate_coupled_launch_generation_from_corrected_compiler_identity"
   },
-  "correction_id": "voidwcvcic2_1e27625e0f64b417b5dab47a902514de281244fbf14b1bea99579333f7852306"
+  "correction_id": "voidwcvcic2_7ec5f6ad0ea2ea2c7f8da59f49cf6f0e5b327874c591bc397232eac58aaab646"
 }
