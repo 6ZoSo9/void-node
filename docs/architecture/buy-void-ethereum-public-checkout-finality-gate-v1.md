@@ -83,6 +83,9 @@ A production-ready result additionally requires:
 - the exact request transaction hash and canonical `voidpay1` identity;
 - V2 payment-event payer/delivery/receive addresses and exact 6-decimal USDC
   units rebound to the server-owned request;
+- the V2 event's transaction/log/block/confirmation, token, payer, receiver,
+  delivery and amount fields re-bound to the independently generated V5
+  finality observation;
 - freshly rebound payment-key SHA-256;
 - reviewed source files;
 - authenticated transport identity;
