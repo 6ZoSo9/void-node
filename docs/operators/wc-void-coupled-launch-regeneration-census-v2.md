@@ -92,6 +92,12 @@ The v1 reconciliation generator and its documentation are historical lineage,
 not current generation authority. They must remain explicitly superseded rather
 than being rewritten to pretend the old generation never existed.
 
+The parent corrected-generation derivation tool
+`tools/void-wc-void-coupled-launch-regeneration-v2.mjs` also intentionally
+retains the superseded generation as derivation input lineage. It is classified
+as a non-authority source surface; discovering that old digest there is expected
+and must not be mistaken for another current rebind consumer.
+
 ### Superseded compiled-identity consumers
 
 The corrected-generation application must also rebind these current consumers
