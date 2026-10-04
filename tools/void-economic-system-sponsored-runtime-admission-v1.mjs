@@ -360,14 +360,14 @@ function verifyPolicyBundle(raw, expectedBundleId) {
     ttlState = verifyEconomicIntentTtlCapsStateV1({
       policy: ttl,
       outstanding_intents: [],
-      observed_at_ms: ttl.policy_committed_at_ms,
+      observed_at_ms: sponsor.policy_committed_at_ms,
     });
     sponsorState = verifyEconomicSystemSponsoredStateV1({
       sponsorship_policy: sponsor,
       ttl_caps_policy: ttl,
       outstanding_intents: [],
       sponsorships: [],
-      observed_at_ms: ttl.policy_committed_at_ms,
+      observed_at_ms: sponsor.policy_committed_at_ms,
     });
   } catch (error) {
     if (
