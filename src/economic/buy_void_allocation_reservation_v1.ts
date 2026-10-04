@@ -8,6 +8,9 @@ import {
 import {
   VOID_BUY_VOID_VERIFIED_PAYMENT_V2,
 } from "./buy_void_verified_payment_v2.js";
+import {
+  withBuyVoidFilesystemBakeryLockV1,
+} from "./buy_void_filesystem_bakery_lock_v1.js";
 
 export const VOID_BUY_VOID_ALLOCATION_RESERVATION_V1 =
   "VOID_BUY_VOID_ALLOCATION_RESERVATION_V1";
@@ -21,6 +24,8 @@ export const VOID_BUY_VOID_ALLOCATION_RESERVATION_AUTHORITY_V1 =
     append_only_allocation_publication: true,
     crash_recovery: true,
     allocation_history_validation: true,
+    global_allocation_serialization: true,
+    prepublication_capacity_admission: true,
     allocation_history_completeness_authority: false,
     external_high_water_binding: false,
     rollback_detection: false,
@@ -57,6 +62,7 @@ const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 const RECORD_MAX_BYTES = 64 * 1024;
 const MAX_ALLOCATION_RECORDS = 100_000;
 const ALLOCATION_DIR = "allocation-reservations-v1";
+const ALLOCATION_LOCK_SUFFIX = ".allocation-reservation-v1";
 const O_NOFOLLOW =
   typeof fs.constants.O_NOFOLLOW === "number"
     ? fs.constants.O_NOFOLLOW
@@ -1272,6 +1278,28 @@ function loadAuthorityState(requestDir: string) {
   }
 }
 
+function allocationReservationLockPathV1(
+  requestDir: string,
+): string {
+  return requestDir + ALLOCATION_LOCK_SUFFIX;
+}
+
+function persistBuyVoidAllocationReservationUnlockedV1(input: {
+  request_dir: string;
+  request_id: string;
+}): BuyVoidAllocationReservationDecisionV1 {
+  const requestDirRaw = String(input?.request_dir || "").trim();
+  const requestId = String(input?.request_id || "").trim();
+  if (!requestDirRaw || !REQUEST_ID.test(requestId)) {
+    return held("buy_void_allocation_input_invalid");
+  }
+  const requestDir = path.resolve(requestDirRaw);
+  return withBuyVoidFilesystemBakeryLockV1(
+    allocationReservationLockPathV1(requestDir),
+    () => persistBuyVoidAllocationReservationUnlockedV1(input),
+  );
+}
+
 export function persistBuyVoidAllocationReservationV1(input: {
   request_dir: string;
   request_id: string;
@@ -1309,6 +1337,17 @@ export function persistBuyVoidAllocationReservationV1(input: {
       if (existing && existing.allocation_id !== record.allocation_id) {
         fail("buy_void_allocation_identity_conflict");
       }
+    }
+
+    const existingExact = loaded.history.byId.get(record.allocation_id);
+    const capacityDelta = existingExact
+      ? 0n
+      : BigInt(record.quoted_void_micro);
+    if (
+      loaded.history.total_micro + capacityDelta >
+      PRESALE_POOL_VOID_MICRO
+    ) {
+      fail("buy_void_allocation_capacity_exceeded");
     }
 
     if (!loaded.allocationDirectory) {
@@ -1369,6 +1408,18 @@ export function persistBuyVoidAllocationReservationV1(input: {
 }
 
 export function listBuyVoidAllocationReservationsV1(
+  requestDirRaw: string,
+): BuyVoidAllocationReservationRecordV1[] {
+  const raw = String(requestDirRaw || "").trim();
+  if (!raw) throw new Error("buy_void_allocation_input_invalid");
+  const requestDir = path.resolve(raw);
+  return withBuyVoidFilesystemBakeryLockV1(
+    allocationReservationLockPathV1(requestDir),
+    () => listBuyVoidAllocationReservationsUnlockedV1(requestDir),
+  );
+}
+
+function listBuyVoidAllocationReservationsUnlockedV1(
   requestDirRaw: string,
 ): BuyVoidAllocationReservationRecordV1[] {
   const requestDir = path.resolve(String(requestDirRaw || "").trim());
