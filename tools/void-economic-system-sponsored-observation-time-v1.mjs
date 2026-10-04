@@ -357,6 +357,19 @@ function parseReceipt(value) {
   return receipt;
 }
 
+export function verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1(
+  value,
+) {
+  return parseReceipt(value);
+}
+
+export function canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1(
+  value,
+) {
+  const receipt = parseReceipt(value);
+  return Buffer.from(canonicalJson(receipt) + "\n", "utf8");
+}
+
 function held(reason, observationPerformed = false) {
   return Object.freeze({
     ok: false,
