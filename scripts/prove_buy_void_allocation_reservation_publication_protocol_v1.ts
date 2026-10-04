@@ -116,9 +116,6 @@ function expectHeld(
   reason: string,
 ): void {
   assert.equal(decision.ok, false);
-  if (decision.ok === true) {
-    throw new Error("expected publication HOLD");
-  }
   assert.equal(decision.reason, reason);
 }
 
