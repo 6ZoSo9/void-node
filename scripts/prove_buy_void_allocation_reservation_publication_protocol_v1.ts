@@ -149,10 +149,8 @@ const firstIntentAgain = requireIntent(
   }),
 );
 assert.equal(
-  firstIntentAgain.intent_bytes.equals(
-    firstIntent.intent_bytes,
-  ),
-  true,
+  firstIntentAgain.intent_json,
+  firstIntent.intent_json,
 );
 assert.equal(
   firstIntentAgain.intent_sha256,
@@ -161,7 +159,7 @@ assert.equal(
 
 assert.equal(
   buyVoidAllocationReservationPublicationRetryMatchesV1({
-    intent_bytes: firstIntent.intent_bytes,
+    intent_bytes: firstIntent.intent_json,
     record_id: first.record.record_id,
     record_hash: first.record.allocation_record_hash,
   }),
@@ -169,7 +167,7 @@ assert.equal(
 );
 assert.equal(
   buyVoidAllocationReservationPublicationRetryMatchesV1({
-    intent_bytes: firstIntent.intent_bytes,
+    intent_bytes: firstIntent.intent_json,
     record_id: "voidalloc1_" + "9".repeat(64),
     record_hash: first.record.allocation_record_hash,
   }),
@@ -178,7 +176,7 @@ assert.equal(
 
 const intentOnly = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: firstIntent.intent_bytes,
+    intent_bytes: firstIntent.intent_json,
     observed_ledger_jsonl: "",
     observed_high_water_json:
       emptyHighWater.high_water_json,
@@ -189,15 +187,21 @@ assert.equal(intentOnly.operation_performed, false);
 assert.equal(intentOnly.write_ledger_append_required, true);
 assert.equal(intentOnly.write_high_water_required, true);
 assert.equal(intentOnly.remove_intent_after_postcheck, true);
-assert.equal(intentOnly.append_bytes.toString("utf8"), ledger1);
 assert.equal(
-  intentOnly.next_high_water_bytes.toString("utf8"),
+  Buffer.from(
+    intentOnly.append_bytes_base64,
+    "base64",
+  ).toString("utf8"),
+  ledger1,
+);
+assert.equal(
+  intentOnly.next_high_water_json,
   high1.high_water_json,
 );
 
 const ledgerCommitted = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: firstIntent.intent_bytes,
+    intent_bytes: firstIntent.intent_json,
     observed_ledger_jsonl: ledger1,
     observed_high_water_json:
       emptyHighWater.high_water_json,
@@ -212,7 +216,7 @@ assert.equal(ledgerCommitted.write_high_water_required, true);
 
 const complete = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: firstIntent.intent_bytes,
+    intent_bytes: firstIntent.intent_json,
     observed_ledger_jsonl: ledger1,
     observed_high_water_json: high1.high_water_json,
   }),
@@ -223,7 +227,7 @@ assert.equal(complete.write_high_water_required, false);
 
 expectHeld(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: firstIntent.intent_bytes,
+    intent_bytes: firstIntent.intent_json,
     observed_ledger_jsonl: "",
     observed_high_water_json: high1.high_water_json,
   }),
@@ -266,7 +270,7 @@ assert.equal(
 
 const secondIntentOnly = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: secondIntent.intent_bytes,
+    intent_bytes: secondIntent.intent_json,
     observed_ledger_jsonl: ledger1,
     observed_high_water_json: high1.high_water_json,
   }),
@@ -275,14 +279,17 @@ assert.equal(secondIntentOnly.phase, "intent_only");
 assert.equal(
   Buffer.concat([
     Buffer.from(ledger1, "utf8"),
-    secondIntentOnly.append_bytes,
+    Buffer.from(
+      secondIntentOnly.append_bytes_base64,
+      "base64",
+    ),
   ]).toString("utf8"),
   ledger2,
 );
 
 const secondLedgerCommitted = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: secondIntent.intent_bytes,
+    intent_bytes: secondIntent.intent_json,
     observed_ledger_jsonl: ledger2,
     observed_high_water_json: high1.high_water_json,
   }),
@@ -294,7 +301,7 @@ assert.equal(
 
 const secondComplete = requireRecovery(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: secondIntent.intent_bytes,
+    intent_bytes: secondIntent.intent_json,
     observed_ledger_jsonl: ledger2,
     observed_high_water_json: high2.high_water_json,
   }),
@@ -303,7 +310,7 @@ assert.equal(secondComplete.phase, "complete");
 
 expectHeld(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: secondIntent.intent_bytes,
+    intent_bytes: secondIntent.intent_json,
     observed_ledger_jsonl: ledger1,
     observed_high_water_json: high2.high_water_json,
   }),
@@ -312,7 +319,7 @@ expectHeld(
 
 expectHeld(
   classifyBuyVoidAllocationReservationPublicationRecoveryV1({
-    intent_bytes: secondIntent.intent_bytes,
+    intent_bytes: secondIntent.intent_json,
     observed_ledger_jsonl: "",
     observed_high_water_json: high1.high_water_json,
   }),
@@ -364,7 +371,7 @@ expectHeld(
 );
 
 const tamperedIntentObject = JSON.parse(
-  firstIntent.intent_bytes.toString("utf8"),
+  firstIntent.intent_json,
 );
 tamperedIntentObject.append_bytes_base64 =
   Buffer.from("tampered\n", "utf8").toString("base64");
@@ -382,7 +389,7 @@ expectHeld(
 
 const prettyIntent =
   JSON.stringify(
-    JSON.parse(firstIntent.intent_bytes.toString("utf8")),
+    JSON.parse(firstIntent.intent_json),
     null,
     2,
   ) + "\n";
