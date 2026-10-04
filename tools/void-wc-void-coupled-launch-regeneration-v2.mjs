@@ -57,6 +57,10 @@ const EXPECTED_NEW_LAUNCH =
   "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const EXPECTED_NEW_VAULT_BYTES32 =
   "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
+const EXPECTED_NEW_OPENING_STATE_ID =
+  "sha256:8f027c95e3b2376a50957600c57e9afe4c0e06422de05f1f8691fe44f0da54af";
+const EXPECTED_NEW_RECONCILIATION_ID =
+  "sha256:9b74e695f3988b4bcaa7abcdbdb767ea927fc294440a1ff2ecfbcd4db9bf7f04";
 const IDENTITY_ID =
   "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a";
 const CREATION_SHA =
@@ -383,6 +387,8 @@ export function deriveVoidWcVoidCoupledLaunchRegenerationV2() {
 
   if (
     correctedSummary.coupled_launch_id !== correctedLaunchId ||
+    correctedSummary.wc_opening_state_id !== EXPECTED_NEW_OPENING_STATE_ID ||
+    correctedSummary.reconciliation_id !== EXPECTED_NEW_RECONCILIATION_ID ||
     correctedSummary.reconciliation_id === currentSummary.reconciliation_id ||
     correctedSummary.wc_opening_state_id === currentSummary.wc_opening_state_id
   ) {
