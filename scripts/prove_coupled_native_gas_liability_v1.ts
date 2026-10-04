@@ -354,7 +354,7 @@ function wcLiabilityFrom(
     source_evidence_kind: "wc_void_reviewed_settlement_plan" as const,
     source_evidence_id: "6".repeat(64),
     status: "open" as const,
-  };
+  } as const;
   return {
     ...body,
     liability_id: sha256(canonical(body)),
@@ -379,7 +379,7 @@ const twoAttemptNativeBody = {
   source_evidence_kind: "wc_void_reviewed_settlement_plan" as const,
   source_evidence_id: "3".repeat(64),
   status: "open" as const,
-};
+} as const;
 const twoAttemptNative: CoupledNativeGasLiabilityRecordV1 = {
   ...twoAttemptNativeBody,
   liability_id: sha256(canonical(twoAttemptNativeBody)),
