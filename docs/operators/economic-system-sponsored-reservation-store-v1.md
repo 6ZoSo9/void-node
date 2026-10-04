@@ -179,6 +179,33 @@ Historical reservation rows retain the canonical
 `signed_submission_digest`; this first store does not persist raw private key
 material, wallet material, or raw signed transactions.
 
+## Observation-time authority boundary
+
+`observed_at_ms` is an explicit source input. It controls whether historical
+TTL intents are considered active or expired, and therefore whether their
+sponsored gas counts against the current budget.
+
+This source store deliberately does not read production wall-clock time and does
+not prove that a caller-supplied observation is trustworthy or monotonic. Its
+authority therefore keeps:
+
+```text
+trusted_observation_time_proven=false
+monotonic_observation_time_proven=false
+runtime_enforcement_verified=false
+```
+
+The focused proof demonstrates this boundary directly: advancing the supplied
+observation past an intent's expiry changes the source budget view while those
+authority flags remain false.
+
+A later runtime composition must provide server-controlled trusted time and a
+monotonic observation high-water (or equivalently strong authority). It must
+reject an observation older than the last accepted budget-releasing
+observation. A caller-selected future timestamp must never become live
+sponsorship authority merely because the source classifier accepts explicit
+time as an input.
+
 ## Production values remain separate
 
 The store accepts an exact sponsorship policy supplied by its caller. It does
