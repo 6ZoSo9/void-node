@@ -68,12 +68,15 @@ function requireOk(value) {
   assert.equal(value.ok, true, JSON.stringify(value));
   assert.equal(value.status, "source_accepted");
   assert.equal(value.observation_performed, true);
-  assert.equal(value.durable_receipt_storage_proven, true);
+  assert.equal(value.durable_receipt_store_source_verified, true);
+  assert.equal(value.live_durable_receipt_storage_proven, false);
   assert.equal(value.trusted_clock_source_proven, false);
   assert.equal(value.trusted_clock_host_binding_proven, false);
   assert.equal(value.receipt_store_rollback_resistance_proven, false);
   assert.equal(value.cross_process_restart_continuity_proven, false);
   assert.equal(value.cross_boot_restart_continuity_proven, false);
+  assert.equal(value.durable_receipt_store_source_verified, true);
+  assert.equal(value.live_durable_receipt_storage_proven, false);
   assert.equal(value.runtime_enforcement_verified, false);
   assert.equal(value.gas_sponsorship_performed, false);
   assert.equal(value.transaction_submission, false);
@@ -143,6 +146,8 @@ for (const [key, value] of Object.entries(
   const trueKeys = new Set([
     "source_only_store",
     "canonical_observation_contract_reused",
+    "canonical_receipt_verifier_reused",
+    "durable_receipt_store_source_verified",
     "append_only_history",
     "unique_receipt_chain_enforced",
     "serialized_observation",
@@ -659,6 +664,9 @@ console.log(
 console.log("caller_prior_receipt_input=false");
 console.log("caller_timestamp_input=false");
 console.log("durable_head_supplies_prior_receipt=true");
+console.log("canonical_parent_receipt_verifier_reused=true");
+console.log("durable_receipt_store_source_verified=true");
+console.log("live_durable_receipt_storage_proven=false");
 console.log("canonical_receipt_verifier_reused=true");
 console.log("canonical_verifier_rejection_blocks_store_history=true");
 console.log("serialized_observation=true");
