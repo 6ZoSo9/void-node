@@ -475,6 +475,72 @@ const bundle = policyBundle(ttl, sponsor);
         }),
       /SPONSORED_RUNTIME_AUTHORITY_ROOTS_NOT_DISJOINT/u,
     );
+
+    let bindingGetterReads = 0;
+    const accessorBinding = {
+      expected_policy_bundle_id: bundle.bundle_id,
+      trustedClock: () => sample(1000, 1_000_000_000n),
+      time_root: f.timeRoot,
+      reservation_root: f.reservationRoot,
+      allowed_targets: [TARGET],
+    };
+    Object.defineProperty(accessorBinding, "policy_bundle", {
+      enumerable: true,
+      get() {
+        bindingGetterReads += 1;
+        return bundle;
+      },
+    });
+    assert.throws(
+      () =>
+        createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
+          accessorBinding,
+        ),
+      /SPONSORED_RUNTIME_BINDING_INVALID/u,
+    );
+    assert.equal(bindingGetterReads, 0);
+
+    const nestedAccessorBundle = structuredClone(bundle);
+    let nestedGetterReads = 0;
+    Object.defineProperty(
+      nestedAccessorBundle.opening_window,
+      "opens_at_ms",
+      {
+        enumerable: true,
+        get() {
+          nestedGetterReads += 1;
+          return BASE_MS + 60_000;
+        },
+      },
+    );
+    assert.throws(
+      () =>
+        createVoidEconomicSystemSponsoredRuntimeAdmissionV1({
+          policy_bundle: nestedAccessorBundle,
+          expected_policy_bundle_id: bundle.bundle_id,
+          trustedClock: () => sample(1000, 1_000_000_000n),
+          time_root: f.timeRoot,
+          reservation_root: f.reservationRoot,
+          allowed_targets: [TARGET],
+        }),
+      /SPONSORED_RUNTIME_POLICY_BUNDLE_VALUE_INVALID/u,
+    );
+    assert.equal(nestedGetterReads, 0);
+
+    const revokedTargets = Proxy.revocable([TARGET], {});
+    revokedTargets.revoke();
+    assert.throws(
+      () =>
+        createVoidEconomicSystemSponsoredRuntimeAdmissionV1({
+          policy_bundle: bundle,
+          expected_policy_bundle_id: bundle.bundle_id,
+          trustedClock: () => sample(1000, 1_000_000_000n),
+          time_root: f.timeRoot,
+          reservation_root: f.reservationRoot,
+          allowed_targets: revokedTargets.proxy,
+        }),
+      /SPONSORED_RUNTIME_ALLOWED_TARGETS_INVALID/u,
+    );
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }
@@ -637,6 +703,51 @@ const bundle = policyBundle(ttl, sponsor);
     const request = await makeRequest({
       ttl,
       sponsor,
+      walletDigit: "4",
+      identityDigit: "4",
+      reservationDigit: "d",
+      issuedUnix: BASE_UNIX,
+      gasLimit: 30000,
+    });
+    const clock = clockQueue([
+      sample(1_000, 1_000_000_000n),
+    ]);
+    const binding = createBinding({
+      bundle,
+      clock: clock.clock,
+      timeRoot: f.timeRoot,
+      reservationRoot: f.reservationRoot,
+    });
+    fs.rmSync(f.reservationRoot, {
+      recursive: true,
+      force: true,
+    });
+
+    const held = await binding.admit(request);
+    assert.equal(held.ok, false, JSON.stringify(held));
+    assert.equal(held.preflight_verified, true);
+    assert.equal(held.current_candidate_verified, true);
+    assert.equal(held.time_observation_performed, true);
+    assert.equal(held.time_mutation_performed, true);
+    assert.equal(held.reservation_mutation_performed, false);
+    assert.equal(clock.calls(), 1);
+    assert.equal(countRecords(f.timeRoot), 1);
+    assert.equal(
+      VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1
+        .reservation_store_preflight_before_time_proven,
+      false,
+    );
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const request = await makeRequest({
+      ttl,
+      sponsor,
       walletDigit: "3",
       identityDigit: "3",
       reservationDigit: "c",
@@ -767,6 +878,11 @@ console.log("expired_duplicate_execution_admission=false");
 console.log("invalid_signature_clock_calls=0");
 console.log("caller_timestamp_input=false");
 console.log("caller_policy_override=false");
+console.log("constructor_accessor_rejected_without_getter_read=true");
+console.log("nested_bundle_accessor_rejected_without_getter_read=true");
+console.log("revoked_allowed_targets_proxy_rejected=true");
+console.log("reservation_store_preflight_before_time_proven=false");
+console.log("missing_reservation_store_can_advance_time=true");
 console.log("durable_time_observation_before_reservation=true");
 console.log("durable_reservation_before_execution=true");
 console.log("duplicate_reservation_idempotent=true");
