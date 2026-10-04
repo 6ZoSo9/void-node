@@ -32,6 +32,11 @@ For `payment_verified` only, while holding that lock it:
 7. strictly re-reads the raw ledgers and sale-state projection and requires
    verified/reserved inventory to increase by exactly the quote and remaining
    inventory to decrease by exactly the quote.
+8. durably fsyncs the `payment_verified` JSONL append before publishing the
+   per-event sidecar used by bounded orchestration. If a crash leaves the
+   durable JSONL event without that sidecar, exact re-verification reconstructs
+   the original timestamped sidecar from the authoritative event under the
+   request lock without appending another reservation.
 
 The lock order is:
 
@@ -46,6 +51,11 @@ may append `payment_verified`; the other receives
 `buy_void_verified_payment_capacity_exceeded`. It then admits an exact 4 VOID
 boundary payment, rejects any further reservation, and proves duplicate
 verification of the already-reserved request is idempotent.
+
+The same proof deletes the exact 4 VOID event sidecar after its durable JSONL
+append to model the crash window. Re-verification restores the historical
+sidecar from the JSONL record, creates no sidecar for the retry timestamp, and
+does not invoke launch-authority mutation or change the reserved total.
 
 All arithmetic is exact micro-VOID integer arithmetic derived from canonical
 decimal text with at most six decimals. The legacy runtime readers may remain

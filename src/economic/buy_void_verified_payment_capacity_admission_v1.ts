@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -18,6 +19,8 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1 =
     request_directory_write: true,
     serialized_capacity_admission: true,
     strict_ledger_recount: true,
+    durable_payment_verified_append: true,
+    payment_verified_sidecar_recovery: true,
     payment_receipt_verification: false,
     duplicate_payment_identity_verification: false,
     wallet_or_signer_access: false,
@@ -168,6 +171,206 @@ function assertProjectionMatchesStrictLedgerV1(
   ) {
     fail("buy_void_verified_payment_capacity_projection_mismatch");
   }
+}
+
+function fsyncDirectoryV1(directory: string): void {
+  const descriptor = fs.openSync(
+    directory,
+    fs.constants.O_RDONLY | fs.constants.O_DIRECTORY,
+  );
+  try {
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function appendPaymentVerifiedEventDurableV1(
+  requestDir: string,
+  event: Record<string, any>,
+): void {
+  const journal = path.join(requestDir, "operator-events.jsonl");
+  const bytes = Buffer.from(JSON.stringify(event) + "\n", "utf8");
+  const descriptor = fs.openSync(journal, "a", 0o600);
+  try {
+    const written = fs.writeSync(
+      descriptor,
+      bytes,
+      0,
+      bytes.length,
+      null,
+    );
+    if (written !== bytes.length) {
+      fail("buy_void_verified_payment_capacity_event_append_short_write");
+    }
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  fs.chmodSync(journal, 0o600);
+  fsyncDirectoryV1(requestDir);
+}
+
+function paymentVerifiedSidecarPathV1(
+  requestDir: string,
+  event: Record<string, any>,
+): string {
+  const requestId = String(event.request_id || "").trim();
+  const markedAt = Number(event.marked_at_ms);
+  if (
+    !REQUEST_ID.test(requestId) ||
+    !Number.isSafeInteger(markedAt) ||
+    markedAt < 1
+  ) {
+    fail("buy_void_verified_payment_capacity_sidecar_identity_invalid");
+  }
+  return path.join(
+    requestDir,
+    "operator-event-" + requestId + "-" + String(markedAt) + ".json",
+  );
+}
+
+function ensurePaymentVerifiedSidecarExactV1(
+  requestDir: string,
+  event: Record<string, any>,
+): "created" | "existing" {
+  const sidecar = paymentVerifiedSidecarPathV1(requestDir, event);
+  const expected = Buffer.from(JSON.stringify(event, null, 2), "utf8");
+  const tempPrefix = "." + path.basename(sidecar) + ".tmp-";
+
+  const verifyExisting = () => {
+    const metadata = fs.lstatSync(sidecar);
+    if (
+      !metadata.isFile() ||
+      metadata.isSymbolicLink() ||
+      metadata.size !== expected.length
+    ) {
+      fail("buy_void_verified_payment_capacity_sidecar_conflict");
+    }
+    const observed = fs.readFileSync(sidecar);
+    if (!observed.equals(expected)) {
+      fail("buy_void_verified_payment_capacity_sidecar_conflict");
+    }
+
+    // If a crash happened after create-only hard-link publication but before
+    // temporary-link cleanup, remove only temp names that reference the exact
+    // already-verified final inode.
+    for (const name of fs.readdirSync(requestDir)) {
+      if (!name.startsWith(tempPrefix)) continue;
+      const candidate = path.join(requestDir, name);
+      let candidateMetadata;
+      try {
+        candidateMetadata = fs.lstatSync(candidate);
+      } catch {
+        continue;
+      }
+      if (
+        candidateMetadata.isFile() &&
+        !candidateMetadata.isSymbolicLink() &&
+        candidateMetadata.dev === metadata.dev &&
+        candidateMetadata.ino === metadata.ino
+      ) {
+        fs.unlinkSync(candidate);
+        fsyncDirectoryV1(requestDir);
+      }
+    }
+  };
+
+  if (fs.existsSync(sidecar)) {
+    verifyExisting();
+    return "existing";
+  }
+
+  const tempPath = path.join(
+    requestDir,
+    tempPrefix + process.pid + "-" + randomBytes(8).toString("hex"),
+  );
+  let descriptor = -1;
+  try {
+    descriptor = fs.openSync(
+      tempPath,
+      fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+    const written = fs.writeSync(
+      descriptor,
+      expected,
+      0,
+      expected.length,
+      null,
+    );
+    if (written !== expected.length) {
+      fail("buy_void_verified_payment_capacity_sidecar_short_write");
+    }
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = -1;
+
+    try {
+      fs.linkSync(tempPath, sidecar);
+      fsyncDirectoryV1(requestDir);
+    } catch (error: any) {
+      if (String(error?.code || "") !== "EEXIST") throw error;
+      verifyExisting();
+      return "existing";
+    }
+
+    fs.unlinkSync(tempPath);
+    fsyncDirectoryV1(requestDir);
+    return "created";
+  } finally {
+    if (descriptor >= 0) {
+      try {
+        fs.closeSync(descriptor);
+      } catch {
+        // Best-effort descriptor cleanup after the primary failure.
+      }
+    }
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {
+      // A hidden temp file is not public status authority.
+    }
+  }
+}
+
+function recoverPaymentVerifiedSidecarsV1(
+  requestDir: string,
+  requestId: string,
+): { recovered: number; verified_events: number } {
+  return withBuyVoidTerminalCloseoutRequestLockV1(
+    { request_dir: requestDir, request_id: requestId },
+    () => {
+      const rows = readStrictJsonLinesV1(
+        path.join(requestDir, "operator-events.jsonl"),
+        "buy_void_verified_payment_capacity_operator_events",
+      );
+      const verified = rows.filter(
+        (row) =>
+          String(row.request_id || "").trim() === requestId &&
+          String(row.operator_status || "").trim() === "payment_verified",
+      );
+      if (verified.length < 1) {
+        fail("buy_void_verified_payment_capacity_verified_event_missing");
+      }
+      let recovered = 0;
+      for (const row of verified) {
+        if (
+          ensurePaymentVerifiedSidecarExactV1(requestDir, row) ===
+          "created"
+        ) {
+          recovered += 1;
+        }
+      }
+      return Object.freeze({
+        recovered,
+        verified_events: verified.length,
+      });
+    },
+  );
 }
 
 function freezeDecision(input: {
@@ -422,6 +625,8 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   const requestDir = path.resolve(requestDirRaw);
   fs.mkdirSync(requestDir, { recursive: true });
 
+  const paymentVerified =
+    String(event.operator_status || "") === "payment_verified";
   const append = () =>
     withBuyVoidTerminalCloseoutRequestLockV1(
       {
@@ -429,26 +634,31 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
         request_id: requestId,
       },
       () => {
-        fs.appendFileSync(
-          path.join(requestDir, "operator-events.jsonl"),
-          JSON.stringify(event) + "\n",
-        );
-        fs.writeFileSync(
-          path.join(
-            requestDir,
-            "operator-event-" +
-              requestId +
-              "-" +
-              String(event.marked_at_ms || "") +
-              ".json",
-          ),
-          JSON.stringify(event, null, 2),
-        );
+        if (paymentVerified) {
+          appendPaymentVerifiedEventDurableV1(requestDir, event);
+          ensurePaymentVerifiedSidecarExactV1(requestDir, event);
+        } else {
+          fs.appendFileSync(
+            path.join(requestDir, "operator-events.jsonl"),
+            JSON.stringify(event) + "\n",
+          );
+          fs.writeFileSync(
+            path.join(
+              requestDir,
+              "operator-event-" +
+                requestId +
+                "-" +
+                String(event.marked_at_ms || "") +
+                ".json",
+            ),
+            JSON.stringify(event, null, 2),
+          );
+        }
         return { ok: true, dir: requestDir };
       },
     );
 
-  if (String(event.operator_status || "") !== "payment_verified") {
+  if (!paymentVerified) {
     return append();
   }
 
@@ -476,10 +686,16 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
         input.with_launch_authority_mutation(request, append),
     });
   if (admission.idempotent) {
+    const recovery = recoverPaymentVerifiedSidecarsV1(
+      requestDir,
+      requestId,
+    );
     return {
       ok: true,
       dir: requestDir,
       idempotent: true,
+      sidecar_recovered: recovery.recovered > 0,
+      recovered_sidecar_count: recovery.recovered,
       capacity_admission: admission.decision,
     };
   }

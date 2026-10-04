@@ -118,6 +118,10 @@ assert.match(
   capacityAdmission,
   /buy_void_verified_payment_capacity_operator_events_json_invalid/,
 );
+assert.match(capacityAdmission, /appendPaymentVerifiedEventDurableV1/);
+assert.match(capacityAdmission, /fs\.fsyncSync\(descriptor\)/);
+assert.match(capacityAdmission, /recoverPaymentVerifiedSidecarsV1/);
+assert.match(capacityAdmission, /sidecar_recovered/);
 assert.match(
   capacityAdmission,
   /with_launch_authority_mutation\(request, append\)/,

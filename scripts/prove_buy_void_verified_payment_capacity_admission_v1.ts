@@ -172,15 +172,39 @@ try {
   assert.equal(state.allocation_reserved_void, 10);
   assert.equal(state.remaining_void, 0);
 
+  const fourSidecar = path.join(
+    root,
+    "operator-event-" + requests[2].request_id + "-3.json",
+  );
+  assert.equal(fs.existsSync(fourSidecar), true);
+
   await assert.rejects(
     () => write(requests[3], 4),
     /buy_void_verified_payment_capacity_exceeded/u,
   );
   assert.equal(mutationCalls, 2);
 
+  // Simulate a crash after the durable JSONL append but before sidecar
+  // publication. Exact re-verification must recover the historical sidecar,
+  // not append another capacity reservation or publish a new timestamped event.
+  fs.unlinkSync(fourSidecar);
+  assert.equal(fs.existsSync(fourSidecar), false);
   const duplicate = await write(requests[2], 5);
   assert.equal(duplicate.idempotent, true);
+  assert.equal(duplicate.sidecar_recovered, true);
+  assert.equal(duplicate.recovered_sidecar_count, 1);
   assert.equal(mutationCalls, 2);
+  assert.equal(fs.existsSync(fourSidecar), true);
+  assert.equal(
+    fs.existsSync(
+      path.join(root, "operator-event-" + requests[2].request_id + "-5.json"),
+    ),
+    false,
+  );
+  const recoveredSidecar = JSON.parse(fs.readFileSync(fourSidecar, "utf8"));
+  assert.equal(recoveredSidecar.request_id, requests[2].request_id);
+  assert.equal(recoveredSidecar.operator_status, "payment_verified");
+  assert.equal(recoveredSidecar.marked_at_ms, 3);
   assert.equal(
     (await readEvents()).filter(
       (event) => event.operator_status === "payment_verified",
@@ -232,6 +256,8 @@ try {
         "request_directory_write",
         "serialized_capacity_admission",
         "strict_ledger_recount",
+        "durable_payment_verified_append",
+        "payment_verified_sidecar_recovery",
       ].includes(key)
     ) {
       assert.equal(value, true, key);
@@ -248,6 +274,9 @@ try {
   console.log("malformed_authoritative_ledger_fails_closed=true");
   console.log("legacy_lenient_projection_is_not_capacity_authority=true");
   console.log("duplicate_request_reverification_idempotent=true");
+  console.log("payment_verified_jsonl_append_fsync=true");
+  console.log("missing_payment_verified_sidecar_recovered=true");
+  console.log("idempotent_recovery_does_not_append_new_event=true");
   console.log("duplicate_payment_identity_guard_proven=false");
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
