@@ -303,6 +303,21 @@ assert.match(
   /beforeReplace\(\);\s*fs\.renameSync/u,
   "writer must revalidate both roots immediately before authoritative rename",
 );
+assert.match(
+  writerSource,
+  /function readRedundantIntent\(/u,
+  "writer must recover from either exact intent copy",
+);
+assert.match(
+  writerSource,
+  /allocation_reservation_writer_intent_copies_mismatch/u,
+  "writer must reject divergent intent copies",
+);
+assert.match(
+  writerSource,
+  /createOnceIntent\(ledgerDirectory, intent\)[\s\S]*createOnceIntent\(highWaterDirectory, intent\)/u,
+  "writer must publish the exact intent under both pinned roots",
+);
 
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
@@ -442,6 +457,7 @@ for (const [key, value] of Object.entries(
     "separate_storage_roots_required",
     "shared_serialization_lock",
     "dual_root_serialization_lock",
+    "redundant_publication_intent",
     "publication_intent_write",
     "allocation_ledger_write",
     "high_water_write",
@@ -526,6 +542,12 @@ for (const [key, value] of Object.entries(
     assert.equal(
       fs.existsSync(
         path.join(f.highWaterRoot, INTENT_NAME),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(f.ledgerRoot, INTENT_NAME),
       ),
       false,
     );
@@ -840,6 +862,38 @@ for (const [key, value] of Object.entries(
 {
   const f = fixture();
   try {
+    fs.writeFileSync(
+      path.join(f.ledgerRoot, INTENT_NAME),
+      intent,
+      { mode: 0o600 },
+    );
+    fs.writeFileSync(
+      path.join(f.highWaterRoot, INTENT_NAME),
+      intent.replace(
+        /"record_id":"[^"]+"/u,
+        '"record_id":"voidalloc1_' + "9".repeat(64) + '"',
+      ),
+      { mode: 0o600 },
+    );
+    const held =
+      recoverBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("expected divergent intent copies HOLD");
+    assert.equal(
+      held.reason,
+      "allocation_reservation_writer_intent_copies_mismatch",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
     const tempName =
       "." +
       INTENT_NAME +
@@ -915,6 +969,150 @@ for (const [key, value] of Object.entries(
     cleanup(f);
   }
 }
+
+function provePostRevalidationRootSwapRecovery(
+  replaceRoot: "ledger" | "high-water",
+): void {
+  const f = fixture();
+  const originalRename = fs.renameSync;
+  const detached = path.join(
+    f.root,
+    replaceRoot === "ledger"
+      ? "postcheck-ledger-detached"
+      : "postcheck-high-water-detached",
+  );
+  let injected = false;
+  try {
+    (fs as any).renameSync = (
+      oldPath: fs.PathLike,
+      newPath: fs.PathLike,
+    ) => {
+      const target = path.basename(String(newPath));
+      const trigger =
+        replaceRoot === "high-water"
+          ? target === LEDGER_NAME
+          : target === HIGH_WATER_NAME;
+      if (!injected && trigger) {
+        injected = true;
+        if (replaceRoot === "high-water") {
+          originalRename(f.highWaterRoot, detached);
+          fs.mkdirSync(f.highWaterRoot, { mode: 0o700 });
+          fs.writeFileSync(
+            path.join(f.highWaterRoot, HIGH_WATER_NAME),
+            genesisHighWater,
+            { mode: 0o600 },
+          );
+        } else {
+          originalRename(f.ledgerRoot, detached);
+          fs.mkdirSync(f.ledgerRoot, { mode: 0o700 });
+          fs.writeFileSync(
+            path.join(f.ledgerRoot, LEDGER_NAME),
+            "",
+            { mode: 0o600 },
+          );
+        }
+      }
+      return originalRename(oldPath, newPath);
+    };
+
+    const held =
+      persistBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+        next_ledger_jsonl: ledger1,
+      });
+    assert.equal(injected, true);
+    assert.equal(held.ok, false);
+
+    if (replaceRoot === "high-water") {
+      assert.equal(
+        fs.readFileSync(
+          path.join(f.ledgerRoot, LEDGER_NAME),
+          "utf8",
+        ),
+        ledger1,
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(f.highWaterRoot, HIGH_WATER_NAME),
+          "utf8",
+        ),
+        genesisHighWater,
+      );
+      assert.equal(
+        fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)),
+        true,
+      );
+      assert.equal(
+        fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+        false,
+      );
+    } else {
+      assert.equal(
+        fs.readFileSync(
+          path.join(f.ledgerRoot, LEDGER_NAME),
+          "utf8",
+        ),
+        "",
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(f.highWaterRoot, HIGH_WATER_NAME),
+          "utf8",
+        ),
+        nextHighWater,
+      );
+      assert.equal(
+        fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)),
+        false,
+      );
+      assert.equal(
+        fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+        true,
+      );
+    }
+  } finally {
+    (fs as any).renameSync = originalRename;
+  }
+
+  try {
+    const recovered =
+      recoverBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+      });
+    assert.equal(recovered.ok, true);
+    if (!recovered.ok) throw new Error(recovered.reason);
+    assert.equal(recovered.status, "recovered");
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.ledgerRoot, LEDGER_NAME),
+        "utf8",
+      ),
+      ledger1,
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(f.highWaterRoot, HIGH_WATER_NAME),
+        "utf8",
+      ),
+      nextHighWater,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+provePostRevalidationRootSwapRecovery("high-water");
+provePostRevalidationRootSwapRecovery("ledger");
 
 async function proveSingleRootReplacementLock(
   replaceRoot: "ledger" | "high-water",
@@ -1057,6 +1255,10 @@ console.log("dual_root_serialization_lock=true");
 console.log("high_water_root_replacement_keeps_shared_lock=true");
 console.log("ledger_root_replacement_keeps_shared_lock=true");
 console.log("single_root_replacement_blocks_valid_competing_publication=true");
+console.log("redundant_publication_intent=true");
+console.log("divergent_intent_copies_hold=true");
+console.log("high_water_root_postcheck_swap_self_recovers=true");
+console.log("ledger_root_postcheck_swap_self_recovers=true");
 console.log("deterministic_dual_lock_order=true");
 console.log("post_publication_root_swap_mixed_state_hold=true");
 console.log("post_admission_root_path_stability_proven=false");
