@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   VOID_BUY_VOID_ALLOCATION_RESERVATION_AUTHORITY_V1,
@@ -14,8 +16,16 @@ import {
 import {
   writeBuyVoidOperatorEventWithCapacityAdmissionV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
+import {
+  withBuyVoidFilesystemBakeryLockV1,
+} from "../src/economic/buy_void_filesystem_bakery_lock_v1.js";
 
 const POOL_VOID = "10000000";
+const SELF = fileURLToPath(import.meta.url);
+
+function allocationLockPath(requestDir: string): string {
+  return path.resolve(requestDir) + ".allocation-reservation-v1";
+}
 
 function launchAuthority(seed: string) {
   return {
@@ -125,6 +135,64 @@ function rm(f: { root: string }) {
   fs.rmSync(f.root, { recursive: true, force: true });
 }
 
+function spawnProofChild(args: string[]) {
+  const child = spawn(
+    process.execPath,
+    ["--import", "tsx", SELF, ...args],
+    { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
+  );
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  const done = new Promise<{ code: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code) => resolve({ code, stdout, stderr }));
+    },
+  );
+  return { child, done };
+}
+
+async function waitForFile(file: string, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!fs.existsSync(file)) {
+    if (Date.now() >= deadline) {
+      throw new Error("allocation_lock_holder_ready_timeout");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+if (process.argv[2] === "--child-hold-allocation-lock") {
+  const requestDir = String(process.argv[3] || "");
+  const sentinel = String(process.argv[4] || "");
+  withBuyVoidFilesystemBakeryLockV1(
+    allocationLockPath(requestDir),
+    () => {
+      fs.writeFileSync(sentinel, "locked\n", { mode: 0o600 });
+      Atomics.wait(
+        new Int32Array(new SharedArrayBuffer(4)),
+        0,
+        0,
+        2500,
+      );
+    },
+  );
+  process.exit(0);
+}
+
+if (process.argv[2] === "--child-persist-allocation") {
+  const result = persistBuyVoidAllocationReservationV1({
+    request_dir: String(process.argv[3] || ""),
+    request_id: String(process.argv[4] || ""),
+  });
+  process.stdout.write(JSON.stringify(result) + "\n");
+  process.exit(result.ok ? 0 : 3);
+}
+
 for (const [key, value] of Object.entries(
   VOID_BUY_VOID_ALLOCATION_RESERVATION_AUTHORITY_V1,
 )) {
@@ -136,8 +204,103 @@ for (const [key, value] of Object.entries(
     "append_only_allocation_publication",
     "crash_recovery",
     "allocation_history_validation",
+    "global_allocation_serialization",
+    "prepublication_capacity_admission",
   ]);
   assert.equal(value, truthy.has(key), key);
+}
+
+{
+  const source = fs.readFileSync(
+    "src/economic/buy_void_allocation_reservation_v1.ts",
+    "utf8",
+  );
+  assert.match(source, /withBuyVoidFilesystemBakeryLockV1/);
+  assert.match(source, /buy_void_allocation_capacity_exceeded/);
+  assert.match(source, /loaded\.history\.total_micro \+ capacityDelta/);
+  assert.match(source, /\.allocation-reservation-v1/);
+}
+
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-buy-allocation-direct-cap-v1-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const requestDir = path.join(root, "requests");
+  fs.mkdirSync(requestDir, { mode: 0o700 });
+  const idA = "buyvoid_resa_00000001";
+  const idB = "buyvoid_resb_00000002";
+  const txA = "0x" + "a".repeat(64);
+  const txB = "0x" + "b".repeat(64);
+  const a = request(idA, "6000000", txA, "1");
+  const b = request(idB, "6000000", txB, "2");
+  writeJsonl(path.join(requestDir, "requests.jsonl"), [a, b]);
+  writeJsonl(path.join(requestDir, "operator-events.jsonl"), [
+    verifiedEvent(idA, txA, "0", "6000000", 5001),
+    verifiedEvent(idB, txB, "1", "6000000", 5002),
+  ]);
+  try {
+    const first = persistBuyVoidAllocationReservationV1({
+      request_dir: requestDir,
+      request_id: idA,
+    });
+    assert.equal(first.ok, true);
+    const second = persistBuyVoidAllocationReservationV1({
+      request_dir: requestDir,
+      request_id: idB,
+    });
+    assert.equal(second.ok, false);
+    if (second.ok) throw new Error("expected allocation capacity HOLD");
+    assert.equal(second.reason, "buy_void_allocation_capacity_exceeded");
+    const rows = listBuyVoidAllocationReservationsV1(requestDir);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].request_id, idA);
+    assert.equal(
+      rows.reduce(
+        (total, row) => total + BigInt(row.quoted_void_micro),
+        0n,
+      ),
+      6_000_000n * 1_000_000n,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture("25", "d", "1");
+  try {
+    const sentinel = path.join(f.root, "allocation-lock-held");
+    const holder = spawnProofChild([
+      "--child-hold-allocation-lock",
+      f.requestDir,
+      sentinel,
+    ]);
+    await waitForFile(sentinel);
+    const started = Date.now();
+    const contender = spawnProofChild([
+      "--child-persist-allocation",
+      f.requestDir,
+      f.id,
+    ]);
+    const contenderResult = await contender.done;
+    const elapsed = Date.now() - started;
+    const holderResult = await holder.done;
+    assert.equal(holderResult.code, 0, holderResult.stderr);
+    assert.equal(contenderResult.code, 0, contenderResult.stderr);
+    assert.ok(
+      elapsed >= 1500,
+      "allocation persistence must wait behind the global reservation lock",
+    );
+    const childDecision = JSON.parse(contenderResult.stdout.trim());
+    assert.equal(childDecision.ok, true);
+    assert.equal(
+      listBuyVoidAllocationReservationsV1(f.requestDir).length,
+      1,
+    );
+  } finally {
+    rm(f);
+  }
 }
 
 {
@@ -596,6 +759,10 @@ console.log("allocation_child_path_swap_hold=true");
 console.log("growth_during_read_hold=true");
 console.log("near_sellout_capacity_composition_green=true");
 console.log("capacity_obligation_created=false");
+console.log("global_allocation_serialization=true");
+console.log("prepublication_capacity_admission=true");
+console.log("oversubscribing_record_published=false");
+console.log("cross_process_lock_contention_proven=true");
 console.log("allocation_history_completeness_authority=false");
 console.log("external_high_water_binding=false");
 console.log("rollback_detection=false");
