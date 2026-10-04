@@ -1087,11 +1087,12 @@ function ensureAllocationRecord(
     return "created";
   } finally {
     if (fd >= 0) {
-      try { fs.closeSync(fd); } catch { /* best effort */ }
+      try { fs.closeSync(fd); } catch (closeError) { void closeError; }
     }
     try {
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    } catch {
+    } catch (cleanupError) {
+      void cleanupError;
       // Hidden temp state is never allocation authority.
     }
   }
@@ -1271,9 +1272,9 @@ function loadAuthorityState(requestDir: string) {
     };
   } catch (error) {
     if (allocationDirectory) {
-      try { fs.closeSync(allocationDirectory.fd); } catch { /* best effort */ }
+      try { fs.closeSync(allocationDirectory.fd); } catch (closeError) { void closeError; }
     }
-    try { fs.closeSync(requestDirectory.fd); } catch { /* best effort */ }
+    try { fs.closeSync(requestDirectory.fd); } catch (closeError) { void closeError; }
     throw error;
   }
 }
@@ -1450,9 +1451,9 @@ function persistBuyVoidAllocationReservationUnlockedV1(input: {
   } finally {
     if (loaded) {
       if (loaded.allocationDirectory) {
-        try { fs.closeSync(loaded.allocationDirectory.fd); } catch { /* best effort */ }
+        try { fs.closeSync(loaded.allocationDirectory.fd); } catch (closeError) { void closeError; }
       }
-      try { fs.closeSync(loaded.requestDirectory.fd); } catch { /* best effort */ }
+      try { fs.closeSync(loaded.requestDirectory.fd); } catch (closeError) { void closeError; }
     }
   }
 }
