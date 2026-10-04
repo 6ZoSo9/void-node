@@ -864,6 +864,14 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
           candidate,
           input.candidate_signed_submission,
         );
+        assertPinnedDirectoryVisible(
+          root,
+          "SPONSORED_RESERVATION_STORE_ROOT",
+        );
+        assertPinnedDirectoryVisible(
+          records,
+          "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+        );
         return success(
           "duplicate",
           candidate,
