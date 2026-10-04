@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 import {
   VOID_BUY_VOID_ALLOCATION_RESERVATION_GENESIS_HASH_V1,
@@ -87,6 +88,31 @@ function sha256Id(value: string | Buffer): string {
     crypto.createHash("sha256").update(value).digest("hex")
   );
 }
+
+function gitBlobSha1(value: Buffer): string {
+  return crypto
+    .createHash("sha1")
+    .update(
+      Buffer.from(
+        "blob " + String(value.length) + "\0",
+        "utf8",
+      ),
+    )
+    .update(value)
+    .digest("hex");
+}
+
+const reviewedWriterSource = fs.readFileSync(
+  "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts",
+);
+assert.equal(
+  sha256Id(reviewedWriterSource),
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_SOURCE_SHA256_V1,
+);
+assert.equal(
+  gitBlobSha1(reviewedWriterSource),
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_BLOB_SHA1_V1,
+);
 
 function ancestor(
   pathValue: string,
@@ -766,6 +792,7 @@ console.log(
 );
 console.log("unrelated_head_change_same_writer_blob_allowed=true");
 console.log("writer_source_sha256_required=true");
+console.log("reviewed_writer_file_identity_recomputed=true");
 console.log("genesis_receipt_required=true");
 console.log("key_order_invariant_qualification_id=true");
 console.log("exact_one_record_continuity=true");
