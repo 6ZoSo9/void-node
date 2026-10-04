@@ -692,7 +692,9 @@ const observedAt = (BASE_UNIX + 140) * 1000;
   } finally {
     try {
       fs.unlinkSync(alias);
-    } catch {}
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+    }
     cleanup(f);
   }
 }
