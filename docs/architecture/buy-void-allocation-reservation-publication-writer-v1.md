@@ -104,6 +104,13 @@ Unknown ledger state, unknown high-water state, high-water-ahead, altered
 intent, alternate history, rollback, malformed storage, or mixed fingerprints
 HOLD without intent deletion.
 
+Recovery is terminal for the current writer invocation. If an existing durable
+intent is recovered, the writer returns `status=recovered` immediately even if
+the caller supplied bytes for a further valid append. The outer
+payment/duplicate/capacity authority must re-read durable state and re-plan
+before another allocation can be admitted. One invocation therefore cannot
+silently combine recovery of one allocation with publication of another.
+
 When no intent exists, the writer requires the current ledger and high-water to
 bind exactly. A genuine earlier ledger prefix therefore cannot be silently
 accepted against a later high-water.
