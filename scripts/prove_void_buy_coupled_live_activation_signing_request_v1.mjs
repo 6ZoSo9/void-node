@@ -18,6 +18,7 @@ import {
 import {
   VOID_BUY_COUPLED_LIVE_ACTIVATION_SIGNING_REQUEST_AUTHORITY_V1,
   buildBuyCoupledLiveActivationSigningRequestV1,
+  testOnlyBuildBuyCoupledLiveActivationSigningRequestAtTimeV1,
   verifyBuyCoupledLiveActivationSigningRequestV1,
 } from "../tools/void-buy-coupled-live-activation-signing-request-v1.mjs";
 
@@ -72,7 +73,7 @@ const input = Object.freeze({
 });
 
 const request =
-  buildBuyCoupledLiveActivationSigningRequestV1(input, NOW + 1);
+  testOnlyBuildBuyCoupledLiveActivationSigningRequestAtTimeV1(input, NOW + 1);
 
 assert.match(request.signing_request_id, /^voidbclasr1_[0-9a-f]{64}$/u);
 assert.match(request.activation_receipt_id, /^voidbclive1_[0-9a-f]{64}$/u);
@@ -189,7 +190,7 @@ for (const [label, mutate] of [
   const candidate = structuredClone(input);
   mutate(candidate);
   assert.throws(
-    () => buildBuyCoupledLiveActivationSigningRequestV1(candidate, NOW + 1),
+    () => testOnlyBuildBuyCoupledLiveActivationSigningRequestAtTimeV1(candidate, NOW + 1),
     undefined,
     label,
   );
@@ -282,6 +283,15 @@ const source = fs.readFileSync(
   "tools/void-buy-coupled-live-activation-signing-request-v1.mjs",
   "utf8",
 );
+assert.match(
+  source,
+  /export function buildBuyCoupledLiveActivationSigningRequestV1\(input\) \{[\s\S]*Date\.now\(\)/u,
+);
+assert.doesNotMatch(
+  source,
+  /export function buildBuyCoupledLiveActivationSigningRequestV1\([^)]*nowMs/u,
+);
+
 for (const required of [
   "buyLaunchLiveActivationReceiptIdV1",
   "buyLaunchLiveActivationTypedDataV1",
@@ -314,6 +324,8 @@ console.log("typed_data_digest=" + request.typed_data_digest);
 console.log("launch_controller_signature_created=false");
 console.log("sovereign_signature_created=false");
 console.log("canonical_request_rederived_on_verify=true");
+console.log("production_prepare_wall_clock_bound=true");
+console.log("caller_supplied_production_time=false");
 console.log("self_consistent_forgery_rejected=true");
 console.log("live_generation_verified=false");
 console.log("runtime_activation=false");
