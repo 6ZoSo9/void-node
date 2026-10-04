@@ -25,7 +25,11 @@ trustedClock() -> {
 }
 ```
 
-The function reference is captured when the binding is created.
+The binding input is descriptor-snapshotted before the function reference is
+captured, so an accessor cannot execute while supplying the clock dependency.
+Clock-provider exceptions are mapped to the stable
+`sponsored_observation_time_clock_read_failed` HOLD code; provider error text is
+not exposed through the decision.
 
 Each `observe(...)` call:
 
@@ -138,7 +142,8 @@ The focused proof covers:
 - exact one-call clock behavior;
 - receipt chaining;
 - object-key order invariance;
-- accessor request/sample rejection without getter execution;
+- accessor binding/request/sample rejection without getter execution;
+- stable clock-provider exception HOLD without provider-detail exposure;
 - corrupt prior receipt rejected before clock read;
 - wall regression;
 - monotonic regression/equality;
