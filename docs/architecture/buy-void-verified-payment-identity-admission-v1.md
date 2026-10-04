@@ -27,8 +27,10 @@ While the existing verified-payment capacity lock is held, the writer:
 
 1. strictly parses the durable operator-event ledger;
 2. requires every historical `payment_verified` row used as identity authority
-   to carry the V2 verified-payment provenance marker and complete identity
-   inputs;
+   to be identity-complete. Reusable V2 verified-payment events and the live
+   legacy operator mark are accepted only when they carry the explicit
+   `payment_identity_input_complete=true` proof bit plus chain, transaction
+   hash, and log index; older identity-incomplete rows fail closed;
 3. derives every historical canonical payment identity;
 4. fails closed if one identity is already bound to two request ids;
 5. fails closed if one request id already has two different verified identities;
@@ -62,8 +64,9 @@ each other with conflicting lock order.
 - a fresh invocation recounts the durable ledger before admitting remaining
   inventory.
 
-The existing capacity proof is also upgraded to use V2 identity-bearing
-verified-payment events and reports
+The existing capacity proof is also upgraded to use the actual live
+`void_buy_void_operator_mark_v1` verifier envelope with the explicit
+identity-complete bit and canonical log index. It reports
 `duplicate_payment_identity_guard_proven=true`.
 
 ## Source versus live authority
