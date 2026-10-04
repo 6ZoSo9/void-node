@@ -85,7 +85,10 @@ try {
   let activeMutations = 0;
   let peakMutations = 0;
   let mutationCalls = 0;
-  const withLaunchAuthorityMutation = async (_request, operation) => {
+  const withLaunchAuthorityMutation = async (
+    _request: any,
+    operation: () => any,
+  ) => {
     mutationCalls += 1;
     activeMutations += 1;
     peakMutations = Math.max(peakMutations, activeMutations);
@@ -97,7 +100,10 @@ try {
     }
   };
 
-  const eventFor = (request, markedAt) => ({
+  const eventFor = (
+    request: { request_id: string; quoted_void: number },
+    markedAt: number,
+  ) => ({
     schema: "void_buy_void_operator_mark_v1",
     ok: true,
     request_id: request.request_id,
@@ -107,7 +113,10 @@ try {
     payment_verified: true,
     quoted_void: request.quoted_void,
   });
-  const write = (request, markedAt) =>
+  const write = (
+    request: { request_id: string; quoted_void: number },
+    markedAt: number,
+  ) =>
     writeBuyVoidOperatorEventWithCapacityAdmissionV1({
       event: eventFor(request, markedAt),
       request,
