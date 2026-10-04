@@ -150,7 +150,6 @@ for (const [key, value] of Object.entries(
       request_id: f.id,
     });
     assert.equal(first.ok, true);
-    if (!first.ok) throw new Error(first.reason);
     assert.equal(first.status, "persisted");
     assert.equal(first.idempotent, false);
     assert.equal(first.capacity_obligation_created, false);
@@ -176,7 +175,6 @@ for (const [key, value] of Object.entries(
       request_id: f.id,
     });
     assert.equal(replay.ok, true);
-    if (!replay.ok) throw new Error(replay.reason);
     assert.equal(replay.status, "duplicate");
     assert.equal(replay.idempotent, true);
     assert.equal(replay.record.allocation_id, first.record.allocation_id);
@@ -307,7 +305,6 @@ for (const [key, value] of Object.entries(
       request_id: f.id,
     });
     assert.equal(first.ok, true);
-    if (!first.ok) throw new Error(first.reason);
     const dir = path.join(
       f.requestDir,
       "allocation-reservations-v1",
@@ -338,7 +335,6 @@ for (const [key, value] of Object.entries(
       request_id: source.id,
     });
     assert.equal(first.ok, true);
-    if (!first.ok) throw new Error(first.reason);
     const sourceDir = path.join(
       source.requestDir,
       "allocation-reservations-v1",
@@ -570,7 +566,6 @@ function capacitySaleState(requestDir: string) {
       request_id: winningId,
     });
     assert.equal(allocation.ok, true);
-    if (!allocation.ok) throw new Error(allocation.reason);
     assert.equal(
       allocation.allocation_reserved_void_micro,
       "6000000000000",
