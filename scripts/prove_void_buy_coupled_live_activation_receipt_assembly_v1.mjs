@@ -14,6 +14,7 @@ import {
 import {
   VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_ASSEMBLY_AUTHORITY_V1,
   assembleBuyCoupledLiveActivationReceiptV1,
+  verifyBuyCoupledLiveActivationReceiptAssemblyV1,
   verifyCoupledLiveActivationTypedDataSignaturesV1,
 } from "../tools/void-buy-coupled-live-activation-receipt-assembly-v1.mjs";
 
@@ -68,9 +69,38 @@ assert.throws(
       signingRequest: request,
       activationSignature,
       sovereignSignature,
-    }),
+    }, NOW + 1),
   /activation_controller_signature_mismatch/u,
   "synthetic signatures must never assemble a production receipt",
+);
+
+assert.throws(
+  () =>
+    assembleBuyCoupledLiveActivationReceiptV1({
+      signingRequest: request,
+      activationSignature,
+      sovereignSignature,
+    }, request.unsigned_receipt.expires_at_ms),
+  /activation_receipt_assembly_lease_not_ready/u,
+  "receipt assembly must not occur at or after lease expiry",
+);
+
+assert.throws(
+  () =>
+    verifyBuyCoupledLiveActivationReceiptAssemblyV1({
+      marker: "VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_ASSEMBLY_V1",
+      version: 1,
+      status: "HOLD_PENDING_PRIVATE_RECEIPT_INSTALLATION_AND_LIVE_REVALIDATION",
+      assembly_id: "voidbclara1_" + "0".repeat(64),
+      assembled_at_ms: NOW + 1,
+      receipt: {
+        activation_signature: activationSignature,
+        sovereign_signature: sovereignSignature,
+      },
+      signing_request: request,
+    }),
+  /activation_(?:controller_signature_mismatch|receipt_assembly)/u,
+  "production assembly verification must not accept synthetic signatures",
 );
 
 assert.throws(
@@ -131,7 +161,9 @@ const source = fs.readFileSync(
 );
 for (const required of [
   "verifyBuyCoupledLiveActivationSigningRequestV1(signingRequest)",
-  "verifyBuyCoupledLiveActivationSigningRequestV1(\n    assembly.signing_request",
+  "assembleBuyCoupledLiveActivationReceiptV1(\n    {",
+  "canonicalJson(assembly) !== canonicalJson(expected)",
+  "activation_receipt_assembly_lease_not_ready",
   "assembly.signing_request.unsigned_receipt",
   "VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1",
   "VOID_BUY_COUPLED_LIVE_SOVEREIGN_COSIGNER_V1",
@@ -163,6 +195,8 @@ console.log("production_positive_fixture_present=false");
 console.log("synthetic_signatures_can_assemble_production_receipt=false");
 console.log("standalone_assembly_reverifies_signing_request=true");
 console.log("standalone_assembly_reverifies_dual_signatures=true");
+console.log("assembly_requires_active_lease=true");
+console.log("assembly_verifier_rederives_canonical_artifact=true");
 console.log("private_key_access=false");
 console.log("signature_creation=false");
 console.log("filesystem_write=false");
