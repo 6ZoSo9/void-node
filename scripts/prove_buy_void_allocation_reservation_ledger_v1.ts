@@ -177,7 +177,7 @@ expectHeld(
     payment_transaction_hash: "0x" + "c".repeat(64),
     payment_log_index: 9,
     buyer_delivery_wallet: "0x" + "3".repeat(40),
-    quote_void_amount: "0.000001",
+    quote_void_amount: "0.000002",
     quote_usdc_amount: "0.000001",
     verified_payment_receipt_ref: sha("9"),
     duplicate_payment_guard_result: sha("a"),
