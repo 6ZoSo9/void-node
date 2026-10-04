@@ -16,6 +16,8 @@ export const VOID_BUY_VOID_AUTO_FULFILLMENT_AUTHORITY_V1 = {
 const HEX_32 = /^0x[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const CHAIN = /^[a-z0-9][a-z0-9_-]{1,31}$/;
+const MAX_CANONICAL_PAYMENT_LOG_INDEX = 0xffff_ffffn;
+const MAX_CANONICAL_PAYMENT_LOG_INDEX_TEXT = 10;
 
 export type BuyVoidRequestV1 = {
   request_id: string;
@@ -190,6 +192,37 @@ function parseNonNegativeInteger(value: unknown): bigint | null {
   return null;
 }
 
+function canonicalPaymentLogIndexV1(value: unknown): bigint | null {
+  if (typeof value === "bigint") {
+    return value >= 0n && value <= MAX_CANONICAL_PAYMENT_LOG_INDEX
+      ? value
+      : null;
+  }
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 0) return null;
+    const parsed = BigInt(value);
+    return parsed <= MAX_CANONICAL_PAYMENT_LOG_INDEX ? parsed : null;
+  }
+  const source = String(value ?? "");
+  if (source.length > MAX_CANONICAL_PAYMENT_LOG_INDEX_TEXT) return null;
+  const raw = source.trim().toLowerCase();
+  if (!raw || raw.length > MAX_CANONICAL_PAYMENT_LOG_INDEX_TEXT) return null;
+  if (
+    !/^0x[0-9a-f]+$/.test(raw) &&
+    !/^[0-9]+$/.test(raw)
+  ) {
+    return null;
+  }
+  try {
+    const parsed = BigInt(raw);
+    return parsed >= 0n && parsed <= MAX_CANONICAL_PAYMENT_LOG_INDEX
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function decimalToUnits(value: unknown, decimals = 6): bigint | null {
   const raw = String(value ?? "").trim();
   if (!raw || !/^[0-9]+(?:\.[0-9]+)?$/.test(raw)) return null;
@@ -220,7 +253,7 @@ export function canonicalBuyVoidPaymentIdentityV1(input: {
 }): string {
   const chain = normalizeChain(input.source_chain);
   const txHash = normalizeHash(input.payment_transaction_hash);
-  const logIndex = parseNonNegativeInteger(input.payment_log_index);
+  const logIndex = canonicalPaymentLogIndexV1(input.payment_log_index);
 
   if (!chain) throw new Error("invalid_source_chain");
   if (!txHash) throw new Error("invalid_payment_transaction_hash");

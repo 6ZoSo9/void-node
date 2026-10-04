@@ -8,6 +8,9 @@ import {
 import {
   withBuyVoidTerminalCloseoutRequestLockV1,
 } from "./buy_void_terminal_closeout_request_lock_v1.js";
+import {
+  assertBuyVoidVerifiedPaymentIdentityAdmissionV1,
+} from "./buy_void_verified_payment_identity_admission_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1 =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1";
@@ -22,7 +25,7 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1 =
     durable_payment_verified_append: true,
     payment_verified_sidecar_recovery: true,
     payment_receipt_verification: false,
-    duplicate_payment_identity_verification: false,
+    duplicate_payment_identity_verification: true,
     wallet_or_signer_access: false,
     private_key_access: false,
     transaction_construction: false,
@@ -454,6 +457,7 @@ function readStrictCapacityLedgerV1(
   }
   return Object.freeze({
     verified_ids: verifiedIds,
+    operator_events: eventRows,
     request_quotes: quotes,
     request_ledger_stat: assertPinnedLedgerVisibleV1(
       requestLedger,
@@ -808,6 +812,8 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   request_dir: string;
   request_id: string;
   quoted_void: unknown;
+  verified_payment_event: any;
+  request: any;
   read_sale_state: () => Promise<any>;
   operation: (authority: {
     request_ledger: PinnedLedgerV1;
@@ -822,6 +828,9 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   decision: ReturnType<
     typeof classifyBuyVoidVerifiedPaymentCapacityAdmissionV1
   >;
+  payment_identity_admission: ReturnType<
+    typeof assertBuyVoidVerifiedPaymentIdentityAdmissionV1
+  >;
   result: T | null;
 }> {
   const rawDir = String(input?.request_dir || "").trim();
@@ -829,6 +838,14 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
   if (
     !rawDir ||
     !REQUEST_ID.test(requestId) ||
+    !input?.verified_payment_event ||
+    typeof input.verified_payment_event !== "object" ||
+    Array.isArray(input.verified_payment_event) ||
+    !input?.request ||
+    typeof input.request !== "object" ||
+    Array.isArray(input.request) ||
+    String(input.verified_payment_event.request_id || "").trim() !== requestId ||
+    String(input.request.request_id || "").trim() !== requestId ||
     typeof input?.read_sale_state !== "function" ||
     typeof input?.operation !== "function"
   ) {
@@ -890,7 +907,15 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
         if (durableRequestQuote !== candidateQuoteMicro) {
           fail("buy_void_verified_payment_capacity_candidate_quote_mismatch");
         }
+        const identityBefore = assertBuyVoidVerifiedPaymentIdentityAdmissionV1({
+          request: input.request,
+          event: input.verified_payment_event,
+          operator_events: strictBefore.operator_events,
+        });
         const alreadyVerified = strictBefore.verified_ids.has(requestId);
+        if (identityBefore.already_verified !== alreadyVerified) {
+          fail("buy_void_verified_payment_identity_projection_mismatch");
+        }
         const before = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
           sale_state: saleBefore,
           quoted_void: input.quoted_void,
@@ -905,6 +930,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
             idempotent: true,
             operation_performed: false,
             decision: before,
+            payment_identity_admission: identityBefore,
             result: null,
           });
         }
@@ -933,6 +959,14 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           strictAfter.request_quotes.get(requestId);
         if (durableRequestQuoteAfter !== candidateQuoteMicro) {
           fail("buy_void_verified_payment_capacity_candidate_quote_changed");
+        }
+        const identityAfter = assertBuyVoidVerifiedPaymentIdentityAdmissionV1({
+          request: input.request,
+          event: input.verified_payment_event,
+          operator_events: strictAfter.operator_events,
+        });
+        if (identityAfter.already_verified !== true || identityAfter.canonical_payment_identity !== identityBefore.canonical_payment_identity) {
+          fail("buy_void_verified_payment_identity_postcheck_failed");
         }
         const after = classifyBuyVoidVerifiedPaymentCapacityAdmissionV1({
           sale_state: saleAfter,
@@ -966,6 +1000,7 @@ export async function withBuyVoidVerifiedPaymentCapacityAdmissionV1<T>(input: {
           idempotent: false,
           operation_performed: true,
           decision: before,
+          payment_identity_admission: identityAfter,
           result,
         });
       } finally {
@@ -1058,6 +1093,8 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       request_dir: requestDir,
       request_id: requestId,
       quoted_void: request.quoted_void,
+      verified_payment_event: event,
+      request,
       read_sale_state: input.read_sale_state,
       operation: (authority) =>
         input.with_launch_authority_mutation(
@@ -1106,6 +1143,7 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       sidecar_recovered: recovery.recovered > 0,
       recovered_sidecar_count: recovery.recovered,
       capacity_admission: admission.decision,
+      payment_identity_admission: admission.payment_identity_admission,
     };
   }
   const sidecarState = withBuyVoidTerminalCloseoutRequestLockV1(
@@ -1119,5 +1157,6 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
     recovered_sidecar_count: 0,
     sidecar_state: sidecarState,
     capacity_admission: admission.decision,
+    payment_identity_admission: admission.payment_identity_admission,
   };
 }

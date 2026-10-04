@@ -115,25 +115,30 @@ try {
     }
   };
 
+  const identityTxHashForRequest = (requestId: string) => "0x" + Buffer.from(requestId, "utf8").toString("hex").padEnd(64, "0").slice(0, 64);
   const eventFor = (
-    request: { request_id: string; quoted_void: number },
+    request: { request_id: string; quoted_void: number; source_chain?: string; tx_hash?: string },
     markedAt: number,
-  ) => ({
-    schema: "void_buy_void_operator_mark_v1",
-    ok: true,
-    request_id: request.request_id,
-    operator_status: "payment_verified",
-    marked_at_ms: markedAt,
-    tx_hash: "0x" + String(markedAt).padStart(64, "0").slice(-64),
-    payment_verified: true,
-    quoted_void: request.quoted_void,
-  });
+    identityLogIndex = markedAt,
+  ) => {
+    const sourceChain = request.source_chain || "base";
+    const transactionHash = request.tx_hash || identityTxHashForRequest(request.request_id);
+    request.source_chain = sourceChain;
+    request.tx_hash = transactionHash;
+    return {
+      schema: "void_buy_void_operator_mark_v1", ok: true, request_id: request.request_id,
+      operator_status: "payment_verified", marked_at_ms: markedAt, tx_hash: transactionHash,
+      payment_verified: true, payment_identity_input_complete: true, quoted_void: request.quoted_void,
+      payment_verifier: { chain: sourceChain, transaction_hash: transactionHash, log_index: String(identityLogIndex), block_number: "100", confirmations: "12", usdc_contract: "0x" + "a".repeat(40), from_address: "0x" + "b".repeat(40), receive_address: "0x" + "c".repeat(40), delivery_address: "0x" + "d".repeat(40), amount_units: "1000000", requested_units: "1000000" },
+    };
+  };
   const write = (
-    request: { request_id: string; quoted_void: number },
+    request: { request_id: string; quoted_void: number; source_chain?: string; tx_hash?: string },
     markedAt: number,
+    identityLogIndex = markedAt,
   ) =>
     writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-      event: eventFor(request, markedAt),
+      event: eventFor(request, markedAt, identityLogIndex),
       request,
       request_dir: root,
       with_launch_authority_mutation: withLaunchAuthorityMutation,
@@ -190,7 +195,7 @@ try {
   // not append another capacity reservation or publish a new timestamped event.
   fs.unlinkSync(fourSidecar);
   assert.equal(fs.existsSync(fourSidecar), false);
-  const duplicate = await write(requests[2], 5);
+  const duplicate = await write(requests[2], 5, 3);
   assert.equal(duplicate.idempotent, true);
   assert.equal(duplicate.sidecar_recovered, true);
   assert.equal(duplicate.recovered_sidecar_count, 1);
@@ -782,6 +787,7 @@ try {
         "strict_ledger_recount",
         "durable_payment_verified_append",
         "payment_verified_sidecar_recovery",
+        "duplicate_payment_identity_verification",
       ].includes(key)
     ) {
       assert.equal(value, true, key);
@@ -811,7 +817,7 @@ try {
   console.log("postcheck_failure_sidecar_publication=false");
   console.log("postcheck_failure_exact_retry_recovers_sidecar=true");
   console.log("idempotent_recovery_does_not_append_new_event=true");
-  console.log("duplicate_payment_identity_guard_proven=false");
+  console.log("duplicate_payment_identity_guard_proven=true");
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
 } finally {

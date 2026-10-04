@@ -56,6 +56,12 @@ The lock order is:
 
 No reviewed path acquires the capacity lock in reverse order.
 
+### Stacked payment-identity admission
+
+The stacked verified-payment identity guard runs inside this same capacity lock after the descriptor-bound ledger census and before idempotent/capacity admission. It derives the canonical `source_chain:transaction_hash:log_index` key from identity-complete verified payment events, rejects cross-request reuse, rejects one request changing to a different verified identity, and treats only exact request + identity replay as idempotent. After append, the same identity is revalidated from the retained operator-ledger inode before the capacity transition is accepted.
+
+This adds no second lock domain, so payment-identity uniqueness cannot race the finite-capacity decision or invert the existing lock order.
+
 ## What this closes
 
 The focused proof races two 6 VOID payments against a 10 VOID pool. Exactly one
@@ -94,11 +100,9 @@ corruption or a projection mismatch.
 
 ## Remaining HOLD
 
-This lane does **not** prove canonical duplicate-payment identity
-(`source_chain:transaction_hash:log_index`) or the final append-only allocation
-reservation record. The parent coupled-launch source gate therefore remains
-hard-HOLD with
-`VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
+The stacked identity lane proves canonical `source_chain:transaction_hash:log_index` uniqueness in source, but that does not itself prove a deployed public verifier is running the reviewed source.
+
+The final append-only allocation-reservation record remains a separate launch gate. The parent coupled-launch source gate therefore remains hard-HOLD with `VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_READY_V1=false`.
 
 That constant must not be promoted by this lane.
 

@@ -12,7 +12,13 @@ This gate does not enable automatic fulfillment. It does not enable wallet fulfi
 
 A verified USDC payment detector is not sufficient by itself. The same USDC transaction or the same matching transfer log must not be allowed to satisfy more than one presale request.
 
-Current request accounting can count payment-verified events by `request_id`. This duplicate-payment guard requires future runtime enforcement by payment identity, not only request identity.
+Historical request accounting could count payment-verified events by `request_id`.
+The reviewed source writer now enforces payment identity, not only request
+identity, inside the same serialized finite-capacity admission boundary.
+
+That is a source capability only. The public/live verifier remains fail-closed
+until deployment and runtime requalification prove the reviewed source is the
+code actually serving Buy VOID.
 
 ## Required payment identity
 
@@ -56,8 +62,9 @@ If log index is unavailable, the payment must remain blocked from automatic fulf
 ## Current authority
 
 - `duplicate_payment_guard_defined`: true
+- `source_verified_payment_duplicate_identity_enforced`: true
 - `duplicate_payment_guard_green`: false
-- `current_verifier_duplicate_payment_guard_enforced`: false
+- `current_public_runtime_duplicate_payment_guard_enforced`: false
 - `automatic_fulfillment_enabled`: false
 - `wallet_fulfillment_enabled`: false
 - `signer_access_enabled`: false
@@ -67,6 +74,19 @@ If log index is unavailable, the payment must remain blocked from automatic fulf
 - `wc_ledger_write`: false
 - `void_transfer_now`: false
 
+## Source implementation
+
+- `src/economic/buy_void_verified_payment_identity_admission_v1.ts`
+- `src/economic/buy_void_verified_payment_capacity_admission_v1.ts`
+- `scripts/prove_buy_void_verified_payment_identity_admission_v1.ts`
+
+The source guard rejects reuse of one canonical payment identity across
+requests, rejects a request changing to a different verified payment identity,
+and treats only exact request + identity replay as idempotent.
+
 ## Public route
 
 - `/public-node/usdc-void-buy-pool/duplicate-payment-guard-v1.json`
+
+The public route remains conservative until live deployment/requalification; it
+must not infer live enforcement merely because the source guard is green.
