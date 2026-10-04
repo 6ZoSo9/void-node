@@ -1,11 +1,25 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 import {
   VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_AUTHORITY_V2,
   VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_V2,
   deriveVoidWcVoidCoupledLaunchRegenerationV2,
 } from "../tools/void-wc-void-coupled-launch-regeneration-v2.mjs";
+
+const regenerationSource = fs.readFileSync(
+  "tools/void-wc-void-coupled-launch-regeneration-v2.mjs",
+  "utf8",
+);
+assert.match(
+  regenerationSource,
+  /verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2/,
+);
+assert.match(
+  regenerationSource,
+  /ops\/mainnet0\/wc-void-market-vault-compiled-identity-acceptance-v1\.json/,
+);
 
 const first = deriveVoidWcVoidCoupledLaunchRegenerationV2();
 const second = deriveVoidWcVoidCoupledLaunchRegenerationV2();
@@ -93,6 +107,8 @@ console.log(
     first.corrected_generation.reconciliation_id,
 );
 console.log("candidate_application_performed=false");
+console.log("canonical_correction_verifier_required=true");
+console.log("superseded_v1_packet_required=true");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
 console.log("deployment=false");
