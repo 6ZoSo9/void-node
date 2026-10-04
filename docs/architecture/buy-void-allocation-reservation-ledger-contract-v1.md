@@ -33,6 +33,19 @@ Each planned record has:
 
 No second payment-identity scheme is introduced.
 
+## Canonical presale economics
+
+The ledger imports the repository's existing
+`VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1` contract. Every reservation
+must use exactly:
+
+- total presale pool: `10,000,000 VOID`;
+- rate: `2 VOID per 1 USDC` (`$0.50/VOID`).
+
+An arbitrary pool size or a VOID/USDC quote that does not satisfy that exact
+ratio is a HOLD. The allocation ledger cannot become an alternate pricing or
+inventory authority.
+
 ## Inventory arithmetic
 
 All VOID and USDC amounts use exact integer micro-unit arithmetic with at most
@@ -194,6 +207,7 @@ None of those authorities are inferred from this source-green contract.
 
 ```bash
 npx tsx scripts/prove_buy_void_allocation_reservation_ledger_v1.ts
+npx tsx scripts/prove_buy_void_canonical_presale_economics_v1.ts
 bash ops/mainnet0/usdc-to-void-presale-allocation-reservation-record-v1-proof.sh
 bash ops/mainnet0/usdc-to-void-presale-private-allocation-ledger-hold-v1-proof.sh
 npm run typecheck
