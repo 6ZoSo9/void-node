@@ -594,12 +594,25 @@ function fingerprintMatchesV1(
   body: PublicationIntentBodyV1,
   which: "prior" | "next",
 ): boolean {
+  const expected =
+    which === "prior"
+      ? {
+          record_count: body.prior_record_count,
+          tip_hash: body.prior_tip_hash,
+          ledger_sha256: body.prior_ledger_sha256,
+          ledger_bytes: body.prior_ledger_bytes,
+        }
+      : {
+          record_count: body.next_record_count,
+          tip_hash: body.next_tip_hash,
+          ledger_sha256: body.next_ledger_sha256,
+          ledger_bytes: body.next_ledger_bytes,
+        };
   return (
-    fingerprint.record_count === body[which + "_record_count"] &&
-    fingerprint.tip_hash === body[which + "_tip_hash"] &&
-    fingerprint.ledger_sha256 ===
-      body[which + "_ledger_sha256"] &&
-    fingerprint.ledger_bytes === body[which + "_ledger_bytes"]
+    fingerprint.record_count === expected.record_count &&
+    fingerprint.tip_hash === expected.tip_hash &&
+    fingerprint.ledger_sha256 === expected.ledger_sha256 &&
+    fingerprint.ledger_bytes === expected.ledger_bytes
   );
 }
 
