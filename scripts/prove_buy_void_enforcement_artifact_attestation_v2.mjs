@@ -30,13 +30,13 @@ const PREDECESSOR_ENFORCEMENT_SET_SHA256 =
 const COMPILED_V3_MANIFEST =
   "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json";
 const COMPILED_V3_MANIFEST_GIT_BLOB_SHA1 =
-  "46267e9433ad8eb6250d4c831dfda2054fe918f4";
+  "d6e97784c5d8be93713e733628c7d1ef746bb5c7";
 const COMPILED_V3_GENERATION_SHA256 =
-  "b85a5c8a6a7685876452f21450b154351fc0601e367866b778c1be196bb2bee2";
+  "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add";
 const REVIEWED_SOURCE_V5_SHA256 =
-  "98dd5dcc6edea14a641ce687c76ec8f6ca521844a96560c7044adbe8d4dc5161";
+  "554eecb2254ecfeb7495314b019247f4a3a7b317a6431e54b78fe95cb675d14e";
 const CURRENT_ENFORCEMENT_SET_SHA256 =
-  "904c18f848832e5772346b5cbba23dbca257f5715f4263d3ffca533be28e1038";
+  "5b35c2c4e1c9c7812ddbcb2f35ea5f309771e5343230331780b81323eb11cc30";
 
 const EXPECTED_REMOVED_ARTIFACTS = Object.freeze([
   "dist/economic/buy_void_source_finality_generation_provenance_v4.js",
@@ -211,7 +211,7 @@ export function deriveBuyVoidEnforcementArtifactAttestationV2(root = ROOT) {
     sourceByPath.get(
       "src/economic/buy_void_source_finality_generation_provenance_v5.ts",
     )?.git_blob_sha1,
-    "7d07b239808ab8a66c6c8b83bb6aa30f16cf6996",
+    "0804a50b87c089e2d03bbca716641d7211e6a8bc",
   );
 
   return Object.freeze({
