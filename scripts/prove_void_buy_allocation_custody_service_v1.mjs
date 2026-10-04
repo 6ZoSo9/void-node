@@ -9,6 +9,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_CONTRACT_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1,
+  createVoidBuyAllocationCustodyServiceV1,
   handleVoidBuyAllocationCustodyServiceEnvelopeV1,
 } from "../tools/void-buy-allocation-custody-service-v1.mjs";
 import {
@@ -285,6 +286,35 @@ async function decision(f, method, request) {
 {
   const f = fixture();
   try {
+    const gid =
+      typeof process.getgid === "function"
+        ? process.getgid()
+        : process.getgroups().find((value) => value > 0);
+    assert.ok(Number.isInteger(gid) && gid > 0);
+    fs.chmodSync(path.dirname(f.options.socket_path), 0o750);
+    const service = createVoidBuyAllocationCustodyServiceV1({
+      ...f.options,
+      socket_group_gid: gid,
+    });
+    const started = await service.start();
+    assert.equal(started.runtime_integration, false);
+    assert.equal(started.payment_acceptance, false);
+    assert.equal(started.transaction_broadcast, false);
+    assert.equal(started.funds_movement, false);
+    const socket = fs.lstatSync(f.options.socket_path);
+    assert.equal(socket.isSocket(), true);
+    assert.equal(socket.mode & 0o777, 0o660);
+    assert.equal(socket.gid, gid);
+    await service.stop();
+    assert.equal(fs.existsSync(f.options.socket_path), false);
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  try {
     const invalid = await decision(f, "reserve", {
       ...baseCandidate,
       ledger_root: "/tmp/attacker",
@@ -334,6 +364,8 @@ console.log("canonical_writer_reused=true");
 console.log("idempotent_replay=true");
 console.log("recovery_terminal_before_new_transition=true");
 console.log("service_started_by_import=false");
+console.log("socket_parent_mode_0750_proven=true");
+console.log("socket_mode_0660_proven=true");
 console.log("runtime_integration=false");
 console.log("payment_acceptance=false");
 console.log("transaction_broadcast=false");
