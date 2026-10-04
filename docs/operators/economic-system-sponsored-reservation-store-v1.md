@@ -148,11 +148,13 @@ The root path is opened component-by-component from the filesystem root with
 
 The source rejects unsafe/symlinked ancestry and descriptor/path identity drift.
 Record reads are bounded, no-follow, descriptor-bound, and require exact
-before/after visible identity. Both read-only listing and mutating reservation
-success also revalidate the pinned root and records-directory identities after
-history/budget evaluation, so replacing a visible directory cannot return a
-clean result from an orphaned descriptor. A post-publication path swap HOLDS
-with `mutation_performed=true` rather than hiding the durable write.
+before/after visible identity. Every successful externally visible result—read-only listing, new
+reservation, and exact duplicate replay—revalidates the pinned root and
+records-directory identities after history/budget/replay evaluation, so
+replacing a visible directory cannot return a clean result from an orphaned
+descriptor. A post-publication path swap after a durable write HOLDS with
+`mutation_performed=true`; a duplicate-path swap with no store mutation HOLDS
+with `mutation_performed=false`.
 
 This is filesystem integrity hardening, not independent custody. The authority
 therefore keeps `root_path_stability_proven=false`.
@@ -272,6 +274,7 @@ The store proof covers:
 - post-publication HOLD with truthful `mutation_performed=true` and durable final record;
 - post-publication records-directory replacement detected before success;
 - read-only records-directory replacement detected before listing success;
+- duplicate replay records-directory replacement detected before duplicate success;
 - serialized unpublished-temp recovery;
 - linked temp/final crash recovery;
 - malformed record HOLD;
