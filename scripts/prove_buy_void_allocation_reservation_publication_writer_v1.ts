@@ -910,6 +910,48 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-allocation-writer-ancestor-link-v1-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const realParent = path.join(root, "real-parent");
+  const linkedParent = path.join(root, "linked-parent");
+  const ledgerRoot = path.join(realParent, "ledger");
+  const highWaterRoot = path.join(root, "high-water");
+  fs.mkdirSync(realParent, { mode: 0o700 });
+  fs.mkdirSync(ledgerRoot, { mode: 0o700 });
+  fs.mkdirSync(highWaterRoot, { mode: 0o700 });
+  fs.writeFileSync(
+    path.join(ledgerRoot, LEDGER_NAME),
+    "",
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    path.join(highWaterRoot, HIGH_WATER_NAME),
+    genesisHighWater,
+    { mode: 0o600 },
+  );
+  fs.symlinkSync(realParent, linkedParent);
+  try {
+    const held =
+      recoverBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: path.join(linkedParent, "ledger"),
+        high_water_root: highWaterRoot,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error("expected symlink-ancestor HOLD");
+    }
+    assert.equal(
+      held.reason,
+      "allocation_reservation_writer_ledger_directory_ancestor_walk_failed",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+{
   const f = fixture();
   try {
     const foreign = path.join(f.highWaterRoot, "foreign-intent.json");
