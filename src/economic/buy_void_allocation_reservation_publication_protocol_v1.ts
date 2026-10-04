@@ -801,6 +801,19 @@ export function classifyBuyVoidAllocationReservationPublicationRecoveryV1(
             priorBinding.reason,
         );
       }
+
+      const nextBinding =
+        classifyBuyVoidAllocationReservationHighWaterBindingV1({
+          ledger_jsonl: observedLedger,
+          high_water_json: parsed.next_high_water_bytes,
+        });
+      if (nextBinding.ok === false) {
+        throw new Error(
+          "allocation_reservation_publication_next_binding_" +
+            nextBinding.reason,
+        );
+      }
+
       return Object.freeze({
         ok: true,
         status: "recoverable",
