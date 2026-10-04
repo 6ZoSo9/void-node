@@ -614,6 +614,52 @@ for (const mono of [BASE_MONO, BASE_MONO - 1n]) {
 }
 
 {
+  const revokedBinding = Proxy.revocable(
+    { trustedClock: () => sample() },
+    {},
+  );
+  revokedBinding.revoke();
+  assert.throws(
+    () =>
+      createVoidEconomicSystemSponsoredObservationTimeV1(
+        revokedBinding.proxy,
+      ),
+    /sponsored_observation_time_binding_invalid/u,
+  );
+}
+
+{
+  const revokedRequest = Proxy.revocable(
+    { prior_receipt: null },
+    {},
+  );
+  revokedRequest.revoke();
+  const clock = clockQueue([sample()]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe(revokedRequest.proxy),
+    "sponsored_observation_time_request_invalid",
+    false,
+  );
+  assert.equal(clock.calls(), 0);
+}
+
+{
+  const revokedSample = Proxy.revocable(sample(), {});
+  revokedSample.revoke();
+  const clock = clockQueue([revokedSample.proxy]);
+  expectHeld(
+    createVoidEconomicSystemSponsoredObservationTimeV1({
+      trustedClock: clock.clock,
+    }).observe({ prior_receipt: null }),
+    "sponsored_observation_time_sample_invalid",
+    true,
+  );
+  assert.equal(clock.calls(), 1);
+}
+
+{
   let coercions = 0;
   const hostile = {
     toString() {
@@ -787,6 +833,7 @@ console.log("accessor_request_rejected_without_getter_read=true");
 console.log("accessor_clock_sample_rejected_without_getter_read=true");
 console.log("nested_value_coercion_hooks_executed=false");
 console.log("proxy_reflection_traps_executed=false");
+console.log("revoked_proxy_native_errors_exposed=false");
 console.log("accessor_clock_binding_rejected_without_getter_read=true");
 console.log("clock_exception_detail_not_exposed=true");
 console.log("trusted_clock_source_proven=false");
