@@ -172,6 +172,28 @@ function validateDirectoryStat(stat: any, code: string): void {
   }
 }
 
+function validateAncestorDirectoryStat(
+  stat: any,
+  code: string,
+): void {
+  const uid =
+    typeof process.getuid === "function"
+      ? BigInt(process.getuid())
+      : null;
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    uid === null ||
+    (stat.uid !== uid && stat.uid !== 0n) ||
+    (
+      (Number(stat.mode) & 0o022) !== 0 &&
+      (Number(stat.mode) & 0o1000) === 0
+    )
+  ) {
+    fail(code);
+  }
+}
+
 function validateFileStat(
   stat: any,
   maxBytes: number,
@@ -207,25 +229,68 @@ function openPinnedDirectory(
   const resolved = path.resolve(raw);
   const visible = fs.lstatSync(resolved, { bigint: true });
   validateDirectoryStat(visible, code + "_invalid");
-  const fd = fs.openSync(
-    resolved,
-    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
-  );
+  const parsed = path.parse(resolved);
+  const parts = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+
+  let fd = -1;
   try {
+    fd = fs.openSync(
+      parsed.root,
+      fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+    );
+    for (const part of parts) {
+      validateAncestorDirectoryStat(
+        fs.fstatSync(fd, { bigint: true }),
+        code + "_ancestor_invalid",
+      );
+      if (!part || part === "." || part === "..") {
+        fail(code + "_ancestor_component_invalid");
+      }
+      const next = fs.openSync(
+        path.join("/proc/self/fd", String(fd), part),
+        fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      const nextStat = fs.fstatSync(next, { bigint: true });
+      if (!nextStat.isDirectory() || nextStat.isSymbolicLink()) {
+        fs.closeSync(next);
+        fail(code + "_ancestor_invalid");
+      }
+      fs.closeSync(fd);
+      fd = next;
+    }
+
     const opened = fs.fstatSync(fd, { bigint: true });
     validateDirectoryStat(opened, code + "_invalid");
     if (!sameDirectoryIdentity(visible, opened)) {
       fail(code + "_changed");
     }
-    return Object.freeze({
+    const result = Object.freeze({
       path: resolved,
       fd,
       stat: opened,
       proc_path: "/proc/self/fd/" + String(fd),
     });
+    fd = -1;
+    return result;
   } catch (error) {
-    fs.closeSync(fd);
-    throw error;
+    if (
+      error instanceof Error &&
+      error.message.startsWith(code + "_")
+    ) {
+      throw error;
+    }
+    fail(code + "_ancestor_walk_failed");
+  } finally {
+    if (fd >= 0) {
+      try {
+        fs.closeSync(fd);
+      } catch (error) {
+        void error;
+      }
+    }
   }
 }
 
