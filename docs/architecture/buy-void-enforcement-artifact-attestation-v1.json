@@ -157,8 +157,8 @@
     },
     {
       "path": "dist/economic/buy_void_filesystem_bakery_lock_v1.js",
-      "bytes": 11018,
-      "sha256": "df250da973442a827c3dfbb6e68e22aec65d47252c13faa93a957bad3396afdb",
+      "bytes": 15694,
+      "sha256": "9d6199724528f16a1ab8f5eb02372cdb325fed20ce248c93b52a6b5447ff55eb",
       "imports": [],
       "externals": [
         "node:crypto",
@@ -307,9 +307,9 @@
   "inputs": [
     {
       "path": "Dockerfile",
-      "bytes": 781,
-      "sha256": "4b01cd2d1f328bb3dcafdd96fe3d2cddbc9316a24823ff91ddee3a37690b07af",
-      "git_blob_sha1": "a440e5b39c2a73b2a66b4aa06d1ebeffb72397bf"
+      "bytes": 2371,
+      "sha256": "9288e215ac81e2e5ba54da9591611559715afa3d9920be9be4621608f3aeaa32",
+      "git_blob_sha1": "8809dba927a34acb4eb99e8293e7c65584c2ceaf"
     },
     {
       "path": "package-lock.json",
@@ -403,9 +403,9 @@
     },
     {
       "path": "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
-      "bytes": 10864,
-      "sha256": "d1a1736bc812daf1eb144627cff348fac1ca8f3ff2ddef948e87d2a435acc27f",
-      "git_blob_sha1": "5d0765c335552c2bec9d6f5e7d4cd11d6fefb464"
+      "bytes": 15407,
+      "sha256": "a856563b08fdb93a47c7dd6ad279ca661311668d96213f18d7cfb12b0f0fd20c",
+      "git_blob_sha1": "9c9a33563927b1a6de9f3b40a35bb51058572b86"
     },
     {
       "path": "src/economic/buy_void_fulfillment_confirmation_v1.ts",
@@ -605,5 +605,5 @@
   "external_dependency_boundary": "Node builtins and package-lock-bound express/ethers; external package code is not part of the relative ESM closure",
   "production_source_finality_authority_ready": false,
   "deployed_artifact_generation_verified": false,
-  "enforcement_artifact_set_sha256": "acee19838eda2a3955a8538ed60a964a0b348800e17eba3534d921dfc2d3c25b"
+  "enforcement_artifact_set_sha256": "ed25e69c9ea97f275857d81f53c2cb8a1304505f23a9fdd835c8b219ad8d8cc4"
 }

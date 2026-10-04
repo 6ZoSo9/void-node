@@ -5,23 +5,75 @@ on:
     paths:
       - ".github/workflows/buy-void-coupled-launch-gate-v1.yml"
       - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "ops/precision/void-buy-coupled-live-generation-publish-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts"
+      - "src/economic/buy_void_request_tx_hash_binding_v1.ts"
+      - "scripts/prove_buy_void_request_tx_hash_binding_v1.ts"
+      - "src/index.ts"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs"
       - "scripts/prove_void_buy_coupled_launch_gate_v1.mjs"
+      - "scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs"
       - "docs/architecture/buy-void-coupled-launch-gate-v1.md"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "tools/void-wc-void-coupled-launch-readiness-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
       - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
   push:
     branches: [main]
     paths:
       - ".github/workflows/buy-void-coupled-launch-gate-v1.yml"
       - "src/economic/buy_void_coupled_launch_gate_v1.mjs"
+      - "ops/precision/void-buy-coupled-live-generation-publish-v1.mjs"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts"
+      - "src/economic/buy_void_request_tx_hash_binding_v1.ts"
+      - "scripts/prove_buy_void_request_tx_hash_binding_v1.ts"
+      - "src/index.ts"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs"
       - "scripts/prove_void_buy_coupled_launch_gate_v1.mjs"
+      - "scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs"
       - "docs/architecture/buy-void-coupled-launch-gate-v1.md"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json"
+      - "tools/void-wc-void-coupled-launch-readiness-v1.mjs"
+      - "tools/void-wc-void-production-readiness-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs"
+      - "tools/void-coupled-economic-successor-gate-v1.mjs"
       - "tools/void-economic-evm-successor-migration-v1.mjs"
+      - "tools/void-wc-void-coupled-opening-v1.mjs"
+      - "tools/void-shared-market-post-discovery-state-v2.mjs"
+      - "tools/void-wc-void-opening-nonproduction-exclusion-v1.mjs"
+      - "tools/void-wc-void-opening-participant-provenance-eligibility-v1.mjs"
+      - "tools/void-wc-void-opening-concentration-sybil-policy-contract-v1.mjs"
+      - "tools/void-wc-void-opening-minimum-real-wc-depth-policy-contract-v1.mjs"
+      - "tools/void-wc-void-reverse-settlement-v1.mjs"
+      - "tools/void-wc-void-public-quote-disclosure-v1.mjs"
+      - "tools/void-economic-intent-ttl-caps-policy-v1.mjs"
+      - "tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs"
 
 permissions:
   contents: read
@@ -46,7 +98,19 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
+      - name: Install reviewed dependencies
+        run: npm ci
+      - name: Prove canonical coupled launch readiness
+        run: node scripts/prove_void_wc_void_coupled_launch_readiness_v1.mjs
       - name: Prove coupled launch source gate
         run: node scripts/prove_void_buy_coupled_launch_gate_v1.mjs
+      - name: Prove async bakery-lock lifetime
+        run: npx tsx scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts
+      - name: Load canonical generation publisher without mutation
+        run: node ops/precision/void-buy-coupled-live-generation-publish-v1.mjs --help
+      - name: Prove coupled launch runtime integration
+        run: node scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs
+      - name: Prove request tx-hash launch-authority binding
+        run: npx tsx scripts/prove_buy_void_request_tx_hash_binding_v1.ts
       - name: Diff hygiene
         run: git diff --check
