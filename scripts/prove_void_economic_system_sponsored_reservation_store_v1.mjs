@@ -220,6 +220,7 @@ for (const [key, value] of Object.entries(
     "canonical_historical_state_verifier_reused",
     "canonical_ttl_intent_identity_reused",
     "canonical_sponsorship_identity_reused",
+    "duplicate_signed_submission_identity_required",
     "compound_intent_sponsorship_record",
     "append_only_history",
     "expired_history_retained",
@@ -279,6 +280,33 @@ const observedAt = (BASE_UNIX + 140) * 1000;
     assert.equal(replay.status, "duplicate");
     assert.equal(replay.mutation_performed, false);
     assert.equal(replay.tracked_reservation_count, 1);
+
+    const corruptedReplay = {
+      ...first,
+      signed_submission: {
+        ...first.signed_submission,
+        signature: "0x" + "00".repeat(65),
+      },
+    };
+    requireHeld(
+      await persistEconomicSystemSponsoredReservationV1(
+        persistInput(
+          f.root,
+          ttl,
+          sponsor,
+          corruptedReplay,
+          observedAt,
+        ),
+      ),
+      "SPONSORED_RESERVATION_STORE_REPLAY_SIGNED_SUBMISSION_INVALID",
+    );
+    const afterCorruptReplay = requireOk(
+      listEconomicSystemSponsoredReservationsV1(
+        listInput(f.root, ttl, sponsor, observedAt),
+      ),
+    );
+    assert.equal(afterCorruptReplay.records.length, 1);
+    assert.equal(afterCorruptReplay.active_reserved_gas, "50000");
 
     const expiredAt = (BASE_UNIX + 254) * 1000;
     const expired = requireOk(
@@ -819,6 +847,8 @@ console.log("canonical_anti_grief_classifier_reused=true");
 console.log("canonical_historical_state_verifier_reused=true");
 console.log("compound_intent_sponsorship_record=true");
 console.log("exact_replay_idempotent=true");
+console.log("duplicate_signed_submission_identity_required=true");
+console.log("corrupted_replay_signature_hold=true");
 console.log("expired_history_retained=true");
 console.log("expired_gas_not_counted=true");
 console.log("per_identity_budget_enforced=true");
