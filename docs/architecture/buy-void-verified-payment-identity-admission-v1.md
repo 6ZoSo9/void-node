@@ -14,8 +14,10 @@ voidpay1:<source_chain>:<transaction_hash>:<log_index>
 ```
 
 The source chain and transaction hash are normalized and the log index is
-canonical unsigned decimal through the existing reviewed
-`canonicalBuyVoidPaymentIdentityV1(...)` helper.
+canonical uint32 decimal (`0..4294967295`), matching the reviewed
+verified-payment/finality authority. The existing
+`canonicalBuyVoidPaymentIdentityV1(...)` helper is used only after this
+stricter boundary is enforced.
 
 ## Admission boundary
 
