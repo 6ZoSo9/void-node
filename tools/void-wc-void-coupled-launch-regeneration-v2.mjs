@@ -14,6 +14,9 @@ import {
 import {
   reconcileSharedMarketPostDiscoveryStateV2,
 } from "./void-shared-market-post-discovery-state-v2.mjs";
+import {
+  verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2,
+} from "./void-wc-void-market-vault-compiled-identity-correction-v2.mjs";
 
 export const VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_V2 =
   "VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_V2";
@@ -46,6 +49,8 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_AUTHORITY_V2 =
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORRECTION_REL =
   "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json";
+const ACCEPTANCE_REL =
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
 const CANDIDATE_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const PRESALE_REL =
@@ -255,7 +260,21 @@ function sharedCandidateSummaryV2(state) {
   });
 }
 
-function assertCorrection(correction) {
+function assertCorrection(correction, supersededV1) {
+  const verified =
+    verifyVoidWcVoidMarketVaultCompiledIdentityCorrectionV2({
+      supersededV1,
+      correctionV2: correction,
+    });
+  if (
+    verified?.ok !== true ||
+    verified?.status !== "COMPILED_IDENTITY_CORRECTION_V2_PROOF_GREEN" ||
+    verified?.corrected_coupled_launch_id !== EXPECTED_NEW_LAUNCH ||
+    verified?.deployment_authorized !== false ||
+    verified?.funds_movement !== false
+  ) {
+    fail("regeneration_correction_canonical_verifier_hold");
+  }
   if (
     correction?.marker !==
       "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CORRECTION_V2" ||
@@ -354,10 +373,11 @@ function buildCorrectedCommitment(candidate, correction) {
 
 export function deriveVoidWcVoidCoupledLaunchRegenerationV2() {
   const correction = readJson(CORRECTION_REL);
+  const supersededV1 = readJson(ACCEPTANCE_REL);
   const candidate = readJson(CANDIDATE_REL);
   const presaleSource = readText(PRESALE_REL);
 
-  assertCorrection(correction);
+  assertCorrection(correction, supersededV1);
   assertCandidateBaseline(candidate);
   assertPresaleSource(presaleSource);
 
