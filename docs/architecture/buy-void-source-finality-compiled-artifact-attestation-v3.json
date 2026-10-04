@@ -3,7 +3,7 @@
   "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V3",
   "version": 3,
   "repository": "6ZoSo9/void-node",
-  "source_stack_head": "2bd69ea3a29ed0adc195bd6f9a208e3276fde383",
+  "source_stack_head": "07b88ef77d98b3806f97fe8df4b3c1699267ab66",
   "predecessor": {
     "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V2",
     "manifest_path": "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json",
@@ -27,7 +27,7 @@
   },
   "reviewed_source_generation": {
     "marker": "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5",
-    "reviewed_source_files_sha256": "98dd5dcc6edea14a641ce687c76ec8f6ca521844a96560c7044adbe8d4dc5161",
+    "reviewed_source_files_sha256": "554eecb2254ecfeb7495314b019247f4a3a7b317a6431e54b78fe95cb675d14e",
     "verified_source_file_count": 5
   },
   "entry_artifact": "dist/economic/buy_void_source_finality_generation_provenance_v5.js",
@@ -36,7 +36,7 @@
     {
       "path": "dist/economic/buy_void_source_finality_generation_provenance_v5.js",
       "bytes": 13490,
-      "sha256": "c55879a2d7e577c34067e5053e5342abd4d547fc4c1327723dee1d49eaea8010"
+      "sha256": "5cf22dd29841f443f015a8bd9f4ff852231bcd51419e6f6661702083659a5ca2"
     },
     {
       "path": "dist/economic/buy_void_source_finality_authenticated_composition_v3.js",
@@ -60,8 +60,8 @@
     },
     {
       "path": "dist/economic/buy_void_verified_payment_v2.js",
-      "bytes": 8768,
-      "sha256": "babf9920062c0faec9ae525ea7c7557a77c2c5d9164c065fb1b3a31e395a8701"
+      "bytes": 8756,
+      "sha256": "7251c44f7ec892abbd8a14219996bc779d94b361f987672ab3b2067ece5aa4d8"
     }
   ],
   "predecessor_unchanged_artifact_paths": [
@@ -75,9 +75,9 @@
     "dist/economic/buy_void_verified_payment_v2.js"
   ],
   "predecessor_common_artifact_bytes_match": true,
-  "verified_payment_v2_source_git_blob_sha1": "9ba679d52c74d5590558ccfdb5882597d79b9f31",
-  "verified_payment_v2_artifact_sha256": "babf9920062c0faec9ae525ea7c7557a77c2c5d9164c065fb1b3a31e395a8701",
-  "compiled_artifact_generation_sha256": "b85a5c8a6a7685876452f21450b154351fc0601e367866b778c1be196bb2bee2",
+  "verified_payment_v2_source_git_blob_sha1": "c0e4660bb238e1b718b8a471890901bd5a59badf",
+  "verified_payment_v2_artifact_sha256": "7251c44f7ec892abbd8a14219996bc779d94b361f987672ab3b2067ece5aa4d8",
+  "compiled_artifact_generation_sha256": "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add",
   "derivation_node_majors": [
     22,
     24,
