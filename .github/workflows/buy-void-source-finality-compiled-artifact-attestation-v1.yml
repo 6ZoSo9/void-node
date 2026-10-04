@@ -1,4 +1,4 @@
-name: VOID Buy VOID source-finality compiled artifact attestation v2
+name: VOID Buy VOID source-finality compiled artifact attestation v3
 
 on:
   pull_request:
@@ -11,10 +11,13 @@ on:
       - "scripts/retire_saveblock_periodic_rewriters_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v1.mjs"
       - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs"
+      - "scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.md"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v1.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.json"
       - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v2.md"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json"
+      - "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.md"
       - ".github/workflows/buy-void-source-finality-compiled-artifact-attestation-v1.yml"
   workflow_dispatch:
 
@@ -58,23 +61,30 @@ jobs:
       - name: Build exact repository artifacts
         run: npm run build
 
-      - name: Derive source-finality compiled artifact input rollover v2
+      - name: Derive source-finality compiled artifact rollover v3
         run: |
           set -euo pipefail
-          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v2.mjs \
-            | tee "buy-void-source-finality-compiled-artifact-attestation-v2-node-${{ matrix.node }}.log"
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs --derive \
+            > "buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json"
 
-      - name: Upload derivation evidence
+      - name: Upload v3 derivation evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-source-finality-compiled-artifact-attestation-v2-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
-          path: buy-void-source-finality-compiled-artifact-attestation-v2-node-${{ matrix.node }}.log
+          name: buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 1
 
-      - name: Preserve reviewed source-file V4 proof
-        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v4.ts
+      - name: Verify committed v3 attestation
+        run: |
+          set -euo pipefail
+          cmp "buy-void-source-finality-compiled-artifact-attestation-v3-node-${{ matrix.node }}.json" \
+            docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json
+          node scripts/prove_buy_void_source_finality_compiled_artifact_attestation_v3.mjs
+
+      - name: Prove reviewed source-file V5 binding
+        run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_generation_provenance_v5.ts
 
       - name: Preserve V3 authenticated composition
         run: ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_authenticated_composition_v3.ts
