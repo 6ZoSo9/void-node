@@ -453,23 +453,27 @@ assert.match(
 );
 assert.match(
   docs.readme,
-  /preliminary coupled Buy VOID source gate is also merged[\s\S]*bounded subset[\s\S]*not.*full canonical coupled-readiness classifier[\s\S]*not live activation authority[\s\S]*remains `HOLD`[\s\S]*route\/config integration and public intake remain closed/i,
+  /Buy VOID public request admission is now source-bound to the full canonical WC\/VOID coupled-readiness classifier[\s\S]*SOURCE_READY[\s\S]*no live authority[\s\S]*generation journal plus external high-water mirror[\s\S]*launch controller and Sovereign co-signer[\s\S]*remain `HOLD`[\s\S]*public intake remains closed/i,
 );
 assert.match(
   docs.publicStatus,
-  /merged coupled Buy VOID source gate is currently a preliminary bounded-subset check[\s\S]*not the full canonical coupled-readiness classifier[\s\S]*not accepted as live activation authority[\s\S]*canonical successor remains `HOLD`[\s\S]*Neither source control is route\/config activation authority/i,
+  /Public Buy request admission now delegates to the full canonical WC\/VOID coupled-readiness classifier[\s\S]*not live activation authority[\s\S]*generation journal and external high-water mirror[\s\S]*launch controller and Sovereign co-signer[\s\S]*remain `HOLD`[\s\S]*public intake remains closed/i,
 );
 assert.match(
   docs.capabilityMatrix,
-  /Buy VOID coupled source launch gate \| Guarded \/ `HOLD`[\s\S]*preliminary bounded-subset check[\s\S]*not the full canonical coupled-readiness classifier[\s\S]*not live activation authority[\s\S]*route\/config integration and public activation remain separate/i,
+  /Buy VOID coupled source launch gate \| Guarded \/ `HOLD`[\s\S]*full canonical WC\/VOID coupled-readiness classifier[\s\S]*Source readiness is not live activation authority[\s\S]*co-signed activation lease[\s\S]*canonical candidates remain `HOLD`[\s\S]*public activation remains closed/i,
 );
 assert.match(
   docs.releases,
-  /merged preliminary source-only coupled Buy VOID gate[\s\S]*bounded candidate subset rather than the full canonical coupled-readiness classifier[\s\S]*none is live activation authority[\s\S]*canonical successor readiness remains `HOLD`[\s\S]*public intake remains closed/i,
+  /merged full-canonical coupled Buy VOID admission gate[\s\S]*canonical source readiness is not live activation authority[\s\S]*generation\/high-water agreement[\s\S]*co-signed activation receipt[\s\S]*canonical candidates remain `HOLD`[\s\S]*public intake remains closed/i,
 );
 assert.match(
   docs.releases,
-  /merged coupled Buy VOID source gate[\s\S]*preliminary subset check rather than full canonical coupled readiness[\s\S]*route\/config integration remains separate[\s\S]*canonical successor still[\s\S]*classifies `HOLD`/i,
+  /merged Buy VOID admission path now[\s\S]*full canonical coupled-readiness classifier[\s\S]*source readiness alone cannot activate intake[\s\S]*canonical candidates still classify `HOLD`[\s\S]*no authorized live[\s\S]*activation generation\/lease/i,
+);
+assert.match(
+  docs.whitepaper,
+  /Buy VOID request admission delegates to the full canonical WC\/VOID coupled-readiness classifier[\s\S]*co-signed live activation lease[\s\S]*durable generation journal\/external-anchor state[\s\S]*Source readiness alone cannot open intake/i,
 );
 assert.match(
   docs.gatewayContent,

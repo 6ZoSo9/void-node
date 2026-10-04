@@ -11,6 +11,7 @@ export const VOID_BUY_VOID_FILESYSTEM_BAKERY_LOCK_AUTHORITY_V1 = {
   choosing_phase_required: true,
   monotonically_increasing_ticket: true,
   dead_process_claim_cleanup: true,
+  process_incarnation_binding: true,
   own_claim_cleanup_only: true,
   shared_replacement_unlink: false,
   filesystem_read: true,
@@ -37,6 +38,7 @@ const SLEEP = new Int32Array(new SharedArrayBuffer(4));
 export type BuyVoidFilesystemBakeryLockClaimV1 = {
   schema: typeof CLAIM_SCHEMA;
   pid: number;
+  process_start_ticks: string;
   nonce: string;
   phase: "choosing" | "ticket";
   ticket: number | null;
@@ -139,6 +141,7 @@ function readClaim(file: string): BuyVoidFilesystemBakeryLockClaimV1 {
     "nonce",
     "phase",
     "pid",
+    "process_start_ticks",
     "schema",
     "ticket",
   ].sort();
@@ -149,6 +152,12 @@ function readClaim(file: string): BuyVoidFilesystemBakeryLockClaimV1 {
     throw new Error("bakery_lock_claim_schema_invalid");
   }
   const pid = safeInteger(value.pid, 1, Number.MAX_SAFE_INTEGER, "bakery_lock_pid");
+  const processStartTicks = String(
+    value.process_start_ticks || "",
+  ).trim();
+  if (!/^[1-9][0-9]*$/.test(processStartTicks)) {
+    throw new Error("bakery_lock_process_start_ticks_invalid");
+  }
   const nonce = String(value.nonce || "");
   if (!NONCE.test(nonce)) throw new Error("bakery_lock_nonce_invalid");
   const phase = String(value.phase || "");
@@ -171,6 +180,7 @@ function readClaim(file: string): BuyVoidFilesystemBakeryLockClaimV1 {
   return {
     schema: CLAIM_SCHEMA,
     pid,
+    process_start_ticks: processStartTicks,
     nonce,
     phase,
     ticket,
@@ -193,6 +203,49 @@ function processIsAlive(pid: number): boolean {
   }
 }
 
+function linuxProcessStartTicks(pid: number): string | null {
+  if (process.platform !== "linux") return null;
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const close = stat.lastIndexOf(") ");
+    if (close < 0) {
+      throw new Error("bakery_lock_proc_stat_invalid");
+    }
+    const fields = stat.slice(close + 2).trim().split(/\s+/u);
+    const startTicks = fields[19] || "";
+    if (!/^[1-9][0-9]*$/.test(startTicks)) {
+      throw new Error("bakery_lock_proc_start_ticks_invalid");
+    }
+    return startTicks;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT" || code === "ESRCH") return null;
+    throw error;
+  }
+}
+
+function currentProcessStartTicks(): string {
+  const ticks = linuxProcessStartTicks(process.pid);
+  if (ticks === null) {
+    // The persistent authority volume is a Linux/Docker path. On other
+    // platforms retain legacy PID liveness behavior without inventing
+    // a cross-process incarnation identifier.
+    return "1";
+  }
+  return ticks;
+}
+
+function claimProcessIncarnationIsCurrent(
+  claim: BuyVoidFilesystemBakeryLockClaimV1,
+): boolean {
+  if (!processIsAlive(claim.pid)) return false;
+  const observed = linuxProcessStartTicks(claim.pid);
+  if (observed === null) {
+    return process.platform !== "linux";
+  }
+  return observed === claim.process_start_ticks;
+}
+
 function removeOwnClaim(file: string): void {
   try {
     fs.unlinkSync(file);
@@ -204,10 +257,12 @@ function removeOwnClaim(file: string): void {
 function scanQueue(queue: string): {
   choosing: ScannedClaimV1[];
   tickets: ScannedClaimV1[];
+  requiresRescan: boolean;
 } {
   const choosing: ScannedClaimV1[] = [];
   const tickets: ScannedClaimV1[] = [];
   let changed = false;
+  let requiresRescan = false;
 
   for (const entry of fs.readdirSync(queue, { withFileTypes: true })) {
     const full = path.join(queue, entry.name);
@@ -247,7 +302,12 @@ function scanQueue(queue: string): {
       try {
         metadata = fs.lstatSync(full);
       } catch (statError) {
-        if ((statError as NodeJS.ErrnoException)?.code === "ENOENT") continue;
+        if ((statError as NodeJS.ErrnoException)?.code === "ENOENT") {
+          // A listed choosing claim may have become a ticket after readdir.
+          // This snapshot cannot prove admission; retry under the wait deadline.
+          requiresRescan = true;
+          continue;
+        }
         throw statError;
       }
       if (Date.now() - metadata.mtimeMs > STALE_TEMP_MS) {
@@ -276,7 +336,7 @@ function scanQueue(queue: string): {
       }
     }
 
-    if (!processIsAlive(claim.pid)) {
+    if (!claimProcessIncarnationIsCurrent(claim)) {
       removeOwnClaim(full);
       changed = true;
       continue;
@@ -292,11 +352,15 @@ function scanQueue(queue: string): {
   }
 
   if (changed) fsyncDirectory(queue);
-  return { choosing, tickets };
+  return { choosing, tickets, requiresRescan };
 }
 
 function sleep(ms: number): void {
   Atomics.wait(SLEEP, 0, 0, ms);
+}
+
+function sleepAsync(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function withBuyVoidFilesystemBakeryLockV1<T>(
@@ -310,6 +374,7 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
   const queue = ensurePrivateDirectory(`${path.resolve(raw)}.queue`);
   const nonce = crypto.randomBytes(16).toString("hex");
   const createdAt = new Date().toISOString();
+  const processStartTicks = currentProcessStartTicks();
   const choosingPath = path.join(
     queue,
     `choosing-${process.pid}-${nonce}.json`,
@@ -319,6 +384,7 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
   atomicWriteJson(choosingPath, {
     schema: CLAIM_SCHEMA,
     pid: process.pid,
+    process_start_ticks: processStartTicks,
     nonce,
     phase: "choosing",
     ticket: null,
@@ -344,6 +410,7 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
     atomicWriteJson(ticketPath, {
       schema: CLAIM_SCHEMA,
       pid: process.pid,
+      process_start_ticks: processStartTicks,
       nonce,
       phase: "ticket",
       ticket,
@@ -357,7 +424,7 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
       const scanned = scanQueue(queue);
       const own = scanned.tickets.find((claim) => claim.path === ticketPath);
       if (!own) throw new Error("bakery_lock_ownership_lost");
-      if (scanned.choosing.length === 0) {
+      if (!scanned.requiresRescan && scanned.choosing.length === 0) {
         scanned.tickets.sort((left, right) =>
           (left.ticket || 0) - (right.ticket || 0) ||
           left.pid - right.pid ||
@@ -372,6 +439,96 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
     }
 
     return operation();
+  } finally {
+    removeOwnClaim(choosingPath);
+    if (ticketPath) removeOwnClaim(ticketPath);
+    fsyncDirectory(queue);
+  }
+}
+
+
+export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
+  lockPath: string,
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  const raw = String(lockPath || "").trim();
+  if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
+    throw new Error("bakery_lock_path_must_be_absolute");
+  }
+  if (typeof operation !== "function") {
+    throw new Error("bakery_lock_operation_required");
+  }
+
+  const queue = ensurePrivateDirectory(`${path.resolve(raw)}.queue`);
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const createdAt = new Date().toISOString();
+  const processStartTicks = currentProcessStartTicks();
+  const choosingPath = path.join(
+    queue,
+    `choosing-${process.pid}-${nonce}.json`,
+  );
+  let ticketPath = "";
+
+  atomicWriteJson(choosingPath, {
+    schema: CLAIM_SCHEMA,
+    pid: process.pid,
+    process_start_ticks: processStartTicks,
+    nonce,
+    phase: "choosing",
+    ticket: null,
+    created_at_utc: createdAt,
+  });
+
+  try {
+    const initial = scanQueue(queue);
+    const maximum = initial.tickets.reduce(
+      (current, claim) => Math.max(current, claim.ticket || 0),
+      0,
+    );
+    const ticket = safeInteger(
+      maximum + 1,
+      1,
+      Number.MAX_SAFE_INTEGER,
+      "bakery_lock_ticket",
+    );
+    ticketPath = path.join(
+      queue,
+      `ticket-${String(ticket).padStart(16, "0")}-${process.pid}-${nonce}.json`,
+    );
+    atomicWriteJson(ticketPath, {
+      schema: CLAIM_SCHEMA,
+      pid: process.pid,
+      process_start_ticks: processStartTicks,
+      nonce,
+      phase: "ticket",
+      ticket,
+      created_at_utc: createdAt,
+    });
+    removeOwnClaim(choosingPath);
+    fsyncDirectory(queue);
+
+    const deadline = Date.now() + MAX_WAIT_MS;
+    for (;;) {
+      const scanned = scanQueue(queue);
+      const own = scanned.tickets.find(
+        (claim) => claim.path === ticketPath,
+      );
+      if (!own) throw new Error("bakery_lock_ownership_lost");
+      if (!scanned.requiresRescan && scanned.choosing.length === 0) {
+        scanned.tickets.sort((left, right) =>
+          (left.ticket || 0) - (right.ticket || 0) ||
+          left.pid - right.pid ||
+          left.nonce.localeCompare(right.nonce),
+        );
+        if (scanned.tickets[0]?.path === ticketPath) break;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error("bakery_lock_wait_timeout");
+      }
+      await sleepAsync(POLL_MS);
+    }
+
+    return await operation();
   } finally {
     removeOwnClaim(choosingPath);
     if (ticketPath) removeOwnClaim(ticketPath);

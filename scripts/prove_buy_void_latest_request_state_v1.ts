@@ -109,8 +109,8 @@ if (!helper.includes(marker)) {
   failures.push("marker_missing");
 }
 if (
-  !helper.includes(
-    "for (const line of [...lines].reverse())",
+  !/for\s*\(\s*const\s+line\s+of\s+\[\.\.\.lines\]\.reverse\(\)\s*\)\s*\{/u.test(
+    helper,
   )
 ) {
   failures.push("reverse_reader_missing");
@@ -126,8 +126,8 @@ if (
   failures.push("dedupe_guard_missing");
 }
 if (
-  helper.includes(
-    "for (const line of lines) {",
+  /for\s*\(\s*const\s+line\s+of\s+lines\s*\)\s*\{/u.test(
+    helper,
   )
 ) {
   failures.push("forward_reader_remains");
