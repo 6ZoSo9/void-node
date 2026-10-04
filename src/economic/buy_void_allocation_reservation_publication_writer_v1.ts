@@ -282,7 +282,7 @@ function openPinnedDirectory(
     ) {
       throw error;
     }
-    fail(code + "_ancestor_walk_failed");
+    throw new Error(code + "_ancestor_walk_failed");
   } finally {
     if (fd >= 0) {
       try {
