@@ -320,15 +320,15 @@ function productionV4CapabilityReady(): boolean {
   const capability =
     VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V4;
   return (
-    capability.reviewed_source_files_verified_on_success === true &&
-    capability.source_generation_verified_on_success === true &&
-    capability.deployed_artifact_generation_verified === true &&
-    capability.authenticated_transport_identity_verified === true &&
-    capability.remote_provider_identity_verified === true &&
-    capability.total_operation_deadline_verified === true &&
-    capability.ancestry_verified === true &&
-    capability.provider_quorum_verified === true &&
-    capability.production_source_finality_authority_ready === true
+    Boolean(capability.reviewed_source_files_verified_on_success) &&
+    Boolean(capability.source_generation_verified_on_success) &&
+    Boolean(capability.deployed_artifact_generation_verified) &&
+    Boolean(capability.authenticated_transport_identity_verified) &&
+    Boolean(capability.remote_provider_identity_verified) &&
+    Boolean(capability.total_operation_deadline_verified) &&
+    Boolean(capability.ancestry_verified) &&
+    Boolean(capability.provider_quorum_verified) &&
+    Boolean(capability.production_source_finality_authority_ready)
   );
 }
 
