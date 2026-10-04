@@ -125,10 +125,12 @@ for (const verb of [
   "reload-or-try-restart",
   "kill",
   "clean",
-  "freeze",
-  "thaw",
   "set-property",
   "reset-failed",
+  "ref",
+  "bind-mount",
+  "mount-image",
+  "kill-subgroup",
 ]) {
   assert.ok(
     source.includes(JSON.stringify(verb)),
@@ -179,6 +181,33 @@ assert.match(
   /NoNewPrivileges/u,
   "collector must require runtime no-new-privileges",
 );
+
+assert.match(
+  source,
+  /CapabilityBoundingSet/u,
+  "collector must bind configured runtime capability bounding set",
+);
+assert.match(
+  source,
+  /AmbientCapabilities/u,
+  "collector must bind configured runtime ambient capabilities",
+);
+for (const capabilityField of ["CapInh", "CapPrm", "CapEff", "CapAmb"]) {
+  assert.ok(
+    source.includes(JSON.stringify(capabilityField)),
+    "collector must bind live process capability field " + capabilityField,
+  );
+}
+assert.match(
+  source,
+  /custody_host_evidence_runtime_process_capabilities_nonzero/u,
+  "any live runtime capability must HOLD",
+);
+assert.match(
+  source,
+  /custody_host_evidence_runtime_service_capabilities_not_empty/u,
+  "configured runtime service capabilities must be empty",
+);
 assert.match(
   source,
   /runtime_service_control_evidence/u,
@@ -211,6 +240,8 @@ console.log(
 console.log("runtime_process_pid_starttime_uid_bound=true");
 console.log("runtime_process_uid_gid_revalidated=true");
 console.log("runtime_service_cgroup_bound=true");
+console.log("runtime_service_capability_sets_empty=true");
+console.log("runtime_process_capabilities_zero=true");
 console.log("pkcheck_noninteractive=true");
 console.log("pkcheck_explicit_denial_only=true");
 console.log("pkcheck_authorized_holds=true");
