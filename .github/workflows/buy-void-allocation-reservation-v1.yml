@@ -1,0 +1,58 @@
+name: Buy VOID allocation reservation v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-allocation-reservation-v1.yml"
+      - "src/economic/buy_void_allocation_reservation_v1.ts"
+      - "scripts/prove_buy_void_allocation_reservation_v1.ts"
+      - "docs/architecture/buy-void-allocation-reservation-v1.md"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_verified_payment_duplicate_guard_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-allocation-reservation-v1.yml"
+      - "src/economic/buy_void_allocation_reservation_v1.ts"
+      - "scripts/prove_buy_void_allocation_reservation_v1.ts"
+      - "docs/architecture/buy-void-allocation-reservation-v1.md"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/buy_void_verified_payment_duplicate_guard_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-allocation-reservation-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install reviewed dependencies
+        run: npm ci
+      - name: Focused allocation reservation proof
+        run: npx tsx scripts/prove_buy_void_allocation_reservation_v1.ts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check
