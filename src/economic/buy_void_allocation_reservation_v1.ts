@@ -706,7 +706,7 @@ function buildBuyVoidAllocationReservationRecordV1(input: {
 function recordBytes(
   record: BuyVoidAllocationReservationRecordV1,
 ): Buffer {
-  return Buffer.from(JSON.stringify(record, null, 2) + "\n", "utf8");
+  return Buffer.from(canonicalJson(record) + "\n", "utf8");
 }
 
 function parseAllocationRecord(
