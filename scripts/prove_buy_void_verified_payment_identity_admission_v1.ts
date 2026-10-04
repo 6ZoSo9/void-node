@@ -27,7 +27,7 @@ const request = (
 
 const event = (
   value: ReturnType<typeof request>,
-  logIndex: number,
+  logIndex: string | number,
   markedAt: number,
 ) => ({
   schema: "void_buy_void_verified_payment_event_v2",
@@ -56,7 +56,7 @@ const event = (
 
 const liveVerifierEvent = (
   value: ReturnType<typeof request>,
-  logIndex: number,
+  logIndex: string | number,
   markedAt: number,
 ) => {
   const out: any = event(value, logIndex, markedAt);
@@ -137,6 +137,35 @@ const sameTransactionDifferentLog =
     operator_events: [aEvent],
   });
 assert.equal(sameTransactionDifferentLog.ready, true);
+
+const u32Max = classifyBuyVoidVerifiedPaymentIdentityAdmissionV1({
+  request: a,
+  event: event(a, "4294967295", 16),
+  operator_events: [],
+});
+assert.equal(u32Max.ready, true);
+assert.match(u32Max.canonical_payment_identity, /:4294967295$/u);
+
+for (const overflow of ["4294967296", "0x100000000", "9".repeat(1000)]) {
+  assert.throws(
+    () =>
+      classifyBuyVoidVerifiedPaymentIdentityAdmissionV1({
+        request: a,
+        event: event(a, overflow, 17),
+        operator_events: [],
+      }),
+    /buy_void_verified_payment_identity_log_index_invalid/u,
+  );
+}
+assert.throws(
+  () =>
+    classifyBuyVoidVerifiedPaymentIdentityAdmissionV1({
+      request: bOtherPayment,
+      event: event(bOtherPayment, 7, 18),
+      operator_events: [event(a, "4294967296", 19)],
+    }),
+  /buy_void_verified_payment_identity_log_index_invalid/u,
+);
 
 assert.throws(
   () =>
@@ -341,6 +370,8 @@ console.log("same_request_different_identity_rejected=true");
 console.log("different_identity_for_losing_request_can_use_fresh_capacity=true");
 console.log("durable_restart_recount_enforced=true");
 console.log("same_transaction_different_log_identity_distinct=true");
+console.log("payment_log_index_uint32_bound=true");
+console.log("oversized_payment_log_index_rejected_before_bigint=true");
 console.log("incomplete_verified_history_fails_closed=true");
 console.log("filesystem_write_by_identity_helper=false");
 console.log("public_presale_activation=false");
