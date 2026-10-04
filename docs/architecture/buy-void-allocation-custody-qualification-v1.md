@@ -6,7 +6,7 @@ Status: **source-only host/storage evidence classifier; no host I/O and no produ
 
 Reviewed writer provenance head:
 
-`62ad83462c35b404e1a4cea1e28f68664977df45`
+`5534146b140fc5fb2b3c445370a46be6d092c93f`
 
 Reviewed writer source blob (Git SHA-1):
 
