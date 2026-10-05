@@ -26,6 +26,7 @@ import {
 import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1,
   inspectEconomicSystemSponsoredReservationStoreV1,
+  listEconomicSystemSponsoredReservationsV1,
   persistEconomicSystemSponsoredReservationV1,
 } from "./void-economic-system-sponsored-reservation-store-v1.mjs";
 
@@ -63,7 +64,11 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     time_store_rollback_resistance_proven: false,
     reservation_store_root_stability_proven: false,
     reservation_store_preflight_before_time_proven: true,
-    valid_denied_request_time_growth_bounded: false,
+    non_mutating_time_preview_before_durable_time: true,
+    read_only_budget_preflight_before_durable_time: true,
+    preview_denial_does_not_advance_time: true,
+    durable_observe_required_after_preview_allow: true,
+    valid_denied_request_time_growth_bounded: true,
     execution_replay_store_bound: false,
     runtime_route_active: false,
     runtime_enforcement_verified: false,
@@ -599,6 +604,9 @@ function held(
     reservationStorePreflightVerified = false,
     preflightVerified = false,
     currentCandidateVerified = false,
+    previewVerified = false,
+    previewBudgetVerified = false,
+    previewObservedAtMs = null,
     timeMutation = false,
     timeObservation = false,
     timeReceiptSha = null,
@@ -615,6 +623,9 @@ function held(
       reservationStorePreflightVerified,
     preflight_verified: preflightVerified,
     current_candidate_verified: currentCandidateVerified,
+    time_preview_verified: previewVerified,
+    preview_budget_verified: previewBudgetVerified,
+    preview_observed_at_ms: previewObservedAtMs,
     time_mutation_performed: timeMutation,
     time_observation_performed: timeObservation,
     time_receipt_sha256: timeReceiptSha,
@@ -656,6 +667,10 @@ function success(
     reservation_store_preflight_verified: true,
     preflight_verified: true,
     current_candidate_verified: true,
+    time_preview_verified: true,
+    preview_budget_verified: true,
+    preview_observed_at_ms:
+      timeResult.preview_observed_at_ms,
     accepted_observed_at_ms:
       timeResult.accepted_observed_at_ms,
     time_generation: timeResult.generation,
@@ -732,6 +747,9 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
       let reservationStorePreflightVerified = false;
       let preflight = null;
       let currentCandidateVerified = false;
+      let previewVerified = false;
+      let previewBudgetVerified = false;
+      let previewObservedAtMs = null;
       let timeResult = null;
       let reservation = null;
       try {
@@ -772,6 +790,154 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
         }
         reservationStorePreflightVerified = true;
 
+        const preview = timeStore.preview();
+        if (
+          preview?.ok !== true ||
+          preview?.status !== "source_previewed" ||
+          preview?.mutation_performed !== false ||
+          preview?.durable_time_authority_advanced !== false ||
+          preview?.candidate_receipt_persisted !== false ||
+          !Number.isSafeInteger(preview.accepted_observed_at_ms)
+        ) {
+          return held(
+            preview?.reason ||
+              "SPONSORED_RUNTIME_TIME_PREVIEW_HELD",
+            {
+              reservationStorePreflightVerified: true,
+              preflightVerified: true,
+              previewVerified: false,
+              previewObservedAtMs:
+                Number.isSafeInteger(preview?.accepted_observed_at_ms)
+                  ? preview.accepted_observed_at_ms
+                  : null,
+            },
+          );
+        }
+        previewVerified = true;
+        previewObservedAtMs = preview.accepted_observed_at_ms;
+
+        try {
+          const currentPreview =
+            classifyEconomicSystemSponsoredAdmissionV1({
+              sponsorship_policy: policies.sponsored_policy,
+              ttl_caps_policy: policies.ttl_policy,
+              outstanding_intents: [],
+              sponsorships: [],
+              candidate_intent: request.candidate_intent,
+              candidate_sponsorship:
+                request.candidate_sponsorship,
+              candidate_signed_submission:
+                preflight.signed_submission,
+              observed_at_ms: previewObservedAtMs,
+            });
+          if (
+            currentPreview.signed_submission_signature_verified !== true ||
+            currentPreview.candidate_intent_id !== preflight.intent_id ||
+            currentPreview.candidate_sponsorship_id !==
+              preflight.sponsorship_id ||
+            currentPreview.sponsorship_allowed !== true
+          ) {
+            fail("SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID");
+          }
+        } catch {
+          return held(
+            "SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID",
+            {
+              reservationStorePreflightVerified: true,
+              preflightVerified: true,
+              previewVerified: true,
+              previewObservedAtMs,
+            },
+          );
+        }
+
+        const listed =
+          listEconomicSystemSponsoredReservationsV1({
+            root_dir: reservationRoot,
+            ttl_caps_policy: policies.ttl_policy,
+            sponsorship_policy: policies.sponsored_policy,
+            observed_at_ms: previewObservedAtMs,
+          });
+        if (
+          listed?.ok !== true ||
+          listed?.status !== "listed" ||
+          listed?.mutation_performed !== false ||
+          !Array.isArray(listed.records)
+        ) {
+          return held(
+            listed?.reason ||
+              "SPONSORED_RUNTIME_RESERVATION_HISTORY_PREFLIGHT_HELD",
+            {
+              reservationStorePreflightVerified: true,
+              preflightVerified: true,
+              previewVerified: true,
+              previewObservedAtMs,
+            },
+          );
+        }
+
+        const exactDuplicate = listed.records.some(
+          (record) =>
+            record?.sponsorship?.sponsorship_id ===
+              preflight.sponsorship_id &&
+            record?.intent?.intent_id === preflight.intent_id,
+        );
+
+        if (!exactDuplicate) {
+          try {
+            const budgetPreview =
+              classifyEconomicSystemSponsoredAdmissionV1({
+                sponsorship_policy: policies.sponsored_policy,
+                ttl_caps_policy: policies.ttl_policy,
+                outstanding_intents: listed.records.map(
+                  (record) => record.intent,
+                ),
+                sponsorships: listed.records.map(
+                  (record) => record.sponsorship,
+                ),
+                candidate_intent: request.candidate_intent,
+                candidate_sponsorship:
+                  request.candidate_sponsorship,
+                candidate_signed_submission:
+                  preflight.signed_submission,
+                observed_at_ms: previewObservedAtMs,
+              });
+            if (
+              budgetPreview.signed_submission_signature_verified !== true ||
+              budgetPreview.candidate_intent_id !== preflight.intent_id ||
+              budgetPreview.candidate_sponsorship_id !==
+                preflight.sponsorship_id ||
+              budgetPreview.sponsorship_allowed !== true
+            ) {
+              return held(
+                budgetPreview.denial_reason ||
+                  "SPONSORED_RUNTIME_PREVIEW_BUDGET_HELD",
+                {
+                  reservationStorePreflightVerified: true,
+                  preflightVerified: true,
+                  previewVerified: true,
+                  previewBudgetVerified: true,
+                  previewObservedAtMs,
+                },
+              );
+            }
+          } catch (error) {
+            return held(
+              error instanceof Error
+                ? error.message
+                : "SPONSORED_RUNTIME_PREVIEW_BUDGET_HELD",
+              {
+                reservationStorePreflightVerified: true,
+                preflightVerified: true,
+                previewVerified: true,
+                previewBudgetVerified: true,
+                previewObservedAtMs,
+              },
+            );
+          }
+        }
+        previewBudgetVerified = true;
+
         timeResult = await timeStore.observe();
         if (
           timeResult?.ok !== true ||
@@ -786,6 +952,9 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              previewVerified: true,
+              previewBudgetVerified: true,
+              previewObservedAtMs,
               timeMutation:
                 timeResult?.mutation_performed === true,
               timeObservation:
@@ -795,6 +964,10 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             },
           );
         }
+        timeResult = Object.freeze({
+          ...timeResult,
+          preview_observed_at_ms: previewObservedAtMs,
+        });
 
         try {
           const current = classifyEconomicSystemSponsoredAdmissionV1({
@@ -826,6 +999,9 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              previewVerified: true,
+              previewBudgetVerified: true,
+              previewObservedAtMs,
               currentCandidateVerified: false,
               timeMutation:
                 timeResult.mutation_performed === true,
@@ -864,6 +1040,9 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
               reservationStorePreflightVerified: true,
               preflightVerified: true,
               currentCandidateVerified: true,
+              previewVerified: true,
+              previewBudgetVerified: true,
+              previewObservedAtMs,
               timeMutation:
                 timeResult.mutation_performed === true,
               timeObservation: true,
@@ -890,6 +1069,9 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             reservationStorePreflightVerified,
             preflightVerified: preflight !== null,
             currentCandidateVerified,
+            previewVerified,
+            previewBudgetVerified,
+            previewObservedAtMs,
             timeMutation:
               timeResult?.mutation_performed === true,
             timeObservation:
