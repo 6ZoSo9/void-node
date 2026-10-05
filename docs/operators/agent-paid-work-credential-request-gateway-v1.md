@@ -21,6 +21,8 @@ Every POST requires:
 - no transfer encoding;
 - no compressed content encoding;
 - `x-void-payload-sha256` with the lowercase SHA-256 digest of the exact body;
+- `x-void-credential-request-gateway-instance-v1` equal to the current
+  64-hex `qualification_instance_id` returned by the loopback status route;
 - a body no larger than the configured limit;
 - compliance with the Credential Request Intake V1 contract.
 
@@ -34,6 +36,12 @@ The state directory and its `requests/` and `receipts/` children are owner-priva
 - `receipts/<request_id>.json`
 
 The status route exposes only aggregate counts and authority boundaries. It does not expose request bodies, callback URIs, tokens, or registry contents.
+
+It also exposes a non-secret `qualification_instance_id` generated once for
+that gateway process/config instance. POST rejects a missing or stale instance
+identifier with HTTP 412 before rate-window admission. This makes a status
+observation unusable after a restart/replacement; it is a TOCTOU generation
+binding, not an authentication token or credential.
 
 ## Run locally
 
