@@ -285,6 +285,7 @@ for (const [key, value] of Object.entries(
     "exact_effective_open_census_precheck",
     "exact_reconciliation_evidence_resolver_reused",
     "idempotent_replay_reauthenticates_terminal_evidence",
+    "idempotent_directory_durability_refresh",
     "immutable_liability_history",
     "create_once_reconciliation_publication",
     "crash_temp_normalization",
@@ -770,6 +771,18 @@ for (const [key, value] of Object.entries(
   }
 }
 
+const writerSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src/economic/coupled_native_gas_reconciliation_writer_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(
+  writerSource,
+  /fs\.fsyncSync\(reconciliations!\.fd\);[\s\S]{0,240}coupled_native_gas_reconciliation_writer_idempotent_directory/u,
+);
+
 assert.equal(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_V1,
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_V1",
@@ -782,6 +795,7 @@ console.log("existing_payer_queue_reused=true");
 console.log("qualified_reconciliation_storage_required=true");
 console.log("fresh_resolver_required_before_first_publication=true");
 console.log("idempotent_replay_reauthenticates_terminal_evidence=true");
+console.log("idempotent_directory_durability_refresh=true");
 console.log("immutable_liability_history=true");
 console.log("create_once_reconciliation_publication=true");
 console.log("effective_open_reserve_release_exactly_once=true");
