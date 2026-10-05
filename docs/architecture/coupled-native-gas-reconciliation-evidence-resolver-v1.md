@@ -62,8 +62,14 @@ Before any RPC call, the resolver snapshots through `O_NOFOLLOW` descriptors:
 - the exact broadcast-outcome directory.
 
 Directories and files must be private, direct, current-user-owned objects.
-Unexpected filenames, symlinks, hard links, replacement, size drift, metadata
-drift, or content drift fail closed. File bodies are read from the retained
+Snapshot directory resolution walks from filesystem root one component at a time
+through retained `/proc/self/fd` directory descriptors with `O_NOFOLLOW`.
+Intermediate ancestors must be root/current-user owned and may be writable only
+when protected by the sticky bit; the final snapshot directory must be private
+and current-user-owned. The final visible path must still identify the retained
+descriptor. Unexpected filenames, symlinks (including intermediate ancestor
+symlinks), hard links, replacement, size drift, metadata drift, or content drift
+fail closed before RPC. File bodies are read from the retained
 descriptor through a bounded fixed-chunk loop with a hard 1 MiB ceiling during
 the read itself; growth after the initial stat therefore cannot force an
 unbounded `readFileSync` allocation before the post-read identity check.
