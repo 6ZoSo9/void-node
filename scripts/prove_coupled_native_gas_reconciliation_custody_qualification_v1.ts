@@ -84,6 +84,7 @@ function green(): Record<string, unknown> {
         resolved_path: root,
         dev: rootDev,
         ino: "100",
+        mount_id: 77,
         uid: 2000,
         gid: 2000,
         mode: "0700",
@@ -103,6 +104,8 @@ function green(): Record<string, unknown> {
           mount_target: "/var/lib/void/native-gas",
           mount_source: "/dev/disk/by-uuid/void-gas",
           mount_uuid: "void-gas-uuid",
+          mount_id: 77,
+          parent_id: 33,
           major_minor: "8:17",
           filesystem_type: "ext4",
           statfs_type: "0xef53",
@@ -191,6 +194,10 @@ assert.equal(baseline.payer_address, payerAddress);
 assert.equal(baseline.payer_domain_id, payerDomainId);
 assert.equal(baseline.root_path_stability_evidence_qualified, true);
 assert.equal(baseline.namespace_identity_evidence_qualified, true);
+assert.equal(
+  Number((baseline.receipt as Record<string, unknown>).payer_root_mount_id),
+  77,
+);
 assert.equal(baseline.service_policy_evidence_qualified, true);
 assert.equal(baseline.negative_mutation_evidence_qualified, true);
 assert.equal(baseline.bounded_evidence_freshness_checked, true);
@@ -297,6 +304,18 @@ assert.match(
 }
 {
   const x = structuredClone(green()) as any;
+  // Same backing device/UUID/source can still be a different bind-mount
+  // instance. The payer root must bind to the governing mountinfo ID.
+  x.host_evidence.payer_root.mount_id = 78;
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.mount_id = 78;
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
   x.host_evidence.reconciliations.resolved_path =
     root + "/alternate-reconciliations";
   requireHeld(x, "reconciliation_custody_namespace_invalid");
@@ -373,6 +392,7 @@ const trueAuthorityKeys = new Set([
   "root_owned_ancestor_chain_required",
   "root_path_stability_evidence_required",
   "mount_instance_fingerprint_bound",
+  "governing_mount_id_required",
   "remount_denial_evidence_required",
   "bind_mount_denial_evidence_required",
   "same_uid_root_replacement_denial_required",
@@ -399,6 +419,8 @@ console.log("bind_mount_denial_evidence_required=true");
 console.log("remount_denial_evidence_required=true");
 console.log("root_device_matches_mount_major_minor=true");
 console.log("mount_target_device_matches_root=true");
+console.log("governing_mount_id_required=true");
+console.log("root_mount_id_matches_declared_mount=true");
 console.log("exact_payer_domain_identity_required=true");
 console.log("canonical_payer_domain_binding_reused=true");
 console.log("exact_payer_domain_bytes_required=true");
