@@ -84,6 +84,11 @@ boundary; this resolver grants no publication authority.
 
 ## RPC boundary
 
+The production resolver always constructs its own HTTP transport from the
+validated policy. Callers cannot inject or override the transport, so the
+packet's RPC URL fingerprint cannot describe one loopback endpoint while the
+resolver actually consumes evidence supplied by another transport.
+
 The RPC policy is restricted to canonical numeric-loopback HTTP:
 
 - `127.0.0.1` or `[::1]` only;
@@ -130,7 +135,9 @@ Always false in this lane:
 - funds movement.
 
 The proof writes only temporary fixture state needed to exercise the existing
-journal readers. Production resolver behavior is read-only.
+journal readers. Its RPC fixture is a real ephemeral numeric-loopback HTTP
+JSON-RPC server; it does not bypass production transport construction.
+Production resolver behavior is read-only.
 
 ## Verification
 
