@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import path from "node:path";
 
+import {
+  buildCoupledNativeGasStorePayerDomainV1,
+  serializeCoupledNativeGasStorePayerDomainV1,
+} from "./coupled_native_gas_liability_store_v1.js";
+
 export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_QUALIFICATION_V1 =
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_QUALIFICATION_V1";
 
@@ -14,6 +19,8 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_AUTHORITY_V1 =
     host_evidence_input_only: true,
     dedicated_service_identity_required: true,
     exact_payer_domain_identity_required: true,
+    canonical_payer_domain_binding_reused: true,
+    exact_payer_domain_bytes_required: true,
     exact_namespace_identity_required: true,
     root_owned_ancestor_chain_required: true,
     root_path_stability_evidence_required: true,
@@ -52,7 +59,6 @@ const RECEIPT_SCHEMA =
 const DOMAIN =
   "void-coupled-native-gas-reconciliation-custody-qualification-v1";
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
-const HEX64 = /^[0-9a-f]{64}$/u;
 const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const MODE = /^0[0-7]{3}$/u;
 const SAFE_TEXT = /^[A-Za-z0-9._:@/+\-]{1,256}$/u;
@@ -63,7 +69,7 @@ const MAX_EVIDENCE_TTL_MS = 5 * 60 * 1000;
 
 const INPUT_KEYS = Object.freeze([
   "verification_now_ms",
-  "expected_payer_domain_id",
+  "payer_address",
   "host_evidence",
 ]);
 const HOST_KEYS = Object.freeze([
@@ -193,6 +199,7 @@ export type CoupledNativeGasReconciliationCustodyDecisionV1 =
       evidence_snapshot_fingerprint_sha256: string;
       qualification_policy_fingerprint_sha256: string;
       host_id: string;
+      payer_address: string;
       payer_domain_id: string;
       payer_root_path: string;
       mount_instance_fingerprint_sha256: string;
@@ -626,6 +633,7 @@ function normalizePayerDomain(
   serviceUid: number,
   serviceGid: number,
   expectedPayerDomainId: string,
+  expectedContentSha256: string,
 ): Readonly<Record<string, unknown>> {
   const file = exactObject(
     value,
@@ -646,7 +654,7 @@ function normalizePayerDomain(
     file.symlink !== false ||
     safeInt(file.nlink, 1, 1, "reconciliation_custody_payer_domain_invalid") !== 1 ||
     String(file.payer_domain_id ?? "") !== expectedPayerDomainId ||
-    !SHA256_ID.test(String(file.content_sha256 ?? ""))
+    String(file.content_sha256 ?? "") !== expectedContentSha256
   ) {
     fail("reconciliation_custody_payer_domain_invalid");
   }
@@ -660,7 +668,7 @@ function normalizePayerDomain(
     symlink: false,
     nlink: 1,
     payer_domain_id: expectedPayerDomainId,
-    content_sha256: String(file.content_sha256),
+    content_sha256: expectedContentSha256,
   });
 }
 
@@ -778,10 +786,13 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
       Number.MAX_SAFE_INTEGER,
       "reconciliation_custody_verification_time_invalid",
     );
-    const expectedPayerDomainId = safeText(
-      top.expected_payer_domain_id,
-      HEX64,
-      "reconciliation_custody_payer_domain_id_invalid",
+    const canonicalPayerDomain =
+      buildCoupledNativeGasStorePayerDomainV1(top.payer_address);
+    const payerAddress = canonicalPayerDomain.payer_address;
+    const expectedPayerDomainId =
+      canonicalPayerDomain.payer_domain_id;
+    const expectedPayerDomainContentSha256 = sha256Id(
+      serializeCoupledNativeGasStorePayerDomainV1(payerAddress),
     );
     const host = exactObject(
       top.host_evidence,
@@ -875,6 +886,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
       serviceUid,
       serviceGid,
       expectedPayerDomainId,
+      expectedPayerDomainContentSha256,
     );
     const records = normalizeDirectory(
       host.records,
@@ -935,6 +947,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
     );
     const policyBody = Object.freeze({
       host_id: hostId,
+      payer_address: payerAddress,
       public_runtime_uid: publicRuntimeUid,
       public_runtime_gid: publicRuntimeGid,
       service_uid: serviceUid,
@@ -956,6 +969,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
         VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_V1,
       version: 1,
       host_id: hostId,
+      payer_address: payerAddress,
       evidence_generation: generation,
       observed_at_ms: observed,
       expires_at_ms: expires,
@@ -1003,6 +1017,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
         evidenceSnapshotFingerprint,
       qualification_policy_fingerprint_sha256: policyFingerprint,
       host_id: hostId,
+      payer_address: payerAddress,
       payer_domain_id: expectedPayerDomainId,
       payer_root_path: rootPath,
       mount_instance_fingerprint_sha256: String(
