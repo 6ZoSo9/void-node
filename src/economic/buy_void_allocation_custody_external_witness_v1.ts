@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import {
   classifyBuyVoidAllocationReservationHighWaterBindingV1,
+  deriveBuyVoidAllocationReservationHighWaterV1,
 } from "./buy_void_allocation_reservation_high_water_v1.js";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_EXTERNAL_WITNESS_EVENT_V1 =
@@ -594,6 +595,30 @@ export function parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
           "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       ) {
         fail("allocation_custody_witness_genesis_invalid");
+      }
+      const genesisHighWater =
+        deriveBuyVoidAllocationReservationHighWaterV1("");
+      if (genesisHighWater.ok === false) {
+        fail("allocation_custody_witness_genesis_high_water_invalid");
+      }
+      const genesisHighWaterBytes = Buffer.from(
+        genesisHighWater.high_water_json,
+        "utf8",
+      );
+      if (
+        event.high_water_bytes !== genesisHighWaterBytes.length ||
+        event.high_water_sha256 !== sha256Id(genesisHighWaterBytes) ||
+        event.record_count !== genesisHighWater.high_water.record_count ||
+        event.allocation_tip_sha256 !==
+          genesisHighWater.high_water.tip_hash ||
+        event.pool_void_total !==
+          genesisHighWater.high_water.pool_void_total ||
+        event.reserved_void_total !==
+          genesisHighWater.high_water.reserved_void_total ||
+        event.remaining_void !==
+          genesisHighWater.high_water.remaining_void
+      ) {
+        fail("allocation_custody_witness_genesis_high_water_invalid");
       }
     } else {
       if (
