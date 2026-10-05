@@ -92,6 +92,44 @@ assert.equal(sha256(replayStageMigrationBytes),expected.migration,"migration");
 const contract=json(
   "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-contract-v1.json",
 );
+const replaySourceEquivalence=json(
+  "ops/mainnet0/economic-epoch2-durable-replay-store-consume-equivalence-v1.json",
+);
+
+assert.equal(
+  replaySourceEquivalence.marker,
+  "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_CONSUME_EQUIVALENCE_V1",
+);
+assert.equal(
+  replaySourceEquivalence.predecessor.git_blob_sha1,
+  "2e4481fbf45200121356f39c278eac5b05a33596",
+);
+assert.equal(
+  replaySourceEquivalence.successor.git_blob_sha1,
+  committedBinding.source_git_blob_sha1.durable_replay_store,
+);
+assert.equal(
+  replaySourceEquivalence.equivalence.consume_if_fresh_exact_source_match,
+  true,
+);
+assert.equal(
+  replaySourceEquivalence.equivalence.receipt_validation_semantics_equivalent,
+  true,
+);
+assert.equal(
+  replaySourceEquivalence.equivalence.runtime_evidence_carry_forward_scope,
+  "atomic_consume_path_only",
+);
+assert.equal(
+  replaySourceEquivalence.historical_runtime_evidence.evidence_file_sha256,
+  expected.evidence,
+);
+assert.equal(
+  replaySourceEquivalence.historical_runtime_evidence.evidence_id,
+  evidenceId,
+);
+assert.equal(replaySourceEquivalence.authority.runtime_canary_reexecuted,false);
+assert.equal(replaySourceEquivalence.authority.atomic_consume_authority_changed,false);
 
 assert.equal(evidence.evidence_id,evidenceId);
 assert.equal(receipt.evidence_id,evidenceId);
@@ -254,6 +292,8 @@ console.log("durable_policy_sha256_verified="+expected.durable);
 console.log("binding_policy_sha256_verified="+expected.binding);
 console.log("raw_domain_sha256_verified="+expected.raw_domain);
 console.log("replay_stage_migration_sha256_verified="+expected.migration);
+console.log("replay_consume_source_equivalence_verified=true");
+console.log("runtime_canary_reexecuted=false");
 console.log("runtime_evidence_semantically_reverified=true");
 console.log("runtime_evidence_fresh_at_import=true");
 console.log("production_gateway_replay_store_binding_verified=true");
