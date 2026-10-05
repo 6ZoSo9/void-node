@@ -467,7 +467,15 @@ function validateMount(
   for (const required of REQUIRED_MOUNT_OPTIONS) {
     if (!options.includes(required)) fail(code + "_required_option_missing");
   }
-  for (const forbidden of ["bind", "rbind", "remount"]) {
+  for (const forbidden of [
+    "bind",
+    "rbind",
+    "remount",
+    "dev",
+    "exec",
+    "suid",
+    "ro",
+  ]) {
     if (options.includes(forbidden)) fail(code + "_forbidden_option");
   }
   return Object.freeze({
