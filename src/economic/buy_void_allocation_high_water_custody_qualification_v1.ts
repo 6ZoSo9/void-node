@@ -25,6 +25,7 @@ export const VOID_BUY_VOID_ALLOCATION_HIGH_WATER_CUSTODY_QUALIFICATION_AUTHORITY
     af_unix_ipc_required: true,
     systemd_hardening_required: true,
     negative_probe_evidence_required: true,
+    recovery_phase_evidence_required: true,
     freshness_required: true,
     synthetic_evidence_qualification: true,
     live_host_observation: false,
@@ -154,6 +155,15 @@ type EvidenceV1 = {
     ambient_capabilities_empty: true;
     af_unix_only: true;
     read_write_paths: string[];
+  };
+  recovery_probes: {
+    clean_restart_bound: true;
+    intent_only_restart_recovers: true;
+    ledger_committed_restart_recovers: true;
+    high_water_committed_restart_recovers: true;
+    complete_restart_recovers: true;
+    forward_only_recovery: true;
+    no_duplicate_allocation_obligation: true;
   };
   negative_probes: {
     runtime_rename_ledger_root_denied: true;
@@ -514,6 +524,7 @@ function validateEvidence(
       "custody",
       "ipc",
       "service_hardening",
+      "recovery_probes",
       "negative_probes",
       "state",
     ],
@@ -719,6 +730,30 @@ function validateEvidence(
     writePaths.join("\n") !== expectedWritePaths.join("\n")
   ) {
     fail("allocation_custody_hardening_paths_invalid");
+  }
+
+  const recoveryProbes = directObject(
+    value.recovery_probes,
+    "allocation_custody_recovery_probes_object_invalid",
+  );
+  const recoveryProbeKeys = [
+    "clean_restart_bound",
+    "intent_only_restart_recovers",
+    "ledger_committed_restart_recovers",
+    "high_water_committed_restart_recovers",
+    "complete_restart_recovers",
+    "forward_only_recovery",
+    "no_duplicate_allocation_obligation",
+  ] as const;
+  exactKeys(
+    recoveryProbes,
+    recoveryProbeKeys,
+    "allocation_custody_recovery_probes_keys_invalid",
+  );
+  for (const key of recoveryProbeKeys) {
+    if (recoveryProbes[key] !== true) {
+      fail("allocation_custody_recovery_probe_failed");
+    }
   }
 
   const probes = directObject(
