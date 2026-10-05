@@ -3,10 +3,14 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 
 import {
-  VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_AUTHORITY_V1,
-  VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1,
-  type BuyVoidPaymentKeyedReceiptEvidenceV1,
-} from "../src/economic/buy_void_payment_keyed_receipt_evidence_v1.js";
+  VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1,
+  type BuyVoidBroadcastConfirmedRecordV1,
+  type BuyVoidBroadcastRevertedRecordV1,
+} from "../src/economic/buy_void_broadcast_outcome_journal_v1.js";
+import {
+  VOID_BUY_VOID_FULFILLMENT_CONFIRMATION_V1,
+  type BuyVoidConfirmedFulfillmentRecordV1,
+} from "../src/economic/buy_void_fulfillment_confirmation_v1.js";
 import {
   VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1,
   type BuyVoidPreparedTransactionPlanReservationV1,
@@ -22,16 +26,15 @@ import {
   classifyCoupledNativeGasTerminalCostEvidenceV1,
   type CoupledNativeGasRawTerminalReceiptV1,
   type CoupledNativeGasTerminalCostEvidenceDecisionV1,
+  type CoupledNativeGasTerminalOutcomeV1,
 } from "../src/economic/coupled_native_gas_terminal_cost_evidence_v1.js";
 
 const wallet = "0x" + "1".repeat(40);
 const delivery = "0x" + "3".repeat(40);
-const fulfillment = "0x" + "4".repeat(40);
-const voidToken = "0x" + "5".repeat(40);
-const txHash = "0x" + "6".repeat(64);
-const blockHash = "0x" + "7".repeat(64);
-const policyFingerprint = "8".repeat(64);
-const receiptFingerprint = "9".repeat(64);
+const deliveryTx = "0x" + "6".repeat(64);
+const deliveryBlockHash = "0x" + "7".repeat(64);
+const revertedBlockHash = "0x" + "8".repeat(64);
+const paymentTx = "0x" + "9".repeat(64);
 
 function canonical(value: unknown): string {
   if (value === null || typeof value !== "object") {
@@ -62,6 +65,15 @@ function sha256Canonical(value: unknown): string {
 
 function sha256Text(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function stableFingerprint(parts: Record<string, string>): string {
+  return sha256Text(
+    Object.keys(parts)
+      .sort()
+      .map((key) => key + "=" + parts[key])
+      .join("\n"),
+  );
 }
 
 function makePlan(input: {
@@ -163,77 +175,133 @@ function liabilityFor(
   return decision.liability;
 }
 
-function makeEvidence(
+function makeConfirmedFulfillmentRecord(
   plan: BuyVoidPreparedTransactionPlanReservationV1,
-  outcome: "confirmed" | "reverted",
-): BuyVoidPaymentKeyedReceiptEvidenceV1 {
-  const common = {
-    schema: "void_buy_void_payment_keyed_receipt_evidence_v1" as const,
-    marker: VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1,
-    version: 1 as const,
-    saga_id: plan.saga_id,
-    attempt_id: plan.attempt_id,
-    transaction_hash: txHash,
-    outcome,
-    recorded_at_ms: 1_800_000_001_000,
-    receipt_policy_fingerprint_sha256: policyFingerprint,
-    receipt_evidence_fingerprint_sha256: receiptFingerprint,
-    receipt_block_number: "100",
-    receipt_block_hash: blockHash,
-    observed_confirmation_count: "3",
-    fulfillment_wallet_address: wallet,
-    fulfillment_contract_address: fulfillment,
-    delivery_address: delivery,
-    void_amount_units: plan.native_value_wei,
-  };
-  const body =
-    outcome === "confirmed"
-      ? {
-          ...common,
-          outcome: "confirmed" as const,
-          canonical_payment_identity:
-            "voidpay1:base:0x" + "f".repeat(64) + ":7",
-          payment_delivery_id: "0x" + "1".repeat(64),
-          void_token_address: voidToken,
-          token_amount_atoms: "6000000000000000000",
-          fulfillment_event_log_index: "1",
-          transfer_event_log_index: "2",
-          authority:
-            VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_AUTHORITY_V1,
-        }
-      : {
-          ...common,
-          outcome: "reverted" as const,
-          canonical_payment_identity: null,
-          payment_delivery_id: null,
-          void_token_address: null,
-          token_amount_atoms: null,
-          fulfillment_event_log_index: null,
-          transfer_event_log_index: null,
-          authority:
-            VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_AUTHORITY_V1,
-        };
-  const { recorded_at_ms: _recordedAt, ...semantic } = body;
-  void _recordedAt;
+  input: {
+    amount?: string;
+    wallet_address?: string;
+    delivery_address?: string;
+    block_hash?: string;
+    block_number?: string;
+    confirmations?: string;
+  } = {},
+): BuyVoidConfirmedFulfillmentRecordV1 {
+  const identity =
+    "voidpay1:base:0x" + "f".repeat(64) + ":7";
+  const amount = input.amount ?? plan.native_value_wei;
+  const fulfillmentWallet = input.wallet_address ?? plan.wallet_address;
+  const deliveryAddress =
+    input.delivery_address ?? plan.delivery_address;
+  const blockHash = input.block_hash ?? deliveryBlockHash;
+  const blockNumber = input.block_number ?? "100";
+  const confirmations = input.confirmations ?? "3";
+  const requestId = "buyvoid_a_aaaaaaaa";
+  const instructionId = "voidfill1_" + "1".repeat(32);
+  const deliveryBinding = stableFingerprint({
+    canonical_payment_identity: identity,
+    request_id: requestId,
+    instruction_id: instructionId,
+    delivery_chain_id: "2050",
+    void_delivery_tx_hash: deliveryTx,
+    delivery_block_number: blockNumber,
+    delivery_block_hash: blockHash,
+    fulfillment_wallet: fulfillmentWallet,
+    delivery_address: deliveryAddress,
+    void_amount_units: amount,
+  });
   return {
-    ...body,
-    evidence_fingerprint_sha256: sha256Canonical(semantic),
+    schema: "void_buy_void_confirmed_fulfillment_record_v1",
+    marker: VOID_BUY_VOID_FULFILLMENT_CONFIRMATION_V1,
+    status: "fulfilled_confirmed",
+    canonical_payment_identity: identity,
+    canonical_payment_identity_sha256: sha256Text(identity),
+    request_id: requestId,
+    instruction_id: instructionId,
+    source_payment_chain: "base",
+    payment_transaction_hash: paymentTx,
+    payment_log_index: "7",
+    delivery_chain_id: "2050",
+    void_delivery_tx_hash: deliveryTx,
+    delivery_block_number: blockNumber,
+    delivery_block_hash: blockHash,
+    delivery_confirmation_count: confirmations,
+    fulfillment_wallet: fulfillmentWallet,
+    delivery_address: deliveryAddress,
+    void_amount_units: amount,
+    delivery_binding_fingerprint: deliveryBinding,
+    buyer_fulfilled: true,
+    automatic_fulfillment_completed: true,
+    payment_claim_persisted: true,
+    delivery_confirmation_observed: true,
+    signing_authorized_by_this_module: false,
+    transaction_broadcast_authorized_by_this_module: false,
+    money_movement_authorized_by_this_module: false,
   };
 }
 
-function refingerprintEvidence(
-  evidence: BuyVoidPaymentKeyedReceiptEvidenceV1,
-): BuyVoidPaymentKeyedReceiptEvidenceV1 {
-  const {
-    evidence_fingerprint_sha256: _oldFingerprint,
-    recorded_at_ms: _recordedAt,
-    ...semantic
-  } = evidence;
-  void _oldFingerprint;
-  void _recordedAt;
+function confirmedFingerprint(
+  record: BuyVoidConfirmedFulfillmentRecordV1,
+): string {
+  return stableFingerprint({
+    marker: record.marker,
+    canonical_payment_identity: record.canonical_payment_identity,
+    request_id: record.request_id,
+    instruction_id: record.instruction_id,
+    void_delivery_tx_hash: record.void_delivery_tx_hash,
+    delivery_block_hash: String(record.delivery_block_hash),
+    fulfillment_wallet: record.fulfillment_wallet,
+    delivery_address: record.delivery_address,
+    void_amount_units: record.void_amount_units,
+    delivery_block_number: record.delivery_block_number,
+    delivery_binding_fingerprint: record.delivery_binding_fingerprint,
+  });
+}
+
+function makeConfirmedOutcome(
+  plan: BuyVoidPreparedTransactionPlanReservationV1,
+  confirmed = makeConfirmedFulfillmentRecord(plan),
+): BuyVoidBroadcastConfirmedRecordV1 {
   return {
-    ...evidence,
-    evidence_fingerprint_sha256: sha256Canonical(semantic),
+    schema: "void_buy_void_broadcast_confirmed_record_v1",
+    marker: VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1,
+    attempt_id: plan.attempt_id,
+    recorded_at_ms: 1_800_000_001_000,
+    void_delivery_tx_hash: deliveryTx,
+    confirmation_fingerprint: confirmedFingerprint(confirmed),
+    confirmed_record: confirmed,
+    definitive_confirmation: true,
+    reconciliation_required: false,
+    retry_allowed: false,
+    transaction_broadcast_performed_by_this_module: false,
+  };
+}
+
+function makeRevertedOutcome(
+  plan: BuyVoidPreparedTransactionPlanReservationV1,
+  input: {
+    block_number?: string;
+    current_block_number?: string;
+    confirmation_count?: string;
+    min_revert_confirmations?: number;
+  } = {},
+): BuyVoidBroadcastRevertedRecordV1 {
+  return {
+    schema: "void_buy_void_broadcast_reverted_record_v1",
+    marker: VOID_BUY_VOID_BROADCAST_OUTCOME_JOURNAL_V1,
+    attempt_id: plan.attempt_id,
+    recorded_at_ms: 1_800_000_001_000,
+    chain_id: "2050",
+    void_delivery_tx_hash: deliveryTx,
+    transaction_status: 0,
+    block_number: input.block_number ?? "100",
+    current_block_number: input.current_block_number ?? "102",
+    confirmation_count: input.confirmation_count ?? "3",
+    min_revert_confirmations:
+      input.min_revert_confirmations ?? 2,
+    definitive_revert: true,
+    reconciliation_required: false,
+    retry_allowed: true,
+    transaction_broadcast_performed_by_this_module: false,
   };
 }
 
@@ -242,9 +310,12 @@ function makeReceipt(
   input: Partial<CoupledNativeGasRawTerminalReceiptV1> = {},
 ): CoupledNativeGasRawTerminalReceiptV1 {
   return {
-    transactionHash: txHash,
+    transactionHash: deliveryTx,
     blockNumber: "0x64",
-    blockHash,
+    blockHash:
+      outcome === "confirmed"
+        ? deliveryBlockHash
+        : revertedBlockHash,
     status: outcome === "confirmed" ? "0x1" : "0x0",
     gasUsed: "0x5208",
     effectiveGasPrice: "0x5",
@@ -258,20 +329,28 @@ function classify(input: {
   plan?: BuyVoidPreparedTransactionPlanReservationV1;
   liability?: CoupledNativeGasLiabilityRecordV1;
   outcome?: "confirmed" | "reverted";
-  evidence?: BuyVoidPaymentKeyedReceiptEvidenceV1;
+  terminal?: CoupledNativeGasTerminalOutcomeV1;
   receipt?: CoupledNativeGasRawTerminalReceiptV1 | Record<string, unknown>;
-  policy?: string;
+  current_block_number?: string;
+  required_min_confirmations?: string;
 } = {}): CoupledNativeGasTerminalCostEvidenceDecisionV1 {
   const plan = input.plan ?? makePlan();
   const outcome = input.outcome ?? "confirmed";
   return classifyCoupledNativeGasTerminalCostEvidenceV1({
     liability: input.liability ?? liabilityFor(plan),
     buy_void_plan: plan,
-    terminal_receipt_evidence:
-      input.evidence ?? makeEvidence(plan, outcome),
+    terminal_outcome:
+      input.terminal ??
+      (
+        outcome === "confirmed"
+          ? makeConfirmedOutcome(plan)
+          : makeRevertedOutcome(plan)
+      ),
     raw_receipt: input.receipt ?? makeReceipt(outcome),
-    expected_receipt_policy_fingerprint_sha256:
-      input.policy ?? policyFingerprint,
+    current_block_number:
+      input.current_block_number ?? "0x66",
+    required_min_confirmations:
+      input.required_min_confirmations ?? "2",
   });
 }
 
@@ -301,9 +380,13 @@ assert.equal(confirmed.outcome, "confirmed");
 assert.equal(confirmed.gas_used, "21000");
 assert.equal(confirmed.effective_gas_price_wei, "5");
 assert.equal(confirmed.gas_cost_wei, "105000");
-assert.equal(confirmed.transaction_native_value_debit_wei, "1");
-assert.equal(confirmed.actual_payer_debit_wei, "105001");
+assert.equal(
+  confirmed.transaction_native_value_consumed_wei,
+  "1",
+);
+assert.equal(confirmed.liability_consumed_wei, "105001");
 assert.equal(confirmed.maximum_reserved_wei, "210001");
+assert.equal(confirmed.observed_confirmation_count, "3");
 assert.equal(confirmed.within_reserved_envelope, true);
 assert.equal(confirmed.liability_release_authorized, false);
 assert.equal(confirmed.mutation_performed, false);
@@ -312,8 +395,11 @@ assert.equal(confirmed.funds_movement_performed, false);
 const reverted = requireOk(classify({ outcome: "reverted" }));
 assert.equal(reverted.outcome, "reverted");
 assert.equal(reverted.gas_cost_wei, "105000");
-assert.equal(reverted.transaction_native_value_debit_wei, "0");
-assert.equal(reverted.actual_payer_debit_wei, "105000");
+assert.equal(
+  reverted.transaction_native_value_consumed_wei,
+  "0",
+);
+assert.equal(reverted.liability_consumed_wei, "105000");
 assert.notEqual(reverted.evidence_id, confirmed.evidence_id);
 
 const freeGas = requireOk(
@@ -324,7 +410,7 @@ const freeGas = requireOk(
   }),
 );
 assert.equal(freeGas.gas_cost_wei, "0");
-assert.equal(freeGas.actual_payer_debit_wei, "1");
+assert.equal(freeGas.liability_consumed_wei, "1");
 
 requireHeld(
   classify({
@@ -365,10 +451,10 @@ requireHeld(
 requireHeld(
   classify({
     receipt: makeReceipt("confirmed", {
-      blockHash: "0x" + "3".repeat(64),
+      blockHash: "0x" + "2".repeat(64),
     }),
   }),
-  "coupled_native_gas_terminal_cost_receipt_identity_mismatch",
+  "coupled_native_gas_terminal_cost_confirmed_block_hash_mismatch",
 );
 
 requireHeld(
@@ -399,43 +485,24 @@ requireHeld(
 );
 
 requireHeld(
-  classify({ policy: "a".repeat(64) }),
-  "coupled_native_gas_terminal_cost_receipt_policy_mismatch",
+  classify({ current_block_number: "0x63" }),
+  "coupled_native_gas_terminal_cost_current_block_precedes_receipt",
 );
 
-{
-  const plan = makePlan();
-  const evidence = refingerprintEvidence({
-    ...makeEvidence(plan, "confirmed"),
-    fulfillment_wallet_address: "0x" + "2".repeat(40),
-  });
-  requireHeld(
-    classify({
-      plan,
-      liability: liabilityFor(plan),
-      evidence,
-      receipt: makeReceipt("confirmed"),
-    }),
-    "coupled_native_gas_terminal_cost_attempt_binding_mismatch",
-  );
-}
+requireHeld(
+  classify({
+    current_block_number: "0x64",
+    required_min_confirmations: "2",
+  }),
+  "coupled_native_gas_terminal_cost_confirmations_insufficient",
+);
 
-{
-  const plan = makePlan();
-  const evidence = refingerprintEvidence({
-    ...makeEvidence(plan, "confirmed"),
-    void_amount_units: "2",
-  });
-  requireHeld(
-    classify({
-      plan,
-      liability: liabilityFor(plan),
-      evidence,
-      receipt: makeReceipt("confirmed"),
-    }),
-    "coupled_native_gas_terminal_cost_attempt_binding_mismatch",
-  );
-}
+requireHeld(
+  classify({
+    required_min_confirmations: "1001",
+  }),
+  "coupled_native_gas_terminal_cost_confirmation_policy_invalid",
+);
 
 {
   const plan = makePlan();
@@ -448,7 +515,7 @@ requireHeld(
     classify({
       plan: changedPlan,
       liability,
-      evidence: makeEvidence(changedPlan, "confirmed"),
+      terminal: makeConfirmedOutcome(changedPlan),
       receipt: makeReceipt("confirmed"),
     }),
     "coupled_native_gas_terminal_cost_plan_liability_binding_mismatch",
@@ -457,41 +524,77 @@ requireHeld(
 
 {
   const plan = makePlan();
-  const evidence = makeEvidence(plan, "confirmed");
-  const tampered = {
-    ...evidence,
-    observed_confirmation_count: "4",
-  };
+  const confirmedRecord = makeConfirmedFulfillmentRecord(plan, {
+    amount: "2",
+  });
+  const terminal = makeConfirmedOutcome(plan, confirmedRecord);
   requireHeld(
     classify({
       plan,
       liability: liabilityFor(plan),
-      evidence:
-        tampered as BuyVoidPaymentKeyedReceiptEvidenceV1,
+      terminal,
       receipt: makeReceipt("confirmed"),
     }),
-    "coupled_native_gas_terminal_cost_receipt_evidence_fingerprint_mismatch",
+    "coupled_native_gas_terminal_cost_confirmed_plan_binding_mismatch",
   );
 }
 
 {
   const plan = makePlan();
-  const evidence = makeEvidence(plan, "reverted");
-  const malformed = {
-    ...evidence,
-    canonical_payment_identity:
-      "voidpay1:base:0x" + "f".repeat(64) + ":7",
+  const confirmedRecord = makeConfirmedFulfillmentRecord(plan);
+  const terminal = {
+    ...makeConfirmedOutcome(plan, confirmedRecord),
+    confirmation_fingerprint: "0".repeat(64),
   };
   requireHeld(
     classify({
       plan,
       liability: liabilityFor(plan),
+      terminal,
+      receipt: makeReceipt("confirmed"),
+    }),
+    "coupled_native_gas_terminal_cost_confirmation_fingerprint_mismatch",
+  );
+}
+
+{
+  const plan = makePlan();
+  const confirmedRecord = {
+    ...makeConfirmedFulfillmentRecord(plan),
+    delivery_binding_fingerprint: "0".repeat(64),
+  };
+  const terminal = {
+    ...makeConfirmedOutcome(
+      plan,
+      confirmedRecord as BuyVoidConfirmedFulfillmentRecordV1,
+    ),
+    confirmation_fingerprint: "0".repeat(64),
+  };
+  requireHeld(
+    classify({
+      plan,
+      liability: liabilityFor(plan),
+      terminal,
+      receipt: makeReceipt("confirmed"),
+    }),
+    "coupled_native_gas_terminal_cost_delivery_binding_fingerprint_mismatch",
+  );
+}
+
+{
+  const plan = makePlan();
+  const terminal = makeRevertedOutcome(plan, {
+    confirmation_count: "2",
+  });
+  requireHeld(
+    classify({
+      plan,
+      liability: liabilityFor(plan),
       outcome: "reverted",
-      evidence:
-        malformed as BuyVoidPaymentKeyedReceiptEvidenceV1,
+      terminal,
       receipt: makeReceipt("reverted"),
     }),
-    "coupled_native_gas_terminal_cost_reverted_evidence_invalid",
+    "coupled_native_gas_terminal_cost_reverted_outcome_invalid",
   );
 }
 
@@ -505,10 +608,10 @@ requireHeld(
     classify({
       plan,
       liability: liabilityFor(plan),
-      evidence: makeEvidence(plan, "confirmed"),
+      terminal: makeConfirmedOutcome(plan),
       receipt: raw,
     }),
-    "coupled_native_gas_terminal_cost_raw_receipt_invalid",
+    "coupled_native_gas_terminal_cost_raw_receipt_keys_invalid",
   );
 }
 
@@ -521,17 +624,20 @@ for (const [key, value] of Object.entries(
     "buy_void_only",
     "exact_open_liability_required",
     "exact_prepared_plan_binding_required",
-    "immutable_terminal_receipt_evidence_required",
-    "exact_receipt_policy_fingerprint_required",
-    "raw_receipt_cost_fields_required",
+    "durable_native_terminal_outcome_required",
+    "confirmed_delivery_fingerprint_rederived",
+    "confirmed_outcome_fingerprint_rederived",
+    "reverted_outcome_arithmetic_rederived",
+    "fresh_raw_receipt_required",
+    "fresh_confirmation_depth_required",
     "exact_transaction_block_binding_required",
     "exact_receipt_sender_delivery_binding_required",
     "confirmed_and_reverted_supported",
     "gas_used_ceiling_required",
     "effective_gas_price_ceiling_required",
     "exact_integer_gas_cost",
-    "confirmed_native_value_debit_bound",
-    "reverted_native_value_debit_zero",
+    "confirmed_native_value_consumption_bound",
+    "reverted_native_value_consumption_zero",
     "reserved_envelope_ceiling_required",
   ]);
   assert.equal(value, trueKeys.has(key), key);
@@ -545,15 +651,18 @@ assert.equal(
 console.log(
   "VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_EVIDENCE_V1_PROOF_GREEN",
 );
+console.log("native_terminal_outcome_required=true");
+console.log("confirmed_delivery_fingerprint_rederived=true");
+console.log("confirmed_outcome_fingerprint_rederived=true");
+console.log("reverted_outcome_arithmetic_rederived=true");
+console.log("fresh_receipt_confirmation_revalidation=true");
 console.log("confirmed_gas_cost_bound=true");
-console.log("reverted_native_value_debit_zero=true");
+console.log("reverted_native_value_consumption_zero=true");
 console.log("zero_effective_gas_price_supported=true");
 console.log("gas_used_ceiling_enforced=true");
 console.log("effective_gas_price_ceiling_enforced=true");
 console.log("exact_receipt_identity_bound=true");
-console.log("receipt_sender_contract_bound=true");
-console.log("receipt_policy_fingerprint_bound=true");
-console.log("receipt_evidence_fingerprint_revalidated=true");
+console.log("receipt_sender_delivery_bound=true");
 console.log("liability_release_authorized=false");
 console.log("runtime_integration=false");
 console.log("rpc_read=false");
