@@ -420,6 +420,60 @@ let advancedJournal: Buffer;
 }
 
 {
+  const parsed =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      advancedJournal!,
+    );
+  const ledger1Bytes = Buffer.from(ledger1, "utf8");
+  const partialLength = Math.max(
+    1,
+    Math.floor(ledger1Bytes.length / 2),
+  );
+  const partialLedger = ledger1Bytes.subarray(0, partialLength);
+  const malformedTip = rehashWitnessEvent({
+    ...parsed.tip,
+    ledger_bytes: partialLedger.length,
+    ledger_sha256: sha256Id(partialLedger),
+  });
+  const malformedJournal = Buffer.concat([
+    genesis,
+    Buffer.from(JSON.stringify(malformedTip) + "\n", "utf8"),
+  ]);
+  const syntactic =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      malformedJournal,
+    );
+  assert.equal(syntactic.tip.record_count, 1);
+  assert.equal(syntactic.tip.ledger_bytes, partialLedger.length);
+
+  const classified =
+    classifyBuyVoidAllocationCustodyExternalWitnessV1({
+      witness_jsonl: malformedJournal,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    });
+  assert.equal(classified.ok, false);
+  assert.equal(
+    classified.reason,
+    "allocation_custody_witness_local_history_conflict",
+  );
+
+  const planned =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: malformedJournal,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    });
+  assert.equal(planned.ok, false);
+  assert.equal(
+    planned.reason,
+    "allocation_custody_witness_advance_invalid",
+  );
+}
+
+{
   const rolledBack =
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: advancedJournal!,
