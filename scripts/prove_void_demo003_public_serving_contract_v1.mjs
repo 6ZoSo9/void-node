@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_DEMO003_CANONICAL_PAYLOADS_V1,
@@ -9,9 +11,33 @@ import {
   VOID_DEMO003_PUBLIC_SERVING_CONTRACT_V1,
   classifyVoidDemo003PublicServingSetV1,
 } from "../src/http/void_demo003_public_serving_contract_v1.ts";
+import { readDirectRegularFileV1 } from "../src/http/public_node_local_data_drop_file_v1.ts";
 
 const sha256 = (bytes) =>
   createHash("sha256").update(bytes).digest("hex");
+
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-demo003-serving-bound-"),
+  );
+  fs.chmodSync(root, 0o700);
+  const large = path.join(root, "large.bin");
+  try {
+    const fd = fs.openSync(large, "wx", 0o600);
+    try {
+      fs.ftruncateSync(fd, 3 * 1024 * 1024);
+    } finally {
+      fs.closeSync(fd);
+    }
+    assert.throws(
+      () => readDirectRegularFileV1(large, 2 * 1024 * 1024),
+      /VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1:final_file_too_large/u,
+      "Demo003 serving reader must reject oversized files before readFileSync",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 
 const payloadBytes = {
   "README.txt": Buffer.from(
@@ -282,6 +308,7 @@ assert.match(
 
 console.log("VOID_DEMO003_PUBLIC_SERVING_CONTRACT_V1_GREEN");
 console.log("canonical_payload_hashes_and_sizes_bound=true");
+console.log("pre_read_file_size_bound=true");
 console.log("manifest_and_checksum_bytes_bound_to_sealed_intake=true");
 console.log("coherent_mutable_record_forgery_rejected=true");
 console.log("public_routes_use_source_contract_classifier=true");
