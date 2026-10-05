@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 
 import {
   REVIEWED_PRIMITIVE_SOURCE_BLOBS_V1,
@@ -24,6 +25,43 @@ import {
   VOID_BTC_VOID_CHAIN2050_HASHLOCK_COMPILER_IDENTITY_V1,
   VOID_SOLC_COMPILER_ENVIRONMENT_V1,
 } from "../tools/void-btc-void-chain2050-hashlock-v1.mjs";
+
+const REVIEWED_PATHS = Object.freeze({
+  "tools/void-btc-void-bitcoin-htlc-v1.mjs":
+    REVIEWED_PRIMITIVE_SOURCE_BLOBS_V1.bitcoin_htlc_tool_git_blob_sha1,
+  "contracts/mainnet/BtcVoidHashlockSettlementV1.sol":
+    REVIEWED_PRIMITIVE_SOURCE_BLOBS_V1.chain2050_contract_git_blob_sha1,
+  "contracts/epoch2/VoidEpoch2TokenV1.sol":
+    REVIEWED_PRIMITIVE_SOURCE_BLOBS_V1.canonical_void_token_git_blob_sha1,
+  "tools/void-btc-void-chain2050-hashlock-v1.mjs":
+    REVIEWED_PRIMITIVE_SOURCE_BLOBS_V1.chain2050_compiler_tool_git_blob_sha1,
+});
+
+function assertReviewedDependencyBlobs() {
+  for (const [relativePath, expectedBlob] of Object.entries(REVIEWED_PATHS)) {
+    const blob = spawnSync(
+      "/usr/bin/git",
+      ["--no-replace-objects", "rev-parse", "HEAD:" + relativePath],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    assert.equal(blob.status, 0, "git blob unavailable: " + relativePath);
+    assert.equal(blob.stdout.trim(), expectedBlob, "reviewed blob drift: " + relativePath);
+
+    const headBytes = spawnSync(
+      "/usr/bin/git",
+      ["--no-replace-objects", "show", "HEAD:" + relativePath],
+      { encoding: null, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    assert.equal(headBytes.status, 0, "git bytes unavailable: " + relativePath);
+    assert.equal(
+      fs.readFileSync(relativePath).equals(Buffer.from(headBytes.stdout)),
+      true,
+      "worktree/head dependency mismatch: " + relativePath,
+    );
+  }
+}
+
+assertReviewedDependencyBlobs();
 
 function canonicalJson(value) {
   if (value === null) return "null";
@@ -404,6 +442,7 @@ console.log("explicit_party_role_mapping_bound=true");
 console.log("bitcoin_witness_p2wsh_identity_bound=true");
 console.log("chain2050_compiler_runtime_identity_bound=true");
 console.log("canonical_void_token_bound=true");
+console.log("reviewed_dependency_git_blobs_verified=true");
 console.log("source_blob_drift_rejected=true");
 console.log("runtime_identity_drift_changes_binding_id=true");
 console.log("role_swap_changes_or_rejects_binding=true");
