@@ -46,16 +46,22 @@ one_attempt_maximum_wei =
   + gas_limit * admitted_max_fee_per_gas_wei
 ```
 
-The open liability must satisfy:
+The open-liability schema can represent attempt limits 1 or 2, but the
+currently reviewed Buy VOID admission path creates only `attempt_limit=1`.
+This V1 reconciliation contract therefore requires exactly one attempt.
+A valid two-attempt liability HOLDS with
+`coupled_native_gas_reconciliation_attempt_limit_not_supported` until a
+separate attempt-ordinal/progression authority proves which attempt the
+terminal evidence belongs to and how much retry capacity remains.
+
+For the accepted V1 case:
 
 ```text
-maximum_reserved_wei =
-  one_attempt_maximum_wei * attempt_limit
+maximum_reserved_wei = one_attempt_maximum_wei
+attempt_limit = 1
 ```
 
-where V1 admits only attempt limits 1 or 2.
-
-The terminal evidence proves the exact cost of one completed attempt:
+The terminal evidence proves the exact cost of that one completed attempt:
 
 ```text
 actual_consumed_wei =
@@ -86,54 +92,29 @@ before any reserve accounting changes.
 
 ## Reverted outcome
 
-A reverted transaction is a completed attempt, but it may still have reviewed
-future-attempt capacity.
+A reverted transaction is a completed current Buy VOID attempt. The broadcast
+journal's generic `retry_allowed=true` does not mint native-gas capacity.
 
-For `attempt_limit=2`, exactly one full future attempt envelope remains:
-
-```text
-remaining_attempt_allowance = 1
-retained_future_attempt_reserve_wei = one_attempt_maximum_wei
-next_open_reserved_wei = one_attempt_maximum_wei
-```
-
-The first attempt's actual gas consumption is retired from the old reserve and
-its unused headroom may be classified as a future release candidate:
-
-```text
-unused_reserve_release_candidate_wei =
-  maximum_reserved_wei
-  - actual_consumed_wei
-  - retained_future_attempt_reserve_wei
-```
-
-For `attempt_limit=1`, no reviewed retry envelope remains:
+Current V1 liability authority reserved exactly one attempt, so:
 
 ```text
 remaining_attempt_allowance = 0
+retained_future_attempt_reserve_wei = 0
 next_open_reserved_wei = 0
 additional_attempt_requires_new_liability = true
+
+unused_reserve_release_candidate_wei =
+  maximum_reserved_wei - actual_consumed_wei
 ```
 
-The broadcast journal's generic `retry_allowed=true` does not mint native-gas
-capacity. Any additional attempt must first obtain a newly reviewed native-gas
-liability.
+Any later retry must first obtain a new reviewed native-gas liability under
+fresh payer-balance/fee/nonce authority. This classifier never authorizes retry
+execution itself.
 
-This contract never authorizes retry execution itself.
-
-## Why not keep the entire old liability after revert?
-
-Keeping already-consumed wei permanently reserved would double-count native
-balance that has already been spent. Releasing every unconsumed wei would be
-equally wrong when a second attempt envelope was explicitly reserved.
-
-V1 therefore separates:
-
-- actual consumed reserve;
-- whole still-authorized future-attempt reserve; and
-- unused completed-attempt headroom.
-
-Only the last category is a release **candidate**, never release authority.
+A future multi-attempt reconciliation version must add exact attempt ordinal
+and progression evidence before it can safely retain or release part of a
+multi-attempt envelope. V1 deliberately refuses to infer that state from
+`attempt_limit=2` alone.
 
 ## HOLD conditions
 
@@ -151,7 +132,7 @@ The classifier HOLDS on, among other cases:
 - gas-cost or native-value-consumption arithmetic mismatch;
 - confirmation-depth mismatch;
 - actual consumption above the reserved envelope; or
-- a retained future attempt envelope larger than the unconsumed reserve.
+- any open liability with `attempt_limit != 1` in this V1 reconciliation contract.
 
 ## Authority boundary
 
@@ -187,9 +168,7 @@ The proof covers:
 
 - confirmed attempt-limit-1 accounting;
 - reverted attempt-limit-1 accounting requiring a new liability for retry;
-- reverted attempt-limit-2 accounting retaining exactly one full future
-  attempt envelope;
-- confirmed attempt-limit-2 terminal close classification;
+- explicit HOLD for a cryptographically valid attempt-limit-2 liability;
 - liability identity tampering;
 - terminal evidence arithmetic tampering;
 - terminal gas mismatch;
