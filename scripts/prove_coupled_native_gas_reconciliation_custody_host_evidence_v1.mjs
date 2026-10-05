@@ -23,6 +23,7 @@ import {
   testOnlyClassifyCollectedHostEvidenceV1,
   testOnlyPublicRuntimePathMappingV1,
   testOnlyReadBoundedFileBytesV1,
+  testOnlyObserverSubprocessEnvironmentV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs";
 
 function sha256Id(value) {
@@ -36,6 +37,44 @@ assert.equal(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1",
 );
+
+{
+  const originalSystemBus = process.env.DBUS_SYSTEM_BUS_ADDRESS;
+  const originalSessionBus = process.env.DBUS_SESSION_BUS_ADDRESS;
+  const originalSystemdColors = process.env.SYSTEMD_COLORS;
+  try {
+    process.env.DBUS_SYSTEM_BUS_ADDRESS =
+      "unix:path=/tmp/void-fake-system-bus";
+    process.env.DBUS_SESSION_BUS_ADDRESS =
+      "unix:path=/tmp/void-fake-session-bus";
+    process.env.SYSTEMD_COLORS = "1";
+    assert.deepEqual(
+      testOnlyObserverSubprocessEnvironmentV1(),
+      {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+      "observer subprocess environment must be exact and caller-independent",
+    );
+  } finally {
+    if (originalSystemBus === undefined) {
+      delete process.env.DBUS_SYSTEM_BUS_ADDRESS;
+    } else {
+      process.env.DBUS_SYSTEM_BUS_ADDRESS = originalSystemBus;
+    }
+    if (originalSessionBus === undefined) {
+      delete process.env.DBUS_SESSION_BUS_ADDRESS;
+    } else {
+      process.env.DBUS_SESSION_BUS_ADDRESS = originalSessionBus;
+    }
+    if (originalSystemdColors === undefined) {
+      delete process.env.SYSTEMD_COLORS;
+    } else {
+      process.env.SYSTEMD_COLORS = originalSystemdColors;
+    }
+  }
+}
 
 {
   const denied = Object.freeze({
@@ -774,6 +813,8 @@ for (const token of [
   "FINDMNT = \"/usr/bin/findmnt\"",
   "PKCHECK = \"/usr/bin/pkcheck\"",
   "GETFACL = \"/usr/bin/getfacl\"",
+  "OBSERVER_SUBPROCESS_ENVIRONMENT_V1",
+  "env: OBSERVER_SUBPROCESS_ENVIRONMENT_V1",
   "custody_host_evidence_extended_acl_forbidden",
   "custody_host_evidence_acl_unavailable",
   "org.freedesktop.systemd1.manage-units",
@@ -838,6 +879,8 @@ console.log("custody_service_control_policy_revalidated=true");
 console.log("polkit_deny_to_allow_drift_holds=true");
 console.log("mountinfo_snapshot_stability_required=true");
 console.log("descriptor_bound_metadata_reads=true");
+console.log("observer_subprocess_environment_closed=true");
+console.log("caller_dbus_environment_not_inherited=true");
 console.log("extended_acl_rejected=true");
 console.log("mode_bit_permission_inference_acl_safe=true");
 console.log("synthetic_snapshot_authority=false");
