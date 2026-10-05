@@ -304,6 +304,55 @@ try {
   );
 }
 
+const ipv6Server = http.createServer((req, res) => {
+  const chunks: Buffer[] = [];
+  req.on("data", (chunk: Buffer) => chunks.push(chunk));
+  req.on("end", () => {
+    const body = JSON.parse(
+      Buffer.concat(chunks).toString("utf8"),
+    );
+    res.statusCode = 200;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({
+      jsonrpc: "2.0",
+      id: body.id,
+      result: "0x802",
+    }));
+  });
+});
+await new Promise<void>((resolve, reject) => {
+  ipv6Server.once("error", reject);
+  ipv6Server.listen(0, "::1", () => {
+    ipv6Server.off("error", reject);
+    resolve();
+  });
+});
+const ipv6Address = ipv6Server.address();
+assert.ok(ipv6Address && typeof ipv6Address === "object");
+try {
+  const transport =
+    createBuyVoidNativeExecutionPlannerHttpTransportV1();
+  const ipv6Result = await transport({
+    rpc_url: `http://[::1]:${ipv6Address.port}/rpc`,
+    method: "eth_chainId",
+    params: [],
+    request_id: 77,
+    request_timeout_ms: 5_000,
+    max_response_bytes: 65_536,
+  });
+  assert.equal(ipv6Result.ok, true);
+  if (ipv6Result.ok !== true) {
+    throw new Error("expected IPv6 loopback transport success");
+  }
+  assert.equal(ipv6Result.result, "0x802");
+} finally {
+  await new Promise<void>((resolve, reject) =>
+    ipv6Server.close((error) =>
+      error ? reject(error) : resolve(),
+    ),
+  );
+}
+
 let slowDripChunks = 0;
 const slowDripServer = http.createServer((request, response) => {
   request.resume();

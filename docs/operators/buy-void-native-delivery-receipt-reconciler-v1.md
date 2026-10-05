@@ -10,7 +10,12 @@ the exact `broadcast` state, and reads only:
 - `eth_getTransactionReceipt` for the attempt's bound delivery hash;
 - `eth_blockNumber`.
 
-The RPC URL is server controlled and must be loopback HTTP. The worker rejects
+The RPC URL is server controlled and both the source reconciler and mounted
+operator runtime require a numeric loopback HTTP literal: `127.0.0.1` or
+`[::1]`. Hostnames such as `localhost` and alternate IPv4 spellings such as
+`127.1`, `2130706433`, or `0x7f000001` are rejected at runtime-policy
+configuration and again by the reconciler so DNS or hosts-file changes cannot
+widen RPC authority. The worker rejects
 redirect-capable public endpoints, URL credentials, non-2050 chains, receipt
 hash/address mismatches, malformed status or block fields, and observations
 below the configured confirmation floor.
