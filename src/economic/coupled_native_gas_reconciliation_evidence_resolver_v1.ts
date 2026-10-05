@@ -46,11 +46,13 @@ export const
       whole_execution_attempt_state_required: true,
       whole_broadcast_outcome_state_required: true,
       descriptor_bound_local_snapshot: true,
+      bounded_snapshot_read_during_growth: true,
       reader_outputs_bound_to_snapshot: true,
       local_snapshot_revalidated_after_rpc: true,
       numeric_loopback_http_only: true,
       caller_transport_override: false,
       chain2050_required: true,
+      rpc_receipt_projected_to_classifier_schema: true,
       read_only_rpc_methods: Object.freeze([
         "eth_chainId",
         "eth_getTransactionReceipt",
@@ -296,6 +298,57 @@ function parseHexQuantity(value: unknown): bigint | null {
   } catch {
     return null;
   }
+}
+
+function projectRpcReceipt(
+  raw: unknown,
+): CoupledNativeGasRawTerminalReceiptV1 {
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    Array.isArray(raw)
+  ) {
+    throw new Error(
+      "reconciliation_evidence_receipt_object_invalid",
+    );
+  }
+  const prototype = Object.getPrototypeOf(raw);
+  if (
+    prototype !== Object.prototype &&
+    prototype !== null
+  ) {
+    throw new Error(
+      "reconciliation_evidence_receipt_object_invalid",
+    );
+  }
+  const record = raw as Record<string, unknown>;
+  const keys = [
+    "transactionHash",
+    "blockNumber",
+    "blockHash",
+    "status",
+    "gasUsed",
+    "effectiveGasPrice",
+    "from",
+    "to",
+  ] as const;
+  for (const key of keys) {
+    if (typeof record[key] !== "string") {
+      throw new Error(
+        "reconciliation_evidence_receipt_required_field_invalid",
+      );
+    }
+  }
+  return Object.freeze({
+    transactionHash: record.transactionHash as string,
+    blockNumber: record.blockNumber as string,
+    blockHash: record.blockHash as string,
+    status: record.status as "0x0" | "0x1",
+    gasUsed: record.gasUsed as string,
+    effectiveGasPrice: record.effectiveGasPrice as string,
+    from: record.from as string,
+    to: record.to as string,
+  });
 }
 
 function normalizePolicy(
@@ -544,6 +597,40 @@ function assertPrivateFile(
   }
 }
 
+function readDescriptorBounded(
+  fd: number,
+  maximumBytes: number,
+  code: string,
+): Buffer {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  let position = 0;
+  while (true) {
+    const remaining = maximumBytes + 1 - total;
+    if (remaining <= 0) {
+      throw new Error(code + "_file_too_large_during_read");
+    }
+    const chunk = Buffer.allocUnsafe(
+      Math.min(64 * 1024, remaining),
+    );
+    const read = fs.readSync(
+      fd,
+      chunk,
+      0,
+      chunk.length,
+      position,
+    );
+    if (read === 0) break;
+    total += read;
+    position += read;
+    if (total > maximumBytes) {
+      throw new Error(code + "_file_too_large_during_read");
+    }
+    chunks.push(chunk.subarray(0, read));
+  }
+  return Buffer.concat(chunks, total);
+}
+
 function snapshotPrivateDirectory(
   directory: string,
   allowName: (name: string) => boolean,
@@ -584,7 +671,11 @@ function snapshotPrivateDirectory(
         if (identityOf(listed) !== identityOf(opened)) {
           throw new Error(code + "_file_identity_changed");
         }
-        const bytes = fs.readFileSync(childFd);
+        const bytes = readDescriptorBounded(
+          childFd,
+          MAX_SNAPSHOT_FILE_BYTES,
+          code,
+        );
         const after = fs.fstatSync(childFd, { bigint: true });
         const visible = fs.lstatSync(childPath, { bigint: true });
         if (
@@ -1151,7 +1242,7 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
     return await transport({ method, params });
   };
 
-  let receiptRaw: unknown;
+  let receipt: CoupledNativeGasRawTerminalReceiptV1;
   let currentBlockRaw: unknown;
   try {
     const chainRaw = await call("eth_chainId", []);
@@ -1163,11 +1254,11 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
         methods,
       );
     }
-    receiptRaw = await call(
+    const receiptRaw = await call(
       "eth_getTransactionReceipt",
       [outcomeState.void_delivery_tx_hash],
     );
-    if (!receiptRaw || typeof receiptRaw !== "object") {
+    if (receiptRaw === null || receiptRaw === undefined) {
       return held(
         "rpc",
         "reconciliation_evidence_receipt_missing",
@@ -1175,6 +1266,7 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
         methods,
       );
     }
+    receipt = projectRpcReceipt(receiptRaw);
     currentBlockRaw = await call("eth_blockNumber", []);
     if (parseHexQuantity(currentBlockRaw) === null) {
       return held(
@@ -1238,8 +1330,7 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
       liability,
       buy_void_plan: plan,
       terminal_outcome: terminal,
-      raw_receipt:
-        receiptRaw as CoupledNativeGasRawTerminalReceiptV1,
+      raw_receipt: receipt,
       current_block_number: String(currentBlockRaw ?? ""),
       required_min_confirmations:
         policy.required_min_confirmations.toString(),
