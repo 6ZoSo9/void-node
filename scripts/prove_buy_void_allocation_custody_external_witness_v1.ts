@@ -137,8 +137,11 @@ assert.equal(
     "numeric-string witness fields must not normalize into a canonical event",
   );
 
+  const reorderedGenesisObject = Object.fromEntries(
+    Object.entries(genesisEvent).reverse(),
+  );
   const reorderedGenesis = Buffer.from(
-    JSON.stringify(genesisEvent) + "\n",
+    JSON.stringify(reorderedGenesisObject) + "\n",
     "utf8",
   );
   assert.notEqual(
