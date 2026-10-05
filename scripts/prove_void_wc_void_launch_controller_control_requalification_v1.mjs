@@ -32,7 +32,7 @@ const WORKFLOW =
 const COUPLED =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const IDENTITY =
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json";
 
 function sha256(bytes) {
   return crypto.createHash("sha256").update(bytes).digest("hex");
@@ -147,6 +147,14 @@ assert.equal(challenge.challenge.expires_at_unix, String(now + 300));
 assert.match(
   challenge.source_binding.control_contract_git_blob_sha1,
   /^[0-9a-f]{40}$/u,
+);
+assert.equal(
+  challenge.source_binding.source_blobs[COUPLED],
+  "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
+);
+assert.equal(
+  challenge.source_binding.source_blobs[IDENTITY],
+  "1009c41250a40bb793c88057a7187cec01c8704b",
 );
 assert.equal(
   challenge.source_binding.source_blobs["package.json"],
