@@ -63,15 +63,18 @@ pin payer root / records / queue
   -> open + retain exact payer-domain descriptor/bytes inside the queue
   -> clean only reviewed non-authoritative temp names
   -> read full canonical open-liability census
-  -> sample injected admission time exactly once
+  -> sample injected admission time
   -> call merged #2463 classifier with exact census + candidate evidence + sampled time
   -> require classifier payer == retained payer-domain identity
   -> rebind visible payer-domain to the retained descriptor/bytes
   -> exact replay: verify already-durable canonical bytes, rebind payer-domain, return
   -> new candidate: rebind payer-domain immediately before publication
+  -> sample injected time again at the mutation boundary
+  -> rerun #2463 against the unchanged pre-write census
+  -> require the exact same admitted liability ID and reserved-after amount
   -> create/fsync/link/fsync exact <liability_id>.json
   -> reread full census
-  -> rerun #2463 with exact post-write census and the SAME sampled time
+  -> rerun #2463 with exact post-write census and the mutation-boundary time
   -> require exact idempotent replay and unchanged reserved-after amount
   -> rebind payer-domain again
   -> final root/records/queue visibility revalidation
@@ -83,10 +86,14 @@ the complete payer-domain/census/time-sample/classify/publish/postcheck sequence
 is inside one payer-scoped serialization domain.
 
 The persistence API accepts an injected `read_now_ms()` dependency rather than
-a caller-captured timestamp. It is invoked exactly once after queue admission
-and after the full pre-write census, immediately before economic
-classification. The exact same returned value is reused for the post-write
-idempotence classifier. This proves ordering only: the store still reports
+a caller-captured timestamp. New admission samples it after the full pre-write
+census and again immediately before durable publication. The second sample is
+used to rerun the canonical economic classifier against the unchanged pre-write
+census; if fee/balance evidence expired while custody or census work was in
+progress, the store HOLDS before creating a liability record. The post-write
+idempotence classifier reuses that mutation-boundary timestamp so a successful
+durable append is judged against the exact admission instant rather than a later
+wall-clock tick. This proves ordering only: the store still reports
 `trusted_time_source_proven=false`; later runtime composition must separately
 bind a reviewed clock/time source.
 
