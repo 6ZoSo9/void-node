@@ -132,6 +132,7 @@ The successful census returns deterministic sorted identities and exact
 uint256-bounded sums:
 
 - historical liability count and IDs;
+- historical obligation IDs, transaction-plan fingerprints, and nonces;
 - accepted reconciliation count and IDs;
 - reconciled liability IDs;
 - effective-open liability IDs;
@@ -156,6 +157,14 @@ reconciled_maximum_reserved
 
 The canonical output body is content-addressed as `census_id`. Input ordering
 does not change that identity.
+
+Reserve release and replay protection are deliberately separate. A later
+admission path may use only the **effective-open** liabilities for balance
+reservation, but it must continue checking a new candidate against the
+historical obligation/plan/nonce indexes. Passing only the effective-open rows
+back into the legacy #2463 classifier would release capacity but would also
+erase collision history for reconciled liabilities; that composition is not
+authorized by this contract.
 
 ## Provenance boundary
 
