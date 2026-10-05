@@ -184,7 +184,7 @@ function makeEvidence(
     fulfillment_wallet_address: wallet,
     fulfillment_contract_address: fulfillment,
     delivery_address: delivery,
-    void_amount_units: "6",
+    void_amount_units: plan.native_value_wei,
   };
   const body =
     outcome === "confirmed"
@@ -217,6 +217,22 @@ function makeEvidence(
   void _recordedAt;
   return {
     ...body,
+    evidence_fingerprint_sha256: sha256Canonical(semantic),
+  };
+}
+
+function refingerprintEvidence(
+  evidence: BuyVoidPaymentKeyedReceiptEvidenceV1,
+): BuyVoidPaymentKeyedReceiptEvidenceV1 {
+  const {
+    evidence_fingerprint_sha256: _oldFingerprint,
+    recorded_at_ms: _recordedAt,
+    ...semantic
+  } = evidence;
+  void _oldFingerprint;
+  void _recordedAt;
+  return {
+    ...evidence,
     evidence_fingerprint_sha256: sha256Canonical(semantic),
   };
 }
@@ -386,6 +402,40 @@ requireHeld(
   classify({ policy: "a".repeat(64) }),
   "coupled_native_gas_terminal_cost_receipt_policy_mismatch",
 );
+
+{
+  const plan = makePlan();
+  const evidence = refingerprintEvidence({
+    ...makeEvidence(plan, "confirmed"),
+    fulfillment_wallet_address: "0x" + "2".repeat(40),
+  });
+  requireHeld(
+    classify({
+      plan,
+      liability: liabilityFor(plan),
+      evidence,
+      receipt: makeReceipt("confirmed"),
+    }),
+    "coupled_native_gas_terminal_cost_attempt_binding_mismatch",
+  );
+}
+
+{
+  const plan = makePlan();
+  const evidence = refingerprintEvidence({
+    ...makeEvidence(plan, "confirmed"),
+    void_amount_units: "2",
+  });
+  requireHeld(
+    classify({
+      plan,
+      liability: liabilityFor(plan),
+      evidence,
+      receipt: makeReceipt("confirmed"),
+    }),
+    "coupled_native_gas_terminal_cost_attempt_binding_mismatch",
+  );
+}
 
 {
   const plan = makePlan();
