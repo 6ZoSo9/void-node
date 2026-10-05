@@ -332,8 +332,10 @@ function modeV1(value: unknown, code: string): number {
 }
 
 function absolutePath(value: unknown, code: string): string {
-  const raw = String(value ?? "").trim();
+  const original = String(value ?? "");
+  const raw = original.trim();
   if (
+    original !== raw ||
     !raw ||
     raw.includes("\0") ||
     !raw.startsWith("/") ||
@@ -426,17 +428,27 @@ function validateMount(
   );
   const mountId = String(value.mount_id ?? "");
   const device = String(value.device_major_minor ?? "");
-  const source = String(value.mount_source ?? "").trim();
-  const rollbackDomainSha256 = String(
+  const sourceRaw = String(value.mount_source ?? "");
+  const source = sourceRaw.trim();
+  const rollbackDomainRaw = String(
     value.rollback_domain_sha256 ?? "",
-  ).trim();
+  );
+  const rollbackDomainSha256 = rollbackDomainRaw.trim();
   const fsType = String(value.fs_type ?? "");
   if (!MOUNT_ID.test(mountId)) fail(code + "_mount_id_invalid");
   if (!DEVICE.test(device)) fail(code + "_device_invalid");
-  if (!source || source.length > 256 || source.includes("\0")) {
+  if (
+    sourceRaw !== source ||
+    !source ||
+    source.length > 256 ||
+    source.includes("\0")
+  ) {
     fail(code + "_source_invalid");
   }
-  if (!SHA256_ID.test(rollbackDomainSha256)) {
+  if (
+    rollbackDomainRaw !== rollbackDomainSha256 ||
+    !SHA256_ID.test(rollbackDomainSha256)
+  ) {
     fail(code + "_rollback_domain_invalid");
   }
   if (fsType !== "ext4" && fsType !== "xfs") {
