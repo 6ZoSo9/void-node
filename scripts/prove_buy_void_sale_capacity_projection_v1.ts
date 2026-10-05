@@ -167,6 +167,21 @@ const project = context.projectBuyVoidVerifiedPaymentCapacityV1;
 const quote = context.quoteBuyVoidFromUsdcV1;
 const classify = context.classifyBuyVoidVerifiedPaymentCapacityAdmissionV1;
 const indexSource = fs.readFileSync("src/index.ts", "utf8");
+const amountGuardLine = indexSource
+  .split("\n")
+  .find(
+    (line) =>
+      line.includes(".test(rawAmount)") &&
+      line.includes('errors.push("invalid_usdc_amount")'),
+  );
+assert.ok(amountGuardLine, "exact raw-amount regex guard present");
+const amountGuardSource = amountGuardLine.match(
+  /if \(!\/(.+)\/\.test\(rawAmount\)\)/u,
+)?.[1];
+assert.ok(amountGuardSource, "extract raw-amount regex source");
+const amountGuard = new RegExp(amountGuardSource);
+assert.equal(amountGuard.test("1.000001"), true);
+assert.equal(amountGuard.test("1\\000001"), false);
 
 assert.equal(quote("1.000001", "2"), 2.000002);
 assert.equal(quote("1.000004", "2"), 2.000008);
@@ -346,6 +361,7 @@ assert.equal((await sale()).remaining_void, 0);
 // Existing large-pool numeric representation limits remain fail-closed.
 assert.throws(() => project(1e10, [1.000001]), /capacity_state_invalid/u);
 console.log("VOID_BUY_VOID_SALE_CAPACITY_PROJECTION_V1_GREEN");
+console.log("raw_decimal_request_guard_accepts_decimal_point=true");
 console.log("exact_request_quote_from_raw_decimal=true");
 console.log("ieee754_underquote_examples_rejected=true");
 console.log("non_microvoid_quote_product_holds=true");
