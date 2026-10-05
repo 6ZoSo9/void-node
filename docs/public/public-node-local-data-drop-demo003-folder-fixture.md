@@ -37,6 +37,13 @@ Trust boundary:
        network_fetch=false
        network_fetch_during_import=false
        trusted_as_network_truth=false
+       verified_content_authority=sealed_memfd_snapshot
+       visible_extraction_tree_trusted=false
+
+The offline verifier snapshots the five semantic files into Linux memfds, seals
+those descriptors against write/grow/shrink, and performs semantic verification
+against the sealed descriptors. Its GREEN result does **not** make the mutable
+extraction pathname authoritative.
 
 Safety boundary:
 
@@ -72,8 +79,19 @@ Preserved trust flags:
        offline_verified=true
        network_fetch_during_import=false
        trusted_as_network_truth=false
+       verified_content_authority=sealed_memfd_snapshot
+       visible_extraction_tree_trusted=false
+       sealed_snapshot_binding=true
 
-Policy: this is still operator-local evidence. It proves a verified folder payload can enter local runtime storage without becoming automatic network truth.
+The intake does not copy the verifier's mutable extraction tree as authority.
+It captures the verifier's sealed SHA-256 set, re-reads the five semantic files
+through nofollow descriptors, and materializes `archive` and staged `latest`
+only when those bytes match the sealed snapshot identity. Intake status
+recomputes the five hashes and the deterministic snapshot-set SHA-256.
+
+Policy: this is still operator-local evidence. It proves the sealed, verified
+folder payload can enter local runtime storage without becoming automatic
+network truth.
 
 
 ## Demo 003 public folder serving <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_DOC_V1 -->
