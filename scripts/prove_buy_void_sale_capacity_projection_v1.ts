@@ -113,6 +113,18 @@ const context = vm.createContext({
   fs: syntheticFs,
   randomBytes: (length: number) => Buffer.alloc(length, 7),
   withBuyVoidTerminalCloseoutRequestLockV1: (_input: any, operation: () => any) => operation(),
+  buyVoidTerminalCloseoutRequestLockPathV1: (input: any) => {
+    assert.equal(input?.request_dir, requestDir);
+    assert.match(
+      String(input?.request_id || ""),
+      /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u,
+    );
+    return path.join(
+      requestDir,
+      ".terminal-closeout-locks-v1",
+      "synthetic-" + String(input.request_id),
+    );
+  },
   appendPaymentVerifiedEventDurableV1: (_ledger: any, _stat: any, value: any) => {
     trace.push("synthetic_append");
     operations += 1;

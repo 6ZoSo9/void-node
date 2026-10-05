@@ -6,6 +6,7 @@ import {
   withBuyVoidFilesystemBakeryLockAsyncV1,
 } from "./buy_void_filesystem_bakery_lock_v1.js";
 import {
+  buyVoidTerminalCloseoutRequestLockPathV1,
   withBuyVoidTerminalCloseoutRequestLockV1,
 } from "./buy_void_terminal_closeout_request_lock_v1.js";
 import {
@@ -1325,14 +1326,14 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       request,
       read_sale_state: input.read_sale_state,
       operation: (authority) =>
-        input.with_launch_authority_mutation(
-          request,
-          () =>
-            withBuyVoidTerminalCloseoutRequestLockV1(
-              {
-                request_dir: requestDir,
-                request_id: requestId,
-              },
+        withBuyVoidFilesystemBakeryLockAsyncV1(
+          buyVoidTerminalCloseoutRequestLockPathV1({
+            request_dir: requestDir,
+            request_id: requestId,
+          }),
+          async () =>
+            input.with_launch_authority_mutation(
+              request,
               () => {
                 const requestBeforeAppend =
                   assertPinnedLedgerVisibleV1(

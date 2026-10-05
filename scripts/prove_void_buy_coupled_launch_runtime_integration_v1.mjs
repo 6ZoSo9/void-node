@@ -204,27 +204,45 @@ assert.match(
   /runtime_integration:\s*false/,
 );
 {
-  const launchMutationAt = capacityAdmission.indexOf(
-    "input.with_launch_authority_mutation(\n          request,",
+  const writerAt = capacityAdmission.indexOf(
+    "export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   );
-  const requestLockAt = capacityAdmission.indexOf(
-    "withBuyVoidTerminalCloseoutRequestLockV1(",
-    launchMutationAt,
+  const requestLockAcquireAt = capacityAdmission.indexOf(
+    "withBuyVoidFilesystemBakeryLockAsyncV1(",
+    writerAt,
+  );
+  const requestLockPathAt = capacityAdmission.indexOf(
+    "buyVoidTerminalCloseoutRequestLockPathV1({",
+    requestLockAcquireAt,
+  );
+  const launchMutationAt = capacityAdmission.indexOf(
+    "input.with_launch_authority_mutation(\n              request,",
+    requestLockPathAt,
   );
   const requestSnapshotAt = capacityAdmission.indexOf(
     "const requestBeforeAppend =",
-    requestLockAt,
+    launchMutationAt,
   );
   const appendAt = capacityAdmission.indexOf(
     "appendPaymentVerifiedEventDurableV1(",
     requestSnapshotAt,
   );
   assert.ok(
-    launchMutationAt >= 0 &&
-      requestLockAt > launchMutationAt &&
-      requestSnapshotAt > requestLockAt &&
+    writerAt >= 0 &&
+      requestLockAcquireAt > writerAt &&
+      requestLockPathAt > requestLockAcquireAt &&
+      launchMutationAt > requestLockPathAt &&
+      requestSnapshotAt > launchMutationAt &&
       appendAt > requestSnapshotAt,
-    "launch authority must wrap request lock, ledger snapshot revalidation, and durable append",
+    "request lock must be acquired before fresh launch-authority admission and durable append",
+  );
+  assert.match(
+    capacityAdmission.slice(requestLockAcquireAt, launchMutationAt),
+    /withBuyVoidFilesystemBakeryLockAsyncV1/,
+  );
+  assert.match(
+    capacityAdmission.slice(requestLockAcquireAt, launchMutationAt),
+    /buyVoidTerminalCloseoutRequestLockPathV1/,
   );
 }
 assert.ok(index.includes('"operator_mark_failed"'));
@@ -358,6 +376,8 @@ console.log("tx_hash_binding_after_launch_expiry=false");
 console.log("payment_verification_after_launch_expiry=false");
 console.log("generation_lock_spans_request_append=true");
 console.log("generation_lock_spans_payment_verified_append=true");
+console.log("request_lock_precedes_final_launch_authority_recheck=true");
+console.log("request_lock_wait_cannot_age_prechecked_launch_lease=true");
 console.log("verified_payment_capacity_lock_spans_payment_verified_append=true");
 console.log("verified_payment_capacity_exhaustion_response_409=true");
 console.log("verified_payment_duplicate_guard_inside_capacity_lock=true");
