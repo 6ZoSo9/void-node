@@ -64,6 +64,26 @@ function canonicalJson(value: unknown): string {
 const canonicalLine = (value: unknown): string =>
   canonicalJson(value) + "\n";
 
+const requestIdFor = (
+  value: Record<string, unknown>,
+): string =>
+  "voidwreq1_" +
+  crypto
+    .createHash("sha256")
+    .update(canonicalJson(value), "utf8")
+    .digest("hex");
+
+function rewriteRequestId(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  const body = { ...value };
+  delete body.request_id;
+  return {
+    ...body,
+    request_id: requestIdFor(body),
+  };
+}
+
 function requireOk<T>(
   value: T,
 ): Extract<T, { ok: true }> {
@@ -140,6 +160,16 @@ assert.equal(
     .server_controlled_policy_origin_proven,
   false,
 );
+
+for (const remotePort of ["22", true] as const) {
+  requireHeld(
+    classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1({
+      ...policy,
+      remote_port: remotePort,
+    }),
+    "allocation_custody_witness_transport_remote_port_invalid",
+  );
+}
 
 for (const mutation of [
   { strict_host_key_checking: false },
@@ -443,6 +473,36 @@ assert.equal(
 assert.equal(appendRequest.request.prior_event_count, 1);
 assert.equal(appendRequest.request.next_event_count, 2);
 
+for (const priorCount of ["1", true] as const) {
+  const malformed = rewriteRequestId({
+    ...JSON.parse(appendRequest.request_json),
+    prior_event_count: priorCount,
+  });
+  requireHeld(
+    classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1({
+      policy,
+      request_json: canonicalLine(malformed),
+      current_witness_jsonl: genesis,
+    }),
+    "allocation_custody_witness_transport_prior_invalid",
+  );
+}
+
+for (const nextCount of ["2", true] as const) {
+  const malformed = rewriteRequestId({
+    ...JSON.parse(appendRequest.request_json),
+    next_event_count: nextCount,
+  });
+  requireHeld(
+    classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1({
+      policy,
+      request_json: canonicalLine(malformed),
+      current_witness_jsonl: genesis,
+    }),
+    "allocation_custody_witness_transport_next_invalid",
+  );
+}
+
 const serverAppend = requireOk(
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1({
     policy,
@@ -671,6 +731,8 @@ for (const [key, value] of Object.entries(
 console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1_PROOF_GREEN",
 );
+console.log("strict_integer_json_types=true");
+console.log("numeric_string_boolean_aliases_rejected=true");
 console.log("pinned_remote_identity_policy=true");
 console.log("server_controlled_policy_origin_proven=false");
 console.log("forced_command_only_required=true");
