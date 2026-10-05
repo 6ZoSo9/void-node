@@ -89,8 +89,14 @@ function sha256Id(value) {
 
 function canonical(value) {
   if (value === null) return "null";
-  if (typeof value === "string" || typeof value === "boolean") {
-    return JSON.stringify(value);
+  if (
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
+    return JSON.stringify(
+      typeof value === "bigint" ? value.toString(10) : value,
+    );
   }
   if (typeof value === "number") {
     if (!Number.isSafeInteger(value)) throw new Error("non_canonical_number");
@@ -239,8 +245,8 @@ function sameNamespace(left, right) {
 function splitMountOptions(record) {
   return Object.freeze(
     [...new Set(
-      [record.mount_options, record.super_options]
-        .flatMap((value) => String(value || "").split(","))
+      String(record.mount_options || "")
+        .split(",")
         .map((value) => value.trim())
         .filter(Boolean),
     )].sort(),
