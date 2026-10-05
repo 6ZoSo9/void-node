@@ -1014,6 +1014,7 @@ for (const [key, value] of Object.entries(
     "derived_attempt_id_only",
     "whole_execution_attempt_state_required",
     "whole_broadcast_outcome_state_required",
+    "execution_broadcast_confirmation_binding_required",
     "descriptor_bound_local_snapshot",
     "nofollow_ancestor_traversal",
     "bounded_snapshot_read_during_growth",
