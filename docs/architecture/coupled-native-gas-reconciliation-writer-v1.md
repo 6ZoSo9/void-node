@@ -94,12 +94,20 @@ writer-authenticated provenance. Therefore an idempotent retry:
 
 1. reruns the merged #2492 evidence resolver against the immutable liability;
 2. revalidates the complete payer-domain/liability/reconciliation snapshot;
-3. requires the stored reconciliation ID and canonical bytes to equal the
+3. requires the resolver packet's
+   `terminal_cost_evidence.terminal_cost_identity_sha256` to equal the
+   reconciliation's `terminal_cost_identity_sha256`;
+4. requires the stored reconciliation ID and canonical bytes to equal the
    freshly resolved reconciliation exactly; and
-4. only then returns `status=idempotent`.
+5. only then returns `status=idempotent`.
 
+Fresh observation metadata is deliberately not durable reconciliation identity:
+a later Chain-2050 head may change the full terminal `evidence_id` and resolver
+`packet_id` while preserving the same stable terminal-cost identity and the
+same canonical reconciliation. That later-height replay must remain idempotent.
 A semantically valid but independently planted reconciliation with different
-terminal evidence therefore HOLDS instead of silently releasing reserve.
+stable terminal-cost identity therefore HOLDS instead of silently releasing
+reserve.
 
 Before returning authenticated idempotent success, the writer fsyncs the
 reconciliation directory and revalidates its pinned/visible identity. This
@@ -115,7 +123,10 @@ reconciliation lock namespace is introduced.
 
 Two concurrent exact requests serialize. The first may publish one record; the
 second must freshly reauthenticate that exact record and return idempotent.
-Exactly one reconciliation file exists.
+Exactly one reconciliation file exists. The focused proof also replays the same
+terminal outcome under changed volatile resolver packet/evidence IDs and
+requires the exact stored reconciliation to remain accepted only through its
+stable terminal-cost identity.
 
 If an error occurs after the canonical create-only hard link, the result is
 `held_after_mutation` with `mutation_performed=true`. The canonical file is
