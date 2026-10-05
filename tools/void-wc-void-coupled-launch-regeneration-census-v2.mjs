@@ -92,6 +92,43 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2 =
     "tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs",
   ]);
 
+export const VOID_WC_VOID_COUPLED_LAUNCH_CURRENT_GUIDANCE_PATHS_V2 =
+  Object.freeze([
+    "docs/architecture/buy-void-coupled-launch-gate-v1.md",
+    "docs/operators/buy-void-coupled-live-activation-signing-request-v1.md",
+    "docs/operators/coupled-economic-successor-gate-v1.md",
+    "docs/operators/participant-postpurchase-at-use-revalidation-v1.md",
+    "docs/operators/wc-void-bounded-canary-semantic-promotion-v1.md",
+    "docs/operators/wc-void-coupled-launch-policy-bundle-v1.md",
+    "docs/operators/wc-void-launch-controller-control-requalification-v1.md",
+    "docs/operators/wc-void-market-vault-at-use-revalidation-v1.md",
+    "docs/public/btc-void-atomic-settlement-state-invariants-v1.md",
+    "docs/operators/wc-void-production-readiness-v1.md",
+    "docs/operators/wc-void-market-vault-runtime-attestation-v1.md",
+    "docs/operators/wc-void-market-vault-runtime-attestation-import-v1.md",
+    "docs/operators/wc-void-market-vault-canonical-application-v1.md",
+    "docs/operators/wc-void-bounded-canary-evidence-v1.md",
+  ]);
+
+const CURRENT_BINDING_REL =
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json";
+const CURRENT_BINDING_BLOB_SHA1 =
+  "1009c41250a40bb793c88057a7187cec01c8704b";
+const CORRECTED_COUPLED_CANDIDATE_BLOB_SHA1 =
+  "fbbc3174406f76077c8cb2fc11df9545938c0c8f";
+const SUPERSEDED_COUPLED_CANDIDATE_BLOB_SHA1 =
+  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+const SUPERSEDED_CURRENT_IDENTITY_BLOB_SHA1 =
+  "c85b6bc59caac6bc765cb8e969cb980386161d12";
+const SUPERSEDED_RECONCILIATION_DIGEST_V1 =
+  "522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba";
+const SUPERSEDED_OPENING_STATE_DIGEST_V1 =
+  "fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621";
+const CURRENT_IDENTITY_BINDING_BASENAME =
+  "wc-void-market-vault-compiled-identity-current-binding-v2.json";
+const SUPERSEDED_IDENTITY_PACKET_BASENAME =
+  "wc-void-market-vault-compiled-identity-acceptance-v1.json";
+
 export const VOID_WC_VOID_SUPERSEDED_CREATION_BYTECODE_SHA256_V1 =
   "9fae041d06d317b326fd1a9cee6efc34fa0e214b74a9447e44131969d886a5af";
 export const VOID_WC_VOID_SUPERSEDED_RUNTIME_TEMPLATE_SHA256_V1 =
@@ -553,6 +590,91 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
     fail("coupled_launch_regeneration_unknown_superseded_identity_source_path");
   }
 
+  const currentSourceBindingChecks = Object.freeze([
+    Object.freeze({
+      path: "tools/void-wc-void-launch-controller-control-requalification-v1.mjs",
+      require: Object.freeze([
+        CORRECTED_COUPLED_CANDIDATE_BLOB_SHA1,
+        CURRENT_BINDING_BLOB_SHA1,
+        CURRENT_IDENTITY_BINDING_BASENAME,
+      ]),
+      forbid: Object.freeze([
+        SUPERSEDED_COUPLED_CANDIDATE_BLOB_SHA1,
+        SUPERSEDED_CURRENT_IDENTITY_BLOB_SHA1,
+        SUPERSEDED_IDENTITY_PACKET_BASENAME,
+      ]),
+    }),
+    Object.freeze({
+      path: "ops/nimo/void-nimo-wc-void-launch-controller-control-signing-v1.mjs",
+      require: Object.freeze([
+        CORRECTED_COUPLED_CANDIDATE_BLOB_SHA1,
+        CURRENT_BINDING_BLOB_SHA1,
+        CURRENT_IDENTITY_BINDING_BASENAME,
+      ]),
+      forbid: Object.freeze([
+        SUPERSEDED_COUPLED_CANDIDATE_BLOB_SHA1,
+        SUPERSEDED_CURRENT_IDENTITY_BLOB_SHA1,
+        SUPERSEDED_IDENTITY_PACKET_BASENAME,
+      ]),
+    }),
+    Object.freeze({
+      path: "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs",
+      require: Object.freeze([CORRECTED_COUPLED_CANDIDATE_BLOB_SHA1]),
+      forbid: Object.freeze([SUPERSEDED_COUPLED_CANDIDATE_BLOB_SHA1]),
+    }),
+  ]).map((entry) => {
+    const text = readText(entry.path);
+    const missing = entry.require.filter((value) => !text.includes(value));
+    const forbidden = entry.forbid.filter((value) => text.includes(value));
+    return Object.freeze({
+      path: entry.path,
+      missing_required_binding_count: missing.length,
+      forbidden_binding_count: forbidden.length,
+    });
+  });
+  if (
+    currentSourceBindingChecks.some(
+      (entry) =>
+        entry.missing_required_binding_count !== 0 ||
+        entry.forbidden_binding_count !== 0,
+    )
+  ) {
+    fail("coupled_launch_regeneration_current_source_binding_incomplete");
+  }
+
+  const currentGuidance = VOID_WC_VOID_COUPLED_LAUNCH_CURRENT_GUIDANCE_PATHS_V2
+    .map((relativePath) => {
+      const text = readText(relativePath);
+      const supersededOccurrences = [
+        VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
+        SUPERSEDED_RECONCILIATION_DIGEST_V1,
+        SUPERSEDED_OPENING_STATE_DIGEST_V1,
+        SUPERSEDED_COUPLED_CANDIDATE_BLOB_SHA1,
+        SUPERSEDED_CURRENT_IDENTITY_BLOB_SHA1,
+        SUPERSEDED_IDENTITY_PACKET_BASENAME,
+      ].reduce((sum, value) => sum + countDigest(text, value), 0);
+      const correctedOccurrences = [
+        VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_DIGEST_V2,
+        VOID_WC_VOID_CURRENT_COMPILED_IDENTITY_BINDING_ID_V2,
+        CURRENT_IDENTITY_BINDING_BASENAME,
+        "corrected current",
+      ].reduce((sum, value) => sum + countDigest(text, value), 0);
+      return Object.freeze({
+        path: relativePath,
+        superseded_current_guidance_occurrences: supersededOccurrences,
+        corrected_current_guidance_occurrences: correctedOccurrences,
+      });
+    });
+  if (
+    currentGuidance.some(
+      (entry) =>
+        entry.superseded_current_guidance_occurrences !== 0 ||
+        entry.corrected_current_guidance_occurrences < 1,
+    )
+  ) {
+    fail("coupled_launch_regeneration_current_guidance_incomplete");
+  }
+
   const discoveredSourcePaths =
     discoverVoidWcVoidSupersededGenerationSourcePathsV2();
   const allowedHistoricalSourcePaths = [
@@ -612,6 +734,12 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
     unknown_superseded_compiled_identity_source_paths: Object.freeze([]),
     all_current_authority_compiled_identity_rebindings_complete: true,
     all_authoritative_rebindings_complete: true,
+    current_source_binding_checks: currentSourceBindingChecks,
+    current_source_binding_check_count: currentSourceBindingChecks.length,
+    all_current_source_object_bindings_complete: true,
+    current_guidance: currentGuidance,
+    current_guidance_path_count: currentGuidance.length,
+    all_current_guidance_corrected: true,
     canonical_candidate_update_authorized: false,
     controller_resigning_authorized: false,
     live_activation_receipt_reuse_authorized: false,
