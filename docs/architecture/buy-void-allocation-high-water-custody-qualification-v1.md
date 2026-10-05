@@ -185,6 +185,25 @@ The declared writable filesystem paths must be exactly the reviewed ledger and
 protected-custody roots. Runtime-directory/socket creation remains a separate
 systemd packaging concern.
 
+## Required recovery probes
+
+The qualified host policy must also have fresh evidence that the merged
+publication stack survives every reviewed restart phase without changing
+custody identity:
+
+- clean restart with no pending intent;
+- `intent_only` recovery;
+- `ledger_committed` recovery;
+- `high_water_committed` recovery;
+- `complete` recovery;
+- forward-only recovery; and
+- no recovery schedule creates a second allocation obligation.
+
+These booleans are evidence requirements, not a replacement for the merged
+#2446/#2451 source proofs. The focused workflow reruns those parent proofs so a
+packet cannot claim recovery semantics that the current source stack no longer
+has.
+
 ## Required negative probes
 
 All reviewed negative results are mandatory:
@@ -218,6 +237,7 @@ The focused proof builds a synthetic qualifying packet and proves rejection of:
 - wrong service-unit digest;
 - incomplete systemd hardening;
 - excess writable paths;
+- missing recovery-phase proof;
 - missing negative-probe result;
 - stale evidence;
 - evidence-generation mismatch;
