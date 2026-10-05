@@ -81,6 +81,9 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERB
     "reload-or-try-restart",
     "kill",
     "kill-subgroup",
+    "queue-signal",
+    "freeze",
+    "thaw",
     "reset-failed",
     "set-property",
     "clean",
@@ -657,32 +660,93 @@ function polkitManageUnitVerbDenied(
   );
 }
 
+function exactBooleanDecisionMapV1(value, keys, code) {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    throw new Error(code);
+  }
+  const actual = Object.keys(value).sort();
+  const wanted = [...keys].sort();
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
+    throw new Error(code);
+  }
+  for (const key of keys) {
+    if (typeof value[key] !== "boolean") {
+      throw new Error(code);
+    }
+  }
+  return value;
+}
+
+function allCustodyControlDecisionsDeniedV1(
+  verbDenied,
+  actionDenied,
+) {
+  const verbs = exactBooleanDecisionMapV1(
+    verbDenied,
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1,
+    "custody_control_verb_decisions_invalid",
+  );
+  const actions = exactBooleanDecisionMapV1(
+    actionDenied,
+    SYSTEMD_CONTROL_ACTIONS_V1,
+    "custody_control_action_decisions_invalid",
+  );
+  return (
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1
+      .every((verb) => verbs[verb] === true) &&
+    SYSTEMD_CONTROL_ACTIONS_V1
+      .every((actionId) => actions[actionId] === true)
+  );
+}
+
+export function testOnlyAllCustodyControlDecisionsDeniedV1(
+  verbDenied,
+  actionDenied,
+) {
+  return allCustodyControlDecisionsDeniedV1(
+    verbDenied,
+    actionDenied,
+  );
+}
+
 function polkitCustodyServiceControlDenied(
   processIdentity,
   pid,
   unit,
 ) {
-  const directControlDenied =
+  const verbDenied = Object.fromEntries(
     VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1
-      .every(
-        (verb) =>
-          polkitManageUnitVerbDenied(
-            processIdentity,
-            pid,
-            unit,
-            verb,
-          ),
-      );
-  const managerMutationDenied =
-    SYSTEMD_CONTROL_ACTIONS_V1.every(
-      (actionId) =>
-        polkitActionDenied(
+      .map((verb) => [
+        verb,
+        polkitManageUnitVerbDenied(
           processIdentity,
           pid,
-          actionId,
+          unit,
+          verb,
         ),
-    );
-  return directControlDenied && managerMutationDenied;
+      ]),
+  );
+  const actionDenied = Object.fromEntries(
+    SYSTEMD_CONTROL_ACTIONS_V1.map((actionId) => [
+      actionId,
+      polkitActionDenied(
+        processIdentity,
+        pid,
+        actionId,
+      ),
+    ]),
+  );
+  return allCustodyControlDecisionsDeniedV1(
+    verbDenied,
+    actionDenied,
+  );
 }
 
 function findMountUuid(target) {
