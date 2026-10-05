@@ -19,6 +19,7 @@ import path from "node:path";
 
 import {
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_HEALTH_MARKER,
+  AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1,
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_RESPONSE_MARKER,
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_MARKER,
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_HEALTH_PATH,
@@ -39,6 +40,9 @@ type JsonResponse = {
   body: Record<string, unknown>;
 };
 
+const qualificationInstances =
+  new Map<string, string>();
+
 function sha256(
   value: Buffer,
 ): string {
@@ -53,6 +57,7 @@ async function start(
 ): Promise<{
   server: Server;
   baseUrl: string;
+  qualificationInstanceId: string;
 }> {
   const handler =
     createAgentPaidWorkCredentialRequestGatewayHandlerV1({
@@ -95,10 +100,31 @@ async function start(
         "object",
   );
 
+  const baseUrl =
+    `http://127.0.0.1:${address.port}`;
+  const status =
+    await requestJson(
+      baseUrl,
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_STATUS_PATH,
+    );
+  assert.equal(status.status, 200);
+  const qualificationInstanceId =
+    String(
+      status.body.qualification_instance_id || "",
+    );
+  assert.match(
+    qualificationInstanceId,
+    /^[0-9a-f]{64}$/,
+  );
+  qualificationInstances.set(
+    baseUrl,
+    qualificationInstanceId,
+  );
+
   return {
     server,
-    baseUrl:
-      `http://127.0.0.1:${address.port}`,
+    baseUrl,
+    qualificationInstanceId,
   };
 }
 
@@ -132,6 +158,7 @@ async function requestJson(
     body?: Buffer;
     contentType?: string;
     payloadSha256?: string;
+    qualificationInstanceId?: string | null;
   } = {},
 ): Promise<JsonResponse> {
   const headers =
@@ -156,13 +183,33 @@ async function requestJson(
     );
   }
 
+  const method =
+    options.method ||
+    "GET";
+  const hasExplicitQualification =
+    Object.prototype.hasOwnProperty.call(
+      options,
+      "qualificationInstanceId",
+    );
+  const qualificationInstanceId =
+    hasExplicitQualification
+      ? options.qualificationInstanceId
+      : qualificationInstances.get(baseUrl);
+  if (
+    method === "POST" &&
+    qualificationInstanceId
+  ) {
+    headers.set(
+      AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1,
+      qualificationInstanceId,
+    );
+  }
+
   const response =
     await fetch(
       `${baseUrl}${pathname}`,
       {
-        method:
-          options.method ||
-          "GET",
+        method,
         headers,
         body:
           body
@@ -234,6 +281,7 @@ try {
   const {
     server,
     baseUrl,
+    qualificationInstanceId,
   } =
     await start(
       stateDirectory,
@@ -262,6 +310,39 @@ try {
     assert.equal(
       health.body.credential_issuance_authorized,
       false,
+    );
+
+    const missingInstance =
+      await requestJson(
+        baseUrl,
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH,
+        {
+          method: "POST",
+          body,
+          qualificationInstanceId: null,
+        },
+      );
+    assert.equal(missingInstance.status, 412);
+    assert.equal(
+      missingInstance.body.error,
+      "gateway_instance_mismatch",
+    );
+
+    const staleInstance =
+      await requestJson(
+        baseUrl,
+        AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH,
+        {
+          method: "POST",
+          body,
+          qualificationInstanceId:
+            "0".repeat(64),
+        },
+      );
+    assert.equal(staleInstance.status, 412);
+    assert.equal(
+      staleInstance.body.error,
+      "gateway_instance_mismatch",
     );
 
     const first =
@@ -427,6 +508,10 @@ try {
     assert.equal(
       status.body.callback_uri_exposed,
       false,
+    );
+    assert.equal(
+      status.body.qualification_instance_id,
+      qualificationInstanceId,
     );
 
     const wrongMethod =
@@ -671,6 +756,12 @@ try {
   );
   console.log(
     "rate_limit_enforced=1",
+  );
+  console.log(
+    "qualification_instance_required=1",
+  );
+  console.log(
+    "stale_qualification_instance_rejected_before_rate_window=1",
   );
   console.log(
     "append_only_request_and_receipt=1",
