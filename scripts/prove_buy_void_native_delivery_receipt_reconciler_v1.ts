@@ -402,6 +402,25 @@ try {
   assert.equal(reason(remote), "rpc_url_must_be_loopback_http");
   assert.deepEqual(calls, []);
 
+  for (const rpc_url of [
+    "http://127.1:8545/",
+    "http://2130706433:8545/",
+    "http://0x7f000001:8545/",
+  ]) {
+    const aliasFixture = createBroadcastAttempt();
+    roots.push(aliasFixture.root);
+    calls = [];
+    const alias = await runBuyVoidNativeDeliveryReceiptReconcilerV1({
+      root_dir: aliasFixture.root,
+      attempt_id: aliasFixture.attemptId,
+      intent: aliasFixture.intent,
+      policy: { ...policy(), rpc_url },
+      transport: transport({ calls }),
+    });
+    assert.equal(reason(alias), "rpc_url_must_be_loopback_http");
+    assert.deepEqual(calls, []);
+  }
+
   const localhostFixture = createBroadcastAttempt();
   roots.push(localhostFixture.root);
   calls = [];
@@ -439,6 +458,7 @@ console.log("marker=VOID_BUY_VOID_NATIVE_DELIVERY_RECEIPT_RECONCILER_V1");
 console.log("read_only_rpc_method_count=3");
 console.log("loopback_http_only=1");
 console.log("numeric_loopback_literal_required=1");
+console.log("alternate_ipv4_spellings_rejected=1");
 console.log("localhost_hostname_rejected=1");
 console.log("ipv6_socket_brackets_stripped=1");
 console.log("dry_run_mutation_count=0");
