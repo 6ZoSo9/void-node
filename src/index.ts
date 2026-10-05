@@ -18405,6 +18405,7 @@ small{color:#94a3b8}
     async function __voidBuyVoidSaleStateV1(){
       const fs = await import("node:fs");
       const path = await import("node:path");
+      const { projectBuyVoidVerifiedPaymentCapacityV1 } = await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");
       const dir = String(process.env.VOID_BUY_REQUEST_DIR || ".runtime/public-buy-void-requests-v1");
       const pool_void_total = Number(process.env.VOID_BUY_POOL_VOID_TOTAL || "10000000");
       const price_usdc_per_void = Number(process.env.VOID_BUY_PRICE_USDC_PER_VOID || "0.50");
@@ -18414,7 +18415,7 @@ small{color:#94a3b8}
       let requested_usdc_total = 0;
       let requested_void_total = 0;
       let submitted_usdc_total = 0;
-      let submitted_void_total = 0;
+      const verified_void_quotes: unknown[] = [];
       let request_count = 0;
       let submitted_tx_count = 0;
 
@@ -18451,20 +18452,22 @@ small{color:#94a3b8}
             if (verifiedIds.has(String(j.request_id || ""))) {
               submitted_tx_count++;
               submitted_usdc_total += usdc;
-              submitted_void_total += quoted;
+              verified_void_quotes.push(j.quoted_void);
             }
           } catch (err) { voidIndexEmptyCatchVisibilityWindow17101_18000V1("17471:4", err); }
         }
       }
 
       // VOID_BUY_VOID_PAID_ONLY_POOL_RESERVATION_V1
-      const reserved_void = Math.min(pool_void_total, submitted_void_total);
-      const remaining_void = Math.max(0, Math.floor((pool_void_total - reserved_void) * 1e6) / 1e6);
+      const {
+        allocation_reserved_void: reserved_void,
+        verified_void_total: submitted_void,
+        remaining_void,
+      } = projectBuyVoidVerifiedPaymentCapacityV1(pool_void_total, verified_void_quotes);
       const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
       const requested_usdc = Math.floor(requested_usdc_total * 1e6) / 1e6;
       const requested_void = Math.floor(requested_void_total * 1e6) / 1e6;
-      const submitted_void = Math.floor(submitted_void_total * 1e6) / 1e6;
-      const sold_out = remaining_void <= 0.000001;
+      const sold_out = remaining_void === 0;
       const progress_pct = pool_void_total > 0 ? Math.floor((reserved_void / pool_void_total) * 10000) / 100 : 0;
 
       return {
@@ -19024,6 +19027,7 @@ setInterval(refresh, 10000);
         const usdc_amount = Number(rawAmount);
         const errors:string[] = [];
 
+        if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,6})?$/.test(rawAmount)) errors.push("invalid_usdc_amount");
         if (!Number.isFinite(usdc_amount) || usdc_amount <= 0) errors.push("invalid_usdc_amount");
         if (Number.isFinite(usdc_amount) && usdc_amount < cfg.min_usdc) errors.push("below_min_usdc");
         if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
@@ -19045,7 +19049,8 @@ setInterval(refresh, 10000);
           });
         }
 
-        const quoted_void = Math.floor(usdc_amount * cfg.rate_void_per_usdc * 1e6) / 1e6;
+        const { quoteBuyVoidFromUsdcV1 } = await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");
+        const quoted_void = quoteBuyVoidFromUsdcV1(rawAmount, cfg.rate_void_per_usdc);
         if (quoted_void > sale_state.remaining_void) {
           return res.status(409).json({
             schema: "void_public_buy_void_checkout_request_v1",
