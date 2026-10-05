@@ -5,7 +5,7 @@ import fs from "node:fs";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "../tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+} from "../tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_V1,
 } from "../tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
