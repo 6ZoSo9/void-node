@@ -581,6 +581,58 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const liability = makeLiability();
+  const stored = makeReconciliation(liability);
+  const f = fixture([liability], [stored]);
+  try {
+    const staleTemp =
+      "." +
+      stored.reconciliation_id +
+      ".json.tmp-" +
+      String(process.pid) +
+      "-" +
+      "a".repeat(16);
+    const staleTempPath = path.join(
+      f.root,
+      RECONCILIATIONS,
+      staleTemp,
+    );
+    fs.writeFileSync(staleTempPath, "orphaned-temp\n", {
+      mode: 0o600,
+      flag: "wx",
+    });
+
+    const replay =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: payer,
+          liability_id: liability.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () =>
+            resolved(liability, stored),
+        },
+      );
+    requireOk(replay);
+    assert.equal(replay.status, "idempotent");
+    assert.equal(
+      replay.mutation_performed,
+      true,
+      "stale temp cleanup is a real filesystem mutation",
+    );
+    assert.equal(fs.existsSync(staleTempPath), false);
+    assert.deepEqual(
+      fs.readdirSync(path.join(f.root, RECONCILIATIONS)),
+      [stored.reconciliation_id + ".json"],
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const f = fixture();
   const liability = f.liabilities[0];
   let resolverCalls = 0;
@@ -637,6 +689,8 @@ console.log("create_once_reconciliation_publication=true");
 console.log("effective_open_reserve_release_exactly_once=true");
 console.log("history_change_before_publication_hold=true");
 console.log("postpublication_failure_reports_mutation=true");
+console.log("stale_writer_temp_recovery_idempotent=true");
+console.log("stale_writer_temp_cleanup_reports_mutation=true");
 console.log("concurrent_exact_replay_single_record=true");
 console.log("storage_bootstrap=false");
 console.log("liability_record_mutation=false");
