@@ -342,9 +342,12 @@ operations = 0;
 let launchCalls = 0;
 const write = () => context.writeBuyVoidOperatorEventWithCapacityAdmissionV1({
   event: event(b), request: b, request_dir: requestDir, read_sale_state: sale,
-  with_launch_authority_mutation: (_request: any, operation: () => any) => {
+  with_launch_authority_mutation: (
+    _request: any,
+    operation: (assert_current_authority: () => any) => any,
+  ) => {
     launchCalls += 1;
-    return operation();
+    return operation(() => ({ ready: true }));
   },
 });
 failSidecarPublication = true;
