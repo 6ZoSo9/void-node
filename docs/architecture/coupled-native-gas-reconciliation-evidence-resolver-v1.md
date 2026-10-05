@@ -50,8 +50,13 @@ max fee, plan fingerprint, and source-evidence ID must all agree.
 
 The plan supplies the only accepted `attempt_id`. The resolver reads the
 existing execution-attempt and broadcast-outcome journals and requires their
-whole reconstructed attempt state to agree. Only a terminal `confirmed` or
-`reverted` broadcast outcome proceeds to fresh receipt observation.
+whole reconstructed attempt state to agree. For a confirmed outcome, the
+execution-attempt confirmation and broadcast-outcome confirmation must also be
+the same durable confirmation: exact `confirmation_fingerprint`, exact
+`confirmed_record`, and exact delivery block hash must agree. Two individually
+well-formed journal records that describe different confirmations therefore
+HOLD before any RPC call. Only a terminal `confirmed` or `reverted`
+broadcast outcome proceeds to fresh receipt observation.
 
 ## Descriptor-bound snapshot
 
@@ -158,7 +163,11 @@ JSON-RPC server; it does not bypass production transport construction. The
 happy path returns a realistic receipt with extra standard fields and proves
 projection succeeds; separate cases remove or mis-type required fields. A
 grow-after-open adversary expands a descriptor-backed plan file beyond 1 MiB
-during the first bounded read and requires the read-time size HOLD.
+during the first bounded read and requires the read-time size HOLD. A persistent
+cross-journal adversary rewrites only the broadcast confirmed record to another
+self-consistent confirmation while leaving the execution confirmation intact;
+resolution must HOLD with
+`reconciliation_evidence_confirmation_journal_mismatch` before any RPC call.
 Production resolver behavior is read-only.
 
 ## Verification
