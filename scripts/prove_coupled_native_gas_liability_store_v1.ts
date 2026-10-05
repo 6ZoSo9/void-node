@@ -399,6 +399,14 @@ assert.doesNotMatch(
     "assertPayerDomainSnapshotCurrent(",
     mutationClassifyAt,
   );
+  const publicationTimeAt = storeSource.indexOf(
+    "const publicationNowMs = readNowMs();",
+    finalPayerRebindAt,
+  );
+  const publicationExpiryAt = storeSource.indexOf(
+    "publicationNowMs >= observationExpiryMs",
+    publicationTimeAt,
+  );
 
   const createFunctionAt = storeSource.indexOf(
     "function createOnceLiability(",
@@ -426,14 +434,16 @@ assert.doesNotMatch(
   assert.ok(mutationTimeAt > createCallAt);
   assert.ok(mutationClassifyAt > mutationTimeAt);
   assert.ok(finalPayerRebindAt > mutationClassifyAt);
+  assert.ok(publicationTimeAt > finalPayerRebindAt);
+  assert.ok(publicationExpiryAt > publicationTimeAt);
   assert.ok(createFunctionAt >= 0);
   assert.ok(tempFsyncAt > createFunctionAt);
   assert.ok(beforeLinkAt > tempFsyncAt);
   assert.ok(hardLinkAt > beforeLinkAt);
   assert.equal(
     (storeSource.match(/readNowMs\(\)/gu) || []).length,
-    2,
-    "stored admission must have one post-census sample and one pre-link refresh",
+    3,
+    "stored admission must have post-census, classifier-refresh, and final hard-link-fence samples",
   );
 }
 assert.match(
@@ -443,8 +453,8 @@ assert.match(
 );
 assert.match(
   storeSource,
-  /createOnceLiability\([\s\S]*const mutationNowMs = readNowMs\(\);[\s\S]*const mutationAdmission =[\s\S]*assertPayerDomainSnapshotCurrent\(/u,
-  "pre-link hook must refresh time, classifier, and payer-domain before durable publication",
+  /createOnceLiability\([\s\S]*const mutationNowMs = readNowMs\(\);[\s\S]*const mutationAdmission =[\s\S]*assertPayerDomainSnapshotCurrent\([\s\S]*const publicationNowMs = readNowMs\(\);[\s\S]*publicationNowMs >= observationExpiryMs/u,
+  "pre-link hook must refresh classifier, rebind payer-domain, then fence expiry at the hard-link boundary",
 );
 
 {
@@ -687,7 +697,7 @@ assert.match(
       }),
     );
     assert.equal(stored.status, "stored");
-    assert.equal(storedTimeCalls, 2);
+    assert.equal(storedTimeCalls, 3);
     assert.equal(stored.mutation_performed, true);
     assert.equal(stored.payer_address, wallet);
     assert.equal(stored.tracked_open_liability_count, 1);
@@ -1031,6 +1041,34 @@ assert.match(
   }
 }
 
+{
+  const f = fixture();
+  try {
+    let calls = 0;
+    const result = await persistCoupledNativeGasOpenLiabilityV1({
+      root_dir: f.root,
+      read_now_ms: () => {
+        calls += 1;
+        return calls === 1 ? 1050 : calls === 2 ? 1099 : 1100;
+      },
+      buy_void_plan: makePlan(),
+      payer_observation: observation({
+        observed_at_ms: 1000,
+        expires_at_ms: 1100,
+      }),
+    });
+    requireHeld(
+      result,
+      "coupled_native_gas_fee_observation_stale",
+      false,
+    );
+    assert.equal(calls, 3);
+    assert.deepEqual(finalRecordNames(f), []);
+  } finally {
+    cleanup(f);
+  }
+}
+
 
 {
   const f = fixture();
@@ -1071,6 +1109,8 @@ console.log("payer_domain_queue_wait_swap_rejected=true");
 console.log("payer_domain_postclassification_swap_reports_postmutation=true");
 console.log("admission_time_sampled_after_queue_and_census=true");
 console.log("admission_time_refreshed_after_temp_fsync_before_hard_link=true");
+console.log("final_publication_time_fence_after_classifier=true");
+console.log("classifier_latency_expiry_rejected_before_canonical_link=true");
 console.log("temp_fsync_expiry_rejected_before_canonical_link=true");
 console.log("mutation_time_regression_rejected=true");
 console.log("postwrite_classifier_reuses_premutation_time_sample=true");
