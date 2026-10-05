@@ -248,6 +248,31 @@ const alternateCurrent2 = currentFrom(
   alternateHigh2,
 );
 
+const alternateThird = requireOk(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    ledger_jsonl: alternateLedger2,
+    request_id: "buyvoid_e_eeeeeeee",
+    payment_transaction_hash: "0x" + "e".repeat(64),
+    payment_log_index: 11,
+    buyer_delivery_wallet: "0x" + "5".repeat(40),
+    verified_payment_receipt_ref: sha("5"),
+    payment_verified_event_sha256: sha("6"),
+    duplicate_payment_guard_result: sha("7"),
+    inventory_allocation_guard_result: sha("8"),
+    operator_activation_record_ref: sha("9"),
+    created_at_ms: baseInput.created_at_ms + 4,
+  }),
+);
+const alternateLedger3 = alternateThird.next_ledger_jsonl;
+const alternateHigh3 = requireOk(
+  deriveBuyVoidAllocationReservationHighWaterV1(alternateLedger3),
+);
+const alternateCurrent3 = currentFrom(
+  alternateLedger3,
+  alternateHigh3,
+);
+
 {
   const parsed =
     parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
@@ -472,6 +497,19 @@ let advancedJournal: Buffer;
     "allocation_custody_witness_local_history_conflict",
   );
 
+  const multiRecordConflict =
+    classifyBuyVoidAllocationCustodyExternalWitnessV1({
+      witness_jsonl: advancedJournal!,
+      current_state: alternateCurrent3,
+      current_ledger_jsonl: alternateLedger3,
+      current_high_water_json: alternateHigh3.high_water_json,
+    });
+  assert.equal(multiRecordConflict.ok, false);
+  assert.equal(
+    multiRecordConflict.reason,
+    "allocation_custody_witness_local_history_conflict",
+  );
+
   const planned =
     planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
       witness_jsonl: advancedJournal!,
@@ -519,6 +557,7 @@ console.log("exact_live_match=true");
 console.log("same_epoch_conflict_rejected=true");
 console.log("unanchored_local_advance_hold=true");
 console.log("rollback_regression_detected=true");
+console.log("multi_record_local_history_conflict_rejected=true");
 console.log("truncated_witness_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("exact_single_record_advance=true");
