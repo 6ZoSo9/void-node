@@ -68,11 +68,13 @@ const ancestor = (entryPath: string) => ({
 
 const mount = (
   mountId: string,
+  mountPoint: string,
   device: string,
   source: string,
   rollbackDomainSha256: string,
 ) => ({
   mount_id: mountId,
+  mount_point: mountPoint,
   device_major_minor: device,
   mount_source: source,
   rollback_domain_sha256: rollbackDomainSha256,
@@ -127,6 +129,7 @@ function evidence() {
       ["/", "/srv"],
       mount(
         "41",
+        "/srv",
         "8:1",
         "/dev/disk/by-uuid/void-ledger",
         LEDGER_ROLLBACK_DOMAIN_SHA256,
@@ -137,6 +140,7 @@ function evidence() {
       ["/", "/mnt"],
       mount(
         "52",
+        "/mnt",
         "8:2",
         "/dev/disk/by-uuid/void-custody",
         CUSTODY_ROLLBACK_DOMAIN_SHA256,
@@ -309,6 +313,7 @@ for (const [key, value] of Object.entries(
     "stable_root_ancestor_policy_required",
     "disjoint_storage_roots_required",
     "shared_ancestor_consistency_required",
+    "root_mount_binding_required",
     "distinct_mount_identity_required",
     "independent_rollback_domain_identity_required",
     "af_unix_ipc_required",
@@ -378,6 +383,15 @@ for (const mutate of [
   expectHeld(
     classify(bad),
     "allocation_custody_distinct_mount_identity_required",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.custody.mount.mount_point = "/opt/unrelated";
+  expectHeld(
+    classify(bad),
+    "allocation_custody_high_water_mount_point_binding_invalid",
   );
 }
 
@@ -720,6 +734,7 @@ console.log("runtime_and_custody_uid_separated=true");
 console.log("root_owned_nonwritable_ancestor_chain_required=true");
 console.log("disjoint_storage_roots_required=true");
 console.log("shared_ancestor_consistency_required=true");
+console.log("root_mount_binding_required=true");
 console.log("distinct_mount_identity_required=true");
 console.log("independent_rollback_domain_identity_required=true");
 console.log("bind_and_remount_substitution_rejected=true");
