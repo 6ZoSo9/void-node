@@ -1119,6 +1119,8 @@ async function persistWithDependencies(
             liability.obligation_id ||
           packet.prepared_plan_fingerprint_sha256 !==
             liability.transaction_plan_fingerprint_sha256 ||
+          packet.terminal_cost_evidence.terminal_cost_identity_sha256 !==
+            reconciliation.terminal_cost_identity_sha256 ||
           reconciliation.liability_id !== liabilityId ||
           reconciliation.payer_address !== payerAddress ||
           reconciliation.obligation_id !== liability.obligation_id ||
