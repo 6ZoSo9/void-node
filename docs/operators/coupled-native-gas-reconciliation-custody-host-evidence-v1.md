@@ -64,18 +64,25 @@ Linux mount IDs are namespace-local. The collector therefore treats the
 **custody service mount namespace** as the only mount-ID authority.
 
 The collector process itself must already be executing in that exact custody
-mount namespace. If collector and custody namespace identities differ,
-collection HOLDS. This keeps ordinary path/descriptor observations and
-`/proc/<custody-pid>/mountinfo` in one mount-ID domain.
+mount namespace. It must also share the custody process's exact filesystem-root
+identity (`/proc/self/root` versus `/proc/<custody-pid>/root`). A shared
+mount namespace alone is not enough because a process may have a different
+chroot/root directory. Namespace or filesystem-root mismatch HOLDS.
 
-The public runtime is **not** required to share the custody namespace. Its
+This keeps ordinary path/descriptor observations and
+`/proc/<custody-pid>/mountinfo` in one mount-ID domain and one absolute-path
+view.
+
+The public runtime is **not** required to share the custody namespace or
+filesystem root. Its
 `/proc/<pid>/ns/mnt` identity and `/proc/<pid>/mountinfo` bytes are
 fingerprinted separately and revalidated before/after collection. This is
 intentional because systemd filesystem hardening such as `PrivateTmp=true`
 may place a service in a private filesystem namespace.
 
-When the public runtime namespace differs, the collector also resolves the
-canonical payer-root pathname and every retained ancestor through
+The collector fingerprints the public runtime filesystem root independently.
+Whether or not its mount namespace/root identity differs, the collector resolves
+the canonical payer-root pathname and every retained ancestor through
 `/proc/<public-pid>/root/...`. Those objects must map to the same underlying
 `(dev,ino)` identities observed in the custody namespace, and the runtime's
 UID/GID/groups must still lack mutation permission on the mapped root and
@@ -235,8 +242,9 @@ The proof covers:
 - custody mountinfo drift HOLD;
 - public-runtime mountinfo drift HOLD;
 - collector/custody namespace mismatch HOLD;
-- public-runtime namespace separation accepted and fingerprinted;
-- public-runtime or custody namespace drift HOLD;
+- collector/custody filesystem-root mismatch HOLD;
+- public-runtime namespace/root separation accepted and fingerprinted;
+- public-runtime or custody namespace/root drift HOLD;
 - public-runtime canonical payer-root mapping mismatch HOLD;
 - child governing-mount substitution HOLD; and
 - static absence of filesystem mutation primitives.
@@ -261,8 +269,9 @@ node --import tsx \
   --custody-service-unit UNIT
 ```
 
-A normal host-shell invocation outside the custody namespace HOLDS instead of
-mixing host-namespace path metadata with custody-namespace mount IDs.
+A normal host-shell invocation outside the custody namespace **or** with a
+different filesystem root HOLDS instead of mixing host-view path metadata with
+custody-view mount IDs and absolute paths.
 
 This command is not executed by CI and this source lane does not authorize its
 execution on a production host.
