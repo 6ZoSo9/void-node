@@ -416,6 +416,35 @@ expectHeld(
 
 {
   const bad = cloneEvidence();
+  bad.ledger.path = " /srv/void-allocation-ledger-v1";
+  expectHeld(
+    classify(bad),
+    "allocation_custody_ledger_path_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.custody.mount.mount_source =
+    "/dev/disk/by-uuid/void-custody ";
+  expectHeld(
+    classify(bad),
+    "allocation_custody_high_water_mount_source_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.custody.mount.rollback_domain_sha256 =
+    CUSTODY_ROLLBACK_DOMAIN_SHA256 + " ";
+  expectHeld(
+    classify(bad),
+    "allocation_custody_high_water_mount_rollback_domain_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
   bad.ipc.address_family = "AF_INET" as "AF_UNIX";
   expectHeld(
     classify(bad),
@@ -620,6 +649,7 @@ console.log("all_publication_recovery_phases_required=true");
 console.log("forward_only_no_duplicate_recovery_required=true");
 console.log("freshness_required=true");
 console.log("caller_bound_evidence_generation=true");
+console.log("canonical_evidence_string_spelling_required=true");
 console.log("typed_json_integer_evidence_required=true");
 console.log("reviewed_service_unit_sha256_required=true");
 console.log("live_host_observation=false");
