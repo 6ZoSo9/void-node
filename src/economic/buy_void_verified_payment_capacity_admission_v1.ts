@@ -78,6 +78,33 @@ function microVoid(value: unknown, code: string, positive = false): bigint {
   return units;
 }
 
+function microVoidAsNumberV1(
+  units: bigint,
+  code: string,
+): number {
+  const value = Number(
+    `${units / MICRO}.${(units % MICRO).toString().padStart(6, "0")}`,
+  );
+  if (!Number.isFinite(value) || microVoid(value, code) !== units) {
+    fail(code);
+  }
+  return value;
+}
+
+// Quote from exact 6-decimal USDC/rate units. Never floor an IEEE-754 product
+// into a different microVOID amount.
+export function quoteBuyVoidFromUsdcV1(
+  usdcAmount: unknown,
+  rateVoidPerUsdc: unknown,
+): number {
+  const code = "buy_void_quote_exact_units_invalid";
+  const usdcMicro = microVoid(usdcAmount, code, true);
+  const rateMicro = microVoid(rateVoidPerUsdc, code, true);
+  const product = usdcMicro * rateMicro;
+  if (product % MICRO !== 0n) fail(code);
+  return microVoidAsNumberV1(product / MICRO, code);
+}
+
 // Project the legacy numeric API from the same exact units as strict admission.
 // Never round away a sub-micro quote or an unrepresentable numeric result.
 export function projectBuyVoidVerifiedPaymentCapacityV1(
@@ -91,17 +118,10 @@ export function projectBuyVoidVerifiedPaymentCapacityV1(
     verified += microVoid(quote, code, true);
   }
   const reserved = verified < pool ? verified : pool;
-  const asNumber = (units: bigint): number => {
-    const value = Number(
-      `${units / MICRO}.${(units % MICRO).toString().padStart(6, "0")}`,
-    );
-    if (microVoid(value, code) !== units) fail(code);
-    return value;
-  };
   return Object.freeze({
-    allocation_reserved_void: asNumber(reserved),
-    verified_void_total: asNumber(verified),
-    remaining_void: asNumber(pool - reserved),
+    allocation_reserved_void: microVoidAsNumberV1(reserved, code),
+    verified_void_total: microVoidAsNumberV1(verified, code),
+    remaining_void: microVoidAsNumberV1(pool - reserved, code),
   });
 }
 
