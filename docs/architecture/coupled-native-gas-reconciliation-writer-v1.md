@@ -51,8 +51,10 @@ One successful first publication follows:
 ```text
 pin root / records / reconciliations / existing payer queue
   -> enter gas-liability-admission-v1.queue
+  -> bind exact payer-domain bytes before any cleanup mutation
+  -> normalize only reviewed stale writer temps
   -> qualify reconciliation storage
-  -> bind exact payer-domain bytes
+  -> rebind the same exact payer-domain bytes/inode identity
   -> census immutable liabilities + reconciliations
   -> require target liability effective-open
   -> invoke #2492 exact read-only reconciliation evidence resolver
@@ -121,6 +123,12 @@ left visible. A later invocation must reauthenticate it through the resolver
 before accepting idempotence.
 
 A process crash can also leave the writer's private temporary hard-link source.
+Before touching any such temp, the writer first binds the supplied payer address
+to the exact pinned `payer-domain-v1.json`. A wrong payer therefore HOLDS
+without cleanup mutation or resolver execution. After cleanup, storage
+qualification and a second payer-domain read must reproduce the same bound
+domain identity.
+
 While holding the same payer queue, the writer normalizes only exact
 writer-owned temp names of the form
 `.<reconciliation_id>.json.tmp-<pid>-<16 lowercase hex>`:
@@ -209,7 +217,8 @@ git diff --check
 
 The focused proof covers first publication, exact replay with fresh
 reauthentication, conflicting replay evidence HOLD, resolver HOLD before
-mutation, concurrent history drift HOLD, post-publication unrelated
+mutation, wrong-payer stale-temp cleanup HOLD with zero mutation, concurrent
+history drift HOLD, post-publication unrelated
 reconciliation replacement HOLD even when aggregate census math is preserved,
 missing reconciliation storage HOLD,
 post-publication failure truth, pre-link stale-temp cleanup, same-inode
