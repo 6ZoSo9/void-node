@@ -164,6 +164,7 @@ evaluate(declarations(admissionPath, [
   "VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1",
   "VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1",
   "MICRO", "REQUEST_ID", "TX_HASH", "fail", "microVoid",
+  "microVoidAsNumberV1", "quoteBuyVoidFromUsdcV1",
   "projectBuyVoidVerifiedPaymentCapacityV1", "freezeDecision",
   "classifyBuyVoidVerifiedPaymentCapacityAdmissionV1",
   "canonicalRequestSourceChainV1", "canonicalRequestTxHashV1",
@@ -175,7 +176,41 @@ evaluate(declarations(admissionPath, [
 ]), context);
 evaluate(declarations("src/index.ts", ["__voidBuyVoidSaleStateV1"]), context);
 const project = context.projectBuyVoidVerifiedPaymentCapacityV1;
+const quote = context.quoteBuyVoidFromUsdcV1;
 const classify = context.classifyBuyVoidVerifiedPaymentCapacityAdmissionV1;
+const indexSource = fs.readFileSync("src/index.ts", "utf8");
+const amountGuardLine = indexSource
+  .split("\n")
+  .find(
+    (line) =>
+      line.includes(".test(rawAmount)") &&
+      line.includes('errors.push("invalid_usdc_amount")'),
+  );
+assert.ok(amountGuardLine, "exact raw-amount regex guard present");
+const amountGuardSource = amountGuardLine.match(
+  /if \(!\/(.+)\/\.test\(rawAmount\)\)/u,
+)?.[1];
+assert.ok(amountGuardSource, "extract raw-amount regex source");
+const amountGuard = new RegExp(amountGuardSource);
+assert.equal(amountGuard.test("1.000001"), true);
+assert.equal(amountGuard.test("1\\000001"), false);
+
+assert.equal(quote("1.000001", "2"), 2.000002);
+assert.equal(quote("1.000004", "2"), 2.000008);
+assert.throws(
+  () => quote("0.000001", "0.5"),
+  /buy_void_quote_exact_units_invalid/u,
+);
+assert.equal(
+  indexSource.includes(
+    "Math.floor(usdc_amount * cfg.rate_void_per_usdc * 1e6)",
+  ),
+  false,
+);
+assert.match(
+  indexSource,
+  /quoteBuyVoidFromUsdcV1\(rawAmount, cfg\.rate_void_per_usdc\)/u,
+);
 const sale = async () => {
   trace.push("projection");
   return context.__voidBuyVoidSaleStateV1();
@@ -215,6 +250,20 @@ assert.equal(actual.verified_void_total, 20.3);
 assert.equal(actual.submitted_tx_count, 2);
 rows.pop();
 events.pop();
+
+// Sale-state sold-out semantics are literal capacity truth: one microVOID
+// remaining is still open, and exact zero is sold out.
+const dustPaid = request("d", 0.000002);
+rows.splice(0, rows.length, dustPaid);
+events.splice(0, events.length, event(dustPaid));
+pool = "0.000003";
+actual = await sale();
+assert.equal(actual.remaining_void, 0.000001);
+assert.equal(actual.sold_out, false);
+assert.equal(
+  classify({ sale_state: actual, quoted_void: 0.000001 }).ready,
+  true,
+);
 
 for (const quotes of [[10.1, 10.2], [0.000001, 0.000002], Array(1000).fill(0.000001), [0.1, 0.2, 0.3]]) {
   const expected = quotes.reduce((sum: bigint, quote: number) => sum + BigInt(Math.round(quote * 1e6)), 0n);
@@ -268,6 +317,7 @@ assert.equal(operations, 1);
 actual = await sale();
 assert.equal(actual.verified_void_total, 20.3);
 assert.equal(actual.remaining_void, 0);
+assert.equal(actual.sold_out, true);
 trace.length = 0;
 const retry = await admit();
 assert.equal(retry.idempotent, true);
@@ -323,5 +373,9 @@ assert.equal((await sale()).remaining_void, 0);
 // Existing large-pool numeric representation limits remain fail-closed.
 assert.throws(() => project(1e10, [1.000001]), /capacity_state_invalid/u);
 console.log("VOID_BUY_VOID_SALE_CAPACITY_PROJECTION_V1_GREEN");
+console.log("raw_decimal_request_guard_accepts_decimal_point=true");
+console.log("exact_request_quote_from_raw_decimal=true");
+console.log("ieee754_underquote_examples_rejected=true");
+console.log("non_microvoid_quote_product_holds=true");
 console.log("actual_sale_projection=true; exact_microvoid=true; synthetic_admission_retry=true; synthetic_sidecar_recovery=true");
 console.log("filesystem_custody_lock_append_fsync_link_duplicate_guard_mocked=true; real_ledger_write=false; runtime_started=false");
