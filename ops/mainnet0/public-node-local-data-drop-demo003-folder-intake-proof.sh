@@ -113,6 +113,44 @@ status_set="$(
 )"
 test -n "$intake_set" && test "$intake_set" = "$status_set"
 
+prepare_legacy_latest_symlink() {
+  case_root="$1"
+  legacy_target="$2"
+  mkdir -m 0700 "$case_root"
+  mkdir -m 0700 "$case_root/public-node"
+  mkdir -m 0700 "$case_root/public-node/local-data-drop-demo003-folder-fixtures"
+  mkdir -m 0700 "$case_root/public-node/local-data-drop-demo003-folder-fixtures/archive"
+  mkdir -m 0700 "$legacy_target"
+  printf 'VOID_DEMO003_LEGACY_LATEST_SENTINEL\n' >"$legacy_target/sentinel.txt"
+  chmod 0600 "$legacy_target/sentinel.txt"
+  ln -s "$legacy_target"     "$case_root/public-node/local-data-drop-demo003-folder-fixtures/latest"
+}
+
+legacy_success_data="$OUT/legacy-symlink-success-data"
+legacy_success_target="$OUT/legacy-symlink-success-target"
+prepare_legacy_latest_symlink "$legacy_success_data" "$legacy_success_target"
+legacy_success_link="$legacy_success_data/public-node/local-data-drop-demo003-folder-fixtures/latest"
+legacy_success_identity="$(
+  python3 - "$legacy_success_link" <<'PY'
+import os
+import sys
+st=os.lstat(sys.argv[1])
+print(f"{st.st_dev}:{st.st_ino}:{st.st_mode}:{st.st_uid}:{st.st_gid}")
+PY
+)"
+legacy_success_readlink="$(readlink "$legacy_success_link")"
+DATA_DIR="$legacy_success_data" OUT="$OUT/legacy-symlink-success-run"   "$INTAKE" >"$OUT/legacy-symlink-success.log" 2>&1
+grep -Fq "latest_prior_kind=symlink" "$OUT/legacy-symlink-success.log"
+grep -Fq "previous_latest_retired_after_validation=true" "$OUT/legacy-symlink-success.log"
+grep -Fq "latest_publish_commit_validated=true" "$OUT/legacy-symlink-success.log"
+test -d "$legacy_success_link" && test ! -L "$legacy_success_link"
+test "$(cat "$legacy_success_target/sentinel.txt")" = "VOID_DEMO003_LEGACY_LATEST_SENTINEL"
+if find "$legacy_success_data/public-node/local-data-drop-demo003-folder-fixtures"      -maxdepth 1 -name '.latest-stage-*' -print -quit | grep -q .; then
+  echo "legacy_symlink_success_left_stage=true"
+  exit 1
+fi
+test -n "$legacy_success_identity" && test -n "$legacy_success_readlink"
+
 prior_status_set="$status_set"
 real_python="$(command -v python3)"
 wrapper_bin="$OUT/post-publish-python-wrapper"
@@ -193,6 +231,57 @@ if find "$DATA_DIR/public-node/local-data-drop-demo003-folder-fixtures" \
   exit 1
 fi
 
+legacy_rollback_data="$OUT/legacy-symlink-rollback-data"
+legacy_rollback_target="$OUT/legacy-symlink-rollback-target"
+prepare_legacy_latest_symlink "$legacy_rollback_data" "$legacy_rollback_target"
+legacy_rollback_link="$legacy_rollback_data/public-node/local-data-drop-demo003-folder-fixtures/latest"
+legacy_rollback_identity="$(
+  python3 - "$legacy_rollback_link" <<'PY'
+import os
+import sys
+st=os.lstat(sys.argv[1])
+print(f"{st.st_dev}:{st.st_ino}:{st.st_mode}:{st.st_uid}:{st.st_gid}")
+PY
+)"
+legacy_rollback_readlink="$(readlink "$legacy_rollback_link")"
+
+set +e
+PATH="$wrapper_bin:$PATH" \
+VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+VOID_DEMO003_TEST_CORRUPT_AFTER_PUBLISH=1 \
+DATA_DIR="$legacy_rollback_data" \
+OUT="$OUT/legacy-symlink-rollback-run" \
+  "$INTAKE" >"$OUT/legacy-symlink-rollback.log" 2>&1
+legacy_rollback_rc=$?
+set -e
+
+if [ "$legacy_rollback_rc" -eq 0 ]; then
+  echo "legacy_symlink_post_publish_failure_unexpectedly_committed=true"
+  exit 1
+fi
+grep -Fq "latest_prior_kind=symlink" "$OUT/legacy-symlink-rollback.log"
+grep -Fq "latest_publish_rollback_restored=true" "$OUT/legacy-symlink-rollback.log"
+if grep -Fq "latest_publish_commit_validated=true" "$OUT/legacy-symlink-rollback.log"; then
+  echo "legacy_symlink_failed_publish_reported_committed=true"
+  exit 1
+fi
+test -L "$legacy_rollback_link"
+test "$(readlink "$legacy_rollback_link")" = "$legacy_rollback_readlink"
+test "$(cat "$legacy_rollback_target/sentinel.txt")" = "VOID_DEMO003_LEGACY_LATEST_SENTINEL"
+test "$(
+  python3 - "$legacy_rollback_link" <<'PY'
+import os
+import sys
+st=os.lstat(sys.argv[1])
+print(f"{st.st_dev}:{st.st_ino}:{st.st_mode}:{st.st_uid}:{st.st_gid}")
+PY
+)" = "$legacy_rollback_identity"
+if find "$legacy_rollback_data/public-node/local-data-drop-demo003-folder-fixtures" \
+     -maxdepth 1 -name '.latest-stage-*' -print -quit | grep -q .; then
+  echo "legacy_symlink_rollback_left_stage=true"
+  exit 1
+fi
+
 after="$(git status --short --untracked-files=no)"
 if [ "$before" != "$after" ]; then
   echo "no_source_mutation=false"
@@ -202,6 +291,8 @@ fi
 
 echo "post_publish_invalid_latest_rollback_verified=true"
 echo "prior_latest_snapshot_restored=true"
+echo "legacy_latest_symlink_successfully_retired_after_validation=true"
+echo "legacy_latest_symlink_exactly_restored_after_failed_validation=true"
 echo "post_green_visible_tree_mutation_rejected=true"
 echo "published_latest_snapshot_revalidation_verified=true"
 echo "sealed_snapshot_handoff_verified=true"
