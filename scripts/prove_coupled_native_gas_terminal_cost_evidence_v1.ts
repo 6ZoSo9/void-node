@@ -390,12 +390,15 @@ requireHeld(
 {
   const plan = makePlan();
   const liability = liabilityFor(plan);
-  const changedPlan = { ...plan, nonce: plan.nonce + 1 };
+  const changedPlan = makePlan({
+    attempt: "2".repeat(64),
+    nonce: plan.nonce + 1,
+  });
   requireHeld(
     classify({
-      plan: changedPlan as BuyVoidPreparedTransactionPlanReservationV1,
+      plan: changedPlan,
       liability,
-      evidence: makeEvidence(plan, "confirmed"),
+      evidence: makeEvidence(changedPlan, "confirmed"),
       receipt: makeReceipt("confirmed"),
     }),
     "coupled_native_gas_terminal_cost_plan_liability_binding_mismatch",
