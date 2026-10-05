@@ -19027,7 +19027,7 @@ setInterval(refresh, 10000);
         const usdc_amount = Number(rawAmount);
         const errors:string[] = [];
 
-        if (!/^(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,6})?$/.test(rawAmount)) errors.push("invalid_usdc_amount");
+        if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,6})?$/.test(rawAmount)) errors.push("invalid_usdc_amount");
         if (!Number.isFinite(usdc_amount) || usdc_amount <= 0) errors.push("invalid_usdc_amount");
         if (Number.isFinite(usdc_amount) && usdc_amount < cfg.min_usdc) errors.push("below_min_usdc");
         if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
