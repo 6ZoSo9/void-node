@@ -77,6 +77,8 @@ const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM_RAW = String(
 ).trim();
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH =
   "/__void/agents/paid-work/credential-requests/v1";
+const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1 =
+  "x-void-credential-request-gateway-instance-v1";
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_STATUS_PATH =
   AGENT_PAID_WORK_CREDENTIAL_REQUEST_PATH + "/status";
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_MARKER =
@@ -284,6 +286,7 @@ let AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION =
       ? "upstream_status_not_checked"
       : "source_configuration_incomplete",
     observed_max_requests_per_minute: null,
+    qualification_instance_id: null,
   });
 
 const host =
@@ -1016,6 +1019,8 @@ async function proxyAgentPaidWorkSubmission(
           "content-length": String(body.length),
           "user-agent": "void-ai-agent-public-gateway-v1",
           "x-void-payload-sha256": bodySha,
+          [AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1]:
+            upstreamQualification.qualification_instance_id,
         },
         body,
         redirect: "manual",
@@ -1126,6 +1131,10 @@ async function qualifyPaidWorkCredentialRequestUpstream() {
     }
 
     const observed = Number(status?.max_requests_per_minute);
+    const qualificationInstanceId =
+      String(status?.qualification_instance_id || "")
+        .trim()
+        .toLowerCase();
     if (
       status?.marker !==
         AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_STATUS_MARKER ||
@@ -1137,6 +1146,7 @@ async function qualifyPaidWorkCredentialRequestUpstream() {
       !Number.isSafeInteger(observed) ||
       observed !==
         AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE ||
+      !/^[0-9a-f]{64}$/.test(qualificationInstanceId) ||
       status?.credential_issuance_authorized !== false ||
       status?.credential_registry_mutation_authorized !== false ||
       status?.receiver_restart_authorized !== false
@@ -1150,6 +1160,7 @@ async function qualifyPaidWorkCredentialRequestUpstream() {
       verified: true,
       reason: null,
       observed_max_requests_per_minute: observed,
+      qualification_instance_id: qualificationInstanceId,
     });
   } catch (error) {
     process.stderr.write(
@@ -1162,6 +1173,7 @@ async function qualifyPaidWorkCredentialRequestUpstream() {
       verified: false,
       reason: "upstream_status_not_verified",
       observed_max_requests_per_minute: null,
+      qualification_instance_id: null,
     });
   }
 }
@@ -1199,6 +1211,7 @@ function invalidatePaidWorkCredentialRequestQualificationV1(reason) {
       verified: false,
       reason: String(reason || "upstream_status_not_verified"),
       observed_max_requests_per_minute: null,
+      qualification_instance_id: null,
     }),
   );
 }
@@ -1208,14 +1221,16 @@ async function requalifyPaidWorkCredentialRequestUpstreamV1() {
     invalidatePaidWorkCredentialRequestQualificationV1(
       "source_configuration_incomplete",
     );
-    return false;
+    return null;
   }
 
   const qualification =
     await qualifyPaidWorkCredentialRequestUpstream();
   return applyPaidWorkCredentialRequestQualificationV1(
     qualification,
-  );
+  )
+    ? qualification
+    : null;
 }
 
 await requalifyPaidWorkCredentialRequestUpstreamV1();
@@ -1564,7 +1579,9 @@ async function proxyAgentPaidWorkCredentialRequest(
       return;
     }
 
-    if (!(await requalifyPaidWorkCredentialRequestUpstreamV1())) {
+    const upstreamQualification =
+      await requalifyPaidWorkCredentialRequestUpstreamV1();
+    if (!upstreamQualification) {
       jsonResponse(response, 503, {
         ok: false,
         error: "agent_paid_work_credential_request_gateway_unavailable",
@@ -1602,6 +1619,7 @@ async function proxyAgentPaidWorkCredentialRequest(
     );
 
     if (
+      upstreamResponse.status === 412 ||
       upstreamResponse.status === 429 ||
       upstreamResponse.status >= 500
     ) {
@@ -1826,6 +1844,7 @@ server.listen({ host, port, exclusive: true }, () => {
           AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_QUALIFICATION.verified,
         upstream_requalified_per_admitted_request: true,
         upstream_qualification_post_serialized: true,
+    upstream_qualification_instance_bound: true,
         applicant_auth_revalidated_after_serial_wait: true,
         upstream_failure_invalidates_qualification: true,
         upstream_status_hold_reason:
