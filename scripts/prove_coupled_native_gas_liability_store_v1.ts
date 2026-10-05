@@ -19,6 +19,9 @@ import {
   type CoupledNativeGasOpenLiabilityStoreDecisionV1,
 } from "../src/economic/coupled_native_gas_liability_store_v1.js";
 import {
+  withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1,
+} from "../src/economic/buy_void_filesystem_bakery_lock_v1.js";
+import {
   VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1,
   type BuyVoidPreparedTransactionPlanReservationV1,
 } from "../src/economic/buy_void_prepared_transaction_plan_reservation_v1.js";
@@ -190,6 +193,43 @@ function cleanup(f: Fixture): void {
   fs.rmSync(f.root, { recursive: true, force: true });
 }
 
+function deferred(): {
+  promise: Promise<void>;
+  resolve: () => void;
+} {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+async function waitForQueueDepth(
+  queue: string,
+  minimum: number,
+): Promise<void> {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    if (fs.readdirSync(queue).length >= minimum) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("bakery_queue_depth_timeout");
+}
+
+function replacePayerDomain(
+  f: Fixture,
+  payer: string,
+): void {
+  const replacement =
+    f.domain + ".replacement-" + crypto.randomBytes(8).toString("hex");
+  fs.writeFileSync(
+    replacement,
+    serializeCoupledNativeGasStorePayerDomainV1(payer),
+    { mode: 0o600 },
+  );
+  fs.renameSync(replacement, f.domain);
+}
+
 function finalRecordNames(f: Fixture): string[] {
   if (!fs.existsSync(f.records)) return [];
   return fs
@@ -234,11 +274,12 @@ async function persist(
     plan?: BuyVoidPreparedTransactionPlanReservationV1;
     obs?: ReturnType<typeof observation>;
     now?: number;
+    read_now?: () => unknown;
   } = {},
 ) {
   return await persistCoupledNativeGasOpenLiabilityV1({
     root_dir: f.root,
-    now_ms: input.now ?? 1500,
+    read_now_ms: input.read_now ?? (() => input.now ?? 1500),
     buy_void_plan: input.plan ?? makePlan(),
     payer_observation: input.obs ?? observation(),
   });
@@ -299,6 +340,42 @@ assert.match(
 assert.match(storeSource, /CoupledNativeGasStorePostMutationError/u);
 assert.match(storeSource, /status: mutationPerformed \? "held_after_mutation" : "held"/u);
 assert.match(storeSource, /durable_state_requires_reinspection/u);
+assert.doesNotMatch(
+  storeSource,
+  /now_ms:\s*input\?\.now_ms/u,
+  "persistence boundary must not reuse a caller-captured timestamp",
+);
+{
+  const queueAt = storeSource.indexOf(
+    "withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(",
+  );
+  const domainAt = storeSource.indexOf(
+    "payerDomainSnapshot = openPayerDomainSnapshot(root!)",
+    queueAt,
+  );
+  const censusAt = storeSource.indexOf(
+    "const before = readCensus(",
+    domainAt,
+  );
+  const timeAt = storeSource.indexOf(
+    "const admissionNowMs = readNowMs();",
+    censusAt,
+  );
+  const classifyAt = storeSource.indexOf(
+    "classifyCoupledNativeGasBuyVoidAdmissionV1({",
+    timeAt,
+  );
+  assert.ok(queueAt >= 0);
+  assert.ok(domainAt > queueAt);
+  assert.ok(censusAt > domainAt);
+  assert.ok(timeAt > censusAt);
+  assert.ok(classifyAt > timeAt);
+}
+assert.match(
+  storeSource,
+  /assertPayerDomainSnapshotCurrent\([\s\S]*createOnceLiability\(records!, classified\.liability\)/u,
+  "payer-domain must be rebound immediately before publication",
+);
 
 {
   const root = path.join(
@@ -308,7 +385,7 @@ assert.match(storeSource, /durable_state_requires_reinspection/u);
   const result = requireHeld(
     await persistCoupledNativeGasOpenLiabilityV1({
       root_dir: root,
-      now_ms: 1500,
+      read_now_ms: () => 1500,
       buy_void_plan: makePlan(),
       payer_observation: observation(),
     }),
@@ -403,9 +480,144 @@ assert.match(storeSource, /durable_state_requires_reinspection/u);
 
 {
   const f = fixture();
+  const holderEntered = deferred();
+  const releaseHolder = deferred();
   try {
-    const stored = requireOk(await persist(f));
+    const holder = withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
+      f.queue,
+      async () => {
+        holderEntered.resolve();
+        await releaseHolder.promise;
+      },
+    );
+    await holderEntered.promise;
+
+    let timeCalls = 0;
+    const pending = persist(f, {
+      read_now: () => {
+        timeCalls += 1;
+        return 1500;
+      },
+    });
+    await waitForQueueDepth(f.queue, 2);
+    assert.equal(
+      timeCalls,
+      0,
+      "time provider must not run while admission waits on payer queue",
+    );
+
+    replacePayerDomain(f, otherWallet);
+    releaseHolder.resolve();
+    await holder;
+
+    requireHeld(
+      await pending,
+      "coupled_native_gas_store_payer_domain_mismatch",
+    );
+    assert.equal(timeCalls, 1);
+    assert.deepEqual(finalRecordNames(f), []);
+  } finally {
+    releaseHolder.resolve();
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const holderEntered = deferred();
+  const releaseHolder = deferred();
+  try {
+    const holder = withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
+      f.queue,
+      async () => {
+        holderEntered.resolve();
+        await releaseHolder.promise;
+      },
+    );
+    await holderEntered.promise;
+
+    let timeCalls = 0;
+    const pending = persist(f, {
+      obs: observation({
+        observed_at_ms: 1000,
+        expires_at_ms: 2000,
+      }),
+      read_now: () => {
+        timeCalls += 1;
+        return 2000;
+      },
+    });
+    await waitForQueueDepth(f.queue, 2);
+    assert.equal(
+      timeCalls,
+      0,
+      "time provider must remain unsampled before serialized admission",
+    );
+
+    releaseHolder.resolve();
+    await holder;
+    requireHeld(
+      await pending,
+      "coupled_native_gas_fee_observation_stale",
+    );
+    assert.equal(timeCalls, 1);
+    assert.deepEqual(finalRecordNames(f), []);
+  } finally {
+    releaseHolder.resolve();
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalLinkSync = fs.linkSync;
+  let swapped = false;
+  try {
+    (fs as any).linkSync = (
+      existingPath: fs.PathLike,
+      newPath: fs.PathLike,
+    ) => {
+      if (
+        !swapped &&
+        /^[0-9a-f]{64}\.json$/u.test(path.basename(String(newPath)))
+      ) {
+        replacePayerDomain(f, otherWallet);
+        swapped = true;
+      }
+      return originalLinkSync(existingPath, newPath);
+    };
+
+    const result = requireHeld(
+      await persist(f),
+      "coupled_native_gas_store_payer_domain_changed",
+      true,
+    );
+    assert.equal(swapped, true);
+    assert.equal(finalRecordNames(f).length, 1);
+    assert.equal(
+      result.detail?.durable_state_requires_reinspection,
+      true,
+    );
+  } finally {
+    (fs as any).linkSync = originalLinkSync;
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    let storedTimeCalls = 0;
+    const stored = requireOk(
+      await persist(f, {
+        read_now: () => {
+          storedTimeCalls += 1;
+          return 1500;
+        },
+      }),
+    );
     assert.equal(stored.status, "stored");
+    assert.equal(storedTimeCalls, 1);
     assert.equal(stored.mutation_performed, true);
     assert.equal(stored.payer_address, wallet);
     assert.equal(stored.tracked_open_liability_count, 1);
@@ -422,10 +634,18 @@ assert.match(storeSource, /durable_state_requires_reinspection/u);
       expires_at_ms: 2100,
       source: "f".repeat(64),
     });
+    let replayTimeCalls = 0;
     const replay = requireOk(
-      await persist(f, { obs: fresh, now: 1500 }),
+      await persist(f, {
+        obs: fresh,
+        read_now: () => {
+          replayTimeCalls += 1;
+          return 1500;
+        },
+      }),
     );
     assert.equal(replay.status, "idempotent");
+    assert.equal(replayTimeCalls, 1);
     assert.equal(replay.mutation_performed, false);
     assert.equal(
       replay.liability.liability_id,
@@ -668,6 +888,11 @@ console.log("preprovisioned_lock_queue_required=true");
 console.log("storage_bootstrap=false");
 console.log("full_locked_census=true");
 console.log("serialized_admission=true");
+console.log("payer_domain_bound_inside_serialized_admission=true");
+console.log("payer_domain_queue_wait_swap_rejected=true");
+console.log("payer_domain_postclassification_swap_reports_postmutation=true");
+console.log("admission_time_sampled_once_after_queue_and_census=true");
+console.log("expired_during_queue_wait_rejected=true");
 console.log("concurrent_near_balance_oversubscription_prevented=true");
 console.log("exact_idempotent_replay=true");
 console.log("corrupt_census_holds=true");
