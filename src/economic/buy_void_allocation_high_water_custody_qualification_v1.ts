@@ -21,6 +21,8 @@ export const VOID_BUY_VOID_ALLOCATION_HIGH_WATER_CUSTODY_QUALIFICATION_AUTHORITY
     exact_current_state_binding: true,
     runtime_custody_identity_separation_required: true,
     stable_root_ancestor_policy_required: true,
+    disjoint_storage_roots_required: true,
+    shared_ancestor_consistency_required: true,
     distinct_mount_identity_required: true,
     independent_rollback_domain_identity_required: true,
     af_unix_ipc_required: true,
@@ -541,6 +543,39 @@ function validateRoot(
   });
 }
 
+function nestedUnder(parent: string, child: string): boolean {
+  const relative = path.posix.relative(parent, child);
+  return (
+    relative !== "" &&
+    relative !== ".." &&
+    !relative.startsWith("../") &&
+    !path.posix.isAbsolute(relative)
+  );
+}
+
+function assertRootCompositionConsistent(
+  ledger: RootEvidenceV1,
+  custody: RootEvidenceV1,
+): void {
+  if (
+    ledger.path === custody.path ||
+    nestedUnder(ledger.path, custody.path) ||
+    nestedUnder(custody.path, ledger.path)
+  ) {
+    fail("allocation_custody_storage_roots_must_be_disjoint");
+  }
+
+  const ledgerAncestors = new Map(
+    ledger.ancestors.map((entry) => [entry.path, entry] as const),
+  );
+  for (const entry of custody.ancestors) {
+    const shared = ledgerAncestors.get(entry.path);
+    if (shared !== undefined && canonical(shared) !== canonical(entry)) {
+      fail("allocation_custody_shared_ancestor_evidence_mismatch");
+    }
+  }
+}
+
 function validateStateFile(
   raw: unknown,
   root: RootEvidenceV1,
@@ -738,8 +773,8 @@ function validateEvidence(
     host,
     "allocation_custody_high_water",
   );
+  assertRootCompositionConsistent(ledger, custody);
   if (
-    ledger.path === custody.path ||
     ledger.mount.mount_id === custody.mount.mount_id ||
     ledger.mount.device_major_minor === custody.mount.device_major_minor ||
     ledger.mount.mount_source === custody.mount.mount_source
