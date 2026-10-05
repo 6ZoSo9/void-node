@@ -158,4 +158,3 @@ console.log("runtime_route_active=false");
 console.log("public_submission_open=false");
 console.log("authoritative_chain2050_write=false");
 console.log("funds_movement=false");
-
