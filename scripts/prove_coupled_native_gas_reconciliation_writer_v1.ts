@@ -287,6 +287,8 @@ for (const [key, value] of Object.entries(
     "idempotent_replay_reauthenticates_terminal_evidence",
     "idempotent_directory_durability_refresh",
     "immutable_liability_history",
+    "immutable_reconciliation_history",
+    "exact_reconciliation_history_append_postcheck",
     "create_once_reconciliation_publication",
     "crash_temp_normalization",
     "record_filename_identity_binding",
@@ -525,6 +527,88 @@ for (const [key, value] of Object.entries(
     assert.match(
       decision.reason,
       /reconciliations_directory_missing/u,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const prior = makeLiability();
+  const target = makeLiability({
+    obligation: "3".repeat(64),
+    nonce: 8,
+    plan: "4".repeat(64),
+  });
+  const unrelated = makeLiability({
+    obligation: "5".repeat(64),
+    nonce: 9,
+    plan: "6".repeat(64),
+  });
+  const priorReconciliation = makeReconciliation(prior);
+  const unrelatedReconciliation = makeReconciliation(unrelated, {
+    terminal_cost_evidence_id: "7".repeat(64),
+  });
+  const f = fixture(
+    [prior, target, unrelated],
+    [priorReconciliation],
+  );
+  try {
+    const decision =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: payer,
+          liability_id: target.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () => resolved(target),
+          after_publication: () => {
+            fs.unlinkSync(
+              path.join(
+                f.root,
+                RECONCILIATIONS,
+                priorReconciliation.reconciliation_id + ".json",
+              ),
+            );
+            writeCanonical(
+              path.join(
+                f.root,
+                RECONCILIATIONS,
+                unrelatedReconciliation.reconciliation_id + ".json",
+              ),
+              unrelatedReconciliation,
+            );
+          },
+        },
+      );
+    requireHeld(decision);
+    assert.equal(decision.status, "held_after_mutation");
+    assert.equal(decision.mutation_performed, true);
+    assert.equal(
+      decision.reason,
+      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          f.root,
+          RECONCILIATIONS,
+          priorReconciliation.reconciliation_id + ".json",
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          f.root,
+          RECONCILIATIONS,
+          unrelatedReconciliation.reconciliation_id + ".json",
+        ),
+      ),
+      true,
     );
   } finally {
     cleanup(f);
@@ -800,6 +884,8 @@ console.log("immutable_liability_history=true");
 console.log("create_once_reconciliation_publication=true");
 console.log("effective_open_reserve_release_exactly_once=true");
 console.log("history_change_before_publication_hold=true");
+console.log("reconciliation_history_exact_append_postcheck=true");
+console.log("postpublication_reconciliation_substitution_hold=true");
 console.log("postpublication_failure_reports_mutation=true");
 console.log("stale_writer_temp_recovery_idempotent=true");
 console.log("stale_writer_temp_cleanup_reports_mutation=true");
