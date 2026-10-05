@@ -341,7 +341,7 @@ assert.doesNotMatch(
     ceilingAt,
   );
   const refreshedCreateAt = storeSource.indexOf(
-    "createOnceLiability(records!, mutationAdmission.liability)",
+    "createOnceLiability(",
     ceilingReasonAt,
   );
   assert.ok(ceilingAt >= 0);
@@ -383,9 +383,13 @@ assert.doesNotMatch(
     "assertPayerDomainSnapshotCurrent(",
     classifyAt,
   );
+  const createCallAt = storeSource.indexOf(
+    "createOnceLiability(",
+    rebindAt,
+  );
   const mutationTimeAt = storeSource.indexOf(
     "const mutationNowMs = readNowMs();",
-    rebindAt,
+    createCallAt,
   );
   const mutationClassifyAt = storeSource.indexOf(
     "const mutationAdmission =",
@@ -395,30 +399,52 @@ assert.doesNotMatch(
     "assertPayerDomainSnapshotCurrent(",
     mutationClassifyAt,
   );
-  const createAt = storeSource.indexOf(
-    "createOnceLiability(records!, mutationAdmission.liability)",
-    finalPayerRebindAt,
+
+  const createFunctionAt = storeSource.indexOf(
+    "function createOnceLiability(",
   );
+  const tempFsyncAt = storeSource.indexOf(
+    "fs.fsyncSync(fd);",
+    createFunctionAt,
+  );
+  const beforeLinkAt = storeSource.indexOf(
+    "beforeLink();",
+    tempFsyncAt,
+  );
+  const hardLinkAt = storeSource.indexOf(
+    "fs.linkSync(tempPath, finalPath);",
+    beforeLinkAt,
+  );
+
   assert.ok(queueAt >= 0);
   assert.ok(domainAt > queueAt);
   assert.ok(censusAt > domainAt);
   assert.ok(timeAt > censusAt);
   assert.ok(classifyAt > timeAt);
   assert.ok(rebindAt > classifyAt);
-  assert.ok(mutationTimeAt > rebindAt);
+  assert.ok(createCallAt > rebindAt);
+  assert.ok(mutationTimeAt > createCallAt);
   assert.ok(mutationClassifyAt > mutationTimeAt);
   assert.ok(finalPayerRebindAt > mutationClassifyAt);
-  assert.ok(createAt > finalPayerRebindAt);
+  assert.ok(createFunctionAt >= 0);
+  assert.ok(tempFsyncAt > createFunctionAt);
+  assert.ok(beforeLinkAt > tempFsyncAt);
+  assert.ok(hardLinkAt > beforeLinkAt);
   assert.equal(
     (storeSource.match(/readNowMs\(\)/gu) || []).length,
     2,
-    "stored admission must have one post-census sample and one prepublication refresh",
+    "stored admission must have one post-census sample and one pre-link refresh",
   );
 }
 assert.match(
   storeSource,
-  /const mutationAdmission =[\s\S]*assertPayerDomainSnapshotCurrent\([\s\S]*createOnceLiability\(records!, mutationAdmission\.liability\)/u,
-  "refreshed mutation admission must be followed by a final payer-domain rebind before durable publication",
+  /fs\.fsyncSync\(fd\);[\s\S]*beforeLink\(\);[\s\S]*fs\.linkSync\(tempPath, finalPath\);/u,
+  "pre-link authority hook must run after temp fsync and before canonical hard link",
+);
+assert.match(
+  storeSource,
+  /createOnceLiability\([\s\S]*const mutationNowMs = readNowMs\(\);[\s\S]*const mutationAdmission =[\s\S]*assertPayerDomainSnapshotCurrent\(/u,
+  "pre-link hook must refresh time, classifier, and payer-domain before durable publication",
 );
 
 {
@@ -926,6 +952,55 @@ assert.match(
 
 {
   const f = fixture();
+  const originalFsyncSync = fs.fsyncSync;
+  let nowMs = 1050;
+  let tempFsynced = false;
+  try {
+    (fs as any).fsyncSync = (fd: number) => {
+      try {
+        const target = fs.readlinkSync("/proc/self/fd/" + String(fd));
+        if (
+          !tempFsynced &&
+          path.basename(target).includes(".json.tmp-")
+        ) {
+          tempFsynced = true;
+          nowMs = 1100;
+        }
+      } catch {
+        // Non-file descriptors are irrelevant to this adversary.
+      }
+      return originalFsyncSync(fd);
+    };
+
+    let calls = 0;
+    const result = await persistCoupledNativeGasOpenLiabilityV1({
+      root_dir: f.root,
+      read_now_ms: () => {
+        calls += 1;
+        return nowMs;
+      },
+      buy_void_plan: makePlan(),
+      payer_observation: observation({
+        observed_at_ms: 1000,
+        expires_at_ms: 1100,
+      }),
+    });
+    requireHeld(
+      result,
+      "coupled_native_gas_fee_observation_stale",
+      false,
+    );
+    assert.equal(tempFsynced, true);
+    assert.equal(calls, 2);
+    assert.deepEqual(finalRecordNames(f), []);
+  } finally {
+    (fs as any).fsyncSync = originalFsyncSync;
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
   try {
     const plan = makePlan();
     const obs = observation({
@@ -993,7 +1068,8 @@ console.log("payer_domain_bound_inside_serialized_admission=true");
 console.log("payer_domain_queue_wait_swap_rejected=true");
 console.log("payer_domain_postclassification_swap_reports_postmutation=true");
 console.log("admission_time_sampled_after_queue_and_census=true");
-console.log("admission_time_refreshed_immediately_before_publication=true");
+console.log("admission_time_refreshed_after_temp_fsync_before_hard_link=true");
+console.log("temp_fsync_expiry_rejected_before_canonical_link=true");
 console.log("mutation_time_regression_rejected=true");
 console.log("postwrite_classifier_reuses_premutation_time_sample=true");
 console.log("expired_during_queue_wait_rejected=true");
