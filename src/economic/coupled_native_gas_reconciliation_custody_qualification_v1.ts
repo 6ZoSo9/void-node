@@ -551,11 +551,12 @@ function normalizeMount(
   );
   const parentId = safeInt(
     mount.parent_id,
-    0,
+    1,
     0x7fff_ffff,
     "reconciliation_custody_mount_invalid",
   );
   if (
+    (parentId === mountId && target !== "/") ||
     linuxMajorMinorFromDev(
       rootDev,
       "reconciliation_custody_mount_invalid",
