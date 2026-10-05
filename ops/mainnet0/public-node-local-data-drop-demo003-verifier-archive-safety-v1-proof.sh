@@ -25,7 +25,7 @@ grep -Fq "archive_bounded_decompressed_stream=true" "$VERIFIER" || fail "decompr
 grep -Fq "output_root_nofollow_custody=true" "$VERIFIER" || fail "output_root_custody_marker_missing"
 grep -Fq "BoundedDecompressedReader" "$VERIFIER" || fail "bounded_decompress_reader_missing"
 grep -Fq "safe_diagnostic" "$VERIFIER" || fail "sanitized_diagnostic_missing"
-grep -Fq "function diagnostic" "$VERIFIER" || fail "node_sanitized_diagnostic_missing"
+grep -Fq 'JSON.stringify(row.path)' "$VERIFIER" || fail "node_manifest_diagnostic_boundary_missing"
 grep -Fq "verified_content_authority=sealed_memfd_snapshot" "$VERIFIER" || fail "sealed_snapshot_authority_marker_missing"
 grep -Fq "semantic_verify_sealed_memfd_snapshot=true" "$VERIFIER" || fail "sealed_snapshot_semantic_marker_missing"
 grep -Fq "visible_extraction_tree_trusted=false" "$VERIFIER" || fail "visible_tree_untrusted_marker_missing"
