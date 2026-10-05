@@ -409,6 +409,39 @@ assert.equal(
 }
 
 {
+  assert.throws(
+    ()=>promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
+      evidenceBytes,
+      importReceipt:receipt,
+      sourceBindingPolicy:sourceBinding,
+      durableReplayStorePolicy:durable,
+      runtimeEvidenceContract:contract,
+      rawDomainPolicy:rawDomain,
+      migrationCandidate:migration,
+    }),
+    /replay_store_source_equivalence_invalid/,
+  );
+}
+
+{
+  const badEquivalence=structuredClone(replaySourceEquivalence);
+  badEquivalence.successor.git_blob_sha1="0".repeat(40);
+  assert.throws(
+    ()=>promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
+      evidenceBytes,
+      importReceipt:receipt,
+      sourceEquivalence:badEquivalence,
+      sourceBindingPolicy:sourceBinding,
+      durableReplayStorePolicy:durable,
+      runtimeEvidenceContract:contract,
+      rawDomainPolicy:rawDomain,
+      migrationCandidate:migration,
+    }),
+    /replay_store_source_equivalence_invalid/,
+  );
+}
+
+{
   const badMigration=structuredClone(migration);
   badMigration.replay_and_epoch_safety.privileged_signer_nonce_or_key_replay_fence_proven=false;
   assert.throws(
@@ -430,6 +463,8 @@ console.log(
   "VOID_ECONOMIC_EPOCH2_REPLAY_RUNTIME_IMPORT_PROMOTION_V1_PROOF_GREEN",
 );
 console.log("replay_consume_source_equivalence_verified=true");
+console.log("missing_replay_source_equivalence_rejected=true");
+console.log("mismatched_replay_source_equivalence_rejected=true");
 console.log("runtime_canary_reexecuted=false");
 console.log("runtime_evidence_hash_verified=true");
 console.log("runtime_evidence_id_verified=true");
