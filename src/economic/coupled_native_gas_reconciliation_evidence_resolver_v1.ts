@@ -45,6 +45,7 @@ export const
       derived_attempt_id_only: true,
       whole_execution_attempt_state_required: true,
       whole_broadcast_outcome_state_required: true,
+      execution_broadcast_confirmation_binding_required: true,
       descriptor_bound_local_snapshot: true,
       nofollow_ancestor_traversal: true,
       bounded_snapshot_read_during_growth: true,
