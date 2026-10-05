@@ -22,6 +22,7 @@ import {
   testOnlyBuildFilesystemRootBundleV1,
   testOnlyClassifyCollectedHostEvidenceV1,
   testOnlyPublicRuntimePathMappingV1,
+  testOnlyReadBoundedFileBytesV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs";
 
 function sha256Id(value) {
@@ -85,6 +86,7 @@ assert.deepEqual(
       .map((verb) => [verb, true]),
   );
   const allActionDenied = {
+    "org.freedesktop.systemd1.manage-units": true,
     "org.freedesktop.systemd1.manage-unit-files": true,
     "org.freedesktop.systemd1.reload-daemon": true,
   };
@@ -105,6 +107,17 @@ assert.deepEqual(
     ),
     false,
     "an authorized kill-detail operation must defeat the no-control claim",
+  );
+  assert.equal(
+    testOnlyAllCustodyControlDecisionsDeniedV1(
+      allVerbDenied,
+      {
+        ...allActionDenied,
+        "org.freedesktop.systemd1.manage-units": false,
+      },
+    ),
+    false,
+    "an authorized detail-free manage-units action must defeat the no-control claim",
   );
   assert.throws(
     () =>
@@ -179,6 +192,28 @@ for (const [key, value] of Object.entries(
       ),
     /custody_host_evidence_extended_acl_forbidden/u,
   );
+}
+
+{
+  const root = fs.mkdtempSync("/tmp/void-custody-bounded-read-v1-");
+  try {
+    const file = root + "/payer-domain-v1.json";
+    fs.writeFileSync(file, Buffer.alloc(64 * 1024, 0x61), {
+      mode: 0o600,
+    });
+    assert.equal(
+      testOnlyReadBoundedFileBytesV1(file, 64 * 1024),
+      64 * 1024,
+    );
+    fs.appendFileSync(file, Buffer.from([0x62]));
+    assert.throws(
+      () => testOnlyReadBoundedFileBytesV1(file, 64 * 1024),
+      /test_bounded_file_too_large/u,
+      "streaming reader must reject data that grows beyond the configured ceiling",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 {
@@ -494,14 +529,23 @@ const publicRuntimeFilesystemRoot = Object.freeze({
   gid: 0,
   mode: "0755",
 });
-const filesystemRoot = testOnlyBuildFilesystemRootBundleV1(
+const splitFilesystemRoot = testOnlyBuildFilesystemRootBundleV1(
   custodyFilesystemRoot,
   publicRuntimeFilesystemRoot,
   custodyFilesystemRoot,
 );
 assert.equal(
-  filesystemRoot.public_runtime_shared_with_custody,
+  splitFilesystemRoot.public_runtime_shared_with_custody,
   false,
+);
+const filesystemRoot = testOnlyBuildFilesystemRootBundleV1(
+  custodyFilesystemRoot,
+  custodyFilesystemRoot,
+  custodyFilesystemRoot,
+);
+assert.equal(
+  filesystemRoot.public_runtime_shared_with_custody,
+  true,
 );
 assert.throws(
   () =>
@@ -568,7 +612,18 @@ assert.equal(
 );
 assert.equal(
   green.public_runtime_filesystem_root_shared_with_custody,
+  true,
+);
+const forgedLive = collect({ live: true });
+assert.equal(forgedLive.ok, true);
+assert.equal(
+  forgedLive.status,
+  "SYNTHETIC_HOST_EVIDENCE_CLASSIFIED_TEST_ONLY",
+);
+assert.equal(
+  forgedLive.live_observation_backed,
   false,
+  "synthetic callers cannot override live observation provenance",
 );
 assert.match(
   green.public_runtime_mountinfo_sha256,
@@ -697,6 +752,10 @@ for (const token of [
   "custody_host_evidence_acl_unavailable",
   "org.freedesktop.systemd1.manage-units",
   "org.freedesktop.systemd1.manage-unit-files",
+  "readTextFileBoundedV1",
+  "MAX_PAYER_DOMAIN_BYTES",
+  "MAX_PROC_TEXT_BYTES",
+  "testOnlyReadBoundedFileBytesV1",
   "org.freedesktop.systemd1.reload-daemon",
   "\"set-property\"",
   "\"clean\"",
@@ -718,6 +777,16 @@ for (const token of [
 assert.doesNotMatch(
   collectorSource,
   /fs\.(?:writeFileSync|renameSync|unlinkSync|mkdirSync|chmodSync|chownSync|rmSync)\(/u,
+);
+assert.doesNotMatch(
+  collectorSource,
+  /fs\.readFileSync\(fd\)/u,
+  "payer-domain descriptor reads must stay bounded",
+);
+assert.doesNotMatch(
+  collectorSource,
+  /fs\.readFileSync\((?:mountInfoPath|publicRuntimeMountInfoPath)/u,
+  "mountinfo reads must stay bounded",
 );
 assert.doesNotMatch(
   collectorSource,
