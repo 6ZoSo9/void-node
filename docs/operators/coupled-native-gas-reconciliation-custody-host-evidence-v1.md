@@ -130,9 +130,15 @@ ACL entries and default ACLs are rejected. This prevents a named ACL grant to
 the public-runtime UID from being hidden behind apparently non-writable owner /
 group / other mode bits. Missing or unparsable ACL evidence HOLDS.
 
-The #2499 classifier remains authoritative for the required root ownership,
-modes, root/child mount-ID equality, inode separation, canonical payer-domain
-identity, service policy, and negative-test fields.
+The merged #2499 classifier remains authoritative for the required closed
+object-type schema as well as root ownership, modes, root/child mount-ID
+equality, inode separation, mount-device continuity, canonical payer-domain
+identity, service policy, and negative-test fields. The collector emits
+`object_type="directory"` for the payer root, every ancestor and retained
+directory namespace, and `object_type="regular_file"` for
+`payer-domain-v1.json`. Ancestor-local mount IDs remain collector-internal
+mapping evidence and are stripped from the final parent-classifier ancestor
+shape exactly as required by #2499.
 
 
 ## Read-only negative evidence
