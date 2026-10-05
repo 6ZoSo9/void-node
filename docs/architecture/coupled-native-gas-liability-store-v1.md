@@ -71,10 +71,11 @@ pin payer root / records / queue
   -> new candidate: rebind payer-domain before non-authoritative temp preparation
   -> create/write/fsync/close the private temp file only
   -> pre-link hook: rebind payer-domain
-  -> sample injected time again after temp fsync and before the canonical hard link
+  -> sample injected time again after temp fsync
   -> rerun #2463 against the unchanged pre-write census
   -> require the exact same admitted liability bytes and reserved-after amount
   -> rebind payer-domain again
+  -> sample injected time a final time and require the validated fee observation is still fresh
   -> create-only hard link + directory fsync for exact <liability_id>.json
   -> reread full census
   -> rerun #2463 with exact post-write census and the mutation-boundary time
@@ -95,13 +96,16 @@ non-authoritative temp file before taking the second sample. A synchronous
 pre-link hook rebinds the payer-domain, samples time again, reruns the canonical
 economic classifier against the unchanged pre-write census, requires the exact
 same liability bytes/reserved-after amount, and rebinds the payer-domain once
-more before the create-only hard link. If fee/balance evidence expired while
-custody, census, or temp-file I/O was in progress, the store removes only the
-temp and HOLDS with no canonical liability. The second sample must also be a
-safe integer that is not earlier than the first sample; a regressing or
-malformed provider HOLDS before mutation. The post-write idempotence classifier
-reuses that pre-link timestamp so a successful durable append is judged against
-the final reviewed admission boundary rather than a later wall-clock tick.
+more. Because that full classifier may itself scan a large census, the hook then
+takes a third lightweight time sample and requires monotonic time plus
+`now < fee_observation.expires_at_ms` immediately before returning to the
+create-only hard link. If fee/balance evidence expired while custody, census,
+temp-file I/O, classifier refresh, or final payer rebind was in progress, the
+store removes only the temp and HOLDS with no canonical liability. Both later
+samples must be safe integers and may not regress. The post-write idempotence
+classifier reuses the final hard-link-fence timestamp so a successful durable
+append is judged against the final reviewed admission boundary rather than a
+later wall-clock tick.
 This proves ordering only: the store still reports
 `trusted_time_source_proven=false`; later runtime composition must separately
 bind a reviewed clock/time source.
@@ -130,11 +134,13 @@ Publication is create-once:
 2. write exact bytes;
 3. file `fsync` and close;
 4. run the synchronous pre-link payer/time/#2463 authority refresh;
-5. create-only hard link to the canonical final name;
-6. records-directory `fsync`;
-7. unlink temp;
-8. records-directory `fsync`;
-9. exact final-byte reread.
+5. after that potentially O(N) refresh, sample time once more and require the
+   already-validated fee observation is still fresh;
+6. create-only hard link to the canonical final name;
+7. records-directory `fsync`;
+8. unlink temp;
+9. records-directory `fsync`;
+10. exact final-byte reread.
 
 A pre-link HOLD happens before step 5, so the reviewed temp remains
 non-authoritative and is removed by cleanup.
@@ -225,8 +231,8 @@ The store proof covers:
 - payer-domain replacement while queued HOLDS against the post-wait domain;
 - payer-domain replacement after classification cannot produce clean success;
 - fee evidence that expires during queue wait HOLDS using a post-wait time sample;
-- injected time provider is not called before queue admission/census; new durable admission samples it exactly twice (post-census and after temp fsync immediately before the canonical hard link), while exact idempotent replay samples it once;
-- fee evidence expiring during temp preparation HOLDS before the canonical hard link and leaves zero durable liability;
+- injected time provider is not called before queue admission/census; new durable admission samples it three times (post-census, after temp fsync for the full classifier refresh, and once more after that refresh immediately before the hard link), while exact idempotent replay samples it once;
+- fee evidence expiring during temp preparation or during the full refreshed-classifier/payer-rebind work HOLDS before the canonical hard link and leaves zero durable liability;
 - first exact durable liability publication;
 - exact replay idempotence under fresh fee observation;
 - stale observation HOLD without mutation;
