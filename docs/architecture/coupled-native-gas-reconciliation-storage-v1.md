@@ -42,10 +42,11 @@ The payer-domain file, root, records directory and queue are all observed
 through retained no-follow descriptors and must remain bound to their visible
 paths.
 
-Bootstrap and qualification reuse
+Explicit bootstrap reuses
 `withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(...)` on the existing
-`gas-liability-admission-v1.queue`. No reconciliation-specific lock is
-created.
+`gas-liability-admission-v1.queue`. Read-only qualification deliberately does
+**not** enter the bakery queue, because bakery admission creates/removes
+temporary choosing/ticket claims. No reconciliation-specific lock is created.
 
 ## Explicit bootstrap
 
@@ -70,29 +71,48 @@ The mutation path does not create missing prerequisites.
 
 ## Read-only qualification
 
-`qualifyCoupledNativeGasReconciliationStorageV1(...)` never creates storage.
-A missing `reconciliations/` directory returns HOLD with
+`qualifyCoupledNativeGasReconciliationStorageV1(...)` performs no filesystem
+mutation and does not acquire the bakery queue. A missing
+`reconciliations/` directory returns HOLD with
 `mutation_performed=false`.
 
-When present, the directory must be one private, same-UID, non-symlink directory
-bound to the retained payer root. Existing entries are structurally constrained
-to private direct regular files named:
+The payer root, domain file, records directory, existing queue directory and
+reconciliation directory are descriptor-bound and revalidated. Existing
+reconciliation entries are structurally constrained to private direct regular
+files named:
 
 ```text
 <64 lowercase hex>.json
 ```
 
-This lane deliberately does not grant semantic authority to those record bytes.
-A later writer must authenticate the exact reconciliation schema, liability,
-terminal-attempt state, receipt/finality evidence and #2488 effective-open
-post-state under the same payer queue.
+Because qualification does not serialize writers, its structural directory
+scan is accepted only when the retained and visible reconciliation-directory
+generation (identity, size, link count, mtime and ctime) stays unchanged across
+the complete scan. A concurrent bootstrap/publication change therefore HOLDS
+and may be retried; a negative/missing observation is never promoted to
+mutation authority.
+
+The focused proof makes the existing payer queue mode `0500` and requires
+qualification to succeed with the queue entry set unchanged. This demonstrates
+that qualification is genuinely read-only rather than merely leaving no
+persistent bakery claims behind.
+
+This lane deliberately does not grant semantic authority to reconciliation
+record bytes. A later writer must authenticate the exact reconciliation schema,
+liability, terminal-attempt state, receipt/finality evidence and #2488
+effective-open post-state under the same payer queue.
 
 ## Concurrency
 
 Concurrent bootstrap callers serialize on the existing payer admission queue.
 The proof requires exactly one caller to report `bootstrapped` and exactly one
-durable mutation; the other caller observes the same directory as
-`already_qualified`.
+durable reconciliation-directory mutation; the other caller observes the same
+directory as `already_qualified`.
+
+Read-only qualification does not participate in that lock and cannot block or
+consume queue tickets. If the reconciliation namespace changes during its
+descriptor-bound structural scan, qualification fails closed instead of
+claiming a stable count.
 
 No second queue is created, so later liability admission and reconciliation
 publication remain in one payer mutation serialization domain.
@@ -120,9 +140,12 @@ as part of receipt reconciliation.
 
 ## Authority
 
-This lane authorizes only the explicit source-level creation/qualification of
-the `reconciliations/` storage namespace when its function is deliberately
-called with the reviewed confirmation.
+This lane authorizes only:
+- genuinely read-only source-level qualification of an existing
+  `reconciliations/` namespace; and
+- explicit creation of that one directory when the bootstrap function is
+  deliberately called with the reviewed confirmation while holding the
+  existing payer queue.
 
 It does not authorize:
 
