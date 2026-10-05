@@ -8,7 +8,8 @@ import {
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "../tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+  loadWcVoidMarketVaultCompiledIdentityCurrentV2,
+} from "../tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_AUTHORITY_V1,
   VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_V1,
@@ -16,12 +17,7 @@ import {
   reconstructWcVoidMarketVaultRuntimeV1,
 } from "../tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
 
-const acceptance = JSON.parse(
-  fs.readFileSync(
-    "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
-    "utf8",
-  ),
-);
+const acceptance = loadWcVoidMarketVaultCompiledIdentityCurrentV2();
 const stateManifest = JSON.parse(
   fs.readFileSync(
     "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
