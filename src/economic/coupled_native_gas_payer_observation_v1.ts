@@ -249,10 +249,16 @@ function normalizePolicy(
     };
   }
   const hostname = parsedUrl.hostname.toLowerCase();
+  const rawAuthority =
+    rawUrl.match(/^http:\/\/([^/?#]+)(?:[/?#]|$)/u)?.[1] ?? "";
+  const canonicalLoopbackAuthority =
+    /^(?:127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?$/u.test(
+      rawAuthority,
+    );
   if (
-    hostname !== "127.0.0.1" &&
-    hostname !== "::1" &&
-    hostname !== "localhost"
+    !canonicalLoopbackAuthority ||
+    (hostname !== "127.0.0.1" &&
+      hostname !== "[::1]")
   ) {
     return {
       ok: false,
