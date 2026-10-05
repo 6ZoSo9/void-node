@@ -11,6 +11,11 @@ on:
       - "scripts/prove_buy_void_allocation_custody_external_witness_v1.ts"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
   push:
     branches: [main]
     paths:
@@ -22,6 +27,11 @@ on:
       - "scripts/prove_buy_void_allocation_custody_external_witness_v1.ts"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
   workflow_dispatch:
 
 permissions:
