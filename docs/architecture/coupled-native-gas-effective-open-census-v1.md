@@ -85,6 +85,8 @@ grant new WC/VOID admission authority.
 
 Every reconciliation must:
 
+- bind the stable `terminal_cost_identity_sha256` produced by #2479/#2485
+  rather than a freshness-sensitive terminal observation ID;
 - be the exact #2485 confirmed presale reconciliation shape;
 - carry the exact #2485 authority object;
 - bind an existing historical liability;
@@ -109,8 +111,11 @@ next_open_reserved              = 0
 - rederive its exact `reconciliation_id`; and
 - be the only reconciliation for that liability.
 
-The reconciliation row does not carry `gasUsed` or
-`effectiveGasPrice`. Current merged #2479 requires
+The reconciliation row does not carry the volatile observation
+`evidence_id`, `current_block_number`, `observed_confirmation_count`,
+`gasUsed`, or `effectiveGasPrice`. Its stable terminal-cost identity is
+content-addressed from immutable terminal/receipt/cost facts. Current merged
+#2479 requires
 `gasUsed == liability.gas_limit` before it can produce terminal-cost evidence,
 but this census cannot independently re-prove that receipt fact from the
 reconciliation row alone. It therefore requires only accounting compatibility
@@ -235,7 +240,8 @@ git diff --check
 ```
 
 The proof covers deterministic ordering, empty/all-open history, one confirmed
-reconciliation, exact reserve conservation, duplicate liability, wrong payer,
+reconciliation carrying a stable terminal-cost identity, exact reserve
+conservation, duplicate liability, wrong payer,
 orphan reconciliation, duplicate reconciliation, conflicting reconciliation,
 authority drift, accounting drift, WC/VOID reconciliation HOLD, zero-native
 presale reconciliation-domain HOLD, malformed liability economics, and explicit
