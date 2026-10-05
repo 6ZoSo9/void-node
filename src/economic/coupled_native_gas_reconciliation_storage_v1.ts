@@ -71,6 +71,14 @@ type PinnedDirectoryV1 = {
   proc_path: string;
 };
 
+type PayerDomainSnapshotV1 = {
+  path: string;
+  fd: number;
+  stat: fs.BigIntStats;
+  bytes: Buffer;
+  payer_domain_id: string;
+};
+
 export type CoupledNativeGasReconciliationStorageDecisionV1 =
   | {
       ok: true;
@@ -315,10 +323,35 @@ function closePinned(directory: PinnedDirectoryV1 | null): void {
   }
 }
 
-function readExactPayerDomain(
+function readPinnedFileBytes(
+  fd: number,
+  size: bigint,
+  code: string,
+): Buffer {
+  const length = Number(size);
+  if (!Number.isSafeInteger(length) || length < 2) {
+    fail(code + "_size_invalid");
+  }
+  const bytes = Buffer.alloc(length);
+  let offset = 0;
+  while (offset < bytes.length) {
+    const count = fs.readSync(
+      fd,
+      bytes,
+      offset,
+      bytes.length - offset,
+      offset,
+    );
+    if (count <= 0) fail(code + "_short_read");
+    offset += count;
+  }
+  return bytes;
+}
+
+function openPayerDomainSnapshot(
   root: PinnedDirectoryV1,
   payerAddress: string,
-): { payer_domain_id: string; bytes: Buffer } {
+): PayerDomainSnapshotV1 {
   assertPinnedDirectoryVisible(
     root,
     "coupled_native_gas_reconciliation_storage_root",
@@ -351,29 +384,109 @@ function readExactPayerDomain(
       MAX_DOMAIN_BYTES,
     );
     if (!sameFileIdentity(visible, opened)) {
-      fail("coupled_native_gas_reconciliation_storage_payer_domain_path_not_bound");
+      fail(
+        "coupled_native_gas_reconciliation_storage_payer_domain_path_not_bound",
+      );
     }
-    const bytes = fs.readFileSync(fd);
+    const bytes = readPinnedFileBytes(
+      fd,
+      opened.size,
+      "coupled_native_gas_reconciliation_storage_payer_domain",
+    );
     const after = fs.fstatSync(fd, { bigint: true });
     const visibleAfter = fs.lstatSync(visiblePath, { bigint: true });
     if (
       !sameFileIdentity(opened, after) ||
-      !sameFileIdentity(after, visibleAfter) ||
-      bytes.length !== Number(after.size)
+      !sameFileIdentity(after, visibleAfter)
     ) {
-      fail("coupled_native_gas_reconciliation_storage_payer_domain_changed");
+      fail(
+        "coupled_native_gas_reconciliation_storage_payer_domain_changed",
+      );
     }
     const expected = Buffer.from(
       serializeCoupledNativeGasStorePayerDomainV1(payerAddress),
       "utf8",
     );
     if (!bytes.equals(expected)) {
-      fail("coupled_native_gas_reconciliation_storage_payer_domain_mismatch");
+      fail(
+        "coupled_native_gas_reconciliation_storage_payer_domain_mismatch",
+      );
     }
     const domain = buildCoupledNativeGasStorePayerDomainV1(payerAddress);
-    return { payer_domain_id: domain.payer_domain_id, bytes };
-  } finally {
+    return {
+      path: visiblePath,
+      fd,
+      stat: after,
+      bytes,
+      payer_domain_id: domain.payer_domain_id,
+    };
+  } catch (error) {
     fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function assertPayerDomainSnapshotCurrent(
+  root: PinnedDirectoryV1,
+  snapshot: PayerDomainSnapshotV1,
+  payerAddress: string,
+): void {
+  assertPinnedDirectoryVisible(
+    root,
+    "coupled_native_gas_reconciliation_storage_root",
+  );
+  const opened = fs.fstatSync(snapshot.fd, { bigint: true });
+  const visible = fs.lstatSync(snapshot.path, { bigint: true });
+  validatePrivateFile(
+    opened,
+    "coupled_native_gas_reconciliation_storage_payer_domain_invalid",
+    MAX_DOMAIN_BYTES,
+  );
+  validatePrivateFile(
+    visible,
+    "coupled_native_gas_reconciliation_storage_payer_domain_invalid",
+    MAX_DOMAIN_BYTES,
+  );
+  if (
+    !sameFileIdentity(snapshot.stat, opened) ||
+    !sameFileIdentity(opened, visible)
+  ) {
+    fail(
+      "coupled_native_gas_reconciliation_storage_payer_domain_changed",
+    );
+  }
+  const bytes = readPinnedFileBytes(
+    snapshot.fd,
+    opened.size,
+    "coupled_native_gas_reconciliation_storage_payer_domain",
+  );
+  const after = fs.fstatSync(snapshot.fd, { bigint: true });
+  const visibleAfter = fs.lstatSync(snapshot.path, { bigint: true });
+  if (
+    !sameFileIdentity(opened, after) ||
+    !sameFileIdentity(after, visibleAfter) ||
+    !bytes.equals(snapshot.bytes) ||
+    !bytes.equals(
+      Buffer.from(
+        serializeCoupledNativeGasStorePayerDomainV1(payerAddress),
+        "utf8",
+      ),
+    )
+  ) {
+    fail(
+      "coupled_native_gas_reconciliation_storage_payer_domain_changed",
+    );
+  }
+}
+
+function closePayerDomainSnapshot(
+  snapshot: PayerDomainSnapshotV1 | null,
+): void {
+  if (!snapshot) return;
+  try {
+    fs.closeSync(snapshot.fd);
+  } catch (error) {
+    void error;
   }
 }
 
@@ -484,6 +597,7 @@ async function inspectStorage(input: {
   let records: PinnedDirectoryV1 | null = null;
   let queue: PinnedDirectoryV1 | null = null;
   let reconciliation: PinnedDirectoryV1 | null = null;
+  let payerDomain: PayerDomainSnapshotV1 | null = null;
   let mutationPerformed = false;
   try {
     const payerAddress = normalizedAddress(input?.payer_address);
@@ -520,7 +634,7 @@ async function inspectStorage(input: {
           "coupled_native_gas_reconciliation_storage_queue",
         );
 
-        const beforeDomain = readExactPayerDomain(root!, payerAddress);
+        payerDomain = openPayerDomainSnapshot(root!, payerAddress);
 
         if (!reconciliationDirectoryExists(root!)) {
           if (!input.bootstrap) {
@@ -530,7 +644,7 @@ async function inspectStorage(input: {
           }
           const requiredConfirmation =
             "bootstrapCoupledNativeGasReconciliationStorageV1:" +
-            beforeDomain.payer_domain_id;
+            payerDomain.payer_domain_id;
           if (input.confirmation !== requiredConfirmation) {
             return held(
               "coupled_native_gas_reconciliation_storage_confirmation_required",
@@ -567,10 +681,11 @@ async function inspectStorage(input: {
           reconciliation,
           "coupled_native_gas_reconciliation_storage_reconciliations",
         );
-        const afterDomain = readExactPayerDomain(root!, payerAddress);
-        if (!afterDomain.bytes.equals(beforeDomain.bytes)) {
-          fail("coupled_native_gas_reconciliation_storage_payer_domain_changed");
-        }
+        assertPayerDomainSnapshotCurrent(
+          root!,
+          payerDomain!,
+          payerAddress,
+        );
 
         return Object.freeze({
           ok: true,
@@ -581,7 +696,7 @@ async function inspectStorage(input: {
               : "qualified",
           mutation_performed: mutationPerformed,
           payer_address: payerAddress,
-          payer_domain_id: beforeDomain.payer_domain_id,
+          payer_domain_id: payerDomain.payer_domain_id,
           reconciliation_directory: reconciliation.path,
           reconciliation_record_count: count,
           queue_name: QUEUE_DIRECTORY,
@@ -605,6 +720,7 @@ async function inspectStorage(input: {
       mutationPerformed,
     );
   } finally {
+    closePayerDomainSnapshot(payerDomain);
     closePinned(reconciliation);
     closePinned(queue);
     closePinned(records);
