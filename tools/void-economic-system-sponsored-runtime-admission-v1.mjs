@@ -25,6 +25,7 @@ import {
 } from "./void-economic-system-sponsored-observation-time-store-v1.mjs";
 import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1,
+  inspectEconomicSystemSponsoredReservationStoreV1,
   persistEconomicSystemSponsoredReservationV1,
 } from "./void-economic-system-sponsored-reservation-store-v1.mjs";
 
@@ -43,6 +44,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     canonical_ttl_policy_semantics_reused: true,
     canonical_sponsored_policy_semantics_reused: true,
     candidate_preflight_before_time_mutation: true,
+    candidate_preflight_before_reservation_history_scan: true,
     candidate_issued_after_bundle_commit_required: true,
     current_candidate_revalidation_after_time: true,
     expired_duplicate_execution_admission: false,
@@ -60,7 +62,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     cross_boot_restart_continuity_proven: false,
     time_store_rollback_resistance_proven: false,
     reservation_store_root_stability_proven: false,
-    reservation_store_preflight_before_time_proven: false,
+    reservation_store_preflight_before_time_proven: true,
     valid_denied_request_time_growth_bounded: false,
     execution_replay_store_bound: false,
     runtime_route_active: false,
@@ -594,6 +596,7 @@ function preflightCandidate(request, policies, allowedTargets) {
 function held(
   reason,
   {
+    reservationStorePreflightVerified = false,
     preflightVerified = false,
     currentCandidateVerified = false,
     timeMutation = false,
@@ -608,6 +611,8 @@ function held(
     marker: VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_V1,
     version: 1,
     reason,
+    reservation_store_preflight_verified:
+      reservationStorePreflightVerified,
     preflight_verified: preflightVerified,
     current_candidate_verified: currentCandidateVerified,
     time_mutation_performed: timeMutation,
@@ -648,6 +653,7 @@ function success(
     intent_id: preflight.intent_id,
     sponsorship_id: preflight.sponsorship_id,
     signed_submission_digest: preflight.signed_submission_digest,
+    reservation_store_preflight_verified: true,
     preflight_verified: true,
     current_candidate_verified: true,
     accepted_observed_at_ms:
@@ -723,17 +729,48 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
     runtime_enforcement_verified: false,
 
     async admit(inputRequest) {
+      let reservationStorePreflightVerified = false;
       let preflight = null;
       let currentCandidateVerified = false;
       let timeResult = null;
       let reservation = null;
       try {
         const request = normalizeRequest(inputRequest);
+
         preflight = preflightCandidate(
           request,
           policies,
           allowedTargets,
         );
+
+        const structural =
+          inspectEconomicSystemSponsoredReservationStoreV1({
+            root_dir: reservationRoot,
+          });
+        if (
+          structural?.ok !== true ||
+          structural?.status !== "inspected" ||
+          structural?.marker !==
+            VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1 ||
+          structural?.mutation_performed !== false ||
+          structural?.policy_state_evaluated !== false ||
+          structural?.observation_time_evaluated !== false ||
+          structural?.storage_bootstrap !== false ||
+          structural?.preprovisioned_lock_queue_required !== true ||
+          structural?.runtime_enforcement_verified !== false ||
+          structural?.gas_sponsorship_performed !== false ||
+          structural?.funds_movement !== false
+        ) {
+          return held(
+            structural?.reason ||
+              "SPONSORED_RUNTIME_RESERVATION_STORE_PREFLIGHT_HELD",
+            {
+              reservationStorePreflightVerified: false,
+              preflightVerified: true,
+            },
+          );
+        }
+        reservationStorePreflightVerified = true;
 
         timeResult = await timeStore.observe();
         if (
@@ -747,6 +784,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             timeResult?.reason ||
               "SPONSORED_RUNTIME_TIME_OBSERVATION_HELD",
             {
+              reservationStorePreflightVerified: true,
               preflightVerified: true,
               timeMutation:
                 timeResult?.mutation_performed === true,
@@ -786,6 +824,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
           return held(
             "SPONSORED_RUNTIME_CURRENT_CANDIDATE_INVALID",
             {
+              reservationStorePreflightVerified: true,
               preflightVerified: true,
               currentCandidateVerified: false,
               timeMutation:
@@ -822,6 +861,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             reservation?.reason ||
               "SPONSORED_RUNTIME_RESERVATION_HELD",
             {
+              reservationStorePreflightVerified: true,
               preflightVerified: true,
               currentCandidateVerified: true,
               timeMutation:
@@ -847,6 +887,7 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             ? error.message
             : "SPONSORED_RUNTIME_ADMISSION_FAILED",
           {
+            reservationStorePreflightVerified,
             preflightVerified: preflight !== null,
             currentCandidateVerified,
             timeMutation:
