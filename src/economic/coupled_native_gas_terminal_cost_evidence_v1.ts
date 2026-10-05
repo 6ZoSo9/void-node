@@ -178,6 +178,13 @@ function sha256(value: unknown): string {
     .digest("hex");
 }
 
+function sha256Text(value: string): string {
+  return crypto
+    .createHash("sha256")
+    .update(value, "utf8")
+    .digest("hex");
+}
+
 function directObject(
   value: unknown,
   code: string,
@@ -236,33 +243,144 @@ function validatePlan(
     raw,
     "coupled_native_gas_terminal_cost_plan_object_required",
   );
+  const expectedKeys = [
+    "schema",
+    "marker",
+    "version",
+    "reservation_id",
+    "reserved_at_ms",
+    "saga_id",
+    "attempt_id",
+    "chain_id",
+    "wallet_address",
+    "wallet_key_sha256",
+    "nonce",
+    "delivery_address",
+    "native_value_wei",
+    "gas_limit",
+    "max_fee_per_gas_wei",
+    "max_priority_fee_per_gas_wei",
+    "economic_policy_fingerprint_sha256",
+    "preparation_policy_fingerprint_sha256",
+    "transaction_template_fingerprint_sha256",
+    "transaction_plan_fingerprint_sha256",
+    "reservation_status",
+    "nonce_release_authorized",
+    "credential_access_authorized",
+    "wallet_access_authorized",
+    "signing_authorized",
+    "transaction_broadcast_authorized",
+    "raw_signed_transaction_persisted",
+    "money_movement_authorized",
+  ].sort();
+  const wallet = normalizeAddress(value.wallet_address);
+  const delivery = normalizeAddress(value.delivery_address);
+  const nativeValue = positive(value.native_value_wei);
+  const gasLimit = positive(value.gas_limit);
+  const maxFee = positive(value.max_fee_per_gas_wei);
+  const priorityFee = decimal(value.max_priority_fee_per_gas_wei);
   if (
+    Object.keys(value).sort().join("\n") !== expectedKeys.join("\n") ||
     value.schema !== PLAN_SCHEMA ||
     value.marker !==
       VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1 ||
     value.version !== 1 ||
     !SHA256.test(String(value.reservation_id ?? "")) ||
+    !Number.isSafeInteger(value.reserved_at_ms) ||
+    Number(value.reserved_at_ms) <= 0 ||
     !SAGA_ID.test(String(value.saga_id ?? "")) ||
     !SHA256.test(String(value.attempt_id ?? "")) ||
     value.chain_id !== "2050" ||
-    !normalizeAddress(value.wallet_address) ||
+    !wallet ||
+    !SHA256.test(String(value.wallet_key_sha256 ?? "")) ||
     !Number.isSafeInteger(value.nonce) ||
     Number(value.nonce) < 0 ||
-    !normalizeAddress(value.delivery_address) ||
-    positive(value.native_value_wei) === null ||
-    positive(value.gas_limit) === null ||
-    positive(value.max_fee_per_gas_wei) === null ||
-    positive(value.max_priority_fee_per_gas_wei) === null ||
+    !delivery ||
+    delivery === wallet ||
+    nativeValue === null ||
+    gasLimit === null ||
+    maxFee === null ||
+    priorityFee === null ||
+    priorityFee > maxFee ||
+    !SHA256.test(
+      String(value.economic_policy_fingerprint_sha256 ?? ""),
+    ) ||
+    !SHA256.test(
+      String(value.preparation_policy_fingerprint_sha256 ?? ""),
+    ) ||
+    !SHA256.test(
+      String(value.transaction_template_fingerprint_sha256 ?? ""),
+    ) ||
     !SHA256.test(
       String(value.transaction_plan_fingerprint_sha256 ?? ""),
     ) ||
     value.reservation_status !== "reserved" ||
     value.nonce_release_authorized !== false ||
+    value.credential_access_authorized !== false ||
+    value.wallet_access_authorized !== false ||
+    value.signing_authorized !== false ||
     value.transaction_broadcast_authorized !== false ||
+    value.raw_signed_transaction_persisted !== false ||
     value.money_movement_authorized !== false
   ) {
     throw new Error(
       "coupled_native_gas_terminal_cost_plan_invalid",
+    );
+  }
+
+  const walletKey = sha256Text(
+    "void-buy-wallet-v1\n2050\n" + wallet,
+  );
+  if (value.wallet_key_sha256 !== walletKey) {
+    throw new Error(
+      "coupled_native_gas_terminal_cost_wallet_key_mismatch",
+    );
+  }
+  const template = sha256({
+    saga_id: value.saga_id,
+    attempt_id: value.attempt_id,
+    chain_id: "2050",
+    wallet_address: wallet,
+    delivery_address: delivery,
+    native_value_wei: nativeValue.toString(),
+    gas_limit: gasLimit.toString(),
+    max_fee_per_gas_wei: maxFee.toString(),
+    max_priority_fee_per_gas_wei: priorityFee.toString(),
+    economic_policy_fingerprint_sha256:
+      value.economic_policy_fingerprint_sha256,
+    preparation_policy_fingerprint_sha256:
+      value.preparation_policy_fingerprint_sha256,
+  });
+  if (
+    value.transaction_template_fingerprint_sha256 !== template
+  ) {
+    throw new Error(
+      "coupled_native_gas_terminal_cost_template_fingerprint_mismatch",
+    );
+  }
+  const planFingerprint = sha256({
+    transaction_template_fingerprint_sha256: template,
+    nonce: Number(value.nonce),
+  });
+  if (
+    value.transaction_plan_fingerprint_sha256 !== planFingerprint
+  ) {
+    throw new Error(
+      "coupled_native_gas_terminal_cost_plan_fingerprint_mismatch",
+    );
+  }
+  const reservationId = sha256Text(
+    [
+      "void-buy-prepared-transaction-plan-reservation-v1",
+      walletKey,
+      String(value.nonce),
+      String(value.attempt_id),
+      planFingerprint,
+    ].join("\n"),
+  );
+  if (value.reservation_id !== reservationId) {
+    throw new Error(
+      "coupled_native_gas_terminal_cost_reservation_id_mismatch",
     );
   }
   return value as unknown as BuyVoidPreparedTransactionPlanReservationV1;
@@ -275,12 +393,33 @@ function validateLiability(
     raw,
     "coupled_native_gas_terminal_cost_liability_object_required",
   );
+  const expectedKeys = [
+    "schema",
+    "marker",
+    "version",
+    "liability_id",
+    "lane",
+    "obligation_id",
+    "payer_address",
+    "nonce",
+    "transaction_plan_fingerprint_sha256",
+    "transaction_native_value_wei",
+    "gas_limit",
+    "admitted_max_fee_per_gas_wei",
+    "attempt_limit",
+    "maximum_reserved_wei",
+    "fee_observation_sha256",
+    "source_evidence_kind",
+    "source_evidence_id",
+    "status",
+  ].sort();
   const payer = normalizeAddress(value.payer_address);
   const nativeValue = positive(value.transaction_native_value_wei);
   const gasLimit = positive(value.gas_limit);
   const maxFee = positive(value.admitted_max_fee_per_gas_wei);
   const reserved = positive(value.maximum_reserved_wei);
   if (
+    Object.keys(value).sort().join("\n") !== expectedKeys.join("\n") ||
     value.schema !== LIABILITY_SCHEMA ||
     value.marker !== VOID_COUPLED_NATIVE_GAS_LIABILITY_V1 ||
     value.version !== 1 ||
