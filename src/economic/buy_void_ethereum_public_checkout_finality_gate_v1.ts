@@ -692,6 +692,13 @@ export function readBuyVoidEthereumPublicCheckoutReadinessV1(
   }
   const prerequisites = readEthereumFinalityPrerequisitesV1(env);
   if (prerequisites.ok === false) return prerequisites;
+  if (!processSourceIdentityVerifiedV1(env)) {
+    return readinessHeld(
+      "ethereum_process_source_identity_unavailable",
+      [],
+      true,
+    );
+  }
 
   const capability =
     VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
