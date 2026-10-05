@@ -750,14 +750,58 @@ function quotedField(source, field, code) {
   return match[1];
 }
 
+function readSingleDeflatedZipEntryV1(zipBytes, expectedName) {
+  if (!Buffer.isBuffer(zipBytes) || zipBytes.length < 64) {
+    fail("compiled_identity_archive_invalid");
+  }
+  if (zipBytes.readUInt32LE(0) !== 0x04034b50) {
+    fail("compiled_identity_archive_header_invalid");
+  }
+  const flags = zipBytes.readUInt16LE(6);
+  const method = zipBytes.readUInt16LE(8);
+  const nameLength = zipBytes.readUInt16LE(26);
+  const extraLength = zipBytes.readUInt16LE(28);
+  if ((flags & 0x0008) !== 0x0008 || (flags & ~0x0808) !== 0 || method !== 8) {
+    fail("compiled_identity_archive_contract_invalid");
+  }
+  const name = zipBytes.subarray(30, 30 + nameLength).toString("utf8");
+  if (name !== expectedName) fail("compiled_identity_archive_entry_invalid");
+  const dataStart = 30 + nameLength + extraLength;
+  const central = zipBytes.indexOf(Buffer.from("PK\\x01\\x02", "binary"));
+  if (central <= dataStart + 16) fail("compiled_identity_archive_central_missing");
+  const descriptor = central - 16;
+  if (zipBytes.readUInt32LE(descriptor) !== 0x08074b50) {
+    fail("compiled_identity_archive_descriptor_invalid");
+  }
+  const compressedSize = zipBytes.readUInt32LE(descriptor + 8);
+  const uncompressedSize = zipBytes.readUInt32LE(descriptor + 12);
+  if (dataStart + compressedSize !== descriptor) {
+    fail("compiled_identity_archive_size_invalid");
+  }
+  const inflated = inflateRawSync(
+    zipBytes.subarray(dataStart, dataStart + compressedSize),
+  );
+  if (
+    inflated.length !== uncompressedSize ||
+    zipBytes.indexOf(Buffer.from("PK\\x03\\x04", "binary"), dataStart) !== -1
+  ) {
+    fail("compiled_identity_archive_entries_invalid");
+  }
+  return inflated;
+}
+
 function deriveCurrentRoleAndVaultSources(source) {
-  const acceptance = parseJsonBytes(
+  const superseded = parseJsonBytes(
     source.bytes[ACCEPTANCE_REL],
-    "compiled_identity_acceptance",
+    "compiled_identity_acceptance_v1",
   );
   const correction = parseJsonBytes(
     source.bytes[CORRECTION_REL],
     "compiled_identity_correction_v2",
+  );
+  const binding = parseJsonBytes(
+    source.bytes[CURRENT_BINDING_REL],
+    "compiled_identity_current_binding_v2",
   );
   if (
     correction?.marker !==
@@ -767,17 +811,82 @@ function deriveCurrentRoleAndVaultSources(source) {
       "COMPILED_IDENTITY_V1_BYTECODE_SUPERSEDED_DEPLOYMENT_HOLD" ||
     correction?.accepted_identity?.identity_id !== EXPECTED.compiled_identity_id ||
     correction?.canonical_compiler_artifacts?.creation_bytecode_sha256 !==
-      "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540" ||
+      EXPECTED.creation_bytecode_sha256 ||
     correction?.canonical_compiler_artifacts?.runtime_template_sha256 !==
-      "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e" ||
+      EXPECTED.runtime_template_sha256 ||
+    correction?.canonical_compiler_artifacts?.creation_bytecode_keccak256 !==
+      EXPECTED.creation_bytecode_keccak256 ||
+    correction?.canonical_compiler_artifacts?.runtime_template_keccak256 !==
+      EXPECTED.runtime_template_keccak256 ||
     correction?.coupled_launch_effect?.corrected_coupled_launch_id !==
-      "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d" ||
+      EXPECTED.coupled_launch_id ||
+    correction?.coupled_launch_effect?.corrected_vault_bytes32 !==
+      EXPECTED.coupled_launch_id_bytes32 ||
     correction?.decision?.v1_acceptance_deployment_artifact_superseded !== true ||
     correction?.decision?.deployment_authorized !== false
   ) {
     fail("compiled_identity_correction_v2_invalid");
   }
-  fail("compiled_identity_v1_superseded_by_correction_v2");
+  if (
+    superseded?.artifacts?.creation_bytecode_sha256 !==
+      correction?.superseded_v1?.creation_bytecode_sha256 ||
+    superseded?.artifacts?.runtime_template_sha256 !==
+      correction?.superseded_v1?.runtime_template_sha256
+  ) {
+    fail("compiled_identity_v1_lineage_invalid");
+  }
+  if (
+    binding?.marker !==
+      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CURRENT_BINDING_V2" ||
+    binding?.version !== 2 ||
+    binding?.status !==
+      "COMPILED_IDENTITY_CURRENT_CORRECTED_DEPLOYMENT_HOLD" ||
+    binding?.binding_id !==
+      "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05" ||
+    binding?.correction_id !== correction.correction_id ||
+    binding?.corrected_coupled_launch_id !== EXPECTED.coupled_launch_id ||
+    binding?.corrected_vault_bytes32 !== EXPECTED.coupled_launch_id_bytes32 ||
+    binding?.identity?.identity_id !== EXPECTED.compiled_identity_id ||
+    binding?.archive?.zip_bytes !== 11283 ||
+    binding?.archive?.zip_sha256 !==
+      "d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc" ||
+    binding?.archive?.identity_json_bytes !== 57245 ||
+    binding?.archive?.identity_json_sha256 !== EXPECTED.identity_json_sha256 ||
+    binding?.artifacts?.creation_bytecode_sha256 !==
+      EXPECTED.creation_bytecode_sha256 ||
+    binding?.artifacts?.runtime_template_sha256 !==
+      EXPECTED.runtime_template_sha256
+  ) {
+    fail("compiled_identity_current_binding_v2_invalid");
+  }
+
+  const archiveText = source.bytes[ARCHIVE_REL].toString("utf8").trim();
+  if (
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
+      .test(archiveText)
+  ) {
+    fail("compiled_identity_archive_base64_invalid");
+  }
+  const archive = Buffer.from(archiveText, "base64");
+  if (
+    archive.toString("base64") !== archiveText ||
+    archive.length !== binding.archive.zip_bytes ||
+    sha256(archive) !== binding.archive.zip_sha256
+  ) {
+    fail("compiled_identity_archive_digest_invalid");
+  }
+  const identityBytes =
+    readSingleDeflatedZipEntryV1(archive, binding.archive.identity_entry);
+  if (
+    identityBytes.length !== binding.archive.identity_json_bytes ||
+    sha256(identityBytes) !== binding.archive.identity_json_sha256
+  ) {
+    fail("compiled_identity_archive_identity_digest_invalid");
+  }
+  const currentIdentity = parseJsonBytes(
+    identityBytes,
+    "compiled_identity_current_archive",
+  );
   const coupled = parseJsonBytes(source.bytes[COUPLED_REL], "coupled_candidate");
   const sovereign = parseJsonBytes(
     source.bytes[SOVEREIGN_REL],
@@ -787,30 +896,23 @@ function deriveCurrentRoleAndVaultSources(source) {
   const contractSource = source.bytes[CONTRACT_REL].toString("utf8");
 
   if (
-    acceptance?.marker !==
-      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_PACKET_V1" ||
-    acceptance?.status !==
-      "COMPILED_IDENTITY_ACCEPTED_HELD_ON_CHAIN2050_DEPLOYMENT_ATTESTATION" ||
-    acceptance?.accepted_identity?.identity_id !== EXPECTED.compiled_identity_id ||
-    acceptance?.accepted_identity?.identity_json_sha256 !==
-      EXPECTED.identity_json_sha256 ||
-    acceptance?.source?.contract_name !== "WCVoidMarketVaultV2" ||
-    acceptance?.source?.contract_path !== CONTRACT_REL ||
-    acceptance?.source?.contract_source_sha256 !== EXPECTED.contract_source_sha256 ||
-    acceptance?.artifacts?.creation_bytecode_sha256 !==
+    currentIdentity?.marker !== "VOID_WC_VOID_MARKET_VAULT_COMPILER_IDENTITY_V1" ||
+    currentIdentity?.identity_id !== EXPECTED.compiled_identity_id ||
+    currentIdentity?.source?.contract_name !== "WCVoidMarketVaultV2" ||
+    currentIdentity?.source?.contract_path !== CONTRACT_REL ||
+    currentIdentity?.source?.contract_source_sha256 !== EXPECTED.contract_source_sha256 ||
+    currentIdentity?.artifacts?.creation_bytecode_bytes !== 9441 ||
+    currentIdentity?.artifacts?.creation_bytecode_sha256 !==
       EXPECTED.creation_bytecode_sha256 ||
-    acceptance?.artifacts?.creation_bytecode_keccak256 !==
-      EXPECTED.creation_bytecode_keccak256 ||
-    acceptance?.artifacts?.runtime_template_sha256 !==
+    currentIdentity?.artifacts?.runtime_template_bytes !== 8342 ||
+    currentIdentity?.artifacts?.runtime_template_sha256 !==
       EXPECTED.runtime_template_sha256 ||
-    acceptance?.artifacts?.runtime_template_keccak256 !==
-      EXPECTED.runtime_template_keccak256 ||
-    acceptance?.artifacts?.immutable_layout_sha256 !==
+    currentIdentity?.artifacts?.immutable_layout_sha256 !==
       EXPECTED.immutable_layout_sha256 ||
-    acceptance?.deployment_identity_requirements?.constructor_signature !==
+    currentIdentity?.deployment_identity_requirements?.constructor_signature !==
       "constructor(address,address,address,address,bytes32)" ||
     canonicalJson(
-      acceptance?.deployment_identity_requirements?.constructor_order,
+      currentIdentity?.deployment_identity_requirements?.constructor_order,
     ) !==
       canonicalJson([
         "void_token",
@@ -819,11 +921,11 @@ function deriveCurrentRoleAndVaultSources(source) {
         "closeout_controller",
         "coupled_launch_id",
       ]) ||
-    acceptance?.deployment_identity_requirements
+    currentIdentity?.deployment_identity_requirements
       ?.live_opening_inventory_atoms_must_equal !==
       "10000000000000000000000000"
   ) {
-    fail("compiled_identity_acceptance_drift");
+    fail("compiled_identity_current_archive_drift");
   }
   if (sha256(Buffer.from(contractSource, "utf8")) !== EXPECTED.contract_source_sha256) {
     fail("contract_source_sha256_mismatch");
@@ -892,7 +994,7 @@ function deriveCurrentRoleAndVaultSources(source) {
     fail("settlement_executor_identity_drift");
   }
 
-  const creationHex = String(acceptance.artifacts.creation_bytecode_hex || "");
+  const creationHex = String(currentIdentity.artifacts.creation_bytecode_hex || "");
   if (
     !/^0x[0-9a-f]+$/u.test(creationHex) ||
     creationHex.length % 2 !== 0
@@ -901,14 +1003,14 @@ function deriveCurrentRoleAndVaultSources(source) {
   }
   const creationBytes = Buffer.from(creationHex.slice(2), "hex");
   if (
-    creationBytes.length !== acceptance.artifacts.creation_bytecode_bytes ||
+    creationBytes.length !== 9441 ||
     sha256(creationBytes) !== EXPECTED.creation_bytecode_sha256
   ) {
     fail("creation_bytecode_identity_mismatch");
   }
 
   return Object.freeze({
-    acceptance,
+    current_identity_binding_id: binding.binding_id,
     creation_hex: creationHex,
     settlement_executor: walletExpected,
     settlement_credential_id: credentialId,
