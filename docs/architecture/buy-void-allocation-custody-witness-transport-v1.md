@@ -47,6 +47,10 @@ The pure policy requires an SSH-shaped deployment profile with:
 - fixed 30-second operation deadline;
 - bounded request and response sizes.
 
+Integer fields in the policy and request contract are exact JSON numbers.
+Coercible alternatives such as numeric strings or booleans are rejected rather
+than normalized into equivalent transport state.
+
 Those fields are content-addressed into one policy SHA-256. The policy is a
 source contract, not evidence that an installed SSH key or server actually
 implements it.
