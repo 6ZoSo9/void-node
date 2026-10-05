@@ -53,7 +53,11 @@ for (const [key, value] of Object.entries(
       "Uid:\t1000\t1000\t1000\t1000",
       "Gid:\t1001\t1001\t1001\t1001",
       "Groups:\t1001 1002",
+      "CapInh:\t0000000000000000",
+      "CapPrm:\t0000000000000000",
       "CapEff:\t0000000000000000",
+      "CapBnd:\t0000000000000000",
+      "CapAmb:\t0000000000000000",
       "NoNewPrivs:\t1",
       "",
     ].join("\n"),
@@ -61,7 +65,11 @@ for (const [key, value] of Object.entries(
   assert.equal(parsed.uid, 1000);
   assert.equal(parsed.gid, 1001);
   assert.deepEqual(parsed.groups, [1001, 1002]);
+  assert.equal(parsed.cap_inh, 0n);
+  assert.equal(parsed.cap_prm, 0n);
   assert.equal(parsed.cap_eff, 0n);
+  assert.equal(parsed.cap_bnd, 0n);
+  assert.equal(parsed.cap_amb, 0n);
   assert.equal(parsed.no_new_privs, 1);
 }
 
