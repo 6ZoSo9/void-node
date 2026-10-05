@@ -50,6 +50,12 @@ classifyBuyVoidAllocationHighWaterCustodyQualificationV1({
 
 It performs no host discovery and no filesystem or service mutation.
 
+Evidence strings that participate in the content identity are strict rather
+than silently normalized. Absolute paths, mount-source strings, and
+rollback-domain SHA-256 strings reject surrounding whitespace, so one accepted
+semantic packet cannot acquire multiple `evidence_sha256` values through
+alternate spelling.
+
 Before host-policy evidence is considered, the supplied ledger and high-water
 must bind through the merged canonical high-water classifier. Qualification
 cannot bless a semantically invalid or rolled-back presented state.
