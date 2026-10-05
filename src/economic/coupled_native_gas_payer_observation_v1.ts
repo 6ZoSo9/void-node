@@ -251,8 +251,7 @@ function normalizePolicy(
   const hostname = parsedUrl.hostname.toLowerCase();
   if (
     hostname !== "127.0.0.1" &&
-    hostname !== "::1" &&
-    hostname !== "localhost"
+    hostname !== "[::1]"
   ) {
     return {
       ok: false,
