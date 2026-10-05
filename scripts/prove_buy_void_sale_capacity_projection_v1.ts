@@ -3,6 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import ts from "typescript";
+import {
+  buyVoidTerminalCloseoutRequestLockPathV1,
+} from "../src/economic/buy_void_terminal_closeout_request_lock_v1.js";
 
 // Read source only. Execute the actual projection/admission functions with an
 // in-memory filesystem and lock/custody/duplicate seams. Never load index.ts,
@@ -113,6 +116,7 @@ const context = vm.createContext({
   fs: syntheticFs,
   randomBytes: (length: number) => Buffer.alloc(length, 7),
   withBuyVoidTerminalCloseoutRequestLockV1: (_input: any, operation: () => any) => operation(),
+  buyVoidTerminalCloseoutRequestLockPathV1,
   appendPaymentVerifiedEventDurableV1: (_ledger: any, _stat: any, value: any) => {
     trace.push("synthetic_append");
     operations += 1;
