@@ -96,6 +96,41 @@ function ensurePrivateDirectory(directory: string): string {
   return resolved;
 }
 
+function requireExistingPrivateDirectory(directory: string): string {
+  const resolved = path.resolve(directory);
+  if (!resolved || !path.isAbsolute(resolved) || resolved.includes("\0")) {
+    throw new Error("bakery_lock_directory_path_invalid");
+  }
+  const procFdPath = /^\/proc\/self\/fd\/[1-9][0-9]*$/u.test(resolved);
+  let metadata;
+  try {
+    metadata = procFdPath
+      ? fs.statSync(resolved)
+      : fs.lstatSync(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      throw new Error("bakery_lock_directory_missing");
+    }
+    throw error;
+  }
+  if (
+    !metadata.isDirectory() ||
+    (!procFdPath && metadata.isSymbolicLink())
+  ) {
+    throw new Error("bakery_lock_directory_must_be_direct_directory");
+  }
+  if (
+    typeof process.getuid === "function" &&
+    metadata.uid !== process.getuid()
+  ) {
+    throw new Error("bakery_lock_directory_owner_mismatch");
+  }
+  if ((metadata.mode & 0o077) !== 0) {
+    throw new Error("bakery_lock_directory_must_be_private");
+  }
+  return resolved;
+}
+
 function fsyncDirectory(directory: string): void {
   const descriptor = fs.openSync(directory, "r");
   try {
@@ -105,8 +140,14 @@ function fsyncDirectory(directory: string): void {
   }
 }
 
-function atomicWriteJson(file: string, value: unknown): void {
-  const parent = ensurePrivateDirectory(path.dirname(file));
+function atomicWriteJson(
+  file: string,
+  value: unknown,
+  existingParentRequired = false,
+): void {
+  const parent = existingParentRequired
+    ? requireExistingPrivateDirectory(path.dirname(file))
+    : ensurePrivateDirectory(path.dirname(file));
   const temporary = path.join(
     parent,
     `.${path.basename(file)}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`,
@@ -447,19 +488,11 @@ export function withBuyVoidFilesystemBakeryLockV1<T>(
 }
 
 
-export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
-  lockPath: string,
+async function withBuyVoidFilesystemBakeryQueueAsyncV1<T>(
+  queue: string,
   operation: () => T | Promise<T>,
+  existingQueueRequired: boolean,
 ): Promise<T> {
-  const raw = String(lockPath || "").trim();
-  if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
-    throw new Error("bakery_lock_path_must_be_absolute");
-  }
-  if (typeof operation !== "function") {
-    throw new Error("bakery_lock_operation_required");
-  }
-
-  const queue = ensurePrivateDirectory(`${path.resolve(raw)}.queue`);
   const nonce = crypto.randomBytes(16).toString("hex");
   const createdAt = new Date().toISOString();
   const processStartTicks = currentProcessStartTicks();
@@ -469,15 +502,19 @@ export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
   );
   let ticketPath = "";
 
-  atomicWriteJson(choosingPath, {
-    schema: CLAIM_SCHEMA,
-    pid: process.pid,
-    process_start_ticks: processStartTicks,
-    nonce,
-    phase: "choosing",
-    ticket: null,
-    created_at_utc: createdAt,
-  });
+  atomicWriteJson(
+    choosingPath,
+    {
+      schema: CLAIM_SCHEMA,
+      pid: process.pid,
+      process_start_ticks: processStartTicks,
+      nonce,
+      phase: "choosing",
+      ticket: null,
+      created_at_utc: createdAt,
+    },
+    existingQueueRequired,
+  );
 
   try {
     const initial = scanQueue(queue);
@@ -495,15 +532,19 @@ export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
       queue,
       `ticket-${String(ticket).padStart(16, "0")}-${process.pid}-${nonce}.json`,
     );
-    atomicWriteJson(ticketPath, {
-      schema: CLAIM_SCHEMA,
-      pid: process.pid,
-      process_start_ticks: processStartTicks,
-      nonce,
-      phase: "ticket",
-      ticket,
-      created_at_utc: createdAt,
-    });
+    atomicWriteJson(
+      ticketPath,
+      {
+        schema: CLAIM_SCHEMA,
+        pid: process.pid,
+        process_start_ticks: processStartTicks,
+        nonce,
+        phase: "ticket",
+        ticket,
+        created_at_utc: createdAt,
+      },
+      existingQueueRequired,
+    );
     removeOwnClaim(choosingPath);
     fsyncDirectory(queue);
 
@@ -534,4 +575,44 @@ export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
     if (ticketPath) removeOwnClaim(ticketPath);
     fsyncDirectory(queue);
   }
+}
+
+export async function withBuyVoidFilesystemBakeryLockAsyncV1<T>(
+  lockPath: string,
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  const raw = String(lockPath || "").trim();
+  if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
+    throw new Error("bakery_lock_path_must_be_absolute");
+  }
+  if (typeof operation !== "function") {
+    throw new Error("bakery_lock_operation_required");
+  }
+
+  const queue = ensurePrivateDirectory(`${path.resolve(raw)}.queue`);
+  return await withBuyVoidFilesystemBakeryQueueAsyncV1(
+    queue,
+    operation,
+    false,
+  );
+}
+
+export async function withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1<T>(
+  queueDirectory: string,
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  const raw = String(queueDirectory || "").trim();
+  if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
+    throw new Error("bakery_lock_directory_path_invalid");
+  }
+  if (typeof operation !== "function") {
+    throw new Error("bakery_lock_operation_required");
+  }
+
+  const queue = requireExistingPrivateDirectory(raw);
+  return await withBuyVoidFilesystemBakeryQueueAsyncV1(
+    queue,
+    operation,
+    true,
+  );
 }

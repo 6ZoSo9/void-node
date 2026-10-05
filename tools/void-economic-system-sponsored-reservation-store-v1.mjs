@@ -36,6 +36,8 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_AUTHORITY_V1 =
     filesystem_write: true,
     descriptor_bound_reads: true,
     create_once_publication: true,
+    preprovisioned_lock_queue_required: true,
+    structural_inspection_available: true,
     storage_bootstrap: false,
     caller_selected_record_path: false,
     policy_observation_time_explicit: true,
@@ -65,6 +67,7 @@ const RECORD_SCHEMA =
   "void.economic-system-sponsored-reservation-store-record.v1";
 const RECORDS_DIRECTORY = "records";
 const LOCK_NAME = "sponsorship-admission-v1";
+const LOCK_QUEUE_DIRECTORY = LOCK_NAME + ".queue";
 const MAX_RECORD_BYTES = 512 * 1024;
 const MAX_RECORDS = 1_000_000;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
@@ -266,38 +269,60 @@ function assertPinnedDirectoryVisible(directory, code) {
   }
 }
 
-function openRecordsDirectory(root) {
+function openPrivateChildDirectory(root, name, code) {
   assertPinnedDirectoryVisible(root, "SPONSORED_RESERVATION_STORE_ROOT");
-  const visiblePath = path.join(root.path, RECORDS_DIRECTORY);
-  const pinnedPath = path.join(root.proc_path, RECORDS_DIRECTORY);
-  const visible = fs.lstatSync(visiblePath, { bigint: true });
-  validatePrivateDirectory(
-    visible,
-    "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_INVALID",
-  );
-  const fd = fs.openSync(
-    pinnedPath,
-    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
-  );
+  const visiblePath = path.join(root.path, name);
+  const pinnedPath = path.join(root.proc_path, name);
+  let visible;
+  try {
+    visible = fs.lstatSync(visiblePath, { bigint: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") fail(code + "_MISSING");
+    fail(code + "_OPEN_FAILED");
+  }
+  validatePrivateDirectory(visible, code + "_INVALID");
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      pinnedPath,
+      fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+    );
+  } catch {
+    fail(code + "_OPEN_FAILED");
+  }
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
-    validatePrivateDirectory(
-      opened,
-      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_INVALID",
-    );
+    validatePrivateDirectory(opened, code + "_INVALID");
     if (!sameDirectoryIdentity(visible, opened)) {
-      fail("SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY_PATH_NOT_BOUND");
+      fail(code + "_PATH_NOT_BOUND");
     }
-    return Object.freeze({
+    const result = Object.freeze({
       path: visiblePath,
       fd,
       stat: opened,
       proc_path: "/proc/self/fd/" + String(fd),
     });
-  } catch (error) {
-    fs.closeSync(fd);
-    throw error;
+    fd = -1;
+    return result;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
   }
+}
+
+function openRecordsDirectory(root) {
+  return openPrivateChildDirectory(
+    root,
+    RECORDS_DIRECTORY,
+    "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+  );
+}
+
+function openLockQueueDirectory(root) {
+  return openPrivateChildDirectory(
+    root,
+    LOCK_QUEUE_DIRECTORY,
+    "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
+  );
 }
 
 function validateRecordStat(stat, allowedLinks = 1n) {
@@ -751,11 +776,12 @@ async function canonicalLock() {
     "../dist/economic/buy_void_filesystem_bakery_lock_v1.js"
   );
   if (
-    typeof module.withBuyVoidFilesystemBakeryLockAsyncV1 !== "function"
+    typeof module.withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1 !==
+    "function"
   ) {
     fail("SPONSORED_RESERVATION_STORE_LOCK_UNAVAILABLE");
   }
-  return module.withBuyVoidFilesystemBakeryLockAsyncV1;
+  return module.withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1;
 }
 
 function held(reason, mutationPerformed = false) {
@@ -811,6 +837,7 @@ function success(status, candidate, mutation, state, admission = null) {
 export async function persistEconomicSystemSponsoredReservationV1(input) {
   let root = null;
   let records = null;
+  let lockQueue = null;
   let mutationPerformed = false;
   const markMutation = () => {
     mutationPerformed = true;
@@ -825,10 +852,10 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
       "SPONSORED_RESERVATION_STORE_ROOT",
     );
     records = openRecordsDirectory(root);
+    lockQueue = openLockQueueDirectory(root);
     const withLock = await canonicalLock();
-    const lockPath = path.join(root.proc_path, LOCK_NAME);
 
-    return await withLock(lockPath, async () => {
+    return await withLock(lockQueue.proc_path, async () => {
       assertPinnedDirectoryVisible(
         root,
         "SPONSORED_RESERVATION_STORE_ROOT",
@@ -836,6 +863,10 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
       assertPinnedDirectoryVisible(
         records,
         "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+      );
+      assertPinnedDirectoryVisible(
+        lockQueue,
+        "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
       );
 
       cleanupTemps(records, markMutation);
@@ -871,6 +902,10 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         assertPinnedDirectoryVisible(
           records,
           "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+        );
+        assertPinnedDirectoryVisible(
+          lockQueue,
+          "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
         );
         return success(
           "duplicate",
@@ -921,6 +956,10 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         records,
         "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
       );
+      assertPinnedDirectoryVisible(
+        lockQueue,
+        "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
+      );
       createOnceRecord(records, candidate, markMutation);
 
       history = readHistory(records);
@@ -956,6 +995,10 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
         records,
         "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
       );
+      assertPinnedDirectoryVisible(
+        lockQueue,
+        "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
+      );
       return success(
         "reserved",
         candidate,
@@ -970,6 +1013,81 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
       mutationPerformed,
     );
   } finally {
+    if (lockQueue) {
+      try {
+        fs.closeSync(lockQueue.fd);
+      } catch {
+        // Best effort only.
+      }
+    }
+    if (records) {
+      try {
+        fs.closeSync(records.fd);
+      } catch {
+        // Best effort only.
+      }
+    }
+    if (root) {
+      try {
+        fs.closeSync(root.fd);
+      } catch {
+        // Best effort only.
+      }
+    }
+  }
+}
+
+export function inspectEconomicSystemSponsoredReservationStoreV1(input) {
+  let root = null;
+  let records = null;
+  let lockQueue = null;
+  try {
+    root = openPinnedDirectory(
+      input?.root_dir,
+      "SPONSORED_RESERVATION_STORE_ROOT",
+    );
+    records = openRecordsDirectory(root);
+    lockQueue = openLockQueueDirectory(root);
+    const history = readHistory(records);
+    assertPinnedDirectoryVisible(
+      root,
+      "SPONSORED_RESERVATION_STORE_ROOT",
+    );
+    assertPinnedDirectoryVisible(
+      records,
+      "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+    );
+    assertPinnedDirectoryVisible(
+      lockQueue,
+      "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
+    );
+    return Object.freeze({
+      ok: true,
+      status: "inspected",
+      marker: VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1,
+      version: 1,
+      tracked_reservation_count: history.length,
+      policy_state_evaluated: false,
+      observation_time_evaluated: false,
+      mutation_performed: false,
+      storage_bootstrap: false,
+      preprovisioned_lock_queue_required: true,
+      runtime_enforcement_verified: false,
+      gas_sponsorship_performed: false,
+      funds_movement: false,
+      authority:
+        VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_AUTHORITY_V1,
+    });
+  } catch (error) {
+    return held(error instanceof Error ? error.message : String(error));
+  } finally {
+    if (lockQueue) {
+      try {
+        fs.closeSync(lockQueue.fd);
+      } catch {
+        // Best effort only.
+      }
+    }
     if (records) {
       try {
         fs.closeSync(records.fd);
@@ -990,12 +1108,14 @@ export async function persistEconomicSystemSponsoredReservationV1(input) {
 export function listEconomicSystemSponsoredReservationsV1(input) {
   let root = null;
   let records = null;
+  let lockQueue = null;
   try {
     root = openPinnedDirectory(
       input?.root_dir,
       "SPONSORED_RESERVATION_STORE_ROOT",
     );
     records = openRecordsDirectory(root);
+    lockQueue = openLockQueueDirectory(root);
     const history = readHistory(records);
     const state = verifyEconomicSystemSponsoredStateV1({
       sponsorship_policy: input.sponsorship_policy,
@@ -1011,6 +1131,10 @@ export function listEconomicSystemSponsoredReservationsV1(input) {
     assertPinnedDirectoryVisible(
       records,
       "SPONSORED_RESERVATION_STORE_RECORDS_DIRECTORY",
+    );
+    assertPinnedDirectoryVisible(
+      lockQueue,
+      "SPONSORED_RESERVATION_STORE_LOCK_QUEUE_DIRECTORY",
     );
     return Object.freeze({
       ok: true,
@@ -1036,6 +1160,13 @@ export function listEconomicSystemSponsoredReservationsV1(input) {
   } catch (error) {
     return held(error instanceof Error ? error.message : String(error));
   } finally {
+    if (lockQueue) {
+      try {
+        fs.closeSync(lockQueue.fd);
+      } catch {
+        // Best effort only.
+      }
+    }
     if (records) {
       try {
         fs.closeSync(records.fd);
