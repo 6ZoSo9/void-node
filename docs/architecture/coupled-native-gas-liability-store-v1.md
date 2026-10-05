@@ -68,10 +68,11 @@ pin payer root / records / queue
   -> require classifier payer == retained payer-domain identity
   -> rebind visible payer-domain to the retained descriptor/bytes
   -> exact replay: verify already-durable canonical bytes, rebind payer-domain, return
-  -> new candidate: rebind payer-domain immediately before publication
+  -> new candidate: rebind payer-domain before the mutation-time refresh
   -> sample injected time again at the mutation boundary
   -> rerun #2463 against the unchanged pre-write census
   -> require the exact same admitted liability ID and reserved-after amount
+  -> rebind payer-domain again immediately before publication
   -> create/fsync/link/fsync exact <liability_id>.json
   -> reread full census
   -> rerun #2463 with exact post-write census and the mutation-boundary time
@@ -90,7 +91,9 @@ a caller-captured timestamp. New admission samples it after the full pre-write
 census and again immediately before durable publication. The second sample is
 used to rerun the canonical economic classifier against the unchanged pre-write
 census; if fee/balance evidence expired while custody or census work was in
-progress, the store HOLDS before creating a liability record. The second sample
+progress, the store HOLDS before creating a liability record. After that
+refreshed classifier succeeds, the retained payer-domain snapshot is rebound
+once more immediately before the create-once hard-link publication. The second sample
 must also be a safe integer that is not earlier than the first sample; a
 regressing or malformed provider HOLDS before mutation. The post-write
 idempotence classifier reuses that mutation-boundary timestamp so a successful
