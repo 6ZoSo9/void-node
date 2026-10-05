@@ -285,7 +285,7 @@ const alternateCurrent2 = currentFrom(
   assert.equal(conflict.ok, false);
   assert.equal(
     conflict.reason,
-    "allocation_custody_witness_same_epoch_conflict",
+    "allocation_custody_witness_current_authority_mismatch",
   );
 }
 
@@ -393,8 +393,6 @@ let advancedJournal: Buffer;
       current_state: current,
       current_ledger_jsonl: "",
       current_high_water_json: genesisHighWater.high_water_json,
-      current_ledger_jsonl: "",
-      current_high_water_json: genesisHighWater.high_water_json,
     });
   assert.equal(truncated.ok, false);
   assert.equal(
@@ -414,8 +412,6 @@ let advancedJournal: Buffer;
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: tampered,
       current_state: current,
-      current_ledger_jsonl: "",
-      current_high_water_json: genesisHighWater.high_water_json,
       current_ledger_jsonl: "",
       current_high_water_json: genesisHighWater.high_water_json,
     });
