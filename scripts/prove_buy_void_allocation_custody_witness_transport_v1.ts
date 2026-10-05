@@ -327,6 +327,26 @@ const readRequestAgain = requireOk(
 );
 assert.equal(readRequest.request_json, readRequestAgain.request_json);
 assert.equal(readRequest.request_id, readRequestAgain.request_id);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_AUTHORITY_V1
+    .challenge_freshness_proven,
+  false,
+);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_AUTHORITY_V1
+    .response_replay_resistance_proven,
+  false,
+);
+const distinctChallengeRead = requireOk(
+  buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1({
+    policy,
+    challenge_sha256: sha("e"),
+  }),
+);
+assert.notEqual(
+  readRequest.request_id,
+  distinctChallengeRead.request_id,
+);
 
 const serverRead = requireOk(
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1({
@@ -650,6 +670,8 @@ console.log("single_event_append_only=true");
 console.log("append_compare_and_swap=true");
 console.log("append_idempotence=true");
 console.log("round_trip_read_required_after_append=true");
+console.log("challenge_freshness_proven=false");
+console.log("response_replay_resistance_proven=false");
 console.log("network_access=false");
 console.log("ssh_execution=false");
 console.log("credential_read=false");
