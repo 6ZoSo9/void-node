@@ -38,6 +38,7 @@ export const VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_EVIDENCE_AUTHORITY_V1 =
     exact_receipt_sender_delivery_binding_required: true,
     confirmed_and_reverted_supported: true,
     gas_used_ceiling_required: true,
+    exact_gas_used_binding_required: true,
     effective_gas_price_ceiling_required: true,
     exact_integer_gas_cost: true,
     confirmed_native_value_consumption_bound: true,
@@ -983,6 +984,11 @@ export function classifyCoupledNativeGasTerminalCostEvidenceV1(input: {
     if (gasUsed > gasLimit) {
       return held(
         "coupled_native_gas_terminal_cost_gas_used_exceeds_liability",
+      );
+    }
+    if (gasUsed !== gasLimit) {
+      return held(
+        "coupled_native_gas_terminal_cost_gas_used_mismatch",
       );
     }
     if (effectiveGasPrice > maxFee) {
