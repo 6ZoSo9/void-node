@@ -25,14 +25,16 @@ const payerDomainContentSha256 =
     )
     .digest("hex");
 const root = "/var/lib/void/native-gas/payer-a";
+const rootDev = "2065";
 
 function ancestor(
   path: string,
   ino: number,
+  dev = "2049",
 ): Record<string, unknown> {
   return {
     path,
-    dev: "2049",
+    dev,
     ino: String(ino),
     uid: 0,
     gid: 0,
@@ -50,7 +52,7 @@ function directory(
 ): Record<string, unknown> {
   return {
     resolved_path,
-    dev: "2049",
+    dev: rootDev,
     ino: String(ino),
     uid: 2000,
     gid: 2000,
@@ -80,7 +82,7 @@ function green(): Record<string, unknown> {
       service_gid: 2000,
       payer_root: {
         resolved_path: root,
-        dev: "2049",
+        dev: rootDev,
         ino: "100",
         uid: 2000,
         gid: 2000,
@@ -94,7 +96,7 @@ function green(): Record<string, unknown> {
           ancestor("/var", 2),
           ancestor("/var/lib", 3),
           ancestor("/var/lib/void", 4),
-          ancestor("/var/lib/void/native-gas", 5),
+          ancestor("/var/lib/void/native-gas", 5, rootDev),
         ],
         mount: {
           medium_present: true,
@@ -111,7 +113,7 @@ function green(): Record<string, unknown> {
       },
       payer_domain: {
         resolved_path: root + "/payer-domain-v1.json",
-        dev: "2049",
+        dev: rootDev,
         ino: "104",
         uid: 2000,
         gid: 2000,
@@ -280,6 +282,21 @@ assert.match(
 }
 {
   const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.dev = "2049";
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.ancestors[4].dev = "2049";
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.major_minor = "8:1";
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
   x.host_evidence.reconciliations.resolved_path =
     root + "/alternate-reconciliations";
   requireHeld(x, "reconciliation_custody_namespace_invalid");
@@ -380,6 +397,8 @@ console.log("same_uid_root_replacement_denial_required=true");
 console.log("symlink_substitution_denial_required=true");
 console.log("bind_mount_denial_evidence_required=true");
 console.log("remount_denial_evidence_required=true");
+console.log("root_device_matches_mount_major_minor=true");
+console.log("mount_target_device_matches_root=true");
 console.log("exact_payer_domain_identity_required=true");
 console.log("canonical_payer_domain_binding_reused=true");
 console.log("exact_payer_domain_bytes_required=true");
