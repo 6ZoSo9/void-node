@@ -374,10 +374,15 @@ function defaultIo() {
       ) {
         throw new Error("descriptor_walk_unavailable");
       }
-      const resolved = path.resolve(String(file ?? ""));
-      if (!path.isAbsolute(resolved) || resolved.includes("\0")) {
+      const raw = String(file ?? "");
+      if (
+        !raw ||
+        !path.isAbsolute(raw) ||
+        raw.includes("\0")
+      ) {
         throw new Error("descriptor_walk_path_invalid");
       }
+      const resolved = path.resolve(raw);
       const root = path.parse(resolved).root;
       const parts = resolved
         .slice(root.length)
