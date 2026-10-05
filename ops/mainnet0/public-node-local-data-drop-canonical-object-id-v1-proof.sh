@@ -188,12 +188,14 @@ assert.equal(cluster.includes("fs.readdirSync(dropDir)"),false,"Local Data Drop 
 assert.equal(cluster.includes("fs.mkdirSync(dropDir"),false,"public Local Data Drop routes must not create object storage");
 assert.equal(cluster.includes("fs.mkdirSync(receiptDir"),false,"public Local Data Drop routes must not create receipt storage");
 assert.equal(cluster.includes(".import-staging-v2"),false,"public runtime must not mount importer staging");
-for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","listDirectDirectoryNamesV1","fs.readdirSync(procPath","/proc/self/fd","O_NOFOLLOW","O_DIRECTORY","fs.openSync(procPath","fs.fstatSync(fd","fs.readFileSync(fd)","fs.lstatSync(procPath","fs.closeSync(parent.fd)"]){
+for(const needle of ["VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DIRECT_READ_V1","listDirectDirectoryNamesV1","fs.readdirSync(procPath","/proc/self/fd","O_NOFOLLOW","O_DIRECTORY","fs.openSync(procPath","fs.fstatSync(fd","Buffer.alloc(openedSize)","fs.readSync(","final_file_grew_during_read","fs.lstatSync(procPath","fs.closeSync(parent.fd)"]){
   assert.equal(reader.includes(needle),true,"reader contract missing "+needle);
 }
 assert.equal(reader.includes('if (missingPathV1(error)) return null;'),true,"initial absence must remain not-found");
 assert.equal(reader.includes('unsafeStorageV1("final_disappeared_before_open", error);'),true,"observed pre-open disappearance must be state drift");
 assert.equal(reader.includes('unsafeStorageV1("final_disappeared_after_read", error);'),true,"post-read disappearance must be state drift");
+assert.equal(reader.includes("fs.readFileSync(fd)"),false,"descriptor reader must not use unbounded readFileSync after size validation");
+assert.equal(reader.includes("const growthProbe = Buffer.allocUnsafe(1);"),true,"descriptor reader must probe for post-stat growth");
 const demoManifestStart=source.indexOf('APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.json"');
 const demoManifestEnd=source.indexOf('APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fileName"',demoManifestStart);
 assert.notEqual(demoManifestStart,-1,"Demo003 manifest route missing");
