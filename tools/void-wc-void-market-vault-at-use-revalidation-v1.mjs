@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "./void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+} from "./void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   attestWcVoidMarketVaultRuntimeV1,
   reconstructWcVoidMarketVaultRuntimeV1,
