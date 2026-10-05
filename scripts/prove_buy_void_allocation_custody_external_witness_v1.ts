@@ -7,11 +7,37 @@ import {
   parseBuyVoidAllocationCustodyExternalWitnessJournalV1,
   planBuyVoidAllocationCustodyExternalWitnessAdvanceV1,
 } from "../src/economic/buy_void_allocation_custody_external_witness_v1.js";
+import {
+  planBuyVoidAllocationReservationV1,
+} from "../src/economic/buy_void_allocation_reservation_ledger_v1.js";
+import {
+  deriveBuyVoidAllocationReservationHighWaterV1,
+} from "../src/economic/buy_void_allocation_reservation_high_water_v1.js";
 
 const GENESIS_EVENT_SHA =
   "sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654";
 const GENESIS_WITNESS_SHA =
   "sha256:a73c8c674bea5ed473938ddbf4275a651272fefd4e75d212d3d2bb8c8e5cbe1a";
+
+const sha = (hex: string): string =>
+  "sha256:" + hex.repeat(64);
+
+const sha256Id = (value: string | Buffer): string =>
+  "sha256:" +
+  crypto
+    .createHash("sha256")
+    .update(Buffer.isBuffer(value) ? value : Buffer.from(value, "utf8"))
+    .digest("hex");
+
+function requireOk<T>(
+  value: T,
+): Extract<T, { ok: true }> {
+  const runtime = value as T & { ok: boolean; reason?: string };
+  if (runtime.ok !== true) {
+    throw new Error(runtime.reason ?? "unexpected_hold");
+  }
+  return value as Extract<T, { ok: true }>;
+}
 
 const genesisEvent = {
   allocation_tip_sha256:
@@ -82,6 +108,144 @@ const current = {
   writer_source_blob_sha1: genesisEvent.writer_source_blob_sha1,
 };
 
+const genesisHighWaterDecision =
+  deriveBuyVoidAllocationReservationHighWaterV1("");
+const genesisHighWater = requireOk(genesisHighWaterDecision);
+assert.equal(
+  Buffer.byteLength(genesisHighWater.high_water_json, "utf8"),
+  genesisEvent.high_water_bytes,
+);
+assert.equal(
+  sha256Id(genesisHighWater.high_water_json),
+  genesisEvent.high_water_sha256,
+);
+
+const baseInput = {
+  ledger_jsonl: "",
+  request_id: "buyvoid_a_aaaaaaaa",
+  source_chain: "base",
+  payment_transaction_hash: "0x" + "a".repeat(64),
+  payment_log_index: 7,
+  launch_authority: {
+    marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+    version: 1,
+    coupled_launch_id: sha("a"),
+    source_composition_id: sha("b"),
+    activation_generation: "0x" + "c".repeat(64),
+    generation_tip_sha256: sha("d"),
+    activation_receipt_id: "voidbclive1_" + "e".repeat(64),
+    activation_receipt_sha256: "f".repeat(64),
+    expires_at_ms: 1_800_000_300_000,
+  },
+  buyer_delivery_wallet: "0x" + "1".repeat(40),
+  quote_void_amount: "1",
+  quote_usdc_amount: "0.5",
+  pool_void_total: "10000000",
+  verified_payment_receipt_ref: sha("1"),
+  payment_verified_event_sha256: sha("0"),
+  duplicate_payment_guard_result: sha("2"),
+  inventory_allocation_guard_result: sha("3"),
+  operator_activation_record_ref: sha("4"),
+  created_at_ms: 1_800_000_000_000,
+  verified_payment_gate_green: true,
+  duplicate_payment_guard_green: true,
+  inventory_allocation_guard_green: true,
+  operator_activation_record_green: true,
+} as const;
+
+const first = requireOk(planBuyVoidAllocationReservationV1(baseInput));
+const ledger1 = first.next_ledger_jsonl;
+const high1 = requireOk(
+  deriveBuyVoidAllocationReservationHighWaterV1(ledger1),
+);
+
+function currentFrom(
+  ledger: string,
+  highWater: Extract<
+    ReturnType<typeof deriveBuyVoidAllocationReservationHighWaterV1>,
+    { ok: true }
+  >,
+) {
+  return {
+    ...current,
+    allocation_tip_sha256: highWater.high_water.tip_hash,
+    high_water_bytes: Buffer.byteLength(highWater.high_water_json, "utf8"),
+    high_water_sha256: sha256Id(highWater.high_water_json),
+    ledger_bytes: Buffer.byteLength(ledger, "utf8"),
+    ledger_sha256: sha256Id(ledger),
+    pool_void_total: highWater.high_water.pool_void_total,
+    record_count: highWater.high_water.record_count,
+    remaining_void: highWater.high_water.remaining_void,
+    reserved_void_total: highWater.high_water.reserved_void_total,
+  };
+}
+
+const advancedCurrent = currentFrom(ledger1, high1);
+
+const second = requireOk(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    ledger_jsonl: ledger1,
+    request_id: "buyvoid_b_bbbbbbbb",
+    payment_transaction_hash: "0x" + "b".repeat(64),
+    payment_log_index: 8,
+    buyer_delivery_wallet: "0x" + "2".repeat(40),
+    quote_void_amount: "1",
+    quote_usdc_amount: "0.5",
+    verified_payment_receipt_ref: sha("5"),
+    payment_verified_event_sha256: sha("6"),
+    duplicate_payment_guard_result: sha("7"),
+    inventory_allocation_guard_result: sha("8"),
+    operator_activation_record_ref: sha("9"),
+    created_at_ms: baseInput.created_at_ms + 1,
+  }),
+);
+const ledger2 = second.next_ledger_jsonl;
+const high2 = requireOk(
+  deriveBuyVoidAllocationReservationHighWaterV1(ledger2),
+);
+const current2 = currentFrom(ledger2, high2);
+
+const alternateFirst = requireOk(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    request_id: "buyvoid_c_cccccccc",
+    payment_transaction_hash: "0x" + "c".repeat(64),
+    payment_log_index: 9,
+    buyer_delivery_wallet: "0x" + "3".repeat(40),
+    verified_payment_receipt_ref: sha("a"),
+    payment_verified_event_sha256: sha("b"),
+    duplicate_payment_guard_result: sha("c"),
+    inventory_allocation_guard_result: sha("d"),
+    operator_activation_record_ref: sha("e"),
+    created_at_ms: baseInput.created_at_ms + 2,
+  }),
+);
+const alternateSecond = requireOk(
+  planBuyVoidAllocationReservationV1({
+    ...baseInput,
+    ledger_jsonl: alternateFirst.next_ledger_jsonl,
+    request_id: "buyvoid_d_dddddddd",
+    payment_transaction_hash: "0x" + "d".repeat(64),
+    payment_log_index: 10,
+    buyer_delivery_wallet: "0x" + "4".repeat(40),
+    verified_payment_receipt_ref: sha("f"),
+    payment_verified_event_sha256: sha("1"),
+    duplicate_payment_guard_result: sha("2"),
+    inventory_allocation_guard_result: sha("3"),
+    operator_activation_record_ref: sha("4"),
+    created_at_ms: baseInput.created_at_ms + 3,
+  }),
+);
+const alternateLedger2 = alternateSecond.next_ledger_jsonl;
+const alternateHigh2 = requireOk(
+  deriveBuyVoidAllocationReservationHighWaterV1(alternateLedger2),
+);
+const alternateCurrent2 = currentFrom(
+  alternateLedger2,
+  alternateHigh2,
+);
+
 {
   const parsed =
     parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
@@ -97,6 +261,8 @@ const current = {
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: genesis,
       current_state: current,
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
     });
   assert.equal(matched.ok, true);
   assert.equal(matched.status, "matched");
@@ -113,6 +279,8 @@ const current = {
         ...current,
         high_water_sha256: "sha256:" + "f".repeat(64),
       },
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
     });
   assert.equal(conflict.ok, false);
   assert.equal(
@@ -121,23 +289,13 @@ const current = {
   );
 }
 
-const advancedCurrent = {
-  ...current,
-  allocation_tip_sha256: "sha256:" + "3".repeat(64),
-  high_water_bytes: 430,
-  high_water_sha256: "sha256:" + "2".repeat(64),
-  ledger_bytes: 300,
-  ledger_sha256: "sha256:" + "1".repeat(64),
-  record_count: 1,
-  remaining_void: "9999999",
-  reserved_void_total: "1",
-};
-
 {
   const ahead =
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: genesis,
       current_state: advancedCurrent,
+      current_ledger_jsonl: ledger1,
+      current_high_water_json: high1.high_water_json,
     });
   assert.equal(ahead.ok, false);
   assert.equal(
@@ -152,6 +310,8 @@ let advancedJournal: Buffer;
     planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
       witness_jsonl: genesis,
       current_state: advancedCurrent,
+      current_ledger_jsonl: ledger1,
+      current_high_water_json: high1.high_water_json,
     });
   assert.equal(planned.ok, true);
   assert.equal(planned.status, "planned");
@@ -175,6 +335,8 @@ let advancedJournal: Buffer;
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: advancedJournal!,
       current_state: current,
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
     });
   assert.equal(rolledBack.ok, false);
   assert.equal(
@@ -189,6 +351,8 @@ let advancedJournal: Buffer;
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: advancedJournal!,
       current_state: advancedCurrent,
+      current_ledger_jsonl: ledger1,
+      current_high_water_json: high1.high_water_json,
     });
   assert.equal(exactAdvanced.ok, true);
   assert.equal(exactAdvanced.status, "matched");
@@ -199,6 +363,8 @@ let advancedJournal: Buffer;
     planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
       witness_jsonl: genesis,
       current_state: current,
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
     });
   assert.equal(idempotent.ok, true);
   assert.equal(idempotent.status, "idempotent");
@@ -209,10 +375,9 @@ let advancedJournal: Buffer;
   const jump =
     planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
       witness_jsonl: genesis,
-      current_state: {
-        ...advancedCurrent,
-        record_count: 2,
-      },
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
     });
   assert.equal(jump.ok, false);
   assert.equal(
@@ -226,6 +391,10 @@ let advancedJournal: Buffer;
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: genesis.subarray(0, genesis.length - 1),
       current_state: current,
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
     });
   assert.equal(truncated.ok, false);
   assert.equal(
@@ -245,6 +414,10 @@ let advancedJournal: Buffer;
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: tampered,
       current_state: current,
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
+      current_ledger_jsonl: "",
+      current_high_water_json: genesisHighWater.high_water_json,
     });
   assert.equal(bad.ok, false);
   assert.equal(
@@ -258,6 +431,8 @@ let advancedJournal: Buffer;
     planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
       witness_jsonl: genesis,
       current_state: advancedCurrent,
+      current_ledger_jsonl: ledger1,
+      current_high_water_json: high1.high_water_json,
     });
   assert.equal(planned.ok, true);
   if (planned.ok !== true || planned.next_event === null) {
@@ -275,11 +450,41 @@ let advancedJournal: Buffer;
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
       witness_jsonl: driftedBytes,
       current_state: advancedCurrent,
+      current_ledger_jsonl: ledger1,
+      current_high_water_json: high1.high_water_json,
     });
   assert.equal(held.ok, false);
   assert.equal(
     held.reason,
     "allocation_custody_witness_event_hash_mismatch",
+  );
+}
+
+{
+  const conflict =
+    classifyBuyVoidAllocationCustodyExternalWitnessV1({
+      witness_jsonl: advancedJournal!,
+      current_state: alternateCurrent2,
+      current_ledger_jsonl: alternateLedger2,
+      current_high_water_json: alternateHigh2.high_water_json,
+    });
+  assert.equal(conflict.ok, false);
+  assert.equal(
+    conflict.reason,
+    "allocation_custody_witness_local_history_conflict",
+  );
+
+  const planned =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: advancedJournal!,
+      current_state: alternateCurrent2,
+      current_ledger_jsonl: alternateLedger2,
+      current_high_water_json: alternateHigh2.high_water_json,
+    });
+  assert.equal(planned.ok, false);
+  assert.equal(
+    planned.reason,
+    "allocation_custody_witness_advance_invalid",
   );
 }
 
@@ -299,6 +504,8 @@ for (const [key, value] of Object.entries(
     "source_host_invariant_binding",
     "witness_host_invariant_binding",
     "inventory_monotonicity",
+    "canonical_local_ledger_high_water_binding",
+    "exact_witnessed_ledger_prefix_binding",
   ]);
   assert.equal(value, trueKeys.has(key), key);
 }
@@ -316,6 +523,9 @@ console.log("rollback_regression_detected=true");
 console.log("truncated_witness_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("exact_single_record_advance=true");
+console.log("canonical_local_ledger_high_water_binding=true");
+console.log("exact_witnessed_ledger_prefix_binding=true");
+console.log("alternate_history_rejected=true");
 console.log("external_transport_authenticated=false");
 console.log("external_witness_storage_proven=false");
 console.log("runtime_integration=false");
