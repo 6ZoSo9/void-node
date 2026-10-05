@@ -40,6 +40,10 @@ All reconciliation rows must be canonical confirmed-only
 `VOID_COUPLED_NATIVE_GAS_LIABILITY_RECONCILIATION_V1` results from the
 current attempt-limit-one presale contract.
 
+The authority surface explicitly reports
+`stable_terminal_cost_identity_required=true`; a reconciliation lacking that
+stable identity is not accepted as effective-open history.
+
 ## Immutable history
 
 Liability rows remain immutable admission history. Reconciliation rows remain
