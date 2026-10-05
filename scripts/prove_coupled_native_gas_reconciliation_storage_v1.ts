@@ -76,6 +76,11 @@ async function main(): Promise<void> {
   );
   assert.equal(
     VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1
+      .bootstrap_confirmation_root_identity_bound,
+    true,
+  );
+  assert.equal(
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1
       .bootstrap_queue_lock_used,
     true,
   );
