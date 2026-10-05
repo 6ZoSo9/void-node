@@ -67,7 +67,7 @@ const HEX64=/^[0-9a-f]{64}$/u;
 const MAX_INPUT_BYTES=1024*1024;
 const MAX_SOURCE_BYTES=8*1024*1024;
 export const VOID_WC_VOID_COUPLED_LAUNCH_ID_V1 =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 
 function fail(code){throw new Error(code);}
 function compareText(left,right){return left<right?-1:left>right?1:0;}
