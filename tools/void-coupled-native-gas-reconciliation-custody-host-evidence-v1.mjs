@@ -66,6 +66,27 @@ const FINDMNT = "/usr/bin/findmnt";
 const PKCHECK = "/usr/bin/pkcheck";
 const SYSTEMD_UNIT = /^[A-Za-z0-9@_.:-]{1,120}\.service$/u;
 
+export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1 =
+  Object.freeze([
+    "start",
+    "stop",
+    "reload",
+    "restart",
+    "try-restart",
+    "reload-or-restart",
+    "reload-or-try-restart",
+    "kill",
+    "kill-subgroup",
+    "reset-failed",
+    "set-property",
+    "clean",
+  ]);
+
+const SYSTEMD_CONTROL_ACTIONS_V1 = Object.freeze([
+  "org.freedesktop.systemd1.manage-unit-files",
+  "org.freedesktop.systemd1.reload-daemon",
+]);
+
 function hold(reason, detail = {}) {
   return Object.freeze({
     ok: false,
@@ -506,29 +527,27 @@ function mainPid(show, expectedUnit) {
   return Object.freeze({ parsed, pid });
 }
 
-function polkitManageUnitVerbDenied(
+function polkitActionDenied(
   processIdentity,
   pid,
-  unit,
-  verb,
+  actionId,
+  details = [],
 ) {
   try {
-    runText(PKCHECK, [
+    const args = [
       "--action-id",
-      "org.freedesktop.systemd1.manage-units",
+      actionId,
       "--process",
       String(pid) +
         "," +
         processIdentity.start_time_ticks +
         "," +
         String(processIdentity.uid),
-      "--detail",
-      "unit",
-      unit,
-      "--detail",
-      "verb",
-      verb,
-    ]);
+    ];
+    for (const [key, value] of details) {
+      args.push("--detail", key, value);
+    }
+    runText(PKCHECK, args);
     return false;
   } catch (error) {
     if (Number(error?.status) === 1) return true;
@@ -536,20 +555,49 @@ function polkitManageUnitVerbDenied(
   }
 }
 
+function polkitManageUnitVerbDenied(
+  processIdentity,
+  pid,
+  unit,
+  verb,
+) {
+  return polkitActionDenied(
+    processIdentity,
+    pid,
+    "org.freedesktop.systemd1.manage-units",
+    [
+      ["unit", unit],
+      ["verb", verb],
+    ],
+  );
+}
+
 function polkitCustodyServiceControlDenied(
   processIdentity,
   pid,
   unit,
 ) {
-  return ["start", "stop", "restart"].every(
-    (verb) =>
-      polkitManageUnitVerbDenied(
-        processIdentity,
-        pid,
-        unit,
-        verb,
-      ),
-  );
+  const directControlDenied =
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1
+      .every(
+        (verb) =>
+          polkitManageUnitVerbDenied(
+            processIdentity,
+            pid,
+            unit,
+            verb,
+          ),
+      );
+  const managerMutationDenied =
+    SYSTEMD_CONTROL_ACTIONS_V1.every(
+      (actionId) =>
+        polkitActionDenied(
+          processIdentity,
+          pid,
+          actionId,
+        ),
+    );
+  return directControlDenied && managerMutationDenied;
 }
 
 function findMountUuid(target) {
