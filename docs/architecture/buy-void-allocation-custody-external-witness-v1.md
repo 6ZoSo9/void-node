@@ -56,6 +56,8 @@ The first event must be exact genesis:
 - ledger bytes `0`;
 - SHA-256 of the empty ledger;
 - zero allocation tip;
+- exact byte length and SHA-256 of the canonical #2442 genesis high-water
+  derived from the empty allocation ledger;
 - reserved total `0`; and
 - remaining VOID equal to the pool total.
 
