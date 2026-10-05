@@ -394,6 +394,24 @@ assert.equal(
 assert.equal(confirmed.maximum_reserved_wei, "1000000210000");
 assert.equal(confirmed.observed_confirmation_count, "3");
 assert.equal(confirmed.within_reserved_envelope, true);
+assert.match(
+  confirmed.terminal_cost_identity_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+const confirmedLaterHead = requireOk(
+  classify({ current_block_number: "0x67" }),
+);
+assert.equal(confirmedLaterHead.observed_confirmation_count, "4");
+assert.notEqual(
+  confirmedLaterHead.evidence_id,
+  confirmed.evidence_id,
+  "fresh observation evidence must retain current-head provenance",
+);
+assert.equal(
+  confirmedLaterHead.terminal_cost_identity_sha256,
+  confirmed.terminal_cost_identity_sha256,
+  "terminal cost accounting identity must be confirmation-depth independent",
+);
 assert.equal(confirmed.liability_release_authorized, false);
 assert.equal(confirmed.mutation_performed, false);
 assert.equal(confirmed.funds_movement_performed, false);
@@ -655,6 +673,8 @@ for (const [key, value] of Object.entries(
     "exact_gas_used_binding_required",
     "effective_gas_price_ceiling_required",
     "exact_integer_gas_cost",
+    "stable_terminal_cost_identity",
+    "confirmation_depth_independent_terminal_cost_identity",
     "confirmed_native_value_consumption_bound",
     "reverted_native_value_consumption_zero",
     "reserved_envelope_ceiling_required",
@@ -676,6 +696,8 @@ console.log("confirmed_outcome_fingerprint_rederived=true");
 console.log("reverted_outcome_arithmetic_rederived=true");
 console.log("fresh_receipt_confirmation_revalidation=true");
 console.log("confirmed_gas_cost_bound=true");
+console.log("terminal_cost_identity_stable_across_confirmation_depth=true");
+console.log("observation_evidence_id_remains_confirmation_depth_sensitive=true");
 console.log("reverted_native_value_consumption_zero=true");
 console.log("zero_effective_gas_price_supported=true");
 console.log("gas_used_ceiling_enforced=true");
