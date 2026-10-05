@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -24,6 +25,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1 =
     qualification_queue_lock_used: false,
     explicit_reconciliation_directory_bootstrap: true,
     bootstrap_confirmation_required: true,
+    bootstrap_confirmation_root_identity_bound: true,
     bootstrap_queue_lock_used: true,
     existing_admission_queue_reused: true,
     second_lock_namespace_created: false,
@@ -122,6 +124,29 @@ function fail(code: string): never {
 function normalizedAddress(value: unknown): string {
   const address = String(value ?? "").trim().toLowerCase();
   return ADDRESS.test(address) ? address : "";
+}
+
+function bootstrapConfirmationV1(
+  root: PinnedDirectoryV1,
+  payerDomainId: string,
+): string {
+  const payload =
+    JSON.stringify({
+      marker: VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_V1,
+      version: 1,
+      operation: "bootstrap_reconciliations_directory",
+      root_path: root.path,
+      root_dev: root.stat.dev.toString(),
+      root_ino: root.stat.ino.toString(),
+      root_uid: root.stat.uid.toString(),
+      root_gid: root.stat.gid.toString(),
+      root_mode: Number(root.stat.mode),
+      payer_domain_id: payerDomainId,
+    }) + "\n";
+  return (
+    "bootstrapCoupledNativeGasReconciliationStorageV1:" +
+    crypto.createHash("sha256").update(payload, "utf8").digest("hex")
+  );
 }
 
 function isMissing(error: unknown): boolean {
@@ -642,9 +667,10 @@ async function inspectStorage(input: {
               "coupled_native_gas_reconciliation_storage_directory_missing",
             );
           }
-          const requiredConfirmation =
-            "bootstrapCoupledNativeGasReconciliationStorageV1:" +
-            payerDomain.payer_domain_id;
+          const requiredConfirmation = bootstrapConfirmationV1(
+            root!,
+            payerDomain.payer_domain_id,
+          );
           if (input.confirmation !== requiredConfirmation) {
             return held(
               "coupled_native_gas_reconciliation_storage_confirmation_required",
