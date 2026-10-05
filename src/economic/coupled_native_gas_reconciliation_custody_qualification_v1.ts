@@ -524,7 +524,12 @@ function normalizeMount(
     MAX_MOUNT_OPTIONS,
     "reconciliation_custody_mount_invalid",
   );
-  if (!options.includes("rw")) fail("reconciliation_custody_mount_read_only");
+  if (
+    !options.includes("rw") ||
+    options.includes("ro")
+  ) {
+    fail("reconciliation_custody_mount_read_only");
+  }
   const majorMinor = safeText(
     mount.major_minor,
     MAJOR_MINOR,
