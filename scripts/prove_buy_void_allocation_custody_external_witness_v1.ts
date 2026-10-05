@@ -457,6 +457,76 @@ let advancedJournal: Buffer;
 }
 
 {
+  const secondAdvance = requireOk(
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: advancedJournal!,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    }),
+  );
+  assert.equal(secondAdvance.status, "planned");
+  const threeEventJournal = Buffer.from(
+    secondAdvance.next_witness_jsonl,
+  );
+  const parsedThree =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      threeEventJournal,
+    );
+  assert.equal(parsedThree.event_count, 3);
+
+  const tamperedMiddle = rehashWitnessEvent({
+    ...parsedThree.events[1],
+    ledger_sha256: sha("f"),
+  });
+  const repairedTip = rehashWitnessEvent({
+    ...parsedThree.events[2],
+    previous_event_sha256:
+      String(tamperedMiddle.event_sha256),
+  });
+  const rehashedHistoricalConflict = Buffer.concat([
+    genesis,
+    Buffer.from(canonicalJson(tamperedMiddle) + "\n", "utf8"),
+    Buffer.from(canonicalJson(repairedTip) + "\n", "utf8"),
+  ]);
+  const syntactic =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      rehashedHistoricalConflict,
+    );
+  assert.equal(syntactic.event_count, 3);
+  assert.equal(
+    syntactic.events[2].previous_event_sha256,
+    tamperedMiddle.event_sha256,
+  );
+
+  const classified =
+    classifyBuyVoidAllocationCustodyExternalWitnessV1({
+      witness_jsonl: rehashedHistoricalConflict,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    });
+  assert.equal(classified.ok, false);
+  assert.equal(
+    classified.reason,
+    "allocation_custody_witness_local_history_conflict",
+  );
+
+  const planned =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: rehashedHistoricalConflict,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    });
+  assert.equal(planned.ok, false);
+  assert.equal(
+    planned.reason,
+    "allocation_custody_witness_advance_invalid",
+  );
+}
+
+{
   const parsed =
     parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
       advancedJournal!,
@@ -711,6 +781,7 @@ console.log("same_epoch_conflict_rejected=true");
 console.log("unanchored_local_advance_hold=true");
 console.log("rollback_regression_detected=true");
 console.log("multi_record_local_history_conflict_rejected=true");
+console.log("rehashed_middle_history_conflict_rejected=true");
 console.log("truncated_witness_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("exact_single_record_advance=true");
