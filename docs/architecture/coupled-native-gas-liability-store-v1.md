@@ -217,7 +217,7 @@ The store proof covers:
 - payer-domain replacement while queued HOLDS against the post-wait domain;
 - payer-domain replacement after classification cannot produce clean success;
 - fee evidence that expires during queue wait HOLDS using a post-wait time sample;
-- injected time provider is not called before queue admission/census and is sampled exactly once;
+- injected time provider is not called before queue admission/census; new durable admission samples it exactly twice (post-census and immediately before publication), while exact idempotent replay samples it once;
 - first exact durable liability publication;
 - exact replay idempotence under fresh fee observation;
 - stale observation HOLD without mutation;
