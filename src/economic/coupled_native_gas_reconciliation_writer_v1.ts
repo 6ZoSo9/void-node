@@ -41,6 +41,8 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1 =
     idempotent_replay_reauthenticates_terminal_evidence: true,
     idempotent_directory_durability_refresh: true,
     immutable_liability_history: true,
+    immutable_reconciliation_history: true,
+    exact_reconciliation_history_append_postcheck: true,
     create_once_reconciliation_publication: true,
     crash_temp_normalization: true,
     record_filename_identity_binding: true,
@@ -849,6 +851,53 @@ function publishReconciliationCreateOnce(
   }
 }
 
+function requireExactReconciliationHistoryAppend(
+  before: HistorySnapshotV1,
+  after: HistorySnapshotV1,
+  reconciliation:
+    CoupledNativeGasLiabilityReconciliationVerifiedV1,
+): void {
+  const expectedName = reconciliation.reconciliation_id + ".json";
+  if (
+    before.entries.some((entry) => entry.name === expectedName) ||
+    after.entries.length !== before.entries.length + 1
+  ) {
+    fail(
+      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+    );
+  }
+  const afterByName = new Map(
+    after.entries.map((entry) => [entry.name, entry] as const),
+  );
+  for (const entry of before.entries) {
+    const observed = afterByName.get(entry.name);
+    if (
+      !observed ||
+      observed.bytes !== entry.bytes ||
+      observed.sha256 !== entry.sha256 ||
+      observed.identity !== entry.identity
+    ) {
+      fail(
+        "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+      );
+    }
+  }
+  const appended = afterByName.get(expectedName);
+  const expectedBytes = Buffer.from(
+    canonical(reconciliation) + "\n",
+    "utf8",
+  );
+  if (
+    !appended ||
+    appended.bytes !== expectedBytes.length ||
+    appended.sha256 !== sha256Bytes(expectedBytes)
+  ) {
+    fail(
+      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+    );
+  }
+}
+
 function exactExpectedPostCensus(
   before: CoupledNativeGasEffectiveOpenCensusVerifiedV1,
   after: CoupledNativeGasEffectiveOpenCensusVerifiedV1,
@@ -1178,6 +1227,11 @@ async function persistWithDependencies(
             "coupled_native_gas_reconciliation_writer_liability_history_changed_after_publication",
           );
         }
+        requireExactReconciliationHistoryAppend(
+          reconciliationsBefore,
+          reconciliationsAfter,
+          reconciliation,
+        );
         const censusAfter = requireCensus(
           payerAddress,
           liabilitiesAfter.rows,
