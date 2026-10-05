@@ -831,6 +831,10 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
           });
         }
 
+        if (before.length >= MAX_RECORDS) {
+          return held("coupled_native_gas_store_record_count_exceeded");
+        }
+
         createOnceLiability(records!, classified.liability);
 
         const after = readCensus(
