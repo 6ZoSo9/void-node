@@ -979,6 +979,11 @@ assert.match(gateSource, /readBuyLaunchLiveActivationV1/);
 assert.match(gateSource, /classifyBuyLaunchLiveActivationLeaseV1/);
 assert.match(gateSource, /sameBuyLaunchGenerationAuthorityV1/);
 assert.match(gateSource, /withBuyLaunchRequestAuthorityMutationV1/);
+assert.match(gateSource, /const assertCurrentAuthority = \(\) => \{/);
+assert.match(
+  gateSource,
+  /assertCurrentAuthority\(\);\s*return operation\(assertCurrentAuthority\);/,
+);
 assert.match(gateSource, /withBuyLaunchGenerationTransitionPublicationV1/);
 assert.doesNotMatch(
   gateSource,
