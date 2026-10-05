@@ -11,7 +11,10 @@ import {
   VOID_DEMO003_PUBLIC_SERVING_CONTRACT_V1,
   classifyVoidDemo003PublicServingSetV1,
 } from "../src/http/void_demo003_public_serving_contract_v1.ts";
-import { readDirectRegularFileV1 } from "../src/http/public_node_local_data_drop_file_v1.ts";
+import {
+  readDirectRegularFileV1,
+  testOnlyReadDirectRegularFileWithAfterOpenHookV1,
+} from "../src/http/public_node_local_data_drop_file_v1.ts";
 
 const sha256 = (bytes) =>
   createHash("sha256").update(bytes).digest("hex");
@@ -32,7 +35,22 @@ const sha256 = (bytes) =>
     assert.throws(
       () => readDirectRegularFileV1(large, 2 * 1024 * 1024),
       /VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1:final_file_too_large/u,
-      "Demo003 serving reader must reject oversized files before readFileSync",
+      "Demo003 serving reader must reject oversized files before allocation",
+    );
+
+    const growing = path.join(root, "growing.bin");
+    fs.writeFileSync(growing, Buffer.alloc(64, 0x41), { mode: 0o600 });
+    assert.throws(
+      () =>
+        testOnlyReadDirectRegularFileWithAfterOpenHookV1(
+          growing,
+          2 * 1024 * 1024,
+          () => {
+            fs.appendFileSync(growing, Buffer.alloc(64 * 1024, 0x42));
+          },
+        ),
+      /VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UNSAFE_STORAGE_V1:final_file_grew_during_read/u,
+      "growth after opened-size validation must HOLD after at most one extra-byte probe",
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -309,6 +327,8 @@ assert.match(
 console.log("VOID_DEMO003_PUBLIC_SERVING_CONTRACT_V1_GREEN");
 console.log("canonical_payload_hashes_and_sizes_bound=true");
 console.log("pre_read_file_size_bound=true");
+console.log("descriptor_opened_size_read_bound=true");
+console.log("grow_after_open_rejected=true");
 console.log("manifest_and_checksum_bytes_bound_to_sealed_intake=true");
 console.log("coherent_mutable_record_forgery_rejected=true");
 console.log("public_routes_use_source_contract_classifier=true");
