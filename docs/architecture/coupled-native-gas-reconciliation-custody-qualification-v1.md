@@ -39,6 +39,7 @@ root is service-owned and mode `0700`.
 
 Every ancestor above the payer root must be:
 
+- explicitly classified as a directory;
 - direct and non-symlink;
 - root-owned;
 - non-writable by group/other;
@@ -59,12 +60,19 @@ reconciliations/
 gas-liability-admission-v1.queue/
 ```
 
-The three directories must be mode `0700`; the payer-domain file must be mode
-`0600`, link count 1, and bind the exact expected `payer_domain_id` plus
-content SHA-256.
+The payer root and three retained namespace children must carry explicit
+`object_type=directory` evidence and be mode `0700`; the payer-domain file must
+carry `object_type=regular_file`, be mode `0600`, have link count 1, and bind
+the exact expected `payer_domain_id` plus content SHA-256.
 
-All five retained identities (root, payer-domain file, records,
-reconciliations, queue) must have distinct inodes on the same device.
+Object type is normalized into the policy fingerprint. A mode-shaped FIFO,
+socket, device, or other non-regular object cannot satisfy the payer-domain
+file contract, and a non-directory cannot satisfy a root, ancestor, or
+namespace contract.
+
+All retained identities and every supplied ancestor are compared as exact
+`(dev, ino)` pairs. No ancestor may alias the payer root or any retained child,
+and retained children/ancestors may not alias each other.
 
 The caller supplies the payer address, **not** an expected payer-domain ID.
 The classifier reuses
@@ -95,15 +103,20 @@ The payer root carries one mount-instance fingerprint over:
 The root's decimal Linux `st_dev` is decoded with the Linux/glibc device
 number layout and must equal the supplied mount `major:minor`. When the
 declared mount target is an ancestor of the payer root rather than the payer
-root itself, that exact ancestor's device identity must also equal the payer
-root device. This prevents a syntactically valid mount fingerprint for one
-filesystem from being paired with payer-root evidence from another device.
+root itself, that ancestor **and every supplied descendant ancestor down to the
+payer root** must remain on the payer-root device. This rejects an intermediate
+device transition below the claimed governing mount and prevents a syntactically
+valid mount fingerprint for one filesystem from being paired with payer-root
+evidence from another device.
 
 Device identity is still not enough to identify a mount instance: nested bind
 mounts of the same filesystem can share `st_dev`, major/minor, source, UUID,
 and filesystem type. The payer-root evidence therefore also carries the
 governing Linux mount ID, and it must equal the declared mount record's
 `mount_id`; the mount fingerprint additionally binds `parent_id`.
+The parent ID must be a positive mount ID. A mount may self-parent only when
+its declared mount target is `/`, matching Linux mountinfo's root-of-tree
+special case; a non-root mount target with `parent_id == mount_id` HOLDS.
 
 The payer-domain file, records directory, reconciliations directory, and queue
 each also carry the governing mount ID and must equal the payer root's mount
@@ -239,9 +252,11 @@ The focused proof covers a green synthetic evidence snapshot plus stale/future/
 overlong evidence, zero generation, service/runtime identity collapse, unsafe or
 runtime-writable ancestors, root symlink/replacement authority, bind/remount
 authority, wrong mount target, root-device/mount-major-minor mismatch,
-mount-target ancestor device mismatch, contradictory `ro`+`rw` mount
-options, same-device governing root mount-ID mismatch, direct child
-same-device mount-ID substitution, alternate reconciliation namespace, inode alias,
-payer-address/domain mismatch, noncanonical payer-domain file digest/link alias,
+mount-target ancestor device mismatch, intermediate device transition below the
+declared governing mount, contradictory `ro`+`rw` mount options, same-device
+governing root mount-ID mismatch, direct child same-device mount-ID substitution,
+alternate reconciliation namespace, retained/ancestor `(dev,ino)` aliasing,
+wrong root/ancestor/namespace/file object types, payer-address/domain mismatch,
+noncanonical payer-domain file digest/link alias,
 service hardening drift, writable-path drift,
 failed negative tests, fallback storage, and missing required namespace.

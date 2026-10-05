@@ -34,6 +34,7 @@ function ancestor(
 ): Record<string, unknown> {
   return {
     path,
+    object_type: "directory",
     dev,
     ino: String(ino),
     uid: 0,
@@ -52,6 +53,7 @@ function directory(
 ): Record<string, unknown> {
   return {
     resolved_path,
+    object_type: "directory",
     dev: rootDev,
     ino: String(ino),
     mount_id: 77,
@@ -83,6 +85,7 @@ function green(): Record<string, unknown> {
       service_gid: 2000,
       payer_root: {
         resolved_path: root,
+        object_type: "directory",
         dev: rootDev,
         ino: "100",
         mount_id: 77,
@@ -117,6 +120,7 @@ function green(): Record<string, unknown> {
       },
       payer_domain: {
         resolved_path: root + "/payer-domain-v1.json",
+        object_type: "regular_file",
         dev: rootDev,
         ino: "104",
         mount_id: 77,
@@ -316,6 +320,17 @@ assert.match(
 }
 {
   const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.parent_id = 0;
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.parent_id =
+    x.host_evidence.payer_root.mount.mount_id;
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
   // Same backing device/UUID/source can still be a different bind-mount
   // instance. The payer root must bind to the governing mountinfo ID.
   x.host_evidence.payer_root.mount_id = 78;
@@ -357,6 +372,44 @@ assert.match(
   x.host_evidence.reconciliations.ino =
     x.host_evidence.records.ino;
   requireHeld(x, "reconciliation_custody_identity_alias_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.ancestors[4].ino =
+    x.host_evidence.payer_root.ino;
+  requireHeld(x, "reconciliation_custody_identity_alias_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.ancestors[4].ino =
+    x.host_evidence.records.ino;
+  requireHeld(x, "reconciliation_custody_identity_alias_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.mount_target = "/var/lib";
+  x.host_evidence.payer_root.ancestors[2].dev = rootDev;
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.object_type = "regular_file";
+  requireHeld(x, "reconciliation_custody_root_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.ancestors[4].object_type = "regular_file";
+  requireHeld(x, "reconciliation_custody_ancestor_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.records.object_type = "regular_file";
+  requireHeld(x, "reconciliation_custody_namespace_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_domain.object_type = "directory";
+  requireHeld(x, "reconciliation_custody_payer_domain_invalid");
 }
 {
   const x = structuredClone(green()) as any;
@@ -452,8 +505,12 @@ console.log("remount_denial_evidence_required=true");
 console.log("contradictory_ro_rw_mount_options_rejected=true");
 console.log("root_device_matches_mount_major_minor=true");
 console.log("mount_target_device_matches_root=true");
+console.log("governing_mount_device_continuity_required=true");
+console.log("ancestor_retained_identity_alias_rejected=true");
+console.log("object_type_evidence_required=true");
 console.log("governing_mount_id_required=true");
 console.log("root_mount_id_matches_declared_mount=true");
+console.log("mount_parent_id_structurally_valid=true");
 console.log("direct_child_mount_ids_match_root=true");
 console.log("payer_domain_mount_id_matches_root=true");
 console.log("exact_payer_domain_identity_required=true");

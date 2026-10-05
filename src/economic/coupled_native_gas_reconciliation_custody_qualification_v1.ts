@@ -98,6 +98,7 @@ const SNAPSHOT_KEYS = Object.freeze([
 ]);
 const ROOT_KEYS = Object.freeze([
   "resolved_path",
+  "object_type",
   "dev",
   "ino",
   "mount_id",
@@ -113,6 +114,7 @@ const ROOT_KEYS = Object.freeze([
 ]);
 const ANCESTOR_KEYS = Object.freeze([
   "path",
+  "object_type",
   "dev",
   "ino",
   "uid",
@@ -139,6 +141,7 @@ const MOUNT_KEYS = Object.freeze([
 ]);
 const DIR_KEYS = Object.freeze([
   "resolved_path",
+  "object_type",
   "dev",
   "ino",
   "mount_id",
@@ -152,6 +155,7 @@ const DIR_KEYS = Object.freeze([
 ]);
 const DOMAIN_FILE_KEYS = Object.freeze([
   "resolved_path",
+  "object_type",
   "dev",
   "ino",
   "mount_id",
@@ -466,6 +470,7 @@ function normalizeAncestors(
     const entryMode = mode(entry.mode, "reconciliation_custody_ancestor_invalid");
     if (
       entryPath !== expected[index] ||
+      entry.object_type !== "directory" ||
       uid !== 0 ||
       uid === publicRuntimeUid ||
       entry.symlink !== false ||
@@ -478,6 +483,7 @@ function normalizeAncestors(
     }
     return Object.freeze({
       path: entryPath,
+      object_type: "directory",
       dev: decimal(entry.dev, "reconciliation_custody_ancestor_invalid"),
       ino: decimal(entry.ino, "reconciliation_custody_ancestor_invalid"),
       uid,
@@ -545,11 +551,12 @@ function normalizeMount(
   );
   const parentId = safeInt(
     mount.parent_id,
-    0,
+    1,
     0x7fff_ffff,
     "reconciliation_custody_mount_invalid",
   );
   if (
+    (parentId === mountId && target !== "/") ||
     linuxMajorMinorFromDev(
       rootDev,
       "reconciliation_custody_mount_invalid",
@@ -607,6 +614,7 @@ function normalizeRoot(
   );
   const rootMode = mode(root.mode, "reconciliation_custody_root_invalid");
   if (
+    root.object_type !== "directory" ||
     safeInt(root.uid, 0, 0x7fff_ffff, "reconciliation_custody_root_invalid") !== serviceUid ||
     safeInt(root.gid, 0, 0x7fff_ffff, "reconciliation_custody_root_invalid") !== serviceGid ||
     rootMode.bits !== 0o700 ||
@@ -643,18 +651,21 @@ function normalizeRoot(
     fail("reconciliation_custody_mount_invalid");
   }
   if (mountTarget !== resolved) {
-    const targetAncestor = ancestors.find(
+    const targetAncestorIndex = ancestors.findIndex(
       (entry) => entry.path === mountTarget,
     );
     if (
-      !targetAncestor ||
-      String(targetAncestor.dev) !== rootDev
+      targetAncestorIndex < 0 ||
+      ancestors
+        .slice(targetAncestorIndex)
+        .some((entry) => String(entry.dev) !== rootDev)
     ) {
       fail("reconciliation_custody_mount_invalid");
     }
   }
   return Object.freeze({
     resolved_path: resolved,
+    object_type: "directory",
     dev: rootDev,
     ino: decimal(root.ino, "reconciliation_custody_root_invalid"),
     mount_id: rootMountId,
@@ -694,6 +705,7 @@ function normalizeDirectory(
   );
   if (
     resolved !== expectedPath ||
+    directory.object_type !== "directory" ||
     decimal(directory.dev, "reconciliation_custody_namespace_invalid") !== rootDev ||
     safeInt(directory.mount_id, 1, 0x7fff_ffff, "reconciliation_custody_namespace_invalid") !== rootMountId ||
     safeInt(directory.uid, 0, 0x7fff_ffff, "reconciliation_custody_namespace_invalid") !== serviceUid ||
@@ -708,6 +720,7 @@ function normalizeDirectory(
   }
   return Object.freeze({
     resolved_path: resolved,
+    object_type: "directory",
     dev: rootDev,
     ino: decimal(directory.ino, "reconciliation_custody_namespace_invalid"),
     mount_id: rootMountId,
@@ -743,6 +756,7 @@ function normalizePayerDomain(
       false,
       "reconciliation_custody_payer_domain_invalid",
     ) !== expectedPath ||
+    file.object_type !== "regular_file" ||
     decimal(file.dev, "reconciliation_custody_payer_domain_invalid") !== rootDev ||
     safeInt(file.mount_id, 1, 0x7fff_ffff, "reconciliation_custody_payer_domain_invalid") !== rootMountId ||
     safeInt(file.uid, 0, 0x7fff_ffff, "reconciliation_custody_payer_domain_invalid") !== serviceUid ||
@@ -757,6 +771,7 @@ function normalizePayerDomain(
   }
   return Object.freeze({
     resolved_path: expectedPath,
+    object_type: "regular_file",
     dev: rootDev,
     ino: decimal(file.ino, "reconciliation_custody_payer_domain_invalid"),
     mount_id: rootMountId,
@@ -1012,14 +1027,28 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
       serviceUid,
       serviceGid,
     );
-    const inodeSet = new Set([
-      String(root.ino),
-      String(payerDomain.ino),
-      String(records.ino),
-      String(reconciliations.ino),
-      String(queue.ino),
+    const retainedIdentities = [
+      root,
+      payerDomain,
+      records,
+      reconciliations,
+      queue,
+    ].map(
+      (entry) => String(entry.dev) + ":" + String(entry.ino),
+    );
+    const ancestorIdentities = (
+      root.ancestors as readonly Record<string, unknown>[]
+    ).map(
+      (entry) => String(entry.dev) + ":" + String(entry.ino),
+    );
+    const identitySet = new Set([
+      ...retainedIdentities,
+      ...ancestorIdentities,
     ]);
-    if (inodeSet.size !== 5) {
+    if (
+      identitySet.size !==
+      retainedIdentities.length + ancestorIdentities.length
+    ) {
       fail("reconciliation_custody_identity_alias_invalid");
     }
 
