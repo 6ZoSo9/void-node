@@ -66,6 +66,15 @@ content SHA-256.
 All five retained identities (root, payer-domain file, records,
 reconciliations, queue) must have distinct inodes on the same device.
 
+The caller supplies the payer address, **not** an expected payer-domain ID.
+The classifier reuses
+`buildCoupledNativeGasStorePayerDomainV1(...)` and
+`serializeCoupledNativeGasStorePayerDomainV1(...)` from the merged canonical
+liability store to derive both the exact `payer_domain_id` and the exact
+SHA-256 of `payer-domain-v1.json`. Host evidence must match both derived
+values. A caller-selected domain ID or syntactically valid but noncanonical
+file digest cannot become custody authority.
+
 A missing or alternate reconciliation namespace therefore HOLDS. There is no
 fallback to a user-home or alternate path.
 
@@ -201,5 +210,6 @@ The focused proof covers a green synthetic evidence snapshot plus stale/future/
 overlong evidence, zero generation, service/runtime identity collapse, unsafe or
 runtime-writable ancestors, root symlink/replacement authority, bind/remount
 authority, wrong mount target, alternate reconciliation namespace, inode alias,
-payer-domain mismatch/link alias, service hardening drift, writable-path drift,
+payer-address/domain mismatch, noncanonical payer-domain file digest/link alias,
+service hardening drift, writable-path drift,
 failed negative tests, fallback storage, and missing required namespace.
