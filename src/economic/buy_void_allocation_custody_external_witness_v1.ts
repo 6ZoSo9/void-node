@@ -1,9 +1,18 @@
 import crypto from "node:crypto";
 
 import {
+  VOID_BUY_VOID_ALLOCATION_RESERVATION_HIGH_WATER_SCHEMA_V1,
+  VOID_BUY_VOID_ALLOCATION_RESERVATION_HIGH_WATER_V1,
   classifyBuyVoidAllocationReservationHighWaterBindingV1,
   deriveBuyVoidAllocationReservationHighWaterV1,
 } from "./buy_void_allocation_reservation_high_water_v1.js";
+import {
+  VOID_BUY_VOID_ALLOCATION_RESERVATION_GENESIS_HASH_V1,
+  classifyBuyVoidAllocationReservationLedgerV1,
+} from "./buy_void_allocation_reservation_ledger_v1.js";
+import {
+  VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1,
+} from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_EXTERNAL_WITNESS_EVENT_V1 =
   "VOID_BUY_ALLOCATION_CUSTODY_HIGH_WATER_WITNESS_EVENT_V1";
@@ -912,6 +921,81 @@ function witnessedCanonicalPrefixMatches(
   );
 }
 
+function witnessHistoryMatchesCanonicalCurrentLedger(
+  events: readonly Readonly<BuyVoidAllocationCustodyExternalWitnessEventV1>[],
+  currentLedgerBytes: Buffer,
+): boolean {
+  const ledger =
+    classifyBuyVoidAllocationReservationLedgerV1(currentLedgerBytes);
+  if (ledger.ok === false || events.length < 1) {
+    return false;
+  }
+  const tip = events.at(-1);
+  if (!tip || ledger.record_count < tip.record_count) {
+    return false;
+  }
+
+  const pool: string =
+    VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1
+      .canonical_presale_max_void;
+  const rolling = crypto.createHash("sha256");
+  let prefixBytes = 0;
+
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    let tipHash =
+      VOID_BUY_VOID_ALLOCATION_RESERVATION_GENESIS_HASH_V1;
+    let reserved = "0";
+    let remaining = pool;
+
+    if (index > 0) {
+      const record = ledger.records[index - 1];
+      if (!record) return false;
+      const line = Buffer.from(JSON.stringify(record) + "\n", "utf8");
+      rolling.update(line);
+      prefixBytes += line.length;
+      tipHash = record.allocation_record_hash;
+      reserved = record.reserved_void_total_after;
+      remaining = record.remaining_void_after;
+    }
+
+    const ledgerSha256 =
+      "sha256:" + rolling.copy().digest("hex");
+    const highWaterJson =
+      JSON.stringify({
+        schema:
+          VOID_BUY_VOID_ALLOCATION_RESERVATION_HIGH_WATER_SCHEMA_V1,
+        marker:
+          VOID_BUY_VOID_ALLOCATION_RESERVATION_HIGH_WATER_V1,
+        version: 1,
+        record_count: index,
+        tip_hash: tipHash,
+        ledger_sha256: ledgerSha256,
+        ledger_bytes: prefixBytes,
+        pool_void_total: pool,
+        reserved_void_total: reserved,
+        remaining_void: remaining,
+      }) + "\n";
+    const highWaterBytes = Buffer.from(highWaterJson, "utf8");
+
+    if (
+      event.record_count !== index ||
+      event.ledger_bytes !== prefixBytes ||
+      event.ledger_sha256 !== ledgerSha256 ||
+      event.allocation_tip_sha256 !== tipHash ||
+      event.high_water_bytes !== highWaterBytes.length ||
+      event.high_water_sha256 !== sha256Id(highWaterBytes) ||
+      event.pool_void_total !== pool ||
+      event.reserved_void_total !== reserved ||
+      event.remaining_void !== remaining
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function currentInvariantTuple(
   current: BuyVoidAllocationCustodyExternalWitnessCurrentV1,
 ): readonly unknown[] {
@@ -985,6 +1069,21 @@ export function classifyBuyVoidAllocationCustodyExternalWitnessV1(
         witness_record_count: journal.tip.record_count,
         local_record_count: current.record_count,
         rollback_regression_detected: true,
+      });
+    }
+
+    if (
+      !witnessHistoryMatchesCanonicalCurrentLedger(
+        journal.events,
+        canonical.ledger_bytes,
+      )
+    ) {
+      return Object.freeze({
+        ...held("allocation_custody_witness_local_history_conflict"),
+        event_count: journal.event_count,
+        witness_tip_sha256: journal.tip.event_sha256,
+        witness_record_count: journal.tip.record_count,
+        local_record_count: current.record_count,
       });
     }
 
@@ -1080,6 +1179,15 @@ export function planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(
       )
     ) {
       fail("allocation_custody_witness_current_policy_mismatch");
+    }
+
+    if (
+      !witnessHistoryMatchesCanonicalCurrentLedger(
+        journal.events,
+        canonical.ledger_bytes,
+      )
+    ) {
+      fail("allocation_custody_witness_historical_history_conflict");
     }
 
     if (current.record_count === tip.record_count) {

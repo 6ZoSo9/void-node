@@ -322,6 +322,15 @@ const alternateFirst = requireOk(
     created_at_ms: baseInput.created_at_ms + 2,
   }),
 );
+const alternateLedger1 = alternateFirst.next_ledger_jsonl;
+const alternateHigh1 = requireOk(
+  deriveBuyVoidAllocationReservationHighWaterV1(alternateLedger1),
+);
+const alternateCurrent1 = currentFrom(
+  alternateLedger1,
+  alternateHigh1,
+);
+
 const alternateSecond = requireOk(
   planBuyVoidAllocationReservationV1({
     ...baseInput,
@@ -456,6 +465,185 @@ let advancedJournal: Buffer;
   assert.equal(parsed.tip.record_count, 1);
 }
 
+let mixedHistoryJournal: Buffer;
+{
+  const alternatePlanned1 =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: genesis,
+      current_state: alternateCurrent1,
+      current_ledger_jsonl: alternateLedger1,
+      current_high_water_json: alternateHigh1.high_water_json,
+    });
+  assert.equal(alternatePlanned1.ok, true);
+  if (alternatePlanned1.ok !== true) {
+    throw new Error("alternate_witness_record_1_missing");
+  }
+
+  const alternateJournal1 = Buffer.from(
+    alternatePlanned1.next_witness_jsonl,
+  );
+  const alternatePlanned2 =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: alternateJournal1,
+      current_state: alternateCurrent2,
+      current_ledger_jsonl: alternateLedger2,
+      current_high_water_json: alternateHigh2.high_water_json,
+    });
+  assert.equal(alternatePlanned2.ok, true);
+  if (alternatePlanned2.ok !== true) {
+    throw new Error("alternate_witness_record_2_missing");
+  }
+
+  const parsedA =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      advancedJournal,
+    );
+  const parsedB =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      alternatePlanned2.next_witness_jsonl,
+    );
+  const a1 = parsedA.events[1];
+  const b2 = parsedB.events[2];
+  assert.ok(a1);
+  assert.ok(b2);
+  assert.notEqual(
+    a1.ledger_sha256,
+    parsedB.events[1]?.ledger_sha256,
+    "proof must combine genuinely divergent record-1 histories",
+  );
+
+  const mixedB2 = rehashWitnessEvent({
+    ...b2,
+    previous_event_sha256: a1.event_sha256,
+  });
+  mixedHistoryJournal = Buffer.concat([
+    genesis,
+    Buffer.from(canonicalJson(a1) + "\n", "utf8"),
+    Buffer.from(canonicalJson(mixedB2) + "\n", "utf8"),
+  ]);
+
+  const syntactic =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      mixedHistoryJournal,
+    );
+  assert.equal(syntactic.event_count, 3);
+  assert.equal(syntactic.tip.record_count, 2);
+  assert.equal(
+    syntactic.tip.ledger_sha256,
+    alternateCurrent2.ledger_sha256,
+    "mixed witness tip must still name the canonical B2 ledger",
+  );
+
+  const matched =
+    classifyBuyVoidAllocationCustodyExternalWitnessV1({
+      witness_jsonl: mixedHistoryJournal,
+      current_state: alternateCurrent2,
+      current_ledger_jsonl: alternateLedger2,
+      current_high_water_json: alternateHigh2.high_water_json,
+    });
+  assert.equal(matched.ok, false);
+  assert.equal(
+    matched.reason,
+    "allocation_custody_witness_local_history_conflict",
+  );
+
+  const idempotent =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: mixedHistoryJournal,
+      current_state: alternateCurrent2,
+      current_ledger_jsonl: alternateLedger2,
+      current_high_water_json: alternateHigh2.high_water_json,
+    });
+  assert.equal(idempotent.ok, false);
+  assert.equal(
+    idempotent.reason,
+    "allocation_custody_witness_historical_history_conflict",
+  );
+
+  const planned =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: mixedHistoryJournal,
+      current_state: alternateCurrent3,
+      current_ledger_jsonl: alternateLedger3,
+      current_high_water_json: alternateHigh3.high_water_json,
+    });
+  assert.equal(planned.ok, false);
+  assert.equal(
+    planned.reason,
+    "allocation_custody_witness_historical_history_conflict",
+  );
+}
+
+{
+  const secondAdvance = requireOk(
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: advancedJournal!,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    }),
+  );
+  assert.equal(secondAdvance.status, "planned");
+  const threeEventJournal = Buffer.from(
+    secondAdvance.next_witness_jsonl,
+  );
+  const parsedThree =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      threeEventJournal,
+    );
+  assert.equal(parsedThree.event_count, 3);
+
+  const tamperedMiddle = rehashWitnessEvent({
+    ...parsedThree.events[1],
+    ledger_sha256: sha("f"),
+  });
+  const repairedTip = rehashWitnessEvent({
+    ...parsedThree.events[2],
+    previous_event_sha256:
+      String(tamperedMiddle.event_sha256),
+  });
+  const rehashedHistoricalConflict = Buffer.concat([
+    genesis,
+    Buffer.from(canonicalJson(tamperedMiddle) + "\n", "utf8"),
+    Buffer.from(canonicalJson(repairedTip) + "\n", "utf8"),
+  ]);
+  const syntactic =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+      rehashedHistoricalConflict,
+    );
+  assert.equal(syntactic.event_count, 3);
+  assert.equal(
+    syntactic.events[2].previous_event_sha256,
+    tamperedMiddle.event_sha256,
+  );
+
+  const classified =
+    classifyBuyVoidAllocationCustodyExternalWitnessV1({
+      witness_jsonl: rehashedHistoricalConflict,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    });
+  assert.equal(classified.ok, false);
+  assert.equal(
+    classified.reason,
+    "allocation_custody_witness_local_history_conflict",
+  );
+
+  const planned =
+    planBuyVoidAllocationCustodyExternalWitnessAdvanceV1({
+      witness_jsonl: rehashedHistoricalConflict,
+      current_state: current2,
+      current_ledger_jsonl: ledger2,
+      current_high_water_json: high2.high_water_json,
+    });
+  assert.equal(planned.ok, false);
+  assert.equal(
+    planned.reason,
+    "allocation_custody_witness_historical_history_conflict",
+  );
+}
+
 {
   const parsed =
     parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
@@ -506,7 +694,7 @@ let advancedJournal: Buffer;
   assert.equal(planned.ok, false);
   assert.equal(
     planned.reason,
-    "allocation_custody_witness_advance_invalid",
+    "allocation_custody_witness_historical_history_conflict",
   );
 }
 
@@ -673,7 +861,7 @@ let advancedJournal: Buffer;
   assert.equal(planned.ok, false);
   assert.equal(
     planned.reason,
-    "allocation_custody_witness_advance_invalid",
+    "allocation_custody_witness_historical_history_conflict",
   );
 }
 
@@ -711,6 +899,7 @@ console.log("same_epoch_conflict_rejected=true");
 console.log("unanchored_local_advance_hold=true");
 console.log("rollback_regression_detected=true");
 console.log("multi_record_local_history_conflict_rejected=true");
+console.log("rehashed_middle_history_conflict_rejected=true");
 console.log("truncated_witness_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("exact_single_record_advance=true");
@@ -721,6 +910,9 @@ console.log("canonical_micro_void_inventory=true");
 console.log("canonical_local_ledger_high_water_binding=true");
 console.log("exact_witnessed_ledger_prefix_binding=true");
 console.log("alternate_history_rejected=true");
+console.log("mixed_historical_witness_matched_rejected=true");
+console.log("mixed_historical_witness_idempotent_rejected=true");
+console.log("mixed_historical_witness_planned_rejected=true");
 console.log("external_transport_authenticated=false");
 console.log("external_witness_storage_proven=false");
 console.log("runtime_integration=false");
