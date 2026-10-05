@@ -274,6 +274,21 @@ function sortedList(value) {
   return Object.freeze([...new Set(items)].sort());
 }
 
+export function restrictMountNamespaceDeniedV1(value) {
+  const raw = String(value || "").trim();
+  if (raw === "yes") return true;
+  if (!raw || raw === "no") return false;
+  const denyList = raw.startsWith("~");
+  const tokens = raw
+    .replace(/^~/u, "")
+    .split(/\s+/u)
+    .filter(Boolean);
+  if (tokens.length < 1) return false;
+  return denyList
+    ? tokens.includes("mnt")
+    : !tokens.includes("mnt");
+}
+
 function canMutateDirectory(stat, creds) {
   const bits = Number(stat.mode & 0o777n);
   let permission;
@@ -467,6 +482,7 @@ function systemdShow(unit) {
     "CapabilityBoundingSet",
     "AmbientCapabilities",
     "ReadWritePaths",
+    "RestrictNamespaces",
   ];
   return runText(SYSTEMCTL, [
     "show",
@@ -926,13 +942,20 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
 
     const parentWritable =
       canMutateDirectory(pathsBefore.parent_stat, publicCredsBefore);
+    const publicPolicy =
+      parseSystemdShowV1(publicShowBefore);
+    const namespaceMutationDenied =
+      restrictMountNamespaceDeniedV1(
+        publicPolicy.RestrictNamespaces,
+      );
     const negativeTests = Object.freeze({
       same_uid_root_rename_denied: !parentWritable,
       same_uid_root_recreate_denied: !parentWritable,
       symlink_substitution_denied: !parentWritable,
-      bind_mount_substitution_denied: true,
-      remount_denied: true,
-      alternate_namespace_substitution_denied: true,
+      bind_mount_substitution_denied: namespaceMutationDenied,
+      remount_denied: namespaceMutationDenied,
+      alternate_namespace_substitution_denied:
+        namespaceMutationDenied,
     });
 
     const classifierInput = Object.freeze({
@@ -979,6 +1002,8 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
         public_runtime_start_time_ticks:
           publicCredsBefore.start_time_ticks,
         public_runtime_unit_sha256: sha256Id(publicCatBefore),
+        public_runtime_restrict_namespaces:
+          String(publicPolicy.RestrictNamespaces || ""),
         custody_service_unit: custodyUnit,
         custody_service_pid: custodyUnitBefore.pid,
         custody_service_start_time_ticks:
