@@ -26,6 +26,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_AUTHOR
     mountinfo_read: true,
     mount_namespace_read: true,
     collector_in_custody_mount_namespace_required: true,
+    collector_in_custody_filesystem_root_required: true,
     public_runtime_mount_namespace_may_differ: true,
     filesystem_metadata_read: true,
     payer_domain_file_read: true,
@@ -933,6 +934,50 @@ export function testOnlyBuildMountNamespaceBundleV1(
   return namespaceBundle(selfNs, publicNs, custodyNs);
 }
 
+function readProcessFilesystemRootIdentity(procRoot) {
+  const stat = fs.statSync(path.join(procRoot, "root"), {
+    bigint: true,
+  });
+  if (!stat.isDirectory()) {
+    throw new Error("process_filesystem_root_invalid");
+  }
+  return Object.freeze({
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    uid: Number(stat.uid),
+    gid: Number(stat.gid),
+    mode: modeText(stat),
+  });
+}
+
+function filesystemRootBundle(selfRoot, publicRoot, custodyRoot) {
+  if (
+    selfRoot.dev !== custodyRoot.dev ||
+    selfRoot.ino !== custodyRoot.ino
+  ) {
+    throw new Error("collector_not_in_custody_filesystem_root");
+  }
+  return Object.freeze({
+    collector: selfRoot,
+    public_runtime: publicRoot,
+    custody_service: custodyRoot,
+    identity_sha256: sha256Id(canonical(custodyRoot)),
+    public_runtime_identity_sha256:
+      sha256Id(canonical(publicRoot)),
+    public_runtime_shared_with_custody:
+      publicRoot.dev === custodyRoot.dev &&
+      publicRoot.ino === custodyRoot.ino,
+  });
+}
+
+export function testOnlyBuildFilesystemRootBundleV1(
+  selfRoot,
+  publicRoot,
+  custodyRoot,
+) {
+  return filesystemRootBundle(selfRoot, publicRoot, custodyRoot);
+}
+
 function buildDecision({
   live,
   expectedHostname,
@@ -943,6 +988,8 @@ function buildDecision({
   publicRuntimeMountInfoAfter,
   namespaceBefore,
   namespaceAfter,
+  filesystemRootBefore,
+  filesystemRootAfter,
   classifierInput,
   collectorEvidence,
 }) {
@@ -961,6 +1008,9 @@ function buildDecision({
       canonical(namespaceBefore) !== canonical(namespaceAfter)
     ) {
       return hold("mount_namespace_changed_during_observation");
+    }
+    if (canonical(filesystemRootBefore) !== canonical(filesystemRootAfter)) {
+      return hold("filesystem_root_changed_during_observation");
     }
     const qualification =
       classifyCoupledNativeGasReconciliationCustodyQualificationV1(
@@ -989,6 +1039,12 @@ function buildDecision({
         namespaceBefore.public_runtime_identity_sha256,
       public_runtime_mount_namespace_shared_with_custody:
         namespaceBefore.public_runtime_shared_with_custody,
+      filesystem_root_identity_sha256:
+        filesystemRootBefore.identity_sha256,
+      public_runtime_filesystem_root_identity_sha256:
+        filesystemRootBefore.public_runtime_identity_sha256,
+      public_runtime_filesystem_root_shared_with_custody:
+        filesystemRootBefore.public_runtime_shared_with_custody,
       mountinfo_sha256: sha256Id(mountInfoBefore),
       public_runtime_mountinfo_sha256:
         sha256Id(publicRuntimeMountInfoBefore),
@@ -1088,6 +1144,11 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       readNamespaceIdentity(publicProc),
       readNamespaceIdentity(custodyProc),
     );
+    const filesystemRootBefore = filesystemRootBundle(
+      readProcessFilesystemRootIdentity("/proc/self"),
+      readProcessFilesystemRootIdentity(publicProc),
+      readProcessFilesystemRootIdentity(custodyProc),
+    );
     const mountInfoPath =
       path.join(custodyProc, "mountinfo");
     const publicRuntimeMountInfoPath =
@@ -1151,6 +1212,11 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       readNamespaceIdentity("/proc/self"),
       readNamespaceIdentity(publicProc),
       readNamespaceIdentity(custodyProc),
+    );
+    const filesystemRootAfter = filesystemRootBundle(
+      readProcessFilesystemRootIdentity("/proc/self"),
+      readProcessFilesystemRootIdentity(publicProc),
+      readProcessFilesystemRootIdentity(custodyProc),
     );
     const pathsAfter = collectPathEvidence(
       rootPath,
@@ -1251,6 +1317,8 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       publicRuntimeMountInfoAfter,
       namespaceBefore,
       namespaceAfter,
+      filesystemRootBefore,
+      filesystemRootAfter,
       classifierInput,
       collectorEvidence: Object.freeze({
         observed_at_ms: observedAt,
@@ -1275,6 +1343,12 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
           namespaceBefore.public_runtime_shared_with_custody,
         public_runtime_payer_root_mapping:
           publicRuntimePathMappingBefore,
+        filesystem_root_identity_sha256:
+          filesystemRootBefore.identity_sha256,
+        public_runtime_filesystem_root_identity_sha256:
+          filesystemRootBefore.public_runtime_identity_sha256,
+        public_runtime_filesystem_root_shared_with_custody:
+          filesystemRootBefore.public_runtime_shared_with_custody,
         mountinfo_sha256: sha256Id(mountInfoBefore),
         public_runtime_mountinfo_sha256:
           sha256Id(publicRuntimeMountInfoBefore),
@@ -1302,6 +1376,7 @@ if (
       VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
       "read_only=true",
       "collector_in_custody_mount_namespace_required=true",
+      "collector_in_custody_filesystem_root_required=true",
       "public_runtime_mount_namespace_may_differ=true",
       "live_host_qualification_performed=false",
       "production_gate_ready=false",
