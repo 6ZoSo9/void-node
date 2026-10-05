@@ -18,6 +18,7 @@ import {
   restrictMountNamespaceDeniedV1,
   testOnlyBuildMountNamespaceBundleV1,
   testOnlyClassifyCollectedHostEvidenceV1,
+  testOnlyPublicRuntimePathMappingV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs";
 
 function sha256Id(value) {
@@ -169,6 +170,73 @@ assert.equal(
   restrictMountNamespaceDeniedV1("user mnt ipc"),
   false,
 );
+
+{
+  const fakeProc = fs.mkdtempSync("/tmp/void-public-runtime-root-v1-");
+  try {
+    const logicalParent = "/var/lib/void/native-gas";
+    const logicalRoot = logicalParent + "/payer-a";
+    const fakeParent = fakeProc + "/root" + logicalParent;
+    const fakeRoot = fakeProc + "/root" + logicalRoot;
+    fs.mkdirSync(fakeRoot, { recursive: true, mode: 0o755 });
+    fs.chmodSync(fakeParent, 0o755);
+    fs.chmodSync(fakeRoot, 0o700);
+    const rootStat = fs.lstatSync(fakeRoot, { bigint: true });
+    const parentStat = fs.lstatSync(fakeParent, { bigint: true });
+    const creds = { uid: 99_999, gid: 99_999, groups: [] };
+    const custodyPaths = {
+      root_identity: { stat: rootStat },
+      payer_root: {
+        ancestors: [
+          {
+            path: logicalParent,
+            dev: String(parentStat.dev),
+            ino: String(parentStat.ino),
+          },
+        ],
+      },
+    };
+    const mountRecords = [
+      {
+        mount_point: logicalParent,
+        mount_id: 177,
+        parent_id: 33,
+        major_minor: "8:17",
+      },
+    ];
+    const mapped = testOnlyPublicRuntimePathMappingV1(
+      logicalRoot,
+      fakeProc,
+      creds,
+      mountRecords,
+      custodyPaths,
+    );
+    assert.equal(mapped.payer_root_ino, String(rootStat.ino));
+    assert.equal(mapped.payer_root_mount_id, 177);
+
+    assert.throws(
+      () =>
+        testOnlyPublicRuntimePathMappingV1(
+          logicalRoot,
+          fakeProc,
+          creds,
+          mountRecords,
+          {
+            ...custodyPaths,
+            root_identity: {
+              stat: {
+                ...rootStat,
+                ino: rootStat.ino + 1n,
+              },
+            },
+          },
+        ),
+      /public_runtime_payer_root_mapping_mismatch/u,
+    );
+  } finally {
+    fs.rmSync(fakeProc, { recursive: true, force: true });
+  }
+}
 
 const now = 1_800_000_000_000;
 const payerAddress = "0x" + "a".repeat(40);
@@ -352,6 +420,10 @@ function collect(input = {}) {
       "77 33 8:17 / /var/lib/void/native-gas rw,nodev,nosuid - ext4 /dev/disk/by-uuid/void-gas rw\n",
     mountInfoAfter:
       "77 33 8:17 / /var/lib/void/native-gas rw,nodev,nosuid - ext4 /dev/disk/by-uuid/void-gas rw\n",
+    publicRuntimeMountInfoBefore:
+      "177 33 8:17 / /var/lib/void/native-gas rw,nodev,nosuid - ext4 /dev/disk/by-uuid/void-gas rw\n",
+    publicRuntimeMountInfoAfter:
+      "177 33 8:17 / /var/lib/void/native-gas rw,nodev,nosuid - ext4 /dev/disk/by-uuid/void-gas rw\n",
     namespaceBefore: namespace,
     namespaceAfter: namespace,
     classifierInput: classifierInput(),
@@ -383,6 +455,10 @@ assert.equal(
   green.public_runtime_mount_namespace_identity_sha256,
   namespace.public_runtime_identity_sha256,
 );
+assert.match(
+  green.public_runtime_mountinfo_sha256,
+  /^sha256:[0-9a-f]{64}$/u,
+);
 assert.equal(green.qualification.ok, true);
 assert.equal(green.qualification.status, "source_qualified");
 assert.equal(green.qualification.live_host_qualification_performed, false);
@@ -410,6 +486,18 @@ assert.equal(green.funds_movement, false);
   });
   assert.equal(held.ok, false);
   assert.equal(held.reason, "mountinfo_changed_during_observation");
+}
+
+{
+  const held = collect({
+    publicRuntimeMountInfoAfter:
+      "178 33 8:17 / /var/lib/void/native-gas rw,nodev,nosuid - ext4 /dev/disk/by-uuid/void-gas rw\n",
+  });
+  assert.equal(held.ok, false);
+  assert.equal(
+    held.reason,
+    "public_runtime_mountinfo_changed_during_observation",
+  );
 }
 
 {
@@ -451,6 +539,9 @@ for (const token of [
   "fs.fstatSync(",
   "fs.realpathSync(",
   "mountinfo_changed_during_observation",
+  "public_runtime_mountinfo_changed_during_observation",
+  "public_runtime_payer_root_mapping_mismatch",
+  "public_runtime_ancestor_mapping_mismatch",
   "mount_namespace_changed_during_observation",
   "collector_not_in_custody_mount_namespace",
   "public_runtime_shared_with_custody",
@@ -508,6 +599,8 @@ console.log("mount_namespace_identity_bound=true");
 console.log("collector_in_custody_mount_namespace_required=true");
 console.log("public_runtime_mount_namespace_may_differ=true");
 console.log("public_runtime_mount_namespace_identity_bound=true");
+console.log("public_runtime_mountinfo_snapshot_stability_required=true");
+console.log("public_runtime_canonical_path_mapping_required=true");
 console.log("systemd_direct_control_verb_denials_complete=true");
 console.log("systemd_unit_file_mutation_denied=true");
 console.log("systemd_daemon_reload_denied=true");
