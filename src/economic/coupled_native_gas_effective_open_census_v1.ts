@@ -22,6 +22,7 @@ export const VOID_COUPLED_NATIVE_GAS_EFFECTIVE_OPEN_CENSUS_AUTHORITY_V1 =
     immutable_reconciliation_history: true,
     exact_liability_identity_rederived: true,
     exact_reconciliation_identity_rederived: true,
+    stable_terminal_cost_identity_required: true,
     reconciliation_liability_binding_required: true,
     one_reconciliation_per_liability: true,
     orphan_reconciliation_rejected: true,
