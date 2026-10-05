@@ -382,6 +382,36 @@ try {
   });
   assert.equal(reason(remote), "rpc_url_must_be_loopback_http");
   assert.deepEqual(calls, []);
+
+  const localhostFixture = createBroadcastAttempt();
+  roots.push(localhostFixture.root);
+  calls = [];
+  const localhost = await runBuyVoidNativeDeliveryReceiptReconcilerV1({
+    root_dir: localhostFixture.root,
+    attempt_id: localhostFixture.attemptId,
+    intent: localhostFixture.intent,
+    policy: { ...policy(), rpc_url: "http://localhost:8545/" },
+    transport: transport({ calls }),
+  });
+  assert.equal(reason(localhost), "rpc_url_must_be_loopback_http");
+  assert.deepEqual(calls, []);
+
+  const ipv6Fixture = createBroadcastAttempt();
+  roots.push(ipv6Fixture.root);
+  calls = [];
+  const ipv6 = await runBuyVoidNativeDeliveryReceiptReconcilerV1({
+    root_dir: ipv6Fixture.root,
+    attempt_id: ipv6Fixture.attemptId,
+    intent: ipv6Fixture.intent,
+    policy: { ...policy(), rpc_url: "http://[::1]:8545/" },
+    transport: transport({ calls }),
+  });
+  assert.equal(ipv6.ok, true);
+  assert.deepEqual(calls, [
+    "eth_chainId",
+    "eth_getTransactionReceipt",
+    "eth_blockNumber",
+  ]);
 } finally {
   for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
 }
@@ -389,6 +419,8 @@ try {
 console.log("marker=VOID_BUY_VOID_NATIVE_DELIVERY_RECEIPT_RECONCILER_V1");
 console.log("read_only_rpc_method_count=3");
 console.log("loopback_http_only=1");
+console.log("numeric_loopback_literal_required=1");
+console.log("localhost_hostname_rejected=1");
 console.log("dry_run_mutation_count=0");
 console.log("confirmed_reconciliation=1");
 console.log("reverted_reconciliation=1");
