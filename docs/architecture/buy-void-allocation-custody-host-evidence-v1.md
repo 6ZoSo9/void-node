@@ -35,12 +35,17 @@ The custody service contract remains source-only. Observing it does not install
 or start a service.
 
 All security-sensitive file evidence is read through a retained
-`O_NOFOLLOW` descriptor. The collector binds the visible pathname to the
-opened inode, reads from that exact descriptor, re-`fstat`s it, and finally
-rebinds the visible pathname to the same inode. This prevents a pathname swap
-between census and read from substituting different bytes. Procfs pseudo-files
-whose stat size is zero are still accepted only when the retained descriptor
-returns non-empty bytes within the reviewed ceiling.
+descriptor chain. The collector opens the filesystem root with
+`O_DIRECTORY|O_NOFOLLOW`, walks every ancestor component descriptor-relative
+through `/proc/self/fd/<dirfd>/<component>` with
+`O_DIRECTORY|O_NOFOLLOW`, and opens the final basename from the retained
+parent with `O_NOFOLLOW`. The collector then binds the visible pathname to
+the opened inode, reads from that exact file descriptor, re-`fstat`s it, and
+finally rebinds the visible pathname to the same inode. Symlinked ancestors and
+a symlink final component therefore fail closed rather than redirecting the
+evidence read. Procfs pseudo-files whose stat size is zero are still accepted
+only when the retained descriptor returns non-empty bytes within the reviewed
+ceiling.
 
 Repository cleanliness is observed with `git --no-optional-locks`; the
 collector does not rely on a normal Git status refresh. For the writer source,
