@@ -10,6 +10,9 @@ on:
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs"
       - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
       - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
       - "scripts/prove_void_wc_void_market_vault_compiled_identity_correction_v2.mjs"
@@ -37,6 +40,9 @@ on:
       - "tools/void-wc-void-launch-controller-control-requalification-v1.mjs"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs"
       - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
       - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
       - "scripts/prove_void_wc_void_market_vault_compiled_identity_correction_v2.mjs"
@@ -77,10 +83,14 @@ jobs:
           node --check tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs
           node --check scripts/prove_void_wc_void_market_vault_role_deployment_qualification_v1.mjs
           node --check tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs
+          node --check tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs
+          node --check scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs
           node --check scripts/prove_void_wc_void_market_vault_compiled_identity_correction_v2.mjs
       - name: Prove compiled identity correction
         run: node scripts/prove_void_wc_void_market_vault_compiled_identity_correction_v2.mjs
-      - name: Prove current role and deployment qualification hold
+      - name: Prove corrected current compiled identity
+        run: node scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs
+      - name: Prove corrected role and deployment preparation
         run: node scripts/prove_void_wc_void_market_vault_role_deployment_qualification_v1.mjs
       - name: Upstream source regressions
         run: |
