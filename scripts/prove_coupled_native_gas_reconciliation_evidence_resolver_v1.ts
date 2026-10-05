@@ -101,6 +101,19 @@ function sha256Canonical(value: unknown): string {
   return crypto.createHash("sha256").update(canonical(value), "utf8").digest("hex");
 }
 
+function stableFingerprint(parts: Record<string, string>): string {
+  return crypto
+    .createHash("sha256")
+    .update(
+      Object.keys(parts)
+        .sort()
+        .map((key) => key + "=" + parts[key])
+        .join("\n"),
+      "utf8",
+    )
+    .digest("hex");
+}
+
 function snapshotTree(root: string): string {
   const rows: string[] = [];
   const visit = (current: string) => {
@@ -551,6 +564,79 @@ assert.equal(happy.packet.liability_release_authorized, false);
 assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
 
 {
+  const divergent = setupFixture(
+    "confirmation-journal-divergence",
+    "confirmed",
+  );
+  const outcomePath = path.join(
+    divergent.root,
+    "buy-void-broadcast-outcomes-v1",
+    "attempts",
+    divergent.plan.attempt_id,
+    "confirmed.json",
+  );
+  const outcome = JSON.parse(
+    fs.readFileSync(outcomePath, "utf8"),
+  );
+  const record = {
+    ...outcome.confirmed_record,
+    request_id:
+      String(outcome.confirmed_record.request_id) + "_diverged",
+  };
+  record.delivery_binding_fingerprint = stableFingerprint({
+    canonical_payment_identity:
+      String(record.canonical_payment_identity),
+    request_id: String(record.request_id),
+    instruction_id: String(record.instruction_id),
+    delivery_chain_id: "2050",
+    void_delivery_tx_hash: String(record.void_delivery_tx_hash),
+    delivery_block_number: String(record.delivery_block_number),
+    delivery_block_hash: String(record.delivery_block_hash),
+    fulfillment_wallet: String(record.fulfillment_wallet),
+    delivery_address: String(record.delivery_address),
+    void_amount_units: String(record.void_amount_units),
+  });
+  outcome.confirmed_record = record;
+  outcome.confirmation_fingerprint = stableFingerprint({
+    marker: String(record.marker),
+    canonical_payment_identity:
+      String(record.canonical_payment_identity),
+    request_id: String(record.request_id),
+    instruction_id: String(record.instruction_id),
+    void_delivery_tx_hash: String(record.void_delivery_tx_hash),
+    delivery_block_hash: String(record.delivery_block_hash),
+    fulfillment_wallet: String(record.fulfillment_wallet),
+    delivery_address: String(record.delivery_address),
+    void_amount_units: String(record.void_amount_units),
+    delivery_block_number: String(record.delivery_block_number),
+    delivery_binding_fingerprint:
+      String(record.delivery_binding_fingerprint),
+  });
+  fs.writeFileSync(
+    outcomePath,
+    JSON.stringify(outcome, null, 2) + "\n",
+    { mode: 0o600 },
+  );
+
+  const held =
+    await resolveCoupledNativeGasReconciliationEvidenceV1({
+      root_dir: divergent.root,
+      liability: divergent.liability,
+      policy: rpcPolicy("confirmed"),
+    });
+  assert.equal(held.ok, false);
+  if (held.ok) {
+    throw new Error("expected confirmation-journal divergence HOLD");
+  }
+  assert.equal(held.stage, "terminal_outcome");
+  assert.equal(
+    held.reason,
+    "reconciliation_evidence_confirmation_journal_mismatch",
+  );
+  assert.deepEqual(held.rpc_methods_used, []);
+}
+
+{
   const aliasParent = fs.mkdtempSync(
     path.join(os.tmpdir(), "void-native-gas-resolver-symlink-ancestor-"),
   );
@@ -971,6 +1057,8 @@ console.log(
 console.log("exact_prepared_plan_lineage=true");
 console.log("derived_attempt_id_only=true");
 console.log("whole_terminal_outcome_state=true");
+console.log("execution_broadcast_confirmation_journals_bound=true");
+console.log("divergent_confirmation_journals_hold_before_rpc=true");
 console.log("numeric_loopback_chain2050_only=true");
 console.log("caller_transport_override=false");
 console.log("real_loopback_http_proof=true");
