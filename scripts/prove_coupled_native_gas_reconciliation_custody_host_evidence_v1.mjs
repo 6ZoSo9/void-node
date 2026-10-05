@@ -11,6 +11,7 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1,
+  assertSimpleAclTextV1,
   parseProcStatusV1,
   parseProcStatStartTimeV1,
   parseSystemdShowV1,
@@ -66,6 +67,46 @@ for (const [key, value] of Object.entries(
     "exact_classifier_reused",
   ]);
   assert.equal(value, trueKeys.has(key), key);
+}
+
+{
+  assert.doesNotThrow(() =>
+    assertSimpleAclTextV1(
+      [
+        "user::rwx",
+        "group::r-x",
+        "other::---",
+        "",
+      ].join("\n"),
+    ),
+  );
+  assert.throws(
+    () =>
+      assertSimpleAclTextV1(
+        [
+          "user::rwx",
+          "user:1000:rwx",
+          "group::r-x",
+          "mask::rwx",
+          "other::---",
+          "",
+        ].join("\n"),
+      ),
+    /custody_host_evidence_extended_acl_forbidden/u,
+  );
+  assert.throws(
+    () =>
+      assertSimpleAclTextV1(
+        [
+          "user::rwx",
+          "group::r-x",
+          "other::---",
+          "default:user::rwx",
+          "",
+        ].join("\n"),
+      ),
+    /custody_host_evidence_extended_acl_forbidden/u,
+  );
 }
 
 {
@@ -395,6 +436,9 @@ for (const token of [
   "SYSTEMCTL = \"/usr/bin/systemctl\"",
   "FINDMNT = \"/usr/bin/findmnt\"",
   "PKCHECK = \"/usr/bin/pkcheck\"",
+  "GETFACL = \"/usr/bin/getfacl\"",
+  "custody_host_evidence_extended_acl_forbidden",
+  "custody_host_evidence_acl_unavailable",
   "org.freedesktop.systemd1.manage-units",
   "org.freedesktop.systemd1.manage-unit-files",
   "org.freedesktop.systemd1.reload-daemon",
@@ -435,6 +479,8 @@ console.log("systemd_unit_file_mutation_denied=true");
 console.log("systemd_daemon_reload_denied=true");
 console.log("mountinfo_snapshot_stability_required=true");
 console.log("descriptor_bound_metadata_reads=true");
+console.log("extended_acl_rejected=true");
+console.log("mode_bit_permission_inference_acl_safe=true");
 console.log("synthetic_snapshot_authority=false");
 console.log("trusted_collector_proven=false");
 console.log("writer_generation_binding_proven=false");
