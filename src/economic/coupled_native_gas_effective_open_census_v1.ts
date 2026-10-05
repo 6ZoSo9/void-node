@@ -594,8 +594,11 @@ function validateReconciliation(
       "coupled_native_gas_effective_open_wc_void_reconciliation_not_supported",
     );
   }
+  const liabilityNativeValue =
+    BigInt(liability.transaction_native_value_wei);
   if (
     liability.attempt_limit !== 1 ||
+    liabilityNativeValue <= 0n ||
     value.liability_id !== liability.liability_id ||
     value.obligation_id !== liability.obligation_id ||
     payer !== liability.payer_address ||
@@ -609,8 +612,6 @@ function validateReconciliation(
     );
   }
 
-  const liabilityNativeValue =
-    BigInt(liability.transaction_native_value_wei);
   const liabilityGasLimit = BigInt(liability.gas_limit);
   const liabilityMaxFee =
     BigInt(liability.admitted_max_fee_per_gas_wei);
