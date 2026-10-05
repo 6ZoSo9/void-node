@@ -82,6 +82,8 @@ fallback to a user-home or alternate path.
 
 The payer root carries one mount-instance fingerprint over:
 
+- governing mount ID;
+- mount parent ID;
 - mount target;
 - source;
 - UUID;
@@ -96,6 +98,16 @@ declared mount target is an ancestor of the payer root rather than the payer
 root itself, that exact ancestor's device identity must also equal the payer
 root device. This prevents a syntactically valid mount fingerprint for one
 filesystem from being paired with payer-root evidence from another device.
+
+Device identity is still not enough to identify a mount instance: nested bind
+mounts of the same filesystem can share `st_dev`, major/minor, source, UUID,
+and filesystem type. The payer-root evidence therefore also carries the
+governing Linux mount ID, and it must equal the declared mount record's
+`mount_id`; the mount fingerprint additionally binds `parent_id`. A later
+read-only collector must derive that governing record from real
+`/proc/self/mountinfo` using longest mount-point-prefix resolution, matching
+the existing allocation-custody preflight pattern rather than selecting an
+arbitrary ancestor mount.
 
 The supplied evidence must state that the public runtime cannot remount or
 bind-mount the authority. The mount must be writable for the dedicated service.
@@ -167,7 +179,8 @@ production_gate_ready=false
 
 A positive source result emits a content-addressed receipt binding the host,
 snapshot generation/time/boot ID, payer-domain identity, payer-root
-device/inode, exact child inode identities, mount-instance fingerprint, service
+device/inode/governing-mount ID, exact child inode identities, mount-instance
+fingerprint, service
 unit digest, and static policy fingerprint.
 
 That receipt is only a source-classified evidence object. Its protected
@@ -217,7 +230,8 @@ The focused proof covers a green synthetic evidence snapshot plus stale/future/
 overlong evidence, zero generation, service/runtime identity collapse, unsafe or
 runtime-writable ancestors, root symlink/replacement authority, bind/remount
 authority, wrong mount target, root-device/mount-major-minor mismatch,
-mount-target ancestor device mismatch, alternate reconciliation namespace, inode alias,
+mount-target ancestor device mismatch, same-device governing mount-ID mismatch,
+alternate reconciliation namespace, inode alias,
 payer-address/domain mismatch, noncanonical payer-domain file digest/link alias,
 service hardening drift, writable-path drift,
 failed negative tests, fallback storage, and missing required namespace.
