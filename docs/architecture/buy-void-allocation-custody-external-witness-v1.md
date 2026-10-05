@@ -20,6 +20,13 @@ The source contract deliberately does not claim that the witness bytes came
 from Nimo, that a remote transport is authenticated, or that the remote file is
 durably protected. Those remain deployment/runtime gates.
 
+Every validation or advance also consumes the exact current canonical allocation
+ledger JSONL and high-water JSON. The contract reuses the merged #2442 binding
+classifier to require those bytes to agree exactly, then rederives record count,
+tip, ledger digest/length, high-water digest/length, pool, reserved and remaining
+VOID before comparing them with supplied host evidence. Caller-supplied digest
+fields alone are never witness authority.
+
 ## Event chain
 
 The witness is newline-terminated JSONL. Every event binds:
@@ -51,20 +58,31 @@ The first event must be exact genesis:
 - reserved total `0`; and
 - remaining VOID equal to the pool total.
 
-Every later event must be exactly one allocation record ahead. Ledger bytes,
-reserved VOID and the allocation tip must advance; remaining VOID must decrease.
-Immutable source/host/storage identities may not drift within one journal.
+Every later event must be exactly one allocation record ahead. Before planning
+that event, the canonical current ledger must contain the witnessed prior ledger
+as an exact byte prefix whose SHA-256 equals the witness tip's `ledger_sha256`.
+The full current ledger/high-water pair must independently pass #2442 binding.
+This rejects an alternate valid ledger branch that merely has record count
+`tip + 1`. Ledger bytes, reserved VOID and the allocation tip must advance;
+remaining VOID must decrease. Immutable source/host/storage identities may not
+drift within one journal.
 
 ## Current-state classification
 
 `classifyBuyVoidAllocationCustodyExternalWitnessV1(...)` returns `matched` only
-when the current local allocation state exactly equals the external witness tip.
+when the supplied exact current ledger/high-water bytes pass canonical #2442
+binding and the rederived current allocation state exactly equals the external
+witness tip.
 
 It HOLDs when:
 
 - the local record count is behind the witness tip: rollback detected;
 - the local record count is ahead of the witness tip: external witness update
   required before the new local state may be treated as anchored;
+- a one-record-ahead canonical ledger does not contain the exact witnessed
+  ledger bytes as its prefix: local history conflict;
+- supplied state metadata disagrees with the canonical current ledger/high-water
+  bytes: current-authority mismatch;
 - the record counts match but ledger/high-water/inventory bytes differ;
 - source, disk, machine, custody UUID, or witness-host policy identity differs;
 - the journal is truncated, malformed, tampered, noncanonical or not a valid
@@ -72,12 +90,16 @@ It HOLDs when:
 - a witness transition skips more than one allocation.
 
 `planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(...)` is pure. It returns
-only the exact next event/JSONL bytes for a one-record local advance. It performs
-no filesystem or network action.
+only the exact next event/JSONL bytes for a one-record canonical local advance
+whose prior ledger prefix is exactly the witnessed ledger. It performs no
+filesystem or network action.
 
 ## Live genesis evidence bound by the focused proof
 
-The focused proof binds the operator-qualified Nimo genesis witness:
+The focused proof binds the operator-qualified Nimo genesis witness, rederives
+the canonical genesis high-water from the merged allocation contracts, builds
+real canonical allocation ledgers for subsequent states, and includes an
+alternate valid ledger branch that must be rejected:
 
 - genesis event SHA-256:
   `sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654`;
