@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -35,10 +36,25 @@ function fixture(): string {
   return root;
 }
 
-function confirmation(): string {
+function confirmation(root: string): string {
+  const stat = fs.lstatSync(root, { bigint: true });
+  const payload =
+    JSON.stringify({
+      marker: "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_V1",
+      version: 1,
+      operation: "bootstrap_reconciliations_directory",
+      root_path: path.resolve(root),
+      root_dev: stat.dev.toString(),
+      root_ino: stat.ino.toString(),
+      root_uid: stat.uid.toString(),
+      root_gid: stat.gid.toString(),
+      root_mode: Number(stat.mode),
+      payer_domain_id:
+        buildCoupledNativeGasStorePayerDomainV1(PAYER).payer_domain_id,
+    }) + "\n";
   return (
     "bootstrapCoupledNativeGasReconciliationStorageV1:" +
-    buildCoupledNativeGasStorePayerDomainV1(PAYER).payer_domain_id
+    crypto.createHash("sha256").update(payload, "utf8").digest("hex")
   );
 }
 
@@ -122,12 +138,12 @@ async function main(): Promise<void> {
         bootstrapCoupledNativeGasReconciliationStorageV1({
           root_dir: root,
           payer_address: PAYER,
-          confirmation: confirmation(),
+          confirmation: confirmation(root),
         }),
         bootstrapCoupledNativeGasReconciliationStorageV1({
           root_dir: root,
           payer_address: PAYER,
-          confirmation: confirmation(),
+          confirmation: confirmation(root),
         }),
       ]);
       assert.equal(left.ok, true);
@@ -239,7 +255,7 @@ async function main(): Promise<void> {
         await bootstrapCoupledNativeGasReconciliationStorageV1({
           root_dir: root,
           payer_address: PAYER,
-          confirmation: confirmation(),
+          confirmation: confirmation(root),
         });
       assert.equal(replay.ok, true);
       if (replay.ok) {
@@ -249,6 +265,52 @@ async function main(): Promise<void> {
       }
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  {
+    const rootA = fixture();
+    const rootB = fixture();
+    try {
+      const confirmationA = confirmation(rootA);
+      const wrongRoot =
+        await bootstrapCoupledNativeGasReconciliationStorageV1({
+          root_dir: rootB,
+          payer_address: PAYER,
+          confirmation: confirmationA,
+        });
+      assert.equal(wrongRoot.ok, false);
+      if (wrongRoot.ok === false) {
+        assert.equal(
+          wrongRoot.reason,
+          "coupled_native_gas_reconciliation_storage_confirmation_required",
+        );
+        assert.equal(wrongRoot.mutation_performed, false);
+      }
+      assert.equal(
+        fs.existsSync(path.join(rootB, RECONCILIATIONS)),
+        false,
+        "confirmation for one valid payer root must not mutate another",
+      );
+
+      const correctRoot =
+        await bootstrapCoupledNativeGasReconciliationStorageV1({
+          root_dir: rootA,
+          payer_address: PAYER,
+          confirmation: confirmationA,
+        });
+      assert.equal(correctRoot.ok, true);
+      if (correctRoot.ok) {
+        assert.equal(correctRoot.status, "bootstrapped");
+        assert.equal(correctRoot.mutation_performed, true);
+      }
+      assert.equal(
+        fs.existsSync(path.join(rootA, RECONCILIATIONS)),
+        true,
+      );
+    } finally {
+      fs.rmSync(rootA, { recursive: true, force: true });
+      fs.rmSync(rootB, { recursive: true, force: true });
     }
   }
 
@@ -263,7 +325,7 @@ async function main(): Promise<void> {
         await bootstrapCoupledNativeGasReconciliationStorageV1({
           root_dir: root,
           payer_address: PAYER,
-          confirmation: confirmation(),
+          confirmation: confirmation(root),
         });
       assert.equal(held.ok, false);
       assert.equal(
@@ -290,7 +352,7 @@ async function main(): Promise<void> {
         await bootstrapCoupledNativeGasReconciliationStorageV1({
           root_dir: root,
           payer_address: PAYER,
-          confirmation: confirmation(),
+          confirmation: confirmation(root),
         });
       assert.equal(held.ok, false);
       assert.equal(
@@ -360,6 +422,7 @@ async function main(): Promise<void> {
   assert.match(source, /closePayerDomainSnapshot/);
   assert.match(source, /gas-liability-admission-v1\.queue/);
   assert.match(source, /reconciliations/);
+  assert.match(source, /bootstrapConfirmationV1/);
   assert.match(source, /if \(input\.bootstrap\) \{/);
   assert.match(
     source,
@@ -385,6 +448,8 @@ async function main(): Promise<void> {
   console.log("second_lock_namespace_created=false");
   console.log("missing_reconciliation_directory_holds=true");
   console.log("bootstrap_confirmation_required=true");
+  console.log("bootstrap_confirmation_root_identity_bound=true");
+  console.log("cross_root_bootstrap_confirmation_replay_holds=true");
   console.log("concurrent_bootstrap_single_mutation=true");
   console.log("descriptor_bound_qualification=true");
   console.log("qualification_queue_lock_used=false");
