@@ -22,6 +22,8 @@ const DROPIN = path.join(
   "examples/systemd/void-ai-agent-public-gateway-v1.service.d/71-agent-paid-work-credential-request-gateway-v1.conf",
 );
 const ROUTE = "/__void/agents/paid-work/credential-requests/v1";
+const UPSTREAM_INSTANCE_HEADER =
+  "x-void-credential-request-gateway-instance-v1";
 const source = fs.readFileSync(GATEWAY, "utf8");
 const dropin = fs.readFileSync(DROPIN, "utf8");
 
@@ -39,6 +41,8 @@ for (const token of [
   "applicant_rate_limit_exceeded",
   "credential_request_preauth_rate_limit_exceeded",
   "upstream_status_verified",
+  "upstream_qualification_instance_bound",
+  "x-void-credential-request-gateway-instance-v1",
   "two_applicant_capacity_reserved",
   "forwarded_ip_headers_trusted: false",
   "credential_issuance_authority: false",
@@ -232,6 +236,8 @@ const UPSTREAM_LIMIT = 8;
 let upstreamStatusLimit = UPSTREAM_LIMIT;
 let upstreamStatusLimitAfterNextPost = null;
 let upstreamStatusDelayMs = 0;
+let upstreamInstanceId = "1".repeat(64);
+let upstreamInstanceIdAfterNextStatus = null;
 const upstream = http.createServer(async (req, res) => {
   if (
     req.method === "GET" &&
@@ -251,6 +257,7 @@ const upstream = http.createServer(async (req, res) => {
       request_path: ROUTE,
       max_body_bytes: 65536,
       max_requests_per_minute: upstreamStatusLimit,
+      qualification_instance_id: upstreamInstanceId,
       raw_request_content_exposed: false,
       callback_uri_exposed: false,
       credential_issuance_authorized: false,
@@ -263,6 +270,28 @@ const upstream = http.createServer(async (req, res) => {
       "cache-control": "no-store",
     });
     res.end(payload);
+    if (upstreamInstanceIdAfterNextStatus !== null) {
+      upstreamInstanceId = upstreamInstanceIdAfterNextStatus;
+      upstreamInstanceIdAfterNextStatus = null;
+    }
+    return;
+  }
+
+  if (
+    String(req.headers[UPSTREAM_INSTANCE_HEADER] || "")
+      .toLowerCase() !== upstreamInstanceId
+  ) {
+    req.resume();
+    const rejected = Buffer.from(JSON.stringify({
+      ok: false,
+      error: "gateway_instance_mismatch",
+    }) + "\n");
+    res.writeHead(412, {
+      "content-type": "application/json; charset=utf-8",
+      "content-length": String(rejected.length),
+      "cache-control": "no-store",
+    });
+    res.end(rejected);
     return;
   }
 
@@ -494,6 +523,50 @@ assert.equal(
   "auth expiring during serialized qualification must not POST",
 );
 upstreamStatusDelayMs = 0;
+
+upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamInstanceIdAfterNextStatus = "2".repeat(64);
+const replacedIdentity = identity();
+const replacedBody = requestBody(
+  "live-requalification-instance-replaced",
+  replacedIdentity.agentId,
+);
+const replacedResponse = await postCredential(
+  requalBase,
+  replacedBody,
+  authHeader({
+    identityValue: replacedIdentity,
+    body: replacedBody,
+    nonceLabel: "live-requalification-instance-replaced",
+  }),
+);
+assert.equal(replacedResponse.status, 412);
+assert.equal(
+  (await replacedResponse.json()).error,
+  "gateway_instance_mismatch",
+);
+assert.equal(upstreamStatusCalls, 9);
+assert.equal(upstreamCalls.length, 4);
+
+const replacedRecoveryIdentity = identity();
+const replacedRecoveryBody = requestBody(
+  "live-requalification-instance-recovery",
+  replacedRecoveryIdentity.agentId,
+);
+const replacedRecoveryResponse = await postCredential(
+  requalBase,
+  replacedRecoveryBody,
+  authHeader({
+    identityValue: replacedRecoveryIdentity,
+    body: replacedRecoveryBody,
+    nonceLabel: "live-requalification-instance-recovery",
+  }),
+);
+assert.equal(replacedRecoveryResponse.status, 202);
+await replacedRecoveryResponse.json();
+assert.equal(upstreamStatusCalls, 10);
+assert.equal(upstreamCalls.length, 5);
+
 await stopGateway(requalRuntime);
 
 upstreamCalls.length = 0;
@@ -501,6 +574,8 @@ upstreamStatusCalls = 0;
 upstreamStatusLimit = UPSTREAM_LIMIT;
 upstreamStatusLimitAfterNextPost = null;
 upstreamStatusDelayMs = 0;
+upstreamInstanceId = "1".repeat(64);
+upstreamInstanceIdAfterNextStatus = null;
 
 const runtime = startGateway({
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
@@ -550,6 +625,10 @@ assert.equal(
 );
 assert.equal(
   ready.paid_work_credential_request_route.upstream_qualification_post_serialized,
+  true,
+);
+assert.equal(
+  ready.paid_work_credential_request_route.upstream_qualification_instance_bound,
   true,
 );
 assert.equal(
@@ -610,6 +689,10 @@ assert.equal(
   undefined,
 );
 assert.equal(upstreamCalls[0].headers["x-forwarded-for"], undefined);
+assert.equal(
+  upstreamCalls[0].headers[UPSTREAM_INSTANCE_HEADER],
+  upstreamInstanceId,
+);
 
 const methodResponse = await fetch(base + ROUTE, { method: "GET" });
 assert.equal(methodResponse.status, 405);
@@ -1048,6 +1131,8 @@ console.log("runtime_upstream_limit_drift_holds_before_proxy=true");
 console.log("runtime_upstream_limit_recovery_requalifies=true");
 console.log("concurrent_requests_do_not_share_qualification=true");
 console.log("qualification_and_post_serialized=true");
+console.log("qualification_instance_bound_to_post=true");
+console.log("upstream_restart_between_status_and_post_rejected=true");
 console.log("serialized_wait_auth_expiry_rejected_before_post=true");
 console.log("mismatched_upstream_limit_holds_route_closed=true");
 console.log("preauth_global_rate_wall_before_signature_verification=true");
