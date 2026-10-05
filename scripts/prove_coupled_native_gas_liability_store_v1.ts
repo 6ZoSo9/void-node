@@ -502,8 +502,9 @@ assert.doesNotMatch(
       payer_observation: observation(),
       open_liabilities: [],
     });
-    assert.equal(candidate.ok, true);
-    if (!candidate.ok) throw new Error(candidate.reason);
+    if (candidate.ok !== true) {
+      throw new Error("unexpected classifier HOLD in corrupt-census fixture");
+    }
     const corrupt: CoupledNativeGasLiabilityRecordV1 = {
       ...candidate.liability,
       maximum_reserved_wei: "1",
