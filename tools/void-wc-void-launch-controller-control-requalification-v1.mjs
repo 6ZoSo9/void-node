@@ -92,15 +92,15 @@ const ROOT = path.resolve(HERE, "..");
 const COUPLED_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const IDENTITY_REL =
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json";
 const CONTROL_REL =
   "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
 const PACKAGE_REL = "package.json";
 const PACKAGE_LOCK_REL = "package-lock.json";
 
 const EXPECTED_SOURCE_BLOBS = Object.freeze({
-  [COUPLED_REL]: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
-  [IDENTITY_REL]: "c85b6bc59caac6bc765cb8e969cb980386161d12",
+  [COUPLED_REL]: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
+  [IDENTITY_REL]: "1009c41250a40bb793c88057a7187cec01c8704b",
   [PACKAGE_REL]: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
   [PACKAGE_LOCK_REL]: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
 });
@@ -312,17 +312,20 @@ export function readCurrentLaunchControllerControlSourceBindingV1() {
     coupled?.shared_post_discovery_reconciliation?.void_token,
     "control_void_token_invalid",
   );
-  const identityId = identity?.accepted_identity?.identity_id;
+  const identityId = identity?.identity?.identity_id;
   if (
     coupled?.marker !== "VOID_COUPLED_ECONOMIC_SUCCESSOR_GATE_V1" ||
     coupled?.version !== 1 ||
     launchId !== EXPECTED_COUPLED_LAUNCH_ID ||
     voidToken !== EXPECTED_VOID_TOKEN ||
     identity?.marker !==
-      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_PACKET_V1" ||
-    identity?.version !== 1 ||
+      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CURRENT_BINDING_V2" ||
+    identity?.version !== 2 ||
     identity?.status !==
-      "COMPILED_IDENTITY_ACCEPTED_HELD_ON_CHAIN2050_DEPLOYMENT_ATTESTATION" ||
+      "COMPILED_IDENTITY_CURRENT_CORRECTED_DEPLOYMENT_HOLD" ||
+    identity?.corrected_coupled_launch_id !== EXPECTED_COUPLED_LAUNCH_ID ||
+    identity?.corrected_vault_bytes32 !== EXPECTED_COUPLED_LAUNCH_BYTES32 ||
+    identity?.decision?.old_control_signature_generation_reusable !== false ||
     identityId !== EXPECTED_COMPILED_IDENTITY_ID
   ) {
     fail("control_current_launch_source_semantics_invalid");
