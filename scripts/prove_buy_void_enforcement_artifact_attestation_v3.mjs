@@ -83,6 +83,27 @@ export function deriveBuyVoidEnforcementArtifactAttestationV3(root = ROOT) {
     predecessor.enforcement_artifact_set_sha256,
     PREDECESSOR_ENFORCEMENT_SET_SHA256,
   );
+  const historicalV1Path = String(
+    predecessor?.predecessor?.manifest_path || "",
+  );
+  const historicalV1Blob = String(
+    predecessor?.predecessor?.manifest_git_blob_sha1 || "",
+  );
+  assert.equal(
+    historicalV1Path,
+    "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
+    "V2 predecessor must retain the canonical V1 manifest path",
+  );
+  assert.match(
+    historicalV1Blob,
+    /^[0-9a-f]{40}$/u,
+    "V2 predecessor V1 blob must be commit-shaped",
+  );
+  assert.equal(
+    gitBlobSha1(read(ROOT, historicalV1Path)),
+    historicalV1Blob,
+    "committed enforcement V1 predecessor bytes changed",
+  );
 
   const candidate = deriveEnforcementV1(root);
   assert.equal(
@@ -208,6 +229,7 @@ if (
           .enforcement_artifact_set_sha256,
     );
     console.log("predecessor_v2_manifest_bound=true");
+    console.log("predecessor_v1_manifest_bytes_bound=true");
     console.log("bakery_lock_delta_exact=true");
     console.log("production_source_finality_authority_ready=false");
     console.log("deployed_artifact_generation_verified=false");
