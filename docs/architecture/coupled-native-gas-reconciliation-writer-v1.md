@@ -39,7 +39,10 @@ the existing payer queue and HOLDS if qualification fails.
 
 All root, child-directory and file reads are no-follow descriptor-bound reads.
 History scans are bounded by record count, per-file bytes and total bytes, and
-require exact canonical JSON serialization.
+require exact canonical JSON serialization. The filename is also authoritative:
+`records/<liability_id>.json` must contain that exact `liability_id`, and
+`reconciliations/<reconciliation_id>.json` must contain that exact
+`reconciliation_id`. Canonical bytes under an alternate 64-hex filename HOLD.
 
 ## Serialization and evidence order
 
@@ -110,16 +113,22 @@ If an error occurs after the canonical create-only hard link, the result is
 left visible. A later invocation must reauthenticate it through the resolver
 before accepting idempotence.
 
-A process crash can also leave the writer's private temporary hard-link source
-after the canonical reconciliation name is already durable. While holding the
-same payer queue, the writer removes only exact writer-owned temp names of the
-form
-`.<reconciliation_id>.json.tmp-<pid>-<16 lowercase hex>`, after validating
-direct-file identity, ownership, link count, permissions, size, and no-follow
-open stability. Cleanup is fsynced and reported as a real mutation. Unknown or
-unsafe reconciliation-directory entries are never silently deleted and still
-HOLD qualification. Authenticated replay can therefore recover from the known
-post-link/pre-unlink crash seam without weakening the namespace allowlist.
+A process crash can also leave the writer's private temporary hard-link source.
+While holding the same payer queue, the writer normalizes only exact
+writer-owned temp names of the form
+`.<reconciliation_id>.json.tmp-<pid>-<16 lowercase hex>`:
+
+- an `nlink=1` temp has no canonical publication authority and is removed as
+  an incomplete pre-link/pre-cleanup artifact after no-follow identity checks;
+- an `nlink=2` temp is removed only when the exact
+  `<reconciliation_id>.json` final name exists and is proven to be the same
+  inode.
+
+Cleanup is directory-fsynced and reported as a real mutation. Unknown temp
+shapes, unsafe files, unexpected link counts, or a two-link temp that does not
+alias its exact final name HOLD. Authenticated replay can therefore recover
+from the post-link/pre-unlink crash seam without weakening the namespace
+allowlist.
 
 If liability or reconciliation history changes while the resolver performs its
 read-only local/RPC evidence work, the writer HOLDS before publication.
@@ -185,6 +194,7 @@ git diff --check
 The focused proof covers first publication, exact replay with fresh
 reauthentication, conflicting replay evidence HOLD, resolver HOLD before
 mutation, concurrent history drift HOLD, missing reconciliation storage HOLD,
-post-publication failure truth, exact stale-writer-temp cleanup with truthful
-mutation reporting, recovery by authenticated idempotent replay, and two
-concurrent exact requests producing one canonical record.
+post-publication failure truth, pre-link stale-temp cleanup, same-inode
+post-link temp cleanup with truthful mutation reporting, filename/row identity
+mismatch HOLD, recovery by authenticated idempotent replay, and two concurrent
+exact requests producing one canonical record.
