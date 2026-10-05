@@ -1,0 +1,62 @@
+{
+  "schema": "void_buy_void_enforcement_artifact_attestation_v3",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V3",
+  "version": 3,
+  "repository": "6ZoSo9/void-node",
+  "predecessor": {
+    "schema": "void_buy_void_enforcement_artifact_attestation_v2",
+    "marker": "VOID_BUY_VOID_ENFORCEMENT_ARTIFACT_ATTESTATION_V2",
+    "manifest_path": "docs/architecture/buy-void-enforcement-artifact-attestation-v2.json",
+    "manifest_git_blob_sha1": "66fbd9b41584868bce89f894d5d8a855e861c244",
+    "enforcement_artifact_set_sha256": "5b35c2c4e1c9c7812ddbcb2f35ea5f309771e5343230331780b81323eb11cc30"
+  },
+  "reviewed_source_generation": {
+    "marker": "VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5",
+    "source_stack_head": "07b88ef77d98b3806f97fe8df4b3c1699267ab66",
+    "reviewed_source_files_sha256": "554eecb2254ecfeb7495314b019247f4a3a7b317a6431e54b78fe95cb675d14e"
+  },
+  "compiled_artifact_generation": {
+    "marker": "VOID_BUY_VOID_SOURCE_FINALITY_COMPILED_ARTIFACT_ATTESTATION_V3",
+    "manifest_path": "docs/architecture/buy-void-source-finality-compiled-artifact-attestation-v3.json",
+    "manifest_git_blob_sha1": "d6e97784c5d8be93713e733628c7d1ef746bb5c7",
+    "compiled_artifact_generation_sha256": "0d36d26176a58cc24c2841c4363382749ccdcb2a93563989c27de36060354add"
+  },
+  "current_enforcement": {
+    "enforcement_artifact_set_sha256": "7d6e000770a83a32e3c4706ac29f3474041a5376f2009c71e5ba00d04a1cdc3f",
+    "artifact_count": 23,
+    "input_count": 30,
+    "changed_artifact": {
+      "path": "dist/economic/buy_void_filesystem_bakery_lock_v1.js",
+      "bytes": 18018,
+      "sha256": "7c7a6b92c1a88b14d325d331700a2bd19a0068630ae0094c65b2dcc6a25a9994",
+      "imports": [],
+      "externals": [
+        "node:crypto",
+        "node:fs",
+        "node:path"
+      ]
+    },
+    "changed_input": {
+      "path": "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+      "bytes": 17899,
+      "sha256": "b60f910ae1c8e88735554aab9ecc6e1c98ea90f90ed2939f72adbe743377f904",
+      "git_blob_sha1": "03376ad9853c1ca37c5be4d7f36d9daccab25078"
+    }
+  },
+  "predecessor_delta": {
+    "removed_artifact_paths": [],
+    "added_artifact_paths": [],
+    "changed_artifact_paths": [
+      "dist/economic/buy_void_filesystem_bakery_lock_v1.js"
+    ],
+    "unchanged_artifact_count": 22,
+    "removed_input_paths": [],
+    "added_input_paths": [],
+    "changed_input_paths": [
+      "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+    ],
+    "unchanged_input_count": 29
+  },
+  "production_source_finality_authority_ready": false,
+  "deployed_artifact_generation_verified": false
+}

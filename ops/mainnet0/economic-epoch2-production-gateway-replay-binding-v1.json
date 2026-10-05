@@ -59,7 +59,7 @@
     "binding": "2a4f6d1e34509838b8e68122fab459f0de6dd599",
     "proof": "ae72dc8f005c5a946b21b6c18fb636a64c9a256f",
     "gateway": "8e57f1130433c0f2594193c387811667dc9c0f02",
-    "durable_replay_store": "2e4481fbf45200121356f39c278eac5b05a33596"
+    "durable_replay_store": "2b267e11d087bec0e0a56825dce9f998d5bc3ad5"
   },
   "runtime_evidence": {
     "evidence_file": "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json",

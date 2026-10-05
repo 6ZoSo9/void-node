@@ -668,6 +668,9 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
           outcome("insufficient_matching_transport_responses", fullCounts),
         );
       }
+      if (this.stopped) {
+        return this.record(outcome("collector_stopped", fullCounts));
+      }
 
       let composition: unknown;
       for (const [, group] of matching) {
@@ -695,10 +698,19 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
                   this.options.composeAuthorizedDiscovery,
               },
             );
+          if (this.stopped) {
+            return this.record(outcome("collector_stopped", fullCounts));
+          }
           break;
         } catch {
           this.compositionRejectCount += 1;
+          if (this.stopped) {
+            return this.record(outcome("collector_stopped", fullCounts));
+          }
         }
+      }
+      if (this.stopped) {
+        return this.record(outcome("collector_stopped", fullCounts));
       }
       if (composition === undefined) {
         return this.record(

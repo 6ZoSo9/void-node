@@ -292,6 +292,36 @@ try {
   );
   assert.equal(JSON.stringify(status).includes("127.0.0.1:8545"), false);
 
+  for (const rpcUrl of [
+    "http://localhost:8545/",
+    "http://127.1:8545/",
+    "http://2130706433:8545/",
+    "http://0x7f000001:8545/",
+  ]) {
+    process.env.VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL = rpcUrl;
+    const rejectedStatus =
+      buyVoidNativeDeliveryReceiptRuntimeStatusV1();
+    assert.equal(rejectedStatus.policy_configured, false);
+    assert.equal(rejectedStatus.apply_ready, false);
+    assert.deepEqual(rejectedStatus.invalid_policy_envs, [
+      "VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL",
+    ]);
+  }
+
+  process.env.VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL =
+    "http://[::1]:8545/";
+  const ipv6Status =
+    buyVoidNativeDeliveryReceiptRuntimeStatusV1();
+  assert.equal(ipv6Status.policy_configured, true);
+  assert.equal(ipv6Status.apply_ready, false);
+  assert.match(
+    String(ipv6Status.rpc_url_fingerprint_sha256),
+    /^[0-9a-f]{64}$/u,
+  );
+
+  process.env.VOID_BUY_VOID_NATIVE_CHAIN2050_RPC_URL =
+    "http://127.0.0.1:8545/";
+
   let calls: BuyVoidNativeDeliveryReceiptRpcMethodV1[] = [];
   const disabledApply =
     await runBuyVoidNativeDeliveryReceiptRuntimeCommandV1({
@@ -467,4 +497,8 @@ console.log("wallet_access=0");
 console.log("signing=0");
 console.log("transaction_broadcast=0");
 console.log("money_movement=0");
+console.log("runtime_numeric_loopback_literal_required=1");
+console.log("runtime_alternate_ipv4_spellings_rejected=1");
+console.log("runtime_localhost_rejected=1");
+console.log("runtime_ipv6_literal_configured=1");
 console.log("VOID_BUY_VOID_NATIVE_DELIVERY_RECEIPT_RUNTIME_V1_GREEN");
