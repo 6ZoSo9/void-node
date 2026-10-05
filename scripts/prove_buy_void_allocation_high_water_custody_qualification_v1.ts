@@ -307,6 +307,8 @@ for (const [key, value] of Object.entries(
     "exact_current_state_binding",
     "runtime_custody_identity_separation_required",
     "stable_root_ancestor_policy_required",
+    "disjoint_storage_roots_required",
+    "shared_ancestor_consistency_required",
     "distinct_mount_identity_required",
     "independent_rollback_domain_identity_required",
     "af_unix_ipc_required",
@@ -325,6 +327,36 @@ for (const [key, value] of Object.entries(
   expectHeld(
     classify(bad),
     "allocation_custody_host_identity_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.custody.path =
+    "/srv/void-allocation-ledger-v1/protected-high-water";
+  bad.custody.ancestors = [
+    ancestor("/"),
+    ancestor("/srv"),
+    ancestor("/srv/void-allocation-ledger-v1"),
+  ];
+  bad.service_hardening.read_write_paths = [
+    bad.ledger.path,
+    bad.custody.path,
+  ].sort();
+  bad.state.high_water_file.path =
+    bad.custody.path + "/allocation-reservation-high-water-v1.json";
+  expectHeld(
+    classify(bad),
+    "allocation_custody_storage_roots_must_be_disjoint",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.custody.ancestors[0].mode = 0o555;
+  expectHeld(
+    classify(bad),
+    "allocation_custody_shared_ancestor_evidence_mismatch",
   );
 }
 
@@ -686,6 +718,8 @@ console.log("canonical_state_file_path_binding=true");
 console.log("direct_private_single_link_state_files_required=true");
 console.log("runtime_and_custody_uid_separated=true");
 console.log("root_owned_nonwritable_ancestor_chain_required=true");
+console.log("disjoint_storage_roots_required=true");
+console.log("shared_ancestor_consistency_required=true");
 console.log("distinct_mount_identity_required=true");
 console.log("independent_rollback_domain_identity_required=true");
 console.log("bind_and_remount_substitution_rejected=true");
