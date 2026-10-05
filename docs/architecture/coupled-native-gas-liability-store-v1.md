@@ -68,12 +68,14 @@ pin payer root / records / queue
   -> require classifier payer == retained payer-domain identity
   -> rebind visible payer-domain to the retained descriptor/bytes
   -> exact replay: verify already-durable canonical bytes, rebind payer-domain, return
-  -> new candidate: rebind payer-domain before the mutation-time refresh
-  -> sample injected time again at the mutation boundary
+  -> new candidate: rebind payer-domain before non-authoritative temp preparation
+  -> create/write/fsync/close the private temp file only
+  -> pre-link hook: rebind payer-domain
+  -> sample injected time again after temp fsync and before the canonical hard link
   -> rerun #2463 against the unchanged pre-write census
-  -> require the exact same admitted liability ID and reserved-after amount
-  -> rebind payer-domain again immediately before publication
-  -> create/fsync/link/fsync exact <liability_id>.json
+  -> require the exact same admitted liability bytes and reserved-after amount
+  -> rebind payer-domain again
+  -> create-only hard link + directory fsync for exact <liability_id>.json
   -> reread full census
   -> rerun #2463 with exact post-write census and the mutation-boundary time
   -> require exact idempotent replay and unchanged reserved-after amount
@@ -88,17 +90,19 @@ is inside one payer-scoped serialization domain.
 
 The persistence API accepts an injected `read_now_ms()` dependency rather than
 a caller-captured timestamp. New admission samples it after the full pre-write
-census and again immediately before durable publication. The second sample is
-used to rerun the canonical economic classifier against the unchanged pre-write
-census; if fee/balance evidence expired while custody or census work was in
-progress, the store HOLDS before creating a liability record. After that
-refreshed classifier succeeds, the retained payer-domain snapshot is rebound
-once more immediately before the create-once hard-link publication. The second sample
-must also be a safe integer that is not earlier than the first sample; a
-regressing or malformed provider HOLDS before mutation. The post-write
-idempotence classifier reuses that mutation-boundary timestamp so a successful
-durable append is judged against the exact admission instant rather than a later
-wall-clock tick. This proves ordering only: the store still reports
+census. For a new liability, the store then prepares and fsyncs the private
+non-authoritative temp file before taking the second sample. A synchronous
+pre-link hook rebinds the payer-domain, samples time again, reruns the canonical
+economic classifier against the unchanged pre-write census, requires the exact
+same liability bytes/reserved-after amount, and rebinds the payer-domain once
+more before the create-only hard link. If fee/balance evidence expired while
+custody, census, or temp-file I/O was in progress, the store removes only the
+temp and HOLDS with no canonical liability. The second sample must also be a
+safe integer that is not earlier than the first sample; a regressing or
+malformed provider HOLDS before mutation. The post-write idempotence classifier
+reuses that pre-link timestamp so a successful durable append is judged against
+the final reviewed admission boundary rather than a later wall-clock tick.
+This proves ordering only: the store still reports
 `trusted_time_source_proven=false`; later runtime composition must separately
 bind a reviewed clock/time source.
 
@@ -124,12 +128,16 @@ Publication is create-once:
 
 1. private `O_EXCL|O_NOFOLLOW` temp file;
 2. write exact bytes;
-3. file `fsync`;
-4. create-only hard link to the canonical final name;
-5. records-directory `fsync`;
-6. unlink temp;
-7. records-directory `fsync`;
-8. exact final-byte reread.
+3. file `fsync` and close;
+4. run the synchronous pre-link payer/time/#2463 authority refresh;
+5. create-only hard link to the canonical final name;
+6. records-directory `fsync`;
+7. unlink temp;
+8. records-directory `fsync`;
+9. exact final-byte reread.
+
+A pre-link HOLD happens before step 5, so the reviewed temp remains
+non-authoritative and is removed by cleanup.
 
 A final name that appears after the locked pre-census is not accepted as a
 normal concurrent success. Cooperating writers must serialize through the
@@ -217,7 +225,8 @@ The store proof covers:
 - payer-domain replacement while queued HOLDS against the post-wait domain;
 - payer-domain replacement after classification cannot produce clean success;
 - fee evidence that expires during queue wait HOLDS using a post-wait time sample;
-- injected time provider is not called before queue admission/census; new durable admission samples it exactly twice (post-census and immediately before publication), while exact idempotent replay samples it once;
+- injected time provider is not called before queue admission/census; new durable admission samples it exactly twice (post-census and after temp fsync immediately before the canonical hard link), while exact idempotent replay samples it once;
+- fee evidence expiring during temp preparation HOLDS before the canonical hard link and leaves zero durable liability;
 - first exact durable liability publication;
 - exact replay idempotence under fresh fee observation;
 - stale observation HOLD without mutation;
