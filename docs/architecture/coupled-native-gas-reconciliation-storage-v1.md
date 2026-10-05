@@ -54,11 +54,24 @@ temporary choosing/ticket claims. No reconciliation-specific lock is created.
 ## Explicit bootstrap
 
 `bootstrapCoupledNativeGasReconciliationStorageV1(...)` may create only the
-missing `reconciliations/` directory. Creation requires the exact confirmation:
+missing `reconciliations/` directory. Creation requires an exact
+operation-binding confirmation:
 
 ```text
-bootstrapCoupledNativeGasReconciliationStorageV1:<payer_domain_id>
+bootstrapCoupledNativeGasReconciliationStorageV1:<sha256>
 ```
+
+The SHA-256 is over canonical JSON plus one final newline binding:
+
+- marker/version and the bootstrap operation name;
+- the normalized absolute payer-root path;
+- the pinned payer-root `dev`, `ino`, UID, GID and mode; and
+- the exact `payer_domain_id`.
+
+This prevents a confirmation prepared for one valid payer root from mutating a
+different valid root that happens to carry identical payer-domain bytes. A
+recreated directory at the same pathname also receives a different inode-bound
+confirmation.
 
 Before creation the contract verifies the payer domain, existing `records/`
 and existing admission queue while holding that queue. The directory is created
@@ -68,8 +81,9 @@ root is fsynced before success is reported.
 If the directory already exists and qualifies, bootstrap is idempotent and
 returns `already_qualified` with `mutation_performed=false`.
 
-A missing `records/`, missing admission queue, payer mismatch, wrong
-confirmation, symlink, weak permissions or changed directory identity HOLDS.
+A missing `records/`, missing admission queue, payer mismatch, wrong or
+cross-root confirmation, symlink, weak permissions or changed directory
+identity HOLDS.
 The mutation path does not create missing prerequisites.
 
 ## Read-only qualification
@@ -111,6 +125,11 @@ Concurrent bootstrap callers serialize on the existing payer admission queue.
 The proof requires exactly one caller to report `bootstrapped` and exactly one
 durable reconciliation-directory mutation; the other caller observes the same
 directory as `already_qualified`.
+
+The focused proof also creates two independent valid payer roots with identical
+payer-domain bytes. A confirmation derived for root A must HOLD on root B with
+`mutation_performed=false`, while the same confirmation remains valid for
+root A.
 
 Read-only qualification does not participate in that lock and cannot block or
 consume queue tickets. If the reconciliation namespace changes during its
