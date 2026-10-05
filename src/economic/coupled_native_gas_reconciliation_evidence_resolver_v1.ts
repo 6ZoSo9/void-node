@@ -55,6 +55,7 @@ export const
       caller_transport_override: false,
       chain2050_required: true,
       rpc_receipt_projected_to_classifier_schema: true,
+      receipt_revalidation_required: true,
       read_only_rpc_methods: Object.freeze([
         "eth_chainId",
         "eth_getTransactionReceipt",
@@ -357,6 +358,13 @@ function projectRpcReceipt(
     from: record.from as string,
     to: record.to as string,
   });
+}
+
+function sameProjectedReceipt(
+  first: CoupledNativeGasRawTerminalReceiptV1,
+  second: CoupledNativeGasRawTerminalReceiptV1,
+): boolean {
+  return canonical(first) === canonical(second);
 }
 
 function normalizePolicy(
@@ -1463,6 +1471,32 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
         methods,
       );
     }
+    const receiptRevalidationRaw = await call(
+      "eth_getTransactionReceipt",
+      [outcomeState.void_delivery_tx_hash],
+    );
+    if (
+      receiptRevalidationRaw === null ||
+      receiptRevalidationRaw === undefined
+    ) {
+      return held(
+        "rpc",
+        "reconciliation_evidence_receipt_revalidation_missing",
+        policy.rpc_url_fingerprint_sha256,
+        methods,
+      );
+    }
+    const receiptRevalidated =
+      projectRpcReceipt(receiptRevalidationRaw);
+    if (!sameProjectedReceipt(receipt, receiptRevalidated)) {
+      return held(
+        "rpc",
+        "reconciliation_evidence_receipt_changed_during_confirmation_window",
+        policy.rpc_url_fingerprint_sha256,
+        methods,
+      );
+    }
+    receipt = receiptRevalidated;
   } catch (error) {
     return held(
       "rpc",
