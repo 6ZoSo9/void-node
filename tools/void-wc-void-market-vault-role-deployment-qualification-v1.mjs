@@ -109,9 +109,9 @@ const EXPECTED = Object.freeze({
   chain_id: 2050,
   execution_epoch: 2,
   coupled_launch_id:
-    "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+    "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
   coupled_launch_id_bytes32:
-    "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+    "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
   void_token: "0x470075b85352eb86f7d089fb9ba88945f12aad94",
   compiled_identity_id:
     "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
