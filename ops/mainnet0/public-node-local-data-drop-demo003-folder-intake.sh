@@ -26,6 +26,8 @@ LOCK_WAIT_SECONDS="${DEMO003_LOCK_WAIT_SECONDS:-30}"
 FIXTURE_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
 VERIFY_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-verify-folder-fixture.sh"
 HANDOFF_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-sealed-handoff-v1.py"
+STATUS_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
+LATEST_PUBLISHED=0
 
 umask 0077
 
@@ -155,7 +157,11 @@ cleanup_demo003_intake() {
   rc=$?
   set +e
   if [ -e "$LATEST_STAGE" ] || [ -L "$LATEST_STAGE" ]; then rm -rf -- "$LATEST_STAGE"; fi
-  if [ "$rc" -ne 0 ] && { [ -e "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; }; then rm -rf -- "$ARCHIVE"; fi
+  if [ "$rc" -ne 0 ] &&
+     [ "$LATEST_PUBLISHED" != "1" ] &&
+     { [ -e "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; }; then
+    rm -rf -- "$ARCHIVE"
+  fi
   exit "$rc"
 }
 trap cleanup_demo003_intake EXIT
@@ -175,6 +181,7 @@ echo "intake_lock_serialized=true"
 test -x "$FIXTURE_SCRIPT"
 test -x "$VERIFY_SCRIPT"
 test -f "$HANDOFF_SCRIPT"
+test -x "$STATUS_SCRIPT"
 
 OUT="$FIXTURE_OUT" "$FIXTURE_SCRIPT" | tee "$OUT/fixture.log"
 
@@ -394,6 +401,7 @@ print("latest_atomic_publish=true")
 print("latest_real_directory=true")
 print("latest_symlink=false")
 PY
+LATEST_PUBLISHED=1
 
 python3 - "$LATEST/intake.json" <<'PY'
 import json, sys
@@ -419,6 +427,44 @@ print("visible_extraction_tree_trusted=false")
 print("sealed_snapshot_set_sha256=" + d["sealed_snapshot_set_sha256"])
 PY
 
+set +e
+PUBLISHED_STATUS="$(
+  DATA_DIR="$DATA_DIR" "$STATUS_SCRIPT"
+)"
+PUBLISHED_STATUS_RC=$?
+set -e
+printf '%s\n' "$PUBLISHED_STATUS"
+if [ "$PUBLISHED_STATUS_RC" -ne 0 ]; then
+  echo "status=demo003_folder_intake_held_after_publish_validation"
+  echo "hold_reason=published_latest_status_not_green"
+  echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED=false"
+  exit "$PUBLISHED_STATUS_RC"
+fi
+if [ "${#PUBLISHED_STATUS}" -gt 131072 ]; then
+  echo "status=demo003_folder_intake_held_after_publish_validation"
+  echo "hold_reason=published_latest_status_too_large"
+  echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED=false"
+  exit 2
+fi
+printf '%s\n' "$PUBLISHED_STATUS" |
+  grep -Fxq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true"
+PUBLISHED_SNAPSHOT_SET="$(
+  printf '%s\n' "$PUBLISHED_STATUS" |
+    sed -n 's/^sealed_snapshot_set_sha256=\([0-9a-f]\{64\}\)$/\1/p'
+)"
+PUBLISHED_SNAPSHOT_SET_COUNT="$(
+  printf '%s\n' "$PUBLISHED_STATUS" |
+    grep -c '^sealed_snapshot_set_sha256=' || true
+)"
+if [ "$PUBLISHED_SNAPSHOT_SET_COUNT" != "1" ] ||
+   [ "$PUBLISHED_SNAPSHOT_SET" != "$SEALED_SNAPSHOT_SET_SHA256" ]; then
+  echo "status=demo003_folder_intake_held_after_publish_validation"
+  echo "hold_reason=published_latest_snapshot_identity_mismatch"
+  echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED=false"
+  exit 2
+fi
+echo "published_latest_snapshot_revalidated=true"
+
 echo "archive=$ARCHIVE"
 echo "latest=$LATEST"
 echo "latest_atomic_publish=true"
@@ -429,4 +475,5 @@ echo "demo003_publication_ancestry_secure=true"
 echo "intake_lock_serialized=true"
 echo "run_identity_collision_resistant=true"
 echo "sealed_snapshot_handoff_bound=true"
+echo "published_latest_snapshot_revalidated=true"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED"
