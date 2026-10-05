@@ -20,6 +20,8 @@ export const VOID_COUPLED_NATIVE_GAS_LIABILITY_RECONCILIATION_AUTHORITY_V1 =
     buy_void_only: true,
     exact_open_liability_identity_rederived: true,
     exact_terminal_cost_evidence_identity_rederived: true,
+    stable_terminal_cost_identity_rederived: true,
+    confirmation_depth_independent_reconciliation_identity: true,
     exact_liability_terminal_evidence_binding_required: true,
     terminal_cost_evidence_provenance_verified: false,
     terminal_outcome_storage_read_verified: false,
@@ -120,6 +122,7 @@ const EVIDENCE_KEYS = Object.freeze([
   "liability_consumed_wei",
   "maximum_reserved_wei",
   "within_reserved_envelope",
+  "terminal_cost_identity_sha256",
   "evidence_id",
   "liability_release_authorized",
   "mutation_performed",
@@ -139,7 +142,7 @@ export type CoupledNativeGasLiabilityReconciliationVerifiedV1 = {
   payer_address: string;
   nonce: number;
   transaction_plan_fingerprint_sha256: string;
-  terminal_cost_evidence_id: string;
+  terminal_cost_identity_sha256: string;
   outcome: "confirmed";
   attempt_limit: 1;
   completed_attempt_count: 1;
@@ -438,6 +441,9 @@ function validateEvidence(
     liabilityConsumed === null ||
     maximumReserved === null ||
     value.within_reserved_envelope !== true ||
+    !SHA256.test(
+      String(value.terminal_cost_identity_sha256 ?? ""),
+    ) ||
     !SHA256.test(String(value.evidence_id ?? "")) ||
     value.liability_release_authorized !== false ||
     value.mutation_performed !== false ||
@@ -518,6 +524,46 @@ function validateEvidence(
     );
   }
 
+  const stableIdentityBody = {
+    marker: "VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_IDENTITY_V1",
+    version: 1,
+    lane: "presale",
+    liability_id: liability.liability_id,
+    obligation_id: liability.obligation_id,
+    payer_address: liability.payer_address,
+    nonce: liability.nonce,
+    transaction_plan_fingerprint_sha256:
+      liability.transaction_plan_fingerprint_sha256,
+    saga_id: String(value.saga_id),
+    attempt_id: String(value.attempt_id),
+    transaction_hash: String(value.transaction_hash),
+    outcome,
+    terminal_record_fingerprint_sha256: String(
+      value.terminal_record_fingerprint_sha256,
+    ),
+    terminal_recorded_at_ms: terminalRecordedAt,
+    receipt_block_number: receiptBlock.toString(),
+    receipt_block_hash: String(value.receipt_block_hash),
+    gas_used: gasUsed.toString(),
+    effective_gas_price_wei: effectiveGasPrice.toString(),
+    gas_cost_wei: gasCost.toString(),
+    transaction_native_value_consumed_wei:
+      nativeValueConsumed.toString(),
+    liability_consumed_wei: liabilityConsumed.toString(),
+    maximum_reserved_wei: maximumReserved.toString(),
+    within_reserved_envelope: true,
+  } as const;
+  const terminalCostIdentity =
+    sha256Canonical(stableIdentityBody);
+  if (
+    value.terminal_cost_identity_sha256 !==
+    terminalCostIdentity
+  ) {
+    throw new Error(
+      "coupled_native_gas_reconciliation_terminal_cost_identity_mismatch",
+    );
+  }
+
   const body = {
     schema: EVIDENCE_SCHEMA,
     marker: VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_EVIDENCE_V1,
@@ -550,6 +596,7 @@ function validateEvidence(
     liability_consumed_wei: liabilityConsumed.toString(),
     maximum_reserved_wei: maximumReserved.toString(),
     within_reserved_envelope: true,
+    terminal_cost_identity_sha256: terminalCostIdentity,
   } as const;
   if (value.evidence_id !== sha256Canonical(body)) {
     throw new Error(
@@ -611,7 +658,8 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
       nonce: liability.nonce,
       transaction_plan_fingerprint_sha256:
         liability.transaction_plan_fingerprint_sha256,
-      terminal_cost_evidence_id: evidence.evidence_id,
+      terminal_cost_identity_sha256:
+        evidence.terminal_cost_identity_sha256,
       outcome: "confirmed" as const,
       attempt_limit: attemptLimit,
       completed_attempt_count: 1 as const,
