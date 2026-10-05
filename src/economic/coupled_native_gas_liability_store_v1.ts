@@ -84,6 +84,13 @@ type PinnedDirectoryV1 = {
   proc_path: string;
 };
 
+type PinnedFileSnapshotV1 = {
+  path: string;
+  fd: number;
+  stat: fs.BigIntStats;
+  bytes: Buffer;
+};
+
 export type CoupledNativeGasStorePayerDomainV1 = {
   schema: typeof PAYER_DOMAIN_SCHEMA;
   marker: typeof VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_V1;
@@ -204,6 +211,23 @@ function sameDirectoryIdentity(
     left.uid === right.uid &&
     left.gid === right.gid &&
     left.mode === right.mode
+  );
+}
+
+function sameFileIdentity(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink
   );
 }
 
@@ -427,6 +451,123 @@ function readPinnedFile(
   }
 }
 
+function openPinnedFileSnapshot(
+  directory: PinnedDirectoryV1,
+  name: string,
+  maxBytes: number,
+  code: string,
+): PinnedFileSnapshotV1 {
+  if (!name || name.includes("/") || name === "." || name === "..") {
+    fail(code + "_name_invalid");
+  }
+  assertPinnedDirectoryVisible(directory, code + "_directory");
+  const visiblePath = path.join(directory.path, name);
+  const pinnedPath = path.join(directory.proc_path, name);
+  let visible: fs.BigIntStats;
+  try {
+    visible = fs.lstatSync(visiblePath, { bigint: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      fail(code + "_missing");
+    }
+    throw error;
+  }
+  validatePrivateFile(visible, maxBytes, code + "_invalid");
+  const fd = fs.openSync(pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW);
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    validatePrivateFile(opened, maxBytes, code + "_invalid");
+    if (!sameFileIdentity(visible, opened)) {
+      fail(code + "_path_not_bound");
+    }
+
+    const bytes = Buffer.alloc(Number(opened.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (count <= 0) fail(code + "_short_read");
+      offset += count;
+    }
+
+    const after = fs.fstatSync(fd, { bigint: true });
+    const visibleAfter = fs.lstatSync(visiblePath, { bigint: true });
+    if (
+      !sameFileIdentity(opened, after) ||
+      !sameFileIdentity(after, visibleAfter)
+    ) {
+      fail(code + "_changed_during_read");
+    }
+    assertPinnedDirectoryVisible(directory, code + "_directory");
+    return {
+      path: visiblePath,
+      fd,
+      stat: after,
+      bytes,
+    };
+  } catch (error) {
+    fs.closeSync(fd);
+    throw error;
+  }
+}
+
+function assertPinnedFileSnapshotCurrent(
+  directory: PinnedDirectoryV1,
+  snapshot: PinnedFileSnapshotV1,
+  maxBytes: number,
+  code: string,
+): void {
+  assertPinnedDirectoryVisible(directory, code + "_directory");
+  const opened = fs.fstatSync(snapshot.fd, { bigint: true });
+  const visible = fs.lstatSync(snapshot.path, { bigint: true });
+  validatePrivateFile(opened, maxBytes, code + "_invalid");
+  validatePrivateFile(visible, maxBytes, code + "_invalid");
+  if (
+    !sameFileIdentity(snapshot.stat, opened) ||
+    !sameFileIdentity(opened, visible)
+  ) {
+    fail(code + "_changed");
+  }
+
+  const bytes = Buffer.alloc(Number(opened.size));
+  let offset = 0;
+  while (offset < bytes.length) {
+    const count = fs.readSync(
+      snapshot.fd,
+      bytes,
+      offset,
+      bytes.length - offset,
+      offset,
+    );
+    if (count <= 0) fail(code + "_short_read");
+    offset += count;
+  }
+  const after = fs.fstatSync(snapshot.fd, { bigint: true });
+  const visibleAfter = fs.lstatSync(snapshot.path, { bigint: true });
+  if (
+    !sameFileIdentity(snapshot.stat, after) ||
+    !sameFileIdentity(after, visibleAfter) ||
+    !bytes.equals(snapshot.bytes)
+  ) {
+    fail(code + "_changed");
+  }
+  assertPinnedDirectoryVisible(directory, code + "_directory");
+}
+
+function closePinnedFile(snapshot: PinnedFileSnapshotV1 | null): void {
+  if (!snapshot) return;
+  try {
+    fs.closeSync(snapshot.fd);
+  } catch {
+    // Best effort only.
+  }
+}
+
 function normalizedAddress(value: unknown): string {
   const result = String(value ?? "").trim().toLowerCase();
   return ADDRESS.test(result) ? result : "";
@@ -461,15 +602,14 @@ export function serializeCoupledNativeGasStorePayerDomainV1(
   ) + "\n";
 }
 
-function readPayerDomain(
-  root: PinnedDirectoryV1,
+type CoupledNativeGasStorePayerDomainSnapshotV1 = {
+  file: PinnedFileSnapshotV1;
+  value: CoupledNativeGasStorePayerDomainV1;
+};
+
+function parsePayerDomainBytes(
+  bytes: Buffer,
 ): CoupledNativeGasStorePayerDomainV1 {
-  const bytes = readPinnedFile(
-    root,
-    PAYER_DOMAIN_NAME,
-    MAX_RECORD_BYTES,
-    "coupled_native_gas_store_payer_domain",
-  );
   const text = bytes.toString("utf8");
   if (!text.endsWith("\n")) {
     fail("coupled_native_gas_store_payer_domain_serialization_invalid");
@@ -511,6 +651,38 @@ function readPayerDomain(
     fail("coupled_native_gas_store_payer_domain_binding_invalid");
   }
   return expected;
+}
+
+function openPayerDomainSnapshot(
+  root: PinnedDirectoryV1,
+): CoupledNativeGasStorePayerDomainSnapshotV1 {
+  const file = openPinnedFileSnapshot(
+    root,
+    PAYER_DOMAIN_NAME,
+    MAX_RECORD_BYTES,
+    "coupled_native_gas_store_payer_domain",
+  );
+  try {
+    return {
+      file,
+      value: parsePayerDomainBytes(file.bytes),
+    };
+  } catch (error) {
+    closePinnedFile(file);
+    throw error;
+  }
+}
+
+function assertPayerDomainSnapshotCurrent(
+  root: PinnedDirectoryV1,
+  snapshot: CoupledNativeGasStorePayerDomainSnapshotV1,
+): void {
+  assertPinnedFileSnapshotCurrent(
+    root,
+    snapshot.file,
+    MAX_RECORD_BYTES,
+    "coupled_native_gas_store_payer_domain",
+  );
 }
 
 function parseRecord(
@@ -755,7 +927,7 @@ function closePinned(directory: PinnedDirectoryV1 | null): void {
 
 export async function persistCoupledNativeGasOpenLiabilityV1(input: {
   root_dir: string;
-  now_ms: unknown;
+  read_now_ms: () => unknown;
   buy_void_plan: BuyVoidPreparedTransactionPlanReservationV1 | unknown;
   payer_observation: CoupledNativeGasPayerObservationV1 | unknown;
 }): Promise<CoupledNativeGasOpenLiabilityStoreDecisionV1> {
@@ -764,6 +936,11 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
   let queue: PinnedDirectoryV1 | null = null;
   let durableMutationPerformed = false;
   try {
+    if (typeof input?.read_now_ms !== "function") {
+      fail("coupled_native_gas_store_time_provider_required");
+    }
+    const readNowMs = input.read_now_ms;
+
     root = openPinnedDirectory(
       String(input?.root_dir || "").trim(),
       "coupled_native_gas_store_root",
@@ -778,128 +955,164 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
       LOCK_QUEUE_DIRECTORY,
       "coupled_native_gas_store_lock_queue",
     );
-    const payerDomain = readPayerDomain(root);
 
     return await withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
       queue.proc_path,
       async () => {
-        assertPinnedDirectoryVisible(
-          root!,
-          "coupled_native_gas_store_root",
-        );
-        assertPinnedDirectoryVisible(
-          records!,
-          "coupled_native_gas_store_records_directory",
-        );
-        assertPinnedDirectoryVisible(
-          queue!,
-          "coupled_native_gas_store_lock_queue",
-        );
-
-        const before = readCensus(
-          records!,
-          payerDomain.payer_address,
-        );
-        const classified =
-          classifyCoupledNativeGasBuyVoidAdmissionV1({
-            now_ms: input?.now_ms,
-            buy_void_plan: input?.buy_void_plan,
-            payer_observation: input?.payer_observation,
-            open_liabilities: before,
-          });
-        if (classified.ok === false) {
-          return held(classified.reason, classified.detail);
-        }
-        if (classified.payer_address !== payerDomain.payer_address) {
-          return held("coupled_native_gas_store_payer_domain_mismatch");
-        }
-
-        if (classified.status === "idempotent") {
-          const expectedName =
-            classified.liability.liability_id + ".json";
-          const existing = readPinnedFile(
-            records!,
-            expectedName,
-            MAX_RECORD_BYTES,
-            "coupled_native_gas_store_record",
-          );
-          if (!existing.equals(canonicalLiabilityBytes(classified.liability))) {
-            return held(
-              "coupled_native_gas_store_idempotent_record_bytes_mismatch",
-            );
-          }
+        let payerDomainSnapshot:
+          CoupledNativeGasStorePayerDomainSnapshotV1 | null = null;
+        try {
           assertPinnedDirectoryVisible(
             root!,
             "coupled_native_gas_store_root",
           );
+          assertPinnedDirectoryVisible(
+            records!,
+            "coupled_native_gas_store_records_directory",
+          );
+          assertPinnedDirectoryVisible(
+            queue!,
+            "coupled_native_gas_store_lock_queue",
+          );
+
+          payerDomainSnapshot = openPayerDomainSnapshot(root!);
+          const payerDomain = payerDomainSnapshot.value;
+
+          const before = readCensus(
+            records!,
+            payerDomain.payer_address,
+          );
+
+          const admissionNowMs = readNowMs();
+          const classified =
+            classifyCoupledNativeGasBuyVoidAdmissionV1({
+              now_ms: admissionNowMs,
+              buy_void_plan: input?.buy_void_plan,
+              payer_observation: input?.payer_observation,
+              open_liabilities: before,
+            });
+          if (classified.ok === false) {
+            return held(classified.reason, classified.detail);
+          }
+          if (classified.payer_address !== payerDomain.payer_address) {
+            return held("coupled_native_gas_store_payer_domain_mismatch");
+          }
+
+          assertPayerDomainSnapshotCurrent(
+            root!,
+            payerDomainSnapshot,
+          );
+
+          if (classified.status === "idempotent") {
+            const expectedName =
+              classified.liability.liability_id + ".json";
+            const existing = readPinnedFile(
+              records!,
+              expectedName,
+              MAX_RECORD_BYTES,
+              "coupled_native_gas_store_record",
+            );
+            if (
+              !existing.equals(
+                canonicalLiabilityBytes(classified.liability),
+              )
+            ) {
+              return held(
+                "coupled_native_gas_store_idempotent_record_bytes_mismatch",
+              );
+            }
+            assertPayerDomainSnapshotCurrent(
+              root!,
+              payerDomainSnapshot,
+            );
+            assertPinnedDirectoryVisible(
+              records!,
+              "coupled_native_gas_store_records_directory",
+            );
+            assertPinnedDirectoryVisible(
+              queue!,
+              "coupled_native_gas_store_lock_queue",
+            );
+            return Object.freeze({
+              ok: true,
+              status: "idempotent",
+              mutation_performed: false,
+              payer_address: classified.payer_address,
+              tracked_open_liability_count: before.length,
+              reserved_after_wei: classified.reserved_after_wei,
+              liability: classified.liability,
+              authority:
+                VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_AUTHORITY_V1,
+            });
+          }
+
+          if (before.length >= MAX_RECORDS) {
+            return held("coupled_native_gas_store_record_count_exceeded");
+          }
+
+          assertPayerDomainSnapshotCurrent(
+            root!,
+            payerDomainSnapshot,
+          );
+
+          createOnceLiability(records!, classified.liability);
+          durableMutationPerformed = true;
+
+          const after = readCensus(
+            records!,
+            payerDomain.payer_address,
+          );
+          if (after.length !== before.length + 1) {
+            fail("coupled_native_gas_store_postwrite_count_mismatch");
+          }
+          const post =
+            classifyCoupledNativeGasBuyVoidAdmissionV1({
+              now_ms: admissionNowMs,
+              buy_void_plan: input?.buy_void_plan,
+              payer_observation: input?.payer_observation,
+              open_liabilities: after,
+            });
+          if (
+            post.ok !== true ||
+            post.status !== "idempotent" ||
+            post.liability.liability_id !==
+              classified.liability.liability_id ||
+            post.reserved_after_wei !== classified.reserved_after_wei
+          ) {
+            fail("coupled_native_gas_store_postwrite_classifier_mismatch");
+          }
+
+          assertPayerDomainSnapshotCurrent(
+            root!,
+            payerDomainSnapshot,
+          );
+          assertPinnedDirectoryVisible(
+            root!,
+            "coupled_native_gas_store_root",
+          );
+          assertPinnedDirectoryVisible(
+            records!,
+            "coupled_native_gas_store_records_directory",
+          );
+          assertPinnedDirectoryVisible(
+            queue!,
+            "coupled_native_gas_store_lock_queue",
+          );
+
           return Object.freeze({
             ok: true,
-            status: "idempotent",
-            mutation_performed: false,
+            status: "stored",
+            mutation_performed: true,
             payer_address: classified.payer_address,
-            tracked_open_liability_count: before.length,
-            reserved_after_wei: classified.reserved_after_wei,
+            tracked_open_liability_count: after.length,
+            reserved_after_wei: post.reserved_after_wei,
             liability: classified.liability,
             authority:
               VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_AUTHORITY_V1,
           });
+        } finally {
+          closePinnedFile(payerDomainSnapshot?.file ?? null);
         }
-
-        if (before.length >= MAX_RECORDS) {
-          return held("coupled_native_gas_store_record_count_exceeded");
-        }
-
-        createOnceLiability(records!, classified.liability);
-        durableMutationPerformed = true;
-
-        const after = readCensus(
-          records!,
-          payerDomain.payer_address,
-        );
-        if (after.length !== before.length + 1) {
-          fail("coupled_native_gas_store_postwrite_count_mismatch");
-        }
-        const post =
-          classifyCoupledNativeGasBuyVoidAdmissionV1({
-            now_ms: input?.now_ms,
-            buy_void_plan: input?.buy_void_plan,
-            payer_observation: input?.payer_observation,
-            open_liabilities: after,
-          });
-        if (
-          post.ok !== true ||
-          post.status !== "idempotent" ||
-          post.liability.liability_id !==
-            classified.liability.liability_id ||
-          post.reserved_after_wei !== classified.reserved_after_wei
-        ) {
-          fail("coupled_native_gas_store_postwrite_classifier_mismatch");
-        }
-
-        assertPinnedDirectoryVisible(
-          root!,
-          "coupled_native_gas_store_root",
-        );
-        assertPinnedDirectoryVisible(
-          records!,
-          "coupled_native_gas_store_records_directory",
-        );
-        assertPinnedDirectoryVisible(
-          queue!,
-          "coupled_native_gas_store_lock_queue",
-        );
-
-        return Object.freeze({
-          ok: true,
-          status: "stored",
-          mutation_performed: true,
-          payer_address: classified.payer_address,
-          tracked_open_liability_count: after.length,
-          reserved_after_wei: post.reserved_after_wei,
-          liability: classified.liability,
-          authority:
-            VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_AUTHORITY_V1,
-        });
       },
     );
   } catch (error) {
