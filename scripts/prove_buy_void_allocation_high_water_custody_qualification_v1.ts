@@ -24,6 +24,8 @@ const RUNTIME_UID = 2101;
 const RUNTIME_GID = 2101;
 const CUSTODY_UID = 2201;
 const CUSTODY_GID = 2201;
+const EVIDENCE_GENERATION = 7;
+const SERVICE_UNIT_SHA256 = "sha256:" + "f".repeat(64);
 
 const sha256Id = (value: string | Buffer): string =>
   "sha256:" +
@@ -98,7 +100,7 @@ function evidence() {
     marker:
       VOID_BUY_VOID_ALLOCATION_HIGH_WATER_CUSTODY_QUALIFICATION_V1,
     version: 1,
-    evidence_generation: 7,
+    evidence_generation: EVIDENCE_GENERATION,
     observed_at_ms: OBSERVED_AT_MS,
     expires_at_ms: EXPIRES_AT_MS,
     source: {
@@ -138,6 +140,8 @@ function evidence() {
       custody_can_write_parent: true,
     },
     service_hardening: {
+      unit_name: "void-allocation-custody-v1.service",
+      unit_sha256: SERVICE_UNIT_SHA256,
       no_new_privileges: true,
       private_tmp: true,
       private_devices: true,
@@ -196,6 +200,8 @@ function classify(
       overrides.expected_source_head_sha ?? SOURCE_HEAD,
     expected_host_id_sha256:
       overrides.expected_host_id_sha256 ?? HOST_ID,
+    expected_evidence_generation: EVIDENCE_GENERATION,
+    expected_service_unit_sha256: SERVICE_UNIT_SHA256,
     ledger_jsonl: overrides.ledger_jsonl ?? ledger,
     high_water_json: overrides.high_water_json ?? highWater,
     evidence: evidenceValue,
@@ -346,6 +352,25 @@ for (const mutate of [
 
 {
   const bad = cloneEvidence();
+  bad.evidence_generation = EVIDENCE_GENERATION + 1;
+  expectHeld(
+    classify(bad),
+    "allocation_custody_evidence_generation_mismatch",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.service_hardening.unit_sha256 =
+    "sha256:" + "1".repeat(64);
+  expectHeld(
+    classify(bad),
+    "allocation_custody_service_unit_binding_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
   bad.service_hardening.no_new_privileges =
     false as true;
   expectHeld(
@@ -442,6 +467,8 @@ console.log("af_unix_narrow_ipc_required=true");
 console.log("systemd_hardening_required=true");
 console.log("negative_probe_evidence_required=true");
 console.log("freshness_required=true");
+console.log("caller_bound_evidence_generation=true");
+console.log("reviewed_service_unit_sha256_required=true");
 console.log("live_host_observation=false");
 console.log("live_host_qualification=false");
 console.log("host_mutation=false");
