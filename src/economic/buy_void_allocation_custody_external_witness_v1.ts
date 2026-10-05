@@ -564,6 +564,9 @@ export function parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
     }
 
     const event = parseEvent(parsed);
+    if (lines[index] !== canonicalJson(event)) {
+      fail("allocation_custody_witness_line_noncanonical");
+    }
     const previous = events.at(-1) ?? null;
 
     if (
@@ -1160,7 +1163,7 @@ export function planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(
       event_sha256: sha256Id(canonicalJson(body)),
     });
     const nextLine =
-      JSON.stringify(event) + "\n";
+      canonicalJson(event) + "\n";
     const priorBytes = Buffer.isBuffer(input.witness_jsonl)
       ? Buffer.from(input.witness_jsonl)
       : Buffer.from(String(input.witness_jsonl ?? ""), "utf8");
