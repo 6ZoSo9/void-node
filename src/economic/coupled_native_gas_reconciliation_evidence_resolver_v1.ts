@@ -1391,6 +1391,33 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
       methods,
     );
   }
+  if (outcomeState.status === "confirmed") {
+    const executionConfirmation = attempt.confirmation;
+    const broadcastConfirmation = outcomeState.confirmed;
+    if (
+      !executionConfirmation ||
+      !broadcastConfirmation ||
+      executionConfirmation.confirmation_fingerprint !==
+        broadcastConfirmation.confirmation_fingerprint ||
+      canonical(executionConfirmation.confirmed_record) !==
+        canonical(broadcastConfirmation.confirmed_record) ||
+      String(executionConfirmation.delivery_block_hash || "")
+        .trim()
+        .toLowerCase() !==
+        String(
+          broadcastConfirmation.confirmed_record.delivery_block_hash || "",
+        )
+          .trim()
+          .toLowerCase()
+    ) {
+      return held(
+        "terminal_outcome",
+        "reconciliation_evidence_confirmation_journal_mismatch",
+        policy.rpc_url_fingerprint_sha256,
+        methods,
+      );
+    }
+  }
 
   const transport = createHttpTransport(policy);
   const call = async (
