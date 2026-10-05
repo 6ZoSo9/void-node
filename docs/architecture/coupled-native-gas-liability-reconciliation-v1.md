@@ -21,8 +21,18 @@ The classifier consumes exactly:
   contract.
 
 The open-liability identity is independently rederived from every economic
-field. The terminal-cost evidence content address and arithmetic are also
-rederived rather than trusting caller booleans.
+field. The terminal-cost evidence full content address, stable terminal-cost
+accounting identity, and arithmetic are also independently rederived rather than
+trusting caller booleans.
+
+The full terminal-cost `evidence_id` remains freshness-sensitive because it
+contains the current observed block and confirmation count. The durable
+reconciliation therefore does **not** embed that volatile observation ID. It
+embeds `terminal_cost_identity_sha256`, which binds the immutable terminal
+transaction/receipt/cost facts and is independently rederived from the evidence.
+As a result, re-observing the same confirmed transaction at a later block can
+produce a newer `evidence_id` while producing the exact same canonical
+reconciliation bytes and `reconciliation_id`.
 
 That rederivation proves internal consistency only. This classifier does not
 re-read the terminal-outcome store, does not obtain a fresh receipt from an
@@ -135,6 +145,7 @@ The classifier HOLDS on, among other cases:
 - altered terminal-cost authority flags;
 - liability/evidence payer, nonce, plan, obligation, or ID mismatch;
 - altered terminal evidence content address;
+- altered stable terminal-cost accounting identity;
 - gas-used mismatch against the exact liability gas limit;
 - effective gas price above the admitted cap;
 - gas-cost or native-value-consumption arithmetic mismatch;
@@ -172,10 +183,13 @@ The classifier HOLDS on, among other cases:
 A later durable reconciliation writer must operate under the same payer-scoped
 serialization domain as the open-liability store, re-read authoritative state,
 authenticate or independently re-observe the terminal receipt and confirmation
-depth, persist append-only reconciliation evidence, and postcheck the resulting
-reserve floor before any release can become authoritative. The
-`unused_reserve_release_candidate_wei` field is never sufficient evidence by
-itself.
+depth, require the fresh observation to reproduce the same stable terminal-cost
+identity/canonical reconciliation, persist append-only reconciliation evidence,
+and postcheck the resulting reserve floor before any release can become
+authoritative. It must not require a later observation's volatile
+`evidence_id` to equal an earlier one merely because the chain head advanced.
+The `unused_reserve_release_candidate_wei` field is never sufficient evidence
+by itself.
 
 ## Focused proof
 
@@ -192,5 +206,8 @@ The proof covers:
 - terminal evidence arithmetic tampering;
 - terminal gas mismatch;
 - terminal evidence authority tampering;
-- terminal evidence content-address tampering; and
+- terminal evidence content-address tampering;
+- stable terminal-cost identity tampering;
+- later confirmation-depth re-observation changing the full evidence ID while
+  preserving byte-identical reconciliation output; and
 - all mutation/release/runtime/funds authority remaining false.
