@@ -93,6 +93,49 @@ This makes the helper suitable for rejecting **already executed** sponsored
 requests before trusted-time mutation while preserving retry semantics for
 requests that have not yet been atomically consumed.
 
+## Runtime-evidence source-equivalence bridge
+
+The Sep-29 production canary exercised the predecessor durable replay-store
+source generation, Git blob
+`2e4481fbf45200121356f39c278eac5b05a33596`, from source commit
+`24806b94cbaf3ea19d206ce542f4804cce5112db`.
+
+This lane changes the replay-store source blob to
+`2b267e11d087bec0e0a56825dce9f998d5bc3ad5` by adding the read-only
+`inspectConsumed(...)` API and factoring receipt inspection through
+`inspectExistingReceipt(...)`. The historical runtime canary is not evidence
+for the new inspection API.
+
+The reviewed source-equivalence bridge at
+`ops/mainnet0/economic-epoch2-durable-replay-store-consume-equivalence-v1.json`
+permits carry-forward of that historical canary for exactly one surface:
+the production gateway's atomic `consumeIfFresh(...)` replay path.
+
+Its proof requires:
+
+- the predecessor and successor replay-store Git blobs exactly;
+- byte-for-byte equality of the complete `consumeIfFresh(...)` method;
+- equivalence of predecessor receipt validation to the successor
+  `inspectExistingReceipt(...)` plus delegate-only
+  `validateExistingReceipt(...)` wrapper;
+- the production gateway still calls `consumeIfFresh(...)` and does not call
+  `inspectConsumed(...)`;
+- the exact historical runtime-evidence SHA-256, evidence ID, and import time;
+- `runtime_canary_reexecuted=false`;
+- no new negative-freshness or atomic-consume authority; and
+- all route, transaction, Chain-2050, migration, activation, and funds
+  authorities remain false.
+
+The cross-epoch replay promotion function now hard-requires this bridge. A
+caller cannot repin the replay-store source and reuse the historical canary
+without supplying a bridge whose successor blob matches the current canonical
+source-binding policy.
+
+This is intentionally narrower than runtime certification of the new
+`inspectConsumed(...)` helper. Inspection remains source/proof only and
+advisory; the historical canary carries forward only the unchanged atomic
+consume behavior.
+
 ## Namespace threat model
 
 The root realpath, inode, owner, type, and private mode are revalidated before
@@ -170,5 +213,6 @@ tokens/funds, authorize migration, or activate the public economic surface.
 Verification:
 
 ```bash
+node scripts/prove_void_economic_epoch2_durable_replay_store_consume_equivalence_v1.mjs
 node scripts/prove_void_economic_epoch2_durable_replay_store_v1.mjs
 ```
