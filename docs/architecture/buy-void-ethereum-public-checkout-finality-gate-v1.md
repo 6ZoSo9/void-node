@@ -28,8 +28,15 @@ The canonical policy loader already requires the reviewed Base + Ethereum RPC
 identity, URL fingerprint inputs, canonical USDC/receive-address policy,
 minimum-confirmation policy, and total timeout policy.
 
-Configuration is still not sufficient. Payment-instruction readiness also binds
-the canonical V5 finality capability authority. Current V5 deliberately reports:
+Configuration is still not sufficient. Payment-instruction readiness also
+requires the same immutable process-source identity used by the execution
+preflight (marker, commit-shaped SHA, tree-shaped SHA, and branch exactly
+`main`) before any Ethereum payment instructions can become ready. This keeps
+an identity-misconfigured process from accepting a payment that the later
+pre-attempt bridge would necessarily HOLD.
+
+Payment-instruction readiness also binds the canonical V5 finality capability
+authority. Current V5 deliberately reports:
 
 ```text
 source_generation_verified_on_success=false
