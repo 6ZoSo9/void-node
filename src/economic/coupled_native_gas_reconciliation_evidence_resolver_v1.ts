@@ -92,6 +92,13 @@ export type CoupledNativeGasReconciliationEvidenceResolverPolicyV1 = {
   max_response_bytes?: string | number;
 };
 
+type CoupledNativeGasReconciliationEvidenceRpcTransportV1 = (
+  call: {
+    method: CoupledNativeGasReconciliationEvidenceRpcMethodV1;
+    params: unknown[];
+  },
+) => Promise<unknown>;
+
 type NormalizedPolicyV1 = {
   rpc_url: string;
   rpc_url_fingerprint_sha256: string;
@@ -927,7 +934,7 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
   },
 ): Promise<CoupledNativeGasReconciliationEvidenceResolverDecisionV1> {
   const normalized = normalizePolicy(input?.policy);
-  if (!normalized.ok) {
+  if (normalized.ok === false) {
     return held(
       "policy",
       normalized.reason,
@@ -1237,7 +1244,7 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
       required_min_confirmations:
         policy.required_min_confirmations.toString(),
     });
-  if (!terminalEvidence.ok) {
+  if (terminalEvidence.ok === false) {
     return held(
       "terminal_cost",
       terminalEvidence.reason,
@@ -1251,7 +1258,7 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
       liability,
       terminal_cost_evidence: terminalEvidence,
     });
-  if (!reconciliation.ok) {
+  if (reconciliation.ok === false) {
     return held(
       "reconciliation",
       reconciliation.reason,
