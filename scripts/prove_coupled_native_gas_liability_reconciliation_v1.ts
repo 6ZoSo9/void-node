@@ -536,6 +536,8 @@ for (const [key, value] of Object.entries(
     "exact_open_liability_identity_rederived",
     "exact_terminal_cost_evidence_identity_rederived",
     "exact_liability_terminal_evidence_binding_required",
+    "release_candidate_requires_authenticated_terminal_reobservation",
+    "durable_reconciliation_writer_required",
     "consumed_reserve_retirement_candidate_classified",
     "unused_reserve_release_candidate_classified",
     "current_buy_void_attempt_limit_one_required",
@@ -554,6 +556,9 @@ console.log(
 );
 console.log("liability_identity_rederived=true");
 console.log("terminal_cost_evidence_identity_rederived=true");
+console.log("terminal_cost_evidence_provenance_verified=false");
+console.log("authenticated_terminal_reobservation_required=true");
+console.log("durable_reconciliation_writer_required=true");
 console.log("confirmed_unused_reserve_classified=true");
 console.log("reverted_reconciliation_hold=true");
 console.log("current_buy_void_attempt_limit_one_required=true");
