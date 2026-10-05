@@ -107,6 +107,12 @@ therefore cannot be derived from a weaker real-ID view.
 Payer-root rename/recreate/symlink-substitution denial is derived from the
 runtime's effective UID/GID/groups and the parent-directory permission bits.
 
+Bind/remount/alternate-mount-namespace denial is not inferred merely from the
+current namespace snapshot. The collector also reads the public runtime unit's
+effective `RestrictNamespaces=` policy and requires mount-namespace creation to
+be prohibited. Unknown or permissive policy leaves those #2499 negative-evidence
+flags false and therefore HOLDS instead of claiming denial.
+
 Systemd service-control denial is obtained with noninteractive Polkit
 authorization queries for the exact custody unit and the `start`, `stop`,
 and `restart` verbs. The Polkit subject is bound as
@@ -174,7 +180,7 @@ The proof covers:
 - exact #2499 classifier reuse;
 - authority flags;
 - proc-status parsing;
-- systemd-show parsing;
+- systemd-show parsing and mount-namespace restriction semantics;
 - proc start-time parsing, non-divergent FS UID/GID identity, full capability
   masks, and `NoNewPrivs` evidence;
 - designated-host mismatch HOLD;
