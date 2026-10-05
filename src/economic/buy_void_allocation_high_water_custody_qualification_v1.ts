@@ -62,6 +62,8 @@ const MAX_LEDGER_BYTES = 64 * 1024 * 1024;
 const MAX_HIGH_WATER_BYTES = 4096;
 const MAX_EVIDENCE_TTL_MS = 15 * 60 * 1000;
 const MAX_EVIDENCE_AGE_MS = 5 * 60 * 1000;
+const LEDGER_NAME = "allocation-reservations-v1.jsonl";
+const HIGH_WATER_NAME = "allocation-reservation-high-water-v1.json";
 const REQUIRED_MOUNT_OPTIONS = Object.freeze([
   "nodev",
   "noexec",
@@ -103,6 +105,18 @@ type RootEvidenceV1 = {
   custody_can_rename_path: false;
   ancestors: AncestorEvidenceV1[];
   mount: MountEvidenceV1;
+};
+
+type StateFileEvidenceV1 = {
+  path: string;
+  uid: number;
+  gid: number;
+  mode: number;
+  is_regular_file: true;
+  is_symlink: false;
+  nlink: 1;
+  sha256: string;
+  bytes: number;
 };
 
 type EvidenceV1 = {
@@ -182,10 +196,8 @@ type EvidenceV1 = {
     reboot_mount_identity_stable: true;
   };
   state: {
-    ledger_sha256: string;
-    ledger_bytes: number;
-    high_water_sha256: string;
-    high_water_bytes: number;
+    ledger_file: StateFileEvidenceV1;
+    high_water_file: StateFileEvidenceV1;
   };
 };
 
@@ -509,6 +521,65 @@ function validateRoot(
   });
 }
 
+function validateStateFile(
+  raw: unknown,
+  root: RootEvidenceV1,
+  expectedName: string,
+  host: EvidenceV1["host"],
+  expectedBytes: Buffer,
+  code: string,
+): StateFileEvidenceV1 {
+  const value = directObject(raw, code + "_object_invalid");
+  exactKeys(
+    value,
+    [
+      "path",
+      "uid",
+      "gid",
+      "mode",
+      "is_regular_file",
+      "is_symlink",
+      "nlink",
+      "sha256",
+      "bytes",
+    ],
+    code + "_keys_invalid",
+  );
+  const expectedPath = path.posix.join(root.path, expectedName);
+  const filePath = absolutePath(value.path, code + "_path_invalid");
+  if (filePath !== expectedPath) fail(code + "_path_binding_invalid");
+  if (
+    safeInteger(value.uid, code + "_uid_invalid") !== host.custody_uid ||
+    safeInteger(value.gid, code + "_gid_invalid") !== host.custody_gid ||
+    modeV1(value.mode, code + "_mode_invalid") !== 0o600 ||
+    value.is_regular_file !== true ||
+    value.is_symlink !== false ||
+    safeInteger(value.nlink, code + "_nlink_invalid") !== 1
+  ) {
+    fail(code + "_custody_invalid");
+  }
+  const digest = String(value.sha256 ?? "");
+  const size = safeInteger(value.bytes, code + "_bytes_invalid");
+  if (
+    !SHA256_ID.test(digest) ||
+    digest !== sha256Id(expectedBytes) ||
+    size !== expectedBytes.length
+  ) {
+    fail(code + "_content_binding_invalid");
+  }
+  return Object.freeze({
+    path: filePath,
+    uid: host.custody_uid,
+    gid: host.custody_gid,
+    mode: 0o600,
+    is_regular_file: true,
+    is_symlink: false,
+    nlink: 1,
+    sha256: digest,
+    bytes: size,
+  });
+}
+
 function validateEvidence(
   raw: unknown,
   expectedSourceHead: string,
@@ -808,28 +879,25 @@ function validateEvidence(
   );
   exactKeys(
     state,
-    [
-      "ledger_sha256",
-      "ledger_bytes",
-      "high_water_sha256",
-      "high_water_bytes",
-    ],
+    ["ledger_file", "high_water_file"],
     "allocation_custody_state_keys_invalid",
   );
-  if (
-    state.ledger_sha256 !== sha256Id(ledgerBytes) ||
-    safeInteger(
-      state.ledger_bytes,
-      "allocation_custody_state_ledger_bytes_invalid",
-    ) !== ledgerBytes.length ||
-    state.high_water_sha256 !== sha256Id(highWaterBytes) ||
-    safeInteger(
-      state.high_water_bytes,
-      "allocation_custody_state_high_water_bytes_invalid",
-    ) !== highWaterBytes.length
-  ) {
-    fail("allocation_custody_state_digest_mismatch");
-  }
+  validateStateFile(
+    state.ledger_file,
+    ledger,
+    LEDGER_NAME,
+    host,
+    ledgerBytes,
+    "allocation_custody_state_ledger_file",
+  );
+  validateStateFile(
+    state.high_water_file,
+    custody,
+    HIGH_WATER_NAME,
+    host,
+    highWaterBytes,
+    "allocation_custody_state_high_water_file",
+  );
 
   return value as unknown as EvidenceV1;
 }
@@ -943,8 +1011,8 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
       evidence_sha256: sha256Id(canonical(evidence)),
       source_head_sha: evidence.source.source_head_sha,
       host_id_sha256: evidence.host.host_id_sha256,
-      ledger_sha256: evidence.state.ledger_sha256,
-      high_water_sha256: evidence.state.high_water_sha256,
+      ledger_sha256: evidence.state.ledger_file.sha256,
+      high_water_sha256: evidence.state.high_water_file.sha256,
       distinct_mount_identity_evidence: true,
       independent_rollback_domain_evidence: true,
       root_path_stability_evidence: true,
