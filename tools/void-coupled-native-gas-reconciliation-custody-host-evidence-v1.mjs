@@ -155,30 +155,53 @@ export function parseProcStatusV1(text) {
     if (index < 1) continue;
     fields.set(line.slice(0, index), line.slice(index + 1).trim());
   }
-  const uidParts = String(fields.get("Uid") || "").split(/\s+/u);
-  const gidParts = String(fields.get("Gid") || "").split(/\s+/u);
+  const uidParts = String(fields.get("Uid") || "")
+    .split(/\s+/u)
+    .map(Number);
+  const gidParts = String(fields.get("Gid") || "")
+    .split(/\s+/u)
+    .map(Number);
   const groups = String(fields.get("Groups") || "")
     .split(/\s+/u)
     .filter(Boolean)
     .map(Number);
-  const capHex = String(fields.get("CapEff") || "");
+  const capFields = [
+    "CapInh",
+    "CapPrm",
+    "CapEff",
+    "CapBnd",
+    "CapAmb",
+  ];
+  const capValues = Object.create(null);
+  for (const key of capFields) {
+    const raw = String(fields.get(key) || "");
+    if (!/^[0-9A-Fa-f]{1,32}$/u.test(raw)) {
+      throw new Error("proc_status_invalid");
+    }
+    capValues[key] = BigInt("0x" + raw);
+  }
   const noNewPrivs = Number(fields.get("NoNewPrivs"));
-  const uid = Number(uidParts[0]);
-  const gid = Number(gidParts[0]);
   if (
-    !Number.isSafeInteger(uid) || uid < 1 ||
-    !Number.isSafeInteger(gid) || gid < 1 ||
+    uidParts.length !== 4 ||
+    gidParts.length !== 4 ||
+    uidParts.some((value) => !Number.isSafeInteger(value) || value < 1) ||
+    gidParts.some((value) => !Number.isSafeInteger(value) || value < 1) ||
+    new Set(uidParts).size !== 1 ||
+    new Set(gidParts).size !== 1 ||
     groups.some((value) => !Number.isSafeInteger(value) || value < 0) ||
-    !/^[0-9A-Fa-f]{1,32}$/u.test(capHex) ||
     (noNewPrivs !== 0 && noNewPrivs !== 1)
   ) {
     throw new Error("proc_status_invalid");
   }
   return Object.freeze({
-    uid,
-    gid,
+    uid: uidParts[3],
+    gid: gidParts[3],
     groups: Object.freeze([...new Set(groups)].sort((a, b) => a - b)),
-    cap_eff: BigInt("0x" + capHex),
+    cap_inh: capValues.CapInh,
+    cap_prm: capValues.CapPrm,
+    cap_eff: capValues.CapEff,
+    cap_bnd: capValues.CapBnd,
+    cap_amb: capValues.CapAmb,
     no_new_privs: noNewPrivs,
   });
 }
@@ -223,6 +246,16 @@ function readProcessIdentity(procRoot) {
 
 function yes(value) {
   return String(value || "") === "yes";
+}
+
+function capabilitiesZero(identity) {
+  return (
+    identity.cap_inh === 0n &&
+    identity.cap_prm === 0n &&
+    identity.cap_eff === 0n &&
+    identity.cap_bnd === 0n &&
+    identity.cap_amb === 0n
+  );
 }
 
 function unitName(value, code) {
@@ -796,8 +829,11 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
     const custodyProc = "/proc/" + String(custodyUnitBefore.pid);
     const publicCredsBefore = readProcessIdentity(publicProc);
     const custodyCredsBefore = readProcessIdentity(custodyProc);
-    if (publicCredsBefore.cap_eff !== 0n) {
-      return hold("public_runtime_effective_capabilities_present");
+    if (!capabilitiesZero(publicCredsBefore)) {
+      return hold("public_runtime_capabilities_present");
+    }
+    if (!capabilitiesZero(custodyCredsBefore)) {
+      return hold("custody_service_capabilities_present");
     }
     if (
       publicCredsBefore.no_new_privs !== 1 ||
