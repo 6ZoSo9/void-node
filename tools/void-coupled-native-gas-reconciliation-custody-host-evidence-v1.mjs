@@ -163,6 +163,47 @@ function sameStat(left, right) {
   );
 }
 
+function sameObjectIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode
+  );
+}
+
+function processRootPath(procRoot, logicalPath) {
+  const absolute = path.resolve(String(logicalPath || ""));
+  if (!path.isAbsolute(String(logicalPath || "")) || absolute !== logicalPath) {
+    throw new Error("public_runtime_path_invalid");
+  }
+  const relative = absolute.slice(path.parse(absolute).root.length);
+  return path.join(procRoot, "root", relative);
+}
+
+function readProcessNamespaceDirectoryStat(procRoot, logicalPath, code) {
+  const target = processRootPath(procRoot, logicalPath);
+  const listed = fs.lstatSync(target, { bigint: true });
+  if (!listed.isDirectory() || listed.isSymbolicLink()) {
+    throw new Error(code + "_not_directory");
+  }
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      target,
+      fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+    );
+    const opened = fs.fstatSync(fd, { bigint: true });
+    if (!opened.isDirectory() || !sameObjectIdentity(listed, opened)) {
+      throw new Error(code + "_identity_drift");
+    }
+    return opened;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
 function exactRealPath(target, code) {
   const resolved = path.resolve(String(target || ""));
   if (!path.isAbsolute(String(target || "")) || resolved !== String(target || "")) {
@@ -795,6 +836,80 @@ function collectPathEvidence(rootPath, publicCreds, mountRecords) {
   });
 }
 
+function verifyPublicRuntimePathMapping(
+  rootPath,
+  publicProc,
+  publicCreds,
+  publicMountRecords,
+  custodyPaths,
+) {
+  const publicRoot = readProcessNamespaceDirectoryStat(
+    publicProc,
+    rootPath,
+    "public_runtime_payer_root",
+  );
+  if (!sameObjectIdentity(publicRoot, custodyPaths.root_identity.stat)) {
+    throw new Error("public_runtime_payer_root_mapping_mismatch");
+  }
+  const ancestors = custodyPaths.payer_root.ancestors;
+  const publicAncestorRecords = [];
+  for (const expected of ancestors) {
+    const observed = readProcessNamespaceDirectoryStat(
+      publicProc,
+      expected.path,
+      "public_runtime_ancestor",
+    );
+    if (
+      String(observed.dev) !== String(expected.dev) ||
+      String(observed.ino) !== String(expected.ino) ||
+      canMutateDirectory(observed, publicCreds)
+    ) {
+      throw new Error("public_runtime_ancestor_mapping_mismatch");
+    }
+    publicAncestorRecords.push(Object.freeze({
+      path: expected.path,
+      dev: String(observed.dev),
+      ino: String(observed.ino),
+      mode: modeText(observed),
+    }));
+  }
+  const parent = publicAncestorRecords.at(-1);
+  if (!parent) {
+    throw new Error("public_runtime_parent_mapping_missing");
+  }
+  if (canMutateDirectory(publicRoot, publicCreds)) {
+    throw new Error("public_runtime_payer_root_writable");
+  }
+  const rootMount = resolveMountForPathV1(
+    publicMountRecords,
+    rootPath,
+  );
+  return Object.freeze({
+    payer_root_dev: String(publicRoot.dev),
+    payer_root_ino: String(publicRoot.ino),
+    payer_root_mount_id: rootMount.mount_id,
+    payer_root_mount_parent_id: rootMount.parent_id,
+    payer_root_mount_major_minor: rootMount.major_minor,
+    ancestor_records: Object.freeze(publicAncestorRecords),
+  });
+}
+
+export function testOnlyPublicRuntimePathMappingV1(
+  rootPath,
+  publicProc,
+  publicCreds,
+  publicMountRecords,
+  custodyPaths,
+) {
+  return verifyPublicRuntimePathMapping(
+    rootPath,
+    publicProc,
+    publicCreds,
+    publicMountRecords,
+    custodyPaths,
+  );
+}
+
 function namespaceBundle(selfNs, publicNs, custodyNs) {
   if (!sameNamespace(selfNs, custodyNs)) {
     throw new Error("collector_not_in_custody_mount_namespace");
@@ -824,6 +939,8 @@ function buildDecision({
   observedHostname,
   mountInfoBefore,
   mountInfoAfter,
+  publicRuntimeMountInfoBefore,
+  publicRuntimeMountInfoAfter,
   namespaceBefore,
   namespaceAfter,
   classifierInput,
@@ -835,6 +952,9 @@ function buildDecision({
     }
     if (mountInfoBefore !== mountInfoAfter) {
       return hold("mountinfo_changed_during_observation");
+    }
+    if (publicRuntimeMountInfoBefore !== publicRuntimeMountInfoAfter) {
+      return hold("public_runtime_mountinfo_changed_during_observation");
     }
     if (
       namespaceBefore.identity_sha256 !== namespaceAfter.identity_sha256 ||
@@ -870,6 +990,8 @@ function buildDecision({
       public_runtime_mount_namespace_shared_with_custody:
         namespaceBefore.public_runtime_shared_with_custody,
       mountinfo_sha256: sha256Id(mountInfoBefore),
+      public_runtime_mountinfo_sha256:
+        sha256Id(publicRuntimeMountInfoBefore),
       classifier_input: classifierInput,
       qualification,
       collector_evidence: collectorEvidence,
@@ -968,13 +1090,27 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
     );
     const mountInfoPath =
       path.join(custodyProc, "mountinfo");
+    const publicRuntimeMountInfoPath =
+      path.join(publicProc, "mountinfo");
     const mountInfoBefore = fs.readFileSync(mountInfoPath, "utf8");
+    const publicRuntimeMountInfoBefore =
+      fs.readFileSync(publicRuntimeMountInfoPath, "utf8");
     const mountRecords = parseMountInfoV1(mountInfoBefore);
+    const publicRuntimeMountRecords =
+      parseMountInfoV1(publicRuntimeMountInfoBefore);
     const pathsBefore = collectPathEvidence(
       rootPath,
       publicCredsBefore,
       mountRecords,
     );
+    const publicRuntimePathMappingBefore =
+      verifyPublicRuntimePathMapping(
+        rootPath,
+        publicProc,
+        publicCredsBefore,
+        publicRuntimeMountRecords,
+        pathsBefore,
+      );
 
     const custodyPolicyBefore = servicePolicyEvidence(
       custodyUnit,
@@ -1009,6 +1145,8 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
     }
 
     const mountInfoAfter = fs.readFileSync(mountInfoPath, "utf8");
+    const publicRuntimeMountInfoAfter =
+      fs.readFileSync(publicRuntimeMountInfoPath, "utf8");
     const namespaceAfter = namespaceBundle(
       readNamespaceIdentity("/proc/self"),
       readNamespaceIdentity(publicProc),
@@ -1019,6 +1157,14 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       publicCredsAfter,
       parseMountInfoV1(mountInfoAfter),
     );
+    const publicRuntimePathMappingAfter =
+      verifyPublicRuntimePathMapping(
+        rootPath,
+        publicProc,
+        publicCredsAfter,
+        parseMountInfoV1(publicRuntimeMountInfoAfter),
+        pathsAfter,
+      );
     if (
       canonical(pathsAfter.payer_root) !== canonical(pathsBefore.payer_root) ||
       canonical(pathsAfter.payer_domain) !== canonical(pathsBefore.payer_domain) ||
@@ -1028,6 +1174,12 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       canonical(pathsAfter.queue) !== canonical(pathsBefore.queue)
     ) {
       return hold("custody_paths_changed_during_observation");
+    }
+    if (
+      canonical(publicRuntimePathMappingAfter) !==
+      canonical(publicRuntimePathMappingBefore)
+    ) {
+      return hold("public_runtime_paths_changed_during_observation");
     }
 
     const now = Date.now();
@@ -1044,7 +1196,8 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
     if (!machineId) return hold("machine_id_unavailable");
 
     const parentWritable =
-      canMutateDirectory(pathsBefore.parent_stat, publicCredsBefore);
+      pathsBefore.payer_root.public_runtime_rename === true ||
+      pathsBefore.payer_root.public_runtime_recreate === true;
     const publicPolicy =
       parseSystemdShowV1(publicShowBefore);
     const namespaceMutationDenied =
@@ -1094,6 +1247,8 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       observedHostname,
       mountInfoBefore,
       mountInfoAfter,
+      publicRuntimeMountInfoBefore,
+      publicRuntimeMountInfoAfter,
       namespaceBefore,
       namespaceAfter,
       classifierInput,
@@ -1118,7 +1273,11 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
           namespaceBefore.public_runtime_identity_sha256,
         public_runtime_mount_namespace_shared_with_custody:
           namespaceBefore.public_runtime_shared_with_custody,
+        public_runtime_payer_root_mapping:
+          publicRuntimePathMappingBefore,
         mountinfo_sha256: sha256Id(mountInfoBefore),
+        public_runtime_mountinfo_sha256:
+          sha256Id(publicRuntimeMountInfoBefore),
         boot_id_sha256: sha256Id(bootId),
         machine_id_sha256: sha256Id(machineId),
       }),
