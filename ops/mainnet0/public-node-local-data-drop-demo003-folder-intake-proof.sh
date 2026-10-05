@@ -25,6 +25,10 @@ test -f "$HANDOFF"
 test -x "$INTAKE"
 test -x "$STATUS"
 grep -Fq 'HANDOFF_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-sealed-handoff-v1.py"' "$INTAKE"
+grep -Fq 'rollback_demo003_latest()' "$INTAKE"
+grep -Fq 'discard_prior_demo003_latest()' "$INTAKE"
+grep -Fq 'latest_publish_rollback_restored=true' "$INTAKE"
+grep -Fq 'latest_publish_commit_validated=true' "$INTAKE"
 if grep -Fq 'cp -a "$VERIFY_OUT/extract/demo003-folder-fixture/." "$ARCHIVE/"' "$INTAKE"; then
   echo "mutable_visible_tree_copy_remains=true"
   exit 1
@@ -109,6 +113,95 @@ status_set="$(
 )"
 test -n "$intake_set" && test "$intake_set" = "$status_set"
 
+prior_status_set="$status_set"
+real_python="$(command -v python3)"
+wrapper_bin="$OUT/post-publish-python-wrapper"
+mkdir -m 0700 "$wrapper_bin"
+cat >"$wrapper_bin/python3" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+
+real="${VOID_DEMO003_TEST_REAL_PYTHON:?}"
+if [ "${1:-}" != "-" ]; then
+  exec "$real" "$@"
+fi
+
+script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-intake-python-wrapper.XXXXXX")"
+trap 'rm -f "$script"' EXIT
+cat >"$script"
+
+set +e
+"$real" "$script" "${@:2}"
+rc=$?
+set -e
+
+if [ "$rc" -eq 0 ] &&
+   [ "${VOID_DEMO003_TEST_CORRUPT_AFTER_PUBLISH:-0}" = "1" ] &&
+   grep -Fq 'latest_atomic_publish=true' "$script" &&
+   grep -Fq 'latest_replaced_existing=' "$script"; then
+  latest="${@: -1}"
+  test -d "$latest/files"
+  printf 'VOID_DEMO003_POST_PUBLISH_STATUS_CORRUPTION\n' > \
+    "$latest/files/README.txt"
+fi
+
+exit "$rc"
+SH
+chmod 0700 "$wrapper_bin/python3"
+
+set +e
+PATH="$wrapper_bin:$PATH" \
+VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+VOID_DEMO003_TEST_CORRUPT_AFTER_PUBLISH=1 \
+DATA_DIR="$DATA_DIR" \
+OUT="$OUT/intake-rollback-run" \
+  "$INTAKE" >"$OUT/intake-rollback.log" 2>&1
+rollback_rc=$?
+set -e
+
+if [ "$rollback_rc" -eq 0 ]; then
+  echo "post_publish_invalid_latest_unexpectedly_committed=true"
+  exit 1
+fi
+grep -Fq "status=demo003_folder_intake_held_after_publish_validation" \
+  "$OUT/intake-rollback.log"
+grep -Fq "latest_publish_rollback_restored=true" \
+  "$OUT/intake-rollback.log"
+if grep -Fq "latest_publish_commit_validated=true" \
+  "$OUT/intake-rollback.log"; then
+  echo "post_publish_invalid_latest_reported_committed=true"
+  exit 1
+fi
+
+DATA_DIR="$DATA_DIR" "$STATUS" >"$OUT/status-after-rollback.log"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_STATUS_V1_GREEN=true" \
+  "$OUT/status-after-rollback.log"
+restored_set="$(
+  sed -n 's/^sealed_snapshot_set_sha256=\([0-9a-f]\{64\}\)$/\1/p' \
+    "$OUT/status-after-rollback.log" |
+    tail -n 1
+)"
+test -n "$restored_set" && test "$restored_set" = "$prior_status_set"
+if grep -Fq "VOID_DEMO003_POST_PUBLISH_STATUS_CORRUPTION" \
+  "$DATA_DIR/public-node/local-data-drop-demo003-folder-fixtures/latest/files/README.txt"; then
+  echo "post_publish_invalid_latest_not_rolled_back=true"
+  exit 1
+fi
+if find "$DATA_DIR/public-node/local-data-drop-demo003-folder-fixtures" \
+     -maxdepth 1 -name '.latest-stage-*' -print -quit | grep -q .; then
+  echo "post_publish_rollback_left_stage=true"
+  exit 1
+fi
+
+after="$(git status --short --untracked-files=no)"
+if [ "$before" != "$after" ]; then
+  echo "no_source_mutation=false"
+  git status --short
+  exit 1
+fi
+
+echo "post_publish_invalid_latest_rollback_verified=true"
+echo "prior_latest_snapshot_restored=true"
 echo "post_green_visible_tree_mutation_rejected=true"
 echo "published_latest_snapshot_revalidation_verified=true"
 echo "sealed_snapshot_handoff_verified=true"
