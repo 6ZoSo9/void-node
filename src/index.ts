@@ -58669,7 +58669,7 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
     status,
     object_set_id: "demo003-folder-fixture-v1",
     source_contract_verified: false,
-    verified_content_authority: "sealed_memfd_snapshot",
+    verified_content_authority: "none",
     serving_authority: "canonical_demo003_source_contract_v1",
     visible_extraction_tree_trusted: false,
     trusted_as_network_truth: false
@@ -58725,6 +58725,7 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
     network_fetch_during_import:contract.network_fetch_during_import,
     trusted_as_network_truth:contract.trusted_as_network_truth,
     verified_content_authority:contract.verified_content_authority,
+    intake_verified_content_authority:contract.intake_verified_content_authority,
     serving_authority:"canonical_demo003_source_contract_v1",
     source_contract_verified:true,
     source_contract_sha256:contract.source_contract_sha256,
@@ -58767,7 +58768,7 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fi
     file_name: fileName,
     public_read_only: true,
     source_contract_verified: false,
-    verified_content_authority: "sealed_memfd_snapshot",
+    verified_content_authority: "none",
     serving_authority: "canonical_demo003_source_contract_v1",
     visible_extraction_tree_trusted: false,
     trusted_as_network_truth: false
@@ -58818,6 +58819,8 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fi
   res.setHeader("Content-Type", allowed[fileName]);
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-VOID-Demo003-Serving-Authority", "canonical_demo003_source_contract_v1");
+  res.setHeader("X-VOID-Demo003-Verified-Content-Authority", contract.verified_content_authority);
+  res.setHeader("X-VOID-Demo003-Intake-Verified-Content-Authority", contract.intake_verified_content_authority);
   res.setHeader("X-VOID-Demo003-Source-Contract-SHA256", contract.source_contract_sha256);
   res.setHeader("X-VOID-Demo003-Sealed-Snapshot-Set-SHA256", contract.sealed_snapshot_set_sha256);
   res.setHeader("X-VOID-Demo003-Visible-Extraction-Tree-Trusted", "false");
