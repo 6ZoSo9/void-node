@@ -96,8 +96,16 @@ export const VOID_WC_VOID_SUPERSEDED_CREATION_BYTECODE_SHA256_V1 =
   "9fae041d06d317b326fd1a9cee6efc34fa0e214b74a9447e44131969d886a5af";
 export const VOID_WC_VOID_SUPERSEDED_RUNTIME_TEMPLATE_SHA256_V1 =
   "421f6e2ecbea1ccf02e20a52119323014a0f65906ff08d060d602ebebb327409";
+export const VOID_WC_VOID_CORRECTED_CREATION_BYTECODE_SHA256_V2 =
+  "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540";
+export const VOID_WC_VOID_CORRECTED_RUNTIME_TEMPLATE_SHA256_V2 =
+  "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e";
+export const VOID_WC_VOID_CURRENT_COMPILED_IDENTITY_BINDING_ID_V2 =
+  "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05";
 const V1_ACCEPTANCE_MODULE_BASENAME =
   "void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+const CURRENT_IDENTITY_MODULE_BASENAME =
+  "void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 
 export const VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2 =
   Object.freeze([
@@ -267,6 +275,22 @@ function compiledIdentityDependencyCountsV2(text) {
     v1_acceptance_module_occurrences: countDigest(
       text,
       V1_ACCEPTANCE_MODULE_BASENAME,
+    ),
+    corrected_creation_sha256_occurrences: countDigest(
+      text,
+      VOID_WC_VOID_CORRECTED_CREATION_BYTECODE_SHA256_V2,
+    ),
+    corrected_runtime_sha256_occurrences: countDigest(
+      text,
+      VOID_WC_VOID_CORRECTED_RUNTIME_TEMPLATE_SHA256_V2,
+    ),
+    current_identity_module_occurrences: countDigest(
+      text,
+      CURRENT_IDENTITY_MODULE_BASENAME,
+    ),
+    current_binding_id_occurrences: countDigest(
+      text,
+      VOID_WC_VOID_CURRENT_COMPILED_IDENTITY_BINDING_ID_V2,
     ),
     correction_v2_occurrences: countDigest(
       text,
@@ -479,10 +503,14 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
         ),
       });
     });
-
-  const remaining = bindings.filter(
-    (entry) => entry.superseded_digest_occurrences > 0,
+  const incorrectAuthoritativeBindings = bindings.filter(
+    (entry) =>
+      entry.superseded_digest_occurrences !== 0 ||
+      entry.corrected_digest_occurrences < 1,
   );
+  if (incorrectAuthoritativeBindings.length > 0) {
+    fail("coupled_launch_regeneration_authoritative_rebind_incomplete");
+  }
 
   const compiledIdentityBindings =
     VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2
@@ -493,63 +521,61 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
           ...compiledIdentityDependencyCountsV2(text),
         });
       });
-  const remainingCompiledIdentityConsumers =
-    compiledIdentityBindings.filter((entry) =>
-      entry.superseded_creation_sha256_occurrences > 0 ||
-      entry.superseded_runtime_sha256_occurrences > 0 ||
-      entry.v1_acceptance_module_occurrences > 0
-    );
+  const incorrectCompiledIdentityConsumers =
+    compiledIdentityBindings.filter((entry) => {
+      const superseded =
+        entry.superseded_creation_sha256_occurrences > 0 ||
+        entry.superseded_runtime_sha256_occurrences > 0 ||
+        entry.v1_acceptance_module_occurrences > 0;
+      const corrected =
+        entry.corrected_creation_sha256_occurrences > 0 ||
+        entry.corrected_runtime_sha256_occurrences > 0 ||
+        entry.current_identity_module_occurrences > 0 ||
+        entry.current_binding_id_occurrences > 0;
+      return superseded || !corrected;
+    });
+  if (incorrectCompiledIdentityConsumers.length > 0) {
+    fail("coupled_launch_regeneration_compiled_identity_rebind_incomplete");
+  }
+
   const discoveredCompiledIdentityPaths =
     discoverVoidWcVoidSupersededCompiledIdentitySourcePathsV2();
-  const expectedCompiledIdentityPaths = [
-    ...VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2,
+  const allowedHistoricalCompiledIdentityPaths = [
     ...VOID_WC_VOID_COMPILED_IDENTITY_HISTORICAL_PATHS_V2,
     ...VOID_WC_VOID_COMPILED_IDENTITY_NON_AUTHORITY_PATHS_V2,
   ].sort();
   const unknownCompiledIdentityPaths =
     discoveredCompiledIdentityPaths.filter(
-      (relativePath) => !expectedCompiledIdentityPaths.includes(relativePath),
+      (relativePath) =>
+        !allowedHistoricalCompiledIdentityPaths.includes(relativePath),
     );
-  const missingCompiledIdentityAuthoritativePaths =
-    VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2
-      .filter(
-        (relativePath) => !discoveredCompiledIdentityPaths.includes(relativePath),
-      );
   if (unknownCompiledIdentityPaths.length > 0) {
     fail("coupled_launch_regeneration_unknown_superseded_identity_source_path");
   }
-  if (
-    missingCompiledIdentityAuthoritativePaths.length > 0 ||
-    remainingCompiledIdentityConsumers.length !==
-      compiledIdentityBindings.length
-  ) {
-    fail("coupled_launch_regeneration_partial_compiled_identity_rebind_detected");
-  }
+
   const discoveredSourcePaths =
     discoverVoidWcVoidSupersededGenerationSourcePathsV2();
-  const expectedSourcePaths = [
-    ...VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2,
+  const allowedHistoricalSourcePaths = [
+    ...VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2,
     ...VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
   ].sort();
   const unknownSourcePaths = discoveredSourcePaths.filter(
-    (relativePath) => !expectedSourcePaths.includes(relativePath),
+    (relativePath) => !allowedHistoricalSourcePaths.includes(relativePath),
   );
-  const missingAuthoritativePaths =
-    VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2
-      .filter((relativePath) => !discoveredSourcePaths.includes(relativePath));
   if (unknownSourcePaths.length > 0) {
     fail("coupled_launch_regeneration_unknown_superseded_source_path");
   }
   if (
-    missingAuthoritativePaths.length > 0 ||
-    remaining.length !== bindings.length
+    candidate?.shared_post_discovery_reconciliation?.coupled_launch_id !==
+      generation.opening_domain_id
   ) {
-    fail("coupled_launch_regeneration_partial_authoritative_rebind_detected");
+    fail("coupled_launch_regeneration_candidate_not_corrected");
   }
+
   const body = {
     marker: VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2,
     version: 2,
-    status: "CORRECTED_GENERATION_DERIVED_REBIND_REQUIRED",
+    status: "CORRECTED_GENERATION_ATOMIC_REBIND_SOURCE_GREEN",
     superseded_coupled_launch_id:
       "sha256:" + VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
     corrected_coupled_launch_id: generation.opening_domain_id,
@@ -560,18 +586,21 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
       candidate?.shared_post_discovery_reconciliation?.coupled_launch_id || null,
     authoritative_bindings: bindings,
     authoritative_path_count: bindings.length,
-    remaining_superseded_authoritative_path_count: remaining.length,
+    remaining_superseded_authoritative_path_count:
+      incorrectAuthoritativeBindings.length,
     discovered_superseded_source_paths: discoveredSourcePaths,
     discovered_superseded_source_path_count: discoveredSourcePaths.length,
+    expected_historical_superseded_source_paths:
+      VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2,
     expected_non_authority_superseded_source_paths:
       VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
     unknown_superseded_source_paths: Object.freeze([]),
-    all_authoritative_old_generation_pins_present: true,
+    all_authoritative_old_generation_pins_present: false,
     compiled_identity_authoritative_consumers: compiledIdentityBindings,
     compiled_identity_authoritative_consumer_count:
       compiledIdentityBindings.length,
     remaining_superseded_compiled_identity_consumer_count:
-      remainingCompiledIdentityConsumers.length,
+      incorrectCompiledIdentityConsumers.length,
     discovered_superseded_compiled_identity_source_paths:
       discoveredCompiledIdentityPaths,
     discovered_superseded_compiled_identity_source_path_count:
@@ -581,8 +610,8 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
     expected_non_authority_compiled_identity_paths:
       VOID_WC_VOID_COMPILED_IDENTITY_NON_AUTHORITY_PATHS_V2,
     unknown_superseded_compiled_identity_source_paths: Object.freeze([]),
-    all_current_authority_compiled_identity_rebindings_complete: false,
-    all_authoritative_rebindings_complete: false,
+    all_current_authority_compiled_identity_rebindings_complete: true,
+    all_authoritative_rebindings_complete: true,
     canonical_candidate_update_authorized: false,
     controller_resigning_authorized: false,
     live_activation_receipt_reuse_authorized: false,
@@ -591,7 +620,7 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
     public_presale_activation_authorized: false,
     funds_movement_authorized: false,
     next_gate:
-      "apply_corrected_coupled_launch_generation_as_one_reviewed_rebind_set",
+      "fresh_corrected_generation_control_ceremony_then_read_only_vault_observation",
     authority:
       VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_AUTHORITY_V2,
   };
