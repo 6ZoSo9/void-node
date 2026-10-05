@@ -26,6 +26,10 @@ const CUSTODY_UID = 2201;
 const CUSTODY_GID = 2201;
 const EVIDENCE_GENERATION = 7;
 const SERVICE_UNIT_SHA256 = "sha256:" + "f".repeat(64);
+const LEDGER_ROLLBACK_DOMAIN_SHA256 =
+  "sha256:" + "1".repeat(64);
+const CUSTODY_ROLLBACK_DOMAIN_SHA256 =
+  "sha256:" + "2".repeat(64);
 
 const sha256Id = (value: string | Buffer): string =>
   "sha256:" +
@@ -66,10 +70,12 @@ const mount = (
   mountId: string,
   device: string,
   source: string,
+  rollbackDomainSha256: string,
 ) => ({
   mount_id: mountId,
   device_major_minor: device,
   mount_source: source,
+  rollback_domain_sha256: rollbackDomainSha256,
   fs_type: "ext4",
   options: ["nodev", "noexec", "nosuid", "rw"],
   read_only: false,
@@ -119,12 +125,22 @@ function evidence() {
     ledger: rootEvidence(
       "/srv/void-allocation-ledger-v1",
       ["/", "/srv"],
-      mount("41", "8:1", "/dev/disk/by-uuid/void-ledger"),
+      mount(
+        "41",
+        "8:1",
+        "/dev/disk/by-uuid/void-ledger",
+        LEDGER_ROLLBACK_DOMAIN_SHA256,
+      ),
     ),
     custody: rootEvidence(
       "/mnt/void-allocation-custody-v1",
       ["/", "/mnt"],
-      mount("52", "8:2", "/dev/disk/by-uuid/void-custody"),
+      mount(
+        "52",
+        "8:2",
+        "/dev/disk/by-uuid/void-custody",
+        CUSTODY_ROLLBACK_DOMAIN_SHA256,
+      ),
     ),
     ipc: {
       socket_path:
@@ -199,6 +215,8 @@ function classify(
     now_ms: number;
     expected_source_head_sha: string;
     expected_host_id_sha256: string;
+    expected_ledger_rollback_domain_sha256: string;
+    expected_custody_rollback_domain_sha256: string;
     ledger_jsonl: string;
     high_water_json: string;
   }> = {},
@@ -211,6 +229,12 @@ function classify(
       overrides.expected_host_id_sha256 ?? HOST_ID,
     expected_evidence_generation: EVIDENCE_GENERATION,
     expected_service_unit_sha256: SERVICE_UNIT_SHA256,
+    expected_ledger_rollback_domain_sha256:
+      (overrides as any).expected_ledger_rollback_domain_sha256 ??
+      LEDGER_ROLLBACK_DOMAIN_SHA256,
+    expected_custody_rollback_domain_sha256:
+      (overrides as any).expected_custody_rollback_domain_sha256 ??
+      CUSTODY_ROLLBACK_DOMAIN_SHA256,
     ledger_jsonl: overrides.ledger_jsonl ?? ledger,
     high_water_json: overrides.high_water_json ?? highWater,
     evidence: evidenceValue,
@@ -240,7 +264,8 @@ assert.equal(qualified.source_head_sha, SOURCE_HEAD);
 assert.equal(qualified.host_id_sha256, HOST_ID);
 assert.equal(qualified.ledger_sha256, sha256Id(ledger));
 assert.equal(qualified.high_water_sha256, sha256Id(highWater));
-assert.equal(qualified.separate_device_custody, true);
+assert.equal(qualified.distinct_mount_identity_evidence, true);
+assert.equal(qualified.independent_rollback_domain_evidence, true);
 assert.equal(qualified.root_path_stability_evidence, true);
 assert.equal(qualified.runtime_write_isolation_evidence, true);
 assert.equal(qualified.service_hardening_evidence, true);
@@ -259,7 +284,8 @@ for (const [key, value] of Object.entries(
     "exact_current_state_binding",
     "runtime_custody_identity_separation_required",
     "stable_root_ancestor_policy_required",
-    "separate_device_custody_required",
+    "distinct_mount_identity_required",
+    "independent_rollback_domain_identity_required",
     "af_unix_ipc_required",
     "systemd_hardening_required",
     "negative_probe_evidence_required",
@@ -296,9 +322,35 @@ for (const mutate of [
   mutate(bad);
   expectHeld(
     classify(bad),
-    "allocation_custody_independent_device_required",
+    "allocation_custody_distinct_mount_identity_required",
   );
 }
+
+{
+  const bad = cloneEvidence();
+  bad.custody.mount.rollback_domain_sha256 =
+    bad.ledger.mount.rollback_domain_sha256;
+  expectHeld(
+    classify(bad),
+    "allocation_custody_independent_rollback_domain_required",
+  );
+}
+
+expectHeld(
+  classify(evidence(), {
+    expected_custody_rollback_domain_sha256:
+      LEDGER_ROLLBACK_DOMAIN_SHA256,
+  }),
+  "allocation_custody_expected_rollback_domain_invalid",
+);
+
+expectHeld(
+  classify(evidence(), {
+    expected_custody_rollback_domain_sha256:
+      "sha256:" + "3".repeat(64),
+  }),
+  "allocation_custody_independent_rollback_domain_required",
+);
 
 {
   const bad = cloneEvidence();
@@ -490,7 +542,8 @@ console.log("synthetic_evidence_qualification=true");
 console.log("exact_current_state_binding=true");
 console.log("runtime_and_custody_uid_separated=true");
 console.log("root_owned_nonwritable_ancestor_chain_required=true");
-console.log("separate_device_custody_required=true");
+console.log("distinct_mount_identity_required=true");
+console.log("independent_rollback_domain_identity_required=true");
 console.log("bind_and_remount_substitution_rejected=true");
 console.log("af_unix_narrow_ipc_required=true");
 console.log("systemd_hardening_required=true");
