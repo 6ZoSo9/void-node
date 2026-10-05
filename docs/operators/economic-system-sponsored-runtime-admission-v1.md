@@ -11,6 +11,8 @@ required order without crossing into transaction execution:
 
 ```text
 constructor-bound reviewed launch policy artifact
+  -> exact request normalization
+  -> non-mutating reservation-store structural preflight
   -> non-mutating signed candidate preflight
   -> durable sponsored observation-time store
   -> current signed candidate revalidation at accepted time
@@ -100,7 +102,28 @@ There is no request field for:
 
 Nested candidate objects are snapshotted before direct field access.
 
-## Preflight before time mutation
+## Reservation-store structural preflight before time
+
+After exact request normalization and before signed-candidate/time mutation, the
+binder invokes
+`inspectEconomicSystemSponsoredReservationStoreV1({ root_dir })`.
+
+A clean structural inspection requires the already-provisioned reservation
+authority to expose a private root, private `records/`, private
+`sponsorship-admission-v1.queue/`, and a stable canonical durable-history
+topology. The inspector performs no cleanup, policy/TTL/budget evaluation,
+observation-time evaluation, or mutation.
+
+If this inspection HOLDS, admission returns before signed-candidate preflight and
+before the trusted clock/time store is invoked. No time receipt or sponsored
+reservation may grow from a structurally invalid/missing reservation authority.
+
+This proves
+`reservation_store_preflight_before_time_proven=true`. It does not prove host
+rollback/path custody, so `reservation_store_root_stability_proven=false`
+remains correct.
+
+## Signed candidate preflight before time mutation
 
 A runtime candidate must have `issued_at_ms` strictly after the exact bound
 bundle's `bundle_committed_at_ms`. This prevents an older economic intent from
@@ -224,7 +247,6 @@ cross_process_restart_continuity_proven=false
 cross_boot_restart_continuity_proven=false
 time_store_rollback_resistance_proven=false
 reservation_store_root_stability_proven=false
-reservation_store_preflight_before_time_proven=false
 valid_denied_request_time_growth_bounded=false
 execution_replay_store_bound=false
 runtime_route_active=false
@@ -255,7 +277,10 @@ The runtime proof covers:
 - bundle-ID mismatch;
 - whole-bundle digest tamper;
 - overlapping authority roots;
-- invalid signature before clock read;
+- missing preprovisioned reservation lock queue HOLD before signature/time,
+  with zero clock calls and zero time/reservation growth;
+- successful admission reports reservation structural preflight verified;
+- invalid signature after structural preflight but before clock read;
 - request timestamp injection before clock read;
 - first durable time + first durable reservation;
 - exact duplicate reservation;
