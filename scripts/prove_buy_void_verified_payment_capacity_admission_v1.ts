@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_AUTHORITY_V1,
@@ -17,6 +19,116 @@ import {
 import {
   buyVoidTerminalCloseoutRequestLockPathV1,
 } from "../src/economic/buy_void_terminal_closeout_request_lock_v1.js";
+
+const SELF = fileURLToPath(import.meta.url);
+const TSX_BIN = path.join(process.cwd(), "node_modules", ".bin", "tsx");
+const CHILD_SLEEP = new Int32Array(new SharedArrayBuffer(4));
+
+function sleepSync(ms: number): void {
+  Atomics.wait(CHILD_SLEEP, 0, 0, ms);
+}
+
+if (process.argv[2] === "--request-lock-holder") {
+  const [requestDir, requestId, enteredPath, expiredPath] =
+    process.argv.slice(3);
+  assert.ok(requestDir);
+  assert.ok(requestId);
+  assert.ok(enteredPath);
+  assert.ok(expiredPath);
+  withBuyVoidTerminalCloseoutRequestLockV1(
+    { request_dir: requestDir, request_id: requestId },
+    () => {
+      fs.writeFileSync(enteredPath, "entered\n", { mode: 0o600 });
+      sleepSync(150);
+      fs.writeFileSync(expiredPath, "expired\n", { mode: 0o600 });
+    },
+  );
+  process.exit(0);
+}
+
+type RequestLockChildV1 = {
+  child: ReturnType<typeof spawn>;
+  stdout: () => string;
+  stderr: () => string;
+};
+
+function spawnRequestLockHolder(
+  requestDir: string,
+  requestId: string,
+  enteredPath: string,
+  expiredPath: string,
+): RequestLockChildV1 {
+  assert.equal(
+    fs.existsSync(TSX_BIN),
+    true,
+    "tsx binary required for cross-process request-lock proof",
+  );
+  let stdout = "";
+  let stderr = "";
+  const child = spawn(
+    TSX_BIN,
+    [SELF, "--request-lock-holder", requestDir, requestId, enteredPath, expiredPath],
+    { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
+  );
+  child.stdout?.on("data", (chunk) => { stdout += String(chunk); });
+  child.stderr?.on("data", (chunk) => { stderr += String(chunk); });
+  return { child, stdout: () => stdout, stderr: () => stderr };
+}
+
+async function waitForChildPathV1(
+  target: string,
+  child: RequestLockChildV1,
+  label: string,
+  timeoutMs = 5_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!fs.existsSync(target)) {
+    if (child.child.exitCode !== null) {
+      throw new Error(
+        label + "_child_exited:" + String(child.child.exitCode) +
+        "\nstdout:\n" + child.stdout() + "\nstderr:\n" + child.stderr(),
+      );
+    }
+    if (Date.now() >= deadline) throw new Error(label + "_timeout");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+async function waitForChildExitV1(
+  child: RequestLockChildV1,
+  label: string,
+  timeoutMs = 5_000,
+): Promise<void> {
+  if (child.child.exitCode !== null) {
+    assert.equal(
+      child.child.exitCode,
+      0,
+      label + "\nstdout:\n" + child.stdout() + "\nstderr:\n" + child.stderr(),
+    );
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.child.kill("SIGKILL");
+      reject(new Error(label + "_timeout"));
+    }, timeoutMs);
+    child.child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.child.once("exit", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) {
+        reject(new Error(
+          label + "_exit_" + String(code) +
+          "\nstdout:\n" + child.stdout() + "\nstderr:\n" + child.stderr(),
+        ));
+        return;
+      }
+      resolve();
+    });
+  });
+}
 
 async function waitForBakeryTicketCountV1(
   lockPath: string,
@@ -67,6 +179,16 @@ assert.doesNotMatch(
 assert.match(
   capacitySource,
   /buyVoidTerminalCloseoutRequestLockPathV1/u,
+);
+assert.match(
+  capacitySource,
+  /input\.with_launch_authority_mutation\([\s\S]*withBuyVoidTerminalCloseoutRequestLockV1\([\s\S]*assertCurrentRequestAuthority\(\)[\s\S]*appendPaymentVerifiedEventDurableV1/u,
+  "payment path must hold generation authority before entering the synchronous request critical section and reassert authority before append",
+);
+assert.doesNotMatch(
+  capacitySource,
+  /withBuyVoidFilesystemBakeryLockAsyncV1\(\s*buyVoidTerminalCloseoutRequestLockPathV1/u,
+  "payment path must not hold the async request lock across an awaited generation-authority transition",
 );
 
 const root = fs.mkdtempSync(
@@ -161,14 +283,16 @@ try {
   let mutationCalls = 0;
   const withLaunchAuthorityMutation = async (
     _request: any,
-    operation: () => any,
+    operation: (
+      assertCurrentRequestAuthority: () => unknown,
+    ) => any,
   ) => {
     mutationCalls += 1;
     activeMutations += 1;
     peakMutations = Math.max(peakMutations, activeMutations);
     try {
       await new Promise((resolve) => setTimeout(resolve, 25));
-      return operation();
+      return operation(() => undefined);
     } finally {
       activeMutations -= 1;
     }
@@ -342,8 +466,10 @@ try {
       );
       const postcheckMutation = async (
         _request: any,
-        operation: () => any,
-      ) => operation();
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
+      ) => operation(() => undefined);
       const staleSaleState = async () => ({
         pool_void_total: 10,
         allocation_reserved_void: 0,
@@ -508,7 +634,9 @@ try {
       let launchChecks = 0;
       const expiryLaunchMutation = async (
         _request: any,
-        operation: () => any,
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
       ) => {
         launchChecks += 1;
         if (!leaseLive) {
@@ -516,7 +644,7 @@ try {
             "request_launch_authority_expired_or_superseded",
           );
         }
-        return operation();
+        return operation(() => undefined);
       };
 
       const writePromise =
@@ -576,10 +704,12 @@ try {
       let bindingMutationCalls = 0;
       const bindingMutation = async (
         _request: any,
-        operation: () => any,
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
       ) => {
         bindingMutationCalls += 1;
-        return operation();
+        return operation(() => undefined);
       };
       const bindingSaleState = async () => ({
         pool_void_total: 10,
@@ -866,7 +996,9 @@ try {
       });
       const snapshotMutation = async (
         _request: any,
-        operation: () => any,
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
       ) => {
         fs.appendFileSync(
           snapshotRequests,
@@ -875,7 +1007,7 @@ try {
             quoted_void: 1,
           }) + "\n",
         );
-        return operation();
+        return operation(() => undefined);
       };
       await assert.rejects(
         () =>
@@ -935,7 +1067,9 @@ try {
       });
       const snapshotMutation = async (
         _request: any,
-        operation: () => any,
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
       ) => {
         fs.appendFileSync(
           snapshotEvents,
@@ -948,7 +1082,7 @@ try {
             quoted_void: 1,
           }) + "\n",
         );
-        return operation();
+        return operation(() => undefined);
       };
       await assert.rejects(
         () =>
@@ -1019,11 +1153,13 @@ try {
       });
       const swapMutation = async (
         _request: any,
-        operation: () => any,
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
       ) => {
         fs.renameSync(swapEvents, detached);
         fs.writeFileSync(swapEvents, sentinel, { mode: 0o600 });
-        return operation();
+        return operation(() => undefined);
       };
 
       await assert.rejects(
@@ -1082,10 +1218,12 @@ try {
       });
       const growMutation = async (
         _request: any,
-        operation: () => any,
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
       ) => {
         fs.truncateSync(growEvents, 65 * 1024 * 1024);
-        return operation();
+        return operation(() => undefined);
       };
 
       await assert.rejects(
