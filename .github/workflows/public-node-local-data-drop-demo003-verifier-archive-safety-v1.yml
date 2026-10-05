@@ -11,6 +11,12 @@ on:
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-proof.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-verifier-archive-safety-v1-proof.sh"
+      - "src/http/void_demo003_public_serving_contract_v1.ts"
+      - "scripts/prove_void_demo003_public_serving_contract_v1.mjs"
+      - "src/index.ts"
+      - "src/http/void_demo003_public_serving_contract_v1.ts"
+      - "scripts/prove_void_demo003_public_serving_contract_v1.mjs"
+      - "src/index.ts"
   push:
     branches: [main]
     paths:
@@ -50,4 +56,5 @@ jobs:
           set -euo pipefail
           bash ops/mainnet0/public-node-local-data-drop-demo003-verifier-archive-safety-v1-proof.sh
           bash ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-proof.sh
+          node --experimental-strip-types scripts/prove_void_demo003_public_serving_contract_v1.mjs
           git diff --exit-code
