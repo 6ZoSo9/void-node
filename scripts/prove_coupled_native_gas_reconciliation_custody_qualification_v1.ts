@@ -320,6 +320,17 @@ assert.match(
 }
 {
   const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.parent_id = 0;
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.parent_id =
+    x.host_evidence.payer_root.mount.mount_id;
+  requireHeld(x, "reconciliation_custody_mount_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
   // Same backing device/UUID/source can still be a different bind-mount
   // instance. The payer root must bind to the governing mountinfo ID.
   x.host_evidence.payer_root.mount_id = 78;
@@ -499,6 +510,7 @@ console.log("ancestor_retained_identity_alias_rejected=true");
 console.log("object_type_evidence_required=true");
 console.log("governing_mount_id_required=true");
 console.log("root_mount_id_matches_declared_mount=true");
+console.log("mount_parent_id_structurally_valid=true");
 console.log("direct_child_mount_ids_match_root=true");
 console.log("payer_domain_mount_id_matches_root=true");
 console.log("exact_payer_domain_identity_required=true");
