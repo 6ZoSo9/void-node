@@ -45,7 +45,22 @@ function confirmation(): string {
 async function main(): Promise<void> {
   assert.equal(
     VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1
+      .read_only_qualification,
+    true,
+  );
+  assert.equal(
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1
+      .qualification_queue_lock_used,
+    false,
+  );
+  assert.equal(
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1
       .explicit_reconciliation_directory_bootstrap,
+    true,
+  );
+  assert.equal(
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1
+      .bootstrap_queue_lock_used,
     true,
   );
   assert.equal(
@@ -136,6 +151,9 @@ async function main(): Promise<void> {
       assert.equal(stat.mode & 0o077, 0);
       assert.deepEqual(fs.readdirSync(path.join(root, QUEUE)), []);
 
+      const queuePath = path.join(root, QUEUE);
+      const queueEntriesBeforeQualification = fs.readdirSync(queuePath);
+      fs.chmodSync(queuePath, 0o500);
       const qualified =
         await qualifyCoupledNativeGasReconciliationStorageV1({
           root_dir: root,
@@ -148,6 +166,13 @@ async function main(): Promise<void> {
         assert.equal(qualified.reconciliation_record_count, 0);
         assert.equal(qualified.queue_name, QUEUE);
       }
+      assert.deepEqual(
+        fs.readdirSync(queuePath),
+        queueEntriesBeforeQualification,
+        "read-only qualification must not create bakery queue claims",
+      );
+      assert.equal(fs.lstatSync(queuePath).mode & 0o777, 0o500);
+      fs.chmodSync(queuePath, 0o700);
 
       const goodName = "a".repeat(64) + ".json";
       fs.writeFileSync(
@@ -331,6 +356,17 @@ async function main(): Promise<void> {
   );
   assert.match(source, /gas-liability-admission-v1\.queue/);
   assert.match(source, /reconciliations/);
+  assert.match(source, /if \(input\.bootstrap\) \{/);
+  assert.match(
+    source,
+    /return await inspectPinnedState\(\);/,
+    "read-only qualification must bypass the bakery lock",
+  );
+  assert.match(
+    source,
+    /reconciliations_changed_during_scan/,
+    "unlocked qualification must fail closed on a changing namespace",
+  );
   assert.doesNotMatch(source, /reconciliation-v1\.queue/);
   assert.doesNotMatch(source, /reconciliation_record_publication:\s*true/);
   assert.doesNotMatch(source, /liability_release_authorized:\s*true/);
@@ -347,6 +383,11 @@ async function main(): Promise<void> {
   console.log("bootstrap_confirmation_required=true");
   console.log("concurrent_bootstrap_single_mutation=true");
   console.log("descriptor_bound_qualification=true");
+  console.log("qualification_queue_lock_used=false");
+  console.log("qualification_mutation_performed=false");
+  console.log("qualification_succeeds_with_read_only_queue=true");
+  console.log("changing_reconciliation_namespace_holds=true");
+  console.log("bootstrap_queue_lock_used=true");
   console.log("reconciliation_record_publication=false");
   console.log("liability_release_authorized=false");
   console.log("runtime_integration=false");
