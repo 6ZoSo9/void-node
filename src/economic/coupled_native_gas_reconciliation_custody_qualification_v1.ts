@@ -141,6 +141,7 @@ const DIR_KEYS = Object.freeze([
   "resolved_path",
   "dev",
   "ino",
+  "mount_id",
   "uid",
   "gid",
   "mode",
@@ -153,6 +154,7 @@ const DOMAIN_FILE_KEYS = Object.freeze([
   "resolved_path",
   "dev",
   "ino",
+  "mount_id",
   "uid",
   "gid",
   "mode",
@@ -672,6 +674,7 @@ function normalizeDirectory(
   value: unknown,
   expectedPath: string,
   rootDev: string,
+  rootMountId: number,
   serviceUid: number,
   serviceGid: number,
 ): Readonly<Record<string, unknown>> {
@@ -692,6 +695,7 @@ function normalizeDirectory(
   if (
     resolved !== expectedPath ||
     decimal(directory.dev, "reconciliation_custody_namespace_invalid") !== rootDev ||
+    safeInt(directory.mount_id, 1, 0x7fff_ffff, "reconciliation_custody_namespace_invalid") !== rootMountId ||
     safeInt(directory.uid, 0, 0x7fff_ffff, "reconciliation_custody_namespace_invalid") !== serviceUid ||
     safeInt(directory.gid, 0, 0x7fff_ffff, "reconciliation_custody_namespace_invalid") !== serviceGid ||
     directoryMode.bits !== 0o700 ||
@@ -706,6 +710,7 @@ function normalizeDirectory(
     resolved_path: resolved,
     dev: rootDev,
     ino: decimal(directory.ino, "reconciliation_custody_namespace_invalid"),
+    mount_id: rootMountId,
     uid: serviceUid,
     gid: serviceGid,
     mode: directoryMode.text,
@@ -720,6 +725,7 @@ function normalizePayerDomain(
   value: unknown,
   expectedPath: string,
   rootDev: string,
+  rootMountId: number,
   serviceUid: number,
   serviceGid: number,
   expectedPayerDomainId: string,
@@ -738,6 +744,7 @@ function normalizePayerDomain(
       "reconciliation_custody_payer_domain_invalid",
     ) !== expectedPath ||
     decimal(file.dev, "reconciliation_custody_payer_domain_invalid") !== rootDev ||
+    safeInt(file.mount_id, 1, 0x7fff_ffff, "reconciliation_custody_payer_domain_invalid") !== rootMountId ||
     safeInt(file.uid, 0, 0x7fff_ffff, "reconciliation_custody_payer_domain_invalid") !== serviceUid ||
     safeInt(file.gid, 0, 0x7fff_ffff, "reconciliation_custody_payer_domain_invalid") !== serviceGid ||
     fileMode.bits !== 0o600 ||
@@ -752,6 +759,7 @@ function normalizePayerDomain(
     resolved_path: expectedPath,
     dev: rootDev,
     ino: decimal(file.ino, "reconciliation_custody_payer_domain_invalid"),
+    mount_id: rootMountId,
     uid: serviceUid,
     gid: serviceGid,
     mode: fileMode.text,
@@ -969,10 +977,12 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
     );
     const rootPath = String(root.resolved_path);
     const rootDev = String(root.dev);
+    const rootMountId = Number(root.mount_id);
     const payerDomain = normalizePayerDomain(
       host.payer_domain,
       path.join(rootPath, "payer-domain-v1.json"),
       rootDev,
+      rootMountId,
       serviceUid,
       serviceGid,
       expectedPayerDomainId,
@@ -982,6 +992,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
       host.records,
       path.join(rootPath, "records"),
       rootDev,
+      rootMountId,
       serviceUid,
       serviceGid,
     );
@@ -989,6 +1000,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
       host.reconciliations,
       path.join(rootPath, "reconciliations"),
       rootDev,
+      rootMountId,
       serviceUid,
       serviceGid,
     );
@@ -996,6 +1008,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
       host.queue,
       path.join(rootPath, "gas-liability-admission-v1.queue"),
       rootDev,
+      rootMountId,
       serviceUid,
       serviceGid,
     );
