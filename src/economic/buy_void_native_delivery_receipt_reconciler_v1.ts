@@ -256,7 +256,7 @@ function normalizePolicy(
     url.username ||
     url.password ||
     url.hash ||
-    !["127.0.0.1", "::1", "localhost"].includes(host)
+    !["127.0.0.1", "[::1]"].includes(host)
   ) {
     return {
       ok: false,
@@ -351,7 +351,7 @@ function createHttpTransport(
       const request = http.request(
         {
           protocol: "http:",
-          hostname: url.hostname,
+          hostname: url.hostname === "[::1]" ? "::1" : url.hostname,
           port: url.port || "80",
           path: `${url.pathname}${url.search}`,
           method: "POST",
