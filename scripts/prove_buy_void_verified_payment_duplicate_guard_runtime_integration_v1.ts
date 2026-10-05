@@ -123,14 +123,14 @@ try {
 
   const withLaunchAuthorityMutation = async (
     _request: any,
-    operation: () => any,
+    operation: (assert_current_authority: () => any) => any,
   ) => {
     mutationCalls += 1;
     activeMutations += 1;
     peakMutations = Math.max(peakMutations, activeMutations);
     try {
       await new Promise((resolve) => setTimeout(resolve, 25));
-      return operation();
+      return operation(() => ({ ready: true }));
     } finally {
       activeMutations -= 1;
     }
