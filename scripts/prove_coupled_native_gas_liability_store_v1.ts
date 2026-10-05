@@ -261,6 +261,7 @@ for (const [key, value] of Object.entries(
     "create_once_publication",
     "exact_postwrite_census",
     "exact_idempotent_replay",
+    "postpublication_failure_reports_mutation",
     "open_liability_only",
     "filesystem_read",
     "filesystem_write",
