@@ -48,8 +48,10 @@ The pure policy requires an SSH-shaped deployment profile with:
 - bounded request and response sizes.
 
 Integer fields in the policy and request contract are exact JSON numbers.
-Coercible alternatives such as numeric strings or booleans are rejected rather
-than normalized into equivalent transport state.
+String-shaped identity/policy fields are exact JSON strings. The remote host
+must already be in its canonical trimmed lowercase form. Coercible alternatives
+such as numeric strings, booleans, uppercase host aliases, or padded host text
+are rejected rather than normalized into equivalent transport state.
 
 Those fields are content-addressed into one policy SHA-256. The policy is a
 source contract, not evidence that an installed SSH key or server actually
