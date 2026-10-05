@@ -525,7 +525,19 @@ function assertPinnedFileSnapshotCurrent(
   assertPinnedDirectoryVisible(directory, code + "_directory");
   const opened = fs.fstatSync(snapshot.fd, { bigint: true });
   const visible = fs.lstatSync(snapshot.path, { bigint: true });
-  validatePrivateFile(opened, maxBytes, code + "_invalid");
+  if (
+    !opened.isFile() ||
+    opened.isSymbolicLink() ||
+    opened.size < 2n ||
+    opened.size > BigInt(maxBytes) ||
+    (
+      typeof process.getuid === "function" &&
+      opened.uid !== BigInt(process.getuid())
+    ) ||
+    (Number(opened.mode) & 0o077) !== 0
+  ) {
+    fail(code + "_invalid");
+  }
   validatePrivateFile(visible, maxBytes, code + "_invalid");
   if (
     !sameFileIdentity(snapshot.stat, opened) ||
