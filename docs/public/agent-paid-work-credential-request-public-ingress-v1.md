@@ -167,6 +167,17 @@ failure invalidates the cached live qualification. No credential request is
 proxied while that qualification is false; a later admitted signed request may
 restore the route only by proving the status contract again.
 
+The loopback status response also exposes one random 32-byte
+`qualification_instance_id` for the lifetime of that gateway process/config
+instance. The public edge captures that identifier from the serialized status
+probe and supplies it only to the immediately corresponding loopback POST in
+`x-void-credential-request-gateway-instance-v1`. The loopback POST requires an
+exact match **before** consuming its rate window. A restart/replacement therefore
+changes the identifier and rejects a POST qualified against the previous
+instance with HTTP 412; a later public request must requalify against the new
+instance before it can proxy. This identifier is not secret, is not applicant
+authentication, and grants no credential/session authority.
+
 The inner loopback gateway keeps its existing per-loopback/global limiter as a
 second safety wall. No forwarded-IP header becomes authority.
 
