@@ -28,6 +28,9 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_AUTHORITY_V1 
     create_once_publication: true,
     historical_receipts_retained: true,
     read_only_cleanup: false,
+    non_mutating_preview_source_verified: true,
+    preview_requires_stable_history: true,
+    preview_durable_time_authority_advanced: false,
     storage_bootstrap: false,
     caller_selected_record_path: false,
     filesystem_read: true,
@@ -733,6 +736,40 @@ function inspectSuccess(history) {
   });
 }
 
+function previewSuccess(receipt, history) {
+  return Object.freeze({
+    ok: true,
+    status: "source_previewed",
+    marker: VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_V1,
+    version: 1,
+    mutation_performed: false,
+    observation_performed: true,
+    preview_only: true,
+    durable_time_authority_advanced: false,
+    candidate_receipt_persisted: false,
+    accepted_observed_at_ms: receipt.observed_at_ms,
+    candidate_generation: receipt.generation,
+    candidate_receipt_sha256: receipt.receipt_sha256,
+    prior_head_receipt_sha256:
+      history.head?.receipt.receipt_sha256 || null,
+    durable_receipt_count: history.rows.length,
+    durable_receipt_store_source_verified: true,
+    live_durable_receipt_storage_proven: false,
+    trusted_clock_source_proven: false,
+    trusted_clock_host_binding_proven: false,
+    receipt_store_rollback_resistance_proven: false,
+    cross_process_restart_continuity_proven: false,
+    cross_boot_restart_continuity_proven: false,
+    runtime_enforcement_verified: false,
+    gas_sponsorship_performed: false,
+    transaction_submission: false,
+    transaction_broadcast: false,
+    funds_movement: false,
+    authority:
+      VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_AUTHORITY_V1,
+  });
+}
+
 export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
   const binding = exactSnapshot(
     input,
@@ -869,6 +906,116 @@ export function createVoidEconomicSystemSponsoredObservationTimeStoreV1(input) {
             ? error.message
             : "SPONSORED_OBSERVATION_TIME_STORE_FAILED",
           mutationPerformed,
+          observationPerformed,
+        );
+      } finally {
+        if (lockQueue?.fd >= 0) {
+          try {
+            fs.closeSync(lockQueue.fd);
+          } catch (error) {
+            void error;
+          }
+        }
+        if (records?.fd >= 0) {
+          try {
+            fs.closeSync(records.fd);
+          } catch (error) {
+            void error;
+          }
+        }
+        if (root?.fd >= 0) {
+          try {
+            fs.closeSync(root.fd);
+          } catch (error) {
+            void error;
+          }
+        }
+      }
+    },
+
+    preview(...args) {
+      if (args.length !== 0) {
+        return held(
+          "SPONSORED_OBSERVATION_TIME_STORE_REQUEST_INPUT_FORBIDDEN",
+          false,
+          false,
+        );
+      }
+      let root = null;
+      let records = null;
+      let lockQueue = null;
+      let observationPerformed = false;
+      try {
+        root = openPinnedDirectory(
+          rootPath,
+          "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
+        );
+        records = openRecordsDirectory(root);
+        lockQueue = openLockQueueDirectory(root);
+
+        const before = readHistory(records);
+        const source =
+          createVoidEconomicSystemSponsoredObservationTimeV1({
+            trustedClock,
+          });
+        const observed = source.observe({
+          prior_receipt: before.head?.receipt || null,
+        });
+        observationPerformed =
+          observed.observation_performed === true;
+        if (!observed.ok) {
+          return held(
+            observed.reason,
+            false,
+            observationPerformed,
+          );
+        }
+
+        assertPinnedDirectoryVisible(
+          root,
+          "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
+        );
+        assertPinnedDirectoryVisible(
+          records,
+          "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
+        );
+        assertPinnedDirectoryVisible(
+          lockQueue,
+          "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY",
+        );
+
+        const after = readHistory(records);
+        if (
+          after.rows.length !== before.rows.length ||
+          (after.head?.receipt.receipt_sha256 || null) !==
+            (before.head?.receipt.receipt_sha256 || null) ||
+          (after.head?.receipt.generation || null) !==
+            (before.head?.receipt.generation || null)
+        ) {
+          fail(
+            "SPONSORED_OBSERVATION_TIME_STORE_PREVIEW_HISTORY_CHANGED",
+          );
+        }
+
+        assertPinnedDirectoryVisible(
+          root,
+          "SPONSORED_OBSERVATION_TIME_STORE_ROOT",
+        );
+        assertPinnedDirectoryVisible(
+          records,
+          "SPONSORED_OBSERVATION_TIME_STORE_RECORDS_DIRECTORY",
+        );
+        assertPinnedDirectoryVisible(
+          lockQueue,
+          "SPONSORED_OBSERVATION_TIME_STORE_LOCK_QUEUE_DIRECTORY",
+        );
+        return previewSuccess(observed.receipt, before);
+      } catch (error) {
+        return held(
+          error instanceof Error
+            ? error.message
+            : "SPONSORED_OBSERVATION_TIME_STORE_FAILED",
+          false,
           observationPerformed,
         );
       } finally {
