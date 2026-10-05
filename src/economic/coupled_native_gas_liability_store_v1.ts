@@ -1055,7 +1055,33 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
             payerDomainSnapshot,
           );
 
-          createOnceLiability(records!, classified.liability);
+          const mutationNowMs = readNowMs();
+          const mutationAdmission =
+            classifyCoupledNativeGasBuyVoidAdmissionV1({
+              now_ms: mutationNowMs,
+              buy_void_plan: input?.buy_void_plan,
+              payer_observation: input?.payer_observation,
+              open_liabilities: before,
+            });
+          if (
+            mutationAdmission.ok !== true ||
+            mutationAdmission.status !== "admitted" ||
+            mutationAdmission.liability.liability_id !==
+              classified.liability.liability_id ||
+            mutationAdmission.reserved_after_wei !==
+              classified.reserved_after_wei
+          ) {
+            return held(
+              mutationAdmission.ok === false
+                ? mutationAdmission.reason
+                : "coupled_native_gas_store_mutation_admission_changed",
+              mutationAdmission.ok === false
+                ? mutationAdmission.detail
+                : undefined,
+            );
+          }
+
+          createOnceLiability(records!, mutationAdmission.liability);
           durableMutationPerformed = true;
 
           const after = readCensus(
@@ -1067,7 +1093,7 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
           }
           const post =
             classifyCoupledNativeGasBuyVoidAdmissionV1({
-              now_ms: admissionNowMs,
+              now_ms: mutationNowMs,
               buy_void_plan: input?.buy_void_plan,
               payer_observation: input?.payer_observation,
               open_liabilities: after,
