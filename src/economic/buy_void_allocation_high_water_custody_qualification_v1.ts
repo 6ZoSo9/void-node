@@ -21,7 +21,8 @@ export const VOID_BUY_VOID_ALLOCATION_HIGH_WATER_CUSTODY_QUALIFICATION_AUTHORITY
     exact_current_state_binding: true,
     runtime_custody_identity_separation_required: true,
     stable_root_ancestor_policy_required: true,
-    separate_device_custody_required: true,
+    distinct_mount_identity_required: true,
+    independent_rollback_domain_identity_required: true,
     af_unix_ipc_required: true,
     systemd_hardening_required: true,
     negative_probe_evidence_required: true,
@@ -84,6 +85,7 @@ type MountEvidenceV1 = {
   mount_id: string;
   device_major_minor: string;
   mount_source: string;
+  rollback_domain_sha256: string;
   fs_type: "ext4" | "xfs";
   options: string[];
   read_only: false;
@@ -199,7 +201,8 @@ export type BuyVoidAllocationHighWaterCustodyQualificationDecisionV1 =
       host_id_sha256: string;
       ledger_sha256: string;
       high_water_sha256: string;
-      separate_device_custody: true;
+      distinct_mount_identity_evidence: true;
+      independent_rollback_domain_evidence: true;
       root_path_stability_evidence: true;
       runtime_write_isolation_evidence: true;
       service_hardening_evidence: true;
@@ -402,6 +405,7 @@ function validateMount(
       "mount_id",
       "device_major_minor",
       "mount_source",
+      "rollback_domain_sha256",
       "fs_type",
       "options",
       "read_only",
@@ -411,11 +415,17 @@ function validateMount(
   const mountId = String(value.mount_id ?? "");
   const device = String(value.device_major_minor ?? "");
   const source = String(value.mount_source ?? "").trim();
+  const rollbackDomainSha256 = String(
+    value.rollback_domain_sha256 ?? "",
+  ).trim();
   const fsType = String(value.fs_type ?? "");
   if (!MOUNT_ID.test(mountId)) fail(code + "_mount_id_invalid");
   if (!DEVICE.test(device)) fail(code + "_device_invalid");
   if (!source || source.length > 256 || source.includes("\0")) {
     fail(code + "_source_invalid");
+  }
+  if (!SHA256_ID.test(rollbackDomainSha256)) {
+    fail(code + "_rollback_domain_invalid");
   }
   if (fsType !== "ext4" && fsType !== "xfs") {
     fail(code + "_filesystem_invalid");
@@ -440,6 +450,7 @@ function validateMount(
     mount_id: mountId,
     device_major_minor: device,
     mount_source: source,
+    rollback_domain_sha256: rollbackDomainSha256,
     fs_type: fsType,
     options,
     read_only: false,
@@ -504,6 +515,8 @@ function validateEvidence(
   expectedHostId: string,
   expectedEvidenceGeneration: number,
   expectedServiceUnitSha256: string,
+  expectedLedgerRollbackDomainSha256: string,
+  expectedCustodyRollbackDomainSha256: string,
   nowMs: number,
   ledgerBytes: Buffer,
   highWaterBytes: Buffer,
@@ -640,7 +653,17 @@ function validateEvidence(
     ledger.mount.device_major_minor === custody.mount.device_major_minor ||
     ledger.mount.mount_source === custody.mount.mount_source
   ) {
-    fail("allocation_custody_independent_device_required");
+    fail("allocation_custody_distinct_mount_identity_required");
+  }
+  if (
+    ledger.mount.rollback_domain_sha256 !==
+      expectedLedgerRollbackDomainSha256 ||
+    custody.mount.rollback_domain_sha256 !==
+      expectedCustodyRollbackDomainSha256 ||
+    ledger.mount.rollback_domain_sha256 ===
+      custody.mount.rollback_domain_sha256
+  ) {
+    fail("allocation_custody_independent_rollback_domain_required");
   }
 
   const ipc = directObject(value.ipc, "allocation_custody_ipc_object_invalid");
@@ -818,6 +841,8 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
     expected_host_id_sha256: unknown;
     expected_evidence_generation: unknown;
     expected_service_unit_sha256: unknown;
+    expected_ledger_rollback_domain_sha256: unknown;
+    expected_custody_rollback_domain_sha256: unknown;
     ledger_jsonl: string | Buffer;
     high_water_json: string | Buffer;
     evidence: unknown;
@@ -842,6 +867,12 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
     const expectedServiceUnitSha256 = String(
       input?.expected_service_unit_sha256 ?? "",
     ).trim();
+    const expectedLedgerRollbackDomainSha256 = String(
+      input?.expected_ledger_rollback_domain_sha256 ?? "",
+    ).trim();
+    const expectedCustodyRollbackDomainSha256 = String(
+      input?.expected_custody_rollback_domain_sha256 ?? "",
+    ).trim();
     if (!GIT_SHA.test(expectedSourceHead)) {
       fail("allocation_custody_expected_source_head_invalid");
     }
@@ -853,6 +884,14 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
     }
     if (!SHA256_ID.test(expectedServiceUnitSha256)) {
       fail("allocation_custody_expected_service_unit_sha256_invalid");
+    }
+    if (
+      !SHA256_ID.test(expectedLedgerRollbackDomainSha256) ||
+      !SHA256_ID.test(expectedCustodyRollbackDomainSha256) ||
+      expectedLedgerRollbackDomainSha256 ===
+        expectedCustodyRollbackDomainSha256
+    ) {
+      fail("allocation_custody_expected_rollback_domain_invalid");
     }
 
     const ledgerBytes = Buffer.isBuffer(input?.ledger_jsonl)
@@ -888,6 +927,8 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
       expectedHostId,
       expectedEvidenceGeneration,
       expectedServiceUnitSha256,
+      expectedLedgerRollbackDomainSha256,
+      expectedCustodyRollbackDomainSha256,
       nowMs,
       ledgerBytes,
       highWaterBytes,
@@ -904,7 +945,8 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
       host_id_sha256: evidence.host.host_id_sha256,
       ledger_sha256: evidence.state.ledger_sha256,
       high_water_sha256: evidence.state.high_water_sha256,
-      separate_device_custody: true,
+      distinct_mount_identity_evidence: true,
+      independent_rollback_domain_evidence: true,
       root_path_stability_evidence: true,
       runtime_write_isolation_evidence: true,
       service_hardening_evidence: true,
