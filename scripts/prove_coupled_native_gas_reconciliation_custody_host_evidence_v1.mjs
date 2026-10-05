@@ -353,6 +353,7 @@ const rootDev = "2065";
 function ancestor(path, ino, dev = "2049") {
   return {
     path,
+    object_type: "directory",
     dev,
     ino: String(ino),
     uid: 0,
@@ -368,6 +369,7 @@ function ancestor(path, ino, dev = "2049") {
 function directory(resolvedPath, ino) {
   return {
     resolved_path: resolvedPath,
+    object_type: "directory",
     dev: rootDev,
     ino: String(ino),
     mount_id: 77,
@@ -399,6 +401,7 @@ function classifierInput() {
       service_gid: 2000,
       payer_root: {
         resolved_path: root,
+        object_type: "directory",
         dev: rootDev,
         ino: "100",
         mount_id: 77,
@@ -433,6 +436,7 @@ function classifierInput() {
       },
       payer_domain: {
         resolved_path: root + "/payer-domain-v1.json",
+        object_type: "regular_file",
         dev: rootDev,
         ino: "104",
         mount_id: 77,
@@ -707,6 +711,28 @@ assert.equal(green.funds_movement, false);
   assert.equal(
     held.reason,
     "custody_classifier_reconciliation_custody_namespace_invalid",
+  );
+}
+
+{
+  const input = classifierInput();
+  input.host_evidence.payer_root.object_type = "regular_file";
+  const held = collect({ classifierInput: input });
+  assert.equal(held.ok, false);
+  assert.equal(
+    held.reason,
+    "custody_classifier_reconciliation_custody_root_invalid",
+  );
+}
+
+{
+  const input = classifierInput();
+  input.host_evidence.payer_domain.object_type = "directory";
+  const held = collect({ classifierInput: input });
+  assert.equal(held.ok, false);
+  assert.equal(
+    held.reason,
+    "custody_classifier_reconciliation_custody_payer_domain_invalid",
   );
 }
 
