@@ -1019,8 +1019,6 @@ async function proxyAgentPaidWorkSubmission(
           "content-length": String(body.length),
           "user-agent": "void-ai-agent-public-gateway-v1",
           "x-void-payload-sha256": bodySha,
-          [AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1]:
-            upstreamQualification.qualification_instance_id,
         },
         body,
         redirect: "manual",
@@ -1611,6 +1609,8 @@ async function proxyAgentPaidWorkCredentialRequest(
           "content-length": String(body.length),
           "user-agent": "void-ai-agent-public-gateway-v1",
           "x-void-payload-sha256": bodySha,
+          [AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1]:
+            upstreamQualification.qualification_instance_id,
         },
         body,
         redirect: "manual",
