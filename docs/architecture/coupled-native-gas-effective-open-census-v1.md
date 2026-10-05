@@ -68,8 +68,15 @@ Every historical liability is revalidated from first principles:
   `maximum_reserved_wei =
   (transaction_native_value_wei + gas_limit * admitted_max_fee_per_gas_wei)
   * attempt_limit`;
-- exact `liability_id` rederived from canonical liability bytes; and
-- unique liability ID within the payer census.
+- exact `liability_id` rederived from canonical liability bytes;
+- unique liability ID within the payer census; and
+- historical uniqueness of obligation ID, transaction-plan fingerprint, and
+  nonce across the payer domain.
+
+Those historical conflict checks remain active after reconciliation. Releasing
+reserve capacity must not make a completed obligation/plan/nonce eligible to be
+silently admitted as a second liability. This is replay/collision detection,
+not nonce allocation; `nonce_scheduler_authority=false` remains explicit.
 
 Both `presale` and canonical `wc_void` history can be counted. This does not
 grant new WC/VOID admission authority.
