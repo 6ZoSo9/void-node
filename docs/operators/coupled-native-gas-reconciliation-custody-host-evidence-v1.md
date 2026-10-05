@@ -97,9 +97,12 @@ identity, service policy, and negative-test fields.
 ## Read-only negative evidence
 
 The collector treats public-runtime mount mutation as denied only when the live
-runtime process has no effective capabilities, including no `CAP_SYS_ADMIN`,
-and the runtime/custody/collector mount namespace is the same observed
-namespace.
+runtime process has no inherited, permitted, effective, bounding, or ambient
+capabilities and the runtime/custody/collector mount namespace is the same
+observed namespace. The custody service is held to the same zero-capability
+process condition. `Uid:` / `Gid:` evidence must have identical real,
+effective, saved, and filesystem identities; filesystem permission decisions
+therefore cannot be derived from a weaker real-ID view.
 
 Payer-root rename/recreate/symlink-substitution denial is derived from the
 runtime's effective UID/GID/groups and the parent-directory permission bits.
@@ -172,7 +175,8 @@ The proof covers:
 - authority flags;
 - proc-status parsing;
 - systemd-show parsing;
-- proc start-time parsing and `NoNewPrivs` evidence;
+- proc start-time parsing, non-divergent FS UID/GID identity, full capability
+  masks, and `NoNewPrivs` evidence;
 - designated-host mismatch HOLD;
 - mountinfo drift HOLD;
 - mount-namespace drift HOLD;
