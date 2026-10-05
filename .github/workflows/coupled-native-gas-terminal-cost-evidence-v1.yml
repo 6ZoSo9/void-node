@@ -9,7 +9,9 @@ on:
       - ".github/workflows/coupled-native-gas-terminal-cost-evidence-v1.yml"
       - "src/economic/coupled_native_gas_liability_v1.ts"
       - "src/economic/buy_void_prepared_transaction_plan_reservation_v1.ts"
-      - "src/economic/buy_void_payment_keyed_receipt_evidence_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts"
   workflow_dispatch:
 
 permissions:
