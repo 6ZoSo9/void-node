@@ -49,6 +49,7 @@ export const
       reader_outputs_bound_to_snapshot: true,
       local_snapshot_revalidated_after_rpc: true,
       numeric_loopback_http_only: true,
+      caller_transport_override: false,
       chain2050_required: true,
       read_only_rpc_methods: Object.freeze([
         "eth_chainId",
@@ -82,15 +83,6 @@ export type CoupledNativeGasReconciliationEvidenceRpcMethodV1 =
   | "eth_chainId"
   | "eth_getTransactionReceipt"
   | "eth_blockNumber";
-
-export type CoupledNativeGasReconciliationEvidenceRpcCallV1 = {
-  method: CoupledNativeGasReconciliationEvidenceRpcMethodV1;
-  params: unknown[];
-};
-
-export type CoupledNativeGasReconciliationEvidenceRpcTransportV1 = (
-  call: Readonly<CoupledNativeGasReconciliationEvidenceRpcCallV1>,
-) => Promise<unknown>;
 
 export type CoupledNativeGasReconciliationEvidenceResolverPolicyV1 = {
   chain_id: "2050";
@@ -932,7 +924,6 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
     root_dir: string;
     liability: CoupledNativeGasLiabilityRecordV1;
     policy: CoupledNativeGasReconciliationEvidenceResolverPolicyV1;
-    transport?: CoupledNativeGasReconciliationEvidenceRpcTransportV1;
   },
 ): Promise<CoupledNativeGasReconciliationEvidenceResolverDecisionV1> {
   const normalized = normalizePolicy(input?.policy);
@@ -1144,7 +1135,7 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
     );
   }
 
-  const transport = input.transport || createHttpTransport(policy);
+  const transport = createHttpTransport(policy);
   const call = async (
     method: CoupledNativeGasReconciliationEvidenceRpcMethodV1,
     params: unknown[],
