@@ -110,7 +110,10 @@ the existing allocation-custody preflight pattern rather than selecting an
 arbitrary ancestor mount.
 
 The supplied evidence must state that the public runtime cannot remount or
-bind-mount the authority. The mount must be writable for the dedicated service.
+bind-mount the authority. The mount must be writable for the dedicated service:
+its normalized mount-option set must include `rw` and must not also contain
+`ro`; contradictory read-only/read-write evidence HOLDS rather than being
+treated as writable authority.
 
 This source classifier does not prove those host claims; it only requires and
 content-addresses them. A later read-only collector must obtain them from the
@@ -230,7 +233,8 @@ The focused proof covers a green synthetic evidence snapshot plus stale/future/
 overlong evidence, zero generation, service/runtime identity collapse, unsafe or
 runtime-writable ancestors, root symlink/replacement authority, bind/remount
 authority, wrong mount target, root-device/mount-major-minor mismatch,
-mount-target ancestor device mismatch, same-device governing mount-ID mismatch,
+mount-target ancestor device mismatch, contradictory `ro`+`rw` mount
+options, same-device governing mount-ID mismatch,
 alternate reconciliation namespace, inode alias,
 payer-address/domain mismatch, noncanonical payer-domain file digest/link alias,
 service hardening drift, writable-path drift,
