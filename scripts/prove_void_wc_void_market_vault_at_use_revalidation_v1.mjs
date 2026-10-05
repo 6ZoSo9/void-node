@@ -6,7 +6,8 @@ import { Interface } from "ethers";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "../tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+  loadWcVoidMarketVaultCompiledIdentityCurrentV2,
+} from "../tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   reconstructWcVoidMarketVaultRuntimeV1,
 } from "../tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
@@ -20,10 +21,7 @@ import {
   verifyWcVoidMarketVaultAtUseRevalidationV1,
 } from "../tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs";
 
-const acceptance=JSON.parse(fs.readFileSync(
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
-  "utf8",
-));
+const acceptance=loadWcVoidMarketVaultCompiledIdentityCurrentV2();
 const stateManifest=JSON.parse(fs.readFileSync(
   "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
   "utf8",
@@ -206,11 +204,11 @@ assert.equal(
 );
 assert.equal(
   VOID_WC_VOID_CURRENT_COUPLED_LAUNCH_OPENING_ID_V1,
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
 );
 assert.equal(
   VOID_WC_VOID_CURRENT_COUPLED_LAUNCH_VAULT_ID_V1,
-  "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+  "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
 );
 assert.equal(VOID_WC_VOID_MARKET_VAULT_AT_USE_MAX_AGE_SECONDS_V1,600);
 
