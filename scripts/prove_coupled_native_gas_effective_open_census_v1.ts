@@ -181,6 +181,47 @@ function makeWcVoidLiability(): CoupledNativeGasLiabilityRecordV1 {
   };
 }
 
+function rewriteLiability(
+  liability: CoupledNativeGasLiabilityRecordV1,
+  changes: Partial<
+    Pick<
+      CoupledNativeGasLiabilityRecordV1,
+      | "obligation_id"
+      | "nonce"
+      | "transaction_plan_fingerprint_sha256"
+    >
+  >,
+): CoupledNativeGasLiabilityRecordV1 {
+  const body = {
+    schema: liability.schema,
+    marker: liability.marker,
+    version: liability.version,
+    lane: liability.lane,
+    obligation_id:
+      changes.obligation_id ?? liability.obligation_id,
+    payer_address: liability.payer_address,
+    nonce: changes.nonce ?? liability.nonce,
+    transaction_plan_fingerprint_sha256:
+      changes.transaction_plan_fingerprint_sha256 ??
+      liability.transaction_plan_fingerprint_sha256,
+    transaction_native_value_wei:
+      liability.transaction_native_value_wei,
+    gas_limit: liability.gas_limit,
+    admitted_max_fee_per_gas_wei:
+      liability.admitted_max_fee_per_gas_wei,
+    attempt_limit: liability.attempt_limit,
+    maximum_reserved_wei: liability.maximum_reserved_wei,
+    fee_observation_sha256: liability.fee_observation_sha256,
+    source_evidence_kind: liability.source_evidence_kind,
+    source_evidence_id: liability.source_evidence_id,
+    status: liability.status,
+  };
+  return {
+    ...body,
+    liability_id: sha256Canonical(body),
+  };
+}
+
 function makeReconciliation(
   liability: CoupledNativeGasLiabilityRecordV1,
   input: {
@@ -346,6 +387,49 @@ requireHeld(
     reconciliations: [],
   }),
   "coupled_native_gas_effective_open_duplicate_liability",
+);
+
+requireHeld(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [
+      first,
+      rewriteLiability(second, {
+        obligation_id: first.obligation_id,
+      }),
+    ],
+    reconciliations: [],
+  }),
+  "coupled_native_gas_effective_open_historical_obligation_conflict",
+);
+
+requireHeld(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [
+      first,
+      rewriteLiability(second, {
+        transaction_plan_fingerprint_sha256:
+          first.transaction_plan_fingerprint_sha256,
+      }),
+    ],
+    reconciliations: [],
+  }),
+  "coupled_native_gas_effective_open_historical_transaction_plan_conflict",
+);
+
+requireHeld(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [
+      first,
+      rewriteLiability(second, {
+        nonce: first.nonce,
+      }),
+    ],
+    reconciliations: [],
+  }),
+  "coupled_native_gas_effective_open_historical_nonce_conflict",
 );
 
 const otherPayerBody = {
@@ -535,6 +619,9 @@ const trueAuthority = new Set([
   "one_reconciliation_per_liability",
   "orphan_reconciliation_rejected",
   "duplicate_reconciliation_rejected",
+  "historical_obligation_uniqueness_checked",
+  "historical_transaction_plan_uniqueness_checked",
+  "historical_nonce_uniqueness_checked",
   "effective_open_set_derived",
   "reserve_conservation_rederived",
   "content_addressed_census",
