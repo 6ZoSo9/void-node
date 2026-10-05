@@ -393,9 +393,14 @@ assert.equal(verifiedRead.external_witness_storage_proven, false);
 
 {
   const tampered = JSON.parse(serverRead.response_json);
-  const bytes = Buffer.from(tampered.witness_jsonl_base64, "base64");
-  bytes[10] ^= 1;
-  tampered.witness_jsonl_base64 = bytes.toString("base64");
+  const tamperedEvent = {
+    ...genesisEvent,
+    remaining_void: "9999999",
+  };
+  tampered.witness_jsonl_base64 = Buffer.from(
+    JSON.stringify(tamperedEvent) + "\n",
+    "utf8",
+  ).toString("base64");
   requireHeld(
     validateBuyVoidAllocationCustodyWitnessTransportResponseV1({
       policy,
