@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import {
+  VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_AUTHORITY_V1,
   VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1,
   type BuyVoidPaymentKeyedReceiptEvidenceV1,
 } from "./buy_void_payment_keyed_receipt_evidence_v1.js";
@@ -348,7 +349,35 @@ function validateReceiptEvidence(
     raw,
     "coupled_native_gas_terminal_cost_receipt_evidence_object_required",
   );
+  const expectedKeys = [
+    "schema",
+    "marker",
+    "version",
+    "saga_id",
+    "attempt_id",
+    "transaction_hash",
+    "outcome",
+    "recorded_at_ms",
+    "receipt_policy_fingerprint_sha256",
+    "receipt_evidence_fingerprint_sha256",
+    "receipt_block_number",
+    "receipt_block_hash",
+    "observed_confirmation_count",
+    "fulfillment_wallet_address",
+    "fulfillment_contract_address",
+    "delivery_address",
+    "void_amount_units",
+    "canonical_payment_identity",
+    "payment_delivery_id",
+    "void_token_address",
+    "token_amount_atoms",
+    "fulfillment_event_log_index",
+    "transfer_event_log_index",
+    "evidence_fingerprint_sha256",
+    "authority",
+  ].sort();
   if (
+    Object.keys(value).sort().join("\n") !== expectedKeys.join("\n") ||
     value.schema !== RECEIPT_EVIDENCE_SCHEMA ||
     value.marker !== VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1 ||
     value.version !== 1 ||
@@ -374,13 +403,63 @@ function validateReceiptEvidence(
     !normalizeAddress(value.fulfillment_contract_address) ||
     !normalizeAddress(value.delivery_address) ||
     positive(value.void_amount_units) === null ||
-    !SHA256.test(String(value.evidence_fingerprint_sha256 ?? ""))
+    !SHA256.test(String(value.evidence_fingerprint_sha256 ?? "")) ||
+    canonical(value.authority) !==
+      canonical(
+        VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_AUTHORITY_V1,
+      )
   ) {
     throw new Error(
       "coupled_native_gas_terminal_cost_receipt_evidence_invalid",
     );
   }
-  return value as unknown as BuyVoidPaymentKeyedReceiptEvidenceV1;
+
+  if (value.outcome === "confirmed") {
+    if (
+      typeof value.canonical_payment_identity !== "string" ||
+      !/^voidpay1:(base|ethereum):0x[0-9a-f]{64}:(0|[1-9][0-9]*)$/u.test(
+        value.canonical_payment_identity,
+      ) ||
+      !normalizeHash(value.payment_delivery_id) ||
+      !normalizeAddress(value.void_token_address) ||
+      positive(value.token_amount_atoms) === null ||
+      decimal(value.fulfillment_event_log_index) === null ||
+      decimal(value.transfer_event_log_index) === null
+    ) {
+      throw new Error(
+        "coupled_native_gas_terminal_cost_confirmed_evidence_invalid",
+      );
+    }
+  } else if (
+    value.canonical_payment_identity !== null ||
+    value.payment_delivery_id !== null ||
+    value.void_token_address !== null ||
+    value.token_amount_atoms !== null ||
+    value.fulfillment_event_log_index !== null ||
+    value.transfer_event_log_index !== null
+  ) {
+    throw new Error(
+      "coupled_native_gas_terminal_cost_reverted_evidence_invalid",
+    );
+  }
+
+  const evidence = value as unknown as BuyVoidPaymentKeyedReceiptEvidenceV1;
+  const {
+    evidence_fingerprint_sha256: ignoredFingerprint,
+    recorded_at_ms: ignoredRecordedAt,
+    ...semanticBody
+  } = evidence;
+  void ignoredFingerprint;
+  void ignoredRecordedAt;
+  if (
+    evidence.evidence_fingerprint_sha256 !==
+      sha256(semanticBody)
+  ) {
+    throw new Error(
+      "coupled_native_gas_terminal_cost_receipt_evidence_fingerprint_mismatch",
+    );
+  }
+  return evidence;
 }
 
 function validateRawReceipt(
