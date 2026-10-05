@@ -12,6 +12,10 @@ export const VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1 =
 export const VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_AUTHORITY_V1 =
   Object.freeze({
     source_only: true,
+    read_only_consumed_inspection: true,
+    known_consumed_detection: true,
+    negative_freshness_authorized: false,
+    inspection_mutation_performed: false,
     production_runtime_bound: false,
     public_route_active: false,
     transaction_submission: false,
@@ -204,12 +208,14 @@ function receiptBytes(receipt) {
   return Buffer.from(JSON.stringify(receipt, null, 2) + "\n", "utf8");
 }
 
-function validateExistingReceipt(receiptPath, digest, metadata) {
+function inspectExistingReceipt(receiptPath, digest, metadata) {
   let stat;
   try {
     stat = fs.lstatSync(receiptPath);
   } catch (error) {
-    if (error?.code === "ENOENT") return;
+    if (error?.code === "ENOENT") {
+      return Object.freeze({ present: false });
+    }
     fail("durable_replay_receipt_stat_failed");
   }
   if (!stat.isFile() || stat.isSymbolicLink()) {
@@ -230,6 +236,11 @@ function validateExistingReceipt(receiptPath, digest, metadata) {
   if (JSON.stringify(parsed) !== JSON.stringify(expected)) {
     fail("durable_replay_receipt_metadata_mismatch");
   }
+  return Object.freeze({ present: true });
+}
+
+function validateExistingReceipt(receiptPath, digest, metadata) {
+  inspectExistingReceipt(receiptPath, digest, metadata);
 }
 
 function writeReceipt(markerDir, digest, metadata) {
@@ -360,6 +371,90 @@ export function createVoidEconomicEpoch2DurableReplayStoreV1({ root }) {
   }
 
   return Object.freeze({
+    inspectConsumed(digest, metadata) {
+      if (typeof digest !== "string" || !DIGEST_RE.test(digest)) {
+        fail("durable_replay_digest_invalid");
+      }
+      const canonicalMeta = canonicalMetadata(metadata);
+      assertRootStable();
+
+      const markerDir = path.join(root, digest.slice(2));
+
+      function readMarkerStat() {
+        try {
+          return fs.lstatSync(markerDir);
+        } catch (error) {
+          if (error?.code === "ENOENT") return null;
+          fail("durable_replay_marker_stat_failed");
+        }
+      }
+
+      let markerStat = readMarkerStat();
+      if (markerStat === null) {
+        assertRootStable();
+        markerStat = readMarkerStat();
+        if (markerStat === null) {
+          return Object.freeze({
+            known_consumed: false,
+            audit_receipt_present: false,
+            mutation_performed: false,
+            atomic_consume_performed: false,
+            negative_freshness_authorized: false,
+            execution_authorized: false,
+          });
+        }
+      }
+
+      if (!markerStat.isDirectory() || markerStat.isSymbolicLink()) {
+        fail("durable_replay_marker_type_invalid");
+      }
+      privateMode(
+        markerStat,
+        "durable_replay_marker_permissions_invalid",
+      );
+
+      const initialMarker = Object.freeze({
+        dev: markerStat.dev,
+        ino: markerStat.ino,
+        uid: markerStat.uid,
+        mode: markerStat.mode,
+      });
+
+      const receipt = inspectExistingReceipt(
+        path.join(markerDir, "receipt.json"),
+        digest,
+        canonicalMeta,
+      );
+
+      assertRootStable();
+
+      const finalMarker = readMarkerStat();
+      if (
+        finalMarker === null ||
+        !finalMarker.isDirectory() ||
+        finalMarker.isSymbolicLink() ||
+        finalMarker.dev !== initialMarker.dev ||
+        finalMarker.ino !== initialMarker.ino ||
+        finalMarker.uid !== initialMarker.uid ||
+        finalMarker.mode !== initialMarker.mode
+      ) {
+        fail("durable_replay_marker_changed_during_inspection");
+      }
+      privateMode(
+        finalMarker,
+        "durable_replay_marker_permissions_invalid",
+      );
+
+      return Object.freeze({
+        known_consumed: true,
+        audit_receipt_present: receipt.present,
+        mutation_performed: false,
+        atomic_consume_performed: false,
+        negative_freshness_authorized: false,
+        execution_authorized: false,
+      });
+    },
+
     async consumeIfFresh(digest, metadata, options) {
       if (typeof digest !== "string" || !DIGEST_RE.test(digest)) {
         fail("durable_replay_digest_invalid");

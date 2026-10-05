@@ -19,6 +19,18 @@ const PROMOTION_PATH=
   "ops/mainnet0/economic-epoch2-cross-epoch-replay-protection-promotion-v1.json";
 const SHA256=/^[0-9a-f]{64}$/u;
 const EVIDENCE_ID=/^voide2gre1_[0-9a-f]{64}$/u;
+const REPLAY_SOURCE_EQUIVALENCE_PATH=
+  "ops/mainnet0/economic-epoch2-durable-replay-store-consume-equivalence-v1.json";
+const REPLAY_SOURCE_EQUIVALENCE_MARKER=
+  "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_CONSUME_EQUIVALENCE_V1";
+const PREDECESSOR_REPLAY_STORE_BLOB=
+  "2e4481fbf45200121356f39c278eac5b05a33596";
+const HISTORICAL_REPLAY_EVIDENCE_SHA256=
+  "9dcf63514e6bdb2daf2a099ef3676b04ed2cffc71699932190f590864f4e5d99";
+const HISTORICAL_REPLAY_EVIDENCE_ID=
+  "voide2gre1_0b6e8edc4220370e3e811f075063a6a7636fefb713f1be27e17aef319ae6719a";
+const HISTORICAL_REPLAY_IMPORT_EVALUATED_AT_UTC=
+  "2026-09-29T17:32:16Z";
 
 function fail(reason){ throw new Error(reason); }
 function sha256Bytes(bytes){
@@ -102,6 +114,55 @@ function requireReplayPrerequisites(migration){
   return replay;
 }
 
+function requireReplayStoreSourceEquivalence(
+  value,
+  sourceBindingPolicy,
+){
+  if(
+    !value ||
+    value.schema!==
+      "void_economic_epoch2_durable_replay_store_consume_equivalence_v1" ||
+    value.marker!==REPLAY_SOURCE_EQUIVALENCE_MARKER ||
+    value.version!==1 ||
+    value.repository!=="6ZoSo9/void-node" ||
+    value.source_path!==
+      "tools/void-economic-epoch2-durable-replay-store-v1.mjs" ||
+    value.predecessor?.git_blob_sha1!==PREDECESSOR_REPLAY_STORE_BLOB ||
+    value.successor?.git_blob_sha1!==
+      sourceBindingPolicy?.source_git_blob_sha1?.durable_replay_store ||
+    value.successor?.added_api!=="inspectConsumed" ||
+    value.gateway?.runtime_replay_api!=="consumeIfFresh" ||
+    value.gateway?.inspect_consumed_called!==false ||
+    value.equivalence?.consume_if_fresh_exact_source_match!==true ||
+    value.equivalence?.receipt_validation_semantics_equivalent!==true ||
+    value.equivalence?.validate_existing_receipt_delegate_only!==true ||
+    value.equivalence?.atomic_consume_path_changed!==false ||
+    value.equivalence?.runtime_evidence_carry_forward_scope!==
+      "atomic_consume_path_only" ||
+    value.historical_runtime_evidence?.evidence_file_sha256!==
+      HISTORICAL_REPLAY_EVIDENCE_SHA256 ||
+    value.historical_runtime_evidence?.evidence_id!==
+      HISTORICAL_REPLAY_EVIDENCE_ID ||
+    value.historical_runtime_evidence?.import_evaluated_at_utc!==
+      HISTORICAL_REPLAY_IMPORT_EVALUATED_AT_UTC ||
+    value.authority?.source_equivalence_only!==true ||
+    value.authority?.runtime_canary_reexecuted!==false ||
+    value.authority?.negative_inspection_authority!==false ||
+    value.authority?.atomic_consume_authority_changed!==false ||
+    value.authority?.runtime_route_active!==false ||
+    value.authority?.public_submission_open!==false ||
+    value.authority?.transaction_submission!==false ||
+    value.authority?.transaction_broadcast!==false ||
+    value.authority?.authoritative_chain2050_write!==false ||
+    value.authority?.migration_authorized!==false ||
+    value.authority?.public_activation_authorized!==false ||
+    value.authority?.funds_movement!==false
+  ){
+    fail("replay_store_source_equivalence_invalid");
+  }
+  return value;
+}
+
 function requireAuthorityHeld(migration){
   const authority=migration?.launch_authority;
   if(!authority || authority.source_only!==true){
@@ -116,6 +177,7 @@ function requireAuthorityHeld(migration){
 export function promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
   evidenceBytes,
   importReceipt,
+  sourceEquivalence,
   sourceBindingPolicy,
   durableReplayStorePolicy,
   runtimeEvidenceContract,
@@ -128,6 +190,11 @@ export function promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
   if(sha256Bytes(evidenceBytes)!==receipt.evidence_file_sha256){
     fail("runtime_evidence_file_sha256_mismatch");
   }
+
+  requireReplayStoreSourceEquivalence(
+    sourceEquivalence,
+    sourceBindingPolicy,
+  );
 
   const verified=
     verifyVoidEconomicEpoch2ProductionGatewayReplayBindingRuntimeEvidenceV1({
@@ -385,6 +452,7 @@ if(
     promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
       evidenceBytes:fs.readFileSync(evidencePath),
       importReceipt:readJson(importPath),
+      sourceEquivalence:readJson(REPLAY_SOURCE_EQUIVALENCE_PATH),
       sourceBindingPolicy:readJson(
         "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-v1.json",
       ),
@@ -435,6 +503,8 @@ if(
 
   console.log(VOID_ECONOMIC_EPOCH2_CROSS_EPOCH_REPLAY_PROTECTION_PROMOTION_V1);
   console.log("status="+result.promotion.status);
+  console.log("replay_store_source_equivalence_verified=true");
+  console.log("runtime_canary_reexecuted=false");
   console.log("production_gateway_replay_store_binding_verified=true");
   console.log("cross_epoch_replay_protection_proven=true");
   console.log("runtime_route_active=false");
