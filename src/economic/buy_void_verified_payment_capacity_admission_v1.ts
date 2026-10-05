@@ -78,6 +78,53 @@ function microVoid(value: unknown, code: string, positive = false): bigint {
   return units;
 }
 
+function microVoidAsNumberV1(
+  units: bigint,
+  code: string,
+): number {
+  const value = Number(
+    `${units / MICRO}.${(units % MICRO).toString().padStart(6, "0")}`,
+  );
+  if (!Number.isFinite(value) || microVoid(value, code) !== units) {
+    fail(code);
+  }
+  return value;
+}
+
+// Quote from exact 6-decimal USDC/rate units. Never floor an IEEE-754 product
+// into a different microVOID amount.
+export function quoteBuyVoidFromUsdcV1(
+  usdcAmount: unknown,
+  rateVoidPerUsdc: unknown,
+): number {
+  const code = "buy_void_quote_exact_units_invalid";
+  const usdcMicro = microVoid(usdcAmount, code, true);
+  const rateMicro = microVoid(rateVoidPerUsdc, code, true);
+  const product = usdcMicro * rateMicro;
+  if (product % MICRO !== 0n) fail(code);
+  return microVoidAsNumberV1(product / MICRO, code);
+}
+
+// Project the legacy numeric API from the same exact units as strict admission.
+// Never round away a sub-micro quote or an unrepresentable numeric result.
+export function projectBuyVoidVerifiedPaymentCapacityV1(
+  poolVoid: unknown,
+  verifiedQuotes: readonly unknown[],
+) {
+  const code = "buy_void_verified_payment_capacity_state_invalid";
+  const pool = microVoid(poolVoid, code, true);
+  let verified = 0n;
+  for (const quote of verifiedQuotes) {
+    verified += microVoid(quote, code, true);
+  }
+  const reserved = verified < pool ? verified : pool;
+  return Object.freeze({
+    allocation_reserved_void: microVoidAsNumberV1(reserved, code),
+    verified_void_total: microVoidAsNumberV1(verified, code),
+    remaining_void: microVoidAsNumberV1(pool - reserved, code),
+  });
+}
+
 const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
