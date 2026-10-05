@@ -74,6 +74,24 @@ function requireOk<T>(
   return value as Extract<T, { ok: true }>;
 }
 
+function requireStatus<
+  T,
+  S extends string,
+>(
+  value: T,
+  status: S,
+): Extract<T, { ok: true; status: S }> {
+  const ok = requireOk(value) as Extract<T, { ok: true }> & {
+    status?: string;
+  };
+  if (ok.status !== status) {
+    throw new Error(
+      "unexpected_status:" + String(ok.status ?? "missing"),
+    );
+  }
+  return ok as Extract<T, { ok: true; status: S }>;
+}
+
 function requireHeld(
   value: { ok: boolean; reason?: string },
   reason: string,
@@ -464,20 +482,22 @@ const readAfterAppend = requireOk(
     challenge_sha256: sha("0"),
   }),
 );
-const readAfterAppendServer = requireOk(
+const readAfterAppendServer = requireStatus(
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1({
     policy,
     request_json: readAfterAppend.request_json,
     current_witness_jsonl:
       appendRequest.expected_next_witness_jsonl,
   }),
+  "read_ready",
 );
-const readAfterAppendVerified = requireOk(
+const readAfterAppendVerified = requireStatus(
   validateBuyVoidAllocationCustodyWitnessTransportResponseV1({
     policy,
     request_json: readAfterAppend.request_json,
     response_json: readAfterAppendServer.response_json,
   }),
+  "read_response_verified",
 );
 const finalParentMatch = requireOk(
   classifyBuyVoidAllocationCustodyExternalWitnessV1({
