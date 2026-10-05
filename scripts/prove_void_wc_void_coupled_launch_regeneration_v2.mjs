@@ -30,7 +30,7 @@ assert.equal(
 );
 assert.equal(
   first.status,
-  "CORRECTED_COUPLED_LAUNCH_GENERATION_DERIVED_NOT_APPLIED",
+  "CORRECTED_COUPLED_LAUNCH_GENERATION_DERIVED_CANDIDATE_APPLIED",
 );
 assert.equal(first.regeneration_id, second.regeneration_id);
 assert.deepEqual(first, second);
@@ -72,7 +72,7 @@ assert.equal(
   first.corrected_market_vault_identity.runtime_template_sha256,
   "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
 );
-assert.equal(first.candidate_application.application_performed, false);
+assert.equal(first.candidate_application.application_performed, true);
 assert.equal(first.candidate_application.classifier_update_performed, false);
 assert.equal(first.candidate_application.signer_domain_update_performed, false);
 
@@ -106,9 +106,10 @@ console.log(
   "corrected_reconciliation_id=" +
     first.corrected_generation.reconciliation_id,
 );
-console.log("candidate_application_performed=false");
+console.log("candidate_application_performed=true");
 console.log("canonical_correction_verifier_required=true");
-console.log("superseded_v1_packet_required=true");
+console.log("superseded_v1_packet_required_for_lineage=true");
+console.log("corrected_candidate_rederivation_verified=true");
 console.log("transaction_signing=false");
 console.log("transaction_broadcast=false");
 console.log("deployment=false");
