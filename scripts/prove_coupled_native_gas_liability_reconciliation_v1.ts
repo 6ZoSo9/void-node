@@ -426,32 +426,14 @@ assert.equal(confirmed1.terminal_close_candidate, true);
 assert.equal(confirmed1.liability_release_authorized, false);
 assert.equal(confirmed1.liability_store_mutation, false);
 
-const reverted1 = requireOk(
+requireHeld(
   classifyCoupledNativeGasLiabilityReconciliationV1({
     liability: liability1,
     terminal_cost_evidence:
       terminalEvidence(plan, liability1, "reverted"),
   }),
+  "coupled_native_gas_reconciliation_reverted_disposition_unresolved",
 );
-assert.equal(reverted1.outcome, "reverted");
-assert.equal(reverted1.actual_consumed_wei, "105000");
-assert.equal(
-  reverted1.unconsumed_before_reconciliation_wei,
-  "1000000105000",
-);
-assert.equal(reverted1.remaining_attempt_allowance, 0);
-assert.equal(reverted1.retained_future_attempt_reserve_wei, "0");
-assert.equal(
-  reverted1.unused_reserve_release_candidate_wei,
-  "1000000105000",
-);
-assert.equal(reverted1.next_open_reserved_wei, "0");
-assert.equal(reverted1.retry_allowance_reserved, false);
-assert.equal(
-  reverted1.additional_attempt_requires_new_liability,
-  true,
-);
-assert.equal(reverted1.terminal_close_candidate, true);
 
 const liability2 = liabilityWithAttemptLimit(liability1, 2);
 assert.equal(liability2.maximum_reserved_wei, "2000000420000");
@@ -543,7 +525,6 @@ requireHeld(
 }
 
 assert.match(confirmed1.reconciliation_id, /^[0-9a-f]{64}$/u);
-assert.notEqual(confirmed1.reconciliation_id, reverted1.reconciliation_id);
 
 for (const [key, value] of Object.entries(
   VOID_COUPLED_NATIVE_GAS_LIABILITY_RECONCILIATION_AUTHORITY_V1,
@@ -558,7 +539,6 @@ for (const [key, value] of Object.entries(
     "consumed_reserve_retirement_candidate_classified",
     "unused_reserve_release_candidate_classified",
     "current_buy_void_attempt_limit_one_required",
-    "reverted_retry_requires_new_liability",
     "confirmed_future_attempt_allowance_zero",
   ]);
   assert.equal(value, trueKeys.has(key), key);
@@ -575,9 +555,10 @@ console.log(
 console.log("liability_identity_rederived=true");
 console.log("terminal_cost_evidence_identity_rederived=true");
 console.log("confirmed_unused_reserve_classified=true");
-console.log("reverted_actual_gas_retired=true");
+console.log("reverted_reconciliation_hold=true");
 console.log("current_buy_void_attempt_limit_one_required=true");
-console.log("reverted_retry_requires_new_liability=true");
+console.log("reverted_reconciliation_authority=false");
+console.log("reverted_retry_requires_new_liability=false");
 console.log("attempt_limit_2_reconciliation_hold=true");
 console.log("liability_release_authorized=false");
 console.log("liability_store_mutation=false");
