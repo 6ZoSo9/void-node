@@ -135,6 +135,11 @@ const classifiedPolicy = requireOk(
 );
 assert.equal(classifiedPolicy.status, "source_policy_valid");
 assert.match(classifiedPolicy.policy_sha256, /^sha256:[0-9a-f]{64}$/u);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_AUTHORITY_V1
+    .server_controlled_policy_origin_proven,
+  false,
+);
 
 for (const mutation of [
   { strict_host_key_checking: false },
@@ -662,6 +667,7 @@ console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1_PROOF_GREEN",
 );
 console.log("pinned_remote_identity_policy=true");
+console.log("server_controlled_policy_origin_proven=false");
 console.log("forced_command_only_required=true");
 console.log("caller_selected_remote_command=false");
 console.log("caller_selected_remote_path=false");
