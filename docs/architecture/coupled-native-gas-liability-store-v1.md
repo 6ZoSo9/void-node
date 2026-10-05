@@ -102,6 +102,14 @@ A final name that appears after the locked pre-census is not accepted as a
 normal concurrent success. Cooperating writers must serialize through the
 pre-provisioned payer queue.
 
+Once the canonical hard link has been created, any later fsync, reread,
+post-census, classifier, or visibility failure is **not** reported as a clean
+no-write HOLD. The decision returns `status=held_after_mutation`,
+`mutation_performed=true`, and
+`durable_state_requires_reinspection=true`. A caller must reread/reconcile the
+durable store before taking another action. Exact retry of a valid already
+published row remains idempotent.
+
 Reviewed temp files are non-authoritative. Under the payer lock, a one-link temp
 may be removed; a two-link temp is removed only when its reviewed final name is
 the exact same inode. Unknown entries HOLD.
@@ -180,5 +188,7 @@ The store proof covers:
 - corrupt durable economic record HOLD through #2463;
 - unknown record-name HOLD;
 - reviewed orphan-temp cleanup;
-- concurrent near-balance contenders with exactly one durable success; and
+- concurrent near-balance contenders with exactly one durable success;
+- injected failure after canonical hard-link publication, requiring explicit
+  post-mutation HOLD plus idempotent retry; and
 - explicit no-release/no-runtime/no-signing/no-funds authority.
