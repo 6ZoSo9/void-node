@@ -640,7 +640,7 @@ let mixedHistoryJournal: Buffer;
   assert.equal(planned.ok, false);
   assert.equal(
     planned.reason,
-    "allocation_custody_witness_advance_invalid",
+    "allocation_custody_witness_historical_history_conflict",
   );
 }
 
@@ -694,7 +694,7 @@ let mixedHistoryJournal: Buffer;
   assert.equal(planned.ok, false);
   assert.equal(
     planned.reason,
-    "allocation_custody_witness_advance_invalid",
+    "allocation_custody_witness_historical_history_conflict",
   );
 }
 
@@ -861,7 +861,7 @@ let mixedHistoryJournal: Buffer;
   assert.equal(planned.ok, false);
   assert.equal(
     planned.reason,
-    "allocation_custody_witness_advance_invalid",
+    "allocation_custody_witness_historical_history_conflict",
   );
 }
 
