@@ -49,11 +49,11 @@ export const
       local_snapshot_revalidated_after_rpc: true,
       numeric_loopback_http_only: true,
       chain2050_required: true,
-      read_only_rpc_methods: [
+      read_only_rpc_methods: Object.freeze([
         "eth_chainId",
         "eth_getTransactionReceipt",
         "eth_blockNumber",
-      ],
+      ]),
       bounded_rpc_timeout: true,
       bounded_rpc_response_bytes: true,
       terminal_cost_classifier_reused: true,
@@ -187,6 +187,8 @@ export type CoupledNativeGasReconciliationEvidenceResolverDecisionV1 =
 const SHA256 = /^[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const HEX_QUANTITY = /^0x(?:0|[1-9a-f][0-9a-f]*)$/iu;
+const DECIMAL = /^(0|[1-9][0-9]*)$/u;
+const UINT256_MAX = (1n << 256n) - 1n;
 const DEFAULT_TIMEOUT_MS = 5_000;
 const MAX_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 65_536;
@@ -636,11 +638,33 @@ function sameSnapshot(
   );
 }
 
+function parseUint256Decimal(value: unknown): bigint | null {
+  const raw = String(value ?? "").trim();
+  if (!DECIMAL.test(raw)) return null;
+  try {
+    const parsed = BigInt(raw);
+    return parsed <= UINT256_MAX ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function validateLiabilitySelector(
   raw: CoupledNativeGasLiabilityRecordV1,
 ): string | null {
+  const nativeValue = parseUint256Decimal(
+    raw?.transaction_native_value_wei,
+  );
+  const gasLimit = parseUint256Decimal(raw?.gas_limit);
+  const maxFee = parseUint256Decimal(
+    raw?.admitted_max_fee_per_gas_wei,
+  );
+  const maximum = parseUint256Decimal(raw?.maximum_reserved_wei);
   if (
     !raw ||
+    raw.schema !== "void_coupled_native_gas_liability_v1" ||
+    raw.marker !== "VOID_COUPLED_NATIVE_GAS_LIABILITY_V1" ||
+    raw.version !== 1 ||
     raw.lane !== "presale" ||
     raw.source_evidence_kind !== "buy_void_prepared_plan_v1" ||
     raw.attempt_limit !== 1 ||
@@ -652,12 +676,50 @@ function validateLiabilitySelector(
     !SHA256.test(
       String(raw.transaction_plan_fingerprint_sha256 || ""),
     ) ||
+    nativeValue === null ||
+    gasLimit === null ||
+    gasLimit <= 0n ||
+    maxFee === null ||
+    maxFee <= 0n ||
+    maximum === null ||
+    maximum <= 0n ||
+    !SHA256.test(String(raw.fee_observation_sha256 || "")) ||
     !SHA256.test(String(raw.source_evidence_id || "")) ||
     raw.source_evidence_id !==
       raw.transaction_plan_fingerprint_sha256 ||
     raw.status !== "open"
   ) {
     return "reconciliation_evidence_liability_selector_invalid";
+  }
+  const expectedMaximum = nativeValue + gasLimit * maxFee;
+  if (
+    expectedMaximum > UINT256_MAX ||
+    maximum !== expectedMaximum
+  ) {
+    return "reconciliation_evidence_liability_envelope_invalid";
+  }
+  const body = {
+    schema: "void_coupled_native_gas_liability_v1",
+    marker: "VOID_COUPLED_NATIVE_GAS_LIABILITY_V1",
+    version: 1,
+    lane: "presale",
+    obligation_id: raw.obligation_id,
+    payer_address: raw.payer_address,
+    nonce: raw.nonce,
+    transaction_plan_fingerprint_sha256:
+      raw.transaction_plan_fingerprint_sha256,
+    transaction_native_value_wei: nativeValue.toString(),
+    gas_limit: gasLimit.toString(),
+    admitted_max_fee_per_gas_wei: maxFee.toString(),
+    attempt_limit: 1,
+    maximum_reserved_wei: maximum.toString(),
+    fee_observation_sha256: raw.fee_observation_sha256,
+    source_evidence_kind: "buy_void_prepared_plan_v1",
+    source_evidence_id: raw.source_evidence_id,
+    status: "open",
+  } as const;
+  if (raw.liability_id !== sha256Canonical(body)) {
+    return "reconciliation_evidence_liability_identity_mismatch";
   }
   return null;
 }
