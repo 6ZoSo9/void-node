@@ -167,8 +167,14 @@ service's mount namespace. The collector also requires denial of
 `org.freedesktop.systemd1.manage-unit-files` and
 `org.freedesktop.systemd1.reload-daemon` for the public-runtime subject.
 
-The Polkit subject is bound as `PID,start-time,UID`, not PID alone. If any
-required query is authorized, unavailable, or indeterminate, collection HOLDS.
+The Polkit subject is bound as `PID,start-time,UID`, not PID alone. The full
+required unit/action/verb denial set is sampled twice: once before the host
+census and once after process, mount, namespace, root, and path revalidation.
+Both policy snapshots must remain byte-canonically identical and fully denied.
+A deny→allow, allow→deny, unavailable, indeterminate, or otherwise changed
+result HOLDS with `service_policy_changed_during_observation` instead of
+exporting stale negative authority.
+
 This remains a bounded direct-control proof; it does not claim the runtime can
 never obtain some other privileged delegate through a broader host policy.
 
@@ -234,6 +240,8 @@ The proof covers:
 - systemd-show parsing and mount-namespace restriction semantics;
 - exact systemd direct-control Polkit verb-denial set, including live
   bind/image mounts, plus unit-file and daemon-reload denial tokens;
+- before/after custody-control policy equality and explicit deny→allow drift
+  rejection;
 - proc start-time parsing, non-divergent FS UID/GID identity, full capability
   masks, and `NoNewPrivs` evidence;
 - simple POSIX ACL acceptance plus named/default extended ACL rejection before
