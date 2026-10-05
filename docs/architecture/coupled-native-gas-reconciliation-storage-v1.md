@@ -40,7 +40,10 @@ The contract requires an already valid payer-scoped store root containing:
 
 The payer-domain file, root, records directory and queue are all observed
 through retained no-follow descriptors and must remain bound to their visible
-paths.
+paths. The payer-domain file descriptor stays open across the complete
+bootstrap/qualification operation; the final check requires the same inode/stat
+and the same exact canonical bytes. Replacing the pathname with an equal-byte
+file therefore does not preserve authority.
 
 Explicit bootstrap reuses
 `withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(...)` on the existing
