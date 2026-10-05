@@ -153,6 +153,43 @@ async function withOnePathReadSubstitution<T>(
   }
 }
 
+async function withOnePathGrowthAfterOpen<T>(
+  targetPath: string,
+  operation: () => Promise<T>,
+): Promise<{ value: T; injected: boolean }> {
+  const original = fs.readSync as any;
+  const target = path.resolve(targetPath);
+  let injected = false;
+  (fs as any).readSync = (fd: number, ...args: any[]) => {
+    if (!injected) {
+      let openedPath = "";
+      try {
+        openedPath = path.resolve(
+          fs.readlinkSync("/proc/self/fd/" + String(fd)),
+        );
+      } catch {
+        openedPath = "";
+      }
+      if (openedPath === target) {
+        injected = true;
+        fs.appendFileSync(
+          target,
+          Buffer.alloc(1024 * 1024 + 128, 0x20),
+        );
+      }
+    }
+    return original(fd, ...args);
+  };
+  try {
+    return {
+      value: await operation(),
+      injected,
+    };
+  } finally {
+    (fs as any).readSync = original;
+  }
+}
+
 function makeBaseRequest(): BuyVoidRequestV1 {
   return {
     request_id: "buyvoid_reconciliation_evidence_v1",
@@ -361,6 +398,7 @@ type RpcScenarioOptionsV1 = {
   from?: string;
   to?: string;
   current_block?: string;
+  receipt_patch?: Record<string, unknown>;
   on_call?: (
     method: "eth_chainId" | "eth_getTransactionReceipt" | "eth_blockNumber",
   ) => void;
@@ -386,6 +424,7 @@ function rpcResultFor(
     return {
       transactionHash:
         options.transaction_hash ?? deliveryTx,
+      transactionIndex: "0x0",
       blockNumber: "0x64",
       blockHash:
         outcome === "confirmed"
@@ -395,10 +434,16 @@ function rpcResultFor(
         options.status ??
         (outcome === "confirmed" ? "0x1" : "0x0"),
       gasUsed: options.gas_used ?? "0x5208",
+      cumulativeGasUsed: "0x5208",
       effectiveGasPrice:
         options.effective_gas_price ?? "0x5",
       from: options.from ?? wallet,
       to: options.to ?? delivery,
+      contractAddress: null,
+      logs: [],
+      logsBloom: "0x" + "0".repeat(512),
+      type: "0x2",
+      ...(options.receipt_patch || {}),
     };
   }
   return options.current_block ?? "0x66";
@@ -501,6 +546,41 @@ assert.equal(happy.packet.liability_release_authorized, false);
 assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
 
 {
+  const grown = setupFixture("snapshot-grow", "confirmed");
+  const walletKey = crypto
+    .createHash("sha256")
+    .update("void-buy-wallet-v1\n2050\n" + wallet, "utf8")
+    .digest("hex");
+  const planPath = path.join(
+    grown.root,
+    "buy-void-prepared-transaction-plan-reservation-v1",
+    "wallets",
+    walletKey,
+    "nonces",
+    String(grown.plan.nonce).padStart(16, "0") + ".json",
+  );
+  const result = await withOnePathGrowthAfterOpen(
+    planPath,
+    () =>
+      resolveCoupledNativeGasReconciliationEvidenceV1({
+        root_dir: grown.root,
+        liability: grown.liability,
+        policy: rpcPolicy("confirmed"),
+      }),
+  );
+  assert.equal(result.injected, true);
+  assert.equal(result.value.ok, false);
+  if (result.value.ok) {
+    throw new Error("expected bounded snapshot read HOLD");
+  }
+  assert.equal(result.value.stage, "plan");
+  assert.equal(
+    result.value.reason,
+    "reconciliation_evidence_plan_namespace_file_too_large_during_read",
+  );
+}
+
+{
   const swapped = setupFixture("plan-reader-swap", "confirmed");
   const walletKey = crypto
     .createHash("sha256")
@@ -590,6 +670,46 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
   assert.equal(
     wrongChain.reason,
     "reconciliation_evidence_rpc_chain_id_mismatch",
+  );
+}
+
+{
+  const missingField =
+    await resolveCoupledNativeGasReconciliationEvidenceV1({
+      root_dir: confirmed.root,
+      liability: confirmed.liability,
+      policy: rpcPolicy("confirmed", {
+        receipt_patch: { effectiveGasPrice: undefined },
+      }),
+    });
+  assert.equal(missingField.ok, false);
+  if (missingField.ok) {
+    throw new Error("expected missing receipt field HOLD");
+  }
+  assert.equal(missingField.stage, "rpc");
+  assert.equal(
+    missingField.reason,
+    "reconciliation_evidence_receipt_required_field_invalid",
+  );
+}
+
+{
+  const wrongType =
+    await resolveCoupledNativeGasReconciliationEvidenceV1({
+      root_dir: confirmed.root,
+      liability: confirmed.liability,
+      policy: rpcPolicy("confirmed", {
+        receipt_patch: { gasUsed: 21000 },
+      }),
+    });
+  assert.equal(wrongType.ok, false);
+  if (wrongType.ok) {
+    throw new Error("expected wrong-type receipt field HOLD");
+  }
+  assert.equal(wrongType.stage, "rpc");
+  assert.equal(
+    wrongType.reason,
+    "reconciliation_evidence_receipt_required_field_invalid",
   );
 }
 
@@ -775,10 +895,12 @@ for (const [key, value] of Object.entries(
     "whole_execution_attempt_state_required",
     "whole_broadcast_outcome_state_required",
     "descriptor_bound_local_snapshot",
+    "bounded_snapshot_read_during_growth",
     "reader_outputs_bound_to_snapshot",
     "local_snapshot_revalidated_after_rpc",
     "numeric_loopback_http_only",
     "chain2050_required",
+    "rpc_receipt_projected_to_classifier_schema",
     "bounded_rpc_timeout",
     "bounded_rpc_response_bytes",
     "terminal_cost_classifier_reused",
@@ -817,6 +939,9 @@ console.log("whole_terminal_outcome_state=true");
 console.log("numeric_loopback_chain2050_only=true");
 console.log("caller_transport_override=false");
 console.log("real_loopback_http_proof=true");
+console.log("realistic_rpc_receipt_projection=true");
+console.log("receipt_missing_or_wrong_type_hold=true");
+console.log("bounded_snapshot_read_during_growth=true");
 console.log("reader_outputs_bound_to_snapshot=true");
 console.log("plan_reader_swap_restore_hold=true");
 console.log("outcome_reader_swap_restore_hold=true");
