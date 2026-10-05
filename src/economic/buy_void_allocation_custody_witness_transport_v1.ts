@@ -20,6 +20,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_AUTHORITY_V1 =
     pure_response_validation: true,
     canonical_request_response_bytes: true,
     pinned_remote_identity_policy: true,
+    server_controlled_policy_origin_proven: false,
     forced_command_only_required: true,
     caller_selected_remote_command: false,
     caller_selected_remote_path: false,
