@@ -935,6 +935,32 @@ assert.match(
   }
 }
 
+
+{
+  const f = fixture();
+  try {
+    let calls = 0;
+    const result = await persistCoupledNativeGasOpenLiabilityV1({
+      root_dir: f.root,
+      read_now_ms: () => {
+        calls += 1;
+        return calls === 1 ? 1500 : 1499;
+      },
+      buy_void_plan: makePlan(),
+      payer_observation: observation(),
+    });
+    requireHeld(
+      result,
+      "coupled_native_gas_store_time_regression_or_invalid",
+      false,
+    );
+    assert.equal(calls, 2);
+    assert.deepEqual(finalRecordNames(f), []);
+  } finally {
+    cleanup(f);
+  }
+}
+
 console.log("VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_V1_PROOF_GREEN");
 console.log("canonical_liability_classifier_reused=true");
 console.log("payer_scoped_store=true");
@@ -949,6 +975,7 @@ console.log("payer_domain_queue_wait_swap_rejected=true");
 console.log("payer_domain_postclassification_swap_reports_postmutation=true");
 console.log("admission_time_sampled_after_queue_and_census=true");
 console.log("admission_time_refreshed_immediately_before_publication=true");
+console.log("mutation_time_regression_rejected=true");
 console.log("postwrite_classifier_reuses_premutation_time_sample=true");
 console.log("expired_during_queue_wait_rejected=true");
 console.log("concurrent_near_balance_oversubscription_prevented=true");
