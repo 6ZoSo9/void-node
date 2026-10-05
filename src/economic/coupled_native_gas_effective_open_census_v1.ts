@@ -141,6 +141,9 @@ export type CoupledNativeGasEffectiveOpenCensusVerifiedV1 = {
   reconciled_unused_release_candidate_wei: string;
   effective_open_reserved_wei: string;
   historical_liability_ids: readonly string[];
+  historical_obligation_ids: readonly string[];
+  historical_transaction_plan_fingerprints: readonly string[];
+  historical_nonces: readonly number[];
   reconciliation_ids: readonly string[];
   reconciled_liability_ids: readonly string[];
   effective_open_liability_ids: readonly string[];
@@ -814,6 +817,12 @@ export function classifyCoupledNativeGasEffectiveOpenCensusV1(input: {
 
     const historicalLiabilityIds =
       [...liabilitiesById.keys()].sort();
+    const historicalObligationIds =
+      [...seenObligations].sort();
+    const historicalTransactionPlanFingerprints =
+      [...seenTransactionPlans].sort();
+    const historicalNonces =
+      [...seenNonces].sort((left, right) => left - right);
     const reconciledLiabilityIds =
       [...reconciliationsByLiability.keys()].sort();
     const acceptedReconciliationIds =
@@ -870,6 +879,12 @@ export function classifyCoupledNativeGasEffectiveOpenCensusV1(input: {
         effectiveOpenReserved.toString(),
       historical_liability_ids:
         Object.freeze(historicalLiabilityIds),
+      historical_obligation_ids:
+        Object.freeze(historicalObligationIds),
+      historical_transaction_plan_fingerprints:
+        Object.freeze(historicalTransactionPlanFingerprints),
+      historical_nonces:
+        Object.freeze(historicalNonces),
       reconciliation_ids:
         Object.freeze(acceptedReconciliationIds),
       reconciled_liability_ids:
