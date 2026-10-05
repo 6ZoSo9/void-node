@@ -900,7 +900,7 @@ assert.match(
     });
     requireHeld(
       result,
-      "coupled_native_gas_payer_observation_stale",
+      "coupled_native_gas_fee_observation_stale",
       false,
     );
     assert.equal(calls, 2);
