@@ -127,11 +127,11 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   semantic_bounded_canary_evidence: Object.freeze({
     path: "tools/void-wc-void-bounded-canary-evidence-v1.mjs",
-    blob_sha1: "b3b351771833d85286ca496606498aac7e6f4fc0",
+    blob_sha1: "209440e02102823053e27ccd49cece25ab07bba6",
   }),
   semantic_market_vault_at_use: Object.freeze({
     path: "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs",
-    blob_sha1: "9b415bc3ff7810debcb2ea217e6144ec46153237",
+    blob_sha1: "273b2eb4a496be499ca7d2982fdfa24fbedcf9aa",
   }),
   semantic_ledger_persistence_import: Object.freeze({
     path: "tools/void-wc-void-ledger-persistence-import-v1.mjs",
@@ -159,11 +159,11 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   semantic_participant_at_use: Object.freeze({
     path: "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs",
-    blob_sha1: "2b4454742298e54f73a254d3085503ccfc757dec",
+    blob_sha1: "3f36f6bc4e6bafdb2820a3389b484246bdfb9d13",
   }),
   production_market_vault_identity_acceptance: Object.freeze({
-    path: "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs",
-    blob_sha1: "96dc42543c57fd48ff4d7567d78bdaa800d45598",
+    path: "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
+    blob_sha1: "bcf7d4949b054599c643867b586b75a844f25cbc",
   }),
   production_settlement_adapter_review: Object.freeze({
     path: "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs",
@@ -203,11 +203,11 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   semantic_market_vault_runtime_attestation: Object.freeze({
     path: "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
-    blob_sha1: "64a7993a38f764d91a2071240b834fcd97770962",
+    blob_sha1: "69c0bb105fabd3de8bd5f970d76ec861393ec4a3",
   }),
   semantic_market_vault_runtime_attestation_import: Object.freeze({
     path: "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs",
-    blob_sha1: "4d698202ccc1b82e555685454de97d34e81607db",
+    blob_sha1: "f4fff40f2dc4e1c558e2daa3fe32614db81436b1",
   }),
   semantic_ledger_persistence: Object.freeze({
     path: "tools/void-wc-void-ledger-persistence-v1.mjs",
