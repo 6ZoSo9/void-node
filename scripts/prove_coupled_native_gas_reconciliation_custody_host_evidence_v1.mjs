@@ -13,6 +13,7 @@ import {
   parseProcStatusV1,
   parseProcStatStartTimeV1,
   parseSystemdShowV1,
+  restrictMountNamespaceDeniedV1,
   testOnlyClassifyCollectedHostEvidenceV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs";
 
@@ -88,6 +89,21 @@ for (const [key, value] of Object.entries(
   assert.equal(parsed.MainPID, "1234");
   assert.equal(parsed.UMask, "0077");
 }
+
+assert.equal(restrictMountNamespaceDeniedV1("yes"), true);
+assert.equal(restrictMountNamespaceDeniedV1("no"), false);
+assert.equal(
+  restrictMountNamespaceDeniedV1("~user mnt net"),
+  true,
+);
+assert.equal(
+  restrictMountNamespaceDeniedV1("user ipc net"),
+  true,
+);
+assert.equal(
+  restrictMountNamespaceDeniedV1("user mnt ipc"),
+  false,
+);
 
 const now = 1_800_000_000_000;
 const payerAddress = "0x" + "a".repeat(40);
@@ -358,6 +374,8 @@ for (const token of [
   "SYSTEMCTL = \"/usr/bin/systemctl\"",
   "FINDMNT = \"/usr/bin/findmnt\"",
   "PKCHECK = \"/usr/bin/pkcheck\"",
+  "RestrictNamespaces",
+  "restrictMountNamespaceDeniedV1",
   "live_host_qualification_performed: false",
   "production_gate_ready: false",
 ]) {
