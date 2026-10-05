@@ -77,7 +77,7 @@ The raw receipt must agree with the terminal evidence on:
 It must also bind:
 
 - receipt `from` = liability payer;
-- receipt `to` = reviewed fulfillment contract from terminal evidence.
+- receipt `to` = the exact prepared-plan delivery address, which must also equal the immutable terminal evidence delivery address.
 
 The terminal receipt evidence object is independently revalidated for its exact
 key set, confirmed/reverted field shape, authority object, and semantic evidence
