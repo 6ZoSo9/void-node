@@ -12,6 +12,7 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1,
   assertSimpleAclTextV1,
+  assertStableCustodyServicePolicyEvidenceV1,
   parseProcStatusV1,
   parseProcStatStartTimeV1,
   parseSystemdShowV1,
@@ -33,6 +34,29 @@ assert.equal(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1",
 );
+
+{
+  const denied = Object.freeze({
+    unit_name: "void-custody.service",
+    public_runtime_can_control_service: false,
+  });
+  assert.doesNotThrow(() =>
+    assertStableCustodyServicePolicyEvidenceV1(denied, denied),
+  );
+  assert.throws(
+    () =>
+      assertStableCustodyServicePolicyEvidenceV1(
+        denied,
+        Object.freeze({
+          ...denied,
+          public_runtime_can_control_service: true,
+        }),
+      ),
+    /service_policy_changed_during_observation/u,
+    "polkit deny->allow drift must HOLD",
+  );
+}
+
 
 assert.deepEqual(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1,
@@ -613,6 +637,9 @@ for (const token of [
   "service_metadata_changed_during_observation",
   "process_identity_changed_during_observation",
   "custody_paths_changed_during_observation",
+  "service_policy_changed_during_observation",
+  "const custodyPolicyAfter = servicePolicyEvidence(",
+  "assertStableCustodyServicePolicyEvidenceV1(",
   "systemctl",
   "pkcheck",
   "findmnt",
@@ -670,6 +697,8 @@ console.log("public_runtime_canonical_path_mapping_required=true");
 console.log("systemd_direct_control_verb_denials_complete=true");
 console.log("systemd_unit_file_mutation_denied=true");
 console.log("systemd_daemon_reload_denied=true");
+console.log("custody_service_control_policy_revalidated=true");
+console.log("polkit_deny_to_allow_drift_holds=true");
 console.log("mountinfo_snapshot_stability_required=true");
 console.log("descriptor_bound_metadata_reads=true");
 console.log("extended_acl_rejected=true");
