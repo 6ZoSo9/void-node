@@ -13,6 +13,7 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1,
   assertSimpleAclTextV1,
   assertStableCustodyServicePolicyEvidenceV1,
+  testOnlyAllCustodyControlDecisionsDeniedV1,
   parseProcStatusV1,
   parseProcStatStartTimeV1,
   parseSystemdShowV1,
@@ -70,6 +71,9 @@ assert.deepEqual(
     "reload-or-try-restart",
     "kill",
     "kill-subgroup",
+    "queue-signal",
+    "freeze",
+    "thaw",
     "reset-failed",
     "set-property",
     "clean",
@@ -77,6 +81,47 @@ assert.deepEqual(
     "mount-image",
   ],
 );
+
+{
+  const allVerbDenied = Object.fromEntries(
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1
+      .map((verb) => [verb, true]),
+  );
+  const allActionDenied = {
+    "org.freedesktop.systemd1.manage-unit-files": true,
+    "org.freedesktop.systemd1.reload-daemon": true,
+  };
+  assert.equal(
+    testOnlyAllCustodyControlDecisionsDeniedV1(
+      allVerbDenied,
+      allActionDenied,
+    ),
+    true,
+  );
+  assert.equal(
+    testOnlyAllCustodyControlDecisionsDeniedV1(
+      {
+        ...allVerbDenied,
+        freeze: false,
+      },
+      allActionDenied,
+    ),
+    false,
+    "an authorized freeze operation must defeat the no-control claim",
+  );
+  assert.throws(
+    () =>
+      testOnlyAllCustodyControlDecisionsDeniedV1(
+        {
+          ...allVerbDenied,
+          unexpected: true,
+        },
+        allActionDenied,
+      ),
+    /custody_control_verb_decisions_invalid/u,
+    "the live decision set must remain closed/exact",
+  );
+}
 
 for (const [key, value] of Object.entries(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
