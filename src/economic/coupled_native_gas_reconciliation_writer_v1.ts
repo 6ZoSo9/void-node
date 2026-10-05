@@ -47,6 +47,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1 =
     crash_temp_normalization: true,
     record_filename_identity_binding: true,
     exact_effective_open_postcheck: true,
+    exact_reconciliation_history_delta: true,
     descriptor_bound_reads: true,
     filesystem_read: true,
     filesystem_write: true,
@@ -898,6 +899,62 @@ function requireExactReconciliationHistoryAppend(
   }
 }
 
+function exactExpectedReconciliationHistory(
+  before: HistorySnapshotV1,
+  after: HistorySnapshotV1,
+  reconciliation: CoupledNativeGasLiabilityReconciliationVerifiedV1,
+): void {
+  const expectedName = reconciliation.reconciliation_id + ".json";
+  const expectedBytes = Buffer.from(
+    canonical(reconciliation) + "\n",
+    "utf8",
+  );
+  const beforeByName = new Map(
+    before.entries.map((entry) => [entry.name, entry] as const),
+  );
+  const afterByName = new Map(
+    after.entries.map((entry) => [entry.name, entry] as const),
+  );
+  if (
+    beforeByName.has(expectedName) ||
+    after.entries.length !== before.entries.length + 1
+  ) {
+    fail(
+      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+    );
+  }
+  for (const entry of before.entries) {
+    const current = afterByName.get(entry.name);
+    if (
+      !current ||
+      current.bytes !== entry.bytes ||
+      current.sha256 !== entry.sha256 ||
+      current.identity !== entry.identity
+    ) {
+      fail(
+        "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+      );
+    }
+  }
+  const published = afterByName.get(expectedName);
+  if (
+    !published ||
+    published.bytes !== expectedBytes.length ||
+    published.sha256 !== sha256Bytes(expectedBytes)
+  ) {
+    fail(
+      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+    );
+  }
+  for (const entry of after.entries) {
+    if (entry.name !== expectedName && !beforeByName.has(entry.name)) {
+      fail(
+        "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+      );
+    }
+  }
+}
+
 function exactExpectedPostCensus(
   before: CoupledNativeGasEffectiveOpenCensusVerifiedV1,
   after: CoupledNativeGasEffectiveOpenCensusVerifiedV1,
@@ -1217,6 +1274,11 @@ async function persistWithDependencies(
           reconciliations!,
           "coupled_native_gas_reconciliation_writer_reconciliations",
           "reconciliation_id",
+        );
+        exactExpectedReconciliationHistory(
+          reconciliationsBefore,
+          reconciliationsAfter,
+          reconciliation,
         );
         if (
           domainAfter !== domainBefore ||
