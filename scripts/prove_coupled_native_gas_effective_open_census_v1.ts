@@ -252,7 +252,7 @@ function rewriteLiability(
 function makeReconciliation(
   liability: CoupledNativeGasLiabilityRecordV1,
   input: {
-    terminal_cost_evidence_id?: string;
+    terminal_cost_identity_sha256?: string;
     actual_consumed_wei?: string;
   } = {},
 ): CoupledNativeGasLiabilityReconciliationVerifiedV1 {
@@ -275,8 +275,8 @@ function makeReconciliation(
     nonce: liability.nonce,
     transaction_plan_fingerprint_sha256:
       liability.transaction_plan_fingerprint_sha256,
-    terminal_cost_evidence_id:
-      input.terminal_cost_evidence_id ?? "8".repeat(64),
+    terminal_cost_identity_sha256:
+      input.terminal_cost_identity_sha256 ?? "8".repeat(64),
     outcome: "confirmed" as const,
     attempt_limit: 1 as const,
     completed_attempt_count: 1 as const,
@@ -547,7 +547,7 @@ requireHeld(
     reconciliations: [
       firstReconciliation,
       makeReconciliation(first, {
-        terminal_cost_evidence_id: "9".repeat(64),
+        terminal_cost_identity_sha256: "9".repeat(64),
       }),
     ],
   }),
