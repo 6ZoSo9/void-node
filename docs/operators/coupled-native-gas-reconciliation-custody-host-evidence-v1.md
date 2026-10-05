@@ -118,7 +118,9 @@ authorization queries bound to the exact custody unit. The direct
 `org.freedesktop.systemd1.manage-units` denial set covers `start`, `stop`,
 `reload`, `restart`, `try-restart`, `reload-or-restart`,
 `reload-or-try-restart`, `kill`, `kill-subgroup`, `reset-failed`,
-`set-property`, and `clean`. The collector also requires blanket denial of
+`set-property`, `clean`, `bind-mount`, and `mount-image`. The latter two
+are especially custody-relevant because systemd can use them to modify the
+running service's mount namespace. The collector also requires blanket denial of
 `org.freedesktop.systemd1.manage-unit-files` and
 `org.freedesktop.systemd1.reload-daemon` for the public-runtime subject.
 
@@ -190,7 +192,7 @@ The proof covers:
 - authority flags;
 - proc-status parsing;
 - systemd-show parsing and mount-namespace restriction semantics;
-- exact systemd direct-control Polkit verb-denial set plus unit-file and daemon-reload denial tokens;
+- exact systemd direct-control Polkit verb-denial set, including live bind/image mounts, plus unit-file and daemon-reload denial tokens;
 - proc start-time parsing, non-divergent FS UID/GID identity, full capability
   masks, and `NoNewPrivs` evidence;
 - designated-host mismatch HOLD;
