@@ -529,9 +529,12 @@ try {
         "same-process reviewed mark must not stall behind an async payment request-lock holder",
       );
 
+      const paymentRejected = assert.rejects(
+        paymentPromise,
+        /buy_void_verified_payment_capacity_operator_events_changed_since_census/u,
+      );
       releaseLaunchResolve();
-      const paymentResult = await paymentPromise;
-      assert.equal(paymentResult.ok, true);
+      await paymentRejected;
       assert.equal(freshAuthorityAssertions, 1);
       const livenessRows = fs
         .readFileSync(livenessEventsPath, "utf8")
@@ -549,7 +552,8 @@ try {
         livenessRows.filter(
           (row) => row.operator_status === "payment_verified",
         ).length,
-        1,
+        0,
+        "payment must fail closed when the ordinary mark changes the operator ledger after capacity census",
       );
     } finally {
       fs.rmSync(livenessRoot, { recursive: true, force: true });
