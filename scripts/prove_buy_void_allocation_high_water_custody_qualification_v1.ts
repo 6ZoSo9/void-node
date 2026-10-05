@@ -344,6 +344,7 @@ for (const [key, value] of Object.entries(
     ancestor("/srv"),
     ancestor("/srv/void-allocation-ledger-v1"),
   ];
+  bad.custody.mount.mount_point = bad.custody.path;
   bad.service_hardening.read_write_paths = [
     bad.ledger.path,
     bad.custody.path,
