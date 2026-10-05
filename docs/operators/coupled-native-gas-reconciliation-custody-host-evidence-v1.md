@@ -46,6 +46,7 @@ It reads:
 - `/proc/<custody-pid>/mountinfo`;
 - payer-root/ancestor/child metadata with no-follow descriptor checks;
 - exact `payer-domain-v1.json` bytes;
+- `getfacl` output for every retained file/directory and ancestor used in permission inference;
 - `systemctl show` and `systemctl cat` metadata;
 - `findmnt --target ... --output UUID`;
 - bounded noninteractive `pkcheck` authorization queries for the custody-service control surface; and
@@ -90,6 +91,12 @@ The complete path evidence is collected twice around service/process/mount
 revalidation and must remain byte-equivalent after normalization.
 
 Ancestor paths are derived from the payer root rather than caller-supplied.
+Before mode-bit permission analysis, the collector runs fail-closed `getfacl`
+checks on every retained file/directory and every ancestor. Named user/group
+ACL entries and default ACLs are rejected. This prevents a named ACL grant to
+the public-runtime UID from being hidden behind apparently non-writable owner /
+group / other mode bits. Missing or unparsable ACL evidence HOLDS.
+
 The #2499 classifier remains authoritative for the required root ownership,
 modes, root/child mount-ID equality, inode separation, canonical payer-domain
 identity, service policy, and negative-test fields.
@@ -195,6 +202,7 @@ The proof covers:
 - exact systemd direct-control Polkit verb-denial set, including live bind/image mounts, plus unit-file and daemon-reload denial tokens;
 - proc start-time parsing, non-divergent FS UID/GID identity, full capability
   masks, and `NoNewPrivs` evidence;
+- simple POSIX ACL acceptance plus named/default extended ACL rejection before mode-bit permission inference;
 - designated-host mismatch HOLD;
 - mountinfo drift HOLD;
 - mount-namespace drift HOLD;
