@@ -217,8 +217,16 @@ function safeTime(value: unknown): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function readTime(provider: () => unknown): number | null {
+  try {
+    return safeTime(provider());
+  } catch {
+    return null;
+  }
+}
+
 function normalizePolicy(
-  input: CoupledNativeGasPayerObserverPolicyV1,
+  input: CoupledNativeGasPayerObserverPolicyV1 | null | undefined,
 ):
   | { ok: true; policy: NormalizedPolicyV1 }
   | { ok: false; reason: string } {
@@ -436,7 +444,7 @@ export async function observeCoupledNativeGasPayerV1(input: {
     input.transport || createBuyVoidNativeExecutionPlannerHttpTransportV1();
   const methods: BuyVoidNativeExecutionPlannerRpcMethodV1[] = [];
 
-  const startedAt = safeTime(input.read_now_ms());
+  const startedAt = readTime(input.read_now_ms);
   if (startedAt === null) {
     return held("coupled_native_gas_observer_time_invalid", {
       policy,
@@ -499,7 +507,7 @@ export async function observeCoupledNativeGasPayerV1(input: {
     });
   }
 
-  const observedAt = safeTime(input.read_now_ms());
+  const observedAt = readTime(input.read_now_ms);
   if (observedAt === null || observedAt < startedAt) {
     return held("coupled_native_gas_observer_time_regression_or_invalid", {
       policy,
@@ -593,7 +601,7 @@ export async function observeCoupledNativeGasPayerV1(input: {
       "eth_chainId",
       "eth_gasPrice",
       "eth_getBalance",
-    ]),
+    ] as const),
     observation,
     trusted_time_source_proven: false,
     mutation_performed: false,
