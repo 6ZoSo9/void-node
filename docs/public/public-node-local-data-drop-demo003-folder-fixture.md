@@ -112,7 +112,20 @@ Expected marker:
 
        VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_PROOF_V1_GREEN
 
-Policy: public folder serving is read-only. The folder was operator-imported, offline verified, and still carries trusted_as_network_truth=false.
+Serving authority is fail-closed and source-rooted:
+
+- verifier authority remains the five sealed memfd snapshot digests;
+- intake binds the published snapshot to those exact sealed digests;
+- public serving revalidates the current manifest, checksum ledger, intake record,
+  and all three payload files against the canonical Demo003 source hashes/sizes;
+- a coherently rewritten mutable intake/manifest/checksum set cannot authorize
+  changed payload bytes;
+- responses expose `serving_authority=canonical_demo003_source_contract_v1`;
+- `visible_extraction_tree_trusted=false` remains explicit.
+
+Policy: public folder serving is read-only. The folder was operator-imported and
+offline verified, but the mutable `latest` pathname tree is not itself the
+authority and the fixture remains `trusted_as_network_truth=false`.
 
 
 ## Demo 003 public-node card <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_DOC_V1 -->
