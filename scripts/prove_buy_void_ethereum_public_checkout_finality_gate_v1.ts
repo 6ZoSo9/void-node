@@ -139,6 +139,9 @@ assert.equal(
 );
 
 for (const mutation of [
+  { runtime_source_filesystem_read: false },
+  { runtime_source_filesystem_write: true },
+  { caller_generation_assertion_accepted: true },
   { reviewed_source_files_verification_required: false },
   { reviewed_source_files_verified_on_success: false },
   { authenticated_transport_identity_verified: false },
@@ -757,6 +760,18 @@ assert.match(
 );
 assert.match(
   source,
+  /runtime_source_filesystem_read === true/u,
+);
+assert.match(
+  source,
+  /runtime_source_filesystem_write === false/u,
+);
+assert.match(
+  source,
+  /caller_generation_assertion_accepted === false/u,
+);
+assert.match(
+  source,
   /reviewed_source_files_verified_on_success === true/u,
 );
 assert.match(
@@ -882,6 +897,8 @@ console.log(
 console.log("ethereum_payment_instructions_fail_closed=true");
 console.log("server_controlled_finality_policy_required=true");
 console.log("shared_v5_capability_classifier_required=true");
+console.log("v5_runtime_source_filesystem_write_must_remain_false=true");
+console.log("v5_caller_generation_assertion_must_remain_false=true");
 console.log("partial_v5_capability_promotion_can_open_instructions=false");
 console.log("current_production_source_finality_capability_ready=false");
 console.log("ethereum_payment_instructions_currently_hold=true");
