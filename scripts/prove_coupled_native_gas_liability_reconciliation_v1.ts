@@ -348,6 +348,7 @@ function terminalEvidence(
   plan: BuyVoidPreparedTransactionPlanReservationV1,
   liability: CoupledNativeGasLiabilityRecordV1,
   outcome: "confirmed" | "reverted",
+  currentBlock = "0x66",
 ): CoupledNativeGasTerminalCostEvidenceVerifiedV1 {
   const decision = classifyCoupledNativeGasTerminalCostEvidenceV1({
     liability,
@@ -357,7 +358,7 @@ function terminalEvidence(
         ? makeConfirmedOutcome(plan)
         : makeRevertedOutcome(plan),
     raw_receipt: makeReceipt(outcome),
-    current_block_number: "0x66",
+    current_block_number: currentBlock,
     required_min_confirmations: "2",
   });
   if (decision.ok !== true) throw new Error(decision.reason);
@@ -423,6 +424,40 @@ assert.equal(
   true,
 );
 assert.equal(confirmed1.terminal_close_candidate, true);
+assert.match(
+  confirmed1.terminal_cost_identity_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+const laterEvidence = terminalEvidence(
+  plan,
+  liability1,
+  "confirmed",
+  "0x67",
+);
+const laterReconciliation = requireOk(
+  classifyCoupledNativeGasLiabilityReconciliationV1({
+    liability: liability1,
+    terminal_cost_evidence: laterEvidence,
+  }),
+);
+assert.notEqual(
+  laterEvidence.evidence_id,
+  terminalEvidence(plan, liability1, "confirmed").evidence_id,
+);
+assert.equal(
+  laterReconciliation.terminal_cost_identity_sha256,
+  confirmed1.terminal_cost_identity_sha256,
+);
+assert.equal(
+  laterReconciliation.reconciliation_id,
+  confirmed1.reconciliation_id,
+  "reconciliation identity must remain stable as confirmation depth advances",
+);
+assert.deepEqual(
+  laterReconciliation,
+  confirmed1,
+  "durable reconciliation bytes must be confirmation-depth independent",
+);
 assert.equal(confirmed1.liability_release_authorized, false);
 assert.equal(confirmed1.liability_store_mutation, false);
 
@@ -513,6 +548,21 @@ requireHeld(
   const evidence = terminalEvidence(plan, liability1, "confirmed");
   const altered = {
     ...evidence,
+    terminal_cost_identity_sha256: "e".repeat(64),
+  };
+  requireHeld(
+    classifyCoupledNativeGasLiabilityReconciliationV1({
+      liability: liability1,
+      terminal_cost_evidence: altered,
+    }),
+    "coupled_native_gas_reconciliation_terminal_cost_identity_mismatch",
+  );
+}
+
+{
+  const evidence = terminalEvidence(plan, liability1, "confirmed");
+  const altered = {
+    ...evidence,
     evidence_id: "f".repeat(64),
   };
   requireHeld(
@@ -536,6 +586,8 @@ for (const [key, value] of Object.entries(
     "buy_void_only",
     "exact_open_liability_identity_rederived",
     "exact_terminal_cost_evidence_identity_rederived",
+    "stable_terminal_cost_identity_rederived",
+    "confirmation_depth_independent_reconciliation_identity",
     "exact_liability_terminal_evidence_binding_required",
     "release_candidate_requires_authenticated_terminal_reobservation",
     "durable_reconciliation_writer_required",
@@ -557,6 +609,8 @@ console.log(
 );
 console.log("liability_identity_rederived=true");
 console.log("terminal_cost_evidence_identity_rederived=true");
+console.log("stable_terminal_cost_identity_rederived=true");
+console.log("reconciliation_identity_stable_across_confirmation_depth=true");
 console.log("terminal_cost_evidence_provenance_verified=false");
 console.log("authenticated_terminal_reobservation_required=true");
 console.log("durable_reconciliation_writer_required=true");
