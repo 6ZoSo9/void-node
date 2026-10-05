@@ -173,6 +173,8 @@ trusted_clock_host_binding_proven=false
 cross_process_restart_continuity_proven=false
 cross_boot_restart_continuity_proven=false
 root_path_stability_proven=false
+non_mutating_preview_source_verified=true
+preview_durable_time_authority_advanced=false
 runtime_enforcement_verified=false
 gas_sponsorship_performed=false
 ```
@@ -187,6 +189,50 @@ budget can be released in production.
 complete chain, and reports the current head/count.
 
 It performs no temp cleanup and no clock read.
+
+## Non-mutating trusted-time preview
+
+`preview()` accepts no arguments.
+
+It is negative/preflight evidence only and never replaces durable
+`observe()`.
+
+The preview path:
+
+```text
+descriptor-bind root + records + pre-provisioned lock queue
+  -> stable-read the complete durable receipt chain
+  -> reconstruct the exact durable head
+  -> invoke the captured #2459 clock dependency exactly once
+  -> validate the candidate next receipt against that durable head
+  -> revalidate root + records + queue identity
+  -> stable-read the durable chain again
+  -> require count/head/generation unchanged
+  -> return candidate observed_at_ms
+```
+
+It performs:
+
+```text
+mutation_performed=false
+durable_time_authority_advanced=false
+candidate_receipt_persisted=false
+preview_only=true
+```
+
+It performs no temp cleanup and no bakery-lock ticket publication.
+
+If crash residue is present, preview HOLDS with recovery required and leaves the
+residue untouched.
+
+If durable history changes during the clock-sample window, preview HOLDS with
+`SPONSORED_OBSERVATION_TIME_STORE_PREVIEW_HISTORY_CHANGED` rather than
+returning a stale candidate time.
+
+A concurrent durable advance immediately after preview is still safe because a
+later positive admission must call authoritative `observe()` and then reverify
+the candidate at the newly accepted durable time. Preview may reject obvious
+negative cases early; it is never positive execution authority.
 
 ## Authority boundary
 
@@ -221,6 +267,11 @@ git diff --check
 The focused proof covers:
 
 - empty read-only inspection;
+- empty-store preview with zero durable growth;
+- non-empty preview against the exact durable head with zero durable growth;
+- preview request/timestamp input rejection;
+- preview recovery-required HOLD with no cleanup;
+- preview durable-head change during the clock window HOLD;
 - no request/prior/timestamp input;
 - deterministic genesis and forward append;
 - new binding reconstruction from the durable head within the same process identity;
@@ -241,18 +292,24 @@ The focused proof covers:
 
 ## Next gate
 
-After this source store is hosted-green, issue #2458 may compose:
+Issue #2458 may now use the preview only as a negative preflight:
 
 ```text
-reviewed coupled launch policy bundle
-  + reviewed host trusted-clock binding
-  + rollback-resistant durable observation-time store
-  + pre-provisioned sponsored reservation store
-  -> exact trusted observed_at_ms
-  -> #2454 durable sponsored-gas reservation
-  -> exact postcheck
-  -> return before any sponsored execution
+exact request normalization
+  -> reservation-store structural inspection
+  -> signed-candidate cryptographic preflight
+  -> non-mutating trusted-time preview
+  -> read-only reservation history/budget classification
+       DENY => return HOLD, durable time unchanged
+       ALLOW =>
+         durable timeStore.observe()
+         -> current candidate revalidation at durable accepted time
+         -> durable sponsored-gas reservation
+         -> exact postcheck
+         -> return before any sponsored execution
 ```
 
-Actual gas sponsorship and transaction submission remain separate later
-authority gates.
+The final durable `observe()` remains mandatory on every positive path.
+
+Actual gas sponsorship, execution replay consumption, transaction submission,
+and live route activation remain separate later authority gates.
