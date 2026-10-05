@@ -162,13 +162,15 @@ export function parseProcStatusV1(text) {
     .filter(Boolean)
     .map(Number);
   const capHex = String(fields.get("CapEff") || "");
+  const noNewPrivs = Number(fields.get("NoNewPrivs"));
   const uid = Number(uidParts[0]);
   const gid = Number(gidParts[0]);
   if (
     !Number.isSafeInteger(uid) || uid < 1 ||
     !Number.isSafeInteger(gid) || gid < 1 ||
     groups.some((value) => !Number.isSafeInteger(value) || value < 0) ||
-    !/^[0-9A-Fa-f]{1,32}$/u.test(capHex)
+    !/^[0-9A-Fa-f]{1,32}$/u.test(capHex) ||
+    (noNewPrivs !== 0 && noNewPrivs !== 1)
   ) {
     throw new Error("proc_status_invalid");
   }
@@ -177,6 +179,7 @@ export function parseProcStatusV1(text) {
     gid,
     groups: Object.freeze([...new Set(groups)].sort((a, b) => a - b)),
     cap_eff: BigInt("0x" + capHex),
+    no_new_privs: noNewPrivs,
   });
 }
 
@@ -191,6 +194,31 @@ export function parseSystemdShowV1(text) {
     out[key] = line.slice(index + 1);
   }
   return Object.freeze(out);
+}
+
+export function parseProcStatStartTimeV1(text) {
+  const raw = String(text || "").trim();
+  const close = raw.lastIndexOf(")");
+  if (close < 2) throw new Error("proc_stat_invalid");
+  const rest = raw.slice(close + 1).trim().split(/\s+/u);
+  const start = rest[19];
+  if (!/^[1-9][0-9]*$/u.test(String(start || ""))) {
+    throw new Error("proc_stat_start_time_invalid");
+  }
+  return String(start);
+}
+
+function readProcessIdentity(procRoot) {
+  const creds = parseProcStatusV1(
+    fs.readFileSync(path.join(procRoot, "status"), "utf8"),
+  );
+  const startTimeTicks = parseProcStatStartTimeV1(
+    fs.readFileSync(path.join(procRoot, "stat"), "utf8"),
+  );
+  return Object.freeze({
+    ...creds,
+    start_time_ticks: startTimeTicks,
+  });
 }
 
 function yes(value) {
@@ -429,19 +457,50 @@ function mainPid(show, expectedUnit) {
   return Object.freeze({ parsed, pid });
 }
 
-function polkitManageUnitsDenied(pid) {
+function polkitManageUnitVerbDenied(
+  processIdentity,
+  pid,
+  unit,
+  verb,
+) {
   try {
     runText(PKCHECK, [
       "--action-id",
       "org.freedesktop.systemd1.manage-units",
       "--process",
-      String(pid),
+      String(pid) +
+        "," +
+        processIdentity.start_time_ticks +
+        "," +
+        String(processIdentity.uid),
+      "--detail",
+      "unit",
+      unit,
+      "--detail",
+      "verb",
+      verb,
     ]);
     return false;
   } catch (error) {
     if (Number(error?.status) === 1) return true;
     throw new Error("polkit_authorization_query_failed");
   }
+}
+
+function polkitCustodyServiceControlDenied(
+  processIdentity,
+  pid,
+  unit,
+) {
+  return ["start", "stop", "restart"].every(
+    (verb) =>
+      polkitManageUnitVerbDenied(
+        processIdentity,
+        pid,
+        unit,
+        verb,
+      ),
+  );
 }
 
 function findMountUuid(target) {
@@ -468,6 +527,7 @@ function servicePolicyEvidence(
   showText,
   catText,
   serviceCreds,
+  publicProcessIdentity,
   publicPid,
   rootPath,
 ) {
@@ -493,7 +553,12 @@ function servicePolicyEvidence(
     capability_bounding_set: sortedList(show.CapabilityBoundingSet),
     ambient_capabilities: sortedList(show.AmbientCapabilities),
     read_write_paths: sortedList(show.ReadWritePaths),
-    public_runtime_can_control_service: !polkitManageUnitsDenied(publicPid),
+    public_runtime_can_control_service:
+      !polkitCustodyServiceControlDenied(
+        publicProcessIdentity,
+        publicPid,
+        unit,
+      ),
   });
 }
 
@@ -729,14 +794,16 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
 
     const publicProc = "/proc/" + String(publicUnitBefore.pid);
     const custodyProc = "/proc/" + String(custodyUnitBefore.pid);
-    const publicCredsBefore = parseProcStatusV1(
-      fs.readFileSync(path.join(publicProc, "status"), "utf8"),
-    );
-    const custodyCredsBefore = parseProcStatusV1(
-      fs.readFileSync(path.join(custodyProc, "status"), "utf8"),
-    );
+    const publicCredsBefore = readProcessIdentity(publicProc);
+    const custodyCredsBefore = readProcessIdentity(custodyProc);
     if (publicCredsBefore.cap_eff !== 0n) {
       return hold("public_runtime_effective_capabilities_present");
+    }
+    if (
+      publicCredsBefore.no_new_privs !== 1 ||
+      custodyCredsBefore.no_new_privs !== 1
+    ) {
+      return hold("process_no_new_privileges_missing");
     }
 
     const namespaceBefore = namespaceBundle(
@@ -759,6 +826,7 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       custodyShowBefore,
       custodyCatBefore,
       custodyCredsBefore,
+      publicCredsBefore,
       publicUnitBefore.pid,
       rootPath,
     );
@@ -776,12 +844,8 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       return hold("service_metadata_changed_during_observation");
     }
 
-    const publicCredsAfter = parseProcStatusV1(
-      fs.readFileSync(path.join(publicProc, "status"), "utf8"),
-    );
-    const custodyCredsAfter = parseProcStatusV1(
-      fs.readFileSync(path.join(custodyProc, "status"), "utf8"),
-    );
+    const publicCredsAfter = readProcessIdentity(publicProc);
+    const custodyCredsAfter = readProcessIdentity(custodyProc);
     if (
       canonical(publicCredsAfter) !== canonical(publicCredsBefore) ||
       canonical(custodyCredsAfter) !== canonical(custodyCredsBefore)
@@ -818,7 +882,11 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
     const bootId = fs
       .readFileSync("/proc/sys/kernel/random/boot_id", "utf8")
       .trim();
+    const machineId = fs
+      .readFileSync("/etc/machine-id", "utf8")
+      .trim();
     if (!bootId) return hold("boot_id_unavailable");
+    if (!machineId) return hold("machine_id_unavailable");
 
     const parentWritable =
       canMutateDirectory(pathsBefore.parent_stat, publicCredsBefore);
@@ -841,6 +909,7 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
           expires_at_ms: observedAt + TTL_MS,
           evidence_generation: String(observedAt),
           boot_id_sha256: sha256Id(bootId),
+        machine_id_sha256: sha256Id(machineId),
         }),
         public_runtime_uid: publicCredsBefore.uid,
         public_runtime_gid: publicCredsBefore.gid,
@@ -872,9 +941,13 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
         completed_at_ms: now,
         public_runtime_unit: publicUnit,
         public_runtime_pid: publicUnitBefore.pid,
+        public_runtime_start_time_ticks:
+          publicCredsBefore.start_time_ticks,
         public_runtime_unit_sha256: sha256Id(publicCatBefore),
         custody_service_unit: custodyUnit,
         custody_service_pid: custodyUnitBefore.pid,
+        custody_service_start_time_ticks:
+          custodyCredsBefore.start_time_ticks,
         custody_service_unit_sha256: sha256Id(custodyCatBefore),
         mount_namespace_identity_sha256:
           namespaceBefore.identity_sha256,
