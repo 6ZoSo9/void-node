@@ -163,9 +163,15 @@ numbers.
 The ledger root and protected custody root must first have distinct topology
 evidence:
 
+- canonical mount points that actually contain the qualified root;
 - mount IDs;
 - device major/minor identities; and
 - mount sources.
+
+The mount point is part of the evidence contract, not implicit metadata. Each
+qualified root must equal or lie beneath the mount point whose ID/device/source
+facts are supplied. Mount facts collected from an unrelated secure filesystem
+cannot be paired with another root.
 
 Those fields prove that the presented mounts are not the same mount/dev_t/source
 identity. They do **not** by themselves prove independent rollback or failure
@@ -290,6 +296,7 @@ The focused proof builds a synthetic qualifying packet and proves rejection of:
 - shared runtime/custody UID;
 - equal or nested ledger/custody roots;
 - contradictory evidence for one shared ancestor pathname;
+- root-to-mount-point substitution using an unrelated mount;
 - shared mount ID, device, or mount source;
 - shared ledger/custody rollback-domain identity;
 - rollback-domain evidence that disagrees with the caller-bound expected identities;
