@@ -26,6 +26,9 @@ export const VOID_COUPLED_NATIVE_GAS_EFFECTIVE_OPEN_CENSUS_AUTHORITY_V1 =
     one_reconciliation_per_liability: true,
     orphan_reconciliation_rejected: true,
     duplicate_reconciliation_rejected: true,
+    historical_obligation_uniqueness_checked: true,
+    historical_transaction_plan_uniqueness_checked: true,
+    historical_nonce_uniqueness_checked: true,
     effective_open_set_derived: true,
     reserve_conservation_rederived: true,
     content_addressed_census: true,
@@ -688,6 +691,9 @@ export function classifyCoupledNativeGasEffectiveOpenCensusV1(input: {
 
     const liabilitiesById =
       new Map<string, CoupledNativeGasLiabilityRecordV1>();
+    const seenObligations = new Set<string>();
+    const seenTransactionPlans = new Set<string>();
+    const seenNonces = new Set<number>();
     let historicalMaximumReserved = 0n;
     for (const raw of input.liabilities) {
       const liability = validateLiability(raw);
@@ -701,7 +707,31 @@ export function classifyCoupledNativeGasEffectiveOpenCensusV1(input: {
           "coupled_native_gas_effective_open_duplicate_liability",
         );
       }
+      if (seenObligations.has(liability.obligation_id)) {
+        return held(
+          "coupled_native_gas_effective_open_historical_obligation_conflict",
+        );
+      }
+      if (
+        seenTransactionPlans.has(
+          liability.transaction_plan_fingerprint_sha256,
+        )
+      ) {
+        return held(
+          "coupled_native_gas_effective_open_historical_transaction_plan_conflict",
+        );
+      }
+      if (seenNonces.has(liability.nonce)) {
+        return held(
+          "coupled_native_gas_effective_open_historical_nonce_conflict",
+        );
+      }
       liabilitiesById.set(liability.liability_id, liability);
+      seenObligations.add(liability.obligation_id);
+      seenTransactionPlans.add(
+        liability.transaction_plan_fingerprint_sha256,
+      );
+      seenNonces.add(liability.nonce);
       historicalMaximumReserved = addBounded(
         historicalMaximumReserved,
         BigInt(liability.maximum_reserved_wei),
