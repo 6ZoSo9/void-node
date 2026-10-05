@@ -23,6 +23,7 @@ export const VOID_BUY_VOID_ALLOCATION_HIGH_WATER_CUSTODY_QUALIFICATION_AUTHORITY
     stable_root_ancestor_policy_required: true,
     disjoint_storage_roots_required: true,
     shared_ancestor_consistency_required: true,
+    root_mount_binding_required: true,
     distinct_mount_identity_required: true,
     independent_rollback_domain_identity_required: true,
     af_unix_ipc_required: true,
@@ -87,6 +88,7 @@ type AncestorEvidenceV1 = {
 
 type MountEvidenceV1 = {
   mount_id: string;
+  mount_point: string;
   device_major_minor: string;
   mount_source: string;
   rollback_domain_sha256: string;
@@ -419,6 +421,7 @@ function validateMount(
     value,
     [
       "mount_id",
+      "mount_point",
       "device_major_minor",
       "mount_source",
       "rollback_domain_sha256",
@@ -429,6 +432,10 @@ function validateMount(
     code + "_keys_invalid",
   );
   const mountId = String(value.mount_id ?? "");
+  const mountPoint = absolutePath(
+    value.mount_point,
+    code + "_mount_point_invalid",
+  );
   const device = String(value.device_major_minor ?? "");
   const sourceRaw = String(value.mount_source ?? "");
   const source = sourceRaw.trim();
@@ -482,6 +489,7 @@ function validateMount(
   }
   return Object.freeze({
     mount_id: mountId,
+    mount_point: mountPoint,
     device_major_minor: device,
     mount_source: source,
     rollback_domain_sha256: rollbackDomainSha256,
@@ -528,6 +536,15 @@ function validateRoot(
     fail(code + "_authority_invalid");
   }
   validateAncestorChain(value.ancestors, rootPath, code + "_ancestors");
+  const mount = validateMount(value.mount, code + "_mount");
+  const mountRelative = path.posix.relative(mount.mount_point, rootPath);
+  if (
+    mountRelative === ".." ||
+    mountRelative.startsWith("../") ||
+    path.posix.isAbsolute(mountRelative)
+  ) {
+    fail(code + "_mount_point_binding_invalid");
+  }
   return Object.freeze({
     path: rootPath,
     uid: host.custody_uid,
@@ -539,7 +556,7 @@ function validateRoot(
     custody_can_write_contents: true,
     custody_can_rename_path: false,
     ancestors: value.ancestors as AncestorEvidenceV1[],
-    mount: validateMount(value.mount, code + "_mount"),
+    mount,
   });
 }
 
