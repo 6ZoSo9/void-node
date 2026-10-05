@@ -28,6 +28,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_AUTHORITY_V1 =
     append_idempotence: true,
     canonical_parent_witness_planner_required: true,
     round_trip_read_required_after_append: true,
+    challenge_freshness_proven: false,
+    response_replay_resistance_proven: false,
     network_access: false,
     ssh_execution: false,
     credential_read: false,
