@@ -113,6 +113,15 @@ assert.equal(
       /custody_host_evidence_test_read_failed/u,
       "symlinked ancestor must fail closed",
     );
+    assert.throws(
+      () =>
+        testOnlyReadBuyVoidAllocationCustodyHostEvidenceFileV1(
+          "relative-evidence.txt",
+          4096,
+        ),
+      /custody_host_evidence_test_read_failed/u,
+      "relative evidence paths must fail closed",
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -434,6 +443,7 @@ console.log(
 );
 console.log("descriptor_relative_ancestor_walk=true");
 console.log("symlink_ancestor_read_rejected=true");
+console.log("relative_evidence_path_rejected=true");
 console.log("runtime_process_pid_starttime_uid_bound=true");
 console.log("runtime_process_uid_gid_revalidated=true");
 console.log("runtime_service_cgroup_bound=true");
