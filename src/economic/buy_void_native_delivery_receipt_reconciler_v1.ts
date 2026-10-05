@@ -250,12 +250,20 @@ function normalizePolicy(
   } catch {
     return { ok: false, reason: "invalid_rpc_url", fingerprint: null };
   }
+  const rawUrl = String(policy.rpc_url || "").trim();
   const host = url.hostname.toLowerCase();
+  const rawAuthority =
+    rawUrl.match(/^http:\/\/([^/?#]+)(?:[/?#]|$)/u)?.[1] ?? "";
+  const canonicalLoopbackAuthority =
+    /^(?:127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?$/u.test(
+      rawAuthority,
+    );
   if (
     url.protocol !== "http:" ||
     url.username ||
     url.password ||
     url.hash ||
+    !canonicalLoopbackAuthority ||
     !["127.0.0.1", "[::1]"].includes(host)
   ) {
     return {
