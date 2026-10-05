@@ -35,8 +35,18 @@ preflight (marker, commit-shaped SHA, tree-shaped SHA, and branch exactly
 an identity-misconfigured process from accepting a payment that the later
 pre-attempt bridge would necessarily HOLD.
 
-Payment-instruction readiness also binds the canonical V5 finality capability
-authority. Current V5 deliberately reports:
+Payment-instruction readiness and the pre-attempt bridge share one strict
+classifier over the canonical V5 finality capability authority. The classifier
+requires the full reviewed-success contract, not a hand-picked subset:
+reviewed-source verification, authenticated transport identity, total deadline,
+in-composition observation, source/deployed generation, remote-provider
+identity, ancestry, quorum, production authority, read-only RPC, and every
+forbidden wallet/signing/transaction/inventory/Chain-2050/presale/money
+authority remaining false. A partial future promotion therefore cannot expose
+Ethereum payment instructions while the later bridge would still be forced to
+HOLD.
+
+Current V5 deliberately reports:
 
 ```text
 source_generation_verified_on_success=false
@@ -91,7 +101,9 @@ and then invokes
 `observeBuyVoidSourceFinalityGenerationProvenanceV5(...)` directly for the
 separate finalized-head authority.
 
-A production-ready result additionally requires:
+A production-ready result additionally requires the same complete V5
+capability classifier used by payment-instruction readiness, plus the exact
+runtime observation bindings below:
 
 - immutable process-source marker, commit, tree, and `main` branch identity,
   matching the same process-source boundary used by the execution preflight;
