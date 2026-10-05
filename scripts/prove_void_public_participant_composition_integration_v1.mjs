@@ -328,14 +328,14 @@ try {
       active: true,
     });
     assert.fail(
-      "participant composition activated without role RPC and durable session state",
+      "participant composition activated without role-authority adapter",
     );
   } catch (error) {
     activationFailure = String(error?.message || error);
   }
   assert.match(
     activationFailure,
-    /participant composition requires binding registry, role RPC, and durable session state/,
+    /role_authority_adapter_required/,
   );
 
   const source = fs.readFileSync(gateway, "utf8");

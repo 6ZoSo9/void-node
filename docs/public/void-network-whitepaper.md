@@ -45,6 +45,7 @@ Current Mainnet-0 posture as reviewed October 2, 2026:
 - Public active validator admission remains disabled; public registration remains candidate/waiting only.
 - Public presale intake and production WC/VOID market activation are coupled and remain closed. The checked-in WC/VOID production candidate is `HOLD`; source readiness, funding, signer authority, canary success, and activation remain distinct states.
 - Buy VOID payment policy is allowlisted to native USDC on Ethereum mainnet and Base mainnet only. Public intake remains closed, and blind deposits plus exchange/custodial sends are not supported.
+- Buy VOID request admission delegates to the full canonical WC/VOID coupled-readiness classifier and additionally requires a short-lived launch-controller + Sovereign co-signed live activation lease bound to durable generation journal/external-anchor state. Source readiness alone cannot open intake.
 - Automatic Buy VOID fulfillment is not enabled; payment verification and fulfillment remain distinct auditable transitions.
 - Deterministic Bitcoin HTLC and Chain-2050 BTC/VOID hashlock-settlement primitives are merged source. BTC/VOID remains a separate post-presale market and is not activated by those primitives.
 - Future treasury spend and authority changes remain separately guarded.

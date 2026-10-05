@@ -27,6 +27,9 @@ const canonicalSourceBinding=read(
 const canonicalDurable=read(
   "ops/mainnet0/economic-epoch2-durable-replay-store-v1.json",
 );
+const replaySourceEquivalence=read(
+  "ops/mainnet0/economic-epoch2-durable-replay-store-consume-equivalence-v1.json",
+);
 const contract=read(
   "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-contract-v1.json",
 );
@@ -41,6 +44,55 @@ assert.equal(
   canonicalRawDomain.gates.all_production_validators_epoch_domain_enforced,
   true,
 );
+
+assert.equal(
+  replaySourceEquivalence.marker,
+  "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_CONSUME_EQUIVALENCE_V1",
+);
+assert.equal(
+  replaySourceEquivalence.predecessor.git_blob_sha1,
+  "2e4481fbf45200121356f39c278eac5b05a33596",
+);
+assert.equal(
+  replaySourceEquivalence.successor.git_blob_sha1,
+  canonicalSourceBinding.source_git_blob_sha1.durable_replay_store,
+);
+assert.equal(
+  replaySourceEquivalence.equivalence.consume_if_fresh_exact_source_match,
+  true,
+);
+assert.equal(
+  replaySourceEquivalence.equivalence.receipt_validation_semantics_equivalent,
+  true,
+);
+assert.equal(
+  replaySourceEquivalence.equivalence.atomic_consume_path_changed,
+  false,
+);
+assert.equal(
+  replaySourceEquivalence.equivalence.runtime_evidence_carry_forward_scope,
+  "atomic_consume_path_only",
+);
+assert.equal(
+  replaySourceEquivalence.gateway.inspect_consumed_called,
+  false,
+);
+assert.equal(
+  replaySourceEquivalence.historical_runtime_evidence.evidence_file_sha256,
+  canonicalSourceBinding.runtime_evidence.evidence_file_sha256,
+);
+assert.equal(
+  replaySourceEquivalence.historical_runtime_evidence.evidence_id,
+  canonicalSourceBinding.runtime_evidence.evidence_id,
+);
+assert.equal(
+  replaySourceEquivalence.historical_runtime_evidence.import_evaluated_at_utc,
+  canonicalSourceBinding.runtime_evidence.import_evaluated_at_utc,
+);
+assert.equal(replaySourceEquivalence.authority.runtime_canary_reexecuted,false);
+assert.equal(replaySourceEquivalence.authority.atomic_consume_authority_changed,false);
+assert.equal(replaySourceEquivalence.authority.runtime_route_active,false);
+assert.equal(replaySourceEquivalence.authority.funds_movement,false);
 
 const sourceBinding=structuredClone(canonicalSourceBinding);
 const durable=structuredClone(canonicalDurable);
@@ -233,6 +285,7 @@ const result=
   promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
     evidenceBytes,
     importReceipt:receipt,
+    sourceEquivalence:replaySourceEquivalence,
     sourceBindingPolicy:sourceBinding,
     durableReplayStorePolicy:durable,
     runtimeEvidenceContract:contract,
@@ -356,12 +409,46 @@ assert.equal(
 }
 
 {
+  assert.throws(
+    ()=>promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
+      evidenceBytes,
+      importReceipt:receipt,
+      sourceBindingPolicy:sourceBinding,
+      durableReplayStorePolicy:durable,
+      runtimeEvidenceContract:contract,
+      rawDomainPolicy:rawDomain,
+      migrationCandidate:migration,
+    }),
+    /replay_store_source_equivalence_invalid/,
+  );
+}
+
+{
+  const badEquivalence=structuredClone(replaySourceEquivalence);
+  badEquivalence.successor.git_blob_sha1="0".repeat(40);
+  assert.throws(
+    ()=>promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
+      evidenceBytes,
+      importReceipt:receipt,
+      sourceEquivalence:badEquivalence,
+      sourceBindingPolicy:sourceBinding,
+      durableReplayStorePolicy:durable,
+      runtimeEvidenceContract:contract,
+      rawDomainPolicy:rawDomain,
+      migrationCandidate:migration,
+    }),
+    /replay_store_source_equivalence_invalid/,
+  );
+}
+
+{
   const badMigration=structuredClone(migration);
   badMigration.replay_and_epoch_safety.privileged_signer_nonce_or_key_replay_fence_proven=false;
   assert.throws(
     ()=>promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
       evidenceBytes,
       importReceipt:receipt,
+      sourceEquivalence:replaySourceEquivalence,
       sourceBindingPolicy:sourceBinding,
       durableReplayStorePolicy:durable,
       runtimeEvidenceContract:contract,
@@ -375,6 +462,10 @@ assert.equal(
 console.log(
   "VOID_ECONOMIC_EPOCH2_REPLAY_RUNTIME_IMPORT_PROMOTION_V1_PROOF_GREEN",
 );
+console.log("replay_consume_source_equivalence_verified=true");
+console.log("missing_replay_source_equivalence_rejected=true");
+console.log("mismatched_replay_source_equivalence_rejected=true");
+console.log("runtime_canary_reexecuted=false");
 console.log("runtime_evidence_hash_verified=true");
 console.log("runtime_evidence_id_verified=true");
 console.log("runtime_evidence_semantically_verified=true");

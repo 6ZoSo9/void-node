@@ -68,7 +68,7 @@ const SOURCE_BLOBS=Object.freeze({
   "scripts/prove_void_public_frontdoor_v1.mjs":
     "05b04307e8839b0de9aaef3fd0882ec9e298a965",
   "ops/public/void-public-app-composition-gateway-v1.mjs":
-    "e97ce051405d5b19a363eaf0834838a0ecef3a10",
+    "caaaebb8da9e21cf9ac1c429865c931400cb0526",
   "ops/public/run-void-public-app-composition-gateway-v1.sh":
     "e9b74924304985d87e00972db61f29a607f19124",
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":
@@ -78,7 +78,7 @@ const SOURCE_BLOBS=Object.freeze({
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
   "tools/void-precision-web-recovery-evidence-v1.mjs":
-    "5c574de80a7b56326aab95510e40cd4aed7de0df",
+    "bca7d83c08607644058c4c3fe67f6be766d9fb3f",
   "docs/operators/precision-web-recovery-evidence-v1.md":
     "7cc2a9eac3d6317fb779e8adbd2c62aa1d3bab8f",
   "public/void-public-frontdoor-v1/index.html":

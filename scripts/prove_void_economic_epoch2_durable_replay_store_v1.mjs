@@ -101,6 +101,21 @@ try {
     root: sequentialRoot,
   });
   assert.deepEqual(
+    storeA.inspectConsumed(sequentialDigest, metadata),
+    {
+      known_consumed: false,
+      audit_receipt_present: false,
+      mutation_performed: false,
+      atomic_consume_performed: false,
+      negative_freshness_authorized: false,
+      execution_authorized: false,
+    },
+  );
+  assert.equal(
+    fs.existsSync(path.join(sequentialRoot, sequentialDigest.slice(2))),
+    false,
+  );
+  assert.deepEqual(
     await storeA.consumeIfFresh(
       sequentialDigest,
       metadata,
@@ -121,6 +136,17 @@ try {
   const receiptPath = path.join(markerDir, "receipt.json");
   assert.equal(fs.lstatSync(markerDir).isDirectory(), true);
   assert.equal(fs.lstatSync(receiptPath).isFile(), true);
+  assert.deepEqual(
+    storeA.inspectConsumed(sequentialDigest, metadata),
+    {
+      known_consumed: true,
+      audit_receipt_present: true,
+      mutation_performed: false,
+      atomic_consume_performed: false,
+      negative_freshness_authorized: false,
+      execution_authorized: false,
+    },
+  );
 
   const storeB = createVoidEconomicEpoch2DurableReplayStoreV1({
     root: sequentialRoot,
@@ -141,6 +167,20 @@ try {
     createVoidEconomicEpoch2DurableReplayStoreV1({
       root: sequentialRoot,
     });
+  assert.deepEqual(
+    storeAfterReceiptLoss.inspectConsumed(
+      sequentialDigest,
+      metadata,
+    ),
+    {
+      known_consumed: true,
+      audit_receipt_present: false,
+      mutation_performed: false,
+      atomic_consume_performed: false,
+      negative_freshness_authorized: false,
+      execution_authorized: false,
+    },
+  );
   assert.deepEqual(
     await storeAfterReceiptLoss.consumeIfFresh(
       sequentialDigest,
@@ -232,6 +272,25 @@ try {
     createVoidEconomicEpoch2DurableReplayStoreV1({
       root: concurrentRoot,
     });
+  assert.deepEqual(
+    concurrentStore.inspectConsumed(concurrentDigest, metadata),
+    {
+      known_consumed: true,
+      audit_receipt_present: true,
+      mutation_performed: false,
+      atomic_consume_performed: false,
+      negative_freshness_authorized: false,
+      execution_authorized: false,
+    },
+  );
+  await expectStoreError(
+    () =>
+      concurrentStore.inspectConsumed(
+        concurrentDigest,
+        { ...metadata, nonce: "8" },
+      ),
+    "durable_replay_receipt_metadata_mismatch",
+  );
   await expectStoreError(
     () =>
       concurrentStore.consumeIfFresh(
@@ -254,6 +313,14 @@ try {
     createVoidEconomicEpoch2DurableReplayStoreV1({
       root: markerAttackRoot,
     });
+  await expectStoreError(
+    () =>
+      markerAttackStore.inspectConsumed(
+        markerAttackDigest,
+        metadata,
+      ),
+    "durable_replay_marker_type_invalid",
+  );
   await expectStoreError(
     () =>
       markerAttackStore.consumeIfFresh(
@@ -418,15 +485,15 @@ try {
   assert.equal(evidence.gates.transaction_broadcast, false);
   assert.equal(evidence.gates.authoritative_chain2050_write, false);
 
-  assert.equal(
-    VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_AUTHORITY_V1.source_only,
-    true,
-  );
+  const trueAuthorityKeys = new Set([
+    "source_only",
+    "read_only_consumed_inspection",
+    "known_consumed_detection",
+  ]);
   for (const [key, value] of Object.entries(
     VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_AUTHORITY_V1,
   )) {
-    if (key === "source_only") continue;
-    assert.equal(value, false, key);
+    assert.equal(value, trueAuthorityKeys.has(key), key);
   }
 
   const source = fs.readFileSync(
@@ -436,11 +503,26 @@ try {
   assert.match(source, /fs\.mkdirSync\(markerDir/);
   assert.match(source, /fsyncDirectory\(root/);
   assert.match(source, /fs\.renameSync\(pendingPath, receiptPath\)/);
-  assert.match(source, /error\?\.code === "ENOENT"\) return/);
+  const inspectStart = source.indexOf("    inspectConsumed(digest, metadata) {");
+  const consumeStart = source.indexOf("    async consumeIfFresh(", inspectStart);
+  assert.ok(inspectStart >= 0 && consumeStart > inspectStart);
+  const inspectSource = source.slice(inspectStart, consumeStart);
+  assert.doesNotMatch(
+    inspectSource,
+    /mkdirSync|writeFileSync|renameSync|unlinkSync|fsyncSync|openSync\([^)]*O_(?:WRONLY|CREAT|EXCL)/u,
+  );
+  assert.match(inspectSource, /known_consumed: false/u);
+  assert.match(inspectSource, /known_consumed: true/u);
+  assert.match(inspectSource, /negative_freshness_authorized: false/u);
   assert.doesNotMatch(source, /eth_sendRawTransaction|eth_sendTransaction/);
   assert.doesNotMatch(source, /transaction_broadcast:\s*true/);
 
   console.log("VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1_GREEN");
+  console.log("read_only_consumed_inspection=true");
+  console.log("known_consumed_detection=true");
+  console.log("negative_freshness_authorized=false");
+  console.log("inspection_mutation_performed=false");
+  console.log("missing_audit_receipt_still_known_consumed=true");
   console.log("sequential_exactly_once_proven=true");
   console.log("reopened_store_replay_proven=true");
   console.log("cross_process_exactly_once_proven=true");

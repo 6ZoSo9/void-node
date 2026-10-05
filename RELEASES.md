@@ -40,7 +40,7 @@ Current `main` includes, among other changes:
 - source-pinned direct IPv4 + Tor v3 public P2P introductions with exact node-identity binding and live N-1 acceptance;
 - the coupled presale + WC/VOID launch policy, including the source-defined WC/VOID absolute price-forming window and 5M participant / 5M retained opening structure;
 - Buy VOID source policy limited to native USDC on Ethereum mainnet (`1`) and Base mainnet (`8453`), rejecting bridged/lookalike assets and exchange/custodial sends;
-- a merged preliminary source-only coupled Buy VOID gate that checks a bounded candidate subset rather than the full canonical coupled-readiness classifier, plus merged Ethereum checkout finality/readiness source gates; none is live activation authority, canonical successor readiness remains `HOLD`, and public intake remains closed;
+- a merged full-canonical coupled Buy VOID admission gate plus merged Ethereum checkout finality/readiness source gates; canonical source readiness is not live activation authority, because request admission additionally requires durable generation/high-water agreement, no pending publication intent, a short-lived launch-controller + Sovereign co-signed activation receipt, and exact operator confirmation; checked-in canonical candidates remain `HOLD`, and public intake remains closed;
 - a fail-closed production WC/VOID readiness classifier whose checked-in candidate is intentionally `HOLD`;
 - the merged WC/VOID coupled-opening settlement source gate from PR #1824, while production funding/deployment/activation remain separately gated;
 - deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC/VOID, including exact terminal VOID balance-delta and adversarial preimage checks, while the market remains post-presale and separately launch-gated; and
@@ -69,10 +69,11 @@ Public presale intake and production WC/VOID activation are coupled:
 
 BTC/VOID and ETH/VOID remain separate post-presale markets behind their own gates.
 Merged BTC/VOID and coupled-gas hardening remain source-level controls; they are
-not current runtime or activation truth. The merged coupled Buy VOID source gate
-is still a preliminary subset check rather than full canonical coupled readiness;
-route/config integration remains separate, and the canonical successor still
-classifies `HOLD`.
+not current runtime or activation truth. The merged Buy VOID admission path now
+uses the full canonical coupled-readiness classifier and is wired into guarded
+request/config admission, but source readiness alone cannot activate intake. The
+checked-in canonical candidates still classify `HOLD`, and no authorized live
+activation generation/lease is created by source merge.
 
 ## Not released or generally activated
 

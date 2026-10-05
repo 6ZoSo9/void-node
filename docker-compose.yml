@@ -12,6 +12,7 @@ services:
     volumes:
       - ./data_a:/data_a
       - ./ops/keys:/keys
+      - void_buy_authority_proposer:/root/.local/state/void-node-authority-v1
     command: ["node","dist/index.js"]
 
   follower:
@@ -26,4 +27,9 @@ services:
     volumes:
       - ./data_b:/data_b
       - ./ops/keys:/keys
+      - void_buy_authority_follower:/root/.local/state/void-node-authority-v1
     command: ["node","dist/index.js"]
+
+volumes:
+  void_buy_authority_proposer:
+  void_buy_authority_follower:
