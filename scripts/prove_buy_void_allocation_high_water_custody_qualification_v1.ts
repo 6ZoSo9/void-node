@@ -201,10 +201,30 @@ function evidence() {
       reboot_mount_identity_stable: true,
     },
     state: {
-      ledger_sha256: sha256Id(ledger),
-      ledger_bytes: Buffer.byteLength(ledger, "utf8"),
-      high_water_sha256: sha256Id(highWater),
-      high_water_bytes: Buffer.byteLength(highWater, "utf8"),
+      ledger_file: {
+        path:
+          "/srv/void-allocation-ledger-v1/allocation-reservations-v1.jsonl",
+        uid: CUSTODY_UID,
+        gid: CUSTODY_GID,
+        mode: 0o600,
+        is_regular_file: true,
+        is_symlink: false,
+        nlink: 1,
+        sha256: sha256Id(ledger),
+        bytes: Buffer.byteLength(ledger, "utf8"),
+      },
+      high_water_file: {
+        path:
+          "/mnt/void-allocation-custody-v1/allocation-reservation-high-water-v1.json",
+        uid: CUSTODY_UID,
+        gid: CUSTODY_GID,
+        mode: 0o600,
+        is_regular_file: true,
+        is_symlink: false,
+        nlink: 1,
+        sha256: sha256Id(highWater),
+        bytes: Buffer.byteLength(highWater, "utf8"),
+      },
     },
   };
 }
@@ -505,10 +525,56 @@ expectHeld(
 
 {
   const bad = cloneEvidence();
-  bad.state.ledger_sha256 = "sha256:" + "e".repeat(64);
+  bad.state.ledger_file.sha256 = "sha256:" + "e".repeat(64);
   expectHeld(
     classify(bad),
-    "allocation_custody_state_digest_mismatch",
+    "allocation_custody_state_ledger_file_content_binding_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.state.ledger_file.path = "/tmp/allocation-reservations-v1.jsonl";
+  expectHeld(
+    classify(bad),
+    "allocation_custody_state_ledger_file_path_binding_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.state.high_water_file.path =
+    "/mnt/void-allocation-custody-v1/other.json";
+  expectHeld(
+    classify(bad),
+    "allocation_custody_state_high_water_file_path_binding_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.state.high_water_file.is_symlink = true as false;
+  expectHeld(
+    classify(bad),
+    "allocation_custody_state_high_water_file_custody_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.state.ledger_file.mode = 0o644;
+  expectHeld(
+    classify(bad),
+    "allocation_custody_state_ledger_file_custody_invalid",
+  );
+}
+
+{
+  const bad = cloneEvidence();
+  bad.state.ledger_file.nlink = 2 as 1;
+  expectHeld(
+    classify(bad),
+    "allocation_custody_state_ledger_file_custody_invalid",
   );
 }
 
@@ -540,6 +606,8 @@ console.log(
 );
 console.log("synthetic_evidence_qualification=true");
 console.log("exact_current_state_binding=true");
+console.log("canonical_state_file_path_binding=true");
+console.log("direct_private_single_link_state_files_required=true");
 console.log("runtime_and_custody_uid_separated=true");
 console.log("root_owned_nonwritable_ancestor_chain_required=true");
 console.log("distinct_mount_identity_required=true");
