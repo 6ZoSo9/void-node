@@ -17,7 +17,7 @@ inventory_funded=false
 inventory_lock_proven=false
 ```
 
-The compiled-identity acceptance packet already fixes the exact reviewed
+The corrected current compiled-identity binding packet already fixes the exact reviewed
 creation/runtime bytecode and the immutable layout for
 `WCVoidMarketVaultV2`.
 
@@ -28,7 +28,7 @@ Chain-2050 deployment.
 
 The verifier requires:
 
-- the canonical compiled-identity acceptance packet;
+- the canonical corrected current compiled-identity binding packet;
 - exact market-vault address;
 - exact deployment transaction hash and deployer;
 - exact canonical Epoch-2 `VoidToken`
