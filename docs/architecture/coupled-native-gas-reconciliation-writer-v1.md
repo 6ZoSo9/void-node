@@ -99,6 +99,13 @@ writer-authenticated provenance. Therefore an idempotent retry:
 A semantically valid but independently planted reconciliation with different
 terminal evidence therefore HOLDS instead of silently releasing reserve.
 
+Before returning authenticated idempotent success, the writer fsyncs the
+reconciliation directory and revalidates its pinned/visible identity. This
+refreshes durability for the recovery case where a canonical hard-link entry is
+visible after restart but the prior process may have crashed before its
+directory fsync completed. Failure to establish that durability HOLDS instead
+of claiming a successful replay.
+
 ## Crash and concurrent behavior
 
 The existing payer queue is the only mutation serialization domain. No second
@@ -196,5 +203,6 @@ reauthentication, conflicting replay evidence HOLD, resolver HOLD before
 mutation, concurrent history drift HOLD, missing reconciliation storage HOLD,
 post-publication failure truth, pre-link stale-temp cleanup, same-inode
 post-link temp cleanup with truthful mutation reporting, filename/row identity
-mismatch HOLD, recovery by authenticated idempotent replay, and two concurrent
-exact requests producing one canonical record.
+mismatch HOLD, recovery by authenticated idempotent replay, idempotent
+directory-durability refresh, and two concurrent exact requests producing one
+canonical record.
