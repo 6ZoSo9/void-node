@@ -455,52 +455,14 @@ assert.equal(reverted1.terminal_close_candidate, true);
 
 const liability2 = liabilityWithAttemptLimit(liability1, 2);
 assert.equal(liability2.maximum_reserved_wei, "2000000420000");
-
-const reverted2 = requireOk(
+requireHeld(
   classifyCoupledNativeGasLiabilityReconciliationV1({
     liability: liability2,
     terminal_cost_evidence:
-      terminalEvidence(plan, liability2, "reverted"),
+      terminalEvidence(plan, liability1, "confirmed"),
   }),
+  "coupled_native_gas_reconciliation_attempt_limit_not_supported",
 );
-assert.equal(reverted2.attempt_limit, 2);
-assert.equal(reverted2.remaining_attempt_allowance, 1);
-assert.equal(reverted2.actual_consumed_wei, "105000");
-assert.equal(
-  reverted2.unconsumed_before_reconciliation_wei,
-  "2000000315000",
-);
-assert.equal(
-  reverted2.retained_future_attempt_reserve_wei,
-  "1000000210000",
-);
-assert.equal(
-  reverted2.unused_reserve_release_candidate_wei,
-  "1000000105000",
-);
-assert.equal(reverted2.next_open_reserved_wei, "1000000210000");
-assert.equal(reverted2.retry_allowance_reserved, true);
-assert.equal(
-  reverted2.additional_attempt_requires_new_liability,
-  false,
-);
-assert.equal(reverted2.terminal_close_candidate, false);
-
-const confirmed2 = requireOk(
-  classifyCoupledNativeGasLiabilityReconciliationV1({
-    liability: liability2,
-    terminal_cost_evidence:
-      terminalEvidence(plan, liability2, "confirmed"),
-  }),
-);
-assert.equal(confirmed2.remaining_attempt_allowance, 0);
-assert.equal(confirmed2.retained_future_attempt_reserve_wei, "0");
-assert.equal(
-  confirmed2.unused_reserve_release_candidate_wei,
-  "1000000315000",
-);
-assert.equal(confirmed2.next_open_reserved_wei, "0");
-assert.equal(confirmed2.terminal_close_candidate, true);
 
 {
   const evidence = terminalEvidence(plan, liability1, "confirmed");
@@ -595,9 +557,9 @@ for (const [key, value] of Object.entries(
     "exact_liability_terminal_evidence_binding_required",
     "consumed_reserve_retirement_candidate_classified",
     "unused_reserve_release_candidate_classified",
-    "reverted_future_attempt_envelope_preserved",
+    "current_buy_void_attempt_limit_one_required",
+    "reverted_retry_requires_new_liability",
     "confirmed_future_attempt_allowance_zero",
-    "additional_attempt_requires_reserved_allowance_or_new_liability",
   ]);
   assert.equal(value, trueKeys.has(key), key);
 }
@@ -614,9 +576,9 @@ console.log("liability_identity_rederived=true");
 console.log("terminal_cost_evidence_identity_rederived=true");
 console.log("confirmed_unused_reserve_classified=true");
 console.log("reverted_actual_gas_retired=true");
-console.log("reverted_future_attempt_envelope_preserved=true");
-console.log("attempt_limit_1_revert_requires_new_liability_for_retry=true");
-console.log("attempt_limit_2_revert_retains_one_full_attempt=true");
+console.log("current_buy_void_attempt_limit_one_required=true");
+console.log("reverted_retry_requires_new_liability=true");
+console.log("attempt_limit_2_reconciliation_hold=true");
 console.log("liability_release_authorized=false");
 console.log("liability_store_mutation=false");
 console.log("retry_execution_authorized=false");
