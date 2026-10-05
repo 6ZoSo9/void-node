@@ -124,6 +124,18 @@ export type CoupledNativeGasOpenLiabilityStoreDecisionV1 =
 
 class CoupledNativeGasStorePostMutationError extends Error {}
 
+class CoupledNativeGasStorePreMutationHold extends Error {
+  readonly detail?: Readonly<Record<string, unknown>>;
+
+  constructor(
+    reason: string,
+    detail?: Readonly<Record<string, unknown>>,
+  ) {
+    super(reason);
+    this.detail = detail;
+  }
+}
+
 function held(
   reason: string,
   detail?: Readonly<Record<string, unknown>>,
@@ -832,6 +844,7 @@ function canonicalLiabilityBytes(
 function createOnceLiability(
   records: PinnedDirectoryV1,
   liability: CoupledNativeGasLiabilityRecordV1,
+  beforeLink: () => void,
 ): void {
   const bytes = canonicalLiabilityBytes(liability);
   if (bytes.length > MAX_RECORD_BYTES) {
@@ -867,6 +880,7 @@ function createOnceLiability(
     fs.fsyncSync(fd);
     fs.closeSync(fd);
     fd = -1;
+    beforeLink();
     try {
       fs.linkSync(tempPath, finalPath);
       linked = true;
@@ -1067,48 +1081,67 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
             payerDomainSnapshot,
           );
 
-          const mutationNowMs = readNowMs();
-          if (
-            typeof mutationNowMs !== "number" ||
-            !Number.isSafeInteger(mutationNowMs) ||
-            mutationNowMs < Number(admissionNowMs)
-          ) {
-            return held(
-              "coupled_native_gas_store_time_regression_or_invalid",
-            );
-          }
-          const mutationAdmission =
-            classifyCoupledNativeGasBuyVoidAdmissionV1({
-              now_ms: mutationNowMs,
-              buy_void_plan: input?.buy_void_plan,
-              payer_observation: input?.payer_observation,
-              open_liabilities: before,
-            });
-          if (
-            mutationAdmission.ok !== true ||
-            mutationAdmission.status !== "admitted" ||
-            mutationAdmission.liability.liability_id !==
-              classified.liability.liability_id ||
-            mutationAdmission.reserved_after_wei !==
-              classified.reserved_after_wei
-          ) {
-            return held(
-              mutationAdmission.ok === false
-                ? mutationAdmission.reason
-                : "coupled_native_gas_store_mutation_admission_changed",
-              mutationAdmission.ok === false
-                ? mutationAdmission.detail
-                : undefined,
-            );
-          }
+          const mutationBoundary: { now_ms?: number } = {};
+          createOnceLiability(
+            records!,
+            classified.liability,
+            () => {
+              assertPayerDomainSnapshotCurrent(
+                root!,
+                payerDomainSnapshot!,
+              );
 
-          assertPayerDomainSnapshotCurrent(
-            root!,
-            payerDomainSnapshot,
+              const mutationNowMs = readNowMs();
+              if (
+                typeof mutationNowMs !== "number" ||
+                !Number.isSafeInteger(mutationNowMs) ||
+                mutationNowMs < Number(admissionNowMs)
+              ) {
+                throw new CoupledNativeGasStorePreMutationHold(
+                  "coupled_native_gas_store_time_regression_or_invalid",
+                );
+              }
+              const mutationAdmission =
+                classifyCoupledNativeGasBuyVoidAdmissionV1({
+                  now_ms: mutationNowMs,
+                  buy_void_plan: input?.buy_void_plan,
+                  payer_observation: input?.payer_observation,
+                  open_liabilities: before,
+                });
+              if (mutationAdmission.ok !== true) {
+                throw new CoupledNativeGasStorePreMutationHold(
+                  mutationAdmission.reason,
+                  mutationAdmission.detail,
+                );
+              }
+              if (
+                mutationAdmission.status !== "admitted" ||
+                mutationAdmission.reserved_after_wei !==
+                  classified.reserved_after_wei ||
+                !canonicalLiabilityBytes(
+                  mutationAdmission.liability,
+                ).equals(
+                  canonicalLiabilityBytes(classified.liability),
+                )
+              ) {
+                throw new CoupledNativeGasStorePreMutationHold(
+                  "coupled_native_gas_store_mutation_admission_changed",
+                );
+              }
+
+              assertPayerDomainSnapshotCurrent(
+                root!,
+                payerDomainSnapshot!,
+              );
+              mutationBoundary.now_ms = mutationNowMs;
+            },
           );
-
-          createOnceLiability(records!, mutationAdmission.liability);
           durableMutationPerformed = true;
+
+          const mutationNowMs = mutationBoundary.now_ms;
+          if (mutationNowMs === undefined) {
+            fail("coupled_native_gas_store_mutation_boundary_missing");
+          }
 
           const after = readCensus(
             records!,
@@ -1168,6 +1201,9 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
       },
     );
   } catch (error) {
+    if (error instanceof CoupledNativeGasStorePreMutationHold) {
+      return held(error.message, error.detail, false);
+    }
     const mutationPerformed =
       durableMutationPerformed ||
       error instanceof CoupledNativeGasStorePostMutationError;
