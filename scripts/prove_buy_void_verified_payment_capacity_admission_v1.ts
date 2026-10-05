@@ -563,13 +563,136 @@ try {
   state = await readSaleState();
   assert.equal(state.allocation_reserved_void, 10);
 
-  // A request-lock wait must happen before the final launch-authority check.
-  // If the lease expires while the request lock is contended, zero verified
-  // event may be appended after the wait.
+  // Waiting on generation authority must not happen while payment owns the
+  // request lock. An ordinary same-process synchronous mark for the same
+  // request must be able to complete while the payment generation wrapper is
+  // paused. The payment then safely rejects its stale census.
+  {
+    const livenessRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-request-liveness-"),
+    );
+    let releaseLaunchResolve!: () => void;
+    try {
+      fs.chmodSync(livenessRoot, 0o700);
+      const livenessRequest = {
+        request_id: "buyvoid_live_34343434",
+        quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "3".repeat(64),
+      };
+      fs.writeFileSync(
+        path.join(livenessRoot, "requests.jsonl"),
+        JSON.stringify(livenessRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const livenessEvents = path.join(
+        livenessRoot,
+        "operator-events.jsonl",
+      );
+      fs.writeFileSync(livenessEvents, "", { mode: 0o600 });
+
+      const livenessSaleState = async () => {
+        const rows = fs
+          .readFileSync(livenessEvents, "utf8")
+          .split(/\n+/u)
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+        const verified = rows.some(
+          (row) =>
+            row.request_id === livenessRequest.request_id &&
+            row.operator_status === "payment_verified",
+        );
+        return {
+          pool_void_total: 10,
+          allocation_reserved_void: verified ? 1 : 0,
+          verified_void_total: verified ? 1 : 0,
+          remaining_void: verified ? 9 : 10,
+        };
+      };
+
+      let launchEnteredResolve!: () => void;
+      const launchEntered = new Promise<void>(
+        (resolve) => { launchEnteredResolve = resolve; },
+      );
+      const releaseLaunch = new Promise<void>(
+        (resolve) => { releaseLaunchResolve = resolve; },
+      );
+      let freshChecks = 0;
+      const stalledLaunchMutation = async (
+        _request: any,
+        operation: (
+          assertCurrentRequestAuthority: () => unknown,
+        ) => any,
+      ) => {
+        launchEnteredResolve();
+        await releaseLaunch;
+        return operation(() => {
+          freshChecks += 1;
+        });
+      };
+
+      const paymentPromise =
+        writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+          event: eventFor(livenessRequest, 118),
+          request: livenessRequest,
+          request_dir: livenessRoot,
+          with_launch_authority_mutation: stalledLaunchMutation,
+          read_sale_state: livenessSaleState,
+        });
+      await launchEntered;
+
+      const ordinaryMark = {
+        schema: "void_buy_void_operator_mark_v1",
+        ok: true,
+        request_id: livenessRequest.request_id,
+        operator_status: "reviewed",
+        marked_at_ms: 117,
+        quoted_void: livenessRequest.quoted_void,
+      };
+      const marked =
+        await writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+          event: ordinaryMark,
+          request: livenessRequest,
+          request_dir: livenessRoot,
+          with_launch_authority_mutation: stalledLaunchMutation,
+          read_sale_state: livenessSaleState,
+        });
+      assert.equal(marked.ok, true);
+      assert.equal(
+        fs.readFileSync(livenessEvents, "utf8").includes('"reviewed"'),
+        true,
+        "ordinary synchronous mark must progress while payment waits on generation authority",
+      );
+
+      releaseLaunchResolve();
+      await assert.rejects(
+        paymentPromise,
+        /buy_void_verified_payment_capacity_operator_events_changed_since_census/u,
+      );
+      assert.equal(freshChecks, 1);
+      const rows = fs
+        .readFileSync(livenessEvents, "utf8")
+        .split(/\n+/u)
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].operator_status, "reviewed");
+    } finally {
+      releaseLaunchResolve?.();
+      fs.rmSync(livenessRoot, { recursive: true, force: true });
+    }
+  }
+
+  // Generation authority is admitted before the synchronous request-lock
+  // wait, then asserted again after the lock is acquired. A lease that expires
+  // while another process owns the request lock must append zero verified rows.
   {
     const expiryRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "void-buy-capacity-request-lock-expiry-"),
     );
+    const enteredPath = path.join(expiryRoot, "holder-entered");
+    const expiredPath = path.join(expiryRoot, "lease-expired");
+    let holder: RequestLockChildV1 | null = null;
     try {
       fs.chmodSync(expiryRoot, 0o700);
       const expiryRequest = {
@@ -587,97 +710,68 @@ try {
         expiryRoot,
         "operator-events.jsonl",
       );
-      const expirySaleState = async () => {
-        const eventRows = fs.existsSync(expiryEventsPath)
-          ? fs
-              .readFileSync(expiryEventsPath, "utf8")
-              .split(/\n+/u)
-              .filter(Boolean)
-              .map((line) => JSON.parse(line))
-          : [];
-        const verified = eventRows.some(
-          (row) =>
-            row.request_id === expiryRequest.request_id &&
-            row.operator_status === "payment_verified",
-        );
-        return {
-          pool_void_total: 10,
-          allocation_reserved_void: verified ? 1 : 0,
-          verified_void_total: verified ? 1 : 0,
-          remaining_void: verified ? 9 : 10,
-        };
-      };
+      fs.writeFileSync(expiryEventsPath, "", { mode: 0o600 });
+      const expirySaleState = async () => ({
+        pool_void_total: 10,
+        allocation_reserved_void: 0,
+        verified_void_total: 0,
+        remaining_void: 10,
+      });
 
-      let holderEnteredResolve!: () => void;
-      let releaseHolderResolve!: () => void;
-      const holderEntered = new Promise<void>(
-        (resolve) => { holderEnteredResolve = resolve; },
+      holder = spawnRequestLockHolder(
+        expiryRoot,
+        expiryRequest.request_id,
+        enteredPath,
+        expiredPath,
       );
-      const releaseHolder = new Promise<void>(
-        (resolve) => { releaseHolderResolve = resolve; },
+      await waitForChildPathV1(
+        enteredPath,
+        holder,
+        "request_lock_expiry_holder_entered",
       );
-      const requestLockPath =
-        buyVoidTerminalCloseoutRequestLockPathV1({
-          request_dir: expiryRoot,
-          request_id: expiryRequest.request_id,
-        });
-      const holder = withBuyVoidFilesystemBakeryLockAsyncV1(
-        requestLockPath,
-        async () => {
-          holderEnteredResolve();
-          await releaseHolder;
-        },
-      );
-      await holderEntered;
 
-      let leaseLive = true;
-      let launchChecks = 0;
+      let launchEntries = 0;
+      let freshChecks = 0;
       const expiryLaunchMutation = async (
         _request: any,
         operation: (
           assertCurrentRequestAuthority: () => unknown,
         ) => any,
       ) => {
-        launchChecks += 1;
-        if (!leaseLive) {
-          throw new Error(
-            "request_launch_authority_expired_or_superseded",
-          );
-        }
-        return operation(() => undefined);
+        launchEntries += 1;
+        return operation(() => {
+          freshChecks += 1;
+          if (fs.existsSync(expiredPath)) {
+            throw new Error(
+              "request_launch_authority_expired_or_superseded",
+            );
+          }
+        });
       };
 
-      const writePromise =
-        writeBuyVoidOperatorEventWithCapacityAdmissionV1({
-          event: eventFor(expiryRequest, 120),
-          request: expiryRequest,
-          request_dir: expiryRoot,
-          with_launch_authority_mutation: expiryLaunchMutation,
-          read_sale_state: expirySaleState,
-        });
-      const rejected = assert.rejects(
-        writePromise,
+      await assert.rejects(
+        () =>
+          writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+            event: eventFor(expiryRequest, 120),
+            request: expiryRequest,
+            request_dir: expiryRoot,
+            with_launch_authority_mutation: expiryLaunchMutation,
+            read_sale_state: expirySaleState,
+          }),
         /request_launch_authority_expired_or_superseded/u,
       );
-
-      await waitForBakeryTicketCountV1(
-        requestLockPath,
-        2,
+      await waitForChildExitV1(
+        holder,
+        "request_lock_expiry_holder",
       );
-      assert.equal(
-        launchChecks,
-        0,
-        "launch authority must remain untouched while the verified-payment writer is visibly queued on the request lock",
-      );
-      leaseLive = false;
-      releaseHolderResolve();
-      await holder;
-      await rejected;
-      assert.equal(launchChecks, 1);
-      if (fs.existsSync(expiryEventsPath)) {
-        assert.equal(fs.statSync(expiryEventsPath).size, 0);
-      }
+      assert.equal(fs.existsSync(expiredPath), true);
+      assert.equal(launchEntries, 1);
+      assert.equal(freshChecks, 1);
+      assert.equal(fs.statSync(expiryEventsPath).size, 0);
     } finally {
+      if (holder && holder.child.exitCode === null) {
+        holder.child.kill("SIGKILL");
+      }
       fs.rmSync(expiryRoot, { recursive: true, force: true });
     }
   }
@@ -1277,6 +1371,10 @@ try {
   console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_ADMISSION_V1_GREEN");
   console.log("concurrent_near_sellout_double_reservation=false");
   console.log("capacity_lock_spans_payment_verified_append=true");
+  console.log("generation_wait_outside_request_lock=true");
+  console.log("same_process_sync_mark_event_loop_starvation=false");
+  console.log("fresh_launch_assertion_after_request_lock=true");
+  console.log("request_lock_wait_expiry_appends_zero=true");
   console.log("exact_remaining_capacity_admitted=true");
   console.log("capacity_exhaustion_rejected=true");
   console.log("malformed_authoritative_ledger_fails_closed=true");
