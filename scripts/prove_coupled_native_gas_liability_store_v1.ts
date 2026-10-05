@@ -279,6 +279,11 @@ assert.doesNotMatch(
   storeSource,
   /export\s+(?:async\s+)?function\s+[^\n]*(?:release|delete|reconcile)/iu,
 );
+assert.match(
+  storeSource,
+  /if \(before\.length >= MAX_RECORDS\) \{[\s\S]{0,180}coupled_native_gas_store_record_count_exceeded[\s\S]{0,240}createOnceLiability\(records!, classified\.liability\)/u,
+  "new liability must HOLD at the record ceiling before durable publication",
+);
 
 {
   const root = path.join(
@@ -580,6 +585,7 @@ console.log("serialized_admission=true");
 console.log("concurrent_near_balance_oversubscription_prevented=true");
 console.log("exact_idempotent_replay=true");
 console.log("corrupt_census_holds=true");
+console.log("record_count_ceiling_prepublication_hold=true");
 console.log("open_liability_only=true");
 console.log("terminal_receipt_reconciliation=false");
 console.log("liability_release_or_delete=false");
