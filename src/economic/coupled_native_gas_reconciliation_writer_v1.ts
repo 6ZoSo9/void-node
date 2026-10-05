@@ -38,6 +38,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1 =
     reconciliation_storage_qualification_required: true,
     exact_effective_open_census_precheck: true,
     exact_reconciliation_evidence_resolver_reused: true,
+    idempotent_replay_reauthenticates_terminal_evidence: true,
     immutable_liability_history: true,
     create_once_reconciliation_publication: true,
     exact_effective_open_postcheck: true,
@@ -888,40 +889,23 @@ async function persistWithDependencies(
           fail("coupled_native_gas_reconciliation_writer_liability_not_found");
         }
 
-        if (
+        const existingReconciliation =
           censusBefore.reconciled_liability_ids.includes(liabilityId)
-        ) {
-          const existing = findReconciliation(
-            reconciliationsBefore.rows,
-            liabilityId,
-          );
-          if (!existing) {
-            fail(
-              "coupled_native_gas_reconciliation_writer_idempotent_reconciliation_missing",
-            );
-          }
-          return Object.freeze({
-            ok: true,
-            status: "idempotent",
-            mutation_performed: false,
-            payer_address: payerAddress,
-            liability_id: liabilityId,
-            reconciliation_id: existing.reconciliation_id,
-            resolver_packet_id: null,
-            census_before_id: censusBefore.census_id,
-            census_after_id: censusBefore.census_id,
-            effective_open_reserved_before_wei:
-              censusBefore.effective_open_reserved_wei,
-            effective_open_reserved_after_wei:
-              censusBefore.effective_open_reserved_wei,
-            released_open_reserve_wei: "0",
-            reconciliation: existing,
-            authority:
-              VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1,
-          });
-        }
-
+            ? findReconciliation(
+                reconciliationsBefore.rows,
+                liabilityId,
+              )
+            : null;
         if (
+          censusBefore.reconciled_liability_ids.includes(liabilityId) &&
+          !existingReconciliation
+        ) {
+          fail(
+            "coupled_native_gas_reconciliation_writer_idempotent_reconciliation_missing",
+          );
+        }
+        if (
+          !existingReconciliation &&
           !censusBefore.effective_open_liability_ids.includes(
             liabilityId,
           )
@@ -1004,6 +988,38 @@ async function persistWithDependencies(
           fail(
             "coupled_native_gas_reconciliation_writer_history_changed_before_publication",
           );
+        }
+
+        if (existingReconciliation) {
+          if (
+            existingReconciliation.reconciliation_id !==
+              reconciliation.reconciliation_id ||
+            canonical(existingReconciliation) !==
+              canonical(reconciliation)
+          ) {
+            fail(
+              "coupled_native_gas_reconciliation_writer_idempotent_reconciliation_evidence_mismatch",
+            );
+          }
+          return Object.freeze({
+            ok: true,
+            status: "idempotent",
+            mutation_performed: false,
+            payer_address: payerAddress,
+            liability_id: liabilityId,
+            reconciliation_id: existingReconciliation.reconciliation_id,
+            resolver_packet_id: packet.packet_id,
+            census_before_id: censusBefore.census_id,
+            census_after_id: censusBefore.census_id,
+            effective_open_reserved_before_wei:
+              censusBefore.effective_open_reserved_wei,
+            effective_open_reserved_after_wei:
+              censusBefore.effective_open_reserved_wei,
+            released_open_reserve_wei: "0",
+            reconciliation: existingReconciliation,
+            authority:
+              VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1,
+          });
         }
 
         const qualifiedBeforePublication =
