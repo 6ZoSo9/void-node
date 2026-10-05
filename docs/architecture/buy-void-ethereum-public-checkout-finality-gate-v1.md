@@ -76,11 +76,15 @@ payment. Treating a public request ID as an execution-attempt ID would therefore
 invent authority and create a circular dependency.
 
 `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)` closes that
-abstraction gap without writing any state. Production accepts only the
-server-owned Buy request; it does **not** accept a caller-supplied verified
-payment event. After process/policy/capability checks, it uses the canonical
-read-only payment observer to fetch the exact Ethereum receipt plus latest
-block, rebuilds V2 internally with
+abstraction gap without writing any state. The bridge accepts a
+`BuyVoidRequestV1` object but does **not** itself establish filesystem/server
+provenance for that object. The later runtime composition must resolve the
+request through the existing server-owned request reader/snapshot boundary by
+request ID and must not forward a client-supplied request object. The bridge does
+**not** accept a caller-supplied verified-payment event. After
+process/policy/capability checks, it uses the canonical read-only payment
+observer to fetch the exact Ethereum receipt plus latest block, rebuilds V2
+internally with
 `buildBuyVoidVerifiedPaymentEventV2(...)`, derives the exact
 `voidpay1:ethereum:<tx_hash>:<log_index>` identity from that rebuilt event,
 and then invokes
@@ -211,8 +215,10 @@ A later integration step must:
 
 - require `readBuyVoidEthereumPublicCheckoutReadinessV1(...)` before returning
   any new Ethereum payment instructions;
-- call `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)` with the
-  server-owned request only; if it becomes ready, any later
+- resolve the exact request ID through the existing server-owned request
+  reader/snapshot boundary and pass only that server-derived request into
+  `runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(...)`; client request
+  objects are not authoritative; if it becomes ready, any later
   `payment_verified` persistence must use its returned
   `canonical_verified_payment_event`, not caller-supplied payment evidence;
 - keep the execution-attempt
