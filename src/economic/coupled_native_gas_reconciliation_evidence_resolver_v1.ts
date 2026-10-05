@@ -121,6 +121,12 @@ type DirectorySnapshotV1 = {
   snapshot_sha256: string;
 };
 
+type PinnedPrivateDirectoryV1 = {
+  path: string;
+  fd: number;
+  proc_path: string;
+};
+
 export type CoupledNativeGasReconciliationEvidencePacketV1 = {
   schema:
     "void_coupled_native_gas_reconciliation_evidence_packet_v1";
@@ -575,6 +581,163 @@ function assertPrivateDirectory(
   }
 }
 
+function currentUidV1(): bigint {
+  if (typeof process.geteuid !== "function") {
+    throw new Error("reconciliation_evidence_euid_unavailable");
+  }
+  return BigInt(process.geteuid());
+}
+
+function sameDirectoryAuthorityV1(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode
+  );
+}
+
+function assertSafeAncestorDirectoryV1(
+  stat: fs.BigIntStats,
+  code: string,
+): void {
+  const euid = currentUidV1();
+  const writable = (stat.mode & 0o022n) !== 0n;
+  const sticky = (stat.mode & 0o1000n) !== 0n;
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    (stat.uid !== 0n && stat.uid !== euid) ||
+    (writable && !sticky)
+  ) {
+    throw new Error(code);
+  }
+}
+
+function openPinnedPrivateDirectoryV1(
+  directory: string,
+  code: string,
+): PinnedPrivateDirectoryV1 {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  const directoryFlag = fs.constants.O_DIRECTORY;
+  if (
+    typeof noFollow !== "number" ||
+    typeof directoryFlag !== "number" ||
+    !fs.existsSync("/proc/self/fd")
+  ) {
+    throw new Error("reconciliation_evidence_nofollow_unavailable");
+  }
+  if (
+    typeof directory !== "string" ||
+    !path.isAbsolute(directory) ||
+    directory.includes("\0")
+  ) {
+    throw new Error(code + "_path_invalid");
+  }
+
+  const resolved = path.resolve(directory);
+  const parsed = path.parse(resolved);
+  const parts = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+  let fd = -1;
+  try {
+    try {
+      fd = fs.openSync(
+        parsed.root,
+        fs.constants.O_RDONLY | directoryFlag | noFollow,
+      );
+    } catch {
+      throw new Error(code + "_ancestor_open_failed");
+    }
+    assertSafeAncestorDirectoryV1(
+      fs.fstatSync(fd, { bigint: true }),
+      code + "_ancestor_unsafe",
+    );
+
+    let visiblePath = parsed.root;
+    for (let index = 0; index < parts.length; index += 1) {
+      const part = parts[index];
+      if (!part || part === "." || part === "..") {
+        throw new Error(code + "_ancestor_component_invalid");
+      }
+      const stableChild = path.join(
+        "/proc/self/fd",
+        String(fd),
+        part,
+      );
+      let next = -1;
+      try {
+        try {
+          next = fs.openSync(
+            stableChild,
+            fs.constants.O_RDONLY | directoryFlag | noFollow,
+          );
+        } catch {
+          throw new Error(code + "_ancestor_open_failed");
+        }
+        const opened = fs.fstatSync(next, { bigint: true });
+        const stable = fs.lstatSync(stableChild, { bigint: true });
+        visiblePath = path.join(visiblePath, part);
+        const visible = fs.lstatSync(visiblePath, { bigint: true });
+        const isFinal = index === parts.length - 1;
+        if (isFinal) {
+          assertPrivateDirectory(opened, code + "_directory_unsafe");
+          assertPrivateDirectory(stable, code + "_directory_unsafe");
+          assertPrivateDirectory(visible, code + "_directory_unsafe");
+        } else {
+          assertSafeAncestorDirectoryV1(
+            opened,
+            code + "_ancestor_unsafe",
+          );
+          assertSafeAncestorDirectoryV1(
+            stable,
+            code + "_ancestor_unsafe",
+          );
+          assertSafeAncestorDirectoryV1(
+            visible,
+            code + "_ancestor_unsafe",
+          );
+        }
+        if (
+          !sameDirectoryAuthorityV1(opened, stable) ||
+          !sameDirectoryAuthorityV1(opened, visible)
+        ) {
+          throw new Error(code + "_ancestor_identity_changed");
+        }
+      } catch (error) {
+        if (next >= 0) fs.closeSync(next);
+        throw error;
+      }
+      fs.closeSync(fd);
+      fd = next;
+    }
+
+    const opened = fs.fstatSync(fd, { bigint: true });
+    const visible = fs.lstatSync(resolved, { bigint: true });
+    assertPrivateDirectory(opened, code + "_directory_unsafe");
+    assertPrivateDirectory(visible, code + "_directory_unsafe");
+    if (!sameDirectoryAuthorityV1(opened, visible)) {
+      throw new Error(code + "_path_not_bound");
+    }
+
+    const out = Object.freeze({
+      path: resolved,
+      fd,
+      proc_path: path.join("/proc/self/fd", String(fd)),
+    });
+    fd = -1;
+    return out;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
 function assertPrivateFile(
   stat: fs.BigIntStats,
   code: string,
@@ -637,21 +800,15 @@ function snapshotPrivateDirectory(
   code: string,
 ): DirectorySnapshotV1 {
   const noFollow = fs.constants.O_NOFOLLOW;
-  const directoryFlag = fs.constants.O_DIRECTORY;
-  if (
-    typeof noFollow !== "number" ||
-    typeof directoryFlag !== "number"
-  ) {
+  if (typeof noFollow !== "number") {
     throw new Error("reconciliation_evidence_nofollow_unavailable");
   }
-  const fd = fs.openSync(
-    directory,
-    fs.constants.O_RDONLY | directoryFlag | noFollow,
-  );
+  const authority = openPinnedPrivateDirectoryV1(directory, code);
+  const fd = authority.fd;
   try {
     const before = fs.fstatSync(fd, { bigint: true });
     assertPrivateDirectory(before, code + "_directory_unsafe");
-    const procPath = path.join("/proc/self/fd", String(fd));
+    const procPath = authority.proc_path;
     const names = fs.readdirSync(procPath).sort();
     const entries: DirectorySnapshotV1["entries"][number][] = [];
     for (const name of names) {
@@ -696,7 +853,8 @@ function snapshotPrivateDirectory(
       }
     }
     const after = fs.fstatSync(fd, { bigint: true });
-    const visible = fs.statSync(procPath, { bigint: true });
+    const visible = fs.lstatSync(authority.path, { bigint: true });
+    assertPrivateDirectory(visible, code + "_directory_unsafe");
     if (
       identityOf(before) !== identityOf(after) ||
       identityOf(after) !== identityOf(visible)
@@ -704,7 +862,7 @@ function snapshotPrivateDirectory(
       throw new Error(code + "_directory_changed_during_scan");
     }
     const body = {
-      path: path.resolve(directory),
+      path: authority.path,
       identity: identityOf(after),
       entries,
     };
