@@ -835,6 +835,59 @@ const bundle = policyBundle(ttl, sponsor);
     const request = await makeRequest({
       ttl,
       sponsor,
+      walletDigit: "8",
+      identityDigit: "8",
+      reservationDigit: "8",
+      issuedUnix: BASE_UNIX,
+      gasLimit: 30000,
+    });
+    let destructiveClockCalls = 0;
+    const binding = createBinding({
+      bundle,
+      clock: () => {
+        destructiveClockCalls += 1;
+        fs.rmSync(f.reservationRoot, {
+          recursive: true,
+          force: true,
+        });
+        return sample(1_000, 1_000_000_000n);
+      },
+      timeRoot: f.timeRoot,
+      reservationRoot: f.reservationRoot,
+    });
+
+    const held = requireHeld(
+      await binding.admit(request),
+      "SPONSORED_RESERVATION_STORE_ROOT_ANCESTOR_WALK_FAILED",
+    );
+    assert.equal(
+      held.reservation_store_preflight_verified,
+      true,
+    );
+    assert.equal(held.preflight_verified, true);
+    assert.equal(held.current_candidate_verified, true);
+    assert.equal(held.time_observation_performed, true);
+    assert.equal(held.time_mutation_performed, true);
+    assert.equal(held.reservation_mutation_performed, false);
+    assert.equal(destructiveClockCalls, 1);
+    assert.equal(countRecords(f.timeRoot), 1);
+    assert.equal(fs.existsSync(f.reservationRoot), false);
+    assert.equal(
+      VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1
+        .reservation_store_root_stability_proven,
+      false,
+    );
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const request = await makeRequest({
+      ttl,
+      sponsor,
       walletDigit: "3",
       identityDigit: "3",
       reservationDigit: "c",
@@ -975,7 +1028,8 @@ console.log("caller_policy_override=false");
 console.log("constructor_accessor_rejected_without_getter_read=true");
 console.log("nested_bundle_accessor_rejected_without_getter_read=true");
 console.log("revoked_allowed_targets_proxy_rejected=true");
-console.log("missing_reservation_store_can_advance_time=false");
+console.log("missing_reservation_store_at_preflight_can_advance_time=false");
+console.log("post_preflight_reservation_store_loss_can_advance_time=true");
 console.log("durable_time_observation_before_reservation=true");
 console.log("durable_reservation_before_execution=true");
 console.log("duplicate_reservation_idempotent=true");
