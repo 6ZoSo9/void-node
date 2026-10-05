@@ -73,21 +73,27 @@ This keeps ordinary path/descriptor observations and
 `/proc/<custody-pid>/mountinfo` in one mount-ID domain and one absolute-path
 view.
 
-The public runtime is **not** required to share the custody namespace or
-filesystem root. Its
-`/proc/<pid>/ns/mnt` identity and `/proc/<pid>/mountinfo` bytes are
+The public runtime is **not** required to share the custody mount namespace.
+Its `/proc/<pid>/ns/mnt` identity and `/proc/<pid>/mountinfo` bytes are
 fingerprinted separately and revalidated before/after collection. This is
 intentional because systemd filesystem hardening such as `PrivateTmp=true`
 may place a service in a private filesystem namespace.
 
-The collector fingerprints the public runtime filesystem root independently.
-Whether or not its mount namespace/root identity differs, the collector resolves
-the canonical payer-root pathname and every retained ancestor through
-`/proc/<public-pid>/root/...`. Those objects must map to the same underlying
-`(dev,ino)` identities observed in the custody namespace, and the runtime's
-UID/GID/groups must still lack mutation permission on the mapped root and
-ancestors. If the canonical path maps to different objects, collection HOLDS
-instead of inferring safety from custody-namespace mode bits.
+V1 does **not** claim that a genuinely different public-runtime filesystem-root
+identity can source-qualify. The canonical ancestor chain includes `/`, and
+the full path-mapping check requires the public runtime's payer root plus every
+retained ancestor—including `/`—to resolve to the same underlying
+`(dev,ino)` objects observed in the custody namespace. The filesystem-root
+identity is still fingerprinted independently so a different root is explicit
+evidence rather than a hidden assumption, but the positive full-path fixture
+uses a shared root. A future contract would need a stronger explicit mapping
+model before split-root qualification could be claimed.
+
+The collector resolves the canonical payer-root pathname and every retained
+ancestor through `/proc/<public-pid>/root/...`. The runtime's UID/GID/groups
+must still lack mutation permission on the mapped root and ancestors. If the
+canonical path maps to different objects, collection HOLDS instead of inferring
+safety from custody-namespace mode bits.
 
 The custody and public-runtime mountinfo snapshots are each read before and
 after collection and must remain byte-identical. Governing mount records for
@@ -166,9 +172,12 @@ systemd maps Freeze to the existing `stop` detail, Thaw to `start`, and
 QueueSignal to `kill`, so those methods are already covered without inventing
 new Polkit detail values. The latter two mount verbs
 are custody-relevant because systemd can use them to modify the running
-service's mount namespace. The collector also requires denial of
+service's mount namespace. The collector also requires denial of the detail-free
+`org.freedesktop.systemd1.manage-units` manager action, plus
 `org.freedesktop.systemd1.manage-unit-files` and
-`org.freedesktop.systemd1.reload-daemon` for the public-runtime subject.
+`org.freedesktop.systemd1.reload-daemon`, for the public-runtime subject.
+This closes manager paths that authorize `manage-units` without the
+unit/verb detail pair used by direct unit operations.
 
 The Polkit subject is bound as `PID,start-time,UID`, not PID alone. Every
 required verb/action query is executed even if an earlier query would already
@@ -182,6 +191,15 @@ exporting stale negative authority.
 
 This remains a bounded direct-control proof; it does not claim the runtime can
 never obtain some other privileged delegate through a broader host policy.
+
+## Bounded reads
+
+The canonical payer-domain file is capped at **64 KiB** before and during
+descriptor reads, matching the existing liability-store record ceiling.
+Procfs text and each custody/public `mountinfo` snapshot are read through a
+bounded descriptor reader capped at **4 MiB**. Boot ID and machine ID reads are
+capped at **4 KiB**. If a file grows past its ceiling during a read, collection
+HOLDS before classification rather than reading to unbounded EOF.
 
 ## Service policy
 
@@ -244,7 +262,8 @@ The proof covers:
 - proc-status parsing;
 - systemd-show parsing and mount-namespace restriction semantics;
 - exact systemd direct-control Polkit verb-denial set, including live
-  bind/image mounts, plus unit-file and daemon-reload denial tokens;
+  bind/image mounts, the detail-free `manage-units` manager action, plus
+  unit-file and daemon-reload denial tokens;
 - before/after custody-control policy equality and explicit deny→allow drift
   rejection;
 - proc start-time parsing, non-divergent FS UID/GID identity, full capability
@@ -256,9 +275,13 @@ The proof covers:
 - public-runtime mountinfo drift HOLD;
 - collector/custody namespace mismatch HOLD;
 - collector/custody filesystem-root mismatch HOLD;
-- public-runtime namespace/root separation accepted and fingerprinted;
+- public-runtime mount-namespace separation accepted and fingerprinted while
+  split filesystem-root qualification is explicitly not claimed by V1;
 - public-runtime or custody namespace/root drift HOLD;
 - public-runtime canonical payer-root mapping mismatch HOLD;
+- synthetic `live:true` override remains test-only / non-live;
+- payer-domain 64 KiB descriptor ceiling plus dynamic streaming-overflow HOLD;
+- bounded procfs/mountinfo source guards;
 - child governing-mount substitution HOLD; and
 - static absence of filesystem mutation primitives.
 
