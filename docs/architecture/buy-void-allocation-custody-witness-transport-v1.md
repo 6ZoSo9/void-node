@@ -51,6 +51,15 @@ Those fields are content-addressed into one policy SHA-256. The policy is a
 source contract, not evidence that an installed SSH key or server actually
 implements it.
 
+This pure classifier also does **not** prove who selected that policy. A caller
+can supply any policy that satisfies the closed schema and security flags. The
+later live executor must load the remote host, port, account, host-key identity,
+known-hosts identity, client-key identity, endpoint marker, and deadlines from a
+server-controlled protected configuration. A payment/request caller must not be
+able to choose or override any of those fields. Until that composition exists:
+
+`server_controlled_policy_origin_proven=false`.
+
 ## Canonical requests
 
 Requests are recursively key-sorted canonical JSON plus exactly one trailing
@@ -163,6 +172,7 @@ live authority false, including:
 - network access / SSH execution;
 - credential read/write;
 - remote filesystem read/write;
+- server-controlled remote-identity policy origin;
 - challenge freshness / response replay resistance;
 - authenticated external transport;
 - proven external witness storage;
