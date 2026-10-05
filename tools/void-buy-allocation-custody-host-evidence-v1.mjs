@@ -367,13 +367,94 @@ function defaultIo() {
       return fs.lstatSync(file, { bigint: true });
     },
     openReadNoFollow(file) {
-      if (typeof fs.constants.O_NOFOLLOW !== "number") {
-        throw new Error("o_nofollow_unavailable");
+      if (
+        typeof fs.constants.O_NOFOLLOW !== "number" ||
+        typeof fs.constants.O_DIRECTORY !== "number" ||
+        !fs.existsSync("/proc/self/fd")
+      ) {
+        throw new Error("descriptor_walk_unavailable");
       }
-      return fs.openSync(
-        file,
-        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
-      );
+      const resolved = path.resolve(String(file ?? ""));
+      if (!path.isAbsolute(resolved) || resolved.includes("\0")) {
+        throw new Error("descriptor_walk_path_invalid");
+      }
+      const root = path.parse(resolved).root;
+      const parts = resolved
+        .slice(root.length)
+        .split(path.sep)
+        .filter(Boolean);
+      if (parts.length < 1) {
+        throw new Error("descriptor_walk_path_invalid");
+      }
+      let directoryFd = -1;
+      try {
+        directoryFd = fs.openSync(
+          root,
+          fs.constants.O_RDONLY |
+            fs.constants.O_DIRECTORY |
+            fs.constants.O_NOFOLLOW,
+        );
+        for (const component of parts.slice(0, -1)) {
+          if (
+            component === "." ||
+            component === ".." ||
+            component.includes("/") ||
+            component.includes("\\")
+          ) {
+            throw new Error("descriptor_walk_component_invalid");
+          }
+          const nextFd = fs.openSync(
+            path.join(
+              "/proc/self/fd",
+              String(directoryFd),
+              component,
+            ),
+            fs.constants.O_RDONLY |
+              fs.constants.O_DIRECTORY |
+              fs.constants.O_NOFOLLOW,
+          );
+          const nextStat = fs.fstatSync(nextFd, { bigint: true });
+          if (
+            !nextStat.isDirectory() ||
+            nextStat.isSymbolicLink()
+          ) {
+            fs.closeSync(nextFd);
+            throw new Error("descriptor_walk_ancestor_invalid");
+          }
+          fs.closeSync(directoryFd);
+          directoryFd = nextFd;
+        }
+        const basename = parts.at(-1);
+        if (
+          !basename ||
+          basename === "." ||
+          basename === ".." ||
+          basename.includes("/") ||
+          basename.includes("\\")
+        ) {
+          throw new Error("descriptor_walk_component_invalid");
+        }
+        const fd = fs.openSync(
+          path.join(
+            "/proc/self/fd",
+            String(directoryFd),
+            basename,
+          ),
+          fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+        );
+        fs.closeSync(directoryFd);
+        directoryFd = -1;
+        return fd;
+      } catch (error) {
+        if (directoryFd >= 0) {
+          try {
+            fs.closeSync(directoryFd);
+          } catch {
+            // Preserve the primary descriptor-walk failure.
+          }
+        }
+        throw error;
+      }
     },
     fstat(fd) {
       return fs.fstatSync(fd, { bigint: true });
@@ -1359,6 +1440,24 @@ function validateServiceExecStart(
     fail("custody_host_evidence_service_exec_mismatch");
   }
   return true;
+}
+
+export function testOnlyReadBuyVoidAllocationCustodyHostEvidenceFileV1(
+  file,
+  maximum = 4096,
+) {
+  const limit = safeInteger(
+    maximum,
+    1,
+    MAX_SOURCE_BYTES,
+    "custody_host_evidence_test_read_limit_invalid",
+  );
+  return readBounded(
+    defaultIo(),
+    String(file ?? ""),
+    limit,
+    "custody_host_evidence_test_read_failed",
+  );
 }
 
 export function testOnlyValidateBuyVoidAllocationCustodyExecStartV1(
