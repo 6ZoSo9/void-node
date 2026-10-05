@@ -90,6 +90,13 @@ The payer root carries one mount-instance fingerprint over:
 - statfs type; and
 - sorted mount options.
 
+The root's decimal Linux `st_dev` is decoded with the Linux/glibc device
+number layout and must equal the supplied mount `major:minor`. When the
+declared mount target is an ancestor of the payer root rather than the payer
+root itself, that exact ancestor's device identity must also equal the payer
+root device. This prevents a syntactically valid mount fingerprint for one
+filesystem from being paired with payer-root evidence from another device.
+
 The supplied evidence must state that the public runtime cannot remount or
 bind-mount the authority. The mount must be writable for the dedicated service.
 
@@ -209,7 +216,8 @@ git diff --check
 The focused proof covers a green synthetic evidence snapshot plus stale/future/
 overlong evidence, zero generation, service/runtime identity collapse, unsafe or
 runtime-writable ancestors, root symlink/replacement authority, bind/remount
-authority, wrong mount target, alternate reconciliation namespace, inode alias,
+authority, wrong mount target, root-device/mount-major-minor mismatch,
+mount-target ancestor device mismatch, alternate reconciliation namespace, inode alias,
 payer-address/domain mismatch, noncanonical payer-domain file digest/link alias,
 service hardening drift, writable-path drift,
 failed negative tests, fallback storage, and missing required namespace.
