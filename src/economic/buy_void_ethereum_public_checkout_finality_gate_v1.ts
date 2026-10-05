@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_V1,
   bindBuyVoidSourceFinalityPaymentV1,
@@ -5,9 +6,26 @@ import {
   runBuyVoidSourceFinalityExecutionPreflightV1,
   type BuyVoidSourceFinalityExecutionPreflightDecisionV1,
   type BuyVoidSourceFinalityExecutionPreflightReadyV1,
+  type BuyVoidSourceFinalityExecutionRailV1,
 } from "./buy_void_source_finality_execution_preflight_v1.js";
+import type {
+  BuyVoidRequestV1,
+} from "./buy_void_auto_fulfillment_v1.js";
+import {
+  VOID_BUY_VOID_VERIFIED_PAYMENT_V2,
+  buildBuyVoidVerifiedPaymentEventV2,
+  type BuyVoidVerifiedPaymentEventV2,
+} from "./buy_void_verified_payment_v2.js";
+import {
+  createBuyVoidPaymentHttpTransportV1,
+  observeBuyVoidPaymentV1,
+  type BuyVoidPaymentRpcCallV1,
+  type BuyVoidPaymentRpcTransportV1,
+} from "./buy_void_payment_rpc_observer_v1.js";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5,
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5,
+  observeBuyVoidSourceFinalityGenerationProvenanceV5,
 } from "./buy_void_source_finality_generation_provenance_v5.js";
 
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1 =
@@ -16,9 +34,16 @@ export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1 =
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_TEST_ONLY_V1 =
   "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_TEST_ONLY_V1";
 
+export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1 =
+  "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1";
+
 export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1 =
   Object.freeze({
     server_controlled_policy_required: true,
+    immutable_process_source_identity_required: true,
+    pre_attempt_request_level_v5_bridge: true,
+    pre_attempt_verified_payment_rebuilt_internally: true,
+    caller_supplied_verified_payment_event_authority: false,
     canonical_source_finality_preflight_required: true,
     canonical_source_finality_capability_required: true,
     canonical_payment_identity_binding_required: true,
@@ -51,6 +76,10 @@ export const VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1 =
 const ATTEMPT_ID = /^[0-9a-f]{64}$/u;
 const PAYMENT_ID =
   /^voidpay1:ethereum:(0x[0-9a-f]{64}):([0-9]+)$/u;
+const PROCESS_SOURCE_MARKER =
+  "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1";
+const SHA40 = /^[0-9a-f]{40}$/u;
+const MAX_PRE_ATTEMPT_TOTAL_TIMEOUT_MS = 120_000;
 
 export type BuyVoidEthereumPublicCheckoutReadinessReadyV1 = {
   ok: true;
@@ -142,8 +171,419 @@ export type BuyVoidEthereumPublicCheckoutPaymentDecisionV1 =
   | BuyVoidEthereumPublicCheckoutPaymentReadyV1
   | BuyVoidEthereumPublicCheckoutPaymentHeldV1;
 
+
+export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1 = {
+  ok: true;
+  status: "ethereum_pre_attempt_source_finality_ready";
+  marker:
+    typeof VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1;
+  version: 1;
+  source_chain: "ethereum";
+  canonical_payment_identity: string;
+  payment_key_sha256: string;
+  verified_payment_marker: typeof VOID_BUY_VOID_VERIFIED_PAYMENT_V2;
+  canonical_verified_payment_event: BuyVoidVerifiedPaymentEventV2;
+  caller_supplied_verified_payment_event_authority: false;
+  source_finality_marker:
+    typeof VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5;
+  process_source_identity_verified: true;
+  reviewed_source_files_verified: true;
+  authenticated_transport_identity_verified: true;
+  observation_generated_in_composition: true;
+  same_provider_consistency_verified: true;
+  provider_consistency_verified: true;
+  total_operation_deadline_verified: true;
+  source_generation_verified: true;
+  deployed_artifact_generation_verified: true;
+  remote_provider_identity_verified: true;
+  ancestry_verified: true;
+  provider_quorum_verified: true;
+  production_source_finality_authority_ready: true;
+  payment_verified_transition_ready: true;
+  filesystem_write_performed: false;
+  wallet_access_performed: false;
+  signing_performed: false;
+  transaction_broadcast_performed: false;
+  inventory_reservation_write_performed: false;
+  funds_movement_performed: false;
+};
+
+export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityHeldV1 = {
+  ok: false;
+  status: "held";
+  marker:
+    typeof VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1;
+  version: 1;
+  reason: string;
+  source_chain: "ethereum";
+  canonical_payment_identity: string | null;
+  process_source_identity_verified: boolean;
+  production_source_finality_authority_ready: false;
+  payment_verified_transition_ready: false;
+  filesystem_write_performed: false;
+  wallet_access_performed: false;
+  signing_performed: false;
+  transaction_broadcast_performed: false;
+  inventory_reservation_write_performed: false;
+  funds_movement_performed: false;
+};
+
+export type BuyVoidEthereumPublicCheckoutPreAttemptFinalityDecisionV1 =
+  | BuyVoidEthereumPublicCheckoutPreAttemptFinalityReadyV1
+  | BuyVoidEthereumPublicCheckoutPreAttemptFinalityHeldV1;
+
 function enabled(value: unknown): boolean {
   return String(value ?? "").trim() === "1";
+}
+
+
+function preAttemptHeld(
+  reason: string,
+  canonicalPaymentIdentity: string | null = null,
+  processSourceIdentityVerified = false,
+): BuyVoidEthereumPublicCheckoutPreAttemptFinalityHeldV1 {
+  return {
+    ok: false,
+    status: "held",
+    marker:
+      VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1,
+    version: 1,
+    reason,
+    source_chain: "ethereum",
+    canonical_payment_identity: canonicalPaymentIdentity,
+    process_source_identity_verified: processSourceIdentityVerified,
+    production_source_finality_authority_ready: false,
+    payment_verified_transition_ready: false,
+    filesystem_write_performed: false,
+    wallet_access_performed: false,
+    signing_performed: false,
+    transaction_broadcast_performed: false,
+    inventory_reservation_write_performed: false,
+    funds_movement_performed: false,
+  };
+}
+
+function processSourceIdentityVerifiedV1(
+  env: NodeJS.ProcessEnv,
+): boolean {
+  return (
+    String(env.VOID_PROCESS_SOURCE_IDENTITY_MARKER || "").trim() ===
+      PROCESS_SOURCE_MARKER &&
+    SHA40.test(
+      String(env.VOID_PROCESS_SOURCE_COMMIT || "").trim().toLowerCase(),
+    ) &&
+    SHA40.test(
+      String(env.VOID_PROCESS_SOURCE_TREE || "").trim().toLowerCase(),
+    ) &&
+    String(env.VOID_PROCESS_SOURCE_BRANCH || "").trim() === "main"
+  );
+}
+
+function positiveUintV1(value: unknown): bigint | null {
+  const raw = String(value ?? "").trim();
+  if (!/^[1-9][0-9]*$/u.test(raw)) return null;
+  try {
+    const parsed = BigInt(raw);
+    return parsed > 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function preAttemptTotalTimeoutMsV1(value: unknown): number | null {
+  const raw = String(value ?? "").trim();
+  if (!/^[1-9][0-9]*$/u.test(raw)) return null;
+  const parsed = Number(raw);
+  return (
+    Number.isSafeInteger(parsed) &&
+    parsed > 0 &&
+    parsed <= MAX_PRE_ATTEMPT_TOTAL_TIMEOUT_MS
+  ) ? parsed : null;
+}
+
+function preAttemptDeadlineBudgetV1(input: {
+  deadline_at_monotonic_ms: number;
+  request_timeout_ms: unknown;
+  now_monotonic_ms: number;
+}): { remaining_ms: number; rpc_timeout_ms: number } | null {
+  const requestTimeout = Number(input.request_timeout_ms);
+  if (
+    !Number.isFinite(input.deadline_at_monotonic_ms) ||
+    !Number.isFinite(input.now_monotonic_ms) ||
+    !Number.isSafeInteger(requestTimeout) ||
+    requestTimeout <= 0
+  ) {
+    return null;
+  }
+  const remaining = Math.floor(
+    input.deadline_at_monotonic_ms - input.now_monotonic_ms,
+  );
+  if (!Number.isSafeInteger(remaining) || remaining <= 0) return null;
+  return {
+    remaining_ms: remaining,
+    rpc_timeout_ms: Math.max(1, Math.min(requestTimeout, remaining)),
+  };
+}
+
+function createPreAttemptDeadlineBoundPaymentTransportV1(input: {
+  rail: BuyVoidSourceFinalityExecutionRailV1;
+  deadline_at_monotonic_ms: number;
+}): BuyVoidPaymentRpcTransportV1 {
+  return {
+    async call(call: BuyVoidPaymentRpcCallV1): Promise<unknown> {
+      const budget = preAttemptDeadlineBudgetV1({
+        deadline_at_monotonic_ms: input.deadline_at_monotonic_ms,
+        request_timeout_ms: input.rail.timeout_ms,
+        now_monotonic_ms: performance.now(),
+      });
+      if (!budget) {
+        throw new Error("ethereum_pre_attempt_total_deadline_exceeded");
+      }
+      const transport = createBuyVoidPaymentHttpTransportV1({
+        enabled: true,
+        source_chain: "ethereum",
+        chain_id: input.rail.evm_chain_id,
+        rpc_url: input.rail.rpc_url,
+        timeout_ms: budget.rpc_timeout_ms,
+        max_response_bytes: input.rail.max_response_bytes,
+      });
+      if ("reason" in transport) {
+        throw new Error(transport.reason);
+      }
+      return transport.call(call);
+    },
+  };
+}
+
+export function testOnlyClassifyBuyVoidEthereumPreAttemptDeadlineV1(input: {
+  deadline_at_monotonic_ms: number;
+  request_timeout_ms: unknown;
+  now_monotonic_ms: number;
+}) {
+  const budget = preAttemptDeadlineBudgetV1(input);
+  return Object.freeze({
+    marker:
+      "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_DEADLINE_TEST_ONLY_V1",
+    would_be_within_deadline: budget !== null,
+    remaining_ms: budget?.remaining_ms ?? 0,
+    rpc_timeout_ms: budget?.rpc_timeout_ms ?? 0,
+    production_transition_authority: false,
+  });
+}
+
+
+function decimalUsdcUnitsV1(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u.exec(raw);
+  if (!match) return null;
+  try {
+    const units =
+      BigInt(match[1]) * 1_000_000n +
+      BigInt((match[2] || "").padEnd(6, "0") || "0");
+    return units > 0n ? units.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function canonicalEthereumVerifiedPaymentIdentityV1(input: {
+  request: BuyVoidRequestV1;
+  verified_payment_event: BuyVoidVerifiedPaymentEventV2;
+}): string | null {
+  const request = input?.request;
+  const event = input?.verified_payment_event;
+  const requestChain = String(request?.source_chain || "").trim().toLowerCase();
+  const chain = requestChain === "eth" ? "ethereum" : requestChain;
+  const requestTx = String(request?.tx_hash || "").trim().toLowerCase();
+  const eventTx = String(event?.tx_hash || "").trim().toLowerCase();
+  const verifierTx = String(
+    event?.payment_verifier?.transaction_hash || "",
+  ).trim().toLowerCase();
+  const verifierChain = String(
+    event?.payment_verifier?.chain || "",
+  ).trim().toLowerCase();
+  const verifier = event?.payment_verifier;
+  const logIndex = String(verifier?.log_index ?? "").trim();
+  const requestDelivery = String(
+    request?.delivery_address || "",
+  ).trim().toLowerCase();
+  const requestReceive = String(
+    request?.receive_address || "",
+  ).trim().toLowerCase();
+  const expectedUnits = decimalUsdcUnitsV1(request?.usdc_amount);
+  const verifierDelivery = String(
+    verifier?.delivery_address || "",
+  ).trim().toLowerCase();
+  const verifierFrom = String(
+    verifier?.from_address || "",
+  ).trim().toLowerCase();
+  const verifierReceive = String(
+    verifier?.receive_address || "",
+  ).trim().toLowerCase();
+  const verifierAmount = String(
+    verifier?.amount_units ?? "",
+  ).trim();
+  const verifierRequested = String(
+    verifier?.requested_units ?? "",
+  ).trim();
+
+  if (
+    chain !== "ethereum" ||
+    !/^0x[0-9a-f]{64}$/u.test(requestTx) ||
+    event?.schema !== "void_buy_void_verified_payment_event_v2" ||
+    event?.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 ||
+    event?.payment_identity_input_complete !== true ||
+    event?.payment_verified !== true ||
+    event?.operator_status !== "payment_verified" ||
+    event?.request_id !== request?.request_id ||
+    eventTx !== requestTx ||
+    verifierChain !== "ethereum" ||
+    verifierTx !== requestTx ||
+    !/^0x[0-9a-f]{40}$/u.test(requestDelivery) ||
+    !/^0x[0-9a-f]{40}$/u.test(requestReceive) ||
+    verifierDelivery !== requestDelivery ||
+    verifierFrom !== requestDelivery ||
+    verifierReceive !== requestReceive ||
+    expectedUnits === null ||
+    verifierAmount !== expectedUnits ||
+    verifierRequested !== expectedUnits ||
+    !/^(0|[1-9][0-9]*)$/u.test(logIndex)
+  ) {
+    return null;
+  }
+  let parsedLogIndex: bigint;
+  try {
+    parsedLogIndex = BigInt(logIndex);
+  } catch {
+    return null;
+  }
+  if (parsedLogIndex < 0n || parsedLogIndex > 0xffff_ffffn) {
+    return null;
+  }
+  return `voidpay1:ethereum:${requestTx}:${logIndex}`;
+}
+
+function classifyEthereumPreAttemptObservationV1(input: {
+  observation: unknown;
+  verified_payment_event: BuyVoidVerifiedPaymentEventV2;
+  canonical_payment_identity: string;
+  transaction_hash: string;
+  required_min_confirmations: unknown;
+}):
+  | {
+      ok: true;
+      canonical_payment_identity: string;
+      payment_key_sha256: string;
+    }
+  | { ok: false; reason: string } {
+  const observation =
+    input.observation &&
+    typeof input.observation === "object" &&
+    !Array.isArray(input.observation)
+      ? input.observation as Record<string, unknown>
+      : null;
+  if (
+    !observation ||
+    observation.ok !== true ||
+    observation.marker !==
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5 ||
+    observation.source_chain !== "ethereum" ||
+    observation.evm_chain_id !== "1" ||
+    String(observation.transaction_hash || "").toLowerCase() !==
+      input.transaction_hash ||
+    observation.canonical_payment_identity !==
+      input.canonical_payment_identity ||
+    observation.reviewed_source_files_verified !== true ||
+    observation.authenticated_transport_identity_verified !== true ||
+    observation.observation_generated_in_composition !== true ||
+    observation.same_provider_consistency_verified !== true ||
+    observation.provider_consistency_verified !== true ||
+    observation.total_operation_deadline_verified !== true ||
+    observation.source_generation_verified !== true ||
+    observation.deployed_artifact_generation_verified !== true ||
+    observation.remote_provider_identity_verified !== true ||
+    observation.ancestry_verified !== true ||
+    observation.provider_quorum_verified !== true ||
+    observation.production_source_finality_authority_ready !== true ||
+    observation.wallet_access !== false ||
+    observation.signing !== false ||
+    observation.transaction_construction !== false ||
+    observation.transaction_broadcast !== false ||
+    observation.inventory_mutation !== false ||
+    observation.money_movement !== false
+  ) {
+    return {
+      ok: false,
+      reason: "ethereum_pre_attempt_source_finality_not_authoritative",
+    };
+  }
+
+  const event = input.verified_payment_event;
+  const verifier = event?.payment_verifier;
+  const eventConfirmations = positiveUintV1(verifier?.confirmations);
+  const finalizedConfirmations =
+    positiveUintV1(observation?.confirmations_observed);
+  const minimumConfirmations =
+    positiveUintV1(input.required_min_confirmations);
+  if (
+    event?.schema !== "void_buy_void_verified_payment_event_v2" ||
+    event?.marker !== VOID_BUY_VOID_VERIFIED_PAYMENT_V2 ||
+    event?.payment_identity_input_complete !== true ||
+    event?.payment_verified !== true ||
+    event?.operator_status !== "payment_verified" ||
+    String(event?.tx_hash || "").trim().toLowerCase() !==
+      input.transaction_hash ||
+    String(verifier?.chain || "").trim().toLowerCase() !== "ethereum" ||
+    String(verifier?.transaction_hash || "").trim().toLowerCase() !==
+      input.transaction_hash ||
+    String(verifier?.log_index ?? "").trim() !==
+      String(observation.log_index ?? "").trim() ||
+    String(verifier?.block_number ?? "").trim() !==
+      String(observation.receipt_block_number ?? "").trim() ||
+    eventConfirmations === null ||
+    finalizedConfirmations === null ||
+    minimumConfirmations === null ||
+    finalizedConfirmations < minimumConfirmations ||
+    String(verifier?.usdc_contract || "").trim().toLowerCase() !==
+      String(observation.usdc_contract || "").trim().toLowerCase() ||
+    String(verifier?.from_address || "").trim().toLowerCase() !==
+      String(observation.payer_address || "").trim().toLowerCase() ||
+    String(verifier?.receive_address || "").trim().toLowerCase() !==
+      String(observation.receive_address || "").trim().toLowerCase() ||
+    String(verifier?.delivery_address || "").trim().toLowerCase() !==
+      String(observation.delivery_address || "").trim().toLowerCase() ||
+    String(verifier?.amount_units ?? "").trim() !==
+      String(observation.payment_usdc_atoms ?? "").trim() ||
+    String(verifier?.requested_units ?? "").trim() !==
+      String(observation.payment_usdc_atoms ?? "").trim()
+  ) {
+    return {
+      ok: false,
+      reason: "ethereum_pre_attempt_verified_payment_observation_mismatch",
+    };
+  }
+
+  const rebound = bindBuyVoidSourceFinalityPaymentV1({
+    source_chain: "ethereum",
+    transaction_hash: input.transaction_hash,
+    reservation_canonical_payment_identity:
+      input.canonical_payment_identity,
+    observed_canonical_payment_identity:
+      observation.canonical_payment_identity,
+    observed_payment_key_sha256:
+      observation.payment_key_sha256,
+  });
+  if (!rebound) {
+    return {
+      ok: false,
+      reason: "ethereum_pre_attempt_payment_binding_invalid",
+    };
+  }
+  return {
+    ok: true,
+    canonical_payment_identity: rebound.canonical_payment_identity,
+    payment_key_sha256: rebound.payment_key_sha256,
+  };
 }
 
 function readinessHeld(
@@ -393,6 +833,300 @@ export async function runBuyVoidEthereumPublicCheckoutPaymentFinalityV1(
     transaction_broadcast_performed: false,
     funds_movement_performed: false,
   };
+}
+
+export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
+  input: {
+    request: BuyVoidRequestV1;
+    env?: NodeJS.ProcessEnv;
+  },
+): Promise<BuyVoidEthereumPublicCheckoutPreAttemptFinalityDecisionV1> {
+  const env = input.env || process.env;
+  const operationStartedAtMonotonicMs = performance.now();
+  const processIdentity = processSourceIdentityVerifiedV1(env);
+  if (!processIdentity) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_process_source_identity_unavailable",
+      null,
+      false,
+    );
+  }
+  const policy = readBuyVoidSourceFinalityExecutionPolicyV1(env);
+  if (policy.ok === false) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_" + policy.reason,
+      null,
+      true,
+    );
+  }
+
+  const capability =
+    VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
+  const capabilityReady =
+    Boolean(capability.reviewed_source_files_verified_on_success) &&
+    Boolean(capability.source_generation_verified_on_success) &&
+    Boolean(capability.deployed_artifact_generation_verified) &&
+    Boolean(capability.authenticated_transport_identity_verified) &&
+    Boolean(capability.remote_provider_identity_verified) &&
+    Boolean(capability.total_operation_deadline_verified) &&
+    Boolean(capability.ancestry_verified) &&
+    Boolean(capability.provider_quorum_verified) &&
+    Boolean(capability.production_source_finality_authority_ready);
+  if (!capabilityReady) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_source_finality_capability_not_ready",
+      null,
+      true,
+    );
+  }
+
+  const totalTimeoutMs =
+    preAttemptTotalTimeoutMsV1(policy.policy.total_timeout_ms);
+  if (totalTimeoutMs === null) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_timeout_invalid",
+      null,
+      true,
+    );
+  }
+  const deadlineAtMonotonicMs =
+    operationStartedAtMonotonicMs + totalTimeoutMs;
+
+  const rail = policy.policy.ethereum;
+  const latestBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!latestBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
+      null,
+      true,
+    );
+  }
+  const latestPayment = await observeBuyVoidPaymentV1({
+    request: input.request,
+    policy: {
+      enabled: true,
+      source_chain: "ethereum",
+      chain_id: rail.evm_chain_id,
+      rpc_url: rail.rpc_url,
+      timeout_ms: latestBudget.rpc_timeout_ms,
+      max_response_bytes: rail.max_response_bytes,
+    },
+    transport: createPreAttemptDeadlineBoundPaymentTransportV1({
+      rail,
+      deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    }),
+  });
+  if (latestPayment.ok === false) {
+    const afterLatestBudget = preAttemptDeadlineBudgetV1({
+      deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+      request_timeout_ms: rail.timeout_ms,
+      now_monotonic_ms: performance.now(),
+    });
+    if (!afterLatestBudget) {
+      return preAttemptHeld(
+        "ethereum_pre_attempt_total_deadline_exceeded",
+        null,
+        true,
+      );
+    }
+    return preAttemptHeld(
+      "ethereum_pre_attempt_latest_payment_" + latestPayment.reason,
+      null,
+      true,
+    );
+  }
+
+  const rebuiltVerifiedPayment =
+    buildBuyVoidVerifiedPaymentEventV2({
+      request: input.request,
+      receipt: latestPayment.receipt,
+      policy: {
+        allowed_chains: ["ethereum"],
+        usdc_contract_by_chain: {
+          ethereum: rail.usdc_contract,
+        },
+        receive_address_by_chain: {
+          ethereum: rail.receive_address,
+        },
+        current_block_number_by_chain: {
+          ethereum: latestPayment.current_block_number,
+        },
+      },
+    });
+  if (rebuiltVerifiedPayment.ok === false) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_verified_payment_" +
+        rebuiltVerifiedPayment.reason,
+      null,
+      true,
+    );
+  }
+
+  const canonicalVerifiedPaymentEvent = rebuiltVerifiedPayment.event;
+  const canonicalPaymentIdentity =
+    canonicalEthereumVerifiedPaymentIdentityV1({
+      request: input.request,
+      verified_payment_event: canonicalVerifiedPaymentEvent,
+    });
+  if (!canonicalPaymentIdentity) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_internal_verified_payment_binding_invalid",
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
+  const requestTx = String(input.request.tx_hash).trim().toLowerCase();
+
+  const finalityBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!finalityBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
+
+  const observation =
+    await observeBuyVoidSourceFinalityGenerationProvenanceV5({
+      request: input.request,
+      policy: {
+        source_finality_policy: {
+          enabled: true,
+          source_chain: "ethereum",
+          chain_id: rail.evm_chain_id,
+          rpc_url: rail.rpc_url,
+          rpc_url_fingerprint_sha256:
+            rail.rpc_url_fingerprint_sha256,
+          rpc_identity: rail.rpc_identity,
+          finality_adapter_id: rail.finality_adapter_id,
+          min_confirmations: rail.min_confirmations,
+          usdc_contract: rail.usdc_contract,
+          receive_address: rail.receive_address,
+          timeout_ms: rail.timeout_ms,
+          max_response_bytes: rail.max_response_bytes,
+        },
+        authority_policy_generation:
+          policy.policy.authority_policy_generation,
+        total_timeout_ms: String(finalityBudget.remaining_ms),
+      },
+    });
+
+  const afterFinalityBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!afterFinalityBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
+
+  const classified = classifyEthereumPreAttemptObservationV1({
+    observation,
+    verified_payment_event: canonicalVerifiedPaymentEvent,
+    canonical_payment_identity: canonicalPaymentIdentity,
+    transaction_hash: requestTx,
+    required_min_confirmations: rail.min_confirmations,
+  });
+  if (classified.ok === false) {
+    return preAttemptHeld(
+      classified.reason,
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
+
+  const readyBudget = preAttemptDeadlineBudgetV1({
+    deadline_at_monotonic_ms: deadlineAtMonotonicMs,
+    request_timeout_ms: rail.timeout_ms,
+    now_monotonic_ms: performance.now(),
+  });
+  if (!readyBudget) {
+    return preAttemptHeld(
+      "ethereum_pre_attempt_total_deadline_exceeded",
+      canonicalPaymentIdentity,
+      true,
+    );
+  }
+
+  return {
+    ok: true,
+    status: "ethereum_pre_attempt_source_finality_ready",
+    marker:
+      VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_V1,
+    version: 1,
+    source_chain: "ethereum",
+    canonical_payment_identity:
+      classified.canonical_payment_identity,
+    payment_key_sha256: classified.payment_key_sha256,
+    verified_payment_marker: VOID_BUY_VOID_VERIFIED_PAYMENT_V2,
+    canonical_verified_payment_event: canonicalVerifiedPaymentEvent,
+    caller_supplied_verified_payment_event_authority: false,
+    source_finality_marker:
+      VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5,
+    process_source_identity_verified: true,
+    reviewed_source_files_verified: true,
+    authenticated_transport_identity_verified: true,
+    observation_generated_in_composition: true,
+    same_provider_consistency_verified: true,
+    provider_consistency_verified: true,
+    total_operation_deadline_verified: true,
+    source_generation_verified: true,
+    deployed_artifact_generation_verified: true,
+    remote_provider_identity_verified: true,
+    ancestry_verified: true,
+    provider_quorum_verified: true,
+    production_source_finality_authority_ready: true,
+    payment_verified_transition_ready: true,
+    filesystem_write_performed: false,
+    wallet_access_performed: false,
+    signing_performed: false,
+    transaction_broadcast_performed: false,
+    inventory_reservation_write_performed: false,
+    funds_movement_performed: false,
+  };
+}
+
+export function testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1(
+  input: {
+    observation: unknown;
+    verified_payment_event: BuyVoidVerifiedPaymentEventV2;
+    canonical_payment_identity: string;
+    transaction_hash: string;
+  },
+) {
+  const observation =
+    input.observation &&
+    typeof input.observation === "object" &&
+    !Array.isArray(input.observation)
+      ? input.observation as Record<string, unknown>
+      : null;
+  const classified = classifyEthereumPreAttemptObservationV1({
+    ...input,
+    required_min_confirmations:
+      observation?.min_confirmations,
+  });
+  return Object.freeze({
+    marker:
+      "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_PRE_ATTEMPT_FINALITY_TEST_ONLY_V1",
+    would_be_transition_ready: classified.ok === true,
+    production_transition_authority: false,
+    filesystem_write_performed: false,
+    payment_verified_event_write_performed: false,
+    inventory_reservation_write_performed: false,
+    reason: classified.ok === false ? classified.reason : null,
+  });
 }
 
 export function testOnlyClassifyBuyVoidEthereumPublicCheckoutFinalityV1(
