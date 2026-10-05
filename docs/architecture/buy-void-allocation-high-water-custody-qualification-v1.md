@@ -54,8 +54,19 @@ Before host-policy evidence is considered, the supplied ledger and high-water
 must bind through the merged canonical high-water classifier. Qualification
 cannot bless a semantically invalid or rolled-back presented state.
 
-The evidence packet also binds exact SHA-256 and byte length for both supplied
-state objects.
+The evidence packet also binds the supplied bytes to the exact canonical files,
+not merely to secure directory roots:
+
+- ledger: `<ledger-root>/allocation-reservations-v1.jsonl`;
+- protected high-water:
+  `<custody-root>/allocation-reservation-high-water-v1.json`.
+
+Each current file-evidence object must identify that exact path, the custody
+service UID/GID, mode `0600`, a direct regular non-symlink file with exactly
+one link, plus the exact SHA-256 and byte length of the supplied state bytes.
+A later read-only collector must obtain those facts from a stable no-follow
+observation of the named file. Secure-root evidence combined with bytes read
+from another pathname is not qualifying evidence.
 
 ## Source and freshness binding
 
@@ -120,6 +131,11 @@ Each ancestor must be:
 
 This is the evidence-level representation of the host policy that removes the
 source writer's admitted post-revalidation pathname replacement schedule.
+
+Root qualification does not implicitly qualify arbitrary descendants. The
+current ledger and high-water objects are separately path- and custody-bound as
+described above; the collector must not substitute a sibling, symlink, hard-link
+alias, or out-of-root file while retaining otherwise-green root evidence.
 
 ## Independent high-water custody
 
@@ -269,7 +285,9 @@ The focused proof builds a synthetic qualifying packet and proves rejection of:
 - evidence-generation mismatch;
 - source-head mismatch;
 - host-identity mismatch;
-- state-digest mismatch;
+- state-file digest/byte mismatch;
+- ledger or high-water pathname substitution;
+- state-file symlink/private-mode/link-count custody failure;
 - semantically mismatched high-water; and
 - symlinked root evidence.
 
