@@ -181,6 +181,33 @@ function makeWcVoidLiability(): CoupledNativeGasLiabilityRecordV1 {
   };
 }
 
+function makeZeroNativePresaleLiability(): CoupledNativeGasLiabilityRecordV1 {
+  const planFingerprint = "b".repeat(64);
+  const body = {
+    schema: "void_coupled_native_gas_liability_v1",
+    marker: VOID_COUPLED_NATIVE_GAS_LIABILITY_V1,
+    version: 1,
+    lane: "presale" as const,
+    obligation_id: "a".repeat(64),
+    payer_address: payer,
+    nonce: 10,
+    transaction_plan_fingerprint_sha256: planFingerprint,
+    transaction_native_value_wei: "0",
+    gas_limit: "21000",
+    admitted_max_fee_per_gas_wei: "10",
+    attempt_limit: 1 as const,
+    maximum_reserved_wei: "210000",
+    fee_observation_sha256: "c".repeat(64),
+    source_evidence_kind: "buy_void_prepared_plan_v1" as const,
+    source_evidence_id: planFingerprint,
+    status: "open" as const,
+  } as const;
+  return {
+    ...body,
+    liability_id: sha256Canonical(body),
+  };
+}
+
 function rewriteLiability(
   liability: CoupledNativeGasLiabilityRecordV1,
   changes: Partial<
@@ -304,6 +331,7 @@ const second = liabilityFor(
 );
 const wcVoid = makeWcVoidLiability();
 const firstReconciliation = makeReconciliation(first);
+const zeroNativePresale = makeZeroNativePresaleLiability();
 
 const empty = requireOk(
   classifyCoupledNativeGasEffectiveOpenCensusV1({
@@ -580,6 +608,29 @@ requireHeld(
   "coupled_native_gas_effective_open_wc_void_reconciliation_not_supported",
 );
 
+const zeroNativeOpen = requireOk(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [zeroNativePresale],
+    reconciliations: [],
+  }),
+);
+assert.equal(zeroNativeOpen.effective_open_liability_count, 1);
+assert.equal(zeroNativeOpen.effective_open_reserved_wei, "210000");
+
+requireHeld(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [zeroNativePresale],
+    reconciliations: [
+      makeReconciliation(zeroNativePresale, {
+        actual_consumed_wei: "105000",
+      }),
+    ],
+  }),
+  "coupled_native_gas_effective_open_reconciliation_liability_binding_mismatch",
+);
+
 const badLiability = {
   ...first,
   maximum_reserved_wei: "210002",
@@ -677,6 +728,7 @@ console.log("orphan_reconciliation_hold=true");
 console.log("duplicate_reconciliation_hold=true");
 console.log("conflicting_reconciliation_hold=true");
 console.log("wc_void_liabilities_remain_open=true");
+console.log("zero_native_presale_reconciliation_domain_hold=true");
 console.log("terminal_evidence_provenance_verified=false");
 console.log("liability_release_authorized=false");
 console.log("filesystem_read=false");
