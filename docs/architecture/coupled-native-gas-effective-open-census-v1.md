@@ -85,6 +85,9 @@ Every reconciliation must:
   maximum reserve;
 - require `attempt_limit=1`;
 - rederive the one-attempt maximum from the immutable liability;
+- require confirmed consumption to be feasible under the immutable envelope:
+  `actual_consumed = transaction_native_value + gas_limit * integer_effective_gas_price`
+  with the derived effective gas price not above the admitted max fee;
 - satisfy exact accounting:
 
 ```text
