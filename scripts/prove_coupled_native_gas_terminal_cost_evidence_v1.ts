@@ -233,7 +233,7 @@ function makeReceipt(
     gasUsed: "0x5208",
     effectiveGasPrice: "0x5",
     from: wallet,
-    to: fulfillment,
+    to: delivery,
     ...input,
   };
 }
@@ -472,7 +472,7 @@ for (const [key, value] of Object.entries(
     "exact_receipt_policy_fingerprint_required",
     "raw_receipt_cost_fields_required",
     "exact_transaction_block_binding_required",
-    "exact_receipt_sender_contract_binding_required",
+    "exact_receipt_sender_delivery_binding_required",
     "confirmed_and_reverted_supported",
     "gas_used_ceiling_required",
     "effective_gas_price_ceiling_required",
