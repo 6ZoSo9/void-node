@@ -247,6 +247,9 @@ function productionSourceFinalityCapabilityReadyV1(
       : null;
   return Boolean(
     value &&
+    value.runtime_source_filesystem_read === true &&
+    value.runtime_source_filesystem_write === false &&
+    value.caller_generation_assertion_accepted === false &&
     value.reviewed_source_files_verification_required === true &&
     value.reviewed_source_files_verified_on_success === true &&
     value.source_generation_verified_on_success === true &&
