@@ -174,7 +174,7 @@ function makeWcVoidLiability(): CoupledNativeGasLiabilityRecordV1 {
       "wc_void_reviewed_settlement_plan" as const,
     source_evidence_id: "7".repeat(64),
     status: "open" as const,
-  };
+  } as const;
   return {
     ...body,
     liability_id: sha256Canonical(body),
@@ -265,7 +265,7 @@ function makeReconciliation(
     retry_allowance_reserved: false,
     additional_attempt_requires_new_liability: true,
     terminal_close_candidate: true,
-  };
+  } as const;
   return {
     ok: true,
     status: "reconciliation_classified",
