@@ -237,6 +237,31 @@ if (missingFinality.ok === false) {
 }
 
 const env = configuredEnv();
+const readinessMissingProcessIdentity =
+  readBuyVoidEthereumPublicCheckoutReadinessV1({
+    ...env,
+    VOID_PROCESS_SOURCE_IDENTITY_MARKER: "",
+  });
+assert.equal(readinessMissingProcessIdentity.ok, false);
+if (readinessMissingProcessIdentity.ok === false) {
+  assert.equal(
+    readinessMissingProcessIdentity.reason,
+    "ethereum_process_source_identity_unavailable",
+  );
+  assert.equal(
+    readinessMissingProcessIdentity.source_finality_policy_configured,
+    true,
+  );
+  assert.equal(
+    readinessMissingProcessIdentity.payment_instructions_finality_gate_ready,
+    false,
+  );
+  assert.equal(
+    readinessMissingProcessIdentity.payment_verified_finality_gate_ready,
+    false,
+  );
+}
+
 const configuredButNotProductionReady =
   readBuyVoidEthereumPublicCheckoutReadinessV1(env);
 assert.equal(configuredButNotProductionReady.ok, false);
