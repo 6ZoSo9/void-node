@@ -41,6 +41,8 @@ export const VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_EVIDENCE_AUTHORITY_V1 =
     exact_gas_used_binding_required: true,
     effective_gas_price_ceiling_required: true,
     exact_integer_gas_cost: true,
+    stable_terminal_cost_identity: true,
+    confirmation_depth_independent_terminal_cost_identity: true,
     confirmed_native_value_consumption_bound: true,
     reverted_native_value_consumption_zero: true,
     reserved_envelope_ceiling_required: true,
@@ -137,6 +139,7 @@ export type CoupledNativeGasTerminalCostEvidenceVerifiedV1 = {
   liability_consumed_wei: string;
   maximum_reserved_wei: string;
   within_reserved_envelope: true;
+  terminal_cost_identity_sha256: string;
   evidence_id: string;
   liability_release_authorized: false;
   mutation_performed: false;
@@ -1019,6 +1022,36 @@ export function classifyCoupledNativeGasTerminalCostEvidenceV1(input: {
       );
     }
 
+    const stableIdentityBody = {
+      marker: "VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_IDENTITY_V1",
+      version: 1,
+      lane: "presale",
+      liability_id: liability.liability_id,
+      obligation_id: liability.obligation_id,
+      payer_address: liability.payer_address,
+      nonce: liability.nonce,
+      transaction_plan_fingerprint_sha256:
+        liability.transaction_plan_fingerprint_sha256,
+      saga_id: plan.saga_id,
+      attempt_id: plan.attempt_id,
+      transaction_hash: transactionHash,
+      outcome: terminal.kind,
+      terminal_record_fingerprint_sha256:
+        terminal.terminal_fingerprint,
+      terminal_recorded_at_ms: terminal.record.recorded_at_ms,
+      receipt_block_number: blockNumber.toString(),
+      receipt_block_hash: blockHash,
+      gas_used: gasUsed.toString(),
+      effective_gas_price_wei: effectiveGasPrice.toString(),
+      gas_cost_wei: gasCost.toString(),
+      transaction_native_value_consumed_wei:
+        nativeValueConsumed.toString(),
+      liability_consumed_wei: liabilityConsumed.toString(),
+      maximum_reserved_wei: maximumReserved.toString(),
+      within_reserved_envelope: true as const,
+    } as const;
+    const terminalCostIdentity =
+      sha256Canonical(stableIdentityBody);
     const body = {
       schema: EVIDENCE_SCHEMA,
       marker: VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_EVIDENCE_V1,
@@ -1050,6 +1083,7 @@ export function classifyCoupledNativeGasTerminalCostEvidenceV1(input: {
       liability_consumed_wei: liabilityConsumed.toString(),
       maximum_reserved_wei: maximumReserved.toString(),
       within_reserved_envelope: true as const,
+      terminal_cost_identity_sha256: terminalCostIdentity,
     } as const;
     return Object.freeze({
       ok: true,
