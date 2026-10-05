@@ -29,7 +29,7 @@ fields alone are never witness authority.
 
 ## Event chain
 
-The witness is newline-terminated JSONL. Every event binds:
+The witness is newline-terminated JSONL. Each line must be the exact recursively key-sorted canonical JSON encoding of the normalized event; alternate key order, whitespace, or coercible raw field types are rejected before the event joins the witness chain. Every event binds:
 
 - one-based `sequence`;
 - `previous_event_sha256`;
