@@ -89,6 +89,7 @@ const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const HEX_QUANTITY = /^0x(?:0|[1-9a-f][0-9a-f]*)$/u;
 const UINT256_MAX = (1n << 256n) - 1n;
 const MAX_CONFIRMATIONS = 1000n;
+const NATIVE_VALUE_MULTIPLIER = 1_000_000_000_000n;
 
 export type CoupledNativeGasRawTerminalReceiptV1 = {
   transactionHash: string;
@@ -900,17 +901,25 @@ export function classifyCoupledNativeGasTerminalCostEvidenceV1(input: {
         "coupled_native_gas_terminal_cost_attempt_binding_mismatch",
       );
     }
-    if (
-      terminal.kind === "confirmed" &&
-      (
+    if (terminal.kind === "confirmed") {
+      const confirmedUnits = positive(
+        terminal.confirmed.void_amount_units,
+      );
+      const expectedNativeValue =
+        confirmedUnits === null
+          ? null
+          : confirmedUnits * NATIVE_VALUE_MULTIPLIER;
+      if (
         terminal.confirmed.fulfillment_wallet !== plan.wallet_address ||
         terminal.confirmed.delivery_address !== plan.delivery_address ||
-        terminal.confirmed.void_amount_units !== plan.native_value_wei
-      )
-    ) {
-      return held(
-        "coupled_native_gas_terminal_cost_confirmed_plan_binding_mismatch",
-      );
+        expectedNativeValue === null ||
+        expectedNativeValue > UINT256_MAX ||
+        expectedNativeValue.toString() !== plan.native_value_wei
+      ) {
+        return held(
+          "coupled_native_gas_terminal_cost_confirmed_plan_binding_mismatch",
+        );
+      }
     }
 
     const transactionHash = normalizeHash(receipt.transactionHash);
