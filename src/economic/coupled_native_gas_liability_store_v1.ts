@@ -1090,6 +1090,11 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
             );
           }
 
+          assertPayerDomainSnapshotCurrent(
+            root!,
+            payerDomainSnapshot,
+          );
+
           createOnceLiability(records!, mutationAdmission.liability);
           durableMutationPerformed = true;
 
