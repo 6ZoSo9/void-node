@@ -11,6 +11,17 @@ on:
       - "scripts/prove_buy_void_allocation_custody_external_witness_v1.ts"
       - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
       - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts"
+      - "docs/architecture/buy-void-allocation-custody-witness-transport-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-transport-v1.yml"
+      - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
   workflow_dispatch:
 
 permissions:
