@@ -65,7 +65,7 @@ const TOOL_REL="tools/void-wc-void-market-vault-canonical-application-v1.mjs";
 const AT_USE_REL="tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs";
 const ATTEST_REL="tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
 const IMPORT_REL="tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs";
-const ACCEPTANCE_REL="tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+const ACCEPTANCE_REL="tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 const COMPILER_REL="tools/void-wc-void-market-vault-compiler-identity-v1.mjs";
 const READINESS_REL="tools/void-wc-void-production-readiness-v1.mjs";
 const ADAPTER_REVIEW_REL="tools/void-wc-void-opening-settlement-adapter-review-v1.mjs";
@@ -86,12 +86,12 @@ const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1=
 
 export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1=
   Object.freeze({
-    [AT_USE_REL]:"9b415bc3ff7810debcb2ea217e6144ec46153237",
-    [ATTEST_REL]:"64a7993a38f764d91a2071240b834fcd97770962",
-    [IMPORT_REL]:"4d698202ccc1b82e555685454de97d34e81607db",
-    [ACCEPTANCE_REL]:"96dc42543c57fd48ff4d7567d78bdaa800d45598",
+    [AT_USE_REL]:"273b2eb4a496be499ca7d2982fdfa24fbedcf9aa",
+    [ATTEST_REL]:"69c0bb105fabd3de8bd5f970d76ec861393ec4a3",
+    [IMPORT_REL]:"f4fff40f2dc4e1c558e2daa3fe32614db81436b1",
+    [ACCEPTANCE_REL]:"bcf7d4949b054599c643867b586b75a844f25cbc",
     [COMPILER_REL]:"3ac765215d3d2c7881e893100e63e0306cf2593f",
-    [READINESS_REL]:"a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
+    [READINESS_REL]:"34e84c1f16452361e0e8d2c867e3bd4d63047061",
     [ADAPTER_REVIEW_REL]:"c19a2e42e8d722eade864c7742af2dcaf3c7b11f",
     [OPENING_REL]:"886feaef71a228b1e6f49f1106ae8ec2b34c404e",
     [PACKAGE_REL]:"f28c3e9446c7623ef203da36a9642d046e5f34ee",
