@@ -20,8 +20,11 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1 =
     preexisting_records_directory_required: true,
     preexisting_admission_queue_required: true,
     reconciliation_directory_qualification: true,
+    read_only_qualification: true,
+    qualification_queue_lock_used: false,
     explicit_reconciliation_directory_bootstrap: true,
     bootstrap_confirmation_required: true,
+    bootstrap_queue_lock_used: true,
     existing_admission_queue_reused: true,
     second_lock_namespace_created: false,
     descriptor_bound_custody: true,
@@ -137,6 +140,19 @@ function sameDirectoryIdentity(
     left.uid === right.uid &&
     left.gid === right.gid &&
     left.mode === right.mode
+  );
+}
+
+function sameDirectorySnapshot(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return (
+    sameDirectoryIdentity(left, right) &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs &&
+    left.nlink === right.nlink
   );
 }
 
@@ -383,6 +399,17 @@ function scanReconciliationDirectory(
     directory,
     "coupled_native_gas_reconciliation_storage_reconciliations",
   );
+  const before = fs.fstatSync(directory.fd, { bigint: true });
+  validatePrivateDirectory(
+    before,
+    "coupled_native_gas_reconciliation_storage_reconciliations_invalid",
+  );
+  if (!sameDirectoryIdentity(directory.stat, before)) {
+    fail(
+      "coupled_native_gas_reconciliation_storage_reconciliations_changed",
+    );
+  }
+
   const names = fs.readdirSync(directory.proc_path).sort();
   if (names.length > MAX_RECONCILIATION_RECORDS) {
     fail("coupled_native_gas_reconciliation_storage_record_count_exceeded");
@@ -425,10 +452,25 @@ function scanReconciliationDirectory(
       fs.closeSync(fd);
     }
   }
-  assertPinnedDirectoryVisible(
-    directory,
-    "coupled_native_gas_reconciliation_storage_reconciliations",
+
+  const after = fs.fstatSync(directory.fd, { bigint: true });
+  const visibleAfter = fs.lstatSync(directory.path, { bigint: true });
+  validatePrivateDirectory(
+    after,
+    "coupled_native_gas_reconciliation_storage_reconciliations_invalid",
   );
+  validatePrivateDirectory(
+    visibleAfter,
+    "coupled_native_gas_reconciliation_storage_reconciliations_invalid",
+  );
+  if (
+    !sameDirectorySnapshot(before, after) ||
+    !sameDirectorySnapshot(after, visibleAfter)
+  ) {
+    fail(
+      "coupled_native_gas_reconciliation_storage_reconciliations_changed_during_scan",
+    );
+  }
   return names.length;
 }
 
@@ -464,9 +506,7 @@ async function inspectStorage(input: {
       "coupled_native_gas_reconciliation_storage_queue",
     );
 
-    return await withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
-      queue.proc_path,
-      async () => {
+    const inspectPinnedState = async () => {
         assertPinnedDirectoryVisible(
           root!,
           "coupled_native_gas_reconciliation_storage_root",
@@ -548,8 +588,15 @@ async function inspectStorage(input: {
           authority:
             VOID_COUPLED_NATIVE_GAS_RECONCILIATION_STORAGE_AUTHORITY_V1,
         });
-      },
-    );
+    };
+
+    if (input.bootstrap) {
+      return await withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(
+        queue.proc_path,
+        inspectPinnedState,
+      );
+    }
+    return await inspectPinnedState();
   } catch (error) {
     return held(
       error instanceof Error
