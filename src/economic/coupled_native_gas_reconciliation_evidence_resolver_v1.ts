@@ -603,7 +603,7 @@ function snapshotPrivateDirectory(
       }
     }
     const after = fs.fstatSync(fd, { bigint: true });
-    const visible = fs.lstatSync(procPath, { bigint: true });
+    const visible = fs.statSync(procPath, { bigint: true });
     if (
       identityOf(before) !== identityOf(after) ||
       identityOf(after) !== identityOf(visible)
