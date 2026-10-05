@@ -114,6 +114,9 @@ mounts of the same filesystem can share `st_dev`, major/minor, source, UUID,
 and filesystem type. The payer-root evidence therefore also carries the
 governing Linux mount ID, and it must equal the declared mount record's
 `mount_id`; the mount fingerprint additionally binds `parent_id`.
+The parent ID must be a positive mount ID. A mount may self-parent only when
+its declared mount target is `/`, matching Linux mountinfo's root-of-tree
+special case; a non-root mount target with `parent_id == mount_id` HOLDS.
 
 The payer-domain file, records directory, reconciliations directory, and queue
 each also carry the governing mount ID and must equal the payer root's mount
