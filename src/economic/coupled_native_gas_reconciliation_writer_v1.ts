@@ -39,6 +39,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1 =
     exact_effective_open_census_precheck: true,
     exact_reconciliation_evidence_resolver_reused: true,
     idempotent_replay_reauthenticates_terminal_evidence: true,
+    idempotent_directory_durability_refresh: true,
     immutable_liability_history: true,
     create_once_reconciliation_publication: true,
     crash_temp_normalization: true,
@@ -1107,6 +1108,11 @@ async function persistWithDependencies(
               "coupled_native_gas_reconciliation_writer_idempotent_reconciliation_evidence_mismatch",
             );
           }
+          fs.fsyncSync(reconciliations!.fd);
+          assertPinnedDirectoryVisible(
+            reconciliations!,
+            "coupled_native_gas_reconciliation_writer_idempotent_directory",
+          );
           return Object.freeze({
             ok: true,
             status: "idempotent",
