@@ -68,6 +68,9 @@ const SYSTEMCTL = "/usr/bin/systemctl";
 const FINDMNT = "/usr/bin/findmnt";
 const PKCHECK = "/usr/bin/pkcheck";
 const GETFACL = "/usr/bin/getfacl";
+const MAX_PAYER_DOMAIN_BYTES = 64 * 1024;
+const MAX_PROC_TEXT_BYTES = 4 * 1024 * 1024;
+const MAX_IDENTITY_TEXT_BYTES = 4 * 1024;
 const SYSTEMD_UNIT = /^[A-Za-z0-9@_.:-]{1,120}\.service$/u;
 
 export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1 =
@@ -89,6 +92,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERB
   ]);
 
 const SYSTEMD_CONTROL_ACTIONS_V1 = Object.freeze([
+  "org.freedesktop.systemd1.manage-units",
   "org.freedesktop.systemd1.manage-unit-files",
   "org.freedesktop.systemd1.reload-daemon",
 ]);
@@ -172,6 +176,73 @@ function sameObjectIdentity(left, right) {
     left.gid === right.gid &&
     left.mode === right.mode
   );
+}
+
+function readFdBoundedV1(fd, maxBytes, code) {
+  if (
+    !Number.isSafeInteger(fd) ||
+    fd < 0 ||
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > 8 * 1024 * 1024
+  ) {
+    throw new Error(code + "_bound_invalid");
+  }
+  const bytes = Buffer.allocUnsafe(maxBytes + 1);
+  let offset = 0;
+  for (;;) {
+    const remaining = bytes.length - offset;
+    if (remaining < 1) {
+      throw new Error(code + "_too_large");
+    }
+    const count = fs.readSync(
+      fd,
+      bytes,
+      offset,
+      Math.min(64 * 1024, remaining),
+      null,
+    );
+    if (count === 0) {
+      return Buffer.from(bytes.subarray(0, offset));
+    }
+    offset += count;
+    if (offset > maxBytes) {
+      throw new Error(code + "_too_large");
+    }
+  }
+}
+
+function readTextFileBoundedV1(target, maxBytes, code) {
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      target,
+      fs.constants.O_RDONLY | O_NOFOLLOW,
+    );
+    return readFdBoundedV1(fd, maxBytes, code).toString("utf8");
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
+export function testOnlyReadBoundedFileBytesV1(
+  target,
+  maxBytes = MAX_PAYER_DOMAIN_BYTES,
+) {
+  let fd = -1;
+  try {
+    fd = fs.openSync(
+      target,
+      fs.constants.O_RDONLY | O_NOFOLLOW,
+    );
+    return readFdBoundedV1(
+      fd,
+      maxBytes,
+      "test_bounded_file",
+    ).length;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
 }
 
 function processRootPath(procRoot, logicalPath) {
@@ -301,10 +372,18 @@ export function parseProcStatStartTimeV1(text) {
 
 function readProcessIdentity(procRoot) {
   const creds = parseProcStatusV1(
-    fs.readFileSync(path.join(procRoot, "status"), "utf8"),
+    readTextFileBoundedV1(
+      path.join(procRoot, "status"),
+      MAX_PROC_TEXT_BYTES,
+      "proc_status",
+    ),
   );
   const startTimeTicks = parseProcStatStartTimeV1(
-    fs.readFileSync(path.join(procRoot, "stat"), "utf8"),
+    readTextFileBoundedV1(
+      path.join(procRoot, "stat"),
+      MAX_PROC_TEXT_BYTES,
+      "proc_stat",
+    ),
   );
   return Object.freeze({
     ...creds,
@@ -478,6 +557,9 @@ function readFileIdentity(target, mountRecords, code) {
   if (!listed.isFile() || listed.isSymbolicLink()) {
     throw new Error(code + "_not_file");
   }
+  if (listed.size > BigInt(MAX_PAYER_DOMAIN_BYTES)) {
+    throw new Error(code + "_too_large");
+  }
   assertSimpleAcl(resolved);
   let fd = -1;
   try {
@@ -489,7 +571,14 @@ function readFileIdentity(target, mountRecords, code) {
     if (!before.isFile() || !sameStat(listed, before)) {
       throw new Error(code + "_identity_drift");
     }
-    const bytes = fs.readFileSync(fd);
+    if (before.size > BigInt(MAX_PAYER_DOMAIN_BYTES)) {
+      throw new Error(code + "_too_large");
+    }
+    const bytes = readFdBoundedV1(
+      fd,
+      MAX_PAYER_DOMAIN_BYTES,
+      code,
+    );
     const after = fs.fstatSync(fd, { bigint: true });
     if (!sameStat(before, after) || bytes.length !== Number(after.size)) {
       throw new Error(code + "_changed_during_read");
@@ -1140,8 +1229,8 @@ function buildDecision({
 
 export function testOnlyClassifyCollectedHostEvidenceV1(input) {
   return buildDecision({
-    live: false,
     ...input,
+    live: false,
   });
 }
 
@@ -1223,9 +1312,17 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       path.join(custodyProc, "mountinfo");
     const publicRuntimeMountInfoPath =
       path.join(publicProc, "mountinfo");
-    const mountInfoBefore = fs.readFileSync(mountInfoPath, "utf8");
+    const mountInfoBefore = readTextFileBoundedV1(
+      mountInfoPath,
+      MAX_PROC_TEXT_BYTES,
+      "custody_mountinfo",
+    );
     const publicRuntimeMountInfoBefore =
-      fs.readFileSync(publicRuntimeMountInfoPath, "utf8");
+      readTextFileBoundedV1(
+        publicRuntimeMountInfoPath,
+        MAX_PROC_TEXT_BYTES,
+        "public_runtime_mountinfo",
+      );
     const mountRecords = parseMountInfoV1(mountInfoBefore);
     const publicRuntimeMountRecords =
       parseMountInfoV1(publicRuntimeMountInfoBefore);
@@ -1275,9 +1372,17 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       return hold("process_identity_changed_during_observation");
     }
 
-    const mountInfoAfter = fs.readFileSync(mountInfoPath, "utf8");
+    const mountInfoAfter = readTextFileBoundedV1(
+      mountInfoPath,
+      MAX_PROC_TEXT_BYTES,
+      "custody_mountinfo",
+    );
     const publicRuntimeMountInfoAfter =
-      fs.readFileSync(publicRuntimeMountInfoPath, "utf8");
+      readTextFileBoundedV1(
+        publicRuntimeMountInfoPath,
+        MAX_PROC_TEXT_BYTES,
+        "public_runtime_mountinfo",
+      );
     const namespaceAfter = namespaceBundle(
       readNamespaceIdentity("/proc/self"),
       readNamespaceIdentity(publicProc),
@@ -1336,12 +1441,16 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
     if (now - observedAt >= TTL_MS) {
       return hold("collector_observation_window_exceeded");
     }
-    const bootId = fs
-      .readFileSync("/proc/sys/kernel/random/boot_id", "utf8")
-      .trim();
-    const machineId = fs
-      .readFileSync("/etc/machine-id", "utf8")
-      .trim();
+    const bootId = readTextFileBoundedV1(
+      "/proc/sys/kernel/random/boot_id",
+      MAX_IDENTITY_TEXT_BYTES,
+      "boot_id",
+    ).trim();
+    const machineId = readTextFileBoundedV1(
+      "/etc/machine-id",
+      MAX_IDENTITY_TEXT_BYTES,
+      "machine_id",
+    ).trim();
     if (!bootId) return hold("boot_id_unavailable");
     if (!machineId) return hold("machine_id_unavailable");
 
