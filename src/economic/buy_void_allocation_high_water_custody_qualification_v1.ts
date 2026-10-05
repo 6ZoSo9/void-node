@@ -284,9 +284,14 @@ function sha256Id(value: Buffer | string): string {
 }
 
 function safeInteger(value: unknown, code: string): number {
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0) fail(code);
-  return parsed;
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0
+  ) {
+    fail(code);
+  }
+  return value;
 }
 
 function serviceId(value: unknown, code: string): number {
