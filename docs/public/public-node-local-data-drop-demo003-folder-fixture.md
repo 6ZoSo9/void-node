@@ -114,13 +114,19 @@ Expected marker:
 
 Serving authority is fail-closed and source-rooted:
 
-- verifier authority remains the five sealed memfd snapshot digests;
-- intake binds the published snapshot to those exact sealed digests;
-- public serving revalidates the current manifest, checksum ledger, intake record,
-  and all three payload files against the canonical Demo003 source hashes/sizes;
+- the verifier's historical execution authority is the five sealed memfd snapshot
+  digests, and intake records that provenance claim;
+- intake binds the published snapshot to those exact sealed digests at import time;
+- public serving does not trust mutable intake provenance as its current authority:
+  it independently revalidates the current manifest, checksum ledger, intake
+  consistency, and all three payload files against the canonical Demo003 source
+  hashes/sizes;
 - a coherently rewritten mutable intake/manifest/checksum set cannot authorize
   changed payload bytes;
-- responses expose `serving_authority=canonical_demo003_source_contract_v1`;
+- responses expose both
+  `verified_content_authority=canonical_demo003_source_contract_v1` and
+  `intake_verified_content_authority=sealed_memfd_snapshot`, keeping present
+  serving authority separate from historical intake provenance;
 - `visible_extraction_tree_trusted=false` remains explicit.
 
 Policy: public folder serving is read-only. The folder was operator-imported and
