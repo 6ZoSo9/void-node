@@ -24,6 +24,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_EXTERNAL_WITNESS_AUTHORITY_V1 =
     source_host_invariant_binding: true,
     witness_host_invariant_binding: true,
     inventory_monotonicity: true,
+    micro_void_inventory_arithmetic: true,
     canonical_local_ledger_high_water_binding: true,
     exact_witnessed_ledger_prefix_binding: true,
     external_transport_authenticated: false,
@@ -53,7 +54,8 @@ const SHA1 = /^[0-9a-f]{40}$/u;
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const SAFE_TEXT = /^[A-Za-z0-9._:@/-]{1,256}$/u;
-const DECIMAL = /^(0|[1-9][0-9]*)$/u;
+const AMOUNT = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u;
+const MICRO = 1_000_000n;
 const MAX_WITNESS_BYTES = 16 * 1024 * 1024;
 const MAX_WITNESS_EVENTS = 100_001;
 
@@ -274,9 +276,31 @@ function safeInt(
   return parsed;
 }
 
+function amountMicro(value: unknown, reason: string): bigint {
+  const text = String(value ?? "");
+  if (text.length < 1 || text.length > 32) fail(reason);
+  const match = AMOUNT.exec(text);
+  if (!match) fail(reason);
+  const fractionRaw = match[2] || "";
+  const micro =
+    BigInt(match[1]) * MICRO +
+    BigInt(fractionRaw.padEnd(6, "0") || "0");
+  const whole = micro / MICRO;
+  const fraction = (micro % MICRO)
+    .toString()
+    .padStart(6, "0")
+    .replace(/0+$/u, "");
+  const canonical =
+    fraction.length > 0
+      ? whole.toString() + "." + fraction
+      : whole.toString();
+  if (canonical !== text) fail(reason);
+  return micro;
+}
+
 function decimal(value: unknown, reason: string): string {
   const text = String(value ?? "");
-  if (!DECIMAL.test(text) || text.length > 32) fail(reason);
+  amountMicro(text, reason);
   return text;
 }
 
@@ -433,9 +457,18 @@ function parseEvent(
     fail("allocation_custody_witness_event_hash_mismatch");
   }
 
-  const pool = BigInt(event.pool_void_total);
-  const reserved = BigInt(event.reserved_void_total);
-  const remaining = BigInt(event.remaining_void);
+  const pool = amountMicro(
+    event.pool_void_total,
+    "allocation_custody_witness_event_inventory_invalid",
+  );
+  const reserved = amountMicro(
+    event.reserved_void_total,
+    "allocation_custody_witness_event_inventory_invalid",
+  );
+  const remaining = amountMicro(
+    event.remaining_void,
+    "allocation_custody_witness_event_inventory_invalid",
+  );
   if (
     pool <= 0n ||
     reserved < 0n ||
@@ -568,10 +601,22 @@ export function parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
         event.ledger_bytes <= previous.ledger_bytes ||
         event.allocation_tip_sha256 ===
           previous.allocation_tip_sha256 ||
-        BigInt(event.reserved_void_total) <=
-          BigInt(previous.reserved_void_total) ||
-        BigInt(event.remaining_void) >=
-          BigInt(previous.remaining_void)
+        amountMicro(
+    event.reserved_void_total,
+    "allocation_custody_witness_event_inventory_invalid",
+  ) <=
+          amountMicro(
+          previous.reserved_void_total,
+          "allocation_custody_witness_event_inventory_invalid",
+        ) ||
+        amountMicro(
+    event.remaining_void,
+    "allocation_custody_witness_event_inventory_invalid",
+  ) >=
+          amountMicro(
+          previous.remaining_void,
+          "allocation_custody_witness_event_inventory_invalid",
+        )
       ) {
         fail("allocation_custody_witness_advance_invalid");
       }
@@ -708,9 +753,18 @@ function parseCurrent(
     ),
   };
 
-  const pool = BigInt(current.pool_void_total);
-  const reserved = BigInt(current.reserved_void_total);
-  const remaining = BigInt(current.remaining_void);
+  const pool = amountMicro(
+    current.pool_void_total,
+    "allocation_custody_witness_current_invalid",
+  );
+  const reserved = amountMicro(
+    current.reserved_void_total,
+    "allocation_custody_witness_current_invalid",
+  );
+  const remaining = amountMicro(
+    current.remaining_void,
+    "allocation_custody_witness_current_invalid",
+  );
   if (
     pool <= 0n ||
     reserved < 0n ||
@@ -998,9 +1052,21 @@ export function planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(
       !witnessedPrefixMatches(tip, canonical.ledger_bytes) ||
       current.ledger_bytes <= tip.ledger_bytes ||
       current.allocation_tip_sha256 === tip.allocation_tip_sha256 ||
-      BigInt(current.reserved_void_total) <=
-        BigInt(tip.reserved_void_total) ||
-      BigInt(current.remaining_void) >= BigInt(tip.remaining_void)
+      amountMicro(
+    current.reserved_void_total,
+    "allocation_custody_witness_current_invalid",
+  ) <=
+        amountMicro(
+        tip.reserved_void_total,
+        "allocation_custody_witness_event_inventory_invalid",
+      ) ||
+      amountMicro(
+    current.remaining_void,
+    "allocation_custody_witness_current_invalid",
+  ) >= amountMicro(
+        tip.remaining_void,
+        "allocation_custody_witness_event_inventory_invalid",
+      )
     ) {
       fail("allocation_custody_witness_advance_invalid");
     }
