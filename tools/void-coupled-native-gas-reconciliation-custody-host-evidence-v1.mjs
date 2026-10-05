@@ -744,6 +744,15 @@ function servicePolicyEvidence(
   });
 }
 
+export function assertStableCustodyServicePolicyEvidenceV1(
+  before,
+  after,
+) {
+  if (canonical(before) !== canonical(after)) {
+    throw new Error("service_policy_changed_during_observation");
+  }
+}
+
 function statfsType(target) {
   const stat = fs.statfsSync(target, { bigint: true });
   const type = BigInt.asUintN(64, stat.type);
@@ -1247,6 +1256,20 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
     ) {
       return hold("public_runtime_paths_changed_during_observation");
     }
+
+    const custodyPolicyAfter = servicePolicyEvidence(
+      custodyUnit,
+      custodyShowAfter,
+      custodyCatAfter,
+      custodyCredsAfter,
+      publicCredsAfter,
+      publicUnitBefore.pid,
+      rootPath,
+    );
+    assertStableCustodyServicePolicyEvidenceV1(
+      custodyPolicyBefore,
+      custodyPolicyAfter,
+    );
 
     const now = Date.now();
     if (now - observedAt >= TTL_MS) {
