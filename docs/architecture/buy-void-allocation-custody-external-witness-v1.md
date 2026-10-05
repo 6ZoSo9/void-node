@@ -102,8 +102,7 @@ The focused proof binds the operator-qualified Nimo genesis witness, rederives
 the canonical genesis high-water from the merged allocation contracts, builds
 real canonical allocation ledgers for subsequent states, and includes an
 alternate valid ledger branch that must be rejected. The first positive
-post-genesis allocation is exactly `0.000001 VOID`, proving fractional
-micro-VOID inventory survives canonical ledger -> high-water -> witness binding:
+post-genesis allocation is exactly `0.000002 VOID` for `0.000001 USDC`, the smallest six-decimal amount pair that satisfies the canonical 2 VOID / 1 USDC presale rate, proving fractional micro-VOID inventory survives canonical ledger -> high-water -> witness binding:
 
 - genesis event SHA-256:
   `sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654`;
