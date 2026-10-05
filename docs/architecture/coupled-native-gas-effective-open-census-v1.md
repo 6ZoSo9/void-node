@@ -87,6 +87,8 @@ Every reconciliation must:
 
 - be the exact #2485 confirmed presale reconciliation shape;
 - carry the exact #2485 authority object;
+- carry one canonical `terminal_cost_identity_sha256` that is stable across
+  later confirmation-depth observations;
 - bind an existing historical liability;
 - match liability payer, obligation, nonce, transaction-plan fingerprint and
   maximum reserve;
@@ -182,7 +184,11 @@ authorized by this contract.
 ## Provenance boundary
 
 A stored reconciliation can be internally canonical while its terminal receipt
-provenance is not freshly authenticated.
+provenance is not freshly authenticated. The stored
+`terminal_cost_identity_sha256` proves deterministic accounting identity, not
+that the terminal receipt was freshly re-observed through an authenticated
+transport at census time. Fresh observation identity remains a separate
+resolver/writer responsibility.
 
 This contract therefore reports:
 
@@ -218,7 +224,8 @@ Under that lock it should:
 3. re-read the exact durable terminal outcome;
 4. obtain fresh server-controlled receipt/current-block evidence;
 5. run terminal-cost evidence classification;
-6. run #2485 reconciliation classification;
+6. run #2485 reconciliation classification and require the fresh observation to
+   reproduce the stable terminal-cost identity/canonical reconciliation;
 7. create/fsync one canonical reconciliation;
 8. rerun this full census; and
 9. prove the liability leaves effective-open reserve exactly once.
