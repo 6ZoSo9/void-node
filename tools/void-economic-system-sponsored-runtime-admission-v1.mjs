@@ -44,6 +44,7 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     canonical_ttl_policy_semantics_reused: true,
     canonical_sponsored_policy_semantics_reused: true,
     candidate_preflight_before_time_mutation: true,
+    candidate_preflight_before_reservation_history_scan: true,
     candidate_issued_after_bundle_commit_required: true,
     current_candidate_revalidation_after_time: true,
     expired_duplicate_execution_admission: false,
@@ -736,6 +737,12 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
       try {
         const request = normalizeRequest(inputRequest);
 
+        preflight = preflightCandidate(
+          request,
+          policies,
+          allowedTargets,
+        );
+
         const structural =
           inspectEconomicSystemSponsoredReservationStoreV1({
             root_dir: reservationRoot,
@@ -759,16 +766,11 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
               "SPONSORED_RUNTIME_RESERVATION_STORE_PREFLIGHT_HELD",
             {
               reservationStorePreflightVerified: false,
+              preflightVerified: true,
             },
           );
         }
         reservationStorePreflightVerified = true;
-
-        preflight = preflightCandidate(
-          request,
-          policies,
-          allowedTargets,
-        );
 
         timeResult = await timeStore.observe();
         if (
