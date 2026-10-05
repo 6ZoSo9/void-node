@@ -216,6 +216,15 @@ await expectHeld("coupled_native_gas_observer_rpc_url_must_be_loopback_http", {
 await expectHeld("coupled_native_gas_observer_rpc_url_must_be_loopback_http", {
   policy: { rpc_url: "http://localhost:18553/" },
 });
+for (const rpc_url of [
+  "http://127.1:18553/",
+  "http://2130706433:18553/",
+  "http://0x7f000001:18553/",
+]) {
+  await expectHeld("coupled_native_gas_observer_rpc_url_must_be_loopback_http", {
+    policy: { rpc_url },
+  });
+}
 const ipv6Loopback = await observed({
   policy: { rpc_url: "http://[::1]:18553/" },
 });
@@ -333,6 +342,7 @@ console.log("existing_buy_void_http_transport_reused=true");
 console.log("rpc_methods=eth_chainId,eth_gasPrice,eth_getBalance");
 console.log("pending_balance_observation=true");
 console.log("numeric_loopback_literal_required=true");
+console.log("alternate_ipv4_spellings_rejected=true");
 console.log("nonce_observation=false");
 console.log("fee_multiplier_policy_bound=true");
 console.log("content_addressed_observation_reused=true");
