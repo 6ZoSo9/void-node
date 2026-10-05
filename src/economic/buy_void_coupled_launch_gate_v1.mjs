@@ -1638,18 +1638,22 @@ export async function withBuyLaunchRequestAuthorityMutationV1(
       env,
       gateReadStartedAtMs,
     );
-    const mutationAdmissionNowMs = now();
-    const admission =
-      classifyBuyLaunchRequestMutationAdmissionV1(
-        request,
-        currentGate,
-        gateReadStartedAtMs,
-        mutationAdmissionNowMs,
-      );
-    if (!admission.ready) {
-      throw new Error(admission.reason);
-    }
-    return operation();
+    const assertCurrentRequestAuthority = () => {
+      const mutationAdmissionNowMs = now();
+      const admission =
+        classifyBuyLaunchRequestMutationAdmissionV1(
+          request,
+          currentGate,
+          gateReadStartedAtMs,
+          mutationAdmissionNowMs,
+        );
+      if (!admission.ready) {
+        throw new Error(admission.reason);
+      }
+      return admission;
+    };
+    assertCurrentRequestAuthority();
+    return operation(assertCurrentRequestAuthority);
   });
 }
 
