@@ -345,30 +345,29 @@ assert.match(
   requireHeld(x, "reconciliation_custody_host_evidence_invalid");
 }
 
+const trueAuthorityKeys = new Set([
+  "source_only_contract",
+  "host_evidence_input_only",
+  "dedicated_service_identity_required",
+  "exact_payer_domain_identity_required",
+  "canonical_payer_domain_binding_reused",
+  "exact_payer_domain_bytes_required",
+  "exact_namespace_identity_required",
+  "root_owned_ancestor_chain_required",
+  "root_path_stability_evidence_required",
+  "mount_instance_fingerprint_bound",
+  "remount_denial_evidence_required",
+  "bind_mount_denial_evidence_required",
+  "same_uid_root_replacement_denial_required",
+  "symlink_substitution_denial_required",
+  "hardened_service_policy_required",
+  "no_fallback_storage_required",
+  "bounded_evidence_freshness_checked",
+]);
 for (const [key, value] of Object.entries(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_AUTHORITY_V1,
 )) {
-  if ([
-    "source_only_contract",
-    "host_evidence_input_only",
-    "dedicated_service_identity_required",
-    "exact_payer_domain_identity_required",
-    "canonical_payer_domain_binding_reused",
-    "exact_payer_domain_bytes_required",
-    "exact_namespace_identity_required",
-    "root_owned_ancestor_chain_required",
-    "root_path_stability_evidence_required",
-    "mount_instance_fingerprint_bound",
-    "remount_denial_evidence_required",
-    "bind_mount_denial_evidence_required",
-    "same_uid_root_replacement_denial_required",
-    "symlink_substitution_denial_required",
-    "hardened_service_policy_required",
-    "no_fallback_storage_required",
-    "bounded_evidence_freshness_checked",
-  ].includes(key)) {
-    assert.equal(value, true, key);
-  }
+  assert.equal(value, trueAuthorityKeys.has(key), key);
 }
 
 console.log(
