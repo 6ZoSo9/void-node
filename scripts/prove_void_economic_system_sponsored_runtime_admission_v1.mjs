@@ -808,17 +808,21 @@ const bundle = policyBundle(ttl, sponsor);
 
     const held = await binding.admit(request);
     assert.equal(held.ok, false, JSON.stringify(held));
-    assert.equal(held.preflight_verified, true);
-    assert.equal(held.current_candidate_verified, true);
-    assert.equal(held.time_observation_performed, true);
-    assert.equal(held.time_mutation_performed, true);
+    assert.equal(
+      held.reservation_store_preflight_verified,
+      false,
+    );
+    assert.equal(held.preflight_verified, false);
+    assert.equal(held.current_candidate_verified, false);
+    assert.equal(held.time_observation_performed, false);
+    assert.equal(held.time_mutation_performed, false);
     assert.equal(held.reservation_mutation_performed, false);
-    assert.equal(clock.calls(), 1);
-    assert.equal(countRecords(f.timeRoot), 1);
+    assert.equal(clock.calls(), 0);
+    assert.equal(countRecords(f.timeRoot), 0);
     assert.equal(
       VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1
         .reservation_store_preflight_before_time_proven,
-      false,
+      true,
     );
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
@@ -971,7 +975,6 @@ console.log("caller_policy_override=false");
 console.log("constructor_accessor_rejected_without_getter_read=true");
 console.log("nested_bundle_accessor_rejected_without_getter_read=true");
 console.log("revoked_allowed_targets_proxy_rejected=true");
-console.log("reservation_store_preflight_before_time_proven=false");
 console.log("missing_reservation_store_can_advance_time=true");
 console.log("durable_time_observation_before_reservation=true");
 console.log("durable_reservation_before_execution=true");
