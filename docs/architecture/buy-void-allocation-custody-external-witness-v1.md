@@ -64,11 +64,15 @@ The first event must be exact genesis:
 Every later event must be exactly one allocation record ahead. Before planning
 that event, the canonical current ledger must contain the witnessed prior ledger
 as an exact byte prefix whose SHA-256 equals the witness tip's `ledger_sha256`.
-The full current ledger/high-water pair must independently pass #2442 binding.
-This rejects an alternate valid ledger branch that merely has record count
-`tip + 1`. Ledger bytes, reserved VOID and the allocation tip must advance;
-remaining VOID must decrease. Immutable source/host/storage identities may not
-drift within one journal.
+That prefix is itself rederived through the canonical allocation/high-water
+contract and must reproduce the witness tip's record count, allocation tip,
+high-water digest/length, pool, reserved and remaining VOID. A byte prefix that
+cuts through a record or names a noncanonical prior ledger cannot qualify merely
+because its SHA-256 matches. The full current ledger/high-water pair must
+independently pass #2442 binding. This rejects an alternate valid ledger branch
+that merely has record count `tip + 1`. Ledger bytes, reserved VOID and the
+allocation tip must advance; remaining VOID must decrease. Immutable
+source/host/storage identities may not drift within one journal.
 
 ## Current-state classification
 
