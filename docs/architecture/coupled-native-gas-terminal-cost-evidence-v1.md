@@ -201,20 +201,34 @@ account-balance-delta or execution-trace proof.
 
 ## Output
 
-Success returns deterministic terminal-cost evidence binding:
+Success returns two deliberately different content identities.
+
+`terminal_cost_identity_sha256` is the stable accounting identity. It binds:
 
 - liability / plan / attempt identity;
 - native transaction hash;
 - confirmed/reverted durable outcome;
-- deterministic terminal-record fingerprint;
+- deterministic terminal-record fingerprint and recorded time;
 - exact receipt block hash/number;
-- fresh current block and confirmation count;
 - exact gas used;
 - exact effective gas price;
 - exact gas cost;
 - exact native delivery value consumed by outcome semantics;
 - exact total liability consumption; and
 - exact maximum reserved envelope.
+
+It intentionally excludes the fresh observation-only fields
+`current_block_number`, `observed_confirmation_count`, and
+`required_min_confirmations`. Those values prove that this observation is fresh
+enough, but they do not change the already-terminal transaction cost. Therefore
+the stable accounting identity remains byte-for-byte constant as confirmation
+depth increases.
+
+`evidence_id` remains the content address of the **full** terminal-cost evidence,
+including the fresh current block, observed confirmation count, minimum
+confirmation policy, and the stable accounting identity. A later observation at
+a higher head therefore gets a new `evidence_id` while preserving the same
+`terminal_cost_identity_sha256`.
 
 The result always reports:
 
@@ -288,3 +302,6 @@ The focused proof covers confirmed/reverted native outcomes, terminal
 fingerprint validation, fresh-finality regression, zero gas price, gas/fee
 ceilings, transaction/block/status mismatch, endpoint binding, plan/liability
 conflict, malformed revert arithmetic, and raw-receipt exact-key enforcement.
+It additionally proves the same terminal transaction observed one block later
+has a different freshness-sensitive `evidence_id` but the exact same
+`terminal_cost_identity_sha256`.
