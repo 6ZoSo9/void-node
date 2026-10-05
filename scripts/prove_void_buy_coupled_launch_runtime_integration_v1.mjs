@@ -207,21 +207,21 @@ assert.match(
   const writerAt = capacityAdmission.indexOf(
     "export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   );
-  const requestLockAcquireAt = capacityAdmission.indexOf(
-    "withBuyVoidFilesystemBakeryLockAsyncV1(",
+  const launchMutationAt = capacityAdmission.indexOf(
+    "input.with_launch_authority_mutation(\n          request,",
     writerAt,
   );
-  const requestLockPathAt = capacityAdmission.indexOf(
-    "buyVoidTerminalCloseoutRequestLockPathV1({",
-    requestLockAcquireAt,
+  const requestLockAcquireAt = capacityAdmission.indexOf(
+    "withBuyVoidTerminalCloseoutRequestLockV1(",
+    launchMutationAt,
   );
-  const launchMutationAt = capacityAdmission.indexOf(
-    "input.with_launch_authority_mutation(\n              request,",
-    requestLockPathAt,
+  const freshAuthorityAt = capacityAdmission.indexOf(
+    "assertCurrentAuthority();",
+    requestLockAcquireAt,
   );
   const requestSnapshotAt = capacityAdmission.indexOf(
     "const requestBeforeAppend =",
-    launchMutationAt,
+    freshAuthorityAt,
   );
   const appendAt = capacityAdmission.indexOf(
     "appendPaymentVerifiedEventDurableV1(",
@@ -229,19 +229,19 @@ assert.match(
   );
   assert.ok(
     writerAt >= 0 &&
-      requestLockAcquireAt > writerAt &&
-      requestLockPathAt > requestLockAcquireAt &&
-      launchMutationAt > requestLockPathAt &&
-      requestSnapshotAt > launchMutationAt &&
+      launchMutationAt > writerAt &&
+      requestLockAcquireAt > launchMutationAt &&
+      freshAuthorityAt > requestLockAcquireAt &&
+      requestSnapshotAt > freshAuthorityAt &&
       appendAt > requestSnapshotAt,
-    "request lock must be acquired before fresh launch-authority admission and durable append",
+    "generation authority must be held before the synchronous request lock, with a fresh under-lock assertion immediately before append",
   );
-  assert.match(
-    capacityAdmission.slice(requestLockAcquireAt, launchMutationAt),
+  assert.doesNotMatch(
+    capacityAdmission.slice(launchMutationAt, appendAt),
     /withBuyVoidFilesystemBakeryLockAsyncV1/,
   );
-  assert.match(
-    capacityAdmission.slice(requestLockAcquireAt, launchMutationAt),
+  assert.doesNotMatch(
+    capacityAdmission.slice(launchMutationAt, appendAt),
     /buyVoidTerminalCloseoutRequestLockPathV1/,
   );
 }
