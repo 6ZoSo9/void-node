@@ -709,6 +709,151 @@ assert.throws(
   /signed observer authorization is required/,
 );
 
+let releaseStoppedFetch!: () => void;
+let reportStoppedFetchStarted!: () => void;
+const stoppedFetchGate = new Promise<void>((resolve) => {
+  releaseStoppedFetch = resolve;
+});
+const stoppedFetchStarted = new Promise<void>((resolve) => {
+  reportStoppedFetchStarted = resolve;
+});
+let stoppedFetchCompositionCalls = 0;
+let stoppedFetchActivationCalls = 0;
+const stoppedDuringFetchCollector =
+  new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+    node: directCollectorNode(local.nodeId, peers),
+    observerAuthorization,
+    releaseRoot,
+    intervalMs: 10_000,
+    nowMs: () => NOW,
+    async fetchIntroduction() {
+      reportStoppedFetchStarted();
+      await stoppedFetchGate;
+      return envelope();
+    },
+    async fetchRecordBytes() {
+      return "{}";
+    },
+    async fetchManifestBytes() {
+      return "{}";
+    },
+    async composeAuthorizedDiscovery() {
+      stoppedFetchCompositionCalls += 1;
+      return composition(local.nodeId);
+    },
+    activateVerifiedComposition() {
+      stoppedFetchActivationCalls += 1;
+      return { route_count: 2 };
+    },
+  });
+const stoppedFetchRun = stoppedDuringFetchCollector.runOnce();
+await stoppedFetchStarted;
+stoppedDuringFetchCollector.stop();
+releaseStoppedFetch();
+assert.equal((await stoppedFetchRun).reason, "collector_stopped");
+assert.equal(stoppedFetchCompositionCalls, 0);
+assert.equal(stoppedFetchActivationCalls, 0);
+
+let releaseStoppedComposition!: () => void;
+let reportStoppedCompositionStarted!: () => void;
+const stoppedCompositionGate = new Promise<void>((resolve) => {
+  releaseStoppedComposition = resolve;
+});
+const stoppedCompositionStarted = new Promise<void>((resolve) => {
+  reportStoppedCompositionStarted = resolve;
+});
+let stoppedCompositionActivationCalls = 0;
+const stoppedDuringCompositionCollector =
+  new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+    node: directCollectorNode(local.nodeId, peers),
+    observerAuthorization,
+    releaseRoot,
+    intervalMs: 10_000,
+    nowMs: () => NOW,
+    async fetchIntroduction() {
+      return envelope();
+    },
+    async fetchRecordBytes() {
+      return "{}";
+    },
+    async fetchManifestBytes() {
+      return "{}";
+    },
+    async composeAuthorizedDiscovery() {
+      reportStoppedCompositionStarted();
+      await stoppedCompositionGate;
+      return composition(local.nodeId);
+    },
+    activateVerifiedComposition() {
+      stoppedCompositionActivationCalls += 1;
+      return { route_count: 2 };
+    },
+  });
+const stoppedCompositionRun = stoppedDuringCompositionCollector.runOnce();
+await stoppedCompositionStarted;
+stoppedDuringCompositionCollector.stop();
+releaseStoppedComposition();
+assert.equal((await stoppedCompositionRun).reason, "collector_stopped");
+assert.equal(stoppedCompositionActivationCalls, 0);
+
+const stoppedRejectedGroupPeers = new Map<string, unknown>([
+  [sourceA.nodeId, peer(sourceA, ["8.8.8.8:4700"])],
+  [sourceB.nodeId, peer(sourceB, ["9.9.9.9:4701"], "relay")],
+  [sourceC.nodeId, peer(sourceC, ["1.1.1.1:4702"])],
+  [attackerA.nodeId, peer(attackerA, ["8.8.4.4:4703"], "relay")],
+]);
+let releaseStoppedRejectedComposition!: () => void;
+let reportStoppedRejectedCompositionStarted!: () => void;
+const stoppedRejectedCompositionGate = new Promise<void>((resolve) => {
+  releaseStoppedRejectedComposition = resolve;
+});
+const stoppedRejectedCompositionStarted = new Promise<void>((resolve) => {
+  reportStoppedRejectedCompositionStarted = resolve;
+});
+let stoppedRejectedCompositionCalls = 0;
+let stoppedRejectedActivationCalls = 0;
+const stoppedDuringRejectedCompositionCollector =
+  new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+    node: directCollectorNode(local.nodeId, stoppedRejectedGroupPeers),
+    observerAuthorization,
+    releaseRoot,
+    intervalMs: 10_000,
+    nowMs: () => NOW,
+    async fetchIntroduction(candidate) {
+      return candidate.source_node_id === sourceA.nodeId ||
+        candidate.source_node_id === sourceB.nodeId
+        ? envelope(DISCOVERY_ID)
+        : envelope(`voidpud1_${"7".repeat(64)}`);
+    },
+    async fetchRecordBytes() {
+      return "{}";
+    },
+    async fetchManifestBytes() {
+      return "{}";
+    },
+    async composeAuthorizedDiscovery() {
+      stoppedRejectedCompositionCalls += 1;
+      reportStoppedRejectedCompositionStarted();
+      await stoppedRejectedCompositionGate;
+      throw new Error("proof stopped authorized composition rejection");
+    },
+    activateVerifiedComposition() {
+      stoppedRejectedActivationCalls += 1;
+      return { route_count: 2 };
+    },
+  });
+const stoppedRejectedCompositionRun =
+  stoppedDuringRejectedCompositionCollector.runOnce();
+await stoppedRejectedCompositionStarted;
+stoppedDuringRejectedCompositionCollector.stop();
+releaseStoppedRejectedComposition();
+assert.equal(
+  (await stoppedRejectedCompositionRun).reason,
+  "collector_stopped",
+);
+assert.equal(stoppedRejectedCompositionCalls, 1);
+assert.equal(stoppedRejectedActivationCalls, 0);
+
 await mount.stop();
 assert.equal(collector.status().stopped, true);
 

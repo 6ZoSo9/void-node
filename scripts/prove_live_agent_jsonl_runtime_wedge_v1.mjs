@@ -7,8 +7,14 @@ import net from "node:net";
 
 const sourcePath = path.resolve("src/index.ts");
 const source = fs.readFileSync(sourcePath, "utf8");
-const lines = source.split("\n");
-const agentRegion = lines.slice(24899, 27150).join("\n");
+const agentStart = source.indexOf("(function agentV0EnqueueShim()");
+const agentEnd = source.indexOf(
+  "// --------- DEV ROUTE KILL-SWITCH",
+  agentStart,
+);
+assert.ok(agentStart >= 0, "Agent-v0 semantic start marker missing");
+assert.ok(agentEnd > agentStart, "Agent-v0 semantic end marker missing");
+const agentRegion = source.slice(agentStart, agentEnd);
 const buggySplit = '.split("\\\\n")';
 const fixedSplit = '.split("\\n")';
 const buggyJoin = '.join("\\\\n")';
@@ -58,7 +64,22 @@ assert.equal(
   false,
   "legacy Agent-v0 receipt metrics whole-file JSONL reader remains",
 );
-assert.ok(agentRegion.split(fixedJoin).length - 1 >= 10, "expected repaired newline JSONL writers/metrics joins");
+const requiredRealNewlineFraming = [
+  'appendAgentPick2JsonlCanonicalV1(jobsFile, JSON.stringify(rec) + "\\n"',
+  'appendAgentPick2JsonlCanonicalV1(out, JSON.stringify(rec) + "\\n"',
+  'appendAgentPick2JsonlCanonicalV1(receiptsFile, JSON.stringify(rec)+"\\n"',
+  'fs.writeSync(fd, JSON.stringify(__lineObj)+"\\n")',
+  'appendAgentPick2JsonlCanonicalV1(FILE_LEASES, JSON.stringify(lease)+"\\n")',
+  'res.type("text/plain").send(out.join("\\n")+"\\n")',
+  'res.type("text/plain").send(lines.join("\\n")+"\\n")',
+];
+for (const framing of requiredRealNewlineFraming) {
+  assert.equal(
+    agentRegion.includes(framing),
+    true,
+    `required Agent-v0 real-newline framing missing: ${framing}`,
+  );
+}
 
 const badReceiptsTail = String.raw`lines.join("\n")+"\\n"`;
 const goodReceiptsTail = String.raw`lines.join("\n")+"\n"`;

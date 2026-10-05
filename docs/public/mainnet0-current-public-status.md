@@ -2,7 +2,7 @@
 
 <!-- VOID_MAINNET0_CURRENT_PUBLIC_STATUS_V2 -->
 
-Reviewed: **September 25, 2026**
+Reviewed: **October 3, 2026**
 
 Status: `PUBLIC_MAINNET0_LIVE_WITH_GUARDED_MUTATION`
 
@@ -52,6 +52,8 @@ A node reporting `ready=true` proves local readiness only. It is not sufficient 
 - Public-node dashboard and route discovery.
 - Public runtime, build-map, DataNet, Work Credit, validator-candidate, and proof evidence.
 - DataNet read, verify, mirror, pin, and public evidence surfaces.
+- The client-neutral Epoch-2 successor-state manifest is published through the public evidence/composition path. This is evidence availability only; migration and successor state-root truth admission remain separately gated.
+- The production Epoch-2 `DatanetContentCommitmentRegistryV1` deployment is publicly attested at block `5899`, address `0xe60b15ed8df7c4ec5334067ead18c924744c2681`. Registry deployment does not authorize the separate successor state-root commitment/finality/truth-admission transition.
 - Work Credit proof summaries and verifier links.
 - Native Voidchain and NullFeed public-site routes.
 - Public operator self-check and offline evidence review.
@@ -116,6 +118,8 @@ The public opening is now coupled to WC/VOID production readiness: the presale m
 
 Payment verification and `VoidToken` fulfillment remain separately auditable transitions. The delivery inventory is not the fulfiller's native gas balance. Per-payment gas reservation does not prove full-presale lifetime gas capacity, and any future source-chain refund requires its own source-chain fee budget. Automatic fulfillment is not enabled.
 
+The Buy VOID asset policy accepts only native USDC on Ethereum mainnet (chain ID `1`) and Base mainnet (chain ID `8453`). Bridged USDbC, lookalike tokens, unsupported chains, blind deposits, and exchange/custodial sends are rejected. Public Buy request admission now delegates to the full canonical WC/VOID coupled-readiness classifier. That source classification is not live activation authority: admission additionally requires the durable generation journal and external high-water mirror, no pending publication intent, an unexpired content-addressed activation receipt signed by both the launch controller and Sovereign co-signer, and exact operator confirmation. The checked-in canonical candidates remain `HOLD`; Ethereum checkout readiness/finality gating remains source-only; public intake remains closed.
+
 "No hidden minimum" remains the current policy truth; it is not a promise to
 accept unlimited microscopic purchases. Before public intake, an explicit
 anti-grief rule must bound the fixed fulfillment cost per admitted obligation.
@@ -140,9 +144,13 @@ transactions cannot enter the accepted public path.
 
 Any future public economic instruction must show the complete effective cost:
 gross amount, every fee/spread, source-chain and Chain-2050 gas responsibility,
-net output, and expiry/reconciliation behavior. BTC/VOID source currently has a
-0.50% protocol fee plus a separate 1% buyback spread; their combined launch
-treatment remains HOLD pending explicit review.
+net output, and expiry/reconciliation behavior. Deterministic Bitcoin HTLC and
+Chain-2050 hashlock-settlement primitives are merged with exact terminal VOID
+balance-delta and adversarial preimage checks. These are source-only settlement
+controls, not current runtime or activation truth; BTC/VOID remains post-presale
+and separately launch-gated. BTC/VOID source currently has a 0.50% protocol fee
+plus a separate 1% buyback spread; their combined launch treatment remains HOLD
+pending explicit review.
 
 The private economic EVM's durable-startup promotion is also incomplete. The
 checked-in recovery plan names checkpoint block 37371, but later accepted

@@ -9,7 +9,6 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
-
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1 =
   "VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_V1";
 export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1 =
@@ -35,6 +34,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     canonical_remote_main_read_required: true,
     canonical_remote_main_head_match_required: true,
     canonical_remote_main_external_network_read: true,
+    canonical_production_epoch2_rpc_required: true,
     caller_transport_injection_forbidden: true,
     production_transport_internal_only: true,
     private_output_parent_fd_bound: true,
@@ -49,6 +49,8 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_AUT
     observation_block_hash_revalidation_required: true,
     block_bound_deployer_balance_required: true,
     exact_deployment_data_gas_estimate_required: true,
+    epoch2_signed_access_list_marker_required: true,
+    epoch2_transaction_domain_reviewed_before_use_required: true,
     gas_price_observation_required: true,
     canonical_void_balance_of_required: true,
     opening_inventory_atoms_required:
@@ -91,6 +93,25 @@ const QUALIFICATION_TOOL_REL =
   "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 const PREFLIGHT_TOOL_REL =
   "tools/void-wc-void-market-vault-live-deployment-observation-preflight-v1.mjs";
+const PRODUCTION_EPOCH2_RPC_TARGET_REL =
+  "ops/mainnet0/production-epoch2-rpc-target-v1.json";
+const EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_REL =
+  "tools/void-economic-epoch2-raw-transaction-domain-v1.mjs";
+const EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1 =
+  "f7cb1910923725581d1ff9b31abfb910a64eba14";
+
+export const VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1 =
+  Object.freeze({
+    chain_id: 2050n,
+    execution_epoch: 2,
+    transaction_type: 2,
+    marker_address:
+      "0x0000000000000000000000000000000000002050",
+    marker_storage_key:
+      "0xde7f074f5f127e9918248d0d3643786cb0a4de66256d2c40bb26beafa63c73b7",
+    reviewed_domain_tool_git_blob_sha1:
+      EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1,
+  });
 const CANONICAL_REMOTE = "https://github.com/6ZoSo9/void-node.git";
 const CANONICAL_COUPLED_LAUNCH_ID =
   "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
@@ -134,6 +155,7 @@ export const VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_TEST_AUTHORIT
     production_artifact_authorized: false,
     production_preflight_id_emitted: false,
     canonical_remote_main_required: false,
+    canonical_production_epoch2_rpc_required: false,
     real_loopback_http_required: true,
     caller_transport_injection_forbidden: true,
     rpc_write: false,
@@ -456,12 +478,18 @@ function repositoryIdentity({ requireCanonicalMain = false } = {}) {
     ["rev-parse", "HEAD:" + PREFLIGHT_TOOL_REL],
     "live_deployment_preflight_tool_blob_unavailable",
   );
+  const epoch2DomainToolBlob = gitText(
+    ["rev-parse", "HEAD:" + EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_REL],
+    "live_deployment_preflight_epoch2_domain_tool_blob_unavailable",
+  );
   if (
     !HEX40.test(head) ||
     !HEX40.test(tree) ||
     status !== "" ||
     !HEX40.test(qualificationToolBlob) ||
-    !HEX40.test(preflightToolBlob)
+    !HEX40.test(preflightToolBlob) ||
+    epoch2DomainToolBlob !==
+      EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1
   ) {
     fail("live_deployment_preflight_repository_identity_invalid");
   }
@@ -487,7 +515,83 @@ function repositoryIdentity({ requireCanonicalMain = false } = {}) {
     remote_main_sha: remoteMainSha,
     qualification_tool_git_blob_sha1: qualificationToolBlob,
     preflight_tool_git_blob_sha1: preflightToolBlob,
+    epoch2_domain_tool_git_blob_sha1: epoch2DomainToolBlob,
   });
+}
+
+function requireReviewedEpoch2EstimateDomainV1(repo) {
+  if (
+    !repo ||
+    repo.epoch2_domain_tool_git_blob_sha1 !==
+      EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_GIT_BLOB_SHA1_V1
+  ) {
+    fail("live_deployment_preflight_epoch2_domain_reviewed_blob_mismatch");
+  }
+
+  const file = path.join(ROOT, EPOCH2_RAW_TRANSACTION_DOMAIN_TOOL_REL);
+  let fd = -1;
+  let before;
+  let bytes;
+  let after;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
+    );
+    before = fs.fstatSync(fd);
+    if (
+      !before.isFile() ||
+      before.nlink !== 1 ||
+      before.size < 1 ||
+      before.size > 1024 * 1024
+    ) {
+      fail("live_deployment_preflight_epoch2_domain_worktree_file_invalid");
+    }
+    bytes = fs.readFileSync(fd);
+    after = fs.fstatSync(fd);
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+
+  if (
+    before.dev !== after.dev ||
+    before.ino !== after.ino ||
+    before.size !== after.size ||
+    before.mtimeMs !== after.mtimeMs ||
+    before.ctimeMs !== after.ctimeMs ||
+    gitBlobSha1(bytes) !== repo.epoch2_domain_tool_git_blob_sha1
+  ) {
+    fail("live_deployment_preflight_epoch2_domain_worktree_blob_mismatch");
+  }
+
+  return VOID_WC_VOID_MARKET_VAULT_EPOCH2_ESTIMATE_DOMAIN_V1;
+}
+
+export function testOnlyEvaluateVoidWcVoidMarketVaultEpoch2DomainSourceV1() {
+  try {
+    const repo = repositoryIdentity({ requireCanonicalMain: false });
+    const domain = requireReviewedEpoch2EstimateDomainV1(repo);
+    return Object.freeze({
+      ok: true,
+      status: "TEST_ONLY_EPOCH2_DOMAIN_REVIEWED_SOURCE_GREEN",
+      reviewed_domain_tool_git_blob_sha1:
+        repo.epoch2_domain_tool_git_blob_sha1,
+      chain_id: Number(domain.chain_id),
+      transaction_type: domain.transaction_type,
+      marker_address: domain.marker_address,
+      marker_storage_key: domain.marker_storage_key,
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      status: "TEST_ONLY_HOLD",
+      reason: error instanceof Error ? error.message : String(error),
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  }
 }
 
 function writePrivateReviewedSource(file, bytes) {
@@ -1027,6 +1131,127 @@ function normalizeRpcPolicy(input) {
   });
 }
 
+function readCanonicalProductionEpoch2RpcTargetV1() {
+  const file = path.join(ROOT, PRODUCTION_EPOCH2_RPC_TARGET_REL);
+  const bytes = fs.readFileSync(file);
+  const expectedBlob = gitText(
+    ["rev-parse", "HEAD:" + PRODUCTION_EPOCH2_RPC_TARGET_REL],
+    "live_deployment_preflight_production_rpc_target_blob_unavailable",
+  );
+  if (
+    !HEX40.test(expectedBlob) ||
+    gitBlobSha1(bytes) !== expectedBlob
+  ) {
+    fail("live_deployment_preflight_production_rpc_target_worktree_blob_mismatch");
+  }
+  if (bytes.length < 2 || bytes.length > 1024 * 1024) {
+    fail("live_deployment_preflight_production_rpc_target_size_invalid");
+  }
+  let target;
+  try {
+    target = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    fail("live_deployment_preflight_production_rpc_target_json_invalid");
+  }
+  const selection = target?.selection;
+  if (
+    !plain(target) ||
+    target.marker !== "VOID_PRODUCTION_EPOCH2_RPC_TARGET_V1" ||
+    target.version !== 1 ||
+    target.status !==
+      "PRODUCTION_EPOCH2_RPC_TARGET_SELECTED_OBSERVATION_ONLY" ||
+    target.chain_id !== 2050 ||
+    target.execution_epoch !== 2 ||
+    !plain(selection) ||
+    selection.production_rpc_target_selected !== true ||
+    selection.write_capability_classification !==
+      "write_capable_not_authorized" ||
+    selection.independent_host_acceptance !== true ||
+    !Array.isArray(target.downstream_consumers) ||
+    !target.downstream_consumers.includes(
+      "wc_void_market_vault_live_deployment_observation",
+    ) ||
+    target.authority?.source_only !== true ||
+    target.authority?.rpc_call !== false ||
+    target.authority?.transaction_construction !== false ||
+    target.authority?.transaction_signing !== false ||
+    target.authority?.transaction_submission !== false ||
+    target.authority?.transaction_broadcast !== false ||
+    target.authority?.funds_movement !== false
+  ) {
+    fail("live_deployment_preflight_production_rpc_target_invalid");
+  }
+  const selectedPolicy = normalizeRpcPolicy({
+    rpc_url: selection.rpc_url,
+  });
+  if (
+    !selectedPolicy ||
+    selection.rpc_url !== selectedPolicy.rpc_url ||
+    !HEX64.test(String(selection.rpc_url_fingerprint_sha256 || "")) ||
+    selection.rpc_url_fingerprint_sha256 !==
+      selectedPolicy.rpc_url_fingerprint_sha256
+  ) {
+    fail("live_deployment_preflight_production_rpc_target_binding_invalid");
+  }
+  return Object.freeze({
+    path: PRODUCTION_EPOCH2_RPC_TARGET_REL,
+    git_blob_sha1: expectedBlob,
+    file_sha256: sha256Bytes(bytes),
+    status: target.status,
+    rpc_url: selectedPolicy.rpc_url,
+    rpc_url_fingerprint_sha256:
+      selectedPolicy.rpc_url_fingerprint_sha256,
+    write_capability_classification:
+      selection.write_capability_classification,
+  });
+}
+
+function requireCanonicalProductionEpoch2RpcV1(policy) {
+  const selected = readCanonicalProductionEpoch2RpcTargetV1();
+  if (
+    !policy ||
+    policy.rpc_url !== selected.rpc_url ||
+    policy.rpc_url_fingerprint_sha256 !==
+      selected.rpc_url_fingerprint_sha256
+  ) {
+    fail("live_deployment_preflight_production_rpc_mismatch");
+  }
+  return selected;
+}
+
+export function testOnlyEvaluateVoidWcVoidMarketVaultProductionRpcPolicyV1(
+  input = {},
+) {
+  try {
+    const policy = normalizeRpcPolicy(input);
+    if (!policy) fail("live_deployment_preflight_rpc_policy_invalid");
+    const selected = requireCanonicalProductionEpoch2RpcV1(policy);
+    return Object.freeze({
+      ok: true,
+      marker:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+      status: "TEST_ONLY_PRODUCTION_EPOCH2_RPC_POLICY_GREEN",
+      selected_rpc_target_path: selected.path,
+      selected_rpc_target_git_blob_sha1: selected.git_blob_sha1,
+      selected_rpc_target_file_sha256: selected.file_sha256,
+      rpc_url_fingerprint_sha256:
+        selected.rpc_url_fingerprint_sha256,
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  } catch (error) {
+    return Object.freeze({
+      ok: false,
+      marker:
+        VOID_WC_VOID_MARKET_VAULT_LIVE_DEPLOYMENT_OBSERVATION_PREFLIGHT_TEST_ONLY_V1,
+      status: "TEST_ONLY_HOLD",
+      reason: error instanceof Error ? error.message : String(error),
+      production_artifact_authorized: false,
+      rpc_call: false,
+    });
+  }
+}
+
 function createHttpTransport(policy) {
   let nextId = 0;
   return async ({ method, params }) => {
@@ -1143,6 +1368,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   input,
   {
     requireCanonicalMain = false,
+    requireCanonicalProductionRpc = false,
     evaluationTimeUnix = TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,
     finalEvaluationTimeUnix = null,
   } = {},
@@ -1152,6 +1378,8 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
   let deployer;
   let inventorySource;
   let rpcPolicy;
+  let epoch2Domain;
+  let canonicalProductionRpcTarget = null;
   try {
     if (
       input &&
@@ -1161,6 +1389,7 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       fail("live_deployment_preflight_transport_injection_forbidden");
     }
     repo = repositoryIdentity({ requireCanonicalMain });
+    epoch2Domain = requireReviewedEpoch2EstimateDomainV1(repo);
     const qualificationContract = await reviewedQualificationContract(repo);
     verifiedQualification = verifyQualification(
       input?.qualification_bytes,
@@ -1179,6 +1408,10 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
     );
     rpcPolicy = normalizeRpcPolicy(input);
     if (!rpcPolicy) fail("live_deployment_preflight_rpc_policy_invalid");
+    if (requireCanonicalProductionRpc) {
+      canonicalProductionRpcTarget =
+        requireCanonicalProductionEpoch2RpcV1(rpcPolicy);
+    }
   } catch (error) {
     return held(
       error instanceof Error ? error.message : String(error),
@@ -1254,12 +1487,32 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
       await call("eth_gasPrice", []),
       "live_deployment_preflight_gas_price_invalid",
     );
+    if (
+      epoch2Domain.chain_id !== 2050n ||
+      epoch2Domain.transaction_type !== 2 ||
+      !ADDRESS.test(epoch2Domain.marker_address) ||
+      !HEX32_BYTES.test(epoch2Domain.marker_storage_key)
+    ) {
+      return held("live_deployment_preflight_epoch2_domain_invalid", {
+        rpc_methods_used: methods,
+      });
+    }
+    const deploymentAccessList = Object.freeze([
+      Object.freeze({
+        address: epoch2Domain.marker_address,
+        storageKeys: Object.freeze([epoch2Domain.marker_storage_key]),
+      }),
+    ]);
     const gasEstimate = quantity(
       await call("eth_estimateGas", [
         {
+          type: "0x2",
+          chainId: "0x802",
           from: deployer,
+          to: null,
           data: verifiedQualification.deployment_data_hex,
           value: "0x0",
+          accessList: deploymentAccessList,
         },
         blockTag,
       ]),
@@ -1274,8 +1527,13 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
     const balanceRaw = text(
       await call("eth_call", [
         {
+          type: "0x2",
+          chainId: "0x802",
+          from: deployer,
           to: verifiedQualification.void_token,
           data: balanceOfCalldata(inventorySource),
+          value: "0x0",
+          accessList: deploymentAccessList,
         },
         blockTag,
       ]),
@@ -1398,6 +1656,17 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
           rpcPolicy.rpc_url_fingerprint_sha256,
         rpc_methods_used: Object.freeze([...methods]),
         loopback_http_only: true,
+        canonical_production_epoch2_rpc_required:
+          requireCanonicalProductionRpc,
+        canonical_production_epoch2_rpc_bound:
+          requireCanonicalProductionRpc &&
+          canonicalProductionRpcTarget !== null,
+        canonical_production_epoch2_rpc_target_path:
+          canonicalProductionRpcTarget?.path ?? null,
+        canonical_production_epoch2_rpc_target_git_blob_sha1:
+          canonicalProductionRpcTarget?.git_blob_sha1 ?? null,
+        canonical_production_epoch2_rpc_target_file_sha256:
+          canonicalProductionRpcTarget?.file_sha256 ?? null,
       }),
       observation: Object.freeze({
         block_number: head.toString(),
@@ -1409,6 +1678,16 @@ async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightCoreV1(
         pending_nonce_revalidated: true,
         deployer_native_balance_wei: deployerBalance.toString(),
         gas_price_wei: gasPrice.toString(),
+        epoch2_transaction_type: "2",
+        epoch2_estimate_chain_id: "2050",
+        epoch2_estimate_contract_creation: true,
+        epoch2_access_list_marker_address: epoch2Domain.marker_address,
+        epoch2_access_list_marker_storage_key:
+          epoch2Domain.marker_storage_key,
+        epoch2_signed_access_list_marker_bound: true,
+        epoch2_transaction_domain_reviewed_before_use: true,
+        epoch2_transaction_domain_tool_git_blob_sha1:
+          repo.epoch2_domain_tool_git_blob_sha1,
         deployment_gas_estimate: gasEstimate.toString(),
         bare_estimated_deployment_cost_wei: bareEstimatedCost.toString(),
         deployer_balance_covers_bare_estimate: deployerBalanceSufficient,
@@ -1464,6 +1743,7 @@ export async function observeVoidWcVoidMarketVaultLiveDeploymentPreflightV1(
     input,
     {
       requireCanonicalMain: true,
+      requireCanonicalProductionRpc: true,
       evaluationTimeUnix: String(Math.floor(Date.now() / 1000)),
       finalEvaluationTimeUnix: null,
     },
@@ -1478,6 +1758,7 @@ export async function testOnlyObserveVoidWcVoidMarketVaultLiveDeploymentPrefligh
       input,
       {
         requireCanonicalMain: false,
+        requireCanonicalProductionRpc: false,
         evaluationTimeUnix:
           input?.evaluation_time_unix ??
           TEST_ONLY_DEFAULT_EVALUATION_TIME_UNIX,

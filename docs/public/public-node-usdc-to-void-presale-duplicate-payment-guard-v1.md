@@ -12,7 +12,14 @@ This gate does not enable automatic fulfillment. It does not enable wallet fulfi
 
 A verified USDC payment detector is not sufficient by itself. The same USDC transaction or the same matching transfer log must not be allowed to satisfy more than one presale request.
 
-Current request accounting can count payment-verified events by `request_id`. This duplicate-payment guard requires future runtime enforcement by payment identity, not only request identity.
+Historical request accounting could count payment-verified events by
+`request_id`. The reviewed source now applies the canonical payment-identity
+classifier inside the same serialized capacity-admission boundary that persists
+a new verified payment.
+
+That is source integration, not a live-deployment claim. The public guard stays
+false until deployment and requalification prove those reviewed bytes are the
+runtime serving Buy VOID.
 
 ## Required payment identity
 
@@ -56,8 +63,10 @@ If log index is unavailable, the payment must remain blocked from automatic fulf
 ## Current authority
 
 - `duplicate_payment_guard_defined`: true
+- `source_duplicate_guard_classifier_green`: true
+- `source_runtime_duplicate_guard_integrated`: true
 - `duplicate_payment_guard_green`: false
-- `current_verifier_duplicate_payment_guard_enforced`: false
+- `current_public_runtime_duplicate_payment_guard_enforced`: false
 - `automatic_fulfillment_enabled`: false
 - `wallet_fulfillment_enabled`: false
 - `signer_access_enabled`: false
@@ -67,6 +76,18 @@ If log index is unavailable, the payment must remain blocked from automatic fulf
 - `wc_ledger_write`: false
 - `void_transfer_now`: false
 
+## Source implementation
+
+- `src/economic/buy_void_verified_payment_duplicate_guard_v1.ts`
+- `src/economic/buy_void_verified_payment_capacity_admission_v1.ts`
+- `scripts/prove_buy_void_verified_payment_duplicate_guard_runtime_integration_v1.ts`
+
+The live-source verifier writes an identity-complete V2 verified-payment event,
+and the capacity admission rechecks the canonical identity before and after the
+durable append.
+
 ## Public route
 
 - `/public-node/usdc-void-buy-pool/duplicate-payment-guard-v1.json`
+
+The route remains conservative until live deployment/requalification.

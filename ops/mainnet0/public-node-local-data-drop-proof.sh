@@ -3,13 +3,60 @@ set -euo pipefail
 
 RUN_PORT="${RUN_PORT:-4150}"
 BASE="${BASE:-http://127.0.0.1:${RUN_PORT}}"
+umask 077
+
+PID=""
+LEGACY_SANDBOX=""
+LEGACY_OUT=""
+LEGACY_TARGET=""
+
+cleanup() {
+  if [ -n "$PID" ]; then
+    kill "$PID" 2>/dev/null || true
+  fi
+  if [ -n "$LEGACY_SANDBOX" ] && [ -d "$LEGACY_SANDBOX" ]; then
+    rm -rf -- "$LEGACY_SANDBOX"
+  fi
+}
+trap cleanup EXIT
+
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
-OUT="/tmp/public-node-local-data-drop-v1-proof-$STAMP"
-install -d -m 700 "$OUT/data"
+LEGACY_SANDBOX="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof-legacy-sandbox.XXXXXX)"
+test -d "$LEGACY_SANDBOX" && test ! -L "$LEGACY_SANDBOX"
+test "$(stat -c '%u' "$LEGACY_SANDBOX")" = "$(id -u)"
+test "$(stat -c '%a' "$LEGACY_SANDBOX")" = "700"
+
+LEGACY_TARGET="$LEGACY_SANDBOX/target"
+mkdir -m 700 -- "$LEGACY_TARGET"
+test -d "$LEGACY_TARGET" && test ! -L "$LEGACY_TARGET"
+LEGACY_OUT="$LEGACY_SANDBOX/public-node-local-data-drop-v1-proof-$STAMP"
+test ! -e "$LEGACY_OUT" && test ! -L "$LEGACY_OUT"
+
+printf 'VOID_LOCAL_DATA_DROP_LEGACY_OUT_SENTINEL\n' > "$LEGACY_TARGET/nodeA.key"
+LEGACY_SENTINEL_SHA="$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')"
+LEGACY_SENTINEL_STAT="$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")"
+ln -sT -- "$LEGACY_TARGET" "$LEGACY_OUT"
+test -L "$LEGACY_OUT"
+test "$(readlink -- "$LEGACY_OUT")" = "$LEGACY_TARGET"
+
+OUT="$(mktemp -d /tmp/public-node-local-data-drop-v1-proof.XXXXXX)"
+test -d "$OUT" && test ! -L "$OUT"
+test "$(stat -c '%u' "$OUT")" = "$(id -u)"
+test "$(stat -c '%a' "$OUT")" = "700"
+test "$OUT" != "$LEGACY_OUT"
+
+mkdir -m 700 -- "$OUT/data"
+test -d "$OUT/data" && test ! -L "$OUT/data"
+test "$(stat -c '%u' "$OUT/data")" = "$(id -u)"
 test "$(stat -c '%a' "$OUT/data")" = "700"
+
+test "$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')" = "$LEGACY_SENTINEL_SHA"
+test "$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")" = "$LEGACY_SENTINEL_STAT"
+test ! -e "$LEGACY_TARGET/data"
 
 openssl genpkey -algorithm ED25519 -out "$OUT/nodeA.key" >/dev/null 2>&1
 chmod 600 "$OUT/nodeA.key"
+test -f "$OUT/nodeA.key" && test ! -L "$OUT/nodeA.key"
 
 echo "=== Public Node Local Data Drop v1 proof ==="
 echo "out=$OUT"
@@ -67,7 +114,7 @@ if [ -n "$PIDS" ]; then kill $PIDS 2>/dev/null || true; sleep 1; fi
 ) > "$OUT/server.log" 2>&1 &
 
 PID="$!"
-trap 'kill "$PID" 2>/dev/null || true' EXIT
+trap cleanup EXIT
 
 for i in $(seq 1 100); do
   if curl --max-time 10 -fsS "$BASE/public-node/local-data-drop.json" > "$OUT/local-data-drop.json" 2>/dev/null; then
@@ -216,16 +263,25 @@ ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/manifest.j
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/proof/:sha256.json" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_PROOF_V1"), "manifest has object proof route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/by-sha256/:sha256" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_CONTENT_ADDRESS_V1"), "manifest has content address route");
 ok(manifest.routes.some(r => r.path === "/public-node/local-data-drop/:objectId" && r.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_OBJECT_V1"), "manifest has object route");
-ok(manifest.route_count === 25, "manifest route count 24");
+ok(Array.isArray(manifest.routes), "manifest routes array");
+ok(manifest.route_count === manifest.routes.length, "manifest route count matches routes length");
+ok(Array.isArray(snap.expected_routes), "self-check expected routes array");
+ok(snap.expected_route_count === snap.expected_routes.length, "self-check route count matches expected routes length");
+const manifestPaths = new Set(manifest.routes.map(r => r && r.path).filter(Boolean));
+for (const route of snap.expected_routes) {
+  ok(manifestPaths.has(route), "self-check route absent from manifest " + route);
+}
 ok(snap.expected_routes.includes("/public-node/local-data-drop.json"), "self-check has index");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/manifest.json"), "self-check has storage manifest route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/proof/:sha256.json"), "self-check has object proof route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/by-sha256/:sha256"), "self-check has content address route");
 ok(snap.expected_routes.includes("/public-node/local-data-drop/:objectId"), "self-check has object route");
-ok(snap.expected_route_count === 25, "self-check route count 24");
 
 console.log("[ok] json local data drop");
 NODE
+
+route_manifest_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(!Array.isArray(x.routes)||x.route_count!==x.routes.length)process.exit(2);process.stdout.write(String(x.route_count));' "$OUT/route-manifest.json")"
+self_check_expected_route_count="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(!Array.isArray(x.expected_routes)||x.expected_route_count!==x.expected_routes.length)process.exit(2);process.stdout.write(String(x.expected_route_count));' "$OUT/self-check-snapshot.json")"
 
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_UI_V1" "$OUT/public-node.html"
 
@@ -264,8 +320,8 @@ echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_MULTI_OBJECT_MANIFEST_V1"
 echo "client_verify_manifest_green=true"
 echo "object_verifier_chain_green=true"
 echo "receipt_valid_for_current_object=true"
-echo "route_manifest_route_count=25"
-echo "self_check_expected_route_count=25"
+echo "route_manifest_route_count=$route_manifest_route_count"
+echo "self_check_expected_route_count=$self_check_expected_route_count"
 echo "public_upload=false"
 echo "operator_local_import_only=true"
 echo "public_read_only=true"
@@ -276,5 +332,13 @@ echo "wc_to_void_swap=false"
 echo "buy_void_fulfillment=false"
 echo "validator_mutation=false"
 echo "trusted_as_network_truth=false"
+test -L "$LEGACY_OUT"
+test "$(readlink -- "$LEGACY_OUT")" = "$LEGACY_TARGET"
+test "$(sha256sum "$LEGACY_TARGET/nodeA.key" | awk '{print $1}')" = "$LEGACY_SENTINEL_SHA"
+test "$(stat -c '%d:%i:%f:%u:%g:%s' "$LEGACY_TARGET/nodeA.key")" = "$LEGACY_SENTINEL_STAT"
+test ! -e "$LEGACY_TARGET/data"
+echo "proof_output_root_create_only=true"
+echo "legacy_timestamp_symlink_private_sandbox=true"
+echo "legacy_timestamp_symlink_untouched=true"
 echo "out=$OUT"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_V1_GREEN"

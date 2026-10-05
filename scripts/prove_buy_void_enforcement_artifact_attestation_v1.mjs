@@ -121,7 +121,7 @@ export function derive(root = ROOT) {
 export function verify(root, expected) {
   assert.equal(canonical(derive(root)),canonical(expected),'enforcement manifest/closure mismatch');
 }
-async function proveCompiledGate(root) {
+export async function proveCompiledGate(root) {
   const bytes = read(root, ENTRY).toString('utf8');
   const ast = ts.createSourceFile(ENTRY, bytes, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   const functions = ast.statements.filter(n => ts.isFunctionDeclaration(n) && n.name?.text === 'sourceFinalityGuardedDependencies');
@@ -143,7 +143,7 @@ async function proveCompiledGate(root) {
   assert.equal(calls,0,'no capability after held preflight');
 }
 
-function falsifiers(expected) {
+export function falsifiers(expected) {
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'void-enforcement-'));
   try {
     for(const a of expected.artifacts) {const dest=path.join(temp,a.path);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(path.join(ROOT,a.path),dest);}

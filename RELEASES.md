@@ -1,6 +1,6 @@
 # VOID Releases
 
-Reviewed: **September 25, 2026**
+Reviewed: **October 3, 2026**
 
 This file is the current release-state index for VOID Network. It is not an immutable checkpoint receipt; historical release/checkpoint artifacts remain evidence of the state at the time they were created.
 
@@ -34,12 +34,16 @@ The GitHub Releases page currently contains one immutable published release:
 Current `main` includes, among other changes:
 
 - public Mainnet-0 canonical runtime and public evidence surfaces;
+- the client-neutral Epoch-2 successor-state manifest published through the public evidence/composition path, without claiming migration or successor state-root truth admission;
+- the production Epoch-2 `DatanetContentCommitmentRegistryV1` deployment attested at block `5899`, address `0xe60b15ed8df7c4ec5334067ead18c924744c2681`, while the separate successor state-root commitment/finality/truth-admission gate remains `HOLD`;
 - the participant application, DataNet, bounded Work Credit earning, and operator evidence workflows;
 - source-pinned direct IPv4 + Tor v3 public P2P introductions with exact node-identity binding and live N-1 acceptance;
-- the coupled presale + WC/VOID launch policy;
+- the coupled presale + WC/VOID launch policy, including the source-defined WC/VOID absolute price-forming window and 5M participant / 5M retained opening structure;
+- Buy VOID source policy limited to native USDC on Ethereum mainnet (`1`) and Base mainnet (`8453`), rejecting bridged/lookalike assets and exchange/custodial sends;
+- a merged full-canonical coupled Buy VOID admission gate plus merged Ethereum checkout finality/readiness source gates; canonical source readiness is not live activation authority, because request admission additionally requires durable generation/high-water agreement, no pending publication intent, a short-lived launch-controller + Sovereign co-signed activation receipt, and exact operator confirmation; checked-in canonical candidates remain `HOLD`, and public intake remains closed;
 - a fail-closed production WC/VOID readiness classifier whose checked-in candidate is intentionally `HOLD`;
 - the merged WC/VOID coupled-opening settlement source gate from PR #1824, while production funding/deployment/activation remain separately gated;
-- current-stack BTC/VOID atomic-settlement components; and
+- deterministic Bitcoin HTLC and Chain-2050 hashlock-settlement primitives for BTC/VOID, including exact terminal VOID balance-delta and adversarial preimage checks, while the market remains post-presale and separately launch-gated; and
 - deterministic node release/install/update/publication infrastructure.
 
 A merged source capability is not automatically a deployed capability, an economic activation, or a stable release.
@@ -64,8 +68,12 @@ Public presale intake and production WC/VOID activation are coupled:
   market until the reverse VOID→WC settlement path is separately ready.
 
 BTC/VOID and ETH/VOID remain separate post-presale markets behind their own gates.
-Open BTC/VOID and coupled-gas hardening PRs are source proposals until merged;
-they are not current runtime or activation truth.
+Merged BTC/VOID and coupled-gas hardening remain source-level controls; they are
+not current runtime or activation truth. The merged Buy VOID admission path now
+uses the full canonical coupled-readiness classifier and is wired into guarded
+request/config admission, but source readiness alone cannot activate intake. The
+checked-in canonical candidates still classify `HOLD`, and no authorized live
+activation generation/lease is created by source merge.
 
 ## Not released or generally activated
 

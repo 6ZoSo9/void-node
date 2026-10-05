@@ -402,10 +402,14 @@ export function createBuyVoidNativeExecutionPlannerHttpTransportV1():
       };
 
       const url = new URL(call.rpc_url);
+      const socketHostname =
+        url.hostname.startsWith("[") && url.hostname.endsWith("]")
+          ? url.hostname.slice(1, -1)
+          : url.hostname;
       const request = http.request(
         {
           protocol: "http:",
-          hostname: url.hostname,
+          hostname: socketHostname,
           port: url.port || "80",
           path: `${url.pathname}${url.search}`,
           method: "POST",
