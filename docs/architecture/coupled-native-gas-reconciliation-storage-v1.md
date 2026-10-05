@@ -81,6 +81,13 @@ root is fsynced before success is reported.
 If the directory already exists and qualifies, bootstrap is idempotent and
 returns `already_qualified` with `mutation_performed=false`.
 
+If directory creation succeeds but a later retained-root/domain/reconciliation
+postcheck fails, the result is `held_after_mutation` with
+`mutation_performed=true`. The contract never reports an already-performed
+filesystem mutation as ordinary pre-mutation HOLD. Focused proof replaces the
+payer-domain pathname with equal bytes on a different inode immediately after
+directory creation and requires this exact reporting.
+
 A missing `records/`, missing admission queue, payer mismatch, wrong or
 cross-root confirmation, symlink, weak permissions or changed directory
 identity HOLDS.
