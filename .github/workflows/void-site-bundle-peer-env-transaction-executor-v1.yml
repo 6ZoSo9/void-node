@@ -1,0 +1,85 @@
+name: VOID site-bundle peer env transaction executor v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-site-bundle-peer-env-transaction-executor-v1.yml"
+      - "docs/operators/void-site-bundle-peer-env-transaction-executor-v1.md"
+      - "scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs"
+      - "tools/void-site-bundle-peer-env-transaction-executor-v1.mjs"
+      - "tools/void-crossbox-mutation-transaction-v1.mjs"
+      - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/void-site-bundle-peer-env-transaction-executor-v1.yml"
+      - "docs/operators/void-site-bundle-peer-env-transaction-executor-v1.md"
+      - "scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs"
+      - "tools/void-site-bundle-peer-env-transaction-executor-v1.mjs"
+      - "tools/void-crossbox-mutation-transaction-v1.mjs"
+      - "ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax
+        run: |
+          node --check tools/void-site-bundle-peer-env-transaction-executor-v1.mjs
+          node --check scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs
+          bash -n ops/security/void-site-bundle-peer-env-persistence-proof.sh
+
+      - name: Prove crash-atomic site-bundle executor
+        run: node scripts/prove_void_site_bundle_peer_env_transaction_executor_v1.mjs
+
+      - name: Authority and topology wall
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool="tools/void-site-bundle-peer-env-transaction-executor-v1.mjs"
+          shell="ops/security/void-site-bundle-peer-env-persistence-proof.sh"
+          doc="docs/operators/void-site-bundle-peer-env-transaction-executor-v1.md"
+
+          grep -F 'const LIVE_SERVICE="void-node-live.service"' "$tool" >/dev/null
+          grep -F '"local-ready-base"' "$tool" >/dev/null
+          grep -F '"remote-ready-base"' "$tool" >/dev/null
+          grep -F 'site_bundle_executor_competing_nonterminal_journal' "$tool" >/dev/null
+          grep -F 'recordVoidCrossboxMutationPublishStartedV1' "$tool" >/dev/null
+          grep -F 'recordVoidCrossboxMutationRestoreStartedV1' "$tool" >/dev/null
+          grep -F 'recover_publish' "$tool" >/dev/null
+          grep -F 'recover_restore' "$tool" >/dev/null
+          grep -F 'site_bundle_executor_retired_alienware_forbidden' "$tool" >/dev/null
+          grep -F 'postcommit_site_bundle_functionality_verified=false' "$shell" >/dev/null
+          grep -F 'No live SSH' "$doc" >/dev/null
+
+          if grep -F '"void-node.service"' "$tool" >/dev/null; then
+            echo "retired service unit remains in executor" >&2
+            exit 1
+          fi
+          if grep -F 'write_local_dropin' "$shell" >/dev/null ||
+             grep -F 'write_remote_dropin' "$shell" >/dev/null; then
+            echo "legacy sequential mutation helper remains in shell" >&2
+            exit 1
+          fi
+
+      - name: Diff hygiene
+        run: git diff --check HEAD^..HEAD
