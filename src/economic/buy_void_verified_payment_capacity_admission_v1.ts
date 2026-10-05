@@ -1247,7 +1247,9 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
   request_dir: string;
   with_launch_authority_mutation: (
     request: any,
-    operation: () => any,
+    operation: (
+      assert_current_request_authority: () => unknown,
+    ) => any,
   ) => Promise<any>;
   read_sale_state: () => Promise<any>;
 }) {
@@ -1326,15 +1328,21 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
       request,
       read_sale_state: input.read_sale_state,
       operation: (authority) =>
-        withBuyVoidFilesystemBakeryLockAsyncV1(
-          buyVoidTerminalCloseoutRequestLockPathV1({
-            request_dir: requestDir,
-            request_id: requestId,
-          }),
-          async () =>
-            input.with_launch_authority_mutation(
-              request,
+        input.with_launch_authority_mutation(
+          request,
+          (assertCurrentRequestAuthority) => {
+            if (typeof assertCurrentRequestAuthority !== "function") {
+              fail(
+                "buy_void_verified_payment_capacity_launch_assertion_required",
+              );
+            }
+            return withBuyVoidTerminalCloseoutRequestLockV1(
+              {
+                request_dir: requestDir,
+                request_id: requestId,
+              },
               () => {
+                assertCurrentRequestAuthority();
                 const requestBeforeAppend =
                   assertPinnedLedgerVisibleV1(
                     authority.request_ledger,
@@ -1357,7 +1365,8 @@ export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1(input: {
                 );
                 return { ok: true, dir: requestDir };
               },
-            ),
+            );
+          },
         ),
     });
   if (admission.idempotent) {
