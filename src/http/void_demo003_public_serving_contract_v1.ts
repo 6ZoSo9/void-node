@@ -416,7 +416,8 @@ export function classifyVoidDemo003PublicServingSetV1({
     intake_marker: intake.marker,
     sealed_snapshot_set_sha256: intake.sealed_snapshot_set_sha256,
     sealed_snapshot_sha256: Object.freeze({ ...intake.sealed_snapshot_sha256 }),
-    verified_content_authority: "sealed_memfd_snapshot",
+    verified_content_authority: VOID_DEMO003_PUBLIC_SERVING_AUTHORITY_V1,
+    intake_verified_content_authority: "sealed_memfd_snapshot",
     serving_authority: VOID_DEMO003_PUBLIC_SERVING_AUTHORITY_V1,
     source_contract_sha256:
       VOID_DEMO003_PUBLIC_SOURCE_CONTRACT_SHA256_V1,
