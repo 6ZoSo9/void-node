@@ -301,15 +301,15 @@ function safeInt(
   maximum: number,
   reason: string,
 ): number {
-  const parsed = Number(value);
   if (
-    !Number.isSafeInteger(parsed) ||
-    parsed < minimum ||
-    parsed > maximum
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < minimum ||
+    value > maximum
   ) {
     fail(reason);
   }
-  return parsed;
+  return value;
 }
 
 function sha256Field(value: unknown, reason: string): string {
