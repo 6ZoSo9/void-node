@@ -35,6 +35,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1 =
     source_writer: true,
     payer_scoped_serialization: true,
     existing_liability_queue_reused: true,
+    payer_domain_bound_before_temp_cleanup: true,
     reconciliation_storage_qualification_required: true,
     exact_effective_open_census_precheck: true,
     exact_reconciliation_evidence_resolver_reused: true,
@@ -1007,6 +1008,11 @@ async function persistWithDependencies(
           "coupled_native_gas_reconciliation_writer_queue",
         );
 
+        const domainBeforeCleanup = readAndBindPayerDomain(
+          root!,
+          payerAddress,
+        );
+
         recoverStaleReconciliationTempsV1(
           reconciliations!,
           () => {
@@ -1030,6 +1036,11 @@ async function persistWithDependencies(
           root!,
           payerAddress,
         );
+        if (domainBefore !== domainBeforeCleanup) {
+          fail(
+            "coupled_native_gas_reconciliation_writer_payer_domain_changed_during_temp_cleanup",
+          );
+        }
         const liabilitiesBefore = readHistoryDirectory(
           records!,
           "coupled_native_gas_reconciliation_writer_liabilities",
