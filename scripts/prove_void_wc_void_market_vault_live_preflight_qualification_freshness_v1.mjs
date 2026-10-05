@@ -19,7 +19,7 @@ import {
 const QUALIFICATION_TOOL =
   "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs";
 const COUPLED_LAUNCH_ID =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const TOKEN = "0x470075b85352eb86f7d089fb9ba88945f12aad94";
 const LAUNCH_CONTROLLER = "0x1111111111111111111111111111111111111111";
 const SETTLEMENT = "0xc884f631c3881b8b672bfcbf019c856146cd7f73";
