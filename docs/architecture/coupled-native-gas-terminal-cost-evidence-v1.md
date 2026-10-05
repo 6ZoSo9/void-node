@@ -93,7 +93,19 @@ The confirmed record must bind to the prepared plan's:
 - attempt ID through the outcome wrapper;
 - fulfillment wallet;
 - delivery address; and
-- native VOID amount.
+- VOID amount after the canonical native-delivery unit conversion.
+
+The native delivery path uses 6-decimal fulfillment units and 18-decimal native
+units, so the binding is:
+
+```text
+plan.native_value_wei =
+  confirmed.void_amount_units * 1_000_000_000_000
+```
+
+This is the same 10^12 conversion used by the native execution planner and
+sign/broadcast adapter; direct string equality between VOID units and wei is
+invalid.
 
 ### Reverted
 
