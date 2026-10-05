@@ -253,7 +253,22 @@ for (const route of [manifestRoute, fileRoute]) {
   assert.match(route, /canonical_demo003_source_contract_v1/u);
   assert.match(route, /visible_extraction_tree_trusted/u);
   assert.match(route, /sealed_snapshot_set_sha256/u);
+  assert.doesNotMatch(
+    route,
+    /verified_content_authority:\s*"sealed_memfd_snapshot"/u,
+    "public serving must not promote mutable intake provenance into current serving authority",
+  );
 }
+assert.match(
+  manifestRoute,
+  /intake_verified_content_authority:contract\.intake_verified_content_authority/u,
+  "manifest route must label memfd only as intake provenance",
+);
+assert.match(
+  fileRoute,
+  /X-VOID-Demo003-Intake-Verified-Content-Authority/u,
+  "file route must expose intake provenance separately from serving authority",
+);
 assert.doesNotMatch(
   manifestRoute,
   /offline_verified:\s*!!\(intake/u,
