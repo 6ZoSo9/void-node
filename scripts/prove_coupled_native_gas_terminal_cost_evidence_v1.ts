@@ -433,6 +433,15 @@ requireHeld(
 requireHeld(
   classify({
     receipt: makeReceipt("confirmed", {
+      gasUsed: "0x5207",
+    }),
+  }),
+  "coupled_native_gas_terminal_cost_gas_used_mismatch",
+);
+
+requireHeld(
+  classify({
+    receipt: makeReceipt("confirmed", {
       effectiveGasPrice: "0xb",
     }),
   }),
@@ -643,6 +652,7 @@ for (const [key, value] of Object.entries(
     "exact_receipt_sender_delivery_binding_required",
     "confirmed_and_reverted_supported",
     "gas_used_ceiling_required",
+    "exact_gas_used_binding_required",
     "effective_gas_price_ceiling_required",
     "exact_integer_gas_cost",
     "confirmed_native_value_consumption_bound",
@@ -669,6 +679,7 @@ console.log("confirmed_gas_cost_bound=true");
 console.log("reverted_native_value_consumption_zero=true");
 console.log("zero_effective_gas_price_supported=true");
 console.log("gas_used_ceiling_enforced=true");
+console.log("exact_gas_used_binding_enforced=true");
 console.log("effective_gas_price_ceiling_enforced=true");
 console.log("exact_receipt_identity_bound=true");
 console.log("receipt_sender_delivery_bound=true");
