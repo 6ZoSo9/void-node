@@ -114,6 +114,13 @@ The RPC policy is restricted to canonical numeric-loopback HTTP:
   - `eth_getTransactionReceipt`;
   - `eth_blockNumber`.
 
+The receipt is read once before the head observation and again immediately after
+it. Both projected receipt bindings must be canonical-equal. A missing second
+receipt or any transaction/block/status/gas-price/from/to drift HOLDs with no
+reconciliation packet. This prevents a receipt/head sample that straddles a
+reorg or receipt replacement from being treated as one stable finality
+observation.
+
 The observed chain ID must be exactly 2050. A real JSON-RPC receipt may contain
 many standard fields beyond the terminal-cost contract. The resolver therefore
 requires the RPC result to be a direct object, requires all eight needed source
@@ -161,7 +168,10 @@ The proof writes only temporary fixture state needed to exercise the existing
 journal readers. Its RPC fixture is a real ephemeral numeric-loopback HTTP
 JSON-RPC server; it does not bypass production transport construction. The
 happy path returns a realistic receipt with extra standard fields and proves
-projection succeeds; separate cases remove or mis-type required fields. A
+projection succeeds; separate cases remove or mis-type required fields. Another
+adversary changes the second receipt's block hash after the head read and
+requires
+`reconciliation_evidence_receipt_changed_during_confirmation_window`. A
 grow-after-open adversary expands a descriptor-backed plan file beyond 1 MiB
 during the first bounded read and requires the read-time size HOLD. A persistent
 cross-journal adversary rewrites only the broadcast confirmed record to another
