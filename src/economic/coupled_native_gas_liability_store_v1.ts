@@ -1133,7 +1133,31 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
                 root!,
                 payerDomainSnapshot!,
               );
-              mutationBoundary.now_ms = mutationNowMs;
+
+              const publicationNowMs = readNowMs();
+              const observationExpiryMs = Number(
+                (input?.payer_observation as
+                  CoupledNativeGasPayerObservationV1 | undefined)
+                  ?.expires_at_ms,
+              );
+              if (
+                typeof publicationNowMs !== "number" ||
+                !Number.isSafeInteger(publicationNowMs) ||
+                publicationNowMs < mutationNowMs
+              ) {
+                throw new CoupledNativeGasStorePreMutationHold(
+                  "coupled_native_gas_store_time_regression_or_invalid",
+                );
+              }
+              if (
+                !Number.isSafeInteger(observationExpiryMs) ||
+                publicationNowMs >= observationExpiryMs
+              ) {
+                throw new CoupledNativeGasStorePreMutationHold(
+                  "coupled_native_gas_fee_observation_stale",
+                );
+              }
+              mutationBoundary.now_ms = publicationNowMs;
             },
           );
           durableMutationPerformed = true;
