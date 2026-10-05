@@ -230,6 +230,7 @@ assert.deepEqual(regeneratedReceipt,receipt);
 const result=promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
   evidenceBytes:observed.evidence,
   importReceipt:receipt,
+  sourceEquivalence:replaySourceEquivalence,
   sourceBindingPolicy:preBinding,
   durableReplayStorePolicy:preDurable,
   runtimeEvidenceContract:contract,
