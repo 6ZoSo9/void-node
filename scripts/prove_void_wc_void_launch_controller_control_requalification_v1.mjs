@@ -131,7 +131,7 @@ assert.equal(challenge.challenge.execution_epoch, "2");
 assert.equal(challenge.challenge.candidate_address, fixtureWallet.address.toLowerCase());
 assert.equal(
   challenge.challenge.coupled_launch_id,
-  "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+  "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
 );
 assert.equal(
   challenge.challenge.compiled_identity_id,
