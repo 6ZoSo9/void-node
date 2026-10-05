@@ -22,6 +22,7 @@ export const VOID_COUPLED_NATIVE_GAS_EFFECTIVE_OPEN_CENSUS_AUTHORITY_V1 =
     immutable_reconciliation_history: true,
     exact_liability_identity_rederived: true,
     exact_reconciliation_identity_rederived: true,
+    stable_terminal_cost_identity_required: true,
     reconciliation_liability_binding_required: true,
     one_reconciliation_per_liability: true,
     orphan_reconciliation_rejected: true,
@@ -100,7 +101,7 @@ const RECONCILIATION_KEYS = Object.freeze([
   "payer_address",
   "nonce",
   "transaction_plan_fingerprint_sha256",
-  "terminal_cost_evidence_id",
+  "terminal_cost_identity_sha256",
   "outcome",
   "attempt_limit",
   "completed_attempt_count",
@@ -449,7 +450,7 @@ function reconciliationBody(
     payer_address: string;
     nonce: number;
     transaction_plan_fingerprint_sha256: string;
-    terminal_cost_evidence_id: string;
+    terminal_cost_identity_sha256: string;
     one_attempt_maximum_wei: string;
     maximum_reserved_wei: string;
     actual_consumed_wei: string;
@@ -469,7 +470,7 @@ function reconciliationBody(
     nonce: input.nonce,
     transaction_plan_fingerprint_sha256:
       input.transaction_plan_fingerprint_sha256,
-    terminal_cost_evidence_id: input.terminal_cost_evidence_id,
+    terminal_cost_identity_sha256: input.terminal_cost_identity_sha256,
     outcome: "confirmed" as const,
     attempt_limit: 1 as const,
     completed_attempt_count: 1 as const,
@@ -541,7 +542,7 @@ function validateReconciliation(
     !SHA256.test(
       String(value.transaction_plan_fingerprint_sha256 ?? ""),
     ) ||
-    !SHA256.test(String(value.terminal_cost_evidence_id ?? "")) ||
+    !SHA256.test(String(value.terminal_cost_identity_sha256 ?? "")) ||
     value.outcome !== "confirmed" ||
     value.attempt_limit !== 1 ||
     value.completed_attempt_count !== 1 ||
@@ -649,8 +650,8 @@ function validateReconciliation(
     nonce: liability.nonce,
     transaction_plan_fingerprint_sha256:
       liability.transaction_plan_fingerprint_sha256,
-    terminal_cost_evidence_id: String(
-      value.terminal_cost_evidence_id,
+    terminal_cost_identity_sha256: String(
+      value.terminal_cost_identity_sha256,
     ),
     one_attempt_maximum_wei: oneAttemptMaximum.toString(),
     maximum_reserved_wei: maximumReserved.toString(),

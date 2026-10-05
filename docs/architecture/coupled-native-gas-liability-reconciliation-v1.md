@@ -21,8 +21,10 @@ The classifier consumes exactly:
   contract.
 
 The open-liability identity is independently rederived from every economic
-field. The terminal-cost evidence content address and arithmetic are also
-rederived rather than trusting caller booleans.
+field. The terminal-cost evidence content address, stable terminal-cost accounting
+identity, and arithmetic are also rederived rather than trusting caller
+booleans. The full observation `evidence_id` remains freshness-sensitive and
+is deliberately **not** persisted into durable reconciliation identity.
 
 That rederivation proves internal consistency only. This classifier does not
 re-read the terminal-outcome store, does not obtain a fresh receipt from an
@@ -43,6 +45,23 @@ The two records must bind exactly on:
 
 The terminal evidence must retain the reviewed false authority boundary:
 no release, mutation, or funds movement.
+
+## Durable identity boundary
+
+The terminal-cost contract exposes:
+
+- freshness-sensitive `evidence_id`, which changes when the same accepted
+  terminal receipt is observed at a later current block; and
+- stable `terminal_cost_identity_sha256`, which excludes current block,
+  observed confirmation count, and current minimum-confirmation policy while
+  retaining all immutable terminal/receipt/cost facts.
+
+This reconciliation persists only `terminal_cost_identity_sha256`. As a
+result, fresh reauthentication at a later confirmation height may produce a new
+observation evidence ID while the canonical reconciliation bytes and
+`reconciliation_id` remain exact. The classifier still rederives the complete
+fresh observation `evidence_id` before accepting the stable accounting
+identity.
 
 ## Attempt accounting
 
@@ -134,6 +153,7 @@ The classifier HOLDS on, among other cases:
 - malformed terminal-cost evidence;
 - altered terminal-cost authority flags;
 - liability/evidence payer, nonce, plan, obligation, or ID mismatch;
+- altered stable terminal-cost identity;
 - altered terminal evidence content address;
 - gas-used mismatch against the exact liability gas limit;
 - effective gas price above the admitted cap;
@@ -192,5 +212,8 @@ The proof covers:
 - terminal evidence arithmetic tampering;
 - terminal gas mismatch;
 - terminal evidence authority tampering;
-- terminal evidence content-address tampering; and
+- stable terminal-cost identity tampering;
+- terminal evidence content-address tampering;
+- stable reconciliation identity across later confirmation-height
+  reobservation; and
 - all mutation/release/runtime/funds authority remaining false.
