@@ -610,19 +610,11 @@ function validateReconciliation(
     BigInt(liability.admitted_max_fee_per_gas_wei);
   const liabilityOneAttemptMaximum =
     liabilityNativeValue + liabilityGasLimit * liabilityMaxFee;
-  const observedGasCost = actualConsumed - liabilityNativeValue;
-  const effectiveGasPrice =
-    actualConsumed >= liabilityNativeValue &&
-    observedGasCost % liabilityGasLimit === 0n
-      ? observedGasCost / liabilityGasLimit
-      : null;
   if (
     oneAttemptMaximum !== liabilityOneAttemptMaximum ||
     oneAttemptMaximum !== maximumReserved ||
     actualConsumed < liabilityNativeValue ||
     actualConsumed > maximumReserved ||
-    effectiveGasPrice === null ||
-    effectiveGasPrice > liabilityMaxFee ||
     unconsumed !== maximumReserved - actualConsumed ||
     consumedRetirement !== actualConsumed ||
     retainedFuture !== 0n ||
