@@ -2,20 +2,23 @@
 
 ## Purpose
 
-This source-only contract closes one evidence gap in issue #2460:
+Issue #2460 needs exact terminal gas-cost evidence before any open native-gas
+liability can later be reconciled or released.
 
-> a terminal Buy VOID receipt can prove finality/outcome without, by itself,
-> proving the exact native gas debit that may later be reconciled against an
-> open native-gas liability.
+This source-only contract composes the **current native Buy VOID delivery lane**:
 
-The contract does **not** release a liability. It only proves the exact gas
-cost and payer debit for one already-open Buy VOID liability when all of the
-following agree:
+1. one exact open `VOID_COUPLED_NATIVE_GAS_LIABILITY_V1`;
+2. the exact prepared native transaction reservation;
+3. the durable native broadcast-outcome record created after receipt
+   reconciliation; and
+4. a fresh raw Chain-2050 receipt plus current block number carrying the gas
+   fields that the durable terminal records intentionally do not preserve.
 
-1. the canonical open liability;
-2. the current prepared-transaction plan reservation;
-3. immutable payment-keyed terminal receipt evidence; and
-4. a raw terminal Chain-2050 receipt snapshot carrying the missing gas fields.
+It does **not** consume the older payment-keyed contract-fulfillment receipt
+evidence. That is a different transaction lane: the current prepared native
+transaction is a type-2 direct transfer to the buyer delivery address, while
+the historical payment-keyed fulfillment receipt verifies a zero-value contract
+call with calldata/logs.
 
 Marker:
 
@@ -25,12 +28,12 @@ Marker:
 
 `classifyCoupledNativeGasTerminalCostEvidenceV1(...)` consumes:
 
-- `liability`: an open `VOID_COUPLED_NATIVE_GAS_LIABILITY_V1` record;
-- `buy_void_plan`: the exact current
-  `VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1`;
-- `terminal_receipt_evidence`: immutable
-  `VOID_BUY_VOID_PAYMENT_KEYED_RECEIPT_EVIDENCE_V1`;
-- `raw_receipt`: an exact projected receipt snapshot containing only:
+- `liability`: exact open presale native-gas liability;
+- `buy_void_plan`: exact prepared native transaction reservation;
+- `terminal_outcome`:
+  - `void_buy_void_broadcast_confirmed_record_v1`, or
+  - `void_buy_void_broadcast_reverted_record_v1`;
+- `raw_receipt`: exact projected receipt fields:
   - `transactionHash`;
   - `blockNumber`;
   - `blockHash`;
@@ -39,142 +42,203 @@ Marker:
   - `effectiveGasPrice`;
   - `from`;
   - `to`;
-- `expected_receipt_policy_fingerprint_sha256`.
+- `current_block_number`: fresh RPC block-height quantity; and
+- `required_min_confirmations`: server-controlled later-runtime policy input,
+  bounded to the same 1..1000 domain as the native receipt reconciler.
 
-This source does not fetch the receipt. A later runtime composition must source
-the raw receipt through a reviewed transport and obtain the immutable receipt
-evidence from its canonical private store.
+The source contract itself performs no RPC or filesystem read. Therefore raw
+receipt/current-block transport and terminal-outcome storage custody remain
+explicitly unproven here and grant no release authority.
 
-## Binding
+## Prepared-plan and liability binding
 
-The contract requires the liability and prepared plan to agree exactly on:
+The prepared plan is not trusted by shape alone. The classifier rederives:
+
+- wallet-key SHA-256;
+- transaction-template fingerprint;
+- transaction-plan fingerprint; and
+- reservation ID.
+
+It also validates the complete authority-false prepared-plan surface.
+
+The open liability is exact-key validated, its reserved envelope is recomputed,
+and its deterministic liability ID is rederived.
+
+The liability and plan must then agree on:
 
 - reservation / obligation ID;
-- payer address;
+- payer;
 - nonce;
-- transaction-plan fingerprint;
-- transaction native value;
+- plan fingerprint;
+- native transaction value;
 - gas limit;
 - admitted max fee per gas; and
-- Buy VOID source-evidence identity.
+- source-evidence plan fingerprint.
 
-The immutable receipt evidence must agree with the plan on:
+## Durable native terminal authority
 
-- saga ID;
-- attempt ID; and
-- delivery address.
+### Confirmed
 
-The supplied expected receipt-policy fingerprint must equal the immutable
-terminal evidence.
+A confirmed broadcast-outcome record must contain a current
+`BuyVoidConfirmedFulfillmentRecordV1` with a delivery block hash.
 
-The raw receipt must agree with the terminal evidence on:
+The classifier independently rederives:
 
-- transaction hash;
-- receipt block number;
-- receipt block hash; and
-- success/revert outcome.
+- canonical payment-identity SHA-256;
+- delivery-binding fingerprint; and
+- broadcast confirmed-record confirmation fingerprint.
 
-It must also bind:
+The confirmed record must bind to the prepared plan's:
 
-- receipt `from` = liability payer;
-- receipt `to` = the exact prepared-plan delivery address, which must also equal the immutable terminal evidence delivery address.
+- attempt ID through the outcome wrapper;
+- fulfillment wallet;
+- delivery address; and
+- native VOID amount.
 
-The terminal receipt evidence object is independently revalidated for its exact
-key set, confirmed/reverted field shape, authority object, and semantic evidence
-fingerprint. This prevents a caller-fabricated terminal object from becoming
-gas-cost authority merely because it has the right TypeScript shape.
+### Reverted
+
+A reverted broadcast-outcome record must independently satisfy its recorded
+arithmetic:
+
+```text
+confirmation_count =
+  current_block_number - block_number + 1
+confirmation_count >= min_revert_confirmations
+1 <= min_revert_confirmations <= 1000
+```
+
+It must be definitive, non-reconciling, retry-allowed, and must not claim that
+the outcome-journal module itself broadcast the transaction.
+
+A reverted record intentionally retains `retry_allowed=true`. This terminal
+cost evidence does **not** release that retry/manual-recovery allowance.
+
+## Fresh receipt revalidation
+
+The supplied raw receipt must bind to the same direct native transaction:
+
+- transaction hash = durable native outcome transaction hash;
+- block number = durable terminal block number;
+- receipt status = confirmed/reverted durable outcome;
+- receipt `from` = liability/plan fulfillment wallet;
+- receipt `to` = prepared delivery address.
+
+For confirmed delivery, the fresh raw receipt block hash must exactly equal the
+durable confirmed delivery block hash.
+
+For reverted delivery, the historical reverted record did not persist block
+hash. The fresh raw receipt supplies the current block hash, and a later trusted
+runtime must source that receipt/current block from the reviewed Chain-2050 RPC
+transport before this evidence can ever influence release.
+
+Fresh confirmation depth is recomputed:
+
+```text
+fresh_confirmations =
+  fresh_current_block - receipt_block + 1
+```
+
+It must be at least:
+
+- the supplied current minimum-confirmation policy; and
+- the durable terminal record's already-observed confirmation count.
+
+This prevents terminal-cost classification from weakening the finality already
+required when the durable outcome was written.
 
 ## Gas-cost arithmetic
 
-The contract parses EVM receipt quantities as canonical lowercase hex
-quantities and requires:
+The contract requires:
 
 ```text
 0 < gasUsed <= liability.gas_limit
 0 <= effectiveGasPrice <= liability.admitted_max_fee_per_gas_wei
-```
-
-It derives:
-
-```text
 gas_cost_wei = gasUsed * effectiveGasPrice
 ```
 
-For a confirmed/successful transaction:
+Zero effective gas price is accepted. Metered execution and native fee debit
+are distinct concepts in the current Chain-2050 evidence.
+
+For confirmed direct delivery:
 
 ```text
-transaction_native_value_debit_wei = liability.transaction_native_value_wei
-actual_payer_debit_wei =
-  transaction_native_value_debit_wei + gas_cost_wei
+transaction_native_value_consumed_wei =
+  liability.transaction_native_value_wei
+
+liability_consumed_wei =
+  transaction_native_value_consumed_wei + gas_cost_wei
 ```
 
-For a reverted transaction:
+For reverted delivery:
 
 ```text
-transaction_native_value_debit_wei = 0
-actual_payer_debit_wei = gas_cost_wei
+transaction_native_value_consumed_wei = 0
+liability_consumed_wei = gas_cost_wei
 ```
 
-A reverted EVM call does not retain the transaction value transfer, but it can
-still consume gas.
-
-The actual payer debit must remain within
+The resulting consumed amount must never exceed
 `liability.maximum_reserved_wei`.
 
-Zero effective gas price is allowed because metered execution and native fee
-debit are separate concepts in the current Chain-2050 evidence.
+This is conservative liability accounting. It is not a general-purpose EVM
+account-balance-delta or execution-trace proof.
 
 ## Output
 
-A successful classification returns a deterministic
-`evidence_id = sha256(canonical(evidence body))` plus:
+Success returns deterministic terminal-cost evidence binding:
 
-- exact liability / plan / attempt / transaction identities;
-- terminal outcome;
-- finality block + confirmation evidence;
+- liability / plan / attempt identity;
+- native transaction hash;
+- confirmed/reverted durable outcome;
+- deterministic terminal-record fingerprint;
+- exact receipt block hash/number;
+- fresh current block and confirmation count;
 - exact gas used;
 - exact effective gas price;
 - exact gas cost;
-- exact native-value debit;
-- exact total payer debit; and
-- the reviewed maximum reserved envelope.
+- exact native delivery value consumed by outcome semantics;
+- exact total liability consumption; and
+- exact maximum reserved envelope.
 
-The output always keeps:
+The result always reports:
 
 `liability_release_authorized=false`.
 
-This evidence may be consumed by a later pure reconciliation classifier, but is
-not itself release authority.
-
 ## HOLDs
 
-The contract HOLDS on, among other cases:
+The classifier HOLDS on, among other cases:
 
-- invalid/open-liability mismatch;
-- prepared-plan/liability mismatch;
-- saga/attempt mismatch;
-- receipt-policy mismatch;
-- altered terminal evidence fingerprint;
-- malformed confirmed/reverted terminal evidence;
-- raw receipt extra/missing fields;
-- transaction/block/status mismatch;
-- receipt sender/contract mismatch;
-- gas used above the liability ceiling;
-- effective gas price above the admitted ceiling;
-- arithmetic overflow; or
-- actual payer debit above the reserved envelope.
+- malformed or noncanonical prepared-plan identity;
+- malformed/relabelled open liability;
+- liability/plan mismatch;
+- malformed native terminal outcome;
+- delivery-binding fingerprint mismatch;
+- confirmed-outcome fingerprint mismatch;
+- reverted confirmation arithmetic mismatch;
+- confirmed terminal record not matching payer/delivery/amount;
+- receipt tx/block/status mismatch;
+- confirmed block-hash mismatch;
+- sender/delivery endpoint mismatch;
+- current block before receipt block;
+- fresh confirmation regression;
+- gas used above the liability gas limit;
+- effective gas price above the admitted max fee;
+- arithmetic overflow;
+- liability consumption above the reserved envelope; or
+- raw receipt extra/missing fields.
 
-Pending, receipt-missing, and reorg/confirmation-uncertain states do not have
-terminal receipt evidence and therefore cannot produce terminal gas-cost
-authority through this contract.
+Unsigned, unsubmitted, pending, receipt-missing, broadcast-unknown and
+reconciliation-required states do not have an accepted terminal outcome and
+therefore cannot produce evidence here.
 
 ## Authority boundary
 
 `VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_EVIDENCE_AUTHORITY_V1` keeps false:
 
-- receipt-evidence storage read;
+- terminal-outcome storage read/custody;
 - raw receipt transport verification;
-- receipt reconciliation mutation;
+- current-block transport verification;
+- trust in caller-supplied minimum-confirmation policy;
+- terminal receipt reconciliation mutation;
 - liability release/store mutation;
 - retry/manual-recovery allowance release;
 - WC/VOID terminal-cost authority;
@@ -187,9 +251,11 @@ authority through this contract.
 - inventory/treasury/liquidity movement; and
 - funds movement.
 
-A later runtime composition must bind canonical storage and raw-receipt
-transport. A separate later reconciliation contract must decide how much
-liability, if any, becomes releasable.
+The next gate after this source contract is a separately reviewed runtime
+composition that reads canonical terminal outcome storage and re-observes the
+same Chain-2050 receipt/current block through a trusted bounded transport.
+Only after that should a pure liability-reconciliation/release contract be
+considered.
 
 ## Focused proof
 
@@ -200,7 +266,7 @@ npm run build
 git diff --check
 ```
 
-The focused proof covers confirmed and reverted outcomes, zero gas price,
-gas-used and fee ceilings, transaction/block/status mismatch, endpoint binding,
-receipt-policy binding, evidence-fingerprint tampering, plan/liability mismatch,
-reverted-evidence shape, and raw-receipt exact-key enforcement.
+The focused proof covers confirmed/reverted native outcomes, terminal
+fingerprint validation, fresh-finality regression, zero gas price, gas/fee
+ceilings, transaction/block/status mismatch, endpoint binding, plan/liability
+conflict, malformed revert arithmetic, and raw-receipt exact-key enforcement.
