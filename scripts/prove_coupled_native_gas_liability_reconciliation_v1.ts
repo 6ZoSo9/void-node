@@ -348,6 +348,7 @@ function terminalEvidence(
   plan: BuyVoidPreparedTransactionPlanReservationV1,
   liability: CoupledNativeGasLiabilityRecordV1,
   outcome: "confirmed" | "reverted",
+  currentBlock = "0x66",
 ): CoupledNativeGasTerminalCostEvidenceVerifiedV1 {
   const decision = classifyCoupledNativeGasTerminalCostEvidenceV1({
     liability,
@@ -357,7 +358,7 @@ function terminalEvidence(
         ? makeConfirmedOutcome(plan)
         : makeRevertedOutcome(plan),
     raw_receipt: makeReceipt(outcome),
-    current_block_number: "0x66",
+    current_block_number: currentBlock,
     required_min_confirmations: "2",
   });
   if (decision.ok !== true) throw new Error(decision.reason);
@@ -398,6 +399,43 @@ const confirmed1 = requireOk(
   }),
 );
 assert.equal(confirmed1.outcome, "confirmed");
+assert.match(
+  confirmed1.terminal_cost_identity_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+
+const laterEvidence = terminalEvidence(
+  plan,
+  liability1,
+  "confirmed",
+  "0x70",
+);
+const baselineEvidence = terminalEvidence(
+  plan,
+  liability1,
+  "confirmed",
+);
+assert.notEqual(laterEvidence.evidence_id, baselineEvidence.evidence_id);
+assert.equal(
+  laterEvidence.terminal_cost_identity_sha256,
+  baselineEvidence.terminal_cost_identity_sha256,
+);
+const laterReconciliation = requireOk(
+  classifyCoupledNativeGasLiabilityReconciliationV1({
+    liability: liability1,
+    terminal_cost_evidence: laterEvidence,
+  }),
+);
+assert.equal(
+  laterReconciliation.reconciliation_id,
+  confirmed1.reconciliation_id,
+);
+assert.equal(
+  laterReconciliation.terminal_cost_identity_sha256,
+  confirmed1.terminal_cost_identity_sha256,
+);
+assert.deepEqual(laterReconciliation, confirmed1);
+
 assert.equal(confirmed1.attempt_limit, 1);
 assert.equal(confirmed1.completed_attempt_count, 1);
 assert.equal(confirmed1.remaining_attempt_allowance, 0);
@@ -513,6 +551,21 @@ requireHeld(
   const evidence = terminalEvidence(plan, liability1, "confirmed");
   const altered = {
     ...evidence,
+    terminal_cost_identity_sha256: "f".repeat(64),
+  };
+  requireHeld(
+    classifyCoupledNativeGasLiabilityReconciliationV1({
+      liability: liability1,
+      terminal_cost_evidence: altered,
+    }),
+    "coupled_native_gas_reconciliation_terminal_cost_identity_mismatch",
+  );
+}
+
+{
+  const evidence = terminalEvidence(plan, liability1, "confirmed");
+  const altered = {
+    ...evidence,
     evidence_id: "f".repeat(64),
   };
   requireHeld(
@@ -536,6 +589,7 @@ for (const [key, value] of Object.entries(
     "buy_void_only",
     "exact_open_liability_identity_rederived",
     "exact_terminal_cost_evidence_identity_rederived",
+    "stable_terminal_cost_identity_rederived",
     "exact_liability_terminal_evidence_binding_required",
     "release_candidate_requires_authenticated_terminal_reobservation",
     "durable_reconciliation_writer_required",
@@ -557,6 +611,8 @@ console.log(
 );
 console.log("liability_identity_rederived=true");
 console.log("terminal_cost_evidence_identity_rederived=true");
+console.log("stable_terminal_cost_identity_rederived=true");
+console.log("reconciliation_identity_stable_across_confirmation_height=true");
 console.log("terminal_cost_evidence_provenance_verified=false");
 console.log("authenticated_terminal_reobservation_required=true");
 console.log("durable_reconciliation_writer_required=true");
