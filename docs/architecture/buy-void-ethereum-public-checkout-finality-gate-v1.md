@@ -38,11 +38,13 @@ pre-attempt bridge would necessarily HOLD.
 Payment-instruction readiness and the pre-attempt bridge share one strict
 classifier over the canonical V5 finality capability authority. The classifier
 requires the full reviewed-success contract, not a hand-picked subset:
-reviewed-source verification, authenticated transport identity, total deadline,
-in-composition observation, source/deployed generation, remote-provider
-identity, ancestry, quorum, production authority, read-only RPC, and every
-forbidden wallet/signing/transaction/inventory/Chain-2050/presale/money
-authority remaining false. A partial future promotion therefore cannot expose
+runtime source reads enabled with runtime source writes forbidden, caller
+generation assertions forbidden, reviewed-source verification, authenticated
+transport identity, total deadline, in-composition observation, source/deployed
+generation, remote-provider identity, ancestry, quorum, production authority,
+read-only RPC, and every forbidden wallet/signing/transaction/inventory/
+Chain-2050/presale/money authority remaining false. A partial future promotion
+therefore cannot expose
 Ethereum payment instructions while the later bridge would still be forced to
 HOLD.
 
