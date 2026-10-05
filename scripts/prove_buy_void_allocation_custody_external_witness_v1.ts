@@ -16,9 +16,6 @@ import {
 
 const GENESIS_EVENT_SHA =
   "sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654";
-const GENESIS_WITNESS_SHA =
-  "sha256:a73c8c674bea5ed473938ddbf4275a651272fefd4e75d212d3d2bb8c8e5cbe1a";
-
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
 
@@ -113,14 +110,54 @@ const genesisEvent = {
 };
 
 const genesis = Buffer.from(
-  JSON.stringify(genesisEvent) + "\n",
+  canonicalJson(genesisEvent) + "\n",
   "utf8",
 );
+const GENESIS_WITNESS_SHA = sha256Id(genesis);
 assert.equal(
   "sha256:" +
     crypto.createHash("sha256").update(genesis).digest("hex"),
   GENESIS_WITNESS_SHA,
 );
+
+{
+  const numericStringGenesis = Buffer.from(
+    canonicalJson({
+      ...genesisEvent,
+      sequence: "1",
+    }) + "\n",
+    "utf8",
+  );
+  assert.throws(
+    () =>
+      parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+        numericStringGenesis,
+      ),
+    /allocation_custody_witness_line_noncanonical/u,
+    "numeric-string witness fields must not normalize into a canonical event",
+  );
+
+  const reorderedGenesisObject = Object.fromEntries(
+    Object.entries(genesisEvent).reverse(),
+  );
+  const reorderedGenesis = Buffer.from(
+    JSON.stringify(reorderedGenesisObject) + "\n",
+    "utf8",
+  );
+  assert.notEqual(
+    reorderedGenesis.toString("utf8"),
+    genesis.toString("utf8"),
+    "proof fixture must actually differ from canonical key ordering",
+  );
+  assert.throws(
+    () =>
+      parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
+        reorderedGenesis,
+      ),
+    /allocation_custody_witness_line_noncanonical/u,
+    "noncanonical witness key order must HOLD",
+  );
+}
 
 const current = {
   allocation_tip_sha256: genesisEvent.allocation_tip_sha256,
@@ -229,7 +266,7 @@ assert.equal(advancedCurrent.remaining_void, "9999999.999998");
     high_water_sha256: sha("f"),
   });
   const fakeGenesis = Buffer.from(
-    JSON.stringify(fakeGenesisEvent) + "\n",
+    canonicalJson(fakeGenesisEvent) + "\n",
     "utf8",
   );
   const held =
@@ -437,7 +474,7 @@ let advancedJournal: Buffer;
   });
   const malformedJournal = Buffer.concat([
     genesis,
-    Buffer.from(JSON.stringify(malformedTip) + "\n", "utf8"),
+    Buffer.from(canonicalJson(malformedTip) + "\n", "utf8"),
   ]);
   const syntactic =
     parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
@@ -583,7 +620,7 @@ let advancedJournal: Buffer;
   };
   const driftedBytes = Buffer.concat([
     genesis,
-    Buffer.from(JSON.stringify(drifted) + "\n", "utf8"),
+    Buffer.from(canonicalJson(drifted) + "\n", "utf8"),
   ]);
   const held =
     classifyBuyVoidAllocationCustodyExternalWitnessV1({
@@ -677,6 +714,9 @@ console.log("multi_record_local_history_conflict_rejected=true");
 console.log("truncated_witness_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("exact_single_record_advance=true");
+console.log("canonical_witness_jsonl_serialization=true");
+console.log("numeric_string_witness_fields_rejected=true");
+console.log("noncanonical_witness_key_order_rejected=true");
 console.log("canonical_micro_void_inventory=true");
 console.log("canonical_local_ledger_high_water_binding=true");
 console.log("exact_witnessed_ledger_prefix_binding=true");
