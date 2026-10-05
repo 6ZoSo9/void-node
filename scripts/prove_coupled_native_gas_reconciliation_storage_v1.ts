@@ -321,6 +321,56 @@ async function main(): Promise<void> {
 
   {
     const root = fixture();
+    const originalMkdirSync = fs.mkdirSync;
+    let injected = false;
+    try {
+      (fs as any).mkdirSync = (
+        target: fs.PathLike,
+        options?: fs.MakeDirectoryOptions & { recursive?: false },
+      ) => {
+        const result = originalMkdirSync(target, options as any);
+        if (
+          !injected &&
+          path.basename(String(target)) === RECONCILIATIONS
+        ) {
+          injected = true;
+          const domainPath = path.join(root, DOMAIN);
+          fs.renameSync(domainPath, domainPath + ".old");
+          fs.writeFileSync(
+            domainPath,
+            serializeCoupledNativeGasStorePayerDomainV1(PAYER),
+            { mode: 0o600, flag: "wx" },
+          );
+        }
+        return result;
+      };
+
+      const held =
+        await bootstrapCoupledNativeGasReconciliationStorageV1({
+          root_dir: root,
+          payer_address: PAYER,
+          confirmation: confirmation(root),
+        });
+      assert.equal(injected, true);
+      assert.equal(held.ok, false);
+      if (held.ok === false) {
+        assert.equal(held.status, "held_after_mutation");
+        assert.equal(held.mutation_performed, true);
+        assert.match(held.reason, /payer_domain_changed/);
+      }
+      assert.equal(
+        fs.existsSync(path.join(root, RECONCILIATIONS)),
+        true,
+        "post-create failure must not be misreported as no mutation",
+      );
+    } finally {
+      (fs as any).mkdirSync = originalMkdirSync;
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  {
+    const root = fixture();
     try {
       fs.rmSync(path.join(root, QUEUE), {
         recursive: true,
@@ -455,6 +505,7 @@ async function main(): Promise<void> {
   console.log("bootstrap_confirmation_required=true");
   console.log("bootstrap_confirmation_root_identity_bound=true");
   console.log("cross_root_bootstrap_confirmation_replay_holds=true");
+  console.log("post_create_failure_reports_held_after_mutation=true");
   console.log("concurrent_bootstrap_single_mutation=true");
   console.log("descriptor_bound_qualification=true");
   console.log("qualification_queue_lock_used=false");
