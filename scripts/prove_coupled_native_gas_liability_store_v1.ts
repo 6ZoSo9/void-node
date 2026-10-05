@@ -391,9 +391,13 @@ assert.doesNotMatch(
     "const mutationAdmission =",
     mutationTimeAt,
   );
+  const finalPayerRebindAt = storeSource.indexOf(
+    "assertPayerDomainSnapshotCurrent(",
+    mutationClassifyAt,
+  );
   const createAt = storeSource.indexOf(
     "createOnceLiability(records!, mutationAdmission.liability)",
-    mutationClassifyAt,
+    finalPayerRebindAt,
   );
   assert.ok(queueAt >= 0);
   assert.ok(domainAt > queueAt);
@@ -403,7 +407,8 @@ assert.doesNotMatch(
   assert.ok(rebindAt > classifyAt);
   assert.ok(mutationTimeAt > rebindAt);
   assert.ok(mutationClassifyAt > mutationTimeAt);
-  assert.ok(createAt > mutationClassifyAt);
+  assert.ok(finalPayerRebindAt > mutationClassifyAt);
+  assert.ok(createAt > finalPayerRebindAt);
   assert.equal(
     (storeSource.match(/readNowMs\(\)/gu) || []).length,
     2,
@@ -412,8 +417,8 @@ assert.doesNotMatch(
 }
 assert.match(
   storeSource,
-  /assertPayerDomainSnapshotCurrent\([\s\S]*const mutationNowMs = readNowMs\(\);[\s\S]*const mutationAdmission =[\s\S]*createOnceLiability\(records!, mutationAdmission\.liability\)/u,
-  "payer-domain rebind and refreshed mutation admission must precede durable publication",
+  /const mutationAdmission =[\s\S]*assertPayerDomainSnapshotCurrent\([\s\S]*createOnceLiability\(records!, mutationAdmission\.liability\)/u,
+  "refreshed mutation admission must be followed by a final payer-domain rebind before durable publication",
 );
 
 {
