@@ -89,6 +89,7 @@ Therefore:
 remaining_attempt_allowance = 0
 retained_future_attempt_reserve_wei = 0
 next_open_reserved_wei = 0
+additional_attempt_requires_new_liability = true
 
 unused_reserve_release_candidate_wei =
   maximum_reserved_wei - actual_consumed_wei
@@ -96,7 +97,9 @@ unused_reserve_release_candidate_wei =
 
 Even here, `liability_release_authorized=false`. A later store writer must
 re-read the exact payer domain and persist reviewed reconciliation evidence
-before any reserve accounting changes.
+before any reserve accounting changes. Because this liability is terminal and
+retains no future attempt allowance, any later transaction attempt must first
+obtain a distinct newly admitted liability.
 
 ## Reverted outcome
 
