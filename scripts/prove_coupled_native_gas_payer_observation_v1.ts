@@ -118,7 +118,6 @@ async function expectHeld(
   options: Parameters<typeof observed>[0],
 ): Promise<void> {
   const { decision } = await observed(options);
-  assert.equal(decision.ok, false);
   if (decision.ok !== false) throw new Error("expected HOLD");
   assert.equal(decision.reason, reason);
   assert.equal(decision.mutation_performed, false);
@@ -251,6 +250,22 @@ await expectHeld("coupled_native_gas_observer_rpc_transport_exception", {
 await expectHeld("coupled_native_gas_observer_time_regression_or_invalid", {
   times: [1_000_000, 999_999],
 });
+{
+  const calls: BuyVoidNativeExecutionPlannerRpcCallV1[] = [];
+  let reads = 0;
+  const decision = await observeCoupledNativeGasPayerV1({
+    policy: policy(),
+    read_now_ms: () => {
+      reads += 1;
+      if (reads === 2) throw new Error("synthetic clock fault");
+      return 1_000_000;
+    },
+    transport: mockTransport(calls),
+  });
+  if (decision.ok !== false) throw new Error("expected clock-fault HOLD");
+  assert.equal(decision.reason, "coupled_native_gas_observer_time_regression_or_invalid");
+}
+
 await expectHeld("coupled_native_gas_observer_duration_exceeded", {
   policy: { max_observation_duration_ms: "50" },
   times: [1_000_000, 1_000_100],
