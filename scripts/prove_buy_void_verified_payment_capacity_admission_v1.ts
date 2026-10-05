@@ -560,10 +560,11 @@ try {
     }
   }
 
-  // Generation authority is acquired before the request lock. If an external
-  // contender holds that request lock long enough for the launch lease to
-  // expire, the fresh under-held-generation assertion inside the request
-  // critical section must reject before any payment_verified append.
+  // Generation authority is acquired before the request lock. The external
+  // holder waits for the initial authority check, marks the synthetic lease
+  // expired while still owning the request lock, then releases it. The fresh
+  // under-held-generation assertion inside the request critical section must
+  // observe that post-wait expiry and reject before any payment_verified append.
   {
     const expiryRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "void-buy-capacity-request-lock-expiry-"),
@@ -613,6 +614,11 @@ try {
           request_id: expiryRequest.request_id,
         });
       const readyPath = path.join(expiryRoot, "external-holder-ready");
+      const initialAuthorityPath = path.join(
+        expiryRoot,
+        "initial-authority-checked",
+      );
+      const expiredPath = path.join(expiryRoot, "synthetic-lease-expired");
       const holderSource = [
         'import fs from "node:fs";',
         'const m = await import("./src/economic/buy_void_filesystem_bakery_lock_v1.ts");',
@@ -620,7 +626,12 @@ try {
         '  process.env.VOID_TEST_REQUEST_LOCK_PATH,',
         '  async () => {',
         '    fs.writeFileSync(process.env.VOID_TEST_REQUEST_LOCK_READY, "ready\\n");',
-        '    await new Promise((resolve) => setTimeout(resolve, Number(process.env.VOID_TEST_REQUEST_LOCK_HOLD_MS)));',
+        '    const deadline = Date.now() + 5000;',
+        '    while (!fs.existsSync(process.env.VOID_TEST_INITIAL_AUTHORITY_CHECKED)) {',
+        '      if (Date.now() >= deadline) throw new Error("initial_authority_handshake_timeout");',
+        '      await new Promise((resolve) => setTimeout(resolve, 10));',
+        '    }',
+        '    fs.writeFileSync(process.env.VOID_TEST_SYNTHETIC_LEASE_EXPIRED, "expired\\n");',
         '  },',
         ');',
       ].join("\n");
@@ -641,7 +652,8 @@ try {
             ...process.env,
             VOID_TEST_REQUEST_LOCK_PATH: requestLockPath,
             VOID_TEST_REQUEST_LOCK_READY: readyPath,
-            VOID_TEST_REQUEST_LOCK_HOLD_MS: "700",
+            VOID_TEST_INITIAL_AUTHORITY_CHECKED: initialAuthorityPath,
+            VOID_TEST_SYNTHETIC_LEASE_EXPIRED: expiredPath,
           },
           stdio: ["ignore", "pipe", "pipe"],
         },
@@ -676,7 +688,6 @@ try {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
-      const leaseExpiresAtMs = Date.now() + 250;
       let launchMutationCalls = 0;
       let freshAuthorityAssertions = 0;
       const expiryLaunchMutation = async (
@@ -684,19 +695,26 @@ try {
         operation: (assert_current_authority: () => any) => any,
       ) => {
         launchMutationCalls += 1;
-        if (Date.now() >= leaseExpiresAtMs) {
+        if (fs.existsSync(expiredPath)) {
           throw new Error(
             "request_launch_authority_expired_or_superseded",
           );
         }
+        fs.writeFileSync(
+          initialAuthorityPath,
+          "checked\n",
+          { flag: "wx", mode: 0o600 },
+        );
         return operation(() => {
           freshAuthorityAssertions += 1;
-          if (Date.now() >= leaseExpiresAtMs) {
+          if (!fs.existsSync(expiredPath)) {
             throw new Error(
-              "request_launch_authority_expired_or_superseded",
+              "synthetic_launch_expiry_not_observed_after_request_wait",
             );
           }
-          return { ready: true };
+          throw new Error(
+            "request_launch_authority_expired_or_superseded",
+          );
         });
       };
 
