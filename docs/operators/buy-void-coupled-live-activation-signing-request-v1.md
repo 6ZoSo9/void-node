@@ -26,8 +26,8 @@ reviewed coupled-launch gate:
 
 Callers cannot substitute either signing identity.
 
-The superseded `sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26` generation must not be signed or reused.
-The corrected generation requires a fresh control/signing ceremony.
+The superseded generation must not be signed or reused. The corrected
+generation requires a fresh control/signing ceremony.
 
 ## Exact input
 
