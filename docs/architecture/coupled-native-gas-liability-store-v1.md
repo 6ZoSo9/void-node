@@ -90,7 +90,9 @@ a caller-captured timestamp. New admission samples it after the full pre-write
 census and again immediately before durable publication. The second sample is
 used to rerun the canonical economic classifier against the unchanged pre-write
 census; if fee/balance evidence expired while custody or census work was in
-progress, the store HOLDS before creating a liability record. The post-write
+progress, the store HOLDS before creating a liability record. The second sample
+must also be a safe integer that is not earlier than the first sample; a
+regressing or malformed provider HOLDS before mutation. The post-write
 idempotence classifier reuses that mutation-boundary timestamp so a successful
 durable append is judged against the exact admission instant rather than a later
 wall-clock tick. This proves ordering only: the store still reports
