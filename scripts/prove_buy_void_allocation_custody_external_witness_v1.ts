@@ -138,8 +138,8 @@ const baseInput = {
     expires_at_ms: 1_800_000_300_000,
   },
   buyer_delivery_wallet: "0x" + "1".repeat(40),
-  quote_void_amount: "1",
-  quote_usdc_amount: "0.5",
+  quote_void_amount: "0.000001",
+  quote_usdc_amount: "0.000001",
   pool_void_total: "10000000",
   verified_payment_receipt_ref: sha("1"),
   payment_verified_event_sha256: sha("0"),
@@ -181,6 +181,8 @@ function currentFrom(
 }
 
 const advancedCurrent = currentFrom(ledger1, high1);
+assert.equal(advancedCurrent.reserved_void_total, "0.000001");
+assert.equal(advancedCurrent.remaining_void, "9999999.999999");
 
 const second = requireOk(
   planBuyVoidAllocationReservationV1({
@@ -500,6 +502,7 @@ for (const [key, value] of Object.entries(
     "source_host_invariant_binding",
     "witness_host_invariant_binding",
     "inventory_monotonicity",
+    "micro_void_inventory_arithmetic",
     "canonical_local_ledger_high_water_binding",
     "exact_witnessed_ledger_prefix_binding",
   ]);
@@ -519,6 +522,7 @@ console.log("rollback_regression_detected=true");
 console.log("truncated_witness_rejected=true");
 console.log("tampered_witness_rejected=true");
 console.log("exact_single_record_advance=true");
+console.log("canonical_micro_void_inventory=true");
 console.log("canonical_local_ledger_high_water_binding=true");
 console.log("exact_witnessed_ledger_prefix_binding=true");
 console.log("alternate_history_rejected=true");
