@@ -10,6 +10,24 @@ on:
       - "tools/void-buy-void-allocation-custody-preflight-v1.mjs"
       - "src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts"
       - "src/economic/coupled_native_gas_liability_store_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_host_evidence_v1.mjs"
+      - "docs/operators/coupled-native-gas-reconciliation-custody-host-evidence-v1.md"
+      - ".github/workflows/coupled-native-gas-reconciliation-custody-host-evidence-v1.yml"
+      - "tools/void-buy-void-allocation-custody-preflight-v1.mjs"
+      - "src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+      - "src/economic/coupled_native_gas_liability_store_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
   workflow_dispatch:
 
 permissions:
