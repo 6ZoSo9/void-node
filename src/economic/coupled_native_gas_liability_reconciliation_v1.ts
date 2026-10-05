@@ -140,7 +140,7 @@ export type CoupledNativeGasLiabilityReconciliationVerifiedV1 = {
   nonce: number;
   transaction_plan_fingerprint_sha256: string;
   terminal_cost_evidence_id: string;
-  outcome: "confirmed" | "reverted";
+  outcome: "confirmed";
   attempt_limit: 1;
   completed_attempt_count: 1;
   remaining_attempt_allowance: 0;
@@ -612,7 +612,7 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
       transaction_plan_fingerprint_sha256:
         liability.transaction_plan_fingerprint_sha256,
       terminal_cost_evidence_id: evidence.evidence_id,
-      outcome: evidence.outcome,
+      outcome: "confirmed" as const,
       attempt_limit: attemptLimit,
       completed_attempt_count: 1 as const,
       remaining_attempt_allowance: remainingAttemptAllowance,
