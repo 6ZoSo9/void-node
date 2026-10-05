@@ -63,7 +63,10 @@ Before any RPC call, the resolver snapshots through `O_NOFOLLOW` descriptors:
 
 Directories and files must be private, direct, current-user-owned objects.
 Unexpected filenames, symlinks, hard links, replacement, size drift, metadata
-drift, or content drift fail closed.
+drift, or content drift fail closed. File bodies are read from the retained
+descriptor through a bounded fixed-chunk loop with a hard 1 MiB ceiling during
+the read itself; growth after the initial stat therefore cannot force an
+unbounded `readFileSync` allocation before the post-read identity check.
 
 The existing journal readers are pathname-oriented, so a stable before/after
 directory digest is not sufficient by itself. Before RPC the resolver also
@@ -100,11 +103,20 @@ The RPC policy is restricted to canonical numeric-loopback HTTP:
   - `eth_getTransactionReceipt`;
   - `eth_blockNumber`.
 
-The observed chain ID must be exactly 2050. The existing terminal-cost
-classifier remains responsible for exact terminal transaction identity,
-receipt block/hash/status/from/to, gas-used equality/ceiling, effective gas
-price ceiling, current-block consistency, confirmation depth, native-value
-consumption, and the reserved-envelope ceiling.
+The observed chain ID must be exactly 2050. A real JSON-RPC receipt may contain
+many standard fields beyond the terminal-cost contract. The resolver therefore
+requires the RPC result to be a direct object, requires all eight needed source
+fields to be strings, and projects exactly
+`transactionHash, blockNumber, blockHash, status, gasUsed,
+effectiveGasPrice, from, to` before invoking the existing exact-key classifier.
+Missing or wrong-type required fields HOLD; unrelated standard receipt fields
+cannot widen the classifier's accepted schema.
+
+The existing terminal-cost classifier remains responsible for exact terminal
+transaction identity, receipt block/hash/status/from/to, gas-used
+equality/ceiling, effective gas price ceiling, current-block consistency,
+confirmation depth, native-value consumption, and the reserved-envelope
+ceiling.
 
 ## Result
 
@@ -136,7 +148,11 @@ Always false in this lane:
 
 The proof writes only temporary fixture state needed to exercise the existing
 journal readers. Its RPC fixture is a real ephemeral numeric-loopback HTTP
-JSON-RPC server; it does not bypass production transport construction.
+JSON-RPC server; it does not bypass production transport construction. The
+happy path returns a realistic receipt with extra standard fields and proves
+projection succeeds; separate cases remove or mis-type required fields. A
+grow-after-open adversary expands a descriptor-backed plan file beyond 1 MiB
+during the first bounded read and requires the read-time size HOLD.
 Production resolver behavior is read-only.
 
 ## Verification
