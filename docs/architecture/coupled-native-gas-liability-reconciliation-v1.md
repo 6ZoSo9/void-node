@@ -92,29 +92,26 @@ before any reserve accounting changes.
 
 ## Reverted outcome
 
-A reverted transaction is a completed current Buy VOID attempt. The broadcast
-journal's generic `retry_allowed=true` does not mint native-gas capacity.
+A reverted transaction is fail-closed in V1 reconciliation.
 
-Current V1 liability authority reserved exactly one attempt, so:
+The broadcast journal still carries `retry_allowed=true`, while the current
+coordination layer does not yet define whether the obligation should be retried,
+manually recovered, cancelled, re-funded, or otherwise disposed. A one-attempt
+native-gas liability proves only the maximum envelope admitted for that attempt;
+it does not authorize closing the obligation or releasing the unused remainder.
+
+Therefore a valid reverted terminal-cost record returns:
 
 ```text
-remaining_attempt_allowance = 0
-retained_future_attempt_reserve_wei = 0
-next_open_reserved_wei = 0
-additional_attempt_requires_new_liability = true
-
-unused_reserve_release_candidate_wei =
-  maximum_reserved_wei - actual_consumed_wei
+HOLD = coupled_native_gas_reconciliation_reverted_disposition_unresolved
 ```
 
-Any later retry must first obtain a new reviewed native-gas liability under
-fresh payer-balance/fee/nonce authority. This classifier never authorizes retry
-execution itself.
+V1 emits no reserve-release candidate, no terminal-close candidate, and no
+new-liability requirement for a reverted outcome.
 
-A future multi-attempt reconciliation version must add exact attempt ordinal
-and progression evidence before it can safely retain or release part of a
-multi-attempt envelope. V1 deliberately refuses to infer that state from
-`attempt_limit=2` alone.
+A later reviewed disposition contract must explicitly bind retry/manual-recovery
+state before any reverted liability can be reconciled. Any future multi-attempt
+version must additionally bind exact attempt ordinal/progression evidence.
 
 ## HOLD conditions
 
@@ -132,12 +129,15 @@ The classifier HOLDS on, among other cases:
 - gas-cost or native-value-consumption arithmetic mismatch;
 - confirmation-depth mismatch;
 - actual consumption above the reserved envelope; or
-- any open liability with `attempt_limit != 1` in this V1 reconciliation contract.
+- any open liability with `attempt_limit != 1` in this V1 reconciliation contract; or
+- any reverted terminal outcome until retry/manual-recovery disposition is reviewed.
 
 ## Authority boundary
 
 `VOID_COUPLED_NATIVE_GAS_LIABILITY_RECONCILIATION_AUTHORITY_V1` keeps false:
 
+- reverted reconciliation authority;
+- reverted retry/manual-recovery disposition authority;
 - durable open-liability store binding;
 - liability-store mutation;
 - liability release;
@@ -167,7 +167,7 @@ npx tsx scripts/prove_coupled_native_gas_liability_reconciliation_v1.ts
 The proof covers:
 
 - confirmed attempt-limit-1 accounting;
-- reverted attempt-limit-1 accounting requiring a new liability for retry;
+- reverted attempt-limit-1 HOLD while retry/manual-recovery disposition is unresolved;
 - explicit HOLD for a cryptographically valid attempt-limit-2 liability;
 - liability identity tampering;
 - terminal evidence arithmetic tampering;
