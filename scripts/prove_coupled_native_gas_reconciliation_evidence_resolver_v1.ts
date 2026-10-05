@@ -524,8 +524,12 @@ const happy = await resolveCoupledNativeGasReconciliationEvidenceV1({
   policy: rpcPolicy("confirmed"),
 });
 assert.equal(snapshotTree(confirmed.root), before);
+if (!happy.ok) {
+  throw new Error(
+    "happy_path_hold:" + happy.stage + ":" + happy.reason,
+  );
+}
 assert.equal(happy.ok, true);
-if (!happy.ok) throw new Error(happy.reason);
 assert.equal(happy.status, "reconciliation_evidence_resolved");
 assert.equal(happy.packet.liability_id, confirmed.liability.liability_id);
 assert.equal(
