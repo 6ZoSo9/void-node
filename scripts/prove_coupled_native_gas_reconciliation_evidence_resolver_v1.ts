@@ -446,7 +446,7 @@ function rpcResultFor(
       ...(options.receipt_patch || {}),
     };
   }
-  return options.current_block ?? "0x66";
+  return options.current_block ?? "0x69";
 }
 
 const rpcServer = http.createServer((request, response) => {
