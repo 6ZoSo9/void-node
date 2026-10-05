@@ -78,6 +78,33 @@ function microVoid(value: unknown, code: string, positive = false): bigint {
   return units;
 }
 
+// Project the legacy numeric API from the same exact units as strict admission.
+// Never round away a sub-micro quote or an unrepresentable numeric result.
+export function projectBuyVoidVerifiedPaymentCapacityV1(
+  poolVoid: unknown,
+  verifiedQuotes: readonly unknown[],
+) {
+  const code = "buy_void_verified_payment_capacity_state_invalid";
+  const pool = microVoid(poolVoid, code, true);
+  let verified = 0n;
+  for (const quote of verifiedQuotes) {
+    verified += microVoid(quote, code, true);
+  }
+  const reserved = verified < pool ? verified : pool;
+  const asNumber = (units: bigint): number => {
+    const value = Number(
+      `${units / MICRO}.${(units % MICRO).toString().padStart(6, "0")}`,
+    );
+    if (microVoid(value, code) !== units) fail(code);
+    return value;
+  };
+  return Object.freeze({
+    allocation_reserved_void: asNumber(reserved),
+    verified_void_total: asNumber(verified),
+    remaining_void: asNumber(pool - reserved),
+  });
+}
+
 const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
