@@ -14,10 +14,15 @@ constructor-bound reviewed launch policy artifact
   -> exact request normalization
   -> non-mutating signed candidate preflight
   -> non-mutating reservation-store structural/history preflight
-  -> durable sponsored observation-time store
-  -> current signed candidate revalidation at accepted time
-  -> durable sponsored-gas reservation store
-  -> return source admission result
+  -> non-mutating trusted-time preview
+  -> current signed candidate revalidation at preview time
+  -> read-only durable reservation history/budget classification
+       DENY -> HOLD with no durable time append
+       ALLOW ->
+         durable sponsored observation-time store
+         -> current signed candidate revalidation at durable accepted time
+         -> durable sponsored-gas reservation store
+         -> return source admission result
   -> STOP before sponsored execution
 ```
 
@@ -169,40 +174,81 @@ one valid time receipt may already be durable before reservation persistence
 HOLDS. The source therefore does not claim that all post-preflight storage loss
 is time-growth-free.
 
+## Non-mutating trusted-time and budget preview
+
+After signed preflight and structural reservation-store inspection, the binder
+calls `timeStore.preview()`.
+
+Preview stable-reads the durable time head, samples the captured clock once,
+validates one candidate next time receipt, stable-reads the durable time head
+again, and publishes nothing.
+
+The runtime then re-runs current candidate verification at the preview time.
+
+If the candidate is already expired or otherwise not current, admission HOLDS
+before durable time mutation.
+
+Next, the binder calls the read-only sponsored reservation listing API at that
+same preview time. For a new sponsorship, the canonical anti-grief classifier
+is run against the complete durable intent+sponsorship history.
+
+Budget exhaustion, conflicting durable identity, malformed history, or other
+canonical denial therefore HOLDS before `timeStore.observe()`.
+
+An exact durable duplicate is handled separately: current validity is still
+proved at preview time, but the full-history classifier's intentional duplicate
+rejection is skipped so the positive/idempotent path may continue to
+authoritative durable time and exact reservation replay.
+
+This source therefore reports:
+
+```text
+non_mutating_time_preview_before_durable_time=true
+read_only_budget_preflight_before_durable_time=true
+preview_denial_does_not_advance_time=true
+valid_denied_request_time_growth_bounded=true
+expired_duplicate_execution_admission=false
+```
+
 ## Durable trusted-time step
 
-Only after preflight does the binder call the durable observation-time store.
+Only a request that is current and economically admissible at preview time may
+call the durable observation-time store.
 
-The caller cannot supply a prior receipt or timestamp. The time store
-reconstructs its own durable head and obtains one observation from the captured
-clock dependency.
+The caller still cannot supply a prior receipt or timestamp. The durable time
+store reconstructs its own head and obtains a fresh observation from the
+captured clock dependency. Preview time is never reused as durable authority.
 
-If the time store HOLDS, sponsored reservation is not attempted.
+If durable observation HOLDS, sponsored reservation is not attempted.
 
 Cross-process and cross-boot continuity remain false. A process restart
 therefore HOLDS instead of resetting generation zero.
 
-## Current-time revalidation
+## Current-time revalidation after durable observation
 
-The issuance-time preflight proves cryptographic validity without consuming time
-authority. It is not sufficient for current execution eligibility.
+Preview is negative/preflight evidence only. It is not positive execution
+authority.
 
-After the durable time observation succeeds, the binder re-runs the canonical
-candidate verification at the **accepted observed time** before touching the gas
-reservation store.
+After durable observation succeeds, the binder re-runs canonical current
+candidate verification at the **durable accepted observed time** before touching
+the gas reservation store.
 
-This is critical for duplicate history: a durable sponsorship remains valid
-historical evidence after TTL expiry, but an expired signed intent must not be
-returned as execution-eligible merely because its reservation already exists.
+This closes the race where a candidate is current at preview but expires before
+durable observation. Such a race may create one durable time receipt, then HOLD;
+a retry previews against the new durable head and rejects the expired candidate
+without another durable append.
 
-Therefore:
+Likewise, if budget is available at preview but another concurrent admission
+uses it before persistence, the later reservation-store admission HOLDS. A retry
+sees the new durable budget state during preview and does not append again.
+
+Positive paths therefore still require:
 
 ```text
-expired_duplicate_execution_admission=false
+durable_observe_required_after_preview_allow=true
+durable_time_observation_before_reservation=true
+durable_reservation_before_execution=true
 ```
-
-An expired duplicate advances the durable time chain, then HOLDS before the
-reservation/execution-success path.
 
 ## Durable gas reservation
 
@@ -235,19 +281,24 @@ both stores.
 
 ## Valid denied requests
 
-A cryptographically valid/current request can still be denied by the durable
-reservation store because existing history exhausts the identity/global budget.
+A cryptographically valid/current request can still be denied by existing
+durable history, including per-identity/global sponsored-gas exhaustion.
 
-Such a request may already have appended one durable time receipt.
-
-The source contract therefore keeps:
+The preview/history path now proves those already-denied requests do not append
+durable time authority:
 
 ```text
-valid_denied_request_time_growth_bounded=false
+valid_denied_request_time_growth_bounded=true
 ```
 
-Live exposure requires a separately reviewed request-rate/storage-growth bound.
-The source lane does not hide this denial-of-service boundary.
+This statement is intentionally narrow. It does not claim a general public
+request-rate limit and does not eliminate every possible one-receipt race.
+
+A request that appears admissible at preview can still race with expiry or a
+concurrent reservation before the later durable steps. In that case at most the
+positive-at-preview path can advance durable time before fail-closed
+revalidation/persistence discovers the race. The next retry observes the new
+durable time/history state and rejects without another append.
 
 ## Additional HOLDs
 
@@ -262,7 +313,7 @@ cross_process_restart_continuity_proven=false
 cross_boot_restart_continuity_proven=false
 time_store_rollback_resistance_proven=false
 reservation_store_root_stability_proven=false
-valid_denied_request_time_growth_bounded=false
+valid_denied_request_time_growth_bounded=true
 execution_replay_store_bound=false
 runtime_route_active=false
 runtime_enforcement_verified=false
@@ -300,11 +351,13 @@ The runtime proof covers:
 - successful admission reports reservation structural preflight verified;
 - invalid signature after structural preflight but before clock read;
 - request timestamp injection before clock read;
-- first durable time + first durable reservation;
-- exact duplicate reservation;
-- valid global-budget denial after durable time;
-- explicit denied-request time growth;
-- expired duplicate HOLD after current-time revalidation;
+- first preview + durable time + first durable reservation;
+- exact current duplicate reservation with preview plus durable observation;
+- valid global-budget denial at preview/history preflight with zero new durable
+  time rows;
+- expired duplicate HOLD at preview time with zero new durable time rows;
+- destructive reservation-root loss during preview with zero durable time
+  publication;
 - caller policy override rejection;
 - process-restart HOLD with no new time/reservation row;
 - accessor request rejection without getter execution; and
@@ -319,8 +372,8 @@ Before any live sponsored execution:
 2. prove host clock trust and restart continuity;
 3. prove rollback-resistant time-store custody;
 4. prove reservation-store host/root stability;
-5. bound valid-denied request time-store growth;
-6. bind the durable execution replay store; and
+5. bind the durable execution replay store;
+6. prove any remaining public request-rate/CPU/storage bounds separately; and
 7. only then define the sponsored transaction execution stage.
 
 This lane itself authorizes none of those live actions.
