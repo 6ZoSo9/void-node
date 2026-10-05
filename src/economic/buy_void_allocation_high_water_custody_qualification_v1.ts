@@ -137,6 +137,8 @@ type EvidenceV1 = {
     custody_can_write_parent: true;
   };
   service_hardening: {
+    unit_name: "void-allocation-custody-v1.service";
+    unit_sha256: string;
     no_new_privileges: true;
     private_tmp: true;
     private_devices: true;
@@ -485,6 +487,8 @@ function validateEvidence(
   raw: unknown,
   expectedSourceHead: string,
   expectedHostId: string,
+  expectedEvidenceGeneration: number,
+  expectedServiceUnitSha256: string,
   nowMs: number,
   ledgerBytes: Buffer,
   highWaterBytes: Buffer,
@@ -523,7 +527,12 @@ function validateEvidence(
     value.evidence_generation,
     "allocation_custody_evidence_generation_invalid",
   );
-  if (generation < 1) fail("allocation_custody_evidence_generation_invalid");
+  if (
+    generation < 1 ||
+    generation !== expectedEvidenceGeneration
+  ) {
+    fail("allocation_custody_evidence_generation_mismatch");
+  }
   const observedAt = safeInteger(
     value.observed_at_ms,
     "allocation_custody_evidence_observed_at_invalid",
@@ -664,6 +673,8 @@ function validateEvidence(
     "allocation_custody_hardening_object_invalid",
   );
   const hardeningKeys = [
+    "unit_name",
+    "unit_sha256",
     "no_new_privileges",
     "private_tmp",
     "private_devices",
@@ -681,7 +692,14 @@ function validateEvidence(
     "read_write_paths",
   ] as const;
   exactKeys(hardening, hardeningKeys, "allocation_custody_hardening_keys_invalid");
-  for (const key of hardeningKeys.slice(0, -1)) {
+  if (
+    hardening.unit_name !== "void-allocation-custody-v1.service" ||
+    hardening.unit_sha256 !== expectedServiceUnitSha256 ||
+    !SHA256_ID.test(String(hardening.unit_sha256 ?? ""))
+  ) {
+    fail("allocation_custody_service_unit_binding_invalid");
+  }
+  for (const key of hardeningKeys.slice(2, -1)) {
     if (hardening[key] !== true) fail("allocation_custody_hardening_incomplete");
   }
   if (!Array.isArray(hardening.read_write_paths)) {
@@ -758,6 +776,8 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
     now_ms: unknown;
     expected_source_head_sha: unknown;
     expected_host_id_sha256: unknown;
+    expected_evidence_generation: unknown;
+    expected_service_unit_sha256: unknown;
     ledger_jsonl: string | Buffer;
     high_water_json: string | Buffer;
     evidence: unknown;
@@ -775,11 +795,24 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
     const expectedHostId = String(
       input?.expected_host_id_sha256 ?? "",
     ).trim();
+    const expectedEvidenceGeneration = safeInteger(
+      input?.expected_evidence_generation,
+      "allocation_custody_expected_evidence_generation_invalid",
+    );
+    const expectedServiceUnitSha256 = String(
+      input?.expected_service_unit_sha256 ?? "",
+    ).trim();
     if (!GIT_SHA.test(expectedSourceHead)) {
       fail("allocation_custody_expected_source_head_invalid");
     }
     if (!SHA256_ID.test(expectedHostId)) {
       fail("allocation_custody_expected_host_id_invalid");
+    }
+    if (expectedEvidenceGeneration < 1) {
+      fail("allocation_custody_expected_evidence_generation_invalid");
+    }
+    if (!SHA256_ID.test(expectedServiceUnitSha256)) {
+      fail("allocation_custody_expected_service_unit_sha256_invalid");
     }
 
     const ledgerBytes = Buffer.isBuffer(input?.ledger_jsonl)
@@ -813,6 +846,8 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
       input?.evidence,
       expectedSourceHead,
       expectedHostId,
+      expectedEvidenceGeneration,
+      expectedServiceUnitSha256,
       nowMs,
       ledgerBytes,
       highWaterBytes,
