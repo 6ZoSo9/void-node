@@ -138,9 +138,20 @@ The first source lane intentionally does not bootstrap storage.
 Before use, the caller must supply an existing:
 
 ```text
-<root>/                 mode-private, current UID
-  records/              mode-private, current UID
+<root>/                              mode-private, current UID
+  records/                           mode-private, current UID
+  sponsorship-admission-v1.queue/    mode-private, current UID
 ```
+
+The lock queue is authority storage, not scratch bootstrap. The store opens and
+descriptor-binds it before lock admission. Missing, symlinked, weak-mode,
+wrong-owner, or replaced queue paths HOLD. The bakery lock is invoked through
+its existing-queue-only API using the pinned queue fd path; that API neither
+creates the queue nor chmod-normalizes it.
+
+This makes `storage_bootstrap=false` literal: queue claim files may be created
+and removed *inside* an already-qualified queue, but the queue authority itself
+must be provisioned by a separate host gate.
 
 The root path is opened component-by-component from the filesystem root with
 `O_DIRECTORY | O_NOFOLLOW` through descriptor-relative
@@ -148,7 +159,8 @@ The root path is opened component-by-component from the filesystem root with
 
 The source rejects unsafe/symlinked ancestry and descriptor/path identity drift.
 Record reads are bounded, no-follow, descriptor-bound, and require exact
-before/after visible identity. Every successful externally visible result—read-only listing, new
+before/after visible identity. Root, records, and lock-queue directory identities
+are revalidated through clean persistence/listing results. Every successful externally visible result—read-only listing, new
 reservation, and exact duplicate replay—revalidates the pinned root and
 records-directory identities after history/budget/replay evaluation, so
 replacing a visible directory cannot return a clean result from an orphaned
@@ -158,6 +170,31 @@ with `mutation_performed=false`.
 
 This is filesystem integrity hardening, not independent custody. The authority
 therefore keeps `root_path_stability_proven=false`.
+
+## Structural preflight
+
+`inspectEconomicSystemSponsoredReservationStoreV1({ root_dir })` is a
+non-mutating storage/topology inspection intended for later runtime admission
+composition.
+
+It validates:
+
+- private descriptor-bound root;
+- private descriptor-bound `records/`;
+- private descriptor-bound pre-provisioned lock queue;
+- stable canonical durable record history; and
+- terminal visible directory identity.
+
+It deliberately does **not**:
+
+- clean crash temps;
+- evaluate TTL state;
+- evaluate sponsorship budgets;
+- consume trusted observation time; or
+- mutate the store.
+
+It reports `policy_state_evaluated=false`,
+`observation_time_evaluated=false`, and `mutation_performed=false`.
 
 ## Exact replay
 
@@ -279,7 +316,11 @@ The store proof covers:
 - linked temp/final crash recovery;
 - malformed record HOLD;
 - symlink record/root HOLD;
-- missing pre-provisioned records directory HOLD; and
+- missing pre-provisioned records directory HOLD;
+- missing pre-provisioned lock queue HOLD without queue creation;
+- weak-mode lock queue HOLD without chmod normalization;
+- symlink lock queue HOLD;
+- read-only structural preflight without policy/time evaluation; and
 - concurrent near-global-budget admission where exactly one of two otherwise
   valid candidates can become durable.
 

@@ -5,6 +5,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  derive as deriveBuyVoidEnforcementArtifactAttestationV1,
+} from "./prove_buy_void_enforcement_artifact_attestation_v1.mjs";
+import {
+  deriveBuyVoidEnforcementArtifactAttestationV3,
+} from "./prove_buy_void_enforcement_artifact_attestation_v3.mjs";
+import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   readBuyLaunchGateV1,
 } from "../src/economic/buy_void_coupled_launch_gate_v1.mjs";
@@ -378,9 +384,23 @@ console.log("docker_image_anonymous_authority_volume=false");
 console.log("docker_generation_authority_volume_per_service=true");
 console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 {
-  const manifest = JSON.parse(read(
-    "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
+  const manifest =
+    deriveBuyVoidEnforcementArtifactAttestationV1(ROOT);
+  const expectedSuccessor =
+    deriveBuyVoidEnforcementArtifactAttestationV3(ROOT);
+  const committedSuccessor = JSON.parse(read(
+    "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json",
   ));
+  assert.deepEqual(
+    committedSuccessor,
+    expectedSuccessor,
+    "committed enforcement V3 successor must match current closure",
+  );
+  assert.equal(
+    committedSuccessor.current_enforcement.enforcement_artifact_set_sha256,
+    manifest.enforcement_artifact_set_sha256,
+    "runtime integration must bind the V3-attested current enforcement closure",
+  );
   const dockerBytes = fs.readFileSync(path.join(ROOT, "Dockerfile"));
   const lockBytes = fs.readFileSync(
     path.join(ROOT, "src/economic/buy_void_filesystem_bakery_lock_v1.ts"),
@@ -427,6 +447,8 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
   console.log(`attestation_docker_sha256=${dockerInput.sha256}`);
   console.log(`attestation_docker_git_blob_sha1=${dockerInput.git_blob_sha1}`);
   console.log(`attestation_next_set_sha256=${nextSetSha256}`);
+  console.log("enforcement_v1_predecessor_immutable=true");
+  console.log("current_enforcement_v3_successor_bound=true");
 }
 console.log("funds_movement=false");
 console.log("runtime_activation_performed=false");
