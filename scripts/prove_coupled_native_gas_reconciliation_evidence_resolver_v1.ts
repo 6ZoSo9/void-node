@@ -413,6 +413,7 @@ type RpcScenarioOptionsV1 = {
   to?: string;
   current_block?: string;
   receipt_patch?: Record<string, unknown>;
+  second_receipt_patch?: Record<string, unknown>;
   on_call?: (
     method: "eth_chainId" | "eth_getTransactionReceipt" | "eth_blockNumber",
   ) => void;
@@ -425,6 +426,7 @@ let rpcScenario: {
   outcome: "confirmed",
   options: {},
 };
+let rpcReceiptCallCount = 0;
 
 function rpcResultFor(
   method: "eth_chainId" | "eth_getTransactionReceipt" | "eth_blockNumber",
@@ -435,6 +437,13 @@ function rpcResultFor(
     return options.chain_id ?? "0x802";
   }
   if (method === "eth_getTransactionReceipt") {
+    rpcReceiptCallCount += 1;
+    const receiptPatch = {
+      ...(options.receipt_patch || {}),
+      ...(rpcReceiptCallCount === 2
+        ? (options.second_receipt_patch || {})
+        : {}),
+    };
     return {
       transactionHash:
         options.transaction_hash ?? deliveryTx,
@@ -457,7 +466,7 @@ function rpcResultFor(
       logs: [],
       logsBloom: "0x" + "0".repeat(512),
       type: "0x2",
-      ...(options.receipt_patch || {}),
+      ...receiptPatch,
     };
   }
   return options.current_block ?? "0x69";
@@ -527,6 +536,7 @@ function rpcPolicy(
   options: RpcScenarioOptionsV1 = {},
 ): typeof policy {
   rpcScenario = { outcome, options };
+  rpcReceiptCallCount = 0;
   return policy;
 }
 
@@ -556,6 +566,7 @@ assert.deepEqual(happy.packet.rpc_methods_used, [
   "eth_chainId",
   "eth_getTransactionReceipt",
   "eth_blockNumber",
+  "eth_getTransactionReceipt",
 ]);
 assert.equal(happy.packet.terminal_cost_evidence.outcome, "confirmed");
 assert.equal(happy.packet.reconciliation.outcome, "confirmed");
@@ -776,6 +787,34 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
     result.value.reason,
     "reconciliation_evidence_outcome_reader_snapshot_mismatch",
   );
+}
+
+{
+  const changedReceipt =
+    await resolveCoupledNativeGasReconciliationEvidenceV1({
+      root_dir: confirmed.root,
+      liability: confirmed.liability,
+      policy: rpcPolicy("confirmed", {
+        second_receipt_patch: {
+          blockHash: "0x" + "7".repeat(64),
+        },
+      }),
+    });
+  assert.equal(changedReceipt.ok, false);
+  if (changedReceipt.ok) {
+    throw new Error("expected receipt revalidation HOLD");
+  }
+  assert.equal(changedReceipt.stage, "rpc");
+  assert.equal(
+    changedReceipt.reason,
+    "reconciliation_evidence_receipt_changed_during_confirmation_window",
+  );
+  assert.deepEqual(changedReceipt.rpc_methods_used, [
+    "eth_chainId",
+    "eth_getTransactionReceipt",
+    "eth_blockNumber",
+    "eth_getTransactionReceipt",
+  ]);
 }
 
 {
@@ -1023,6 +1062,7 @@ for (const [key, value] of Object.entries(
     "numeric_loopback_http_only",
     "chain2050_required",
     "rpc_receipt_projected_to_classifier_schema",
+    "receipt_revalidation_required",
     "bounded_rpc_timeout",
     "bounded_rpc_response_bytes",
     "terminal_cost_classifier_reused",
@@ -1064,6 +1104,8 @@ console.log("numeric_loopback_chain2050_only=true");
 console.log("caller_transport_override=false");
 console.log("real_loopback_http_proof=true");
 console.log("realistic_rpc_receipt_projection=true");
+console.log("receipt_revalidation_required=true");
+console.log("receipt_change_during_confirmation_window_hold=true");
 console.log("receipt_missing_or_wrong_type_hold=true");
 console.log("bounded_snapshot_read_during_growth=true");
 console.log("nofollow_ancestor_traversal=true");
