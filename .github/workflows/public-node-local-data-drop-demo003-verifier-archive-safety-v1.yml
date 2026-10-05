@@ -6,6 +6,10 @@ on:
       - ".github/workflows/public-node-local-data-drop-demo003-verifier-archive-safety-v1.yml"
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-verify-folder-fixture.sh"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-sealed-handoff-v1.py"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-proof.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-verifier-archive-safety-v1-proof.sh"
   push:
     branches: [main]
@@ -13,6 +17,10 @@ on:
       - ".github/workflows/public-node-local-data-drop-demo003-verifier-archive-safety-v1.yml"
       - "ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-verify-folder-fixture.sh"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-sealed-handoff-v1.py"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake.sh"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
+      - "ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-proof.sh"
       - "ops/mainnet0/public-node-local-data-drop-demo003-verifier-archive-safety-v1-proof.sh"
 
 permissions:
@@ -41,4 +49,5 @@ jobs:
         run: |
           set -euo pipefail
           bash ops/mainnet0/public-node-local-data-drop-demo003-verifier-archive-safety-v1-proof.sh
+          bash ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-proof.sh
           git diff --exit-code
