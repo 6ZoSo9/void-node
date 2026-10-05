@@ -11,6 +11,13 @@ import {
   writeBuyVoidOperatorEventWithCapacityAdmissionV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
+import {
+  withBuyVoidFilesystemBakeryLockAsyncV1,
+} from "../src/economic/buy_void_filesystem_bakery_lock_v1.js";
+import {
+  buyVoidTerminalCloseoutRequestLockPathV1,
+} from "../src/economic/buy_void_terminal_closeout_request_lock_v1.js";
+
 const capacitySource = fs.readFileSync(
   path.join(
     process.cwd(),
@@ -35,6 +42,10 @@ assert.doesNotMatch(
 assert.doesNotMatch(
   capacitySource,
   /fs\.constants\.O_DIRECTORY[\s\S]{0,120}: 0;/u,
+);
+assert.match(
+  capacitySource,
+  /buyVoidTerminalCloseoutRequestLockPathV1/u,
 );
 
 const root = fs.mkdtempSync(
@@ -404,6 +415,120 @@ try {
   assert.equal(mutationCalls, 2);
   state = await readSaleState();
   assert.equal(state.allocation_reserved_void, 10);
+
+  // A request-lock wait must happen before the final launch-authority check.
+  // If the lease expires while the request lock is contended, zero verified
+  // event may be appended after the wait.
+  {
+    const expiryRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "void-buy-capacity-request-lock-expiry-"),
+    );
+    try {
+      fs.chmodSync(expiryRoot, 0o700);
+      const expiryRequest = {
+        request_id: "buyvoid_expiry_12121212",
+        quoted_void: 1,
+        source_chain: "base",
+        tx_hash: "0x" + "1".repeat(64),
+      };
+      fs.writeFileSync(
+        path.join(expiryRoot, "requests.jsonl"),
+        JSON.stringify(expiryRequest) + "\n",
+        { mode: 0o600 },
+      );
+      const expiryEventsPath = path.join(
+        expiryRoot,
+        "operator-events.jsonl",
+      );
+      const expirySaleState = async () => {
+        const eventRows = fs.existsSync(expiryEventsPath)
+          ? fs
+              .readFileSync(expiryEventsPath, "utf8")
+              .split(/\n+/u)
+              .filter(Boolean)
+              .map((line) => JSON.parse(line))
+          : [];
+        const verified = eventRows.some(
+          (row) =>
+            row.request_id === expiryRequest.request_id &&
+            row.operator_status === "payment_verified",
+        );
+        return {
+          pool_void_total: 10,
+          allocation_reserved_void: verified ? 1 : 0,
+          verified_void_total: verified ? 1 : 0,
+          remaining_void: verified ? 9 : 10,
+        };
+      };
+
+      let holderEnteredResolve!: () => void;
+      let releaseHolderResolve!: () => void;
+      const holderEntered = new Promise<void>(
+        (resolve) => { holderEnteredResolve = resolve; },
+      );
+      const releaseHolder = new Promise<void>(
+        (resolve) => { releaseHolderResolve = resolve; },
+      );
+      const requestLockPath =
+        buyVoidTerminalCloseoutRequestLockPathV1({
+          request_dir: expiryRoot,
+          request_id: expiryRequest.request_id,
+        });
+      const holder = withBuyVoidFilesystemBakeryLockAsyncV1(
+        requestLockPath,
+        async () => {
+          holderEnteredResolve();
+          await releaseHolder;
+        },
+      );
+      await holderEntered;
+
+      let leaseLive = true;
+      let launchChecks = 0;
+      const expiryLaunchMutation = async (
+        _request: any,
+        operation: () => any,
+      ) => {
+        launchChecks += 1;
+        if (!leaseLive) {
+          throw new Error(
+            "request_launch_authority_expired_or_superseded",
+          );
+        }
+        return operation();
+      };
+
+      const writePromise =
+        writeBuyVoidOperatorEventWithCapacityAdmissionV1({
+          event: eventFor(expiryRequest, 120),
+          request: expiryRequest,
+          request_dir: expiryRoot,
+          with_launch_authority_mutation: expiryLaunchMutation,
+          read_sale_state: expirySaleState,
+        });
+      const rejected = assert.rejects(
+        writePromise,
+        /request_launch_authority_expired_or_superseded/u,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      assert.equal(
+        launchChecks,
+        0,
+        "launch authority must not be checked before request-lock acquisition",
+      );
+      leaseLive = false;
+      releaseHolderResolve();
+      await holder;
+      await rejected;
+      assert.equal(launchChecks, 1);
+      if (fs.existsSync(expiryEventsPath)) {
+        assert.equal(fs.statSync(expiryEventsPath).size, 0);
+      }
+    } finally {
+      fs.rmSync(expiryRoot, { recursive: true, force: true });
+    }
+  }
 
   // Capacity admission must bind the candidate to the durable request ledger,
   // not only to the caller-supplied request object/event envelope.
