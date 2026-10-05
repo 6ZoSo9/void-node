@@ -879,6 +879,37 @@ assert.match(
   }
 }
 
+
+{
+  const f = fixture();
+  try {
+    const plan = makePlan();
+    const obs = observation({
+      observed_at_ms: 1000,
+      expires_at_ms: 1100,
+    });
+    let calls = 0;
+    const result = await persistCoupledNativeGasOpenLiabilityV1({
+      root_dir: f.root,
+      read_now_ms: () => {
+        calls += 1;
+        return calls === 1 ? 1050 : 1100;
+      },
+      buy_void_plan: plan,
+      payer_observation: obs,
+    });
+    requireHeld(
+      result,
+      "coupled_native_gas_payer_observation_stale",
+      false,
+    );
+    assert.equal(calls, 2);
+    assert.deepEqual(finalRecordNames(f), []);
+  } finally {
+    cleanup(f);
+  }
+}
+
 console.log("VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_V1_PROOF_GREEN");
 console.log("canonical_liability_classifier_reused=true");
 console.log("payer_scoped_store=true");
