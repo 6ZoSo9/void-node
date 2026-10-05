@@ -151,9 +151,10 @@ export function listDirectDirectoryNamesV1(dirPath: string): string[] {
   }
 }
 
-export function readDirectRegularFileV1(
+function readDirectRegularFileCoreV1(
   filePath: string,
-  maxBytes: number = Number.MAX_SAFE_INTEGER,
+  maxBytes: number,
+  testOnlyAfterOpenBeforeRead: (() => void) | null,
 ): Buffer | null {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
     unsafeStorageV1("invalid_max_bytes");
@@ -210,7 +211,43 @@ export function readDirectRegularFileV1(
       unsafeStorageV1("final_file_too_large");
     }
 
-    const buf = fs.readFileSync(fd);
+    const openedSize = Number(opened.size);
+    if (!Number.isSafeInteger(openedSize) || openedSize < 0) {
+      unsafeStorageV1("final_file_size_invalid");
+    }
+
+    if (testOnlyAfterOpenBeforeRead !== null) {
+      testOnlyAfterOpenBeforeRead();
+    }
+
+    const buf = Buffer.alloc(openedSize);
+    let offset = 0;
+    while (offset < buf.length) {
+      const count = fs.readSync(
+        fd,
+        buf,
+        offset,
+        buf.length - offset,
+        offset,
+      );
+      if (count <= 0) {
+        unsafeStorageV1("final_short_read");
+      }
+      offset += count;
+    }
+
+    const growthProbe = Buffer.allocUnsafe(1);
+    const growthCount = fs.readSync(
+      fd,
+      growthProbe,
+      0,
+      1,
+      openedSize,
+    );
+    if (growthCount !== 0) {
+      unsafeStorageV1("final_file_grew_during_read");
+    }
+
     const after = fs.fstatSync(fd, { bigint: true });
     let visible: fs.BigIntStats;
     try {
@@ -246,4 +283,30 @@ export function readDirectRegularFileV1(
       fs.closeSync(parent.fd);
     } catch (_error) { void _error; }
   }
+}
+
+export function readDirectRegularFileV1(
+  filePath: string,
+  maxBytes: number = Number.MAX_SAFE_INTEGER,
+): Buffer | null {
+  return readDirectRegularFileCoreV1(
+    filePath,
+    maxBytes,
+    null,
+  );
+}
+
+export function testOnlyReadDirectRegularFileWithAfterOpenHookV1(
+  filePath: string,
+  maxBytes: number,
+  afterOpenBeforeRead: () => void,
+): Buffer | null {
+  if (typeof afterOpenBeforeRead !== "function") {
+    unsafeStorageV1("test_hook_invalid");
+  }
+  return readDirectRegularFileCoreV1(
+    filePath,
+    maxBytes,
+    afterOpenBeforeRead,
+  );
 }
