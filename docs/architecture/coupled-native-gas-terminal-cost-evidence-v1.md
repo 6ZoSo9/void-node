@@ -199,6 +199,24 @@ The resulting consumed amount must never exceed
 This is conservative liability accounting. It is not a general-purpose EVM
 account-balance-delta or execution-trace proof.
 
+## Stable accounting identity
+
+Successful classification exposes two distinct hashes with different jobs:
+
+- `terminal_cost_identity_sha256` binds only immutable terminal, receipt and
+  cost facts: liability/plan lineage, terminal record identity, transaction and
+  receipt block identity, gas used, effective gas price, gas/native value
+  consumption, and the admitted reserve envelope.
+- `evidence_id` content-addresses the complete observation, including
+  `current_block_number`, `observed_confirmation_count`, and the current
+  minimum-confirmation policy.
+
+Therefore re-observing the same terminal transaction at a later valid chain
+height must change `evidence_id` while preserving
+`terminal_cost_identity_sha256`. Durable accounting consumers must bind the
+stable identity; freshness/reorg checks must continue to use the full
+observation evidence.
+
 ## Output
 
 Success returns deterministic terminal-cost evidence binding:
@@ -214,7 +232,9 @@ Success returns deterministic terminal-cost evidence binding:
 - exact gas cost;
 - exact native delivery value consumed by outcome semantics;
 - exact total liability consumption; and
-- exact maximum reserved envelope.
+- exact maximum reserved envelope;
+- stable terminal-cost accounting identity; and
+- freshness-sensitive full observation evidence identity.
 
 The result always reports:
 
@@ -285,6 +305,8 @@ git diff --check
 ```
 
 The focused proof covers confirmed/reverted native outcomes, terminal
-fingerprint validation, fresh-finality regression, zero gas price, gas/fee
-ceilings, transaction/block/status mismatch, endpoint binding, plan/liability
-conflict, malformed revert arithmetic, and raw-receipt exact-key enforcement.
+fingerprint validation, fresh-finality regression, stable terminal-cost
+identity across later confirmation-height observations, freshness-sensitive
+observation evidence identity, zero gas price, gas/fee ceilings,
+transaction/block/status mismatch, endpoint binding, plan/liability conflict,
+malformed revert arithmetic, and raw-receipt exact-key enforcement.
