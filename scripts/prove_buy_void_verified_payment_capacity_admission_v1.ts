@@ -43,6 +43,14 @@ assert.doesNotMatch(
 );
 assert.match(
   capacitySource,
+  /withBuyVoidTerminalCloseoutRequestLockV1/u,
+);
+assert.doesNotMatch(
+  capacitySource.slice(
+    capacitySource.indexOf(
+      "export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1",
+    ),
+  ),
   /buyVoidTerminalCloseoutRequestLockPathV1/u,
 );
 
