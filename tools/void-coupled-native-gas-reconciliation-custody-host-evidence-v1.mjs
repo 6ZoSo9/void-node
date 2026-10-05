@@ -25,6 +25,8 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_AUTHOR
     procfs_read: true,
     mountinfo_read: true,
     mount_namespace_read: true,
+    collector_in_custody_mount_namespace_required: true,
+    public_runtime_mount_namespace_may_differ: true,
     filesystem_metadata_read: true,
     payer_domain_file_read: true,
     systemd_metadata_read: true,
@@ -794,18 +796,26 @@ function collectPathEvidence(rootPath, publicCreds, mountRecords) {
 }
 
 function namespaceBundle(selfNs, publicNs, custodyNs) {
-  if (
-    !sameNamespace(selfNs, publicNs) ||
-    !sameNamespace(selfNs, custodyNs)
-  ) {
-    throw new Error("mount_namespace_identity_mismatch");
+  if (!sameNamespace(selfNs, custodyNs)) {
+    throw new Error("collector_not_in_custody_mount_namespace");
   }
   return Object.freeze({
     collector: selfNs,
     public_runtime: publicNs,
     custody_service: custodyNs,
-    identity_sha256: sha256Id(canonical(selfNs)),
+    identity_sha256: sha256Id(canonical(custodyNs)),
+    public_runtime_identity_sha256: sha256Id(canonical(publicNs)),
+    public_runtime_shared_with_custody:
+      sameNamespace(publicNs, custodyNs),
   });
+}
+
+export function testOnlyBuildMountNamespaceBundleV1(
+  selfNs,
+  publicNs,
+  custodyNs,
+) {
+  return namespaceBundle(selfNs, publicNs, custodyNs);
 }
 
 function buildDecision({
@@ -855,6 +865,10 @@ function buildDecision({
       trusted_collector_proven: false,
       mount_namespace_identity_sha256:
         namespaceBefore.identity_sha256,
+      public_runtime_mount_namespace_identity_sha256:
+        namespaceBefore.public_runtime_identity_sha256,
+      public_runtime_mount_namespace_shared_with_custody:
+        namespaceBefore.public_runtime_shared_with_custody,
       mountinfo_sha256: sha256Id(mountInfoBefore),
       classifier_input: classifierInput,
       qualification,
@@ -1100,6 +1114,10 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
         custody_service_unit_sha256: sha256Id(custodyCatBefore),
         mount_namespace_identity_sha256:
           namespaceBefore.identity_sha256,
+        public_runtime_mount_namespace_identity_sha256:
+          namespaceBefore.public_runtime_identity_sha256,
+        public_runtime_mount_namespace_shared_with_custody:
+          namespaceBefore.public_runtime_shared_with_custody,
         mountinfo_sha256: sha256Id(mountInfoBefore),
         boot_id_sha256: sha256Id(bootId),
         machine_id_sha256: sha256Id(machineId),
@@ -1124,6 +1142,8 @@ if (
     process.stdout.write([
       VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
       "read_only=true",
+      "collector_in_custody_mount_namespace_required=true",
+      "public_runtime_mount_namespace_may_differ=true",
       "live_host_qualification_performed=false",
       "production_gate_ready=false",
       "",
