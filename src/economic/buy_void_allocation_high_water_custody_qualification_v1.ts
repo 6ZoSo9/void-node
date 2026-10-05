@@ -942,38 +942,59 @@ export function classifyBuyVoidAllocationHighWaterCustodyQualificationV1(
       "allocation_custody_now_invalid",
     );
     if (nowMs <= 0) fail("allocation_custody_now_invalid");
-    const expectedSourceHead = String(
+    const expectedSourceHeadRaw = String(
       input?.expected_source_head_sha ?? "",
-    ).trim();
-    const expectedHostId = String(
+    );
+    const expectedSourceHead = expectedSourceHeadRaw.trim();
+    const expectedHostIdRaw = String(
       input?.expected_host_id_sha256 ?? "",
-    ).trim();
+    );
+    const expectedHostId = expectedHostIdRaw.trim();
     const expectedEvidenceGeneration = safeInteger(
       input?.expected_evidence_generation,
       "allocation_custody_expected_evidence_generation_invalid",
     );
-    const expectedServiceUnitSha256 = String(
+    const expectedServiceUnitSha256Raw = String(
       input?.expected_service_unit_sha256 ?? "",
-    ).trim();
-    const expectedLedgerRollbackDomainSha256 = String(
+    );
+    const expectedServiceUnitSha256 =
+      expectedServiceUnitSha256Raw.trim();
+    const expectedLedgerRollbackDomainSha256Raw = String(
       input?.expected_ledger_rollback_domain_sha256 ?? "",
-    ).trim();
-    const expectedCustodyRollbackDomainSha256 = String(
+    );
+    const expectedLedgerRollbackDomainSha256 =
+      expectedLedgerRollbackDomainSha256Raw.trim();
+    const expectedCustodyRollbackDomainSha256Raw = String(
       input?.expected_custody_rollback_domain_sha256 ?? "",
-    ).trim();
-    if (!GIT_SHA.test(expectedSourceHead)) {
+    );
+    const expectedCustodyRollbackDomainSha256 =
+      expectedCustodyRollbackDomainSha256Raw.trim();
+    if (
+      expectedSourceHeadRaw !== expectedSourceHead ||
+      !GIT_SHA.test(expectedSourceHead)
+    ) {
       fail("allocation_custody_expected_source_head_invalid");
     }
-    if (!SHA256_ID.test(expectedHostId)) {
+    if (
+      expectedHostIdRaw !== expectedHostId ||
+      !SHA256_ID.test(expectedHostId)
+    ) {
       fail("allocation_custody_expected_host_id_invalid");
     }
     if (expectedEvidenceGeneration < 1) {
       fail("allocation_custody_expected_evidence_generation_invalid");
     }
-    if (!SHA256_ID.test(expectedServiceUnitSha256)) {
+    if (
+      expectedServiceUnitSha256Raw !== expectedServiceUnitSha256 ||
+      !SHA256_ID.test(expectedServiceUnitSha256)
+    ) {
       fail("allocation_custody_expected_service_unit_sha256_invalid");
     }
     if (
+      expectedLedgerRollbackDomainSha256Raw !==
+        expectedLedgerRollbackDomainSha256 ||
+      expectedCustodyRollbackDomainSha256Raw !==
+        expectedCustodyRollbackDomainSha256 ||
       !SHA256_ID.test(expectedLedgerRollbackDomainSha256) ||
       !SHA256_ID.test(expectedCustodyRollbackDomainSha256) ||
       expectedLedgerRollbackDomainSha256 ===
