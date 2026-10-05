@@ -933,7 +933,6 @@ export function classifyBuyVoidAllocationCustodyExternalWitnessV1(
 
     if (current.record_count > journal.tip.record_count) {
       if (
-        current.record_count === journal.tip.record_count + 1 &&
         !witnessedPrefixMatches(
           journal.tip,
           canonical.ledger_bytes,
