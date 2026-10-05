@@ -61,6 +61,10 @@ const TTL_MS = 120_000;
 const CAP_SYS_ADMIN = 21n;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
+const SYSTEMCTL = "/usr/bin/systemctl";
+const FINDMNT = "/usr/bin/findmnt";
+const PKCHECK = "/usr/bin/pkcheck";
+const SYSTEMD_UNIT = /^[A-Za-z0-9@_.:-]{1,120}\.service$/u;
 
 function hold(reason, detail = {}) {
   return Object.freeze({
@@ -191,6 +195,14 @@ export function parseSystemdShowV1(text) {
 
 function yes(value) {
   return String(value || "") === "yes";
+}
+
+function unitName(value, code) {
+  const unit = String(value || "").trim();
+  if (!SYSTEMD_UNIT.test(unit) || unit.startsWith("-")) {
+    throw new Error(code);
+  }
+  return unit;
 }
 
 function sortedList(value) {
@@ -395,7 +407,7 @@ function systemdShow(unit) {
     "AmbientCapabilities",
     "ReadWritePaths",
   ];
-  return runText("systemctl", [
+  return runText(SYSTEMCTL, [
     "show",
     unit,
     "--no-pager",
@@ -404,7 +416,7 @@ function systemdShow(unit) {
 }
 
 function systemdCat(unit) {
-  return runText("systemctl", ["cat", "--no-pager", unit]);
+  return runText(SYSTEMCTL, ["cat", "--no-pager", unit]);
 }
 
 function mainPid(show, expectedUnit) {
@@ -419,7 +431,7 @@ function mainPid(show, expectedUnit) {
 
 function polkitManageUnitsDenied(pid) {
   try {
-    runText("pkcheck", [
+    runText(PKCHECK, [
       "--action-id",
       "org.freedesktop.systemd1.manage-units",
       "--process",
@@ -433,14 +445,21 @@ function polkitManageUnitsDenied(pid) {
 }
 
 function findMountUuid(target) {
-  const value = runText("findmnt", [
+  const value = runText(FINDMNT, [
     "--noheadings",
     "--output",
     "UUID",
     "--target",
     target,
   ]).trim();
-  if (!value || /\s/u.test(value)) throw new Error("mount_uuid_unavailable");
+  if (
+    !value ||
+    /\s/u.test(value) ||
+    value === "-" ||
+    value.toLowerCase() === "none"
+  ) {
+    throw new Error("mount_uuid_unavailable");
+  }
   return value;
 }
 
@@ -681,9 +700,15 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
       "payer_root",
     );
     const expectedHostname = String(expected_hostname || "").trim();
-    const publicUnit = String(public_runtime_unit || "").trim();
-    const custodyUnit = String(custody_service_unit || "").trim();
-    if (!expectedHostname || !publicUnit || !custodyUnit) {
+    const publicUnit = unitName(
+      public_runtime_unit,
+      "public_runtime_unit_invalid",
+    );
+    const custodyUnit = unitName(
+      custody_service_unit,
+      "custody_service_unit_invalid",
+    );
+    if (!expectedHostname) {
       return hold("collector_required_input_missing");
     }
     const observedHostname = os.hostname();
