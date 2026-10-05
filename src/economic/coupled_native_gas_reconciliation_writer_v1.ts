@@ -78,6 +78,8 @@ const MAX_HISTORY_TOTAL_BYTES = 256 * 1024 * 1024;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const RECORD_NAME = /^([0-9a-f]{64})\.json$/u;
+const TEMP_RECONCILIATION_NAME =
+  /^\.[0-9a-f]{64}\.json\.tmp-[1-9][0-9]*-[0-9a-f]{16}$/u;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
 
@@ -501,6 +503,61 @@ function parseCanonicalJson(
   return parsed as Record<string, unknown>;
 }
 
+function recoverStaleReconciliationTempsV1(
+  directory: PinnedDirectoryV1,
+  onMutation: () => void,
+): number {
+  assertPinnedDirectoryVisible(
+    directory,
+    "coupled_native_gas_reconciliation_writer_temp_recovery_directory",
+  );
+  const names = fs.readdirSync(directory.proc_path).sort();
+  let recovered = 0;
+  for (const name of names) {
+    if (!TEMP_RECONCILIATION_NAME.test(name)) continue;
+    const filePath = path.join(directory.proc_path, name);
+    const visible = fs.lstatSync(filePath, { bigint: true });
+    if (
+      !visible.isFile() ||
+      visible.isSymbolicLink() ||
+      visible.nlink !== 1n ||
+      visible.size > BigInt(MAX_FILE_BYTES) ||
+      (
+        typeof process.getuid === "function" &&
+        visible.uid !== BigInt(process.getuid())
+      ) ||
+      (Number(visible.mode) & 0o077) !== 0
+    ) {
+      fail("coupled_native_gas_reconciliation_writer_temp_recovery_file_invalid");
+    }
+    const fd = fs.openSync(
+      filePath,
+      fs.constants.O_RDONLY | O_NOFOLLOW,
+    );
+    try {
+      const opened = fs.fstatSync(fd, { bigint: true });
+      const visibleAgain = fs.lstatSync(filePath, { bigint: true });
+      if (
+        !sameFileIdentity(visible, opened) ||
+        !sameFileIdentity(opened, visibleAgain)
+      ) {
+        fail("coupled_native_gas_reconciliation_writer_temp_recovery_file_changed");
+      }
+      fs.unlinkSync(filePath);
+      onMutation();
+      fs.fsyncSync(directory.fd);
+      recovered += 1;
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+  assertPinnedDirectoryVisible(
+    directory,
+    "coupled_native_gas_reconciliation_writer_temp_recovery_directory",
+  );
+  return recovered;
+}
+
 function readHistoryDirectory(
   directory: PinnedDirectoryV1,
   code: string,
@@ -851,6 +908,13 @@ async function persistWithDependencies(
           "coupled_native_gas_reconciliation_writer_queue",
         );
 
+        recoverStaleReconciliationTempsV1(
+          reconciliations!,
+          () => {
+            mutationPerformed = true;
+          },
+        );
+
         const qualified =
           await qualifyCoupledNativeGasReconciliationStorageV1({
             root_dir: root!.path,
@@ -1004,7 +1068,7 @@ async function persistWithDependencies(
           return Object.freeze({
             ok: true,
             status: "idempotent",
-            mutation_performed: false,
+            mutation_performed: mutationPerformed,
             payer_address: payerAddress,
             liability_id: liabilityId,
             reconciliation_id: existingReconciliation.reconciliation_id,
