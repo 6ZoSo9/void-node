@@ -106,23 +106,26 @@ export type CoupledNativeGasOpenLiabilityStoreDecisionV1 =
     }
   | {
       ok: false;
-      status: "held";
+      status: "held" | "held_after_mutation";
       reason: string;
-      mutation_performed: false;
+      mutation_performed: boolean;
       authority:
         typeof VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_AUTHORITY_V1;
       detail?: Readonly<Record<string, unknown>>;
     };
 
+class CoupledNativeGasStorePostMutationError extends Error {}
+
 function held(
   reason: string,
   detail?: Readonly<Record<string, unknown>>,
+  mutationPerformed = false,
 ): Extract<CoupledNativeGasOpenLiabilityStoreDecisionV1, { ok: false }> {
   return Object.freeze({
     ok: false,
-    status: "held",
+    status: mutationPerformed ? "held_after_mutation" : "held",
     reason,
-    mutation_performed: false,
+    mutation_performed: mutationPerformed,
     authority: VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_AUTHORITY_V1,
     ...(detail ? { detail } : {}),
   });
@@ -709,6 +712,15 @@ function createOnceLiability(
     if (!published.equals(bytes)) {
       fail("coupled_native_gas_store_publication_postcheck_failed");
     }
+  } catch (error) {
+    if (linked) {
+      throw new CoupledNativeGasStorePostMutationError(
+        error instanceof Error
+          ? error.message
+          : "coupled_native_gas_store_postmutation_failure",
+      );
+    }
+    throw error;
   } finally {
     if (fd >= 0) {
       try {
@@ -749,6 +761,7 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
   let root: PinnedDirectoryV1 | null = null;
   let records: PinnedDirectoryV1 | null = null;
   let queue: PinnedDirectoryV1 | null = null;
+  let durableMutationPerformed = false;
   try {
     root = openPinnedDirectory(
       String(input?.root_dir || "").trim(),
@@ -836,6 +849,7 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
         }
 
         createOnceLiability(records!, classified.liability);
+        durableMutationPerformed = true;
 
         const after = readCensus(
           records!,
@@ -888,10 +902,19 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
       },
     );
   } catch (error) {
+    const mutationPerformed =
+      durableMutationPerformed ||
+      error instanceof CoupledNativeGasStorePostMutationError;
     return held(
       error instanceof Error
         ? error.message
         : "coupled_native_gas_store_failed",
+      mutationPerformed
+        ? Object.freeze({
+            durable_state_requires_reinspection: true,
+          })
+        : undefined,
+      mutationPerformed,
     );
   } finally {
     closePinned(queue);
