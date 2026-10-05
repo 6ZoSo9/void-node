@@ -2,12 +2,15 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1,
   testOnlyBuildBuyVoidAllocationCustodyPolkitDenyRuleV1,
   testOnlyClassifyBuyVoidAllocationCustodyPolkitStatusV1,
+  testOnlyReadBuyVoidAllocationCustodyHostEvidenceFileV1,
   testOnlyValidateBuyVoidAllocationCustodyExecStartV1,
 } from "../tools/void-buy-allocation-custody-host-evidence-v1.mjs";
 
@@ -80,6 +83,40 @@ assert.equal(
   sha256Id(service),
   "collector must consume the exact reviewed custody-service source",
 );
+
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-custody-host-evidence-ancestor-"),
+  );
+  try {
+    const realParent = path.join(root, "real");
+    const linkedParent = path.join(root, "linked");
+    const file = path.join(realParent, "evidence.txt");
+    fs.mkdirSync(realParent, { mode: 0o700 });
+    fs.writeFileSync(file, "descriptor-bound\n", { mode: 0o600 });
+    fs.symlinkSync(realParent, linkedParent);
+
+    assert.equal(
+      testOnlyReadBuyVoidAllocationCustodyHostEvidenceFileV1(
+        file,
+        4096,
+      ).toString("utf8"),
+      "descriptor-bound\n",
+      "direct ancestor chain must remain readable",
+    );
+    assert.throws(
+      () =>
+        testOnlyReadBuyVoidAllocationCustodyHostEvidenceFileV1(
+          path.join(linkedParent, "evidence.txt"),
+          4096,
+        ),
+      /custody_host_evidence_test_read_failed/u,
+      "symlinked ancestor must fail closed",
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 
 const reviewedExecSource =
   "/repo/tools/void-buy-allocation-custody-service-v1.mjs";
@@ -368,6 +405,18 @@ for (const mutation of [
 }
 
 assert.match(source, /openReadNoFollow\(file\)/u);
+assert.match(source, /fs\.constants\.O_DIRECTORY/u);
+assert.match(source, /"\/proc\/self\/fd"/u);
+assert.match(
+  source,
+  /parts\.slice\(0, -1\)/u,
+  "every ancestor component must be opened descriptor-relative",
+);
+assert.match(
+  source,
+  /fs\.constants\.O_DIRECTORY[\s\S]{0,160}fs\.constants\.O_NOFOLLOW/u,
+  "ancestor opens must reject symlink components",
+);
 assert.match(source, /io\.fstat\(fd\)/u);
 assert.match(source, /io\.readFd\(fd, maximum\)/u);
 assert.match(source, /--no-optional-locks/u);
@@ -383,6 +432,8 @@ assert.doesNotMatch(
 console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1_PROOF_GREEN",
 );
+console.log("descriptor_relative_ancestor_walk=true");
+console.log("symlink_ancestor_read_rejected=true");
 console.log("runtime_process_pid_starttime_uid_bound=true");
 console.log("runtime_process_uid_gid_revalidated=true");
 console.log("runtime_service_cgroup_bound=true");
