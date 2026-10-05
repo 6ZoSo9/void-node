@@ -160,14 +160,18 @@ Systemd service-control denial is obtained with noninteractive Polkit
 authorization queries bound to the exact custody unit. The direct
 `org.freedesktop.systemd1.manage-units` denial set covers `start`, `stop`,
 `reload`, `restart`, `try-restart`, `reload-or-restart`,
-`reload-or-try-restart`, `kill`, `kill-subgroup`, `reset-failed`,
-`set-property`, `clean`, `bind-mount`, and `mount-image`. The latter two
+`reload-or-try-restart`, `kill`, `kill-subgroup`, `queue-signal`,
+`freeze`, `thaw`, `reset-failed`, `set-property`, `clean`,
+`bind-mount`, and `mount-image`. Freeze/thaw and queued signals are direct
+unit-control surfaces; the latter two mount verbs
 are custody-relevant because systemd can use them to modify the running
 service's mount namespace. The collector also requires denial of
 `org.freedesktop.systemd1.manage-unit-files` and
 `org.freedesktop.systemd1.reload-daemon` for the public-runtime subject.
 
-The Polkit subject is bound as `PID,start-time,UID`, not PID alone. The full
+The Polkit subject is bound as `PID,start-time,UID`, not PID alone. Every
+required verb/action query is executed even if an earlier query would already
+make the aggregate result HOLD; there is no short-circuit sampling. The full
 required unit/action/verb denial set is sampled twice: once before the host
 census and once after process, mount, namespace, root, and path revalidation.
 Both policy snapshots must remain byte-canonically identical and fully denied.
