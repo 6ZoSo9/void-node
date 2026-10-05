@@ -598,7 +598,7 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
     const retainedFutureAttemptReserve = 0n;
     const unusedReleaseCandidate = unconsumed;
     const terminalCloseCandidate = true;
-    const additionalAttemptRequiresNewLiability = false;
+    const additionalAttemptRequiresNewLiability = true;
 
     const body = {
       schema: RECONCILIATION_SCHEMA,
