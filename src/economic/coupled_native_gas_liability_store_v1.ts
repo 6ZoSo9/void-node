@@ -1056,6 +1056,15 @@ export async function persistCoupledNativeGasOpenLiabilityV1(input: {
           );
 
           const mutationNowMs = readNowMs();
+          if (
+            typeof mutationNowMs !== "number" ||
+            !Number.isSafeInteger(mutationNowMs) ||
+            mutationNowMs < Number(admissionNowMs)
+          ) {
+            return held(
+              "coupled_native_gas_store_time_regression_or_invalid",
+            );
+          }
           const mutationAdmission =
             classifyCoupledNativeGasBuyVoidAdmissionV1({
               now_ms: mutationNowMs,
