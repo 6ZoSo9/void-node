@@ -61,7 +61,7 @@ operation-binding confirmation:
 bootstrapCoupledNativeGasReconciliationStorageV1:<sha256>
 ```
 
-The SHA-256 is over canonical JSON plus one final newline binding:
+The SHA-256 is over the contract's fixed-order JSON serialization plus one final newline binding:
 
 - marker/version and the bootstrap operation name;
 - the normalized absolute payer-root path;
