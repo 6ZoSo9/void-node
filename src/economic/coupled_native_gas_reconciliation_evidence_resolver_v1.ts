@@ -46,6 +46,7 @@ export const
       whole_execution_attempt_state_required: true,
       whole_broadcast_outcome_state_required: true,
       descriptor_bound_local_snapshot: true,
+      reader_outputs_bound_to_snapshot: true,
       local_snapshot_revalidated_after_rpc: true,
       numeric_loopback_http_only: true,
       chain2050_required: true,
