@@ -80,6 +80,8 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERB
     "reset-failed",
     "set-property",
     "clean",
+    "bind-mount",
+    "mount-image",
   ]);
 
 const SYSTEMD_CONTROL_ACTIONS_V1 = Object.freeze([
