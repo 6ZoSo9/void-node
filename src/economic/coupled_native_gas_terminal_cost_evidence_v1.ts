@@ -28,7 +28,7 @@ export const VOID_COUPLED_NATIVE_GAS_TERMINAL_COST_EVIDENCE_AUTHORITY_V1 =
     exact_receipt_policy_fingerprint_required: true,
     raw_receipt_cost_fields_required: true,
     exact_transaction_block_binding_required: true,
-    exact_receipt_sender_contract_binding_required: true,
+    exact_receipt_sender_delivery_binding_required: true,
     confirmed_and_reverted_supported: true,
     gas_used_ceiling_required: true,
     effective_gas_price_ceiling_required: true,
