@@ -420,7 +420,7 @@ assert.equal(confirmed1.next_open_reserved_wei, "0");
 assert.equal(confirmed1.retry_allowance_reserved, false);
 assert.equal(
   confirmed1.additional_attempt_requires_new_liability,
-  false,
+  true,
 );
 assert.equal(confirmed1.terminal_close_candidate, true);
 assert.equal(confirmed1.liability_release_authorized, false);
@@ -561,6 +561,7 @@ console.log("terminal_cost_evidence_provenance_verified=false");
 console.log("authenticated_terminal_reobservation_required=true");
 console.log("durable_reconciliation_writer_required=true");
 console.log("confirmed_unused_reserve_classified=true");
+console.log("confirmed_additional_attempt_requires_new_liability=true");
 console.log("reverted_reconciliation_hold=true");
 console.log("current_buy_void_attempt_limit_one_required=true");
 console.log("reverted_reconciliation_authority=false");
