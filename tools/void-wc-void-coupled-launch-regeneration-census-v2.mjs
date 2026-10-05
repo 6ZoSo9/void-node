@@ -124,6 +124,12 @@ const SUPERSEDED_RECONCILIATION_DIGEST_V1 =
   "522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba";
 const SUPERSEDED_OPENING_STATE_DIGEST_V1 =
   "fb50857b791a59b1ea87eae348afbfb8e2f587d08596a55350c0ce2faf29b621";
+const CORRECTED_RECONCILIATION_DIGEST_V2 =
+  "9b74e695f3988b4bcaa7abcdbdb767ea927fc294440a1ff2ecfbcd4db9bf7f04";
+const CORRECTED_OPENING_STATE_DIGEST_V2 =
+  "8f027c95e3b2376a50957600c57e9afe4c0e06422de05f1f8691fe44f0da54af";
+const CURRENT_CONTROL_TOOL_BLOB_SHA1 =
+  "663a90c0886ab001df2a6d2b2fcc560503aecfe1";
 const CURRENT_IDENTITY_BINDING_BASENAME =
   "wc-void-market-vault-compiled-identity-current-binding-v2.json";
 const SUPERSEDED_IDENTITY_PACKET_BASENAME =
@@ -622,6 +628,15 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
       require: Object.freeze([CORRECTED_COUPLED_CANDIDATE_BLOB_SHA1]),
       forbid: Object.freeze([SUPERSEDED_COUPLED_CANDIDATE_BLOB_SHA1]),
     }),
+    Object.freeze({
+      path: "tools/void-wc-void-market-vault-role-deployment-qualification-v1.mjs",
+      require: Object.freeze([
+        CORRECTED_COUPLED_CANDIDATE_BLOB_SHA1,
+        CURRENT_BINDING_BLOB_SHA1,
+        CURRENT_CONTROL_TOOL_BLOB_SHA1,
+      ]),
+      forbid: Object.freeze([SUPERSEDED_COUPLED_CANDIDATE_BLOB_SHA1]),
+    }),
   ]).map((entry) => {
     const text = readText(entry.path);
     const missing = entry.require.filter((value) => !text.includes(value));
@@ -657,6 +672,9 @@ export function buildVoidWcVoidCoupledLaunchRegenerationCensusV2({
         VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_DIGEST_V2,
         VOID_WC_VOID_CURRENT_COMPILED_IDENTITY_BINDING_ID_V2,
         CURRENT_IDENTITY_BINDING_BASENAME,
+        CORRECTED_COUPLED_CANDIDATE_BLOB_SHA1,
+        CORRECTED_RECONCILIATION_DIGEST_V2,
+        CORRECTED_OPENING_STATE_DIGEST_V2,
         "corrected current",
       ].reduce((sum, value) => sum + countDigest(text, value), 0);
       return Object.freeze({
