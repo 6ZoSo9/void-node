@@ -151,7 +151,13 @@ export function listDirectDirectoryNamesV1(dirPath: string): string[] {
   }
 }
 
-export function readDirectRegularFileV1(filePath: string): Buffer | null {
+export function readDirectRegularFileV1(
+  filePath: string,
+  maxBytes: number = Number.MAX_SAFE_INTEGER,
+): Buffer | null {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    unsafeStorageV1("invalid_max_bytes");
+  }
   const noFollow = (
     fs.constants as typeof fs.constants & { O_NOFOLLOW?: number }
   ).O_NOFOLLOW;
@@ -183,6 +189,9 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
     ) {
       unsafeStorageV1("unsafe_final_file");
     }
+    if (listed.size > BigInt(maxBytes)) {
+      unsafeStorageV1("final_file_too_large");
+    }
 
     try {
       fd = fs.openSync(procPath, fs.constants.O_RDONLY | noFollow);
@@ -196,6 +205,9 @@ export function readDirectRegularFileV1(filePath: string): Buffer | null {
     const opened = fs.fstatSync(fd, { bigint: true });
     if (!opened.isFile() || opened.isSymbolicLink() || !sameStampV1(listed, opened)) {
       unsafeStorageV1("final_identity_changed_before_read");
+    }
+    if (opened.size > BigInt(maxBytes)) {
+      unsafeStorageV1("final_file_too_large");
     }
 
     const buf = fs.readFileSync(fd);
