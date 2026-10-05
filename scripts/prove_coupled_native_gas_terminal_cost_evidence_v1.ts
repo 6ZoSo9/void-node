@@ -87,7 +87,8 @@ function makePlan(input: {
   const nonce = input.nonce ?? 7;
   const gas = input.gas_limit ?? "21000";
   const maxFee = input.max_fee_per_gas_wei ?? "10";
-  const nativeValue = input.native_value_wei ?? "1";
+  const nativeValue =
+    input.native_value_wei ?? "1000000000000";
   const priority = "1";
   const saga = "voidbvfsg1_" + "b".repeat(64);
   const economic = "c".repeat(64);
@@ -158,7 +159,7 @@ function liabilityFor(
 ): CoupledNativeGasLiabilityRecordV1 {
   const observation = buildCoupledNativeGasPayerObservationV1({
     payer_address: wallet,
-    observed_native_balance_wei: "1000000",
+    observed_native_balance_wei: "2000000000000",
     required_max_fee_per_gas_wei: "9",
     observed_at_ms: 1000,
     expires_at_ms: 2000,
@@ -188,7 +189,9 @@ function makeConfirmedFulfillmentRecord(
 ): BuyVoidConfirmedFulfillmentRecordV1 {
   const identity =
     "voidpay1:base:0x" + "f".repeat(64) + ":7";
-  const amount = input.amount ?? plan.native_value_wei;
+  const defaultAmount =
+    (BigInt(plan.native_value_wei) / 1_000_000_000_000n).toString();
+  const amount = input.amount ?? defaultAmount;
   const fulfillmentWallet = input.wallet_address ?? plan.wallet_address;
   const deliveryAddress =
     input.delivery_address ?? plan.delivery_address;
@@ -382,10 +385,13 @@ assert.equal(confirmed.effective_gas_price_wei, "5");
 assert.equal(confirmed.gas_cost_wei, "105000");
 assert.equal(
   confirmed.transaction_native_value_consumed_wei,
-  "1",
+  "1000000000000",
 );
-assert.equal(confirmed.liability_consumed_wei, "105001");
-assert.equal(confirmed.maximum_reserved_wei, "210001");
+assert.equal(
+  confirmed.liability_consumed_wei,
+  "1000000105000",
+);
+assert.equal(confirmed.maximum_reserved_wei, "1000000210000");
 assert.equal(confirmed.observed_confirmation_count, "3");
 assert.equal(confirmed.within_reserved_envelope, true);
 assert.equal(confirmed.liability_release_authorized, false);
@@ -410,7 +416,10 @@ const freeGas = requireOk(
   }),
 );
 assert.equal(freeGas.gas_cost_wei, "0");
-assert.equal(freeGas.liability_consumed_wei, "1");
+assert.equal(
+  freeGas.liability_consumed_wei,
+  "1000000000000",
+);
 
 requireHeld(
   classify({
