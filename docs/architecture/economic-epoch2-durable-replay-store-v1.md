@@ -14,6 +14,10 @@ not prove durable replay state.
 This lane provides a concrete filesystem-backed implementation without
 activating the public submission route.
 
+It also exposes a read-only `inspectConsumed(digest, metadata)` helper for
+pre-admission rejection of digests that are already known consumed. That helper
+does not replace the atomic consume decision.
+
 ## Durable authority model
 
 Each typed-data digest maps to one owner-private directory directly under a
@@ -57,6 +61,38 @@ signature.
 A present malformed or metadata-conflicting receipt is treated as store
 corruption and fails instead of being silently normalized into a replay.
 
+## Read-only consumed inspection
+
+`inspectConsumed(digest, metadata)` validates the same digest and canonical
+metadata domain as `consumeIfFresh(...)`, revalidates the pinned replay root,
+and performs no filesystem mutation.
+
+It returns:
+
+```text
+known_consumed
+audit_receipt_present
+mutation_performed=false
+atomic_consume_performed=false
+negative_freshness_authorized=false
+execution_authorized=false
+```
+
+If the authoritative digest marker directory is present, the result reports
+`known_consumed=true`. If `receipt.json` is also present, the exact audit
+metadata must match. If the audit receipt is absent after the marker exists, the
+digest is still known consumed because the directory is replay authority.
+
+If the marker is absent, the inspector checks absence twice around a pinned-root
+revalidation and returns `known_consumed=false`. This negative result is
+deliberately advisory only. A concurrent process may atomically consume the
+digest immediately after inspection, so the negative result never authorizes
+execution and never substitutes for a later `consumeIfFresh(...)`.
+
+This makes the helper suitable for rejecting **already executed** sponsored
+requests before trusted-time mutation while preserving retry semantics for
+requests that have not yet been atomically consumed.
+
 ## Namespace threat model
 
 The root realpath, inode, owner, type, and private mode are revalidated before
@@ -76,6 +112,12 @@ source/runtime proof does not claim protection from a hostile same-UID racer.
 
 The proof covers:
 
+- absent-digest read-only inspection with no marker creation;
+- consumed-digest inspection with audit receipt present;
+- consumed-digest inspection after audit receipt loss;
+- inspection metadata mismatch fail-closed;
+- inspection marker-symlink rejection;
+- source-slice proof that inspection contains no filesystem mutation primitive;
 - first consume fresh, second consume replay;
 - reopen/new store instance still replay;
 - eight independent Node processes racing one digest: exactly one fresh;
@@ -94,6 +136,10 @@ generation. A future retention policy must be a separate reviewed change.
 
 ```text
 durable_replay_store_implemented=true
+read_only_consumed_inspection=true
+known_consumed_detection=true
+negative_freshness_authorized=false
+inspection_mutation_performed=false
 durable_replay_store_verified=true
 production_gateway_replay_store_binding_verified=false
 runtime_route_active=false
@@ -113,8 +159,10 @@ runtime composition/binding gate may promote production gateway truth.
 
 ## Authority boundary
 
-The proof mutates only fresh temporary owner-private test directories. This
-source lane does not bind a production replay path, open a route, call RPC,
+The proof mutates only fresh temporary owner-private test directories. The
+read-only inspector itself performs no mutation and cannot authorize freshness
+or execution. This source lane does not bind a production replay path, open a
+route, call RPC,
 persist wallet/signer secrets, construct/sign/submit/broadcast an Ethereum
 transaction, write authoritative Chain-2050 state, mutate validators, move
 tokens/funds, authorize migration, or activate the public economic surface.
