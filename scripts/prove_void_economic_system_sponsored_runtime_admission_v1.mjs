@@ -362,6 +362,19 @@ function countRecords(root) {
     .length;
 }
 
+function seedPoisonHistory(root, count = 512) {
+  const records = path.join(root, "records");
+  for (let index = 1; index <= count; index += 1) {
+    const name =
+      index.toString(16).padStart(64, "0") + ".json";
+    fs.writeFileSync(
+      path.join(records, name),
+      "{}\n",
+      { mode: 0o600 },
+    );
+  }
+}
+
 function createBinding({
   bundle,
   clock,
@@ -426,6 +439,7 @@ for (const [key, value] of Object.entries(
     "canonical_ttl_policy_semantics_reused",
     "canonical_sponsored_policy_semantics_reused",
     "candidate_preflight_before_time_mutation",
+    "candidate_preflight_before_reservation_history_scan",
     "reservation_store_preflight_before_time_proven",
     "candidate_issued_after_bundle_commit_required",
     "current_candidate_revalidation_after_time",
@@ -589,7 +603,7 @@ const bundle = policyBundle(ttl, sponsor);
       held.reservation_store_preflight_verified,
       false,
     );
-    assert.equal(held.preflight_verified, false);
+    assert.equal(held.preflight_verified, true);
     assert.equal(held.current_candidate_verified, false);
     assert.equal(held.time_observation_performed, false);
     assert.equal(held.time_mutation_performed, false);
@@ -598,6 +612,54 @@ const bundle = policyBundle(ttl, sponsor);
     assert.equal(countRecords(f.timeRoot), 0);
     assert.equal(countRecords(f.reservationRoot), 0);
     assert.equal(fs.existsSync(queuePath), false);
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const request = await makeRequest({
+      ttl,
+      sponsor,
+      walletDigit: "7",
+      identityDigit: "7",
+      reservationDigit: "7",
+      issuedUnix: BASE_UNIX,
+      gasLimit: 30000,
+    });
+    seedPoisonHistory(f.reservationRoot, 512);
+    const badSignature = {
+      ...request,
+      signature: "0x" + "00".repeat(65),
+    };
+    const clock = clockQueue([
+      sample(1_000, 1_000_000_000n),
+    ]);
+    const binding = createBinding({
+      bundle,
+      clock: clock.clock,
+      timeRoot: f.timeRoot,
+      reservationRoot: f.reservationRoot,
+    });
+
+    const held = requireHeld(
+      await binding.admit(badSignature),
+      "SPONSORED_RUNTIME_CANDIDATE_PREFLIGHT_INVALID",
+    );
+    assert.equal(
+      held.reservation_store_preflight_verified,
+      false,
+    );
+    assert.equal(held.preflight_verified, false);
+    assert.equal(held.current_candidate_verified, false);
+    assert.equal(held.time_observation_performed, false);
+    assert.equal(held.time_mutation_performed, false);
+    assert.equal(held.reservation_mutation_performed, false);
+    assert.equal(clock.calls(), 0);
+    assert.equal(countRecords(f.timeRoot), 0);
+    assert.equal(countRecords(f.reservationRoot), 512);
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }
@@ -643,7 +705,7 @@ const bundle = policyBundle(ttl, sponsor);
     );
     assert.equal(
       preBundle.reservation_store_preflight_verified,
-      true,
+      false,
     );
     assert.equal(preBundle.preflight_verified, false);
     assert.equal(preBundle.time_observation_performed, false);
@@ -660,7 +722,7 @@ const bundle = policyBundle(ttl, sponsor);
     );
     assert.equal(
       invalid.reservation_store_preflight_verified,
-      true,
+      false,
     );
     assert.equal(invalid.preflight_verified, false);
     assert.equal(invalid.current_candidate_verified, false);
@@ -812,7 +874,7 @@ const bundle = policyBundle(ttl, sponsor);
       held.reservation_store_preflight_verified,
       false,
     );
-    assert.equal(held.preflight_verified, false);
+    assert.equal(held.preflight_verified, true);
     assert.equal(held.current_candidate_verified, false);
     assert.equal(held.time_observation_performed, false);
     assert.equal(held.time_mutation_performed, false);
@@ -1001,6 +1063,23 @@ assert.match(
   source,
   /persistEconomicSystemSponsoredReservationV1/u,
 );
+const admitSource = source.slice(
+  source.indexOf("async admit(inputRequest)"),
+);
+assert.ok(
+  admitSource.indexOf("preflight = preflightCandidate(") >= 0,
+);
+assert.ok(
+  admitSource.indexOf(
+    "inspectEconomicSystemSponsoredReservationStoreV1",
+  ) >= 0,
+);
+assert.ok(
+  admitSource.indexOf("preflight = preflightCandidate(") <
+    admitSource.indexOf(
+      "inspectEconomicSystemSponsoredReservationStoreV1",
+    ),
+);
 assert.doesNotMatch(source, /Date\.now\s*\(/u);
 assert.doesNotMatch(source, /process\.hrtime/u);
 assert.doesNotMatch(
@@ -1016,6 +1095,8 @@ console.log("policy_bundle_marker_schema_verified=true");
 console.log("reviewed_policy_compiler_proven=false");
 console.log("canonical_main_bundle_proven=false");
 console.log("candidate_preflight_before_time_mutation=true");
+console.log("candidate_preflight_before_reservation_history_scan=true");
+console.log("invalid_signature_full_history_scan=false");
 console.log("reservation_store_preflight_before_time_proven=true");
 console.log("missing_reservation_queue_blocks_before_time=true");
 console.log("candidate_issued_after_bundle_commit_required=true");
