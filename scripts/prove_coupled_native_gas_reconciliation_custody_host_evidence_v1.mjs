@@ -45,6 +45,8 @@ assert.deepEqual(
     "reset-failed",
     "set-property",
     "clean",
+    "bind-mount",
+    "mount-image",
   ],
 );
 
@@ -399,6 +401,8 @@ for (const token of [
   "\"set-property\"",
   "\"clean\"",
   "\"kill\"",
+  "\"bind-mount\"",
+  "\"mount-image\"",
   "RestrictNamespaces",
   "restrictMountNamespaceDeniedV1",
   "live_host_qualification_performed: false",
