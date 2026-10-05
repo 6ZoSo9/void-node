@@ -287,6 +287,8 @@ for (const [key, value] of Object.entries(
     "idempotent_replay_reauthenticates_terminal_evidence",
     "immutable_liability_history",
     "create_once_reconciliation_publication",
+    "crash_temp_normalization",
+    "record_filename_identity_binding",
     "exact_effective_open_postcheck",
     "descriptor_bound_reads",
     "filesystem_read",
@@ -633,6 +635,102 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const liability = makeLiability();
+  const stored = makeReconciliation(liability);
+  const f = fixture([liability], [stored]);
+  try {
+    const finalPath = path.join(
+      f.root,
+      RECONCILIATIONS,
+      stored.reconciliation_id + ".json",
+    );
+    const linkedTemp =
+      "." +
+      stored.reconciliation_id +
+      ".json.tmp-" +
+      String(process.pid) +
+      "-" +
+      "b".repeat(16);
+    const linkedTempPath = path.join(
+      f.root,
+      RECONCILIATIONS,
+      linkedTemp,
+    );
+    fs.linkSync(finalPath, linkedTempPath);
+    assert.equal(
+      fs.statSync(finalPath, { bigint: true }).nlink,
+      2n,
+    );
+
+    const replay =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: payer,
+          liability_id: liability.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () =>
+            resolved(liability, stored),
+        },
+      );
+    requireOk(replay);
+    assert.equal(replay.status, "idempotent");
+    assert.equal(replay.mutation_performed, true);
+    assert.equal(fs.existsSync(linkedTempPath), false);
+    assert.equal(fs.existsSync(finalPath), true);
+    assert.equal(
+      fs.statSync(finalPath, { bigint: true }).nlink,
+      1n,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const liability = makeLiability();
+  const f = fixture([liability], []);
+  let resolverCalls = 0;
+  try {
+    const reconciliation = makeReconciliation(liability);
+    const wrongId =
+      reconciliation.reconciliation_id === "f".repeat(64)
+        ? "e".repeat(64)
+        : "f".repeat(64);
+    writeCanonical(
+      path.join(f.root, RECONCILIATIONS, wrongId + ".json"),
+      reconciliation,
+    );
+    const decision =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: payer,
+          liability_id: liability.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () => {
+            resolverCalls += 1;
+            return resolved(liability, reconciliation);
+          },
+        },
+      );
+    requireHeld(decision);
+    assert.equal(decision.mutation_performed, false);
+    assert.equal(resolverCalls, 0);
+    assert.match(
+      decision.reason,
+      /reconciliations_record_filename_identity_mismatch/u,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const f = fixture();
   const liability = f.liabilities[0];
   let resolverCalls = 0;
@@ -691,6 +789,8 @@ console.log("history_change_before_publication_hold=true");
 console.log("postpublication_failure_reports_mutation=true");
 console.log("stale_writer_temp_recovery_idempotent=true");
 console.log("stale_writer_temp_cleanup_reports_mutation=true");
+console.log("linked_writer_temp_recovery_idempotent=true");
+console.log("record_filename_identity_binding=true");
 console.log("concurrent_exact_replay_single_record=true");
 console.log("storage_bootstrap=false");
 console.log("liability_record_mutation=false");
