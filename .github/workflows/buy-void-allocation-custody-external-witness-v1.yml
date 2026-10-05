@@ -5,6 +5,9 @@ on:
     paths:
       - ".github/workflows/buy-void-allocation-custody-external-witness-v1.yml"
       - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_external_witness_v1.ts"
       - "docs/architecture/buy-void-allocation-custody-external-witness-v1.md"
       - "package.json"
@@ -16,6 +19,9 @@ on:
     paths:
       - ".github/workflows/buy-void-allocation-custody-external-witness-v1.yml"
       - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_external_witness_v1.ts"
       - "docs/architecture/buy-void-allocation-custody-external-witness-v1.md"
 
