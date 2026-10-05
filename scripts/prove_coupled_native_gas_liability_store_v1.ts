@@ -332,11 +332,25 @@ assert.doesNotMatch(
   storeSource,
   /export\s+(?:async\s+)?function\s+[^\n]*(?:release|delete|reconcile)/iu,
 );
-assert.match(
-  storeSource,
-  /if \(before\.length >= MAX_RECORDS\) \{[\s\S]{0,180}coupled_native_gas_store_record_count_exceeded[\s\S]{0,240}createOnceLiability\(records!, classified\.liability\)/u,
-  "new liability must HOLD at the record ceiling before durable publication",
-);
+{
+  const ceilingAt = storeSource.indexOf(
+    "if (before.length >= MAX_RECORDS)",
+  );
+  const ceilingReasonAt = storeSource.indexOf(
+    "coupled_native_gas_store_record_count_exceeded",
+    ceilingAt,
+  );
+  const refreshedCreateAt = storeSource.indexOf(
+    "createOnceLiability(records!, mutationAdmission.liability)",
+    ceilingReasonAt,
+  );
+  assert.ok(ceilingAt >= 0);
+  assert.ok(ceilingReasonAt > ceilingAt);
+  assert.ok(
+    refreshedCreateAt > ceilingReasonAt,
+    "new liability must HOLD at the record ceiling before refreshed durable publication",
+  );
+}
 assert.match(storeSource, /CoupledNativeGasStorePostMutationError/u);
 assert.match(storeSource, /status: mutationPerformed \? "held_after_mutation" : "held"/u);
 assert.match(storeSource, /durable_state_requires_reinspection/u);
@@ -398,8 +412,8 @@ assert.doesNotMatch(
 }
 assert.match(
   storeSource,
-  /assertPayerDomainSnapshotCurrent\([\s\S]*createOnceLiability\(records!, classified\.liability\)/u,
-  "payer-domain must be rebound immediately before publication",
+  /assertPayerDomainSnapshotCurrent\([\s\S]*const mutationNowMs = readNowMs\(\);[\s\S]*const mutationAdmission =[\s\S]*createOnceLiability\(records!, mutationAdmission\.liability\)/u,
+  "payer-domain rebind and refreshed mutation admission must precede durable publication",
 );
 
 {
