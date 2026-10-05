@@ -611,10 +611,35 @@ except BaseException:
     if published:
         try:
             if replaced:
+                latest_now = direct_dir(
+                    latest,
+                    "latest_publish_internal_rollback_latest_not_direct",
+                )
+                stage_now = direct_dir(
+                    stage,
+                    "latest_publish_internal_rollback_stage_not_direct",
+                )
+                if (
+                    identity(latest_now) != stage_identity
+                    or identity(stage_now) != prior_identity
+                ):
+                    raise RuntimeError(
+                        "latest_publish_internal_rollback_identity_mismatch"
+                    )
                 exchange(stage, latest)
             else:
+                latest_now = direct_dir(
+                    latest,
+                    "latest_publish_internal_rollback_latest_not_direct",
+                )
+                if identity(latest_now) != stage_identity:
+                    raise RuntimeError(
+                        "latest_publish_internal_rollback_identity_mismatch"
+                    )
                 if os.path.lexists(stage):
-                    raise RuntimeError("latest_publish_internal_rollback_stage_exists")
+                    raise RuntimeError(
+                        "latest_publish_internal_rollback_stage_exists"
+                    )
                 os.rename(latest, stage)
             os.fsync(parent_fd)
         except BaseException as rollback_error:
