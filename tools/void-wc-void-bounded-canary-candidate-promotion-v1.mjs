@@ -107,7 +107,7 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   coupled_candidate: Object.freeze({
     path: "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
-    blob_sha1: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+    blob_sha1: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
   }),
   successor_candidate: Object.freeze({
     path: "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
