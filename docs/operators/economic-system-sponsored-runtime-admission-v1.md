@@ -116,12 +116,17 @@ observation-time evaluation, or mutation.
 
 If this inspection HOLDS, admission returns before signed-candidate preflight and
 before the trusted clock/time store is invoked. No time receipt or sponsored
-reservation may grow from a structurally invalid/missing reservation authority.
+reservation may grow when the reservation authority is already structurally
+invalid or missing at the instant of preflight.
 
 This proves
 `reservation_store_preflight_before_time_proven=true`. It does not prove host
 rollback/path custody, so `reservation_store_root_stability_proven=false`
-remains correct.
+remains correct. A reservation root that passes preflight can still disappear or
+be replaced before the later durable reservation step. If that happens after
+the trusted-time step begins, one valid time receipt may already be durable
+before reservation persistence HOLDS. The source therefore does not claim that
+all post-preflight storage loss is time-growth-free.
 
 ## Signed candidate preflight before time mutation
 
@@ -279,6 +284,9 @@ The runtime proof covers:
 - overlapping authority roots;
 - missing preprovisioned reservation lock queue HOLD before signature/time,
   with zero clock calls and zero time/reservation growth;
+- reservation-root loss after successful structural preflight but during the
+  trusted-clock step, proving one durable time receipt may advance before the
+  later reservation persistence HOLD while root stability remains false;
 - successful admission reports reservation structural preflight verified;
 - invalid signature after structural preflight but before clock read;
 - request timestamp injection before clock read;
