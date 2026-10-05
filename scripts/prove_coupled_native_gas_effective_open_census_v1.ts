@@ -550,6 +550,7 @@ for (const [key, value] of Object.entries(
 console.log("VOID_COUPLED_NATIVE_GAS_EFFECTIVE_OPEN_CENSUS_V1_GREEN");
 console.log("deterministic_sorted_census=true");
 console.log("reserve_conservation_rederived=true");
+console.log("partial_gas_use_reconciliation_supported=true");
 console.log("immutable_liability_history=true");
 console.log("immutable_reconciliation_history=true");
 console.log("orphan_reconciliation_hold=true");
