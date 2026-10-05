@@ -1,12 +1,29 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 
 import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_AUTHORITY_V1,
   classifyCoupledNativeGasReconciliationCustodyQualificationV1,
 } from "../src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.js";
+import {
+  buildCoupledNativeGasStorePayerDomainV1,
+  serializeCoupledNativeGasStorePayerDomainV1,
+} from "../src/economic/coupled_native_gas_liability_store_v1.js";
 
 const now = 1_800_000_000_000;
-const payerDomainId = "a".repeat(64);
+const payerAddress = "0x" + "a".repeat(40);
+const canonicalPayerDomain =
+  buildCoupledNativeGasStorePayerDomainV1(payerAddress);
+const payerDomainId = canonicalPayerDomain.payer_domain_id;
+const payerDomainContentSha256 =
+  "sha256:" +
+  crypto
+    .createHash("sha256")
+    .update(
+      serializeCoupledNativeGasStorePayerDomainV1(payerAddress),
+      "utf8",
+    )
+    .digest("hex");
 const root = "/var/lib/void/native-gas/payer-a";
 
 function ancestor(
@@ -48,7 +65,7 @@ function directory(
 function green(): Record<string, unknown> {
   return {
     verification_now_ms: now,
-    expected_payer_domain_id: payerDomainId,
+    payer_address: payerAddress,
     host_evidence: {
       host_id: "precision-mainnet0",
       evidence_snapshot: {
@@ -102,7 +119,7 @@ function green(): Record<string, unknown> {
         symlink: false,
         nlink: 1,
         payer_domain_id: payerDomainId,
-        content_sha256: "sha256:" + "2".repeat(64),
+        content_sha256: payerDomainContentSha256,
       },
       records: directory(root + "/records", 101),
       reconciliations: directory(root + "/reconciliations", 102),
@@ -168,6 +185,8 @@ const baseline = decision(green());
 assert.equal(baseline.ok, true);
 if (baseline.ok !== true) throw new Error(baseline.reason);
 assert.equal(baseline.status, "source_qualified");
+assert.equal(baseline.payer_address, payerAddress);
+assert.equal(baseline.payer_domain_id, payerDomainId);
 assert.equal(baseline.root_path_stability_evidence_qualified, true);
 assert.equal(baseline.namespace_identity_evidence_qualified, true);
 assert.equal(baseline.service_policy_evidence_qualified, true);
@@ -278,6 +297,17 @@ assert.match(
 }
 {
   const x = structuredClone(green()) as any;
+  x.payer_address = "0x" + "b".repeat(40);
+  requireHeld(x, "reconciliation_custody_payer_domain_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.payer_domain.content_sha256 =
+    "sha256:" + "f".repeat(64);
+  requireHeld(x, "reconciliation_custody_payer_domain_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
   x.host_evidence.payer_domain.nlink = 2;
   requireHeld(x, "reconciliation_custody_payer_domain_invalid");
 }
@@ -323,6 +353,8 @@ for (const [key, value] of Object.entries(
     "host_evidence_input_only",
     "dedicated_service_identity_required",
     "exact_payer_domain_identity_required",
+    "canonical_payer_domain_binding_reused",
+    "exact_payer_domain_bytes_required",
     "exact_namespace_identity_required",
     "root_owned_ancestor_chain_required",
     "root_path_stability_evidence_required",
@@ -350,6 +382,8 @@ console.log("symlink_substitution_denial_required=true");
 console.log("bind_mount_denial_evidence_required=true");
 console.log("remount_denial_evidence_required=true");
 console.log("exact_payer_domain_identity_required=true");
+console.log("canonical_payer_domain_binding_reused=true");
+console.log("exact_payer_domain_bytes_required=true");
 console.log("exact_reconciliation_namespace_required=true");
 console.log("hardened_service_policy_required=true");
 console.log("bounded_evidence_freshness_checked=true");
