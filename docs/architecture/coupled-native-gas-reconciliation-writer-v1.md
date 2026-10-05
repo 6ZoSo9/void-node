@@ -168,7 +168,12 @@ terminal-receipt and reconciliation authority exists.
 
 The source authority reports filesystem read/write and reconciliation-record
 publication because invoking this source function mutates its supplied private
-store. Merging the source does not invoke it on production state.
+store. It also reports `root_path_stability_proven=false`: retained descriptors
+detect visible-root drift and force HOLD, but this source contract does not
+prove that a same-UID actor cannot replace the payer-root pathname during an
+admitted operation. That stronger property remains a host/runtime custody gate.
+
+Merging the source does not invoke it on production state.
 
 ## Authority boundary
 
