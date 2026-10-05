@@ -171,6 +171,26 @@ for (const remotePort of ["22", true] as const) {
   );
 }
 
+for (const remoteHost of [true, 22, "NIMO", " nimo "] as const) {
+  requireHeld(
+    classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1({
+      ...policy,
+      remote_host: remoteHost,
+    }),
+    "allocation_custody_witness_transport_remote_host_invalid",
+  );
+}
+
+for (const remoteUser of [true, false] as const) {
+  requireHeld(
+    classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1({
+      ...policy,
+      remote_user: remoteUser,
+    }),
+    "allocation_custody_witness_transport_remote_user_invalid",
+  );
+}
+
 for (const mutation of [
   { strict_host_key_checking: false },
   { remote_forced_command_only: false },
@@ -732,6 +752,8 @@ console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1_PROOF_GREEN",
 );
 console.log("strict_integer_json_types=true");
+console.log("strict_string_json_types=true");
+console.log("canonical_lowercase_host_required=true");
 console.log("numeric_string_boolean_aliases_rejected=true");
 console.log("pinned_remote_identity_policy=true");
 console.log("server_controlled_policy_origin_proven=false");
