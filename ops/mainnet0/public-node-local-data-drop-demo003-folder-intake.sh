@@ -25,6 +25,7 @@ LOCK_WAIT_SECONDS="${DEMO003_LOCK_WAIT_SECONDS:-30}"
 
 FIXTURE_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-fixture.sh"
 VERIFY_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-verify-folder-fixture.sh"
+HANDOFF_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-sealed-handoff-v1.py"
 
 umask 0077
 
@@ -173,27 +174,122 @@ echo "intake_lock_serialized=true"
 
 test -x "$FIXTURE_SCRIPT"
 test -x "$VERIFY_SCRIPT"
+test -f "$HANDOFF_SCRIPT"
 
 OUT="$FIXTURE_OUT" "$FIXTURE_SCRIPT" | tee "$OUT/fixture.log"
 
 TARBALL="$FIXTURE_OUT/demo003-folder-fixture.tar.gz"
 test -f "$TARBALL"
 
-OUT="$VERIFY_OUT" "$VERIFY_SCRIPT" "$TARBALL" | tee "$OUT/verify.log"
+set +e
+VERIFY_OUTPUT="$(OUT="$VERIFY_OUT" "$VERIFY_SCRIPT" "$TARBALL")"
+VERIFY_RC=$?
+set -e
+printf '%s\n' "$VERIFY_OUTPUT" | tee "$OUT/verify.log"
+if [ "$VERIFY_RC" -ne 0 ]; then
+  echo "[fail] Demo003 verifier HOLD" >&2
+  exit "$VERIFY_RC"
+fi
+if [ "${#VERIFY_OUTPUT}" -gt 131072 ]; then
+  echo "[fail] Demo003 verifier output too large" >&2
+  exit 2
+fi
+printf '%s\n' "$VERIFY_OUTPUT" |
+  grep -Fxq "verified_content_authority=sealed_memfd_snapshot"
+printf '%s\n' "$VERIFY_OUTPUT" |
+  grep -Fxq "visible_extraction_tree_trusted=false"
+printf '%s\n' "$VERIFY_OUTPUT" |
+  grep -Fxq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN"
+
+sealed_digest() {
+  key="$1"
+  value="$(
+    printf '%s\n' "$VERIFY_OUTPUT" |
+      sed -n "s/^${key}=\([0-9a-f]\{64\}\)$/\1/p"
+  )"
+  count="$(
+    printf '%s\n' "$VERIFY_OUTPUT" |
+      grep -c "^${key}=" || true
+  )"
+  test "$count" = "1" && [[ "$value" =~ ^[0-9a-f]{64}$ ]] || {
+    echo "[fail] missing sealed digest: $key" >&2
+    return 1
+  }
+  printf '%s' "$value"
+}
+
+SEALED_MANIFEST_SHA256="$(sealed_digest sealed_manifest_sha256)"
+SEALED_CHECKSUMS_SHA256="$(sealed_digest sealed_checksums_sha256)"
+SEALED_README_SHA256="$(sealed_digest sealed_readme_sha256)"
+SEALED_INDEX_SHA256="$(sealed_digest sealed_index_sha256)"
+SEALED_METADATA_SHA256="$(sealed_digest sealed_metadata_sha256)"
+
+handoff_snapshot() {
+  source_root="$1"
+  destination_root="$2"
+  python3 "$HANDOFF_SCRIPT" \
+    "$source_root" \
+    "$destination_root" \
+    "$SEALED_MANIFEST_SHA256" \
+    "$SEALED_CHECKSUMS_SHA256" \
+    "$SEALED_README_SHA256" \
+    "$SEALED_INDEX_SHA256" \
+    "$SEALED_METADATA_SHA256"
+}
+
+handoff_snapshot_id() {
+  output="$1"
+  value="$(
+    printf '%s\n' "$output" |
+      sed -n 's/^sealed_snapshot_set_sha256=\([0-9a-f]\{64\}\)$/\1/p'
+  )"
+  count="$(
+    printf '%s\n' "$output" |
+      grep -c '^sealed_snapshot_set_sha256=' || true
+  )"
+  test "$count" = "1" && [[ "$value" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s' "$value"
+}
 
 test -d "$VERIFY_OUT/extract/demo003-folder-fixture"
-test -f "$VERIFY_OUT/extract/demo003-folder-fixture/manifest.json"
-test -f "$VERIFY_OUT/extract/demo003-folder-fixture/sha256sums.txt"
 
 mkdir -m 0700 "$ARCHIVE"
-cp -a "$VERIFY_OUT/extract/demo003-folder-fixture/." "$ARCHIVE/"
-cp "$OUT/fixture.log" "$ARCHIVE/fixture.log"
-cp "$OUT/verify.log" "$ARCHIVE/verify.log"
+ARCHIVE_HANDOFF="$(handoff_snapshot   "$VERIFY_OUT/extract/demo003-folder-fixture"   "$ARCHIVE")"
+printf '%s\n' "$ARCHIVE_HANDOFF"
+SEALED_SNAPSHOT_SET_SHA256="$(handoff_snapshot_id "$ARCHIVE_HANDOFF")" || {
+  echo "[fail] Demo003 sealed handoff identity missing" >&2
+  exit 2
+}
+printf '%s\n' "$ARCHIVE_HANDOFF" |
+  grep -Fxq "destination_matches_sealed_snapshot=true"
 
-python3 - "$ARCHIVE/manifest.json" "$ARCHIVE/intake.json" <<'PY'
-import json, sys, datetime
+cp -- "$OUT/fixture.log" "$ARCHIVE/fixture.log"
+printf '%s\n' "$VERIFY_OUTPUT" > "$ARCHIVE/verify.log"
+chmod 0600 "$ARCHIVE/fixture.log" "$ARCHIVE/verify.log"
 
-manifest_path, intake_path = sys.argv[1], sys.argv[2]
+python3 - \
+  "$ARCHIVE/manifest.json" \
+  "$ARCHIVE/intake.json" \
+  "$SEALED_SNAPSHOT_SET_SHA256" \
+  "$SEALED_MANIFEST_SHA256" \
+  "$SEALED_CHECKSUMS_SHA256" \
+  "$SEALED_README_SHA256" \
+  "$SEALED_INDEX_SHA256" \
+  "$SEALED_METADATA_SHA256" <<'PY'
+import datetime
+import json
+import sys
+
+(
+    manifest_path,
+    intake_path,
+    snapshot_id,
+    manifest_sha,
+    checksums_sha,
+    readme_sha,
+    index_sha,
+    metadata_sha,
+) = sys.argv[1:]
 manifest = json.load(open(manifest_path))
 
 intake = {
@@ -203,6 +299,16 @@ intake = {
     "offline_verified": True,
     "network_fetch_during_import": False,
     "trusted_as_network_truth": False,
+    "verified_content_authority": "sealed_memfd_snapshot",
+    "visible_extraction_tree_trusted": False,
+    "sealed_snapshot_set_sha256": snapshot_id,
+    "sealed_snapshot_sha256": {
+        "manifest.json": manifest_sha,
+        "sha256sums.txt": checksums_sha,
+        "files/README.txt": readme_sha,
+        "files/index.html": index_sha,
+        "files/metadata.json": metadata_sha,
+    },
     "public_routes_only": True,
     "read_only": True,
     "mutation": False,
@@ -213,13 +319,19 @@ intake = {
     "source_manifest": manifest,
 }
 
-with open(intake_path, "w") as f:
-    json.dump(intake, f, indent=2, sort_keys=True)
-    f.write("\n")
+with open(intake_path, "x") as handle:
+    json.dump(intake, handle, indent=2, sort_keys=True)
+    handle.write("\n")
 PY
+chmod 0600 "$ARCHIVE/intake.json"
 
 mkdir -m 0700 "$LATEST_STAGE"
-cp -a "$ARCHIVE/." "$LATEST_STAGE/"
+STAGE_HANDOFF="$(handoff_snapshot "$ARCHIVE" "$LATEST_STAGE")"
+printf '%s\n' "$STAGE_HANDOFF"
+test "$(handoff_snapshot_id "$STAGE_HANDOFF")" = "$SEALED_SNAPSHOT_SET_SHA256"
+cp -- "$ARCHIVE/fixture.log" "$LATEST_STAGE/fixture.log"
+cp -- "$ARCHIVE/verify.log" "$LATEST_STAGE/verify.log"
+cp -- "$ARCHIVE/intake.json" "$LATEST_STAGE/intake.json"
 
 if find "$LATEST_STAGE" -type l -print -quit | grep -q .; then
   echo "[fail] staged Demo003 fixture contains a symlink" >&2
@@ -291,6 +403,10 @@ assert d["marker"] == "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_RE
 assert d["offline_verified"] is True
 assert d["network_fetch_during_import"] is False
 assert d["trusted_as_network_truth"] is False
+assert d["verified_content_authority"] == "sealed_memfd_snapshot"
+assert d["visible_extraction_tree_trusted"] is False
+assert isinstance(d["sealed_snapshot_set_sha256"], str)
+assert len(d["sealed_snapshot_set_sha256"]) == 64
 assert d["file_count"] == 3
 
 print("object_set_id=" + str(d["object_set_id"]))
@@ -298,6 +414,9 @@ print("file_count=" + str(d["file_count"]))
 print("offline_verified=true")
 print("network_fetch_during_import=false")
 print("trusted_as_network_truth=false")
+print("verified_content_authority=sealed_memfd_snapshot")
+print("visible_extraction_tree_trusted=false")
+print("sealed_snapshot_set_sha256=" + d["sealed_snapshot_set_sha256"])
 PY
 
 echo "archive=$ARCHIVE"
@@ -309,4 +428,5 @@ echo "latest_file_modes_safe=true"
 echo "demo003_publication_ancestry_secure=true"
 echo "intake_lock_serialized=true"
 echo "run_identity_collision_resistant=true"
+echo "sealed_snapshot_handoff_bound=true"
 echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_V1_IMPORTED"
