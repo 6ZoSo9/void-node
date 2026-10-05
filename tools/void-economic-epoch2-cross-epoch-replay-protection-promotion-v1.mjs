@@ -25,6 +25,12 @@ const REPLAY_SOURCE_EQUIVALENCE_MARKER=
   "VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_CONSUME_EQUIVALENCE_V1";
 const PREDECESSOR_REPLAY_STORE_BLOB=
   "2e4481fbf45200121356f39c278eac5b05a33596";
+const HISTORICAL_REPLAY_EVIDENCE_SHA256=
+  "9dcf63514e6bdb2daf2a099ef3676b04ed2cffc71699932190f590864f4e5d99";
+const HISTORICAL_REPLAY_EVIDENCE_ID=
+  "voide2gre1_0b6e8edc4220370e3e811f075063a6a7636fefb713f1be27e17aef319ae6719a";
+const HISTORICAL_REPLAY_IMPORT_EVALUATED_AT_UTC=
+  "2026-09-29T17:32:16Z";
 
 function fail(reason){ throw new Error(reason); }
 function sha256Bytes(bytes){
@@ -111,7 +117,6 @@ function requireReplayPrerequisites(migration){
 function requireReplayStoreSourceEquivalence(
   value,
   sourceBindingPolicy,
-  receipt,
 ){
   if(
     !value ||
@@ -135,10 +140,11 @@ function requireReplayStoreSourceEquivalence(
     value.equivalence?.runtime_evidence_carry_forward_scope!==
       "atomic_consume_path_only" ||
     value.historical_runtime_evidence?.evidence_file_sha256!==
-      receipt.evidence_file_sha256 ||
-    value.historical_runtime_evidence?.evidence_id!==receipt.evidence_id ||
+      HISTORICAL_REPLAY_EVIDENCE_SHA256 ||
+    value.historical_runtime_evidence?.evidence_id!==
+      HISTORICAL_REPLAY_EVIDENCE_ID ||
     value.historical_runtime_evidence?.import_evaluated_at_utc!==
-      receipt.import_evaluated_at_utc ||
+      HISTORICAL_REPLAY_IMPORT_EVALUATED_AT_UTC ||
     value.authority?.source_equivalence_only!==true ||
     value.authority?.runtime_canary_reexecuted!==false ||
     value.authority?.negative_inspection_authority!==false ||
@@ -188,7 +194,6 @@ export function promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
   requireReplayStoreSourceEquivalence(
     sourceEquivalence,
     sourceBindingPolicy,
-    receipt,
   );
 
   const verified=
