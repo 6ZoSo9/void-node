@@ -638,6 +638,145 @@ function sameSnapshot(
   );
 }
 
+function durableJsonIdentity(value: unknown): {
+  bytes: number;
+  sha256: string;
+} {
+  const bytes = Buffer.from(
+    JSON.stringify(value, null, 2) + "\n",
+    "utf8",
+  );
+  return Object.freeze({
+    bytes: bytes.length,
+    sha256: sha256Bytes(bytes),
+  });
+}
+
+function requireSnapshotRecordBinding(
+  snapshot: DirectorySnapshotV1,
+  name: string,
+  value: unknown,
+  code: string,
+): void {
+  const entry = snapshot.entries.find(
+    (candidate) => candidate.name === name,
+  );
+  const expected = durableJsonIdentity(value);
+  if (
+    !entry ||
+    entry.bytes !== expected.bytes ||
+    entry.sha256 !== expected.sha256
+  ) {
+    throw new Error(code);
+  }
+}
+
+function requireSnapshotExactStateBinding(
+  snapshot: DirectorySnapshotV1,
+  records: readonly {
+    name: string;
+    value: unknown;
+  }[],
+  code: string,
+): void {
+  const expected = [...records]
+    .sort((left, right) => left.name.localeCompare(right.name));
+  if (
+    snapshot.entries.length !== expected.length ||
+    snapshot.entries.some(
+      (entry, index) => entry.name !== expected[index]?.name,
+    )
+  ) {
+    throw new Error(code);
+  }
+  for (const record of expected) {
+    requireSnapshotRecordBinding(
+      snapshot,
+      record.name,
+      record.value,
+      code,
+    );
+  }
+}
+
+function attemptSnapshotRecords(
+  attempt: BuyVoidExecutionAttemptStateV1,
+): readonly { name: string; value: unknown }[] {
+  return Object.freeze([
+    Object.freeze({
+      name: "reserved.json",
+      value: attempt.reservation,
+    }),
+    ...(attempt.prepared
+      ? [Object.freeze({
+          name: "prepared.json",
+          value: attempt.prepared,
+        })]
+      : []),
+    ...(attempt.broadcast
+      ? [Object.freeze({
+          name: "broadcast.json",
+          value: attempt.broadcast,
+        })]
+      : []),
+    ...(attempt.failure
+      ? [Object.freeze({
+          name: "failure.json",
+          value: attempt.failure,
+        })]
+      : []),
+    ...(attempt.postbroadcast_failure
+      ? [Object.freeze({
+          name: "postbroadcast-failure.json",
+          value: attempt.postbroadcast_failure,
+        })]
+      : []),
+    ...(attempt.confirmation
+      ? [Object.freeze({
+          name: "confirmed.json",
+          value: attempt.confirmation,
+        })]
+      : []),
+  ]);
+}
+
+function outcomeSnapshotRecords(
+  outcome: BuyVoidBroadcastOutcomeStateV1,
+): readonly { name: string; value: unknown }[] {
+  return Object.freeze([
+    ...(outcome.not_broadcast
+      ? [Object.freeze({
+          name: "not-broadcast.json",
+          value: outcome.not_broadcast,
+        })]
+      : []),
+    ...(outcome.unknown
+      ? [Object.freeze({
+          name: "unknown.json",
+          value: outcome.unknown,
+        })]
+      : []),
+    ...(outcome.accepted
+      ? [Object.freeze({
+          name: "accepted.json",
+          value: outcome.accepted,
+        })]
+      : []),
+    ...(outcome.reverted
+      ? [Object.freeze({
+          name: "reverted.json",
+          value: outcome.reverted,
+        })]
+      : []),
+    ...(outcome.confirmed
+      ? [Object.freeze({
+          name: "confirmed.json",
+          value: outcome.confirmed,
+        })]
+      : []),
+  ]);
+}
+
 function parseUint256Decimal(value: unknown): bigint | null {
   const raw = String(value ?? "").trim();
   if (!DECIMAL.test(raw)) return null;
@@ -885,6 +1024,21 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
       methods,
     );
   }
+  try {
+    requireSnapshotRecordBinding(
+      planBefore,
+      String(plan.nonce).padStart(16, "0") + ".json",
+      plan,
+      "reconciliation_evidence_plan_reader_snapshot_mismatch",
+    );
+  } catch (error) {
+    return held(
+      "plan",
+      String((error as Error)?.message || error).slice(0, 240),
+      policy.rpc_url_fingerprint_sha256,
+      methods,
+    );
+  }
 
   const attemptDir = path.join(
     root,
@@ -944,6 +1098,25 @@ export async function resolveCoupledNativeGasReconciliationEvidenceV1(
     return held(
       "attempt",
       "reconciliation_evidence_attempt_lineage_mismatch",
+      policy.rpc_url_fingerprint_sha256,
+      methods,
+    );
+  }
+  try {
+    requireSnapshotExactStateBinding(
+      attemptBefore,
+      attemptSnapshotRecords(attempt),
+      "reconciliation_evidence_attempt_reader_snapshot_mismatch",
+    );
+    requireSnapshotExactStateBinding(
+      outcomeBefore,
+      outcomeSnapshotRecords(outcomeState),
+      "reconciliation_evidence_outcome_reader_snapshot_mismatch",
+    );
+  } catch (error) {
+    return held(
+      "snapshot",
+      String((error as Error)?.message || error).slice(0, 240),
       policy.rpc_url_fingerprint_sha256,
       methods,
     );
