@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import {
   createHash,
+  randomBytes,
 } from "node:crypto";
 import {
   createServer,
@@ -39,6 +40,8 @@ export const AGENT_PAID_WORK_CREDENTIAL_REQUEST_HEALTH_PATH =
   "/__void/agents/paid-work/credential-requests/v1/health" as const;
 export const AGENT_PAID_WORK_CREDENTIAL_REQUEST_STATUS_PATH =
   "/__void/agents/paid-work/credential-requests/v1/status" as const;
+export const AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1 =
+  "x-void-credential-request-gateway-instance-v1" as const;
 
 const SHA256_PATTERN =
   /^[0-9a-f]{64}$/;
@@ -745,6 +748,8 @@ createAgentPaidWorkCredentialRequestGatewayHandlerV1(
       string,
       number[]
     >();
+  const qualificationInstanceId =
+    randomBytes(32).toString("hex");
 
   const handler =
     async (
@@ -840,6 +845,8 @@ createAgentPaidWorkCredentialRequestGatewayHandlerV1(
               maxBodyBytes,
             max_requests_per_minute:
               maxRequestsPerMinute,
+            qualification_instance_id:
+              qualificationInstanceId,
             raw_request_content_exposed:
               false,
             callback_uri_exposed:
@@ -884,6 +891,31 @@ createAgentPaidWorkCredentialRequestGatewayHandlerV1(
           },
           {
             Allow: "POST",
+          },
+        );
+        return;
+      }
+
+      const presentedQualificationInstanceId =
+        String(
+          request.headers[
+            AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1
+          ] || "",
+        ).trim().toLowerCase();
+      if (
+        !/^[0-9a-f]{64}$/.test(
+          presentedQualificationInstanceId,
+        ) ||
+        presentedQualificationInstanceId !==
+          qualificationInstanceId
+      ) {
+        sendJson(
+          response,
+          412,
+          {
+            ok: false,
+            error:
+              "gateway_instance_mismatch",
           },
         );
         return;
