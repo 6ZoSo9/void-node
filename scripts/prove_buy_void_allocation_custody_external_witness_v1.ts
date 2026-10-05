@@ -29,6 +29,44 @@ const sha256Id = (value: string | Buffer): string =>
     .update(Buffer.isBuffer(value) ? value : Buffer.from(value, "utf8"))
     .digest("hex");
 
+function canonicalJson(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return (
+      "{" +
+      Object.keys(record)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) + ":" + canonicalJson(record[key]),
+        )
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("noncanonical_test_value");
+}
+
+function rehashWitnessEvent(
+  event: Record<string, unknown>,
+): Record<string, unknown> {
+  const body = { ...event };
+  delete body.event_sha256;
+  return {
+    ...event,
+    event_sha256: sha256Id(canonicalJson(body)),
+  };
+}
+
 function requireOk<T>(
   value: T,
 ): Extract<T, { ok: true }> {
@@ -183,6 +221,30 @@ function currentFrom(
 const advancedCurrent = currentFrom(ledger1, high1);
 assert.equal(advancedCurrent.reserved_void_total, "0.000002");
 assert.equal(advancedCurrent.remaining_void, "9999999.999998");
+
+
+{
+  const fakeGenesisEvent = rehashWitnessEvent({
+    ...genesisEvent,
+    high_water_sha256: sha("f"),
+  });
+  const fakeGenesis = Buffer.from(
+    JSON.stringify(fakeGenesisEvent) + "\n",
+    "utf8",
+  );
+  const held =
+    classifyBuyVoidAllocationCustodyExternalWitnessV1({
+      witness_jsonl: fakeGenesis,
+      current_state: advancedCurrent,
+      current_ledger_jsonl: ledger1,
+      current_high_water_json: high1.high_water_json,
+    });
+  assert.equal(held.ok, false);
+  assert.equal(
+    held.reason,
+    "allocation_custody_witness_genesis_high_water_invalid",
+  );
+}
 
 const second = requireOk(
   planBuyVoidAllocationReservationV1({
