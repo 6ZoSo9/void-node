@@ -935,7 +935,7 @@ function witnessHistoryMatchesCanonicalCurrentLedger(
     return false;
   }
 
-  const pool =
+  const pool: string =
     VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1
       .canonical_presale_max_void;
   const rolling = crypto.createHash("sha256");
