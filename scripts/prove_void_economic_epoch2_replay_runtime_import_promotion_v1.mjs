@@ -415,6 +415,7 @@ assert.equal(
     ()=>promoteVoidEconomicEpoch2CrossEpochReplayProtectionV1({
       evidenceBytes,
       importReceipt:receipt,
+      sourceEquivalence:replaySourceEquivalence,
       sourceBindingPolicy:sourceBinding,
       durableReplayStorePolicy:durable,
       runtimeEvidenceContract:contract,
