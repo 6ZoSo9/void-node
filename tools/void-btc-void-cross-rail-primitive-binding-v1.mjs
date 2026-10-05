@@ -78,7 +78,6 @@ const HEX64 = /^[0-9a-f]{64}$/u;
 const H160 = /^[0-9a-f]{40}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const IDENTITY_ID = /^voidbtvc2050h1_[0-9a-f]{64}$/u;
-const BINDING_ID = /^voidbtcxrb1_[0-9a-f]{64}$/u;
 const MAX_STDIN_BYTES = 8 * 1024 * 1024;
 const PARTIES = new Set(["initiator", "counterparty"]);
 const DIRECTIONS = new Set(["btc_to_void", "void_to_btc"]);
@@ -512,6 +511,8 @@ function validateInput(raw) {
   );
   requireParty(chain2050.refund_party, "cross_rail_chain_refund_party_invalid");
   if (
+    chain2050.beneficiary_address === "0x" + "0".repeat(40) ||
+    chain2050.refund_authority_address === "0x" + "0".repeat(40) ||
     chain2050.beneficiary_address === chain2050.refund_authority_address ||
     chain2050.beneficiary_party === chain2050.refund_party
   ) {
