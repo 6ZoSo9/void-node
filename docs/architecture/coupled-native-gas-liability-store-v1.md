@@ -69,6 +69,13 @@ The same durable wei cannot be admitted twice by two cooperating store callers:
 the complete census/classify/publish/postcheck sequence is inside one
 payer-scoped serialization domain.
 
+The store ceiling is also mutation-safe. Exact idempotent replay remains allowed
+when the census already contains `100,000` open liabilities, but a genuinely new
+candidate HOLDS with `coupled_native_gas_store_record_count_exceeded` before
+`createOnceLiability(...)` when the pre-write census is already at that ceiling.
+This prevents row 100,001 from becoming durable and then causing the post-write
+census to fail after mutation.
+
 ## Record publication
 
 Canonical record name:
