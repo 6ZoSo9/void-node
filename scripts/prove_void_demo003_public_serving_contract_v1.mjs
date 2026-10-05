@@ -169,7 +169,14 @@ assert.equal(
   result.serving_authority,
   VOID_DEMO003_PUBLIC_SERVING_AUTHORITY_V1,
 );
-assert.equal(result.verified_content_authority, "sealed_memfd_snapshot");
+assert.equal(
+  result.verified_content_authority,
+  "canonical_demo003_source_contract_v1",
+);
+assert.equal(
+  result.intake_verified_content_authority,
+  "sealed_memfd_snapshot",
+);
 assert.equal(result.visible_extraction_tree_trusted, false);
 assert.equal(result.offline_verified, true);
 assert.equal(result.network_fetch_during_import, false);
@@ -263,6 +270,7 @@ console.log("canonical_payload_hashes_and_sizes_bound=true");
 console.log("manifest_and_checksum_bytes_bound_to_sealed_intake=true");
 console.log("coherent_mutable_record_forgery_rejected=true");
 console.log("public_routes_use_source_contract_classifier=true");
-console.log("verified_content_authority=sealed_memfd_snapshot");
+console.log("verified_content_authority=canonical_demo003_source_contract_v1");
+console.log("intake_verified_content_authority=sealed_memfd_snapshot");
 console.log("serving_authority=canonical_demo003_source_contract_v1");
 console.log("visible_extraction_tree_trusted=false");
