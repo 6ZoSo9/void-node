@@ -207,9 +207,13 @@ assert.match(
   const writerAt = capacityAdmission.indexOf(
     "export async function writeBuyVoidOperatorEventWithCapacityAdmissionV1",
   );
+  const requestLockAcquireAt = capacityAdmission.indexOf(
+    "withBuyVoidFilesystemBakeryLockAsyncV1(",
+    writerAt,
+  );
   const requestLockPathAt = capacityAdmission.indexOf(
     "buyVoidTerminalCloseoutRequestLockPathV1({",
-    writerAt,
+    requestLockAcquireAt,
   );
   const launchMutationAt = capacityAdmission.indexOf(
     "input.with_launch_authority_mutation(\n              request,",
@@ -225,15 +229,20 @@ assert.match(
   );
   assert.ok(
     writerAt >= 0 &&
-      requestLockPathAt > writerAt &&
+      requestLockAcquireAt > writerAt &&
+      requestLockPathAt > requestLockAcquireAt &&
       launchMutationAt > requestLockPathAt &&
       requestSnapshotAt > launchMutationAt &&
       appendAt > requestSnapshotAt,
     "request lock must be acquired before fresh launch-authority admission and durable append",
   );
   assert.match(
-    capacityAdmission.slice(requestLockPathAt, launchMutationAt),
+    capacityAdmission.slice(requestLockAcquireAt, launchMutationAt),
     /withBuyVoidFilesystemBakeryLockAsyncV1/,
+  );
+  assert.match(
+    capacityAdmission.slice(requestLockAcquireAt, launchMutationAt),
+    /buyVoidTerminalCloseoutRequestLockPathV1/,
   );
 }
 assert.ok(index.includes('"operator_mark_failed"'));
