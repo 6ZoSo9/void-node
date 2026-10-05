@@ -68,6 +68,15 @@ const SYSTEMCTL = "/usr/bin/systemctl";
 const FINDMNT = "/usr/bin/findmnt";
 const PKCHECK = "/usr/bin/pkcheck";
 const GETFACL = "/usr/bin/getfacl";
+const OBSERVER_SUBPROCESS_ENVIRONMENT_V1 = Object.freeze({
+  PATH: "/usr/bin:/bin",
+  LANG: "C",
+  LC_ALL: "C",
+});
+
+export function testOnlyObserverSubprocessEnvironmentV1() {
+  return Object.freeze({ ...OBSERVER_SUBPROCESS_ENVIRONMENT_V1 });
+}
 const MAX_PAYER_DOMAIN_BYTES = 64 * 1024;
 const MAX_PROC_TEXT_BYTES = 4 * 1024 * 1024;
 const MAX_IDENTITY_TEXT_BYTES = 4 * 1024;
@@ -657,6 +666,7 @@ function runText(command, args) {
     timeout: 5_000,
     maxBuffer: 4 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
+    env: OBSERVER_SUBPROCESS_ENVIRONMENT_V1,
   });
 }
 
