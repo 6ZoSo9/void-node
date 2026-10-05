@@ -185,7 +185,10 @@ canonical sorted mount options including:
 - `noexec`; and
 - `nosuid`.
 
-`bind`, `rbind`, and `remount` evidence is rejected.
+Contradictory insecure option evidence is rejected rather than treated as
+harmless duplication: `ro` with `rw`, `dev` with `nodev`, `exec`
+with `noexec`, or `suid` with `nosuid` all HOLD. `bind`, `rbind`,
+and `remount` evidence is also rejected.
 
 A later generation may review another independent monotonic authority, but this
 v1 classifier does not equate mount identity with rollback-domain independence.
