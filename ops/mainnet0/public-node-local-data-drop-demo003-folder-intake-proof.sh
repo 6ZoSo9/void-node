@@ -98,12 +98,7 @@ grep -q "verified_content_authority=sealed_memfd_snapshot" "$OUT/status.log"
 grep -q "visible_extraction_tree_trusted=false" "$OUT/status.log"
 grep -Eq "sealed_snapshot_set_sha256=[0-9a-f]{64}" "$OUT/status.log"
 grep -q "sealed_snapshot_handoff_bound=true" "$OUT/intake.log"
-test "$(grep -c '^published_latest_snapshot_revalidated=true
-echo "sealed_snapshot_handoff_verified=true"
-echo "no_source_mutation=true"
-echo "demo003_folder_intake_verified=true"
-echo "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_PROOF_V1_GREEN"
- "$OUT/intake.log")" -eq 1
+test "$(grep -c '^published_latest_snapshot_revalidated=true$' "$OUT/intake.log")" -eq 1
 intake_set="$(
   sed -n 's/^sealed_snapshot_set_sha256=\([0-9a-f]\{64\}\)$/\1/p' "$OUT/intake.log" |
     tail -n 1
