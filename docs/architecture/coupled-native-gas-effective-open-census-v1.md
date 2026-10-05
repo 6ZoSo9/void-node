@@ -132,6 +132,13 @@ A WC/VOID liability cannot be reconciled by this V1 because #2485 exposes only
 confirmed presale reconciliation authority. WC/VOID therefore remains
 effective-open.
 
+The generic liability-history format can represent a zero-native-value row, but
+merged #2485's presale reconciliation validator requires a strictly positive
+`transaction_native_value_wei`. This census preserves that parent domain:
+a zero-native presale liability may remain visible as historical/effective-open
+state, but a reconciliation for it HOLDS instead of being treated as a valid
+#2485 result.
+
 ## Derived accounting
 
 The successful census returns deterministic sorted identities and exact
@@ -230,5 +237,6 @@ git diff --check
 The proof covers deterministic ordering, empty/all-open history, one confirmed
 reconciliation, exact reserve conservation, duplicate liability, wrong payer,
 orphan reconciliation, duplicate reconciliation, conflicting reconciliation,
-authority drift, accounting drift, WC/VOID reconciliation HOLD, malformed
-liability economics, and explicit no-release/no-mutation authority.
+authority drift, accounting drift, WC/VOID reconciliation HOLD, zero-native
+presale reconciliation-domain HOLD, malformed liability economics, and explicit
+no-release/no-mutation authority.
