@@ -28,7 +28,7 @@ const EXPECTED_BLOBS = Object.freeze({
   semantic_promotion_tool: "4b84dc9c90f368cf03d3b37c7be3afe566e4629a",
   semantic_promotion_proof: "992b6ca4fc53ff4c3d903750640cd0271248f544",
   production_candidate: "a3e07c0731b1e771a699f4c91f07206705b99efb",
-  coupled_candidate: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+  coupled_candidate: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
   successor_candidate: "1457b8a0b060c4c515bf2232320af19f4e70dd35",
   production_classifier: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
   coupled_classifier: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
@@ -241,7 +241,7 @@ assert.equal(result.package_lock_git_blob_sha1, EXPECTED_BLOBS.package_lock);
 assert.equal(result.reviewed_binding_count, 38);
 assert.equal(
   result.reviewed_binding_manifest_sha256,
-  "2db30501c890863a6edffab564ddb873c4d2029ceff48a0d9071a573250f5aa9",
+  "9e1d500eeb5773352ef7b46b7e416caa5eb81cc008de57aa68660905bf33a1b9",
 );
 assert.match(result.candidate_promotion_tool_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.equal(result.canonical_candidate_bytes_bound_to_reviewed_head_blobs, true);
