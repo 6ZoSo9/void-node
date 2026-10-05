@@ -414,6 +414,21 @@ expectHeld(
   );
 }
 
+for (const contradictory of ["dev", "exec", "suid", "ro"]) {
+  const bad = cloneEvidence();
+  bad.custody.mount.options = [
+    contradictory,
+    "nodev",
+    "noexec",
+    "nosuid",
+    "rw",
+  ].sort();
+  expectHeld(
+    classify(bad),
+    "allocation_custody_high_water_mount_forbidden_option",
+  );
+}
+
 {
   const bad = cloneEvidence();
   bad.ledger.path = " /srv/void-allocation-ledger-v1";
@@ -642,6 +657,7 @@ console.log("root_owned_nonwritable_ancestor_chain_required=true");
 console.log("distinct_mount_identity_required=true");
 console.log("independent_rollback_domain_identity_required=true");
 console.log("bind_and_remount_substitution_rejected=true");
+console.log("contradictory_mount_security_options_rejected=true");
 console.log("af_unix_narrow_ipc_required=true");
 console.log("systemd_hardening_required=true");
 console.log("negative_probe_evidence_required=true");
