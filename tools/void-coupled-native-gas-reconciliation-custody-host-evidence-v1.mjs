@@ -619,6 +619,7 @@ function ancestorEvidence(rootPath, publicCreds, mountRecords) {
     const mount = resolveMountForPathV1(mountRecords, resolved);
     return Object.freeze({
       path: resolved,
+      object_type: "directory",
       dev: String(stat.dev),
       ino: String(stat.ino),
       uid: Number(stat.uid),
@@ -636,6 +637,7 @@ function ancestorEvidence(rootPath, publicCreds, mountRecords) {
 function directoryEvidence(identity, publicCreds, parentStat) {
   return Object.freeze({
     resolved_path: identity.resolved_path,
+    object_type: "directory",
     dev: String(identity.stat.dev),
     ino: String(identity.stat.ino),
     mount_id: identity.mount.mount_id,
@@ -939,6 +941,7 @@ function payerDomainEvidence(identity) {
   }
   return Object.freeze({
     resolved_path: identity.resolved_path,
+    object_type: "regular_file",
     dev: String(identity.stat.dev),
     ino: String(identity.stat.ino),
     mount_id: identity.mount.mount_id,
