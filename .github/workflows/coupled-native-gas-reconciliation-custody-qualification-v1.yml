@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+      - "src/economic/coupled_native_gas_liability_store_v1.ts"
       - "scripts/prove_coupled_native_gas_reconciliation_custody_qualification_v1.ts"
       - "docs/architecture/coupled-native-gas-reconciliation-custody-qualification-v1.md"
       - ".github/workflows/coupled-native-gas-reconciliation-custody-qualification-v1.yml"
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - "src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+      - "src/economic/coupled_native_gas_liability_store_v1.ts"
       - "scripts/prove_coupled_native_gas_reconciliation_custody_qualification_v1.ts"
       - "docs/architecture/coupled-native-gas-reconciliation-custody-qualification-v1.md"
       - ".github/workflows/coupled-native-gas-reconciliation-custody-qualification-v1.yml"
