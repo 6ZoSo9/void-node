@@ -546,6 +546,35 @@ assert.equal(happy.packet.liability_release_authorized, false);
 assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
 
 {
+  const aliasParent = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-native-gas-resolver-symlink-ancestor-"),
+  );
+  fs.chmodSync(aliasParent, 0o700);
+  const aliasRoot = path.join(aliasParent, "root-link");
+  fs.symlinkSync(confirmed.root, aliasRoot, "dir");
+  try {
+    const decision =
+      await resolveCoupledNativeGasReconciliationEvidenceV1({
+        root_dir: aliasRoot,
+        liability: confirmed.liability,
+        policy: rpcPolicy("confirmed"),
+      });
+    assert.equal(decision.ok, false);
+    if (decision.ok) {
+      throw new Error("expected symlink-ancestor HOLD");
+    }
+    assert.equal(decision.stage, "plan");
+    assert.equal(
+      decision.reason,
+      "reconciliation_evidence_plan_namespace_ancestor_open_failed",
+    );
+    assert.deepEqual(decision.rpc_methods_used, []);
+  } finally {
+    fs.rmSync(aliasParent, { recursive: true, force: true });
+  }
+}
+
+{
   const grown = setupFixture("snapshot-grow", "confirmed");
   const walletKey = crypto
     .createHash("sha256")
@@ -895,6 +924,7 @@ for (const [key, value] of Object.entries(
     "whole_execution_attempt_state_required",
     "whole_broadcast_outcome_state_required",
     "descriptor_bound_local_snapshot",
+    "nofollow_ancestor_traversal",
     "bounded_snapshot_read_during_growth",
     "reader_outputs_bound_to_snapshot",
     "local_snapshot_revalidated_after_rpc",
@@ -942,6 +972,8 @@ console.log("real_loopback_http_proof=true");
 console.log("realistic_rpc_receipt_projection=true");
 console.log("receipt_missing_or_wrong_type_hold=true");
 console.log("bounded_snapshot_read_during_growth=true");
+console.log("nofollow_ancestor_traversal=true");
+console.log("symlink_ancestor_before_rpc_hold=true");
 console.log("reader_outputs_bound_to_snapshot=true");
 console.log("plan_reader_swap_restore_hold=true");
 console.log("outcome_reader_swap_restore_hold=true");
