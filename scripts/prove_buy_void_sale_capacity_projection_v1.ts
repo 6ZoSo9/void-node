@@ -204,6 +204,20 @@ assert.equal(actual.submitted_tx_count, 2);
 rows.pop();
 events.pop();
 
+// Sale-state sold-out semantics are literal capacity truth: one microVOID
+// remaining is still open, and exact zero is sold out.
+const dustPaid = request("d", 0.000002);
+rows.splice(0, rows.length, dustPaid);
+events.splice(0, events.length, event(dustPaid));
+pool = "0.000003";
+actual = await sale();
+assert.equal(actual.remaining_void, 0.000001);
+assert.equal(actual.sold_out, false);
+assert.equal(
+  classify({ sale_state: actual, quoted_void: 0.000001 }).ready,
+  true,
+);
+
 for (const quotes of [[10.1, 10.2], [0.000001, 0.000002], Array(1000).fill(0.000001), [0.1, 0.2, 0.3]]) {
   const expected = quotes.reduce((sum: bigint, quote: number) => sum + BigInt(Math.round(quote * 1e6)), 0n);
   const projected = project("10000000", quotes);
@@ -256,6 +270,7 @@ assert.equal(operations, 1);
 actual = await sale();
 assert.equal(actual.verified_void_total, 20.3);
 assert.equal(actual.remaining_void, 0);
+assert.equal(actual.sold_out, true);
 trace.length = 0;
 const retry = await admit();
 assert.equal(retry.idempotent, true);
