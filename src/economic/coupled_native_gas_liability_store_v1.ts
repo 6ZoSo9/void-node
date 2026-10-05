@@ -433,11 +433,14 @@ export function buildCoupledNativeGasStorePayerDomainV1(
 ): CoupledNativeGasStorePayerDomainV1 {
   const payerAddress = normalizedAddress(payerAddressRaw);
   if (!payerAddress) fail("coupled_native_gas_store_payer_address_invalid");
-  const body = {
+  const body: Omit<
+    CoupledNativeGasStorePayerDomainV1,
+    "payer_domain_id"
+  > = {
     schema: PAYER_DOMAIN_SCHEMA,
     marker: VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_V1,
-    version: 1 as const,
-    chain_id: "2050" as const,
+    version: 1,
+    chain_id: "2050",
     payer_address: payerAddress,
   };
   return Object.freeze({
