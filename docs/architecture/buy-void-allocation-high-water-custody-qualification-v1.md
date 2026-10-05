@@ -38,6 +38,8 @@ classifyBuyVoidAllocationHighWaterCustodyQualificationV1({
   now_ms,
   expected_source_head_sha,
   expected_host_id_sha256,
+  expected_evidence_generation,
+  expected_service_unit_sha256,
   ledger_jsonl,
   high_water_json,
   evidence,
@@ -61,11 +63,16 @@ Evidence must bind:
 - exact 40-hex reviewed source head;
 - exact allocation publication-writer marker;
 - exact designated-host content identity;
-- monotonically positive evidence generation;
+- positive evidence generation;
+- exact reviewed custody-service unit SHA-256;
 - observation and expiry timestamps.
 
-The reviewed source head and host identity are caller-required expected values;
-the packet cannot select its own accepted source/host identity.
+The reviewed source head, host identity, evidence generation, and service-unit
+digest are caller-required expected values; the packet cannot select its own
+accepted generation, source/host identity, or unit configuration. A later
+collector/receipt layer is responsible for carrying the previously accepted
+generation forward monotonically; this pure classifier requires exact equality
+to the generation supplied by its caller.
 
 Evidence expires after at most 15 minutes and must be no more than five minutes
 old at classification time. A later live collector must issue a fresh packet
@@ -154,7 +161,11 @@ The classifier does not create the socket or service.
 
 ## Service hardening evidence
 
-The packet requires the reviewed service-hardening profile:
+The packet binds the service unit name exactly to
+`void-allocation-custody-v1.service` and requires its SHA-256 to equal the
+caller-supplied reviewed unit digest.
+
+The packet also requires the reviewed service-hardening profile:
 
 - `NoNewPrivileges=true`;
 - `PrivateTmp=true`;
@@ -204,10 +215,12 @@ The focused proof builds a synthetic qualifying packet and proves rejection of:
 - bind-mount evidence;
 - non-AF_UNIX IPC;
 - runtime socket-replacement authority;
+- wrong service-unit digest;
 - incomplete systemd hardening;
 - excess writable paths;
 - missing negative-probe result;
 - stale evidence;
+- evidence-generation mismatch;
 - source-head mismatch;
 - host-identity mismatch;
 - state-digest mismatch;
