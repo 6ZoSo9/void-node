@@ -32,8 +32,10 @@ eth_getBalance(payer, "pending")
 The observer never calls `eth_getTransactionCount`. Nonce observation and the
 cross-lane nonce scheduler remain separate reviewed gates.
 
-The RPC URL must be loopback HTTP and is expected to come from server-controlled
-policy. Chain ID must equal `2050`.
+The RPC URL must use a numeric loopback HTTP literal—`127.0.0.1` or
+`[::1]`—and is expected to come from server-controlled policy. Hostnames such
+as `localhost` are rejected so hosts-file or DNS changes cannot widen the RPC
+authority. Chain ID must equal `2050`.
 
 ## Fee requirement
 
