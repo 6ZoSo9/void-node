@@ -13,6 +13,7 @@ import {
   testOnlyClassifyBuyVoidEthereumPublicCheckoutFinalityV1,
   testOnlyClassifyBuyVoidEthereumPreAttemptDeadlineV1,
   testOnlyClassifyBuyVoidEthereumPreAttemptFinalityV1,
+  testOnlyClassifyBuyVoidEthereumSourceFinalityCapabilityV1,
 } from "../src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.js";
 import {
   VOID_BUY_VOID_SOURCE_FINALITY_EXECUTION_PREFLIGHT_POLICY_ENVS_V1,
@@ -24,6 +25,7 @@ import {
   VOID_BUY_VOID_CRASH_CONSISTENT_SAGA_SERVER_POLICY_ENVS_V1,
 } from "../src/economic/buy_void_crash_consistent_saga_server_policy_v1.js";
 import {
+  VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5,
   VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_V5,
 } from "../src/economic/buy_void_source_finality_generation_provenance_v5.js";
 
@@ -113,6 +115,60 @@ assert.equal(
     .canonical_source_finality_capability_required,
   true,
 );
+
+const futureReadyCapability = Object.freeze({
+  ...VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5,
+  source_generation_verified_on_success: true,
+  deployed_artifact_generation_verified: true,
+  remote_provider_identity_verified: true,
+  ancestry_verified: true,
+  provider_quorum_verified: true,
+  production_source_finality_authority_ready: true,
+});
+const futureCapabilityDecision =
+  testOnlyClassifyBuyVoidEthereumSourceFinalityCapabilityV1(
+    futureReadyCapability,
+  );
+assert.equal(
+  futureCapabilityDecision.would_be_production_capability_ready,
+  true,
+);
+assert.equal(
+  futureCapabilityDecision.production_transition_authority,
+  false,
+);
+
+for (const mutation of [
+  { reviewed_source_files_verification_required: false },
+  { reviewed_source_files_verified_on_success: false },
+  { authenticated_transport_identity_verified: false },
+  { total_operation_deadline_verified: false },
+  { observation_generated_in_composition: false },
+  { rpc_read: false },
+  { rpc_write: true },
+  { wallet_access: true },
+  { signing: true },
+  { transaction_construction: true },
+  { transaction_broadcast: true },
+  { runtime_route_mount: true },
+  { background_loop: true },
+  { inventory_mutation: true },
+  { chain2050_mutation: true },
+  { public_presale_activation: true },
+  { money_movement: true },
+] as const) {
+  const decision =
+    testOnlyClassifyBuyVoidEthereumSourceFinalityCapabilityV1({
+      ...futureReadyCapability,
+      ...mutation,
+    });
+  assert.equal(
+    decision.would_be_production_capability_ready,
+    false,
+    JSON.stringify(mutation),
+  );
+  assert.equal(decision.production_transition_authority, false);
+}
 assert.equal(
   VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_AUTHORITY_V1
     .base_behavior_modified,
@@ -697,6 +753,23 @@ assert.match(
 );
 assert.match(
   source,
+  /productionSourceFinalityCapabilityReadyV1/u,
+);
+assert.match(
+  source,
+  /reviewed_source_files_verified_on_success === true/u,
+);
+assert.match(
+  source,
+  /observation_generated_in_composition === true/u,
+);
+assert.match(
+  source,
+  /transaction_broadcast === false/u,
+);
+
+assert.match(
+  source,
   /observation_generated_in_composition/u,
 );
 assert.match(
@@ -808,6 +881,8 @@ console.log(
 );
 console.log("ethereum_payment_instructions_fail_closed=true");
 console.log("server_controlled_finality_policy_required=true");
+console.log("shared_v5_capability_classifier_required=true");
+console.log("partial_v5_capability_promotion_can_open_instructions=false");
 console.log("current_production_source_finality_capability_ready=false");
 console.log("ethereum_payment_instructions_currently_hold=true");
 console.log("existing_payment_reconciliation_survives_intake_disable=true");
