@@ -443,6 +443,19 @@ assert.match(storeSource, /durable_state_requires_reinspection/u);
 
 {
   const f = fixture();
+  const expected = classifyCoupledNativeGasBuyVoidAdmissionV1({
+    now_ms: 1500,
+    buy_void_plan: makePlan(),
+    payer_observation: observation(),
+    open_liabilities: [],
+  });
+  if (expected.ok !== true) {
+    throw new Error(
+      "unexpected classifier HOLD in post-link ambiguity fixture",
+    );
+  }
+  const expectedFinalName =
+    expected.liability.liability_id + ".json";
   const originalLinkSync = fs.linkSync;
   const originalFsyncSync = fs.fsyncSync;
   let linked = false;
@@ -454,9 +467,7 @@ assert.match(storeSource, /durable_state_requires_reinspection/u);
     ) => {
       originalLinkSync(existingPath, newPath);
       if (
-        String(newPath).startsWith(
-          f.records + path.sep,
-        )
+        path.basename(String(newPath)) === expectedFinalName
       ) {
         linked = true;
       }
