@@ -61,17 +61,28 @@ The first event must be exact genesis:
 - reserved total `0`; and
 - remaining VOID equal to the pool total.
 
-Every later event must be exactly one allocation record ahead. Before planning
-that event, the canonical current ledger must contain the witnessed prior ledger
-as an exact byte prefix whose SHA-256 equals the witness tip's `ledger_sha256`.
-That prefix is itself rederived through the canonical allocation/high-water
-contract and must reproduce the witness tip's record count, allocation tip,
-high-water digest/length, pool, reserved and remaining VOID. A byte prefix that
-cuts through a record or names a noncanonical prior ledger cannot qualify merely
-because its SHA-256 matches. The full current ledger/high-water pair must
-independently pass #2442 binding. This rejects an alternate valid ledger branch
-that merely has record count `tip + 1`. Ledger bytes, reserved VOID and the
-allocation tip must advance; remaining VOID must decrease. Immutable
+Every later event must be exactly one allocation record ahead. Before any
+`matched`, idempotent or planned result, the complete presented witness history
+is rebound to the supplied canonical current allocation ledger. The current
+ledger is classified once, then one rolling canonical-prefix pass reconstructs
+the ledger SHA-256/byte count, allocation tip, canonical high-water JSON,
+high-water SHA-256/byte count, pool, reserved and remaining VOID for every
+historical witness record count. Every witness event must equal the corresponding
+canonical prefix state.
+
+The final witnessed tip must therefore be a canonical prefix of the current
+ledger, but that is not sufficient by itself: a syntactically valid mixed
+history such as `genesis -> A1 -> B2`, where `A1` is not the first record of
+the canonical `B2` ledger, HOLDS even when the final `B2` event has a valid
+hash chain and exactly matches current state. The same historical-lineage check
+runs before classifier match, planner idempotence and planner advance.
+
+For a one-record advance, the exact witnessed prior ledger remains an exact byte
+prefix whose SHA-256 equals the witness tip's `ledger_sha256`. A byte prefix
+that cuts through a record or names a noncanonical prior ledger cannot qualify
+merely because its SHA-256 matches. The full current ledger/high-water pair must
+independently pass #2442 binding. Ledger bytes, reserved VOID and the allocation
+tip must advance; remaining VOID must decrease. Immutable
 source/host/storage identities may not drift within one journal.
 
 ## Current-state classification
@@ -83,6 +94,9 @@ witness tip.
 
 It HOLDs when:
 
+- any historical witness event does not equal the independently reconstructed
+  canonical current-ledger prefix at that event's record count: local history
+  conflict;
 - the local record count is behind the witness tip: rollback detected;
 - the local record count is ahead of the witness tip **and** the exact witness
   tip ledger is a byte prefix of the canonical local ledger: external witness
@@ -106,8 +120,12 @@ filesystem or network action.
 
 The focused proof binds the operator-qualified Nimo genesis witness, rederives
 the canonical genesis high-water from the merged allocation contracts, builds
-real canonical allocation ledgers for subsequent states, and includes an
-alternate valid ledger branch that must be rejected. The first positive
+real canonical allocation ledgers for subsequent states, and includes both an
+alternate valid ledger branch and a recomputed mixed-history
+`genesis -> A1 -> B2` witness. The mixed history is syntactically/hash-chain
+valid and its final tip equals canonical B2, but classifier match, planner
+idempotence, and planner B3 advance must all HOLD because A1 is not B2's
+canonical first-record prefix. The first positive
 post-genesis allocation is exactly `0.000002 VOID` for `0.000001 USDC`, the smallest six-decimal amount pair that satisfies the canonical 2 VOID / 1 USDC presale rate, proving fractional micro-VOID inventory survives canonical ledger -> high-water -> witness binding:
 
 - genesis event SHA-256:
