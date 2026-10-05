@@ -18467,7 +18467,7 @@ small{color:#94a3b8}
       const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
       const requested_usdc = Math.floor(requested_usdc_total * 1e6) / 1e6;
       const requested_void = Math.floor(requested_void_total * 1e6) / 1e6;
-      const sold_out = remaining_void <= 0.000001;
+      const sold_out = remaining_void === 0;
       const progress_pct = pool_void_total > 0 ? Math.floor((reserved_void / pool_void_total) * 10000) / 100 : 0;
 
       return {
@@ -19027,6 +19027,7 @@ setInterval(refresh, 10000);
         const usdc_amount = Number(rawAmount);
         const errors:string[] = [];
 
+        if (!/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,6})?$/.test(rawAmount)) errors.push("invalid_usdc_amount");
         if (!Number.isFinite(usdc_amount) || usdc_amount <= 0) errors.push("invalid_usdc_amount");
         if (Number.isFinite(usdc_amount) && usdc_amount < cfg.min_usdc) errors.push("below_min_usdc");
         if (Number.isFinite(usdc_amount) && usdc_amount > cfg.max_usdc) errors.push("above_max_usdc");
@@ -19048,7 +19049,8 @@ setInterval(refresh, 10000);
           });
         }
 
-        const quoted_void = Math.floor(usdc_amount * cfg.rate_void_per_usdc * 1e6) / 1e6;
+        const { quoteBuyVoidFromUsdcV1 } = await import("./economic/buy_void_verified_payment_capacity_admission_v1.js");
+        const quoted_void = quoteBuyVoidFromUsdcV1(rawAmount, cfg.rate_void_per_usdc);
         if (quoted_void > sale_state.remaining_void) {
           return res.status(409).json({
             schema: "void_public_buy_void_checkout_request_v1",
