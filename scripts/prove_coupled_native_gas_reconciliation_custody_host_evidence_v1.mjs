@@ -17,6 +17,7 @@ import {
   parseSystemdShowV1,
   restrictMountNamespaceDeniedV1,
   testOnlyBuildMountNamespaceBundleV1,
+  testOnlyBuildFilesystemRootBundleV1,
   testOnlyClassifyCollectedHostEvidenceV1,
   testOnlyPublicRuntimePathMappingV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs";
@@ -63,6 +64,7 @@ for (const [key, value] of Object.entries(
     "mountinfo_read",
     "mount_namespace_read",
     "collector_in_custody_mount_namespace_required",
+    "collector_in_custody_filesystem_root_required",
     "public_runtime_mount_namespace_may_differ",
     "filesystem_metadata_read",
     "payer_domain_file_read",
@@ -412,6 +414,39 @@ assert.throws(
   /collector_not_in_custody_mount_namespace/u,
 );
 
+const custodyFilesystemRoot = Object.freeze({
+  dev: "2049",
+  ino: "2",
+  uid: 0,
+  gid: 0,
+  mode: "0755",
+});
+const publicRuntimeFilesystemRoot = Object.freeze({
+  dev: "2049",
+  ino: "900",
+  uid: 0,
+  gid: 0,
+  mode: "0755",
+});
+const filesystemRoot = testOnlyBuildFilesystemRootBundleV1(
+  custodyFilesystemRoot,
+  publicRuntimeFilesystemRoot,
+  custodyFilesystemRoot,
+);
+assert.equal(
+  filesystemRoot.public_runtime_shared_with_custody,
+  false,
+);
+assert.throws(
+  () =>
+    testOnlyBuildFilesystemRootBundleV1(
+      publicRuntimeFilesystemRoot,
+      publicRuntimeFilesystemRoot,
+      custodyFilesystemRoot,
+    ),
+  /collector_not_in_custody_filesystem_root/u,
+);
+
 function collect(input = {}) {
   return testOnlyClassifyCollectedHostEvidenceV1({
     expectedHostname: "precision-mainnet0",
@@ -426,6 +461,8 @@ function collect(input = {}) {
       "177 33 8:17 / /var/lib/void/native-gas rw,nodev,nosuid - ext4 /dev/disk/by-uuid/void-gas rw\n",
     namespaceBefore: namespace,
     namespaceAfter: namespace,
+    filesystemRootBefore: filesystemRoot,
+    filesystemRootAfter: filesystemRoot,
     classifierInput: classifierInput(),
     collectorEvidence: {
       mount_namespace_identity_sha256: namespace.identity_sha256,
@@ -454,6 +491,18 @@ assert.equal(
 assert.equal(
   green.public_runtime_mount_namespace_identity_sha256,
   namespace.public_runtime_identity_sha256,
+);
+assert.equal(
+  green.filesystem_root_identity_sha256,
+  filesystemRoot.identity_sha256,
+);
+assert.equal(
+  green.public_runtime_filesystem_root_identity_sha256,
+  filesystemRoot.public_runtime_identity_sha256,
+);
+assert.equal(
+  green.public_runtime_filesystem_root_shared_with_custody,
+  false,
 );
 assert.match(
   green.public_runtime_mountinfo_sha256,
@@ -486,6 +535,20 @@ assert.equal(green.funds_movement, false);
   });
   assert.equal(held.ok, false);
   assert.equal(held.reason, "mountinfo_changed_during_observation");
+}
+
+{
+  const changed = structuredClone(filesystemRoot);
+  changed.custody_service.ino = "3";
+  changed.identity_sha256 = sha256Id(
+    JSON.stringify(changed.custody_service),
+  );
+  const held = collect({ filesystemRootAfter: changed });
+  assert.equal(held.ok, false);
+  assert.equal(
+    held.reason,
+    "filesystem_root_changed_during_observation",
+  );
 }
 
 {
@@ -544,6 +607,8 @@ for (const token of [
   "public_runtime_ancestor_mapping_mismatch",
   "mount_namespace_changed_during_observation",
   "collector_not_in_custody_mount_namespace",
+  "collector_not_in_custody_filesystem_root",
+  "filesystem_root_changed_during_observation",
   "public_runtime_shared_with_custody",
   "service_metadata_changed_during_observation",
   "process_identity_changed_during_observation",
@@ -597,6 +662,7 @@ console.log("read_only_collector=true");
 console.log("exact_parent_classifier_reused=true");
 console.log("mount_namespace_identity_bound=true");
 console.log("collector_in_custody_mount_namespace_required=true");
+console.log("collector_in_custody_filesystem_root_required=true");
 console.log("public_runtime_mount_namespace_may_differ=true");
 console.log("public_runtime_mount_namespace_identity_bound=true");
 console.log("public_runtime_mountinfo_snapshot_stability_required=true");
