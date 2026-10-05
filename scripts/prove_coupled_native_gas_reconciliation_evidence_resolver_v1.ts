@@ -2,13 +2,13 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import * as http from "node:http";
 import os from "node:os";
 import path from "node:path";
 
 import {
   resolveCoupledNativeGasReconciliationEvidenceV1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_EVIDENCE_RESOLVER_AUTHORITY_V1,
-  type CoupledNativeGasReconciliationEvidenceRpcTransportV1,
 } from "../src/economic/coupled_native_gas_reconciliation_evidence_resolver_v1.js";
 import {
   reserveBuyVoidPreparedTransactionPlanV1,
@@ -352,65 +352,131 @@ function setupFixture(label: string, terminal: "confirmed" | "reverted") {
   };
 }
 
-function transportFor(
-  outcome: "confirmed" | "reverted",
-  options: {
-    chain_id?: string;
-    transaction_hash?: string;
-    status?: string;
-    gas_used?: string;
-    effective_gas_price?: string;
-    from?: string;
-    to?: string;
-    current_block?: string;
-    on_call?: (
-      method: "eth_chainId" | "eth_getTransactionReceipt" | "eth_blockNumber",
-    ) => void;
-  } = {},
-): CoupledNativeGasReconciliationEvidenceRpcTransportV1 {
-  return async ({ method }) => {
-    options.on_call?.(method);
-    if (method === "eth_chainId") {
-      return options.chain_id ?? "0x802";
+type RpcScenarioOptionsV1 = {
+  chain_id?: string;
+  transaction_hash?: string;
+  status?: string;
+  gas_used?: string;
+  effective_gas_price?: string;
+  from?: string;
+  to?: string;
+  current_block?: string;
+  on_call?: (
+    method: "eth_chainId" | "eth_getTransactionReceipt" | "eth_blockNumber",
+  ) => void;
+};
+
+let rpcScenario: {
+  outcome: "confirmed" | "reverted";
+  options: RpcScenarioOptionsV1;
+} = {
+  outcome: "confirmed",
+  options: {},
+};
+
+function rpcResultFor(
+  method: "eth_chainId" | "eth_getTransactionReceipt" | "eth_blockNumber",
+): unknown {
+  const { outcome, options } = rpcScenario;
+  options.on_call?.(method);
+  if (method === "eth_chainId") {
+    return options.chain_id ?? "0x802";
+  }
+  if (method === "eth_getTransactionReceipt") {
+    return {
+      transactionHash:
+        options.transaction_hash ?? deliveryTx,
+      blockNumber: "0x64",
+      blockHash:
+        outcome === "confirmed"
+          ? blockHash
+          : "0x" + "8".repeat(64),
+      status:
+        options.status ??
+        (outcome === "confirmed" ? "0x1" : "0x0"),
+      gasUsed: options.gas_used ?? "0x5208",
+      effectiveGasPrice:
+        options.effective_gas_price ?? "0x5",
+      from: options.from ?? wallet,
+      to: options.to ?? delivery,
+    };
+  }
+  return options.current_block ?? "0x66";
+}
+
+const rpcServer = http.createServer((request, response) => {
+  const chunks: Buffer[] = [];
+  request.on("data", (chunk: Buffer) => chunks.push(chunk));
+  request.on("end", () => {
+    let payload: any;
+    try {
+      payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    } catch {
+      response.writeHead(400, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "invalid_json" }));
+      return;
     }
-    if (method === "eth_getTransactionReceipt") {
-      return {
-        transactionHash:
-          options.transaction_hash ?? deliveryTx,
-        blockNumber: "0x64",
-        blockHash:
-          outcome === "confirmed"
-            ? blockHash
-            : "0x" + "8".repeat(64),
-        status:
-          options.status ??
-          (outcome === "confirmed" ? "0x1" : "0x0"),
-        gasUsed: options.gas_used ?? "0x5208",
-        effectiveGasPrice:
-          options.effective_gas_price ?? "0x5",
-        from: options.from ?? wallet,
-        to: options.to ?? delivery,
-      };
+    const method = String(payload?.method || "") as
+      | "eth_chainId"
+      | "eth_getTransactionReceipt"
+      | "eth_blockNumber";
+    if (
+      payload?.jsonrpc !== "2.0" ||
+      !Number.isSafeInteger(payload?.id) ||
+      ![
+        "eth_chainId",
+        "eth_getTransactionReceipt",
+        "eth_blockNumber",
+      ].includes(method)
+    ) {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({
+        jsonrpc: "2.0",
+        id: payload?.id ?? null,
+        error: { code: -32601, message: "method not found" },
+      }));
+      return;
     }
-    return options.current_block ?? "0x66";
-  };
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({
+      jsonrpc: "2.0",
+      id: payload.id,
+      result: rpcResultFor(method),
+    }));
+  });
+});
+
+await new Promise<void>((resolve, reject) => {
+  rpcServer.once("error", reject);
+  rpcServer.listen(0, "127.0.0.1", () => resolve());
+});
+const rpcAddress = rpcServer.address();
+if (!rpcAddress || typeof rpcAddress === "string") {
+  throw new Error("resolver_proof_rpc_server_address_invalid");
 }
 
 const policy = {
   chain_id: "2050" as const,
-  rpc_url: "http://127.0.0.1:18553/",
+  rpc_url: `http://127.0.0.1:${rpcAddress.port}/`,
   required_min_confirmations: "2",
   request_timeout_ms: 5000,
   max_response_bytes: 65536,
 };
+
+function rpcPolicy(
+  outcome: "confirmed" | "reverted",
+  options: RpcScenarioOptionsV1 = {},
+): typeof policy {
+  rpcScenario = { outcome, options };
+  return policy;
+}
 
 const confirmed = setupFixture("confirmed", "confirmed");
 const before = snapshotTree(confirmed.root);
 const happy = await resolveCoupledNativeGasReconciliationEvidenceV1({
   root_dir: confirmed.root,
   liability: confirmed.liability,
-  policy,
-  transport: transportFor("confirmed"),
+  policy: rpcPolicy("confirmed"),
 });
 assert.equal(snapshotTree(confirmed.root), before);
 assert.equal(happy.ok, true);
@@ -459,8 +525,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
       resolveCoupledNativeGasReconciliationEvidenceV1({
         root_dir: swapped.root,
         liability: swapped.liability,
-        policy,
-        transport: transportFor("confirmed"),
+        policy: rpcPolicy("confirmed"),
       }),
   );
   assert.equal(result.injected, true);
@@ -498,8 +563,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
       resolveCoupledNativeGasReconciliationEvidenceV1({
         root_dir: swapped.root,
         liability: swapped.liability,
-        policy,
-        transport: transportFor("confirmed"),
+        policy: rpcPolicy("confirmed"),
       }),
   );
   assert.equal(result.injected, true);
@@ -518,8 +582,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
   const wrongChain = await resolveCoupledNativeGasReconciliationEvidenceV1({
     root_dir: confirmed.root,
     liability: confirmed.liability,
-    policy,
-    transport: transportFor("confirmed", { chain_id: "0x1" }),
+    policy: rpcPolicy("confirmed", { chain_id: "0x1" }),
   });
   assert.equal(wrongChain.ok, false);
   if (wrongChain.ok) throw new Error("expected chain-id HOLD");
@@ -535,8 +598,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
     await resolveCoupledNativeGasReconciliationEvidenceV1({
       root_dir: confirmed.root,
       liability: confirmed.liability,
-      policy,
-      transport: transportFor("confirmed", {
+      policy: rpcPolicy("confirmed", {
         transaction_hash: "0x" + "2".repeat(64),
       }),
     });
@@ -554,8 +616,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
     await resolveCoupledNativeGasReconciliationEvidenceV1({
       root_dir: confirmed.root,
       liability: confirmed.liability,
-      policy,
-      transport: transportFor("confirmed", {
+      policy: rpcPolicy("confirmed", {
         current_block: "0x64",
       }),
     });
@@ -577,7 +638,6 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
         ...policy,
         rpc_url: "http://localhost:18553/",
       },
-      transport: transportFor("confirmed"),
     });
   assert.equal(badPolicy.ok, false);
   if (badPolicy.ok) throw new Error("expected loopback-policy HOLD");
@@ -621,8 +681,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
     await resolveCoupledNativeGasReconciliationEvidenceV1({
       root_dir: confirmed.root,
       liability: alteredLiability,
-      policy,
-      transport: transportFor("confirmed"),
+      policy: rpcPolicy("confirmed"),
     });
   assert.equal(altered.ok, false);
   if (altered.ok) throw new Error("expected plan-binding HOLD");
@@ -642,8 +701,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
     await resolveCoupledNativeGasReconciliationEvidenceV1({
       root_dir: confirmed.root,
       liability: invalidIdentity,
-      policy,
-      transport: transportFor("confirmed"),
+      policy: rpcPolicy("confirmed"),
     });
   assert.equal(held.ok, false);
   if (held.ok) throw new Error("expected liability identity HOLD");
@@ -667,8 +725,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
     await resolveCoupledNativeGasReconciliationEvidenceV1({
       root_dir: raced.root,
       liability: raced.liability,
-      policy,
-      transport: transportFor("confirmed", {
+      policy: rpcPolicy("confirmed", {
         on_call(method) {
           if (method === "eth_blockNumber") {
             const now = new Date(Date.now() + 1000);
@@ -692,8 +749,7 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
     await resolveCoupledNativeGasReconciliationEvidenceV1({
       root_dir: reverted.root,
       liability: reverted.liability,
-      policy,
-      transport: transportFor("reverted"),
+      policy: rpcPolicy("reverted"),
     });
   assert.equal(decision.ok, false);
   if (decision.ok) throw new Error("expected reverted reconciliation HOLD");
@@ -739,6 +795,18 @@ for (const [key, value] of Object.entries(
     assert.equal(value, expectedTrue.has(key), key);
   }
 }
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_EVIDENCE_RESOLVER_AUTHORITY_V1
+    .caller_transport_override,
+  false,
+);
+
+await new Promise<void>((resolve, reject) => {
+  rpcServer.close((error) => {
+    if (error) reject(error);
+    else resolve();
+  });
+});
 
 console.log(
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_EVIDENCE_RESOLVER_V1_GREEN",
@@ -747,6 +815,8 @@ console.log("exact_prepared_plan_lineage=true");
 console.log("derived_attempt_id_only=true");
 console.log("whole_terminal_outcome_state=true");
 console.log("numeric_loopback_chain2050_only=true");
+console.log("caller_transport_override=false");
+console.log("real_loopback_http_proof=true");
 console.log("reader_outputs_bound_to_snapshot=true");
 console.log("plan_reader_swap_restore_hold=true");
 console.log("outcome_reader_swap_restore_hold=true");
