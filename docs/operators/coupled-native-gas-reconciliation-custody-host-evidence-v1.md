@@ -48,7 +48,7 @@ It reads:
 - exact `payer-domain-v1.json` bytes;
 - `systemctl show` and `systemctl cat` metadata;
 - `findmnt --target ... --output UUID`;
-- one noninteractive `pkcheck` authorization query; and
+- bounded noninteractive `pkcheck` authorization queries for the custody-service control surface; and
 - the kernel boot ID and machine ID, which are emitted only as SHA-256.
 
 The collector reuses
@@ -114,10 +114,19 @@ be prohibited. Unknown or permissive policy leaves those #2499 negative-evidence
 flags false and therefore HOLDS instead of claiming denial.
 
 Systemd service-control denial is obtained with noninteractive Polkit
-authorization queries for the exact custody unit and the `start`, `stop`,
-and `restart` verbs. The Polkit subject is bound as
-`PID,start-time,UID`, not PID alone. If any query is authorized, unavailable,
-or indeterminate, collection HOLDS.
+authorization queries bound to the exact custody unit. The direct
+`org.freedesktop.systemd1.manage-units` denial set covers `start`, `stop`,
+`reload`, `restart`, `try-restart`, `reload-or-restart`,
+`reload-or-try-restart`, `kill`, `kill-subgroup`, `reset-failed`,
+`set-property`, and `clean`. The collector also requires blanket denial of
+`org.freedesktop.systemd1.manage-unit-files` and
+`org.freedesktop.systemd1.reload-daemon` for the public-runtime subject.
+
+The Polkit subject is bound as `PID,start-time,UID`, not PID alone. If any
+required query is authorized, unavailable, or indeterminate, collection HOLDS.
+This prevents a policy that denies only start/stop/restart while permitting a
+different unit-control verb from being collapsed into the broader
+`public_runtime_can_control_service=false` evidence claim.
 
 These observations still do not prove a globally trusted security boundary.
 They are bounded host evidence supplied to #2499.
@@ -181,6 +190,7 @@ The proof covers:
 - authority flags;
 - proc-status parsing;
 - systemd-show parsing and mount-namespace restriction semantics;
+- exact systemd direct-control Polkit verb-denial set plus unit-file and daemon-reload denial tokens;
 - proc start-time parsing, non-divergent FS UID/GID identity, full capability
   masks, and `NoNewPrivs` evidence;
 - designated-host mismatch HOLD;
