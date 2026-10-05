@@ -25,7 +25,8 @@ export const VOID_COUPLED_NATIVE_GAS_LIABILITY_RECONCILIATION_AUTHORITY_V1 =
     unused_reserve_release_candidate_classified: true,
     current_buy_void_attempt_limit_one_required: true,
     multi_attempt_reconciliation_authority: false,
-    reverted_retry_requires_new_liability: true,
+    reverted_reconciliation_authority: false,
+    reverted_retry_requires_new_liability: false,
     confirmed_future_attempt_allowance_zero: true,
     liability_store_binding_verified: false,
     liability_store_mutation: false,
@@ -566,6 +567,11 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
       input?.terminal_cost_evidence,
       liability,
     );
+    if (evidence.outcome === "reverted") {
+      return held(
+        "coupled_native_gas_reconciliation_reverted_disposition_unresolved",
+      );
+    }
 
     const nativeValue = BigInt(liability.transaction_native_value_wei);
     const gasLimit = BigInt(liability.gas_limit);
@@ -585,8 +591,7 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
     const retainedFutureAttemptReserve = 0n;
     const unusedReleaseCandidate = unconsumed;
     const terminalCloseCandidate = true;
-    const additionalAttemptRequiresNewLiability =
-      evidence.outcome === "reverted";
+    const additionalAttemptRequiresNewLiability = false;
 
     const body = {
       schema: RECONCILIATION_SCHEMA,
