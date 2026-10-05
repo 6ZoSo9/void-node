@@ -52,6 +52,21 @@ It reads:
 - bounded noninteractive `pkcheck` authorization queries for the custody-service control surface; and
 - the kernel boot ID and machine ID, which are emitted only as SHA-256.
 
+Every external observer command runs under one closed subprocess environment:
+
+```text
+PATH=/usr/bin:/bin
+LANG=C
+LC_ALL=C
+```
+
+The collector does not inherit caller-selected `DBUS_*`, `SYSTEMD_*`,
+pager, locale, loader, or other environment variables into `systemctl`,
+`pkcheck`, `findmnt`, or `getfacl`. This is part of the same evidence
+boundary as the absolute `/usr/bin` binary pins: the observer executable and
+its system-bus/formatting environment are both fixed before evidence is
+accepted.
+
 The collector reuses
 `parseMountInfoV1(...)` and `resolveMountForPathV1(...)` from the existing
 Buy VOID allocation-custody preflight instead of maintaining a second Linux
