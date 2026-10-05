@@ -1044,7 +1044,7 @@ export function classifyCoupledNativeGasTerminalCostEvidenceV1(input: {
       liability_consumed_wei: liabilityConsumed.toString(),
       maximum_reserved_wei: maximumReserved.toString(),
       within_reserved_envelope: true as const,
-    };
+    } as const;
     return Object.freeze({
       ok: true,
       status: "terminal_cost_verified",
