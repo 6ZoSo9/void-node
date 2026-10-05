@@ -65,13 +65,22 @@ Directories and files must be private, direct, current-user-owned objects.
 Unexpected filenames, symlinks, hard links, replacement, size drift, metadata
 drift, or content drift fail closed.
 
+The existing journal readers are pathname-oriented, so a stable before/after
+directory digest is not sufficient by itself. Before RPC the resolver also
+reserializes the parsed prepared-plan, execution-attempt, and broadcast-outcome
+records in their durable pretty-JSON form and requires exact byte-length and
+SHA-256 agreement with the descriptor-read snapshot entries. A swap-and-restore
+that makes a pathname reader observe different JSON therefore HOLDs even if the
+original directory is restored before the later snapshot.
+
 After the RPC observation completes, all three snapshots are taken again.
 Any change causes
 `reconciliation_evidence_local_state_changed_during_resolution`.
 
-This proves the read-only packet is tied to one stable local evidence snapshot.
-A future durable writer must independently revalidate the same provenance at
-its publication boundary; this resolver grants no publication authority.
+Reader-to-snapshot binding plus the post-RPC snapshot equality tie the
+read-only packet to one exact stable local evidence image. A future durable
+writer must independently revalidate the same provenance at its own publication
+boundary; this resolver grants no publication authority.
 
 ## RPC boundary
 
