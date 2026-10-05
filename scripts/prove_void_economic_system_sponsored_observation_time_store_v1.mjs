@@ -854,7 +854,7 @@ assert.match(
 );
 assert.match(source, /prior_receipt: before\.head\?\.receipt \|\| null/u);
 assert.match(source, /args\.length !== 0/u);
-assert.match(source, /preview\.\.\.args/u);
+assert.match(source, /preview\(\.\.\.args\)/u);
 assert.match(source, /durable_time_authority_advanced: false/u);
 assert.match(
   source,
