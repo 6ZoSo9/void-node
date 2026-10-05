@@ -135,6 +135,18 @@ Each ancestor must be:
 - not group/other writable;
 - unwritable and non-renamable by both runtime and custody identities.
 
+The ledger and protected-custody roots must also be **disjoint in the same
+sense as the merged publication writer**: neither root may equal, contain, or
+be contained by the other. A nested pair cannot qualify by presenting the
+outer root as custody-owned in one evidence object and root-owned as an
+ancestor in the other.
+
+When the two root chains share an ancestor pathname (for example `/` or
+`/var`), the complete ancestor evidence for that pathname must be identical
+in both chains. The classifier rejects contradictory per-root descriptions of
+one host object even if each description would pass its local mode/authority
+checks in isolation.
+
 This is the evidence-level representation of the host policy that removes the
 source writer's admitted post-revalidation pathname replacement schedule.
 
@@ -276,6 +288,8 @@ A single missing/false probe HOLDS the packet.
 The focused proof builds a synthetic qualifying packet and proves rejection of:
 
 - shared runtime/custody UID;
+- equal or nested ledger/custody roots;
+- contradictory evidence for one shared ancestor pathname;
 - shared mount ID, device, or mount source;
 - shared ledger/custody rollback-domain identity;
 - rollback-domain evidence that disagrees with the caller-bound expected identities;
