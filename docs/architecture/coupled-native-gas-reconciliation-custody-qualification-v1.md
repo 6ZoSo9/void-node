@@ -103,8 +103,14 @@ Device identity is still not enough to identify a mount instance: nested bind
 mounts of the same filesystem can share `st_dev`, major/minor, source, UUID,
 and filesystem type. The payer-root evidence therefore also carries the
 governing Linux mount ID, and it must equal the declared mount record's
-`mount_id`; the mount fingerprint additionally binds `parent_id`. A later
-read-only collector must derive that governing record from real
+`mount_id`; the mount fingerprint additionally binds `parent_id`.
+
+The payer-domain file, records directory, reconciliations directory, and queue
+each also carry the governing mount ID and must equal the payer root's mount
+ID. This rejects a same-device bind mount placed directly on any retained child
+namespace even when device/source/UUID fields are unchanged.
+
+A later read-only collector must derive every governing record from real
 `/proc/self/mountinfo` using longest mount-point-prefix resolution, matching
 the existing allocation-custody preflight pattern rather than selecting an
 arbitrary ancestor mount.
@@ -234,8 +240,8 @@ overlong evidence, zero generation, service/runtime identity collapse, unsafe or
 runtime-writable ancestors, root symlink/replacement authority, bind/remount
 authority, wrong mount target, root-device/mount-major-minor mismatch,
 mount-target ancestor device mismatch, contradictory `ro`+`rw` mount
-options, same-device governing mount-ID mismatch,
-alternate reconciliation namespace, inode alias,
+options, same-device governing root mount-ID mismatch, direct child
+same-device mount-ID substitution, alternate reconciliation namespace, inode alias,
 payer-address/domain mismatch, noncanonical payer-domain file digest/link alias,
 service hardening drift, writable-path drift,
 failed negative tests, fallback storage, and missing required namespace.
