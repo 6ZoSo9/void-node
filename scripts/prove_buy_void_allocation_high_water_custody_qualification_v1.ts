@@ -161,6 +161,15 @@ function evidence() {
         "/srv/void-allocation-ledger-v1",
       ],
     },
+    recovery_probes: {
+      clean_restart_bound: true,
+      intent_only_restart_recovers: true,
+      ledger_committed_restart_recovers: true,
+      high_water_committed_restart_recovers: true,
+      complete_restart_recovers: true,
+      forward_only_recovery: true,
+      no_duplicate_allocation_obligation: true,
+    },
     negative_probes: {
       runtime_rename_ledger_root_denied: true,
       runtime_rename_custody_root_denied: true,
@@ -254,6 +263,7 @@ for (const [key, value] of Object.entries(
     "af_unix_ipc_required",
     "systemd_hardening_required",
     "negative_probe_evidence_required",
+    "recovery_phase_evidence_required",
     "freshness_required",
     "synthetic_evidence_qualification",
   ]);
@@ -401,6 +411,16 @@ for (const mutate of [
 
 {
   const bad = cloneEvidence();
+  bad.recovery_probes.ledger_committed_restart_recovers =
+    false as true;
+  expectHeld(
+    classify(bad),
+    "allocation_custody_recovery_probe_failed",
+  );
+}
+
+{
+  const bad = cloneEvidence();
   bad.negative_probes.runtime_rename_custody_root_denied =
     false as true;
   expectHeld(
@@ -475,6 +495,8 @@ console.log("bind_and_remount_substitution_rejected=true");
 console.log("af_unix_narrow_ipc_required=true");
 console.log("systemd_hardening_required=true");
 console.log("negative_probe_evidence_required=true");
+console.log("all_publication_recovery_phases_required=true");
+console.log("forward_only_no_duplicate_recovery_required=true");
 console.log("freshness_required=true");
 console.log("caller_bound_evidence_generation=true");
 console.log("typed_json_integer_evidence_required=true");
