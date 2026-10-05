@@ -230,7 +230,15 @@ function openPinnedDirectory(
     fail(code + "_path_invalid");
   }
   const resolved = path.resolve(raw);
-  const visible = fs.lstatSync(resolved, { bigint: true });
+  let visible: fs.BigIntStats;
+  try {
+    visible = fs.lstatSync(resolved, { bigint: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      fail(code + "_missing");
+    }
+    throw error;
+  }
   validatePrivateDirectory(visible, code + "_invalid");
   const fd = fs.openSync(
     resolved,
@@ -281,7 +289,15 @@ function openPinnedChildDirectory(
   assertPinnedDirectoryVisible(parent, code + "_parent");
   const visiblePath = path.join(parent.path, name);
   const pinnedPath = path.join(parent.proc_path, name);
-  const visible = fs.lstatSync(visiblePath, { bigint: true });
+  let visible: fs.BigIntStats;
+  try {
+    visible = fs.lstatSync(visiblePath, { bigint: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      fail(code + "_missing");
+    }
+    throw error;
+  }
   validatePrivateDirectory(visible, code + "_invalid");
   const fd = fs.openSync(
     pinnedPath,
@@ -348,7 +364,15 @@ function readPinnedFile(
   assertPinnedDirectoryVisible(directory, code + "_directory");
   const visiblePath = path.join(directory.path, name);
   const pinnedPath = path.join(directory.proc_path, name);
-  const visible = fs.lstatSync(visiblePath, { bigint: true });
+  let visible: fs.BigIntStats;
+  try {
+    visible = fs.lstatSync(visiblePath, { bigint: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+      fail(code + "_missing");
+    }
+    throw error;
+  }
   validatePrivateFile(visible, maxBytes, code + "_invalid");
   const fd = fs.openSync(pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW);
   try {
