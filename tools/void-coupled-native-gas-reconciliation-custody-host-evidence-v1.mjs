@@ -909,7 +909,6 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
           expires_at_ms: observedAt + TTL_MS,
           evidence_generation: String(observedAt),
           boot_id_sha256: sha256Id(bootId),
-        machine_id_sha256: sha256Id(machineId),
         }),
         public_runtime_uid: publicCredsBefore.uid,
         public_runtime_gid: publicCredsBefore.gid,
@@ -953,6 +952,7 @@ export function inspectCoupledNativeGasReconciliationCustodyHostEvidenceV1({
           namespaceBefore.identity_sha256,
         mountinfo_sha256: sha256Id(mountInfoBefore),
         boot_id_sha256: sha256Id(bootId),
+        machine_id_sha256: sha256Id(machineId),
       }),
     });
   } catch (error) {
