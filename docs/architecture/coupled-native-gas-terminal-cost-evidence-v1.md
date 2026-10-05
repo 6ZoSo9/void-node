@@ -163,10 +163,15 @@ required when the durable outcome was written.
 The contract requires:
 
 ```text
-0 < gasUsed <= liability.gas_limit
+gasUsed = plan.gas_limit = liability.gas_limit
 0 <= effectiveGasPrice <= liability.admitted_max_fee_per_gas_wei
 gas_cost_wei = gasUsed * effectiveGasPrice
 ```
+
+The terminal receipt cannot lower the reviewed gas charge by reporting fewer
+units than the already-bound direct native transaction plan. The current direct
+transfer lane is 21,000 gas, but this contract binds to the reviewed plan value
+rather than introducing a second independent gas-limit constant.
 
 Zero effective gas price is accepted. Metered execution and native fee debit
 are distinct concepts in the current Chain-2050 evidence.
@@ -233,6 +238,7 @@ The classifier HOLDS on, among other cases:
 - current block before receipt block;
 - fresh confirmation regression;
 - gas used above the liability gas limit;
+- gas used below the exact reviewed plan/liability gas limit;
 - effective gas price above the admitted max fee;
 - arithmetic overflow;
 - liability consumption above the reserved envelope; or
