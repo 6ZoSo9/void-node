@@ -284,6 +284,16 @@ assert.match(
 }
 {
   const x = structuredClone(green()) as any;
+  x.host_evidence.payer_root.mount.mount_options = [
+    "nodev",
+    "nosuid",
+    "ro",
+    "rw",
+  ];
+  requireHeld(x, "reconciliation_custody_mount_read_only");
+}
+{
+  const x = structuredClone(green()) as any;
   x.host_evidence.payer_root.mount.mount_target = "/srv/elsewhere";
   requireHeld(x, "reconciliation_custody_mount_invalid");
 }
@@ -417,6 +427,7 @@ console.log("same_uid_root_replacement_denial_required=true");
 console.log("symlink_substitution_denial_required=true");
 console.log("bind_mount_denial_evidence_required=true");
 console.log("remount_denial_evidence_required=true");
+console.log("contradictory_ro_rw_mount_options_rejected=true");
 console.log("root_device_matches_mount_major_minor=true");
 console.log("mount_target_device_matches_root=true");
 console.log("governing_mount_id_required=true");
