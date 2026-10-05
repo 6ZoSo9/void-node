@@ -78,10 +78,11 @@ witness tip.
 It HOLDs when:
 
 - the local record count is behind the witness tip: rollback detected;
-- the local record count is ahead of the witness tip: external witness update
-  required before the new local state may be treated as anchored;
-- a one-record-ahead canonical ledger does not contain the exact witnessed
-  ledger bytes as its prefix: local history conflict;
+- the local record count is ahead of the witness tip **and** the exact witness
+  tip ledger is a byte prefix of the canonical local ledger: external witness
+  update required before the new local state may be treated as anchored;
+- any local-ahead canonical ledger that does not contain the exact witnessed
+  tip ledger bytes as its prefix: local history conflict;
 - supplied state metadata disagrees with the canonical current ledger/high-water
   bytes: current-authority mismatch;
 - the record counts match but ledger/high-water/inventory bytes differ;
