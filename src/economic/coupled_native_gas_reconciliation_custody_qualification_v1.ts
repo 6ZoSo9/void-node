@@ -401,6 +401,26 @@ function sortedStrings(
   return Object.freeze(out);
 }
 
+function linuxMajorMinorFromDev(
+  value: string,
+  code: string,
+): string {
+  let dev: bigint;
+  try {
+    dev = BigInt(value);
+  } catch {
+    fail(code);
+  }
+  if (dev < 0n || dev > 0xffff_ffff_ffff_ffffn) fail(code);
+  const major =
+    ((dev & 0x0000_0000_000f_ff00n) >> 8n) |
+    ((dev & 0xffff_f000_0000_0000n) >> 32n);
+  const minor =
+    (dev & 0x0000_0000_0000_00ffn) |
+    ((dev & 0x0000_0fff_fff0_0000n) >> 12n);
+  return major.toString(10) + ":" + minor.toString(10);
+}
+
 function expectedAncestorPaths(resolved: string): string[] {
   const root = path.parse(resolved).root;
   const out: string[] = [];
@@ -468,6 +488,7 @@ function normalizeAncestors(
 function normalizeMount(
   value: unknown,
   rootPath: string,
+  rootDev: string,
 ): Readonly<Record<string, unknown>> {
   const mount = exactObject(
     value,
@@ -500,6 +521,19 @@ function normalizeMount(
     "reconciliation_custody_mount_invalid",
   );
   if (!options.includes("rw")) fail("reconciliation_custody_mount_read_only");
+  const majorMinor = safeText(
+    mount.major_minor,
+    MAJOR_MINOR,
+    "reconciliation_custody_mount_invalid",
+  );
+  if (
+    linuxMajorMinorFromDev(
+      rootDev,
+      "reconciliation_custody_mount_invalid",
+    ) !== majorMinor
+  ) {
+    fail("reconciliation_custody_mount_invalid");
+  }
   const body = Object.freeze({
     mount_target: target,
     mount_source: safeText(
@@ -512,11 +546,7 @@ function normalizeMount(
       SAFE_TEXT,
       "reconciliation_custody_mount_invalid",
     ),
-    major_minor: safeText(
-      mount.major_minor,
-      MAJOR_MINOR,
-      "reconciliation_custody_mount_invalid",
-    ),
+    major_minor: majorMinor,
     filesystem_type: safeText(
       mount.filesystem_type,
       /^[A-Za-z0-9._-]{1,64}$/u,
@@ -562,9 +592,33 @@ function normalizeRoot(
   ) {
     fail("reconciliation_custody_root_invalid");
   }
+  const rootDev = decimal(
+    root.dev,
+    "reconciliation_custody_root_invalid",
+  );
+  const ancestors = normalizeAncestors(
+    root.ancestors,
+    resolved,
+    publicRuntimeUid,
+  );
+  const mount = normalizeMount(root.mount, resolved, rootDev);
+  const mountTarget = String(
+    (mount as Record<string, unknown>).mount_target,
+  );
+  if (mountTarget !== resolved) {
+    const targetAncestor = ancestors.find(
+      (entry) => entry.path === mountTarget,
+    );
+    if (
+      !targetAncestor ||
+      String(targetAncestor.dev) !== rootDev
+    ) {
+      fail("reconciliation_custody_mount_invalid");
+    }
+  }
   return Object.freeze({
     resolved_path: resolved,
-    dev: decimal(root.dev, "reconciliation_custody_root_invalid"),
+    dev: rootDev,
     ino: decimal(root.ino, "reconciliation_custody_root_invalid"),
     uid: serviceUid,
     gid: serviceGid,
@@ -573,8 +627,8 @@ function normalizeRoot(
     public_runtime_write: false,
     public_runtime_rename: false,
     public_runtime_recreate: false,
-    ancestors: normalizeAncestors(root.ancestors, resolved, publicRuntimeUid),
-    mount: normalizeMount(root.mount, resolved),
+    ancestors,
+    mount,
   });
 }
 
