@@ -543,7 +543,27 @@ assert.equal(
 );
 upstreamStatusDelayMs = 0;
 
+await stopGateway(requalRuntime);
+
+upstreamCalls.length = 0;
+upstreamStatusCalls = 0;
 upstreamStatusLimit = REQUAL_UPSTREAM_LIMIT;
+upstreamStatusLimitAfterNextPost = null;
+upstreamInstanceId = "1".repeat(64);
+upstreamInstanceIdAfterNextStatus = null;
+
+const instanceRuntime = startGateway({
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
+    `http://127.0.0.1:${upstreamPort}`,
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
+  VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
+    String(REQUAL_UPSTREAM_LIMIT),
+});
+const instanceReady = await gatewayReady(instanceRuntime);
+assert.equal(instanceReady.paid_work_credential_request_route.configured, true);
+assert.equal(upstreamStatusCalls, 1);
+const instanceBase = `http://127.0.0.1:${instanceReady.port}`;
+
 upstreamInstanceIdAfterNextStatus = "2".repeat(64);
 const replacedIdentity = identity();
 const replacedBody = requestBody(
@@ -551,7 +571,7 @@ const replacedBody = requestBody(
   replacedIdentity.agentId,
 );
 const replacedResponse = await postCredential(
-  requalBase,
+  instanceBase,
   replacedBody,
   authHeader({
     identityValue: replacedIdentity,
@@ -564,8 +584,8 @@ assert.equal(
   (await replacedResponse.json()).error,
   "gateway_instance_mismatch",
 );
-assert.equal(upstreamStatusCalls, 9);
-assert.equal(upstreamCalls.length, 4);
+assert.equal(upstreamStatusCalls, 2);
+assert.equal(upstreamCalls.length, 0);
 
 const replacedRecoveryIdentity = identity();
 const replacedRecoveryBody = requestBody(
@@ -573,7 +593,7 @@ const replacedRecoveryBody = requestBody(
   replacedRecoveryIdentity.agentId,
 );
 const replacedRecoveryResponse = await postCredential(
-  requalBase,
+  instanceBase,
   replacedRecoveryBody,
   authHeader({
     identityValue: replacedRecoveryIdentity,
@@ -583,10 +603,10 @@ const replacedRecoveryResponse = await postCredential(
 );
 assert.equal(replacedRecoveryResponse.status, 202);
 await replacedRecoveryResponse.json();
-assert.equal(upstreamStatusCalls, 10);
-assert.equal(upstreamCalls.length, 5);
+assert.equal(upstreamStatusCalls, 3);
+assert.equal(upstreamCalls.length, 1);
 
-await stopGateway(requalRuntime);
+await stopGateway(instanceRuntime);
 
 upstreamCalls.length = 0;
 upstreamStatusCalls = 0;
