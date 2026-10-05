@@ -78,7 +78,7 @@ const SOURCE_BLOBS=Object.freeze({
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
   "tools/void-precision-web-recovery-evidence-v1.mjs":
-    "bca7d83c08607644058c4c3fe67f6be766d9fb3f",
+    "5c574de80a7b56326aab95510e40cd4aed7de0df",
   "docs/operators/precision-web-recovery-evidence-v1.md":
     "7cc2a9eac3d6317fb779e8adbd2c62aa1d3bab8f",
   "public/void-public-frontdoor-v1/index.html":
