@@ -124,6 +124,35 @@ function snapshotTree(root: string): string {
   return crypto.createHash("sha256").update(rows.join("\n")).digest("hex");
 }
 
+async function withOnePathReadSubstitution<T>(
+  targetPath: string,
+  replacementUtf8: string,
+  operation: () => Promise<T>,
+): Promise<{ value: T; injected: boolean }> {
+  const original = fs.readFileSync as any;
+  const target = path.resolve(targetPath);
+  let injected = false;
+  (fs as any).readFileSync = (candidate: any, ...args: any[]) => {
+    if (
+      !injected &&
+      typeof candidate === "string" &&
+      path.resolve(candidate) === target
+    ) {
+      injected = true;
+      return replacementUtf8;
+    }
+    return original(candidate, ...args);
+  };
+  try {
+    return {
+      value: await operation(),
+      injected,
+    };
+  } finally {
+    (fs as any).readFileSync = original;
+  }
+}
+
 function makeBaseRequest(): BuyVoidRequestV1 {
   return {
     request_id: "buyvoid_reconciliation_evidence_v1",
@@ -406,6 +435,86 @@ assert.equal(happy.packet.liability_release_authorized, false);
 assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
 
 {
+  const swapped = setupFixture("plan-reader-swap", "confirmed");
+  const walletKey = crypto
+    .createHash("sha256")
+    .update("void-buy-wallet-v1\n2050\n" + wallet, "utf8")
+    .digest("hex");
+  const planPath = path.join(
+    swapped.root,
+    "buy-void-prepared-transaction-plan-reservation-v1",
+    "wallets",
+    walletKey,
+    "nonces",
+    String(swapped.plan.nonce).padStart(16, "0") + ".json",
+  );
+  const alternatePlan = {
+    ...swapped.plan,
+    reserved_at_ms: swapped.plan.reserved_at_ms + 1,
+  };
+  const result = await withOnePathReadSubstitution(
+    planPath,
+    JSON.stringify(alternatePlan, null, 2) + "\n",
+    () =>
+      resolveCoupledNativeGasReconciliationEvidenceV1({
+        root_dir: swapped.root,
+        liability: swapped.liability,
+        policy,
+        transport: transportFor("confirmed"),
+      }),
+  );
+  assert.equal(result.injected, true);
+  assert.equal(result.value.ok, false);
+  if (result.value.ok) {
+    throw new Error("expected plan reader/snapshot HOLD");
+  }
+  assert.equal(result.value.stage, "plan");
+  assert.equal(
+    result.value.reason,
+    "reconciliation_evidence_plan_reader_snapshot_mismatch",
+  );
+}
+
+{
+  const swapped = setupFixture("outcome-reader-swap", "confirmed");
+  const outcomePath = path.join(
+    swapped.root,
+    "buy-void-broadcast-outcomes-v1",
+    "attempts",
+    swapped.plan.attempt_id,
+    "confirmed.json",
+  );
+  const originalOutcome = JSON.parse(
+    fs.readFileSync(outcomePath, "utf8"),
+  );
+  const alternateOutcome = {
+    ...originalOutcome,
+    recorded_at_ms: Number(originalOutcome.recorded_at_ms) + 1,
+  };
+  const result = await withOnePathReadSubstitution(
+    outcomePath,
+    JSON.stringify(alternateOutcome, null, 2) + "\n",
+    () =>
+      resolveCoupledNativeGasReconciliationEvidenceV1({
+        root_dir: swapped.root,
+        liability: swapped.liability,
+        policy,
+        transport: transportFor("confirmed"),
+      }),
+  );
+  assert.equal(result.injected, true);
+  assert.equal(result.value.ok, false);
+  if (result.value.ok) {
+    throw new Error("expected outcome reader/snapshot HOLD");
+  }
+  assert.equal(result.value.stage, "snapshot");
+  assert.equal(
+    result.value.reason,
+    "reconciliation_evidence_outcome_reader_snapshot_mismatch",
+  );
+}
+
+{
   const wrongChain = await resolveCoupledNativeGasReconciliationEvidenceV1({
     root_dir: confirmed.root,
     liability: confirmed.liability,
@@ -610,6 +719,7 @@ for (const [key, value] of Object.entries(
     "whole_execution_attempt_state_required",
     "whole_broadcast_outcome_state_required",
     "descriptor_bound_local_snapshot",
+    "reader_outputs_bound_to_snapshot",
     "local_snapshot_revalidated_after_rpc",
     "numeric_loopback_http_only",
     "chain2050_required",
@@ -637,6 +747,9 @@ console.log("exact_prepared_plan_lineage=true");
 console.log("derived_attempt_id_only=true");
 console.log("whole_terminal_outcome_state=true");
 console.log("numeric_loopback_chain2050_only=true");
+console.log("reader_outputs_bound_to_snapshot=true");
+console.log("plan_reader_swap_restore_hold=true");
+console.log("outcome_reader_swap_restore_hold=true");
 console.log("local_snapshot_revalidated_after_rpc=true");
 console.log("reverted_liability_release=false");
 console.log("filesystem_publication=false");
