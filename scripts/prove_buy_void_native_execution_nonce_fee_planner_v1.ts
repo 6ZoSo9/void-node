@@ -342,7 +342,7 @@ try {
   });
   assert.equal(ipv6Result.ok, true);
   if (ipv6Result.ok !== true) {
-    throw new Error(ipv6Result.error_code);
+    throw new Error("expected IPv6 loopback transport success");
   }
   assert.equal(ipv6Result.result, "0x802");
 } finally {
