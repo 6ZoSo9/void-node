@@ -250,6 +250,7 @@ async function postCredential(base, body, auth, extraHeaders = {}) {
 const upstreamCalls = [];
 let upstreamStatusCalls = 0;
 const UPSTREAM_LIMIT = 8;
+const REQUAL_UPSTREAM_LIMIT = 20;
 let upstreamStatusLimit = UPSTREAM_LIMIT;
 let upstreamStatusLimitAfterNextPost = null;
 let upstreamStatusDelayMs = 0;
@@ -364,12 +365,13 @@ const upstream = http.createServer(async (req, res) => {
 });
 const upstreamPort = await listen(upstream);
 
+upstreamStatusLimit = REQUAL_UPSTREAM_LIMIT;
 const requalRuntime = startGateway({
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_UPSTREAM:
     `http://127.0.0.1:${upstreamPort}`,
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_MAX_REQUESTS_PER_MINUTE: "2",
   VOID_AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE:
-    String(UPSTREAM_LIMIT),
+    String(REQUAL_UPSTREAM_LIMIT),
 });
 const requalReady = await gatewayReady(requalRuntime);
 assert.equal(requalReady.paid_work_credential_request_route.configured, true);
@@ -415,7 +417,7 @@ assert.equal(
   "changed upstream rate wall must hold before request proxying",
 );
 
-upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimit = REQUAL_UPSTREAM_LIMIT;
 const recoveredIdentity = identity();
 const recoveredBody = requestBody(
   "live-requalification-recovered",
@@ -434,7 +436,7 @@ assert.equal(recoveredResponse.status, 202);
 assert.equal(upstreamStatusCalls, 4);
 assert.equal(upstreamCalls.length, 2);
 
-upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimit = REQUAL_UPSTREAM_LIMIT;
 upstreamStatusLimitAfterNextPost = 1;
 const concurrentA = identity();
 const concurrentABody = requestBody(
@@ -490,7 +492,7 @@ assert.equal(
   "only the first concurrent request may POST before status drift is reobserved",
 );
 
-upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimit = REQUAL_UPSTREAM_LIMIT;
 const concurrentRecovery = identity();
 const concurrentRecoveryBody = requestBody(
   "live-requalification-concurrent-recovery",
@@ -541,7 +543,7 @@ assert.equal(
 );
 upstreamStatusDelayMs = 0;
 
-upstreamStatusLimit = UPSTREAM_LIMIT;
+upstreamStatusLimit = REQUAL_UPSTREAM_LIMIT;
 upstreamInstanceIdAfterNextStatus = "2".repeat(64);
 const replacedIdentity = identity();
 const replacedBody = requestBody(
