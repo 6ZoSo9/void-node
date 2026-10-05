@@ -622,222 +622,45 @@ exec {FIXTURE_FD}<"$FIXTURE_DIR" || {
   exit 2
 }
 
-if ! python3 - "$FIXTURE_FD" "$FIXTURE_IDENTITY" <<'PY_FD'
-import os
-import stat
-import sys
-
-fd = int(sys.argv[1])
-expected = sys.argv[2]
-st = os.fstat(fd)
-actual = ":".join(
-    str(value)
-    for value in (
-        st.st_dev,
-        st.st_ino,
-        st.st_mode,
-        st.st_uid,
-        st.st_gid,
-    )
-)
-if not stat.S_ISDIR(st.st_mode) or actual != expected:
-    raise SystemExit(2)
-PY_FD
-then
-  exec {FIXTURE_FD}<&-
-  echo "[fail] Demo003 fixture identity changed before semantic verify" >&2
-  exit 2
-fi
-
-node - "/proc/self/fd/$FIXTURE_FD" \
-  "$SEALED_MANIFEST_SHA256" \
-  "$SEALED_CHECKSUMS_SHA256" \
-  "$SEALED_README_SHA256" \
-  "$SEALED_INDEX_SHA256" \
-  "$SEALED_METADATA_SHA256" <<'NODE'
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
-
-const fixtureDir = process.argv[2];
-const sealedDigests = new Map([
-  ["manifest.json", process.argv[3]],
-  ["sha256sums.txt", process.argv[4]],
-  ["files/README.txt", process.argv[5]],
-  ["files/index.html", process.argv[6]],
-  ["files/metadata.json", process.argv[7]],
-]);
-const noFollow = fs.constants.O_NOFOLLOW;
-const maxFileBytes = 2 * 1024 * 1024;
-
-function ok(x, msg) {
-  if (!x) {
-    console.error("[fail]", msg);
-    process.exit(1);
-  }
-}
-
-function diagnostic(value) {
-  let text = String(value);
-  if (text.length > 320) text = text.slice(0, 320) + "...";
-  return JSON.stringify(text);
-}
-
-function stamp(st) {
-  return [
-    st.dev, st.ino, st.size, st.mtimeNs, st.ctimeNs,
-    st.mode, st.uid, st.gid, st.nlink,
-  ].join(":");
-}
-
-function readDirect(rel) {
-  const p = path.join(fixtureDir, rel);
-  const listed = fs.lstatSync(p, { bigint: true });
-  const euid = typeof process.geteuid === "function" ? BigInt(process.geteuid()) : null;
-  ok(euid !== null, "effective uid unavailable");
-  ok(listed.isFile() && !listed.isSymbolicLink(), `not direct regular file ${rel}`);
-  ok(listed.uid === euid, `wrong owner ${rel}`);
-  ok(listed.nlink === 1n, `link count ${rel}`);
-  ok((listed.mode & 0o022n) === 0n, `writable by group/world ${rel}`);
-  ok(listed.size > 0n && listed.size <= BigInt(maxFileBytes), `size boundary ${rel}`);
-
-  const fd = fs.openSync(p, fs.constants.O_RDONLY | noFollow);
-  try {
-    const opened = fs.fstatSync(fd, { bigint: true });
-    ok(stamp(listed) === stamp(opened), `identity changed ${rel}`);
-
-    const chunks = [];
-    const scratch = Buffer.allocUnsafe(65536);
-    let total = 0;
-    while (true) {
-      const count = fs.readSync(
-        fd,
-        scratch,
-        0,
-        scratch.length,
-        null,
-      );
-      if (count === 0) break;
-      ok(count > 0, `semantic short read ${rel}`);
-      total += count;
-      ok(total <= maxFileBytes, `semantic read limit exceeded ${rel}`);
-      chunks.push(Buffer.from(scratch.subarray(0, count)));
-    }
-    const buf = Buffer.concat(chunks, total);
-    const after = fs.fstatSync(fd, { bigint: true });
-    const visible = fs.lstatSync(p, { bigint: true });
-    ok(stamp(opened) === stamp(after), `changed during read ${rel}`);
-    ok(stamp(after) === stamp(visible), `visible identity changed ${rel}`);
-    ok(after.size === BigInt(buf.length), `byte count changed ${rel}`);
-    const sealed = sealedDigests.get(rel);
-    ok(typeof sealed === "string" && /^[a-f0-9]{64}$/.test(sealed), `sealed digest missing ${rel}`);
-    ok(
-      crypto.createHash("sha256").update(buf).digest("hex") === sealed,
-      `sealed digest mismatch ${rel}`,
-    );
-    return buf;
-  } finally {
-    fs.closeSync(fd);
-  }
-}
-
-function readJson(rel) {
-  return JSON.parse(readDirect(rel).toString("utf8"));
-}
-
-function sha256File(rel) {
-  return crypto.createHash("sha256").update(readDirect(rel)).digest("hex");
-}
-
-const checksumExpected = new Set([
-  "./manifest.json",
-  "./files/README.txt",
-  "./files/index.html",
-  "./files/metadata.json",
-]);
-const checksumLines = readDirect("sha256sums.txt").toString("utf8").trimEnd().split("\n");
-ok(checksumLines.length === checksumExpected.size, "checksum line count");
-const checksumSeen = new Set();
-for (const line of checksumLines) {
-  const match = /^([a-f0-9]{64})  (\.\/(?:manifest\.json|files\/(?:README\.txt|index\.html|metadata\.json)))$/.exec(line);
-  ok(match, `invalid checksum line ${JSON.stringify(line)}`);
-  const rel = match[2];
-  ok(checksumExpected.has(rel), `unexpected checksum path ${rel}`);
-  ok(!checksumSeen.has(rel), `duplicate checksum path ${rel}`);
-  checksumSeen.add(rel);
-  ok(match[1] === sha256File(rel.slice(2)), `checksum mismatch ${rel}`);
-}
-ok(checksumSeen.size === checksumExpected.size, "checksum set incomplete");
-console.log("[ok] exact checksum set verified");
-
-const manifest = readJson("manifest.json");
-const metadata = readJson("files/metadata.json");
-
-ok(manifest.marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_MANIFEST_V1", "manifest marker");
-ok(manifest.fixture_marker === "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_V1", "fixture marker");
-ok(manifest.object_set_id === "demo003-folder-fixture-v1", "object set id");
-ok(manifest.file_count === 3, "file count");
-ok(Array.isArray(manifest.files) && manifest.files.length === 3, "files array");
-
-const expected = new Set(["files/README.txt", "files/index.html", "files/metadata.json"]);
-const seen = new Set();
-for (const f of manifest.files) {
-  ok(f && typeof f === "object", "invalid manifest file row");
-  ok(expected.has(f.path), `unexpected file ${diagnostic(f.path)}`);
-  ok(!seen.has(f.path), `duplicate manifest file ${diagnostic(f.path)}`);
-  seen.add(f.path);
-  const data = readDirect(f.path);
-  ok(f.sha256 === crypto.createHash("sha256").update(data).digest("hex"), `sha mismatch ${f.path}`);
-  ok(f.sizeBytes === data.length, `size mismatch ${f.path}`);
-}
-ok(seen.size === expected.size, "manifest file set incomplete");
-
-ok(manifest.trust_boundary.offline_verified === true, "offline verified");
-ok(manifest.trust_boundary.network_fetch === false, "network fetch false");
-ok(manifest.trust_boundary.network_fetch_during_import === false, "network fetch during import false");
-ok(manifest.trust_boundary.trusted_as_network_truth === false, "not network truth");
-
-ok(manifest.safety_boundary.public_routes_only === true, "public routes only");
-ok(manifest.safety_boundary.read_only === true, "read only");
-ok(manifest.safety_boundary.mutation === false, "no mutation");
-ok(manifest.safety_boundary.money_movement === false, "no money movement");
-ok(manifest.safety_boundary.wallet_send === false, "no wallet send");
-ok(manifest.safety_boundary.validator_mutation === false, "no validator mutation");
-
-ok(metadata.public_routes_only === true, "metadata public routes only");
-ok(metadata.read_only === true, "metadata read only");
-ok(metadata.mutation === false, "metadata no mutation");
-ok(metadata.money_movement === false, "metadata no money movement");
-ok(metadata.wallet_send === false, "metadata no wallet send");
-ok(metadata.validator_mutation === false, "metadata no validator mutation");
-ok(metadata.trusted_as_network_truth === false, "metadata not network truth");
-
-console.log("[ok] Demo 003 folder fixture offline verified");
-NODE
-
 if ! python3 - \
   "$FIXTURE_FD" "$FIXTURE_DIR" "$FIXTURE_IDENTITY" \
   "$SEALED_MANIFEST_SHA256" "$SEALED_CHECKSUMS_SHA256" \
-  "$SEALED_README_SHA256" "$SEALED_INDEX_SHA256" "$SEALED_METADATA_SHA256" <<'PY_VISIBLE'
+  "$SEALED_README_SHA256" "$SEALED_INDEX_SHA256" "$SEALED_METADATA_SHA256" <<'PY_SEALED'
+import errno
+import fcntl
 import hashlib
 import os
 import stat
+import subprocess
 import sys
 
 root_fd = int(sys.argv[1])
 pathname = sys.argv[2]
 expected_root = sys.argv[3]
-sealed = {
+expected_sha = {
     "manifest.json": sys.argv[4],
     "sha256sums.txt": sys.argv[5],
     "files/README.txt": sys.argv[6],
     "files/index.html": sys.argv[7],
     "files/metadata.json": sys.argv[8],
 }
+
+MAX_MEMBER_BYTES = 2 * 1024 * 1024
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 O_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
-MAX_MEMBER_BYTES = 2 * 1024 * 1024
+MFD_CLOEXEC = getattr(os, "MFD_CLOEXEC", 0x0001)
+MFD_ALLOW_SEALING = getattr(os, "MFD_ALLOW_SEALING", 0x0002)
+F_ADD_SEALS = getattr(fcntl, "F_ADD_SEALS", 1033)
+F_GET_SEALS = getattr(fcntl, "F_GET_SEALS", 1034)
+F_SEAL_SEAL = getattr(fcntl, "F_SEAL_SEAL", 0x0001)
+F_SEAL_SHRINK = getattr(fcntl, "F_SEAL_SHRINK", 0x0002)
+F_SEAL_GROW = getattr(fcntl, "F_SEAL_GROW", 0x0004)
+F_SEAL_WRITE = getattr(fcntl, "F_SEAL_WRITE", 0x0008)
+REQUIRED_SEALS = F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE
+
+def fail(message):
+    raise SystemExit(message)
 
 def root_identity(st):
     return ":".join(
@@ -867,74 +690,32 @@ def file_identity(st):
         )
     )
 
-opened_root = os.fstat(root_fd)
-euid = os.geteuid()
-try:
-    visible_root = os.stat(pathname, follow_symlinks=False)
-except FileNotFoundError:
-    raise SystemExit("terminal_fixture_root_disappeared")
+def read_bound_child(parent_fd, leaf, rel, expected):
+    euid = os.geteuid()
+    listed = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISREG(listed.st_mode)
+        or stat.S_ISLNK(listed.st_mode)
+        or listed.st_uid != euid
+        or listed.st_nlink != 1
+        or listed.st_mode & 0o022
+        or listed.st_size <= 0
+        or listed.st_size > MAX_MEMBER_BYTES
+    ):
+        fail("snapshot_child_custody_invalid:" + rel)
 
-if (
-    not stat.S_ISDIR(opened_root.st_mode)
-    or not stat.S_ISDIR(visible_root.st_mode)
-    or stat.S_ISLNK(visible_root.st_mode)
-    or root_identity(opened_root) != expected_root
-    or root_identity(visible_root) != expected_root
-):
-    raise SystemExit("terminal_fixture_root_identity_mismatch")
-
-files_fd = os.open(
-    "files",
-    os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
-    dir_fd=root_fd,
-)
-opened_files_dir = os.fstat(files_fd)
-visible_files_dir = os.stat("files", dir_fd=root_fd, follow_symlinks=False)
-if (
-    not stat.S_ISDIR(opened_files_dir.st_mode)
-    or not stat.S_ISDIR(visible_files_dir.st_mode)
-    or stat.S_ISLNK(visible_files_dir.st_mode)
-    or opened_files_dir.st_uid != euid
-    or opened_files_dir.st_mode & 0o022
-    or root_identity(opened_files_dir) != root_identity(visible_files_dir)
-):
-    raise SystemExit("terminal_files_directory_identity_mismatch")
-
-opened_children = []
-try:
-    for rel, expected_sha in sealed.items():
-        if rel.startswith("files/"):
-            parent_fd = files_fd
-            leaf = rel.split("/", 1)[1]
-        else:
-            parent_fd = root_fd
-            leaf = rel
-
-        listed = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
-        if (
-            not stat.S_ISREG(listed.st_mode)
-            or stat.S_ISLNK(listed.st_mode)
-            or listed.st_nlink != 1
-        ):
-            raise SystemExit("terminal_child_type_invalid:" + rel)
-        if listed.st_uid != euid or listed.st_mode & 0o022:
-            raise SystemExit("terminal_child_custody_invalid:" + rel)
-        if listed.st_size <= 0 or listed.st_size > MAX_MEMBER_BYTES:
-            raise SystemExit("terminal_child_size_invalid:" + rel)
-
-        child_fd = os.open(
-            leaf,
-            os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC,
-            dir_fd=parent_fd,
-        )
-        opened_children.append(
-            (rel, parent_fd, leaf, child_fd, None, None)
-        )
+    child_fd = os.open(
+        leaf,
+        os.O_RDONLY | O_NOFOLLOW | O_CLOEXEC,
+        dir_fd=parent_fd,
+    )
+    try:
         opened = os.fstat(child_fd)
         if file_identity(opened) != file_identity(listed):
-            raise SystemExit("terminal_child_identity_mismatch:" + rel)
+            fail("snapshot_child_identity_mismatch:" + rel)
 
         digest = hashlib.sha256()
+        chunks = []
         total = 0
         while True:
             chunk = os.read(child_fd, 65536)
@@ -942,8 +723,9 @@ try:
                 break
             total += len(chunk)
             if total > MAX_MEMBER_BYTES:
-                raise SystemExit("terminal_child_read_limit_exceeded:" + rel)
+                fail("snapshot_child_read_limit_exceeded:" + rel)
             digest.update(chunk)
+            chunks.append(chunk)
 
         after = os.fstat(child_fd)
         visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
@@ -952,148 +734,279 @@ try:
             or file_identity(opened) != file_identity(after)
             or file_identity(after) != file_identity(visible)
         ):
-            raise SystemExit("terminal_child_changed_during_read:" + rel)
-        validated_digest = digest.hexdigest()
-        if validated_digest != expected_sha:
-            raise SystemExit("terminal_child_digest_mismatch:" + rel)
-        opened_children[-1] = (
-            rel,
+            fail("snapshot_child_changed_during_read:" + rel)
+        if digest.hexdigest() != expected:
+            fail("snapshot_child_digest_mismatch:" + rel)
+        return b"".join(chunks)
+    finally:
+        os.close(child_fd)
+
+def create_sealed_memfd(label, data):
+    if not hasattr(os, "memfd_create"):
+        fail("sealed_snapshot_memfd_unavailable")
+    fd = os.memfd_create(
+        "void-demo003-" + label.replace("/", "-"),
+        MFD_CLOEXEC | MFD_ALLOW_SEALING,
+    )
+    try:
+        offset = 0
+        while offset < len(data):
+            count = os.write(fd, data[offset:])
+            if count <= 0:
+                fail("sealed_snapshot_short_write:" + label)
+            offset += count
+
+        fcntl.fcntl(fd, F_ADD_SEALS, REQUIRED_SEALS)
+        actual_seals = fcntl.fcntl(fd, F_GET_SEALS)
+        if actual_seals & REQUIRED_SEALS != REQUIRED_SEALS:
+            fail("sealed_snapshot_seals_missing:" + label)
+
+        rebound = os.pread(fd, len(data) + 1, 0)
+        if rebound != data:
+            fail("sealed_snapshot_bytes_mismatch:" + label)
+
+        try:
+            os.pwrite(fd, b"x", 0)
+        except OSError as error:
+            if error.errno not in (errno.EPERM, errno.EBADF):
+                fail("sealed_snapshot_write_rejection_invalid:" + label)
+        else:
+            fail("sealed_snapshot_write_not_rejected:" + label)
+
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+opened_root = os.fstat(root_fd)
+try:
+    visible_root = os.stat(pathname, follow_symlinks=False)
+except FileNotFoundError:
+    fail("snapshot_fixture_root_disappeared")
+
+if (
+    not stat.S_ISDIR(opened_root.st_mode)
+    or not stat.S_ISDIR(visible_root.st_mode)
+    or stat.S_ISLNK(visible_root.st_mode)
+    or root_identity(opened_root) != expected_root
+    or root_identity(visible_root) != expected_root
+):
+    fail("snapshot_fixture_root_identity_mismatch")
+
+files_fd = os.open(
+    "files",
+    os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
+    dir_fd=root_fd,
+)
+snapshot_fds = {}
+try:
+    opened_files = os.fstat(files_fd)
+    visible_files = os.stat("files", dir_fd=root_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISDIR(opened_files.st_mode)
+        or not stat.S_ISDIR(visible_files.st_mode)
+        or stat.S_ISLNK(visible_files.st_mode)
+        or opened_files.st_uid != os.geteuid()
+        or opened_files.st_mode & 0o022
+        or root_identity(opened_files) != root_identity(visible_files)
+    ):
+        fail("snapshot_files_directory_custody_invalid")
+
+    snapshot_bytes = {}
+    for rel, expected in expected_sha.items():
+        if rel.startswith("files/"):
+            parent_fd = files_fd
+            leaf = rel.split("/", 1)[1]
+        else:
+            parent_fd = root_fd
+            leaf = rel
+        snapshot_bytes[rel] = read_bound_child(
             parent_fd,
             leaf,
-            child_fd,
-            file_identity(after),
-            validated_digest,
+            rel,
+            expected,
         )
 
-    visible_root = os.stat(pathname, follow_symlinks=False)
-    if root_identity(visible_root) != expected_root:
-        raise SystemExit("terminal_fixture_root_changed_before_green")
+    for rel, data in snapshot_bytes.items():
+        snapshot_fds[rel] = create_sealed_memfd(rel, data)
 
-    visible_files_dir = os.stat(
-        "files",
-        dir_fd=root_fd,
-        follow_symlinks=False,
-    )
-    if (
-        not stat.S_ISDIR(visible_files_dir.st_mode)
-        or stat.S_ISLNK(visible_files_dir.st_mode)
-        or root_identity(os.fstat(files_fd)) !=
-          root_identity(opened_files_dir)
-        or root_identity(visible_files_dir) !=
-          root_identity(opened_files_dir)
+    # SEALED_SNAPSHOT_READY_FOR_SEMANTIC_VERIFY
+    node_source = r"""
+const fs = require("fs");
+const crypto = require("crypto");
+
+const maxFileBytes = 2 * 1024 * 1024;
+const raw = process.argv.slice(2);
+
+function ok(value, message) {
+  if (!value) {
+    console.error("[fail]", message);
+    process.exit(1);
+  }
+}
+
+ok(raw.length === 15, "sealed snapshot argument count");
+
+const buffers = new Map();
+const digests = new Map();
+for (let index = 0; index < raw.length; index += 3) {
+  const rel = raw[index];
+  const fd = Number(raw[index + 1]);
+  const expectedSha = raw[index + 2];
+  ok(Number.isInteger(fd) && fd >= 0, "invalid sealed snapshot fd " + rel);
+  ok(/^[0-9a-f]{64}$/.test(expectedSha), "invalid sealed snapshot digest " + rel);
+  const st = fs.fstatSync(fd, { bigint: true });
+  ok(st.isFile(), "sealed snapshot not regular file " + rel);
+  ok(st.size > 0n && st.size <= BigInt(maxFileBytes), "sealed snapshot size " + rel);
+  const data = fs.readFileSync("/proc/self/fd/" + fd);
+  ok(BigInt(data.length) === st.size, "sealed snapshot byte count " + rel);
+  const digest = crypto.createHash("sha256").update(data).digest("hex");
+  ok(digest === expectedSha, "sealed snapshot digest mismatch " + rel);
+  buffers.set(rel, data);
+  digests.set(rel, digest);
+}
+
+function readDirect(rel) {
+  const value = buffers.get(rel);
+  ok(Buffer.isBuffer(value), "sealed snapshot missing " + rel);
+  return value;
+}
+
+function readJson(rel) {
+  return JSON.parse(readDirect(rel).toString("utf8"));
+}
+
+function sha256File(rel) {
+  return crypto.createHash("sha256").update(readDirect(rel)).digest("hex");
+}
+
+const checksumExpected = new Set([
+  "./manifest.json",
+  "./files/README.txt",
+  "./files/index.html",
+  "./files/metadata.json",
+]);
+const checksumLines = readDirect("sha256sums.txt")
+  .toString("utf8")
+  .trimEnd()
+  .split("\n");
+ok(checksumLines.length === checksumExpected.size, "checksum line count");
+const checksumSeen = new Set();
+for (const line of checksumLines) {
+  const match = /^([a-f0-9]{64})  (\.\/(?:manifest\.json|files\/(?:README\.txt|index\.html|metadata\.json)))$/.exec(line);
+  ok(match, "invalid checksum line " + JSON.stringify(line));
+  const rel = match[2];
+  ok(checksumExpected.has(rel), "unexpected checksum path " + rel);
+  ok(!checksumSeen.has(rel), "duplicate checksum path " + rel);
+  checksumSeen.add(rel);
+  ok(match[1] === sha256File(rel.slice(2)), "checksum mismatch " + rel);
+}
+ok(checksumSeen.size === checksumExpected.size, "checksum set incomplete");
+
+const manifest = readJson("manifest.json");
+const metadata = readJson("files/metadata.json");
+
+ok(
+  manifest.marker ===
+    "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_MANIFEST_V1",
+  "manifest marker",
+);
+ok(
+  manifest.fixture_marker ===
+    "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_V1",
+  "fixture marker",
+);
+ok(manifest.object_set_id === "demo003-folder-fixture-v1", "object set id");
+ok(manifest.file_count === 3, "file count");
+ok(Array.isArray(manifest.files) && manifest.files.length === 3, "files array");
+
+const expected = new Set([
+  "files/README.txt",
+  "files/index.html",
+  "files/metadata.json",
+]);
+const seen = new Set();
+for (const row of manifest.files) {
+  ok(row && typeof row === "object", "invalid manifest file row");
+  ok(expected.has(row.path), "unexpected file " + JSON.stringify(row.path));
+  ok(!seen.has(row.path), "duplicate manifest file " + JSON.stringify(row.path));
+  seen.add(row.path);
+  const data = readDirect(row.path);
+  ok(
+    row.sha256 === crypto.createHash("sha256").update(data).digest("hex"),
+    "sha mismatch " + row.path,
+  );
+  ok(row.sizeBytes === data.length, "size mismatch " + row.path);
+}
+ok(seen.size === expected.size, "manifest file set incomplete");
+
+ok(manifest.trust_boundary.offline_verified === true, "offline verified");
+ok(manifest.trust_boundary.network_fetch === false, "network fetch false");
+ok(
+  manifest.trust_boundary.network_fetch_during_import === false,
+  "network fetch during import false",
+);
+ok(
+  manifest.trust_boundary.trusted_as_network_truth === false,
+  "not network truth",
+);
+
+ok(manifest.safety_boundary.public_routes_only === true, "public routes only");
+ok(manifest.safety_boundary.read_only === true, "read only");
+ok(manifest.safety_boundary.mutation === false, "no mutation");
+ok(manifest.safety_boundary.money_movement === false, "no money movement");
+ok(manifest.safety_boundary.wallet_send === false, "no wallet send");
+ok(manifest.safety_boundary.validator_mutation === false, "no validator mutation");
+
+ok(metadata.public_routes_only === true, "metadata public routes only");
+ok(metadata.read_only === true, "metadata read only");
+ok(metadata.mutation === false, "metadata no mutation");
+ok(metadata.money_movement === false, "metadata no money movement");
+ok(metadata.wallet_send === false, "metadata no wallet send");
+ok(metadata.validator_mutation === false, "metadata no validator mutation");
+ok(metadata.trusted_as_network_truth === false, "metadata not network truth");
+
+console.log("[ok] sealed Demo 003 snapshot offline verified");
+"""
+
+    node_args = ["node", "-"]
+    for rel in (
+        "manifest.json",
+        "sha256sums.txt",
+        "files/README.txt",
+        "files/index.html",
+        "files/metadata.json",
     ):
-        raise SystemExit("terminal_files_directory_changed_before_green")
-
-    for (
-        rel,
-        parent_fd,
-        leaf,
-        child_fd,
-        validated_identity,
-        validated_digest,
-    ) in opened_children:
-        if validated_identity is None or validated_digest != sealed[rel]:
-            raise SystemExit("terminal_child_validated_state_missing:" + rel)
-
-        opened = os.fstat(child_fd)
-        visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
-        if (
-            file_identity(opened) != validated_identity
-            or file_identity(visible) != validated_identity
-        ):
-            raise SystemExit(
-                "terminal_child_state_changed_before_green:" + rel
-            )
-        if (
-            opened.st_uid != euid
-            or opened.st_mode & 0o022
-            or visible.st_uid != euid
-            or visible.st_mode & 0o022
-        ):
-            raise SystemExit(
-                "terminal_child_custody_changed_before_green:" + rel
-            )
-
-    for (
-        rel,
-        parent_fd,
-        leaf,
-        child_fd,
-        validated_identity,
-        validated_digest,
-    ) in reversed(opened_children):
-        opened = os.fstat(child_fd)
-        visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
-        if (
-            file_identity(opened) != validated_identity
-            or file_identity(visible) != validated_identity
-        ):
-            raise SystemExit(
-                "terminal_child_second_pass_state_changed:" + rel
-            )
-        if (
-            opened.st_uid != euid
-            or opened.st_mode & 0o022
-            or visible.st_uid != euid
-            or visible.st_mode & 0o022
-        ):
-            raise SystemExit(
-                "terminal_child_second_pass_custody_changed:" + rel
-            )
-
-        second_digest = hashlib.sha256()
-        second_total = 0
-        second_offset = 0
-        while True:
-            chunk = os.pread(child_fd, 65536, second_offset)
-            if not chunk:
-                break
-            second_total += len(chunk)
-            if second_total > MAX_MEMBER_BYTES:
-                raise SystemExit(
-                    "terminal_child_second_pass_read_limit_exceeded:" + rel
-                )
-            second_digest.update(chunk)
-            second_offset += len(chunk)
-
-        after = os.fstat(child_fd)
-        visible_after = os.stat(
-            leaf,
-            dir_fd=parent_fd,
-            follow_symlinks=False,
+        node_args.extend(
+            [rel, str(snapshot_fds[rel]), expected_sha[rel]]
         )
-        if (
-            second_total != after.st_size
-            or file_identity(after) != validated_identity
-            or file_identity(visible_after) != validated_identity
-        ):
-            raise SystemExit(
-                "terminal_child_second_pass_changed_during_read:" + rel
-            )
-        if second_digest.hexdigest() != validated_digest:
-            raise SystemExit(
-                "terminal_child_second_pass_digest_mismatch:" + rel
-            )
 
-    visible_root = os.stat(pathname, follow_symlinks=False)
-    visible_files_dir = os.stat(
-        "files",
-        dir_fd=root_fd,
-        follow_symlinks=False,
+    result = subprocess.run(
+        node_args,
+        input=node_source.encode("utf8"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        pass_fds=tuple(snapshot_fds.values()),
+        check=False,
     )
-    if (
-        root_identity(visible_root) != expected_root
-        or root_identity(os.fstat(files_fd)) !=
-          root_identity(opened_files_dir)
-        or root_identity(visible_files_dir) !=
-          root_identity(opened_files_dir)
-    ):
-        raise SystemExit("terminal_namespace_changed_before_green")
+    if result.stdout:
+        sys.stdout.buffer.write(result.stdout)
+    if result.returncode != 0:
+        if result.stderr:
+            sys.stderr.buffer.write(result.stderr)
+        fail("sealed_snapshot_semantic_verify_failed")
+
+    for rel, fd in snapshot_fds.items():
+        actual_seals = fcntl.fcntl(fd, F_GET_SEALS)
+        if actual_seals & REQUIRED_SEALS != REQUIRED_SEALS:
+            fail("sealed_snapshot_seals_changed:" + rel)
 
     print("fixture_dir=" + pathname)
-    print("semantic_verify_descriptor_bound=true")
-    print("semantic_verify_child_bytes_sealed=true")
-    print("terminal_child_seals_verified=true")
+    print("verified_content_authority=sealed_memfd_snapshot")
+    print("semantic_verify_sealed_memfd_snapshot=true")
+    print("sealed_snapshot_child_count=5")
+    print("sealed_snapshot_write_protected=true")
+    print("visible_extraction_tree_trusted=false")
     print("archive_member_preflight=true")
     print("archive_exact_member_set=true")
     print("archive_links_rejected=true")
@@ -1108,13 +1021,13 @@ try:
     print("VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN")
     sys.stdout.flush()
 finally:
-    for child_record in opened_children:
-        os.close(child_record[3])
+    for fd in snapshot_fds.values():
+        os.close(fd)
     os.close(files_fd)
-PY_VISIBLE
+PY_SEALED
 then
   exec {FIXTURE_FD}<&-
-  echo "[fail] Demo003 terminal sealed child verification failed" >&2
+  echo "[fail] Demo003 sealed snapshot verification failed" >&2
   exit 2
 fi
 
