@@ -23,9 +23,10 @@ export const VOID_COUPLED_NATIVE_GAS_LIABILITY_RECONCILIATION_AUTHORITY_V1 =
     exact_liability_terminal_evidence_binding_required: true,
     consumed_reserve_retirement_candidate_classified: true,
     unused_reserve_release_candidate_classified: true,
-    reverted_future_attempt_envelope_preserved: true,
+    current_buy_void_attempt_limit_one_required: true,
+    multi_attempt_reconciliation_authority: false,
+    reverted_retry_requires_new_liability: true,
     confirmed_future_attempt_allowance_zero: true,
-    additional_attempt_requires_reserved_allowance_or_new_liability: true,
     liability_store_binding_verified: false,
     liability_store_mutation: false,
     liability_release_authorized: false,
@@ -132,9 +133,9 @@ export type CoupledNativeGasLiabilityReconciliationVerifiedV1 = {
   transaction_plan_fingerprint_sha256: string;
   terminal_cost_evidence_id: string;
   outcome: "confirmed" | "reverted";
-  attempt_limit: 1 | 2;
+  attempt_limit: 1;
   completed_attempt_count: 1;
-  remaining_attempt_allowance: 0 | 1;
+  remaining_attempt_allowance: 0;
   one_attempt_maximum_wei: string;
   maximum_reserved_wei: string;
   actual_consumed_wei: string;
@@ -561,10 +562,16 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
       liability,
     );
 
+    if (liability.attempt_limit !== 1) {
+      return held(
+        "coupled_native_gas_reconciliation_attempt_limit_not_supported",
+      );
+    }
+
     const nativeValue = BigInt(liability.transaction_native_value_wei);
     const gasLimit = BigInt(liability.gas_limit);
     const maxFee = BigInt(liability.admitted_max_fee_per_gas_wei);
-    const attemptLimit = liability.attempt_limit;
+    const attemptLimit = 1 as const;
     const oneAttemptMaximum = nativeValue + gasLimit * maxFee;
     const maximumReserved = BigInt(liability.maximum_reserved_wei);
     const actualConsumed = BigInt(evidence.liability_consumed_wei);
@@ -575,22 +582,12 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
     }
 
     const unconsumed = maximumReserved - actualConsumed;
-    const remainingAttemptAllowance: 0 | 1 =
-      evidence.outcome === "reverted" && attemptLimit === 2 ? 1 : 0;
-    const retainedFutureAttemptReserve =
-      oneAttemptMaximum * BigInt(remainingAttemptAllowance);
-    if (retainedFutureAttemptReserve > unconsumed) {
-      return held(
-        "coupled_native_gas_reconciliation_retry_reserve_exceeds_unconsumed",
-      );
-    }
-    const unusedReleaseCandidate =
-      unconsumed - retainedFutureAttemptReserve;
-    const terminalCloseCandidate =
-      retainedFutureAttemptReserve === 0n;
+    const remainingAttemptAllowance = 0 as const;
+    const retainedFutureAttemptReserve = 0n;
+    const unusedReleaseCandidate = unconsumed;
+    const terminalCloseCandidate = true;
     const additionalAttemptRequiresNewLiability =
-      evidence.outcome === "reverted" &&
-      remainingAttemptAllowance === 0;
+      evidence.outcome === "reverted";
 
     const body = {
       schema: RECONCILIATION_SCHEMA,
