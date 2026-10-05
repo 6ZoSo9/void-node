@@ -11,6 +11,8 @@ import {
   createVoidEconomicSystemSponsoredObservationTimeStoreV1,
 } from "../tools/void-economic-system-sponsored-observation-time-store-v1.mjs";
 import {
+  canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1,
+  createVoidEconomicSystemSponsoredObservationTimeV1,
   verifyVoidEconomicSystemSponsoredObservationTimeReceiptV1,
 } from "../tools/void-economic-system-sponsored-observation-time-v1.mjs";
 
@@ -95,6 +97,23 @@ function requireHeld(value, reason = null) {
   return value;
 }
 
+function requirePreview(value) {
+  assert.equal(value.ok, true, JSON.stringify(value));
+  assert.equal(value.status, "source_previewed");
+  assert.equal(value.mutation_performed, false);
+  assert.equal(value.observation_performed, true);
+  assert.equal(value.preview_only, true);
+  assert.equal(value.durable_time_authority_advanced, false);
+  assert.equal(value.candidate_receipt_persisted, false);
+  assert.equal(value.durable_receipt_store_source_verified, true);
+  assert.equal(value.live_durable_receipt_storage_proven, false);
+  assert.equal(value.runtime_enforcement_verified, false);
+  assert.equal(value.gas_sponsorship_performed, false);
+  assert.equal(value.transaction_submission, false);
+  assert.equal(value.funds_movement, false);
+  return value;
+}
+
 function canonicalJson(value) {
   if (value === null) return "null";
   if (typeof value === "string") return JSON.stringify(value);
@@ -154,10 +173,166 @@ for (const [key, value] of Object.entries(
     "descriptor_bound_reads",
     "create_once_publication",
     "historical_receipts_retained",
+    "non_mutating_preview_source_verified",
+    "preview_requires_stable_history",
     "filesystem_read",
     "filesystem_write",
   ]);
   assert.equal(value, trueKeys.has(key), key);
+}
+
+{
+  const f = fixture();
+  try {
+    const clock = clockQueue([sample()]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock: clock.clock,
+      });
+    const preview = requirePreview(store.preview());
+    assert.equal(preview.durable_receipt_count, 0);
+    assert.equal(preview.prior_head_receipt_sha256, null);
+    assert.equal(preview.candidate_generation, "0");
+    assert.equal(preview.accepted_observed_at_ms, BASE_WALL);
+    assert.equal(clock.calls(), 1);
+    assert.equal(fs.readdirSync(f.records).length, 0);
+    assert.equal(store.inspect().durable_receipt_count, 0);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const clock = clockQueue([
+      sample(),
+      sample({
+        wall: BASE_WALL + 1000,
+        mono: BASE_MONO + 1_000_000_000n,
+      }),
+    ]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock: clock.clock,
+      });
+    const first = requireOk(await store.observe());
+    const beforeNames = fs.readdirSync(f.records).sort();
+    const preview = requirePreview(store.preview());
+    assert.equal(preview.durable_receipt_count, 1);
+    assert.equal(
+      preview.prior_head_receipt_sha256,
+      first.head_receipt_sha256,
+    );
+    assert.equal(preview.candidate_generation, "1");
+    assert.equal(
+      preview.accepted_observed_at_ms,
+      BASE_WALL + 1000,
+    );
+    assert.deepEqual(fs.readdirSync(f.records).sort(), beforeNames);
+    assert.equal(clock.calls(), 2);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const clock = clockQueue([sample()]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock: clock.clock,
+      });
+    requireHeld(
+      store.preview({ observed_at_ms: BASE_WALL }),
+      "SPONSORED_OBSERVATION_TIME_STORE_REQUEST_INPUT_FORBIDDEN",
+    );
+    assert.equal(clock.calls(), 0);
+    assert.equal(fs.readdirSync(f.records).length, 0);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const tempPath = path.join(
+      f.records,
+      "." +
+        "a".repeat(64) +
+        ".json.tmp-" +
+        process.pid +
+        "-0123456789abcdef",
+    );
+    fs.writeFileSync(tempPath, Buffer.alloc(0), { mode: 0o600 });
+    const clock = clockQueue([sample()]);
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock: clock.clock,
+      });
+    requireHeld(
+      store.preview(),
+      "SPONSORED_OBSERVATION_TIME_STORE_RECOVERY_REQUIRED",
+    );
+    assert.equal(clock.calls(), 0);
+    assert.equal(fs.existsSync(tempPath), true);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const externalSource =
+      createVoidEconomicSystemSponsoredObservationTimeV1({
+        trustedClock: () => sample(),
+      });
+    const external = externalSource.observe({
+      prior_receipt: null,
+    });
+    assert.equal(external.ok, true);
+    const externalBytes =
+      canonicalVoidEconomicSystemSponsoredObservationTimeReceiptBytesV1(
+        external.receipt,
+      );
+    const externalName =
+      external.receipt.receipt_sha256.slice("sha256:".length) +
+      ".json";
+    let clockCalls = 0;
+    const store =
+      createVoidEconomicSystemSponsoredObservationTimeStoreV1({
+        root_dir: f.root,
+        trustedClock() {
+          clockCalls += 1;
+          fs.writeFileSync(
+            path.join(f.records, externalName),
+            externalBytes,
+            { mode: 0o600, flag: "wx" },
+          );
+          return sample();
+        },
+      });
+    const held = requireHeld(
+      store.preview(),
+      "SPONSORED_OBSERVATION_TIME_STORE_PREVIEW_HISTORY_CHANGED",
+    );
+    assert.equal(held.mutation_performed, false);
+    assert.equal(held.observation_performed, true);
+    assert.equal(clockCalls, 1);
+    assert.equal(
+      fs.existsSync(path.join(f.records, externalName)),
+      true,
+    );
+  } finally {
+    cleanup(f);
+  }
 }
 
 {
@@ -679,6 +854,12 @@ assert.match(
 );
 assert.match(source, /prior_receipt: before\.head\?\.receipt \|\| null/u);
 assert.match(source, /args\.length !== 0/u);
+assert.match(source, /preview\.\.\.args/u);
+assert.match(source, /durable_time_authority_advanced: false/u);
+assert.match(
+  source,
+  /SPONSORED_OBSERVATION_TIME_STORE_PREVIEW_HISTORY_CHANGED/u,
+);
 assert.match(source, /O_NOFOLLOW/u);
 assert.match(source, /O_DIRECTORY/u);
 assert.match(source, /fs\.fsyncSync/u);
@@ -710,6 +891,12 @@ console.log("forked_or_discontinuous_history_hold=true");
 console.log("changed_chain_baseline_hold=true");
 console.log("crash_temp_recovery=true");
 console.log("read_only_temp_cleanup=false");
+console.log("non_mutating_preview_source_verified=true");
+console.log("preview_durable_time_authority_advanced=false");
+console.log("preview_requires_stable_history=true");
+console.log("preview_request_timestamp_input=false");
+console.log("preview_recovery_cleanup=false");
+console.log("preview_concurrent_head_change_holds=true");
 console.log("boot_change_holds=true");
 console.log("preprovisioned_lock_queue_required=true");
 console.log("missing_lock_queue_does_not_bootstrap=true");
