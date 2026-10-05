@@ -360,6 +360,15 @@ for (const mutate of [
 }
 
 {
+  const bad = cloneEvidence() as any;
+  bad.host.custody_uid = String(CUSTODY_UID);
+  expectHeld(
+    classify(bad),
+    "allocation_custody_service_uid_invalid",
+  );
+}
+
+{
   const bad = cloneEvidence();
   bad.service_hardening.unit_sha256 =
     "sha256:" + "1".repeat(64);
@@ -468,6 +477,7 @@ console.log("systemd_hardening_required=true");
 console.log("negative_probe_evidence_required=true");
 console.log("freshness_required=true");
 console.log("caller_bound_evidence_generation=true");
+console.log("typed_json_integer_evidence_required=true");
 console.log("reviewed_service_unit_sha256_required=true");
 console.log("live_host_observation=false");
 console.log("live_host_qualification=false");
