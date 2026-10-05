@@ -150,6 +150,10 @@ The writer requires the post-publication census to preserve:
 
 It additionally requires:
 
+- every pre-existing reconciliation filename, byte length, SHA-256 and retained
+  file identity remains exact after publication;
+- the reconciliation history gains exactly one new canonical target record and
+  no unrelated record is added, removed or replaced;
 - reconciled liability count increases by exactly one;
 - effective-open liability count decreases by exactly one;
 - target liability moves from effective-open to reconciled;
@@ -205,7 +209,9 @@ git diff --check
 
 The focused proof covers first publication, exact replay with fresh
 reauthentication, conflicting replay evidence HOLD, resolver HOLD before
-mutation, concurrent history drift HOLD, missing reconciliation storage HOLD,
+mutation, concurrent history drift HOLD, post-publication unrelated
+reconciliation replacement HOLD even when aggregate census math is preserved,
+missing reconciliation storage HOLD,
 post-publication failure truth, pre-link stale-temp cleanup, same-inode
 post-link temp cleanup with truthful mutation reporting, filename/row identity
 mismatch HOLD, recovery by authenticated idempotent replay, idempotent
