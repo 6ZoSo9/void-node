@@ -189,7 +189,7 @@ function makeReconciliation(
   } = {},
 ): CoupledNativeGasLiabilityReconciliationVerifiedV1 {
   const maximum = BigInt(liability.maximum_reserved_wei);
-  const actual = BigInt(input.actual_consumed_wei ?? "100001");
+  const actual = BigInt(input.actual_consumed_wei ?? "105001");
   if (actual > maximum) throw new Error("fixture_actual_exceeds_maximum");
   const unused = maximum - actual;
   const oneAttempt =
@@ -291,10 +291,10 @@ assert.equal(baseline.effective_open_liability_count, 2);
 assert.equal(baseline.wc_void_effective_open_liability_count, 1);
 assert.equal(baseline.historical_maximum_reserved_wei, "1140002");
 assert.equal(baseline.reconciled_maximum_reserved_wei, "210001");
-assert.equal(baseline.reconciled_actual_consumed_wei, "100001");
+assert.equal(baseline.reconciled_actual_consumed_wei, "105001");
 assert.equal(
   baseline.reconciled_unused_release_candidate_wei,
-  "110000",
+  "105000",
 );
 assert.equal(baseline.effective_open_reserved_wei, "930001");
 assert.deepEqual(
@@ -436,6 +436,19 @@ requireHeld(
     payer_address: payer,
     liabilities: [first],
     reconciliations: [badAccounting],
+  }),
+  "coupled_native_gas_effective_open_reconciliation_accounting_invalid",
+);
+
+requireHeld(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [first],
+    reconciliations: [
+      makeReconciliation(first, {
+        actual_consumed_wei: "100001",
+      }),
+    ],
   }),
   "coupled_native_gas_effective_open_reconciliation_accounting_invalid",
 );
