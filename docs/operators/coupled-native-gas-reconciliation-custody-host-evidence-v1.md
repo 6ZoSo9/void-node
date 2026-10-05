@@ -38,7 +38,10 @@ mutation.
 
 It reads:
 
-- `/proc/<pid>/status` for effective UID/GID/groups/capabilities;
+- `/proc/<pid>/status` for effective UID/GID/groups/capabilities and
+  `NoNewPrivs`;
+- `/proc/<pid>/stat` for process start-time identity, preventing PID reuse
+  from being treated as the same authorization subject;
 - `/proc/<pid>/ns/mnt` for mount-namespace identity;
 - `/proc/<custody-pid>/mountinfo`;
 - payer-root/ancestor/child metadata with no-follow descriptor checks;
@@ -46,7 +49,7 @@ It reads:
 - `systemctl show` and `systemctl cat` metadata;
 - `findmnt --target ... --output UUID`;
 - one noninteractive `pkcheck` authorization query; and
-- the kernel boot ID, which is emitted only as SHA-256.
+- the kernel boot ID and machine ID, which are emitted only as SHA-256.
 
 The collector reuses
 `parseMountInfoV1(...)` and `resolveMountForPathV1(...)` from the existing
@@ -101,9 +104,11 @@ namespace.
 Payer-root rename/recreate/symlink-substitution denial is derived from the
 runtime's effective UID/GID/groups and the parent-directory permission bits.
 
-Systemd service-control denial is obtained with a noninteractive Polkit
-authorization query. If the query is unavailable or returns an indeterminate
-error, collection HOLDS.
+Systemd service-control denial is obtained with noninteractive Polkit
+authorization queries for the exact custody unit and the `start`, `stop`,
+and `restart` verbs. The Polkit subject is bound as
+`PID,start-time,UID`, not PID alone. If any query is authorized, unavailable,
+or indeterminate, collection HOLDS.
 
 These observations still do not prove a globally trusted security boundary.
 They are bounded host evidence supplied to #2499.
@@ -131,8 +136,8 @@ and main PID must remain unchanged across the observation window.
 
 ## Freshness and remaining trust gaps
 
-The observation uses a bounded two-minute source TTL and binds a hashed boot ID.
-Its evidence generation is derived from the observation timestamp.
+The observation uses a bounded two-minute source TTL and binds hashed boot and
+machine IDs. Its evidence generation is derived from the observation timestamp.
 
 That is useful replay context, but V1 **does not** claim a trusted clock or a
 monotonic evidence-generation authority.
@@ -167,6 +172,7 @@ The proof covers:
 - authority flags;
 - proc-status parsing;
 - systemd-show parsing;
+- proc start-time parsing and `NoNewPrivs` evidence;
 - designated-host mismatch HOLD;
 - mountinfo drift HOLD;
 - mount-namespace drift HOLD;
