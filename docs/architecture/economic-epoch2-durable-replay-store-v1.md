@@ -127,9 +127,16 @@ Its proof requires:
   authorities remain false.
 
 The cross-epoch replay promotion function now hard-requires this bridge. A
-caller cannot repin the replay-store source and reuse the historical canary
-without supplying a bridge whose successor blob matches the current canonical
+caller cannot repin the replay-store source and promote replay evidence without
+supplying a bridge whose successor blob matches the current canonical
 source-binding policy.
+
+Source equivalence itself is receipt-independent: a later fresh runtime-evidence
+receipt may use the same reviewed old/new source bridge. The committed-real
+promotion proof separately requires the bridge's historical evidence
+SHA-256/ID/import time to equal the Sep-29 canary before that specific canary is
+carried forward. Generic synthetic/future receipts are not forced to impersonate
+the Sep-29 import timestamp.
 
 This is intentionally narrower than runtime certification of the new
 `inspectConsumed(...)` helper. Inspection remains source/proof only and
