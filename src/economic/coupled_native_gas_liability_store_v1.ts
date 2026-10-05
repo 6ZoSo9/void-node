@@ -33,6 +33,7 @@ export const VOID_COUPLED_NATIVE_GAS_OPEN_LIABILITY_STORE_AUTHORITY_V1 =
     create_once_publication: true,
     exact_postwrite_census: true,
     exact_idempotent_replay: true,
+    postpublication_failure_reports_mutation: true,
     open_liability_only: true,
     filesystem_read: true,
     filesystem_write: true,
