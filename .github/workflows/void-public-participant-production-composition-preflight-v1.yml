@@ -13,10 +13,14 @@ on:
       - "ops/public/void-public-participant-account-read-projection-v1.mjs"
       - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-participant-live-role-authority-v1.mjs"
       - "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs"
-      - "src/security/participant_role_authority_session_adapter_v1.ts"
-      - "src/security/participant_role_authority_guard_v1.ts"
-      - "src/security/chain2050_role_authority_live_rpc_binding_v1.ts"
+      - "tools/chain2050-role-authority-live-rpc-observer-v1.mjs"
+      - "src/security/participant_role_authority_*.ts"
+      - "src/security/chain2050_role_authority_*.ts"
+      - "tsconfig.build.json"
+      - "package.json"
+      - "package-lock.json"
   push:
     branches: [main]
     paths:
@@ -30,10 +34,14 @@ on:
       - "ops/public/void-public-participant-account-read-projection-v1.mjs"
       - "ops/public/void-public-participant-account-read-http-edge-v1.mjs"
       - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "ops/public/void-public-participant-live-role-authority-v1.mjs"
       - "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs"
-      - "src/security/participant_role_authority_session_adapter_v1.ts"
-      - "src/security/participant_role_authority_guard_v1.ts"
-      - "src/security/chain2050_role_authority_live_rpc_binding_v1.ts"
+      - "tools/chain2050-role-authority-live-rpc-observer-v1.mjs"
+      - "src/security/participant_role_authority_*.ts"
+      - "src/security/chain2050_role_authority_*.ts"
+      - "tsconfig.build.json"
+      - "package.json"
+      - "package-lock.json"
 
 permissions:
   contents: read
@@ -57,11 +65,15 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build reviewed security runtime
+        run: npm run build
       - name: Syntax
         run: |
+          node --check ops/public/void-public-participant-live-role-authority-v1.mjs
+          node --check ops/public/void-public-app-composition-gateway-v1.mjs
           node --check tools/void-public-participant-production-composition-preflight-v1.mjs
           node --check scripts/prove_void_public_participant_production_composition_preflight_v1.mjs
-      - name: Prove production composition source hold
+      - name: Prove production composition source ready
         run: node scripts/prove_void_public_participant_production_composition_preflight_v1.mjs
       - name: Existing participant composition regressions
         if: matrix.node == '24'

@@ -20,6 +20,8 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_AUTHORITY_V1 =
     git_identity_revalidated: true,
     durable_session_contract_review: true,
     role_authority_contract_review: true,
+    live_role_bridge_contract_review: true,
+    compiled_security_runtime_contract_review: true,
     participant_http_contract_review: true,
     account_read_contract_review: true,
     composition_gateway_contract_review: true,
@@ -68,15 +70,29 @@ export const VOID_PUBLIC_PARTICIPANT_PRODUCTION_COMPOSITION_SOURCE_BLOBS_V1 =
     "ops/public/void-public-participant-account-read-http-edge-v1.mjs":
       "583d2e61115916589e30239d1bf5451a525f2996",
     "ops/public/void-public-app-composition-gateway-v1.mjs":
-      "caaaebb8da9e21cf9ac1c429865c931400cb0526",
+      "e97ce051405d5b19a363eaf0834838a0ecef3a10",
+    "ops/public/void-public-participant-live-role-authority-v1.mjs":
+      "5d39171d7c4145c6200225d18f37b401a8b7e022",
     "tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs":
       "684584ad738b18903dff4af2b2edb6dd566a9410",
+    "tools/chain2050-role-authority-live-rpc-observer-v1.mjs":
+      "4853b65d79ba36df1510781e1128337b46497394",
     "src/security/participant_role_authority_session_adapter_v1.ts":
       "ee6323ec1b94794ca10ea6415a605c5f9f6dbddb",
     "src/security/participant_role_authority_guard_v1.ts":
       "5d263d9fd7319f6c536cb6b469d08f7e2a9a41ae",
     "src/security/chain2050_role_authority_live_rpc_binding_v1.ts":
       "f0e2bcac5440542a03ed7b4da7724077fb475a8a",
+    "src/security/chain2050_role_authority_contract_projection_v1.ts":
+      "fc11badd6ceb7a0da7285a812e9e559361501993",
+    "src/security/chain2050_role_authority_read_adapter_v1.ts":
+      "1b1747cef01d38cf447e6b5a6a80bb54736244fd",
+    "src/security/chain2050_role_authority_record_v1.ts":
+      "3a02bb236e68d28844d72c8cc26cbcb0cd13ab7a",
+    "src/security/chain2050_role_authority_registry_read_source_binding_v1.ts":
+      "fe4ebdee01063171c0f5bfee5e36a521870ff17b",
+    "src/security/chain2050_role_authority_registry_v1.ts":
+      "9bfe04f38ac2672f1151395c85a22b017e61ac25",
   });
 
 function fail(code){throw new Error(code);}
@@ -433,15 +449,63 @@ function inspectLivePreflightV1(text){
   return true;
 }
 
+function inspectLiveRoleBridgeV1(text){
+  requireAll(text,[
+    '"VOID_PUBLIC_PARTICIPANT_LIVE_ROLE_AUTHORITY_V1"',
+    '"0xe4e9a5a8e5ac3a99176fcf50ba986a374577de49"',
+    '"b2e1938deb9dd2692a322fd837a5128aeb99d3c33095087c8af8d828a6ed930d"',
+    '"a6ecf042569223cc1d56b3e2cc3350206a0abd6352b009212b6540699f7c57f6"',
+    '"participant-role-authority-mainnet0-live-v1"',
+    "confirmation_depth: 12",
+    '"chain2050_role_authority_live_rpc_binding_v1.js"',
+    '"participant_role_authority_session_adapter_v1.js"',
+    "createChain2050RoleAuthorityLiveRpcObserverV1",
+    "createChain2050RoleAuthorityLiveRpcBindingV1",
+    "createParticipantRoleAuthoritySessionAdapterV1",
+    'required_role: "AGENT"',
+    "compiled_reviewed_security_modules_required: true",
+    "loopback_read_only_role_rpc_required: true",
+    "credential_access: false",
+    "private_key_access: false",
+    "wallet_or_signer_access: false",
+    "transaction_signing: false",
+    "transaction_broadcast: false",
+    "chain2050_write: false",
+    "work_credit_mutation: false",
+    "validator_mutation: false",
+    "service_action: false",
+    "funds_movement: false",
+  ],"participant_composition_live_role_bridge_invalid");
+  requireNone(text,[
+    "writeFileSync(",
+    "appendFileSync(",
+    "renameSync(",
+    "spawnSync(",
+    "execFileSync(",
+    "eth_sendRawTransaction",
+    "eth_sendTransaction",
+    "new Wallet(",
+  ],"participant_composition_live_role_bridge_mutation_surface_forbidden");
+  return true;
+}
+
 function inspectGatewayV1(text){
   requireAll(text,[
     '"VOID_PUBLIC_PARTICIPANT_COMPOSITION_INTEGRATION_V1"',
     'process.env.VOID_PUBLIC_PARTICIPANT_COMPOSITION_ACTIVE === "1"',
     'process.env.VOID_PUBLIC_PARTICIPANT_BINDING_REGISTRY_FILE || ""',
+    'process.env.VOID_PUBLIC_PARTICIPANT_ROLE_RPC_URL || ""',
+    'process.env.VOID_PUBLIC_PARTICIPANT_SESSION_STATE_FILE || ""',
     "if (PARTICIPANT_COMPOSITION_ACTIVE)",
-    "participant composition requires binding registry file",
+    "participant composition requires binding registry, role RPC, and durable session state",
+    "createVoidPublicParticipantLiveRoleAuthorityV1({",
+    "rpcUrl: PARTICIPANT_ROLE_RPC_URL",
+    "createVoidPublicParticipantSessionStateFileV1({",
+    "stateFile: PARTICIPANT_SESSION_STATE_FILE",
     "createVoidPublicParticipantSessionHttpV1({",
     "bindingRegistryFile: PARTICIPANT_BINDING_REGISTRY_FILE",
+    "roleAuthority: participantLiveRole.roleAuthority",
+    "stateStore: participantStateStore",
     "createVoidPublicParticipantAccountReadHttpEdgeV1({",
     "sessionHttp: PARTICIPANT_SESSION_HTTP",
     "PARTICIPANT_SESSION_HTTP.handle(request)",
@@ -491,6 +555,24 @@ export function buildVoidPublicParticipantProductionCompositionPreflightV1(){
   inspectLivePreflightV1(
     s["tools/chain2050-role-authority-participant-live-binding-preflight-v1.mjs"],
   );
+  inspectLiveRoleBridgeV1(
+    s["ops/public/void-public-participant-live-role-authority-v1.mjs"],
+  );
+  requireAll(
+    s["tools/chain2050-role-authority-live-rpc-observer-v1.mjs"],
+    [
+      '"VOID_CHAIN2050_ROLE_AUTHORITY_LIVE_RPC_OBSERVER_V1"',
+      "loopback_http_only: true",
+      "fixed_block_observation: true",
+      "block_hash_revalidation_required: true",
+      "runtime_code_revalidation_required: true",
+      "terminal_state_revalidation_required: true",
+      "transaction_broadcast: false",
+      "chain2050_mutation: false",
+      "funds_action: false",
+    ],
+    "participant_composition_live_rpc_observer_contract_invalid",
+  );
   const gateway=inspectGatewayV1(
     s["ops/public/void-public-app-composition-gateway-v1.mjs"],
   );
@@ -517,6 +599,8 @@ export function buildVoidPublicParticipantProductionCompositionPreflightV1(){
     account_read_projection_contract_bound:true,
     account_read_edge_contract_bound:true,
     live_role_authority_contract_bound:true,
+    live_role_bridge_contract_bound:true,
+    compiled_security_runtime_contract_bound:true,
     composition_gateway_contract_bound:true,
     composition_activation_default_off:true,
     composition_shared_session_instance_bound:true,

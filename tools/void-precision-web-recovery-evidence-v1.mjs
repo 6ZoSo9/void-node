@@ -65,7 +65,7 @@ const SOURCE_BLOBS=Object.freeze({
   "ops/public/run-public-seed-adapter-v1.sh":
     "bc5f5d8c277c114b007a5676015729ec25fc09dd",
   "ops/public/void-public-app-composition-gateway-v1.mjs":
-    "caaaebb8da9e21cf9ac1c429865c931400cb0526",
+    "e97ce051405d5b19a363eaf0834838a0ecef3a10",
   "ops/public/run-void-public-app-composition-gateway-v1.sh":
     "e9b74924304985d87e00972db61f29a607f19124",
   "ops/systemd/user/void-public-app-composition-gateway-v1.service.example":
