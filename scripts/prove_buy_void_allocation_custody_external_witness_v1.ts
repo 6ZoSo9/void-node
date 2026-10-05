@@ -138,7 +138,7 @@ const baseInput = {
     expires_at_ms: 1_800_000_300_000,
   },
   buyer_delivery_wallet: "0x" + "1".repeat(40),
-  quote_void_amount: "0.000001",
+  quote_void_amount: "0.000002",
   quote_usdc_amount: "0.000001",
   pool_void_total: "10000000",
   verified_payment_receipt_ref: sha("1"),
@@ -181,8 +181,8 @@ function currentFrom(
 }
 
 const advancedCurrent = currentFrom(ledger1, high1);
-assert.equal(advancedCurrent.reserved_void_total, "0.000001");
-assert.equal(advancedCurrent.remaining_void, "9999999.999999");
+assert.equal(advancedCurrent.reserved_void_total, "0.000002");
+assert.equal(advancedCurrent.remaining_void, "9999999.999998");
 
 const second = requireOk(
   planBuyVoidAllocationReservationV1({
