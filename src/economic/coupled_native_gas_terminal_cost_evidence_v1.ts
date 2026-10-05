@@ -691,7 +691,9 @@ export function classifyCoupledNativeGasTerminalCostEvidenceV1(input: {
     if (
       evidence.saga_id !== plan.saga_id ||
       evidence.attempt_id !== plan.attempt_id ||
-      evidence.delivery_address !== plan.delivery_address
+      evidence.fulfillment_wallet_address !== plan.wallet_address ||
+      evidence.delivery_address !== plan.delivery_address ||
+      evidence.void_amount_units !== plan.native_value_wei
     ) {
       return held(
         "coupled_native_gas_terminal_cost_attempt_binding_mismatch",
