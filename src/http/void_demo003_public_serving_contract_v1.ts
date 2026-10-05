@@ -62,7 +62,7 @@ function exactKeysV1(value: any, expected: readonly string[], code: string): voi
 }
 
 function toBytesV1(value: any, code: string, maxBytes: number = MAX_CONTROL_BYTES_V1): Buffer {
-  let bytes;
+  let bytes: Buffer;
   if (Buffer.isBuffer(value)) bytes = value;
   else if (value instanceof Uint8Array) bytes = Buffer.from(value);
   else failV1(code);
@@ -102,8 +102,8 @@ function canonicalJsonV1(value: any): string {
 }
 
 function parseJsonBytesV1(bytes: Buffer | Uint8Array, code: string): Record<string, any> {
-  let text;
-  let value;
+  let text: string;
+  let value: any;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     value = JSON.parse(text);
