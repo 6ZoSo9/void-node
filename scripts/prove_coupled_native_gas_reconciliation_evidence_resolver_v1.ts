@@ -309,6 +309,7 @@ function setupFixture(label: string, terminal: "confirmed" | "reverted") {
         transaction_hash: deliveryTx,
         transaction_status: 1,
         block_number: 100,
+        block_hash: blockHash,
         current_block_number: 105,
         from_address: wallet,
         to_address: delivery,
