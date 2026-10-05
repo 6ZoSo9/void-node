@@ -959,9 +959,11 @@ assert.match(
     (fs as any).fsyncSync = (fd: number) => {
       try {
         const target = fs.readlinkSync("/proc/self/fd/" + String(fd));
+        const basename = path.basename(target);
         if (
           !tempFsynced &&
-          path.basename(target).includes(".json.tmp-")
+          path.dirname(target) === f.records &&
+          /^\.[0-9a-f]{64}\.json\.tmp-/u.test(basename)
         ) {
           tempFsynced = true;
           nowMs = 1100;
