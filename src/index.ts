@@ -18467,7 +18467,7 @@ small{color:#94a3b8}
       const raised_usdc_reported = Math.floor(submitted_usdc_total * 1e6) / 1e6;
       const requested_usdc = Math.floor(requested_usdc_total * 1e6) / 1e6;
       const requested_void = Math.floor(requested_void_total * 1e6) / 1e6;
-      const sold_out = remaining_void <= 0.000001;
+      const sold_out = remaining_void === 0;
       const progress_pct = pool_void_total > 0 ? Math.floor((reserved_void / pool_void_total) * 10000) / 100 : 0;
 
       return {
