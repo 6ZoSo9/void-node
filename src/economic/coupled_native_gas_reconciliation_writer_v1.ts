@@ -852,53 +852,6 @@ function publishReconciliationCreateOnce(
   }
 }
 
-function requireExactReconciliationHistoryAppend(
-  before: HistorySnapshotV1,
-  after: HistorySnapshotV1,
-  reconciliation:
-    CoupledNativeGasLiabilityReconciliationVerifiedV1,
-): void {
-  const expectedName = reconciliation.reconciliation_id + ".json";
-  if (
-    before.entries.some((entry) => entry.name === expectedName) ||
-    after.entries.length !== before.entries.length + 1
-  ) {
-    fail(
-      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
-    );
-  }
-  const afterByName = new Map(
-    after.entries.map((entry) => [entry.name, entry] as const),
-  );
-  for (const entry of before.entries) {
-    const observed = afterByName.get(entry.name);
-    if (
-      !observed ||
-      observed.bytes !== entry.bytes ||
-      observed.sha256 !== entry.sha256 ||
-      observed.identity !== entry.identity
-    ) {
-      fail(
-        "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
-      );
-    }
-  }
-  const appended = afterByName.get(expectedName);
-  const expectedBytes = Buffer.from(
-    canonical(reconciliation) + "\n",
-    "utf8",
-  );
-  if (
-    !appended ||
-    appended.bytes !== expectedBytes.length ||
-    appended.sha256 !== sha256Bytes(expectedBytes)
-  ) {
-    fail(
-      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
-    );
-  }
-}
-
 function exactExpectedReconciliationHistory(
   before: HistorySnapshotV1,
   after: HistorySnapshotV1,
@@ -1289,11 +1242,6 @@ async function persistWithDependencies(
             "coupled_native_gas_reconciliation_writer_liability_history_changed_after_publication",
           );
         }
-        requireExactReconciliationHistoryAppend(
-          reconciliationsBefore,
-          reconciliationsAfter,
-          reconciliation,
-        );
         const censusAfter = requireCensus(
           payerAddress,
           liabilitiesAfter.rows,
