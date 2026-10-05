@@ -312,8 +312,13 @@ function safeInt(
   return value;
 }
 
+function exactString(value: unknown, reason: string): string {
+  if (typeof value !== "string") fail(reason);
+  return value;
+}
+
 function sha256Field(value: unknown, reason: string): string {
-  const text = String(value ?? "");
+  const text = exactString(value, reason);
   if (!SHA256_ID.test(text)) fail(reason);
   return text;
 }
@@ -323,7 +328,7 @@ function canonicalBase64(
   maxDecodedBytes: number,
   reason: string,
 ): Buffer {
-  const text = String(value ?? "");
+  const text = exactString(value, reason);
   if (
     text.length < 4 ||
     text.length > Math.ceil(maxDecodedBytes / 3) * 4 + 4 ||
@@ -379,8 +384,13 @@ function requestId(
 }
 
 function normalizeHost(value: unknown): string {
-  const host = String(value ?? "").trim().toLowerCase();
+  const raw = exactString(
+    value,
+    "allocation_custody_witness_transport_remote_host_invalid",
+  );
+  const host = raw.trim().toLowerCase();
   if (
+    host !== raw ||
     !HOST.test(host) ||
     host.includes("..") ||
     host.includes("@") ||
@@ -423,7 +433,10 @@ export function classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1(
     ) {
       fail("allocation_custody_witness_transport_policy_invalid");
     }
-    const remoteUser = String(raw.remote_user ?? "");
+    const remoteUser = exactString(
+      raw.remote_user,
+      "allocation_custody_witness_transport_remote_user_invalid",
+    );
     if (!USER.test(remoteUser)) {
       fail("allocation_custody_witness_transport_remote_user_invalid");
     }
@@ -698,7 +711,10 @@ function parseRequest(
   ) {
     fail("allocation_custody_witness_transport_request_identity_invalid");
   }
-  const operation = String(common.operation ?? "");
+  if (typeof common.operation !== "string") {
+    fail("allocation_custody_witness_transport_operation_invalid");
+  }
+  const operation = common.operation;
   const keys =
     operation === "read"
       ? READ_REQUEST_KEYS
@@ -717,7 +733,10 @@ function parseRequest(
     raw.challenge_sha256,
     "allocation_custody_witness_transport_challenge_invalid",
   );
-  const id = String(raw.request_id ?? "");
+  const id = exactString(
+    raw.request_id,
+    "allocation_custody_witness_transport_request_id_invalid",
+  );
   if (!REQUEST_ID.test(id)) {
     fail("allocation_custody_witness_transport_request_id_invalid");
   }
