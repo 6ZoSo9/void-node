@@ -29,6 +29,7 @@ HANDOFF_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-sealed-handoff-
 STATUS_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
 LATEST_PUBLISHED=0
 LATEST_REPLACED_EXISTING=0
+LATEST_PRIOR_KIND=""
 LATEST_PRIOR_IDENTITY=""
 LATEST_NEW_IDENTITY=""
 INTAKE_COMMITTED=0
@@ -166,6 +167,7 @@ rollback_demo003_latest() {
     "$LATEST_STAGE" \
     "$LATEST" \
     "$mode" \
+    "$LATEST_PRIOR_KIND" \
     "$LATEST_PRIOR_IDENTITY" \
     "$LATEST_NEW_IDENTITY" <<'PY'
 import ctypes
@@ -173,7 +175,7 @@ import os
 import stat
 import sys
 
-stage, latest, mode, prior_identity, new_identity = sys.argv[1:]
+stage, latest, mode, prior_kind, prior_identity, new_identity = sys.argv[1:]
 AT_FDCWD = -100
 RENAME_EXCHANGE = 2
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
@@ -198,6 +200,18 @@ def direct_dir(pathname, expected, label):
         or stat.S_ISLNK(st.st_mode)
         or identity(st) != expected
     ):
+        raise RuntimeError(label)
+    return st
+
+def prior_entry(pathname, expected_kind, expected_identity, label):
+    st = os.lstat(pathname)
+    if expected_kind == "directory":
+        valid_type = stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode)
+    elif expected_kind == "symlink":
+        valid_type = stat.S_ISLNK(st.st_mode) and st.st_uid == os.geteuid()
+    else:
+        raise RuntimeError(label + "_kind_invalid")
+    if not valid_type or identity(st) != expected_identity:
         raise RuntimeError(label)
     return st
 
@@ -235,10 +249,20 @@ parent_fd = os.open(
 try:
     if mode == "replace":
         direct_dir(latest, new_identity, "latest_rollback_new_identity_mismatch")
-        direct_dir(stage, prior_identity, "latest_rollback_prior_identity_mismatch")
+        prior_entry(
+            stage,
+            prior_kind,
+            prior_identity,
+            "latest_rollback_prior_identity_mismatch",
+        )
         exchange(stage, latest)
         os.fsync(parent_fd)
-        direct_dir(latest, prior_identity, "latest_rollback_restore_mismatch")
+        prior_entry(
+            latest,
+            prior_kind,
+            prior_identity,
+            "latest_rollback_restore_mismatch",
+        )
         direct_dir(stage, new_identity, "latest_rollback_displaced_new_mismatch")
     elif mode == "initial":
         direct_dir(latest, new_identity, "latest_rollback_new_identity_mismatch")
@@ -258,6 +282,7 @@ print("latest_publish_rollback_restored=true")
 PY
   LATEST_PUBLISHED=0
   LATEST_REPLACED_EXISTING=0
+  LATEST_PRIOR_KIND=""
   LATEST_PRIOR_IDENTITY=""
   LATEST_NEW_IDENTITY=""
 }
@@ -266,13 +291,13 @@ discard_prior_demo003_latest() {
   if [ "$LATEST_REPLACED_EXISTING" != "1" ]; then
     return 0
   fi
-  python3 - "$LATEST_STAGE" "$LATEST_PRIOR_IDENTITY" <<'PY'
+  python3 - "$LATEST_STAGE" "$LATEST_PRIOR_KIND" "$LATEST_PRIOR_IDENTITY" <<'PY'
 import os
 import shutil
 import stat
 import sys
 
-stage, expected = sys.argv[1:]
+stage, expected_kind, expected = sys.argv[1:]
 O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
@@ -289,11 +314,13 @@ def identity(st):
     )
 
 st = os.lstat(stage)
-if (
-    not stat.S_ISDIR(st.st_mode)
-    or stat.S_ISLNK(st.st_mode)
-    or identity(st) != expected
-):
+if expected_kind == "directory":
+    valid_type = stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode)
+elif expected_kind == "symlink":
+    valid_type = stat.S_ISLNK(st.st_mode) and st.st_uid == os.geteuid()
+else:
+    raise RuntimeError("latest_prior_cleanup_kind_invalid")
+if not valid_type or identity(st) != expected:
     raise RuntimeError("latest_prior_cleanup_identity_mismatch")
 
 parent_fd = os.open(
@@ -301,7 +328,10 @@ parent_fd = os.open(
     os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
 )
 try:
-    shutil.rmtree(stage)
+    if expected_kind == "directory":
+        shutil.rmtree(stage)
+    else:
+        os.unlink(stage)
     os.fsync(parent_fd)
 finally:
     os.close(parent_fd)
@@ -309,6 +339,7 @@ finally:
 print("previous_latest_retired_after_validation=true")
 PY
   LATEST_REPLACED_EXISTING=0
+  LATEST_PRIOR_KIND=""
   LATEST_PRIOR_IDENTITY=""
 }
 
@@ -584,6 +615,7 @@ if os.path.dirname(stage) != os.path.dirname(latest):
 stage_before = direct_dir(stage, "latest_stage_not_direct_directory")
 stage_identity = identity(stage_before)
 replaced = os.path.lexists(latest)
+prior_kind = ""
 prior_identity = ""
 published = False
 parent_fd = os.open(
@@ -592,7 +624,13 @@ parent_fd = os.open(
 )
 try:
     if replaced:
-        latest_before = direct_dir(latest, "latest_prior_not_direct_directory")
+        latest_before = os.lstat(latest)
+        if stat.S_ISDIR(latest_before.st_mode) and not stat.S_ISLNK(latest_before.st_mode):
+            prior_kind = "directory"
+        elif stat.S_ISLNK(latest_before.st_mode) and latest_before.st_uid == os.geteuid():
+            prior_kind = "symlink"
+        else:
+            raise RuntimeError("latest_prior_entry_unsupported")
         prior_identity = identity(latest_before)
         exchange(stage, latest)
     else:
@@ -604,8 +642,14 @@ try:
     if identity(latest_after) != stage_identity:
         raise RuntimeError("latest_publish_new_identity_mismatch")
     if replaced:
-        stage_after = direct_dir(stage, "latest_prior_stage_not_direct_directory")
-        if identity(stage_after) != prior_identity:
+        stage_after = os.lstat(stage)
+        if prior_kind == "directory":
+            valid_prior = stat.S_ISDIR(stage_after.st_mode) and not stat.S_ISLNK(stage_after.st_mode)
+        elif prior_kind == "symlink":
+            valid_prior = stat.S_ISLNK(stage_after.st_mode) and stage_after.st_uid == os.geteuid()
+        else:
+            valid_prior = False
+        if not valid_prior or identity(stage_after) != prior_identity:
             raise RuntimeError("latest_publish_prior_identity_mismatch")
 except BaseException:
     if published:
@@ -615,12 +659,16 @@ except BaseException:
                     latest,
                     "latest_publish_internal_rollback_latest_not_direct",
                 )
-                stage_now = direct_dir(
-                    stage,
-                    "latest_publish_internal_rollback_stage_not_direct",
-                )
+                stage_now = os.lstat(stage)
+                if prior_kind == "directory":
+                    valid_stage = stat.S_ISDIR(stage_now.st_mode) and not stat.S_ISLNK(stage_now.st_mode)
+                elif prior_kind == "symlink":
+                    valid_stage = stat.S_ISLNK(stage_now.st_mode) and stage_now.st_uid == os.geteuid()
+                else:
+                    valid_stage = False
                 if (
                     identity(latest_now) != stage_identity
+                    or not valid_stage
                     or identity(stage_now) != prior_identity
                 ):
                     raise RuntimeError(
@@ -655,6 +703,7 @@ print("latest_atomic_publish=true")
 print("latest_real_directory=true")
 print("latest_symlink=false")
 print("latest_replaced_existing=" + ("true" if replaced else "false"))
+print("latest_prior_kind=" + (prior_kind if replaced else "none"))
 print("latest_prior_identity=" + (prior_identity if replaced else "none"))
 print("latest_new_identity=" + stage_identity)
 PY
@@ -663,6 +712,10 @@ printf '%s\n' "$PUBLISH_OUTPUT"
 LATEST_REPLACED_EXISTING="$(
   printf '%s\n' "$PUBLISH_OUTPUT" |
     sed -n 's/^latest_replaced_existing=\(true\|false\)$/\1/p'
+)"
+LATEST_PRIOR_KIND="$(
+  printf '%s\n' "$PUBLISH_OUTPUT" |
+    sed -n 's/^latest_prior_kind=\(directory\|symlink\|none\)$/\1/p'
 )"
 LATEST_PRIOR_IDENTITY="$(
   printf '%s\n' "$PUBLISH_OUTPUT" |
@@ -682,12 +735,18 @@ if ! [[ "$LATEST_NEW_IDENTITY" =~ ^[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+$ ]]; then
   exit 2
 fi
 if [ "$LATEST_REPLACED_EXISTING" = "true" ]; then
+  if [ "$LATEST_PRIOR_KIND" != "directory" ] &&
+     [ "$LATEST_PRIOR_KIND" != "symlink" ]; then
+    echo "[fail] Demo003 prior latest kind invalid" >&2
+    exit 2
+  fi
   if ! [[ "$LATEST_PRIOR_IDENTITY" =~ ^[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+$ ]]; then
     echo "[fail] Demo003 prior latest identity invalid" >&2
     exit 2
   fi
   LATEST_REPLACED_EXISTING=1
 else
+  test "$LATEST_PRIOR_KIND" = "none"
   test "$LATEST_PRIOR_IDENTITY" = "none"
   LATEST_REPLACED_EXISTING=0
 fi
