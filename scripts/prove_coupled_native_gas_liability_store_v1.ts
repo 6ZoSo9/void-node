@@ -208,12 +208,23 @@ function requireOk(
 function requireHeld(
   value: CoupledNativeGasOpenLiabilityStoreDecisionV1,
   reason: string,
+  mutationPerformed = false,
 ): Extract<CoupledNativeGasOpenLiabilityStoreDecisionV1, { ok: false }> {
   if (value.ok !== false) {
     throw new Error("expected native gas liability store HOLD");
   }
   assert.equal(value.reason, reason);
-  assert.equal(value.mutation_performed, false);
+  assert.equal(value.mutation_performed, mutationPerformed);
+  assert.equal(
+    value.status,
+    mutationPerformed ? "held_after_mutation" : "held",
+  );
+  if (mutationPerformed) {
+    assert.equal(
+      value.detail?.durable_state_requires_reinspection,
+      true,
+    );
+  }
   return value;
 }
 
@@ -284,6 +295,9 @@ assert.match(
   /if \(before\.length >= MAX_RECORDS\) \{[\s\S]{0,180}coupled_native_gas_store_record_count_exceeded[\s\S]{0,240}createOnceLiability\(records!, classified\.liability\)/u,
   "new liability must HOLD at the record ceiling before durable publication",
 );
+assert.match(storeSource, /CoupledNativeGasStorePostMutationError/u);
+assert.match(storeSource, /status: mutationPerformed \? "held_after_mutation" : "held"/u);
+assert.match(storeSource, /durable_state_requires_reinspection/u);
 
 {
   const root = path.join(
@@ -422,6 +436,66 @@ assert.match(
       [stored.liability.liability_id + ".json"],
     );
   } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const originalLinkSync = fs.linkSync;
+  const originalFsyncSync = fs.fsyncSync;
+  let linked = false;
+  let injected = false;
+  try {
+    (fs as any).linkSync = (
+      existingPath: fs.PathLike,
+      newPath: fs.PathLike,
+    ) => {
+      originalLinkSync(existingPath, newPath);
+      if (
+        String(newPath).startsWith(
+          f.records + path.sep,
+        )
+      ) {
+        linked = true;
+      }
+    };
+    (fs as any).fsyncSync = (fd: number) => {
+      if (linked && !injected) {
+        injected = true;
+        throw new Error(
+          "synthetic_post_link_directory_fsync_failure",
+        );
+      }
+      return originalFsyncSync(fd);
+    };
+
+    const ambiguous = requireHeld(
+      await persist(f),
+      "synthetic_post_link_directory_fsync_failure",
+      true,
+    );
+    assert.equal(injected, true);
+    assert.equal(finalRecordNames(f).length, 1);
+
+    (fs as any).linkSync = originalLinkSync;
+    (fs as any).fsyncSync = originalFsyncSync;
+
+    const replay = requireOk(await persist(f));
+    assert.equal(replay.status, "idempotent");
+    assert.equal(replay.mutation_performed, false);
+    assert.equal(finalRecordNames(f).length, 1);
+    assert.equal(
+      replay.liability.liability_id + ".json",
+      finalRecordNames(f)[0],
+    );
+    assert.equal(
+      ambiguous.detail?.durable_state_requires_reinspection,
+      true,
+    );
+  } finally {
+    (fs as any).linkSync = originalLinkSync;
+    (fs as any).fsyncSync = originalFsyncSync;
     cleanup(f);
   }
 }
