@@ -7,6 +7,8 @@ on:
       - "tools/void-economic-epoch2-cross-epoch-replay-protection-promotion-v1.mjs"
       - "scripts/prove_void_economic_epoch2_replay_runtime_import_promotion_v1.mjs"
       - "scripts/prove_void_economic_epoch2_committed_real_cross_epoch_replay_promotion_v1.mjs"
+      - "scripts/prove_void_economic_epoch2_durable_replay_store_consume_equivalence_v1.mjs"
+      - "ops/mainnet0/economic-epoch2-durable-replay-store-consume-equivalence-v1.json"
       - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-v1.json"
       - "ops/mainnet0/economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.json"
       - "ops/mainnet0/economic-epoch2-cross-epoch-replay-protection-promotion-v1.json"
@@ -34,7 +36,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -49,6 +51,8 @@ jobs:
           set -euo pipefail
           node --check tools/void-economic-epoch2-production-gateway-replay-binding-runtime-evidence-import-v1.mjs
           node --check tools/void-economic-epoch2-cross-epoch-replay-protection-promotion-v1.mjs
+          node --check scripts/prove_void_economic_epoch2_durable_replay_store_consume_equivalence_v1.mjs
+          node scripts/prove_void_economic_epoch2_durable_replay_store_consume_equivalence_v1.mjs
           node --check scripts/prove_void_economic_epoch2_replay_runtime_import_promotion_v1.mjs
           node scripts/prove_void_economic_epoch2_replay_runtime_import_promotion_v1.mjs
 
