@@ -18,6 +18,27 @@ import {
   buyVoidTerminalCloseoutRequestLockPathV1,
 } from "../src/economic/buy_void_terminal_closeout_request_lock_v1.js";
 
+async function waitForBakeryTicketCountV1(
+  lockPath: string,
+  expected: number,
+  timeoutMs = 5_000,
+): Promise<void> {
+  const queue = lockPath + ".queue";
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(queue)) {
+      const tickets = fs.readdirSync(queue).filter(
+        (name) => /^ticket-[0-9]{16}-[1-9][0-9]*-[0-9a-f]{32}\.json$/u.test(name),
+      );
+      if (tickets.length >= expected) return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    "verified_payment_capacity_request_lock_ticket_wait_timeout",
+  );
+}
+
 const capacitySource = fs.readFileSync(
   path.join(
     process.cwd(),
@@ -511,11 +532,14 @@ try {
         /request_launch_authority_expired_or_superseded/u,
       );
 
-      await new Promise((resolve) => setTimeout(resolve, 40));
+      await waitForBakeryTicketCountV1(
+        requestLockPath,
+        2,
+      );
       assert.equal(
         launchChecks,
         0,
-        "launch authority must not be checked before request-lock acquisition",
+        "launch authority must remain untouched while the verified-payment writer is visibly queued on the request lock",
       );
       leaseLive = false;
       releaseHolderResolve();
