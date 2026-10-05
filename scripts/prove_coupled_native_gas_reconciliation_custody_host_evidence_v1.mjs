@@ -16,6 +16,7 @@ import {
   parseProcStatStartTimeV1,
   parseSystemdShowV1,
   restrictMountNamespaceDeniedV1,
+  testOnlyBuildMountNamespaceBundleV1,
   testOnlyClassifyCollectedHostEvidenceV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs";
 
@@ -60,6 +61,8 @@ for (const [key, value] of Object.entries(
     "procfs_read",
     "mountinfo_read",
     "mount_namespace_read",
+    "collector_in_custody_mount_namespace_required",
+    "public_runtime_mount_namespace_may_differ",
     "filesystem_metadata_read",
     "payer_domain_file_read",
     "systemd_metadata_read",
@@ -309,27 +312,37 @@ function classifierInput() {
   };
 }
 
-const namespace = Object.freeze({
-  collector: Object.freeze({
-    dev: "4",
-    ino: "4026531840",
-    link: "mnt:[4026531840]",
-    identity_sha256: "sha256:" + "4".repeat(64),
-  }),
-  public_runtime: Object.freeze({
-    dev: "4",
-    ino: "4026531840",
-    link: "mnt:[4026531840]",
-    identity_sha256: "sha256:" + "4".repeat(64),
-  }),
-  custody_service: Object.freeze({
-    dev: "4",
-    ino: "4026531840",
-    link: "mnt:[4026531840]",
-    identity_sha256: "sha256:" + "4".repeat(64),
-  }),
-  identity_sha256: "sha256:" + "5".repeat(64),
+const custodyNamespace = Object.freeze({
+  dev: "4",
+  ino: "4026531840",
+  link: "mnt:[4026531840]",
+  identity_sha256: "sha256:" + "4".repeat(64),
 });
+const publicRuntimeNamespace = Object.freeze({
+  dev: "4",
+  ino: "4026531999",
+  link: "mnt:[4026531999]",
+  identity_sha256: "sha256:" + "6".repeat(64),
+});
+const namespace = testOnlyBuildMountNamespaceBundleV1(
+  custodyNamespace,
+  publicRuntimeNamespace,
+  custodyNamespace,
+);
+assert.equal(namespace.public_runtime_shared_with_custody, false);
+assert.notEqual(
+  namespace.identity_sha256,
+  namespace.public_runtime_identity_sha256,
+);
+assert.throws(
+  () =>
+    testOnlyBuildMountNamespaceBundleV1(
+      publicRuntimeNamespace,
+      publicRuntimeNamespace,
+      custodyNamespace,
+    ),
+  /collector_not_in_custody_mount_namespace/u,
+);
 
 function collect(input = {}) {
   return testOnlyClassifyCollectedHostEvidenceV1({
@@ -358,6 +371,18 @@ assert.equal(
 assert.equal(green.live_observation_backed, false);
 assert.equal(green.synthetic_snapshot_authority, false);
 assert.equal(green.trusted_collector_proven, false);
+assert.equal(
+  green.public_runtime_mount_namespace_shared_with_custody,
+  false,
+);
+assert.equal(
+  green.mount_namespace_identity_sha256,
+  namespace.identity_sha256,
+);
+assert.equal(
+  green.public_runtime_mount_namespace_identity_sha256,
+  namespace.public_runtime_identity_sha256,
+);
 assert.equal(green.qualification.ok, true);
 assert.equal(green.qualification.status, "source_qualified");
 assert.equal(green.qualification.live_host_qualification_performed, false);
@@ -389,7 +414,11 @@ assert.equal(green.funds_movement, false);
 
 {
   const changed = structuredClone(namespace);
-  changed.custody_service.ino = "4026531999";
+  changed.public_runtime.ino = "4026532999";
+  changed.public_runtime.link = "mnt:[4026532999]";
+  changed.public_runtime_identity_sha256 = sha256Id(
+    JSON.stringify(changed.public_runtime),
+  );
   const held = collect({ namespaceAfter: changed });
   assert.equal(held.ok, false);
   assert.equal(
@@ -423,6 +452,8 @@ for (const token of [
   "fs.realpathSync(",
   "mountinfo_changed_during_observation",
   "mount_namespace_changed_during_observation",
+  "collector_not_in_custody_mount_namespace",
+  "public_runtime_shared_with_custody",
   "service_metadata_changed_during_observation",
   "process_identity_changed_during_observation",
   "custody_paths_changed_during_observation",
@@ -474,6 +505,9 @@ console.log(
 console.log("read_only_collector=true");
 console.log("exact_parent_classifier_reused=true");
 console.log("mount_namespace_identity_bound=true");
+console.log("collector_in_custody_mount_namespace_required=true");
+console.log("public_runtime_mount_namespace_may_differ=true");
+console.log("public_runtime_mount_namespace_identity_bound=true");
 console.log("systemd_direct_control_verb_denials_complete=true");
 console.log("systemd_unit_file_mutation_denied=true");
 console.log("systemd_daemon_reload_denied=true");
