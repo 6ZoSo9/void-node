@@ -281,6 +281,7 @@ for (const [key, value] of Object.entries(
     "source_writer",
     "payer_scoped_serialization",
     "existing_liability_queue_reused",
+    "payer_domain_bound_before_temp_cleanup",
     "reconciliation_storage_qualification_required",
     "exact_effective_open_census_precheck",
     "exact_reconciliation_evidence_resolver_reused",
@@ -731,6 +732,61 @@ for (const [key, value] of Object.entries(
   const liability = makeLiability();
   const stored = makeReconciliation(liability);
   const f = fixture([liability], [stored]);
+  const staleTemp =
+    "." +
+    stored.reconciliation_id +
+    ".json.tmp-" +
+    String(process.pid) +
+    "-" +
+    "c".repeat(16);
+  const staleTempPath = path.join(
+    f.root,
+    RECONCILIATIONS,
+    staleTemp,
+  );
+  let resolverCalls = 0;
+  try {
+    fs.writeFileSync(staleTempPath, "wrong-payer-temp\n", {
+      mode: 0o600,
+      flag: "wx",
+    });
+    const decision =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: "0x" + "2".repeat(40),
+          liability_id: liability.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () => {
+            resolverCalls += 1;
+            return resolved(liability, stored);
+          },
+        },
+      );
+    requireHeld(decision);
+    assert.equal(decision.status, "held");
+    assert.equal(decision.mutation_performed, false);
+    assert.equal(resolverCalls, 0);
+    assert.match(
+      decision.reason,
+      /coupled_native_gas_reconciliation_writer_payer_domain_mismatch/u,
+    );
+    assert.equal(
+      fs.existsSync(staleTempPath),
+      true,
+      "payer mismatch must HOLD before stale-temp cleanup mutation",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const liability = makeLiability();
+  const stored = makeReconciliation(liability);
+  const f = fixture([liability], [stored]);
   try {
     const staleTemp =
       "." +
@@ -936,6 +992,8 @@ console.log(
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_V1_PROOF_GREEN",
 );
 console.log("existing_payer_queue_reused=true");
+console.log("payer_domain_bound_before_temp_cleanup=true");
+console.log("wrong_payer_temp_cleanup_mutation=false");
 console.log("qualified_reconciliation_storage_required=true");
 console.log("fresh_resolver_required_before_first_publication=true");
 console.log("idempotent_replay_reauthenticates_terminal_evidence=true");
