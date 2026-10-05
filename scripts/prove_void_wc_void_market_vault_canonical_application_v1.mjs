@@ -9,7 +9,7 @@ import { Interface } from "ethers";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "../tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+} from "../tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   reconstructWcVoidMarketVaultRuntimeV1,
 } from "../tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
@@ -96,7 +96,7 @@ function applicationPlanId(value){
 }
 
 const acceptance=JSON.parse(fs.readFileSync(
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json",
   "utf8",
 ));
 const stateManifest=JSON.parse(fs.readFileSync(
@@ -440,7 +440,7 @@ assert.deepEqual(
     "tools/void-reviewed-node-package-runtime-v1.mjs",
     "tools/void-wc-void-coupled-opening-v1.mjs",
     "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs",
-    "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs",
+    "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
     "tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
     "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs",
     "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
