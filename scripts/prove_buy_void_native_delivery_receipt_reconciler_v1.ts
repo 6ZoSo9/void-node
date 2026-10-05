@@ -33,6 +33,25 @@ const paymentTx = `0x${"a".repeat(64)}`;
 const deliveryTx = `0x${"b".repeat(64)}`;
 const transferTopic =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const reconcilerSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(
+  reconcilerSource,
+  /!\["127\.0\.0\.1", "\[::1\]"\]\.includes\(host\)/u,
+);
+assert.match(
+  reconcilerSource,
+  /hostname: url\.hostname === "\[::1\]" \? "::1" : url\.hostname/u,
+);
+assert.doesNotMatch(
+  reconcilerSource,
+  /\["127\.0\.0\.1", "::1", "localhost"\]/u,
+);
 
 function topic(address: string): string {
   return `0x${"0".repeat(24)}${address.slice(2)}`;
@@ -421,6 +440,7 @@ console.log("read_only_rpc_method_count=3");
 console.log("loopback_http_only=1");
 console.log("numeric_loopback_literal_required=1");
 console.log("localhost_hostname_rejected=1");
+console.log("ipv6_socket_brackets_stripped=1");
 console.log("dry_run_mutation_count=0");
 console.log("confirmed_reconciliation=1");
 console.log("reverted_reconciliation=1");
