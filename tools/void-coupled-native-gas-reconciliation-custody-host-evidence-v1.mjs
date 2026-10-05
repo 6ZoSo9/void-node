@@ -64,6 +64,7 @@ const O_DIRECTORY = fs.constants.O_DIRECTORY;
 const SYSTEMCTL = "/usr/bin/systemctl";
 const FINDMNT = "/usr/bin/findmnt";
 const PKCHECK = "/usr/bin/pkcheck";
+const GETFACL = "/usr/bin/getfacl";
 const SYSTEMD_UNIT = /^[A-Za-z0-9@_.:-]{1,120}\.service$/u;
 
 export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1 =
@@ -312,6 +313,41 @@ export function restrictMountNamespaceDeniedV1(value) {
     : !tokens.includes("mnt");
 }
 
+export function assertSimpleAclTextV1(text) {
+  const lines = String(text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  if (lines.length < 3) {
+    throw new Error("custody_host_evidence_acl_invalid");
+  }
+  for (const line of lines) {
+    if (
+      line.startsWith("default:") ||
+      /^user:[^:]+:/u.test(line) ||
+      /^group:[^:]+:/u.test(line)
+    ) {
+      throw new Error("custody_host_evidence_extended_acl_forbidden");
+    }
+    if (!/^(user::|group::|other::|mask::)[rwx-]{3}$/u.test(line)) {
+      throw new Error("custody_host_evidence_acl_invalid");
+    }
+  }
+}
+
+function assertSimpleAcl(target) {
+  let raw;
+  try {
+    raw = runText(
+      GETFACL,
+      ["-cp", "--absolute-names", target],
+    );
+  } catch {
+    throw new Error("custody_host_evidence_acl_unavailable");
+  }
+  assertSimpleAclTextV1(raw);
+}
+
 function canMutateDirectory(stat, creds) {
   const bits = Number(stat.mode & 0o777n);
   let permission;
@@ -370,6 +406,7 @@ function readDirectoryIdentity(target, mountRecords, code) {
   if (!listed.isDirectory() || listed.isSymbolicLink()) {
     throw new Error(code + "_not_directory");
   }
+  assertSimpleAcl(resolved);
   let fd = -1;
   try {
     fd = fs.openSync(
@@ -397,6 +434,7 @@ function readFileIdentity(target, mountRecords, code) {
   if (!listed.isFile() || listed.isSymbolicLink()) {
     throw new Error(code + "_not_file");
   }
+  assertSimpleAcl(resolved);
   let fd = -1;
   try {
     fd = fs.openSync(
@@ -444,6 +482,7 @@ function ancestorEvidence(rootPath, publicCreds, mountRecords) {
     if (!stat.isDirectory() || stat.isSymbolicLink()) {
       throw new Error("ancestor_invalid");
     }
+    assertSimpleAcl(resolved);
     const mount = resolveMountForPathV1(mountRecords, resolved);
     return Object.freeze({
       path: resolved,
