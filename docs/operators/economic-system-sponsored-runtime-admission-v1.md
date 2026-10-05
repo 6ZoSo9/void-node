@@ -12,8 +12,8 @@ required order without crossing into transaction execution:
 ```text
 constructor-bound reviewed launch policy artifact
   -> exact request normalization
-  -> non-mutating reservation-store structural preflight
   -> non-mutating signed candidate preflight
+  -> non-mutating reservation-store structural/history preflight
   -> durable sponsored observation-time store
   -> current signed candidate revalidation at accepted time
   -> durable sponsored-gas reservation store
@@ -102,32 +102,6 @@ There is no request field for:
 
 Nested candidate objects are snapshotted before direct field access.
 
-## Reservation-store structural preflight before time
-
-After exact request normalization and before signed-candidate/time mutation, the
-binder invokes
-`inspectEconomicSystemSponsoredReservationStoreV1({ root_dir })`.
-
-A clean structural inspection requires the already-provisioned reservation
-authority to expose a private root, private `records/`, private
-`sponsorship-admission-v1.queue/`, and a stable canonical durable-history
-topology. The inspector performs no cleanup, policy/TTL/budget evaluation,
-observation-time evaluation, or mutation.
-
-If this inspection HOLDS, admission returns before signed-candidate preflight and
-before the trusted clock/time store is invoked. No time receipt or sponsored
-reservation may grow when the reservation authority is already structurally
-invalid or missing at the instant of preflight.
-
-This proves
-`reservation_store_preflight_before_time_proven=true`. It does not prove host
-rollback/path custody, so `reservation_store_root_stability_proven=false`
-remains correct. A reservation root that passes preflight can still disappear or
-be replaced before the later durable reservation step. If that happens after
-the trusted-time step begins, one valid time receipt may already be durable
-before reservation persistence HOLDS. The source therefore does not claim that
-all post-preflight storage loss is time-growth-free.
-
 ## Signed candidate preflight before time mutation
 
 A runtime candidate must have `issued_at_ms` strictly after the exact bound
@@ -158,6 +132,42 @@ shape verification. It does **not** replace the later execution replay store.
 A malformed signature, calldata, target, request shape, policy binding, or
 candidate identity therefore HOLDs before the clock is called and before a
 durable time receipt can be created.
+
+## Reservation-store structural/history preflight after authentication
+
+After exact request normalization and successful signed-candidate preflight, but
+before trusted-time mutation, the binder invokes
+`inspectEconomicSystemSponsoredReservationStoreV1({ root_dir })`.
+
+That inspector validates the already-provisioned private root, private
+`records/`, private `sponsorship-admission-v1.queue/`, and the complete stable
+canonical durable-history topology. It performs no cleanup,
+policy/TTL/budget evaluation, observation-time evaluation, or mutation.
+
+The complete history scan is intentionally **after** signed-candidate
+cryptographic preflight. The inspector is O(history) and may parse up to the
+store's reviewed record ceiling; an unauthenticated but syntactically valid
+request must not be able to force that work before signature rejection.
+
+Therefore:
+
+- malformed or invalid signed candidates HOLD before reservation-history scan,
+  trusted clock, or time-store mutation;
+- a valid signed candidate with missing/malformed reservation authority HOLDS
+  after signature preflight but still before the trusted clock/time store;
+- missing root/records/queue still cannot create a time receipt; and
+- `reservation_store_preflight_before_time_proven=true` remains true.
+
+The source additionally reports
+`candidate_preflight_before_reservation_history_scan=true`.
+
+This does not prove host rollback/path custody, so
+`reservation_store_root_stability_proven=false` remains correct. A reservation
+root that passes preflight can still disappear or be replaced before the later
+durable reservation step. If that happens after the trusted-time step begins,
+one valid time receipt may already be durable before reservation persistence
+HOLDS. The source therefore does not claim that all post-preflight storage loss
+is time-growth-free.
 
 ## Durable trusted-time step
 
