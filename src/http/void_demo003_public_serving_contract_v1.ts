@@ -35,11 +35,11 @@ const SEALED_ORDER_V1 = Object.freeze([
 const MAX_CONTROL_BYTES_V1 = 2 * 1024 * 1024;
 const SHA256_RE_V1 = /^[0-9a-f]{64}$/u;
 
-function failV1(code) {
+function failV1(code: string): never {
   throw new Error(code);
 }
 
-function plainObjectV1(value) {
+function plainObjectV1(value: any): value is Record<string, any> {
   return (
     value !== null &&
     typeof value === "object" &&
@@ -49,7 +49,7 @@ function plainObjectV1(value) {
   );
 }
 
-function exactKeysV1(value, expected, code) {
+function exactKeysV1(value: any, expected: readonly string[], code: string): void {
   if (!plainObjectV1(value)) failV1(code);
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
@@ -61,7 +61,7 @@ function exactKeysV1(value, expected, code) {
   }
 }
 
-function toBytesV1(value, code, maxBytes = MAX_CONTROL_BYTES_V1) {
+function toBytesV1(value: any, code: string, maxBytes: number = MAX_CONTROL_BYTES_V1): Buffer {
   let bytes;
   if (Buffer.isBuffer(value)) bytes = value;
   else if (value instanceof Uint8Array) bytes = Buffer.from(value);
@@ -70,11 +70,11 @@ function toBytesV1(value, code, maxBytes = MAX_CONTROL_BYTES_V1) {
   return bytes;
 }
 
-function sha256V1(bytes) {
+function sha256V1(bytes: Buffer | Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function canonicalJsonV1(value) {
+function canonicalJsonV1(value: any): string {
   if (value === null) return "null";
   if (typeof value === "string") return JSON.stringify(value);
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -101,7 +101,7 @@ function canonicalJsonV1(value) {
   failV1("demo003_canonical_value_invalid");
 }
 
-function parseJsonBytesV1(bytes, code) {
+function parseJsonBytesV1(bytes: Buffer | Uint8Array, code: string): Record<string, any> {
   let text;
   let value;
   try {
@@ -114,7 +114,7 @@ function parseJsonBytesV1(bytes, code) {
   return value;
 }
 
-function requireBooleanMapV1(value, requiredTrue, requiredFalse, code) {
+function requireBooleanMapV1(value: any, requiredTrue: readonly string[], requiredFalse: readonly string[], code: string): void {
   if (!plainObjectV1(value)) failV1(code);
   for (const key of requiredTrue) {
     if (value[key] !== true) failV1(code + ":" + key);
@@ -124,7 +124,7 @@ function requireBooleanMapV1(value, requiredTrue, requiredFalse, code) {
   }
 }
 
-function validateManifestV1(manifest) {
+function validateManifestV1(manifest: Record<string, any>): void {
   exactKeysV1(
     manifest,
     [
@@ -224,7 +224,7 @@ function validateManifestV1(manifest) {
   );
 }
 
-function parseChecksumLedgerV1(bytes, observed) {
+function parseChecksumLedgerV1(bytes: Buffer | Uint8Array, observed: Record<string, string>): void {
   let text;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -261,7 +261,7 @@ function parseChecksumLedgerV1(bytes, observed) {
   }
 }
 
-function validateIntakeV1(intake, manifest, observed) {
+function validateIntakeV1(intake: Record<string, any>, manifest: Record<string, any>, observed: Record<string, string>): void {
   if (
     intake.marker !==
       "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_INTAKE_RECORD_V1" ||
@@ -347,6 +347,11 @@ export function classifyVoidDemo003PublicServingSetV1({
   checksumBytes,
   intakeBytes,
   payloadBytes,
+}: {
+  manifestBytes: Buffer | Uint8Array;
+  checksumBytes: Buffer | Uint8Array;
+  intakeBytes: Buffer | Uint8Array;
+  payloadBytes: Record<string, Buffer | Uint8Array>;
 }) {
   const manifestBuffer = toBytesV1(
     manifestBytes,
@@ -375,7 +380,7 @@ export function classifyVoidDemo003PublicServingSetV1({
   );
   validateManifestV1(manifest);
 
-  const observed = {
+  const observed: Record<string, string> = {
     "manifest.json": sha256V1(manifestBuffer),
     "sha256sums.txt": sha256V1(checksumBuffer),
   };
