@@ -8,7 +8,7 @@ import { Interface } from "ethers";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "../tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+} from "../tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   reconstructWcVoidMarketVaultRuntimeV1,
 } from "../tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
