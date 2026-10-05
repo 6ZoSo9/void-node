@@ -13,6 +13,9 @@ import {
   VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_CENSUS_V2,
   VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_BYTES32_V2,
   VOID_WC_VOID_CORRECTED_COUPLED_LAUNCH_ID_V2,
+  VOID_WC_VOID_CORRECTED_CREATION_BYTECODE_SHA256_V2,
+  VOID_WC_VOID_CORRECTED_RUNTIME_TEMPLATE_SHA256_V2,
+  VOID_WC_VOID_CURRENT_COMPILED_IDENTITY_BINDING_ID_V2,
   VOID_WC_VOID_SUPERSEDED_COUPLED_LAUNCH_DIGEST_V1,
   buildVoidWcVoidCoupledLaunchRegenerationCensusV2,
   deriveCorrectedVoidWcVoidCoupledLaunchGenerationV2,
@@ -71,7 +74,7 @@ assert.equal(
 assert.equal(census.version, 2);
 assert.equal(
   census.status,
-  "CORRECTED_GENERATION_DERIVED_REBIND_REQUIRED",
+  "CORRECTED_GENERATION_ATOMIC_REBIND_SOURCE_GREEN",
 );
 assert.equal(census.corrected_generation_derived, true);
 const parentRegenerationPath =
@@ -144,18 +147,15 @@ assert.equal(
 assert.equal(census.old_control_signature_generation_reusable, false);
 assert.equal(
   census.canonical_candidate_current_launch_id,
-  census.superseded_coupled_launch_id,
+  census.corrected_coupled_launch_id,
 );
 assert.equal(
   census.authoritative_path_count,
   VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2.length,
 );
 assert.equal(census.authoritative_path_count, 14);
-assert.equal(
-  census.remaining_superseded_authoritative_path_count,
-  census.authoritative_path_count,
-);
-assert.equal(census.all_authoritative_old_generation_pins_present, true);
+assert.equal(census.remaining_superseded_authoritative_path_count, 0);
+assert.equal(census.all_authoritative_old_generation_pins_present, false);
 assert.equal(
   census.compiled_identity_authoritative_consumer_count,
   VOID_WC_VOID_COMPILED_IDENTITY_AUTHORITATIVE_CONSUMER_PATHS_V2.length,
@@ -163,11 +163,11 @@ assert.equal(
 assert.equal(census.compiled_identity_authoritative_consumer_count, 9);
 assert.equal(
   census.remaining_superseded_compiled_identity_consumer_count,
-  census.compiled_identity_authoritative_consumer_count,
+  0,
 );
 assert.equal(
   census.all_current_authority_compiled_identity_rebindings_complete,
-  false,
+  true,
 );
 assert.deepEqual(
   census.unknown_superseded_compiled_identity_source_paths,
@@ -199,13 +199,29 @@ for (
     (item) => item.path === required,
   );
   assert.ok(entry, required);
+  assert.equal(entry.superseded_creation_sha256_occurrences, 0, required);
+  assert.equal(entry.superseded_runtime_sha256_occurrences, 0, required);
+  assert.equal(entry.v1_acceptance_module_occurrences, 0, required);
   assert.ok(
-    entry.superseded_creation_sha256_occurrences > 0 ||
-      entry.superseded_runtime_sha256_occurrences > 0 ||
-      entry.v1_acceptance_module_occurrences > 0,
-    required + ": superseded compiled-identity dependency must remain visible",
+    entry.corrected_creation_sha256_occurrences > 0 ||
+      entry.corrected_runtime_sha256_occurrences > 0 ||
+      entry.current_identity_module_occurrences > 0 ||
+      entry.current_binding_id_occurrences > 0,
+    required + ": corrected compiled-identity dependency required",
   );
 }
+assert.equal(
+  VOID_WC_VOID_CORRECTED_CREATION_BYTECODE_SHA256_V2,
+  "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
+);
+assert.equal(
+  VOID_WC_VOID_CORRECTED_RUNTIME_TEMPLATE_SHA256_V2,
+  "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
+);
+assert.equal(
+  VOID_WC_VOID_CURRENT_COMPILED_IDENTITY_BINDING_ID_V2,
+  "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05",
+);
 assert.deepEqual(census.unknown_superseded_source_paths, []);
 const discoveredSourcePaths =
   discoverVoidWcVoidSupersededGenerationSourcePathsV2();
@@ -215,10 +231,14 @@ assert.equal(
   discoveredSourcePaths.length,
 );
 assert.deepEqual(
+  census.expected_historical_superseded_source_paths,
+  VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2,
+);
+assert.deepEqual(
   census.expected_non_authority_superseded_source_paths,
   VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
 );
-assert.equal(census.all_authoritative_rebindings_complete, false);
+assert.equal(census.all_authoritative_rebindings_complete, true);
 assert.equal(census.canonical_candidate_update_authorized, false);
 assert.equal(census.controller_resigning_authorized, false);
 assert.equal(census.live_activation_receipt_reuse_authorized, false);
@@ -228,7 +248,7 @@ assert.equal(census.public_presale_activation_authorized, false);
 assert.equal(census.funds_movement_authorized, false);
 assert.equal(
   census.next_gate,
-  "apply_corrected_coupled_launch_generation_as_one_reviewed_rebind_set",
+  "fresh_corrected_generation_control_ceremony_then_read_only_vault_observation",
 );
 assert.match(census.census_id, /^voidwclregen2_[0-9a-f]{64}$/u);
 
@@ -240,9 +260,14 @@ for (
     (item) => item.path === required,
   );
   assert.ok(entry, required);
+  assert.equal(
+    entry.superseded_digest_occurrences,
+    0,
+    required + ": current authority must not retain superseded generation",
+  );
   assert.ok(
-    entry.superseded_digest_occurrences > 0,
-    required + ": superseded generation must still be visible in census",
+    entry.corrected_digest_occurrences > 0,
+    required + ": corrected generation must be visible",
   );
 }
 for (const historical of VOID_WC_VOID_COUPLED_LAUNCH_HISTORICAL_GENERATION_PATHS_V2) {
@@ -371,6 +396,9 @@ console.log("unknown_superseded_compiled_identity_source_paths=0");
 console.log("compiled_identity_dependency_census_exhaustive=true");
 console.log("canonical_correction_verifier_required=true");
 console.log("old_control_signature_generation_reusable=false");
+console.log("atomic_corrected_generation_rebind_source_green=true");
+console.log("all_authoritative_rebindings_complete=true");
+console.log("all_current_authority_compiled_identity_rebindings_complete=true");
 console.log("partial_rebind_authorized=false");
 console.log("canonical_candidate_update_authorized=false");
 console.log("controller_resigning_authorized=false");
