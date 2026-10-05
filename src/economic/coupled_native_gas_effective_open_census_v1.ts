@@ -367,15 +367,21 @@ function validateLiability(
     lane === null ||
     !SHA256.test(String(value.obligation_id ?? "")) ||
     !payer ||
+    value.payer_address !== payer ||
     nonce === null ||
+    value.nonce !== nonce ||
     !SHA256.test(
       String(value.transaction_plan_fingerprint_sha256 ?? ""),
     ) ||
     nativeValue === null ||
+    value.transaction_native_value_wei !== nativeValue.toString() ||
     gasLimit === null ||
+    value.gas_limit !== gasLimit.toString() ||
     maxFee === null ||
+    value.admitted_max_fee_per_gas_wei !== maxFee.toString() ||
     attemptLimit === null ||
     maximumReserved === null ||
+    value.maximum_reserved_wei !== maximumReserved.toString() ||
     !SHA256.test(String(value.fee_observation_sha256 ?? "")) ||
     evidenceKind === null ||
     !SHA256.test(String(value.source_evidence_id ?? "")) ||
@@ -523,7 +529,9 @@ function validateReconciliation(
     !SHA256.test(String(value.liability_id ?? "")) ||
     !SHA256.test(String(value.obligation_id ?? "")) ||
     !payer ||
+    value.payer_address !== payer ||
     nonce === null ||
+    value.nonce !== nonce ||
     !SHA256.test(
       String(value.transaction_plan_fingerprint_sha256 ?? ""),
     ) ||
@@ -533,13 +541,23 @@ function validateReconciliation(
     value.completed_attempt_count !== 1 ||
     value.remaining_attempt_allowance !== 0 ||
     oneAttemptMaximum === null ||
+    value.one_attempt_maximum_wei !== oneAttemptMaximum.toString() ||
     maximumReserved === null ||
+    value.maximum_reserved_wei !== maximumReserved.toString() ||
     actualConsumed === null ||
+    value.actual_consumed_wei !== actualConsumed.toString() ||
     unconsumed === null ||
+    value.unconsumed_before_reconciliation_wei !== unconsumed.toString() ||
     consumedRetirement === null ||
+    value.consumed_reserve_retirement_candidate_wei !==
+      consumedRetirement.toString() ||
     retainedFuture === null ||
+    value.retained_future_attempt_reserve_wei !== retainedFuture.toString() ||
     unusedRelease === null ||
+    value.unused_reserve_release_candidate_wei !==
+      unusedRelease.toString() ||
     nextOpen === null ||
+    value.next_open_reserved_wei !== nextOpen.toString() ||
     value.retry_allowance_reserved !== false ||
     value.additional_attempt_requires_new_liability !== true ||
     value.terminal_close_candidate !== true ||
