@@ -1,0 +1,73 @@
+name: Coupled native gas reconciliation writer v1
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/coupled_native_gas_reconciliation_writer_v1.ts"
+      - "scripts/prove_coupled_native_gas_reconciliation_writer_v1.ts"
+      - "docs/architecture/coupled-native-gas-reconciliation-writer-v1.md"
+      - ".github/workflows/coupled-native-gas-reconciliation-writer-v1.yml"
+      - "src/economic/coupled_native_gas_reconciliation_evidence_resolver_v1.ts"
+      - "scripts/prove_coupled_native_gas_reconciliation_evidence_resolver_v1.ts"
+      - "src/economic/coupled_native_gas_reconciliation_storage_v1.ts"
+      - "scripts/prove_coupled_native_gas_reconciliation_storage_v1.ts"
+      - "src/economic/coupled_native_gas_effective_open_census_v1.ts"
+      - "scripts/prove_coupled_native_gas_effective_open_census_v1.ts"
+      - "src/economic/coupled_native_gas_liability_store_v1.ts"
+      - "src/economic/coupled_native_gas_liability_v1.ts"
+      - "src/economic/coupled_native_gas_liability_reconciliation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+  push:
+    branches: [main]
+    paths:
+      - "src/economic/coupled_native_gas_reconciliation_writer_v1.ts"
+      - "scripts/prove_coupled_native_gas_reconciliation_writer_v1.ts"
+      - "docs/architecture/coupled-native-gas-reconciliation-writer-v1.md"
+      - ".github/workflows/coupled-native-gas-reconciliation-writer-v1.yml"
+      - "src/economic/coupled_native_gas_reconciliation_evidence_resolver_v1.ts"
+      - "src/economic/coupled_native_gas_reconciliation_storage_v1.ts"
+      - "src/economic/coupled_native_gas_effective_open_census_v1.ts"
+      - "src/economic/coupled_native_gas_liability_store_v1.ts"
+      - "src/economic/coupled_native_gas_liability_v1.ts"
+      - "src/economic/coupled_native_gas_liability_reconciliation_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coupled-native-gas-reconciliation-writer-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install reviewed dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Prove reconciliation evidence resolver
+        run: npx tsx scripts/prove_coupled_native_gas_reconciliation_evidence_resolver_v1.ts
+      - name: Prove reconciliation storage
+        run: npx tsx scripts/prove_coupled_native_gas_reconciliation_storage_v1.ts
+      - name: Prove effective-open census
+        run: npx tsx scripts/prove_coupled_native_gas_effective_open_census_v1.ts
+      - name: Prove durable reconciliation writer
+        run: npx tsx scripts/prove_coupled_native_gas_reconciliation_writer_v1.ts
+      - name: Build
+        run: npm run build
+      - name: Diff hygiene
+        run: git diff --check
