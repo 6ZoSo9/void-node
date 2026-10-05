@@ -396,6 +396,12 @@ function requireOk(value) {
   assert.equal(value.reservation_store_preflight_verified, true);
   assert.equal(value.preflight_verified, true);
   assert.equal(value.current_candidate_verified, true);
+  assert.equal(value.time_preview_verified, true);
+  assert.equal(value.preview_budget_verified, true);
+  assert.equal(
+    Number.isSafeInteger(value.preview_observed_at_ms),
+    true,
+  );
   assert.equal(value.durable_time_before_reservation, true);
   assert.equal(value.durable_reservation_before_execution, true);
   assert.equal(value.runtime_route_active, false);
@@ -418,6 +424,8 @@ function requireHeld(value, reason) {
     typeof value.reservation_store_preflight_verified,
     "boolean",
   );
+  assert.equal(typeof value.time_preview_verified, "boolean");
+  assert.equal(typeof value.preview_budget_verified, "boolean");
   assert.equal(value.runtime_route_active, false);
   assert.equal(value.runtime_enforcement_verified, false);
   assert.equal(value.gas_sponsorship_performed, false);
@@ -441,6 +449,11 @@ for (const [key, value] of Object.entries(
     "candidate_preflight_before_time_mutation",
     "candidate_preflight_before_reservation_history_scan",
     "reservation_store_preflight_before_time_proven",
+    "non_mutating_time_preview_before_durable_time",
+    "read_only_budget_preflight_before_durable_time",
+    "preview_denial_does_not_advance_time",
+    "durable_observe_required_after_preview_allow",
+    "valid_denied_request_time_growth_bounded",
     "candidate_issued_after_bundle_commit_required",
     "current_candidate_revalidation_after_time",
     "durable_time_observation_before_reservation",
@@ -681,6 +694,8 @@ const bundle = policyBundle(ttl, sponsor);
       sample(1_000, 1_000_000_000n),
       sample(2_000, 2_000_000_000n),
       sample(3_000, 3_000_000_000n),
+      sample(4_000, 4_000_000_000n),
+      sample(5_000, 5_000_000_000n),
       sample(130_000, 130_000_000_000n),
     ]);
     const binding = createBinding({
@@ -753,7 +768,11 @@ const bundle = policyBundle(ttl, sponsor);
     assert.equal(accepted.policy_bundle_id, bundle.bundle_id);
     assert.equal(accepted.reservation_status, "reserved");
     assert.equal(accepted.active_reserved_gas, "40000");
-    assert.equal(clock.calls(), 1);
+    assert.equal(accepted.time_preview_verified, true);
+    assert.equal(accepted.preview_budget_verified, true);
+    assert.equal(accepted.preview_observed_at_ms, BASE_MS + 1000);
+    assert.equal(accepted.accepted_observed_at_ms, BASE_MS + 2000);
+    assert.equal(clock.calls(), 2);
     assert.equal(countRecords(f.timeRoot), 1);
     assert.equal(countRecords(f.reservationRoot), 1);
 
@@ -765,7 +784,11 @@ const bundle = policyBundle(ttl, sponsor);
       "source_duplicate_admitted",
     );
     assert.equal(duplicate.reservation_status, "duplicate");
-    assert.equal(clock.calls(), 2);
+    assert.equal(duplicate.time_preview_verified, true);
+    assert.equal(duplicate.preview_budget_verified, true);
+    assert.equal(duplicate.preview_observed_at_ms, BASE_MS + 3000);
+    assert.equal(duplicate.accepted_observed_at_ms, BASE_MS + 4000);
+    assert.equal(clock.calls(), 4);
     assert.equal(countRecords(f.timeRoot), 2);
     assert.equal(countRecords(f.reservationRoot), 1);
 
@@ -783,17 +806,20 @@ const bundle = policyBundle(ttl, sponsor);
       "sponsored_gas_budget_exhausted",
     );
     assert.equal(denied.preflight_verified, true);
-    assert.equal(denied.current_candidate_verified, true);
-    assert.equal(denied.time_observation_performed, true);
-    assert.equal(denied.time_mutation_performed, true);
+    assert.equal(denied.current_candidate_verified, false);
+    assert.equal(denied.time_preview_verified, true);
+    assert.equal(denied.preview_budget_verified, true);
+    assert.equal(denied.preview_observed_at_ms, BASE_MS + 5000);
+    assert.equal(denied.time_observation_performed, false);
+    assert.equal(denied.time_mutation_performed, false);
     assert.equal(denied.reservation_mutation_performed, false);
-    assert.equal(clock.calls(), 3);
-    assert.equal(countRecords(f.timeRoot), 3);
+    assert.equal(clock.calls(), 5);
+    assert.equal(countRecords(f.timeRoot), 2);
     assert.equal(countRecords(f.reservationRoot), 1);
     assert.equal(
       VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1
         .valid_denied_request_time_growth_bounded,
-      false,
+      true,
     );
 
     const expiredDuplicate = requireHeld(
@@ -805,20 +831,26 @@ const bundle = policyBundle(ttl, sponsor);
       expiredDuplicate.current_candidate_verified,
       false,
     );
+    assert.equal(expiredDuplicate.time_preview_verified, true);
+    assert.equal(expiredDuplicate.preview_budget_verified, false);
+    assert.equal(
+      expiredDuplicate.preview_observed_at_ms,
+      BASE_MS + 130000,
+    );
     assert.equal(
       expiredDuplicate.time_observation_performed,
-      true,
+      false,
     );
     assert.equal(
       expiredDuplicate.time_mutation_performed,
-      true,
+      false,
     );
     assert.equal(
       expiredDuplicate.reservation_mutation_performed,
       false,
     );
-    assert.equal(clock.calls(), 4);
-    assert.equal(countRecords(f.timeRoot), 4);
+    assert.equal(clock.calls(), 6);
+    assert.equal(countRecords(f.timeRoot), 2);
     assert.equal(countRecords(f.reservationRoot), 1);
     assert.equal(
       VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1
@@ -836,7 +868,7 @@ const bundle = policyBundle(ttl, sponsor);
     );
     assert.equal(override.time_observation_performed, false);
     assert.equal(override.current_candidate_verified, false);
-    assert.equal(clock.calls(), 4);
+    assert.equal(clock.calls(), 6);
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }
@@ -927,12 +959,14 @@ const bundle = policyBundle(ttl, sponsor);
       true,
     );
     assert.equal(held.preflight_verified, true);
-    assert.equal(held.current_candidate_verified, true);
-    assert.equal(held.time_observation_performed, true);
-    assert.equal(held.time_mutation_performed, true);
+    assert.equal(held.current_candidate_verified, false);
+    assert.equal(held.time_preview_verified, true);
+    assert.equal(held.preview_budget_verified, false);
+    assert.equal(held.time_observation_performed, false);
+    assert.equal(held.time_mutation_performed, false);
     assert.equal(held.reservation_mutation_performed, false);
     assert.equal(destructiveClockCalls, 1);
-    assert.equal(countRecords(f.timeRoot), 1);
+    assert.equal(countRecords(f.timeRoot), 0);
     assert.equal(fs.existsSync(f.reservationRoot), false);
     assert.equal(
       VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1
@@ -959,6 +993,7 @@ const bundle = policyBundle(ttl, sponsor);
 
     const firstClock = clockQueue([
       sample(1_000, 1_000_000_000n),
+      sample(2_000, 2_000_000_000n),
     ]);
     const firstBinding = createBinding({
       bundle,
@@ -989,7 +1024,8 @@ const bundle = policyBundle(ttl, sponsor);
     );
     assert.equal(held.preflight_verified, true);
     assert.equal(held.current_candidate_verified, false);
-    assert.equal(held.time_observation_performed, true);
+    assert.equal(held.time_preview_verified, false);
+    assert.equal(held.time_observation_performed, false);
     assert.equal(held.time_mutation_performed, false);
     assert.equal(restartClock.calls(), 1);
     assert.equal(countRecords(f.timeRoot), 1);
@@ -1063,6 +1099,11 @@ assert.match(
   source,
   /persistEconomicSystemSponsoredReservationV1/u,
 );
+assert.match(
+  source,
+  /listEconomicSystemSponsoredReservationsV1/u,
+);
+assert.match(source, /timeStore\.preview\(\)/u);
 const admitSource = source.slice(
   source.indexOf("async admit(inputRequest)"),
 );
@@ -1079,6 +1120,24 @@ assert.ok(
     admitSource.indexOf(
       "inspectEconomicSystemSponsoredReservationStoreV1",
     ),
+);
+assert.ok(
+  admitSource.indexOf(
+    "inspectEconomicSystemSponsoredReservationStoreV1",
+  ) <
+    admitSource.indexOf("timeStore.preview()"),
+);
+assert.ok(
+  admitSource.indexOf("timeStore.preview()") <
+    admitSource.indexOf(
+      "listEconomicSystemSponsoredReservationsV1",
+    ),
+);
+assert.ok(
+  admitSource.indexOf(
+    "listEconomicSystemSponsoredReservationsV1",
+  ) <
+    admitSource.indexOf("timeStore.observe()"),
 );
 assert.doesNotMatch(source, /Date\.now\s*\(/u);
 assert.doesNotMatch(source, /process\.hrtime/u);
@@ -1098,6 +1157,10 @@ console.log("candidate_preflight_before_time_mutation=true");
 console.log("candidate_preflight_before_reservation_history_scan=true");
 console.log("invalid_signature_full_history_scan=false");
 console.log("reservation_store_preflight_before_time_proven=true");
+console.log("non_mutating_time_preview_before_durable_time=true");
+console.log("read_only_budget_preflight_before_durable_time=true");
+console.log("preview_denial_does_not_advance_time=true");
+console.log("durable_observe_required_after_preview_allow=true");
 console.log("missing_reservation_queue_blocks_before_time=true");
 console.log("candidate_issued_after_bundle_commit_required=true");
 console.log("retroactive_sponsorship_before_bundle_commit=false");
@@ -1114,8 +1177,9 @@ console.log("post_preflight_reservation_store_loss_can_advance_time=true");
 console.log("durable_time_observation_before_reservation=true");
 console.log("durable_reservation_before_execution=true");
 console.log("duplicate_reservation_idempotent=true");
-console.log("valid_denied_request_can_advance_time=true");
-console.log("valid_denied_request_time_growth_bounded=false");
+console.log("valid_denied_request_can_advance_time=false");
+console.log("expired_duplicate_can_advance_time=false");
+console.log("valid_denied_request_time_growth_bounded=true");
 console.log("cross_process_restart_continuity_proven=false");
 console.log("runtime_route_active=false");
 console.log("runtime_enforcement_verified=false");
