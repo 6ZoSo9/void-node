@@ -17,6 +17,10 @@ import {
 
 const ROOT = process.cwd();
 const GATEWAY = path.join(ROOT, "ops/void-ai-agent-public-gateway-v1.mjs");
+const LOOPBACK_GATEWAY = path.join(
+  ROOT,
+  "scripts/agent_paid_work_credential_request_gateway_v1.ts",
+);
 const DROPIN = path.join(
   ROOT,
   "examples/systemd/void-ai-agent-public-gateway-v1.service.d/71-agent-paid-work-credential-request-gateway-v1.conf",
@@ -25,6 +29,7 @@ const ROUTE = "/__void/agents/paid-work/credential-requests/v1";
 const UPSTREAM_INSTANCE_HEADER =
   "x-void-credential-request-gateway-instance-v1";
 const source = fs.readFileSync(GATEWAY, "utf8");
+const loopbackSource = fs.readFileSync(LOOPBACK_GATEWAY, "utf8");
 const dropin = fs.readFileSync(DROPIN, "utf8");
 
 for (const token of [
@@ -49,6 +54,18 @@ for (const token of [
   "credential_registry_mutation_authority: false",
 ]) {
   assert.ok(source.includes(token), `missing gateway binding: ${token}`);
+}
+for (const token of [
+  "AGENT_PAID_WORK_CREDENTIAL_REQUEST_GATEWAY_INSTANCE_HEADER_V1",
+  "x-void-credential-request-gateway-instance-v1",
+  "qualification_instance_id",
+  "gateway_instance_mismatch",
+  "412",
+]) {
+  assert.ok(
+    loopbackSource.includes(token),
+    `missing loopback generation binding: ${token}`,
+  );
 }
 assert.equal(
   (source.match(/\/__void\/agents\/paid-work\/credential-requests\/v1/g) || []).length,
