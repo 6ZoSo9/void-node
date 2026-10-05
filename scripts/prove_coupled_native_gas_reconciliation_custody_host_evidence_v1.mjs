@@ -71,9 +71,6 @@ assert.deepEqual(
     "reload-or-try-restart",
     "kill",
     "kill-subgroup",
-    "queue-signal",
-    "freeze",
-    "thaw",
     "reset-failed",
     "set-property",
     "clean",
@@ -102,12 +99,12 @@ assert.deepEqual(
     testOnlyAllCustodyControlDecisionsDeniedV1(
       {
         ...allVerbDenied,
-        freeze: false,
+        kill: false,
       },
       allActionDenied,
     ),
     false,
-    "an authorized freeze operation must defeat the no-control claim",
+    "an authorized kill-detail operation must defeat the no-control claim",
   );
   assert.throws(
     () =>
