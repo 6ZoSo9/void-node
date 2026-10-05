@@ -354,6 +354,10 @@ async function main(): Promise<void> {
     source,
     /withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1/,
   );
+  assert.match(source, /openPayerDomainSnapshot/);
+  assert.match(source, /assertPayerDomainSnapshotCurrent/);
+  assert.match(source, /sameFileIdentity\(snapshot\.stat, opened\)/);
+  assert.match(source, /closePayerDomainSnapshot/);
   assert.match(source, /gas-liability-admission-v1\.queue/);
   assert.match(source, /reconciliations/);
   assert.match(source, /if \(input\.bootstrap\) \{/);
