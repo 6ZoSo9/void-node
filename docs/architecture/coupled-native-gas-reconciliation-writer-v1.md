@@ -110,6 +110,17 @@ If an error occurs after the canonical create-only hard link, the result is
 left visible. A later invocation must reauthenticate it through the resolver
 before accepting idempotence.
 
+A process crash can also leave the writer's private temporary hard-link source
+after the canonical reconciliation name is already durable. While holding the
+same payer queue, the writer removes only exact writer-owned temp names of the
+form
+`.<reconciliation_id>.json.tmp-<pid>-<16 lowercase hex>`, after validating
+direct-file identity, ownership, link count, permissions, size, and no-follow
+open stability. Cleanup is fsynced and reported as a real mutation. Unknown or
+unsafe reconciliation-directory entries are never silently deleted and still
+HOLD qualification. Authenticated replay can therefore recover from the known
+post-link/pre-unlink crash seam without weakening the namespace allowlist.
+
 If liability or reconciliation history changes while the resolver performs its
 read-only local/RPC evidence work, the writer HOLDS before publication.
 
@@ -174,5 +185,6 @@ git diff --check
 The focused proof covers first publication, exact replay with fresh
 reauthentication, conflicting replay evidence HOLD, resolver HOLD before
 mutation, concurrent history drift HOLD, missing reconciliation storage HOLD,
-post-publication failure truth, recovery by authenticated idempotent replay, and
-two concurrent exact requests producing one canonical record.
+post-publication failure truth, exact stale-writer-temp cleanup with truthful
+mutation reporting, recovery by authenticated idempotent replay, and two
+concurrent exact requests producing one canonical record.
