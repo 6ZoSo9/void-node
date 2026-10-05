@@ -24,6 +24,14 @@ The open-liability identity is independently rederived from every economic
 field. The terminal-cost evidence content address and arithmetic are also
 rederived rather than trusting caller booleans.
 
+That rederivation proves internal consistency only. This classifier does not
+re-read the terminal-outcome store, does not obtain a fresh receipt from an
+authenticated transport, does not independently observe the current block, and
+does not establish the provenance of a caller-supplied terminal-cost evidence
+object. A later durable reconciliation writer must re-observe or bind
+authenticated terminal evidence before treating any reserve-release candidate
+as authoritative.
+
 The two records must bind exactly on:
 
 - liability ID;
@@ -138,6 +146,11 @@ The classifier HOLDS on, among other cases:
 
 - reverted reconciliation authority;
 - reverted retry/manual-recovery disposition authority;
+- authenticated terminal-cost evidence provenance;
+- terminal-outcome storage re-read;
+- authenticated raw-receipt transport;
+- trusted current-block observation;
+- trusted minimum-confirmation policy;
 - durable open-liability store binding;
 - liability-store mutation;
 - liability release;
@@ -155,8 +168,11 @@ The classifier HOLDS on, among other cases:
 
 A later durable reconciliation writer must operate under the same payer-scoped
 serialization domain as the open-liability store, re-read authoritative state,
-persist append-only reconciliation evidence, and postcheck the resulting reserve
-floor before any release can become authoritative.
+authenticate or independently re-observe the terminal receipt and confirmation
+depth, persist append-only reconciliation evidence, and postcheck the resulting
+reserve floor before any release can become authoritative. The
+`unused_reserve_release_candidate_wei` field is never sufficient evidence by
+itself.
 
 ## Focused proof
 
