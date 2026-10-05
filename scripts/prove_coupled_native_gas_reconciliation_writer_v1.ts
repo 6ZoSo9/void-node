@@ -103,7 +103,7 @@ function makeLiability(input: {
 function makeReconciliation(
   liability: CoupledNativeGasLiabilityRecordV1,
   input: {
-    terminal_cost_evidence_id?: string;
+    terminal_cost_identity_sha256?: string;
     actual_consumed_wei?: string;
   } = {},
 ): CoupledNativeGasLiabilityReconciliationVerifiedV1 {
@@ -125,8 +125,8 @@ function makeReconciliation(
     nonce: liability.nonce,
     transaction_plan_fingerprint_sha256:
       liability.transaction_plan_fingerprint_sha256,
-    terminal_cost_evidence_id:
-      input.terminal_cost_evidence_id ?? "8".repeat(64),
+    terminal_cost_identity_sha256:
+      input.terminal_cost_identity_sha256 ?? "8".repeat(64),
     outcome: "confirmed" as const,
     attempt_limit: 1 as const,
     completed_attempt_count: 1 as const,
@@ -160,6 +160,11 @@ function makeReconciliation(
 function resolved(
   liability: CoupledNativeGasLiabilityRecordV1,
   reconciliation = makeReconciliation(liability),
+  observation: {
+    packet_id?: string;
+    evidence_id?: string;
+    terminal_cost_identity_sha256?: string;
+  } = {},
 ): CoupledNativeGasReconciliationEvidenceResolverDecisionV1 {
   return {
     ok: true,
@@ -185,12 +190,17 @@ function resolved(
         "eth_getTransactionReceipt",
         "eth_blockNumber",
       ]),
-      terminal_cost_evidence: {} as any,
+      terminal_cost_evidence: {
+        evidence_id: observation.evidence_id ?? "1".repeat(64),
+        terminal_cost_identity_sha256:
+          observation.terminal_cost_identity_sha256 ??
+          reconciliation.terminal_cost_identity_sha256,
+      } as any,
       reconciliation,
       mutation_performed: false,
       liability_release_authorized: false,
       funds_movement_performed: false,
-      packet_id: "2".repeat(64),
+      packet_id: observation.packet_id ?? "2".repeat(64),
     },
     mutation_performed: false,
     liability_release_authorized: false,
@@ -371,7 +381,14 @@ for (const [key, value] of Object.entries(
         {
           resolve_evidence: async () => {
             resolverCalls += 1;
-            return resolved(liability);
+            return resolved(
+              liability,
+              makeReconciliation(liability),
+              {
+                packet_id: "3".repeat(64),
+                evidence_id: "4".repeat(64),
+              },
+            );
           },
         },
       );
@@ -379,7 +396,50 @@ for (const [key, value] of Object.entries(
     assert.equal(replay.status, "idempotent");
     assert.equal(replay.mutation_performed, false);
     assert.equal(resolverCalls, 2);
-    assert.equal(replay.resolver_packet_id, "2".repeat(64));
+    assert.equal(replay.resolver_packet_id, "3".repeat(64));
+    assert.equal(
+      replay.reconciliation.reconciliation_id,
+      decision.reconciliation.reconciliation_id,
+    );
+    assert.equal(
+      canonical(replay.reconciliation),
+      canonical(decision.reconciliation),
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  const liability = f.liabilities[0];
+  try {
+    const decision =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: payer,
+          liability_id: liability.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () =>
+            resolved(
+              liability,
+              makeReconciliation(liability),
+              {
+                terminal_cost_identity_sha256:
+                  "9".repeat(64),
+              },
+            ),
+        },
+      );
+    requireHeld(decision);
+    assert.equal(decision.mutation_performed, false);
+    assert.equal(
+      decision.reason,
+      "coupled_native_gas_reconciliation_writer_resolver_binding_mismatch",
+    );
   } finally {
     cleanup(f);
   }
@@ -391,7 +451,7 @@ for (const [key, value] of Object.entries(
   const f = fixture([liability], [stored]);
   try {
     const alternate = makeReconciliation(liability, {
-      terminal_cost_evidence_id: "9".repeat(64),
+      terminal_cost_identity_sha256: "9".repeat(64),
       actual_consumed_wei: "126001",
     });
     const decision =
@@ -549,7 +609,7 @@ for (const [key, value] of Object.entries(
   });
   const priorReconciliation = makeReconciliation(prior);
   const unrelatedReconciliation = makeReconciliation(unrelated, {
-    terminal_cost_evidence_id: "7".repeat(64),
+    terminal_cost_identity_sha256: "7".repeat(64),
   });
   const f = fixture(
     [prior, target, unrelated],
@@ -626,7 +686,7 @@ for (const [key, value] of Object.entries(
   });
   const secondBefore = makeReconciliation(second);
   const secondAfter = makeReconciliation(second, {
-    terminal_cost_evidence_id: "9".repeat(64),
+    terminal_cost_identity_sha256: "9".repeat(64),
     actual_consumed_wei: "126001",
   });
   assert.notEqual(
@@ -997,6 +1057,9 @@ console.log("wrong_payer_temp_cleanup_mutation=false");
 console.log("qualified_reconciliation_storage_required=true");
 console.log("fresh_resolver_required_before_first_publication=true");
 console.log("idempotent_replay_reauthenticates_terminal_evidence=true");
+console.log("later_height_idempotent_replay_preserves_reconciliation=true");
+console.log("volatile_resolver_ids_not_durable_identity=true");
+console.log("packet_reconciliation_stable_identity_bound=true");
 console.log("idempotent_directory_durability_refresh=true");
 console.log("immutable_liability_history=true");
 console.log("create_once_reconciliation_publication=true");
