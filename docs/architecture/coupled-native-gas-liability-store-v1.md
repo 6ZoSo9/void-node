@@ -44,30 +44,51 @@ The lock uses
 `withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1(...)`. Missing, weak, or
 symlinked queue state HOLDS and is never bootstrapped.
 
+The payer-domain file is not trusted from a pre-lock observation. After entering
+the payer queue, the store opens it through the pinned root, retains that exact
+file descriptor plus canonical bytes/identity for the admission, and requires
+the visible path to remain bound to the same inode/metadata/bytes before
+idempotent success, immediately before publication, and again before stored
+success. If the domain changes after a canonical liability has already been
+published, the result is a post-mutation HOLD requiring reinspection rather
+than a clean success.
+
 ## Admission order
 
 One persistence attempt runs under the payer queue:
 
 ```text
 pin payer root / records / queue
-  -> verify payer-domain identity
   -> acquire existing payer queue
+  -> open + retain exact payer-domain descriptor/bytes inside the queue
   -> clean only reviewed non-authoritative temp names
   -> read full canonical open-liability census
-  -> call merged #2463 classifier with exact census + candidate evidence
-  -> require classifier payer == payer-domain identity
-  -> exact replay: verify already-durable canonical bytes and return
-  -> admitted candidate: create/fsync/link/fsync exact <liability_id>.json
+  -> sample injected admission time exactly once
+  -> call merged #2463 classifier with exact census + candidate evidence + sampled time
+  -> require classifier payer == retained payer-domain identity
+  -> rebind visible payer-domain to the retained descriptor/bytes
+  -> exact replay: verify already-durable canonical bytes, rebind payer-domain, return
+  -> new candidate: rebind payer-domain immediately before publication
+  -> create/fsync/link/fsync exact <liability_id>.json
   -> reread full census
-  -> rerun #2463 with exact post-write census
+  -> rerun #2463 with exact post-write census and the SAME sampled time
   -> require exact idempotent replay and unchanged reserved-after amount
+  -> rebind payer-domain again
   -> final root/records/queue visibility revalidation
   -> return stored
 ```
 
 The same durable wei cannot be admitted twice by two cooperating store callers:
-the complete census/classify/publish/postcheck sequence is inside one
-payer-scoped serialization domain.
+the complete payer-domain/census/time-sample/classify/publish/postcheck sequence
+is inside one payer-scoped serialization domain.
+
+The persistence API accepts an injected `read_now_ms()` dependency rather than
+a caller-captured timestamp. It is invoked exactly once after queue admission
+and after the full pre-write census, immediately before economic
+classification. The exact same returned value is reused for the post-write
+idempotence classifier. This proves ordering only: the store still reports
+`trusted_time_source_proven=false`; later runtime composition must separately
+bind a reviewed clock/time source.
 
 The store ceiling is also mutation-safe. Exact idempotent replay remains allowed
 when the census already contains `100,000` open liabilities, but a genuinely new
@@ -181,6 +202,10 @@ The store proof covers:
   bootstrap;
 - weak/symlinked queue HOLD without normalization;
 - payer-domain mismatch HOLD;
+- payer-domain replacement while queued HOLDS against the post-wait domain;
+- payer-domain replacement after classification cannot produce clean success;
+- fee evidence that expires during queue wait HOLDS using a post-wait time sample;
+- injected time provider is not called before queue admission/census and is sampled exactly once;
 - first exact durable liability publication;
 - exact replay idempotence under fresh fee observation;
 - stale observation HOLD without mutation;
