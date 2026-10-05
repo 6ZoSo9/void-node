@@ -10,6 +10,7 @@ import {
 import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1,
   parseProcStatusV1,
   parseProcStatStartTimeV1,
   parseSystemdShowV1,
@@ -27,6 +28,24 @@ function sha256Id(value) {
 assert.equal(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1",
+);
+
+assert.deepEqual(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SYSTEMD_CONTROL_VERBS_V1,
+  [
+    "start",
+    "stop",
+    "reload",
+    "restart",
+    "try-restart",
+    "reload-or-restart",
+    "reload-or-try-restart",
+    "kill",
+    "kill-subgroup",
+    "reset-failed",
+    "set-property",
+    "clean",
+  ],
 );
 
 for (const [key, value] of Object.entries(
@@ -374,6 +393,12 @@ for (const token of [
   "SYSTEMCTL = \"/usr/bin/systemctl\"",
   "FINDMNT = \"/usr/bin/findmnt\"",
   "PKCHECK = \"/usr/bin/pkcheck\"",
+  "org.freedesktop.systemd1.manage-units",
+  "org.freedesktop.systemd1.manage-unit-files",
+  "org.freedesktop.systemd1.reload-daemon",
+  "\"set-property\"",
+  "\"clean\"",
+  "\"kill\"",
   "RestrictNamespaces",
   "restrictMountNamespaceDeniedV1",
   "live_host_qualification_performed: false",
@@ -401,6 +426,9 @@ console.log(
 console.log("read_only_collector=true");
 console.log("exact_parent_classifier_reused=true");
 console.log("mount_namespace_identity_bound=true");
+console.log("systemd_direct_control_verb_denials_complete=true");
+console.log("systemd_unit_file_mutation_denied=true");
+console.log("systemd_daemon_reload_denied=true");
 console.log("mountinfo_snapshot_stability_required=true");
 console.log("descriptor_bound_metadata_reads=true");
 console.log("synthetic_snapshot_authority=false");
