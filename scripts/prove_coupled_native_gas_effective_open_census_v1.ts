@@ -524,25 +524,22 @@ requireHeld(
   "coupled_native_gas_effective_open_reconciliation_accounting_invalid",
 );
 
-const partialGasUse = requireOk(
+requireHeld(
   classifyCoupledNativeGasEffectiveOpenCensusV1({
     payer_address: payer,
     liabilities: [first],
     reconciliations: [
       makeReconciliation(first, {
-        // 1 native wei + 20,000 gas * 5 wei/gas. gasUsed is below the
-        // admitted 21,000 gas limit and is authenticated only upstream.
+        // Current merged #2479 requires gasUsed == liability.gas_limit.
+        // 100001 implies 1 native wei + 20,000 gas * 5 wei/gas against a
+        // 21,000-gas liability and therefore cannot be a current canonical
+        // terminal-cost/reconciliation result.
         actual_consumed_wei: "100001",
       }),
     ],
   }),
+  "coupled_native_gas_effective_open_reconciliation_accounting_invalid",
 );
-assert.equal(partialGasUse.reconciled_actual_consumed_wei, "100001");
-assert.equal(
-  partialGasUse.reconciled_unused_release_candidate_wei,
-  "110000",
-);
-assert.equal(partialGasUse.effective_open_reserved_wei, "0");
 
 requireHeld(
   classifyCoupledNativeGasEffectiveOpenCensusV1({
