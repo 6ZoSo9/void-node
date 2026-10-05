@@ -235,6 +235,7 @@ function classify(
     now_ms: number;
     expected_source_head_sha: string;
     expected_host_id_sha256: string;
+    expected_service_unit_sha256: string;
     expected_ledger_rollback_domain_sha256: string;
     expected_custody_rollback_domain_sha256: string;
     ledger_jsonl: string;
@@ -248,7 +249,9 @@ function classify(
     expected_host_id_sha256:
       overrides.expected_host_id_sha256 ?? HOST_ID,
     expected_evidence_generation: EVIDENCE_GENERATION,
-    expected_service_unit_sha256: SERVICE_UNIT_SHA256,
+    expected_service_unit_sha256:
+      (overrides as any).expected_service_unit_sha256 ??
+      SERVICE_UNIT_SHA256,
     expected_ledger_rollback_domain_sha256:
       (overrides as any).expected_ledger_rollback_domain_sha256 ??
       LEDGER_ROLLBACK_DOMAIN_SHA256,
@@ -561,6 +564,35 @@ expectHeld(
 
 expectHeld(
   classify(evidence(), {
+    expected_source_head_sha: SOURCE_HEAD + " ",
+  }),
+  "allocation_custody_expected_source_head_invalid",
+);
+
+expectHeld(
+  classify(evidence(), {
+    expected_host_id_sha256: HOST_ID + " ",
+  }),
+  "allocation_custody_expected_host_id_invalid",
+);
+
+expectHeld(
+  classify(evidence(), {
+    expected_service_unit_sha256: SERVICE_UNIT_SHA256 + " ",
+  }),
+  "allocation_custody_expected_service_unit_sha256_invalid",
+);
+
+expectHeld(
+  classify(evidence(), {
+    expected_ledger_rollback_domain_sha256:
+      LEDGER_ROLLBACK_DOMAIN_SHA256 + " ",
+  }),
+  "allocation_custody_expected_rollback_domain_invalid",
+);
+
+expectHeld(
+  classify(evidence(), {
     expected_host_id_sha256:
       "sha256:" + "d".repeat(64),
   }),
@@ -666,6 +698,7 @@ console.log("forward_only_no_duplicate_recovery_required=true");
 console.log("freshness_required=true");
 console.log("caller_bound_evidence_generation=true");
 console.log("canonical_evidence_string_spelling_required=true");
+console.log("caller_expected_identity_spelling_exact=true");
 console.log("typed_json_integer_evidence_required=true");
 console.log("reviewed_service_unit_sha256_required=true");
 console.log("live_host_observation=false");
