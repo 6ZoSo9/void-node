@@ -365,11 +365,36 @@ assert.doesNotMatch(
     "classifyCoupledNativeGasBuyVoidAdmissionV1({",
     timeAt,
   );
+  const rebindAt = storeSource.indexOf(
+    "assertPayerDomainSnapshotCurrent(",
+    classifyAt,
+  );
+  const mutationTimeAt = storeSource.indexOf(
+    "const mutationNowMs = readNowMs();",
+    rebindAt,
+  );
+  const mutationClassifyAt = storeSource.indexOf(
+    "const mutationAdmission =",
+    mutationTimeAt,
+  );
+  const createAt = storeSource.indexOf(
+    "createOnceLiability(records!, mutationAdmission.liability)",
+    mutationClassifyAt,
+  );
   assert.ok(queueAt >= 0);
   assert.ok(domainAt > queueAt);
   assert.ok(censusAt > domainAt);
   assert.ok(timeAt > censusAt);
   assert.ok(classifyAt > timeAt);
+  assert.ok(rebindAt > classifyAt);
+  assert.ok(mutationTimeAt > rebindAt);
+  assert.ok(mutationClassifyAt > mutationTimeAt);
+  assert.ok(createAt > mutationClassifyAt);
+  assert.equal(
+    (storeSource.match(/readNowMs\(\)/gu) || []).length,
+    2,
+    "stored admission must have one post-census sample and one prepublication refresh",
+  );
 }
 assert.match(
   storeSource,
@@ -617,7 +642,7 @@ assert.match(
       }),
     );
     assert.equal(stored.status, "stored");
-    assert.equal(storedTimeCalls, 1);
+    assert.equal(storedTimeCalls, 2);
     assert.equal(stored.mutation_performed, true);
     assert.equal(stored.payer_address, wallet);
     assert.equal(stored.tracked_open_liability_count, 1);
@@ -922,7 +947,9 @@ console.log("serialized_admission=true");
 console.log("payer_domain_bound_inside_serialized_admission=true");
 console.log("payer_domain_queue_wait_swap_rejected=true");
 console.log("payer_domain_postclassification_swap_reports_postmutation=true");
-console.log("admission_time_sampled_once_after_queue_and_census=true");
+console.log("admission_time_sampled_after_queue_and_census=true");
+console.log("admission_time_refreshed_immediately_before_publication=true");
+console.log("postwrite_classifier_reuses_premutation_time_sample=true");
 console.log("expired_during_queue_wait_rejected=true");
 console.log("concurrent_near_balance_oversubscription_prevented=true");
 console.log("exact_idempotent_replay=true");
