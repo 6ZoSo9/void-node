@@ -102,6 +102,13 @@ next_open_reserved              = 0
 - rederive its exact `reconciliation_id`; and
 - be the only reconciliation for that liability.
 
+The census deliberately does not reconstruct `gasUsed` or effective gas price
+from the reconciliation row. Those fields are authenticated upstream by the
+terminal-cost evidence contract and are not carried in the canonical
+reconciliation record. In particular, a valid transaction may consume less gas
+than its admitted gas limit; dividing consumed gas cost by the admitted limit
+would incorrectly reject ordinary confirmed transactions.
+
 An orphan reconciliation, duplicate row, or alternate reconciliation for one
 liability HOLDS.
 
