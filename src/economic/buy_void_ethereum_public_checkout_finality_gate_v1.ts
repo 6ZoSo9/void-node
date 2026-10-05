@@ -236,6 +236,55 @@ function enabled(value: unknown): boolean {
   return String(value ?? "").trim() === "1";
 }
 
+function productionSourceFinalityCapabilityReadyV1(
+  capability: unknown,
+): boolean {
+  const value =
+    capability &&
+    typeof capability === "object" &&
+    !Array.isArray(capability)
+      ? capability as Record<string, unknown>
+      : null;
+  return Boolean(
+    value &&
+    value.reviewed_source_files_verification_required === true &&
+    value.reviewed_source_files_verified_on_success === true &&
+    value.source_generation_verified_on_success === true &&
+    value.deployed_artifact_generation_verified === true &&
+    value.authenticated_transport_identity_verified === true &&
+    value.remote_provider_identity_verified === true &&
+    value.total_operation_deadline_verified === true &&
+    value.observation_generated_in_composition === true &&
+    value.ancestry_verified === true &&
+    value.provider_quorum_verified === true &&
+    value.production_source_finality_authority_ready === true &&
+    value.rpc_read === true &&
+    value.rpc_write === false &&
+    value.wallet_access === false &&
+    value.signing === false &&
+    value.transaction_construction === false &&
+    value.transaction_broadcast === false &&
+    value.runtime_route_mount === false &&
+    value.background_loop === false &&
+    value.inventory_mutation === false &&
+    value.chain2050_mutation === false &&
+    value.public_presale_activation === false &&
+    value.money_movement === false
+  );
+}
+
+export function testOnlyClassifyBuyVoidEthereumSourceFinalityCapabilityV1(
+  capability: unknown,
+) {
+  return Object.freeze({
+    marker:
+      "VOID_BUY_VOID_ETHEREUM_SOURCE_FINALITY_CAPABILITY_TEST_ONLY_V1",
+    would_be_production_capability_ready:
+      productionSourceFinalityCapabilityReadyV1(capability),
+    production_transition_authority: false,
+  });
+}
+
 
 function preAttemptHeld(
   reason: string,
@@ -702,14 +751,7 @@ export function readBuyVoidEthereumPublicCheckoutReadinessV1(
 
   const capability =
     VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
-  const capabilityReady =
-    Boolean(capability.source_generation_verified_on_success) &&
-    Boolean(capability.deployed_artifact_generation_verified) &&
-    Boolean(capability.remote_provider_identity_verified) &&
-    Boolean(capability.ancestry_verified) &&
-    Boolean(capability.provider_quorum_verified) &&
-    Boolean(capability.production_source_finality_authority_ready);
-  if (!capabilityReady) {
+  if (!productionSourceFinalityCapabilityReadyV1(capability)) {
     return readinessHeld(
       "ethereum_source_finality_capability_not_ready",
       [],
@@ -869,17 +911,7 @@ export async function runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1(
 
   const capability =
     VOID_BUY_VOID_SOURCE_FINALITY_GENERATION_PROVENANCE_AUTHORITY_V5;
-  const capabilityReady =
-    Boolean(capability.reviewed_source_files_verified_on_success) &&
-    Boolean(capability.source_generation_verified_on_success) &&
-    Boolean(capability.deployed_artifact_generation_verified) &&
-    Boolean(capability.authenticated_transport_identity_verified) &&
-    Boolean(capability.remote_provider_identity_verified) &&
-    Boolean(capability.total_operation_deadline_verified) &&
-    Boolean(capability.ancestry_verified) &&
-    Boolean(capability.provider_quorum_verified) &&
-    Boolean(capability.production_source_finality_authority_ready);
-  if (!capabilityReady) {
+  if (!productionSourceFinalityCapabilityReadyV1(capability)) {
     return preAttemptHeld(
       "ethereum_pre_attempt_source_finality_capability_not_ready",
       null,
