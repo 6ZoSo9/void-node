@@ -880,6 +880,35 @@ function witnessedPrefixMatches(
   );
 }
 
+function witnessedCanonicalPrefixMatches(
+  tip: BuyVoidAllocationCustodyExternalWitnessEventV1,
+  currentLedgerBytes: Buffer,
+): boolean {
+  if (!witnessedPrefixMatches(tip, currentLedgerBytes)) {
+    return false;
+  }
+  const prefix = currentLedgerBytes.subarray(0, tip.ledger_bytes);
+  const highWater =
+    deriveBuyVoidAllocationReservationHighWaterV1(prefix);
+  if (highWater.ok === false) {
+    return false;
+  }
+  const highWaterBytes = Buffer.from(
+    highWater.high_water_json,
+    "utf8",
+  );
+  return (
+    tip.record_count === highWater.high_water.record_count &&
+    tip.allocation_tip_sha256 === highWater.high_water.tip_hash &&
+    tip.high_water_bytes === highWaterBytes.length &&
+    tip.high_water_sha256 === sha256Id(highWaterBytes) &&
+    tip.pool_void_total === highWater.high_water.pool_void_total &&
+    tip.reserved_void_total ===
+      highWater.high_water.reserved_void_total &&
+    tip.remaining_void === highWater.high_water.remaining_void
+  );
+}
+
 function currentInvariantTuple(
   current: BuyVoidAllocationCustodyExternalWitnessCurrentV1,
 ): readonly unknown[] {
@@ -958,7 +987,7 @@ export function classifyBuyVoidAllocationCustodyExternalWitnessV1(
 
     if (current.record_count > journal.tip.record_count) {
       if (
-        !witnessedPrefixMatches(
+        !witnessedCanonicalPrefixMatches(
           journal.tip,
           canonical.ledger_bytes,
         )
@@ -1073,7 +1102,10 @@ export function planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(
 
     if (
       current.record_count !== tip.record_count + 1 ||
-      !witnessedPrefixMatches(tip, canonical.ledger_bytes) ||
+      !witnessedCanonicalPrefixMatches(
+        tip,
+        canonical.ledger_bytes,
+      ) ||
       current.ledger_bytes <= tip.ledger_bytes ||
       current.allocation_tip_sha256 === tip.allocation_tip_sha256 ||
       amountMicro(
