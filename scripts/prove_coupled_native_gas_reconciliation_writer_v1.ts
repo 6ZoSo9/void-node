@@ -293,6 +293,7 @@ for (const [key, value] of Object.entries(
     "crash_temp_normalization",
     "record_filename_identity_binding",
     "exact_effective_open_postcheck",
+    "exact_reconciliation_history_delta",
     "descriptor_bound_reads",
     "filesystem_read",
     "filesystem_write",
@@ -616,6 +617,65 @@ for (const [key, value] of Object.entries(
 }
 
 {
+  const first = makeLiability();
+  const second = makeLiability({
+    obligation: "3".repeat(64),
+    nonce: 8,
+    plan: "4".repeat(64),
+  });
+  const secondBefore = makeReconciliation(second);
+  const secondAfter = makeReconciliation(second, {
+    terminal_cost_evidence_id: "9".repeat(64),
+    actual_consumed_wei: "126001",
+  });
+  assert.notEqual(
+    secondBefore.reconciliation_id,
+    secondAfter.reconciliation_id,
+  );
+  const f = fixture([first, second], [secondBefore]);
+  try {
+    const decision =
+      await testOnlyPersistCoupledNativeGasReconciliationV1(
+        {
+          root_dir: f.root,
+          payer_address: payer,
+          liability_id: first.liability_id,
+          policy,
+        },
+        {
+          resolve_evidence: async () => resolved(first),
+          after_publication: () => {
+            fs.unlinkSync(
+              path.join(
+                f.root,
+                RECONCILIATIONS,
+                secondBefore.reconciliation_id + ".json",
+              ),
+            );
+            writeCanonical(
+              path.join(
+                f.root,
+                RECONCILIATIONS,
+                secondAfter.reconciliation_id + ".json",
+              ),
+              secondAfter,
+            );
+          },
+        },
+      );
+    requireHeld(decision);
+    assert.equal(decision.status, "held_after_mutation");
+    assert.equal(decision.mutation_performed, true);
+    assert.equal(
+      decision.reason,
+      "coupled_native_gas_reconciliation_writer_reconciliation_history_changed_after_publication",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const f = fixture();
   const liability = f.liabilities[0];
   try {
@@ -884,6 +944,7 @@ console.log("immutable_liability_history=true");
 console.log("create_once_reconciliation_publication=true");
 console.log("effective_open_reserve_release_exactly_once=true");
 console.log("history_change_before_publication_hold=true");
+console.log("unrelated_reconciliation_history_change_after_publication_hold=true");
 console.log("reconciliation_history_exact_append_postcheck=true");
 console.log("postpublication_reconciliation_substitution_hold=true");
 console.log("postpublication_failure_reports_mutation=true");
