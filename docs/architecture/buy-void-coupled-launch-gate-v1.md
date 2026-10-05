@@ -33,9 +33,9 @@ reviewed coupled launch ID:
 Nested policy drift is therefore rejected by the canonical classifiers instead
 of being reduced to a hand-picked set of top-level booleans.
 
-The prior `sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26` generation is superseded source lineage only.
-It is not current activation authority and its control signatures/activation
-receipts are not reusable against the corrected generation.
+The prior generation is superseded source lineage only. It is not current
+activation authority, and its control signatures/activation receipts are not
+reusable against the corrected generation.
 
 A source-ready result records the canonical coupled composition ID, but it still
 reports activation/funding/presale/market/funds authority false.
