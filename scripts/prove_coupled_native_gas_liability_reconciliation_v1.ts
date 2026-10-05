@@ -524,6 +524,7 @@ requireHeld(
   );
 }
 
+assert.equal(confirmed1.outcome, "confirmed");
 assert.match(confirmed1.reconciliation_id, /^[0-9a-f]{64}$/u);
 
 for (const [key, value] of Object.entries(
