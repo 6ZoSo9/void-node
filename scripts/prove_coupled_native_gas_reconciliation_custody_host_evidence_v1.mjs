@@ -11,6 +11,7 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_AUTHORITY_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1,
   parseProcStatusV1,
+  parseProcStatStartTimeV1,
   parseSystemdShowV1,
   testOnlyClassifyCollectedHostEvidenceV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs";
@@ -53,6 +54,7 @@ for (const [key, value] of Object.entries(
       "Gid:\t1001\t1001\t1001\t1001",
       "Groups:\t1001 1002",
       "CapEff:\t0000000000000000",
+      "NoNewPrivs:\t1",
       "",
     ].join("\n"),
   );
@@ -60,6 +62,14 @@ for (const [key, value] of Object.entries(
   assert.equal(parsed.gid, 1001);
   assert.deepEqual(parsed.groups, [1001, 1002]);
   assert.equal(parsed.cap_eff, 0n);
+  assert.equal(parsed.no_new_privs, 1);
+}
+
+{
+  const start = parseProcStatStartTimeV1(
+    "123 (void worker) S 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 424242 0",
+  );
+  assert.equal(start, "424242");
 }
 
 {
@@ -334,6 +344,12 @@ for (const token of [
   "pkcheck",
   "findmnt",
   "/proc/sys/kernel/random/boot_id",
+  "/etc/machine-id",
+  "start_time_ticks",
+  "\"--detail\"",
+  "SYSTEMCTL = \"/usr/bin/systemctl\"",
+  "FINDMNT = \"/usr/bin/findmnt\"",
+  "PKCHECK = \"/usr/bin/pkcheck\"",
   "live_host_qualification_performed: false",
   "production_gate_ready: false",
 ]) {
