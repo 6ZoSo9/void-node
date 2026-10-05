@@ -60,7 +60,7 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1 =
   });
 
 const CURRENT_LAUNCH =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REVIEWED_SOURCE_COMMIT =
   "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
