@@ -77,6 +77,30 @@ const executionPolicy = {
   fulfillment_wallet_allowlist: [wallet],
 };
 
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) throw new Error("noncanonical_value");
+    return encoded;
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonical).join(",") + "]";
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    "{" +
+    Object.keys(record)
+      .sort()
+      .map((key) => JSON.stringify(key) + ":" + canonical(record[key]))
+      .join(",") +
+    "}"
+  );
+}
+
+function sha256Canonical(value: unknown): string {
+  return crypto.createHash("sha256").update(canonical(value), "utf8").digest("hex");
+}
+
 function snapshotTree(root: string): string {
   const rows: string[] = [];
   const visit = (current: string) => {
@@ -456,9 +480,33 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
 }
 
 {
-  const alteredLiability = {
-    ...confirmed.liability,
+  const alteredBody = {
+    schema: confirmed.liability.schema,
+    marker: confirmed.liability.marker,
+    version: confirmed.liability.version,
+    lane: confirmed.liability.lane,
+    obligation_id: confirmed.liability.obligation_id,
+    payer_address: confirmed.liability.payer_address,
     nonce: confirmed.liability.nonce + 1,
+    transaction_plan_fingerprint_sha256:
+      confirmed.liability.transaction_plan_fingerprint_sha256,
+    transaction_native_value_wei:
+      confirmed.liability.transaction_native_value_wei,
+    gas_limit: confirmed.liability.gas_limit,
+    admitted_max_fee_per_gas_wei:
+      confirmed.liability.admitted_max_fee_per_gas_wei,
+    attempt_limit: confirmed.liability.attempt_limit,
+    maximum_reserved_wei: confirmed.liability.maximum_reserved_wei,
+    fee_observation_sha256:
+      confirmed.liability.fee_observation_sha256,
+    source_evidence_kind:
+      confirmed.liability.source_evidence_kind,
+    source_evidence_id: confirmed.liability.source_evidence_id,
+    status: confirmed.liability.status,
+  } as const;
+  const alteredLiability = {
+    ...alteredBody,
+    liability_id: sha256Canonical(alteredBody),
   };
   const altered =
     await resolveCoupledNativeGasReconciliationEvidenceV1({
@@ -473,6 +521,27 @@ assert.match(happy.packet.packet_id, /^[0-9a-f]{64}$/u);
   assert.equal(
     altered.reason,
     "reconciliation_evidence_plan_liability_binding_mismatch",
+  );
+}
+
+{
+  const invalidIdentity = {
+    ...confirmed.liability,
+    liability_id: "0".repeat(64),
+  };
+  const held =
+    await resolveCoupledNativeGasReconciliationEvidenceV1({
+      root_dir: confirmed.root,
+      liability: invalidIdentity,
+      policy,
+      transport: transportFor("confirmed"),
+    });
+  assert.equal(held.ok, false);
+  if (held.ok) throw new Error("expected liability identity HOLD");
+  assert.equal(held.stage, "liability");
+  assert.equal(
+    held.reason,
+    "reconciliation_evidence_liability_identity_mismatch",
   );
 }
 
