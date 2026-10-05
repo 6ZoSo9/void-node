@@ -41,6 +41,8 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1 =
     idempotent_replay_reauthenticates_terminal_evidence: true,
     immutable_liability_history: true,
     create_once_reconciliation_publication: true,
+    crash_temp_normalization: true,
+    record_filename_identity_binding: true,
     exact_effective_open_postcheck: true,
     descriptor_bound_reads: true,
     filesystem_read: true,
@@ -79,7 +81,7 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const RECORD_NAME = /^([0-9a-f]{64})\.json$/u;
 const TEMP_RECONCILIATION_NAME =
-  /^\.[0-9a-f]{64}\.json\.tmp-[1-9][0-9]*-[0-9a-f]{16}$/u;
+  /^\.([0-9a-f]{64})\.json\.tmp-[1-9][0-9]*-[0-9a-f]{16}$/u;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
 
@@ -217,11 +219,12 @@ function validatePrivateDirectory(
 function validatePrivateFile(
   stat: fs.BigIntStats,
   code: string,
+  allowedLinks = 1n,
 ): void {
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
-    stat.nlink !== 1n ||
+    stat.nlink !== allowedLinks ||
     stat.size < 2n ||
     stat.size > BigInt(MAX_FILE_BYTES) ||
     (
@@ -514,13 +517,13 @@ function recoverStaleReconciliationTempsV1(
   const names = fs.readdirSync(directory.proc_path).sort();
   let recovered = 0;
   for (const name of names) {
-    if (!TEMP_RECONCILIATION_NAME.test(name)) continue;
+    const match = TEMP_RECONCILIATION_NAME.exec(name);
+    if (!match) continue;
     const filePath = path.join(directory.proc_path, name);
     const visible = fs.lstatSync(filePath, { bigint: true });
     if (
       !visible.isFile() ||
       visible.isSymbolicLink() ||
-      visible.nlink !== 1n ||
       visible.size > BigInt(MAX_FILE_BYTES) ||
       (
         typeof process.getuid === "function" &&
@@ -530,26 +533,55 @@ function recoverStaleReconciliationTempsV1(
     ) {
       fail("coupled_native_gas_reconciliation_writer_temp_recovery_file_invalid");
     }
-    const fd = fs.openSync(
-      filePath,
-      fs.constants.O_RDONLY | O_NOFOLLOW,
-    );
-    try {
-      const opened = fs.fstatSync(fd, { bigint: true });
-      const visibleAgain = fs.lstatSync(filePath, { bigint: true });
-      if (
-        !sameFileIdentity(visible, opened) ||
-        !sameFileIdentity(opened, visibleAgain)
-      ) {
-        fail("coupled_native_gas_reconciliation_writer_temp_recovery_file_changed");
+    if (visible.nlink === 1n) {
+      const fd = fs.openSync(
+        filePath,
+        fs.constants.O_RDONLY | O_NOFOLLOW,
+      );
+      try {
+        const opened = fs.fstatSync(fd, { bigint: true });
+        const visibleAgain = fs.lstatSync(filePath, { bigint: true });
+        if (
+          !sameFileIdentity(visible, opened) ||
+          !sameFileIdentity(opened, visibleAgain)
+        ) {
+          fail(
+            "coupled_native_gas_reconciliation_writer_temp_recovery_file_changed",
+          );
+        }
+        fs.unlinkSync(filePath);
+        onMutation();
+        fs.fsyncSync(directory.fd);
+        recovered += 1;
+      } finally {
+        fs.closeSync(fd);
       }
-      fs.unlinkSync(filePath);
-      onMutation();
-      fs.fsyncSync(directory.fd);
-      recovered += 1;
-    } finally {
-      fs.closeSync(fd);
+      continue;
     }
+    validatePrivateFile(
+      visible,
+      "coupled_native_gas_reconciliation_writer_temp_recovery_file_invalid",
+      2n,
+    );
+    const finalPath = path.join(
+      directory.proc_path,
+      match[1] + ".json",
+    );
+    const final = fs.lstatSync(finalPath, { bigint: true });
+    validatePrivateFile(
+      final,
+      "coupled_native_gas_reconciliation_writer_temp_recovery_final_invalid",
+      2n,
+    );
+    if (visible.dev !== final.dev || visible.ino !== final.ino) {
+      fail(
+        "coupled_native_gas_reconciliation_writer_temp_recovery_binding_invalid",
+      );
+    }
+    fs.unlinkSync(filePath);
+    onMutation();
+    fs.fsyncSync(directory.fd);
+    recovered += 1;
   }
   assertPinnedDirectoryVisible(
     directory,
@@ -561,6 +593,7 @@ function recoverStaleReconciliationTempsV1(
 function readHistoryDirectory(
   directory: PinnedDirectoryV1,
   code: string,
+  identityField: "liability_id" | "reconciliation_id",
 ): HistorySnapshotV1 {
   assertPinnedDirectoryVisible(directory, code + "_directory");
   const before = fs.fstatSync(directory.fd, { bigint: true });
@@ -578,7 +611,8 @@ function readHistoryDirectory(
   }[] = [];
   let totalBytes = 0;
   for (const name of names) {
-    if (!RECORD_NAME.test(name)) {
+    const nameMatch = RECORD_NAME.exec(name);
+    if (!nameMatch) {
       fail(code + "_entry_name_invalid");
     }
     const read = readPinnedNamedFile(
@@ -590,7 +624,11 @@ function readHistoryDirectory(
     if (totalBytes > MAX_HISTORY_TOTAL_BYTES) {
       fail(code + "_history_bytes_exceeded");
     }
-    rows.push(parseCanonicalJson(read.bytes, code + "_record"));
+    const row = parseCanonicalJson(read.bytes, code + "_record");
+    if (String(row[identityField] ?? "") !== nameMatch[1]) {
+      fail(code + "_record_filename_identity_mismatch");
+    }
+    rows.push(row);
     entries.push({
       name,
       bytes: read.bytes.length,
@@ -934,10 +972,12 @@ async function persistWithDependencies(
         const liabilitiesBefore = readHistoryDirectory(
           records!,
           "coupled_native_gas_reconciliation_writer_liabilities",
+          "liability_id",
         );
         const reconciliationsBefore = readHistoryDirectory(
           reconciliations!,
           "coupled_native_gas_reconciliation_writer_reconciliations",
+          "reconciliation_id",
         );
         const censusBefore = requireCensus(
           payerAddress,
@@ -1031,10 +1071,12 @@ async function persistWithDependencies(
         const liabilitiesAfterResolver = readHistoryDirectory(
           records!,
           "coupled_native_gas_reconciliation_writer_liabilities",
+          "liability_id",
         );
         const reconciliationsAfterResolver = readHistoryDirectory(
           reconciliations!,
           "coupled_native_gas_reconciliation_writer_reconciliations",
+          "reconciliation_id",
         );
         const censusAfterResolver = requireCensus(
           payerAddress,
@@ -1113,10 +1155,12 @@ async function persistWithDependencies(
         const liabilitiesAfter = readHistoryDirectory(
           records!,
           "coupled_native_gas_reconciliation_writer_liabilities",
+          "liability_id",
         );
         const reconciliationsAfter = readHistoryDirectory(
           reconciliations!,
           "coupled_native_gas_reconciliation_writer_reconciliations",
+          "reconciliation_id",
         );
         if (
           domainAfter !== domainBefore ||
