@@ -57,22 +57,42 @@ The collector reuses
 Buy VOID allocation-custody preflight instead of maintaining a second Linux
 mountinfo parser.
 
+
 ## Namespace and mount-table binding
 
-Linux mount IDs are namespace-local. Therefore the collector requires the
-collector process, public runtime process, and custody service process to share
-one exact mount namespace for V1.
+Linux mount IDs are namespace-local. The collector therefore treats the
+**custody service mount namespace** as the only mount-ID authority.
 
-It binds the namespace by the observed `/proc/.../ns/mnt` device/inode/link
-identity and requires that identity to be unchanged after collection.
+The collector process itself must already be executing in that exact custody
+mount namespace. If collector and custody namespace identities differ,
+collection HOLDS. This keeps ordinary path/descriptor observations and
+`/proc/<custody-pid>/mountinfo` in one mount-ID domain.
 
-It also reads the custody process's mountinfo before and after collection and
-requires the bytes to be identical. Governing mount records are selected by the
-existing longest-prefix resolver.
+The public runtime is **not** required to share the custody namespace. Its
+`/proc/<pid>/ns/mnt` identity and `/proc/<pid>/mountinfo` bytes are
+fingerprinted separately and revalidated before/after collection. This is
+intentional because systemd filesystem hardening such as `PrivateTmp=true`
+may place a service in a private filesystem namespace.
 
-If a future deployment intentionally separates these mount namespaces, it needs
-a later reviewed collector generation that explicitly proves their
-relationship. V1 does not guess across namespaces.
+When the public runtime namespace differs, the collector also resolves the
+canonical payer-root pathname and every retained ancestor through
+`/proc/<public-pid>/root/...`. Those objects must map to the same underlying
+`(dev,ino)` identities observed in the custody namespace, and the runtime's
+UID/GID/groups must still lack mutation permission on the mapped root and
+ancestors. If the canonical path maps to different objects, collection HOLDS
+instead of inferring safety from custody-namespace mode bits.
+
+The custody and public-runtime mountinfo snapshots are each read before and
+after collection and must remain byte-identical. Governing mount records for
+the protected storage are selected only from the custody process's mountinfo
+with the existing longest-prefix resolver. Public-runtime mount IDs are
+recorded only as namespace-local evidence and are never compared to custody
+mount IDs as if they were global.
+
+The collector itself performs no namespace entry. A separately reviewed
+operator wrapper may establish the custody service's mount namespace before
+launching this read-only process. A normal host-shell invocation outside that
+namespace HOLDS.
 
 ## Filesystem evidence
 
@@ -101,24 +121,33 @@ The #2499 classifier remains authoritative for the required root ownership,
 modes, root/child mount-ID equality, inode separation, canonical payer-domain
 identity, service policy, and negative-test fields.
 
+
 ## Read-only negative evidence
 
-The collector treats public-runtime mount mutation as denied only when the live
-runtime process has no inherited, permitted, effective, bounding, or ambient
-capabilities and the runtime/custody/collector mount namespace is the same
-observed namespace. The custody service is held to the same zero-capability
-process condition. `Uid:` / `Gid:` evidence must have identical real,
-effective, saved, and filesystem identities; filesystem permission decisions
-therefore cannot be derived from a weaker real-ID view.
+The collector treats public-runtime filesystem mutation as denied only when the
+live runtime process has no inherited, permitted, effective, bounding, or
+ambient capabilities and its canonical payer-root/ancestor view is explicitly
+cross-bound to the same underlying objects used by the custody classifier.
+The custody service is held to the same zero-capability process condition.
+`Uid:` / `Gid:` evidence must have identical real, effective, saved, and
+filesystem identities; filesystem permission decisions therefore cannot be
+derived from a weaker real-ID view.
 
-Payer-root rename/recreate/symlink-substitution denial is derived from the
-runtime's effective UID/GID/groups and the parent-directory permission bits.
+The collector and custody process must share one exact mount namespace. The
+public runtime may be in a different namespace; that namespace identity,
+mountinfo snapshot, canonical path mapping, and before/after stability are
+content-bound separately.
+
+Payer-root rename/recreate/symlink-substitution denial is derived only after
+the public runtime's canonical parent/root objects have been matched back to
+the custody objects. A different public-runtime mapping HOLDS rather than being
+treated as stronger isolation without proof.
 
 Bind/remount/alternate-mount-namespace denial is not inferred merely from the
 current namespace snapshot. The collector also reads the public runtime unit's
-effective `RestrictNamespaces=` policy and requires mount-namespace creation to
-be prohibited. Unknown or permissive policy leaves those #2499 negative-evidence
-flags false and therefore HOLDS instead of claiming denial.
+effective `RestrictNamespaces=` policy and requires mount-namespace creation
+to be prohibited. Unknown or permissive policy leaves those #2499
+negative-evidence flags false and therefore HOLDS instead of claiming denial.
 
 Systemd service-control denial is obtained with noninteractive Polkit
 authorization queries bound to the exact custody unit. The direct
@@ -126,19 +155,15 @@ authorization queries bound to the exact custody unit. The direct
 `reload`, `restart`, `try-restart`, `reload-or-restart`,
 `reload-or-try-restart`, `kill`, `kill-subgroup`, `reset-failed`,
 `set-property`, `clean`, `bind-mount`, and `mount-image`. The latter two
-are especially custody-relevant because systemd can use them to modify the
-running service's mount namespace. The collector also requires blanket denial of
+are custody-relevant because systemd can use them to modify the running
+service's mount namespace. The collector also requires denial of
 `org.freedesktop.systemd1.manage-unit-files` and
 `org.freedesktop.systemd1.reload-daemon` for the public-runtime subject.
 
 The Polkit subject is bound as `PID,start-time,UID`, not PID alone. If any
 required query is authorized, unavailable, or indeterminate, collection HOLDS.
-This prevents a policy that denies only start/stop/restart while permitting a
-different unit-control verb from being collapsed into the broader
-`public_runtime_can_control_service=false` evidence claim.
-
-These observations still do not prove a globally trusted security boundary.
-They are bounded host evidence supplied to #2499.
+This remains a bounded direct-control proof; it does not claim the runtime can
+never obtain some other privileged delegate through a broader host policy.
 
 ## Service policy
 
@@ -187,11 +212,12 @@ funds_movement=false
 The inner #2499 result remains `source_qualified`. This collector only records
 where that input came from.
 
+
 ## Synthetic proof boundary
 
 `testOnlyClassifyCollectedHostEvidenceV1(...)` exists only for deterministic
-CI. Synthetic evidence can prove parser/composition behavior, but always returns
-`live_observation_backed=false` and cannot become live host authority.
+CI. Synthetic evidence can prove parser/composition behavior, but always
+returns `live_observation_backed=false` and cannot become live host authority.
 
 The proof covers:
 
@@ -199,19 +225,31 @@ The proof covers:
 - authority flags;
 - proc-status parsing;
 - systemd-show parsing and mount-namespace restriction semantics;
-- exact systemd direct-control Polkit verb-denial set, including live bind/image mounts, plus unit-file and daemon-reload denial tokens;
+- exact systemd direct-control Polkit verb-denial set, including live
+  bind/image mounts, plus unit-file and daemon-reload denial tokens;
 - proc start-time parsing, non-divergent FS UID/GID identity, full capability
   masks, and `NoNewPrivs` evidence;
-- simple POSIX ACL acceptance plus named/default extended ACL rejection before mode-bit permission inference;
+- simple POSIX ACL acceptance plus named/default extended ACL rejection before
+  mode-bit permission inference;
 - designated-host mismatch HOLD;
-- mountinfo drift HOLD;
-- mount-namespace drift HOLD;
+- custody mountinfo drift HOLD;
+- public-runtime mountinfo drift HOLD;
+- collector/custody namespace mismatch HOLD;
+- public-runtime namespace separation accepted and fingerprinted;
+- public-runtime or custody namespace drift HOLD;
+- public-runtime canonical payer-root mapping mismatch HOLD;
 - child governing-mount substitution HOLD; and
 - static absence of filesystem mutation primitives.
 
+
 ## Usage
 
-Read-only operator observation, when separately authorized:
+Read-only operator observation, when separately authorized, must execute the
+collector **inside the custody service mount namespace**. The collector itself
+does not call `nsenter`, `setns`, mount, remount, or any service mutation.
+
+A separately reviewed operator wrapper must establish that namespace before
+invoking:
 
 ```bash
 node --import tsx \
@@ -222,6 +260,9 @@ node --import tsx \
   --public-runtime-unit UNIT \
   --custody-service-unit UNIT
 ```
+
+A normal host-shell invocation outside the custody namespace HOLDS instead of
+mixing host-namespace path metadata with custody-namespace mount IDs.
 
 This command is not executed by CI and this source lane does not authorize its
 execution on a production host.
