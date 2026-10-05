@@ -40,6 +40,8 @@ classifyBuyVoidAllocationHighWaterCustodyQualificationV1({
   expected_host_id_sha256,
   expected_evidence_generation,
   expected_service_unit_sha256,
+  expected_ledger_rollback_domain_sha256,
+  expected_custody_rollback_domain_sha256,
   ledger_jsonl,
   high_water_json,
   evidence,
@@ -121,18 +123,40 @@ source writer's admitted post-revalidation pathname replacement schedule.
 
 ## Independent high-water custody
 
-Different pathnames are not enough.
+Different pathnames are not enough, and neither are different Linux device
+numbers.
 
-The ledger root and protected custody root must have distinct:
+The ledger root and protected custody root must first have distinct topology
+evidence:
 
 - mount IDs;
 - device major/minor identities; and
 - mount sources.
 
-The strict v1 profile therefore requires a separate device/mount failure domain.
-Accepted filesystems are `ext4` and `xfs`.
+Those fields prove that the presented mounts are not the same mount/dev_t/source
+identity. They do **not** by themselves prove independent rollback or failure
+domains. Two partitions on one disk, two LVM logical volumes on one physical
+volume, two device-mapper mappings on one backing device, or two filesystems
+inside one VM/storage-pool snapshot domain can still fail or roll back together.
 
-Both mounts must report canonical sorted mount options including:
+The evidence packet therefore also carries one
+`rollback_domain_sha256` for each mount. The classifier requires:
+
+- an exact caller-supplied expected ledger rollback-domain SHA-256;
+- an exact caller-supplied expected custody rollback-domain SHA-256;
+- evidence values equal to those expected identities; and
+- the two rollback-domain identities to differ.
+
+The packet cannot select its own accepted rollback domains. A later read-only
+host collector/receipt must define how those identities are derived from the
+actual backing/snapshot failure domain and bind that derivation to the
+designated host. This pure classifier validates the resulting evidence only; it
+does not discover a physical disk, LVM/PV ancestry, device-mapper backing,
+hypervisor snapshot domain, SAN/storage-pool identity, or cloud-volume failure
+domain.
+
+Accepted filesystems remain `ext4` and `xfs`. Both mounts must report
+canonical sorted mount options including:
 
 - `rw`;
 - `nodev`;
@@ -142,7 +166,7 @@ Both mounts must report canonical sorted mount options including:
 `bind`, `rbind`, and `remount` evidence is rejected.
 
 A later generation may review another independent monotonic authority, but this
-v1 classifier intentionally does not weaken the separate-device rule.
+v1 classifier does not equate mount identity with rollback-domain independence.
 
 ## Narrow AF_UNIX IPC evidence
 
@@ -228,6 +252,8 @@ The focused proof builds a synthetic qualifying packet and proves rejection of:
 
 - shared runtime/custody UID;
 - shared mount ID, device, or mount source;
+- shared ledger/custody rollback-domain identity;
+- rollback-domain evidence that disagrees with the caller-bound expected identities;
 - runtime write access to protected custody;
 - writable ancestor;
 - runtime ancestor rename authority;
