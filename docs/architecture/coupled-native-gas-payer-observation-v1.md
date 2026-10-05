@@ -33,8 +33,8 @@ The observer never calls `eth_getTransactionCount`. Nonce observation and the
 cross-lane nonce scheduler remain separate reviewed gates.
 
 The RPC URL must use a numeric loopback HTTP literal—`127.0.0.1` or
-`[::1]`—and is expected to come from server-controlled policy. Hostnames such
-as `localhost` are rejected so hosts-file or DNS changes cannot widen the RPC
+`[::1]`—and is expected to come from server-controlled policy. Hostnames such as `localhost` and alternate IPv4 spellings such as
+`127.1`, `2130706433`, or `0x7f000001` are rejected so hosts-file or DNS changes cannot widen the RPC
 authority. The canonical URL retains IPv6 brackets for identity/fingerprinting,
 while the shared HTTP transport strips only those brackets for the actual
 socket `hostname` option so Node connects directly to `::1` rather than
