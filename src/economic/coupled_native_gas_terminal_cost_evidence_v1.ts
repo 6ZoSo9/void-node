@@ -275,6 +275,8 @@ function validatePlan(
   ].sort();
   const wallet = normalizeAddress(value.wallet_address);
   const delivery = normalizeAddress(value.delivery_address);
+  const reservedAt = Number(value.reserved_at_ms);
+  const nonce = Number(value.nonce);
   const nativeValue = positive(value.native_value_wei);
   const gasLimit = positive(value.gas_limit);
   const maxFee = positive(value.max_fee_per_gas_wei);
@@ -286,15 +288,15 @@ function validatePlan(
       VOID_BUY_VOID_PREPARED_TRANSACTION_PLAN_RESERVATION_V1 ||
     value.version !== 1 ||
     !SHA256.test(String(value.reservation_id ?? "")) ||
-    !Number.isSafeInteger(value.reserved_at_ms) ||
-    Number(value.reserved_at_ms) <= 0 ||
+    !Number.isSafeInteger(reservedAt) ||
+    reservedAt <= 0 ||
     !SAGA_ID.test(String(value.saga_id ?? "")) ||
     !SHA256.test(String(value.attempt_id ?? "")) ||
     value.chain_id !== "2050" ||
     !wallet ||
     !SHA256.test(String(value.wallet_key_sha256 ?? "")) ||
-    !Number.isSafeInteger(value.nonce) ||
-    Number(value.nonce) < 0 ||
+    !Number.isSafeInteger(nonce) ||
+    nonce < 0 ||
     !delivery ||
     delivery === wallet ||
     nativeValue === null ||
@@ -360,7 +362,7 @@ function validatePlan(
   }
   const planFingerprint = sha256({
     transaction_template_fingerprint_sha256: template,
-    nonce: Number(value.nonce),
+    nonce,
   });
   if (
     value.transaction_plan_fingerprint_sha256 !== planFingerprint
@@ -373,7 +375,7 @@ function validatePlan(
     [
       "void-buy-prepared-transaction-plan-reservation-v1",
       walletKey,
-      String(value.nonce),
+      String(nonce),
       String(value.attempt_id),
       planFingerprint,
     ].join("\n"),
