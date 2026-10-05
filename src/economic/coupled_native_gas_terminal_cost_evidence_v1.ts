@@ -586,7 +586,8 @@ export function classifyCoupledNativeGasTerminalCostEvidenceV1(input: {
     }
     if (
       receipt.from !== liability.payer_address ||
-      receipt.to !== evidence.fulfillment_contract_address
+      receipt.to !== plan.delivery_address ||
+      receipt.to !== evidence.delivery_address
     ) {
       return held(
         "coupled_native_gas_terminal_cost_receipt_endpoint_mismatch",
