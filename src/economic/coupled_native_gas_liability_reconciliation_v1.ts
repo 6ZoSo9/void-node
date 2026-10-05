@@ -557,16 +557,15 @@ export function classifyCoupledNativeGasLiabilityReconciliationV1(input: {
 }): CoupledNativeGasLiabilityReconciliationDecisionV1 {
   try {
     const liability = validateLiability(input?.liability);
-    const evidence = validateEvidence(
-      input?.terminal_cost_evidence,
-      liability,
-    );
-
     if (liability.attempt_limit !== 1) {
       return held(
         "coupled_native_gas_reconciliation_attempt_limit_not_supported",
       );
     }
+    const evidence = validateEvidence(
+      input?.terminal_cost_evidence,
+      liability,
+    );
 
     const nativeValue = BigInt(liability.transaction_native_value_wei);
     const gasLimit = BigInt(liability.gas_limit);
