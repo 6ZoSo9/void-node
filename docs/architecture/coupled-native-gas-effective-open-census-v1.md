@@ -110,14 +110,20 @@ next_open_reserved              = 0
 - be the only reconciliation for that liability.
 
 The reconciliation row does not carry `gasUsed` or
-`effectiveGasPrice`, but the current merged #2479 authority deliberately
-requires `gasUsed == liability.gas_limit` before it can produce terminal-cost
-evidence. The census therefore preserves that current-generation invariant by
-requiring the gas-cost portion of `actual_consumed` to divide exactly by the
-immutable liability gas limit and the derived effective gas price to remain at
-or below the admitted max fee. This is lineage validation, not fresh receipt
-authentication; `terminal_evidence_provenance_verified=false` remains
-authoritative.
+`effectiveGasPrice`. Current merged #2479 requires
+`gasUsed == liability.gas_limit` before it can produce terminal-cost evidence,
+but this census cannot independently re-prove that receipt fact from the
+reconciliation row alone. It therefore requires only accounting compatibility
+with a full-gas-limit execution: the gas-cost portion of `actual_consumed`
+must divide exactly by the immutable liability gas limit and the derived
+effective gas price must remain at or below the admitted max fee.
+
+That compatibility check rejects values that cannot come from the reviewed
+full-gas-limit lineage, but it is not proof that the underlying receipt actually
+used the full gas limit; a different gas-used / gas-price pair can have the same
+product. Exact `gasUsed == gas_limit` authority remains inherited from an
+independently authenticated #2479/#2485 provenance chain. Accordingly,
+`terminal_evidence_provenance_verified=false` remains authoritative here.
 
 An orphan reconciliation, duplicate row, or alternate reconciliation for one
 liability HOLDS.
