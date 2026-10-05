@@ -464,6 +464,34 @@ requireHeld(
   "coupled_native_gas_effective_open_liability_economic_binding_invalid",
 );
 
+const noncanonicalLiabilityNonce = {
+  ...first,
+  nonce: String(first.nonce),
+};
+requireHeld(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [noncanonicalLiabilityNonce],
+    reconciliations: [],
+  }),
+  "coupled_native_gas_effective_open_liability_invalid",
+);
+
+const noncanonicalReconciliationAmount = {
+  ...firstReconciliation,
+  actual_consumed_wei: Number(
+    firstReconciliation.actual_consumed_wei,
+  ),
+};
+requireHeld(
+  classifyCoupledNativeGasEffectiveOpenCensusV1({
+    payer_address: payer,
+    liabilities: [first],
+    reconciliations: [noncanonicalReconciliationAmount],
+  }),
+  "coupled_native_gas_effective_open_reconciliation_invalid",
+);
+
 requireHeld(
   classifyCoupledNativeGasEffectiveOpenCensusV1({
     payer_address: "not-an-address",
