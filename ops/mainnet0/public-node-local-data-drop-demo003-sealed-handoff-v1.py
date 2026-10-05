@@ -256,6 +256,18 @@ def main():
             leaf = rel.split("/", 1)[1] if under_files else rel
             read_bound(parent_fd, leaf, rel, expected[rel])
 
+        destination_opened = os.fstat(destination_fd)
+        destination_visible = os.lstat(destination_root)
+        if (
+            not stat.S_ISDIR(destination_visible.st_mode)
+            or stat.S_ISLNK(destination_visible.st_mode)
+            or not same_dir_identity(
+                destination_opened,
+                destination_visible,
+            )
+        ):
+            fail("destination_root_changed_before_success")
+
         print("marker=" + MARKER)
         print("status=sealed_snapshot_handoff_green")
         print("sealed_snapshot_set_sha256=" + snapshot_id(expected))
