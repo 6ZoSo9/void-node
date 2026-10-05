@@ -63,6 +63,17 @@ Each request binds:
 - exact policy SHA-256; and
 - deterministic content-addressed `voidwreq1_<sha256>` request ID.
 
+The challenge is **content-bound but not made fresh by this pure contract**.
+Reusing the same challenge with the same policy and operation intentionally
+reproduces the same request ID, so a previously captured response could also be
+replayed against that repeated request. The later live executor must generate a
+cryptographically unpredictable one-use challenge for every remote operation
+and reject challenge reuse before treating a response as current. Until that
+live state exists:
+
+- `challenge_freshness_proven=false`; and
+- `response_replay_resistance_proven=false`.
+
 ### Read
 
 A read request carries no remote path and no command text.
@@ -152,6 +163,7 @@ live authority false, including:
 - network access / SSH execution;
 - credential read/write;
 - remote filesystem read/write;
+- challenge freshness / response replay resistance;
 - authenticated external transport;
 - proven external witness storage;
 - live remote read/append;
