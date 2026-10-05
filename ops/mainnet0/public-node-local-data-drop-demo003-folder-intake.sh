@@ -28,6 +28,10 @@ VERIFY_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-verify-folder-fi
 HANDOFF_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-sealed-handoff-v1.py"
 STATUS_SCRIPT="ops/mainnet0/public-node-local-data-drop-demo003-folder-intake-status.sh"
 LATEST_PUBLISHED=0
+LATEST_REPLACED_EXISTING=0
+LATEST_PRIOR_IDENTITY=""
+LATEST_NEW_IDENTITY=""
+INTAKE_COMMITTED=0
 
 umask 0077
 
@@ -153,10 +157,177 @@ if ! flock -w "$LOCK_WAIT_SECONDS" "$LOCK_FD"; then
   exit 75
 fi
 
+rollback_demo003_latest() {
+  mode="initial"
+  if [ "$LATEST_REPLACED_EXISTING" = "1" ]; then
+    mode="replace"
+  fi
+  python3 - \
+    "$LATEST_STAGE" \
+    "$LATEST" \
+    "$mode" \
+    "$LATEST_PRIOR_IDENTITY" \
+    "$LATEST_NEW_IDENTITY" <<'PY'
+import ctypes
+import os
+import stat
+import sys
+
+stage, latest, mode, prior_identity, new_identity = sys.argv[1:]
+AT_FDCWD = -100
+RENAME_EXCHANGE = 2
+O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+def identity(st):
+    return ":".join(
+        str(value)
+        for value in (
+            st.st_dev,
+            st.st_ino,
+            st.st_mode,
+            st.st_uid,
+            st.st_gid,
+        )
+    )
+
+def direct_dir(pathname, expected, label):
+    st = os.lstat(pathname)
+    if (
+        not stat.S_ISDIR(st.st_mode)
+        or stat.S_ISLNK(st.st_mode)
+        or identity(st) != expected
+    ):
+        raise RuntimeError(label)
+    return st
+
+def exchange(left, right):
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise RuntimeError("renameat2_unavailable")
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    rc = renameat2(
+        AT_FDCWD,
+        os.fsencode(left),
+        AT_FDCWD,
+        os.fsencode(right),
+        RENAME_EXCHANGE,
+    )
+    if rc != 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err))
+
+if os.path.dirname(stage) != os.path.dirname(latest):
+    raise RuntimeError("latest_rollback_parent_mismatch")
+
+parent_fd = os.open(
+    os.path.dirname(latest),
+    os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+)
+try:
+    if mode == "replace":
+        direct_dir(latest, new_identity, "latest_rollback_new_identity_mismatch")
+        direct_dir(stage, prior_identity, "latest_rollback_prior_identity_mismatch")
+        exchange(stage, latest)
+        os.fsync(parent_fd)
+        direct_dir(latest, prior_identity, "latest_rollback_restore_mismatch")
+        direct_dir(stage, new_identity, "latest_rollback_displaced_new_mismatch")
+    elif mode == "initial":
+        direct_dir(latest, new_identity, "latest_rollback_new_identity_mismatch")
+        if os.path.lexists(stage):
+            raise RuntimeError("latest_rollback_stage_unexpected")
+        os.rename(latest, stage)
+        os.fsync(parent_fd)
+        direct_dir(stage, new_identity, "latest_rollback_stage_identity_mismatch")
+        if os.path.lexists(latest):
+            raise RuntimeError("latest_rollback_initial_latest_still_exists")
+    else:
+        raise RuntimeError("latest_rollback_mode_invalid")
+finally:
+    os.close(parent_fd)
+
+print("latest_publish_rollback_restored=true")
+PY
+  LATEST_PUBLISHED=0
+  LATEST_REPLACED_EXISTING=0
+  LATEST_PRIOR_IDENTITY=""
+  LATEST_NEW_IDENTITY=""
+}
+
+discard_prior_demo003_latest() {
+  if [ "$LATEST_REPLACED_EXISTING" != "1" ]; then
+    return 0
+  fi
+  python3 - "$LATEST_STAGE" "$LATEST_PRIOR_IDENTITY" <<'PY'
+import os
+import shutil
+import stat
+import sys
+
+stage, expected = sys.argv[1:]
+O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+def identity(st):
+    return ":".join(
+        str(value)
+        for value in (
+            st.st_dev,
+            st.st_ino,
+            st.st_mode,
+            st.st_uid,
+            st.st_gid,
+        )
+    )
+
+st = os.lstat(stage)
+if (
+    not stat.S_ISDIR(st.st_mode)
+    or stat.S_ISLNK(st.st_mode)
+    or identity(st) != expected
+):
+    raise RuntimeError("latest_prior_cleanup_identity_mismatch")
+
+parent_fd = os.open(
+    os.path.dirname(stage),
+    os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+)
+try:
+    shutil.rmtree(stage)
+    os.fsync(parent_fd)
+finally:
+    os.close(parent_fd)
+
+print("previous_latest_retired_after_validation=true")
+PY
+  LATEST_REPLACED_EXISTING=0
+  LATEST_PRIOR_IDENTITY=""
+}
+
 cleanup_demo003_intake() {
   rc=$?
   set +e
-  if [ -e "$LATEST_STAGE" ] || [ -L "$LATEST_STAGE" ]; then rm -rf -- "$LATEST_STAGE"; fi
+  if [ "$rc" -ne 0 ] &&
+     [ "$INTAKE_COMMITTED" != "1" ] &&
+     [ "$LATEST_PUBLISHED" = "1" ]; then
+    if ! rollback_demo003_latest; then
+      echo "status=demo003_folder_intake_rollback_failed" >&2
+      echo "hold_reason=latest_publish_rollback_failed" >&2
+      rc=2
+    fi
+  fi
+  if [ "$LATEST_REPLACED_EXISTING" != "1" ] &&
+     { [ -e "$LATEST_STAGE" ] || [ -L "$LATEST_STAGE" ]; }; then
+    rm -rf -- "$LATEST_STAGE"
+  fi
   if [ "$rc" -ne 0 ] &&
      [ "$LATEST_PUBLISHED" != "1" ] &&
      { [ -e "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; }; then
@@ -352,18 +523,38 @@ if find "$LATEST_STAGE" -type f -perm /022 -print -quit | grep -q .; then
 fi
 echo "latest_stage_modes_normalized=true"
 
+PUBLISH_OUTPUT="$(
 python3 - "$LATEST_STAGE" "$LATEST" <<'PY'
 import ctypes
 import os
-import shutil
 import stat
 import sys
 
 stage, latest = sys.argv[1], sys.argv[2]
 AT_FDCWD = -100
 RENAME_EXCHANGE = 2
+O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
-if os.path.lexists(latest):
+def identity(st):
+    return ":".join(
+        str(value)
+        for value in (
+            st.st_dev,
+            st.st_ino,
+            st.st_mode,
+            st.st_uid,
+            st.st_gid,
+        )
+    )
+
+def direct_dir(pathname, label):
+    st = os.lstat(pathname)
+    if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
+        raise RuntimeError(label)
+    return st
+
+def exchange(left, right):
     libc = ctypes.CDLL(None, use_errno=True)
     renameat2 = getattr(libc, "renameat2", None)
     if renameat2 is None:
@@ -378,29 +569,103 @@ if os.path.lexists(latest):
     renameat2.restype = ctypes.c_int
     rc = renameat2(
         AT_FDCWD,
-        os.fsencode(stage),
+        os.fsencode(left),
         AT_FDCWD,
-        os.fsencode(latest),
+        os.fsencode(right),
         RENAME_EXCHANGE,
     )
     if rc != 0:
         err = ctypes.get_errno()
         raise OSError(err, os.strerror(err))
-    if os.path.islink(stage) or not os.path.isdir(stage):
-        os.unlink(stage)
-    else:
-        shutil.rmtree(stage)
-else:
-    os.rename(stage, latest)
 
-st = os.lstat(latest)
-if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
-    raise RuntimeError("latest_not_direct_directory")
+if os.path.dirname(stage) != os.path.dirname(latest):
+    raise RuntimeError("latest_publish_parent_mismatch")
+
+stage_before = direct_dir(stage, "latest_stage_not_direct_directory")
+stage_identity = identity(stage_before)
+replaced = os.path.lexists(latest)
+prior_identity = ""
+published = False
+parent_fd = os.open(
+    os.path.dirname(latest),
+    os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+)
+try:
+    if replaced:
+        latest_before = direct_dir(latest, "latest_prior_not_direct_directory")
+        prior_identity = identity(latest_before)
+        exchange(stage, latest)
+    else:
+        os.rename(stage, latest)
+    published = True
+    os.fsync(parent_fd)
+
+    latest_after = direct_dir(latest, "latest_not_direct_directory")
+    if identity(latest_after) != stage_identity:
+        raise RuntimeError("latest_publish_new_identity_mismatch")
+    if replaced:
+        stage_after = direct_dir(stage, "latest_prior_stage_not_direct_directory")
+        if identity(stage_after) != prior_identity:
+            raise RuntimeError("latest_publish_prior_identity_mismatch")
+except BaseException:
+    if published:
+        try:
+            if replaced:
+                exchange(stage, latest)
+            else:
+                if os.path.lexists(stage):
+                    raise RuntimeError("latest_publish_internal_rollback_stage_exists")
+                os.rename(latest, stage)
+            os.fsync(parent_fd)
+        except BaseException as rollback_error:
+            raise RuntimeError(
+                "latest_publish_failed_and_internal_rollback_failed:"
+                + str(rollback_error)
+            )
+    raise
+finally:
+    os.close(parent_fd)
 
 print("latest_atomic_publish=true")
 print("latest_real_directory=true")
 print("latest_symlink=false")
+print("latest_replaced_existing=" + ("true" if replaced else "false"))
+print("latest_prior_identity=" + (prior_identity if replaced else "none"))
+print("latest_new_identity=" + stage_identity)
 PY
+)"
+printf '%s\n' "$PUBLISH_OUTPUT"
+LATEST_REPLACED_EXISTING="$(
+  printf '%s\n' "$PUBLISH_OUTPUT" |
+    sed -n 's/^latest_replaced_existing=\(true\|false\)$/\1/p'
+)"
+LATEST_PRIOR_IDENTITY="$(
+  printf '%s\n' "$PUBLISH_OUTPUT" |
+    sed -n 's/^latest_prior_identity=\(.*\)$/\1/p'
+)"
+LATEST_NEW_IDENTITY="$(
+  printf '%s\n' "$PUBLISH_OUTPUT" |
+    sed -n 's/^latest_new_identity=\(.*\)$/\1/p'
+)"
+if [ "$LATEST_REPLACED_EXISTING" != "true" ] &&
+   [ "$LATEST_REPLACED_EXISTING" != "false" ]; then
+  echo "[fail] Demo003 latest publish mode missing" >&2
+  exit 2
+fi
+if ! [[ "$LATEST_NEW_IDENTITY" =~ ^[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+$ ]]; then
+  echo "[fail] Demo003 latest publish identity invalid" >&2
+  exit 2
+fi
+if [ "$LATEST_REPLACED_EXISTING" = "true" ]; then
+  if ! [[ "$LATEST_PRIOR_IDENTITY" =~ ^[0-9]+:[0-9]+:[0-9]+:[0-9]+:[0-9]+$ ]]; then
+    echo "[fail] Demo003 prior latest identity invalid" >&2
+    exit 2
+  fi
+  LATEST_REPLACED_EXISTING=1
+else
+  test "$LATEST_PRIOR_IDENTITY" = "none"
+  LATEST_REPLACED_EXISTING=0
+fi
 LATEST_PUBLISHED=1
 
 python3 - "$LATEST/intake.json" <<'PY'
@@ -464,6 +729,10 @@ if [ "$PUBLISHED_SNAPSHOT_SET_COUNT" != "1" ] ||
   exit 2
 fi
 echo "published_latest_snapshot_revalidated=true"
+
+discard_prior_demo003_latest
+INTAKE_COMMITTED=1
+echo "latest_publish_commit_validated=true"
 
 echo "archive=$ARCHIVE"
 echo "latest=$LATEST"
