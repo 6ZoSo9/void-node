@@ -585,6 +585,11 @@ try {
     forwarded.headers["user-agent"],
     "void-ai-agent-public-gateway-v1",
   );
+  assert.equal(
+    forwarded.headers["x-void-credential-request-gateway-instance-v1"],
+    undefined,
+    "credential-request qualification header must never leak into paid-work submissions",
+  );
   assert.deepEqual(
     forwarded.body,
     body,
