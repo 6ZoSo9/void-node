@@ -25,6 +25,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_AUTHORITY_V1 =
     root_owned_ancestor_chain_required: true,
     root_path_stability_evidence_required: true,
     mount_instance_fingerprint_bound: true,
+    governing_mount_id_required: true,
     remount_denial_evidence_required: true,
     bind_mount_denial_evidence_required: true,
     same_uid_root_replacement_denial_required: true,
@@ -99,6 +100,7 @@ const ROOT_KEYS = Object.freeze([
   "resolved_path",
   "dev",
   "ino",
+  "mount_id",
   "uid",
   "gid",
   "mode",
@@ -126,6 +128,8 @@ const MOUNT_KEYS = Object.freeze([
   "mount_target",
   "mount_source",
   "mount_uuid",
+  "mount_id",
+  "parent_id",
   "major_minor",
   "filesystem_type",
   "statfs_type",
@@ -526,6 +530,18 @@ function normalizeMount(
     MAJOR_MINOR,
     "reconciliation_custody_mount_invalid",
   );
+  const mountId = safeInt(
+    mount.mount_id,
+    1,
+    0x7fff_ffff,
+    "reconciliation_custody_mount_invalid",
+  );
+  const parentId = safeInt(
+    mount.parent_id,
+    0,
+    0x7fff_ffff,
+    "reconciliation_custody_mount_invalid",
+  );
   if (
     linuxMajorMinorFromDev(
       rootDev,
@@ -546,6 +562,8 @@ function normalizeMount(
       SAFE_TEXT,
       "reconciliation_custody_mount_invalid",
     ),
+    mount_id: mountId,
+    parent_id: parentId,
     major_minor: majorMinor,
     filesystem_type: safeText(
       mount.filesystem_type,
@@ -596,6 +614,12 @@ function normalizeRoot(
     root.dev,
     "reconciliation_custody_root_invalid",
   );
+  const rootMountId = safeInt(
+    root.mount_id,
+    1,
+    0x7fff_ffff,
+    "reconciliation_custody_root_invalid",
+  );
   const ancestors = normalizeAncestors(
     root.ancestors,
     resolved,
@@ -605,6 +629,12 @@ function normalizeRoot(
   const mountTarget = String(
     (mount as Record<string, unknown>).mount_target,
   );
+  if (
+    Number((mount as Record<string, unknown>).mount_id) !==
+    rootMountId
+  ) {
+    fail("reconciliation_custody_mount_invalid");
+  }
   if (mountTarget !== resolved) {
     const targetAncestor = ancestors.find(
       (entry) => entry.path === mountTarget,
@@ -620,6 +650,7 @@ function normalizeRoot(
     resolved_path: resolved,
     dev: rootDev,
     ino: decimal(root.ino, "reconciliation_custody_root_invalid"),
+    mount_id: rootMountId,
     uid: serviceUid,
     gid: serviceGid,
     mode: rootMode.text,
@@ -1032,6 +1063,7 @@ export function classifyCoupledNativeGasReconciliationCustodyQualificationV1(
       payer_root_path: rootPath,
       payer_root_dev: rootDev,
       payer_root_ino: String(root.ino),
+      payer_root_mount_id: Number(root.mount_id),
       records_ino: String(records.ino),
       reconciliations_ino: String(reconciliations.ino),
       queue_ino: String(queue.ino),
