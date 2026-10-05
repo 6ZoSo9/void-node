@@ -51,6 +51,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_WRITER_AUTHORITY_V1 =
     reconciliation_record_write: true,
     effective_open_reserve_release_by_reconciliation: true,
     storage_bootstrap: false,
+    root_path_stability_proven: false,
     liability_record_mutation: false,
     liability_record_delete: false,
     reconciliation_record_replace: false,
