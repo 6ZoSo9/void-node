@@ -26,26 +26,22 @@ grep -Fq "output_root_nofollow_custody=true" "$VERIFIER" || fail "output_root_cu
 grep -Fq "BoundedDecompressedReader" "$VERIFIER" || fail "bounded_decompress_reader_missing"
 grep -Fq "safe_diagnostic" "$VERIFIER" || fail "sanitized_diagnostic_missing"
 grep -Fq "function diagnostic" "$VERIFIER" || fail "node_sanitized_diagnostic_missing"
-grep -Fq "semantic_verify_descriptor_bound=true" "$VERIFIER" || fail "semantic_descriptor_binding_missing"
-grep -Fq "semantic_verify_child_bytes_sealed=true" "$VERIFIER" || fail "semantic_child_byte_seal_missing"
-grep -Fq "terminal_child_seals_verified=true" "$VERIFIER" || fail "terminal_child_seal_marker_missing"
-grep -Fq "sealed digest mismatch" "$VERIFIER" || fail "semantic_child_digest_enforcement_missing"
-grep -Fq "terminal_child_digest_mismatch" "$VERIFIER" || fail "terminal_child_digest_enforcement_missing"
-grep -Fq "terminal_files_directory_changed_before_green" "$VERIFIER" || fail "terminal_files_directory_binding_missing"
-grep -Fq "terminal_child_custody_invalid" "$VERIFIER" || fail "terminal_child_custody_check_missing"
-grep -Fq "terminal_child_size_invalid" "$VERIFIER" || fail "terminal_child_size_bound_missing"
-grep -Fq "terminal_child_read_limit_exceeded" "$VERIFIER" || fail "terminal_child_stream_bound_missing"
-grep -Fq "semantic read limit exceeded" "$VERIFIER" || fail "semantic_stream_bound_missing"
-if grep -Fq 'const buf = fs.readFileSync(fd);' "$VERIFIER"; then fail "semantic_unbounded_fd_read_remains"; fi
-grep -Fq 'node - "/proc/self/fd/$FIXTURE_FD"' "$VERIFIER" || fail "node_descriptor_path_missing"
-grep -Fq "terminal_fixture_root_identity_mismatch" "$VERIFIER" || fail "terminal_root_identity_check_missing"
-grep -Fq "terminal_child_state_changed_before_green" "$VERIFIER" || fail "terminal_child_saved_state_check_missing"
-grep -Fq "terminal_child_custody_changed_before_green" "$VERIFIER" || fail "terminal_child_final_custody_check_missing"
-grep -Fq "terminal_child_second_pass_state_changed" "$VERIFIER" || fail "terminal_second_pass_state_check_missing"
-grep -Fq "terminal_child_second_pass_digest_mismatch" "$VERIFIER" || fail "terminal_second_pass_digest_check_missing"
-grep -Fq "reversed(opened_children)" "$VERIFIER" || fail "terminal_reverse_second_sweep_missing"
-grep -Fq "os.pread(child_fd" "$VERIFIER" || fail "terminal_second_pass_bounded_read_missing"
-grep -Fq "sys.stdout.flush()" "$VERIFIER" || fail "terminal_green_flush_missing"
+grep -Fq "verified_content_authority=sealed_memfd_snapshot" "$VERIFIER" || fail "sealed_snapshot_authority_marker_missing"
+grep -Fq "semantic_verify_sealed_memfd_snapshot=true" "$VERIFIER" || fail "sealed_snapshot_semantic_marker_missing"
+grep -Fq "visible_extraction_tree_trusted=false" "$VERIFIER" || fail "visible_tree_untrusted_marker_missing"
+grep -Fq "os.memfd_create" "$VERIFIER" || fail "memfd_snapshot_creation_missing"
+grep -Fq "F_ADD_SEALS" "$VERIFIER" || fail "memfd_add_seals_missing"
+grep -Fq "F_SEAL_WRITE" "$VERIFIER" || fail "memfd_write_seal_missing"
+grep -Fq "F_SEAL_GROW" "$VERIFIER" || fail "memfd_grow_seal_missing"
+grep -Fq "F_SEAL_SHRINK" "$VERIFIER" || fail "memfd_shrink_seal_missing"
+grep -Fq "sealed_snapshot_write_not_rejected" "$VERIFIER" || fail "sealed_snapshot_write_rejection_missing"
+grep -Fq "SEALED_SNAPSHOT_READY_FOR_SEMANTIC_VERIFY" "$VERIFIER" || fail "sealed_snapshot_semantic_boundary_missing"
+grep -Fq 'fs.readFileSync("/proc/self/fd/" + fd)' "$VERIFIER" || fail "node_memfd_read_missing"
+grep -Fq "snapshot_child_digest_mismatch" "$VERIFIER" || fail "snapshot_child_digest_enforcement_missing"
+grep -Fq "snapshot_child_read_limit_exceeded" "$VERIFIER" || fail "snapshot_child_stream_bound_missing"
+grep -Fq "sys.stdout.flush()" "$VERIFIER" || fail "sealed_snapshot_green_flush_missing"
+if grep -Fq "reversed(opened_children)" "$VERIFIER"; then fail "mutable_tree_repeat_sweep_remains"; fi
+if grep -Fq "terminal_child_second_pass_digest_mismatch" "$VERIFIER"; then fail "obsolete_terminal_tree_authority_remains"; fi
 grep -Fq "Demo003 invocation path invalid" "$VERIFIER" || fail "invocation_path_guard_missing"
 grep -Fq "O_NOFOLLOW" "$VERIFIER" || fail "nofollow_open_missing"
 if grep -Fq 'tar -xzf' "$VERIFIER"; then fail "legacy_tar_extract_remains"; fi
@@ -71,10 +67,14 @@ grep -Fq "checksums_verified=true" "$tmp/verify.log" || fail "canonical_checksum
 grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$tmp/verify.log" ||
   fail "canonical_verifier_not_green"
 if find "$verify_out/extract" -type l -print -quit | grep -q .; then fail "canonical_extract_contains_symlink"; fi
-grep -Fq "semantic_verify_descriptor_bound=true" "$tmp/verify.log" ||
-  fail "canonical_semantic_descriptor_binding_not_reported"
-grep -Fq "semantic_verify_child_bytes_sealed=true" "$tmp/verify.log" ||
-  fail "canonical_semantic_child_seal_not_reported"
+grep -Fq "verified_content_authority=sealed_memfd_snapshot" "$tmp/verify.log" ||
+  fail "canonical_sealed_snapshot_authority_not_reported"
+grep -Fq "semantic_verify_sealed_memfd_snapshot=true" "$tmp/verify.log" ||
+  fail "canonical_sealed_snapshot_semantic_not_reported"
+grep -Fq "sealed_snapshot_write_protected=true" "$tmp/verify.log" ||
+  fail "canonical_sealed_snapshot_write_protection_not_reported"
+grep -Fq "visible_extraction_tree_trusted=false" "$tmp/verify.log" ||
+  fail "canonical_visible_tree_boundary_not_reported"
 
 xpg_out="$tmp/xpg-output\\nFORGED_XPG_OUTPUT_LINE=true"
 xpg_log="$tmp/xpg-output.log"
@@ -402,7 +402,7 @@ swap_detached="$tmp/verify-interphase-detached"
 cp -a "$verify_out" "$swap_replacement"
 
 real_python="$(command -v python3)"
-wrapper_bin="$tmp/interphase-wrapper-bin"
+wrapper_bin="$tmp/sealed-snapshot-wrapper-bin"
 mkdir -m 700 "$wrapper_bin"
 cat >"$wrapper_bin/python3" <<'SH'
 #!/usr/bin/env bash
@@ -417,222 +417,29 @@ script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-python-wrapper.XXXXXX")"
 trap 'rm -f "$script"' EXIT
 cat >"$script"
 
-if [ -n "${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE:-}" ] &&
-   grep -Fq "terminal_child_digest_mismatch" "$script"; then
-  target="${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_TARGET:?}"
-  source="${VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE:?}"
-  test -d "$target"
-  test -d "$source"
-  for rel in \
-    manifest.json \
-    sha256sums.txt \
-    files/README.txt \
-    files/index.html \
-    files/metadata.json
-  do
-    cp -- "$source/$rel" "$target/$rel"
-  done
-fi
-
-if [ -n "${VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET:-}" ] &&
-   grep -Fq "terminal_child_size_invalid" "$script"; then
-  target="${VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET:?}"
-  test -d "$target"
-  "$real" - "$target" <<'PY_OVERSIZE'
-import os
-import sys
-
-root = sys.argv[1]
-path = os.path.join(root, "files", "README.txt")
-with open(path, "wb") as handle:
-    handle.truncate(3 * 1024 * 1024)
-PY_OVERSIZE
-fi
-
-if [ -n "${VOID_DEMO003_TEST_TERMINAL_MODE_WEAK_TARGET:-}" ] &&
-   grep -Fq "terminal_child_custody_invalid" "$script"; then
-  target="${VOID_DEMO003_TEST_TERMINAL_MODE_WEAK_TARGET:?}"
-  test -d "$target"
-  chmod 0666 "$target/files/README.txt"
-fi
-
-if [ -n "${VOID_DEMO003_TEST_TERMINAL_GROW_DURING_READ:-}" ] &&
-   grep -Fq "terminal_child_read_limit_exceeded" "$script"; then
-  "$real" - "$script" <<'PY_GROW_INJECT'
+if [ "${VOID_DEMO003_TEST_MUTATE_VISIBLE_AFTER_SNAPSHOT:-0}" = "1" ] &&
+   grep -Fq "SEALED_SNAPSHOT_READY_FOR_SEMANTIC_VERIFY" "$script"; then
+  "$real" - "$script" <<'PY_MUTATE'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf8")
-needle = '''        digest = hashlib.sha256()
-        total = 0
-        while True:
+needle = '''    # SEALED_SNAPSHOT_READY_FOR_SEMANTIC_VERIFY
+    node_source = r"""
 '''
-replacement = '''        digest = hashlib.sha256()
-        total = 0
-        if (
-            os.environ.get("VOID_DEMO003_TEST_TERMINAL_GROW_DURING_READ") == "1"
-            and rel == "files/README.txt"
-        ):
-            visible_path = os.path.join(pathname, rel)
-            with open(visible_path, "r+b") as growth_handle:
-                growth_handle.truncate(MAX_MEMBER_BYTES + 65536)
-        while True:
+replacement = '''    readme = os.path.join(pathname, "files", "README.txt")
+    with open(readme, "wb") as handle:
+        handle.write(b"VOID_DEMO003_VISIBLE_TREE_MUTATED_AFTER_SEAL\\n")
+    os.chmod(readme, 0o666)
+
+    # SEALED_SNAPSHOT_READY_FOR_SEMANTIC_VERIFY
+    node_source = r"""
 '''
 if text.count(needle) != 1:
-    raise SystemExit("terminal_growth_injection_anchor_invalid")
+    raise SystemExit("sealed_snapshot_mutation_injection_anchor_invalid")
 path.write_text(text.replace(needle, replacement), encoding="utf8")
-PY_GROW_INJECT
-fi
-
-if [ -n "${VOID_DEMO003_TEST_TERMINAL_POST_DIGEST_MUTATION_TARGET:-}" ] &&
-   grep -Fq "terminal_child_state_changed_before_green" "$script"; then
-  "$real" - "$script" <<'PY_POST_DIGEST_INJECT'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf8")
-needle = '''    for (
-        rel,
-        parent_fd,
-        leaf,
-        child_fd,
-        validated_identity,
-        validated_digest,
-    ) in opened_children:
-'''
-replacement = '''    late_target = os.environ.get(
-        "VOID_DEMO003_TEST_TERMINAL_POST_DIGEST_MUTATION_TARGET"
-    )
-    if late_target:
-        readme = os.path.join(late_target, "files", "README.txt")
-        with open(readme, "wb") as handle:
-            handle.write(b"VOID_DEMO003_POST_DIGEST_MUTATION\\n")
-        os.chmod(readme, 0o666)
-
-    for (
-        rel,
-        parent_fd,
-        leaf,
-        child_fd,
-        validated_identity,
-        validated_digest,
-    ) in opened_children:
-'''
-if text.count(needle) != 1:
-    raise SystemExit("terminal_post_digest_injection_anchor_invalid")
-path.write_text(text.replace(needle, replacement), encoding="utf8")
-PY_POST_DIGEST_INJECT
-fi
-
-if [ -n "${VOID_DEMO003_TEST_TERMINAL_AFTER_FIRST_CHILD_MUTATION:-}" ] &&
-   grep -Fq "terminal_child_second_pass_state_changed" "$script"; then
-  "$real" - "$script" <<'PY_AFTER_FIRST'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf8")
-needle = '''        if (
-            opened.st_uid != euid
-            or opened.st_mode & 0o022
-            or visible.st_uid != euid
-            or visible.st_mode & 0o022
-        ):
-            raise SystemExit(
-                "terminal_child_custody_changed_before_green:" + rel
-            )
-
-    for (
-'''
-replacement = '''        if (
-            opened.st_uid != euid
-            or opened.st_mode & 0o022
-            or visible.st_uid != euid
-            or visible.st_mode & 0o022
-        ):
-            raise SystemExit(
-                "terminal_child_custody_changed_before_green:" + rel
-            )
-        if (
-            os.environ.get(
-                "VOID_DEMO003_TEST_TERMINAL_AFTER_FIRST_CHILD_MUTATION"
-            ) == "1"
-            and rel == "manifest.json"
-        ):
-            manifest_path = os.path.join(pathname, "manifest.json")
-            with open(manifest_path, "wb") as handle:
-                handle.write(
-                    b"VOID_DEMO003_AFTER_FIRST_FINAL_CHECK_MUTATION\\n"
-                )
-
-    for (
-'''
-if text.count(needle) != 1:
-    raise SystemExit("terminal_after_first_child_injection_anchor_invalid")
-path.write_text(text.replace(needle, replacement), encoding="utf8")
-PY_AFTER_FIRST
-fi
-
-if [ -n "${VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE:-}" ] &&
-   grep -Fq "terminal_files_directory_changed_before_green" "$script"; then
-  "$real" - "$script" <<'PY_INJECT'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf8")
-needle = '''        validated_digest = digest.hexdigest()
-        if validated_digest != expected_sha:
-            raise SystemExit("terminal_child_digest_mismatch:" + rel)
-        opened_children[-1] = (
-            rel,
-            parent_fd,
-            leaf,
-            child_fd,
-            file_identity(after),
-            validated_digest,
-        )
-
-    visible_root = os.stat(pathname, follow_symlinks=False)
-'''
-replacement = '''        validated_digest = digest.hexdigest()
-        if validated_digest != expected_sha:
-            raise SystemExit("terminal_child_digest_mismatch:" + rel)
-        opened_children[-1] = (
-            rel,
-            parent_fd,
-            leaf,
-            child_fd,
-            file_identity(after),
-            validated_digest,
-        )
-
-    late_swap_source = os.environ.get(
-        "VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE"
-    )
-    if late_swap_source:
-        detached = os.environ[
-            "VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_DETACHED"
-        ]
-        visible_files = os.path.join(pathname, "files")
-        os.rename(visible_files, detached)
-        os.mkdir(visible_files, 0o700)
-        for name in ("README.txt", "index.html", "metadata.json"):
-            source = os.path.join(late_swap_source, name)
-            target = os.path.join(visible_files, name)
-            with open(source, "rb") as source_handle:
-                data = source_handle.read()
-            with open(target, "wb") as target_handle:
-                target_handle.write(data)
-
-    visible_root = os.stat(pathname, follow_symlinks=False)
-'''
-if text.count(needle) != 1:
-    raise SystemExit("terminal_files_dir_swap_injection_anchor_invalid")
-path.write_text(text.replace(needle, replacement), encoding="utf8")
-PY_INJECT
+PY_MUTATE
 fi
 
 set +e
@@ -667,71 +474,6 @@ exit "$rc"
 SH
 chmod 700 "$wrapper_bin/python3"
 
-real_node="$(command -v node)"
-cat >"$wrapper_bin/node" <<'SH_NODE'
-#!/usr/bin/env bash
-set -euo pipefail
-
-real="${VOID_DEMO003_TEST_REAL_NODE:?}"
-if [ "${1:-}" != "-" ]; then
-  exec "$real" "$@"
-fi
-
-script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-node-wrapper.XXXXXX.cjs")"
-trap 'rm -f "$script"' EXIT
-cat >"$script"
-
-if [ "${VOID_DEMO003_TEST_SEMANTIC_GROW_DURING_READ:-0}" = "1" ] &&
-   grep -Fq "semantic read limit exceeded" "$script"; then
-  "${VOID_DEMO003_TEST_REAL_PYTHON:?}" - "$script" <<'PY_NODE_GROW'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf8")
-needle = '''    const opened = fs.fstatSync(fd, { bigint: true });
-    ok(stamp(listed) === stamp(opened), `identity changed ${rel}`);
-
-    const chunks = [];
-'''
-replacement = '''    const opened = fs.fstatSync(fd, { bigint: true });
-    ok(stamp(listed) === stamp(opened), `identity changed ${rel}`);
-    if (
-      process.env.VOID_DEMO003_TEST_SEMANTIC_GROW_DURING_READ === "1" &&
-      rel === "files/README.txt"
-    ) {
-      fs.truncateSync(p, maxFileBytes + 65536);
-    }
-
-    const chunks = [];
-'''
-if text.count(needle) != 1:
-    raise SystemExit("semantic_growth_injection_anchor_invalid")
-path.write_text(text.replace(needle, replacement), encoding="utf8")
-PY_NODE_GROW
-fi
-
-exec "$real" "$script" "${@:2}"
-SH_NODE
-chmod 700 "$wrapper_bin/node"
-
-semantic_growth_out="$tmp/verify-semantic-growth"
-semantic_growth_log="$tmp/semantic-growth.log"
-if PATH="$wrapper_bin:$PATH" \
-   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_REAL_NODE="$real_node" \
-   VOID_DEMO003_TEST_SEMANTIC_GROW_DURING_READ=1 \
-   OUT="$semantic_growth_out" \
-   bash "$VERIFIER" "$tarball" >"$semantic_growth_log" 2>&1; then
-  fail "semantic_growth_during_read_accepted"
-fi
-grep -Fq "semantic read limit exceeded files/README.txt" "$semantic_growth_log" ||
-  fail "semantic_growth_stream_limit_not_exercised"
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$semantic_growth_log"; then
-  fail "semantic_growth_during_read_reached_green"
-fi
-rm -f "$wrapper_bin/node"
-
 swap_log="$tmp/interphase-swap.log"
 if PATH="$wrapper_bin:$PATH" \
    VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
@@ -743,7 +485,8 @@ if PATH="$wrapper_bin:$PATH" \
    bash "$VERIFIER" "$tarball" >"$swap_log" 2>&1; then
   fail "interphase_output_tree_swap_accepted"
 fi
-grep -Fq "fixture identity changed before semantic verify" "$swap_log" ||
+grep -Fq "snapshot_fixture_root_identity_mismatch" "$swap_log" ||
+  grep -Fq "fixture identity changed before semantic verify" "$swap_log" ||
   fail "interphase_output_tree_swap_identity_hold_missing"
 if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$swap_log"; then
   fail "interphase_output_tree_swap_reached_green"
@@ -796,138 +539,48 @@ with open(os.path.join(root, "sha256sums.txt"), "w", encoding="ascii") as handle
     for rel in rels:
         with open(os.path.join(root, rel), "rb") as source:
             digest = hashlib.sha256(source.read()).hexdigest()
-        handle.write(f"{digest}  ./{rel}\n")
+        handle.write(digest + "  ./" + rel + "\n")
 PY_REPLACEMENT
 
-child_swap_out="$tmp/verify-interphase-child-swap"
-child_swap_log="$tmp/interphase-child-swap.log"
+child_swap_out="$tmp/verify-pre-snapshot-child-swap"
+child_swap_log="$tmp/pre-snapshot-child-swap.log"
 if PATH="$wrapper_bin:$PATH" \
    VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
    VOID_DEMO003_TEST_CHILD_SWAP_SOURCE="$replacement_root" \
    VOID_DEMO003_TEST_CHILD_SWAP_TARGET="$child_swap_out/extract/demo003-folder-fixture" \
    OUT="$child_swap_out" \
    bash "$VERIFIER" "$tarball" >"$child_swap_log" 2>&1; then
-  fail "interphase_child_replacement_accepted"
+  fail "pre_snapshot_child_replacement_accepted"
 fi
-grep -Fq "sealed digest mismatch" "$child_swap_log" ||
-  fail "interphase_child_replacement_digest_hold_missing"
+grep -Fq "snapshot_child_digest_mismatch:" "$child_swap_log" ||
+  fail "pre_snapshot_child_replacement_digest_hold_missing"
 if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$child_swap_log"; then
-  fail "interphase_child_replacement_reached_green"
-fi
-test -d "$child_swap_out/extract/demo003-folder-fixture" ||
-  fail "interphase_child_replacement_fixture_missing"
-
-terminal_swap_out="$tmp/verify-terminal-child-swap"
-terminal_swap_log="$tmp/terminal-child-swap.log"
-if PATH="$wrapper_bin:$PATH" \
-   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_SOURCE="$replacement_root" \
-   VOID_DEMO003_TEST_TERMINAL_CHILD_SWAP_TARGET="$terminal_swap_out/extract/demo003-folder-fixture" \
-   OUT="$terminal_swap_out" \
-   bash "$VERIFIER" "$tarball" >"$terminal_swap_log" 2>&1; then
-  fail "terminal_child_replacement_accepted"
-fi
-grep -Fq "terminal_child_digest_mismatch" "$terminal_swap_log" ||
-  fail "terminal_child_replacement_digest_hold_missing"
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_swap_log"; then
-  fail "terminal_child_replacement_reached_green"
+  fail "pre_snapshot_child_replacement_reached_green"
 fi
 
-terminal_oversize_out="$tmp/verify-terminal-oversize"
-terminal_oversize_log="$tmp/terminal-oversize.log"
-if PATH="$wrapper_bin:$PATH" \
+snapshot_mutation_out="$tmp/verify-post-snapshot-visible-mutation"
+snapshot_mutation_log="$tmp/post-snapshot-visible-mutation.log"
+if ! PATH="$wrapper_bin:$PATH" \
    VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_TERMINAL_OVERSIZE_TARGET="$terminal_oversize_out/extract/demo003-folder-fixture" \
-   OUT="$terminal_oversize_out" \
-   bash "$VERIFIER" "$tarball" >"$terminal_oversize_log" 2>&1; then
-  fail "terminal_oversize_child_accepted"
+   VOID_DEMO003_TEST_MUTATE_VISIBLE_AFTER_SNAPSHOT=1 \
+   OUT="$snapshot_mutation_out" \
+   bash "$VERIFIER" "$tarball" >"$snapshot_mutation_log" 2>&1; then
+  cat "$snapshot_mutation_log" >&2
+  fail "post_snapshot_visible_mutation_changed_sealed_result"
 fi
-grep -Fq "terminal_child_size_invalid:files/README.txt" "$terminal_oversize_log" ||
-  fail "terminal_oversize_child_bound_missing"
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_oversize_log"; then
-  fail "terminal_oversize_child_reached_green"
-fi
-
-terminal_mode_out="$tmp/verify-terminal-mode"
-terminal_mode_log="$tmp/terminal-mode.log"
-if PATH="$wrapper_bin:$PATH" \
-   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_TERMINAL_MODE_WEAK_TARGET="$terminal_mode_out/extract/demo003-folder-fixture" \
-   OUT="$terminal_mode_out" \
-   bash "$VERIFIER" "$tarball" >"$terminal_mode_log" 2>&1; then
-  fail "terminal_weak_mode_accepted"
-fi
-grep -Fq "terminal_child_custody_invalid:files/README.txt" "$terminal_mode_log" ||
-  fail "terminal_weak_mode_custody_hold_missing"
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_mode_log"; then
-  fail "terminal_weak_mode_reached_green"
-fi
-
-terminal_growth_out="$tmp/verify-terminal-growth"
-terminal_growth_log="$tmp/terminal-growth.log"
-if PATH="$wrapper_bin:$PATH" \
-   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_TERMINAL_GROW_DURING_READ=1 \
-   OUT="$terminal_growth_out" \
-   bash "$VERIFIER" "$tarball" >"$terminal_growth_log" 2>&1; then
-  fail "terminal_growth_during_read_accepted"
-fi
-grep -Fq "terminal_child_read_limit_exceeded:files/README.txt" "$terminal_growth_log" ||
-  fail "terminal_growth_stream_limit_not_exercised"
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_growth_log"; then
-  fail "terminal_growth_during_read_reached_green"
-fi
-
-terminal_post_digest_out="$tmp/verify-terminal-post-digest-mutation"
-terminal_post_digest_log="$tmp/terminal-post-digest-mutation.log"
-if PATH="$wrapper_bin:$PATH" \
-   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_TERMINAL_POST_DIGEST_MUTATION_TARGET="$terminal_post_digest_out/extract/demo003-folder-fixture" \
-   OUT="$terminal_post_digest_out" \
-   bash "$VERIFIER" "$tarball" >"$terminal_post_digest_log" 2>&1; then
-  fail "terminal_post_digest_mutation_accepted"
-fi
-grep -Fq "terminal_child_state_changed_before_green:files/README.txt" "$terminal_post_digest_log" ||
-  fail "terminal_post_digest_saved_state_hold_missing"
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_post_digest_log"; then
-  fail "terminal_post_digest_mutation_reached_green"
-fi
-
-terminal_after_first_out="$tmp/verify-terminal-after-first-child"
-terminal_after_first_log="$tmp/terminal-after-first-child.log"
-if PATH="$wrapper_bin:$PATH" \
-   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_TERMINAL_AFTER_FIRST_CHILD_MUTATION=1 \
-   OUT="$terminal_after_first_out" \
-   bash "$VERIFIER" "$tarball" >"$terminal_after_first_log" 2>&1; then
-  fail "terminal_after_first_child_mutation_accepted"
-fi
-if ! grep -Eq 'terminal_child_(state_changed_before_green|second_pass_state_changed|second_pass_changed_during_read|second_pass_digest_mismatch):manifest\.json' "$terminal_after_first_log"; then
-  cat "$terminal_after_first_log" >&2
-  fail "terminal_after_first_child_second_sweep_hold_missing"
-fi
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_after_first_log"; then
-  fail "terminal_after_first_child_mutation_reached_green"
-fi
-
-terminal_files_swap_out="$tmp/verify-terminal-files-dir-swap"
-terminal_files_swap_log="$tmp/terminal-files-dir-swap.log"
-terminal_files_swap_detached="$tmp/terminal-files-dir-detached"
-if PATH="$wrapper_bin:$PATH" \
-   VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
-   VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_SOURCE="$replacement_root/files" \
-   VOID_DEMO003_TEST_TERMINAL_FILES_DIR_SWAP_DETACHED="$terminal_files_swap_detached" \
-   OUT="$terminal_files_swap_out" \
-   bash "$VERIFIER" "$tarball" >"$terminal_files_swap_log" 2>&1; then
-  fail "terminal_files_directory_swap_accepted"
-fi
-grep -Fq "terminal_files_directory_changed_before_green" "$terminal_files_swap_log" ||
-  fail "terminal_files_directory_swap_hold_missing"
-if grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$terminal_files_swap_log"; then
-  fail "terminal_files_directory_swap_reached_green"
-fi
-test -d "$terminal_files_swap_detached" ||
-  fail "terminal_files_directory_detached_original_missing"
+grep -Fq "verified_content_authority=sealed_memfd_snapshot" "$snapshot_mutation_log" ||
+  fail "post_snapshot_authority_marker_missing"
+grep -Fq "semantic_verify_sealed_memfd_snapshot=true" "$snapshot_mutation_log" ||
+  fail "post_snapshot_semantic_marker_missing"
+grep -Fq "visible_extraction_tree_trusted=false" "$snapshot_mutation_log" ||
+  fail "post_snapshot_visible_tree_boundary_missing"
+grep -Fq "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" "$snapshot_mutation_log" ||
+  fail "post_snapshot_visible_mutation_not_green"
+grep -Fq "VOID_DEMO003_VISIBLE_TREE_MUTATED_AFTER_SEAL" \
+  "$snapshot_mutation_out/extract/demo003-folder-fixture/files/README.txt" ||
+  fail "post_snapshot_visible_mutation_not_applied"
+test "$(stat -c '%a' "$snapshot_mutation_out/extract/demo003-folder-fixture/files/README.txt")" = "666" ||
+  fail "post_snapshot_visible_mutation_mode_not_applied"
 
 manifest_control_out="$tmp/verify-manifest-control"
 if OUT="$manifest_control_out" \
@@ -962,18 +615,11 @@ echo "manifest_path_diagnostics_escaped=true"
 echo "invocation_path_diagnostics_escaped=true"
 echo "xpg_echo_output_path_safe=true"
 echo "interphase_output_tree_swap_rejected=true"
-echo "interphase_child_replacement_rejected=true"
-echo "terminal_child_replacement_rejected=true"
-echo "semantic_growth_during_read_rejected=true"
-echo "terminal_oversize_child_rejected=true"
-echo "terminal_weak_mode_rejected=true"
-echo "terminal_growth_during_read_rejected=true"
-echo "terminal_files_directory_swap_rejected=true"
-echo "terminal_after_first_child_mutation_rejected=true"
-echo "terminal_post_digest_mutation_rejected=true"
-echo "semantic_verify_descriptor_bound=true"
-echo "semantic_verify_child_bytes_sealed=true"
-echo "terminal_child_seals_verified=true"
+echo "pre_snapshot_child_replacement_rejected=true"
+echo "sealed_memfd_snapshot_authority=true"
+echo "sealed_memfd_write_protection_verified=true"
+echo "post_snapshot_visible_tree_mutation_does_not_change_verified_content=true"
+echo "visible_extraction_tree_trusted=false"
 echo "outside_sentinel_unchanged=true"
 echo "network_fetch=false"
 echo "live_runtime_mutation=false"
