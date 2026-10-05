@@ -54,6 +54,7 @@ function directory(
     resolved_path,
     dev: rootDev,
     ino: String(ino),
+    mount_id: 77,
     uid: 2000,
     gid: 2000,
     mode: "0700",
@@ -118,6 +119,7 @@ function green(): Record<string, unknown> {
         resolved_path: root + "/payer-domain-v1.json",
         dev: rootDev,
         ino: "104",
+        mount_id: 77,
         uid: 2000,
         gid: 2000,
         mode: "0600",
@@ -326,6 +328,26 @@ assert.match(
 }
 {
   const x = structuredClone(green()) as any;
+  x.host_evidence.payer_domain.mount_id = 78;
+  requireHeld(x, "reconciliation_custody_payer_domain_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.records.mount_id = 78;
+  requireHeld(x, "reconciliation_custody_namespace_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.reconciliations.mount_id = 78;
+  requireHeld(x, "reconciliation_custody_namespace_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
+  x.host_evidence.queue.mount_id = 78;
+  requireHeld(x, "reconciliation_custody_namespace_invalid");
+}
+{
+  const x = structuredClone(green()) as any;
   x.host_evidence.reconciliations.resolved_path =
     root + "/alternate-reconciliations";
   requireHeld(x, "reconciliation_custody_namespace_invalid");
@@ -432,6 +454,8 @@ console.log("root_device_matches_mount_major_minor=true");
 console.log("mount_target_device_matches_root=true");
 console.log("governing_mount_id_required=true");
 console.log("root_mount_id_matches_declared_mount=true");
+console.log("direct_child_mount_ids_match_root=true");
+console.log("payer_domain_mount_id_matches_root=true");
 console.log("exact_payer_domain_identity_required=true");
 console.log("canonical_payer_domain_binding_reused=true");
 console.log("exact_payer_domain_bytes_required=true");
