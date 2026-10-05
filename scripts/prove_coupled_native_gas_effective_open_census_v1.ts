@@ -343,6 +343,34 @@ assert.deepEqual(
   [first.liability_id, second.liability_id, wcVoid.liability_id].sort(),
 );
 assert.deepEqual(
+  baseline.historical_obligation_ids,
+  [first.obligation_id, second.obligation_id, wcVoid.obligation_id].sort(),
+);
+assert.deepEqual(
+  baseline.historical_transaction_plan_fingerprints,
+  [
+    first.transaction_plan_fingerprint_sha256,
+    second.transaction_plan_fingerprint_sha256,
+    wcVoid.transaction_plan_fingerprint_sha256,
+  ].sort(),
+);
+assert.deepEqual(
+  baseline.historical_nonces,
+  [first.nonce, second.nonce, wcVoid.nonce].sort(
+    (left, right) => left - right,
+  ),
+);
+assert.equal(
+  baseline.historical_obligation_ids.includes(first.obligation_id),
+  true,
+  "reconciled obligations must remain in the historical replay fence",
+);
+assert.equal(
+  baseline.historical_nonces.includes(first.nonce),
+  true,
+  "reconciled nonces must remain in the historical collision fence",
+);
+assert.deepEqual(
   baseline.reconciled_liability_ids,
   [first.liability_id],
 );
@@ -644,6 +672,7 @@ console.log("reserve_conservation_rederived=true");
 console.log("partial_gas_use_reconciliation_supported=true");
 console.log("immutable_liability_history=true");
 console.log("immutable_reconciliation_history=true");
+console.log("historical_replay_fences_retained_after_reconciliation=true");
 console.log("orphan_reconciliation_hold=true");
 console.log("duplicate_reconciliation_hold=true");
 console.log("conflicting_reconciliation_hold=true");
