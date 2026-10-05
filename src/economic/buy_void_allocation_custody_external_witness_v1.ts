@@ -1,5 +1,9 @@
 import crypto from "node:crypto";
 
+import {
+  classifyBuyVoidAllocationReservationHighWaterBindingV1,
+} from "./buy_void_allocation_reservation_high_water_v1.js";
+
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_EXTERNAL_WITNESS_EVENT_V1 =
   "VOID_BUY_ALLOCATION_CUSTODY_HIGH_WATER_WITNESS_EVENT_V1";
 
@@ -20,6 +24,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_EXTERNAL_WITNESS_AUTHORITY_V1 =
     source_host_invariant_binding: true,
     witness_host_invariant_binding: true,
     inventory_monotonicity: true,
+    canonical_local_ledger_high_water_binding: true,
+    exact_witnessed_ledger_prefix_binding: true,
     external_transport_authenticated: false,
     external_witness_storage_proven: false,
     live_remote_read_performed: false,
@@ -721,6 +727,80 @@ function parseCurrent(
   return Object.freeze(current);
 }
 
+function bindCanonicalCurrentState(
+  current: BuyVoidAllocationCustodyExternalWitnessCurrentV1,
+  ledgerInput: string | Buffer,
+  highWaterInput: string | Buffer,
+): Readonly<{
+  ledger_bytes: Buffer;
+  high_water_bytes: Buffer;
+}> {
+  const ledgerBytes = Buffer.isBuffer(ledgerInput)
+    ? Buffer.from(ledgerInput)
+    : Buffer.from(String(ledgerInput ?? ""), "utf8");
+  const highWaterBytes = Buffer.isBuffer(highWaterInput)
+    ? Buffer.from(highWaterInput)
+    : Buffer.from(String(highWaterInput ?? ""), "utf8");
+  if (ledgerBytes.length > 64 * 1024 * 1024) {
+    fail("allocation_custody_witness_current_ledger_too_large");
+  }
+  if (
+    highWaterBytes.length < 2 ||
+    highWaterBytes.length > 4096
+  ) {
+    fail("allocation_custody_witness_current_high_water_invalid");
+  }
+
+  const binding =
+    classifyBuyVoidAllocationReservationHighWaterBindingV1({
+      ledger_jsonl: ledgerBytes,
+      high_water_json: highWaterBytes,
+    });
+  if (binding.ok === false) {
+    fail(
+      "allocation_custody_witness_current_authority_" +
+        binding.reason,
+    );
+  }
+
+  const canonical = binding.high_water;
+  if (
+    current.record_count !== canonical.record_count ||
+    current.allocation_tip_sha256 !== canonical.tip_hash ||
+    current.ledger_bytes !== ledgerBytes.length ||
+    current.ledger_sha256 !== sha256Id(ledgerBytes) ||
+    current.high_water_bytes !== highWaterBytes.length ||
+    current.high_water_sha256 !== sha256Id(highWaterBytes) ||
+    current.pool_void_total !== canonical.pool_void_total ||
+    current.reserved_void_total !== canonical.reserved_void_total ||
+    current.remaining_void !== canonical.remaining_void
+  ) {
+    fail("allocation_custody_witness_current_authority_mismatch");
+  }
+
+  return Object.freeze({
+    ledger_bytes: ledgerBytes,
+    high_water_bytes: highWaterBytes,
+  });
+}
+
+function witnessedPrefixMatches(
+  tip: BuyVoidAllocationCustodyExternalWitnessEventV1,
+  currentLedgerBytes: Buffer,
+): boolean {
+  if (
+    tip.ledger_bytes < 0 ||
+    tip.ledger_bytes > currentLedgerBytes.length
+  ) {
+    return false;
+  }
+  const prefix = currentLedgerBytes.subarray(0, tip.ledger_bytes);
+  return (
+    prefix.length === tip.ledger_bytes &&
+    sha256Id(prefix) === tip.ledger_sha256
+  );
+}
+
 function currentInvariantTuple(
   current: BuyVoidAllocationCustodyExternalWitnessCurrentV1,
 ): readonly unknown[] {
@@ -761,6 +841,8 @@ export function classifyBuyVoidAllocationCustodyExternalWitnessV1(
   input: {
     witness_jsonl: string | Buffer;
     current_state: unknown;
+    current_ledger_jsonl: string | Buffer;
+    current_high_water_json: string | Buffer;
   },
 ) {
   try {
@@ -769,6 +851,11 @@ export function classifyBuyVoidAllocationCustodyExternalWitnessV1(
         input?.witness_jsonl,
       );
     const current = parseCurrent(input?.current_state);
+    const canonical = bindCanonicalCurrentState(
+      current,
+      input?.current_ledger_jsonl,
+      input?.current_high_water_json,
+    );
 
     if (
       !sameTuple(
@@ -791,6 +878,21 @@ export function classifyBuyVoidAllocationCustodyExternalWitnessV1(
     }
 
     if (current.record_count > journal.tip.record_count) {
+      if (
+        current.record_count === journal.tip.record_count + 1 &&
+        !witnessedPrefixMatches(
+          journal.tip,
+          canonical.ledger_bytes,
+        )
+      ) {
+        return Object.freeze({
+          ...held("allocation_custody_witness_local_history_conflict"),
+          event_count: journal.event_count,
+          witness_tip_sha256: journal.tip.event_sha256,
+          witness_record_count: journal.tip.record_count,
+          local_record_count: current.record_count,
+        });
+      }
       return Object.freeze({
         ...held("allocation_custody_witness_update_required"),
         event_count: journal.event_count,
@@ -844,6 +946,8 @@ export function planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(
   input: {
     witness_jsonl: string | Buffer;
     current_state: unknown;
+    current_ledger_jsonl: string | Buffer;
+    current_high_water_json: string | Buffer;
   },
 ) {
   try {
@@ -852,6 +956,11 @@ export function planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(
         input?.witness_jsonl,
       );
     const current = parseCurrent(input?.current_state);
+    const canonical = bindCanonicalCurrentState(
+      current,
+      input?.current_ledger_jsonl,
+      input?.current_high_water_json,
+    );
     const tip = journal.tip;
 
     if (
@@ -886,6 +995,7 @@ export function planBuyVoidAllocationCustodyExternalWitnessAdvanceV1(
 
     if (
       current.record_count !== tip.record_count + 1 ||
+      !witnessedPrefixMatches(tip, canonical.ledger_bytes) ||
       current.ledger_bytes <= tip.ledger_bytes ||
       current.allocation_tip_sha256 === tip.allocation_tip_sha256 ||
       BigInt(current.reserved_void_total) <=
