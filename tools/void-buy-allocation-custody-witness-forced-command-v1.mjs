@@ -1342,7 +1342,7 @@ async function main() {
     fail("witness_forced_command_marker_required");
   }
 
-  if (String(process.env.SSH_ORIGINAL_COMMAND || "").trim()) {
+  if (String(process.env.SSH_ORIGINAL_COMMAND ?? "") !== "") {
     fail("witness_forced_command_original_command_forbidden");
   }
 
