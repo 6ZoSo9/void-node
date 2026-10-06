@@ -7,8 +7,10 @@ import { pathToFileURL } from "node:url";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportAppendResponseV1,
   classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
+  classifyBuyVoidAllocationCustodyWitnessTransportRequestEnvelopeV1,
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_transport_v1.js";
 import {
@@ -1132,7 +1134,12 @@ function appendDeltaWithHooks(
   }
 }
 
-function recoverIntentUnderLock(directory, config, hostFacts) {
+function recoverIntentUnderLock(
+  directory,
+  config,
+  hostFacts,
+  expectedRequestBytes,
+) {
   const intentBytes = readOptionalPinnedNamedFile(
     directory,
     INTENT_NAME,
@@ -1149,6 +1156,13 @@ function recoverIntentUnderLock(directory, config, hostFacts) {
   }
 
   const intent = parseIntent(intentBytes);
+
+  if (
+    !Buffer.isBuffer(expectedRequestBytes) ||
+    !intent.request_bytes.equals(expectedRequestBytes)
+  ) {
+    fail("witness_forced_command_pending_intent_request_mismatch");
+  }
 
   if (intent.policy_sha256 !== config.policy_sha256) {
     fail("witness_forced_command_intent_policy_mismatch");
@@ -1307,6 +1321,21 @@ function recoverIntentUnderLock(directory, config, hostFacts) {
   });
 }
 
+function requestOperationBeforeRecovery(
+  config,
+  requestBytes,
+) {
+  const classified =
+    classifyBuyVoidAllocationCustodyWitnessTransportRequestEnvelopeV1({
+      policy: config.policy,
+      request_json: requestBytes,
+    });
+  if (classified.ok !== true) {
+    return "unknown";
+  }
+  return classified.operation;
+}
+
 function handleUnderLock(
   directory,
   config,
@@ -1320,13 +1349,34 @@ function handleUnderLock(
   }
 
   const hostFacts = readHostFacts();
+  const requestOperation =
+    requestOperationBeforeRecovery(config, requestBytes);
 
-  const recovered =
-    recoverIntentUnderLock(
+  let recovered = Object.freeze({
+    recovered: false,
+    request_id: null,
+    operation_performed: false,
+  });
+
+  if (requestOperation === "append") {
+    recovered =
+      recoverIntentUnderLock(
+        directory,
+        config,
+        hostFacts,
+        requestBytes,
+      );
+  } else {
+    const pendingIntent = readOptionalPinnedNamedFile(
       directory,
-      config,
-      hostFacts,
+      INTENT_NAME,
+      MAX_INTENT_BYTES,
+      "witness_forced_command_intent_invalid",
     );
+    if (pendingIntent !== null) {
+      fail("witness_forced_command_nonappend_blocked_by_pending_intent");
+    }
+  }
 
   const currentBytes =
     readWitnessBytes(directory);
