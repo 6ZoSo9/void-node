@@ -14,6 +14,9 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHO
     source_only_contract: true,
     git_repository_identity_read: true,
     subprocess_git_read: true,
+    lazy_fetch_disabled: true,
+    repository_grafts_redirected_to_null: true,
+    descriptor_mode_bound_to_hashed_bytes: true,
     filesystem_read: true,
     filesystem_write: false,
     network_access: false,
@@ -289,6 +292,8 @@ function gitEnv() {
     GIT_OPTIONAL_LOCKS: "0",
     GIT_TERMINAL_PROMPT: "0",
     GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_GRAFT_FILE: "/dev/null",
   };
 }
 
@@ -311,7 +316,14 @@ function gitSafetyArgs() {
 function git(args, code, { allowFail = false } = {}) {
   const result = spawnSync(
     GIT,
-    ["--no-replace-objects", ...gitSafetyArgs(), "-C", ROOT, ...args],
+    [
+      "--no-replace-objects",
+      "--no-lazy-fetch",
+      ...gitSafetyArgs(),
+      "-C",
+      ROOT,
+      ...args,
+    ],
     {
       env: gitEnv(),
       encoding: "utf8",
@@ -327,6 +339,10 @@ function git(args, code, { allowFail = false } = {}) {
 
 function gitText(args, code) {
   return String(git(args, code).stdout || "").trim();
+}
+
+export function testOnlyGitEnvironmentV1() {
+  return Object.freeze({ ...gitEnv() });
 }
 
 function pinnedObservationPlan(head) {
@@ -489,25 +505,15 @@ function rawSymlinkGitBlobSha1V1(relativePath) {
 }
 
 function trackedWorktreeGitBlobSha1V1(relativePath, indexMode) {
-  const absolute = path.resolve(ROOT, relativePath);
   if (indexMode === "120000") {
     return rawSymlinkGitBlobSha1V1(relativePath);
   }
   if (indexMode !== "100644" && indexMode !== "100755") {
     fail("source_binding_repository_index_mode_unsupported:" + relativePath);
   }
-  const listed = fs.lstatSync(absolute, { bigint: true });
-  if (!listed.isFile() || listed.isSymbolicLink()) {
-    fail("source_binding_worktree_mode_invalid:" + relativePath);
-  }
-  const executable = (listed.mode & 0o111n) !== 0n;
-  if (
-    (indexMode === "100755" && !executable) ||
-    (indexMode === "100644" && executable)
-  ) {
-    fail("source_binding_worktree_mode_invalid:" + relativePath);
-  }
-  return worktreeGitBlobSha1(relativePath);
+  return worktreeGitBlobSha1(relativePath, {
+    expectedIndexMode: indexMode,
+  });
 }
 
 function repositoryCleanStateV1(
@@ -708,6 +714,7 @@ function stableFileCore(left, right) {
 function worktreeGitBlobSha1(
   relativePath,
   {
+    expectedIndexMode = null,
     testOnlyAfterLstatBeforeOpen = null,
     testOnlyAfterOpenBeforeRead = null,
   } = {},
@@ -764,6 +771,25 @@ function worktreeGitBlobSha1(
     }
     if (opened.size < 0n || opened.size > 16n * 1024n * 1024n) {
       fail("source_binding_worktree_file_size_invalid:" + relativePath);
+    }
+
+    if (expectedIndexMode !== null) {
+      if (
+        expectedIndexMode !== "100644" &&
+        expectedIndexMode !== "100755"
+      ) {
+        fail(
+          "source_binding_worktree_expected_mode_invalid:" +
+            relativePath,
+        );
+      }
+      const executable = (opened.mode & 0o111n) !== 0n;
+      if (
+        (expectedIndexMode === "100755" && !executable) ||
+        (expectedIndexMode === "100644" && executable)
+      ) {
+        fail("source_binding_worktree_mode_invalid:" + relativePath);
+      }
     }
 
     if (testOnlyAfterOpenBeforeRead !== null) {
