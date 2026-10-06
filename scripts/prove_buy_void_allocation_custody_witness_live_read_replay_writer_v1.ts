@@ -27,6 +27,18 @@ const INTENT_NAME = "live-read-replay-publication-intent-v1.json";
 
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
+
+function requireWriterOk<T extends { ok: boolean }>(
+  value: T,
+  label: string,
+): asserts value is Extract<T, { ok: true }> {
+  const runtime = value as T & { reason?: string };
+  if (runtime.ok !== true) {
+    throw new Error(
+      label + ": " + (runtime.reason ?? "unexpected_writer_hold"),
+    );
+  }
+}
 const requestId = (hex: string): string =>
   "voidwreq1_" + hex.repeat(64);
 
@@ -471,11 +483,7 @@ for (const phase of [
         journal_root: f.journalRoot,
         high_water_root: f.highWaterRoot,
       });
-    if (!recovered.ok) {
-      throw new Error(
-        "crash recovery held: " + phase + ": " + recovered.reason,
-      );
-    }
+    requireWriterOk(recovered, "crash recovery held: " + phase);
     assert.equal(recovered.ok, true, phase);
     assert.equal(recovered.status, "recovered", phase);
     assert.equal(recovered.recovery_performed, true, phase);
@@ -531,11 +539,10 @@ for (const phase of [
         journal_root: f.journalRoot,
         high_water_root: f.highWaterRoot,
       });
-    if (!recovered.ok) {
-      throw new Error(
-        "high-water-committed recovery held: " + recovered.reason,
-      );
-    }
+    requireWriterOk(
+      recovered,
+      "high-water-committed recovery held",
+    );
     assert.equal(recovered.ok, true);
     assert.equal(recovered.status, "recovered");
     assert.equal(recovered.recovery_performed, true);
