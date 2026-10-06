@@ -449,6 +449,11 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
 
     const normalized = Object.freeze({
       ...parent.normalized,
+      schema: SCHEMA_V2,
+      marker:
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION_V2,
+      version: 2 as const,
+      parent_qualification_id: parent.qualification_id,
       handler_path: HANDLER_PATH_V2,
       handler_git_blob_sha1:
         VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V2,
