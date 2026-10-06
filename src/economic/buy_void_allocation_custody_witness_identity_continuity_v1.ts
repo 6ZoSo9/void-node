@@ -25,6 +25,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_IDENTITY_CONTINUITY_AUTHOR
     ssh_hostkey_update_must_be_false: true,
     ed25519_hostkey_required: true,
     exact_predecessor_witness_required: true,
+    historical_predecessor_witness_pinned: true,
     read_only_census_required: true,
     live_evidence_origin_proven: false,
     live_continuity_attestation_proven: false,
@@ -44,6 +45,13 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_IDENTITY_CONTINUITY_AUTHOR
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const HOSTKEY_FP = /^SHA256:[A-Za-z0-9+/]{43}$/u;
 const SAFE_TEXT = /^[A-Za-z0-9._:@/-]{1,256}$/u;
+
+const HISTORICAL_PREDECESSOR_WITNESS_SHA256 =
+  "sha256:a73c8c674bea5ed473938ddbf4275a651272fefd4e75d212d3d2bb8c8e5cbe1a";
+const HISTORICAL_PREDECESSOR_WITNESS_BYTES = 1411;
+const HISTORICAL_PREDECESSOR_EVENT_COUNT = 1;
+const HISTORICAL_PREDECESSOR_TIP_EVENT_SHA256 =
+  "sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654";
 
 const EVIDENCE_KEYS = Object.freeze([
   "schema",
@@ -187,6 +195,21 @@ export function classifyBuyVoidAllocationCustodyWitnessIdentityContinuityV1(
       parseBuyVoidAllocationCustodyExternalWitnessJournalV1(
         witnessBytes,
       );
+
+    if (
+      sha256Id(witnessBytes) !==
+        HISTORICAL_PREDECESSOR_WITNESS_SHA256 ||
+      witnessBytes.length !==
+        HISTORICAL_PREDECESSOR_WITNESS_BYTES ||
+      witness.event_count !==
+        HISTORICAL_PREDECESSOR_EVENT_COUNT ||
+      witness.tip.event_sha256 !==
+        HISTORICAL_PREDECESSOR_TIP_EVENT_SHA256
+    ) {
+      fail(
+        "witness_identity_continuity_historical_predecessor_mismatch",
+      );
+    }
 
     const raw = exactObject(
       input?.evidence,
@@ -335,6 +358,7 @@ export function classifyBuyVoidAllocationCustodyWitnessIdentityContinuityV1(
       predecessor_witness_sha256: predecessorWitnessSha256,
       predecessor_witness_bytes: predecessorWitnessBytes,
       predecessor_event_count: predecessorEventCount,
+      historical_predecessor_witness_pinned: true as const,
       predecessor_tip_event_sha256: predecessorTipEventSha256,
       predecessor_machine_id_sha256: predecessorMachineIdSha256,
       successor_machine_id_sha256: successorMachineIdSha256,
