@@ -64,7 +64,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_AUTHORITY_ROO
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_WITNESS_NAME_V1 =
   "buy-void-allocation-custody-high-water-witness-v1.jsonl";
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_ACCOUNT_SHELL_V1 =
-  "/bin/sh";
+  "/usr/bin/dash";
 
 const EXPECTED_HANDLER_GIT_BLOB_SHA1 =
   "e19fa1094981b10cea6052ac86281fd6e760b800";
@@ -104,6 +104,7 @@ const EVIDENCE_KEYS = Object.freeze([
   "node_binary",
   "observed_at_ms",
   "policy_sha256",
+  "shell_binary",
   "shell_startup_executed",
   "sshd",
   "transport_policy",
@@ -470,43 +471,27 @@ function requireProtectedConfig(
   return Object.freeze({ ...raw });
 }
 
-function requireNodeBinary(
+function requireRootBinary(
   input: unknown,
+  expectedPath: string,
+  reason: string,
 ): Readonly<Record<string, unknown>> {
   const raw = exactObject(
     input,
     NODE_KEYS,
-    "witness_installation_node_binary_invalid",
+    reason,
   );
   if (
-    raw.path !== "/usr/bin/node" ||
+    raw.path !== expectedPath ||
     !SHA256_HEX.test(String(raw.sha256 ?? "")) ||
-    modeField(
-      raw.mode,
-      "witness_installation_node_binary_invalid",
-    ) !== "0755" ||
-    exactInt(
-      raw.uid,
-      0,
-      0,
-      "witness_installation_node_binary_invalid",
-    ) !== 0 ||
-    exactInt(
-      raw.gid,
-      0,
-      0,
-      "witness_installation_node_binary_invalid",
-    ) !== 0 ||
-    exactInt(
-      raw.nlink,
-      1,
-      1,
-      "witness_installation_node_binary_invalid",
-    ) !== 1 ||
+    modeField(raw.mode, reason) !== "0755" ||
+    exactInt(raw.uid, 0, 0, reason) !== 0 ||
+    exactInt(raw.gid, 0, 0, reason) !== 0 ||
+    exactInt(raw.nlink, 1, 1, reason) !== 1 ||
     raw.symlink !== false ||
     raw.ancestor_chain_root_owned_nonwritable !== true
   ) {
-    fail("witness_installation_node_binary_invalid");
+    fail(reason);
   }
   return Object.freeze({ ...raw });
 }
@@ -718,7 +703,16 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       account.gid,
       expectation.config_sha256,
     );
-    const nodeBinary = requireNodeBinary(evidence.node_binary);
+    const nodeBinary = requireRootBinary(
+      evidence.node_binary,
+      "/usr/bin/node",
+      "witness_installation_node_binary_invalid",
+    );
+    const shellBinary = requireRootBinary(
+      evidence.shell_binary,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_ACCOUNT_SHELL_V1,
+      "witness_installation_shell_binary_invalid",
+    );
 
     const authorizedKey = requireAuthorizedKey(
       evidence.authorized_key,
@@ -766,6 +760,8 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
         authorizedKey.line_sha256,
       node_path: nodeBinary.path,
       node_sha256: nodeBinary.sha256,
+      shell_path: shellBinary.path,
+      shell_sha256: shellBinary.sha256,
       host_key_algorithm:
         expectation.transport_policy.host_key_algorithm,
       host_key_sha256:
