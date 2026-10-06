@@ -602,7 +602,15 @@ assert.match(
   baseline.runtime_bundle_normalized_qualification_sha256,
   /^sha256:[0-9a-f]{64}$/u,
 );
+assert.match(
+  baseline.runtime_bundle_collector_receipt_sha256,
+  /^sha256:[0-9a-f]{64}$/u,
+);
 assert.equal(baseline.runtime_bundle_qualification_observed, true);
+assert.equal(
+  baseline.runtime_bundle_evidence_collector_observed,
+  true,
+);
 assert.equal(baseline.client_known_hosts_content_observed, false);
 assert.equal(baseline.preexec_runtime_execution_observed, true);
 assert.equal(baseline.live_evidence_origin_proven, false);
@@ -655,6 +663,16 @@ assert.equal(
     .runtime_bundle_qualification_observed,
   true,
 );
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2
+    .runtime_bundle_evidence_collector_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2
+    .runtime_bundle_evidence_collector_observed,
+  true,
+);
 
 {
   const historical = collect(
@@ -684,7 +702,7 @@ assert.equal(
           },
         }),
       ),
-    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
   );
 }
 
@@ -711,7 +729,7 @@ assert.equal(
           },
         }),
       ),
-    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
   );
 }
 
@@ -726,7 +744,7 @@ assert.equal(
           badParentChains: [target],
         }),
       ),
-    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
   );
 }
 
@@ -887,7 +905,7 @@ for (const badContext of [
   };
   assert.throws(
     () => collect(makeIo({ files: badFiles })),
-    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+    /witness_installation_evidence_runtime_bundle_collector_.*witness_runtime_bundle_file_invalid/u,
     "handler byte drift must HOLD at the stronger runtime-bundle gate before V2 installation classification",
   );
 }
@@ -1076,6 +1094,18 @@ assert.match(
   source,
   /witness_installation_evidence_host_witness_identity_mismatch/u,
 );
+assert.match(
+  source,
+  /collectBuyVoidAllocationCustodyWitnessRuntimeBundleEvidenceV1/u,
+);
+assert.doesNotMatch(
+  source,
+  /classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1/u,
+);
+assert.match(
+  source,
+  /runtime_bundle_collector_receipt_sha256/u,
+);
 
 console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2_GREEN",
@@ -1092,6 +1122,9 @@ console.log("continuity_attestation_tamper_rejected=true");
 console.log("continuity_attestation_owner_mismatch_rejected=true");
 console.log("preexec_binary_chain_observed=true");
 console.log("runtime_bundle_qualification_required=true");
+console.log("runtime_bundle_evidence_collector_required=true");
+console.log("runtime_bundle_evidence_collector_observed=true");
+console.log("runtime_bundle_collector_receipt_bound=true");
 console.log("runtime_bundle_exact_files_observed=8");
 console.log("runtime_bundle_hash_drift_rejected=true");
 console.log("runtime_bundle_mode_drift_rejected=true");
