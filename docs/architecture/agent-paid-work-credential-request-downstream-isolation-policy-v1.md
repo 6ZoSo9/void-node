@@ -28,23 +28,34 @@ A positive source-policy result then additionally requires:
    `/__void/agents/paid-work/credential-requests/v1`;
 6. only the #2513 adapter UID is trusted to connect to that downstream port;
 7. source identity is not forwarded as a downstream header or authority;
-8. a separate root-owned nftables OUTPUT policy allows that adapter UID to the
-   dedicated port and then drops every non-adapter local origin to the same
-   port.
+8. the loopback credential-request gateway that owns the independent global
+   rate wall is separately bound on a distinct loopback port and trusts only
+   the reviewed public-gateway UID as its local connector; and
+9. one root-owned nftables OUTPUT policy:
+   - allows the adapter UID to the dedicated public-gateway credential port,
+     then drops every non-adapter local origin to that port; and
+   - allows the public-gateway UID to the inner credential-gateway port, then
+     drops every non-gateway local origin to that port.
 
-The downstream port must differ from both the shared gateway port `4112` and
-the Funnel-facing adapter port.
+The dedicated downstream and inner credential-gateway ports must be distinct
+from each other, the shared gateway port `4112`, and the Funnel-facing adapter
+port.
 
 ## Why this boundary exists
 
 Current source still mounts the credential POST on the general public-gateway
-listener. That means a local process can address the route directly and bypass
-the future PROXY-v2 source-address metering path.
+listener. The reviewed inner credential gateway is also a loopback TCP service
+(with example port `4113`) whose per-remote limiter acts as the global wall.
+Without a local-origin restriction, an ordinary local process could either
+address the shared 4112 route directly or consume the inner global bucket
+without traversing the future PROXY-v2 source-address metering path.
 
-Therefore the focused proof explicitly models current source topology with
-`credential_route_exposed=true` and requires HOLD:
+Therefore the focused proof explicitly models both missing boundaries:
 
-`downstream_isolation_shared_gateway_bypass_not_closed`.
+- current shared-4112 credential exposure requires HOLD on
+  `downstream_isolation_shared_gateway_bypass_not_closed`;
+- omission of the inner credential-gateway non-gateway drop requires HOLD on
+  the exact four-rule firewall contract.
 
 A later runtime repair may use a second listener in the existing gateway
 process, another reviewed equivalent topology, or a stronger authenticated
@@ -63,7 +74,9 @@ It may truthfully report:
 - `downstream_gateway_bypass_policy_shape_qualified=true`;
 - `shared_gateway_credential_route_disabled=true`;
 - `ordinary_shared_gateway_routes_preserved=true`;
-- `dedicated_credential_downstream_required=true`.
+- `dedicated_credential_downstream_required=true`;
+- source policy requires the inner global wall to accept only the reviewed
+  public-gateway UID and drop other local origins.
 
 It must still report:
 
@@ -90,6 +103,9 @@ The focused proof rejects:
 - forwarding source identity downstream;
 - firewall allow under the gateway UID instead of adapter UID;
 - missing non-adapter drop;
+- inner credential-gateway wildcard/bad-port/wrong-client-UID drift;
+- inner global-wall allow under the adapter UID instead of gateway UID;
+- missing inner non-gateway drop;
 - missing firewall rule;
 - adapter/gateway firewall mutation authority;
 - invalid parent #2513 loopback policy; and
@@ -102,14 +118,14 @@ This does not make Draft #2409 merge-ready and does not close #2400.
 Self-generated applicant keys remain rotatable. The PROXY-v2/Funnel path also
 still requires live connector/process/listener/ruleset evidence and actual
 runtime integration. A later designated-host collector must prove the installed
-topology and must HOLD if the shared gateway credential bypass is still
-reachable.
+topology and must HOLD if either the shared-gateway credential bypass or the
+inner credential-gateway/global-wall local bypass is still reachable.
 
 ## Verification
 
 ```bash
 node --check tools/void-agent-paid-work-credential-request-downstream-isolation-policy-v1.mjs
-node --check scripts/prove_agent_paid_work_credential_request-downstream-isolation-policy-v1.mjs
+node --check scripts/prove_agent_paid_work_credential_request_downstream_isolation_policy_v1.mjs
 node scripts/prove_agent_paid_work_credential_request_loopback_connector_policy_v1.mjs
 node scripts/prove_agent_paid_work_credential_request_downstream_isolation_policy_v1.mjs
 npm ci --ignore-scripts --no-audit --no-fund
