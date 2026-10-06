@@ -171,7 +171,12 @@ The collector runs only local, bounded, non-mutating probes:
    dangerous variable is passed to the exact `env -i` sanitization shape.
    The resulting child environment must contain exactly:
    `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, and
-   `VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1`.
+   `VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1`. Loader-sensitive poison such
+   as `LD_PRELOAD` or `LD_AUDIT` may cause the parent executable's dynamic
+   loader to emit diagnostics before `env -i` runs; those diagnostics are
+   non-authoritative. Qualification still requires exit status 0 and an exact
+   four-variable child environment, so any forbidden variable reaching the
+   sanitized child remains a deterministic HOLD.
 3. **Shell startup hook rejection.** The configured `/bin/sh` is invoked
    non-interactively with `ENV` and `BASH_ENV` pointing at probe input. The
    injected hook marker must not execute.
