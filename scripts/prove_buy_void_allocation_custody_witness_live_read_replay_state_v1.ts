@@ -240,13 +240,10 @@ assert.equal(
   "witness_live_read_replay_abandon_payload_invalid",
 );
 
-const noncanonicalObject = JSON.parse(
-  issue1.event_jsonl_line,
-) as Record<string, unknown>;
-const prettyJournal = JSON.stringify(noncanonicalObject, null, 2) + "\n";
+const noncanonicalJournal = " " + issue1.event_jsonl_line;
 const noncanonicalState =
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
-    prettyJournal,
+    noncanonicalJournal,
   );
 assert.equal(noncanonicalState.ok, false);
 if (noncanonicalState.ok) {
