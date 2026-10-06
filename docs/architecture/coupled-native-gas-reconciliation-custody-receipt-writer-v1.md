@@ -84,6 +84,13 @@ intent bytes that do not reconstruct valid #2530 prior/next states HOLD.
 
 Recovery never invents a receipt or accepts caller-selected journal bytes.
 
+When ordinary `persist(...)` encounters a pending crash intent, automatic
+recovery is allowed only if the caller's current collector decision and source
+binding re-plan the intent's prior journal into the exact same append,
+generation, and receipt SHA-256. A different current request HOLDs without
+completing the old intent. The explicit `recover(...)` API is the
+input-neutral path for completing already-durable crash intent.
+
 ## Descriptor and path boundary
 
 Reads and writes are rooted through retained directory descriptors under
@@ -139,6 +146,8 @@ The proof covers:
 - all five modeled crash cutpoints and forward recovery;
 - exact terminal-tip idempotent retry with byte-stable journal/high-water state;
 - recovery-only exact intent-bound high-water-ahead completion;
+- different-input persist HOLD while a pending intent exists, followed by exact
+  retry recovery of that same intent;
 - single-intent redundant recovery;
 - missing lock/bootstrap HOLD;
 - high-water tamper HOLD;
