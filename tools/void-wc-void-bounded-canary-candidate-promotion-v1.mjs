@@ -145,6 +145,10 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
     path: "tools/void-wc-void-opening-claim-binding-persistence-v1.mjs",
     blob_sha1: "a9b471aa4598fa36341f369545a9b3490aee3934",
   }),
+  semantic_opening_claim_publication: Object.freeze({
+    path: "tools/void-wc-void-opening-claim-binding-publication-v1.mjs",
+    blob_sha1: "98294560fbc601e5e2035a9caf0408480b7422ce",
+  }),
   semantic_opening_replay_protection: Object.freeze({
     path: "tools/void-wc-void-opening-replay-protection-v1.mjs",
     blob_sha1: "ee902e77f0ded31aea73cb231eb806e4121d1bc8",
