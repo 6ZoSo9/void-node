@@ -82,6 +82,9 @@ function makeCollector({
   payer = "0x" + "a".repeat(40),
   payerDomain = "voidngpd1_proof",
   root = "/var/lib/void-native-gas-reconciliation-proof",
+  rootDev = "1048577",
+  rootIno = "1001",
+  rootMountId = 77,
   machine = sha("1"),
   boot = sha("2"),
   observed = 1_800_000_000_000,
@@ -104,9 +107,9 @@ function makeCollector({
     boot_id_sha256: boot,
     payer_domain_id: payerDomain,
     payer_root_path: root,
-    payer_root_dev: "1048577",
-    payer_root_ino: "1001",
-    payer_root_mount_id: 77,
+    payer_root_dev: rootDev,
+    payer_root_ino: rootIno,
+    payer_root_mount_id: rootMountId,
     records_ino: "1002",
     reconciliations_ino: "1003",
     queue_ino: "1004",
@@ -286,6 +289,10 @@ assert.equal(
   firstPlan.source_generation_id,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_SOURCE_GENERATION_ID_V1,
 );
+assert.match(
+  firstPlan.record.payer_root_identity_sha256,
+  /^sha256:[0-9a-f]{64}$/u,
+);
 assert.equal(firstPlan.operation_performed, false);
 const journal1 = firstPlan.append_jsonl;
 const firstClassified = requireOk(
@@ -348,6 +355,34 @@ expectHeld(
     }),
     "receipt_continuity_qualification_receipt_replayed",
   );
+}
+
+for (const [label, collector] of [
+  ["root-dev", makeCollector({
+    rootDev: "1048578",
+    evidence: sha("9"),
+  })],
+  ["root-ino", makeCollector({
+    rootIno: "2001",
+    evidence: sha("a"),
+  })],
+  ["root-mount-id", makeCollector({
+    rootMountId: 78,
+    evidence: sha("b"),
+  })],
+  ["root-mount-fingerprint", makeCollector({
+    mount: sha("c"),
+    evidence: sha("d"),
+  })],
+]) {
+  expectHeld(
+    planReceipt({
+      journal_jsonl: journal1,
+      collector_decision: collector,
+    }),
+    "receipt_continuity_custody_identity_changed",
+  );
+  assert.ok(label);
 }
 
 for (const [label, collector] of [
@@ -542,6 +577,22 @@ for (const [label, collector] of [
 {
   const first = JSON.parse(firstPlan.append_jsonl);
   const second = JSON.parse(secondPlan.append_jsonl);
+  second.payer_root_identity_sha256 = sha("f");
+  second.receipt_sha256 = rehashReceipt(second).receipt_sha256;
+  const tampered =
+    JSON.stringify(first) + "\n" +
+    JSON.stringify(second) + "\n";
+  expectHeld(
+    classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(
+      tampered,
+    ),
+    "receipt_continuity_custody_identity_changed",
+  );
+}
+
+{
+  const first = JSON.parse(firstPlan.append_jsonl);
+  const second = JSON.parse(secondPlan.append_jsonl);
   second.collector_decision_sha256 = first.collector_decision_sha256;
   second.receipt_sha256 = rehashReceipt(second).receipt_sha256;
   const tampered =
@@ -617,6 +668,7 @@ const trueKeys = new Set([
   "supplied_chain_generation_monotonicity_proven",
   "collector_decision_replay_rejected",
   "qualification_receipt_replay_rejected",
+  "payer_root_storage_identity_continuity_required",
   "host_payer_machine_continuity_required",
   "boot_identity_may_advance",
 ]);
@@ -657,6 +709,7 @@ console.log("predecessor_receipt_bound=true");
 console.log("supplied_chain_generation_monotonicity_proven=true");
 console.log("collector_decision_replay_rejected=true");
 console.log("qualification_receipt_replay_rejected=true");
+console.log("payer_root_storage_identity_continuity_required=true");
 console.log("host_payer_machine_continuity_required=true");
 console.log("boot_identity_may_advance=true");
 console.log("collector_clock_used_as_authority=false");
