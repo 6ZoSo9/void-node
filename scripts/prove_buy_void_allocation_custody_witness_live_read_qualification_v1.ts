@@ -376,6 +376,9 @@ const server = requireOk(
     current_witness_jsonl: genesis,
   }),
 );
+if (server.operation !== "read" || server.status !== "read_ready") {
+  throw new Error("expected_read_ready_transport_server_fixture");
+}
 
 const baseInput = {
   installation_receipt: installationReceipt(),
