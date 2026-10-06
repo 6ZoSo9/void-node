@@ -150,7 +150,7 @@ durable replay writer:
   -> separately protected / rollback-resistant high-water custody
   -> challenge issue
   -> authenticated non-mutating witness read
-  -> accepted #2519 packet
+  -> canonical merged #2524 live-read packet qualification
   -> exact consume/abandon publication
 ```
 
