@@ -15,6 +15,9 @@ import {
   classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV2,
 } from "../dist/economic/buy_void_allocation_custody_witness_installation_qualification_v2.js";
 import {
+  collectBuyVoidAllocationCustodyWitnessRuntimeBundleEvidenceV1,
+} from "./void-buy-allocation-custody-witness-runtime-bundle-evidence-v1.mjs";
+import {
   classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_transport_v1.js";
 import {
@@ -41,6 +44,10 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTH
     host_identity_observed: true,
     canonical_parent_classifier_required: true,
     v2_qualification_required: true,
+    runtime_bundle_qualification_required: true,
+    runtime_bundle_qualification_observed: true,
+    runtime_bundle_evidence_collector_required: true,
+    runtime_bundle_evidence_collector_observed: true,
     continuity_attestation_observed: true,
     content_addressed_receipt: true,
     client_known_hosts_content_observed: false,
@@ -622,6 +629,54 @@ function inspectFixedFile(io, file, maxBytes = MAX_FILE_BYTES) {
     root_owned_nonwritable_parent_chain:
       rootOwnedNonWritableParents(io, file),
   });
+}
+
+function runtimeBundleEvidence(io) {
+  let receipt;
+  try {
+    receipt =
+      collectBuyVoidAllocationCustodyWitnessRuntimeBundleEvidenceV1({
+        inspect(expected) {
+          const observed = inspectFixedFile(
+            io,
+            expected.installed_path,
+            MAX_FILE_BYTES,
+          );
+          return Object.freeze({
+            path: expected.installed_path,
+            sha256: sha256Id(observed.bytes),
+            uid: observed.uid,
+            gid: observed.gid,
+            mode: observed.mode,
+            nlink: observed.nlink,
+            regular_file: observed.regular_file,
+            symlink: observed.symlink,
+            root_owned_parent_chain:
+              observed.root_owned_nonwritable_parent_chain,
+          });
+        },
+      });
+  } catch (error) {
+    fail(
+      "witness_installation_evidence_runtime_bundle_collector_" +
+        String(error?.message || error || "failed"),
+    );
+  }
+  if (
+    !receipt ||
+    typeof receipt !== "object" ||
+    receipt.operation_performed !== false ||
+    receipt.live_evidence_origin_proven !== false ||
+    receipt.installation_qualification_composed !== false ||
+    receipt.runtime_integration !== false ||
+    receipt.production_gate_ready !== false ||
+    receipt.funds_movement !== false
+  ) {
+    fail(
+      "witness_installation_evidence_runtime_bundle_collector_authority_invalid",
+    );
+  }
+  return receipt;
 }
 
 function parsePublicKeyBlob(text, allowComment) {
@@ -1382,6 +1437,7 @@ function collectOnce(config, io, observedAtMs) {
   const policy = config.transport_policy;
   const account = accountEvidence(io, policy.remote_user);
   const handler = handlerEvidence(io);
+  const runtimeBundle = runtimeBundleEvidence(io);
   const nodeExec = executableEvidence(io, NODE_PATH);
   const nodeVersion = io.run(NODE_PATH, ["--version"]).trim();
   const nodeMatch =
@@ -1481,6 +1537,7 @@ function collectOnce(config, io, observedAtMs) {
   return Object.freeze({
     evidence,
     qualification,
+    runtime_bundle_receipt: runtimeBundle,
     sshd_connection_context: config.sshd_connection_context,
     host,
     host_key: hostKey,
@@ -1521,6 +1578,8 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
     canonicalJson(first.witness) !== canonicalJson(second.witness) ||
     canonicalJson(first.witness_identity) !==
       canonicalJson(second.witness_identity) ||
+    canonicalJson(first.runtime_bundle_receipt) !==
+      canonicalJson(second.runtime_bundle_receipt) ||
     canonicalJson(first.sshd_connection_context) !==
       canonicalJson(second.sshd_connection_context)
   ) {
@@ -1543,6 +1602,28 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
           "utf8",
         ),
       ),
+    runtime_bundle_manifest_id:
+      second.runtime_bundle_receipt.runtime_bundle_manifest_id,
+    runtime_bundle_manifest_sha256:
+      second.runtime_bundle_receipt.runtime_bundle_manifest_sha256,
+    runtime_bundle_qualification_id:
+      second.runtime_bundle_receipt.runtime_bundle_qualification_id,
+    runtime_bundle_evidence_sha256:
+      second.runtime_bundle_receipt.runtime_bundle_evidence_sha256,
+    runtime_bundle_normalized_qualification_sha256:
+      sha256Id(
+        Buffer.from(
+          canonicalJson(
+            second.runtime_bundle_receipt
+              .normalized_runtime_bundle_qualification,
+          ),
+          "utf8",
+        ),
+      ),
+    runtime_bundle_collector_receipt_sha256:
+      second.runtime_bundle_receipt.collector_receipt_sha256,
+    runtime_bundle_qualification_observed: true,
+    runtime_bundle_evidence_collector_observed: true,
     host_identity: second.host,
     witness_storage: second.witness,
     witness_identity_path:
