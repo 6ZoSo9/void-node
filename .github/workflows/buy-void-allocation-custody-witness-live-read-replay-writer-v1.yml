@@ -9,6 +9,8 @@ on:
       - ".github/workflows/buy-void-allocation-custody-witness-live-read-replay-writer-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_live_read_replay_state_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_state_v1.ts"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_witness_live_read_replay_high_water_v1.ts"
       - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
       - "scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts"
   workflow_dispatch:
@@ -64,6 +66,9 @@ jobs:
 
       - name: Preserve replay state machine
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_state_v1.ts
+
+      - name: Preserve canonical replay high-water
+        run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_high_water_v1.ts
 
       - name: Preserve bakery lock
         run: npx tsx scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts
