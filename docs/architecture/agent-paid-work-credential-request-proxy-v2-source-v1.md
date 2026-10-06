@@ -70,22 +70,17 @@ The future adapter must discard caller-provided forms of:
 - `X-Real-IP`; and
 - `X-Void-Trusted-Funnel-Source-V1`.
 
-Only the parser-derived source key may populate:
-
-```text
-x-void-trusted-funnel-source-v1
-```
+The source identity remains internal to the edge adapter. The sanitizer strips
+all caller-provided forwarding/source hints, including
+`x-void-trusted-funnel-source-v1`, and does **not** forward or replace them
+with another identity header. The unchanged downstream gateway therefore does
+not need to trust a new client-identity header.
 
 Parser results carry an in-process, module-private brand. Header sanitization and
 rate planning require that exact branded object and independently re-derive its
 key from the raw family/address bytes. A serialized/cloned lookalike object is
 rejected even when it contains the mathematically correct key. This prevents a
 future caller from bypassing the parser by constructing a raw limiter identity.
-
-This header is **not trusted by itself**. A later integration must prove that the
-existing public gateway accepts it only from the controlled loopback adapter
-transport and that arbitrary local processes cannot reach the same trusted
-handoff boundary.
 
 Header values are bounded and reject CR/LF, NUL and other disallowed control
 bytes before any future handoff, so the sanitizer cannot become a header
@@ -156,7 +151,7 @@ The focused proof covers:
   truncated, undersized and oversized PROXY-v2 HOLDs;
 - case-insensitive stripping of spoofable forwarding/trusted-source headers;
 - control-character/header-injection rejection;
-- trusted-source header replacement from parser output only;
+- no source-identity header forwarded to the downstream gateway;
 - forged parser objects with caller-selected limiter keys rejected;
 - exact cloned/unbranded parser-result lookalikes rejected;
 - caller A exhaustion while caller B remains admitted;
@@ -181,7 +176,9 @@ This lane is source/proof only. It does not:
 - activate a market/presale; or
 - move treasury, liquidity or any funds.
 
-The next separate gate is a reviewed loopback adapter/public-gateway composition
-that binds this parser output to #2409's credential-request route, preserves the
-upstream global limiter, proves the trusted local handoff, and leaves live
-Funnel migration as a separately authorized operator ceremony.
+The next separate gate is a reviewed loopback edge adapter that consumes this
+parser/rate contract **before** forwarding ordinary sanitized HTTP to the
+unchanged #2409 gateway. That composition must preserve the existing 64-KiB
+request-body, 15-second timeout and 4-MiB response ceilings plus the upstream
+global limiter, prove the Funnel-to-adapter local transport assumption, and
+leave live Funnel migration as a separately authorized operator ceremony.
