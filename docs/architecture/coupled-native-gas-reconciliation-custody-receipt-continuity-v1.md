@@ -86,7 +86,10 @@ The first record uses:
 as the predecessor receipt. Every later record requires
 `generation = prior + 1` and an exact prior receipt hash.
 
-The journal is bounded to 8 MiB and 8192 records.
+The journal is bounded to 8 MiB and 8192 records. The supplied collector
+decision is snapshotted without getters/prototype objects and bounded to
+8 MiB of aggregate string/key material before canonical hashing, in addition
+to the existing depth/object-count limits.
 
 ## Identity continuity
 
@@ -185,6 +188,7 @@ The proof covers:
 - host, payer, payer-domain, root and machine drift;
 - synthetic collector rejection;
 - attempted trusted-collector promotion;
+- oversized collector-decision input;
 - qualification-ID rederivation;
 - qualification-receipt self-hash;
 - collector/qualification boot binding;
