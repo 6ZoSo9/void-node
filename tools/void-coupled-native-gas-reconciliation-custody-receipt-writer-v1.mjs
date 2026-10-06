@@ -559,6 +559,128 @@ function temporaryName(name) {
   );
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^$()|[\]\\]/gu, "\\$&");
+}
+
+function tempPattern(name) {
+  return new RegExp(
+    "^\\." +
+      escapeRegExp(name) +
+      "\\.tmp-[1-9][0-9]*-[0-9a-f]{16}$",
+    "u",
+  );
+}
+
+function cleanupTempsForName(
+  directory,
+  name,
+  maxBytes,
+  allowEmpty,
+  code,
+  markMutation,
+) {
+  if (typeof markMutation !== "function") {
+    fail(code + "_cleanup_tracker_invalid");
+  }
+  assertPinnedDirectoryVisible(directory, code + "_directory");
+  const pattern = tempPattern(name);
+  let changed = false;
+  for (const entry of fs.readdirSync(directory.proc_path)) {
+    if (!entry.startsWith("." + name + ".tmp-")) continue;
+    if (!pattern.test(entry)) fail(code + "_temp_name_invalid");
+    const tempPath = path.join(directory.proc_path, entry);
+    const temp = fs.lstatSync(tempPath, { bigint: true });
+    if (temp.nlink === 1n) {
+      validatePrivateFile(
+        temp,
+        maxBytes,
+        allowEmpty,
+        code + "_temp_invalid",
+        1n,
+      );
+      fs.unlinkSync(tempPath);
+      markMutation();
+      changed = true;
+      continue;
+    }
+    validatePrivateFile(
+      temp,
+      maxBytes,
+      allowEmpty,
+      code + "_temp_invalid",
+      2n,
+    );
+    const finalPath = path.join(directory.proc_path, name);
+    const final = fs.lstatSync(finalPath, { bigint: true });
+    validatePrivateFile(
+      final,
+      maxBytes,
+      allowEmpty,
+      code + "_file_invalid",
+      2n,
+    );
+    if (temp.dev !== final.dev || temp.ino !== final.ino) {
+      fail(code + "_temp_binding_invalid");
+    }
+    fs.unlinkSync(tempPath);
+    markMutation();
+    changed = true;
+  }
+  if (changed) {
+    fs.fsyncSync(directory.fd);
+    assertPinnedDirectoryVisible(directory, code + "_directory");
+  }
+  return changed;
+}
+
+function hasReviewedTempForName(directory, name, code) {
+  assertPinnedDirectoryVisible(directory, code + "_directory");
+  const pattern = tempPattern(name);
+  for (const entry of fs.readdirSync(directory.proc_path)) {
+    if (!entry.startsWith("." + name + ".tmp-")) continue;
+    if (!pattern.test(entry)) fail(code + "_temp_name_invalid");
+    return true;
+  }
+  return false;
+}
+
+function normalizeReviewedTemps(roots, markMutation) {
+  cleanupTempsForName(
+    roots.journal,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "receipt_writer_journal_intent",
+    markMutation,
+  );
+  cleanupTempsForName(
+    roots.high_water,
+    INTENT_NAME,
+    MAX_INTENT_BYTES,
+    false,
+    "receipt_writer_high_water_intent",
+    markMutation,
+  );
+  cleanupTempsForName(
+    roots.journal,
+    JOURNAL_NAME,
+    MAX_JOURNAL_BYTES,
+    true,
+    "receipt_writer_journal",
+    markMutation,
+  );
+  cleanupTempsForName(
+    roots.high_water,
+    HIGH_WATER_NAME,
+    MAX_HIGH_WATER_BYTES,
+    false,
+    "receipt_writer_high_water",
+    markMutation,
+  );
+  assertRootsVisible(roots);
+}
+
 function fsyncDirectory(directory, code) {
   assertPinnedDirectoryVisible(directory, code);
   fs.fsyncSync(directory.fd);
@@ -1253,6 +1375,7 @@ async function persistInternal(input, crashAfter = null) {
   };
   try {
     return await withWriterLock(input, async (roots) => {
+      normalizeReviewedTemps(roots, markMutation);
       const pending = readIntentPair(roots);
       if (pending !== null) {
         return recoverLocked(
@@ -1349,6 +1472,7 @@ export async function recoverCoupledNativeGasReconciliationCustodyReceiptWriterV
   };
   try {
     return await withWriterLock(input, async (roots) => {
+      normalizeReviewedTemps(roots, markMutation);
       return recoverLocked(roots, markMutation, null);
     });
   } catch (error) {
@@ -1364,7 +1488,29 @@ export async function inspectCoupledNativeGasReconciliationCustodyReceiptWriterV
 ) {
   try {
     return await withWriterLock(input, async (roots) => {
-      if (readIntentPair(roots) !== null) {
+      if (
+        hasReviewedTempForName(
+          roots.journal,
+          INTENT_NAME,
+          "receipt_writer_journal_intent",
+        ) ||
+        hasReviewedTempForName(
+          roots.high_water,
+          INTENT_NAME,
+          "receipt_writer_high_water_intent",
+        ) ||
+        hasReviewedTempForName(
+          roots.journal,
+          JOURNAL_NAME,
+          "receipt_writer_journal",
+        ) ||
+        hasReviewedTempForName(
+          roots.high_water,
+          HIGH_WATER_NAME,
+          "receipt_writer_high_water",
+        ) ||
+        readIntentPair(roots) !== null
+      ) {
         return held("receipt_writer_recovery_required", false);
       }
       const state = coherentState(roots);
