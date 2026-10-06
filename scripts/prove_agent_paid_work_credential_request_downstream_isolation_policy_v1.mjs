@@ -100,6 +100,7 @@ function validPolicy() {
       listen_host: "127.0.0.1",
       listen_port: 4190,
       ipv6_listener: false,
+      credential_method: "POST",
       credential_route: credentialRoute,
       credential_route_only: true,
       trusted_connector_uid: 2101,
@@ -220,6 +221,12 @@ expectHold(
 expectHold(
   (x) => {
     x.dedicated_credential_downstream.ipv6_listener = true;
+  },
+  /dedicated_listener_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.dedicated_credential_downstream.credential_method = "GET";
   },
   /dedicated_listener_invalid/u,
 );
