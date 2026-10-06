@@ -72,6 +72,11 @@ const INSTALLATION_ID = /^voidwiq2_[0-9a-f]{64}$/u;
 const BUNDLE_ID = /^voidwfbq1_[0-9a-f]{64}$/u;
 const MAX_KNOWN_HOSTS_BYTES = 64 * 1024;
 const MAX_CEREMONY_AGE_MS = 38_000;
+const WITNESS_AUTHORITY_ROOT =
+  "/var/lib/void-allocation-custody-witness-v1";
+const WITNESS_PATH =
+  WITNESS_AUTHORITY_ROOT +
+  "/buy-void-allocation-custody-high-water-witness-v1.jsonl";
 
 const INSTALLATION_RECEIPT_KEYS = Object.freeze([
   "schema",
@@ -395,12 +400,37 @@ function installationReceipt(input: unknown) {
     "witness_live_read_installation_witness_invalid",
   );
   if (
-    typeof witness.authority_root !== "string" ||
-    typeof witness.witness_path !== "string" ||
+    witness.authority_root !== WITNESS_AUTHORITY_ROOT ||
+    witness.witness_path !== WITNESS_PATH ||
+    typeof witness.root_dev !== "string" ||
+    !/^[0-9]+$/u.test(witness.root_dev) ||
+    typeof witness.root_ino !== "string" ||
+    !/^[0-9]+$/u.test(witness.root_ino) ||
+    integer(
+      witness.root_uid,
+      0,
+      0x7fffffff,
+      "witness_live_read_installation_witness_invalid",
+    ) !== witness.root_uid ||
+    integer(
+      witness.root_gid,
+      0,
+      0x7fffffff,
+      "witness_live_read_installation_witness_invalid",
+    ) !== witness.root_gid ||
+    witness.root_mode !== 0o700 ||
     typeof witness.witness_hostname !== "string" ||
     witness.witness_hostname.length < 1 ||
     witness.witness_hostname.length > 255 ||
     witness.witness_hostname !== witness.witness_hostname.trim() ||
+    !SHA256_ID.test(String(witness.witness_machine_id_sha256 || "")) ||
+    typeof witness.witness_root_disk_serial !== "string" ||
+    witness.witness_root_disk_serial.length < 1 ||
+    witness.witness_root_disk_serial !==
+      witness.witness_root_disk_serial.trim() ||
+    typeof witness.witness_root_disk_wwn !== "string" ||
+    witness.witness_root_disk_wwn.length < 1 ||
+    witness.witness_root_disk_wwn !== witness.witness_root_disk_wwn.trim() ||
     !SHA256_ID.test(String(witness.witness_sha256 || "")) ||
     !SHA256_ID.test(String(witness.tip_event_sha256 || "")) ||
     integer(
@@ -419,10 +449,36 @@ function installationReceipt(input: unknown) {
   ) {
     fail("witness_live_read_installation_witness_invalid");
   }
+  const identityPath = String(receipt.witness_identity_path || "");
+  const continuityConsumed = receipt.continuity_attestation_consumed;
+  const hostMachineId = String(hostIdentity.machine_id_sha256);
+  const witnessMachineId = String(witness.witness_machine_id_sha256);
+  if (
+    !(
+      (
+        identityPath === "historical_exact" &&
+        continuityConsumed === false &&
+        hostMachineId === witnessMachineId
+      ) ||
+      (
+        identityPath === "reviewed_machine_id_continuity" &&
+        continuityConsumed === true &&
+        hostMachineId !== witnessMachineId
+      )
+    )
+  ) {
+    fail("witness_live_read_installation_identity_path_invalid");
+  }
+
   return Object.freeze({
     receipt,
     host: Object.freeze({
       hostname: String(hostIdentity.hostname),
+      machine_id_sha256: hostMachineId,
+    }),
+    identity: Object.freeze({
+      path: identityPath,
+      continuity_attestation_consumed: continuityConsumed as boolean,
     }),
     context: Object.freeze({
       source_address: context.source_address as string,
@@ -432,6 +488,7 @@ function installationReceipt(input: unknown) {
     }),
     witness: Object.freeze({
       hostname: String(witness.witness_hostname),
+      machine_id_sha256: witnessMachineId,
       witness_sha256: String(witness.witness_sha256),
       event_count: Number(witness.event_count),
       tip_event_sha256: String(witness.tip_event_sha256),
@@ -687,7 +744,14 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(
       transport_policy_sha256: policyDecision.policy_sha256,
       remote_host: policy.remote_host,
       installation_hostname: installation.host.hostname,
+      installation_machine_id_sha256:
+        installation.host.machine_id_sha256,
       witness_hostname: installation.witness.hostname,
+      witness_machine_id_sha256:
+        installation.witness.machine_id_sha256,
+      witness_identity_path: installation.identity.path,
+      continuity_attestation_consumed:
+        installation.identity.continuity_attestation_consumed,
       remote_port: policy.remote_port,
       remote_user: policy.remote_user,
       known_hosts_sha256: knownHosts.sha256,
