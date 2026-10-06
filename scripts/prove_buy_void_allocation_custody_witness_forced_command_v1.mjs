@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
@@ -722,6 +723,31 @@ for (const hookName of [
   );
 
   clean(fixture);
+}
+
+{
+  const handlerPath = new URL(
+    "../tools/void-buy-allocation-custody-witness-forced-command-v1.mjs",
+    import.meta.url,
+  );
+  const child = spawnSync(
+    process.execPath,
+    [handlerPath.pathname, "--config=/definitely-not-read.json"],
+    {
+      encoding: "utf8",
+      input: "{}\n",
+      env: {
+        ...process.env,
+        VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V1: "1",
+        SSH_ORIGINAL_COMMAND: "   ",
+      },
+    },
+  );
+  assert.equal(child.status, 3);
+  assert.match(
+    child.stderr,
+    /witness_forced_command_original_command_forbidden/u,
+  );
 }
 
 const source =
