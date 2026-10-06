@@ -188,13 +188,19 @@ export function buyVoidNativeDeliveryReceiptRuntimeRootDirV1(): string {
 
 function loopbackRpcUrl(value: string): boolean {
   try {
-    const url = new URL(value);
+    const raw = String(value || "").trim();
+    const url = new URL(raw);
+    const rawAuthority =
+      raw.match(/^http:\/\/([^/?#]+)(?:[/?#]|$)/u)?.[1] ?? "";
     return (
       url.protocol === "http:" &&
       !url.username &&
       !url.password &&
       !url.hash &&
-      ["127.0.0.1", "::1", "localhost"].includes(
+      /^(?:127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?$/u.test(
+        rawAuthority,
+      ) &&
+      ["127.0.0.1", "[::1]"].includes(
         url.hostname.toLowerCase(),
       )
     );

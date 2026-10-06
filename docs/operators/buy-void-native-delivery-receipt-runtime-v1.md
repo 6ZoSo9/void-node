@@ -25,7 +25,10 @@ The runtime is disabled by default. Its server-controlled policy uses:
 - `VOID_BUY_VOID_NATIVE_DELIVERY_WALLET_ADDRESS`;
 - `VOID_BUY_VOID_NATIVE_DELIVERY_RECEIPT_MIN_CONFIRMATIONS`.
 
-The RPC URL must be loopback HTTP. Status output exposes only its SHA-256
+The RPC URL must use a numeric loopback HTTP literal: `127.0.0.1` or
+`[::1]`. `localhost` and alternate IPv4 spellings such as `127.1`,
+`2130706433`, and `0x7f000001` are rejected before the runtime reports the
+policy as configured. Status output exposes only the canonical URL's SHA-256
 fingerprint, never the URL itself.
 
 ## Dry-run and apply walls

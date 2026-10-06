@@ -33,6 +33,25 @@ const paymentTx = `0x${"a".repeat(64)}`;
 const deliveryTx = `0x${"b".repeat(64)}`;
 const transferTopic =
   "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const reconcilerSource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "src/economic/buy_void_native_delivery_receipt_reconciler_v1.ts",
+  ),
+  "utf8",
+);
+assert.match(
+  reconcilerSource,
+  /!\["127\.0\.0\.1", "\[::1\]"\]\.includes\(host\)/u,
+);
+assert.match(
+  reconcilerSource,
+  /hostname: url\.hostname === "\[::1\]" \? "::1" : url\.hostname/u,
+);
+assert.doesNotMatch(
+  reconcilerSource,
+  /\["127\.0\.0\.1", "::1", "localhost"\]/u,
+);
 
 function topic(address: string): string {
   return `0x${"0".repeat(24)}${address.slice(2)}`;
@@ -382,6 +401,55 @@ try {
   });
   assert.equal(reason(remote), "rpc_url_must_be_loopback_http");
   assert.deepEqual(calls, []);
+
+  for (const rpc_url of [
+    "http://127.1:8545/",
+    "http://2130706433:8545/",
+    "http://0x7f000001:8545/",
+  ]) {
+    const aliasFixture = createBroadcastAttempt();
+    roots.push(aliasFixture.root);
+    calls = [];
+    const alias = await runBuyVoidNativeDeliveryReceiptReconcilerV1({
+      root_dir: aliasFixture.root,
+      attempt_id: aliasFixture.attemptId,
+      intent: aliasFixture.intent,
+      policy: { ...policy(), rpc_url },
+      transport: transport({ calls }),
+    });
+    assert.equal(reason(alias), "rpc_url_must_be_loopback_http");
+    assert.deepEqual(calls, []);
+  }
+
+  const localhostFixture = createBroadcastAttempt();
+  roots.push(localhostFixture.root);
+  calls = [];
+  const localhost = await runBuyVoidNativeDeliveryReceiptReconcilerV1({
+    root_dir: localhostFixture.root,
+    attempt_id: localhostFixture.attemptId,
+    intent: localhostFixture.intent,
+    policy: { ...policy(), rpc_url: "http://localhost:8545/" },
+    transport: transport({ calls }),
+  });
+  assert.equal(reason(localhost), "rpc_url_must_be_loopback_http");
+  assert.deepEqual(calls, []);
+
+  const ipv6Fixture = createBroadcastAttempt();
+  roots.push(ipv6Fixture.root);
+  calls = [];
+  const ipv6 = await runBuyVoidNativeDeliveryReceiptReconcilerV1({
+    root_dir: ipv6Fixture.root,
+    attempt_id: ipv6Fixture.attemptId,
+    intent: ipv6Fixture.intent,
+    policy: { ...policy(), rpc_url: "http://[::1]:8545/" },
+    transport: transport({ calls }),
+  });
+  assert.equal(ipv6.ok, true);
+  assert.deepEqual(calls, [
+    "eth_chainId",
+    "eth_getTransactionReceipt",
+    "eth_blockNumber",
+  ]);
 } finally {
   for (const root of roots) fs.rmSync(root, { recursive: true, force: true });
 }
@@ -389,6 +457,10 @@ try {
 console.log("marker=VOID_BUY_VOID_NATIVE_DELIVERY_RECEIPT_RECONCILER_V1");
 console.log("read_only_rpc_method_count=3");
 console.log("loopback_http_only=1");
+console.log("numeric_loopback_literal_required=1");
+console.log("alternate_ipv4_spellings_rejected=1");
+console.log("localhost_hostname_rejected=1");
+console.log("ipv6_socket_brackets_stripped=1");
 console.log("dry_run_mutation_count=0");
 console.log("confirmed_reconciliation=1");
 console.log("reverted_reconciliation=1");

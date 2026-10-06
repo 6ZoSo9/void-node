@@ -393,7 +393,18 @@ assert.equal(
 );
 assert.equal(confirmed.maximum_reserved_wei, "1000000210000");
 assert.equal(confirmed.observed_confirmation_count, "3");
+assert.match(confirmed.terminal_cost_identity_sha256, /^[0-9a-f]{64}$/u);
 assert.equal(confirmed.within_reserved_envelope, true);
+
+const laterConfirmed = requireOk(
+  classify({ current_block_number: "0x70" }),
+);
+assert.equal(laterConfirmed.observed_confirmation_count, "13");
+assert.notEqual(laterConfirmed.evidence_id, confirmed.evidence_id);
+assert.equal(
+  laterConfirmed.terminal_cost_identity_sha256,
+  confirmed.terminal_cost_identity_sha256,
+);
 assert.equal(confirmed.liability_release_authorized, false);
 assert.equal(confirmed.mutation_performed, false);
 assert.equal(confirmed.funds_movement_performed, false);
@@ -655,6 +666,7 @@ for (const [key, value] of Object.entries(
     "exact_gas_used_binding_required",
     "effective_gas_price_ceiling_required",
     "exact_integer_gas_cost",
+    "stable_terminal_cost_identity",
     "confirmed_native_value_consumption_bound",
     "reverted_native_value_consumption_zero",
     "reserved_envelope_ceiling_required",
@@ -675,6 +687,8 @@ console.log("confirmed_delivery_fingerprint_rederived=true");
 console.log("confirmed_outcome_fingerprint_rederived=true");
 console.log("reverted_outcome_arithmetic_rederived=true");
 console.log("fresh_receipt_confirmation_revalidation=true");
+console.log("stable_terminal_cost_identity=true");
+console.log("observation_evidence_id_remains_freshness_sensitive=true");
 console.log("confirmed_gas_cost_bound=true");
 console.log("reverted_native_value_consumption_zero=true");
 console.log("zero_effective_gas_price_supported=true");

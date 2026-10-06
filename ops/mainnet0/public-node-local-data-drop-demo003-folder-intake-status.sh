@@ -33,6 +33,14 @@ EXPECTED_PAYLOAD_NAMES={"README.txt","index.html","metadata.json"}
 EXPECTED_PAYLOAD_PATHS={"files/"+name for name in EXPECTED_PAYLOAD_NAMES}
 EXPECTED_LATEST_NAMES={"files","manifest.json","sha256sums.txt","fixture.log","verify.log","intake.json"}
 EXPECTED_CHECKSUM_PATHS={"./manifest.json"}|{"./"+path for path in EXPECTED_PAYLOAD_PATHS}
+SEALED_ORDER=(
+    "manifest.json",
+    "sha256sums.txt",
+    "files/README.txt",
+    "files/index.html",
+    "files/metadata.json",
+)
+SHA256_RE=re.compile(r"[0-9a-f]{64}")
 
 def fail(msg): raise RuntimeError(msg)
 def same_identity(a,b): return (a.st_dev,a.st_ino)==(b.st_dev,b.st_ino)
@@ -161,7 +169,8 @@ try:
     record=read_json_file(latest_fd,"intake.json","intake_record")
     manifest_bytes=read_regular_file(latest_fd,"manifest.json","manifest")
     manifest=json.loads(manifest_bytes.decode("utf-8"))
-    checksum_entries=parse_checksum_ledger(read_regular_file(latest_fd,"sha256sums.txt","checksum_ledger"))
+    checksum_bytes=read_regular_file(latest_fd,"sha256sums.txt","checksum_ledger")
+    checksum_entries=parse_checksum_ledger(checksum_bytes)
     fixture_log=read_regular_file(latest_fd,"fixture.log","fixture_log")
     verify_log=read_regular_file(latest_fd,"verify.log","verify_log")
 
@@ -169,6 +178,13 @@ try:
     if record.get("offline_verified") is not True: fail("intake_record_offline_verified")
     if record.get("network_fetch_during_import") is not False: fail("intake_record_network_fetch")
     if record.get("trusted_as_network_truth") is not False: fail("intake_record_trust")
+    if record.get("verified_content_authority")!="sealed_memfd_snapshot": fail("intake_record_verified_content_authority")
+    if record.get("visible_extraction_tree_trusted") is not False: fail("intake_record_visible_tree_boundary")
+    sealed_record=record.get("sealed_snapshot_sha256")
+    if not isinstance(sealed_record,dict) or set(sealed_record)!=set(SEALED_ORDER): fail("intake_record_sealed_snapshot_shape")
+    if any(not isinstance(sealed_record[name],str) or not SHA256_RE.fullmatch(sealed_record[name]) for name in SEALED_ORDER): fail("intake_record_sealed_snapshot_digest")
+    sealed_set=record.get("sealed_snapshot_set_sha256")
+    if not isinstance(sealed_set,str) or not SHA256_RE.fullmatch(sealed_set): fail("intake_record_sealed_snapshot_set")
     if record.get("object_set_id")!=EXPECTED_OBJECT_SET: fail("intake_record_object_set_id")
     record_file_count=record.get("file_count")
     if type(record_file_count) is not int or record_file_count!=3: fail("intake_record_file_count")
@@ -196,6 +212,10 @@ try:
     if set(by_path)!=EXPECTED_PAYLOAD_PATHS: fail("manifest_file_path_set")
 
     observed_hashes={"./manifest.json":sha256(manifest_bytes)}
+    observed_sealed={
+        "manifest.json": sha256(manifest_bytes),
+        "sha256sums.txt": sha256(checksum_bytes),
+    }
     for name in sorted(EXPECTED_PAYLOAD_NAMES):
         path="files/"+name
         data=read_regular_file(files_fd,name,"payload_"+name.replace(".","_"))
@@ -204,11 +224,17 @@ try:
         if len(data)!=expected_size: fail("payload_size_mismatch:"+path)
         if digest!=expected_digest: fail("payload_sha256_mismatch:"+path)
         observed_hashes["./"+path]=digest
+        observed_sealed[path]=digest
 
     if checksum_entries!=observed_hashes: fail("checksum_ledger_digest_mismatch")
+    if observed_sealed!=sealed_record: fail("sealed_snapshot_digest_mismatch")
+    sealed_material="".join(name+"="+observed_sealed[name]+"\n" for name in SEALED_ORDER).encode("ascii")
+    if sha256(sealed_material)!=sealed_set: fail("sealed_snapshot_set_mismatch")
     if b"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FIXTURE_V1_GREEN" not in fixture_log: fail("fixture_log_green_marker_missing")
     if b"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_VERIFY_FOLDER_FIXTURE_V1_GREEN" not in verify_log: fail("verify_log_green_marker_missing")
     if b"checksums_verified=true" not in verify_log: fail("verify_log_checksum_marker_missing")
+    if b"verified_content_authority=sealed_memfd_snapshot" not in verify_log: fail("verify_log_sealed_authority_missing")
+    if b"visible_extraction_tree_trusted=false" not in verify_log: fail("verify_log_visible_tree_boundary_missing")
 
     archive_count=0
     for name in os.listdir(archive_fd):
@@ -232,6 +258,10 @@ try:
     print("payload_digests_verified=true")
     print("verification_logs_verified=true")
     print("intake_manifest_binding=true")
+    print("sealed_snapshot_binding=true")
+    print("verified_content_authority=sealed_memfd_snapshot")
+    print("visible_extraction_tree_trusted=false")
+    print("sealed_snapshot_set_sha256="+sealed_set)
     print("demo003_publication_ancestry_safe=true")
     print("public_routes_only=true")
     print("read_only=true")
