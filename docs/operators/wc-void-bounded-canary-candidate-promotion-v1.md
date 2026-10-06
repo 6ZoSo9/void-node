@@ -21,9 +21,11 @@ HEAD and tree. The promotion records reviewed source commit
 anchor and independently pins the exact Git blobs reviewed at that generation
 for the three candidate prestates and the complete transitive source dependency
 closure used by semantic reverification and candidate classification. The
-reviewed closure is 38 exact Git blobs and includes the canonical market-vault Solidity source, the semantic verifier
-dependencies, coupled policy dependencies, participant/finality dependencies,
-and `package.json` / `package-lock.json` for the imported `ethers` state.
+reviewed closure is 40 exact Git blobs and includes the canonical market-vault Solidity source, the semantic verifier
+dependencies, the claim-binding publication helper imported by the reviewed
+semantic-promotion proof, coupled policy dependencies, participant/finality
+dependencies, and `package.json` / `package-lock.json` for the imported `ethers`
+state.
 Any drift in that closure fails closed. Repository reads use the absolute
 reviewed `/usr/bin/git` executable, reject executable identity changes during
 a read, and ignore ambient `PATH`, repository-selection, Git-config injection,
@@ -146,7 +148,7 @@ Therefore the expected poststate is still HOLD, including
 The content-addressed promotion includes:
 
 - exact repository HEAD/tree identity and the reviewed source commit;
-- a deterministic SHA-256 manifest covering all 38 reviewed dependency/source blobs;
+- a deterministic SHA-256 manifest covering all 40 reviewed dependency/source blobs;
 - exact Git blob identities for the top-level reviewed semantic/classifier sources;
 - exact reviewed Git blob identities for all three canonical candidate prestates;
 - the exact canonical `contracts/mainnet/WCVoidMarketVaultV2.sol` Git blob;
