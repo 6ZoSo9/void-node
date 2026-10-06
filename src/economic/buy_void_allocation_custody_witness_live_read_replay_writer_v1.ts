@@ -935,10 +935,6 @@ function recoveryLocked(
   if (!highWaterIsBefore && !highWaterIsAfter) {
     fail("witness_live_read_replay_writer_recovery_high_water_unknown");
   }
-  if (journalIsBefore && highWaterIsAfter) {
-    fail("witness_live_read_replay_writer_recovery_order_violation");
-  }
-
   const eventBytes = Buffer.from(intent.event_jsonl_line, "utf8");
   let beforeJournal: Buffer;
   let afterJournal: Buffer;
