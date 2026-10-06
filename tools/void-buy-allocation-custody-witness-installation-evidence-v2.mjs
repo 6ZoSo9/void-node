@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { isIP } from "node:net";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +32,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTH
     fixed_security_sensitive_paths: true,
     root_owned_authorization_policy_observed: true,
     effective_sshd_policy_observed: true,
+    sshd_connection_context_bound: true,
+    live_sshd_connection_context_proven: false,
     preexec_binary_chain_observed: true,
     local_host_key_observed: true,
     authorized_client_key_observed: true,
@@ -117,6 +120,9 @@ const FORCED_COMMAND =
 
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_CONFIG_BYTES = 256 * 1024;
+const SAFE_SOURCE_HOST =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/u;
+
 const DANGEROUS_ENVIRONMENT_NAMES = Object.freeze([
   "BASH_ENV",
   "BASHOPTS",
@@ -188,7 +194,13 @@ function exactObject(value, keys, code) {
 function exactConfig(raw) {
   const value = exactObject(
     raw,
-    ["schema", "marker", "version", "transport_policy"],
+    [
+      "schema",
+      "marker",
+      "version",
+      "transport_policy",
+      "sshd_connection_context",
+    ],
     "witness_installation_evidence_config_invalid",
   );
   if (
@@ -208,9 +220,44 @@ function exactConfig(raw) {
         String(policy.reason || "invalid"),
     );
   }
+  const context = exactObject(
+    value.sshd_connection_context,
+    [
+      "source_address",
+      "source_host",
+      "local_address",
+      "local_port",
+    ],
+    "witness_installation_evidence_sshd_context_invalid",
+  );
+  const sourceAddress = String(context.source_address || "");
+  const localAddress = String(context.local_address || "");
+  const sourceHost = String(context.source_host || "");
+  const localPort = Number(context.local_port);
+  if (
+    isIP(sourceAddress) === 0 ||
+    isIP(localAddress) === 0 ||
+    sourceAddress === "127.0.0.1" ||
+    sourceAddress === "::1" ||
+    localAddress === "127.0.0.1" ||
+    localAddress === "::1" ||
+    sourceAddress === localAddress ||
+    sourceHost !== sourceHost.trim().toLowerCase() ||
+    !(isIP(sourceHost) > 0 || SAFE_SOURCE_HOST.test(sourceHost)) ||
+    !Number.isSafeInteger(localPort) ||
+    localPort !== policy.policy.remote_port
+  ) {
+    fail("witness_installation_evidence_sshd_context_invalid");
+  }
   return Object.freeze({
     transport_policy: policy.policy,
     transport_policy_sha256: policy.policy_sha256,
+    sshd_connection_context: Object.freeze({
+      source_address: sourceAddress,
+      source_host: sourceHost,
+      local_address: localAddress,
+      local_port: localPort,
+    }),
   });
 }
 
@@ -693,11 +740,17 @@ function one(values, key) {
   return entries[0];
 }
 
-function sshdEvidence(io, remoteUser, remoteHost) {
+function sshdEvidence(io, remoteUser, connectionContext) {
   const output = io.run(SSHD_PATH, [
     "-T",
     "-C",
-    "user=" + remoteUser + ",host=" + remoteHost + ",addr=127.0.0.1",
+    [
+      "user=" + remoteUser,
+      "host=" + connectionContext.source_host,
+      "addr=" + connectionContext.source_address,
+      "laddr=" + connectionContext.local_address,
+      "lport=" + String(connectionContext.local_port),
+    ].join(","),
   ]);
   const values = parseSshd(output);
   const acceptEnv = Object.freeze(
@@ -1343,7 +1396,11 @@ function collectOnce(config, io, observedAtMs) {
     policy.remote_user,
     policy.client_public_key_sha256,
   );
-  const sshd = sshdEvidence(io, policy.remote_user, policy.remote_host);
+  const sshd = sshdEvidence(
+    io,
+    policy.remote_user,
+    config.sshd_connection_context,
+  );
   const hostKey = hostKeyEvidence(io, policy.host_key_sha256);
   const host = machineIdentity(io);
   const witness = witnessStorage(io, account);
@@ -1415,6 +1472,7 @@ function collectOnce(config, io, observedAtMs) {
   return Object.freeze({
     evidence,
     qualification,
+    sshd_connection_context: config.sshd_connection_context,
     host,
     host_key: hostKey,
     witness: witness.evidence,
@@ -1453,7 +1511,9 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
     canonicalJson(first.host) !== canonicalJson(second.host) ||
     canonicalJson(first.witness) !== canonicalJson(second.witness) ||
     canonicalJson(first.witness_identity) !==
-      canonicalJson(second.witness_identity)
+      canonicalJson(second.witness_identity) ||
+    canonicalJson(first.sshd_connection_context) !==
+      canonicalJson(second.sshd_connection_context)
   ) {
     fail("witness_installation_evidence_changed_during_collection");
   }
@@ -1483,6 +1543,10 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
     host_key_observed: true,
     authorized_client_key_observed: true,
     effective_sshd_policy_observed: true,
+    sshd_connection_context:
+      second.sshd_connection_context,
+    sshd_connection_context_bound: true,
+    live_sshd_connection_context_proven: false,
     continuity_attestation_observed: true,
     client_known_hosts_content_observed: false,
     preexec_runtime_execution_observed: true,
