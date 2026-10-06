@@ -68,6 +68,16 @@ assert.equal(
   "voidngrcsg1_" +
     VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1,
 );
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1
+    .index_manifest_rebound_after_worktree_census,
+  true,
+);
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1
+    .reviewed_worktree_revalidated_after_clean_census,
+  true,
+);
 
 const alternativeHead =
   testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
@@ -274,6 +284,53 @@ for (const [flag, clearFlag] of [
   }
 }
 
+
+{
+  const target = "package.json";
+  const original = fs.readFileSync(target);
+  const runGit = (args) =>
+    spawnSync("/usr/bin/git", args, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+    });
+  const headResult = runGit(["rev-parse", "HEAD"]);
+  assert.equal(headResult.status, 0, String(headResult.stderr || ""));
+  const head = String(headResult.stdout || "").trim();
+
+  try {
+    assert.throws(
+      () =>
+        testOnlyRepositoryCleanStateV1(head, {
+          testOnlyAfterInitialIndexCheckBeforeManifest() {
+            fs.writeFileSync(
+              target,
+              Buffer.concat([
+                original,
+                Buffer.from("\n", "utf8"),
+              ]),
+            );
+            const staged = runGit(["add", "--", target]);
+            assert.equal(
+              staged.status,
+              0,
+              String(staged.stderr || ""),
+            );
+          },
+        }),
+      /source_binding_repository_index_changed_during_observation/u,
+      "index/worktree mutation after the initial clean check must HOLD",
+    );
+  } finally {
+    const reset = runGit(["reset", "--", target]);
+    assert.equal(reset.status, 0, String(reset.stderr || ""));
+    fs.writeFileSync(target, original);
+  }
+}
 
 const pinnedHead = "1".repeat(40);
 const pinnedPlan = testOnlyPinnedObservationPlanV1(pinnedHead);
@@ -676,4 +733,7 @@ console.log("live_host_qualification_performed=false");
 console.log("storage_bootstrap=false");
 console.log("runtime_integration=false");
 console.log("production_gate_ready=false");
+console.log("index_manifest_rebound_after_worktree_census=true");
+console.log("reviewed_worktree_revalidated_after_clean_census=true");
+console.log("mid_observation_index_stage_race_rejected=true");
 console.log("funds_movement=false");
