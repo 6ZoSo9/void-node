@@ -29,6 +29,8 @@ grep -Fq 'rollback_demo003_latest()' "$INTAKE"
 grep -Fq 'discard_prior_demo003_latest()' "$INTAKE"
 grep -Fq 'latest_publish_rollback_restored=true' "$INTAKE"
 grep -Fq 'latest_publish_commit_validated=true' "$INTAKE"
+grep -Fq 'latest_publish_uncertainty_armed_before_child=true' "$INTAKE"
+grep -Fq 'latest_publish_uncertainty_cleared_after_validated_success=true' "$INTAKE"
 if grep -Fq 'cp -a "$VERIFY_OUT/extract/demo003-folder-fixture/." "$ARCHIVE/"' "$INTAKE"; then
   echo "mutable_visible_tree_copy_remains=true"
   exit 1
@@ -168,6 +170,30 @@ script="$(mktemp "${TMPDIR:-/tmp}/void-demo003-intake-python-wrapper.XXXXXX")"
 trap 'rm -f "$script"' EXIT
 cat >"$script"
 
+if [ "${VOID_DEMO003_TEST_PUBLISHER_NO_OUTPUT_AFTER_EXCHANGE:-0}" = "1" ] &&
+   grep -Fq 'latest_atomic_publish=true' "$script" &&
+   grep -Fq 'RENAME_EXCHANGE = 2' "$script"; then
+  "$real" - "$script" <<'PY_ABORT_PUBLISH'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf8")
+needle = '''        exchange(stage, latest)
+    else:
+        os.rename(stage, latest)
+'''
+replacement = '''        exchange(stage, latest)
+        os._exit(97)
+    else:
+        os.rename(stage, latest)
+'''
+if text.count(needle) != 1:
+    raise SystemExit("publisher_abort_injection_anchor_invalid")
+path.write_text(text.replace(needle, replacement), encoding="utf8")
+PY_ABORT_PUBLISH
+fi
+
 set +e
 "$real" "$script" "${@:2}"
 rc=$?
@@ -282,6 +308,66 @@ if find "$legacy_rollback_data/public-node/local-data-drop-demo003-folder-fixtur
   exit 1
 fi
 
+abrupt_data="$OUT/abrupt-publish-data"
+abrupt_target="$OUT/abrupt-publish-legacy-target"
+prepare_legacy_latest_symlink "$abrupt_data" "$abrupt_target"
+abrupt_latest="$abrupt_data/public-node/local-data-drop-demo003-folder-fixtures/latest"
+abrupt_prior_identity="$(
+  python3 - "$abrupt_latest" <<'PY'
+import os
+import sys
+st=os.lstat(sys.argv[1])
+print(f"{st.st_dev}:{st.st_ino}:{st.st_mode}:{st.st_uid}:{st.st_gid}")
+PY
+)"
+abrupt_prior_readlink="$(readlink "$abrupt_latest")"
+
+set +e
+PATH="$wrapper_bin:$PATH" \
+VOID_DEMO003_TEST_REAL_PYTHON="$real_python" \
+VOID_DEMO003_TEST_PUBLISHER_NO_OUTPUT_AFTER_EXCHANGE=1 \
+DATA_DIR="$abrupt_data" \
+OUT="$OUT/abrupt-publish-run" \
+  "$INTAKE" >"$OUT/abrupt-publish.log" 2>&1
+abrupt_rc=$?
+set -e
+
+if [ "$abrupt_rc" -eq 0 ]; then
+  echo "abrupt_publish_unexpectedly_committed=true"
+  exit 1
+fi
+grep -Fq "latest_publish_uncertainty_armed_before_child=true" "$OUT/abrupt-publish.log"
+grep -Fq "rollback_uncertain_evidence_preserved=true" "$OUT/abrupt-publish.log"
+if grep -Fq "latest_publish_uncertainty_cleared_after_validated_success=true" "$OUT/abrupt-publish.log"; then
+  echo "abrupt_publish_uncertainty_cleared=true"
+  exit 1
+fi
+if grep -Fq "latest_publish_failure_state=" "$OUT/abrupt-publish.log"; then
+  echo "abrupt_publish_emitted_result_marker=true"
+  exit 1
+fi
+
+abrupt_stage="$(
+  sed -n 's/^rollback_uncertain_latest_stage=\(.*\)$/\1/p'     "$OUT/abrupt-publish.log" | tail -n 1
+)"
+abrupt_archive="$(
+  sed -n 's/^rollback_uncertain_archive=\(.*\)$/\1/p'     "$OUT/abrupt-publish.log" | tail -n 1
+)"
+test -n "$abrupt_stage" && test -L "$abrupt_stage"
+test -n "$abrupt_archive" && test -d "$abrupt_archive"
+test "$(readlink "$abrupt_stage")" = "$abrupt_prior_readlink"
+test "$(cat "$abrupt_target/sentinel.txt")" = "VOID_DEMO003_LEGACY_LATEST_SENTINEL"
+test "$(
+  python3 - "$abrupt_stage" <<'PY'
+import os
+import sys
+st=os.lstat(sys.argv[1])
+print(f"{st.st_dev}:{st.st_ino}:{st.st_mode}:{st.st_uid}:{st.st_gid}")
+PY
+)" = "$abrupt_prior_identity"
+test -f "$abrupt_archive/intake.json"
+test -d "$abrupt_latest" && test ! -L "$abrupt_latest"
+
 after="$(git status --short --untracked-files=no)"
 if [ "$before" != "$after" ]; then
   echo "no_source_mutation=false"
@@ -293,6 +379,7 @@ echo "post_publish_invalid_latest_rollback_verified=true"
 echo "prior_latest_snapshot_restored=true"
 echo "legacy_latest_symlink_successfully_retired_after_validation=true"
 echo "legacy_latest_symlink_exactly_restored_after_failed_validation=true"
+echo "indeterminate_publish_preserves_stage_archive_evidence=true"
 echo "post_green_visible_tree_mutation_rejected=true"
 echo "published_latest_snapshot_revalidation_verified=true"
 echo "sealed_snapshot_handoff_verified=true"
