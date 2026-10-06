@@ -383,9 +383,9 @@ function defaultIo() {
       return Object.freeze({ bytes, stat: opened });
     } finally {
       if (fd >= 0) {
-        try { fs.closeSync(fd); } catch {}
+        try { fs.closeSync(fd); } catch (closeError) { void closeError; }
       }
-      try { fs.closeSync(directoryFd); } catch {}
+      try { fs.closeSync(directoryFd); } catch (closeError) { void closeError; }
     }
   };
 
@@ -508,7 +508,7 @@ function defaultIo() {
       } catch {
         return false;
       } finally {
-        try { fs.closeSync(fd); } catch {}
+        try { fs.closeSync(fd); } catch (closeError) { void closeError; }
       }
     },
     hostKeyOpenSshFingerprint(blob) {
