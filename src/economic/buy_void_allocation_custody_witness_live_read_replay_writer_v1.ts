@@ -943,7 +943,7 @@ function recoveryLocked(
     afterJournal = Buffer.concat([journal, eventBytes]);
   } else {
     if (
-      journal.length <= eventBytes.length ||
+      journal.length < eventBytes.length ||
       !journal
         .subarray(journal.length - eventBytes.length)
         .equals(eventBytes)
