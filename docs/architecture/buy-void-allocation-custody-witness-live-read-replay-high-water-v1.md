@@ -155,9 +155,12 @@ durable replay writer:
 ```
 
 #2521 is merged and fixes the source-level non-mutating witness-read boundary.
-#2519 still requires reconciliation to that final handler/runtime-bundle
-generation plus fresh installation/runtime-bundle evidence before any live
-read packet can become authoritative. This source contract does not bypass
+#2524 is also merged as the canonical pure live-read packet qualifier on the
+final #2521 handler/runtime-bundle generation. That qualifier intentionally
+does not prove live evidence origin, trusted clock/generation continuity,
+external transport/storage, or a fresh designated-host installation. Fresh
+installation/runtime-bundle/live evidence remains a separate #2452 gate before
+any packet can become authoritative. This source contract does not bypass
 those dependencies.
 
 ## Focused proof
