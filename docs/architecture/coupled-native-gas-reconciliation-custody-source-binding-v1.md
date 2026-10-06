@@ -45,6 +45,15 @@ The read-only inspector requires:
 - absolute `/usr/bin/git`;
 - a closed Git subprocess environment;
 - replacement objects disabled;
+- lazy promisor-object fetching disabled in every Git subprocess by both
+  `GIT_NO_LAZY_FETCH=1` and `--no-lazy-fetch`; missing local objects
+  therefore fail closed instead of causing a fetch/write side effect;
+- Git transport protocols restricted to local `file` only for the source
+  inspector, so an accidental later transport path cannot use HTTP/SSH;
+- legacy graft loading redirected to `/dev/null` inside every Git subprocess
+  with `GIT_GRAFT_FILE`; repository `.git/info/grafts` presence is still
+  independently rejected so an unexpected graft remains visible as HOLD
+  evidence rather than being silently ignored;
 - global/system Git config disabled;
 - repository-local include directives and filter configuration rejected in
   both local and enabled worktree config scopes;
@@ -52,14 +61,19 @@ The read-only inspector requires:
   clean-state authority: assume-unchanged/skip-worktree index flags are
   forbidden, the index is compared to the pinned commit with cached plumbing,
   every tracked regular file/symlink is direct-read and Git-blob rehashed
-  against its stage-0 index record (including executable mode), and only
+  against its stage-0 index record. For regular files the expected
+  `100644|100755` executable mode is enforced on the same opened descriptor
+  whose bytes are hashed, so metadata and byte authority cannot come from
+  different file observations; and only
   untracked names are obtained from `ls-files --others --exclude-standard`.
   The reviewed 21 paths remain independently nofollow/nonblocking rehashed.
   This removes repository clean-filter execution from the clean-state path
   rather than relying on a prior config check to remain current;
 - hooks, fsmonitor, global attributes, untracked cache, preloading, and submodule
   recursion disabled for the observation;
-- legacy `.git/info/grafts` rejected before ancestry evaluation;
+- legacy `.git/info/grafts` rejected before ancestry evaluation, while every
+  ancestry/object subprocess independently disables graft loading so a graft
+  inserted after that precheck cannot affect the Git result;
 - one immutable 40-hex commit captured at observation start; its tree, every
   reviewed Git blob, and reviewed-base ancestry are all resolved against that
   exact commit rather than a moving `HEAD`;
@@ -170,8 +184,15 @@ The focused proof:
   and requires HOLD before source inspection;
 - separately arms a repository clean filter after the config-check boundary and
   proves the full tracked-file raw-hash clean-state census does not execute it;
-- installs a temporary legacy graft overlay and requires HOLD before ancestry is
-  trusted;
+- installs a temporary root graft and proves an ordinary graft-aware
+  `merge-base --is-ancestor` result changes, while the production closed Git
+  environment with `GIT_GRAFT_FILE=/dev/null` preserves the reviewed ancestry;
+  the real inspector additionally requires HOLD on the graft file's presence;
+- proves the closed Git environment contains no-lazy-fetch and local-file-only
+  transport controls and that the reviewed Git binary accepts
+  `--no-lazy-fetch`;
+- changes one proof file from non-executable to executable and requires the
+  descriptor-bound reader to reject `100644` while accepting `100755`;
 - swaps a regular proof file to a FIFO between lstat/open and requires bounded
   HOLD, and grows a file after open so the EOF growth probe must reject it;
 - rejects dirty worktree, wrong repository origin, missing reviewed ancestry,
