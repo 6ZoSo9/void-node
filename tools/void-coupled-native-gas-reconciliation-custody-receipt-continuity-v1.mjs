@@ -404,13 +404,18 @@ function validateQualificationReceipt(input) {
   );
   const payerRootDev = String(receipt.payer_root_dev ?? "").trim();
   const payerRootIno = String(receipt.payer_root_ino ?? "").trim();
-  if (!DECIMAL.test(payerRootDev) || !DECIMAL.test(payerRootIno)) {
+  if (
+    !DECIMAL.test(payerRootDev) ||
+    payerRootDev.length > 30 ||
+    !DECIMAL.test(payerRootIno) ||
+    payerRootIno.length > 30
+  ) {
     fail("receipt_continuity_qualification_receipt_root_identity_invalid");
   }
   const payerRootMountId = safeInt(
     receipt.payer_root_mount_id,
     1,
-    Number.MAX_SAFE_INTEGER,
+    0x7fff_ffff,
     "receipt_continuity_qualification_receipt_root_identity_invalid",
   );
   const mountInstanceFingerprint = sha256(
