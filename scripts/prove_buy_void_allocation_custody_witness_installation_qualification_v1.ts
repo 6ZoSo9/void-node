@@ -167,14 +167,14 @@ const baseline = {
       "sha256:1c8a9a4d144e28d585e38c41f21576e72ccb76eec89ecec0f641c46d12c9c720",
   },
   authorized_key: {
-    authorized_keys_path: "/var/lib/voidwitness/.ssh/authorized_keys",
-    authorized_keys_uid: 1201,
-    authorized_keys_gid: 1201,
-    authorized_keys_mode: 0o600,
+    authorized_keys_path: "/etc/ssh/authorized_keys/voidwitness",
+    authorized_keys_uid: 0,
+    authorized_keys_gid: 0,
+    authorized_keys_mode: 0o444,
     authorized_keys_nlink: 1,
     authorized_keys_regular_file: true,
     authorized_keys_symlink: false,
-    authorized_keys_parent_private: true,
+    authorized_keys_root_owned_nonwritable_parent_chain: true,
     line_sha256: sha("6"),
     key_algorithm: "ssh-ed25519",
     public_key_sha256: sha("3"),
@@ -196,10 +196,12 @@ const baseline = {
   sshd: {
     permit_user_environment: false,
     accept_env: [],
+    authorized_keys_file: "/etc/ssh/authorized_keys/voidwitness",
     publickey_only: true,
     password_authentication: false,
     kbd_interactive_authentication: false,
     authorized_keys_environment_allowed: false,
+    strict_modes: true,
     effective_config_sha256: sha("8"),
   },
   preexec: {
@@ -372,6 +374,11 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.node.node_version = "v22.19.0";
+  expectHeld(value, /witness_installation_node_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.config.uid = 0;
   expectHeld(value, /witness_installation_config_invalid/u);
 }
@@ -408,6 +415,22 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.authorized_key.authorized_keys_uid = 1201;
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.authorized_key.authorized_keys_mode = 0o600;
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.authorized_key.authorized_keys_root_owned_nonwritable_parent_chain =
+    false;
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.authorized_key.restrict = false;
   expectHeld(value, /witness_installation_authorized_key_invalid/u);
 }
@@ -431,6 +454,17 @@ assert.equal(
   const value = clone(policyOnly);
   value.authorized_key.caller_selected_command = true;
   expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.sshd.authorized_keys_file =
+    "/var/lib/voidwitness/.ssh/authorized_keys";
+  expectHeld(value, /witness_installation_sshd_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.sshd.strict_modes = false;
+  expectHeld(value, /witness_installation_sshd_invalid/u);
 }
 {
   const value = clone(policyOnly);
@@ -497,6 +531,8 @@ const trueKeys = new Set([
   "dedicated_account_required",
   "protected_config_required",
   "restrictive_authorized_key_required",
+  "root_owned_authorized_keys_required",
+  "effective_authorized_keys_path_binding",
   "sshd_environment_restrictions_required",
   "preexec_original_command_rejection_required",
   "sanitized_node_environment_required",
@@ -518,6 +554,11 @@ console.log("reviewed_handler_blob_binding=true");
 console.log("original_command_rejected_before_environment_sanitization=true");
 console.log("sanitized_node_environment_required=true");
 console.log("authorized_key_environment_options_allowed=false");
+console.log("authorized_keys_root_owned=true");
+console.log("authorized_keys_account_writable=false");
+console.log("sshd_authorized_keys_file_bound=true");
+console.log("sshd_strict_modes=true");
+console.log("node_major_matches_version=true");
 console.log("permit_user_environment=false");
 console.log("accept_env_empty=true");
 console.log("live_evidence_origin_proven=false");
