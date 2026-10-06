@@ -446,7 +446,7 @@ function openRoots(input) {
   }
 }
 
-function readPinnedNamedFile(
+function openPinnedNamedFileSnapshot(
   directory,
   name,
   maxBytes,
@@ -466,11 +466,12 @@ function readPinnedNamedFile(
     allowEmpty,
     code + "_file_invalid",
   );
-  const fd = fs.openSync(
-    pinnedPath,
-    fs.constants.O_RDONLY | O_NOFOLLOW,
-  );
+  let fd = -1;
   try {
+    fd = fs.openSync(
+      pinnedPath,
+      fs.constants.O_RDONLY | O_NOFOLLOW,
+    );
     const opened = fs.fstatSync(fd, { bigint: true });
     validatePrivateFile(
       opened,
@@ -518,9 +519,74 @@ function readPinnedNamedFile(
       fail(code + "_changed_during_read");
     }
     assertPinnedDirectoryVisible(directory, code + "_directory");
-    return bytes;
+    return Object.freeze({
+      directory,
+      visible_path: visiblePath,
+      fd,
+      stat: after,
+      bytes,
+      max_bytes: maxBytes,
+      allow_empty: allowEmpty,
+      code,
+    });
+  } catch (error) {
+    if (fd >= 0) {
+      try { fs.closeSync(fd); } catch (closeError) { void closeError; }
+    }
+    throw error;
+  }
+}
+
+function assertPinnedNamedFileSnapshotVisible(snapshot) {
+  const opened = fs.fstatSync(snapshot.fd, { bigint: true });
+  const visible = fs.lstatSync(snapshot.visible_path, { bigint: true });
+  validatePrivateFile(
+    opened,
+    snapshot.max_bytes,
+    snapshot.allow_empty,
+    snapshot.code + "_file_invalid",
+  );
+  validatePrivateFile(
+    visible,
+    snapshot.max_bytes,
+    snapshot.allow_empty,
+    snapshot.code + "_file_invalid",
+  );
+  if (
+    !sameFileIdentity(snapshot.stat, opened) ||
+    !sameFileIdentity(opened, visible)
+  ) {
+    fail(snapshot.code + "_snapshot_changed");
+  }
+  assertPinnedDirectoryVisible(
+    snapshot.directory,
+    snapshot.code + "_directory",
+  );
+}
+
+function closePinnedNamedFileSnapshot(snapshot) {
+  if (!snapshot) return;
+  fs.closeSync(snapshot.fd);
+}
+
+function readPinnedNamedFile(
+  directory,
+  name,
+  maxBytes,
+  allowEmpty,
+  code,
+) {
+  const snapshot = openPinnedNamedFileSnapshot(
+    directory,
+    name,
+    maxBytes,
+    allowEmpty,
+    code,
+  );
+  try {
+    return Buffer.from(snapshot.bytes);
   } finally {
-    fs.closeSync(fd);
+    closePinnedNamedFileSnapshot(snapshot);
   }
 }
 
@@ -1072,42 +1138,67 @@ function parseIntent(bytes) {
   });
 }
 
-function coherentState(roots, hook = null) {
-  const journal = readPinnedNamedFile(
-    roots.journal,
-    JOURNAL_NAME,
-    MAX_JOURNAL_BYTES,
-    true,
-    "receipt_writer_journal",
-  );
-  if (typeof hook === "function") hook();
-  const highWater = readPinnedNamedFile(
-    roots.high_water,
-    HIGH_WATER_NAME,
-    MAX_HIGH_WATER_BYTES,
-    false,
-    "receipt_writer_high_water",
-  );
-  const binding =
-    classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
-      journal,
-      highWater,
+function coherentState(
+  roots,
+  afterJournalReadHook = null,
+  afterHighWaterReadHook = null,
+) {
+  let journalSnapshot = null;
+  let highWaterSnapshot = null;
+  try {
+    journalSnapshot = openPinnedNamedFileSnapshot(
+      roots.journal,
+      JOURNAL_NAME,
+      MAX_JOURNAL_BYTES,
+      true,
+      "receipt_writer_journal",
     );
-  if (binding.ok !== true) {
-    fail(binding.reason || "receipt_writer_high_water_hold");
+    if (typeof afterJournalReadHook === "function") {
+      afterJournalReadHook();
+    }
+    highWaterSnapshot = openPinnedNamedFileSnapshot(
+      roots.high_water,
+      HIGH_WATER_NAME,
+      MAX_HIGH_WATER_BYTES,
+      false,
+      "receipt_writer_high_water",
+    );
+    if (typeof afterHighWaterReadHook === "function") {
+      afterHighWaterReadHook();
+    }
+    const journal = journalSnapshot.bytes;
+    const highWater = highWaterSnapshot.bytes;
+    const binding =
+      classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+        journal,
+        highWater,
+      );
+    if (binding.ok !== true) {
+      fail(binding.reason || "receipt_writer_high_water_hold");
+    }
+    const continuity =
+      classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(journal);
+    if (continuity.ok !== true) {
+      fail(continuity.reason || "receipt_writer_continuity_hold");
+    }
+    assertRootsVisible(roots);
+    assertPinnedNamedFileSnapshotVisible(journalSnapshot);
+    assertPinnedNamedFileSnapshotVisible(highWaterSnapshot);
+    assertRootsVisible(roots);
+    return Object.freeze({
+      journal: Buffer.from(journal),
+      high_water: Buffer.from(highWater),
+      continuity,
+      high_water_binding: binding.high_water,
+    });
+  } finally {
+    if (highWaterSnapshot) {
+      closePinnedNamedFileSnapshot(highWaterSnapshot);
+    }
+    if (journalSnapshot) {
+      closePinnedNamedFileSnapshot(journalSnapshot);
+    }
   }
-  const continuity =
-    classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(journal);
-  if (continuity.ok !== true) {
-    fail(continuity.reason || "receipt_writer_continuity_hold");
-  }
-  assertRootsVisible(roots);
-  return Object.freeze({
-    journal,
-    high_water: highWater,
-    continuity,
-    high_water_binding: binding.high_water,
-  });
 }
 
 async function canonicalLock() {
@@ -1681,6 +1772,57 @@ export async function testOnlyPersistCoupledNativeGasReconciliationCustodyReceip
     return held("receipt_writer_test_crash_phase_invalid", false);
   }
   return await persistInternal(input, phase);
+}
+
+export function testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1(
+  input,
+  which = "journal",
+) {
+  let roots = null;
+  let displaced = null;
+  let replacementCreated = false;
+  try {
+    roots = openRoots(input);
+    const directory =
+      which === "high_water" ? roots.high_water : roots.journal;
+    const name =
+      which === "high_water" ? HIGH_WATER_NAME : JOURNAL_NAME;
+    const target = path.join(directory.path, name);
+    displaced = target + ".test-displaced-" + process.pid;
+    const replace = () => {
+      const bytes = fs.readFileSync(target);
+      fs.renameSync(target, displaced);
+      fs.writeFileSync(target, bytes, { mode: 0o600 });
+      replacementCreated = true;
+    };
+    const state = coherentState(
+      roots,
+      which === "journal" ? replace : null,
+      which === "high_water" ? replace : null,
+    );
+    return success("clean", state, false, false);
+  } catch (error) {
+    return held(error instanceof Error ? error.message : String(error), false);
+  } finally {
+    if (roots) {
+      const directory =
+        which === "high_water" ? roots.high_water : roots.journal;
+      const name =
+        which === "high_water" ? HIGH_WATER_NAME : JOURNAL_NAME;
+      const target = path.join(directory.path, name);
+      try {
+        if (replacementCreated && fs.existsSync(target)) {
+          fs.unlinkSync(target);
+        }
+        if (displaced && fs.existsSync(displaced)) {
+          fs.renameSync(displaced, target);
+        }
+      } catch (error) {
+        void error;
+      }
+      closeRoots(roots);
+    }
+  }
 }
 
 export function testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterRootSwapV1(
