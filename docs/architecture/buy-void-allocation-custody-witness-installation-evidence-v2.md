@@ -13,10 +13,14 @@ state, wallets, keys, transactions, allocation state, activation, inventory,
 treasury/liquidity, or funds.
 
 The collector's output is content-addressed but is **not** live authority.
-Trusted collection time, monotonic evidence generation, client-side
-`known_hosts` content, authenticated external transport, independent external
-witness storage, runtime integration, protected high-water custody and
-production readiness remain separate gates.
+A successful collection now requires both the canonical V2 installation
+qualification and the exact runtime-bundle qualification from
+`VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V1`.
+This closes only the installed executable-closure evidence gap; trusted
+collection time, monotonic evidence generation, client-side `known_hosts`
+content, authenticated external transport, independent external witness storage,
+runtime integration, protected high-water custody and production readiness
+remain separate gates.
 
 ## Input
 
@@ -99,6 +103,32 @@ A successful collector run requires the canonical V2 qualifier to return a
 `voidwiq2_...` qualification ID. The collector does not replace that
 qualifier with its own interpretation.
 
+## Runtime-bundle evidence
+
+The V2 forced-command handler is not a one-file runtime: it statically imports
+the reviewed compiled allocation/witness modules. The collector therefore also
+builds an evidence packet for the canonical runtime-bundle qualifier.
+
+For each of the eight exact installed runtime paths from
+`VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1`, the
+collector reuses the same descriptor-bound/no-follow file reader and reports:
+
+- exact installed path and SHA-256;
+- UID/GID;
+- exact mode;
+- link count;
+- regular-file / no-symlink shape; and
+- root-owned non-writable parent-chain evidence.
+
+The evidence packet is bound to the reviewed runtime-bundle manifest ID,
+manifest SHA-256, and census source commit. Collection HOLDS unless
+`classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1(...)`
+returns the canonical `voidwfbq1_...` qualification.
+
+This is still observation only: it does not prove those files were installed by
+this collector, does not execute the witness handler, and does not grant runtime
+or production authority.
+
 ## Local pre-exec probes
 
 The V1/V2 installation evidence contains claims about behavior before Node
@@ -152,14 +182,19 @@ mismatch HOLDs.
 ## Double census and receipt
 
 The collector performs two complete observations at one captured timestamp.
-Canonical installation evidence, host identity, witness storage summary and
-identity-path classification must be byte-identical between the two observations.
+Canonical installation evidence, runtime-bundle evidence and its normalized
+qualification, host identity, witness storage summary and identity-path
+classification must be byte-identical between the two observations.
 
 The receipt binds:
 
 - V2 installation qualification ID;
 - SHA-256 of the exact V2 qualification evidence;
 - SHA-256 of the qualifier's normalized result;
+- runtime-bundle manifest ID and manifest SHA-256;
+- runtime-bundle qualification ID;
+- SHA-256 of the exact runtime-bundle evidence;
+- SHA-256 of the runtime-bundle qualifier's normalized result;
 - host identity;
 - witness storage identity;
 - selected machine-ID continuity path;
@@ -198,6 +233,7 @@ material, and perform authenticated external read/append qualification before
 npm run build
 node --check tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs
 node scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs
+npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
 npx tsx scripts/prove_buy_void_allocation_custody_witness_installation_qualification_v2.ts
 npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
 node scripts/prove_buy_void_allocation_custody_witness_forced_command_v2.mjs
