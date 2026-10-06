@@ -46,11 +46,15 @@ The read-only inspector requires:
 - a closed Git subprocess environment;
 - replacement objects disabled;
 - global/system Git config disabled;
-- repository-local include directives and filter configuration rejected before
-  any porcelain worktree observation; when `extensions.worktreeConfig` is
-  enabled, the per-worktree `config.worktree` include/filter scope is rejected
-  by the same rule. Therefore repository-controlled clean/process filters cannot
-  execute as part of this read-only evidence path;
+- repository-local include directives and filter configuration rejected in
+  both local and enabled worktree config scopes;
+- no content-converting porcelain status command is used for clean-state
+  authority: assume-unchanged/skip-worktree index flags are forbidden, the index
+  is compared to the pinned commit with cached plumbing, and
+  unstaged/deleted/untracked state is checked with `ls-files`. Reviewed source
+  bytes are still independently nofollow-read and Git-blob rehashed. This
+  removes the filter-execution TOCTOU between config inspection and later
+  clean-state observation;
 - hooks, fsmonitor, global attributes, untracked cache, preloading, and submodule
   recursion disabled for the observation;
 - legacy `.git/info/grafts` rejected before ancestry evaluation;
@@ -59,7 +63,9 @@ The read-only inspector requires:
   exact commit rather than a moving `HEAD`;
 - the visible `HEAD` must equal the captured commit again at observation end;
 - canonical VOID repository origin;
-- a clean worktree;
+- a clean reviewed checkout with no assume-unchanged/skip-worktree index
+  suppression flags, no staged delta from the pinned commit, and no ordinary
+  unstaged/deleted/untracked paths;
 - reviewed base commit ancestry against the pinned commit; and
 - exact `<pinned-commit>:<path>` Git blob identity for all 21 bindings; and
 - exact no-follow/nonblocking working-tree bytes for every reviewed path,
@@ -140,12 +146,15 @@ The focused proof:
 - independently mutates every reviewed HEAD blob and every reviewed worktree
   blob and requires HOLD;
 - reproduces hidden worktree drift under both `assume-unchanged` and
-  `skip-worktree`, requires porcelain status to remain deceptively clean, and
-  still requires the live inspector to HOLD;
+  `skip-worktree`, proves ordinary porcelain can be deceptively clean, and
+  requires the source inspector to reject those suppression flags before clean
+  authority;
 - proves the observation plan resolves tree/blob/ancestry specs from one pinned
   commit and rejects a changed final HEAD;
 - installs both repository-local and per-worktree executable filter settings
-  and requires HOLD before porcelain observation can run;
+  and requires HOLD before source inspection;
+- separately arms a repository clean filter after the config-check boundary and
+  proves the non-converting clean-state plumbing does not execute it;
 - installs a temporary legacy graft overlay and requires HOLD before ancestry is
   trusted;
 - swaps a regular proof file to a FIFO between lstat/open and requires bounded
