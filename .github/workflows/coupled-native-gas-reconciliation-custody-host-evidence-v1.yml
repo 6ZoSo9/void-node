@@ -1,0 +1,100 @@
+name: VOID native gas reconciliation custody host evidence v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_host_evidence_v1.mjs"
+      - "docs/operators/coupled-native-gas-reconciliation-custody-host-evidence-v1.md"
+      - ".github/workflows/coupled-native-gas-reconciliation-custody-host-evidence-v1.yml"
+      - "tools/void-buy-void-allocation-custody-preflight-v1.mjs"
+      - "src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+      - "src/economic/coupled_native_gas_liability_store_v1.ts"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_preflight_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - "tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_host_evidence_v1.mjs"
+      - "docs/operators/coupled-native-gas-reconciliation-custody-host-evidence-v1.md"
+      - ".github/workflows/coupled-native-gas-reconciliation-custody-host-evidence-v1.yml"
+      - "tools/void-buy-void-allocation-custody-preflight-v1.mjs"
+      - "src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+      - "src/economic/coupled_native_gas_liability_store_v1.ts"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+      - "scripts/prove_buy_void_allocation_custody_preflight_v1.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-gas-reconciliation-custody-host-evidence-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Prove source custody classifier
+        run: npx tsx scripts/prove_coupled_native_gas_reconciliation_custody_qualification_v1.ts
+
+      - name: Prove allocation mountinfo primitive
+        run: node scripts/prove_buy_void_allocation_custody_preflight_v1.mjs
+
+      - name: Prove read-only host evidence collector
+        run: node --import tsx scripts/prove_coupled_native_gas_reconciliation_custody_host_evidence_v1.mjs
+
+      - name: Prove collector help is non-mutating
+        run: |
+          node --import tsx \
+            tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs \
+            --help
+
+      - name: Diff hygiene
+        run: git diff --check

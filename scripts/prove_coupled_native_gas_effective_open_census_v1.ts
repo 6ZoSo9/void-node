@@ -252,7 +252,7 @@ function rewriteLiability(
 function makeReconciliation(
   liability: CoupledNativeGasLiabilityRecordV1,
   input: {
-    terminal_cost_evidence_id?: string;
+    terminal_cost_identity_sha256?: string;
     actual_consumed_wei?: string;
   } = {},
 ): CoupledNativeGasLiabilityReconciliationVerifiedV1 {
@@ -275,8 +275,8 @@ function makeReconciliation(
     nonce: liability.nonce,
     transaction_plan_fingerprint_sha256:
       liability.transaction_plan_fingerprint_sha256,
-    terminal_cost_evidence_id:
-      input.terminal_cost_evidence_id ?? "8".repeat(64),
+    terminal_cost_identity_sha256:
+      input.terminal_cost_identity_sha256 ?? "8".repeat(64),
     outcome: "confirmed" as const,
     attempt_limit: 1 as const,
     completed_attempt_count: 1 as const,
@@ -547,7 +547,7 @@ requireHeld(
     reconciliations: [
       firstReconciliation,
       makeReconciliation(first, {
-        terminal_cost_evidence_id: "9".repeat(64),
+        terminal_cost_identity_sha256: "9".repeat(64),
       }),
     ],
   }),
@@ -698,6 +698,7 @@ const trueAuthority = new Set([
   "immutable_reconciliation_history",
   "exact_liability_identity_rederived",
   "exact_reconciliation_identity_rederived",
+  "stable_terminal_cost_identity_required",
   "reconciliation_liability_binding_required",
   "one_reconciliation_per_liability",
   "orphan_reconciliation_rejected",
@@ -723,6 +724,7 @@ console.log("reserve_conservation_rederived=true");
 console.log("full_gas_limit_compatible_accounting_required=true");
 console.log("immutable_liability_history=true");
 console.log("immutable_reconciliation_history=true");
+console.log("stable_terminal_cost_identity_required=true");
 console.log("historical_replay_fences_retained_after_reconciliation=true");
 console.log("orphan_reconciliation_hold=true");
 console.log("duplicate_reconciliation_hold=true");
