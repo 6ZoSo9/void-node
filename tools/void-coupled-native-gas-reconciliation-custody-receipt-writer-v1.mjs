@@ -28,6 +28,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_AUTHO
     atomic_journal_publication: true,
     atomic_high_water_publication: true,
     exact_post_reclassification: true,
+    exact_terminal_idempotent_retry: true,
     paired_terminal_root_revalidation: true,
     high_water_exact_journal_binding: true,
     storage_bootstrap: false,
@@ -1225,6 +1226,38 @@ function bytesState(current, before, after, code) {
   fail(code);
 }
 
+function priorJournalAndTipLine(journal) {
+  if (!Buffer.isBuffer(journal) || journal.length < 2) return null;
+  if (journal[journal.length - 1] !== 0x0a) return null;
+  const priorNewline = journal.lastIndexOf(0x0a, journal.length - 2);
+  const priorLength = priorNewline < 0 ? 0 : priorNewline + 1;
+  return Object.freeze({
+    prior: Buffer.from(journal.subarray(0, priorLength)),
+    tip_line: Buffer.from(journal.subarray(priorLength)),
+  });
+}
+
+function classifyExactTipIdempotentRetry(state, input) {
+  const split = priorJournalAndTipLine(state.journal);
+  if (split === null) return null;
+  const planned =
+    planCoupledNativeGasReconciliationCustodyReceiptV1({
+      journal_jsonl: split.prior,
+      collector_decision: input?.collector_decision,
+      source_binding: input?.source_binding,
+    });
+  if (planned.ok !== true) return null;
+  const append = Buffer.from(planned.append_jsonl, "utf8");
+  if (
+    !append.equals(split.tip_line) ||
+    planned.receipt_sha256 !== state.continuity.tip_receipt_sha256 ||
+    planned.generation !== state.continuity.generation
+  ) {
+    return null;
+  }
+  return planned;
+}
+
 function success(status, state, mutationPerformed, recoveryPerformed) {
   return Object.freeze({
     ok: true,
@@ -1393,6 +1426,12 @@ async function persistInternal(input, crashAfter = null) {
           source_binding: input?.source_binding,
         });
       if (planned.ok !== true) {
+        const idempotent =
+          classifyExactTipIdempotentRetry(state, input);
+        if (idempotent !== null) {
+          assertRootsVisible(roots);
+          return success("idempotent", state, mutationPerformed, false);
+        }
         return held(
           "receipt_writer_plan_" +
             String(planned.reason || "held"),
