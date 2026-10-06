@@ -1306,6 +1306,7 @@ function readIntentPair(roots) {
   const pair = openIntentPairSnapshot(roots);
   if (pair === null) return null;
   try {
+    assertIntentPairSnapshotVisible(roots, pair);
     return Object.freeze({
       left: pair.left === null ? null : Buffer.from(pair.left),
       right: pair.right === null ? null : Buffer.from(pair.right),
@@ -1593,6 +1594,7 @@ function recoverLocked(
   markMutation,
   crashAfter = null,
   input = null,
+  mutationAlreadyPerformed = false,
   {
     afterJournalIntentReadHook = null,
     afterHighWaterIntentReadHook = null,
@@ -1617,7 +1619,7 @@ function recoverLocked(
     ) {
       return held(
         "receipt_writer_pending_intent_input_mismatch",
-        false,
+        mutationAlreadyPerformed,
       );
     }
 
@@ -1772,6 +1774,7 @@ async function persistInternal(input, crashAfter = null) {
           markMutation,
           crashAfter,
           input,
+          mutationPerformed,
         );
       }
 
@@ -1953,7 +1956,7 @@ export async function testOnlyRecoverCoupledNativeGasReconciliationCustodyReceip
         roots,
         markMutation,
         null,
-        null,
+        mutationPerformed,
         {
           afterJournalIntentReadHook:
             which === "journal" ? replace : null,
