@@ -40,6 +40,7 @@ const transportPolicy = {
 
 const dangerousEnvironment = [
   "BASH_ENV",
+  "BASHOPTS",
   "ENV",
   "GCONV_PATH",
   "LD_AUDIT",
@@ -48,6 +49,8 @@ const dangerousEnvironment = [
   "NODE_OPTIONS",
   "NODE_PATH",
   "OPENSSL_CONF",
+  "PS4",
+  "SHELLOPTS",
 ] as const;
 
 const baseline = {
@@ -124,8 +127,11 @@ const baseline = {
     key_algorithm: "ssh-ed25519",
     public_key_sha256: sha("3"),
     restrict: true,
+    forced_command:
+      'test -z "$SSH_ORIGINAL_COMMAND" || exit 3; exec /usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V1=1 /usr/bin/node /usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v1.mjs --config=/etc/void/buy-void-allocation-custody-witness-forced-command-v1.json',
     forced_command_present: true,
-    forced_command_sha256: sha("7"),
+    forced_command_sha256:
+      "sha256:8a625211d41d6044bb87abaafa954cd89db07d81a5bbb3f4ac6a788c7e1ae422",
     environment_options: [],
     permit_pty: false,
     permit_agent_forwarding: false,
@@ -190,11 +196,14 @@ function expectHeld(
     classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV1(
       input,
     );
-  assert.equal(decision.ok, false);
-  if (decision.ok === true) {
+  const runtime = decision as typeof decision & {
+    ok: boolean;
+    reason?: string;
+  };
+  if (runtime.ok !== false) {
     throw new Error("expected installation qualification HOLD");
   }
-  assert.match(decision.reason, reason);
+  assert.match(runtime.reason ?? "", reason);
 }
 
 const transportProbe =
@@ -217,11 +226,16 @@ const classifiedPolicy =
   parentProbe.classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1(
     transportPolicy,
   );
-assert.equal(classifiedPolicy.ok, true);
-if (classifiedPolicy.ok !== true) {
-  throw new Error(classifiedPolicy.reason);
+const policyRuntime = classifiedPolicy as typeof classifiedPolicy & {
+  ok: boolean;
+  reason?: string;
+};
+if (policyRuntime.ok !== true) {
+  throw new Error(policyRuntime.reason ?? "unexpected transport policy HOLD");
 }
-policyOnly.config.policy_sha256 = classifiedPolicy.policy_sha256;
+policyOnly.config.policy_sha256 =
+  (classifiedPolicy as Extract<typeof classifiedPolicy, { ok: true }>)
+    .policy_sha256;
 
 const ok = requireOk(
   classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV1(
@@ -303,6 +317,17 @@ assert.equal(
 {
   const value = clone(policyOnly);
   value.authorized_key.restrict = false;
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.authorized_key.forced_command =
+    "/usr/bin/node /tmp/handler.mjs";
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.authorized_key.forced_command_sha256 = sha("7");
   expectHeld(value, /witness_installation_authorized_key_invalid/u);
 }
 {
