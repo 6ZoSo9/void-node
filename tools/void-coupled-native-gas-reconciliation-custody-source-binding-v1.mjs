@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -168,15 +169,27 @@ function normalizeObserved(input) {
       typeof row.path !== "string" ||
       typeof row.git_blob_sha1 !== "string" ||
       !HEX40.test(row.git_blob_sha1) ||
+      typeof row.worktree_git_blob_sha1 !== "string" ||
+      !HEX40.test(row.worktree_git_blob_sha1) ||
       observed.has(row.path)
     ) {
       fail("source_binding_source_blob_record_invalid");
     }
-    observed.set(row.path, row.git_blob_sha1);
+    observed.set(
+      row.path,
+      Object.freeze({
+        git_blob_sha1: row.git_blob_sha1,
+        worktree_git_blob_sha1: row.worktree_git_blob_sha1,
+      }),
+    );
   }
   for (const row of expected) {
-    if (observed.get(row.path) !== row.git_blob_sha1) {
+    const actual = observed.get(row.path);
+    if (actual?.git_blob_sha1 !== row.git_blob_sha1) {
       fail("source_binding_reviewed_source_drift:" + row.path);
+    }
+    if (actual.worktree_git_blob_sha1 !== row.git_blob_sha1) {
+      fail("source_binding_reviewed_source_worktree_drift:" + row.path);
     }
   }
   return Object.freeze({ head, tree, origin });
@@ -309,6 +322,75 @@ function gitText(args, code) {
   return String(git(args, code).stdout || "").trim();
 }
 
+function worktreeGitBlobSha1(relativePath) {
+  const absolute = path.resolve(ROOT, relativePath);
+  const relative = path.relative(ROOT, absolute);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  ) {
+    fail("source_binding_worktree_path_invalid:" + relativePath);
+  }
+  if (typeof fs.constants.O_NOFOLLOW !== "number") {
+    fail("source_binding_worktree_nofollow_unavailable");
+  }
+
+  const before = fs.lstatSync(absolute, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink()) {
+    fail("source_binding_worktree_file_invalid:" + relativePath);
+  }
+
+  const fd = fs.openSync(
+    absolute,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  try {
+    const opened = fs.fstatSync(fd, { bigint: true });
+    if (
+      !opened.isFile() ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino ||
+      opened.size !== before.size ||
+      opened.mtimeNs !== before.mtimeNs ||
+      opened.ctimeNs !== before.ctimeNs
+    ) {
+      fail("source_binding_worktree_file_changed:" + relativePath);
+    }
+    if (opened.size < 0n || opened.size > 16n * 1024n * 1024n) {
+      fail("source_binding_worktree_file_size_invalid:" + relativePath);
+    }
+
+    const bytes = fs.readFileSync(fd);
+    const after = fs.fstatSync(fd, { bigint: true });
+    const visibleAfter = fs.lstatSync(absolute, { bigint: true });
+    if (
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size ||
+      after.mtimeNs !== opened.mtimeNs ||
+      after.ctimeNs !== opened.ctimeNs ||
+      visibleAfter.dev !== after.dev ||
+      visibleAfter.ino !== after.ino ||
+      visibleAfter.size !== after.size ||
+      visibleAfter.mtimeNs !== after.mtimeNs ||
+      visibleAfter.ctimeNs !== after.ctimeNs ||
+      bytes.length !== Number(after.size)
+    ) {
+      fail("source_binding_worktree_file_changed:" + relativePath);
+    }
+
+    return crypto
+      .createHash("sha1")
+      .update(Buffer.from("blob " + String(bytes.length) + "\0", "utf8"))
+      .update(bytes)
+      .digest("hex");
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
   try {
     const head = gitText(
@@ -342,6 +424,7 @@ export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
               ["rev-parse", "HEAD:" + row.path],
               "source_binding_blob_unavailable:" + row.path,
             ),
+            worktree_git_blob_sha1: worktreeGitBlobSha1(row.path),
           }),
         );
     return testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
