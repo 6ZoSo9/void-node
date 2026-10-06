@@ -9,6 +9,7 @@ import { Interface } from "ethers";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
+  loadWcVoidMarketVaultCompiledIdentityCurrentV2,
 } from "../tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   reconstructWcVoidMarketVaultRuntimeV1,
@@ -95,10 +96,7 @@ function applicationPlanId(value){
     sha256(Buffer.from(canonical(copy),"utf8"));
 }
 
-const acceptance=JSON.parse(fs.readFileSync(
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json",
-  "utf8",
-));
+const acceptance=loadWcVoidMarketVaultCompiledIdentityCurrentV2();
 const stateManifest=JSON.parse(fs.readFileSync(
   "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json",
   "utf8",
