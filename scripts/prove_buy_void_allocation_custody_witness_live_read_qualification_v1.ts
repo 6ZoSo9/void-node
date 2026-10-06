@@ -171,6 +171,73 @@ const installationAuthority = Object.freeze({
   funds_movement: false,
 });
 
+function sourceSlice(
+  source: string,
+  start: string,
+  end: string,
+): string {
+  const from = source.indexOf(start);
+  const to = source.indexOf(end, from + start.length);
+  assert.ok(from >= 0 && to > from, "source slice anchors must exist");
+  return source.slice(from + start.length, to);
+}
+
+const mergedInstallationCollectorSource = fs.readFileSync(
+  "tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs",
+  "utf8",
+);
+const mergedAuthorityBlock = sourceSlice(
+  mergedInstallationCollectorSource,
+  "export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2 =\n  Object.freeze({",
+  "  });\n\nconst CONFIG_SCHEMA",
+);
+const mergedAuthority = new Map(
+  [...mergedAuthorityBlock.matchAll(/^\s{4}([A-Za-z0-9_]+): (true|false),$/gmu)]
+    .map((match) => [match[1], match[2] === "true"] as const),
+);
+assert.equal(
+  mergedAuthority.size,
+  Object.keys(installationAuthority).length,
+  "merged installation authority key count must match live-read contract",
+);
+for (const [key, value] of Object.entries(installationAuthority)) {
+  assert.equal(
+    mergedAuthority.get(key),
+    value,
+    "merged installation authority drift: " + key,
+  );
+}
+
+const mergedReceiptBody = sourceSlice(
+  mergedInstallationCollectorSource,
+  "  const body = Object.freeze({",
+  "  });\n\n  return Object.freeze({",
+);
+const mergedReceiptKeys = new Set(
+  [...mergedReceiptBody.matchAll(/^\s{4}([A-Za-z0-9_]+):/gmu)]
+    .map((match) => match[1]),
+);
+mergedReceiptKeys.add("collector_receipt_sha256");
+
+const liveReadSource = fs.readFileSync(
+  "src/economic/buy_void_allocation_custody_witness_live_read_qualification_v1.ts",
+  "utf8",
+);
+const liveReadReceiptKeyBlock = sourceSlice(
+  liveReadSource,
+  "const INSTALLATION_RECEIPT_KEYS = Object.freeze([",
+  "]);\n\nconst INSTALLATION_AUTHORITY",
+);
+const liveReadReceiptKeys = new Set(
+  [...liveReadReceiptKeyBlock.matchAll(/"([^"]+)"/gu)]
+    .map((match) => match[1]),
+);
+assert.deepEqual(
+  [...liveReadReceiptKeys].sort(),
+  [...mergedReceiptKeys].sort(),
+  "live-read exact receipt shape must track merged #2516 collector receipt",
+);
+
 const GENESIS_EVENT_SHA =
   "sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654";
 const genesisEvent = {
@@ -604,6 +671,8 @@ console.log(
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_QUALIFICATION_V1_GREEN",
 );
 console.log("installation_receipt_digest_recomputed=true");
+console.log("installation_receipt_schema_matches_merged_collector=true");
+console.log("installation_authority_matches_merged_collector=true");
 console.log("installation_witness_state_rebound=true");
 console.log("client_known_hosts_content_qualified=true");
 console.log("known_hosts_host_and_ed25519_key_bound=true");
