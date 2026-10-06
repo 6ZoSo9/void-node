@@ -136,7 +136,6 @@ function held(reason: string) {
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1,
     version: 1 as const,
     reason,
-    operation_performed: false as const,
     authority:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_AUTHORITY_V1,
   });
