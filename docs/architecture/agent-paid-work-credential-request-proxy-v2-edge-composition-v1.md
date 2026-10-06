@@ -28,7 +28,7 @@ The input buffer must contain, in order:
 2. one HTTP request line ending in CRLF; and
 3. any following HTTP bytes.
 
-The composition requires one valid PROXY-v2 TCP4/TCP6 preface, consumes exactly the parser-reported preface bytes, parses a bounded ASCII HTTP/1.0 or HTTP/1.1 origin-form request line immediately after that preface, rejects absent/malformed/doubled prefaces before route classification, and preserves the exact method and request target for downstream forwarding.
+The composition requires one valid PROXY-v2 TCP4/TCP6 preface, requires its destination port to be the reviewed public TLS port 443, consumes exactly the parser-reported preface bytes, parses a bounded ASCII HTTP/1.0 or HTTP/1.1 origin-form request line immediately after that preface, rejects absent/malformed/doubled prefaces before route classification, and preserves the exact method and request target for downstream forwarding.
 
 This is request-line/source composition only. A later runtime adapter must bind these decisions to the actual HTTP parser and stream.
 
@@ -75,6 +75,8 @@ The authority object intentionally reports:
 - source_identity_forwarded_to_gateway=false;
 - upstream_loopback_limiter_modified=false;
 - rate_state_custody_proven=false;
+- http_parser_stream_binding_proven=false;
+- credential_route_limits_enforced=false;
 - concurrent_rate_state_serialization_proven=false;
 - gateway_runtime_configuration_verified=false;
 - rotation_resistant_fairness_proven=false;
@@ -87,7 +89,7 @@ The authority object intentionally reports:
 - runtime_integration=false;
 - funds_movement=false.
 
-The source planner also does not own durable rate-event state or serialize concurrent state updates, and the static default-limit binding is not live environment qualification.
+The source planner also does not own durable rate-event state or serialize concurrent state updates. The supplied parsed-header object/body stream is not yet bound to a real HTTP parser, the reported route limits are not enforced by this pure planner, and the static default-limit binding is not live environment qualification.
 
 Source-address isolation is not durable participant identity. Multiple participants behind one NAT can share one address, one participant can change addresses, and another admitted local process can forge PROXY-v2 bytes unless a later host policy excludes that connector.
 
