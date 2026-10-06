@@ -271,6 +271,18 @@ assert.doesNotMatch(source, /child_process|spawnSync|execFile|ssh /u);
       /witness_runtime_bundle_evidence_file_grew_after_open|witness_runtime_bundle_evidence_file_changed/u,
     );
 
+    assert.throws(
+      () =>
+        testOnlyReadBuyVoidAllocationCustodyWitnessRuntimeBundleEvidenceFileV1(
+          path.join(real, "missing.js"),
+          {
+            expectedSha256: "sha256:" + "0".repeat(64),
+            expectedMode: 0o600,
+          },
+        ),
+      /witness_runtime_bundle_evidence_file_invalid/u,
+    );
+
     const target = path.join(real, "target.js");
     const symlink = path.join(real, "symlink.js");
     fs.writeFileSync(target, "target\n", { mode: 0o600 });
