@@ -18,6 +18,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_A
     exact_source_generation_bound: true,
     exact_supplied_source_binding_validated: true,
     exact_live_collector_decision_hash_bound: true,
+    collector_decision_canonical_bytes_bounded: true,
     exact_qualification_receipt_bound: true,
     predecessor_receipt_binding_required: true,
     supplied_chain_generation_monotonicity_proven: true,
@@ -72,6 +73,7 @@ const ADDRESS = /^0x[0-9a-f]{40}$/u;
 const SAFE_ID = /^[A-Za-z0-9._:@+\/-]{1,256}$/u;
 const DECIMAL = /^(0|[1-9][0-9]*)$/u;
 const MAX_JOURNAL_BYTES = 8 * 1024 * 1024;
+const MAX_COLLECTOR_DECISION_BYTES = 8 * 1024 * 1024;
 const MAX_RECEIPTS = 8192;
 const ZERO_SHA256 = "sha256:" + "0".repeat(64);
 
@@ -227,6 +229,10 @@ function exactObject(value, keys, code) {
   }
   const out = Object.create(null);
   for (const key of keys) {
+    budget.bytes += Buffer.byteLength(key, "utf8");
+    if (budget.bytes > MAX_COLLECTOR_DECISION_BYTES) {
+      fail("receipt_continuity_collector_decision_too_large");
+    }
     const descriptor = descriptors[key];
     if (
       !descriptor ||
@@ -240,15 +246,22 @@ function exactObject(value, keys, code) {
   return Object.freeze(out);
 }
 
-function snapshotPlain(value, depth = 0, budget = { count: 0 }) {
+function snapshotPlain(
+  value,
+  depth = 0,
+  budget = { count: 0, bytes: 0 },
+) {
   if (depth > 32 || ++budget.count > 50_000) {
     fail("receipt_continuity_collector_decision_too_complex");
   }
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "boolean"
-  ) {
+  if (value === null || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    budget.bytes += Buffer.byteLength(value, "utf8");
+    if (budget.bytes > MAX_COLLECTOR_DECISION_BYTES) {
+      fail("receipt_continuity_collector_decision_too_large");
+    }
     return value;
   }
   if (typeof value === "number") {
