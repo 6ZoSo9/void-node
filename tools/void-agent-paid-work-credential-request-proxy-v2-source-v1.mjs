@@ -16,6 +16,9 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_AUTHORITY_V1
     spoofable_forwarding_headers_trusted: false,
     trusted_source_header_replaced: true,
     per_source_rate_limit_planning: true,
+    rotation_resistant_fairness_proven: false,
+    nat_independent_participant_isolation_proven: false,
+    source_address_stability_proven: false,
     local_transport_trust_proven: false,
     tailscale_funnel_configuration_verified: false,
     listener_created: false,
@@ -288,11 +291,22 @@ function requireParsedSource(parsedSource) {
 }
 
 function normalizeHeaderValue(value) {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
-    return value.join(", ");
+  let normalized;
+  if (typeof value === "string") {
+    normalized = value;
+  } else if (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === "string")
+  ) {
+    normalized = value.join(", ");
+  } else {
+    fail("proxy_v2_http_header_value_invalid");
   }
-  fail("proxy_v2_http_header_value_invalid");
+  if (/[ -
+-]/u.test(normalized)) {
+    fail("proxy_v2_http_header_value_invalid");
+  }
+  return normalized;
 }
 
 export function sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
