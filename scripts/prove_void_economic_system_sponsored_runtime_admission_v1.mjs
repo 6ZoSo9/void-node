@@ -30,6 +30,10 @@ import {
   voidEconomicEpoch2SignedSubmissionTypedDataV1,
 } from "../tools/void-economic-epoch2-signed-submission-intent-v1.mjs";
 import {
+  VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1,
+  createVoidEconomicEpoch2DurableReplayStoreV1,
+} from "../tools/void-economic-epoch2-durable-replay-store-v1.mjs";
+import {
   VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1,
   VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_DEPENDENCIES_V1,
   VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_V1,
@@ -339,9 +343,11 @@ function fixture() {
   fs.chmodSync(root, 0o700);
   const timeRoot = path.join(root, "time");
   const reservationRoot = path.join(root, "reservation");
+  const replayRoot = path.join(root, "replay");
   for (const directory of [
     timeRoot,
     reservationRoot,
+    replayRoot,
     path.join(timeRoot, "records"),
     path.join(timeRoot, "observation-time-v1.queue"),
     path.join(reservationRoot, "records"),
@@ -352,7 +358,7 @@ function fixture() {
   ]) {
     fs.mkdirSync(directory, { mode: 0o700 });
   }
-  return { root, timeRoot, reservationRoot };
+  return { root, timeRoot, reservationRoot, replayRoot };
 }
 
 function countRecords(root) {
@@ -360,6 +366,24 @@ function countRecords(root) {
     .readdirSync(path.join(root, "records"))
     .filter((name) => name.endsWith(".json"))
     .length;
+}
+
+function countReplayMarkers(root) {
+  return fs.readdirSync(root).length;
+}
+
+function replayMetadata(request) {
+  const intent = request.signed_intent;
+  return Object.freeze({
+    chain_id: 2050,
+    execution_epoch: intent.execution_epoch,
+    gateway_id: intent.gateway_id,
+    signer: intent.signer,
+    nonce: intent.nonce,
+    target: intent.target,
+    calldata_keccak256: intent.calldata_keccak256,
+    expires_at_unix: intent.expires_at_unix,
+  });
 }
 
 function seedPoisonHistory(root, count = 512) {
@@ -380,6 +404,7 @@ function createBinding({
   clock,
   timeRoot,
   reservationRoot,
+  replayRoot,
 }) {
   return createVoidEconomicSystemSponsoredRuntimeAdmissionV1({
     policy_bundle: bundle,
@@ -387,6 +412,7 @@ function createBinding({
     trustedClock: clock,
     time_root: timeRoot,
     reservation_root: reservationRoot,
+    replay_root: replayRoot,
     allowed_targets: [TARGET],
   });
 }
@@ -398,6 +424,12 @@ function requireOk(value) {
   assert.equal(value.current_candidate_verified, true);
   assert.equal(value.time_preview_verified, true);
   assert.equal(value.preview_budget_verified, true);
+  assert.equal(value.replay_inspection_verified, true);
+  assert.equal(value.replay_known_consumed, false);
+  assert.equal(value.replay_mutation_performed, false);
+  assert.equal(value.replay_atomic_consume_performed, false);
+  assert.equal(value.replay_negative_freshness_authorized, false);
+  assert.equal(value.replay_execution_authorized, false);
   assert.equal(
     Number.isSafeInteger(value.preview_observed_at_ms),
     true,
@@ -426,6 +458,16 @@ function requireHeld(value, reason) {
   );
   assert.equal(typeof value.time_preview_verified, "boolean");
   assert.equal(typeof value.preview_budget_verified, "boolean");
+  assert.equal(typeof value.replay_inspection_verified, "boolean");
+  assert.equal(
+    value.replay_known_consumed === null ||
+      typeof value.replay_known_consumed === "boolean",
+    true,
+  );
+  assert.equal(value.replay_mutation_performed, false);
+  assert.equal(value.replay_atomic_consume_performed, false);
+  assert.equal(value.replay_negative_freshness_authorized, false);
+  assert.equal(value.replay_execution_authorized, false);
   assert.equal(value.runtime_route_active, false);
   assert.equal(value.runtime_enforcement_verified, false);
   assert.equal(value.gas_sponsorship_performed, false);
@@ -454,6 +496,9 @@ for (const [key, value] of Object.entries(
     "preview_denial_does_not_advance_time",
     "durable_observe_required_after_preview_allow",
     "valid_denied_request_time_growth_bounded",
+    "execution_replay_store_bound",
+    "read_only_execution_replay_inspection",
+    "consumed_execution_replay_rejected_before_time",
     "candidate_issued_after_bundle_commit_required",
     "current_candidate_revalidation_after_time",
     "durable_time_observation_before_reservation",
@@ -467,6 +512,12 @@ const ttl = ttlPolicy();
 const sponsor = sponsorPolicy(ttl);
 const bundle = policyBundle(ttl, sponsor);
 
+assert.equal(
+  VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_DEPENDENCIES_V1
+    .replay_store_marker,
+  VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1,
+);
+
 {
   const f = fixture();
   try {
@@ -478,6 +529,7 @@ const bundle = policyBundle(ttl, sponsor);
           trustedClock: () => sample(1000, 1_000_000_000n),
           time_root: f.timeRoot,
           reservation_root: f.reservationRoot,
+          replay_root: f.replayRoot,
           allowed_targets: [TARGET],
         }),
       /SPONSORED_RUNTIME_POLICY_BUNDLE_IDENTITY_INVALID/u,
@@ -493,6 +545,7 @@ const bundle = policyBundle(ttl, sponsor);
           trustedClock: () => sample(1000, 1_000_000_000n),
           time_root: f.timeRoot,
           reservation_root: f.reservationRoot,
+          replay_root: f.replayRoot,
           allowed_targets: [TARGET],
         }),
       /SPONSORED_RUNTIME_POLICY_BUNDLE_DIGEST_MISMATCH/u,
@@ -506,6 +559,21 @@ const bundle = policyBundle(ttl, sponsor);
           trustedClock: () => sample(1000, 1_000_000_000n),
           time_root: f.timeRoot,
           reservation_root: f.timeRoot,
+          replay_root: f.replayRoot,
+          allowed_targets: [TARGET],
+        }),
+      /SPONSORED_RUNTIME_AUTHORITY_ROOTS_NOT_DISJOINT/u,
+    );
+
+    assert.throws(
+      () =>
+        createVoidEconomicSystemSponsoredRuntimeAdmissionV1({
+          policy_bundle: bundle,
+          expected_policy_bundle_id: bundle.bundle_id,
+          trustedClock: () => sample(1000, 1_000_000_000n),
+          time_root: f.timeRoot,
+          reservation_root: f.reservationRoot,
+          replay_root: f.timeRoot,
           allowed_targets: [TARGET],
         }),
       /SPONSORED_RUNTIME_AUTHORITY_ROOTS_NOT_DISJOINT/u,
@@ -556,6 +624,7 @@ const bundle = policyBundle(ttl, sponsor);
           trustedClock: () => sample(1000, 1_000_000_000n),
           time_root: f.timeRoot,
           reservation_root: f.reservationRoot,
+          replay_root: f.replayRoot,
           allowed_targets: [TARGET],
         }),
       /SPONSORED_RUNTIME_POLICY_BUNDLE_VALUE_INVALID/u,
@@ -572,6 +641,7 @@ const bundle = policyBundle(ttl, sponsor);
           trustedClock: () => sample(1000, 1_000_000_000n),
           time_root: f.timeRoot,
           reservation_root: f.reservationRoot,
+          replay_root: f.replayRoot,
           allowed_targets: revokedTargets.proxy,
         }),
       /SPONSORED_RUNTIME_ALLOWED_TARGETS_INVALID/u,
@@ -606,6 +676,7 @@ const bundle = policyBundle(ttl, sponsor);
       clock: clock.clock,
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
 
     const held = requireHeld(
@@ -655,6 +726,7 @@ const bundle = policyBundle(ttl, sponsor);
       clock: clock.clock,
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
 
     const held = requireHeld(
@@ -673,6 +745,68 @@ const bundle = policyBundle(ttl, sponsor);
     assert.equal(clock.calls(), 0);
     assert.equal(countRecords(f.timeRoot), 0);
     assert.equal(countRecords(f.reservationRoot), 512);
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const request = await makeRequest({
+      ttl,
+      sponsor,
+      walletDigit: "6",
+      identityDigit: "6",
+      reservationDigit: "6",
+      issuedUnix: BASE_UNIX,
+      gasLimit: 30000,
+    });
+    const replayStore =
+      createVoidEconomicEpoch2DurableReplayStoreV1({
+        root: f.replayRoot,
+      });
+    const digest =
+      voidEconomicEpoch2SignedSubmissionDigestV1(
+        request.signed_intent,
+      );
+    const consumed = await replayStore.consumeIfFresh(
+      digest,
+      replayMetadata(request),
+      { timeout_ms: 1000 },
+    );
+    assert.deepEqual(consumed, {
+      consumed: true,
+      already_consumed: false,
+      atomic: true,
+    });
+    assert.equal(countReplayMarkers(f.replayRoot), 1);
+
+    const clock = clockQueue([
+      sample(1_000, 1_000_000_000n),
+    ]);
+    const binding = createBinding({
+      bundle,
+      clock: clock.clock,
+      timeRoot: f.timeRoot,
+      reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
+    });
+    const held = requireHeld(
+      await binding.admit(request),
+      "SPONSORED_RUNTIME_EXECUTION_REPLAY_ALREADY_CONSUMED",
+    );
+    assert.equal(held.preflight_verified, true);
+    assert.equal(held.replay_inspection_verified, true);
+    assert.equal(held.replay_known_consumed, true);
+    assert.equal(held.reservation_store_preflight_verified, false);
+    assert.equal(held.time_observation_performed, false);
+    assert.equal(held.time_mutation_performed, false);
+    assert.equal(held.reservation_mutation_performed, false);
+    assert.equal(clock.calls(), 0);
+    assert.equal(countRecords(f.timeRoot), 0);
+    assert.equal(countRecords(f.reservationRoot), 0);
+    assert.equal(countReplayMarkers(f.replayRoot), 1);
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }
@@ -703,6 +837,7 @@ const bundle = policyBundle(ttl, sponsor);
       clock: clock.clock,
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
 
     const preBundleRequest = await makeRequest({
@@ -775,6 +910,7 @@ const bundle = policyBundle(ttl, sponsor);
     assert.equal(clock.calls(), 2);
     assert.equal(countRecords(f.timeRoot), 1);
     assert.equal(countRecords(f.reservationRoot), 1);
+    assert.equal(countReplayMarkers(f.replayRoot), 0);
 
     const duplicate = requireOk(
       await binding.admit(first),
@@ -791,6 +927,7 @@ const bundle = policyBundle(ttl, sponsor);
     assert.equal(clock.calls(), 4);
     assert.equal(countRecords(f.timeRoot), 2);
     assert.equal(countRecords(f.reservationRoot), 1);
+    assert.equal(countReplayMarkers(f.replayRoot), 0);
 
     const overBudget = await makeRequest({
       ttl,
@@ -894,6 +1031,7 @@ const bundle = policyBundle(ttl, sponsor);
       clock: clock.clock,
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
     fs.rmSync(f.reservationRoot, {
       recursive: true,
@@ -948,6 +1086,7 @@ const bundle = policyBundle(ttl, sponsor);
       },
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
 
     const held = requireHeld(
@@ -1000,6 +1139,7 @@ const bundle = policyBundle(ttl, sponsor);
       clock: firstClock.clock,
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
     requireOk(await firstBinding.admit(request));
     assert.equal(countRecords(f.timeRoot), 1);
@@ -1017,6 +1157,7 @@ const bundle = policyBundle(ttl, sponsor);
       clock: restartClock.clock,
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
     const held = requireHeld(
       await restarted.admit(request),
@@ -1065,6 +1206,7 @@ const bundle = policyBundle(ttl, sponsor);
       clock: clock.clock,
       timeRoot: f.timeRoot,
       reservationRoot: f.reservationRoot,
+      replayRoot: f.replayRoot,
     });
     requireHeld(
       await binding.admit(request),
@@ -1180,6 +1322,12 @@ console.log("duplicate_reservation_idempotent=true");
 console.log("valid_denied_request_can_advance_time=false");
 console.log("expired_duplicate_can_advance_time=false");
 console.log("valid_denied_request_time_growth_bounded=true");
+console.log("execution_replay_store_bound=true");
+console.log("read_only_execution_replay_inspection=true");
+console.log("consumed_execution_replay_rejected_before_time=true");
+console.log("execution_replay_negative_freshness_authorized=false");
+console.log("execution_replay_atomic_consume_performed=false");
+console.log("execution_replay_execution_authorized=false");
 console.log("cross_process_restart_continuity_proven=false");
 console.log("runtime_route_active=false");
 console.log("runtime_enforcement_verified=false");
