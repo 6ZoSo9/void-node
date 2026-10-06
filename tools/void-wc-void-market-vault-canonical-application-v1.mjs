@@ -66,6 +66,7 @@ const AT_USE_REL="tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs";
 const ATTEST_REL="tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
 const IMPORT_REL="tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs";
 const ACCEPTANCE_REL="tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
+const CORRECTION_REL="tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs";
 const COMPILER_REL="tools/void-wc-void-market-vault-compiler-identity-v1.mjs";
 const READINESS_REL="tools/void-wc-void-production-readiness-v1.mjs";
 const ADAPTER_REVIEW_REL="tools/void-wc-void-opening-settlement-adapter-review-v1.mjs";
@@ -90,6 +91,7 @@ export const VOID_WC_VOID_MARKET_VAULT_CANONICAL_APPLICATION_REVIEWED_BLOBS_V1=
     [ATTEST_REL]:"69c0bb105fabd3de8bd5f970d76ec861393ec4a3",
     [IMPORT_REL]:"f4fff40f2dc4e1c558e2daa3fe32614db81436b1",
     [ACCEPTANCE_REL]:"bcf7d4949b054599c643867b586b75a844f25cbc",
+    [CORRECTION_REL]:"4129e0dc5e34e08b9402169fcabfe4fba9a14973",
     [COMPILER_REL]:"3ac765215d3d2c7881e893100e63e0306cf2593f",
     [READINESS_REL]:"34e84c1f16452361e0e8d2c867e3bd4d63047061",
     [ADAPTER_REVIEW_REL]:"c19a2e42e8d722eade864c7742af2dcaf3c7b11f",
@@ -305,6 +307,7 @@ const REVIEWED_MODULE_PATHS=Object.freeze([
   ATTEST_REL,
   IMPORT_REL,
   ACCEPTANCE_REL,
+  CORRECTION_REL,
   COMPILER_REL,
   READINESS_REL,
   ADAPTER_REVIEW_REL,
