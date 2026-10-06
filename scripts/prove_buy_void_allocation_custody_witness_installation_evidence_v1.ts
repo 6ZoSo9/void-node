@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V1,
@@ -319,6 +320,8 @@ function makeFixture() {
     originalCommandStatus: 3,
     originalCommandStdout: "",
     originalCommandStderr: "",
+    systemctlPids: ["123", "123"],
+    systemctlCalls: 0,
     envProbeText: [
       "PATH=/usr/bin:/bin",
       "LANG=C",
@@ -417,7 +420,15 @@ function makeFixture() {
         return { status: 0, stdout: state.sshdText, stderr: "" };
       }
       if (command === "/usr/bin/systemctl") {
-        return { status: 0, stdout: "123\n", stderr: "" };
+        const value =
+          state.systemctlPids[
+            Math.min(
+              state.systemctlCalls,
+              state.systemctlPids.length - 1,
+            )
+          ];
+        state.systemctlCalls += 1;
+        return { status: 0, stdout: value + "\n", stderr: "" };
       }
       if (command === "/bin/sh") {
         return {
@@ -437,7 +448,7 @@ function makeFixture() {
   };
 
   const config = {
-    repo_root: "/repo",
+    repo_root: path.resolve("."),
     evidence_generation: 7,
     sshd_service_unit: "ssh.service",
     transport_policy: policy,
@@ -471,6 +482,8 @@ assert.equal(receipt.funds_movement, false);
 assert.equal(receipt.derivation.source_head_sha, "1".repeat(40));
 assert.equal(receipt.derivation.handler_source_git_blob_sha1, fixture.sourceBlob);
 assert.equal(receipt.derivation.handler_installed_git_blob_sha1, fixture.sourceBlob);
+assert.equal(receipt.derivation.sshd_main_pid, 123);
+assert.equal(receipt.derivation.sshd_main_pid_revalidated, true);
 assert.equal(receipt.packet.authorized_key.restrict, true);
 assert.equal(receipt.packet.authorized_key.forced_command, FORCED_COMMAND);
 assert.equal(receipt.packet.authorized_key.environment_options.length, 0);
@@ -548,6 +561,22 @@ expectCollectHold(
     value.state.dirtyGit = true;
   },
   /witness_installation_evidence_repository_not_clean/u,
+);
+
+expectCollectHold(
+  makeFixture,
+  (value) => {
+    value.config.repo_root = "/tmp";
+  },
+  /witness_installation_evidence_repo_root_mismatch/u,
+);
+
+expectCollectHold(
+  makeFixture,
+  (value) => {
+    value.state.systemctlPids = ["123", "124"];
+  },
+  /witness_installation_evidence_sshd_pid_changed/u,
 );
 
 expectCollectHold(
@@ -694,6 +723,8 @@ console.log("installed_config_observed=true");
 console.log("authorized_key_observed=true");
 console.log("effective_sshd_policy_observed=true");
 console.log("sshd_process_environment_observed=true");
+console.log("sshd_main_pid_revalidated=true");
+console.log("collector_repo_root_bound=true");
 console.log("original_command_negative_probe=true");
 console.log("post_sanitization_environment_probe=true");
 console.log("trusted_verification_clock_proven=false");
