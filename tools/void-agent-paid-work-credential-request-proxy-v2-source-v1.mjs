@@ -215,6 +215,46 @@ export function parseVoidAgentCredentialRequestProxyV2SourceV1(input) {
   }
 }
 
+function requireParsedSource(parsedSource) {
+  if (
+    !parsedSource ||
+    typeof parsedSource !== "object" ||
+    Array.isArray(parsedSource) ||
+    parsedSource.ok !== true ||
+    parsedSource.status !== "PROXY_V2_SOURCE_BOUND_NOT_TRUSTED" ||
+    parsedSource.marker !==
+      VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_V1
+  ) {
+    fail("proxy_v2_trusted_source_invalid");
+  }
+  const family = String(parsedSource.family || "");
+  const sourceAddressHex = String(
+    parsedSource.source_address_hex || "",
+  ).toLowerCase();
+  if (
+    !(
+      (family === "tcp4" && /^[0-9a-f]{8}$/u.test(sourceAddressHex)) ||
+      (family === "tcp6" && /^[0-9a-f]{32}$/u.test(sourceAddressHex))
+    )
+  ) {
+    fail("proxy_v2_trusted_source_invalid");
+  }
+  const expected = sourceIdentity(family, sourceAddressHex);
+  if (
+    parsedSource.limiter_source_key !== expected ||
+    !SOURCE_KEY.test(expected) ||
+    parsedSource.source_port_in_limiter_identity !== false ||
+    parsedSource.spoofable_forwarding_headers_trusted !== false
+  ) {
+    fail("proxy_v2_trusted_source_invalid");
+  }
+  return Object.freeze({
+    family,
+    source_address_hex: sourceAddressHex,
+    limiter_source_key: expected,
+  });
+}
+
 function normalizeHeaderValue(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
@@ -228,15 +268,7 @@ export function sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
   parsedSource,
 ) {
   try {
-    if (
-      !parsedSource ||
-      parsedSource.ok !== true ||
-      parsedSource.marker !==
-        VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_V1 ||
-      !SOURCE_KEY.test(String(parsedSource.limiter_source_key || ""))
-    ) {
-      fail("proxy_v2_trusted_source_invalid");
-    }
+    const trustedSource = requireParsedSource(parsedSource);
     if (!headers || typeof headers !== "object" || Array.isArray(headers)) {
       fail("proxy_v2_http_headers_invalid");
     }
@@ -272,7 +304,7 @@ export function sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
     }
 
     out[VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1] =
-      parsedSource.limiter_source_key;
+      trustedSource.limiter_source_key;
 
     return Object.freeze({
       ok: true,
@@ -283,7 +315,7 @@ export function sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
       removed_spoofable_headers: Object.freeze([...removed].sort()),
       trusted_source_header:
         VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1,
-      trusted_source_value: parsedSource.limiter_source_key,
+      trusted_source_value: trustedSource.limiter_source_key,
       local_transport_trust_proven: false,
       runtime_integration: false,
       authority:
@@ -310,10 +342,10 @@ export function planVoidAgentCredentialRequestProxyV2RateLimitV1(input) {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       fail("proxy_v2_rate_input_invalid");
     }
-    const sourceKey = String(input.source_key || "").trim();
-    if (!SOURCE_KEY.test(sourceKey)) {
-      fail("proxy_v2_rate_source_key_invalid");
-    }
+    const trustedSource = requireParsedSource(
+      input.parsed_source,
+    );
+    const sourceKey = trustedSource.limiter_source_key;
     const nowMs = safeInteger(
       input.now_ms,
       0,
