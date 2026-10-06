@@ -471,8 +471,12 @@ for (const phase of [
         journal_root: f.journalRoot,
         high_water_root: f.highWaterRoot,
       });
+    if (!recovered.ok) {
+      throw new Error(
+        "crash recovery held: " + phase + ": " + recovered.reason,
+      );
+    }
     assert.equal(recovered.ok, true, phase);
-    if (!recovered.ok) throw new Error("crash recovery held: " + phase);
     assert.equal(recovered.status, "recovered", phase);
     assert.equal(recovered.recovery_performed, true, phase);
     assert.equal(recovered.generation, 1, phase);
@@ -527,12 +531,12 @@ for (const phase of [
         journal_root: f.journalRoot,
         high_water_root: f.highWaterRoot,
       });
-    assert.equal(recovered.ok, true);
     if (!recovered.ok) {
       throw new Error(
         "high-water-committed recovery held: " + recovered.reason,
       );
     }
+    assert.equal(recovered.ok, true);
     assert.equal(recovered.status, "recovered");
     assert.equal(recovered.recovery_performed, true);
     assert.equal(recovered.generation, 1);
