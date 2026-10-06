@@ -93,12 +93,14 @@ remain authoritative.
 
 The pure planner consumes:
 
-- one parser-derived `voidcrsrc1_<sha256>` source key;
+- the complete parser result, not a caller-selected raw bucket key;
 - server-selected `now_ms`;
 - a bounded window;
 - a bounded per-source allowance; and
 - a bounded prior-event set.
 
+Before planning, the contract re-derives the limiter key from the parser
+result's raw family/address bytes and rejects a mismatched caller-selected key.
 Expired events are pruned. Admission counts only events with the same source
 key. Exhausting caller A therefore does not deny caller B, while changing only
 A's TCP source port cannot reset A's bucket.
@@ -129,6 +131,7 @@ The focused proof covers:
   truncated, undersized and oversized PROXY-v2 HOLDs;
 - case-insensitive stripping of spoofable forwarding/trusted-source headers;
 - trusted-source header replacement from parser output only;
+- forged parser objects with caller-selected limiter keys rejected;
 - caller A exhaustion while caller B remains admitted;
 - expired rate events being pruned; and
 - every ungranted authority bit remaining false.
