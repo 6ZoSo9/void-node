@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportAppendResponseV1,
   classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1,
@@ -1307,6 +1308,43 @@ function recoverIntentUnderLock(directory, config, hostFacts) {
   });
 }
 
+function requestOperationBeforeRecovery(
+  config,
+  requestBytes,
+) {
+  if (
+    requestBytes.length < 3 ||
+    requestBytes.length > MAX_REQUEST_BYTES ||
+    requestBytes.at(-1) !== 0x0a
+  ) {
+    return "unknown";
+  }
+  const text = requestBytes.toString("utf8");
+  let raw;
+  try {
+    raw = JSON.parse(text.slice(0, -1));
+  } catch {
+    return "unknown";
+  }
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    Array.isArray(raw) ||
+    canonicalLine(raw) !== text ||
+    raw.schema !==
+      "void_buy_void_allocation_custody_witness_transport_request_v1" ||
+    raw.marker !==
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1 ||
+    raw.version !== 1 ||
+    raw.policy_sha256 !== config.policy_sha256
+  ) {
+    return "unknown";
+  }
+  if (raw.operation === "append") return "append";
+  if (raw.operation === "read") return "read";
+  return "unknown";
+}
+
 function handleUnderLock(
   directory,
   config,
@@ -1320,13 +1358,33 @@ function handleUnderLock(
   }
 
   const hostFacts = readHostFacts();
+  const requestOperation =
+    requestOperationBeforeRecovery(config, requestBytes);
 
-  const recovered =
-    recoverIntentUnderLock(
+  let recovered = Object.freeze({
+    recovered: false,
+    request_id: null,
+    operation_performed: false,
+  });
+
+  if (requestOperation === "append") {
+    recovered =
+      recoverIntentUnderLock(
+        directory,
+        config,
+        hostFacts,
+      );
+  } else {
+    const pendingIntent = readOptionalPinnedNamedFile(
       directory,
-      config,
-      hostFacts,
+      INTENT_NAME,
+      MAX_INTENT_BYTES,
+      "witness_forced_command_intent_invalid",
     );
+    if (pendingIntent !== null) {
+      fail("witness_forced_command_nonappend_blocked_by_pending_intent");
+    }
+  }
 
   const currentBytes =
     readWitnessBytes(directory);
