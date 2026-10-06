@@ -541,6 +541,13 @@ function appendLine(
   event: WitnessLiveReadReplayEventV1,
 ) {
   const bytes = bytesFromJournal(journal);
+  let existingEvents = 0;
+  for (const byte of bytes) {
+    if (byte === 0x0a) existingEvents += 1;
+  }
+  if (existingEvents >= MAX_EVENTS) {
+    fail("witness_live_read_replay_event_limit_reached");
+  }
   const line = Buffer.from(canonicalJson(event) + "\n", "utf8");
   if (bytes.length + line.length > MAX_JOURNAL_BYTES) {
     fail("witness_live_read_replay_journal_too_large");
