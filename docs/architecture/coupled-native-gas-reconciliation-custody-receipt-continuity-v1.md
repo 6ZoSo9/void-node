@@ -25,9 +25,16 @@ It performs no host observation and no filesystem write.
 
 The planner accepts:
 
-- an existing canonical continuity JSONL journal; and
+- an existing canonical continuity JSONL journal;
+- one exact #2503 source-binding decision; and
 - one live collector decision whose status is
   `HOST_EVIDENCE_OBSERVED_SOURCE_QUALIFIED_NOT_AUTHORIZED`.
+
+The source-binding decision must use the exact canonical #2503 authority object,
+stable reviewed-source manifest/generation identity, reviewed writer/classifier/
+collector blobs, repository identity fields, and self-derived
+`source_binding_id`. A self-rehashed lookalike with altered authority semantics
+HOLDS.
 
 The collector decision must retain every negative authority boundary from the
 merged host collector and qualifier. In particular it must **not** claim a
@@ -60,6 +67,7 @@ Each record contains exactly:
 - continuity `generation`;
 - `previous_receipt_sha256`;
 - exact stable #2503 `source_generation_id`;
+- the exact per-observation #2503 `source_binding_id`;
 - `collector_decision_sha256`;
 - `qualification_id_sha256`;
 - `qualification_receipt_sha256`;
@@ -190,7 +198,9 @@ The proof covers:
 - wrong receipt hash;
 - invalid UTF-8;
 - missing final newline; and
-- missing journal input.
+- missing journal input;
+- missing source-binding input; and
+- self-rehashed source-binding authority drift.
 
 ## Next gate
 
