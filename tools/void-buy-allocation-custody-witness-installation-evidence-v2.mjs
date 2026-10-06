@@ -126,6 +126,7 @@ const FORCED_COMMAND =
   'test -z "$SSH_ORIGINAL_COMMAND" || exit 3; exec /usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1 /usr/bin/node /usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs --config=/etc/void/buy-void-allocation-custody-witness-forced-command-v2.json';
 
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
+const MAX_EXECUTABLE_BYTES = 256 * 1024 * 1024;
 const MAX_CONFIG_BYTES = 256 * 1024;
 const SAFE_SOURCE_HOST =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/u;
@@ -876,7 +877,11 @@ function accountEvidence(io, user) {
   const account = passwdEntry(io, user);
   const shellPathStat = io.lstat(SHELL_PATH);
   const shellResolvedPath = path.resolve(io.realpath(SHELL_PATH));
-  const shell = inspectFixedFile(io, shellResolvedPath, MAX_FILE_BYTES);
+  const shell = inspectFixedFile(
+    io,
+    shellResolvedPath,
+    MAX_EXECUTABLE_BYTES,
+  );
   return Object.freeze({
     remote_user: user,
     uid: account.uid,
@@ -915,7 +920,7 @@ function handlerEvidence(io) {
 }
 
 function executableEvidence(io, file) {
-  const observed = inspectFixedFile(io, file, MAX_FILE_BYTES);
+  const observed = inspectFixedFile(io, file, MAX_EXECUTABLE_BYTES);
   const resolved = path.resolve(io.realpath(file));
   if (resolved !== file) {
     fail("witness_installation_evidence_executable_symlink");

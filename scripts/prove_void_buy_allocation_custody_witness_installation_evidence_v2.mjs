@@ -450,9 +450,15 @@ function makeIo(options = {}) {
       if (file === "/bin/sh") return DASH_PATH;
       return file;
     },
-    readFileNoFollow(file) {
+    readFileNoFollow(file, maxBytes = 16 * 1024 * 1024) {
+      if (options.readLimits instanceof Map) {
+        options.readLimits.set(file, maxBytes);
+      }
       const value = files.get(file);
       if (!value) throw new Error("missing_fake_file:" + file);
+      if (value.bytes.length > maxBytes) {
+        throw new Error("synthetic_max_bytes_exceeded:" + file);
+      }
       if (file === NODE_PATH && options.nodeDrift === true) {
         nodeReads += 1;
         if (nodeReads > 1) {
@@ -565,7 +571,19 @@ function collect(io = makeIo()) {
   );
 }
 
-const baseline = collect();
+const baselineReadLimits = new Map();
+const baseline = collect(makeIo({ readLimits: baselineReadLimits }));
+assert.equal(baselineReadLimits.get(NODE_PATH), 256 * 1024 * 1024);
+assert.equal(baselineReadLimits.get(ENV_PATH), 256 * 1024 * 1024);
+assert.equal(baselineReadLimits.get(DASH_PATH), 256 * 1024 * 1024);
+assert.equal(baselineReadLimits.get(CONFIG_PATH), 256 * 1024);
+assert.equal(
+  baselineReadLimits.get(
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1[1]
+      .installed_path,
+  ),
+  16 * 1024 * 1024,
+);
 assert.equal(
   baseline.marker,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2,
@@ -1120,6 +1138,15 @@ assert.match(source, /\/proc\/self\/fd/u);
 assert.match(source, /fs\.constants\.O_DIRECTORY/u);
 assert.match(source, /fs\.constants\.O_NOFOLLOW/u);
 assert.match(source, /parentChainRootOwnedNonWritable/u);
+assert.match(source, /const MAX_EXECUTABLE_BYTES = 256 \* 1024 \* 1024;/u);
+assert.match(
+  source,
+  /function executableEvidence\(io, file\) \{\s*const observed = inspectFixedFile\(io, file, MAX_EXECUTABLE_BYTES\);/u,
+);
+assert.match(
+  source,
+  /function inspectFixedFile\(io, file, maxBytes = MAX_FILE_BYTES\)/u,
+);
 assert.match(source, /witness_installation_evidence_original_command_probe_failed/u);
 assert.match(source, /witness_installation_evidence_environment_probe_failed/u);
 assert.match(source, /witness_installation_evidence_startup_hook_probe_failed/u);
@@ -1172,6 +1199,9 @@ console.log("preexec_runtime_execution_observed=true");
 console.log("descriptor_bound_ancestor_walk=true");
 console.log("descriptor_read_exact_opened_size=true");
 console.log("descriptor_growth_after_open_rejected=true");
+console.log("executable_read_ceiling_bytes=268435456");
+console.log("generic_file_read_ceiling_bytes=16777216");
+console.log("config_read_ceiling_bytes=262144");
 console.log("historical_machine_id_continuity_consumed=true");
 console.log("original_command_negative_probe=true");
 console.log("environment_clear_probe=true");
