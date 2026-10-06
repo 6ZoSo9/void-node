@@ -18,6 +18,11 @@ Manifest SHA-256: `sha256:a2b669873302ebe674376e438692b051affb9d1cb25ce36e05e6c2
 
 Census source commit: `1c69eff28485e5af7c1f9514d4825f637c418c12`
 
+This is a successor to the previously installed bundle identity. Evidence for
+the predecessor manifest is historical only; it does not qualify the repaired
+handler bytes. A fresh installation/bundle census is required before later
+live use.
+
 ## Installed layout
 
 The handler remains `/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs`. Its relative imports resolve under `/usr/local/libexec/dist/economic/`.
