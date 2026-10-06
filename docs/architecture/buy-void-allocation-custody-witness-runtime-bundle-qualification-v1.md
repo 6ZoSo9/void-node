@@ -24,6 +24,8 @@ The handler remains `/usr/local/libexec/void/void-buy-allocation-custody-witness
 
 Every installed runtime file must be root-owned, mode `0444`, single-link, a regular file, not a symlink, and below a root-owned parent chain. Exact absolute paths and SHA-256 values are bound for all eight files.
 
+The focused proof is build-self-contained: when the reviewed `dist/` runtime files are absent (for example in repository-wide source-proof workflows), it runs the repository's deterministic `npm run build` locally before checking the exact eight file hashes and import closure. This creates only local build artifacts in the test checkout; it does not install or execute the Nimo witness runtime.
+
 ## Authority boundary
 
 This classifier does not install files, create the `voidwitness` account, alter config, move or rewrite the historical witness, install the continuity attestation, generate a client key, alter `authorized_keys` or sshd, perform SSH, append the witness, integrate runtime admission, activate the presale, access signers, or move funds. All live and production authority remains false.
