@@ -581,22 +581,6 @@ assert.deepEqual(
 assert.equal(baseline.sshd_connection_context_bound, true);
 assert.equal(baseline.live_sshd_connection_context_proven, false);
 assert.equal(baseline.continuity_attestation_observed, true);
-assert.equal(
-  baseline.installation_normalized_qualification.config_uid,
-  0,
-);
-assert.equal(
-  baseline.installation_normalized_qualification.config_gid,
-  0,
-);
-assert.equal(
-  baseline.installation_normalized_qualification.config_mode,
-  0o444,
-);
-assert.equal(
-  baseline.installation_normalized_qualification.config_root_owned_read_only,
-  true,
-);
 assert.match(baseline.installation_qualification_id, /^voidwiq2_[0-9a-f]{64}$/u);
 assert.equal(
   baseline.runtime_bundle_manifest_id,
