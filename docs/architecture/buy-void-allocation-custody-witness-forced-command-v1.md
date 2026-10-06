@@ -129,6 +129,12 @@ Every request re-observes:
 The observed values must equal the identity embedded in the current canonical
 witness tip before request processing succeeds.
 
+Recovery applies the same boundary before any recovery mutation. For an
+intent-only prior witness, host identity is checked before append. For a torn
+tail, the validated prior prefix is checked before truncate or append. For an
+already-completed append, host identity is checked before intent cleanup. A
+mismatch therefore leaves both witness bytes and the durable intent unchanged.
+
 This source proof dependency-injects the already-qualified Nimo identity; the
 actual commands remain fixed `/usr/bin/findmnt` and `/usr/bin/lsblk`.
 
