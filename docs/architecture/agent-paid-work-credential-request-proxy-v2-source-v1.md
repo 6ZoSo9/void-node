@@ -64,17 +64,21 @@ representation, avoiding equivalent-string normalization ambiguity.
 The future adapter must discard caller-provided forms of:
 
 - `Forwarded`;
-- `X-Forwarded-For`;
-- `X-Forwarded-Host`;
-- `X-Forwarded-Proto`;
-- `X-Real-IP`; and
+- every normalized header name beginning `X-Forwarded-` (including unknown
+  suffixes, not only `For` / `Host` / `Proto`);
+- `X-Real-IP`;
+- `CF-Connecting-IP`;
+- `True-Client-IP`; and
 - `X-Void-Trusted-Funnel-Source-V1`.
 
 The source identity remains internal to the edge adapter. The sanitizer strips
-all caller-provided forwarding/source hints, including
-`x-void-trusted-funnel-source-v1`, and does **not** forward or replace them
-with another identity header. The unchanged downstream gateway therefore does
-not need to trust a new client-identity header.
+this reviewed source-hint set/family and does **not** forward or replace it with
+another identity header. This contract deliberately does not claim that every
+conceivable application header name is a source hint; any unlisted header that
+survives sanitization carries no limiter/source authority here and a later
+adapter/gateway composition must not reinterpret it as such. The unchanged
+downstream gateway therefore does not need to trust a new client-identity
+header.
 
 Parser results carry an in-process, module-private brand. Header sanitization and
 rate planning require that exact branded object and independently re-derive its
@@ -108,8 +112,16 @@ The pure planner consumes:
 Before planning, the contract re-derives the limiter key from the parser
 result's raw family/address bytes and rejects a mismatched caller-selected key.
 Expired events are pruned. Admission counts only events with the same source
-key. Exhausting caller A therefore does not deny caller B, while changing only
-A's TCP source port cannot reset A's bucket.
+key. Exhausting caller A therefore does not consume caller B's **per-source**
+allowance, while changing only A's TCP source port cannot reset A's bucket.
+
+All sources intentionally share the bounded `MAX_RATE_EVENTS=4096` retained
+history capacity. Once 4,096 still-live events are retained, a different source
+with unused per-source allowance fails closed with
+`proxy_v2_rate_event_capacity_exceeded`; no live event is silently evicted to
+make room. Capacity becomes available again only as events expire and are
+pruned. This is a shared overload/capacity wall, not a durable fairness identity
+or a guarantee that every source can always consume its full per-source quota.
 
 This planner does not replace the existing loopback upstream limiter. A later
 composition must preserve that upstream limiter as an independent global safety
@@ -149,13 +161,16 @@ The focused proof covers:
 - bounded structurally valid TLV consumption and malformed TLV rejection;
 - missing, malformed, wrong-version, `LOCAL`, UDP/unsupported family,
   truncated, undersized and oversized PROXY-v2 HOLDs;
-- case-insensitive stripping of spoofable forwarding/trusted-source headers;
+- case-insensitive stripping of the complete `x-forwarded-*` family plus the
+  reviewed explicit source-hint headers, including mixed-case unknown suffixes;
 - control-character/header-injection rejection;
 - no source-identity header forwarded to the downstream gateway;
 - forged parser objects with caller-selected limiter keys rejected;
 - exact cloned/unbranded parser-result lookalikes rejected;
-- caller A exhaustion while caller B remains admitted;
-- expired rate events being pruned; and
+- caller A exhaustion while caller B's per-source allowance remains separate;
+- shared retained-history saturation at exactly 4,096 live events causing a
+  fail-closed capacity HOLD for a new source;
+- shared capacity recovering only after those events expire and are pruned; and
 - every ungranted authority bit remaining false.
 
 ## Authority boundary
