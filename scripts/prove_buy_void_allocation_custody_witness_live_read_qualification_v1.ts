@@ -391,6 +391,36 @@ function installationReceipt(overrides: Record<string, unknown> = {}) {
   });
 }
 
+function installationBindingForPolicy(
+  boundPolicy: typeof policy,
+) {
+  const classified = requireOk(
+    classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1(
+      boundPolicy,
+    ),
+  );
+  const normalized = Object.freeze({
+    ...installationNormalizedQualification,
+    transport_policy_sha256: classified.policy_sha256,
+    remote_user: boundPolicy.remote_user,
+    host_key_sha256: boundPolicy.host_key_sha256,
+    known_hosts_sha256: boundPolicy.known_hosts_sha256,
+    client_public_key_sha256:
+      boundPolicy.client_public_key_sha256,
+  });
+  const digest = sha256Id(
+    Buffer.from(canonicalJson(normalized), "utf8"),
+  );
+  return Object.freeze({
+    normalized,
+    receipt: installationReceipt({
+      normalized_qualification_sha256: digest,
+      installation_qualification_id:
+        "voidwiq2_" + digest.slice("sha256:".length),
+    }),
+  });
+}
+
 const challenge = sha("d");
 const request = requireOk(
   buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1({
@@ -660,13 +690,18 @@ for (const key of [
     knownHostsBytes.toString("utf8").replace("nimo ", "other "),
     "utf8",
   );
+  const alteredPolicy = Object.freeze({
+    ...policy,
+    known_hosts_sha256: sha256Id(bytes),
+  });
+  const installation = installationBindingForPolicy(alteredPolicy);
   expectHeld(
     classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
       ...baseInput,
-      transport_policy: {
-        ...policy,
-        known_hosts_sha256: sha256Id(bytes),
-      },
+      installation_receipt: installation.receipt,
+      installation_normalized_qualification:
+        installation.normalized,
+      transport_policy: alteredPolicy,
       client_known_hosts_base64: bytes.toString("base64"),
     }),
     /witness_live_read_known_hosts_host_mismatch/u,
@@ -680,13 +715,18 @@ for (const key of [
       "\n",
     "utf8",
   );
+  const alteredPolicy = Object.freeze({
+    ...policy,
+    known_hosts_sha256: sha256Id(bytes),
+  });
+  const installation = installationBindingForPolicy(alteredPolicy);
   expectHeld(
     classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
       ...baseInput,
-      transport_policy: {
-        ...policy,
-        known_hosts_sha256: sha256Id(bytes),
-      },
+      installation_receipt: installation.receipt,
+      installation_normalized_qualification:
+        installation.normalized,
+      transport_policy: alteredPolicy,
       client_known_hosts_base64: bytes.toString("base64"),
     }),
     /witness_live_read_known_hosts_key_mismatch/u,
