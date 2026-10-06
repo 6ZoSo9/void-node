@@ -21,6 +21,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_WRITER_AUTHO
     filesystem_read: true,
     filesystem_write: true,
     serialized_publication: true,
+    dual_root_serialization_lock: true,
     preprovisioned_lock_queue_required: true,
     separate_storage_roots_required: true,
     redundant_publication_intent: true,
@@ -364,15 +365,24 @@ function assertRootsVisible(roots) {
     "receipt_writer_high_water_root",
   );
   assertPinnedDirectoryVisible(
-    roots.lock_queue,
-    "receipt_writer_lock_queue",
+    roots.journal_lock_queue,
+    "receipt_writer_journal_lock_queue",
+  );
+  assertPinnedDirectoryVisible(
+    roots.high_water_lock_queue,
+    "receipt_writer_high_water_lock_queue",
   );
   assertDistinctRoots(roots.journal, roots.high_water);
 }
 
 function closeRoots(roots) {
   if (!roots) return;
-  for (const key of ["lock_queue", "high_water", "journal"]) {
+  for (const key of [
+    "high_water_lock_queue",
+    "journal_lock_queue",
+    "high_water",
+    "journal",
+  ]) {
     const entry = roots[key];
     if (!entry) continue;
     try {
@@ -389,27 +399,35 @@ function openRoots(input) {
     "receipt_writer_journal_root",
   );
   let highWater = null;
-  let lockQueue = null;
+  let journalLockQueue = null;
+  let highWaterLockQueue = null;
   try {
     highWater = openPinnedDirectory(
       input?.high_water_root,
       "receipt_writer_high_water_root",
     );
     assertDistinctRoots(journal, highWater);
-    lockQueue = openPrivateChildDirectory(
+    journalLockQueue = openPrivateChildDirectory(
       journal,
       LOCK_QUEUE_NAME,
-      "receipt_writer_lock_queue",
+      "receipt_writer_journal_lock_queue",
+    );
+    highWaterLockQueue = openPrivateChildDirectory(
+      highWater,
+      LOCK_QUEUE_NAME,
+      "receipt_writer_high_water_lock_queue",
     );
     const roots = Object.freeze({
       journal,
       high_water: highWater,
-      lock_queue: lockQueue,
+      journal_lock_queue: journalLockQueue,
+      high_water_lock_queue: highWaterLockQueue,
     });
     assertRootsVisible(roots);
     return roots;
   } catch (error) {
-    if (lockQueue) fs.closeSync(lockQueue.fd);
+    if (highWaterLockQueue) fs.closeSync(highWaterLockQueue.fd);
+    if (journalLockQueue) fs.closeSync(journalLockQueue.fd);
     if (highWater) fs.closeSync(highWater.fd);
     fs.closeSync(journal.fd);
     throw error;
@@ -754,6 +772,7 @@ function atomicReplaceFile(
   maxBytes,
   allowEmpty,
   code,
+  beforeReplace = null,
 ) {
   if (
     !Buffer.isBuffer(nextBytes) ||
@@ -790,6 +809,7 @@ function atomicReplaceFile(
     fs.closeSync(fd);
     fd = -1;
     assertPinnedDirectoryVisible(directory, code + "_directory");
+    if (typeof beforeReplace === "function") beforeReplace();
     fs.renameSync(tempPath, finalPath);
     fsyncDirectory(directory, code + "_directory");
     const published = readPinnedNamedFile(
@@ -1229,6 +1249,7 @@ function publishJournal(roots, before, after, markMutation) {
     MAX_JOURNAL_BYTES,
     true,
     "receipt_writer_journal",
+    () => assertRootsVisible(roots),
   );
   markMutation();
 }
@@ -1242,6 +1263,7 @@ function publishHighWater(roots, before, after, markMutation) {
     MAX_HIGH_WATER_BYTES,
     false,
     "receipt_writer_high_water",
+    () => assertRootsVisible(roots),
   );
   markMutation();
 }
@@ -1420,13 +1442,46 @@ async function withWriterLock(input, callback) {
   try {
     roots = openRoots(input);
     const withLock = await canonicalLock();
-    return await withLock(roots.lock_queue.proc_path, async () => {
-      assertRootsVisible(roots);
-      return await callback(roots);
+    const orderedLocks = [
+      {
+        root: roots.journal,
+        queue: roots.journal_lock_queue,
+      },
+      {
+        root: roots.high_water,
+        queue: roots.high_water_lock_queue,
+      },
+    ].sort((left, right) => {
+      if (left.root.stat.dev < right.root.stat.dev) return -1;
+      if (left.root.stat.dev > right.root.stat.dev) return 1;
+      if (left.root.stat.ino < right.root.stat.ino) return -1;
+      if (left.root.stat.ino > right.root.stat.ino) return 1;
+      return left.root.path.localeCompare(right.root.path);
     });
+    return await withLock(
+      orderedLocks[0].queue.proc_path,
+      async () =>
+        await withLock(
+          orderedLocks[1].queue.proc_path,
+          async () => {
+            assertRootsVisible(roots);
+            return await callback(roots);
+          },
+        ),
+    );
   } finally {
     closeRoots(roots);
   }
+}
+
+export async function testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1(
+  input,
+  callback,
+) {
+  if (typeof callback !== "function") {
+    fail("receipt_writer_test_lock_callback_required");
+  }
+  return await withWriterLock(input, callback);
 }
 
 async function persistInternal(input, crashAfter = null) {
