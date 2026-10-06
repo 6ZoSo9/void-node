@@ -41,7 +41,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTH
     continuity_attestation_observed: true,
     content_addressed_receipt: true,
     client_known_hosts_content_observed: false,
-    preexec_runtime_execution_observed: false,
+    preexec_runtime_execution_observed: true,
     live_evidence_origin_proven: false,
     trusted_verification_clock_proven: false,
     evidence_generation_monotonicity_proven: false,
@@ -93,6 +93,18 @@ const CONTINUITY_ATTESTATION_PATH =
   "/buy-void-allocation-custody-witness-identity-continuity-attestation-v1.json";
 const REVIEWED_CENSUS_RECEIPT_SHA256 =
   "sha256:17bdb840978606db5145696a7b5085cabbcf27dee76b35a1b57324c1021241ef";
+const HISTORICAL_PREDECESSOR_WITNESS_SHA256 =
+  "sha256:a73c8c674bea5ed473938ddbf4275a651272fefd4e75d212d3d2bb8c8e5cbe1a";
+const HISTORICAL_PREDECESSOR_WITNESS_BYTES = 1411;
+const HISTORICAL_PREDECESSOR_EVENT_COUNT = 1;
+const HISTORICAL_PREDECESSOR_TIP_EVENT_SHA256 =
+  "sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654";
+const HISTORICAL_MACHINE_ID_SHA256 =
+  "sha256:318e4b68f99f27982112de8b2279949f685f27bef0854feea47178618e5580da";
+const SUCCESSOR_MACHINE_ID_SHA256 =
+  "sha256:48a3554126d621d6460385ebacf3d41b454157337271cb7405af012158f203d4";
+const REVIEWED_HOSTKEY_FINGERPRINT =
+  "SHA256:3c9mfrwEQ9RKbVwL8pw/kvbCFt5imaj3QCK79yynkvk";
 const MAX_CONTINUITY_ATTESTATION_BYTES = 16 * 1024;
 const NODE_PATH = "/usr/bin/node";
 const ENV_PATH = "/usr/bin/env";
@@ -229,6 +241,146 @@ function sameFile(left, right) {
 }
 
 function defaultIo() {
+  const commandEnv = Object.freeze({
+    PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+  });
+
+  const readDescriptorBound = (file, maxBytes = MAX_FILE_BYTES) => {
+    if (
+      typeof fs.constants.O_NOFOLLOW !== "number" ||
+      typeof fs.constants.O_DIRECTORY !== "number" ||
+      !fs.existsSync("/proc/self/fd")
+    ) {
+      fail("witness_installation_evidence_descriptor_walk_unavailable");
+    }
+    const raw = String(file ?? "");
+    if (!raw || !path.isAbsolute(raw) || raw.includes("\0")) {
+      fail("witness_installation_evidence_file_invalid");
+    }
+    const resolved = path.resolve(raw);
+    const visibleBefore = fs.lstatSync(resolved, { bigint: true });
+    if (
+      !visibleBefore.isFile() ||
+      visibleBefore.isSymbolicLink() ||
+      visibleBefore.nlink !== 1n ||
+      visibleBefore.size < 1n ||
+      visibleBefore.size > BigInt(maxBytes)
+    ) {
+      fail("witness_installation_evidence_file_invalid");
+    }
+
+    const root = path.parse(resolved).root;
+    const parts = resolved
+      .slice(root.length)
+      .split(path.sep)
+      .filter(Boolean);
+    if (parts.length < 1) {
+      fail("witness_installation_evidence_file_invalid");
+    }
+
+    let directoryFd = fs.openSync(
+      root,
+      fs.constants.O_RDONLY |
+        fs.constants.O_DIRECTORY |
+        fs.constants.O_NOFOLLOW,
+    );
+    let fd = -1;
+    try {
+      for (const component of parts.slice(0, -1)) {
+        if (
+          component === "." ||
+          component === ".." ||
+          component.includes("/") ||
+          component.includes("\\")
+        ) {
+          fail("witness_installation_evidence_ancestor_invalid");
+        }
+        const nextFd = fs.openSync(
+          path.join("/proc/self/fd", String(directoryFd), component),
+          fs.constants.O_RDONLY |
+            fs.constants.O_DIRECTORY |
+            fs.constants.O_NOFOLLOW,
+        );
+        const next = fs.fstatSync(nextFd, { bigint: true });
+        if (!next.isDirectory() || next.isSymbolicLink()) {
+          fs.closeSync(nextFd);
+          fail("witness_installation_evidence_ancestor_invalid");
+        }
+        fs.closeSync(directoryFd);
+        directoryFd = nextFd;
+      }
+
+      const basename = parts.at(-1);
+      if (
+        !basename ||
+        basename === "." ||
+        basename === ".." ||
+        basename.includes("/") ||
+        basename.includes("\\")
+      ) {
+        fail("witness_installation_evidence_file_invalid");
+      }
+      fd = fs.openSync(
+        path.join("/proc/self/fd", String(directoryFd), basename),
+        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+      );
+      const opened = fs.fstatSync(fd, { bigint: true });
+      if (
+        !opened.isFile() ||
+        opened.isSymbolicLink() ||
+        opened.nlink !== 1n ||
+        opened.size < 1n ||
+        opened.size > BigInt(maxBytes) ||
+        !sameFile(visibleBefore, opened)
+      ) {
+        fail("witness_installation_evidence_file_path_not_bound");
+      }
+      const bytes = fs.readFileSync(fd);
+      const after = fs.fstatSync(fd, { bigint: true });
+      const visibleAfter = fs.lstatSync(resolved, { bigint: true });
+      if (
+        bytes.length !== Number(after.size) ||
+        !sameFile(opened, after) ||
+        !sameFile(after, visibleAfter)
+      ) {
+        fail("witness_installation_evidence_file_changed");
+      }
+      return Object.freeze({ bytes, stat: opened });
+    } finally {
+      if (fd >= 0) {
+        try { fs.closeSync(fd); } catch {}
+      }
+      try { fs.closeSync(directoryFd); } catch {}
+    }
+  };
+
+  const runProbe = (command, args, options = {}) => {
+    const result = spawnSync(command, args, {
+      encoding: "utf8",
+      timeout: 5_000,
+      maxBuffer: 1024 * 1024,
+      shell: false,
+      env: options.env || commandEnv,
+      input: options.input || "",
+    });
+    if (
+      result.error ||
+      result.signal ||
+      !Number.isInteger(result.status) ||
+      typeof result.stdout !== "string" ||
+      typeof result.stderr !== "string"
+    ) {
+      fail("witness_installation_evidence_probe_failed");
+    }
+    return Object.freeze({
+      status: result.status,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    });
+  };
+
   return Object.freeze({
     nowMs() {
       return Date.now();
@@ -243,62 +395,24 @@ function defaultIo() {
       return fs.realpathSync(file);
     },
     readFileNoFollow(file, maxBytes = MAX_FILE_BYTES) {
-      const before = fs.lstatSync(file, { bigint: true });
-      if (
-        !before.isFile() ||
-        before.isSymbolicLink() ||
-        before.nlink !== 1n ||
-        before.size < 1n ||
-        before.size > BigInt(maxBytes)
-      ) {
-        fail("witness_installation_evidence_file_invalid");
+      return readDescriptorBound(file, maxBytes);
+    },
+    machineIdSha256() {
+      const machine = readDescriptorBound("/etc/machine-id", 4096)
+        .bytes.toString("utf8").trim();
+      if (!/^[0-9a-f]{32}$/u.test(machine)) {
+        fail("witness_installation_evidence_machine_id_invalid");
       }
-      const fd = fs.openSync(
-        file,
-        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
-      );
-      try {
-        const opened = fs.fstatSync(fd, { bigint: true });
-        if (!sameFile(before, opened)) {
-          fail("witness_installation_evidence_file_path_not_bound");
-        }
-        const bytes = fs.readFileSync(fd);
-        const after = fs.fstatSync(fd, { bigint: true });
-        const visible = fs.lstatSync(file, { bigint: true });
-        if (
-          bytes.length !== Number(after.size) ||
-          !sameFile(opened, after) ||
-          !sameFile(after, visible)
-        ) {
-          fail("witness_installation_evidence_file_changed");
-        }
-        return Object.freeze({ bytes, stat: opened });
-      } finally {
-        fs.closeSync(fd);
-      }
+      return sha256Id(Buffer.from(machine, "utf8"));
     },
     run(command, args) {
-      const result = spawnSync(command, args, {
-        encoding: "utf8",
-        timeout: 5_000,
-        maxBuffer: 1024 * 1024,
-        shell: false,
-        env: {
-          PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
-          LANG: "C",
-          LC_ALL: "C",
-        },
-      });
-      if (
-        result.error ||
-        result.signal ||
-        result.status !== 0 ||
-        typeof result.stdout !== "string"
-      ) {
+      const result = runProbe(command, args, { env: commandEnv });
+      if (result.status !== 0) {
         fail("witness_installation_evidence_command_failed");
       }
       return result.stdout;
     },
+    runProbe,
     exists(file) {
       return fs.existsSync(file);
     },
@@ -681,9 +795,11 @@ function hostKeyEvidence(io, expectedSha256) {
 }
 
 function machineIdentity(io) {
-  const machine = inspectFixedFile(io, "/etc/machine-id", 4096)
-    .bytes.toString("utf8").trim();
-  if (!/^[0-9a-f]{32}$/u.test(machine)) {
+  if (typeof io.machineIdSha256 !== "function") {
+    fail("witness_installation_evidence_machine_id_probe_missing");
+  }
+  const machineIdSha256 = String(io.machineIdSha256());
+  if (!/^sha256:[0-9a-f]{64}$/u.test(machineIdSha256)) {
     fail("witness_installation_evidence_machine_id_invalid");
   }
   const source = io
@@ -709,7 +825,7 @@ function machineIdentity(io) {
   }
   return Object.freeze({
     hostname: io.hostname(),
-    machine_id_sha256: sha256Id(Buffer.from(machine, "utf8")),
+    machine_id_sha256: machineIdSha256,
     root_source: source,
     root_parent_device: parent,
     root_disk_serial: identity[0],
