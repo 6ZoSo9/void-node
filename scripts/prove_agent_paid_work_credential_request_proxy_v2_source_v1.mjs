@@ -336,6 +336,17 @@ expectHeld(
   "proxy_v2_http_header_case_collision",
 );
 
+expectHeld(
+  sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
+    {
+      Host: "voidchain.example",
+      "X-Test": "safe\r\ninjected: yes",
+    },
+    a,
+  ),
+  "proxy_v2_http_header_value_invalid",
+);
+
 const now = 1_800_000_000_000;
 const priorEvents = [
   { source_key: a.limiter_source_key, at_ms: now - 100 },
@@ -429,6 +440,9 @@ console.log("proxy_v2_tlv_framing_validated=true");
 console.log("spoofed_forwarding_headers_trusted=false");
 console.log("parser_result_brand_required=true");
 console.log("per_source_rate_limit_isolation=true");
+console.log("rotation_resistant_fairness_proven=false");
+console.log("nat_independent_participant_isolation_proven=false");
+console.log("source_address_stability_proven=false");
 console.log("local_transport_trust_proven=false");
 console.log("tailscale_funnel_configuration_verified=false");
 console.log("runtime_integration=false");
