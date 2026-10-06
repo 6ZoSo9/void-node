@@ -323,7 +323,93 @@ function gitText(args, code) {
   return String(git(args, code).stdout || "").trim();
 }
 
-function worktreeGitBlobSha1(relativePath) {
+function pinnedObservationPlan(head) {
+  if (!HEX40.test(head)) {
+    fail("source_binding_repository_head_invalid");
+  }
+  return Object.freeze({
+    head,
+    tree_spec: head + "^{tree}",
+    blob_spec: (relativePath) => head + ":" + relativePath,
+    ancestry_head: head,
+  });
+}
+
+export function testOnlyPinnedObservationPlanV1(head) {
+  return pinnedObservationPlan(head);
+}
+
+function rejectRepositoryExecutionSettingsV1() {
+  for (const [args, reason] of [
+    [
+      ["config", "--local", "--no-includes", "--name-only", "--get-regexp", "^include"],
+      "source_binding_repository_include_config_forbidden",
+    ],
+    [
+      ["config", "--local", "--no-includes", "--name-only", "--get-regexp", "^filter\\."],
+      "source_binding_repository_filter_config_forbidden",
+    ],
+  ]) {
+    const result = git(
+      args,
+      reason,
+      { allowFail: true },
+    );
+    if (result.status === 0 && String(result.stdout || "").trim() !== "") {
+      fail(reason);
+    }
+    if (result.status !== 0 && result.status !== 1) {
+      fail(reason);
+    }
+  }
+}
+
+function rejectLegacyGraftsV1() {
+  const commonDirRaw = gitText(
+    ["rev-parse", "--git-common-dir"],
+    "source_binding_git_common_dir_unavailable",
+  );
+  const commonDir = path.isAbsolute(commonDirRaw)
+    ? path.resolve(commonDirRaw)
+    : path.resolve(ROOT, commonDirRaw);
+  const grafts = path.join(commonDir, "info", "grafts");
+  try {
+    fs.lstatSync(grafts);
+    fail("source_binding_repository_grafts_forbidden");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+function pinnedReviewedBaseIsAncestorV1(head) {
+  rejectLegacyGraftsV1();
+  return (
+    git(
+      ["merge-base", "--is-ancestor", REVIEWED_BASE_COMMIT, head],
+      "source_binding_reviewed_base_check_failed",
+      { allowFail: true },
+    ).status === 0
+  );
+}
+
+function stableFileCore(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.nlink === right.nlink
+  );
+}
+
+function worktreeGitBlobSha1(
+  relativePath,
+  {
+    testOnlyAfterLstatBeforeOpen = null,
+    testOnlyAfterOpenBeforeRead = null,
+  } = {},
+) {
   const absolute = path.resolve(ROOT, relativePath);
   const relative = path.relative(ROOT, absolute);
   if (
@@ -334,25 +420,40 @@ function worktreeGitBlobSha1(relativePath) {
   ) {
     fail("source_binding_worktree_path_invalid:" + relativePath);
   }
-  if (typeof fs.constants.O_NOFOLLOW !== "number") {
-    fail("source_binding_worktree_nofollow_unavailable");
+  if (
+    typeof fs.constants.O_NOFOLLOW !== "number" ||
+    typeof fs.constants.O_NONBLOCK !== "number"
+  ) {
+    fail("source_binding_worktree_nofollow_nonblock_unavailable");
   }
 
   const before = fs.lstatSync(absolute, { bigint: true });
   if (!before.isFile() || before.isSymbolicLink()) {
     fail("source_binding_worktree_file_invalid:" + relativePath);
   }
+  if (before.size < 0n || before.size > 16n * 1024n * 1024n) {
+    fail("source_binding_worktree_file_size_invalid:" + relativePath);
+  }
+
+  if (testOnlyAfterLstatBeforeOpen !== null) {
+    if (typeof testOnlyAfterLstatBeforeOpen !== "function") {
+      fail("source_binding_test_hook_invalid");
+    }
+    testOnlyAfterLstatBeforeOpen(absolute);
+  }
 
   const fd = fs.openSync(
     absolute,
-    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    fs.constants.O_RDONLY |
+      fs.constants.O_NOFOLLOW |
+      fs.constants.O_NONBLOCK,
   );
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
     if (
       !opened.isFile() ||
-      opened.dev !== before.dev ||
-      opened.ino !== before.ino ||
+      opened.isSymbolicLink() ||
+      !stableFileCore(before, opened) ||
       opened.size !== before.size ||
       opened.mtimeNs !== before.mtimeNs ||
       opened.ctimeNs !== before.ctimeNs
@@ -363,17 +464,43 @@ function worktreeGitBlobSha1(relativePath) {
       fail("source_binding_worktree_file_size_invalid:" + relativePath);
     }
 
-    const bytes = fs.readFileSync(fd);
+    if (testOnlyAfterOpenBeforeRead !== null) {
+      if (typeof testOnlyAfterOpenBeforeRead !== "function") {
+        fail("source_binding_test_hook_invalid");
+      }
+      testOnlyAfterOpenBeforeRead(absolute, fd);
+    }
+
+    const size = Number(opened.size);
+    const bytes = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        offset,
+        size - offset,
+        offset,
+      );
+      if (count <= 0) {
+        fail("source_binding_worktree_file_short_read:" + relativePath);
+      }
+      offset += count;
+    }
+
+    const growthProbe = Buffer.alloc(1);
+    if (fs.readSync(fd, growthProbe, 0, 1, size) !== 0) {
+      fail("source_binding_worktree_file_growth:" + relativePath);
+    }
+
     const after = fs.fstatSync(fd, { bigint: true });
     const visibleAfter = fs.lstatSync(absolute, { bigint: true });
     if (
-      after.dev !== opened.dev ||
-      after.ino !== opened.ino ||
+      !stableFileCore(opened, after) ||
+      !stableFileCore(after, visibleAfter) ||
       after.size !== opened.size ||
       after.mtimeNs !== opened.mtimeNs ||
       after.ctimeNs !== opened.ctimeNs ||
-      visibleAfter.dev !== after.dev ||
-      visibleAfter.ino !== after.ino ||
       visibleAfter.size !== after.size ||
       visibleAfter.mtimeNs !== after.mtimeNs ||
       visibleAfter.ctimeNs !== after.ctimeNs ||
@@ -392,44 +519,67 @@ function worktreeGitBlobSha1(relativePath) {
   }
 }
 
+export function testOnlyWorktreeGitBlobSha1V1(
+  relativePath,
+  options = {},
+) {
+  return worktreeGitBlobSha1(relativePath, options);
+}
+
 export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
   try {
     const head = gitText(
       ["rev-parse", "HEAD"],
       "source_binding_repository_head_unavailable",
     );
+    const plan = pinnedObservationPlan(head);
+
+    rejectRepositoryExecutionSettingsV1();
+
     const tree = gitText(
-      ["rev-parse", "HEAD^{tree}"],
+      ["rev-parse", plan.tree_spec],
       "source_binding_repository_tree_unavailable",
-    );
-    const status = gitText(
-      ["status", "--porcelain=v1", "--untracked-files=all"],
-      "source_binding_repository_status_unavailable",
     );
     const origin = gitText(
       ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
       "source_binding_repository_origin_unavailable",
     );
-    const ancestor =
-      git(
-        ["merge-base", "--is-ancestor", REVIEWED_BASE_COMMIT, "HEAD"],
-        "source_binding_reviewed_base_check_failed",
-        { allowFail: true },
-      ).status === 0;
+    const ancestor = pinnedReviewedBaseIsAncestorV1(
+      plan.ancestry_head,
+    );
     const sourceBlobs =
       VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1
         .map((row) =>
           Object.freeze({
             path: row.path,
             git_blob_sha1: gitText(
-              ["rev-parse", "HEAD:" + row.path],
+              ["rev-parse", plan.blob_spec(row.path)],
               "source_binding_blob_unavailable:" + row.path,
             ),
             worktree_git_blob_sha1: worktreeGitBlobSha1(row.path),
           }),
         );
+
+    const status = gitText(
+      [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--no-renames",
+      ],
+      "source_binding_repository_status_unavailable",
+    );
+
+    const finalHead = gitText(
+      ["rev-parse", "HEAD"],
+      "source_binding_repository_final_head_unavailable",
+    );
+    if (finalHead !== plan.head) {
+      fail("source_binding_repository_head_changed_during_observation");
+    }
+
     return testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
-      repository_head_sha: head,
+      repository_head_sha: plan.head,
       repository_tree_sha: tree,
       repository_origin: origin,
       worktree_clean: status === "",
