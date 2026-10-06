@@ -726,6 +726,60 @@ for (const hookName of [
 }
 
 {
+  const fixture = makeFixture();
+  const originalUnlinkSync = fs.unlinkSync;
+  const detached = path.join(
+    fixture.parent,
+    "authority-detached-during-intent-cleanup",
+  );
+  let injected = false;
+  try {
+    fs.unlinkSync = (target) => {
+      if (
+        !injected &&
+        path.basename(String(target)) ===
+          "buy-void-allocation-custody-witness-append-intent-v1.json"
+      ) {
+        injected = true;
+        fs.renameSync(fixture.root, detached);
+        fs.mkdirSync(fixture.root, { mode: 0o700 });
+        fs.writeFileSync(
+          path.join(
+            fixture.root,
+            "buy-void-allocation-custody-high-water-witness-v1.jsonl",
+          ),
+          genesis,
+          { mode: 0o600 },
+        );
+      }
+      return originalUnlinkSync(target);
+    };
+
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV1(
+          fixture.config,
+          appendRequest.request_json,
+          dependencies,
+        ),
+      /witness_forced_command_intent_invalid_directory_changed/u,
+    );
+    assert.equal(injected, true);
+    assert.ok(
+      fs.readFileSync(
+        path.join(
+          fixture.root,
+          "buy-void-allocation-custody-high-water-witness-v1.jsonl",
+        ),
+      ).equals(genesis),
+    );
+  } finally {
+    fs.unlinkSync = originalUnlinkSync;
+    clean(fixture);
+  }
+}
+
+{
   const handlerPath = new URL(
     "../tools/void-buy-allocation-custody-witness-forced-command-v1.mjs",
     import.meta.url,
