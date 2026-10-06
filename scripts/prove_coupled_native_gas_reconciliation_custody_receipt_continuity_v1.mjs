@@ -338,6 +338,18 @@ expectHeld(
   "receipt_continuity_collector_decision_replayed",
 );
 
+{
+  const replayWrapped = structuredClone(firstCollector);
+  replayWrapped.untrusted_padding = "bounded-replay-wrapper";
+  expectHeld(
+    planReceipt({
+      journal_jsonl: journal1,
+      collector_decision: replayWrapped,
+    }),
+    "receipt_continuity_qualification_receipt_replayed",
+  );
+}
+
 for (const [label, collector] of [
   ["host", makeCollector({ host: "other-proof-host", evidence: sha("9") })],
   ["payer", makeCollector({
@@ -538,6 +550,23 @@ for (const [label, collector] of [
 
 {
   const first = JSON.parse(firstPlan.append_jsonl);
+  const second = JSON.parse(secondPlan.append_jsonl);
+  second.qualification_receipt_sha256 =
+    first.qualification_receipt_sha256;
+  second.receipt_sha256 = rehashReceipt(second).receipt_sha256;
+  const tampered =
+    JSON.stringify(first) + "\n" +
+    JSON.stringify(second) + "\n";
+  expectHeld(
+    classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(
+      tampered,
+    ),
+    "receipt_continuity_qualification_receipt_replayed",
+  );
+}
+
+{
+  const first = JSON.parse(firstPlan.append_jsonl);
   first.receipt_sha256 = sha("f");
   expectHeld(
     classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(
@@ -580,6 +609,7 @@ const trueKeys = new Set([
   "predecessor_receipt_binding_required",
   "supplied_chain_generation_monotonicity_proven",
   "collector_decision_replay_rejected",
+  "qualification_receipt_replay_rejected",
   "host_payer_machine_continuity_required",
   "boot_identity_may_advance",
 ]);
@@ -619,6 +649,7 @@ console.log("collector_decision_hash_bound=true");
 console.log("predecessor_receipt_bound=true");
 console.log("supplied_chain_generation_monotonicity_proven=true");
 console.log("collector_decision_replay_rejected=true");
+console.log("qualification_receipt_replay_rejected=true");
 console.log("host_payer_machine_continuity_required=true");
 console.log("boot_identity_may_advance=true");
 console.log("collector_clock_used_as_authority=false");
