@@ -24,6 +24,32 @@ const sha256Id = (bytes) =>
   "sha256:" +
   crypto.createHash("sha256").update(bytes).digest("hex");
 
+function canonicalJson(value) {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) + ":" + canonicalJson(value[key]),
+        )
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("noncanonical proof value");
+}
+
 function baselineRecord(expected) {
   return {
     path: expected.installed_path,
@@ -86,6 +112,18 @@ assert.match(
 assert.match(
   receipt.collector_receipt_sha256,
   /^sha256:[0-9a-f]{64}$/u,
+);
+assert.equal(
+  receipt.runtime_bundle_evidence_sha256,
+  sha256Id(
+    Buffer.from(canonicalJson(receipt.runtime_bundle_files), "utf8"),
+  ),
+);
+const { collector_receipt_sha256: emittedReceiptSha256, ...receiptBody } =
+  receipt;
+assert.equal(
+  emittedReceiptSha256,
+  sha256Id(Buffer.from(canonicalJson(receiptBody), "utf8")),
 );
 assert.equal(
   receipt.runtime_file_count,
