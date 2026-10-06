@@ -59,6 +59,8 @@ const QUALIFICATION_RECEIPT_MARKER =
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_V1";
 const QUALIFICATION_RECEIPT_SCHEMA =
   "void_coupled_native_gas_reconciliation_custody_receipt_v1";
+const QUALIFICATION_DOMAIN =
+  "void-coupled-native-gas-reconciliation-custody-qualification-v1";
 const SOURCE_GENERATION_ID =
   "voidngrcsg1_" +
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1;
@@ -411,6 +413,18 @@ function normalizeCollectorDecision(input) {
   const qualified = validateQualificationReceipt(
     qualification.receipt,
   );
+  const policyFingerprint = sha256(
+    qualification.qualification_policy_fingerprint_sha256,
+    "receipt_continuity_qualification_policy_fingerprint_invalid",
+  );
+  const evidenceFingerprint = sha256(
+    qualification.evidence_snapshot_fingerprint_sha256,
+    "receipt_continuity_qualification_evidence_fingerprint_invalid",
+  );
+  const mountFingerprint = sha256(
+    qualification.mount_instance_fingerprint_sha256,
+    "receipt_continuity_qualification_mount_fingerprint_invalid",
+  );
   if (
     String(qualification.host_id ?? "") !== qualified.host_id ||
     String(qualification.payer_address ?? "").toLowerCase() !==
@@ -418,9 +432,26 @@ function normalizeCollectorDecision(input) {
     String(qualification.payer_domain_id ?? "") !==
       qualified.payer_domain_id ||
     String(qualification.payer_root_path ?? "") !==
-      qualified.payer_root_path
+      qualified.payer_root_path ||
+    policyFingerprint !==
+      qualified.receipt.qualification_policy_fingerprint_sha256 ||
+    evidenceFingerprint !==
+      qualified.receipt.evidence_snapshot_fingerprint_sha256 ||
+    mountFingerprint !==
+      qualified.receipt.mount_instance_fingerprint_sha256
   ) {
     fail("receipt_continuity_qualification_decision_receipt_mismatch");
+  }
+  const expectedQualificationId = sha256Id(
+    canonical({
+      domain: QUALIFICATION_DOMAIN,
+      qualification_policy_fingerprint_sha256: policyFingerprint,
+      evidence_snapshot_fingerprint_sha256: evidenceFingerprint,
+      receipt_sha256: qualified.receipt_sha256,
+    }),
+  );
+  if (qualificationId !== expectedQualificationId) {
+    fail("receipt_continuity_qualification_id_mismatch");
   }
 
   const collectorEvidence = decision.collector_evidence;
