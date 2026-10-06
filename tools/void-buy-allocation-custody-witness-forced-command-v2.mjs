@@ -29,6 +29,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_AUTHORITY_V
     forced_command_boundary: true,
     protected_server_config_contract: true,
     root_owned_nonwritable_config_parent_required: true,
+    root_owned_read_only_config_file_required: true,
     server_controlled_policy_origin_contract: true,
     fixed_witness_filename: true,
     caller_selected_policy: false,
@@ -249,6 +250,26 @@ function validatePrivateFile(stat, maxBytes, allowEmpty, reason) {
   }
 }
 
+function validateRootOwnedReadOnlyFile(
+  stat,
+  maxBytes,
+  allowEmpty,
+  reason,
+) {
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== 0n ||
+    stat.gid !== 0n ||
+    stat.nlink !== 1n ||
+    (Number(stat.mode) & 0o777) !== 0o444 ||
+    stat.size < BigInt(allowEmpty ? 0 : 1) ||
+    stat.size > BigInt(maxBytes)
+  ) {
+    fail(reason);
+  }
+}
+
 function openPinnedDirectory(rawPath, reason) {
   const resolved = path.resolve(String(rawPath ?? ""));
   if (
@@ -434,12 +455,16 @@ function readPinnedNamedFile(
   maxBytes,
   allowEmpty,
   reason,
+  validateFile = validatePrivateFile,
 ) {
+  if (typeof validateFile !== "function") {
+    fail(reason + "_validator_invalid");
+  }
   assertPinnedDirectoryVisible(directory, reason + "_directory");
   const visiblePath = path.join(directory.path, name);
   const pinnedPath = path.join(directory.proc_path, name);
   const visibleBefore = fs.lstatSync(visiblePath, { bigint: true });
-  validatePrivateFile(visibleBefore, maxBytes, allowEmpty, reason);
+  validateFile(visibleBefore, maxBytes, allowEmpty, reason);
 
   const fd = fs.openSync(
     pinnedPath,
@@ -447,7 +472,7 @@ function readPinnedNamedFile(
   );
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
-    validatePrivateFile(opened, maxBytes, allowEmpty, reason);
+    validateFile(opened, maxBytes, allowEmpty, reason);
     if (
       !sameFileCore(visibleBefore, opened) ||
       visibleBefore.size !== opened.size ||
@@ -467,8 +492,8 @@ function readPinnedNamedFile(
 
     const after = fs.fstatSync(fd, { bigint: true });
     const visibleAfter = fs.lstatSync(visiblePath, { bigint: true });
-    validatePrivateFile(after, maxBytes, allowEmpty, reason);
-    validatePrivateFile(visibleAfter, maxBytes, allowEmpty, reason);
+    validateFile(after, maxBytes, allowEmpty, reason);
+    validateFile(visibleAfter, maxBytes, allowEmpty, reason);
 
     if (
       !sameFileCore(opened, after) ||
@@ -692,6 +717,7 @@ function parseConfig(value) {
 function readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV2(
   configPath,
   openConfigParent,
+  validateConfigFile,
 ) {
   const resolved = path.resolve(String(configPath ?? ""));
   if (
@@ -704,6 +730,9 @@ function readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV
 
   if (typeof openConfigParent !== "function") {
     fail("witness_forced_command_config_parent_opener_invalid");
+  }
+  if (typeof validateConfigFile !== "function") {
+    fail("witness_forced_command_config_file_validator_invalid");
   }
 
   const parent = openConfigParent(
@@ -718,6 +747,7 @@ function readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV
       MAX_CONFIG_BYTES,
       false,
       "witness_forced_command_config_file_invalid",
+      validateConfigFile,
     );
     if (bytes.at(-1) !== 0x0a) {
       fail("witness_forced_command_config_noncanonical");
@@ -756,6 +786,7 @@ export function readVoidBuyAllocationCustodyWitnessForcedCommandConfigV2(
   return readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV2(
     configPath,
     openPinnedRootOwnedNonWritableDirectory,
+    validateRootOwnedReadOnlyFile,
   );
 }
 
@@ -765,6 +796,7 @@ export function testOnlyReadVoidBuyAllocationCustodyWitnessForcedCommandConfigFr
   return readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV2(
     configPath,
     openPinnedDirectory,
+    validatePrivateFile,
   );
 }
 
