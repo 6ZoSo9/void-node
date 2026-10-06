@@ -25,6 +25,7 @@ import {
   inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1,
   persistCoupledNativeGasReconciliationCustodyReceiptWriterV1,
   recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1,
+  testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1,
   testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterRootSwapV1,
   testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1,
   testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1,
@@ -880,6 +881,35 @@ for (const missingRoot of ["journal", "high-water"]) {
   }
 }
 
+{
+  const f = fixture();
+  try {
+    const journalFileSwap =
+      testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1(
+        inputFor(f),
+        "journal",
+      );
+    const heldJournal = requireHeld(journalFileSwap);
+    assert.match(
+      heldJournal.reason,
+      /receipt_writer_journal_snapshot_changed/u,
+    );
+
+    const highWaterFileSwap =
+      testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1(
+        inputFor(f),
+        "high_water",
+      );
+    const heldHighWater = requireHeld(highWaterFileSwap);
+    assert.match(
+      heldHighWater.reason,
+      /receipt_writer_high_water_snapshot_changed/u,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
 async function proveSingleRootReplacementSerialization(replaceRoot) {
   const f = fixture();
   const detached = path.join(
@@ -1085,6 +1115,12 @@ assert.match(writerSource, /const orderedLocks = \[/u);
 assert.match(writerSource, /journal_lock_queue/u);
 assert.match(writerSource, /high_water_lock_queue/u);
 assert.match(writerSource, /beforeReplace/u);
+assert.match(writerSource, /function openPinnedNamedFileSnapshot\(/u);
+assert.match(writerSource, /function assertPinnedNamedFileSnapshotVisible\(/u);
+assert.match(
+  writerSource,
+  /assertPinnedNamedFileSnapshotVisible\(journalSnapshot\)[\s\S]*assertPinnedNamedFileSnapshotVisible\(highWaterSnapshot\)/u,
+);
 assert.match(writerSource, /planCoupledNativeGasReconciliationCustodyReceiptV1/u);
 assert.match(writerSource, /classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1/u);
 assert.equal(writerSource.includes("Date.now("), false);
@@ -1106,6 +1142,9 @@ console.log("five_crash_cutpoints_recovered=true");
 console.log("linked_intent_temp_recovered=true");
 console.log("stale_atomic_temp_recovered=true");
 console.log("paired_terminal_root_revalidation=true");
+console.log("paired_authoritative_file_snapshot_revalidation=true");
+console.log("journal_file_post_read_replacement_hold=true");
+console.log("high_water_file_post_read_replacement_hold=true");
 console.log("high_water_exact_journal_binding=true");
 console.log("exact_post_reclassification=true");
 console.log("exact_terminal_idempotent_retry=true");
