@@ -16,6 +16,16 @@ import {
 
 const sha256 = (bytes: Buffer): string => "sha256:" + crypto.createHash("sha256").update(bytes).digest("hex");
 
+const DERIVED_CENSUS_SOURCE_COMMIT =
+  "e14747b6f3a7647baa580c3a87d6f57945486e30";
+const args = process.argv.slice(2);
+const deriveOnly = args.length === 1 && args[0] === "--derive";
+assert.equal(
+  args.length === 0 || deriveOnly,
+  true,
+  "usage: prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts [--derive]",
+);
+
 const missingCompiledRuntime = VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1
   .filter((file) => file.source_path.startsWith("dist/") && !fs.existsSync(file.source_path))
   .map((file) => file.source_path);
@@ -34,14 +44,22 @@ if (missingCompiledRuntime.length > 0) {
   );
   localBuildBootstrapped = true;
 }
-for (const expected of VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1) {
-  assert.equal(
-    fs.existsSync(expected.source_path),
-    true,
-    "reviewed runtime bundle file missing after deterministic local build: " + expected.source_path,
+const actualRuntimeFiles =
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1.map(
+    (expected) => {
+      assert.equal(
+        fs.existsSync(expected.source_path),
+        true,
+        "reviewed runtime bundle file missing after deterministic local build: " +
+          expected.source_path,
+      );
+      return Object.freeze({
+        source_path: expected.source_path,
+        installed_path: expected.installed_path,
+        sha256: sha256(fs.readFileSync(expected.source_path)),
+      });
+    },
   );
-  assert.equal(sha256(fs.readFileSync(expected.source_path)), expected.sha256, "reviewed runtime bundle file bytes changed: " + expected.source_path);
-}
 
 const staticImport = /(?:^|\n)\s*import\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']\s*;?/gmu;
 const exportFrom = /(?:^|\n)\s*export\s+[\s\S]*?\s+from\s+["']([^"']+)["']\s*;?/gmu;
@@ -87,15 +105,21 @@ function canonical(value: unknown): string {
   }
   throw new Error("noncanonical manifest value");
 }
-const fileRecords = VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1.map((file) => {
+const fileRecords = actualRuntimeFiles.map((file) => {
   const bytes = fs.readFileSync(file.source_path);
-  return { path: file.source_path, bytes: bytes.length, sha256: file.sha256.slice("sha256:".length) };
+  return {
+    path: file.source_path,
+    bytes: bytes.length,
+    sha256: file.sha256.slice("sha256:".length),
+  };
 }).sort((a, b) => a.path.localeCompare(b.path));
 const manifestBody = {
   schema: "void_buy_void_witness_forced_command_runtime_bundle_manifest_v1",
   marker: "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_RUNTIME_BUNDLE_MANIFEST_V1",
   version: 1,
-  source_commit: VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1,
+  source_commit: deriveOnly
+    ? DERIVED_CENSUS_SOURCE_COMMIT
+    : VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1,
   entry: "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs",
   files: fileRecords,
   edges: [...edges].sort((a, b) => (a.from + "\0" + a.specifier + "\0" + a.to).localeCompare(b.from + "\0" + b.specifier + "\0" + b.to)),
@@ -109,6 +133,41 @@ const manifestSha256 = sha256(
     "utf8",
   ),
 );
+if (deriveOnly) {
+  process.stdout.write(
+    JSON.stringify(
+      {
+        schema:
+          "void_buy_void_witness_forced_command_runtime_bundle_candidate_v1",
+        marker:
+          "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_RUNTIME_BUNDLE_CANDIDATE_V1",
+        version: 1,
+        runtime_bundle_census_source_commit:
+          DERIVED_CENSUS_SOURCE_COMMIT,
+        runtime_bundle_manifest_id: manifestId,
+        runtime_bundle_manifest_sha256: manifestSha256,
+        runtime_bundle_files: actualRuntimeFiles,
+        runtime_edge_count: edges.length,
+        dynamic_import_count: 0,
+        require_call_count: 0,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  process.exit(0);
+}
+
+for (let index = 0; index < actualRuntimeFiles.length; index += 1) {
+  assert.equal(
+    actualRuntimeFiles[index].sha256,
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1[index]
+      .sha256,
+    "reviewed runtime bundle file bytes changed: " +
+      actualRuntimeFiles[index].source_path,
+  );
+}
+
 console.log("derived_runtime_bundle_manifest_id=" + manifestId);
 console.log("derived_runtime_bundle_manifest_sha256=" + manifestSha256);
 assert.equal(manifestId, VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1);
