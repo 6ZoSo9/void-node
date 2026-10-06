@@ -124,7 +124,17 @@ assert.equal(
   accepted.connector_service_unit,
   "tailscaled.service",
 );
+assert.equal(
+  accepted.adapter_service_unit,
+  "void-agent-credential-request-proxy-v2-edge-v1.service",
+);
+assert.equal(
+  accepted.gateway_service_unit,
+  "void-ai-agent-public-gateway-v1.service",
+);
 assert.equal(accepted.connector_uid, 0);
+assert.equal(accepted.adapter_uid, 1001);
+assert.equal(accepted.gateway_uid, 1002);
 assert.equal(accepted.firewall_table, "void_credential_edge_v1");
 assert.equal(accepted.firewall_chain, "output");
 assert.equal(accepted.root_equivalent_bypass_out_of_scope, true);
@@ -175,6 +185,12 @@ expectHeld(
 );
 expectHeld(
   (x) => {
+    x.adapter.service_unit = "alternate-adapter.service";
+  },
+  "loopback_policy_adapter_service_invalid",
+);
+expectHeld(
+  (x) => {
     x.adapter.listen_host = "0.0.0.0";
   },
   "loopback_policy_adapter_identity_invalid",
@@ -205,9 +221,27 @@ expectHeld(
 );
 expectHeld(
   (x) => {
+    x.gateway.service_unit = "alternate-gateway.service";
+  },
+  "loopback_policy_gateway_service_invalid",
+);
+expectHeld(
+  (x) => {
     x.gateway.effective_uid = 0;
   },
   "loopback_policy_gateway_uid_invalid",
+);
+expectHeld(
+  (x) => {
+    x.gateway.effective_uid = x.adapter.effective_uid;
+  },
+  "loopback_policy_adapter_gateway_identity_not_dedicated",
+);
+expectHeld(
+  (x) => {
+    x.gateway.effective_gid = x.adapter.effective_gid;
+  },
+  "loopback_policy_adapter_gateway_identity_not_dedicated",
 );
 expectHeld(
   (x) => {
@@ -308,6 +342,8 @@ assert.deepEqual(
     originating_socket_uid_policy_required: true,
     nonmatching_connector_drop_required: true,
     connector_root_uid_required: true,
+    canonical_service_units_required: true,
+    dedicated_adapter_gateway_identities_required: true,
     adapter_nonroot_required: true,
     gateway_nonroot_required: true,
     adapter_cap_net_admin_forbidden: true,
@@ -353,6 +389,8 @@ console.log("funnel_proxy_protocol_v2=true");
 console.log("funnel_tls_terminated_tcp_port=443");
 console.log("adapter_host=127.0.0.1");
 console.log("nftables_output_skuid_allow_then_drop=true");
+console.log("canonical_service_units_required=true");
+console.log("dedicated_adapter_gateway_identities_required=true");
 console.log("adapter_nonroot=true");
 console.log("gateway_nonroot=true");
 console.log("adapter_cap_net_admin=false");
