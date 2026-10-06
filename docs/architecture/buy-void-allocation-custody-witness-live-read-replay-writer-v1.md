@@ -98,10 +98,23 @@ Publication order is fixed:
 3. atomically replace/fsync the journal;
 4. atomically replace/fsync the high-water record;
 5. unlink/fsync both intents;
-6. reread both files and require exact coherence.
+6. reread both files and require exact coherence; and
+7. terminally revalidate both pinned root identities against their visible
+   pathnames before success is returned.
 
 Each replacement uses a same-directory mode-0600 temporary file, file fsync,
 rename, directory fsync, descriptor-bound reread, and exact byte postcheck.
+
+The final coherent-state snapshot is a paired authority check, not two
+independent successful reads. After reading the journal and high-water and
+proving their exact semantic binding, the writer revalidates **both** retained
+root descriptors against the visible root pathnames. A same-UID rename/recreate
+of either root between the two final reads therefore HOLDS instead of returning
+an apparently coherent success from a detached storage tree.
+
+This is still detection, not protected custody. A stronger host/storage gate
+must prevent or independently survive admitted root replacement before live
+authority can be claimed.
 
 ## Recovery
 
@@ -181,6 +194,10 @@ The proof uses temporary local directories only. It covers:
 - crash recovery after high-water publication;
 - journal-only rollback detection;
 - high-water-only rollback detection;
+- clean-inspection root swap after the final journal snapshot HOLDS;
+- recovered-state root swap after the final journal snapshot HOLDS;
+- post-persistence root swap after the final journal snapshot HOLDS;
+- both journal-root and high-water-root variants of those snapshot races;
 - tampered intent rejection;
 - same-root rejection;
 - symlink-root rejection; and
