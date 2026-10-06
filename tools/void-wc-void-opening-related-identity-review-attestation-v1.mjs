@@ -168,7 +168,7 @@ const REVIEWED_REVIEWER_DECISION_ID_V1 =
 const REVIEWED_CONTROL_PATH_V1 =
   "tools/void-wc-void-launch-controller-control-requalification-v1.mjs";
 const REVIEWED_CONTROL_BLOB_V1 =
-  "a17a6da5f85a740c5c38b0c4fb3377c7df05d270";
+  "663a90c0886ab001df2a6d2b2fcc560503aecfe1";
 const REVIEWED_CONTROL_EVIDENCE_MARKER_V1 =
   "VOID_WC_VOID_LAUNCH_CONTROLLER_CONTROL_EVIDENCE_V1";
 const REVIEWED_CONTROL_ROLE_LABEL_V1 =
@@ -190,9 +190,9 @@ const REVIEWED_RUNTIME_PACKAGES_AGGREGATE_SHA256_V1 =
 const REVIEWED_CONTROL_SOURCE_BLOBS_V1 = Object.freeze({
   [REVIEWED_CONTROL_PATH_V1]: REVIEWED_CONTROL_BLOB_V1,
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json":
-    "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json":
-    "c85b6bc59caac6bc765cb8e969cb980386161d12",
+    "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json":
+    "1009c41250a40bb793c88057a7187cec01c8704b",
   "package.json": "f28c3e9446c7623ef203da36a9642d046e5f34ee",
   "package-lock.json": "b2671f0149f522b2489247016df0a5ec4bb72b8b",
   [REVIEWED_RUNTIME_TOOL_PATH_V1]: REVIEWED_RUNTIME_TOOL_BLOB_V1,
