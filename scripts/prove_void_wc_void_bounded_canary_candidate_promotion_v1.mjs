@@ -238,10 +238,10 @@ assert.equal(
 );
 assert.equal(result.package_json_git_blob_sha1, EXPECTED_BLOBS.package_json);
 assert.equal(result.package_lock_git_blob_sha1, EXPECTED_BLOBS.package_lock);
-assert.equal(result.reviewed_binding_count, 39);
+assert.equal(result.reviewed_binding_count, 40);
 assert.equal(
   result.reviewed_binding_manifest_sha256,
-  "7cffbd7a570050a627b2aacefffd1dd2e408bc2e5cc4f706452ab4811ad3b510",
+  "ca014788702440abf66aef1b0e615463faa8d0cefd1340c6896dcf6be2f81a65",
 );
 assert.match(result.candidate_promotion_tool_git_blob_sha1, /^[0-9a-f]{40}$/u);
 assert.equal(result.canonical_candidate_bytes_bound_to_reviewed_head_blobs, true);
@@ -525,6 +525,8 @@ for (const required of [
   "participant_production_runtime_binding",
   "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
   "4129e0dc5e34e08b9402169fcabfe4fba9a14973",
+  "tools/void-wc-void-opening-claim-binding-publication-v1.mjs",
+  "98294560fbc601e5e2035a9caf0408480b7422ce",
   "contracts/mainnet/WCVoidMarketVaultV2.sol",
   "package-lock.json",
   'const GIT_EXECUTABLE = "/usr/bin/git"',
@@ -545,7 +547,7 @@ console.log("clean_repository_generation_bound=true");
 console.log("canonical_candidate_bytes_bound_to_reviewed_head_blobs=true");
 console.log("semantic_source_contract_generation_bound=true");
 console.log("reviewed_source_generation_blob_pins_required=true");
-console.log("reviewed_dependency_closure_count=39");
+console.log("reviewed_dependency_closure_count=40");
 console.log("reviewed_dependency_closure_bound=true");
 console.log("package_dependency_state_bound=true");
 console.log("reviewed_git_executable_required=true");
