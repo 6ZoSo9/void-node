@@ -64,6 +64,8 @@ const NODE_PATH = "/usr/bin/node";
 const ENV_PATH = "/usr/bin/env";
 const WITNESS_NAME =
   "buy-void-allocation-custody-high-water-witness-v1.jsonl";
+const FORCED_COMMAND =
+  'test -z "$SSH_ORIGINAL_COMMAND" || exit 3; exec /usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V1=1 /usr/bin/node /usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v1.mjs --config=/etc/void/buy-void-allocation-custody-witness-forced-command-v1.json';
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const GIT_SHA1 = /^[0-9a-f]{40}$/u;
 const USER = /^[a-z_][a-z0-9_-]{0,31}$/u;
@@ -73,6 +75,7 @@ const VERSION = /^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9._-]+)?$/u;
 
 const DANGEROUS_ENVIRONMENT_NAMES = Object.freeze([
   "BASH_ENV",
+  "BASHOPTS",
   "ENV",
   "GCONV_PATH",
   "LD_AUDIT",
@@ -81,6 +84,8 @@ const DANGEROUS_ENVIRONMENT_NAMES = Object.freeze([
   "NODE_OPTIONS",
   "NODE_PATH",
   "OPENSSL_CONF",
+  "PS4",
+  "SHELLOPTS",
 ]);
 
 const TOP_KEYS = Object.freeze([
@@ -157,6 +162,7 @@ const AUTHORIZED_KEY_KEYS = Object.freeze([
   "caller_selected_command",
   "caller_selected_path",
   "environment_options",
+  "forced_command",
   "forced_command_present",
   "forced_command_sha256",
   "key_algorithm",
@@ -244,6 +250,13 @@ function canonicalJson(value: unknown): string {
     );
   }
   fail("witness_installation_noncanonical_value");
+}
+
+function sha256Id(value: string): string {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(value, "utf8").digest("hex")
+  );
 }
 
 function exactObject(
@@ -517,6 +530,7 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
         transport.policy.client_public_key_sha256 ||
       authorizedKey.restrict !== true ||
       authorizedKey.forced_command_present !== true ||
+      authorizedKey.forced_command !== FORCED_COMMAND ||
       authorizedKey.caller_selected_command !== false ||
       authorizedKey.caller_selected_path !== false ||
       authorizedKey.permit_pty !== false ||
@@ -554,6 +568,9 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       authorizedKey.forced_command_sha256,
       "witness_installation_authorized_key_invalid",
     );
+    if (forcedCommandSha256 !== sha256Id(FORCED_COMMAND)) {
+      fail("witness_installation_authorized_key_invalid");
+    }
     const authorizedKeyLineSha256 = sha256Field(
       authorizedKey.line_sha256,
       "witness_installation_authorized_key_invalid",
