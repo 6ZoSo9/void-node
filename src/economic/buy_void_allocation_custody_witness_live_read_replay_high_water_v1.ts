@@ -243,6 +243,13 @@ function deriveHighWaterV1(
     fail("witness_live_read_replay_high_water_pending_state_invalid");
   }
 
+  const lastTerminalState:
+    "consumed" | "abandoned" | null =
+      replay.last_terminal_state === "consumed" ||
+      replay.last_terminal_state === "abandoned"
+        ? replay.last_terminal_state
+        : null;
+
   const highWater =
     Object.freeze({
       schema:
@@ -260,7 +267,7 @@ function deriveHighWaterV1(
       pending_challenge_sha256: replay.pending_challenge_sha256,
       pending_challenge_id: replay.pending_challenge_id,
       pending_expires_at_ms: replay.pending_expires_at_ms,
-      last_terminal_state: replay.last_terminal_state,
+      last_terminal_state: lastTerminalState,
       ready_for_issue: replay.ready_for_issue,
     }) satisfies BuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1;
 
