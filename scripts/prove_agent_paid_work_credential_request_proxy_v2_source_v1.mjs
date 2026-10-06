@@ -293,11 +293,30 @@ expectHeld(
 );
 
 expectHeld(
+  sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
+    { Host: "voidchain.example" },
+    { ...a },
+  ),
+  "proxy_v2_trusted_source_invalid",
+);
+
+expectHeld(
   planVoidAgentCredentialRequestProxyV2RateLimitV1({
     parsed_source: {
       ...a,
       limiter_source_key: "voidcrsrc1_" + "0".repeat(64),
     },
+    now_ms: 1_800_000_000_000,
+    window_ms: 60_000,
+    max_requests_per_source: 3,
+    prior_events: [],
+  }),
+  "proxy_v2_trusted_source_invalid",
+);
+
+expectHeld(
+  planVoidAgentCredentialRequestProxyV2RateLimitV1({
+    parsed_source: { ...a },
     now_ms: 1_800_000_000_000,
     window_ms: 60_000,
     max_requests_per_source: 3,
@@ -385,6 +404,7 @@ const trueKeys = new Set([
   "tcp4_source_identity",
   "tcp6_source_identity",
   "raw_source_address_bound",
+  "parser_result_brand_required",
   "source_port_excluded_from_limiter_identity",
   "trusted_source_header_replaced",
   "per_source_rate_limit_planning",
@@ -407,6 +427,7 @@ console.log("source_port_bucket_rotation=false");
 console.log("bounded_proxy_v2_header=true");
 console.log("proxy_v2_tlv_framing_validated=true");
 console.log("spoofed_forwarding_headers_trusted=false");
+console.log("parser_result_brand_required=true");
 console.log("per_source_rate_limit_isolation=true");
 console.log("local_transport_trust_proven=false");
 console.log("tailscale_funnel_configuration_verified=false");
