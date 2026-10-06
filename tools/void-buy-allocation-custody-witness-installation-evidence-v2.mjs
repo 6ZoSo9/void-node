@@ -15,6 +15,14 @@ import {
   classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV2,
 } from "../dist/economic/buy_void_allocation_custody_witness_installation_qualification_v2.js";
 import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V1,
+  classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1,
+} from "../dist/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.js";
+import {
   classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_transport_v1.js";
 import {
@@ -41,6 +49,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTH
     host_identity_observed: true,
     canonical_parent_classifier_required: true,
     v2_qualification_required: true,
+    runtime_bundle_qualification_required: true,
+    runtime_bundle_qualification_observed: true,
     continuity_attestation_observed: true,
     content_addressed_receipt: true,
     client_known_hosts_content_observed: false,
@@ -622,6 +632,57 @@ function inspectFixedFile(io, file, maxBytes = MAX_FILE_BYTES) {
     root_owned_nonwritable_parent_chain:
       rootOwnedNonWritableParents(io, file),
   });
+}
+
+function runtimeBundleEvidence(io) {
+  const files = VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1
+    .map((expected) => {
+      const observed = inspectFixedFile(
+        io,
+        expected.installed_path,
+        MAX_FILE_BYTES,
+      );
+      return Object.freeze({
+        path: expected.installed_path,
+        sha256: sha256Id(observed.bytes),
+        uid: observed.uid,
+        gid: observed.gid,
+        mode: observed.mode,
+        nlink: observed.nlink,
+        regular_file: observed.regular_file,
+        symlink: observed.symlink,
+        root_owned_parent_chain:
+          observed.root_owned_nonwritable_parent_chain,
+      });
+    });
+
+  const evidence = Object.freeze({
+    schema:
+      "void_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1",
+    marker:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V1,
+    version: 1,
+    manifest_id:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+    manifest_sha256:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+    source_commit:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1,
+    files: Object.freeze(files),
+  });
+
+  const qualification =
+    classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1(
+      evidence,
+    );
+  if (qualification.ok !== true) {
+    fail(
+      "witness_installation_evidence_runtime_bundle_" +
+        String(qualification.reason || "hold"),
+    );
+  }
+
+  return Object.freeze({ evidence, qualification });
 }
 
 function parsePublicKeyBlob(text, allowComment) {
@@ -1382,6 +1443,7 @@ function collectOnce(config, io, observedAtMs) {
   const policy = config.transport_policy;
   const account = accountEvidence(io, policy.remote_user);
   const handler = handlerEvidence(io);
+  const runtimeBundle = runtimeBundleEvidence(io);
   const nodeExec = executableEvidence(io, NODE_PATH);
   const nodeVersion = io.run(NODE_PATH, ["--version"]).trim();
   const nodeMatch =
@@ -1481,6 +1543,8 @@ function collectOnce(config, io, observedAtMs) {
   return Object.freeze({
     evidence,
     qualification,
+    runtime_bundle_evidence: runtimeBundle.evidence,
+    runtime_bundle_qualification: runtimeBundle.qualification,
     sshd_connection_context: config.sshd_connection_context,
     host,
     host_key: hostKey,
@@ -1521,6 +1585,12 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
     canonicalJson(first.witness) !== canonicalJson(second.witness) ||
     canonicalJson(first.witness_identity) !==
       canonicalJson(second.witness_identity) ||
+    canonicalJson(first.runtime_bundle_evidence) !==
+      canonicalJson(second.runtime_bundle_evidence) ||
+    first.runtime_bundle_qualification.qualification_id !==
+      second.runtime_bundle_qualification.qualification_id ||
+    canonicalJson(first.runtime_bundle_qualification.normalized) !==
+      canonicalJson(second.runtime_bundle_qualification.normalized) ||
     canonicalJson(first.sshd_connection_context) !==
       canonicalJson(second.sshd_connection_context)
   ) {
@@ -1543,6 +1613,29 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
           "utf8",
         ),
       ),
+    runtime_bundle_manifest_id:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+    runtime_bundle_manifest_sha256:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+    runtime_bundle_qualification_id:
+      second.runtime_bundle_qualification.qualification_id,
+    runtime_bundle_evidence_sha256:
+      sha256Id(
+        Buffer.from(
+          canonicalJson(second.runtime_bundle_evidence),
+          "utf8",
+        ),
+      ),
+    runtime_bundle_normalized_qualification_sha256:
+      sha256Id(
+        Buffer.from(
+          canonicalJson(
+            second.runtime_bundle_qualification.normalized,
+          ),
+          "utf8",
+        ),
+      ),
+    runtime_bundle_qualification_observed: true,
     host_identity: second.host,
     witness_storage: second.witness,
     witness_identity_path:
