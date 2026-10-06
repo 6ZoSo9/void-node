@@ -104,9 +104,13 @@ Reads and writes are rooted through retained directory descriptors under
 file sizes, exact pre-replace bytes, directory fsync, and exact post-read
 revalidation.
 
-The final coherent snapshot revalidates **both** visible storage roots after the
-journal and high-water reads. A same-UID rename/recreate race therefore cannot
-return success for a detached tree.
+The final coherent snapshot opens and retains descriptors for **both**
+authoritative state files at once. Journal and high-water bytes are read from
+those pinned descriptors, both visible file pathnames are rebound to the same
+retained file identities immediately before success, and both roots/queues are
+revalidated around that final paired-file check. Replacing only the journal
+file after its read, or only the high-water file after its read, therefore
+HOLDs even when both storage roots and lock queues remain unchanged.
 
 The journal and high-water authority renames also revalidate **both** visible
 roots immediately before each authoritative rename. Replacing only one visible
@@ -170,6 +174,10 @@ The proof covers:
 - high-water tamper HOLD;
 - same-root rejection;
 - visible journal-root and high-water-root replacement HOLD;
+- journal-file replacement after its retained-descriptor read HOLD with roots
+  and queues unchanged;
+- high-water-file replacement after its retained-descriptor read HOLD with roots
+  and queues unchanged;
 - cross-process one-root-replacement serialization for both roots: a valid
   contender must enqueue on the unchanged shared queue, cannot publish while
   the holder owns it, and may publish exactly once after release;
