@@ -1312,13 +1312,6 @@ function requestOperationBeforeRecovery(
   config,
   requestBytes,
 ) {
-  const policy =
-    classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1(
-      config?.policy,
-    );
-  if (policy.ok !== true) {
-    return "unknown";
-  }
   if (
     requestBytes.length < 3 ||
     requestBytes.length > MAX_REQUEST_BYTES ||
@@ -1343,7 +1336,7 @@ function requestOperationBeforeRecovery(
     raw.marker !==
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1 ||
     raw.version !== 1 ||
-    raw.policy_sha256 !== policy.policy_sha256
+    raw.policy_sha256 !== config.policy_sha256
   ) {
     return "unknown";
   }
