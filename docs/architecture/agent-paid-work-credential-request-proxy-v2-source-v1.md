@@ -87,6 +87,10 @@ existing public gateway accepts it only from the controlled loopback adapter
 transport and that arbitrary local processes cannot reach the same trusted
 handoff boundary.
 
+Header values are bounded and reject CR/LF, NUL and other disallowed control
+bytes before any future handoff, so the sanitizer cannot become a header
+injection primitive.
+
 Accordingly:
 
 ```text
@@ -116,6 +120,20 @@ This planner does not replace the existing loopback upstream limiter. A later
 composition must preserve that upstream limiter as an independent global safety
 wall.
 
+Per-source-address isolation is intentionally narrower than participant
+fairness. Source addresses may be shared (for example NAT) or rotated (for
+example IPv6 privacy addresses, VPNs or network changes). Therefore this
+contract explicitly keeps:
+
+```text
+rotation_resistant_fairness_proven=false
+nat_independent_participant_isolation_proven=false
+source_address_stability_proven=false
+```
+
+It fixes the current all-callers-as-loopback collapse, but does not by itself
+establish one durable human/agent fairness identity.
+
 ## Proof
 
 ```bash
@@ -137,6 +155,7 @@ The focused proof covers:
 - missing, malformed, wrong-version, `LOCAL`, UDP/unsupported family,
   truncated, undersized and oversized PROXY-v2 HOLDs;
 - case-insensitive stripping of spoofable forwarding/trusted-source headers;
+- control-character/header-injection rejection;
 - trusted-source header replacement from parser output only;
 - forged parser objects with caller-selected limiter keys rejected;
 - exact cloned/unbranded parser-result lookalikes rejected;
