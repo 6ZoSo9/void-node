@@ -12,11 +12,11 @@ Live installation requires both the V2 installation qualification and this runti
 
 The reviewed census found 8 runtime files, 11 static relative-import edges, zero dynamic `import()` calls, and zero CommonJS `require()` calls.
 
-Manifest ID: `voidwfb1_d8216a536e9e53035aa5216fd6c2023b0de9ee6a003bc67783da77d954cb38c9`
+Manifest ID: `voidwfb1_678ceef8c06d554f7879d48c25e3814300ac542c5053100a75303f0b0d305c6c`
 
-Manifest SHA-256: `sha256:a2b669873302ebe674376e438692b051affb9d1cb25ce36e05e6c29f4262c54d`
+Manifest SHA-256: `sha256:a70f31be513b56adeb6c0a6846cbc31169de55f5ad479263695a4d0eb18038ad`
 
-Census source commit: `1c69eff28485e5af7c1f9514d4825f637c418c12`
+Census source commit: `e14747b6f3a7647baa580c3a87d6f57945486e30`
 
 This is a successor to the previously installed bundle identity. Evidence for
 the predecessor manifest is historical only; it does not qualify the repaired
