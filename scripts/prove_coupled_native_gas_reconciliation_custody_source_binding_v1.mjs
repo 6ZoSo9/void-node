@@ -53,6 +53,11 @@ assert.equal(baseline.runtime_integration, false);
 assert.equal(baseline.production_gate_ready, false);
 assert.equal(baseline.funds_movement, false);
 assert.match(baseline.source_binding_id, /^voidngrcsb1_[0-9a-f]{64}$/u);
+assert.equal(
+  baseline.source_generation_id,
+  "voidngrcsg1_" +
+    VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1,
+);
 
 const alternativeHead =
   testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
@@ -62,6 +67,7 @@ const alternativeHead =
 assert.equal(alternativeHead.ok, true);
 if (!alternativeHead.ok) throw new Error(alternativeHead.reason);
 assert.notEqual(alternativeHead.source_binding_id, baseline.source_binding_id);
+assert.equal(alternativeHead.source_generation_id, baseline.source_generation_id);
 
 for (let index = 0; index <
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1.length;
