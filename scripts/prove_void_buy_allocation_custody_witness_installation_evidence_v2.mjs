@@ -828,6 +828,21 @@ for (const key of [
         ),
       /witness_installation_evidence_/u,
     );
+
+    const growthFile = path.join(real, "growth.txt");
+    fs.writeFileSync(growthFile, "A".repeat(128), { mode: 0o600 });
+    assert.throws(
+      () =>
+        testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2(
+          growthFile,
+          4096,
+          () => {
+            fs.appendFileSync(growthFile, "B");
+          },
+        ),
+      /witness_installation_evidence_file_grew_after_open|witness_installation_evidence_file_changed/u,
+      "descriptor reader must reject grow-after-open before accepting bytes",
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -877,6 +892,8 @@ console.log("content_addressed_receipt=true");
 console.log("client_known_hosts_content_observed=false");
 console.log("preexec_runtime_execution_observed=true");
 console.log("descriptor_bound_ancestor_walk=true");
+console.log("descriptor_read_exact_opened_size=true");
+console.log("descriptor_growth_after_open_rejected=true");
 console.log("historical_machine_id_continuity_consumed=true");
 console.log("original_command_negative_probe=true");
 console.log("environment_clear_probe=true");
