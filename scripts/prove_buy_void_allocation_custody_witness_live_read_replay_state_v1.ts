@@ -16,6 +16,30 @@ const sha = (hex: string): string =>
 const requestId = (hex: string): string =>
   "voidwreq1_" + hex.repeat(64);
 
+const missingJournal =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
+    undefined as unknown as string,
+  );
+assert.equal(missingJournal.ok, false);
+if (missingJournal.ok) throw new Error("missing journal unexpectedly green");
+assert.equal(
+  missingJournal.reason,
+  "witness_live_read_replay_journal_type_invalid",
+);
+
+const invalidUtf8Journal =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
+    Buffer.from([0xff, 0x0a]),
+  );
+assert.equal(invalidUtf8Journal.ok, false);
+if (invalidUtf8Journal.ok) {
+  throw new Error("invalid UTF-8 journal unexpectedly green");
+}
+assert.equal(
+  invalidUtf8Journal.reason,
+  "witness_live_read_replay_journal_utf8_invalid",
+);
+
 const journal0 = "";
 const state0 =
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
@@ -353,6 +377,8 @@ assert.equal(
 );
 
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_STATE_V1_GREEN");
+console.log("missing_journal_rejected=true");
+console.log("fatal_utf8_required=true");
 console.log("generation_zero_genesis=true");
 console.log("single_pending_challenge=true");
 console.log("exact_generation_increment=true");
