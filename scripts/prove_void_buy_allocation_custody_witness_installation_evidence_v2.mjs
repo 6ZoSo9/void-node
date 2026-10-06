@@ -370,7 +370,7 @@ const baseFiles = new Map([
   [NODE_PATH, { bytes: nodeBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: nodeBytes.length, ino: 11 }) }],
   [ENV_PATH, { bytes: envBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: envBytes.length, ino: 12 }) }],
   [DASH_PATH, { bytes: dashBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: dashBytes.length, ino: 13 }) }],
-  [CONFIG_PATH, { bytes: configBytes, stat: stat({ uid: 1201, gid: 1201, mode: 0o600, size: configBytes.length, ino: 14 }) }],
+  [CONFIG_PATH, { bytes: configBytes, stat: stat({ uid: 0, gid: 0, mode: 0o444, size: configBytes.length, ino: 14 }) }],
   [AUTHORIZED_KEYS, { bytes: authorizedKeysBytes, stat: stat({ uid: 0, gid: 0, mode: 0o444, size: authorizedKeysBytes.length, ino: 15 }) }],
   [HOST_KEY, { bytes: hostKeyBytes, stat: stat({ uid: 0, gid: 0, mode: 0o644, size: hostKeyBytes.length, ino: 16 }) }],
   [path.join(AUTHORITY_ROOT, WITNESS_NAME), { bytes: witnessBytes, stat: stat({ uid: 1201, gid: 1201, mode: 0o600, size: witnessBytes.length, ino: 18 }) }],
@@ -581,6 +581,22 @@ assert.deepEqual(
 assert.equal(baseline.sshd_connection_context_bound, true);
 assert.equal(baseline.live_sshd_connection_context_proven, false);
 assert.equal(baseline.continuity_attestation_observed, true);
+assert.equal(
+  baseline.installation_normalized_qualification.config_uid,
+  0,
+);
+assert.equal(
+  baseline.installation_normalized_qualification.config_gid,
+  0,
+);
+assert.equal(
+  baseline.installation_normalized_qualification.config_mode,
+  0o444,
+);
+assert.equal(
+  baseline.installation_normalized_qualification.config_root_owned_read_only,
+  true,
+);
 assert.match(baseline.installation_qualification_id, /^voidwiq2_[0-9a-f]{64}$/u);
 assert.equal(
   baseline.runtime_bundle_manifest_id,
@@ -673,6 +689,39 @@ assert.equal(
     .runtime_bundle_evidence_collector_observed,
   true,
 );
+
+for (const configStat of [
+  stat({ uid: 1201, gid: 1201, mode: 0o600, size: configBytes.length, ino: 14 }),
+  stat({ uid: 0, gid: 0, mode: 0o600, size: configBytes.length, ino: 14 }),
+  stat({ uid: 0, gid: 0, mode: 0o644, size: configBytes.length, ino: 14 }),
+  stat({ uid: 0, gid: 0, mode: 0o444, nlink: 2, size: configBytes.length, ino: 14 }),
+]) {
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          files: {
+            [CONFIG_PATH]: {
+              stat: configStat,
+            },
+          },
+        }),
+      ),
+    /witness_installation_evidence_config_protection_invalid|witness_installation_evidence_parent_witness_installation_v2_config_invalid/u,
+  );
+}
+
+{
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          badParentChains: [CONFIG_PATH],
+        }),
+      ),
+    /witness_installation_evidence_config_protection_invalid|witness_installation_evidence_parent_witness_installation_v2_config_invalid/u,
+  );
+}
 
 {
   const historical = collect(
@@ -1115,7 +1164,7 @@ console.log("root_owned_authorization_policy_observed=true");
 console.log("effective_sshd_policy_observed=true");
 console.log("sshd_connection_context_bound=true");
 console.log("live_sshd_connection_context_proven=false");
-console.log("v2_handler_config_command_bound=true");
+console.log("v2_handler_config_command_bound=true");\nconsole.log("config_root_owned_read_only_mode_0444_observed=true");\nconsole.log("config_account_owned_mutable_rejected=true");
 console.log("continuity_attestation_observed=true");
 console.log("continuity_attestation_missing_rejected=true");
 console.log("continuity_attestation_tamper_rejected=true");
