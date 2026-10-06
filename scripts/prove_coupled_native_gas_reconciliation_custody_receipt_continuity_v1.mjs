@@ -572,7 +572,8 @@ const trueKeys = new Set([
   "source_only_contract",
   "pure_receipt_chain_classification",
   "exact_source_generation_bound",
-  "exact_supplied_source_binding_validated",
+  "source_binding_validation_required_for_plan",
+  "source_binding_id_committed_in_receipt",
   "exact_live_collector_decision_hash_bound",
   "collector_decision_canonical_bytes_bounded",
   "exact_qualification_receipt_bound",
@@ -609,6 +610,9 @@ console.log(
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_V1_GREEN",
 );
 console.log("source_generation_bound=true");
+console.log("source_binding_validation_required_for_plan=true");
+console.log("source_binding_id_committed_in_receipt=true");
+console.log("historical_source_binding_revalidation=false");
 console.log("qualification_receipt_self_hash_bound=true");
 console.log("qualification_id_rederived=true");
 console.log("collector_decision_hash_bound=true");
