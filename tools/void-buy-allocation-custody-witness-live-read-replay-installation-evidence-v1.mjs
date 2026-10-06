@@ -799,6 +799,13 @@ function classifySnapshot(snapshot, live) {
   }
 
   if (
+    journalFile.dev !== journalRoot.dev ||
+    highWaterFile.dev !== highWaterRoot.dev
+  ) {
+    fail("witness_replay_installation_evidence_file_storage_domain_mismatch");
+  }
+
+  if (
     raw.journal_intent_present !== false ||
     raw.high_water_intent_present !== false
   ) {
