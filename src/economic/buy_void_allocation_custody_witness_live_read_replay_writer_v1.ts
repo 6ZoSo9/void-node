@@ -6,10 +6,14 @@ import {
   withBuyVoidFilesystemBakeryLockV1,
 } from "./buy_void_filesystem_bakery_lock_v1.js";
 import {
-  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1,
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1,
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1,
 } from "./buy_void_allocation_custody_witness_live_read_replay_state_v1.js";
+import {
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1,
+  deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1,
+  type BuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1,
+} from "./buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1 =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1";
@@ -67,10 +71,6 @@ const HIGH_WATER_NAME = "live-read-replay-high-water-v1.json";
 const INTENT_NAME = "live-read-replay-publication-intent-v1.json";
 const LOCK_NAME = ".live-read-replay-writer-v1";
 
-const HIGH_WATER_SCHEMA =
-  "void_buy_void_allocation_custody_witness_live_read_replay_high_water_v1";
-const HIGH_WATER_MARKER =
-  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1";
 const INTENT_SCHEMA =
   "void_buy_void_allocation_custody_witness_live_read_replay_publication_intent_v1";
 const INTENT_MARKER =
@@ -81,8 +81,6 @@ const MAX_HIGH_WATER_BYTES = 16 * 1024;
 const MAX_INTENT_BYTES = 128 * 1024;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
-const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
-const HIGH_WATER_ID = /^voidwlrhw1_[0-9a-f]{64}$/u;
 const INTENT_ID = /^voidwlri1_[0-9a-f]{64}$/u;
 
 type PinnedDirectoryV1 = Readonly<{
@@ -92,28 +90,16 @@ type PinnedDirectoryV1 = Readonly<{
   proc_path: string;
 }>;
 
-type HighWaterV1 = Readonly<{
-  schema: typeof HIGH_WATER_SCHEMA;
-  marker: typeof HIGH_WATER_MARKER;
-  version: 1;
-  generation: number;
-  sequence: number;
-  event_count: number;
-  pending: boolean;
-  pending_challenge_sha256: string | null;
-  tip_event_sha256: string | null;
-  journal_sha256: string;
-  journal_bytes: number;
-  high_water_id: string;
-}>;
+type CanonicalHighWaterV1 =
+  BuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1;
 
 type IntentV1 = Readonly<{
   schema: typeof INTENT_SCHEMA;
   marker: typeof INTENT_MARKER;
   version: 1;
   operation: "issue" | "consumed" | "abandoned";
-  before_high_water: HighWaterV1;
-  after_high_water: HighWaterV1;
+  before_high_water_json: string;
+  after_high_water_json: string;
   event_jsonl_line: string;
   intent_id: string;
 }>;
@@ -165,13 +151,6 @@ function canonicalJson(value: unknown): string {
   fail("witness_live_read_replay_writer_noncanonical_value");
 }
 
-function sha256Id(value: string | Buffer): string {
-  return (
-    "sha256:" +
-    crypto.createHash("sha256").update(value).digest("hex")
-  );
-}
-
 function contentId(prefix: string, value: unknown): string {
   return (
     prefix +
@@ -200,34 +179,6 @@ function exactObject(
     fail(code);
   }
   return record;
-}
-
-function safeInt(
-  value: unknown,
-  min: number,
-  max: number,
-  code: string,
-): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isSafeInteger(value) ||
-    value < min ||
-    value > max
-  ) {
-    fail(code);
-  }
-  return value;
-}
-
-function nullableSha(
-  value: unknown,
-  code: string,
-): string | null {
-  if (value === null) return null;
-  if (typeof value !== "string" || !SHA256_ID.test(value)) {
-    fail(code);
-  }
-  return value;
 }
 
 function currentUid(): bigint {
@@ -628,175 +579,101 @@ function unlinkPinnedIfPresent(
   }
 }
 
-function highWaterBody(
-  value: Omit<HighWaterV1, "high_water_id">,
-) {
-  return Object.freeze({
-    schema: value.schema,
-    marker: value.marker,
-    version: value.version,
-    generation: value.generation,
-    sequence: value.sequence,
-    event_count: value.event_count,
-    pending: value.pending,
-    pending_challenge_sha256: value.pending_challenge_sha256,
-    tip_event_sha256: value.tip_event_sha256,
-    journal_sha256: value.journal_sha256,
-    journal_bytes: value.journal_bytes,
-  });
-}
-
-function buildHighWater(journal: Buffer): HighWaterV1 {
-  const state =
-    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(journal);
-  if (state.ok !== true) {
-    fail(
-      "witness_live_read_replay_writer_state_" +
-        String(state.reason || "invalid"),
-    );
-  }
-  const body = Object.freeze({
-    schema: HIGH_WATER_SCHEMA,
-    marker: HIGH_WATER_MARKER,
-    version: 1 as const,
-    generation: state.generation,
-    sequence: state.sequence,
-    event_count: state.event_count,
-    pending: state.pending,
-    pending_challenge_sha256: state.pending_challenge_sha256,
-    tip_event_sha256: state.tip_event_sha256,
-    journal_sha256: state.journal_sha256,
-    journal_bytes: journal.length,
-  });
-  return Object.freeze({
-    ...body,
-    high_water_id: contentId("voidwlrhw1_", body),
-  });
-}
-
-function parseHighWaterObject(value: unknown): HighWaterV1 {
-  const raw = exactObject(
-    value,
-    [
-      "schema",
-      "marker",
-      "version",
-      "generation",
-      "sequence",
-      "event_count",
-      "pending",
-      "pending_challenge_sha256",
-      "tip_event_sha256",
-      "journal_sha256",
-      "journal_bytes",
-      "high_water_id",
-    ],
-    "witness_live_read_replay_writer_high_water_shape_invalid",
-  );
-  if (
-    raw.schema !== HIGH_WATER_SCHEMA ||
-    raw.marker !== HIGH_WATER_MARKER ||
-    raw.version !== 1
-  ) {
-    fail("witness_live_read_replay_writer_high_water_identity_invalid");
-  }
-  const generation = safeInt(
-    raw.generation,
-    0,
-    Number.MAX_SAFE_INTEGER,
-    "witness_live_read_replay_writer_high_water_generation_invalid",
-  );
-  const sequence = safeInt(
-    raw.sequence,
-    0,
-    8192,
-    "witness_live_read_replay_writer_high_water_sequence_invalid",
-  );
-  const eventCount = safeInt(
-    raw.event_count,
-    0,
-    8192,
-    "witness_live_read_replay_writer_high_water_event_count_invalid",
-  );
-  const journalBytes = safeInt(
-    raw.journal_bytes,
-    0,
-    MAX_JOURNAL_BYTES,
-    "witness_live_read_replay_writer_high_water_journal_bytes_invalid",
-  );
-  if (sequence !== eventCount || typeof raw.pending !== "boolean") {
-    fail("witness_live_read_replay_writer_high_water_state_invalid");
-  }
-  const pendingChallenge = nullableSha(
-    raw.pending_challenge_sha256,
-    "witness_live_read_replay_writer_high_water_pending_invalid",
-  );
-  const tip = nullableSha(
-    raw.tip_event_sha256,
-    "witness_live_read_replay_writer_high_water_tip_invalid",
-  );
-  if (
-    typeof raw.journal_sha256 !== "string" ||
-    !SHA256_ID.test(raw.journal_sha256) ||
-    typeof raw.high_water_id !== "string" ||
-    !HIGH_WATER_ID.test(raw.high_water_id)
-  ) {
-    fail("witness_live_read_replay_writer_high_water_digest_invalid");
-  }
-  if (
-    (raw.pending === true && pendingChallenge === null) ||
-    (raw.pending === false && pendingChallenge !== null) ||
-    (sequence === 0 && (generation !== 0 || tip !== null)) ||
-    (sequence > 0 && (generation < 1 || tip === null))
-  ) {
-    fail("witness_live_read_replay_writer_high_water_state_invalid");
-  }
-  const normalized: HighWaterV1 = Object.freeze({
-    schema: HIGH_WATER_SCHEMA,
-    marker: HIGH_WATER_MARKER,
-    version: 1,
-    generation,
-    sequence,
-    event_count: eventCount,
-    pending: raw.pending,
-    pending_challenge_sha256: pendingChallenge,
-    tip_event_sha256: tip,
-    journal_sha256: raw.journal_sha256,
-    journal_bytes: journalBytes,
-    high_water_id: raw.high_water_id,
-  });
-  if (
-    normalized.high_water_id !==
-      contentId("voidwlrhw1_", highWaterBody(normalized))
-  ) {
-    fail("witness_live_read_replay_writer_high_water_id_invalid");
-  }
-  return normalized;
-}
-
-function highWaterBytes(value: HighWaterV1): Buffer {
-  return Buffer.from(canonicalJson(value) + "\n", "utf8");
-}
-
-function parseHighWaterBytes(bytes: Buffer): HighWaterV1 {
+function canonicalHighWaterString(
+  value: unknown,
+  code: string,
+): string {
+  if (typeof value !== "string") fail(code);
+  const bytes = Buffer.from(value, "utf8");
   if (
     bytes.length < 2 ||
     bytes.length > MAX_HIGH_WATER_BYTES ||
-    bytes.at(-1) !== 0x0a
+    !value.endsWith("\n")
+  ) {
+    fail(code);
+  }
+  return value;
+}
+
+function deriveCanonicalHighWater(
+  journal: Buffer,
+): Readonly<{
+  high_water: CanonicalHighWaterV1;
+  high_water_json: string;
+  high_water_bytes: Buffer;
+  high_water_sha256: string;
+}> {
+  const decision =
+    deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1(
+      journal,
+    );
+  if (decision.ok !== true) {
+    fail(
+      "witness_live_read_replay_writer_high_water_" +
+        String(decision.reason || "derive_failed"),
+    );
+  }
+  const bytes = Buffer.from(decision.high_water_json, "utf8");
+  if (
+    bytes.length < 2 ||
+    bytes.length > MAX_HIGH_WATER_BYTES
   ) {
     fail("witness_live_read_replay_writer_high_water_bytes_invalid");
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(bytes.toString("utf8").slice(0, -1));
-  } catch {
-    fail("witness_live_read_replay_writer_high_water_json_invalid");
+  return Object.freeze({
+    high_water: decision.high_water,
+    high_water_json: decision.high_water_json,
+    high_water_bytes: bytes,
+    high_water_sha256: decision.high_water_sha256,
+  });
+}
+
+function bindCanonicalHighWater(
+  journal: Buffer,
+  highWaterBytes: Buffer,
+): Readonly<{
+  high_water: CanonicalHighWaterV1;
+  high_water_json: string;
+  high_water_bytes: Buffer;
+  high_water_sha256: string;
+}> {
+  const decision =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+      {
+        journal_jsonl: journal,
+        high_water_json: highWaterBytes,
+      },
+    );
+  if (decision.ok !== true) {
+    fail(
+      "witness_live_read_replay_writer_high_water_" +
+        String(decision.reason || "binding_failed"),
+    );
   }
-  const value = parseHighWaterObject(parsed);
-  if (!bytes.equals(highWaterBytes(value))) {
+  const canonical = Buffer.from(decision.high_water_json, "utf8");
+  if (!canonical.equals(highWaterBytes)) {
     fail("witness_live_read_replay_writer_high_water_noncanonical");
   }
-  return value;
+  return Object.freeze({
+    high_water: decision.high_water,
+    high_water_json: decision.high_water_json,
+    high_water_bytes: canonical,
+    high_water_sha256: decision.high_water_sha256,
+  });
+}
+
+function highWaterBindingMatches(
+  journal: Buffer,
+  highWaterJson: string,
+): boolean {
+  const decision =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+      {
+        journal_jsonl: journal,
+        high_water_json: highWaterJson,
+      },
+    );
+  return decision.ok === true;
 }
 
 function intentBody(value: Omit<IntentV1, "intent_id">) {
@@ -805,19 +682,28 @@ function intentBody(value: Omit<IntentV1, "intent_id">) {
     marker: value.marker,
     version: value.version,
     operation: value.operation,
-    before_high_water: value.before_high_water,
-    after_high_water: value.after_high_water,
+    before_high_water_json: value.before_high_water_json,
+    after_high_water_json: value.after_high_water_json,
     event_jsonl_line: value.event_jsonl_line,
   });
 }
 
 function buildIntent(
   operation: "issue" | "consumed" | "abandoned",
-  before: HighWaterV1,
-  after: HighWaterV1,
+  beforeHighWaterJson: string,
+  afterHighWaterJson: string,
   eventLine: string,
 ): IntentV1 {
+  const before = canonicalHighWaterString(
+    beforeHighWaterJson,
+    "witness_live_read_replay_writer_intent_before_high_water_invalid",
+  );
+  const after = canonicalHighWaterString(
+    afterHighWaterJson,
+    "witness_live_read_replay_writer_intent_after_high_water_invalid",
+  );
   if (
+    before === after ||
     !eventLine.endsWith("\n") ||
     eventLine.slice(0, -1).includes("\n") ||
     Buffer.byteLength(eventLine, "utf8") > 32 * 1024
@@ -829,8 +715,8 @@ function buildIntent(
     marker: INTENT_MARKER,
     version: 1 as const,
     operation,
-    before_high_water: before,
-    after_high_water: after,
+    before_high_water_json: before,
+    after_high_water_json: after,
     event_jsonl_line: eventLine,
   });
   return Object.freeze({
@@ -864,8 +750,8 @@ function parseIntentBytes(bytes: Buffer): IntentV1 {
       "marker",
       "version",
       "operation",
-      "before_high_water",
-      "after_high_water",
+      "before_high_water_json",
+      "after_high_water_json",
       "event_jsonl_line",
       "intent_id",
     ],
@@ -886,12 +772,16 @@ function parseIntentBytes(bytes: Buffer): IntentV1 {
   ) {
     fail("witness_live_read_replay_writer_intent_identity_invalid");
   }
-  const before = parseHighWaterObject(raw.before_high_water);
-  const after = parseHighWaterObject(raw.after_high_water);
   const normalized = buildIntent(
     raw.operation,
-    before,
-    after,
+    canonicalHighWaterString(
+      raw.before_high_water_json,
+      "witness_live_read_replay_writer_intent_before_high_water_invalid",
+    ),
+    canonicalHighWaterString(
+      raw.after_high_water_json,
+      "witness_live_read_replay_writer_intent_after_high_water_invalid",
+    ),
     raw.event_jsonl_line,
   );
   if (normalized.intent_id !== raw.intent_id) {
@@ -918,24 +808,25 @@ function coherentState(
   if (testOnlyAfterJournalRead !== null) {
     testOnlyAfterJournalRead();
   }
-  const highWater = parseHighWaterBytes(
-    readPinnedFile(
-      highWaterDirectory,
-      HIGH_WATER_NAME,
-      MAX_HIGH_WATER_BYTES,
-      false,
-      "witness_live_read_replay_writer_high_water",
-    ),
+  const highWaterBytes = readPinnedFile(
+    highWaterDirectory,
+    HIGH_WATER_NAME,
+    MAX_HIGH_WATER_BYTES,
+    false,
+    "witness_live_read_replay_writer_high_water",
   );
-  const expected = buildHighWater(journal);
-  if (
-    highWater.high_water_id !== expected.high_water_id ||
-    !highWaterBytes(highWater).equals(highWaterBytes(expected))
-  ) {
-    fail("witness_live_read_replay_writer_high_water_journal_mismatch");
-  }
+  const highWater = bindCanonicalHighWater(
+    journal,
+    highWaterBytes,
+  );
   assertPinnedRootsVisible(journalDirectory, highWaterDirectory);
-  return Object.freeze({ journal, high_water: highWater });
+  return Object.freeze({
+    journal,
+    high_water: highWater.high_water,
+    high_water_json: highWater.high_water_json,
+    high_water_bytes: highWater.high_water_bytes,
+    high_water_sha256: highWater.high_water_sha256,
+  });
 }
 
 function writeIntent(
@@ -966,20 +857,6 @@ function readOptionalIntent(
     intent: parseIntentBytes(bytes),
     bytes,
   });
-}
-
-function currentHighWater(
-  directory: PinnedDirectoryV1,
-): HighWaterV1 {
-  return parseHighWaterBytes(
-    readPinnedFile(
-      directory,
-      HIGH_WATER_NAME,
-      MAX_HIGH_WATER_BYTES,
-      false,
-      "witness_live_read_replay_writer_high_water",
-    ),
-  );
 }
 
 function recoveryLocked(
@@ -1013,7 +890,16 @@ function recoveryLocked(
   ) {
     fail("witness_live_read_replay_writer_redundant_intent_mismatch");
   }
+
   const intent = selected.intent;
+  const beforeHighWaterBytes = Buffer.from(
+    intent.before_high_water_json,
+    "utf8",
+  );
+  const afterHighWaterBytes = Buffer.from(
+    intent.after_high_water_json,
+    "utf8",
+  );
   const journal = readPinnedFile(
     journalDirectory,
     JOURNAL_NAME,
@@ -1021,18 +907,26 @@ function recoveryLocked(
     true,
     "witness_live_read_replay_writer_journal",
   );
-  const highWater = currentHighWater(highWaterDirectory);
-  const journalSha = sha256Id(journal);
-  const journalIsBefore =
-    journalSha === intent.before_high_water.journal_sha256 &&
-    journal.length === intent.before_high_water.journal_bytes;
-  const journalIsAfter =
-    journalSha === intent.after_high_water.journal_sha256 &&
-    journal.length === intent.after_high_water.journal_bytes;
+  const observedHighWater = readPinnedFile(
+    highWaterDirectory,
+    HIGH_WATER_NAME,
+    MAX_HIGH_WATER_BYTES,
+    false,
+    "witness_live_read_replay_writer_high_water",
+  );
+
+  const journalIsBefore = highWaterBindingMatches(
+    journal,
+    intent.before_high_water_json,
+  );
+  const journalIsAfter = highWaterBindingMatches(
+    journal,
+    intent.after_high_water_json,
+  );
   const highWaterIsBefore =
-    highWater.high_water_id === intent.before_high_water.high_water_id;
+    observedHighWater.equals(beforeHighWaterBytes);
   const highWaterIsAfter =
-    highWater.high_water_id === intent.after_high_water.high_water_id;
+    observedHighWater.equals(afterHighWaterBytes);
 
   if (!journalIsBefore && !journalIsAfter) {
     fail("witness_live_read_replay_writer_recovery_journal_unknown");
@@ -1042,6 +936,41 @@ function recoveryLocked(
   }
   if (journalIsBefore && highWaterIsAfter) {
     fail("witness_live_read_replay_writer_recovery_order_violation");
+  }
+
+  const eventBytes = Buffer.from(intent.event_jsonl_line, "utf8");
+  let beforeJournal: Buffer;
+  let afterJournal: Buffer;
+  if (journalIsBefore) {
+    beforeJournal = journal;
+    afterJournal = Buffer.concat([journal, eventBytes]);
+  } else {
+    if (
+      journal.length <= eventBytes.length ||
+      !journal
+        .subarray(journal.length - eventBytes.length)
+        .equals(eventBytes)
+    ) {
+      fail("witness_live_read_replay_writer_recovery_append_mismatch");
+    }
+    beforeJournal = journal.subarray(
+      0,
+      journal.length - eventBytes.length,
+    );
+    afterJournal = journal;
+  }
+
+  if (
+    !highWaterBindingMatches(
+      beforeJournal,
+      intent.before_high_water_json,
+    ) ||
+    !highWaterBindingMatches(
+      afterJournal,
+      intent.after_high_water_json,
+    )
+  ) {
+    fail("witness_live_read_replay_writer_recovery_endpoint_mismatch");
   }
 
   let mutation = false;
@@ -1054,22 +983,11 @@ function recoveryLocked(
     mutation = true;
   }
 
-  let nextJournal = journal;
   if (journalIsBefore) {
-    nextJournal = Buffer.concat([
-      journal,
-      Buffer.from(intent.event_jsonl_line, "utf8"),
-    ]);
-    const derived = buildHighWater(nextJournal);
-    if (
-      derived.high_water_id !== intent.after_high_water.high_water_id
-    ) {
-      fail("witness_live_read_replay_writer_recovery_after_mismatch");
-    }
     atomicReplace(
       journalDirectory,
       JOURNAL_NAME,
-      nextJournal,
+      afterJournal,
       MAX_JOURNAL_BYTES,
       true,
       "witness_live_read_replay_writer_journal",
@@ -1080,7 +998,7 @@ function recoveryLocked(
     atomicReplace(
       highWaterDirectory,
       HIGH_WATER_NAME,
-      highWaterBytes(intent.after_high_water),
+      afterHighWaterBytes,
       MAX_HIGH_WATER_BYTES,
       false,
       "witness_live_read_replay_writer_high_water",
@@ -1096,10 +1014,7 @@ function recoveryLocked(
     highWaterDirectory,
     testOnlyFinalSnapshotHook,
   );
-  if (
-    coherent.high_water.high_water_id !==
-      intent.after_high_water.high_water_id
-  ) {
+  if (!coherent.high_water_bytes.equals(afterHighWaterBytes)) {
     fail("witness_live_read_replay_writer_recovery_postcheck_failed");
   }
   return Object.freeze({
@@ -1158,7 +1073,8 @@ function success(
     | "persisted_issue"
     | "persisted_consumed"
     | "persisted_abandoned",
-  highWater: HighWaterV1,
+  highWater: CanonicalHighWaterV1,
+  highWaterSha256: string,
   operationPerformed: boolean,
   recoveryPerformed: boolean,
 ) {
@@ -1175,10 +1091,14 @@ function success(
     event_count: highWater.event_count,
     pending: highWater.pending,
     pending_challenge_sha256: highWater.pending_challenge_sha256,
+    pending_challenge_id: highWater.pending_challenge_id,
+    pending_expires_at_ms: highWater.pending_expires_at_ms,
     tip_event_sha256: highWater.tip_event_sha256,
+    last_terminal_state: highWater.last_terminal_state,
+    ready_for_issue: highWater.ready_for_issue,
     journal_sha256: highWater.journal_sha256,
     journal_bytes: highWater.journal_bytes,
-    high_water_id: highWater.high_water_id,
+    high_water_sha256: highWaterSha256,
     durable_journal_publication_semantics: true as const,
     durable_high_water_publication_semantics: true as const,
     cross_root_rollback_detection_semantics: true as const,
@@ -1200,11 +1120,12 @@ function success(
 
 export function buildBuyVoidAllocationCustodyWitnessLiveReadReplayGenesisHighWaterV1() {
   const journal = Buffer.alloc(0);
-  const highWater = buildHighWater(journal);
+  const highWater = deriveCanonicalHighWater(journal);
   return Object.freeze({
     journal_bytes: Buffer.from(journal),
-    high_water: highWater,
-    high_water_bytes: highWaterBytes(highWater),
+    high_water: highWater.high_water,
+    high_water_bytes: highWater.high_water_bytes,
+    high_water_sha256: highWater.high_water_sha256,
   });
 }
 
@@ -1231,6 +1152,7 @@ export function testOnlyInspectBuyVoidAllocationCustodyWitnessLiveReadReplayWrit
         return success(
           recovered.recovered ? "recovered" : "inspected",
           recovered.high_water,
+          recovered.high_water_sha256,
           recovered.mutation_performed,
           recovered.recovered,
         );
@@ -1263,6 +1185,7 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterV1(
         return success(
           recovered.recovered ? "recovered" : "inspected",
           recovered.high_water,
+          recovered.high_water_sha256,
           recovered.mutation_performed,
           recovered.recovered,
         );
@@ -1308,7 +1231,7 @@ function persistTransition(
           journalDirectory,
           highWaterDirectory,
         );
-        const before = recovered.high_water;
+        const beforeHighWaterJson = recovered.high_water_json;
         const journalText = recovered.journal.toString("utf8");
 
         const planned =
@@ -1337,7 +1260,7 @@ function persistTransition(
           planned.next_journal_jsonl,
           "utf8",
         );
-        const after = buildHighWater(nextJournal);
+        const after = deriveCanonicalHighWater(nextJournal);
         const operation =
           input.kind === "issue"
             ? "issue"
@@ -1346,8 +1269,8 @@ function persistTransition(
               : "abandoned";
         const intent = buildIntent(
           operation,
-          before,
-          after,
+          beforeHighWaterJson,
+          after.high_water_json,
           planned.event_jsonl_line,
         );
 
@@ -1375,7 +1298,7 @@ function persistTransition(
         atomicReplace(
           highWaterDirectory,
           HIGH_WATER_NAME,
-          highWaterBytes(after),
+          after.high_water_bytes,
           MAX_HIGH_WATER_BYTES,
           false,
           "witness_live_read_replay_writer_high_water",
@@ -1392,7 +1315,7 @@ function persistTransition(
           highWaterDirectory,
           testOnlyFinalSnapshotHook,
         );
-        if (post.high_water.high_water_id !== after.high_water_id) {
+        if (post.high_water_sha256 !== after.high_water_sha256) {
           fail("witness_live_read_replay_writer_postcheck_failed");
         }
 
@@ -1403,6 +1326,7 @@ function persistTransition(
               ? "persisted_consumed"
               : "persisted_abandoned",
           post.high_water,
+          post.high_water_sha256,
           true,
           recovered.recovered,
         );
