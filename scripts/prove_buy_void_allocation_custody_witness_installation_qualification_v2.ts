@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import fs from "node:fs";
 
 import {
   classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
@@ -19,6 +20,45 @@ import {
 
 const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
+
+const handlerPath =
+  "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs";
+const handlerBytes = fs.readFileSync(handlerPath);
+const actualHandlerGitBlobSha1 = crypto
+  .createHash("sha1")
+  .update(
+    Buffer.concat([
+      Buffer.from("blob " + handlerBytes.length + "\0", "utf8"),
+      handlerBytes,
+    ]),
+  )
+  .digest("hex");
+assert.equal(
+  actualHandlerGitBlobSha1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V2,
+  "V2 qualifier must pin the actual merged handler Git blob",
+);
+const handlerSource = handlerBytes.toString("utf8");
+assert.ok(
+  handlerSource.includes(
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_SHA256_V1.slice(
+      "sha256:".length,
+    ),
+  ),
+  "qualifier continuity SHA must be present in the reviewed handler",
+);
+assert.ok(
+  handlerSource.includes(
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_ID_V1,
+  ),
+  "qualifier continuity ID must be present in the reviewed handler",
+);
+assert.ok(
+  handlerSource.includes(
+    "17bdb840978606db5145696a7b5085cabbcf27dee76b35a1b57324c1021241ef",
+  ),
+  "qualifier census reference must be present in the reviewed handler",
+);
 
 const transportPolicy = {
   transport: "ssh",
