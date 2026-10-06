@@ -605,6 +605,50 @@ for (const phase of [
 {
   const f = fixture();
   try {
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        "after_journal_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_journal_intent/u);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+    fs.writeFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+      Buffer.from('{"stale":true}\n', "utf8"),
+      { mode: 0o600 },
+    );
+    const held = requireHeld(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+    );
+    assert.match(held.reason, /receipt_writer_recovery_high_water_unknown/u);
+    assert.equal(
+      held.operation_performed,
+      false,
+      "unknown-state recovery must not repair the missing redundant intent",
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
     const staleTemp = path.join(
       f.journalRoot,
       "." + JOURNAL_NAME + ".tmp-" + String(process.pid) + "-bbbbbbbbbbbbbbbb",
@@ -791,6 +835,7 @@ console.log("exact_post_reclassification=true");
 console.log("exact_terminal_idempotent_retry=true");
 console.log("intent_bound_high_water_ahead_recovery=true");
 console.log("pending_intent_exact_input_binding=true");
+console.log("unknown_state_before_redundant_intent_repair=true");
 console.log("storage_bootstrap=false");
 console.log("rollback_resistance_proven=false");
 console.log("protected_custody_proven=false");
