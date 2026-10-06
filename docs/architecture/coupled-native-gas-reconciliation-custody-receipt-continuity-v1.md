@@ -80,7 +80,9 @@ Each record contains exactly:
 - `collector_decision_sha256`;
 - `qualification_id_sha256`;
 - `qualification_receipt_sha256`;
-- host, payer, payer-domain and payer-root identities;
+- host, payer, payer-domain and payer-root pathname identities;
+- canonical payer-root storage identity SHA-256 derived from the qualified root
+  path + device + inode + mount ID + mount-instance fingerprint;
 - machine and boot identity digests;
 - collector observed/completed timestamps;
 - the collector's evidence-generation string; and
@@ -107,8 +109,15 @@ Within one supplied chain, these must remain exact:
 - host ID;
 - payer address;
 - payer-domain ID;
-- payer-root path; and
+- payer-root path;
+- payer-root storage identity SHA-256; and
 - machine ID digest.
+
+The root-storage digest is rederived for every newly planned receipt from the
+embedded qualified root path, device, inode, mount ID and mount-instance
+fingerprint. A same-path root replacement/remount therefore requires a
+separately reviewed bootstrap or migration boundary rather than silently
+continuing the chain.
 
 A changed boot ID is allowed. Reboot is not equivalent to machine replacement.
 
@@ -201,7 +210,9 @@ The proof covers:
 - same qualification receipt replayed under a differently hashed bounded
   collector wrapper;
 - duplicate qualification-receipt hash inside a supplied journal;
-- host, payer, payer-domain, root and machine drift;
+- host, payer, payer-domain, root-path and machine drift;
+- same-path root device, inode, mount-ID and mount-fingerprint drift;
+- historical payer-root storage-identity digest drift;
 - synthetic collector rejection;
 - attempted trusted-collector promotion;
 - oversized collector-decision input;
