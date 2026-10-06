@@ -1381,6 +1381,14 @@ function collectOnce(config, io, observedAtMs) {
   });
 }
 
+export function testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2(
+  file,
+  maxBytes = 4096,
+) {
+  const observed = defaultIo().readFileNoFollow(file, maxBytes);
+  return Buffer.from(observed.bytes);
+}
+
 export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
   rawConfig,
   injectedIo = null,
