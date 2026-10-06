@@ -12,6 +12,7 @@ import {
   testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1,
   inspectCoupledNativeGasReconciliationCustodySourceBindingV1,
   testOnlyPinnedObservationPlanV1,
+  testOnlyRepositoryCleanStateV1,
   testOnlyRequireObservationHeadUnchangedV1,
   testOnlyWorktreeGitBlobSha1V1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs";
@@ -246,13 +247,24 @@ for (const [flag, clearFlag] of [
       flag + " must reproduce hidden worktree drift",
     );
 
+    const headResult = runGit(["rev-parse", "HEAD"]);
+    assert.equal(headResult.status, 0, String(headResult.stderr || ""));
+    assert.throws(
+      () =>
+        testOnlyRepositoryCleanStateV1(
+          String(headResult.stdout || "").trim(),
+        ),
+      /source_binding_repository_index_flags_forbidden/u,
+      flag + " must be rejected before clean-state authority",
+    );
+
     const held =
       inspectCoupledNativeGasReconciliationCustodySourceBindingV1();
     assert.equal(held.ok, false, flag);
     if (held.ok) throw new Error("expected hidden worktree drift HOLD");
     assert.equal(
       held.reason,
-      "source_binding_reviewed_source_worktree_drift:" + target,
+      "source_binding_repository_index_flags_forbidden",
       flag,
     );
   } finally {
@@ -433,6 +445,87 @@ assert.throws(
 }
 
 {
+  const runGit = (args) =>
+    spawnSync("/usr/bin/git", args, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+    });
+  const commonResult = runGit(["rev-parse", "--git-common-dir"]);
+  assert.equal(
+    commonResult.status,
+    0,
+    String(commonResult.stderr || ""),
+  );
+  const commonRaw = String(commonResult.stdout || "").trim();
+  const commonDir = path.isAbsolute(commonRaw)
+    ? path.resolve(commonRaw)
+    : path.resolve(process.cwd(), commonRaw);
+  const attributesPath = path.join(commonDir, "info", "attributes");
+  const attributesExisted = fs.existsSync(attributesPath);
+  const attributesBefore = attributesExisted
+    ? fs.readFileSync(attributesPath)
+    : null;
+  const filterKey = "filter.voidsourcebindingrace.clean";
+  const sentinel = path.join(
+    process.cwd(),
+    ".void-source-binding-filter-race-sentinel",
+  );
+  const headResult = runGit(["rev-parse", "HEAD"]);
+  assert.equal(headResult.status, 0, String(headResult.stderr || ""));
+  const head = String(headResult.stdout || "").trim();
+
+  try {
+    fs.mkdirSync(path.dirname(attributesPath), { recursive: true });
+    fs.writeFileSync(
+      attributesPath,
+      "package.json filter=voidsourcebindingrace\n",
+      { mode: 0o600 },
+    );
+    const set = runGit([
+      "config",
+      "--local",
+      filterKey,
+      "sh -c 'echo executed > " + sentinel + "; cat'",
+    ]);
+    assert.equal(set.status, 0, String(set.stderr || ""));
+    fs.rmSync(sentinel, { force: true });
+
+    assert.equal(
+      testOnlyRepositoryCleanStateV1(head),
+      true,
+      "clean-state plumbing must not execute repository filters",
+    );
+    assert.equal(
+      fs.existsSync(sentinel),
+      false,
+      "repository filter must not execute in clean-state proof",
+    );
+  } finally {
+    fs.rmSync(sentinel, { force: true });
+    const unset = runGit([
+      "config",
+      "--local",
+      "--unset-all",
+      filterKey,
+    ]);
+    assert.ok(
+      unset.status === 0 || unset.status === 5,
+      String(unset.stderr || ""),
+    );
+    if (attributesExisted) {
+      fs.writeFileSync(attributesPath, attributesBefore);
+    } else {
+      fs.rmSync(attributesPath, { force: true });
+    }
+  }
+}
+
+{
   const common = spawnSync(
     "/usr/bin/git",
     ["rev-parse", "--git-common-dir"],
@@ -564,6 +657,9 @@ console.log("ambient_git_overrides_ignored=true");
 console.log("immutable_commit_observation_plan=true");
 console.log("final_head_drift_rejected=true");
 console.log("repository_filter_config_rejected=true");
+console.log("repository_filter_toctou_execution_removed=true");
+console.log("repository_index_suppression_flags_rejected=true");
+console.log("repository_clean_state_uses_nonconverting_plumbing=true");
 console.log("per_worktree_filter_config_rejected=true");
 console.log("legacy_graft_overlay_rejected=true");
 console.log("nonblocking_worktree_open=true");
