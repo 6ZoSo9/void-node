@@ -433,6 +433,10 @@ function unlinkPinnedNamedFile(directory, name, reason) {
   if (!sameFileCore(before, pinnedStat)) fail(reason + "_path_not_bound");
   fs.unlinkSync(pinned);
   fs.fsyncSync(directory.fd);
+  assertPinnedDirectoryVisible(
+    directory,
+    reason + "_directory",
+  );
 }
 
 function openPinnedWitnessForUpdate(directory) {
