@@ -50,15 +50,19 @@ The live collector:
 4. opens the final basename from the retained parent with
    `O_NOFOLLOW`;
 5. requires the visible identity and opened descriptor identity to match;
-6. reads from that exact descriptor;
-7. re-`fstat`s and rebinds the visible final path after the read.
+6. reads exactly the size accepted from the opened descriptor, using bounded
+   positional reads;
+7. probes one byte at the original EOF and HOLDS if the file grew after open;
+8. re-`fstat`s and rebinds the visible final path after the read.
 
 The parent-chain ownership claim is separately descriptor-walked and requires
 every claimed root-owned parent to remain the same directory identity, owned by
 UID 0 and not group/world writable.
 
 Symlinked ancestors therefore cannot redirect the evidence read while still
-producing a qualified parent-chain claim.
+producing a qualified parent-chain claim. The focused proof also grows a
+temporary file after descriptor open and requires deterministic HOLD, so the
+size ceiling is behavioral rather than a static source claim.
 
 ## V2 installation evidence
 
