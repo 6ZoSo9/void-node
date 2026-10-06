@@ -20,6 +20,7 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_EDGE_COMPOSITION_AUTHORITY_V
     all_forwarded_headers_sanitized: true,
     http_parser_stream_binding_proven: false,
     credential_route_source_rate_planning: true,
+    credential_route_normalization_aliases_rejected: true,
     noncredential_route_passthrough: true,
     credential_route_limits_bound: true,
     credential_route_limits_enforced: false,
@@ -162,6 +163,7 @@ function baseSuccess(parsedSource, sanitized, requestLine) {
     removed_spoofable_headers: sanitized.removed_spoofable_headers,
     edge_limiter_source_key: sanitized.limiter_source_key,
     source_identity_forwarded_to_gateway: false,
+    credential_route_normalization_aliases_rejected: true,
     credential_route_limits: Object.freeze({
       max_body_bytes: VOID_AGENT_CREDENTIAL_REQUEST_MAX_BODY_BYTES_V1,
       upstream_timeout_ms: VOID_AGENT_CREDENTIAL_REQUEST_TIMEOUT_MS_V1,
@@ -219,9 +221,17 @@ export function classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1(
     }
 
     const base = baseSuccess(parsedSource, sanitized, requestLine);
-    const credentialPost =
+    const normalizedCredentialPost =
       requestLine.method === "POST" &&
+      requestLine.pathname === VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1 &&
+      requestLine.search === "";
+    const credentialPost =
+      normalizedCredentialPost &&
       requestLine.target === VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1;
+
+    if (normalizedCredentialPost && !credentialPost) {
+      throw new Error("edge_credential_request_target_noncanonical");
+    }
 
     if (!credentialPost) {
       return Object.freeze({
