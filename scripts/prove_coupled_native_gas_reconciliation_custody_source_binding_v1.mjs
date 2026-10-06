@@ -11,6 +11,7 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V1,
   testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1,
   inspectCoupledNativeGasReconciliationCustodySourceBindingV1,
+  testOnlyGitEnvironmentV1,
   testOnlyPinnedObservationPlanV1,
   testOnlyRepositoryCleanStateV1,
   testOnlyRequireObservationHeadUnchangedV1,
@@ -77,6 +78,53 @@ assert.equal(
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1
     .reviewed_worktree_revalidated_after_clean_census,
   true,
+);
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1
+    .lazy_fetch_disabled,
+  true,
+);
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1
+    .repository_grafts_redirected_to_null,
+  true,
+);
+assert.equal(
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1
+    .descriptor_mode_bound_to_hashed_bytes,
+  true,
+);
+
+const closedGitEnv = testOnlyGitEnvironmentV1();
+assert.deepEqual(closedGitEnv, {
+  PATH: "/usr/bin:/bin",
+  LANG: "C",
+  LC_ALL: "C",
+  HOME: "/nonexistent",
+  XDG_CONFIG_HOME: "/nonexistent",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_ATTR_NOSYSTEM: "1",
+  GIT_OPTIONAL_LOCKS: "0",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_NO_REPLACE_OBJECTS: "1",
+  GIT_NO_LAZY_FETCH: "1",
+  GIT_GRAFT_FILE: "/dev/null",
+  GIT_ALLOW_PROTOCOL: "file",
+});
+const noLazySupported = spawnSync(
+  "/usr/bin/git",
+  ["--no-lazy-fetch", "--version"],
+  {
+    encoding: "utf8",
+    env: closedGitEnv,
+  },
+);
+assert.equal(
+  noLazySupported.status,
+  0,
+  String(noLazySupported.stderr || ""),
 );
 
 const alternativeHead =
@@ -176,6 +224,9 @@ for (const [key, value] of Object.entries(
     "source_only_contract",
     "git_repository_identity_read",
     "subprocess_git_read",
+    "lazy_fetch_disabled",
+    "repository_grafts_redirected_to_null",
+    "descriptor_mode_bound_to_hashed_bytes",
     "filesystem_read",
     "clean_worktree_required",
     "reviewed_base_ancestry_required",
@@ -655,9 +706,27 @@ assert.throws(
     fs.writeFileSync(regular, Buffer.from("reviewed-bytes\n", "utf8"));
 
     assert.match(
-      testOnlyWorktreeGitBlobSha1V1(relative),
+      testOnlyWorktreeGitBlobSha1V1(relative, {
+        expectedIndexMode: "100644",
+      }),
       /^[0-9a-f]{40}$/u,
     );
+
+    fs.chmodSync(regular, 0o755);
+    assert.throws(
+      () =>
+        testOnlyWorktreeGitBlobSha1V1(relative, {
+          expectedIndexMode: "100644",
+        }),
+      /source_binding_worktree_mode_invalid:/u,
+    );
+    assert.match(
+      testOnlyWorktreeGitBlobSha1V1(relative, {
+        expectedIndexMode: "100755",
+      }),
+      /^[0-9a-f]{40}$/u,
+    );
+    fs.chmodSync(regular, 0o644);
 
     assert.throws(
       () =>
@@ -722,6 +791,10 @@ console.log("repository_clean_state_uses_nonconverting_plumbing=true");
 console.log("repository_all_tracked_bytes_match_index_without_filters=true");
 console.log("per_worktree_filter_config_rejected=true");
 console.log("legacy_graft_overlay_rejected=true");
+console.log("git_lazy_fetch_disabled=true");
+console.log("git_network_protocols_denied=true");
+console.log("graft_loading_redirected_per_git_subprocess=true");
+console.log("descriptor_mode_bound_to_hashed_bytes=true");
 console.log("nonblocking_worktree_open=true");
 console.log("bounded_worktree_read_with_growth_probe=true");
 console.log("writer_generation_binding_proven=true");
