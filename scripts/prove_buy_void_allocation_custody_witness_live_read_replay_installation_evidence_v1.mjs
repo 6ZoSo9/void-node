@@ -16,6 +16,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
   inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1,
   testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotV1,
+  testOnlyStableBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotsEqualV1,
   testOnlySingleParentNameV1,
   testOnlyStatHexDeviceNumberToDecimalV1,
 } from "../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs";
@@ -94,6 +95,10 @@ function snapshot(overrides = {}) {
   };
   const jf = {
     path: path.join(jr.path, "live-read-replay-v1.jsonl"),
+    dev: jr.dev,
+    ino: "101",
+    mtime_ns: "1800000000000000000",
+    ctime_ns: "1800000000000000001",
     sha256: sha256Id(journalBytes),
     bytes: journalBytes.length,
     uid: jr.uid,
@@ -106,6 +111,10 @@ function snapshot(overrides = {}) {
   };
   const hf = {
     path: path.join(hr.path, "live-read-replay-high-water-v1.json"),
+    dev: hr.dev,
+    ino: "201",
+    mtime_ns: "1800000000000000010",
+    ctime_ns: "1800000000000000011",
     sha256: sha256Id(highWaterBytes),
     bytes: highWaterBytes.length,
     uid: jr.uid,
@@ -159,6 +168,45 @@ assert.equal(green.rollback_resistance_proven, false);
 assert.equal(green.protected_high_water_custody_proven, false);
 assert.equal(green.independent_custody_proven, false);
 assert.equal(green.production_gate_ready, false);
+
+assert.equal(
+  testOnlyStableBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotsEqualV1(
+    snapshot(),
+    snapshot(),
+  ),
+  true,
+);
+assert.equal(
+  testOnlyStableBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotsEqualV1(
+    snapshot(),
+    snapshot({ journal_file: { ino: "999" } }),
+  ),
+  false,
+  "journal inode replacement between censuses must be visible",
+);
+assert.equal(
+  testOnlyStableBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotsEqualV1(
+    snapshot(),
+    snapshot({ high_water_file: { ctime_ns: "1800000000000000999" } }),
+  ),
+  false,
+  "high-water identity/timestamp drift between censuses must be visible",
+);
+
+{
+  const held =
+    testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotV1(
+      snapshot({
+        journal_file: { dev: "9999" },
+      }),
+    );
+  assert.equal(held.ok, false);
+  if (held.ok) throw new Error("file storage-domain mismatch unexpectedly green");
+  assert.equal(
+    held.reason,
+    "witness_replay_installation_evidence_file_storage_domain_mismatch",
+  );
+}
 
 for (const patch of [
   { dev: journalRoot.dev },
