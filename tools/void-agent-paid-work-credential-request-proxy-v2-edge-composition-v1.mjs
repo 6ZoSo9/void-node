@@ -92,7 +92,15 @@ function parseHttpRequestLine(connectionPrefix, offset) {
   if (lineEnd < 1 || lineEnd > MAX_HTTP_REQUEST_LINE_BYTES) {
     throw new Error("edge_http_request_line_invalid");
   }
-  const line = view.subarray(0, lineEnd).toString("ascii");
+  const rawLine = view.subarray(0, lineEnd);
+  if (
+    [...rawLine].some(
+      (byte) => byte < 0x20 || byte > 0x7e,
+    )
+  ) {
+    throw new Error("edge_http_request_line_invalid");
+  }
+  const line = rawLine.toString("ascii");
   if (!HTTP_REQUEST_LINE.test(line)) {
     throw new Error("edge_http_request_line_invalid");
   }
