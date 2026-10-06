@@ -569,7 +569,11 @@ function inspectFixedFile(io, file, maxBytes = MAX_FILE_BYTES) {
 }
 
 function parsePublicKeyBlob(text, allowComment) {
-  const line = String(text).trim();
+  const raw = String(text);
+  const line = raw.trim();
+  if (!line || /[\r\n]/u.test(line)) {
+    fail("witness_installation_evidence_public_key_invalid");
+  }
   const parts = line.split(/\s+/u);
   if (
     parts.length < 2 ||
