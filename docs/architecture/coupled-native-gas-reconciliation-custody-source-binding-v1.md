@@ -51,7 +51,11 @@ The read-only inspector requires:
 - canonical VOID repository origin;
 - a clean worktree;
 - reviewed base commit ancestry; and
-- exact `HEAD:<path>` Git blob identity for all 21 bindings.
+- exact `HEAD:<path>` Git blob identity for all 21 bindings; and
+- exact no-follow working-tree bytes for every reviewed path, rehashed with the
+  Git blob algorithm and required to equal the reviewed blob. This prevents
+  `assume-unchanged` / `skip-worktree` index flags from hiding executable
+  worktree drift behind a clean porcelain status.
 
 The contract does not require the checkout branch itself to be `main`.
 A reviewed feature or later descendant generation may pass only while all
@@ -121,7 +125,11 @@ git diff --check
 The focused proof:
 
 - accepts the exact 21-blob generation;
-- independently mutates every reviewed blob and requires HOLD;
+- independently mutates every reviewed HEAD blob and every reviewed worktree
+  blob and requires HOLD;
+- reproduces hidden worktree drift under both `assume-unchanged` and
+  `skip-worktree`, requires porcelain status to remain deceptively clean, and
+  still requires the live inspector to HOLD;
 - rejects dirty worktree, wrong repository origin, missing reviewed ancestry,
   malformed repository identity, missing records, and duplicate records;
 - requires every non-allowlisted authority bit to remain false; and
