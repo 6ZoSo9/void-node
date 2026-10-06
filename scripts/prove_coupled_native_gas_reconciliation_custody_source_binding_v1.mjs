@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 import {
@@ -10,6 +11,9 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V1,
   testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1,
   inspectCoupledNativeGasReconciliationCustodySourceBindingV1,
+  testOnlyPinnedObservationPlanV1,
+  testOnlyRequireObservationHeadUnchangedV1,
+  testOnlyWorktreeGitBlobSha1V1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs";
 
 const observed = () => ({
@@ -258,6 +262,196 @@ for (const [flag, clearFlag] of [
   }
 }
 
+
+const pinnedHead = "1".repeat(40);
+const pinnedPlan = testOnlyPinnedObservationPlanV1(pinnedHead);
+assert.equal(pinnedPlan.head, pinnedHead);
+assert.equal(pinnedPlan.tree_spec, pinnedHead + "^{tree}");
+assert.equal(
+  pinnedPlan.blob_spec("src/example.ts"),
+  pinnedHead + ":src/example.ts",
+);
+assert.equal(pinnedPlan.ancestry_head, pinnedHead);
+assert.equal(
+  testOnlyRequireObservationHeadUnchangedV1(
+    pinnedHead,
+    pinnedHead,
+  ),
+  pinnedHead,
+);
+assert.throws(
+  () =>
+    testOnlyRequireObservationHeadUnchangedV1(
+      pinnedHead,
+      "2".repeat(40),
+    ),
+  /source_binding_repository_head_changed_during_observation/u,
+);
+
+{
+  const filterKey = "filter.voidsourcebindingproof.clean";
+  const runGit = (args) =>
+    spawnSync("/usr/bin/git", args, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+    });
+
+  try {
+    const set = runGit([
+      "config",
+      "--local",
+      filterKey,
+      "/bin/false",
+    ]);
+    assert.equal(set.status, 0, String(set.stderr || ""));
+
+    const held =
+      inspectCoupledNativeGasReconciliationCustodySourceBindingV1();
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("expected filter config HOLD");
+    assert.equal(
+      held.reason,
+      "source_binding_repository_filter_config_forbidden",
+    );
+  } finally {
+    const unset = runGit([
+      "config",
+      "--local",
+      "--unset-all",
+      filterKey,
+    ]);
+    assert.ok(
+      unset.status === 0 || unset.status === 5,
+      String(unset.stderr || ""),
+    );
+  }
+}
+
+{
+  const common = spawnSync(
+    "/usr/bin/git",
+    ["rev-parse", "--git-common-dir"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+    },
+  );
+  assert.equal(common.status, 0, String(common.stderr || ""));
+  const commonDirRaw = String(common.stdout || "").trim();
+  const commonDir = path.isAbsolute(commonDirRaw)
+    ? path.resolve(commonDirRaw)
+    : path.resolve(process.cwd(), commonDirRaw);
+  const grafts = path.join(commonDir, "info", "grafts");
+  const existed = fs.existsSync(grafts);
+  const original = existed ? fs.readFileSync(grafts) : null;
+  const currentHead = spawnSync(
+    "/usr/bin/git",
+    ["rev-parse", "HEAD"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+    },
+  );
+  assert.equal(currentHead.status, 0);
+  try {
+    fs.mkdirSync(path.dirname(grafts), { recursive: true });
+    fs.writeFileSync(
+      grafts,
+      String(currentHead.stdout || "").trim() +
+        " " +
+        "70faa71371eed9a8a0de4ffeb6c20e2c737cbc66" +
+        "\n",
+      { mode: 0o600 },
+    );
+
+    const held =
+      inspectCoupledNativeGasReconciliationCustodySourceBindingV1();
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("expected graft overlay HOLD");
+    assert.equal(
+      held.reason,
+      "source_binding_repository_grafts_forbidden",
+    );
+  } finally {
+    if (existed) fs.writeFileSync(grafts, original);
+    else fs.rmSync(grafts, { force: true });
+  }
+}
+
+{
+  const root = fs.mkdtempSync(
+    path.join(process.cwd(), ".void-source-binding-reader-proof-"),
+  );
+  const regular = path.join(root, "regular.txt");
+  const relative = path.relative(process.cwd(), regular);
+  try {
+    fs.writeFileSync(regular, Buffer.from("reviewed-bytes\n", "utf8"));
+
+    assert.match(
+      testOnlyWorktreeGitBlobSha1V1(relative),
+      /^[0-9a-f]{40}$/u,
+    );
+
+    assert.throws(
+      () =>
+        testOnlyWorktreeGitBlobSha1V1(relative, {
+          testOnlyAfterOpenBeforeRead(absolute) {
+            fs.appendFileSync(
+              absolute,
+              Buffer.from("growth", "utf8"),
+            );
+          },
+        }),
+      /source_binding_worktree_file_growth:/u,
+    );
+
+    fs.writeFileSync(regular, Buffer.from("reviewed-bytes\n", "utf8"));
+    assert.throws(
+      () =>
+        testOnlyWorktreeGitBlobSha1V1(relative, {
+          testOnlyAfterLstatBeforeOpen(absolute) {
+            fs.unlinkSync(absolute);
+            const made = spawnSync(
+              "/usr/bin/mkfifo",
+              [absolute],
+              {
+                encoding: "utf8",
+                env: {
+                  PATH: "/usr/bin:/bin",
+                  LANG: "C",
+                  LC_ALL: "C",
+                },
+              },
+            );
+            assert.equal(
+              made.status,
+              0,
+              String(made.stderr || ""),
+            );
+          },
+        }),
+      /source_binding_worktree_file_changed:/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 console.log(
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V1_GREEN",
 );
@@ -267,6 +461,12 @@ console.log("exact_reviewed_worktree_bytes_required=true");
 console.log("reviewed_base_ancestry_required=true");
 console.log("clean_worktree_required=true");
 console.log("ambient_git_overrides_ignored=true");
+console.log("immutable_commit_observation_plan=true");
+console.log("final_head_drift_rejected=true");
+console.log("repository_filter_config_rejected=true");
+console.log("legacy_graft_overlay_rejected=true");
+console.log("nonblocking_worktree_open=true");
+console.log("bounded_worktree_read_with_growth_probe=true");
 console.log("writer_generation_binding_proven=true");
 console.log("qualification_generation_binding_proven=true");
 console.log("collector_generation_binding_proven=true");
