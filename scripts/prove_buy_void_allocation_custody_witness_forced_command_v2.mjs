@@ -1366,7 +1366,9 @@ console.log(
   "VOID_BUY_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_V2_PROOF_GREEN",
 );
 console.log("server_controlled_policy_contract=true");
-console.log("root_owned_nonwritable_config_parent_required=true");\nconsole.log("root_owned_read_only_config_file_required=true");\nconsole.log("production_config_file_account_mutability=false");
+console.log("root_owned_nonwritable_config_parent_required=true");
+console.log("root_owned_read_only_config_file_required=true");
+console.log("production_config_file_account_mutability=false");
 console.log("production_config_reader_rejects_private_account_parent=true");
 console.log("authority_root_private_account_policy_preserved=true");
 console.log("descriptor_pinned_authority_root=true");
