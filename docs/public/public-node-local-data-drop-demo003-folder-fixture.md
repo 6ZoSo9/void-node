@@ -37,6 +37,13 @@ Trust boundary:
        network_fetch=false
        network_fetch_during_import=false
        trusted_as_network_truth=false
+       verified_content_authority=sealed_memfd_snapshot
+       visible_extraction_tree_trusted=false
+
+The offline verifier snapshots the five semantic files into Linux memfds, seals
+those descriptors against write/grow/shrink, and performs semantic verification
+against the sealed descriptors. Its GREEN result does **not** make the mutable
+extraction pathname authoritative.
 
 Safety boundary:
 
@@ -72,8 +79,19 @@ Preserved trust flags:
        offline_verified=true
        network_fetch_during_import=false
        trusted_as_network_truth=false
+       verified_content_authority=sealed_memfd_snapshot
+       visible_extraction_tree_trusted=false
+       sealed_snapshot_binding=true
 
-Policy: this is still operator-local evidence. It proves a verified folder payload can enter local runtime storage without becoming automatic network truth.
+The intake does not copy the verifier's mutable extraction tree as authority.
+It captures the verifier's sealed SHA-256 set, re-reads the five semantic files
+through nofollow descriptors, and materializes `archive` and staged `latest`
+only when those bytes match the sealed snapshot identity. Intake status
+recomputes the five hashes and the deterministic snapshot-set SHA-256.
+
+Policy: this is still operator-local evidence. It proves the sealed, verified
+folder payload can enter local runtime storage without becoming automatic
+network truth.
 
 
 ## Demo 003 public folder serving <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_DOC_V1 -->
@@ -94,7 +112,26 @@ Expected marker:
 
        VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_PUBLIC_FOLDER_SERVING_PROOF_V1_GREEN
 
-Policy: public folder serving is read-only. The folder was operator-imported, offline verified, and still carries trusted_as_network_truth=false.
+Serving authority is fail-closed and source-rooted:
+
+- the verifier's historical execution authority is the five sealed memfd snapshot
+  digests, and intake records that provenance claim;
+- intake binds the published snapshot to those exact sealed digests at import time;
+- public serving does not trust mutable intake provenance as its current authority:
+  it independently revalidates the current manifest, checksum ledger, intake
+  consistency, and all three payload files against the canonical Demo003 source
+  hashes/sizes;
+- a coherently rewritten mutable intake/manifest/checksum set cannot authorize
+  changed payload bytes;
+- responses expose both
+  `verified_content_authority=canonical_demo003_source_contract_v1` and
+  `intake_verified_content_authority=sealed_memfd_snapshot`, keeping present
+  serving authority separate from historical intake provenance;
+- `visible_extraction_tree_trusted=false` remains explicit.
+
+Policy: public folder serving is read-only. The folder was operator-imported and
+offline verified, but the mutable `latest` pathname tree is not itself the
+authority and the fixture remains `trusted_as_network_truth=false`.
 
 
 ## Demo 003 public-node card <!-- VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_CARD_DOC_V1 -->
