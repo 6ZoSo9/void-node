@@ -358,6 +358,30 @@ expectHeld(
 }
 
 for (const [label, collector] of [
+  ["root-dev-too-wide", makeCollector({
+    rootDev: "9".repeat(31),
+    evidence: sha("6"),
+  })],
+  ["root-ino-too-wide", makeCollector({
+    rootIno: "9".repeat(31),
+    evidence: sha("7"),
+  })],
+  ["root-mount-id-out-of-source-domain", makeCollector({
+    rootMountId: 0x8000_0000,
+    evidence: sha("8"),
+  })],
+]) {
+  expectHeld(
+    planReceipt({
+      journal_jsonl: "",
+      collector_decision: collector,
+    }),
+    "receipt_continuity_qualification_receipt_root_identity_invalid",
+  );
+  assert.ok(label);
+}
+
+for (const [label, collector] of [
   ["root-dev", makeCollector({
     rootDev: "1048578",
     evidence: sha("9"),
