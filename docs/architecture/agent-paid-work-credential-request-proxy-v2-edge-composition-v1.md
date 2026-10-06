@@ -74,6 +74,9 @@ The authority object intentionally reports:
 
 - source_identity_forwarded_to_gateway=false;
 - upstream_loopback_limiter_modified=false;
+- rate_state_custody_proven=false;
+- concurrent_rate_state_serialization_proven=false;
+- gateway_runtime_configuration_verified=false;
 - rotation_resistant_fairness_proven=false;
 - nat_independent_participant_isolation_proven=false;
 - source_address_stability_proven=false;
@@ -83,6 +86,8 @@ The authority object intentionally reports:
 - public_gateway_modified=false;
 - runtime_integration=false;
 - funds_movement=false.
+
+The source planner also does not own durable rate-event state or serialize concurrent state updates, and the static default-limit binding is not live environment qualification.
 
 Source-address isolation is not durable participant identity. Multiple participants behind one NAT can share one address, one participant can change addresses, and another admitted local process can forge PROXY-v2 bytes unless a later host policy excludes that connector.
 
@@ -101,4 +106,4 @@ The proof covers valid PROXY-v2 credential POST composition, same source with a 
 
 ## Later gate
 
-This contract is not a listener and does not close #2400. A separate reviewed runtime/host gate must prove that only the trusted Funnel forwarding domain can reach the loopback adapter, bind the real HTTP parser/stream to this source decision, preserve the existing upstream global limiter, and perform a separate live cutover ceremony.
+This contract is not a listener and does not close #2400. A separate reviewed runtime/host gate must prove that only the trusted Funnel forwarding domain can reach the loopback adapter, bind the real HTTP parser/stream to this source decision, own and serialize the canonical rate-event state, verify the live gateway limits/configuration, preserve the existing upstream global limiter, and perform a separate live cutover ceremony.
