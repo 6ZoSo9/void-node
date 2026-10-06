@@ -338,6 +338,9 @@ assert.equal(
 assert.match(baseline.qualification_id, /^voidwlrq1_[0-9a-f]{64}$/u);
 assert.equal(baseline.known_hosts_content_qualified, true);
 assert.equal(baseline.transport_read_packet_qualified, true);
+assert.equal(baseline.normalized.remote_host, "nimo");
+assert.equal(baseline.normalized.installation_hostname, "Nimo");
+assert.equal(baseline.normalized.witness_hostname, "Nimo");
 assert.equal(baseline.bounded_time_order_qualified, true);
 assert.equal(baseline.monotonic_generation_order_qualified, true);
 assert.equal(baseline.installation_network_context_qualified, true);
@@ -410,6 +413,39 @@ for (const key of [
       installation_receipt: tampered,
     }),
     /witness_live_read_installation_remote_witness_mismatch/u,
+  );
+}
+
+{
+  const tampered = installationReceipt({
+    host_identity: {
+      hostname: "Other",
+      machine_id_sha256: sha("a"),
+    },
+  });
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_receipt: tampered,
+    }),
+    /witness_live_read_remote_host_identity_mismatch/u,
+  );
+}
+
+{
+  const original = baseInput.installation_receipt as any;
+  const tampered = installationReceipt({
+    witness_storage: {
+      ...original.witness_storage,
+      witness_hostname: "Other",
+    },
+  });
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_receipt: tampered,
+    }),
+    /witness_live_read_remote_host_identity_mismatch/u,
   );
 }
 
@@ -556,6 +592,10 @@ assert.match(
   source,
   /witness_live_read_installation_remote_witness_mismatch/u,
 );
+assert.match(
+  source,
+  /witness_live_read_remote_host_identity_mismatch/u,
+);
 assert.match(source, /live_evidence_origin_proven: false/u);
 assert.match(source, /external_transport_authenticated: false/u);
 assert.match(source, /external_witness_storage_proven: false/u);
@@ -567,6 +607,7 @@ console.log("installation_receipt_digest_recomputed=true");
 console.log("installation_witness_state_rebound=true");
 console.log("client_known_hosts_content_qualified=true");
 console.log("known_hosts_host_and_ed25519_key_bound=true");
+console.log("installation_and_witness_hostname_bound_to_transport=true");
 console.log("canonical_transport_read_request_rebuilt=true");
 console.log("canonical_transport_read_response_validated=true");
 console.log("challenge_response_binding_required=true");
