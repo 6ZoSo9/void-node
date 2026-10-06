@@ -66,6 +66,10 @@ const AUTHORITY_ROOT =
   "/var/lib/void-allocation-custody-witness-v1";
 const WITNESS_NAME =
   "buy-void-allocation-custody-high-water-witness-v1.jsonl";
+const CONFIG_SCHEMA =
+  "void_buy_void_allocation_custody_witness_forced_command_config_v1";
+const CONFIG_MARKER =
+  "VOID_BUY_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_CONFIG_V1";
 const FORCED_COMMAND =
   'test -z "$SSH_ORIGINAL_COMMAND" || exit 3; exec /usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V1=1 /usr/bin/node /usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v1.mjs --config=/etc/void/buy-void-allocation-custody-witness-forced-command-v1.json';
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
@@ -110,7 +114,15 @@ const ACCOUNT_KEYS = Object.freeze([
   "dedicated_account",
   "gid",
   "remote_user",
-  "shell",
+  "shell_gid",
+  "shell_mode",
+  "shell_path",
+  "shell_path_symlink",
+  "shell_regular_file",
+  "shell_resolved_path",
+  "shell_root_owned",
+  "shell_sha256",
+  "shell_uid",
   "uid",
 ]);
 const HANDLER_KEYS = Object.freeze([
@@ -261,6 +273,10 @@ function sha256Id(value: string): string {
   );
 }
 
+function canonicalLine(value: unknown): string {
+  return canonicalJson(value) + "\n";
+}
+
 function exactObject(
   value: unknown,
   keys: readonly string[],
@@ -383,10 +399,39 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       !USER.test(remoteUser) ||
       remoteUser !== transport.policy.remote_user ||
       account.dedicated_account !== true ||
-      account.shell !== "/bin/sh"
+      absolutePath(
+        account.shell_path,
+        "/bin/sh",
+        "witness_installation_account_invalid",
+      ) !== "/bin/sh" ||
+      account.shell_uid !== 0 ||
+      account.shell_gid !== 0 ||
+      account.shell_regular_file !== true ||
+      account.shell_root_owned !== true ||
+      typeof account.shell_path_symlink !== "boolean"
     ) {
       fail("witness_installation_account_invalid");
     }
+    const shellResolvedPath = absolutePath(
+      account.shell_resolved_path,
+      null,
+      "witness_installation_account_invalid",
+    );
+    if (
+      account.shell_path_symlink === false &&
+      shellResolvedPath !== "/bin/sh"
+    ) {
+      fail("witness_installation_account_invalid");
+    }
+    exactMode(
+      account.shell_mode,
+      0o755,
+      "witness_installation_account_invalid",
+    );
+    const shellSha256 = sha256Field(
+      account.shell_sha256,
+      "witness_installation_account_invalid",
+    );
     const uid = exactInteger(
       account.uid,
       1,
@@ -511,15 +556,29 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       0o600,
       "witness_installation_config_invalid",
     );
-    const configSha256 = sha256Field(
-      config.sha256,
-      "witness_installation_config_invalid",
-    );
     const authorityRoot = absolutePath(
       config.authority_root,
       AUTHORITY_ROOT,
       "witness_installation_config_invalid",
     );
+    const expectedConfig = Object.freeze({
+      schema: CONFIG_SCHEMA,
+      marker: CONFIG_MARKER,
+      version: 1 as const,
+      authority_root: AUTHORITY_ROOT,
+      witness_filename: WITNESS_NAME,
+      policy: transport.policy,
+    });
+    const expectedConfigSha256 = sha256Id(
+      canonicalLine(expectedConfig),
+    );
+    const configSha256 = sha256Field(
+      config.sha256,
+      "witness_installation_config_invalid",
+    );
+    if (configSha256 !== expectedConfigSha256) {
+      fail("witness_installation_config_digest_mismatch");
+    }
 
     const authorizedKey = exactObject(
       raw.authorized_key,
@@ -689,7 +748,9 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       remote_user: remoteUser,
       account_uid: uid,
       account_gid: gid,
-      account_shell: "/bin/sh",
+      account_shell_path: "/bin/sh",
+      account_shell_resolved_path: shellResolvedPath,
+      account_shell_sha256: shellSha256,
       handler_path: HANDLER_PATH,
       handler_git_blob_sha1: sourceBlob,
       node_path: NODE_PATH,
