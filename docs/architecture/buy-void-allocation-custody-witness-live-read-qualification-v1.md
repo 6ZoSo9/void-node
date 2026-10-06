@@ -35,9 +35,9 @@ boundary from the merged collector, including:
 - V2 installation qualification observed;
 - runtime-bundle qualification observed;
 - the exact merged runtime-bundle manifest ID
-  `voidwfb1_b2d682dcaa4b68fa46b5c0742692f3ab355d17bcd30384c913c8fb780d8343d0`;
+  `voidwfb1_6b9d87d6461c4dcf5c518d88f4cf25b43ecde2062abefe3a4d0d0dc70a56f7e5`;
 - the exact merged runtime-bundle manifest SHA-256
-  `sha256:5e3314c14ff160cea905e8dab4ef408e4716a93554f4882ae3baacc1adaaed72`;
+  `sha256:32c39da36fc0257abe37882550d75090e784c72f1e689ad136dfabbb914feba8`;
 - merged runtime-bundle evidence collector observed;
 - host key and authorized client key observed;
 - effective sshd policy observed;
