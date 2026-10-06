@@ -11,6 +11,7 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_AUTHORITY_V1
     tcp4_source_identity: true,
     tcp6_source_identity: true,
     raw_source_address_bound: true,
+    parser_result_brand_required: true,
     source_port_excluded_from_limiter_identity: true,
     spoofable_forwarding_headers_trusted: false,
     trusted_source_header_replaced: true,
@@ -53,6 +54,7 @@ const MAX_HEADER_NAME_BYTES = 128;
 const MAX_HEADER_VALUE_BYTES = 16 * 1024;
 const MAX_RATE_EVENTS = 4096;
 const SOURCE_KEY = /^voidcrsrc1_[0-9a-f]{64}$/u;
+const PARSED_SOURCE_BRAND = new WeakSet();
 const HTTP_HEADER_NAME =
   /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 
@@ -213,7 +215,7 @@ export function parseVoidAgentCredentialRequestProxyV2SourceV1(input) {
     }
 
     const sourceKey = sourceIdentity(family, sourceAddressHex);
-    return Object.freeze({
+    const parsed = Object.freeze({
       ok: true,
       status: "PROXY_V2_SOURCE_BOUND_NOT_TRUSTED",
       marker: VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_V1,
@@ -237,6 +239,8 @@ export function parseVoidAgentCredentialRequestProxyV2SourceV1(input) {
       authority:
         VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_AUTHORITY_V1,
     });
+    PARSED_SOURCE_BRAND.add(parsed);
+    return parsed;
   } catch (error) {
     return held(error instanceof Error ? error.message : String(error));
   }
@@ -245,6 +249,7 @@ export function parseVoidAgentCredentialRequestProxyV2SourceV1(input) {
 function requireParsedSource(parsedSource) {
   if (
     !parsedSource ||
+    !PARSED_SOURCE_BRAND.has(parsedSource) ||
     typeof parsedSource !== "object" ||
     Array.isArray(parsedSource) ||
     parsedSource.ok !== true ||
