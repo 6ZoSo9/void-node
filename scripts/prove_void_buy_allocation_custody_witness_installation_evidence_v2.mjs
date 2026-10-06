@@ -720,6 +720,36 @@ for (const key of [
 }
 
 {
+  const multilineHostKey = Buffer.from(
+    hostKeyBytes.toString("utf8").trimEnd() +
+      "\nssh-ed25519 " +
+      sshEd25519Blob(0x33).toString("base64") +
+      " extra\n",
+    "utf8",
+  );
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          files: {
+            [HOST_KEY]: {
+              bytes: multilineHostKey,
+              stat: stat({
+                uid: 0,
+                gid: 0,
+                mode: 0o644,
+                size: multilineHostKey.length,
+                ino: 16,
+              }),
+            },
+          },
+        }),
+      ),
+    /witness_installation_evidence_public_key_invalid/u,
+  );
+}
+
+{
   const bad = makeIo({
     diskIdentity: "SERIAL2 WWN2",
   });
