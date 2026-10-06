@@ -26,6 +26,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_A
     supplied_chain_generation_monotonicity_proven: true,
     collector_decision_replay_rejected: true,
     qualification_receipt_replay_rejected: true,
+    payer_root_storage_identity_continuity_required: true,
     host_payer_machine_continuity_required: true,
     boot_identity_may_advance: true,
     collector_clock_used_as_authority: false,
@@ -92,6 +93,7 @@ const RECEIPT_KEYS = Object.freeze([
   "marker",
   "payer_address",
   "payer_domain_id",
+  "payer_root_identity_sha256",
   "payer_root_path",
   "previous_receipt_sha256",
   "qualification_id_sha256",
@@ -400,6 +402,28 @@ function validateQualificationReceipt(input) {
     receipt.payer_root_path,
     "receipt_continuity_qualification_receipt_root_invalid",
   );
+  const payerRootDev = String(receipt.payer_root_dev ?? "").trim();
+  const payerRootIno = String(receipt.payer_root_ino ?? "").trim();
+  if (!DECIMAL.test(payerRootDev) || !DECIMAL.test(payerRootIno)) {
+    fail("receipt_continuity_qualification_receipt_root_identity_invalid");
+  }
+  const payerRootMountId = safeInt(
+    receipt.payer_root_mount_id,
+    1,
+    Number.MAX_SAFE_INTEGER,
+    "receipt_continuity_qualification_receipt_root_identity_invalid",
+  );
+  const mountInstanceFingerprint = sha256(
+    receipt.mount_instance_fingerprint_sha256,
+    "receipt_continuity_qualification_receipt_mount_fingerprint_invalid",
+  );
+  const payerRootIdentitySha256 = sha256Id(canonical({
+    payer_root_path: payerRootPath,
+    payer_root_dev: payerRootDev,
+    payer_root_ino: payerRootIno,
+    payer_root_mount_id: payerRootMountId,
+    mount_instance_fingerprint_sha256: mountInstanceFingerprint,
+  }));
   const observedAt = safeInt(
     receipt.observed_at_ms,
     1,
@@ -434,6 +458,7 @@ function validateQualificationReceipt(input) {
     payer_address: payerAddress,
     payer_domain_id: payerDomainId,
     payer_root_path: payerRootPath,
+    payer_root_identity_sha256: payerRootIdentitySha256,
     evidence_generation: evidenceGeneration,
     observed_at_ms: observedAt,
     expires_at_ms: expiresAt,
@@ -656,6 +681,8 @@ function normalizeCollectorDecision(input) {
     payer_address: qualified.payer_address,
     payer_domain_id: qualified.payer_domain_id,
     payer_root_path: qualified.payer_root_path,
+    payer_root_identity_sha256:
+      qualified.payer_root_identity_sha256,
     machine_id_sha256: machineId,
     boot_id_sha256: bootId,
     collector_observed_at_ms: observedAt,
@@ -754,6 +781,10 @@ function parseReceiptLine(line, expectedGeneration, expectedPrevious) {
       receipt.payer_root_path,
       "receipt_continuity_payer_root_invalid",
     ),
+    payer_root_identity_sha256: sha256(
+      receipt.payer_root_identity_sha256,
+      "receipt_continuity_payer_root_identity_invalid",
+    ),
     machine_id_sha256: sha256(
       receipt.machine_id_sha256,
       "receipt_continuity_machine_invalid",
@@ -819,6 +850,7 @@ function classifyInternal(journalInput) {
       payer_address: null,
       payer_domain_id: null,
       payer_root_path: null,
+      payer_root_identity_sha256: null,
       machine_id_sha256: null,
     });
   }
@@ -865,6 +897,7 @@ function classifyInternal(journalInput) {
       record.payer_address,
       record.payer_domain_id,
       record.payer_root_path,
+      record.payer_root_identity_sha256,
       record.machine_id_sha256,
     ].join("\n");
     if (identity === null) identity = currentIdentity;
@@ -884,6 +917,7 @@ function classifyInternal(journalInput) {
     payer_address: tip.payer_address,
     payer_domain_id: tip.payer_domain_id,
     payer_root_path: tip.payer_root_path,
+    payer_root_identity_sha256: tip.payer_root_identity_sha256,
     machine_id_sha256: tip.machine_id_sha256,
   });
 }
@@ -931,6 +965,8 @@ export function classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1
       payer_address: classified.payer_address,
       payer_domain_id: classified.payer_domain_id,
       payer_root_path: classified.payer_root_path,
+      payer_root_identity_sha256:
+        classified.payer_root_identity_sha256,
       machine_id_sha256: classified.machine_id_sha256,
       supplied_chain_generation_monotonicity_proven: true,
       trusted_collector_proven: false,
@@ -988,6 +1024,8 @@ export function planCoupledNativeGasReconciliationCustodyReceiptV1({
         collector.payer_address !== current.payer_address ||
         collector.payer_domain_id !== current.payer_domain_id ||
         collector.payer_root_path !== current.payer_root_path ||
+        collector.payer_root_identity_sha256 !==
+          current.payer_root_identity_sha256 ||
         collector.machine_id_sha256 !== current.machine_id_sha256
       ) {
         fail("receipt_continuity_custody_identity_changed");
@@ -1013,6 +1051,8 @@ export function planCoupledNativeGasReconciliationCustodyReceiptV1({
       payer_address: collector.payer_address,
       payer_domain_id: collector.payer_domain_id,
       payer_root_path: collector.payer_root_path,
+      payer_root_identity_sha256:
+        collector.payer_root_identity_sha256,
       machine_id_sha256: collector.machine_id_sha256,
       boot_id_sha256: collector.boot_id_sha256,
       collector_observed_at_ms:
