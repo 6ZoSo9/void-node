@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1,
@@ -14,7 +15,31 @@ import {
 } from "../src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.js";
 
 const sha256 = (bytes: Buffer): string => "sha256:" + crypto.createHash("sha256").update(bytes).digest("hex");
+
+const missingCompiledRuntime = VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1
+  .filter((file) => file.source_path.startsWith("dist/") && !fs.existsSync(file.source_path))
+  .map((file) => file.source_path);
+let localBuildBootstrapped = false;
+if (missingCompiledRuntime.length > 0) {
+  const build = spawnSync("npm", ["run", "build"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    shell: false,
+  });
+  assert.equal(
+    build.status,
+    0,
+    ["runtime bundle proof local build failed", build.stdout, build.stderr].join("\n"),
+  );
+  localBuildBootstrapped = true;
+}
 for (const expected of VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1) {
+  assert.equal(
+    fs.existsSync(expected.source_path),
+    true,
+    "reviewed runtime bundle file missing after deterministic local build: " + expected.source_path,
+  );
   assert.equal(sha256(fs.readFileSync(expected.source_path)), expected.sha256, "reviewed runtime bundle file bytes changed: " + expected.source_path);
 }
 
@@ -143,6 +168,7 @@ const trueKeys = new Set([
 for (const [key, value] of Object.entries(VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_AUTHORITY_V1)) assert.equal(value, trueKeys.has(key), key);
 console.log(VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V1 + "_GREEN");
 console.log("runtime_file_count=8");
+console.log("local_build_bootstrapped=" + String(localBuildBootstrapped));
 console.log("runtime_edge_count=11");
 console.log("dynamic_import_count=0");
 console.log("require_call_count=0");
