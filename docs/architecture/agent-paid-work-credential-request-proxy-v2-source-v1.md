@@ -76,6 +76,12 @@ Only the parser-derived source key may populate:
 x-void-trusted-funnel-source-v1
 ```
 
+Parser results carry an in-process, module-private brand. Header sanitization and
+rate planning require that exact branded object and independently re-derive its
+key from the raw family/address bytes. A serialized/cloned lookalike object is
+rejected even when it contains the mathematically correct key. This prevents a
+future caller from bypassing the parser by constructing a raw limiter identity.
+
 This header is **not trusted by itself**. A later integration must prove that the
 existing public gateway accepts it only from the controlled loopback adapter
 transport and that arbitrary local processes cannot reach the same trusted
@@ -133,6 +139,7 @@ The focused proof covers:
 - case-insensitive stripping of spoofable forwarding/trusted-source headers;
 - trusted-source header replacement from parser output only;
 - forged parser objects with caller-selected limiter keys rejected;
+- exact cloned/unbranded parser-result lookalikes rejected;
 - caller A exhaustion while caller B remains admitted;
 - expired rate events being pruned; and
 - every ungranted authority bit remaining false.
