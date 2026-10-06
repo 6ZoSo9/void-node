@@ -50,7 +50,9 @@ It delegates accounting to planVoidAgentCredentialRequestProxyV2RateLimitV1(...)
 
 A source exhausting its allowance cannot consume another source's per-source bucket. The source port is excluded from limiter identity by the parent contract.
 
-A noncanonical credential target such as the same path with a query string is not reclassified by this source-only adapter contract; it is forwarded with sanitized headers and remains subject to the existing gateway's query rejection. This preserves current downstream HTTP semantics rather than inventing a second request validator.
+The raw canonical target above is the only target that enters source metering. To prevent a normalization bypass, a POST whose WHATWG-normalized pathname is the canonical credential path and whose normalized search is empty is rejected with `edge_credential_request_target_noncanonical` unless its raw target is exactly canonical. This closes aliases such as an empty trailing `?`, dot or percent-encoded-dot segments, and backslash path separators before they can bypass the source bucket while reaching equivalent downstream routing.
+
+A credential target with a nonempty query string such as `?bad=1` is still forwarded with sanitized headers and remains subject to the existing gateway's query rejection. Genuine noncredential routes remain pass-through and do not consume credential-rate state. This preserves current downstream HTTP semantics while making normalization-equivalent empty-search aliases fail closed.
 
 ## Other public routes
 
@@ -72,6 +74,7 @@ The focused proof statically verifies those values and the canonical credential 
 
 The authority object intentionally reports:
 
+- credential_route_normalization_aliases_rejected=true;
 - source_identity_forwarded_to_gateway=false;
 - upstream_loopback_limiter_modified=false;
 - rate_state_custody_proven=false;
@@ -104,7 +107,7 @@ Run:
 - npm run build
 - git diff --check
 
-The proof covers valid PROXY-v2 credential POST composition, same source with a different ephemeral source port mapping to the same bucket, source A exhausted while source B remains admitted, spoofed forwarding/source headers stripped, non-credential public routes preserved without credential rate-state mutation, a noncanonical credential query target preserved for downstream rejection, missing and doubled PROXY-v2 prefaces rejected before HTTP forwarding, exact gateway limit binding, and all runtime/local-trust/durable-fairness/economic authority remaining false.
+The proof covers valid PROXY-v2 credential POST composition, same source with a different ephemeral source port mapping to the same bucket, source A exhausted while source B remains admitted, spoofed forwarding/source headers stripped, genuine noncredential public routes preserved without credential rate-state mutation, nonempty credential queries preserved for downstream rejection, IPv4 and IPv6 exhausted-source attempts using empty-query/dot/encoded-dot/backslash normalization aliases rejected before metering bypass, missing and doubled PROXY-v2 prefaces rejected before HTTP forwarding, exact gateway limit binding, and all runtime/local-trust/durable-fairness/economic authority remaining false.
 
 ## Later gate
 
