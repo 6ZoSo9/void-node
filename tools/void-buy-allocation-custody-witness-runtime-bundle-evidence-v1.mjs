@@ -458,6 +458,8 @@ export function collectBuyVoidAllocationCustodyWitnessRuntimeBundleEvidenceV1(
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1,
     runtime_bundle_qualification_id: qualification.qualification_id,
     runtime_bundle_evidence_sha256: evidenceSha256,
+    runtime_bundle_files: second,
+    normalized_runtime_bundle_qualification: qualification.normalized,
     runtime_file_count: second.length,
     double_census_match: true,
     operation_performed: false,
