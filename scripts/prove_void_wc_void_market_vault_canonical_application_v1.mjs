@@ -439,6 +439,7 @@ assert.deepEqual(
     "tools/void-wc-void-coupled-opening-v1.mjs",
     "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs",
     "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
+    "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
     "tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
     "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs",
     "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
