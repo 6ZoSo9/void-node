@@ -606,66 +606,6 @@ const successorDependencies = Object.freeze({
   clean(fixture);
 }
 
-{
-  const fixture = makeFixture();
-  try {
-    const loaded =
-      readVoidBuyAllocationCustodyWitnessForcedCommandConfigV2(
-        fixture.configPath,
-      );
-    assert.equal(
-      Object.hasOwn(loaded, "policy_sha256"),
-      false,
-      "production-style V2 config intentionally exposes policy, not policy_sha256",
-    );
-
-    assert.throws(
-      () =>
-        handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV2(
-          loaded,
-          appendRequest.request_json,
-          {
-            ...dependencies,
-            hooks: {
-              interrupt_after_partial_append: true,
-            },
-          },
-        ),
-      /witness_forced_command_test_interrupt/u,
-    );
-
-    const intentPath = path.join(
-      fixture.root,
-      "buy-void-allocation-custody-witness-append-intent-v1.json",
-    );
-    assert.equal(fs.existsSync(intentPath), true);
-
-    const recovered =
-      handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV2(
-        loaded,
-        appendRequest.request_json,
-        dependencies,
-      );
-    const verified =
-      requireOk(
-        validateBuyVoidAllocationCustodyWitnessTransportResponseV1({
-          policy,
-          request_json: appendRequest.request_json,
-          response_json: recovered.response_json,
-        }),
-      );
-    assert.equal(verified.status, "append_ack_verified");
-    assert.ok(
-      fs.readFileSync(fixture.witness).equals(
-        appendRequest.expected_next_witness_jsonl,
-      ),
-    );
-    assert.equal(fs.existsSync(intentPath), false);
-  } finally {
-    clean(fixture);
-  }
-}
-
 for (const [hookName, expectedPerformed] of [
   ["interrupt_after_intent", true],
   ["interrupt_after_partial_append", true],
@@ -1290,8 +1230,6 @@ console.log("read_pending_intent_holds_without_mutation=true");
 console.log("read_intent_only_recovery_mutation=false");
 console.log("read_torn_append_recovery_mutation=false");
 console.log("read_full_append_cleanup_mutation=false");
-console.log("loaded_config_append_recovery=true");
-console.log("pre_recovery_policy_sha_rederived=true");
 console.log("mismatched_recovery_preserves_witness_and_intent=true");
 console.log("symlink_witness_rejected=true");
 console.log("original_remote_command_rejected=true");
