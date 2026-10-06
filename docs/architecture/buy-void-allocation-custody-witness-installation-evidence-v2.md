@@ -88,6 +88,9 @@ The collector observes and passes to
 `classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV2(...)`:
 
 - the dedicated witness account and shell identity;
+- the fixed forced-command config as root:root, mode `0444`, single-link,
+  regular/no-symlink policy evidence below a root-owned non-writable parent
+  chain; dedicated-account ownership or any writable config mode HOLDS;
 - exact V2 handler path and Git-blob identity;
 - exact Node and `/usr/bin/env` executable identity;
 - canonical protected V2 config, observed as a root:root, mode-`0444`,
