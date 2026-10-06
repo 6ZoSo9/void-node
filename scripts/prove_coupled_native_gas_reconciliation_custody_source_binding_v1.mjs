@@ -333,6 +333,106 @@ assert.throws(
 }
 
 {
+  const filterKey = "filter.voidsourcebindingworktree.clean";
+  const runGit = (args) =>
+    spawnSync("/usr/bin/git", args, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+    });
+
+  const extensionBefore = runGit([
+    "config",
+    "--local",
+    "--get",
+    "extensions.worktreeConfig",
+  ]);
+  const extensionExisted = extensionBefore.status === 0;
+  const extensionValue =
+    extensionExisted
+      ? String(extensionBefore.stdout || "").trim()
+      : null;
+
+  const configWorktreePathResult = runGit([
+    "rev-parse",
+    "--git-path",
+    "config.worktree",
+  ]);
+  assert.equal(
+    configWorktreePathResult.status,
+    0,
+    String(configWorktreePathResult.stderr || ""),
+  );
+  const configWorktreePath = path.resolve(
+    process.cwd(),
+    String(configWorktreePathResult.stdout || "").trim(),
+  );
+  const configWorktreeExisted = fs.existsSync(configWorktreePath);
+  const configWorktreeBefore =
+    configWorktreeExisted
+      ? fs.readFileSync(configWorktreePath)
+      : null;
+
+  try {
+    const enabled = runGit([
+      "config",
+      "--local",
+      "extensions.worktreeConfig",
+      "true",
+    ]);
+    assert.equal(enabled.status, 0, String(enabled.stderr || ""));
+
+    const set = runGit([
+      "config",
+      "--worktree",
+      filterKey,
+      "/bin/false",
+    ]);
+    assert.equal(set.status, 0, String(set.stderr || ""));
+
+    const held =
+      inspectCoupledNativeGasReconciliationCustodySourceBindingV1();
+    assert.equal(held.ok, false);
+    if (held.ok) throw new Error("expected worktree filter config HOLD");
+    assert.equal(
+      held.reason,
+      "source_binding_repository_filter_config_forbidden",
+    );
+  } finally {
+    if (configWorktreeExisted) {
+      fs.writeFileSync(configWorktreePath, configWorktreeBefore);
+    } else {
+      fs.rmSync(configWorktreePath, { force: true });
+    }
+
+    if (extensionExisted) {
+      const restored = runGit([
+        "config",
+        "--local",
+        "extensions.worktreeConfig",
+        extensionValue,
+      ]);
+      assert.equal(restored.status, 0, String(restored.stderr || ""));
+    } else {
+      const unset = runGit([
+        "config",
+        "--local",
+        "--unset-all",
+        "extensions.worktreeConfig",
+      ]);
+      assert.ok(
+        unset.status === 0 || unset.status === 5,
+        String(unset.stderr || ""),
+      );
+    }
+  }
+}
+
+{
   const common = spawnSync(
     "/usr/bin/git",
     ["rev-parse", "--git-common-dir"],
@@ -464,6 +564,7 @@ console.log("ambient_git_overrides_ignored=true");
 console.log("immutable_commit_observation_plan=true");
 console.log("final_head_drift_rejected=true");
 console.log("repository_filter_config_rejected=true");
+console.log("per_worktree_filter_config_rejected=true");
 console.log("legacy_graft_overlay_rejected=true");
 console.log("nonblocking_worktree_open=true");
 console.log("bounded_worktree_read_with_growth_probe=true");
