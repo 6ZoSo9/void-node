@@ -59,10 +59,9 @@ const HTTP_HEADER_NAME =
   /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 
 const SPOOFABLE_HEADERS = Object.freeze(new Set([
+  "cf-connecting-ip",
   "forwarded",
-  "x-forwarded-for",
-  "x-forwarded-host",
-  "x-forwarded-proto",
+  "true-client-ip",
   "x-real-ip",
   "x-void-trusted-funnel-source-v1",
 ]));
@@ -335,7 +334,10 @@ export function sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
       if (Buffer.byteLength(value, "utf8") > MAX_HEADER_VALUE_BYTES) {
         fail("proxy_v2_http_header_value_too_large");
       }
-      if (SPOOFABLE_HEADERS.has(name)) {
+      if (
+        SPOOFABLE_HEADERS.has(name) ||
+        name.startsWith("x-forwarded-")
+      ) {
         removed.add(name);
         continue;
       }
