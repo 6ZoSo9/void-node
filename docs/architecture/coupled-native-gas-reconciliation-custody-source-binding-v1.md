@@ -57,6 +57,11 @@ The contract does not require the checkout branch itself to be `main`.
 A reviewed feature or later descendant generation may pass only while all
 reviewed dependency blobs remain exact and the reviewed base remains ancestral.
 
+The pure supplied-observation classifier is exported only as a
+`testOnly...` helper. Production source-generation claims come only from the
+read-only repository inspector, which gathers Git identity itself under the
+closed Git environment.
+
 ## Success meaning
 
 Success returns:
