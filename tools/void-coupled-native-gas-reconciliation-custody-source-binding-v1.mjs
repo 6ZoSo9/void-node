@@ -21,6 +21,8 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHO
     reviewed_base_ancestry_required: true,
     exact_reviewed_git_blobs_required: true,
     exact_reviewed_worktree_bytes_required: true,
+    index_manifest_rebound_after_worktree_census: true,
+    reviewed_worktree_revalidated_after_clean_census: true,
     reviewed_package_tsconfig_context_bound: true,
     writer_generation_binding_proven_on_success: true,
     qualification_generation_binding_proven_on_success: true,
@@ -508,7 +510,12 @@ function trackedWorktreeGitBlobSha1V1(relativePath, indexMode) {
   return worktreeGitBlobSha1(relativePath);
 }
 
-function repositoryCleanStateV1(head) {
+function repositoryCleanStateV1(
+  head,
+  {
+    testOnlyAfterInitialIndexCheckBeforeManifest = null,
+  } = {},
+) {
   if (!HEX40.test(head)) {
     fail("source_binding_repository_head_invalid");
   }
@@ -545,12 +552,23 @@ function repositoryCleanStateV1(head) {
     fail("source_binding_repository_index_check_failed");
   }
 
-  const stageRows = String(
+  if (testOnlyAfterInitialIndexCheckBeforeManifest !== null) {
+    if (
+      typeof testOnlyAfterInitialIndexCheckBeforeManifest !==
+      "function"
+    ) {
+      fail("source_binding_test_hook_invalid");
+    }
+    testOnlyAfterInitialIndexCheckBeforeManifest();
+  }
+
+  const stageRowsText = String(
     git(
       ["ls-files", "--stage", "-z"],
       "source_binding_repository_index_manifest_unavailable",
     ).stdout || "",
-  ).split("\0").filter(Boolean);
+  );
+  const stageRows = stageRowsText.split("\0").filter(Boolean);
 
   for (const row of stageRows) {
     const match =
@@ -593,11 +611,59 @@ function repositoryCleanStateV1(head) {
     fail("source_binding_repository_worktree_not_clean");
   }
 
+  const finalIndexFlags = String(
+    git(
+      ["ls-files", "-v", "-z"],
+      "source_binding_repository_final_index_flags_unavailable",
+    ).stdout || "",
+  );
+  if (finalIndexFlags !== indexFlags) {
+    fail("source_binding_repository_index_changed_during_observation");
+  }
+  for (const entry of finalIndexFlags.split("\0")) {
+    if (!entry) continue;
+    if (!entry.startsWith("H ")) {
+      fail("source_binding_repository_index_flags_forbidden");
+    }
+  }
+
+  const finalStageRowsText = String(
+    git(
+      ["ls-files", "--stage", "-z"],
+      "source_binding_repository_final_index_manifest_unavailable",
+    ).stdout || "",
+  );
+  if (finalStageRowsText !== stageRowsText) {
+    fail("source_binding_repository_index_changed_during_observation");
+  }
+
+  const finalStaged = git(
+    [
+      "diff-index",
+      "--cached",
+      "--quiet",
+      "--no-ext-diff",
+      head,
+      "--",
+    ],
+    "source_binding_repository_final_index_check_failed",
+    { allowFail: true },
+  );
+  if (finalStaged.status === 1) {
+    fail("source_binding_repository_index_changed_during_observation");
+  }
+  if (finalStaged.status !== 0) {
+    fail("source_binding_repository_final_index_check_failed");
+  }
+
   return true;
 }
 
-export function testOnlyRepositoryCleanStateV1(head) {
-  return repositoryCleanStateV1(head);
+export function testOnlyRepositoryCleanStateV1(
+  head,
+  options = {},
+) {
+  return repositoryCleanStateV1(head, options);
 }
 
 function rejectLegacyGraftsV1() {
@@ -798,6 +864,37 @@ export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
 
     const worktreeClean =
       repositoryCleanStateV1(plan.head);
+
+    for (const observed of sourceBlobs) {
+      const finalWorktreeBlob =
+        worktreeGitBlobSha1(observed.path);
+      if (
+        finalWorktreeBlob !==
+        observed.worktree_git_blob_sha1
+      ) {
+        fail(
+          "source_binding_reviewed_source_changed_during_observation:" +
+            observed.path,
+        );
+      }
+    }
+
+    rejectRepositoryExecutionSettingsV1();
+
+    const finalOrigin = gitText(
+      ["config", "--local", "--no-includes", "--get", "remote.origin.url"],
+      "source_binding_repository_final_origin_unavailable",
+    );
+    if (finalOrigin !== origin) {
+      fail("source_binding_repository_origin_changed_during_observation");
+    }
+
+    const finalAncestor = pinnedReviewedBaseIsAncestorV1(
+      plan.ancestry_head,
+    );
+    if (finalAncestor !== ancestor) {
+      fail("source_binding_repository_ancestry_changed_during_observation");
+    }
 
     const finalHead = gitText(
       ["rev-parse", "HEAD"],
