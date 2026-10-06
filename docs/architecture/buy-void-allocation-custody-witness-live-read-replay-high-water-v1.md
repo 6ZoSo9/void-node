@@ -155,10 +155,13 @@ durable replay writer:
 ```
 
 #2521 is merged and fixes the source-level non-mutating witness-read boundary.
-#2524 is also merged as the canonical pure live-read packet qualifier on the
-final #2521 handler/runtime-bundle generation. That qualifier intentionally
-does not prove live evidence origin, trusted clock/generation continuity,
-external transport/storage, or a fresh designated-host installation. Fresh
+#2524 is also merged as the canonical pure live-read packet qualifier. Current
+main #2527 subsequently repaired the forced-command config trust domain and
+repinned the installation/runtime-bundle identities consumed by that qualifier;
+the qualifier source imports those current canonical bundle constants rather
+than freezing the earlier #2521 bundle identity. It intentionally does not
+prove live evidence origin, trusted clock/generation continuity, external
+transport/storage, or a fresh designated-host installation. Fresh
 installation/runtime-bundle/live evidence remains a separate #2452 gate before
 any packet can become authoritative. This source contract does not bypass
 those dependencies.
