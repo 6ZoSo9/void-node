@@ -716,6 +716,60 @@ for (const hookName of [
   );
   assert.equal(fs.existsSync(intentPath), true);
 
+  const witnessBeforeRead = fs.readFileSync(fixture.witness);
+  const intentBeforeRead = fs.readFileSync(intentPath);
+
+  assert.throws(
+    () =>
+      handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV2(
+        fixture.config,
+        readRequest.request_json,
+        dependencies,
+      ),
+    /witness_forced_command_nonappend_blocked_by_pending_intent/u,
+    hookName + " read must HOLD before append recovery",
+  );
+
+  assert.ok(
+    fs.readFileSync(fixture.witness).equals(witnessBeforeRead),
+    hookName + " read HOLD must not mutate witness bytes",
+  );
+  assert.ok(
+    fs.readFileSync(intentPath).equals(intentBeforeRead),
+    hookName + " read HOLD must not mutate intent bytes",
+  );
+
+  clean(fixture);
+}
+
+for (const hookName of [
+  "interrupt_after_intent",
+  "interrupt_after_partial_append",
+  "interrupt_after_full_append",
+]) {
+  const fixture = makeFixture();
+
+  assert.throws(
+    () =>
+      handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV2(
+        fixture.config,
+        appendRequest.request_json,
+        {
+          ...dependencies,
+          hooks: {
+            [hookName]: true,
+          },
+        },
+      ),
+    /witness_forced_command_test_interrupt/u,
+  );
+
+  const intentPath = path.join(
+    fixture.root,
+    "buy-void-allocation-custody-witness-append-intent-v1.json",
+  );
+  assert.equal(fs.existsSync(intentPath), true);
+
   const witnessBeforeMismatchedRecovery =
     fs.readFileSync(fixture.witness);
   const intentBeforeMismatchedRecovery =
@@ -1097,6 +1151,8 @@ const source =
 
 for (const token of [
   "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2",
+  "requestOperationBeforeRecovery",
+  "witness_forced_command_nonappend_blocked_by_pending_intent",
   "SSH_ORIGINAL_COMMAND",
   "withBuyVoidFilesystemBakeryLockV1",
   "classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1",
@@ -1170,6 +1226,10 @@ console.log("tampered_continuity_attestation_rejected=true");
 console.log("successor_append_green=true");
 console.log("successor_recovery_requires_attestation_before_mutation=true");
 console.log("recovery_host_identity_checked_before_mutation=true");
+console.log("read_pending_intent_holds_without_mutation=true");
+console.log("read_intent_only_recovery_mutation=false");
+console.log("read_torn_append_recovery_mutation=false");
+console.log("read_full_append_cleanup_mutation=false");
 console.log("mismatched_recovery_preserves_witness_and_intent=true");
 console.log("symlink_witness_rejected=true");
 console.log("original_remote_command_rejected=true");
