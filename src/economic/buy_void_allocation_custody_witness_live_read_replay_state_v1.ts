@@ -264,13 +264,24 @@ function deriveChallenge(args: {
 }
 
 function bytesFromJournal(input: string | Buffer): Buffer {
+  if (!Buffer.isBuffer(input) && typeof input !== "string") {
+    fail("witness_live_read_replay_journal_type_invalid");
+  }
   const bytes = Buffer.isBuffer(input)
     ? Buffer.from(input)
-    : Buffer.from(String(input ?? ""), "utf8");
+    : Buffer.from(input, "utf8");
   if (bytes.length > MAX_JOURNAL_BYTES) {
     fail("witness_live_read_replay_journal_too_large");
   }
   return bytes;
+}
+
+function decodeJournalText(bytes: Buffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    fail("witness_live_read_replay_journal_utf8_invalid");
+  }
 }
 
 function parseEvent(line: string): WitnessLiveReadReplayEventV1 {
@@ -424,7 +435,7 @@ function classifyOrThrow(input: string | Buffer) {
       journal_sha256: sha256Id(bytes),
     });
   }
-  const text = bytes.toString("utf8");
+  const text = decodeJournalText(bytes);
   if (!text.endsWith("\n")) {
     fail("witness_live_read_replay_journal_newline_invalid");
   }
