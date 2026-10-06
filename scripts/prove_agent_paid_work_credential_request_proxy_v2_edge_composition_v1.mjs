@@ -270,6 +270,31 @@ assert.equal(
   "edge_http_request_line_invalid",
 );
 
+const highBitRequestLine =
+  classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
+    connection_prefix: Buffer.concat([
+      proxy4({
+        source: "203.0.113.22",
+        sourcePort: 44002,
+        requestLine: "GET /ignored HTTP/1.1",
+      }).subarray(0, 28),
+      Buffer.from([0xd0]),
+      Buffer.from(
+        "OST " +
+          VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1 +
+          " HTTP/1.1\r\n\r\n",
+        "ascii",
+      ),
+    ]),
+    headers: { Host: "voidchain.org" },
+    ...baseRate,
+  });
+assert.equal(highBitRequestLine.ok, false);
+assert.equal(
+  highBitRequestLine.reason,
+  "edge_http_request_line_invalid",
+);
+
 const gatewaySource = fs.readFileSync(
   path.join(
     process.cwd(),
