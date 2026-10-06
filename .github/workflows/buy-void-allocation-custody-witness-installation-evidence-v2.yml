@@ -10,6 +10,10 @@ on:
       - "src/economic/buy_void_allocation_custody_witness_installation_qualification_v2.ts"
       - "src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
       - "scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts"
+      - "tools/void-buy-allocation-custody-witness-runtime-bundle-evidence-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-witness-runtime-bundle-evidence-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_installation_qualification_v1.ts"
       - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
       - "src/economic/buy_void_allocation_custody_external_witness_v1.ts"
@@ -70,6 +74,9 @@ jobs:
 
       - name: Prove V2 installation evidence collector
         run: node scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs
+
+      - name: Preserve merged runtime-bundle evidence collector
+        run: node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs
 
       - name: Preserve runtime-bundle qualification
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
