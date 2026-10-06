@@ -135,9 +135,9 @@ inner credential-gateway/global-wall local bypass is still reachable.
 
 ```bash
 node --check tools/void-agent-paid-work-credential-request-downstream-isolation-policy-v1.mjs
-node --check scripts/prove_agent_paid_work_credential_request_downstream_isolation_policy_v1.mjs
+node --check scripts/prove_agent_paid_work_credential_request_downstream-isolation-policy-v1.mjs
 node scripts/prove_agent_paid_work_credential_request_loopback_connector_policy_v1.mjs
-node scripts/prove_agent_paid_work_credential_request_downstream_isolation_policy_v1.mjs
+node scripts/prove_agent_paid_work_credential_request_downstream-isolation-policy-v1.mjs
 npm ci --ignore-scripts --no-audit --no-fund
 npm run typecheck
 npm run build
