@@ -51,6 +51,38 @@ function proxy4({ source, sourcePort, requestLine }) {
   ]);
 }
 
+function proxy6({
+  sourceHex =
+    "20010db8000000000000000000000001",
+  destinationHex =
+    "fd7a115ca1e000000000000011112222",
+  sourcePort = 50001,
+  requestLine,
+}) {
+  const source = Buffer.from(sourceHex, "hex");
+  const destination = Buffer.from(destinationHex, "hex");
+  assert.equal(source.length, 16);
+  assert.equal(destination.length, 16);
+  const payload = Buffer.alloc(36);
+  source.copy(payload, 0);
+  destination.copy(payload, 16);
+  payload.writeUInt16BE(sourcePort, 32);
+  payload.writeUInt16BE(443, 34);
+  const header = Buffer.alloc(16);
+  SIGNATURE.copy(header, 0);
+  header[12] = 0x21;
+  header[13] = 0x21;
+  header.writeUInt16BE(payload.length, 14);
+  return Buffer.concat([
+    header,
+    payload,
+    Buffer.from(
+      requestLine + "\r\nHost: voidchain.org\r\n\r\n",
+      "ascii",
+    ),
+  ]);
+}
+
 const spoofedHeaders = {
   Host: "voidchain.org",
   "Content-Type": "application/json",
@@ -196,6 +228,29 @@ assert.notEqual(
   a.edge_limiter_source_key,
 );
 assert.equal(b.source_request_count_before, 0);
+
+const v6 =
+  classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
+    connection_prefix: proxy6({
+      requestLine:
+        "POST " +
+        VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1 +
+        " HTTP/1.1",
+    }),
+    headers: { Host: "voidchain.org" },
+    ...baseRate,
+  });
+assert.equal(v6.ok, true);
+assert.equal(
+  v6.status,
+  "CREDENTIAL_SOURCE_RATE_ALLOWED_NOT_TRUSTED",
+);
+assert.equal(v6.credential_source_rate_applied, true);
+assert.notEqual(
+  v6.edge_limiter_source_key,
+  a.edge_limiter_source_key,
+  "TCP6 source identity must remain distinct from TCP4",
+);
 
 for (const [method, target] of [
   ["GET", "/public-node/agents/discovery-v1.json"],
@@ -382,6 +437,7 @@ console.log(
     "_PROOF_GREEN",
 );
 console.log("exact_proxy_v2_preface_required=true");
+console.log("tcp4_tcp6_composition=true");
 console.log("all_forwarded_headers_sanitized=true");
 console.log("credential_route_source_isolation=true");
 console.log("other_routes_preserved=true");
