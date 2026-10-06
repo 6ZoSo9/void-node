@@ -169,7 +169,12 @@ function readDescriptorBound(
     fail("witness_runtime_bundle_evidence_path_invalid");
   }
   const resolved = path.resolve(raw);
-  const visibleBefore = fs.lstatSync(resolved, { bigint: true });
+  let visibleBefore;
+  try {
+    visibleBefore = fs.lstatSync(resolved, { bigint: true });
+  } catch {
+    fail("witness_runtime_bundle_evidence_file_invalid");
+  }
   if (
     !validateRuntimeFile(visibleBefore, {
       expectedUid,
@@ -190,10 +195,15 @@ function readDescriptorBound(
     fail("witness_runtime_bundle_evidence_path_invalid");
   }
 
-  let directoryFd = fs.openSync(
-    parsed.root,
-    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
-  );
+  let directoryFd = -1;
+  try {
+    directoryFd = fs.openSync(
+      parsed.root,
+      fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+    );
+  } catch {
+    fail("witness_runtime_bundle_evidence_parent_chain_invalid");
+  }
   let fileFd = -1;
   try {
     let current = parsed.root;
@@ -219,7 +229,12 @@ function readDescriptorBound(
         fail("witness_runtime_bundle_evidence_parent_chain_invalid");
       }
       current = path.join(current, component);
-      const visible = fs.lstatSync(current, { bigint: true });
+      let visible;
+      try {
+        visible = fs.lstatSync(current, { bigint: true });
+      } catch {
+        fail("witness_runtime_bundle_evidence_parent_chain_invalid");
+      }
       let nextFd = -1;
       try {
         nextFd = fs.openSync(
@@ -294,13 +309,18 @@ function readDescriptorBound(
     const bytes = Buffer.alloc(size);
     let offset = 0;
     while (offset < size) {
-      const count = fs.readSync(
-        fileFd,
-        bytes,
-        offset,
-        size - offset,
-        offset,
-      );
+      let count = 0;
+      try {
+        count = fs.readSync(
+          fileFd,
+          bytes,
+          offset,
+          size - offset,
+          offset,
+        );
+      } catch {
+        fail("witness_runtime_bundle_evidence_file_read_failed");
+      }
       if (count <= 0) {
         fail("witness_runtime_bundle_evidence_file_short_read");
       }
@@ -308,12 +328,23 @@ function readDescriptorBound(
     }
 
     const probe = Buffer.alloc(1);
-    if (fs.readSync(fileFd, probe, 0, 1, size) !== 0) {
+    let probeCount = 0;
+    try {
+      probeCount = fs.readSync(fileFd, probe, 0, 1, size);
+    } catch {
+      fail("witness_runtime_bundle_evidence_file_read_failed");
+    }
+    if (probeCount !== 0) {
       fail("witness_runtime_bundle_evidence_file_grew_after_open");
     }
 
     const after = fs.fstatSync(fileFd, { bigint: true });
-    const visibleAfter = fs.lstatSync(resolved, { bigint: true });
+    let visibleAfter;
+    try {
+      visibleAfter = fs.lstatSync(resolved, { bigint: true });
+    } catch {
+      fail("witness_runtime_bundle_evidence_file_changed");
+    }
     if (
       !validateRuntimeFile(after, {
         expectedUid,
