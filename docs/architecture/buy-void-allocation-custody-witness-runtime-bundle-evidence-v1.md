@@ -30,10 +30,16 @@ only its reviewed constants:
   `1c69eff28485e5af7c1f9514d4825f637c418c12`; and
 - the exact eight installed absolute paths and SHA-256 values.
 
-The reviewed source/build provenance behind that census remains unchanged:
-the V2 handler, the seven TypeScript sources that emit the reviewed runtime
-modules, `package.json`, `package-lock.json`, and `tsconfig.build.json`
-remain byte-identical to the census generation.
+The reviewed source/build provenance behind this successor census is exact:
+the repaired V2 handler is the entry byte change, while the seven TypeScript
+sources that emit the reviewed runtime modules, `package.json`,
+`package-lock.json`, and `tsconfig.build.json` remain byte-identical to the
+reviewed predecessor closure.
+
+Any receipt produced for the predecessor manifest
+`voidwfb1_3a680125403ce20ff3f20c37b9f6aae7a3cbf550c2d0b1883a7fc9130e6a7f21`
+is historical evidence only. It cannot satisfy this successor bundle
+qualification.
 
 ## Descriptor-bound evidence
 
@@ -131,12 +137,15 @@ Nimo/SSH/runtime/economic mutation.
 
 ## Next gate
 
-After merge, the next source boundary is a conjunctive qualification packet
-that binds:
+After merge, the next live-evidence boundary requires fresh receipts collected
+from the exact repaired installation. A later conjunctive qualification packet
+must bind:
 
-1. the merged V2 installation-evidence receipt;
-2. this exact runtime-bundle evidence receipt;
+1. a fresh V2 installation-evidence receipt that pins the repaired handler;
+2. a fresh receipt for this exact successor runtime-bundle manifest;
 3. trusted live evidence origin and client-side host-key material; and
 4. authenticated external read/append qualification.
 
-Neither receipt alone closes #2452.
+The predecessor #2516 receipts remain historical and are not reusable. Neither
+fresh receipt alone closes #2452, and this source lane does not authorize the
+reinstall or collection ceremony.
