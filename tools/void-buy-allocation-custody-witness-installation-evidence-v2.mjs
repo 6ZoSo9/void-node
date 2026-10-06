@@ -877,7 +877,11 @@ function accountEvidence(io, user) {
   const account = passwdEntry(io, user);
   const shellPathStat = io.lstat(SHELL_PATH);
   const shellResolvedPath = path.resolve(io.realpath(SHELL_PATH));
-  const shell = inspectFixedFile(io, shellResolvedPath, MAX_FILE_BYTES);
+  const shell = inspectFixedFile(
+    io,
+    shellResolvedPath,
+    MAX_EXECUTABLE_BYTES,
+  );
   return Object.freeze({
     remote_user: user,
     uid: account.uid,
