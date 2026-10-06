@@ -30,12 +30,17 @@ function ipv4Bytes(value) {
   return Buffer.from(parts);
 }
 
-function proxy4({ source, sourcePort, requestLine }) {
+function proxy4({
+  source,
+  sourcePort,
+  destinationPort = 443,
+  requestLine,
+}) {
   const payload = Buffer.alloc(12);
   ipv4Bytes(source).copy(payload, 0);
   ipv4Bytes("127.0.0.1").copy(payload, 4);
   payload.writeUInt16BE(sourcePort, 8);
-  payload.writeUInt16BE(443, 10);
+  payload.writeUInt16BE(destinationPort, 10);
   const header = Buffer.alloc(16);
   SIGNATURE.copy(header, 0);
   header[12] = 0x21;
@@ -122,6 +127,8 @@ assert.equal(
 assert.equal(a.credential_source_rate_applied, true);
 assert.equal(a.source_identity_forwarded_to_gateway, false);
 assert.equal(a.local_transport_trust_proven, false);
+assert.equal(a.http_parser_stream_binding_proven, false);
+assert.equal(a.credential_route_limits_enforced, false);
 assert.equal(a.rotation_resistant_fairness_proven, false);
 assert.equal(a.rate_state_custody_proven, false);
 assert.equal(a.concurrent_rate_state_serialization_proven, false);
@@ -292,6 +299,26 @@ for (const [method, target] of [
   );
 }
 
+const wrongDestinationPort =
+  classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
+    connection_prefix: proxy4({
+      source: "203.0.113.30",
+      sourcePort: 45000,
+      destinationPort: 8443,
+      requestLine:
+        "POST " +
+        VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1 +
+        " HTTP/1.1",
+    }),
+    headers: { Host: "voidchain.org" },
+    ...baseRate,
+  });
+assert.equal(wrongDestinationPort.ok, false);
+assert.equal(
+  wrongDestinationPort.reason,
+  "edge_proxy_destination_port_invalid",
+);
+
 const malformed =
   classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
     connection_prefix: Buffer.from(
@@ -385,10 +412,13 @@ assert.deepEqual(
     proxy_v2_source_required: true,
     proxy_v2_source_contract_reused: true,
     http_request_line_bound: true,
+    public_tls_destination_port_bound: true,
     all_forwarded_headers_sanitized: true,
+    http_parser_stream_binding_proven: false,
     credential_route_source_rate_planning: true,
     noncredential_route_passthrough: true,
     credential_route_limits_bound: true,
+    credential_route_limits_enforced: false,
     rate_state_custody_proven: false,
     concurrent_rate_state_serialization_proven: false,
     gateway_runtime_configuration_verified: false,
@@ -437,6 +467,7 @@ console.log(
     "_PROOF_GREEN",
 );
 console.log("exact_proxy_v2_preface_required=true");
+console.log("public_tls_destination_port_bound=true");
 console.log("tcp4_tcp6_composition=true");
 console.log("all_forwarded_headers_sanitized=true");
 console.log("credential_route_source_isolation=true");
@@ -449,6 +480,8 @@ console.log("upstream_loopback_limiter_modified=false");
 console.log("rate_state_custody_proven=false");
 console.log("concurrent_rate_state_serialization_proven=false");
 console.log("gateway_runtime_configuration_verified=false");
+console.log("http_parser_stream_binding_proven=false");
+console.log("credential_route_limits_enforced=false");
 console.log("rotation_resistant_fairness_proven=false");
 console.log("nat_independent_participant_isolation_proven=false");
 console.log("source_address_stability_proven=false");
