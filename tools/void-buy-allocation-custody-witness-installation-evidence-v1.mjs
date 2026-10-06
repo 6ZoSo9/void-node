@@ -745,6 +745,10 @@ function witnessStorage(io, account) {
     witness_bytes: witness.bytes.length,
     event_count: parsed.event_count,
     tip_event_sha256: parsed.tip.event_sha256,
+    witness_hostname: parsed.tip.witness_hostname,
+    witness_machine_id_sha256: parsed.tip.witness_machine_id_sha256,
+    witness_root_disk_serial: parsed.tip.witness_root_disk_serial,
+    witness_root_disk_wwn: parsed.tip.witness_root_disk_wwn,
     intent_present: io.exists(intentPath),
   });
 }
@@ -806,6 +810,14 @@ function collectOnce(config, io, observedAtMs) {
   const hostKey = hostKeyEvidence(io, policy.host_key_sha256);
   const host = machineIdentity(io);
   const witness = witnessStorage(io, account);
+  if (
+    host.hostname !== witness.witness_hostname ||
+    host.machine_id_sha256 !== witness.witness_machine_id_sha256 ||
+    host.root_disk_serial !== witness.witness_root_disk_serial ||
+    host.root_disk_wwn !== witness.witness_root_disk_wwn
+  ) {
+    fail("witness_installation_evidence_host_witness_identity_mismatch");
+  }
 
   const evidence = Object.freeze({
     schema:
