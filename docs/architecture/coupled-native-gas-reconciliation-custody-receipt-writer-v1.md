@@ -137,6 +137,8 @@ The proof covers:
 - exact high-water binding;
 - duplicate collector/qualification replay HOLD;
 - all five modeled crash cutpoints and forward recovery;
+- exact terminal-tip idempotent retry with byte-stable journal/high-water state;
+- recovery-only exact intent-bound high-water-ahead completion;
 - single-intent redundant recovery;
 - missing lock/bootstrap HOLD;
 - high-water tamper HOLD;
