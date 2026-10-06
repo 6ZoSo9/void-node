@@ -7,8 +7,13 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_SOURCE_GENERATION_ID_V1,
   classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1,
-  planCoupledNativeGasReconciliationCustodyReceiptV1,
+  planCoupledNativeGasReconciliationCustodyReceiptV1 as planReceiptRaw,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-receipt-continuity-v1.mjs";
+
+import {
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1,
+  testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1,
+} from "../tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs";
 
 const COLLECTOR_MARKER =
   "VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_HOST_EVIDENCE_V1";
@@ -58,6 +63,12 @@ function sha256Id(value) {
 
 function sha(fill) {
   return "sha256:" + fill.repeat(64);
+}
+
+function sha256Hex(value) {
+  return crypto.createHash("sha256").update(
+    Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8"),
+  ).digest("hex");
 }
 
 function qualificationReceiptBody(record) {
@@ -192,6 +203,40 @@ function rehashReceipt(record) {
   };
 }
 
+function rehashSourceBinding(binding) {
+  const body = { ...binding };
+  delete body.ok;
+  delete body.source_binding_id;
+  return {
+    ...binding,
+    source_binding_id: "voidngrcsb1_" + sha256Hex(canonical(body)),
+  };
+}
+
+const sourceBinding = requireOk(
+  testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
+    repository_head_sha: "a".repeat(40),
+    repository_tree_sha: "b".repeat(40),
+    repository_origin: "https://github.com/6ZoSo9/void-node.git",
+    worktree_clean: true,
+    reviewed_base_is_ancestor: true,
+    source_blobs:
+      VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1
+        .map((row) => ({
+          path: row.path,
+          git_blob_sha1: row.git_blob_sha1,
+          worktree_git_blob_sha1: row.git_blob_sha1,
+        })),
+  }),
+);
+
+function planReceipt(input) {
+  return planReceiptRaw({
+    ...input,
+    source_binding: input?.source_binding ?? sourceBinding,
+  });
+}
+
 const empty = requireOk(
   classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(""),
 );
@@ -205,8 +250,31 @@ assert.match(
 );
 
 const firstCollector = makeCollector();
+
+expectHeld(
+  planReceiptRaw({
+    journal_jsonl: "",
+    collector_decision: firstCollector,
+  }),
+  "receipt_continuity_source_binding_shape_invalid",
+);
+
+{
+  const bad = structuredClone(sourceBinding);
+  bad.authority.network_access = true;
+  const rehashed = rehashSourceBinding(bad);
+  expectHeld(
+    planReceiptRaw({
+      journal_jsonl: "",
+      collector_decision: firstCollector,
+      source_binding: rehashed,
+    }),
+    "receipt_continuity_source_binding_invalid",
+  );
+}
+
 const firstPlan = requireOk(
-  planCoupledNativeGasReconciliationCustodyReceiptV1({
+  planReceipt({
     journal_jsonl: "",
     collector_decision: firstCollector,
   }),
@@ -241,7 +309,7 @@ const secondCollector = makeCollector({
   evidence: sha("8"),
 });
 const secondPlan = requireOk(
-  planCoupledNativeGasReconciliationCustodyReceiptV1({
+  planReceipt({
     journal_jsonl: journal1,
     collector_decision: secondCollector,
   }),
@@ -263,7 +331,7 @@ assert.equal(
 );
 
 expectHeld(
-  planCoupledNativeGasReconciliationCustodyReceiptV1({
+  planReceipt({
     journal_jsonl: journal1,
     collector_decision: firstCollector,
   }),
@@ -291,7 +359,7 @@ for (const [label, collector] of [
   })],
 ]) {
   expectHeld(
-    planCoupledNativeGasReconciliationCustodyReceiptV1({
+    planReceipt({
       journal_jsonl: journal1,
       collector_decision: collector,
     }),
@@ -304,7 +372,7 @@ for (const [label, collector] of [
   const bad = structuredClone(firstCollector);
   bad.status = "SYNTHETIC_HOST_EVIDENCE_CLASSIFIED_TEST_ONLY";
   expectHeld(
-    planCoupledNativeGasReconciliationCustodyReceiptV1({
+    planReceipt({
       journal_jsonl: "",
       collector_decision: bad,
     }),
@@ -316,7 +384,7 @@ for (const [label, collector] of [
   const bad = structuredClone(firstCollector);
   bad.trusted_collector_proven = true;
   expectHeld(
-    planCoupledNativeGasReconciliationCustodyReceiptV1({
+    planReceipt({
       journal_jsonl: "",
       collector_decision: bad,
     }),
@@ -328,7 +396,7 @@ for (const [label, collector] of [
   const bad = structuredClone(firstCollector);
   bad.qualification.qualification_id_sha256 = sha("f");
   expectHeld(
-    planCoupledNativeGasReconciliationCustodyReceiptV1({
+    planReceipt({
       journal_jsonl: "",
       collector_decision: bad,
     }),
@@ -340,7 +408,7 @@ for (const [label, collector] of [
   const bad = structuredClone(firstCollector);
   bad.qualification.receipt.receipt_sha256 = sha("f");
   expectHeld(
-    planCoupledNativeGasReconciliationCustodyReceiptV1({
+    planReceipt({
       journal_jsonl: "",
       collector_decision: bad,
     }),
@@ -352,7 +420,7 @@ for (const [label, collector] of [
   const bad = structuredClone(firstCollector);
   bad.collector_evidence.boot_id_sha256 = sha("f");
   expectHeld(
-    planCoupledNativeGasReconciliationCustodyReceiptV1({
+    planReceipt({
       journal_jsonl: "",
       collector_decision: bad,
     }),
@@ -365,7 +433,7 @@ for (const [label, collector] of [
   bad.classifier_input.host_evidence.evidence_snapshot.evidence_generation =
     "1800000000001";
   expectHeld(
-    planCoupledNativeGasReconciliationCustodyReceiptV1({
+    planReceipt({
       journal_jsonl: "",
       collector_decision: bad,
     }),
@@ -492,6 +560,7 @@ const trueKeys = new Set([
   "source_only_contract",
   "pure_receipt_chain_classification",
   "exact_source_generation_bound",
+  "exact_supplied_source_binding_validated",
   "exact_live_collector_decision_hash_bound",
   "exact_qualification_receipt_bound",
   "predecessor_receipt_binding_required",
