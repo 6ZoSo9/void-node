@@ -1473,6 +1473,10 @@ export async function recoverCoupledNativeGasReconciliationCustodyReceiptWriterV
   try {
     return await withWriterLock(input, async (roots) => {
       normalizeReviewedTemps(roots, markMutation);
+      if (readIntentPair(roots) === null && mutationPerformed) {
+        const state = coherentState(roots);
+        return success("recovered", state, true, true);
+      }
       return recoverLocked(roots, markMutation, null);
     });
   } catch (error) {
