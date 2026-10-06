@@ -454,6 +454,72 @@ for (const phase of [
 }
 
 {
+  const f = fixture();
+  try {
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        "after_journal_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_journal_intent/u);
+    const finalIntent = path.join(f.journalRoot, INTENT_NAME);
+    const linkedTemp = path.join(
+      f.journalRoot,
+      "." + INTENT_NAME + ".tmp-" + String(process.pid) + "-aaaaaaaaaaaaaaaa",
+    );
+    fs.linkSync(finalIntent, linkedTemp);
+    assert.equal(fs.statSync(finalIntent).nlink, 2);
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "linked-intent-temp recovery",
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.operation_performed, true);
+    assert.equal(fs.existsSync(linkedTemp), false);
+    assert.equal(fs.existsSync(finalIntent), false);
+    assert.equal(recovered.generation, 1);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const staleTemp = path.join(
+      f.journalRoot,
+      "." + JOURNAL_NAME + ".tmp-" + String(process.pid) + "-bbbbbbbbbbbbbbbb",
+    );
+    fs.writeFileSync(staleTemp, Buffer.alloc(0), { mode: 0o600 });
+    const inspected = requireHeld(
+      await inspectCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "receipt_writer_recovery_required",
+    );
+    assert.equal(inspected.operation_performed, false);
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "stale-temp recovery",
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.operation_performed, true);
+    assert.equal(fs.existsSync(staleTemp), false);
+    assert.equal(recovered.generation, 0);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
   const f = fixture({ lockQueue: false });
   try {
     requireHeld(
@@ -602,6 +668,8 @@ console.log("separate_storage_roots_required=true");
 console.log("preprovisioned_lock_queue_required=true");
 console.log("redundant_publication_intent=true");
 console.log("five_crash_cutpoints_recovered=true");
+console.log("linked_intent_temp_recovered=true");
+console.log("stale_atomic_temp_recovered=true");
 console.log("paired_terminal_root_revalidation=true");
 console.log("high_water_exact_journal_binding=true");
 console.log("exact_post_reclassification=true");
