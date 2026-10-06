@@ -17,7 +17,7 @@ The promotion consumes exact bytes plus SHA-256 for:
 
 It also requires the caller to bind the request to the current clean repository
 HEAD and tree. The promotion records reviewed source commit
-`c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71` as the review-generation
+`dd9a1c45067176f2b841b57aff527333059a18b2` as the review-generation
 anchor and independently pins the exact Git blobs reviewed at that generation
 for the three candidate prestates and the complete transitive source dependency
 closure used by semantic reverification and candidate classification. The
