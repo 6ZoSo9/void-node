@@ -671,15 +671,61 @@ assert.throws(
     },
   );
   assert.equal(currentHead.status, 0);
+  const currentHeadSha = String(currentHead.stdout || "").trim();
   try {
     fs.mkdirSync(path.dirname(grafts), { recursive: true });
     fs.writeFileSync(
       grafts,
-      String(currentHead.stdout || "").trim() +
-        " " +
-        "70faa71371eed9a8a0de4ffeb6c20e2c737cbc66" +
-        "\n",
+      currentHeadSha + "\n",
       { mode: 0o600 },
+    );
+
+    const graftAwareEnv = { ...closedGitEnv };
+    delete graftAwareEnv.GIT_GRAFT_FILE;
+    const graftAffected = spawnSync(
+      "/usr/bin/git",
+      [
+        "--no-replace-objects",
+        "--no-lazy-fetch",
+        "-C",
+        process.cwd(),
+        "merge-base",
+        "--is-ancestor",
+        "70faa71371eed9a8a0de4ffeb6c20e2c737cbc66",
+        currentHeadSha,
+      ],
+      {
+        encoding: "utf8",
+        env: graftAwareEnv,
+      },
+    );
+    assert.equal(
+      graftAffected.status,
+      1,
+      "control Git invocation must observe the injected root graft",
+    );
+
+    const graftSuppressed = spawnSync(
+      "/usr/bin/git",
+      [
+        "--no-replace-objects",
+        "--no-lazy-fetch",
+        "-C",
+        process.cwd(),
+        "merge-base",
+        "--is-ancestor",
+        "70faa71371eed9a8a0de4ffeb6c20e2c737cbc66",
+        currentHeadSha,
+      ],
+      {
+        encoding: "utf8",
+        env: closedGitEnv,
+      },
+    );
+    assert.equal(
+      graftSuppressed.status,
+      0,
+      String(graftSuppressed.stderr || ""),
     );
 
     const held =
