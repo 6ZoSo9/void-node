@@ -37,9 +37,11 @@ const requestId = (hex: string): string =>
     deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1(
       Buffer.alloc(0),
     );
-  assert.equal(canonicalGenesis.ok, true);
-  if (!canonicalGenesis.ok) {
-    throw new Error("canonical replay high-water genesis held");
+  if (canonicalGenesis.ok !== true) {
+    throw new Error(
+      "canonical replay high-water genesis held: " +
+        canonicalGenesis.reason,
+    );
   }
   assert.equal(
     writerGenesis.high_water_bytes.toString("utf8"),
@@ -169,9 +171,11 @@ function issue(f: ReturnType<typeof fixture>) {
           high_water_json: issuedHighWater,
         },
       );
-    assert.equal(issuedCanonical.ok, true);
-    if (!issuedCanonical.ok) {
-      throw new Error("issued canonical high-water binding held");
+    if (issuedCanonical.ok !== true) {
+      throw new Error(
+        "issued canonical high-water binding held: " +
+          issuedCanonical.reason,
+      );
     }
     assert.equal(
       issued.high_water_sha256,
@@ -222,9 +226,11 @@ function issue(f: ReturnType<typeof fixture>) {
           ),
         },
       );
-    assert.equal(consumedCanonical.ok, true);
-    if (!consumedCanonical.ok) {
-      throw new Error("consumed canonical high-water binding held");
+    if (consumedCanonical.ok !== true) {
+      throw new Error(
+        "consumed canonical high-water binding held: " +
+          consumedCanonical.reason,
+      );
     }
     assert.equal(
       consumed.high_water_sha256,
