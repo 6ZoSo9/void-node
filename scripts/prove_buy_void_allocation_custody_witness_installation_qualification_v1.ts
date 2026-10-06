@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V1,
@@ -53,6 +54,49 @@ const dangerousEnvironment = [
   "SHELLOPTS",
 ] as const;
 
+function canonical(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string" || typeof value === "boolean") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonical).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return (
+      "{" +
+      Object.keys(record)
+        .sort()
+        .map((key) => JSON.stringify(key) + ":" + canonical(record[key]))
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("noncanonical fixture");
+}
+
+const expectedConfig = {
+  schema:
+    "void_buy_void_allocation_custody_witness_forced_command_config_v1",
+  marker:
+    "VOID_BUY_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_CONFIG_V1",
+  version: 1,
+  authority_root: "/var/lib/void-allocation-custody-witness-v1",
+  witness_filename:
+    "buy-void-allocation-custody-high-water-witness-v1.jsonl",
+  policy: transportPolicy,
+};
+const expectedConfigSha256 =
+  "sha256:" +
+  crypto
+    .createHash("sha256")
+    .update(canonical(expectedConfig) + "\n", "utf8")
+    .digest("hex");
+
 const baseline = {
   schema:
     "void_buy_void_allocation_custody_witness_installation_qualification_v1",
@@ -66,7 +110,15 @@ const baseline = {
     remote_user: "voidwitness",
     uid: 1201,
     gid: 1201,
-    shell: "/bin/sh",
+    shell_path: "/bin/sh",
+    shell_path_symlink: true,
+    shell_resolved_path: "/usr/bin/dash",
+    shell_sha256: sha("a"),
+    shell_uid: 0,
+    shell_gid: 0,
+    shell_mode: 0o755,
+    shell_regular_file: true,
+    shell_root_owned: true,
     dedicated_account: true,
   },
   handler: {
@@ -100,7 +152,7 @@ const baseline = {
   config: {
     path:
       "/etc/void/buy-void-allocation-custody-witness-forced-command-v1.json",
-    sha256: sha("5"),
+    sha256: expectedConfigSha256,
     uid: 1201,
     gid: 1201,
     mode: 0o600,
@@ -266,6 +318,25 @@ assert.equal(
 
 {
   const value = clone(policyOnly);
+  value.account.shell_sha256 = sha("b");
+  const changed = requireOk(
+    classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV1(
+      value,
+    ),
+  );
+  assert.notEqual(
+    changed.qualification_id,
+    ok.qualification_id,
+    "shell identity is evidence identity, not a caller-ignored field",
+  );
+}
+{
+  const value = clone(policyOnly);
+  value.account.shell_path_symlink = false;
+  expectHeld(value, /witness_installation_account_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.handler.source_git_blob_sha1 = "0".repeat(40);
   expectHeld(value, /witness_installation_handler_invalid/u);
 }
@@ -303,6 +374,11 @@ assert.equal(
   const value = clone(policyOnly);
   value.config.uid = 0;
   expectHeld(value, /witness_installation_config_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.config.sha256 = sha("5");
+  expectHeld(value, /witness_installation_config_digest_mismatch/u);
 }
 {
   const value = clone(policyOnly);
