@@ -32,7 +32,7 @@ const SEALED_ORDER_V1 = Object.freeze([
   "files/index.html",
   "files/metadata.json",
 ]);
-const MAX_CONTROL_BYTES_V1 = 2 * 1024 * 1024;
+export const VOID_DEMO003_CONTROL_MAX_BYTES_V1 = 2 * 1024 * 1024;
 const SHA256_RE_V1 = /^[0-9a-f]{64}$/u;
 
 function failV1(code: string): never {
@@ -61,7 +61,7 @@ function exactKeysV1(value: any, expected: readonly string[], code: string): voi
   }
 }
 
-function toBytesV1(value: any, code: string, maxBytes: number = MAX_CONTROL_BYTES_V1): Buffer {
+function toBytesV1(value: any, code: string, maxBytes: number = VOID_DEMO003_CONTROL_MAX_BYTES_V1): Buffer {
   let bytes: Buffer;
   if (Buffer.isBuffer(value)) bytes = value;
   else if (value instanceof Uint8Array) bytes = Buffer.from(value);
@@ -391,7 +391,7 @@ export function classifyVoidDemo003PublicServingSetV1({
     const bytes = toBytesV1(
       payloadBytes[name],
       "demo003_payload_bytes_invalid:" + name,
-      MAX_CONTROL_BYTES_V1,
+      VOID_DEMO003_CONTROL_MAX_BYTES_V1,
     );
     const digest = sha256V1(bytes);
     if (bytes.length !== entry.bytes || digest !== entry.sha256) {
