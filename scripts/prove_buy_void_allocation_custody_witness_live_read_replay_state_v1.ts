@@ -490,8 +490,14 @@ assert.equal(
     .single_use_terminal_transition_required,
   true,
 );
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_AUTHORITY_V1
+    .single_journal_terminal_replay_rejection_semantics,
+  true,
+);
 
 for (const key of [
+  "validated_packet_binding_proven",
   "durable_persistence_proven",
   "rollback_resistance_proven",
   "protected_high_water_custody_proven",
@@ -538,7 +544,7 @@ console.log("generation_zero_genesis=true");
 console.log("single_pending_challenge=true");
 console.log("exact_generation_increment=true");
 console.log("same_entropy_cross_generation_challenge_differs=true");
-console.log("consumed_challenge_replay_rejected=true");
+console.log("second_terminal_for_consumed_challenge_rejected=true");
 console.log("expired_consume_rejected=true");
 console.log("abandon_then_advance=true");
 console.log("time_regression_rejected=true");
