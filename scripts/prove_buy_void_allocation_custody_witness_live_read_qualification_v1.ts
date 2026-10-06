@@ -15,6 +15,7 @@ import {
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1,
+  classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1,
 } from "../src/economic/buy_void_allocation_custody_witness_transport_v1.js";
 
@@ -175,6 +176,28 @@ const installationAuthority = Object.freeze({
   funds_movement: false,
 });
 
+const installationPolicy = requireOk(
+  classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1(policy),
+);
+const installationNormalizedQualification = Object.freeze({
+  schema:
+    "void_buy_void_allocation_custody_witness_installation_qualification_v2",
+  marker:
+    "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION_V2",
+  version: 2,
+  transport_policy_sha256: installationPolicy.policy_sha256,
+  remote_user: policy.remote_user,
+  host_key_sha256: policy.host_key_sha256,
+  known_hosts_sha256: policy.known_hosts_sha256,
+  client_public_key_sha256: policy.client_public_key_sha256,
+});
+const installationNormalizedSha256 = sha256Id(
+  Buffer.from(canonicalJson(installationNormalizedQualification), "utf8"),
+);
+const installationQualificationId =
+  "voidwiq2_" +
+  installationNormalizedSha256.slice("sha256:".length);
+
 function sourceSlice(
   source: string,
   start: string,
@@ -308,9 +331,10 @@ function installationReceipt(overrides: Record<string, unknown> = {}) {
       "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2",
     version: 2,
     installation_qualification_id:
-      "voidwiq2_" + "1".repeat(64),
+      installationQualificationId,
     installation_evidence_sha256: sha("2"),
-    normalized_qualification_sha256: sha("3"),
+    normalized_qualification_sha256:
+      installationNormalizedSha256,
     runtime_bundle_manifest_id:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
     runtime_bundle_manifest_sha256:
@@ -387,6 +411,8 @@ if (server.operation !== "read" || server.status !== "read_ready") {
 
 const baseInput = {
   installation_receipt: installationReceipt(),
+  installation_normalized_qualification:
+    installationNormalizedQualification,
   transport_policy: policy,
   client_known_hosts_base64: knownHostsBytes.toString("base64"),
   challenge_sha256: challenge,
@@ -427,6 +453,10 @@ assert.equal(
 assert.equal(baseline.bounded_time_order_qualified, true);
 assert.equal(baseline.monotonic_generation_order_qualified, true);
 assert.equal(baseline.installation_network_context_qualified, true);
+assert.equal(
+  baseline.normalized.installation_normalized_qualification_sha256,
+  installationNormalizedSha256,
+);
 assert.equal(baseline.normalized.witness_sha256, sha256Id(genesis));
 assert.equal(baseline.normalized.event_count, 1);
 assert.equal(baseline.normalized.tip_event_sha256, GENESIS_EVENT_SHA);
@@ -452,6 +482,42 @@ for (const key of [
     VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_AUTHORITY_V1[key],
     false,
     "authority:" + key,
+  );
+}
+
+{
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_normalized_qualification: {
+        ...installationNormalizedQualification,
+        remote_user: "different-witness-user",
+      },
+    }),
+    /witness_live_read_installation_normalized_commitment_mismatch/u,
+  );
+}
+
+{
+  const alternateNormalized = Object.freeze({
+    ...installationNormalizedQualification,
+    remote_user: "different-witness-user",
+  });
+  const alternateSha = sha256Id(
+    Buffer.from(canonicalJson(alternateNormalized), "utf8"),
+  );
+  const alternateReceipt = installationReceipt({
+    normalized_qualification_sha256: alternateSha,
+    installation_qualification_id:
+      "voidwiq2_" + alternateSha.slice("sha256:".length),
+  });
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_receipt: alternateReceipt,
+      installation_normalized_qualification: alternateNormalized,
+    }),
+    /witness_live_read_installation_transport_binding_invalid/u,
   );
 }
 
