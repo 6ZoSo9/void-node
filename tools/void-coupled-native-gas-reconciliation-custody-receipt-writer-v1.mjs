@@ -1588,82 +1588,126 @@ function held(reason, mutationPerformed = false) {
   });
 }
 
-function recoverLocked(roots, markMutation, crashAfter = null) {
-  const pair = readIntentPair(roots);
-  if (pair === null) {
-    const state = coherentState(roots);
-    return success("clean", state, false, false);
-  }
-  const parsedIntent = parseIntentPair(pair);
-  const currentJournal = readPinnedNamedFile(
-    roots.journal,
-    JOURNAL_NAME,
-    MAX_JOURNAL_BYTES,
-    true,
-    "receipt_writer_journal",
-  );
-  const currentHighWater = readPinnedNamedFile(
-    roots.high_water,
-    HIGH_WATER_NAME,
-    MAX_HIGH_WATER_BYTES,
-    false,
-    "receipt_writer_high_water",
-  );
-  const journalPhase = bytesState(
-    currentJournal,
-    parsedIntent.before_journal,
-    parsedIntent.after_journal,
-    "receipt_writer_recovery_journal_unknown",
-  );
-  const highWaterPhase = bytesState(
-    currentHighWater,
-    parsedIntent.before_high_water,
-    parsedIntent.after_high_water,
-    "receipt_writer_recovery_high_water_unknown",
-  );
-
-  const intent = ensureRedundantIntent(roots, pair, markMutation);
-
-  if (journalPhase === "before") {
-    publishJournal(
+function recoverLocked(
+  roots,
+  markMutation,
+  crashAfter = null,
+  input = null,
+  {
+    afterJournalIntentReadHook = null,
+    afterHighWaterIntentReadHook = null,
+  } = {},
+) {
+  let pair = null;
+  try {
+    pair = openIntentPairSnapshot(
       roots,
-      intent.before_journal,
-      intent.after_journal,
-      markMutation,
+      afterJournalIntentReadHook,
+      afterHighWaterIntentReadHook,
     );
-    if (crashAfter === "after_recovery_journal") {
-      fail("receipt_writer_test_crash_after_recovery_journal");
+    if (pair === null) {
+      const state = coherentState(roots);
+      return success("clean", state, false, false);
     }
-  }
-  if (highWaterPhase === "before") {
-    publishHighWater(
-      roots,
-      intent.before_high_water,
-      intent.after_high_water,
-      markMutation,
-    );
-    if (crashAfter === "after_recovery_high_water") {
-      fail("receipt_writer_test_crash_after_recovery_high_water");
-    }
-  }
 
-  const post = coherentState(roots);
-  if (
-    !post.journal.equals(intent.after_journal) ||
-    !post.high_water.equals(intent.after_high_water) ||
-    post.continuity.generation !== intent.value.generation ||
-    post.continuity.tip_receipt_sha256 !== intent.value.receipt_sha256
-  ) {
-    fail("receipt_writer_recovery_postcheck_failed");
+    let parsedIntent = parseIntentPair(pair);
+    if (
+      input !== null &&
+      !pendingIntentMatchesInput(parsedIntent, input)
+    ) {
+      return held(
+        "receipt_writer_pending_intent_input_mismatch",
+        false,
+      );
+    }
+
+    const currentJournal = readPinnedNamedFile(
+      roots.journal,
+      JOURNAL_NAME,
+      MAX_JOURNAL_BYTES,
+      true,
+      "receipt_writer_journal",
+    );
+    const currentHighWater = readPinnedNamedFile(
+      roots.high_water,
+      HIGH_WATER_NAME,
+      MAX_HIGH_WATER_BYTES,
+      false,
+      "receipt_writer_high_water",
+    );
+    const journalPhase = bytesState(
+      currentJournal,
+      parsedIntent.before_journal,
+      parsedIntent.after_journal,
+      "receipt_writer_recovery_journal_unknown",
+    );
+    const highWaterPhase = bytesState(
+      currentHighWater,
+      parsedIntent.before_high_water,
+      parsedIntent.after_high_water,
+      "receipt_writer_recovery_high_water_unknown",
+    );
+
+    const redundant =
+      ensureRedundantIntentSnapshot(roots, pair, markMutation);
+    pair = redundant.pair;
+    parsedIntent = redundant.intent;
+
+    if (
+      input !== null &&
+      !pendingIntentMatchesInput(parsedIntent, input)
+    ) {
+      fail("receipt_writer_pending_intent_input_changed");
+    }
+
+    if (journalPhase === "before") {
+      assertIntentPairSnapshotVisible(roots, pair);
+      publishJournal(
+        roots,
+        parsedIntent.before_journal,
+        parsedIntent.after_journal,
+        markMutation,
+      );
+      if (crashAfter === "after_recovery_journal") {
+        fail("receipt_writer_test_crash_after_recovery_journal");
+      }
+    }
+    if (highWaterPhase === "before") {
+      assertIntentPairSnapshotVisible(roots, pair);
+      publishHighWater(
+        roots,
+        parsedIntent.before_high_water,
+        parsedIntent.after_high_water,
+        markMutation,
+      );
+      if (crashAfter === "after_recovery_high_water") {
+        fail("receipt_writer_test_crash_after_recovery_high_water");
+      }
+    }
+
+    assertIntentPairSnapshotVisible(roots, pair);
+    const post = coherentState(roots);
+    if (
+      !post.journal.equals(parsedIntent.after_journal) ||
+      !post.high_water.equals(parsedIntent.after_high_water) ||
+      post.continuity.generation !== parsedIntent.value.generation ||
+      post.continuity.tip_receipt_sha256 !==
+        parsedIntent.value.receipt_sha256
+    ) {
+      fail("receipt_writer_recovery_postcheck_failed");
+    }
+    assertIntentPairSnapshotVisible(roots, pair);
+    removeIntentPair(
+      roots,
+      parsedIntent.bytes,
+      markMutation,
+      crashAfter,
+    );
+    const finalState = coherentState(roots);
+    return success("recovered", finalState, true, true);
+  } finally {
+    closeIntentPairSnapshot(pair);
   }
-  removeIntentPair(
-    roots,
-    intent.bytes,
-    markMutation,
-    crashAfter,
-  );
-  const finalState = coherentState(roots);
-  return success("recovered", finalState, true, true);
 }
 
 async function withWriterLock(input, callback) {
@@ -1723,17 +1767,11 @@ async function persistInternal(input, crashAfter = null) {
       normalizeReviewedTemps(roots, markMutation);
       const pending = readIntentPair(roots);
       if (pending !== null) {
-        const parsedPending = parseIntentPair(pending);
-        if (!pendingIntentMatchesInput(parsedPending, input)) {
-          return held(
-            "receipt_writer_pending_intent_input_mismatch",
-            mutationPerformed,
-          );
-        }
         return recoverLocked(
           roots,
           markMutation,
           crashAfter,
+          input,
         );
       }
 
