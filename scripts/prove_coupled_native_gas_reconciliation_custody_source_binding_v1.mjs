@@ -142,7 +142,7 @@ for (const [key, value] of Object.entries(
     "clean_worktree_required",
     "reviewed_base_ancestry_required",
     "exact_reviewed_git_blobs_required",
-    "reviewed_build_context_bound",
+    "reviewed_package_tsconfig_context_bound",
     "writer_generation_binding_proven_on_success",
     "qualification_generation_binding_proven_on_success",
     "collector_generation_binding_proven_on_success",
