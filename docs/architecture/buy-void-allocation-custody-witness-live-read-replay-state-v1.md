@@ -135,13 +135,21 @@ For one supplied canonical journal, the source contract proves:
 - one pending challenge at a time;
 - challenge binding to generation and prior journal tip;
 - exactly one terminal transition per issued challenge;
-- consumed-response replay rejection within the supplied journal; and
+- rejection of a second terminal transition for an already consumed or abandoned
+  challenge within the supplied journal; and
 - deterministic classification of identical bytes.
+
+The terminal record stores a canonical-format witness request ID and response
+SHA-256, but this state machine does **not** prove that those values belong to
+the pending challenge. That requires the accepted live-read packet qualifier
+and later executor composition. Accordingly
+`validated_packet_binding_proven=false` remains authoritative.
 
 ## What this does not prove
 
 This source-only contract intentionally keeps all of the following false:
 
+- `validated_packet_binding_proven`;
 - `durable_persistence_proven`;
 - `rollback_resistance_proven`;
 - `protected_high_water_custody_proven`;
@@ -173,7 +181,8 @@ A later executor should compose the boundaries in this order:
 protected replay/generation writer
   -> issue generation-bound challenge
   -> authenticated, truly non-mutating witness read
-  -> validate current live-read packet
+  -> validate the current live-read packet and prove its request/response bind
+     the exact pending challenge
   -> consume the exact pending challenge while holding the durable authority
   -> publish exact evidence receipt
 ```
