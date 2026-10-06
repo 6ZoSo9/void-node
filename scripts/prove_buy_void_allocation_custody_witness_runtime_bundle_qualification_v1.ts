@@ -91,7 +91,7 @@ const baseline = {
   files: VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1.map((file) => ({ path: file.installed_path, sha256: file.sha256, uid: 0, gid: 0, mode: 0o444, nlink: 1, regular_file: true, symlink: false, root_owned_parent_chain: true })),
 };
 const ok = classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1(baseline);
-if (!ok.ok) throw new Error("baseline qualification HOLD: " + ok.reason);
+if (!ok.ok) throw new Error("baseline qualification unexpectedly held");
 assert.equal(ok.ok, true);
 assert.match(ok.qualification_id, /^voidwfbq1_[0-9a-f]{64}$/u);
 assert.equal(ok.operation_performed, false);
@@ -101,7 +101,7 @@ assert.equal(ok.runtime_integration, false);
 assert.equal(ok.production_gate_ready, false);
 assert.equal(ok.funds_movement, false);
 const same = classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1(JSON.parse(JSON.stringify(baseline)));
-if (!same.ok) throw new Error("repeat qualification HOLD: " + same.reason);
+if (!same.ok) throw new Error("repeat qualification unexpectedly held");
 assert.equal(same.ok, true);
 assert.equal(same.qualification_id, ok.qualification_id);
 function expectHeld(value: unknown, reason: RegExp): void {
