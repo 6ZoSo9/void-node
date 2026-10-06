@@ -80,6 +80,12 @@ Reviewed continuity attestation ID:
 The attestation file must be a single-link mode-0600 regular file owned by the
 same dedicated account UID/GID as the witness service evidence.
 
+## Mandatory runtime-bundle successor gate
+
+The V2 handler is an ES module with static imports below `../dist/economic/`. V2 installation qualification alone therefore does not bind the full executable runtime closure.
+
+Any live installation must also satisfy `VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V1`. The two decisions are conjunctive; neither is sufficient by itself for live or production authority.
+
 ## Authority boundary
 
 A successful V2 decision is still only a classification of supplied evidence.
