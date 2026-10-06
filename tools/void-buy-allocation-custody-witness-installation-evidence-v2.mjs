@@ -413,6 +413,77 @@ function defaultIo() {
       return result.stdout;
     },
     runProbe,
+    parentChainRootOwnedNonWritable(file) {
+      const parent = path.dirname(path.resolve(String(file ?? "")));
+      const root = path.parse(parent).root;
+      const parts = parent
+        .slice(root.length)
+        .split(path.sep)
+        .filter(Boolean);
+      let fd = fs.openSync(
+        root,
+        fs.constants.O_RDONLY |
+          fs.constants.O_DIRECTORY |
+          fs.constants.O_NOFOLLOW,
+      );
+      let current = root;
+      try {
+        const validate = (opened, visible) => {
+          return (
+            opened.isDirectory() &&
+            !opened.isSymbolicLink() &&
+            visible.isDirectory() &&
+            !visible.isSymbolicLink() &&
+            opened.dev === visible.dev &&
+            opened.ino === visible.ino &&
+            opened.uid === visible.uid &&
+            opened.gid === visible.gid &&
+            opened.mode === visible.mode &&
+            Number(opened.uid) === 0 &&
+            (Number(opened.mode) & 0o022) === 0
+          );
+        };
+        if (
+          !validate(
+            fs.fstatSync(fd, { bigint: true }),
+            fs.lstatSync(current, { bigint: true }),
+          )
+        ) {
+          return false;
+        }
+        for (const component of parts) {
+          current = path.join(current, component);
+          const visible = fs.lstatSync(current, { bigint: true });
+          const nextFd = fs.openSync(
+            path.join("/proc/self/fd", String(fd), component),
+            fs.constants.O_RDONLY |
+              fs.constants.O_DIRECTORY |
+              fs.constants.O_NOFOLLOW,
+          );
+          const opened = fs.fstatSync(nextFd, { bigint: true });
+          fs.closeSync(fd);
+          fd = nextFd;
+          if (!validate(opened, visible)) {
+            return false;
+          }
+        }
+        return true;
+      } catch {
+        return false;
+      } finally {
+        try { fs.closeSync(fd); } catch {}
+      }
+    },
+    hostKeyOpenSshFingerprint(blob) {
+      return (
+        "SHA256:" +
+        crypto
+          .createHash("sha256")
+          .update(blob)
+          .digest("base64")
+          .replace(/=+$/u, "")
+      );
+    },
     exists(file) {
       return fs.existsSync(file);
     },
@@ -420,6 +491,9 @@ function defaultIo() {
 }
 
 function rootOwnedNonWritableParents(io, file) {
+  if (typeof io.parentChainRootOwnedNonWritable === "function") {
+    return io.parentChainRootOwnedNonWritable(file) === true;
+  }
   const resolved = path.resolve(file);
   const parent = path.dirname(resolved);
   const parsed = path.parse(parent);
@@ -777,12 +851,19 @@ function hostKeyEvidence(io, expectedSha256) {
   const observed = inspectFixedFile(io, HOST_KEY_PATH, 64 * 1024);
   const key = parsePublicKeyBlob(observed.bytes.toString("utf8"), true);
   const opensshFingerprint =
-    "SHA256:" +
-    crypto
-      .createHash("sha256")
-      .update(key.blob)
-      .digest("base64")
-      .replace(/=+$/u, "");
+    typeof io.hostKeyOpenSshFingerprint === "function"
+      ? String(io.hostKeyOpenSshFingerprint(key.blob))
+      : (
+          "SHA256:" +
+          crypto
+            .createHash("sha256")
+            .update(key.blob)
+            .digest("base64")
+            .replace(/=+$/u, "")
+        );
+  if (!/^SHA256:[A-Za-z0-9+/]{43}$/u.test(opensshFingerprint)) {
+    fail("witness_installation_evidence_host_key_mismatch");
+  }
   if (
     key.sha256 !== expectedSha256 ||
     observed.uid !== 0 ||
