@@ -150,12 +150,56 @@ assert.equal(
 );
 assert.equal(decision.attestation.v1_witness_retained_exact, true);
 assert.equal(decision.attestation.v1_witness_history_rewritten, false);
+assert.equal(
+  decision.attestation.historical_predecessor_witness_pinned,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_IDENTITY_CONTINUITY_AUTHORITY_V1
+    .historical_predecessor_witness_pinned,
+  true,
+);
 assert.equal(decision.attestation.handler_integration_required, true);
 assert.equal(
   decision.attestation.current_machine_id_runtime_admission_authorized,
   false,
 );
 assert.equal(decision.production_gate_ready, false);
+
+const alternateGenesisBody = {
+  ...genesisBody,
+  custody_uuid: "d72017fe-1c8f-452c-b55b-b08841209b29",
+};
+const alternateGenesisEvent = Object.freeze({
+  ...alternateGenesisBody,
+  event_sha256: sha256Id(canonicalJson(alternateGenesisBody)),
+});
+const alternateWitness = Buffer.from(
+  canonicalJson(alternateGenesisEvent) + "\n",
+  "utf8",
+);
+assert.equal(alternateWitness.length, witness.length);
+assert.notEqual(sha256Id(alternateWitness), sha256Id(witness));
+const alternatePredecessor =
+  classifyBuyVoidAllocationCustodyWitnessIdentityContinuityV1({
+    predecessor_witness_jsonl: alternateWitness,
+    evidence: {
+      ...evidence,
+      predecessor_witness_sha256: sha256Id(alternateWitness),
+      predecessor_witness_bytes: alternateWitness.length,
+      predecessor_event_count: 1,
+      predecessor_tip_event_sha256:
+        alternateGenesisEvent.event_sha256,
+    },
+  });
+assert.equal(alternatePredecessor.ok, false);
+if (alternatePredecessor.ok !== false) {
+  throw new Error("expected alternate historical predecessor HOLD");
+}
+assert.equal(
+  alternatePredecessor.reason,
+  "witness_identity_continuity_historical_predecessor_mismatch",
+);
 
 const held = (
   patch: Record<string, unknown>,
@@ -271,6 +315,8 @@ console.log("existing_known_hosts_match_required=true");
 console.log("ssh_hostkey_update_must_be_false=true");
 console.log("v1_witness_retained_exact=true");
 console.log("v1_witness_history_rewritten=false");
+console.log("historical_predecessor_witness_pinned=true");
+console.log("alternate_valid_predecessor_rejected=true");
 console.log("current_candidate_matches_live_census=true");
 console.log("live_evidence_origin_proven=false");
 console.log("handler_integration=false");
