@@ -106,6 +106,12 @@ function validPolicy() {
       trusted_connector_uid: 2101,
       source_identity_forwarded: false,
     },
+    credential_gateway_upstream: {
+      listen_host: "127.0.0.1",
+      listen_port: 4113,
+      credential_route: credentialRoute,
+      trusted_client_uid: 2102,
+    },
     downstream_firewall: {
       engine: "nftables",
       owner_uid: 0,
@@ -132,6 +138,24 @@ function validPolicy() {
           ip_daddr: "127.0.0.1",
           l4proto: "tcp",
           tcp_dport: 4190,
+          skuid: null,
+          verdict: "drop",
+        },
+        {
+          order: 3,
+          oifname: "lo",
+          ip_daddr: "127.0.0.1",
+          l4proto: "tcp",
+          tcp_dport: 4113,
+          skuid: 2102,
+          verdict: "accept",
+        },
+        {
+          order: 4,
+          oifname: "lo",
+          ip_daddr: "127.0.0.1",
+          l4proto: "tcp",
+          tcp_dport: 4113,
           skuid: null,
           verdict: "drop",
         },
@@ -176,6 +200,7 @@ assert.equal(
 assert.equal(qualified.shared_gateway_credential_route_disabled, true);
 assert.equal(qualified.ordinary_shared_gateway_routes_preserved, true);
 assert.equal(qualified.dedicated_downstream_port, 4190);
+assert.equal(qualified.credential_gateway_upstream_port, 4113);
 assert.equal(qualified.adapter_uid, 2101);
 assert.equal(qualified.gateway_uid, 2102);
 assert.equal(qualified.source_identity_forwarded, false);
@@ -257,6 +282,34 @@ expectHold(
 );
 expectHold(
   (x) => {
+    x.credential_gateway_upstream.listen_host = "0.0.0.0";
+  },
+  /credential_gateway_upstream_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.credential_gateway_upstream.listen_port = 4112;
+    x.downstream_firewall.rules[2].tcp_dport = 4112;
+    x.downstream_firewall.rules[3].tcp_dport = 4112;
+  },
+  /credential_gateway_upstream_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.credential_gateway_upstream.listen_port = 4190;
+    x.downstream_firewall.rules[2].tcp_dport = 4190;
+    x.downstream_firewall.rules[3].tcp_dport = 4190;
+  },
+  /credential_gateway_upstream_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.credential_gateway_upstream.trusted_client_uid = 2101;
+  },
+  /credential_gateway_upstream_invalid/u,
+);
+expectHold(
+  (x) => {
     x.downstream_firewall.rules[0].skuid = 2102;
   },
   /adapter_allow_rule_invalid/u,
@@ -266,6 +319,18 @@ expectHold(
     x.downstream_firewall.rules[1].verdict = "accept";
   },
   /nonadapter_drop_rule_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.downstream_firewall.rules[2].skuid = 2101;
+  },
+  /gateway_upstream_allow_rule_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.downstream_firewall.rules[3].verdict = "accept";
+  },
+  /nongateway_upstream_drop_rule_invalid/u,
 );
 expectHold(
   (x) => {
@@ -339,6 +404,18 @@ assert.equal(
   "downstream_isolation_shared_gateway_bypass_not_closed",
 );
 
+const currentInnerGlobalWallTopology = clone(validPolicy());
+currentInnerGlobalWallTopology.downstream_firewall.rules.pop();
+const currentInnerGlobalWallResult =
+  classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
+    currentInnerGlobalWallTopology,
+  );
+assert.equal(currentInnerGlobalWallResult.ok, false);
+assert.equal(
+  currentInnerGlobalWallResult.reason,
+  "downstream_isolation_firewall_rule_count_invalid",
+);
+
 console.log(
   "VOID_AGENT_CREDENTIAL_REQUEST_DOWNSTREAM_ISOLATION_POLICY_V1_GREEN",
 );
@@ -348,8 +425,12 @@ console.log("ordinary_shared_gateway_routes_preserved=true");
 console.log("dedicated_credential_downstream_required=true");
 console.log("adapter_uid_only_downstream_connector_required=true");
 console.log("nonmatching_downstream_connector_drop_required=true");
+console.log("upstream_global_wall_direct_bypass_policy_required=true");
+console.log("gateway_uid_only_upstream_connector_required=true");
+console.log("nonmatching_upstream_connector_drop_required=true");
 console.log("source_identity_forwarding_forbidden=true");
 console.log("current_shared_4112_credential_route_holds=true");
+console.log("current_inner_global_wall_direct_bypass_holds=true");
 console.log("live_host_evidence_verified=false");
 console.log("downstream_gateway_bypass_closed=false");
 console.log("local_transport_trust_proven=false");
