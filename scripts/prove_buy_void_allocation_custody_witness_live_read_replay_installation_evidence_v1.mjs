@@ -16,10 +16,28 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
   inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1,
   testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotV1,
+  testOnlySingleParentNameV1,
+  testOnlyStatHexDeviceNumberToDecimalV1,
 } from "../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs";
 
 const sha256Id = (value) =>
   "sha256:" + crypto.createHash("sha256").update(value).digest("hex");
+
+assert.equal(testOnlyStatHexDeviceNumberToDecimalV1("8:1"), "8:1");
+assert.equal(
+  testOnlyStatHexDeviceNumberToDecimalV1("103:1"),
+  "259:1",
+);
+assert.equal(testOnlySingleParentNameV1("sda"), "sda");
+assert.equal(testOnlySingleParentNameV1(""), null);
+assert.throws(
+  () => testOnlySingleParentNameV1("sda\nsdb"),
+  /witness_replay_installation_evidence_parent_topology_ambiguous/u,
+);
+assert.throws(
+  () => testOnlyStatHexDeviceNumberToDecimalV1("not-a-device"),
+  /witness_replay_installation_evidence_test_device_number_invalid/u,
+);
 
 const journalBytes = Buffer.alloc(0);
 const derived =
@@ -342,6 +360,8 @@ for (const key of [
   "local_block_filesystem_required",
   "distinct_mount_domains_required",
   "distinct_parent_block_devices_required",
+  "mount_source_device_number_bound",
+  "single_parent_block_topology_required",
   "parent_disk_serial_and_wwn_required",
   "no_pending_publication_intent_required",
 ]) {
@@ -363,7 +383,11 @@ for (const token of [
   "O_DIRECTORY",
   "/proc/self/mountinfo",
   '"/usr/bin/lsblk"',
+  '"/usr/bin/stat"',
   '"SERIAL,WWN"',
+  "isBlockDevice()",
+  "mount_source_device_mismatch",
+  "parent_topology_ambiguous",
   "assertPinnedRootVisible(",
   "assertPinnedFileVisible(",
   "assertIntentAbsent(",
@@ -433,6 +457,8 @@ console.log("double_census_required=true");
 console.log("mountinfo_stability_required=true");
 console.log("distinct_mount_domains_required=true");
 console.log("distinct_parent_block_devices_required=true");
+console.log("mount_source_device_number_bound=true");
+console.log("single_parent_block_topology_required=true");
 console.log("parent_disk_serial_and_wwn_required=true");
 console.log("same_physical_disk_partitions_accepted=false");
 console.log("pending_publication_intent_accepted=false");
