@@ -6,7 +6,7 @@ import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V1,
-  classifyCoupledNativeGasReconciliationCustodySourceBindingV1,
+  testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1,
   inspectCoupledNativeGasReconciliationCustodySourceBindingV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs";
 
@@ -22,7 +22,7 @@ const observed = () => ({
 });
 
 const baseline =
-  classifyCoupledNativeGasReconciliationCustodySourceBindingV1(observed());
+  testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1(observed());
 assert.equal(baseline.ok, true);
 if (!baseline.ok) throw new Error(baseline.reason);
 assert.equal(
@@ -55,7 +55,7 @@ assert.equal(baseline.funds_movement, false);
 assert.match(baseline.source_binding_id, /^voidngrcsb1_[0-9a-f]{64}$/u);
 
 const alternativeHead =
-  classifyCoupledNativeGasReconciliationCustodySourceBindingV1({
+  testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
     ...observed(),
     repository_head_sha: "c".repeat(40),
   });
@@ -70,7 +70,7 @@ for (let index = 0; index <
   const candidate = observed();
   candidate.source_blobs[index].git_blob_sha1 = "0".repeat(40);
   const held =
-    classifyCoupledNativeGasReconciliationCustodySourceBindingV1(candidate);
+    testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1(candidate);
   assert.equal(held.ok, false, candidate.source_blobs[index].path);
   if (held.ok) throw new Error("expected source drift HOLD");
   assert.equal(
@@ -117,7 +117,7 @@ for (const [label, mutate, reason] of [
   const candidate = observed();
   mutate(candidate);
   const held =
-    classifyCoupledNativeGasReconciliationCustodySourceBindingV1(candidate);
+    testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1(candidate);
   assert.equal(held.ok, false, label);
   if (held.ok) throw new Error("expected " + label + " HOLD");
   assert.equal(held.reason, reason, label);
@@ -131,6 +131,8 @@ for (const [key, value] of Object.entries(
   const trueKeys = new Set([
     "source_only_contract",
     "git_repository_identity_read",
+    "subprocess_git_read",
+    "filesystem_read",
     "clean_worktree_required",
     "reviewed_base_ancestry_required",
     "exact_reviewed_git_blobs_required",
