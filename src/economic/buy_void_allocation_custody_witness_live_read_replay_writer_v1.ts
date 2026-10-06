@@ -30,6 +30,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_AU
     dual_root_serialization_lock: true,
     redundant_transaction_intent: true,
     canonical_replay_planner_required: true,
+    canonical_replay_high_water_required: true,
     journal_first_publication_order: true,
     atomic_journal_publication: true,
     atomic_high_water_publication: true,
