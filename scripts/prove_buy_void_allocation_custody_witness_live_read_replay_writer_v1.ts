@@ -496,6 +496,76 @@ for (const phase of [
 {
   const f = fixture();
   try {
+    const crashed =
+      testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueCrashV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+          entropy_sha256: sha("6"),
+          issued_at_ms: 40_000,
+          expires_at_ms: 78_000,
+        },
+        "after_intents",
+      );
+    assert.equal(crashed.ok, false);
+
+    const intent = JSON.parse(
+      fs.readFileSync(
+        path.join(f.highWaterRoot, INTENT_NAME),
+        "utf8",
+      ),
+    );
+    assert.equal(typeof intent.after_high_water_json, "string");
+    fs.writeFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+      intent.after_high_water_json,
+      { mode: 0o600 },
+    );
+
+    const recovered =
+      inspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      });
+    assert.equal(recovered.ok, true);
+    if (!recovered.ok) {
+      throw new Error(
+        "high-water-committed recovery held: " + recovered.reason,
+      );
+    }
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.recovery_performed, true);
+    assert.equal(recovered.generation, 1);
+    assert.equal(recovered.sequence, 1);
+    assert.equal(recovered.pending, true);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+    const rebound =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+        {
+          journal_jsonl: fs.readFileSync(
+            path.join(f.journalRoot, JOURNAL_NAME),
+          ),
+          high_water_json: fs.readFileSync(
+            path.join(f.highWaterRoot, HIGH_WATER_NAME),
+          ),
+        },
+      );
+    assert.equal(rebound.ok, true);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
     const same =
       inspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterV1({
         journal_root: f.journalRoot,
@@ -698,6 +768,7 @@ console.log("atomic_high_water_publication=true");
 console.log("file_fsync=true");
 console.log("directory_fsync=true");
 console.log("crash_recovery_all_cutpoints=true");
+console.log("high_water_committed_recovery=true");
 console.log("single_root_rollback_detected=true");
 console.log("terminal_paired_root_revalidation=true");
 console.log("inspect_root_swap_after_journal_snapshot_holds=true");
