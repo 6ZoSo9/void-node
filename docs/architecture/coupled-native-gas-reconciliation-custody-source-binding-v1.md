@@ -48,13 +48,15 @@ The read-only inspector requires:
 - global/system Git config disabled;
 - repository-local include directives and filter configuration rejected in
   both local and enabled worktree config scopes;
-- no content-converting porcelain status command is used for clean-state
-  authority: assume-unchanged/skip-worktree index flags are forbidden, the index
-  is compared to the pinned commit with cached plumbing, and
-  unstaged/deleted/untracked state is checked with `ls-files`. Reviewed source
-  bytes are still independently nofollow-read and Git-blob rehashed. This
-  removes the filter-execution TOCTOU between config inspection and later
-  clean-state observation;
+- no content-converting porcelain or modified-file comparison is used for
+  clean-state authority: assume-unchanged/skip-worktree index flags are
+  forbidden, the index is compared to the pinned commit with cached plumbing,
+  every tracked regular file/symlink is direct-read and Git-blob rehashed
+  against its stage-0 index record (including executable mode), and only
+  untracked names are obtained from `ls-files --others --exclude-standard`.
+  The reviewed 21 paths remain independently nofollow/nonblocking rehashed.
+  This removes repository clean-filter execution from the clean-state path
+  rather than relying on a prior config check to remain current;
 - hooks, fsmonitor, global attributes, untracked cache, preloading, and submodule
   recursion disabled for the observation;
 - legacy `.git/info/grafts` rejected before ancestry evaluation;
@@ -154,7 +156,7 @@ The focused proof:
 - installs both repository-local and per-worktree executable filter settings
   and requires HOLD before source inspection;
 - separately arms a repository clean filter after the config-check boundary and
-  proves the non-converting clean-state plumbing does not execute it;
+  proves the full tracked-file raw-hash clean-state census does not execute it;
 - installs a temporary legacy graft overlay and requires HOLD before ancestry is
   trusted;
 - swaps a regular proof file to a FIFO between lstat/open and requires bounded
