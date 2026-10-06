@@ -767,7 +767,7 @@ function readSingleDeflatedZipEntryV1(zipBytes, expectedName) {
   const name = zipBytes.subarray(30, 30 + nameLength).toString("utf8");
   if (name !== expectedName) fail("compiled_identity_archive_entry_invalid");
   const dataStart = 30 + nameLength + extraLength;
-  const central = zipBytes.indexOf(Buffer.from("PK\\x01\\x02", "binary"));
+  const central = zipBytes.indexOf(Buffer.from("PK\x01\x02", "binary"));
   if (central <= dataStart + 16) fail("compiled_identity_archive_central_missing");
   const descriptor = central - 16;
   if (zipBytes.readUInt32LE(descriptor) !== 0x08074b50) {
@@ -783,7 +783,7 @@ function readSingleDeflatedZipEntryV1(zipBytes, expectedName) {
   );
   if (
     inflated.length !== uncompressedSize ||
-    zipBytes.indexOf(Buffer.from("PK\\x03\\x04", "binary"), dataStart) !== -1
+    zipBytes.indexOf(Buffer.from("PK\x03\x04", "binary"), dataStart) !== -1
   ) {
     fail("compiled_identity_archive_entries_invalid");
   }
