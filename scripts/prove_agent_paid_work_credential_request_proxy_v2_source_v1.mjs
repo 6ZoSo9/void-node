@@ -155,8 +155,27 @@ const withTlv = requireOk(
   ),
 );
 assert.equal(withTlv.tlv_bytes, 5);
+assert.equal(withTlv.tlv_count, 1);
 assert.equal(withTlv.consumed_bytes, 33);
 assert.equal(withTlv.limiter_source_key, a.limiter_source_key);
+
+expectHeld(
+  parseVoidAgentCredentialRequestProxyV2SourceV1(
+    tcp4Frame({
+      tlv: Buffer.from([0x01]),
+    }),
+  ),
+  "proxy_v2_tlv_invalid",
+);
+
+expectHeld(
+  parseVoidAgentCredentialRequestProxyV2SourceV1(
+    tcp4Frame({
+      tlv: Buffer.from([0x01, 0x00, 0x02, 0xaa]),
+    }),
+  ),
+  "proxy_v2_tlv_invalid",
+);
 
 expectHeld(
   parseVoidAgentCredentialRequestProxyV2SourceV1(
@@ -386,6 +405,7 @@ console.log(
 console.log("tcp4_tcp6_source_identity=true");
 console.log("source_port_bucket_rotation=false");
 console.log("bounded_proxy_v2_header=true");
+console.log("proxy_v2_tlv_framing_validated=true");
 console.log("spoofed_forwarding_headers_trusted=false");
 console.log("per_source_rate_limit_isolation=true");
 console.log("local_transport_trust_proven=false");
