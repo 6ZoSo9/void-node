@@ -27,6 +27,7 @@ import {
   recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1,
   testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterFileSwapV1,
   testOnlyInspectCoupledNativeGasReconciliationCustodyReceiptWriterRootSwapV1,
+  testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterIntentFileSwapV1,
   testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWriterLocksV1,
   testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1,
 } from "../tools/void-coupled-native-gas-reconciliation-custody-receipt-writer-v1.mjs";
@@ -910,6 +911,80 @@ for (const missingRoot of ["journal", "high-water"]) {
   }
 }
 
+for (const which of ["journal", "high_water"]) {
+  const f = fixture();
+  try {
+    const originalInput = inputFor(f);
+    const crashPhase =
+      which === "journal"
+        ? "after_journal_intent"
+        : "after_high_water_intent";
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        originalInput,
+        crashPhase,
+      ),
+    );
+    assert.match(
+      crashed.reason,
+      new RegExp("test_crash_" + crashPhase, "u"),
+    );
+
+    if (which === "high_water") {
+      fs.unlinkSync(path.join(f.journalRoot, INTENT_NAME));
+    }
+
+    const journalBefore = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const highWaterBefore = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+    const survivorPath =
+      which === "journal"
+        ? path.join(f.journalRoot, INTENT_NAME)
+        : path.join(f.highWaterRoot, INTENT_NAME);
+    assert.equal(fs.existsSync(survivorPath), true);
+
+    const held = requireHeld(
+      await testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterIntentFileSwapV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+        },
+        which,
+      ),
+    );
+    assert.match(
+      held.reason,
+      which === "journal"
+        ? /receipt_writer_journal_intent_snapshot_changed/u
+        : /receipt_writer_high_water_intent_snapshot_changed/u,
+    );
+    assert.equal(
+      held.operation_performed,
+      false,
+      which + " intent replacement must HOLD before mutation",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(
+        journalBefore,
+      ),
+      true,
+      which + " intent replacement must not mutate journal",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWaterBefore,
+      ),
+      true,
+      which + " intent replacement must not mutate high-water",
+    );
+  } finally {
+    cleanup(f);
+  }
+}
+
 async function proveSingleRootReplacementSerialization(replaceRoot) {
   const f = fixture();
   const detached = path.join(
@@ -1145,6 +1220,9 @@ console.log("paired_terminal_root_revalidation=true");
 console.log("paired_authoritative_file_snapshot_revalidation=true");
 console.log("journal_file_post_read_replacement_hold=true");
 console.log("high_water_file_post_read_replacement_hold=true");
+console.log("journal_intent_post_read_replacement_hold=true");
+console.log("high_water_intent_post_read_replacement_hold=true");
+console.log("one_sided_intent_snapshot_bound_before_redundancy=true");
 console.log("high_water_exact_journal_binding=true");
 console.log("exact_post_reclassification=true");
 console.log("exact_terminal_idempotent_retry=true");
