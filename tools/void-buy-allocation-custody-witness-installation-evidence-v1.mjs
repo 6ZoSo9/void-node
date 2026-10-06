@@ -249,8 +249,58 @@ function sameFile(left, right) {
   );
 }
 
-function stableReadFile(file, maxBytes) {
-  const before = fs.lstatSync(file, { bigint: true });
+function systemExecStatus(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    env: options.env,
+    encoding: options.encoding === "buffer" ? undefined : "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: MAX_COMMAND_BYTES,
+  });
+  if (result.error) throw result.error;
+  return Object.freeze({
+    status: Number(result.status),
+    stdout:
+      options.encoding === "buffer"
+        ? Buffer.from(result.stdout ?? Buffer.alloc(0))
+        : String(result.stdout ?? ""),
+    stderr:
+      options.encoding === "buffer"
+        ? Buffer.from(result.stderr ?? Buffer.alloc(0))
+        : String(result.stderr ?? ""),
+  });
+}
+
+const SYSTEM_IO = Object.freeze({
+  lstat(file) {
+    return io.lstat(file);
+  },
+  realpath(file) {
+    return fs.realpathSync.native(file);
+  },
+  open(file, flags) {
+    return fs.openSync(file, flags);
+  },
+  fstat(fd) {
+    return io.fstat(fd);
+  },
+  read(fd, buffer, offset, length, position) {
+    return fs.readSync(fd, buffer, offset, length, position);
+  },
+  close(fd) {
+    io.close(fd);
+  },
+  readFile(file) {
+    return fs.readFileSync(file);
+  },
+  execStatus: systemExecStatus,
+  nowMs() {
+    return Date.now();
+  },
+});
+
+function stableReadFile(io, file, maxBytes) {
+  const before = io.lstat(file);
   if (
     !before.isFile() ||
     before.isSymbolicLink() ||
@@ -260,12 +310,12 @@ function stableReadFile(file, maxBytes) {
   ) {
     fail("witness_installation_evidence_file_invalid");
   }
-  const fd = fs.openSync(
+  const fd = io.open(
     file,
     fs.constants.O_RDONLY | Number(fs.constants.O_NOFOLLOW || 0),
   );
   try {
-    const opened = fs.fstatSync(fd, { bigint: true });
+    const opened = io.fstat(fd);
     if (!sameFile(before, opened)) {
       fail("witness_installation_evidence_file_identity_changed");
     }
@@ -273,14 +323,14 @@ function stableReadFile(file, maxBytes) {
     const bytes = Buffer.alloc(size);
     let offset = 0;
     while (offset < size) {
-      const count = fs.readSync(fd, bytes, offset, size - offset, offset);
+      const count = io.read(fd, bytes, offset, size - offset, offset);
       if (count <= 0) {
         fail("witness_installation_evidence_file_short_read");
       }
       offset += count;
     }
-    const after = fs.fstatSync(fd, { bigint: true });
-    const visible = fs.lstatSync(file, { bigint: true });
+    const after = io.fstat(fd);
+    const visible = io.lstat(file);
     if (
       !sameFile(opened, after) ||
       !sameFile(after, visible) ||
@@ -290,42 +340,39 @@ function stableReadFile(file, maxBytes) {
     }
     return Object.freeze({ bytes, stat: after });
   } finally {
-    fs.closeSync(fd);
+    io.close(fd);
   }
 }
 
-function execStatus(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd,
-    env: options.env,
-    encoding: options.encoding === "buffer" ? undefined : "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    maxBuffer: MAX_COMMAND_BYTES,
-  });
-  if (result.error) throw result.error;
+function execStatus(io, command, args, options = {}) {
+  if (!io || typeof io.execStatus !== "function") {
+    fail("witness_installation_evidence_io_invalid");
+  }
+  const result = io.execStatus(command, args, options);
   const stdout =
-    options.encoding === "buffer"
-      ? Buffer.from(result.stdout ?? Buffer.alloc(0))
-      : String(result.stdout ?? "");
+    Buffer.isBuffer(result?.stdout)
+      ? result.stdout
+      : String(result?.stdout ?? "");
   const stderr =
-    options.encoding === "buffer"
-      ? Buffer.from(result.stderr ?? Buffer.alloc(0))
-      : String(result.stderr ?? "");
+    Buffer.isBuffer(result?.stderr)
+      ? result.stderr
+      : String(result?.stderr ?? "");
   if (
+    !Number.isInteger(result?.status) ||
     Buffer.byteLength(stdout) > MAX_COMMAND_BYTES ||
     Buffer.byteLength(stderr) > MAX_COMMAND_BYTES
   ) {
-    fail("witness_installation_evidence_command_output_too_large");
+    fail("witness_installation_evidence_command_output_invalid");
   }
   return Object.freeze({
-    status: Number(result.status),
+    status: result.status,
     stdout,
     stderr,
   });
 }
 
-function execText(command, args, code, options = {}) {
-  const result = execStatus(command, args, options);
+function execText(io, command, args, code, options = {}) {
+  const result = execStatus(io, command, args, options);
   if (result.status !== 0 || typeof result.stdout !== "string") {
     fail(code);
   }
@@ -383,10 +430,10 @@ function pathChain(pathname) {
   return out;
 }
 
-function rootOwnedParentChain(file, nonWritable) {
+function rootOwnedParentChain(io, file, nonWritable) {
   const parent = path.dirname(file);
   for (const entry of pathChain(parent)) {
-    const stat = fs.lstatSync(entry, { bigint: true });
+    const stat = io.lstat(entry);
     if (
       !stat.isDirectory() ||
       stat.isSymbolicLink() ||
@@ -688,20 +735,12 @@ function normalizeConfig(raw) {
   });
 }
 
-function collect() {
-  const rawConfig = process.env
-    .VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_CONFIG_JSON;
-  if (!rawConfig) fail("witness_installation_evidence_config_env_required");
-  let parsed;
-  try {
-    parsed = JSON.parse(rawConfig);
-  } catch {
-    fail("witness_installation_evidence_config_json_invalid");
-  }
-  const config = normalizeConfig(parsed);
+function collect(rawConfig, io = SYSTEM_IO) {
+  const config = normalizeConfig(rawConfig);
   const policy = config.transport_policy;
 
   const sourceHead = execText(
+    io,
     GIT_PATH,
     ["-C", config.repo_root, "rev-parse", "HEAD"],
     "witness_installation_evidence_git_head_failed",
@@ -710,6 +749,7 @@ function collect() {
     fail("witness_installation_evidence_git_head_invalid");
   }
   const trackedStatus = execText(
+    io,
     GIT_PATH,
     ["-C", config.repo_root, "status", "--porcelain=v1", "--untracked-files=no"],
     "witness_installation_evidence_git_status_failed",
@@ -718,6 +758,7 @@ function collect() {
     fail("witness_installation_evidence_repository_not_clean");
   }
   const sourceBlob = execText(
+    io,
     GIT_PATH,
     [
       "-C",
@@ -733,6 +774,7 @@ function collect() {
 
   const passwd = parsePasswd(
     execText(
+      io,
       GETENT_PATH,
       ["passwd", policy.remote_user],
       "witness_installation_evidence_passwd_failed",
@@ -740,17 +782,18 @@ function collect() {
     policy.remote_user,
   );
 
-  const shellVisible = fs.lstatSync(SHELL_PATH, { bigint: true });
-  const shellResolved = fs.realpathSync.native(SHELL_PATH);
-  const shellFile = stableReadFile(shellResolved, MAX_SMALL_FILE_BYTES);
+  const shellVisible = io.lstat(SHELL_PATH);
+  const shellResolved = io.realpath(SHELL_PATH);
+  const shellFile = stableReadFile(io, shellResolved, MAX_SMALL_FILE_BYTES);
 
-  const handlerFile = stableReadFile(HANDLER_PATH, MAX_SMALL_FILE_BYTES);
+  const handlerFile = stableReadFile(io, HANDLER_PATH, MAX_SMALL_FILE_BYTES);
   const installedBlob = gitBlobSha1(handlerFile.bytes);
 
-  const nodeVisible = fs.lstatSync(NODE_PATH, { bigint: true });
-  const nodeResolved = fs.realpathSync.native(NODE_PATH);
-  const nodeFile = stableReadFile(NODE_PATH, MAX_NODE_BYTES);
+  const nodeVisible = io.lstat(NODE_PATH);
+  const nodeResolved = io.realpath(NODE_PATH);
+  const nodeFile = stableReadFile(io, NODE_PATH, MAX_NODE_BYTES);
   const nodeVersion = execText(
+    io,
     NODE_PATH,
     ["--version"],
     "witness_installation_evidence_node_version_failed",
@@ -761,7 +804,7 @@ function collect() {
   }
   const nodeMajor = Number(nodeVersion.replace(/^v/u, "").split(".")[0]);
 
-  const configFile = stableReadFile(CONFIG_PATH, MAX_SMALL_FILE_BYTES);
+  const configFile = stableReadFile(io, CONFIG_PATH, MAX_SMALL_FILE_BYTES);
   let installedConfig;
   try {
     installedConfig = JSON.parse(configFile.bytes.toString("utf8"));
@@ -801,6 +844,7 @@ function collect() {
   const authorizedKeysPath =
     "/var/lib/" + policy.remote_user + "/.ssh/authorized_keys";
   const authorizedKeys = stableReadFile(
+    io,
     authorizedKeysPath,
     MAX_SMALL_FILE_BYTES,
   );
@@ -808,13 +852,12 @@ function collect() {
     authorizedKeys.bytes.toString("utf8"),
   );
   const authorizedOptions = new Set(parsedAuthorized.option_names);
-  const sshParent = fs.lstatSync(path.dirname(authorizedKeysPath), {
-    bigint: true,
-  });
+  const sshParent = io.lstat(path.dirname(authorizedKeysPath));
   const restrict = authorizedOptions.has("restrict");
   const exactCommand = parsedAuthorized.command === FORCED_COMMAND;
 
   const hostKeyFile = stableReadFile(
+    io,
     HOST_PUBLIC_KEY_PATH,
     MAX_SMALL_FILE_BYTES,
   );
@@ -832,6 +875,7 @@ function collect() {
   }
 
   const sshdText = execText(
+    io,
     SSHD_PATH,
     [
       "-T",
@@ -844,6 +888,7 @@ function collect() {
   const sshd = testOnlyParseBuyVoidWitnessSshdEffectiveV1(sshdText);
 
   const mainPidText = execText(
+    io,
     SYSTEMCTL_PATH,
     ["show", config.sshd_service_unit, "--property=MainPID", "--value", "--no-pager"],
     "witness_installation_evidence_sshd_pid_failed",
@@ -855,9 +900,7 @@ function collect() {
   if (!Number.isSafeInteger(sshdPid)) {
     fail("witness_installation_evidence_sshd_pid_invalid");
   }
-  const sshdEnvironmentBytes = fs.readFileSync(
-    "/proc/" + String(sshdPid) + "/environ",
-  );
+  const sshdEnvironmentBytes = io.readFile("/proc/" + String(sshdPid) + "/environ");
   const sshdEnvironment = parseNullEnvironment(sshdEnvironmentBytes);
   const dangerousAbsent = DANGEROUS_ENVIRONMENT_NAMES.filter(
     (name) => !sshdEnvironment.has(name),
@@ -867,6 +910,7 @@ function collect() {
   }
 
   const originalCommandProbe = execStatus(
+    io,
     SHELL_PATH,
     ["-c", FORCED_COMMAND],
     {
@@ -887,6 +931,7 @@ function collect() {
   }
 
   const envProbe = execText(
+    io,
     ENV_PATH,
     [
       "-i",
@@ -928,7 +973,7 @@ function collect() {
     nlink: Number(handlerFile.stat.nlink),
     regular_file: handlerFile.stat.isFile(),
     symlink: false,
-    root_owned_parent_chain: rootOwnedParentChain(HANDLER_PATH, true),
+    root_owned_parent_chain: rootOwnedParentChain(io, HANDLER_PATH, true),
   });
 
   const node = Object.freeze({
@@ -955,7 +1000,7 @@ function collect() {
     regular_file: configFile.stat.isFile(),
     symlink: false,
     root_owned_nonwritable_parent_chain:
-      rootOwnedParentChain(CONFIG_PATH, true),
+      rootOwnedParentChain(io, CONFIG_PATH, true),
     sha256: sha256Id(configFile.bytes),
     policy_sha256: policySha256,
     authority_root: AUTHORITY_ROOT,
@@ -979,7 +1024,7 @@ function collect() {
     key_algorithm: parsedAuthorized.key_algorithm,
     public_key_sha256: parsedAuthorized.public_key_sha256,
     restrict,
-    forced_command_present: command !== null,
+    forced_command_present: parsedAuthorized.command !== null,
     forced_command: parsedAuthorized.command,
     forced_command_sha256: sha256Id(FORCED_COMMAND),
     environment_options: parsedAuthorized.environment_options,
@@ -1030,7 +1075,7 @@ function collect() {
     client_public_key_sha256: parsedAuthorized.public_key_sha256,
   });
 
-  const collectedAtMs = Date.now();
+  const collectedAtMs = io.nowMs();
   if (!Number.isSafeInteger(collectedAtMs) || collectedAtMs < 1) {
     fail("witness_installation_evidence_clock_invalid");
   }
@@ -1097,26 +1142,22 @@ function collect() {
 
 export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV1(
   config,
+  { io = SYSTEM_IO } = {},
 ) {
-  const previous =
-    process.env.VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_CONFIG_JSON;
-  try {
-    process.env.VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_CONFIG_JSON =
-      JSON.stringify(config);
-    return collect();
-  } finally {
-    if (previous === undefined) {
-      delete process.env
-        .VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_CONFIG_JSON;
-    } else {
-      process.env.VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_CONFIG_JSON =
-        previous;
-    }
-  }
+  return collect(config, io);
 }
 
 function main() {
-  const result = collect();
+  const rawConfig = process.env
+    .VOID_BUY_VOID_WITNESS_INSTALLATION_EVIDENCE_CONFIG_JSON;
+  if (!rawConfig) fail("witness_installation_evidence_config_env_required");
+  let parsed;
+  try {
+    parsed = JSON.parse(rawConfig);
+  } catch {
+    fail("witness_installation_evidence_config_json_invalid");
+  }
+  const result = collect(parsed, SYSTEM_IO);
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
 
