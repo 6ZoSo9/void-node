@@ -977,6 +977,7 @@ function recoverIntentUnderLock(directory, config, hostFacts) {
     validCurrent.event_count === intent.prior_event_count &&
     validCurrent.tip.event_sha256 === intent.prior_tip_event_sha256
   ) {
+    requireHostFactsMatchWitness(currentBytes, hostFacts);
     priorBytes = currentBytes;
   } else {
     if (
@@ -1002,6 +1003,8 @@ function recoverIntentUnderLock(directory, config, hostFacts) {
     ) {
       fail("witness_forced_command_intent_recovery_conflict");
     }
+
+    requireHostFactsMatchWitness(priorBytes, hostFacts);
 
     const tail = currentBytes.subarray(intent.prior_witness_bytes);
     if (
