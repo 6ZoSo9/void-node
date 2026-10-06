@@ -356,27 +356,95 @@ export function testOnlyRequireObservationHeadUnchangedV1(
   return requireObservationHeadUnchangedV1(initialHead, finalHead);
 }
 
+function rejectConfigMatchesV1(args, reason) {
+  const result = git(
+    args,
+    reason,
+    { allowFail: true },
+  );
+  if (result.status === 0 && String(result.stdout || "").trim() !== "") {
+    fail(reason);
+  }
+  if (result.status !== 0 && result.status !== 1) {
+    fail(reason);
+  }
+}
+
 function rejectRepositoryExecutionSettingsV1() {
-  for (const [args, reason] of [
+  for (const [pattern, reason] of [
     [
-      ["config", "--local", "--no-includes", "--name-only", "--get-regexp", "^include"],
+      "^include",
       "source_binding_repository_include_config_forbidden",
     ],
     [
-      ["config", "--local", "--no-includes", "--name-only", "--get-regexp", "^filter\\."],
+      "^filter\\.",
       "source_binding_repository_filter_config_forbidden",
     ],
   ]) {
-    const result = git(
-      args,
+    rejectConfigMatchesV1(
+      [
+        "config",
+        "--local",
+        "--no-includes",
+        "--name-only",
+        "--get-regexp",
+        pattern,
+      ],
       reason,
-      { allowFail: true },
     );
-    if (result.status === 0 && String(result.stdout || "").trim() !== "") {
-      fail(reason);
+  }
+
+  const worktreeConfig = git(
+    [
+      "config",
+      "--local",
+      "--no-includes",
+      "--bool",
+      "--get",
+      "extensions.worktreeConfig",
+    ],
+    "source_binding_repository_worktree_config_invalid",
+    { allowFail: true },
+  );
+  if (
+    worktreeConfig.status !== 0 &&
+    worktreeConfig.status !== 1
+  ) {
+    fail("source_binding_repository_worktree_config_invalid");
+  }
+  const worktreeConfigEnabled =
+    worktreeConfig.status === 0 &&
+    String(worktreeConfig.stdout || "").trim() === "true";
+
+  if (worktreeConfig.status === 0 && !worktreeConfigEnabled) {
+    const raw = String(worktreeConfig.stdout || "").trim();
+    if (raw !== "false") {
+      fail("source_binding_repository_worktree_config_invalid");
     }
-    if (result.status !== 0 && result.status !== 1) {
-      fail(reason);
+  }
+
+  if (worktreeConfigEnabled) {
+    for (const [pattern, reason] of [
+      [
+        "^include",
+        "source_binding_repository_include_config_forbidden",
+      ],
+      [
+        "^filter\\.",
+        "source_binding_repository_filter_config_forbidden",
+      ],
+    ]) {
+      rejectConfigMatchesV1(
+        [
+          "config",
+          "--worktree",
+          "--no-includes",
+          "--name-only",
+          "--get-regexp",
+          pattern,
+        ],
+        reason,
+      );
     }
   }
 }
