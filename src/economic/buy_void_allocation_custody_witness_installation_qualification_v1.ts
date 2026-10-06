@@ -21,6 +21,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION
     effective_authorized_keys_path_binding: true,
     sshd_environment_restrictions_required: true,
     preexec_original_command_rejection_required: true,
+    preexec_binary_identity_binding: true,
+    root_owned_execution_chain_required: true,
     sanitized_node_environment_required: true,
     pinned_host_key_required: true,
     pinned_client_key_required: true,
@@ -124,6 +126,7 @@ const ACCOUNT_KEYS = Object.freeze([
   "shell_regular_file",
   "shell_resolved_path",
   "shell_root_owned",
+  "shell_root_owned_nonwritable_parent_chain",
   "shell_sha256",
   "shell_uid",
   "uid",
@@ -149,6 +152,7 @@ const NODE_KEYS = Object.freeze([
   "regular_file",
   "resolved_path",
   "root_owned",
+  "root_owned_nonwritable_parent_chain",
   "sha256",
   "symlink",
   "uid",
@@ -205,7 +209,15 @@ const SSHD_KEYS = Object.freeze([
 ]);
 const PREEXEC_KEYS = Object.freeze([
   "dangerous_environment_absent",
+  "env_gid",
+  "env_mode",
   "env_path",
+  "env_regular_file",
+  "env_resolved_path",
+  "env_root_owned_nonwritable_parent_chain",
+  "env_sha256",
+  "env_symlink",
+  "env_uid",
   "environment_cleared_before_node",
   "node_environment",
   "original_command_rejected_before_sanitization",
@@ -413,6 +425,7 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       account.shell_gid !== 0 ||
       account.shell_regular_file !== true ||
       account.shell_root_owned !== true ||
+      account.shell_root_owned_nonwritable_parent_chain !== true ||
       typeof account.shell_path_symlink !== "boolean"
     ) {
       fail("witness_installation_account_invalid");
@@ -503,6 +516,7 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       node.uid !== 0 ||
       node.gid !== 0 ||
       node.root_owned !== true ||
+      node.root_owned_nonwritable_parent_chain !== true ||
       node.regular_file !== true ||
       node.symlink !== false
     ) {
@@ -692,10 +706,29 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
         preexec.env_path,
         ENV_PATH,
         "witness_installation_preexec_invalid",
-      ) !== ENV_PATH
+      ) !== ENV_PATH ||
+      absolutePath(
+        preexec.env_resolved_path,
+        ENV_PATH,
+        "witness_installation_preexec_invalid",
+      ) !== ENV_PATH ||
+      preexec.env_uid !== 0 ||
+      preexec.env_gid !== 0 ||
+      preexec.env_regular_file !== true ||
+      preexec.env_symlink !== false ||
+      preexec.env_root_owned_nonwritable_parent_chain !== true
     ) {
       fail("witness_installation_preexec_invalid");
     }
+    exactMode(
+      preexec.env_mode,
+      0o755,
+      "witness_installation_preexec_invalid",
+    );
+    const envSha256 = sha256Field(
+      preexec.env_sha256,
+      "witness_installation_preexec_invalid",
+    );
     const dangerous = exactStringArray(
       preexec.dangerous_environment_absent,
       "witness_installation_preexec_invalid",
@@ -776,6 +809,9 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       node_sha256: nodeSha256,
       node_major: nodeMajor,
       node_version: nodeVersion,
+      env_path: ENV_PATH,
+      env_resolved_path: ENV_PATH,
+      env_sha256: envSha256,
       config_path: CONFIG_PATH,
       config_sha256: configSha256,
       authority_root: authorityRoot,
