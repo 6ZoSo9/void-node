@@ -248,9 +248,10 @@ function snapshotPlain(
   value,
   depth = 0,
   budget = { count: 0, bytes: 0 },
+  domain = "receipt_continuity_collector_decision",
 ) {
   if (depth > 32 || ++budget.count > 50_000) {
-    fail("receipt_continuity_collector_decision_too_complex");
+    fail(domain + "_too_complex");
   }
   if (value === null || typeof value === "boolean") {
     return value;
@@ -258,29 +259,29 @@ function snapshotPlain(
   if (typeof value === "string") {
     budget.bytes += Buffer.byteLength(value, "utf8");
     if (budget.bytes > MAX_COLLECTOR_DECISION_BYTES) {
-      fail("receipt_continuity_collector_decision_too_large");
+      fail(domain + "_too_large");
     }
     return value;
   }
   if (typeof value === "number") {
     if (!Number.isSafeInteger(value)) {
-      fail("receipt_continuity_collector_decision_noncanonical_number");
+      fail(domain + "_noncanonical_number");
     }
     return value;
   }
   if (Array.isArray(value)) {
     if (value.length > 8192) {
-      fail("receipt_continuity_collector_decision_too_complex");
+      fail(domain + "_too_complex");
     }
     return Object.freeze(value.map((entry) =>
-      snapshotPlain(entry, depth + 1, budget)));
+      snapshotPlain(entry, depth + 1, budget, domain)));
   }
   if (!value || typeof value !== "object") {
-    fail("receipt_continuity_collector_decision_invalid");
+    fail(domain + "_invalid");
   }
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    fail("receipt_continuity_collector_decision_invalid");
+    fail(domain + "_invalid");
   }
   const descriptors = Object.getOwnPropertyDescriptors(value);
   const keys = Reflect.ownKeys(descriptors);
@@ -288,13 +289,13 @@ function snapshotPlain(
     keys.length > 4096 ||
     keys.some((key) => typeof key !== "string")
   ) {
-    fail("receipt_continuity_collector_decision_invalid");
+    fail(domain + "_invalid");
   }
   const out = Object.create(null);
   for (const key of keys) {
     budget.bytes += Buffer.byteLength(key, "utf8");
     if (budget.bytes > MAX_COLLECTOR_DECISION_BYTES) {
-      fail("receipt_continuity_collector_decision_too_large");
+      fail(domain + "_too_large");
     }
     const descriptor = descriptors[key];
     if (
@@ -302,9 +303,14 @@ function snapshotPlain(
       descriptor.enumerable !== true ||
       !Object.hasOwn(descriptor, "value")
     ) {
-      fail("receipt_continuity_collector_decision_invalid");
+      fail(domain + "_invalid");
     }
-    out[key] = snapshotPlain(descriptor.value, depth + 1, budget);
+    out[key] = snapshotPlain(
+      descriptor.value,
+      depth + 1,
+      budget,
+      domain,
+    );
   }
   return Object.freeze(out);
 }
@@ -436,7 +442,12 @@ function validateQualificationReceipt(input) {
 
 function normalizeSourceBinding(input) {
   const binding = exactObject(
-    snapshotPlain(input),
+    snapshotPlain(
+      input,
+      0,
+      { count: 0, bytes: 0 },
+      "receipt_continuity_source_binding_shape",
+    ),
     SOURCE_BINDING_KEYS,
     "receipt_continuity_source_binding_shape_invalid",
   );
