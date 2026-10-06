@@ -36,6 +36,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLAT
     local_block_filesystem_required: true,
     distinct_mount_domains_required: true,
     distinct_parent_block_devices_required: true,
+    mount_source_device_number_bound: true,
+    single_parent_block_topology_required: true,
     parent_disk_serial_and_wwn_required: true,
     no_pending_publication_intent_required: true,
     caller_supplied_snapshot_authority: false,
@@ -397,10 +399,110 @@ function runText(command, args) {
   return result.stdout.trim();
 }
 
-function parentDiskIdentity(mountSource) {
+function sameBlockDeviceIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.rdev === right.rdev &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink
+  );
+}
+
+function statHexDeviceNumberToDecimalV1(raw, code) {
+  const value = String(raw || "").trim();
+  if (!/^[0-9a-fA-F]+:[0-9a-fA-F]+$/u.test(value)) {
+    fail(code);
+  }
+  const [majorHex, minorHex] = value.split(":");
+  let major;
+  let minor;
+  try {
+    major = BigInt("0x" + majorHex);
+    minor = BigInt("0x" + minorHex);
+  } catch {
+    fail(code);
+  }
+  if (
+    major < 0n ||
+    minor < 0n ||
+    major > 0xffffffffn ||
+    minor > 0xffffffffn
+  ) {
+    fail(code);
+  }
+  return String(major) + ":" + String(minor);
+}
+
+export function testOnlyStatHexDeviceNumberToDecimalV1(raw) {
+  return statHexDeviceNumberToDecimalV1(
+    raw,
+    "witness_replay_installation_evidence_test_device_number_invalid",
+  );
+}
+
+function singleParentNameV1(raw) {
+  const value = String(raw || "");
+  if (value === "") return null;
+  if (!/^[A-Za-z0-9._+-]+$/u.test(value)) {
+    fail("witness_replay_installation_evidence_parent_topology_ambiguous");
+  }
+  return value;
+}
+
+export function testOnlySingleParentNameV1(raw) {
+  return singleParentNameV1(raw);
+}
+
+function observeStableBlockDeviceV1(devicePath, label, observe) {
+  if (
+    typeof devicePath !== "string" ||
+    !SAFE_DEVICE_PATH.test(devicePath) ||
+    fs.realpathSync(devicePath) !== devicePath ||
+    typeof observe !== "function"
+  ) {
+    fail(label + "_invalid");
+  }
+
+  const before = fs.lstatSync(devicePath, { bigint: true });
+  if (!before.isBlockDevice() || before.isSymbolicLink()) {
+    fail(label + "_not_block_device");
+  }
+  const majorMinorBefore = statHexDeviceNumberToDecimalV1(
+    runText("/usr/bin/stat", ["-Lc", "%t:%T", devicePath]),
+    label + "_device_number_invalid",
+  );
+
+  const value = observe();
+
+  const majorMinorAfter = statHexDeviceNumberToDecimalV1(
+    runText("/usr/bin/stat", ["-Lc", "%t:%T", devicePath]),
+    label + "_device_number_invalid",
+  );
+  const after = fs.lstatSync(devicePath, { bigint: true });
+  if (
+    !after.isBlockDevice() ||
+    after.isSymbolicLink() ||
+    !sameBlockDeviceIdentity(before, after) ||
+    majorMinorBefore !== majorMinorAfter
+  ) {
+    fail(label + "_changed");
+  }
+
+  return Object.freeze({
+    major_minor: majorMinorAfter,
+    observed: value,
+  });
+}
+
+function parentDiskIdentity(mountSource, mountMajorMinor) {
   if (
     typeof mountSource !== "string" ||
-    !SAFE_DEVICE_PATH.test(mountSource)
+    !SAFE_DEVICE_PATH.test(mountSource) ||
+    typeof mountMajorMinor !== "string" ||
+    !/^[0-9]+:[0-9]+$/u.test(mountMajorMinor)
   ) {
     fail("witness_replay_installation_evidence_mount_source_invalid");
   }
@@ -408,18 +510,38 @@ function parentDiskIdentity(mountSource) {
   if (!SAFE_DEVICE_PATH.test(resolved)) {
     fail("witness_replay_installation_evidence_mount_source_invalid");
   }
-  const parentName = runText(
-    "/usr/bin/lsblk",
-    ["-ndo", "PKNAME", resolved],
+
+  const mountObservation = observeStableBlockDeviceV1(
+    resolved,
+    "witness_replay_installation_evidence_mount_source_device",
+    () =>
+      runText(
+        "/usr/bin/lsblk",
+        ["-ndo", "PKNAME", resolved],
+      ),
   );
-  const parent =
-    parentName && /^[A-Za-z0-9._+-]+$/u.test(parentName)
-      ? "/dev/" + parentName
-      : resolved;
-  const identity = runText(
-    "/usr/bin/lsblk",
-    ["-ndo", "SERIAL,WWN", parent],
-  )
+  if (mountObservation.major_minor !== mountMajorMinor) {
+    fail("witness_replay_installation_evidence_mount_source_device_mismatch");
+  }
+
+  const parentName = singleParentNameV1(mountObservation.observed);
+  const parentRaw =
+    parentName === null ? resolved : "/dev/" + parentName;
+  const parent = fs.realpathSync(parentRaw);
+  if (!SAFE_DEVICE_PATH.test(parent)) {
+    fail("witness_replay_installation_evidence_parent_device_invalid");
+  }
+
+  const parentObservation = observeStableBlockDeviceV1(
+    parent,
+    "witness_replay_installation_evidence_parent_device",
+    () =>
+      runText(
+        "/usr/bin/lsblk",
+        ["-ndo", "SERIAL,WWN", parent],
+      ),
+  );
+  const identity = parentObservation.observed
     .split(/\s+/u)
     .filter(Boolean);
   if (
@@ -859,9 +981,11 @@ function observeOnce({
       resolveMountForPathV1(mounts, highWaterRoot.path);
     const journalDisk = parentDiskIdentity(
       journalMount.mount_source,
+      journalMount.major_minor,
     );
     const highWaterDisk = parentDiskIdentity(
       highWaterMount.mount_source,
+      highWaterMount.major_minor,
     );
 
     const mountInfoAfter = fs.readFileSync(
