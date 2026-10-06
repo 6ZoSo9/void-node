@@ -310,6 +310,7 @@ const trueAuthority = new Set([
   "atomic_journal_publication",
   "atomic_high_water_publication",
   "exact_post_reclassification",
+  "exact_terminal_idempotent_retry",
   "paired_terminal_root_revalidation",
   "high_water_exact_journal_binding",
 ]);
@@ -390,14 +391,31 @@ assert.equal(
       true,
     );
 
-    const duplicate = requireHeld(
+    const duplicate = requireOk(
       await persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(
         inputFor(f),
       ),
+      "exact terminal retry",
     );
-    assert.match(
-      duplicate.reason,
-      /receipt_continuity_(collector_decision|qualification_receipt)_replayed/u,
+    assert.equal(duplicate.status, "idempotent");
+    assert.equal(duplicate.operation_performed, false);
+    assert.equal(duplicate.recovery_performed, false);
+    assert.equal(duplicate.generation, persisted.generation);
+    assert.equal(
+      duplicate.tip_receipt_sha256,
+      persisted.tip_receipt_sha256,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)).equals(journal),
+      true,
+      "idempotent retry must not rewrite journal bytes",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)).equals(
+        highWater,
+      ),
+      true,
+      "idempotent retry must not rewrite high-water bytes",
     );
   } finally {
     cleanup(f);
@@ -448,6 +466,60 @@ for (const phase of [
       }),
     );
     assert.equal(inspected.generation, 1);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        inputFor(f),
+        "after_high_water_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_high_water_intent/u);
+    const intent = JSON.parse(
+      fs.readFileSync(
+        path.join(f.journalRoot, INTENT_NAME),
+        "utf8",
+      ),
+    );
+    assert.equal(typeof intent.after_high_water_json, "string");
+    fs.writeFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+      intent.after_high_water_json,
+      { mode: 0o600 },
+    );
+
+    const recovered = requireOk(
+      await recoverCoupledNativeGasReconciliationCustodyReceiptWriterV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+      }),
+      "intent-bound high-water-ahead recovery",
+    );
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.recovery_performed, true);
+    assert.equal(recovered.generation, 1);
+    assert.equal(recovered.record_count, 1);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      false,
+    );
+    assert.equal(
+      classifyCoupledNativeGasReconciliationCustodyReceiptWriterHighWaterV1(
+        fs.readFileSync(path.join(f.journalRoot, JOURNAL_NAME)),
+        fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME)),
+      ).ok,
+      true,
+    );
   } finally {
     cleanup(f);
   }
@@ -673,6 +745,8 @@ console.log("stale_atomic_temp_recovered=true");
 console.log("paired_terminal_root_revalidation=true");
 console.log("high_water_exact_journal_binding=true");
 console.log("exact_post_reclassification=true");
+console.log("exact_terminal_idempotent_retry=true");
+console.log("intent_bound_high_water_ahead_recovery=true");
 console.log("storage_bootstrap=false");
 console.log("rollback_resistance_proven=false");
 console.log("protected_custody_proven=false");
