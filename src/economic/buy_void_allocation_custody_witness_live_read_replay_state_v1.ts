@@ -403,6 +403,9 @@ function parseEvent(line: string): WitnessLiveReadReplayEventV1 {
   if (record.event_sha256 !== expected.event_sha256) {
     fail("witness_live_read_replay_event_digest_invalid");
   }
+  if (line !== canonicalJson(expected)) {
+    fail("witness_live_read_replay_event_serialization_invalid");
+  }
   return expected;
 }
 
