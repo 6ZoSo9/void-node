@@ -81,6 +81,9 @@ The redundant intent permits forward-only recovery from:
 
 Unknown journal bytes, unknown high-water bytes, mismatched intent copies, or
 intent bytes that do not reconstruct valid #2530 prior/next states HOLD.
+When only one intent copy exists, current journal/high-water bytes must first
+classify as exact prior/next endpoints before the missing redundant copy may be
+recreated; unknown state causes zero redundancy mutation.
 
 Recovery never invents a receipt or accepts caller-selected journal bytes.
 
@@ -148,7 +151,7 @@ The proof covers:
 - recovery-only exact intent-bound high-water-ahead completion;
 - different-input persist HOLD while a pending intent exists, followed by exact
   retry recovery of that same intent;
-- single-intent redundant recovery;
+- single-intent redundant recovery plus unknown-state/no-redundancy-mutation;
 - missing lock/bootstrap HOLD;
 - high-water tamper HOLD;
 - same-root rejection;
