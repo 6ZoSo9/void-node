@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1,
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1,
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V1,
 } from "./void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs";
 
@@ -445,6 +446,10 @@ function normalizeSourceBinding(input) {
     binding.writer_generation_binding_proven !== true ||
     binding.qualification_generation_binding_proven !== true ||
     binding.collector_generation_binding_proven !== true ||
+    canonical(binding.authority) !==
+      canonical(
+        VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHORITY_V1,
+      ) ||
     binding.deployed_artifact_generation_verified !== false ||
     binding.trusted_collector_proven !== false ||
     binding.bootstrap_receipt_external_trust_proven !== false ||
