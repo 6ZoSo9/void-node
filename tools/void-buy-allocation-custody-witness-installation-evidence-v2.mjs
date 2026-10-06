@@ -247,7 +247,11 @@ function defaultIo() {
     LC_ALL: "C",
   });
 
-  const readDescriptorBound = (file, maxBytes = MAX_FILE_BYTES) => {
+  const readDescriptorBound = (
+    file,
+    maxBytes = MAX_FILE_BYTES,
+    { testOnlyAfterOpenBeforeRead = null } = {},
+  ) => {
     if (
       typeof fs.constants.O_NOFOLLOW !== "number" ||
       typeof fs.constants.O_DIRECTORY !== "number" ||
@@ -337,11 +341,40 @@ function defaultIo() {
       ) {
         fail("witness_installation_evidence_file_path_not_bound");
       }
-      const bytes = fs.readFileSync(fd);
+      if (testOnlyAfterOpenBeforeRead !== null) {
+        if (typeof testOnlyAfterOpenBeforeRead !== "function") {
+          fail("witness_installation_evidence_test_hook_invalid");
+        }
+        testOnlyAfterOpenBeforeRead();
+      }
+
+      const expectedSize = Number(opened.size);
+      const bytes = Buffer.alloc(expectedSize);
+      let offset = 0;
+      while (offset < expectedSize) {
+        const count = fs.readSync(
+          fd,
+          bytes,
+          offset,
+          expectedSize - offset,
+          offset,
+        );
+        if (count <= 0) {
+          fail("witness_installation_evidence_file_short_read");
+        }
+        offset += count;
+      }
+
+      const probe = Buffer.alloc(1);
+      const growth = fs.readSync(fd, probe, 0, 1, expectedSize);
+      if (growth !== 0) {
+        fail("witness_installation_evidence_file_grew_after_open");
+      }
+
       const after = fs.fstatSync(fd, { bigint: true });
       const visibleAfter = fs.lstatSync(resolved, { bigint: true });
       if (
-        bytes.length !== Number(after.size) ||
+        bytes.length !== expectedSize ||
         !sameFile(opened, after) ||
         !sameFile(after, visibleAfter)
       ) {
@@ -394,8 +427,12 @@ function defaultIo() {
     realpath(file) {
       return fs.realpathSync(file);
     },
-    readFileNoFollow(file, maxBytes = MAX_FILE_BYTES) {
-      return readDescriptorBound(file, maxBytes);
+    readFileNoFollow(
+      file,
+      maxBytes = MAX_FILE_BYTES,
+      options = {},
+    ) {
+      return readDescriptorBound(file, maxBytes, options);
     },
     machineIdSha256() {
       const machine = readDescriptorBound("/etc/machine-id", 4096)
@@ -1384,8 +1421,14 @@ function collectOnce(config, io, observedAtMs) {
 export function testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2(
   file,
   maxBytes = 4096,
+  testOnlyAfterOpenBeforeRead = null,
 ) {
-  const observed = defaultIo().readFileNoFollow(file, maxBytes);
+  const io = defaultIo();
+  const observed = io.readFileNoFollow(
+    file,
+    maxBytes,
+    { testOnlyAfterOpenBeforeRead },
+  );
   return Buffer.from(observed.bytes);
 }
 
