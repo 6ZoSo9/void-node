@@ -660,6 +660,7 @@ console.log("repository_filter_config_rejected=true");
 console.log("repository_filter_toctou_execution_removed=true");
 console.log("repository_index_suppression_flags_rejected=true");
 console.log("repository_clean_state_uses_nonconverting_plumbing=true");
+console.log("repository_all_tracked_bytes_match_index_without_filters=true");
 console.log("per_worktree_filter_config_rejected=true");
 console.log("legacy_graft_overlay_rejected=true");
 console.log("nonblocking_worktree_open=true");
