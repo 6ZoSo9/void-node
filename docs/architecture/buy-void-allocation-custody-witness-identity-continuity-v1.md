@@ -38,7 +38,19 @@ The read-only census receipt SHA-256 is:
 
 ## Historical witness rule
 
-The V1 witness is not rewritten.
+The V1 witness is not rewritten, and this continuity generation accepts only
+the exact historical Nimo V1 journal:
+
+- witness SHA-256:
+  `a73c8c674bea5ed473938ddbf4275a651272fefd4e75d212d3d2bb8c8e5cbe1a`;
+- bytes: `1411`;
+- event count: `1`;
+- tip event SHA-256:
+  `2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654`.
+
+A different journal that is structurally valid under the V1 parser is still
+rejected as an alternate predecessor. This prevents a later or forked witness
+history from being relabeled as the immutable V1 continuity anchor.
 
 Its original machine-id field remains a historical identity anchor. A later
 runtime may accept the current machine ID only through an explicit reviewed
@@ -54,7 +66,10 @@ for `machine_id_only` drift.
 
 The candidate is accepted only when:
 
-- predecessor witness SHA/bytes/event count/tip are exact;
+- the parsed predecessor journal is the exact historical V1 SHA/bytes/count/tip
+  above, not merely any valid V1 witness history;
+- predecessor witness SHA/bytes/event count/tip in the evidence match that
+  exact journal;
 - predecessor hostname, machine ID, root serial and root WWN equal the witness;
 - successor hostname equals predecessor hostname;
 - successor root serial equals predecessor root serial;
@@ -68,7 +83,9 @@ The candidate is accepted only when:
 - the census is explicitly read-only; and
 - a content-addressed census receipt SHA-256 is supplied.
 
-Hostname or disk drift is **not** accepted as continuity.
+Hostname or disk drift is **not** accepted as continuity. A different
+structurally valid predecessor witness is also rejected before successor
+evidence can be attested.
 
 ## Attestation
 
