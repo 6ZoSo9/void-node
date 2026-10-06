@@ -776,6 +776,13 @@ function configEvidence(io, expectedPolicySha256, account) {
 function hostKeyEvidence(io, expectedSha256) {
   const observed = inspectFixedFile(io, HOST_KEY_PATH, 64 * 1024);
   const key = parsePublicKeyBlob(observed.bytes.toString("utf8"), true);
+  const opensshFingerprint =
+    "SHA256:" +
+    crypto
+      .createHash("sha256")
+      .update(key.blob)
+      .digest("base64")
+      .replace(/=+$/u, "");
   if (
     key.sha256 !== expectedSha256 ||
     observed.uid !== 0 ||
@@ -790,6 +797,7 @@ function hostKeyEvidence(io, expectedSha256) {
   return Object.freeze({
     path: HOST_KEY_PATH,
     sha256: key.sha256,
+    openssh_fingerprint: opensshFingerprint,
     file_sha256: sha256Id(observed.bytes),
   });
 }
@@ -859,7 +867,7 @@ function witnessStorage(io, account) {
   const parsed =
     parseBuyVoidAllocationCustodyExternalWitnessJournalV1(witness.bytes);
   const intentPath = path.join(AUTHORITY_ROOT, INTENT_NAME);
-  return Object.freeze({
+  const evidence = Object.freeze({
     authority_root: AUTHORITY_ROOT,
     root_dev: String(rootStat.dev),
     root_ino: String(rootStat.ino),
@@ -877,8 +885,12 @@ function witnessStorage(io, account) {
     witness_root_disk_wwn: parsed.tip.witness_root_disk_wwn,
     intent_present: io.exists(intentPath),
   });
+  return Object.freeze({
+    evidence,
+    bytes: Buffer.from(witness.bytes),
+    parsed,
+  });
 }
-
 
 function continuityAttestationEvidence(io, account) {
   const observed = inspectFixedFile(
@@ -914,16 +926,85 @@ function continuityAttestationEvidence(io, account) {
   } catch {
     fail("witness_installation_evidence_continuity_attestation_invalid");
   }
+  const expectedKeys = [
+    "schema",
+    "marker",
+    "version",
+    "continuity_scope",
+    "census_receipt_sha256",
+    "predecessor_witness_sha256",
+    "predecessor_witness_bytes",
+    "predecessor_event_count",
+    "historical_predecessor_witness_pinned",
+    "predecessor_tip_event_sha256",
+    "predecessor_machine_id_sha256",
+    "successor_machine_id_sha256",
+    "stable_hostname",
+    "stable_root_disk_serial",
+    "stable_root_disk_wwn",
+    "stable_ssh_hostkey_algorithm",
+    "stable_ssh_hostkey_fingerprint",
+    "existing_known_hosts_match",
+    "ssh_hostkey_update",
+    "v1_witness_retained_exact",
+    "v1_witness_history_rewritten",
+    "handler_integration_required",
+    "current_machine_id_runtime_admission_authorized",
+    "production_gate_ready",
+    "attestation_id",
+  ];
+  exactObject(
+    parsed,
+    expectedKeys,
+    "witness_installation_evidence_continuity_attestation_invalid",
+  );
   if (
     canonicalJson(parsed) + "\n" !== observed.bytes.toString("utf8") ||
-    parsed?.attestation_id !==
+    parsed.schema !==
+      "void_buy_void_allocation_custody_witness_identity_continuity_attestation_v1" ||
+    parsed.marker !==
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_IDENTITY_CONTINUITY_ATTESTATION_V1" ||
+    parsed.version !== 1 ||
+    parsed.continuity_scope !== "machine_id_rotation_only" ||
+    parsed.attestation_id !==
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_ID_V1 ||
-    parsed?.census_receipt_sha256 !== REVIEWED_CENSUS_RECEIPT_SHA256
+    parsed.census_receipt_sha256 !== REVIEWED_CENSUS_RECEIPT_SHA256 ||
+    parsed.predecessor_witness_sha256 !==
+      HISTORICAL_PREDECESSOR_WITNESS_SHA256 ||
+    parsed.predecessor_witness_bytes !==
+      HISTORICAL_PREDECESSOR_WITNESS_BYTES ||
+    parsed.predecessor_event_count !==
+      HISTORICAL_PREDECESSOR_EVENT_COUNT ||
+    parsed.predecessor_tip_event_sha256 !==
+      HISTORICAL_PREDECESSOR_TIP_EVENT_SHA256 ||
+    parsed.predecessor_machine_id_sha256 !==
+      HISTORICAL_MACHINE_ID_SHA256 ||
+    parsed.successor_machine_id_sha256 !== SUCCESSOR_MACHINE_ID_SHA256 ||
+    parsed.historical_predecessor_witness_pinned !== true ||
+    parsed.stable_ssh_hostkey_algorithm !== "ssh-ed25519" ||
+    parsed.existing_known_hosts_match !== true ||
+    parsed.ssh_hostkey_update !== false ||
+    parsed.v1_witness_retained_exact !== true ||
+    parsed.v1_witness_history_rewritten !== false ||
+    parsed.handler_integration_required !== true ||
+    parsed.current_machine_id_runtime_admission_authorized !== false ||
+    parsed.production_gate_ready !== false
   ) {
     fail("witness_installation_evidence_continuity_attestation_invalid");
   }
+  const body = { ...parsed };
+  delete body.attestation_id;
+  const derivedId =
+    "voidwica1_" +
+    crypto
+      .createHash("sha256")
+      .update(canonicalJson(body), "utf8")
+      .digest("hex");
+  if (derivedId !== parsed.attestation_id) {
+    fail("witness_installation_evidence_continuity_attestation_invalid");
+  }
 
-  return Object.freeze({
+  const qualification = Object.freeze({
     path: CONTINUITY_ATTESTATION_PATH,
     sha256: digest,
     attestation_id:
@@ -936,9 +1017,158 @@ function continuityAttestationEvidence(io, account) {
     regular_file: observed.regular_file,
     symlink: observed.symlink,
   });
+  return Object.freeze({
+    qualification,
+    record: Object.freeze({ ...parsed }),
+  });
 }
 
-function preexecEvidence(envExec) {
+function classifyWitnessIdentity(
+  host,
+  hostKey,
+  witness,
+  continuity,
+) {
+  const tip = witness.parsed.tip;
+  if (
+    host.hostname !== tip.witness_hostname ||
+    host.root_disk_serial !== tip.witness_root_disk_serial ||
+    host.root_disk_wwn !== tip.witness_root_disk_wwn ||
+    continuity.stable_hostname !== tip.witness_hostname ||
+    continuity.stable_root_disk_serial !== tip.witness_root_disk_serial ||
+    continuity.stable_root_disk_wwn !== tip.witness_root_disk_wwn ||
+    continuity.stable_ssh_hostkey_fingerprint !==
+      REVIEWED_HOSTKEY_FINGERPRINT ||
+    hostKey.openssh_fingerprint !== REVIEWED_HOSTKEY_FINGERPRINT
+  ) {
+    fail("witness_installation_evidence_host_witness_identity_mismatch");
+  }
+
+  if (host.machine_id_sha256 === tip.witness_machine_id_sha256) {
+    return Object.freeze({
+      identity_path: "historical_exact",
+      continuity_attestation_consumed: false,
+    });
+  }
+
+  if (
+    tip.witness_machine_id_sha256 !== HISTORICAL_MACHINE_ID_SHA256 ||
+    host.machine_id_sha256 !== SUCCESSOR_MACHINE_ID_SHA256 ||
+    continuity.predecessor_machine_id_sha256 !==
+      tip.witness_machine_id_sha256 ||
+    continuity.successor_machine_id_sha256 !== host.machine_id_sha256
+  ) {
+    fail("witness_installation_evidence_host_witness_identity_mismatch");
+  }
+
+  if (witness.bytes.length < HISTORICAL_PREDECESSOR_WITNESS_BYTES) {
+    fail("witness_installation_evidence_historical_predecessor_mismatch");
+  }
+  const prefix = witness.bytes.subarray(
+    0,
+    HISTORICAL_PREDECESSOR_WITNESS_BYTES,
+  );
+  const historical =
+    parseBuyVoidAllocationCustodyExternalWitnessJournalV1(prefix);
+  if (
+    sha256Id(prefix) !== HISTORICAL_PREDECESSOR_WITNESS_SHA256 ||
+    historical.event_count !== HISTORICAL_PREDECESSOR_EVENT_COUNT ||
+    historical.tip.event_sha256 !==
+      HISTORICAL_PREDECESSOR_TIP_EVENT_SHA256
+  ) {
+    fail("witness_installation_evidence_historical_predecessor_mismatch");
+  }
+
+  return Object.freeze({
+    identity_path: "reviewed_machine_id_continuity",
+    continuity_attestation_consumed: true,
+  });
+}
+
+function preexecEvidence(io, envExec) {
+  if (typeof io.runProbe !== "function") {
+    fail("witness_installation_evidence_preexec_probe_missing");
+  }
+  const baseEnv = {
+    PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+  };
+  const rejected = io.runProbe(
+    SHELL_PATH,
+    ["-c", FORCED_COMMAND],
+    {
+      env: {
+        ...baseEnv,
+        SSH_ORIGINAL_COMMAND: "caller-controlled-probe",
+      },
+    },
+  );
+  if (
+    rejected.status !== 3 ||
+    rejected.stdout !== "" ||
+    rejected.stderr !== ""
+  ) {
+    fail("witness_installation_evidence_original_command_probe_failed");
+  }
+
+  const hostileEnv = { ...baseEnv };
+  for (const name of DANGEROUS_ENVIRONMENT_NAMES) {
+    hostileEnv[name] = "VOID_FORBIDDEN_ENV_VALUE";
+  }
+  const sanitized = io.runProbe(
+    ENV_PATH,
+    [
+      "-i",
+      "PATH=/usr/bin:/bin",
+      "LANG=C",
+      "LC_ALL=C",
+      "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1",
+      ENV_PATH,
+    ],
+    { env: hostileEnv },
+  );
+  const environmentLines = sanitized.stdout
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .sort();
+  const expectedLines = [
+    "LANG=C",
+    "LC_ALL=C",
+    "PATH=/usr/bin:/bin",
+    "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1",
+  ].sort();
+  if (
+    sanitized.status !== 0 ||
+    sanitized.stderr !== "" ||
+    environmentLines.length !== expectedLines.length ||
+    environmentLines.some(
+      (line, index) => line !== expectedLines[index],
+    )
+  ) {
+    fail("witness_installation_evidence_environment_probe_failed");
+  }
+
+  const startup = io.runProbe(
+    SHELL_PATH,
+    ["-c", 'printf "VOID_PREEXEC_SAFE\\n"'],
+    {
+      env: {
+        ...baseEnv,
+        ENV: "/dev/stdin",
+        BASH_ENV: "/dev/stdin",
+      },
+      input: 'printf "VOID_PREEXEC_HOOK_RAN\\n"\n',
+    },
+  );
+  if (
+    startup.status !== 0 ||
+    startup.stdout !== "VOID_PREEXEC_SAFE\n" ||
+    startup.stdout.includes("VOID_PREEXEC_HOOK_RAN")
+  ) {
+    fail("witness_installation_evidence_startup_hook_probe_failed");
+  }
+
   return Object.freeze({
     env_path: ENV_PATH,
     env_resolved_path: envExec.resolved_path,
@@ -997,14 +1227,12 @@ function collectOnce(config, io, observedAtMs) {
   const witness = witnessStorage(io, account);
   const continuityAttestation =
     continuityAttestationEvidence(io, account);
-  if (
-    host.hostname !== witness.witness_hostname ||
-    host.machine_id_sha256 !== witness.witness_machine_id_sha256 ||
-    host.root_disk_serial !== witness.witness_root_disk_serial ||
-    host.root_disk_wwn !== witness.witness_root_disk_wwn
-  ) {
-    fail("witness_installation_evidence_host_witness_identity_mismatch");
-  }
+  const witnessIdentity = classifyWitnessIdentity(
+    host,
+    hostKey,
+    witness,
+    continuityAttestation.record,
+  );
 
   const evidence = Object.freeze({
     schema:
@@ -1022,7 +1250,7 @@ function collectOnce(config, io, observedAtMs) {
       node_major: Number(nodeMatch[1]),
       node_version: nodeVersion,
     }),
-    continuity_attestation: continuityAttestation,
+    continuity_attestation: continuityAttestation.qualification,
     config: Object.freeze({
       path: configFile.path,
       sha256: configFile.sha256,
@@ -1040,7 +1268,7 @@ function collectOnce(config, io, observedAtMs) {
     }),
     authorized_key: authorizedKey,
     sshd,
-    preexec: preexecEvidence(envExec),
+    preexec: preexecEvidence(io, envExec),
     host_binding: Object.freeze({
       remote_host: policy.remote_host,
       remote_port: policy.remote_port,
@@ -1067,7 +1295,8 @@ function collectOnce(config, io, observedAtMs) {
     qualification,
     host,
     host_key: hostKey,
-    witness,
+    witness: witness.evidence,
+    witness_identity: witnessIdentity,
   });
 }
 
@@ -1086,7 +1315,9 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
   if (
     canonicalJson(first.evidence) !== canonicalJson(second.evidence) ||
     canonicalJson(first.host) !== canonicalJson(second.host) ||
-    canonicalJson(first.witness) !== canonicalJson(second.witness)
+    canonicalJson(first.witness) !== canonicalJson(second.witness) ||
+    canonicalJson(first.witness_identity) !==
+      canonicalJson(second.witness_identity)
   ) {
     fail("witness_installation_evidence_changed_during_collection");
   }
@@ -1109,12 +1340,16 @@ export function collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
       ),
     host_identity: second.host,
     witness_storage: second.witness,
+    witness_identity_path:
+      second.witness_identity.identity_path,
+    continuity_attestation_consumed:
+      second.witness_identity.continuity_attestation_consumed,
     host_key_observed: true,
     authorized_client_key_observed: true,
     effective_sshd_policy_observed: true,
     continuity_attestation_observed: true,
     client_known_hosts_content_observed: false,
-    preexec_runtime_execution_observed: false,
+    preexec_runtime_execution_observed: true,
     live_evidence_origin_proven: false,
     trusted_verification_clock_proven: false,
     evidence_generation_monotonicity_proven: false,
