@@ -133,6 +133,17 @@ function sha256Id(value: string | Buffer): string {
   );
 }
 
+function decodeUtf8FatalV1(
+  bytes: Buffer,
+  reason: string,
+): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    fail(reason);
+  }
+}
+
 function journalBytesV1(value: string | Buffer): Buffer {
   if (!Buffer.isBuffer(value) && typeof value !== "string") {
     fail("witness_live_read_replay_high_water_journal_type_invalid");
@@ -283,9 +294,13 @@ function parseHighWaterV1(
     fail("witness_live_read_replay_high_water_bytes_invalid");
   }
 
+  const text = decodeUtf8FatalV1(
+    bytes,
+    "witness_live_read_replay_high_water_utf8_invalid",
+  );
   let parsed: unknown;
   try {
-    parsed = JSON.parse(bytes.toString("utf8").slice(0, -1));
+    parsed = JSON.parse(text.slice(0, -1));
   } catch {
     fail("witness_live_read_replay_high_water_json_invalid");
   }
@@ -395,9 +410,7 @@ function parseHighWaterV1(
   ) {
     fail("witness_live_read_replay_high_water_state_invalid");
   }
-  if (
-    canonicalHighWaterJsonV1(value) !== bytes.toString("utf8")
-  ) {
+  if (canonicalHighWaterJsonV1(value) !== text) {
     fail("witness_live_read_replay_high_water_serialization_noncanonical");
   }
   return value;
