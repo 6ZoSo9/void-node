@@ -980,11 +980,22 @@ function parseCanonicalConfig(bytes) {
   });
 }
 
-function configEvidence(io, expectedPolicySha256, account) {
+function configEvidence(io, expectedPolicySha256) {
   const config = inspectFixedFile(io, CONFIG_PATH, MAX_CONFIG_BYTES);
   const parsed = parseCanonicalConfig(config.bytes);
   if (parsed.policy_sha256 !== expectedPolicySha256) {
     fail("witness_installation_evidence_config_policy_mismatch");
+  }
+  if (
+    config.uid !== 0 ||
+    config.gid !== 0 ||
+    config.mode !== 0o444 ||
+    config.nlink !== 1 ||
+    config.regular_file !== true ||
+    config.symlink !== false ||
+    config.root_owned_nonwritable_parent_chain !== true
+  ) {
+    fail("witness_installation_evidence_config_protection_invalid");
   }
   return Object.freeze({
     path: CONFIG_PATH,
@@ -1000,8 +1011,6 @@ function configEvidence(io, expectedPolicySha256, account) {
     authority_root: AUTHORITY_ROOT,
     witness_filename: WITNESS_NAME,
     policy_sha256: parsed.policy_sha256,
-    owner_matches_account:
-      config.uid === account.uid && config.gid === account.gid,
   });
 }
 
@@ -1451,11 +1460,7 @@ function collectOnce(config, io, observedAtMs) {
   const configFile = configEvidence(
     io,
     config.transport_policy_sha256,
-    account,
   );
-  if (!configFile.owner_matches_account) {
-    fail("witness_installation_evidence_config_owner_invalid");
-  }
   const authorizedKey = authorizedKeyEvidence(
     io,
     policy.remote_user,
