@@ -10,6 +10,8 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V1,
+  classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.js";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_EVIDENCE_AUTHORITY_V1,
@@ -88,6 +90,26 @@ assert.match(
 assert.equal(
   receipt.runtime_file_count,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1.length,
+);
+assert.equal(
+  receipt.runtime_bundle_files.length,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1.length,
+);
+const rebound = classifyBuyVoidAllocationCustodyWitnessRuntimeBundleQualificationV1({
+  schema: "void_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1",
+  marker: VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_QUALIFICATION_V1,
+  version: 1,
+  manifest_id: receipt.runtime_bundle_manifest_id,
+  manifest_sha256: receipt.runtime_bundle_manifest_sha256,
+  source_commit: receipt.runtime_bundle_census_source_commit,
+  files: receipt.runtime_bundle_files,
+});
+assert.equal(rebound.ok, true);
+if (rebound.ok !== true) throw new Error("embedded runtime bundle evidence did not requalify");
+assert.equal(rebound.qualification_id, receipt.runtime_bundle_qualification_id);
+assert.deepEqual(
+  rebound.normalized,
+  receipt.normalized_runtime_bundle_qualification,
 );
 assert.equal(receipt.double_census_match, true);
 assert.equal(receipt.operation_performed, false);
