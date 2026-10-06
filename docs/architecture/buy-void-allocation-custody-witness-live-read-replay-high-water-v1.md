@@ -184,9 +184,13 @@ The proof covers:
 - replay journal rollback;
 - alternate same-generation journal branch;
 - multi-event jump;
-- pending challenge identity tamper;
+- pending challenge ID and SHA-256 tamper;
 - pending challenge expiry tamper;
-- journal digest tamper;
+- sequence/event-count tamper;
+- generation tamper;
+- tip-event SHA-256 tamper;
+- journal digest and byte-length tamper;
+- terminal-state tamper;
 - inconsistent pending/ready fields;
 - extra high-water key;
 - fatal invalid-UTF-8 high-water rejection;
