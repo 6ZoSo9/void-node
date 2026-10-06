@@ -49,7 +49,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_AUTHORITY_V
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1 =
   Object.freeze([
-    Object.freeze({ source_path: "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs", installed_path: "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs", sha256: "sha256:a1c868871c9ce35ac2c3150fc409b4876cd8b72cd069f95bf10805f08e34d2ab" }),
+    Object.freeze({ source_path: "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs", installed_path: "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs", sha256: "sha256:88f425986eff8597cdf6725e4608b3790aed2359fef6ae9fadb76292d9e5a26d" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_custody_external_witness_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_custody_external_witness_v1.js", sha256: "sha256:35d80f00a9ec0ce57bb457596d27e8c86a70d76efe310372e1fff796a92d43ca" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_custody_witness_transport_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_custody_witness_transport_v1.js", sha256: "sha256:8e03107d1545977a19b847bbec926543b9812b6d9c16a4d7e13e62cf5c790979" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_reservation_high_water_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_high_water_v1.js", sha256: "sha256:1999015c9e0770a5a94b3b4d29f5aa6a47036406754673adb2ed5829c5e406e9" }),
