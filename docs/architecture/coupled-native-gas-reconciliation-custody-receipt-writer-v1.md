@@ -29,7 +29,8 @@ The operator must preprovision:
   the high-water root, mode 0600, containing the exact high-water projection of
   the current journal;
 - `coupled-native-gas-reconciliation-custody-receipt-writer-v1.queue/` in
-  the journal root, mode 0700, for the canonical existing-queue bakery lock.
+  **each** storage root, mode 0700, for the two canonical existing-queue bakery
+  locks.
 
 Both storage roots must be direct, private directories and must not be equal or
 nested beneath one another.
@@ -41,10 +42,12 @@ directory, alternate path, or newly created production root.
 
 For a new collector decision and exact source-binding decision:
 
-1. pin journal root, high-water root, and lock queue through descriptor-bound
-   no-follow traversal;
-2. acquire the canonical preprovisioned bakery lock;
-3. read and classify the exact journal and exact high-water mirror;
+1. pin journal root, high-water root, and both root-local lock queues through
+   descriptor-bound no-follow traversal;
+2. order the two lock domains deterministically by pinned root device/inode and
+   acquire **both** preprovisioned bakery queues before writer entry;
+3. revalidate both visible roots and both pinned queue identities after lock
+   admission, then read and classify the exact journal and high-water mirror;
 4. delegate planning to
    `planCoupledNativeGasReconciliationCustodyReceiptV1(...)`;
 5. build one canonical intent binding:
@@ -105,6 +108,17 @@ The final coherent snapshot revalidates **both** visible storage roots after the
 journal and high-water reads. A same-UID rename/recreate race therefore cannot
 return success for a detached tree.
 
+The journal and high-water authority renames also revalidate **both** visible
+roots immediately before each authoritative rename. Replacing only one visible
+root cannot split writer admission: the unchanged root still contains a queue
+shared by the already-admitted writer and any contender, so the contender
+cannot enter until the holder releases that shared lock domain.
+
+This is a serialization guarantee, not independent custody. A same-UID or
+privileged actor may still replace or roll back storage outside the admitted
+publication interval, and replacing both custody domains remains outside this
+source-level proof.
+
 This is still not an operating-system custody proof. Another same-UID or
 privileged actor may be capable of restoring both roots between invocations.
 That later host/custody boundary remains open under #2498.
@@ -152,10 +166,15 @@ The proof covers:
 - different-input persist HOLD while a pending intent exists, followed by exact
   retry recovery of that same intent;
 - single-intent redundant recovery plus unknown-state/no-redundancy-mutation;
-- missing lock/bootstrap HOLD;
+- missing journal-root or high-water-root lock queue HOLD;
 - high-water tamper HOLD;
 - same-root rejection;
 - visible journal-root and high-water-root replacement HOLD;
+- cross-process one-root-replacement serialization for both roots: a valid
+  contender must enqueue on the unchanged shared queue, cannot publish while
+  the holder owns it, and may publish exactly once after release;
+- deterministic dual-root lock ordering and both-root pre-rename
+  revalidation;
 - authority-map lock.
 
 ## Authority boundary
