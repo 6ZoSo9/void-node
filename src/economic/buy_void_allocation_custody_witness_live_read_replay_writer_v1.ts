@@ -397,6 +397,21 @@ function assertPinnedDirectoryVisible(
   }
 }
 
+function assertPinnedRootsVisible(
+  journalDirectory: PinnedDirectoryV1,
+  highWaterDirectory: PinnedDirectoryV1,
+): void {
+  assertPinnedDirectoryVisible(
+    journalDirectory,
+    "witness_live_read_replay_writer_journal_root",
+  );
+  assertPinnedDirectoryVisible(
+    highWaterDirectory,
+    "witness_live_read_replay_writer_high_water_root",
+  );
+  assertDistinctRoots(journalDirectory, highWaterDirectory);
+}
+
 function assertDistinctRoots(
   left: PinnedDirectoryV1,
   right: PinnedDirectoryV1,
@@ -891,6 +906,7 @@ function parseIntentBytes(bytes: Buffer): IntentV1 {
 function coherentState(
   journalDirectory: PinnedDirectoryV1,
   highWaterDirectory: PinnedDirectoryV1,
+  testOnlyAfterJournalRead: (() => void) | null = null,
 ) {
   const journal = readPinnedFile(
     journalDirectory,
@@ -899,6 +915,9 @@ function coherentState(
     true,
     "witness_live_read_replay_writer_journal",
   );
+  if (testOnlyAfterJournalRead !== null) {
+    testOnlyAfterJournalRead();
+  }
   const highWater = parseHighWaterBytes(
     readPinnedFile(
       highWaterDirectory,
@@ -915,6 +934,7 @@ function coherentState(
   ) {
     fail("witness_live_read_replay_writer_high_water_journal_mismatch");
   }
+  assertPinnedRootsVisible(journalDirectory, highWaterDirectory);
   return Object.freeze({ journal, high_water: highWater });
 }
 
@@ -965,11 +985,16 @@ function currentHighWater(
 function recoveryLocked(
   journalDirectory: PinnedDirectoryV1,
   highWaterDirectory: PinnedDirectoryV1,
+  testOnlyFinalSnapshotHook: (() => void) | null = null,
 ) {
   const journalIntent = readOptionalIntent(journalDirectory);
   const highWaterIntent = readOptionalIntent(highWaterDirectory);
   if (!journalIntent && !highWaterIntent) {
-    const coherent = coherentState(journalDirectory, highWaterDirectory);
+    const coherent = coherentState(
+      journalDirectory,
+      highWaterDirectory,
+      testOnlyFinalSnapshotHook,
+    );
     return Object.freeze({
       recovered: false,
       mutation_performed: false,
@@ -1066,7 +1091,11 @@ function recoveryLocked(
   if (unlinkPinnedIfPresent(journalDirectory, INTENT_NAME)) mutation = true;
   if (unlinkPinnedIfPresent(highWaterDirectory, INTENT_NAME)) mutation = true;
 
-  const coherent = coherentState(journalDirectory, highWaterDirectory);
+  const coherent = coherentState(
+    journalDirectory,
+    highWaterDirectory,
+    testOnlyFinalSnapshotHook,
+  );
   if (
     coherent.high_water.high_water_id !==
       intent.after_high_water.high_water_id
@@ -1108,13 +1137,9 @@ function withPinnedRoots<T>(
         withBuyVoidFilesystemBakeryLockV1(
           path.join(ordered[1].proc_path, LOCK_NAME),
           () => {
-            assertPinnedDirectoryVisible(
+            assertPinnedRootsVisible(
               journalDirectory,
-              "witness_live_read_replay_writer_journal_root",
-            );
-            assertPinnedDirectoryVisible(
               highWaterDirectory!,
-              "witness_live_read_replay_writer_high_water_root",
             );
             return operation(journalDirectory, highWaterDirectory!);
           },
@@ -1183,6 +1208,43 @@ export function buildBuyVoidAllocationCustodyWitnessLiveReadReplayGenesisHighWat
   });
 }
 
+export function testOnlyInspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterSnapshotV1(
+  input: {
+    journal_root: string;
+    high_water_root: string;
+  },
+  testOnlyAfterJournalRead: () => void,
+) {
+  try {
+    if (typeof testOnlyAfterJournalRead !== "function") {
+      fail("witness_live_read_replay_writer_test_hook_required");
+    }
+    return withPinnedRoots(
+      input.journal_root,
+      input.high_water_root,
+      (journalDirectory, highWaterDirectory) => {
+        const recovered = recoveryLocked(
+          journalDirectory,
+          highWaterDirectory,
+          testOnlyAfterJournalRead,
+        );
+        return success(
+          recovered.recovered ? "recovered" : "inspected",
+          recovered.high_water,
+          recovered.mutation_performed,
+          recovered.recovered,
+        );
+      },
+    );
+  } catch (error) {
+    return held(
+      error instanceof Error
+        ? error.message
+        : "witness_live_read_replay_writer_test_inspection_failed",
+    );
+  }
+}
+
 export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterV1(
   input: {
     journal_root: string;
@@ -1235,6 +1297,7 @@ function persistTransition(
         terminal_at_ms: unknown;
       },
   crashPhase: CrashPhaseV1 | null,
+  testOnlyFinalSnapshotHook: (() => void) | null = null,
 ) {
   try {
     return withPinnedRoots(
@@ -1327,6 +1390,7 @@ function persistTransition(
         const post = coherentState(
           journalDirectory,
           highWaterDirectory,
+          testOnlyFinalSnapshotHook,
         );
         if (post.high_water.high_water_id !== after.high_water_id) {
           fail("witness_live_read_replay_writer_postcheck_failed");
@@ -1389,4 +1453,24 @@ export function testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssu
   crashPhase: CrashPhaseV1,
 ) {
   return persistTransition({ ...input, kind: "issue" }, crashPhase);
+}
+
+export function testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueFinalSnapshotV1(
+  input: {
+    journal_root: string;
+    high_water_root: string;
+    entropy_sha256: unknown;
+    issued_at_ms: unknown;
+    expires_at_ms: unknown;
+  },
+  testOnlyAfterJournalRead: () => void,
+) {
+  if (typeof testOnlyAfterJournalRead !== "function") {
+    return held("witness_live_read_replay_writer_test_hook_required");
+  }
+  return persistTransition(
+    { ...input, kind: "issue" },
+    null,
+    testOnlyAfterJournalRead,
+  );
 }
