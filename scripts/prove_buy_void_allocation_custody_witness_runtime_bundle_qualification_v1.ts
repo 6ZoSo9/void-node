@@ -103,8 +103,16 @@ const manifestBody = {
   require_call_files: [],
 };
 const manifestId = "voidwfb1_" + crypto.createHash("sha256").update(canonical(manifestBody), "utf8").digest("hex");
+const manifestSha256 = sha256(
+  Buffer.from(
+    canonical({ ...manifestBody, manifest_id: manifestId }) + "\n",
+    "utf8",
+  ),
+);
+console.log("derived_runtime_bundle_manifest_id=" + manifestId);
+console.log("derived_runtime_bundle_manifest_sha256=" + manifestSha256);
 assert.equal(manifestId, VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1);
-assert.equal(sha256(Buffer.from(canonical({ ...manifestBody, manifest_id: manifestId }) + "\n", "utf8")), VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1);
+assert.equal(manifestSha256, VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1);
 
 const baseline = {
   schema: "void_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1",
