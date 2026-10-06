@@ -181,6 +181,8 @@ for (const [key, value] of Object.entries(
     "reviewed_base_ancestry_required",
     "exact_reviewed_git_blobs_required",
     "exact_reviewed_worktree_bytes_required",
+    "index_manifest_rebound_after_worktree_census",
+    "reviewed_worktree_revalidated_after_clean_census",
     "reviewed_package_tsconfig_context_bound",
     "writer_generation_binding_proven_on_success",
     "qualification_generation_binding_proven_on_success",
