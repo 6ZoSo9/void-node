@@ -27,7 +27,13 @@ The only caller-supplied configuration is:
   "schema": "void_buy_void_allocation_custody_witness_installation_evidence_config_v2",
   "marker": "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_CONFIG_V2",
   "version": 2,
-  "transport_policy": {}
+  "transport_policy": {},
+  "sshd_connection_context": {
+    "source_address": "100.64.0.10",
+    "source_host": "precision.tailnet.example",
+    "local_address": "100.64.0.20",
+    "local_port": 22
+  }
 }
 ```
 
@@ -35,6 +41,14 @@ The transport policy must pass the merged canonical witness transport
 classifier. Host paths, handler path, config path, witness path, continuity
 attestation path, Node path, `env` path, sshd path and host-key path are fixed
 by source; a caller cannot select an alternate file or command.
+
+The SSH connection context is explicit because OpenSSH `sshd -T -C` applies
+`Match` rules to that tuple. The collector requires a non-loopback source
+address, resolved source host name, non-loopback local server address, and local
+port equal to the reviewed transport port. This tuple is content-addressed in
+the receipt. It is still caller-supplied at this source gate, so
+`live_sshd_connection_context_proven=false`; a later authenticated live SSH
+qualification must bind it to the connection actually used.
 
 ## Descriptor-bound file evidence
 
@@ -74,7 +88,8 @@ The collector observes and passes to
 - exact Node and `/usr/bin/env` executable identity;
 - canonical protected V2 config;
 - exact root-owned restrictive `AuthorizedKeysFile` entry;
-- effective `sshd -T` policy;
+- effective `sshd -T -C` policy for the exact supplied source-host/source-
+  address/local-address/local-port tuple;
 - pinned host-key and authorized client-key identities;
 - exact V2 forced-command string;
 - exact reviewed continuity-attestation bytes and metadata; and
@@ -159,6 +174,7 @@ The receipt binds:
 Even a successful receipt reports:
 
 - `live_evidence_origin_proven=false`;
+- `live_sshd_connection_context_proven=false`;
 - `trusted_verification_clock_proven=false`;
 - `evidence_generation_monotonicity_proven=false`;
 - `client_known_hosts_content_observed=false`;
