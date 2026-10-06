@@ -77,6 +77,9 @@ A successful source receipt binds:
 - exact census source commit;
 - canonical runtime-bundle qualification ID;
 - SHA-256 of the exact eight-file evidence array;
+- the exact eight observed file records, so a downstream verifier can rerun the
+  merged #2515 classifier rather than trusting the receipt's qualification ID;
+- the canonical normalized #2515 qualification object;
 - runtime file count;
 - successful double-census equality; and
 - the collector authority boundary.
