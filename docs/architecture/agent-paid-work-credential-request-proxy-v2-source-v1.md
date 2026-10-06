@@ -42,9 +42,10 @@ The parser accepts only:
 - TCP over IPv4 (`0x11`) or TCP over IPv6 (`0x21`);
 - a complete declared header bounded to at most 512 bytes.
 
-The fixed TCP4/TCP6 address block is parsed first. Additional PROXY-v2 bytes are
-treated as opaque bounded TLV bytes and consumed according to the declared
-length; they are not authority for the limiter identity.
+The fixed TCP4/TCP6 address block is parsed first. Additional PROXY-v2 bytes
+must form a bounded sequence of structurally valid TLVs (type byte + uint16
+length + exact value bytes). TLV values remain opaque and are not authority for
+the limiter identity. Malformed/truncated TLV framing or more than 64 TLVs HOLD.
 
 The limiter identity is content-addressed from:
 
@@ -126,7 +127,7 @@ The focused proof covers:
 - raw-address limiter identity;
 - source-port rotation not changing the bucket;
 - two source addresses producing independent buckets;
-- bounded opaque TLV consumption;
+- bounded structurally valid TLV consumption and malformed TLV rejection;
 - missing, malformed, wrong-version, `LOCAL`, UDP/unsupported family,
   truncated, undersized and oversized PROXY-v2 HOLDs;
 - case-insensitive stripping of spoofable forwarding/trusted-source headers;
