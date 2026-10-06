@@ -123,6 +123,13 @@ const transportPolicy = Object.freeze({
   max_response_bytes: 24 * 1024 * 1024,
 });
 
+const sshdConnectionContext = Object.freeze({
+  source_address: "100.64.0.10",
+  source_host: "precision.tailnet.example",
+  local_address: "100.64.0.20",
+  local_port: 22,
+});
+
 const config = Object.freeze({
   schema:
     "void_buy_void_allocation_custody_witness_installation_evidence_config_v2",
@@ -130,6 +137,7 @@ const config = Object.freeze({
     "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_CONFIG_V2",
   version: 2,
   transport_policy: transportPolicy,
+  sshd_connection_context: sshdConnectionContext,
 });
 
 const handlerBytes = fs.readFileSync(
@@ -488,6 +496,17 @@ function makeIo(options = {}) {
         return options.nodeVersion || "v24.19.0\n";
       }
       if (command === "/usr/sbin/sshd") {
+        assert.deepEqual(args, [
+          "-T",
+          "-C",
+          [
+            "user=voidwitness",
+            "host=precision.tailnet.example",
+            "addr=100.64.0.10",
+            "laddr=100.64.0.20",
+            "lport=22",
+          ].join(","),
+        ]);
         return sshdOutput(options.sshd || {});
       }
       if (command === "/usr/bin/findmnt") {
@@ -524,6 +543,12 @@ assert.match(baseline.collector_receipt_sha256, /^sha256:[0-9a-f]{64}$/u);
 assert.equal(baseline.host_key_observed, true);
 assert.equal(baseline.authorized_client_key_observed, true);
 assert.equal(baseline.effective_sshd_policy_observed, true);
+assert.deepEqual(
+  baseline.sshd_connection_context,
+  sshdConnectionContext,
+);
+assert.equal(baseline.sshd_connection_context_bound, true);
+assert.equal(baseline.live_sshd_connection_context_proven, false);
 assert.equal(baseline.continuity_attestation_observed, true);
 assert.match(baseline.installation_qualification_id, /^voidwiq2_[0-9a-f]{64}$/u);
 assert.equal(baseline.client_known_hosts_content_observed, false);
@@ -685,6 +710,25 @@ for (const key of [
   assert.throws(
     () => collect(makeIo({ startupHookRuns: true })),
     /witness_installation_evidence_startup_hook_probe_failed/u,
+  );
+}
+
+for (const badContext of [
+  { ...sshdConnectionContext, source_address: "127.0.0.1" },
+  { ...sshdConnectionContext, local_address: "::1" },
+  { ...sshdConnectionContext, source_host: "Precision.Tailnet.Example" },
+  { ...sshdConnectionContext, local_port: 2222 },
+]) {
+  assert.throws(
+    () =>
+      collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(
+        {
+          ...config,
+          sshd_connection_context: badContext,
+        },
+        makeIo(),
+      ),
+    /witness_installation_evidence_sshd_context_invalid/u,
   );
 }
 
@@ -910,6 +954,8 @@ console.log(
 console.log("read_only_host_observation=true");
 console.log("root_owned_authorization_policy_observed=true");
 console.log("effective_sshd_policy_observed=true");
+console.log("sshd_connection_context_bound=true");
+console.log("live_sshd_connection_context_proven=false");
 console.log("v2_handler_config_command_bound=true");
 console.log("continuity_attestation_observed=true");
 console.log("continuity_attestation_missing_rejected=true");
