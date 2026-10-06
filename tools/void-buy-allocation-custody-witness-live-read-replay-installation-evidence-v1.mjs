@@ -589,6 +589,10 @@ function publicRootSnapshot(root, mount, disk) {
 function publicFileSnapshot(observed) {
   return Object.freeze({
     path: observed.path,
+    dev: String(observed.stat.dev),
+    ino: String(observed.stat.ino),
+    mtime_ns: String(observed.stat.mtimeNs),
+    ctime_ns: String(observed.stat.ctimeNs),
     sha256: sha256Id(observed.bytes),
     bytes: observed.bytes.length,
     uid: Number(observed.stat.uid),
@@ -620,6 +624,10 @@ const ROOT_KEYS = Object.freeze([
 
 const FILE_KEYS = Object.freeze([
   "path",
+  "dev",
+  "ino",
+  "mtime_ns",
+  "ctime_ns",
   "sha256",
   "bytes",
   "uid",
@@ -762,6 +770,14 @@ function classifySnapshot(snapshot, live) {
   ]) {
     if (
       file.path !== expectedPath ||
+      typeof file.dev !== "string" ||
+      !/^[0-9]+$/u.test(file.dev) ||
+      typeof file.ino !== "string" ||
+      !/^[1-9][0-9]*$/u.test(file.ino) ||
+      typeof file.mtime_ns !== "string" ||
+      !/^[0-9]+$/u.test(file.mtime_ns) ||
+      typeof file.ctime_ns !== "string" ||
+      !/^[0-9]+$/u.test(file.ctime_ns) ||
       typeof file.sha256 !== "string" ||
       !/^sha256:[0-9a-f]{64}$/u.test(file.sha256) ||
       !Number.isSafeInteger(file.bytes) ||
@@ -1062,6 +1078,16 @@ function stablePublicSnapshot(snapshot) {
     journal_intent_present: snapshot.journal_intent_present,
     high_water_intent_present: snapshot.high_water_intent_present,
   });
+}
+
+export function testOnlyStableBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationSnapshotsEqualV1(
+  left,
+  right,
+) {
+  return (
+    canonicalJson(stablePublicSnapshot(left)) ===
+    canonicalJson(stablePublicSnapshot(right))
+  );
 }
 
 export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1(
