@@ -165,6 +165,7 @@ for (const [key, value] of Object.entries(
     "clean_worktree_required",
     "reviewed_base_ancestry_required",
     "exact_reviewed_git_blobs_required",
+    "exact_reviewed_worktree_bytes_required",
     "reviewed_package_tsconfig_context_bound",
     "writer_generation_binding_proven_on_success",
     "qualification_generation_binding_proven_on_success",
@@ -262,6 +263,7 @@ console.log(
 );
 console.log("reviewed_source_count=21");
 console.log("exact_reviewed_git_blobs_required=true");
+console.log("exact_reviewed_worktree_bytes_required=true");
 console.log("reviewed_base_ancestry_required=true");
 console.log("clean_worktree_required=true");
 console.log("ambient_git_overrides_ignored=true");
