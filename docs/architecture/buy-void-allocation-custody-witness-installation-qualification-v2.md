@@ -51,7 +51,7 @@ V2 never converts a failed V1 decision into success.
 
 Handler source Git blob:
 
-`f808f8e4085fab3292274a83b418b8e01f4a9387`
+`f82f76fb6e7b90378857799429e50bb1f23524f7`
 
 Handler path:
 
