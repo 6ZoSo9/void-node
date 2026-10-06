@@ -25,13 +25,13 @@ const SUCCESSOR =
 const REVIEWED_SOURCE_COMMIT =
   "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
 const EXPECTED_BLOBS = Object.freeze({
-  semantic_promotion_tool: "4b84dc9c90f368cf03d3b37c7be3afe566e4629a",
-  semantic_promotion_proof: "992b6ca4fc53ff4c3d903750640cd0271248f544",
-  production_candidate: "a3e07c0731b1e771a699f4c91f07206705b99efb",
+  semantic_promotion_tool: "38fc89f07b1e328504aff60dc2d357cb1072cdb3",
+  semantic_promotion_proof: "55cb03312c2242d57e5a3db4a1d36a12f513f588",
+  production_candidate: "43467c6cf03723ab8eb8e688d7b24c10bd681bad",
   coupled_candidate: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
   successor_candidate: "1457b8a0b060c4c515bf2232320af19f4e70dd35",
-  production_classifier: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
-  coupled_classifier: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+  production_classifier: "34e84c1f16452361e0e8d2c867e3bd4d63047061",
+  coupled_classifier: "b565f3d8174d20e5e15c18085b97bc776e645efa",
   successor_classifier: "9f51b193da687669700c898ed587edf9040f6264",
   package_json: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
   package_lock: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
