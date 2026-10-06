@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { listDirectDirectoryNamesV1 as ldn, readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
-import { classifyVoidDemo003PublicServingSetV1 } from "./http/void_demo003_public_serving_contract_v1.js";
+import { classifyVoidDemo003PublicServingSetV1, VOID_DEMO003_CANONICAL_PAYLOADS_V1 as d3p, VOID_DEMO003_CONTROL_MAX_BYTES_V1 as d3c } from "./http/void_demo003_public_serving_contract_v1.js";
 import {
   runVoidNativeBlockExecutionPrecommitIntegrationV1,
 } from "./chain/native_block_execution_precommit_integration_v1.js";
@@ -58685,12 +58685,12 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
   let manifestBytes:Buffer|null, checksumBytes:Buffer|null, intakeBytes:Buffer|null;
   let readmeBytes:Buffer|null, indexBytes:Buffer|null, metadataBytes:Buffer|null;
   try {
-    manifestBytes=rf(paths.manifest);
-    checksumBytes=rf(paths.checksums);
-    intakeBytes=rf(paths.intake);
-    readmeBytes=rf(paths.readme);
-    indexBytes=rf(paths.index);
-    metadataBytes=rf(paths.metadata);
+    manifestBytes=rf(paths.manifest,d3c);
+    checksumBytes=rf(paths.checksums,d3c);
+    intakeBytes=rf(paths.intake,d3c);
+    readmeBytes=rf(paths.readme,d3p["README.txt"].bytes);
+    indexBytes=rf(paths.index,d3p["index.html"].bytes);
+    metadataBytes=rf(paths.metadata,d3p["metadata.json"].bytes);
   } catch (_e) {
     return hold(503, "demo003_folder_fixture_unsafe_storage");
   }
@@ -58784,12 +58784,12 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fi
   let manifestBytes:Buffer|null, checksumBytes:Buffer|null, intakeBytes:Buffer|null;
   let readmeBytes:Buffer|null, indexBytes:Buffer|null, metadataBytes:Buffer|null;
   try {
-    manifestBytes=rf(paths.manifest);
-    checksumBytes=rf(paths.checksums);
-    intakeBytes=rf(paths.intake);
-    readmeBytes=rf(paths.readme);
-    indexBytes=rf(paths.index);
-    metadataBytes=rf(paths.metadata);
+    manifestBytes=rf(paths.manifest,d3c);
+    checksumBytes=rf(paths.checksums,d3c);
+    intakeBytes=rf(paths.intake,d3c);
+    readmeBytes=rf(paths.readme,d3p["README.txt"].bytes);
+    indexBytes=rf(paths.index,d3p["index.html"].bytes);
+    metadataBytes=rf(paths.metadata,d3p["metadata.json"].bytes);
   } catch (_e) {
     return hold("demo003_folder_file_unsafe_storage");
   }
