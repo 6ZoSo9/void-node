@@ -18,6 +18,9 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_DOWNSTREAM_ISOLATION_POLICY_AUTHORITY
     dedicated_credential_downstream_listener_required: true,
     adapter_uid_only_downstream_connector_required: true,
     nonmatching_downstream_connector_drop_required: true,
+    upstream_global_wall_direct_bypass_policy_required: true,
+    gateway_uid_only_upstream_connector_required: true,
+    nonmatching_upstream_connector_drop_required: true,
     ordinary_shared_gateway_routes_preserved: true,
     source_identity_forwarding_forbidden: true,
     root_owned_ruleset_required: true,
@@ -140,6 +143,7 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
         "loopback_connector_policy",
         "shared_gateway",
         "dedicated_credential_downstream",
+        "credential_gateway_upstream",
         "downstream_firewall",
       ],
       "downstream_isolation_shape_invalid",
@@ -230,6 +234,35 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       );
     }
 
+    const upstreamGateway = exactKeys(
+      input.credential_gateway_upstream,
+      [
+        "listen_host",
+        "listen_port",
+        "credential_route",
+        "trusted_client_uid",
+      ],
+      "downstream_isolation_credential_gateway_upstream_shape_invalid",
+    );
+    const upstreamGatewayPort = integer(
+      upstreamGateway.listen_port,
+      1024,
+      MAX_PORT,
+      "downstream_isolation_credential_gateway_upstream_port_invalid",
+    );
+    if (
+      upstreamGateway.listen_host !== TARGET_HOST ||
+      upstreamGateway.credential_route !== CREDENTIAL_ROUTE ||
+      upstreamGateway.trusted_client_uid !== upstream.gateway_uid ||
+      upstreamGatewayPort === SHARED_GATEWAY_PORT ||
+      upstreamGatewayPort === upstream.adapter_port ||
+      upstreamGatewayPort === dedicatedPort
+    ) {
+      throw new Error(
+        "downstream_isolation_credential_gateway_upstream_invalid",
+      );
+    }
+
     const firewall = exactKeys(
       input.downstream_firewall,
       [
@@ -265,7 +298,7 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
         "downstream_isolation_firewall_identity_invalid",
       );
     }
-    if (!Array.isArray(firewall.rules) || firewall.rules.length !== 2) {
+    if (!Array.isArray(firewall.rules) || firewall.rules.length !== 4) {
       throw new Error(
         "downstream_isolation_firewall_rule_count_invalid",
       );
@@ -290,6 +323,26 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       },
       "downstream_isolation_nonadapter_drop_rule",
     );
+    requireDownstreamRule(
+      firewall.rules[2],
+      {
+        order: 3,
+        port: upstreamGatewayPort,
+        skuid: upstream.gateway_uid,
+        verdict: "accept",
+      },
+      "downstream_isolation_gateway_upstream_allow_rule",
+    );
+    requireDownstreamRule(
+      firewall.rules[3],
+      {
+        order: 4,
+        port: upstreamGatewayPort,
+        skuid: null,
+        verdict: "drop",
+      },
+      "downstream_isolation_nongateway_upstream_drop_rule",
+    );
 
     return Object.freeze({
       ok: true,
@@ -307,6 +360,8 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       shared_gateway_port: SHARED_GATEWAY_PORT,
       dedicated_downstream_host: TARGET_HOST,
       dedicated_downstream_port: dedicatedPort,
+      credential_gateway_upstream_host: TARGET_HOST,
+      credential_gateway_upstream_port: upstreamGatewayPort,
       gateway_service_unit: upstream.gateway_service_unit,
       adapter_service_unit: upstream.adapter_service_unit,
       adapter_uid: upstream.adapter_uid,
