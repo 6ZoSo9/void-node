@@ -95,15 +95,15 @@ const GIT_PROGRAM_OVERRIDE_ENV = Object.freeze([
 const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   semantic_promotion_tool: Object.freeze({
     path: "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs",
-    blob_sha1: "4b84dc9c90f368cf03d3b37c7be3afe566e4629a",
+    blob_sha1: "38fc89f07b1e328504aff60dc2d357cb1072cdb3",
   }),
   semantic_promotion_proof: Object.freeze({
     path: "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs",
-    blob_sha1: "992b6ca4fc53ff4c3d903750640cd0271248f544",
+    blob_sha1: "55cb03312c2242d57e5a3db4a1d36a12f513f588",
   }),
   production_candidate: Object.freeze({
     path: "ops/mainnet0/wc-void-production-candidate-v1.json",
-    blob_sha1: "a3e07c0731b1e771a699f4c91f07206705b99efb",
+    blob_sha1: "43467c6cf03723ab8eb8e688d7b24c10bd681bad",
   }),
   coupled_candidate: Object.freeze({
     path: "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
@@ -115,11 +115,11 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   production_classifier: Object.freeze({
     path: "tools/void-wc-void-production-readiness-v1.mjs",
-    blob_sha1: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
+    blob_sha1: "34e84c1f16452361e0e8d2c867e3bd4d63047061",
   }),
   coupled_classifier: Object.freeze({
     path: "tools/void-coupled-economic-successor-gate-v1.mjs",
-    blob_sha1: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+    blob_sha1: "b565f3d8174d20e5e15c18085b97bc776e645efa",
   }),
   successor_classifier: Object.freeze({
     path: "tools/void-economic-evm-successor-migration-v1.mjs",
