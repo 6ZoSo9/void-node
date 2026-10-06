@@ -19,6 +19,11 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_SHA256_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_ID_V1,
 } from "../dist/economic/buy_void_allocation_custody_witness_installation_qualification_v2.js";
+import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+} from "../dist/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.js";
 
 const HANDLER_PATH =
   "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs";
@@ -299,6 +304,31 @@ const forcedConfig = Object.freeze({
 });
 const configBytes = Buffer.from(canonicalJson(forcedConfig) + "\n", "utf8");
 
+const runtimeBundleFiles = new Map(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1
+    .map((file, index) => {
+      const bytes = fs.readFileSync(file.source_path);
+      assert.equal(
+        sha256Id(bytes),
+        file.sha256,
+        "reviewed runtime bundle fixture hash changed: " + file.source_path,
+      );
+      return [
+        file.installed_path,
+        {
+          bytes,
+          stat: stat({
+            uid: 0,
+            gid: 0,
+            mode: 0o444,
+            size: bytes.length,
+            ino: 100 + index,
+          }),
+        },
+      ];
+    }),
+);
+
 function stat({
   type = "file",
   uid = 0,
@@ -335,6 +365,7 @@ function stat({
 }
 
 const baseFiles = new Map([
+  ...runtimeBundleFiles,
   [HANDLER_PATH, { bytes: handlerBytes, stat: stat({ uid: 0, gid: 0, mode: 0o444, size: handlerBytes.length, ino: 10 }) }],
   [NODE_PATH, { bytes: nodeBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: nodeBytes.length, ino: 11 }) }],
   [ENV_PATH, { bytes: envBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: envBytes.length, ino: 12 }) }],
@@ -551,6 +582,27 @@ assert.equal(baseline.sshd_connection_context_bound, true);
 assert.equal(baseline.live_sshd_connection_context_proven, false);
 assert.equal(baseline.continuity_attestation_observed, true);
 assert.match(baseline.installation_qualification_id, /^voidwiq2_[0-9a-f]{64}$/u);
+assert.equal(
+  baseline.runtime_bundle_manifest_id,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+);
+assert.equal(
+  baseline.runtime_bundle_manifest_sha256,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+);
+assert.match(
+  baseline.runtime_bundle_qualification_id,
+  /^voidwfbq1_[0-9a-f]{64}$/u,
+);
+assert.match(
+  baseline.runtime_bundle_evidence_sha256,
+  /^sha256:[0-9a-f]{64}$/u,
+);
+assert.match(
+  baseline.runtime_bundle_normalized_qualification_sha256,
+  /^sha256:[0-9a-f]{64}$/u,
+);
+assert.equal(baseline.runtime_bundle_qualification_observed, true);
 assert.equal(baseline.client_known_hosts_content_observed, false);
 assert.equal(baseline.preexec_runtime_execution_observed, true);
 assert.equal(baseline.live_evidence_origin_proven, false);
@@ -593,6 +645,16 @@ assert.equal(
     .preexec_runtime_execution_observed,
   true,
 );
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2
+    .runtime_bundle_qualification_required,
+  true,
+);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2
+    .runtime_bundle_qualification_observed,
+  true,
+);
 
 {
   const historical = collect(
@@ -600,6 +662,72 @@ assert.equal(
   );
   assert.equal(historical.witness_identity_path, "historical_exact");
   assert.equal(historical.continuity_attestation_consumed, false);
+}
+
+{
+  const target =
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1[1]
+      .installed_path;
+  const original = runtimeBundleFiles.get(target);
+  assert.ok(original);
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          files: {
+            [target]: {
+              bytes: Buffer.concat([
+                original.bytes,
+                Buffer.from("\nRUNTIME_BUNDLE_DRIFT\n", "utf8"),
+              ]),
+            },
+          },
+        }),
+      ),
+    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+  );
+}
+
+{
+  const target =
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1[2]
+      .installed_path;
+  const original = runtimeBundleFiles.get(target);
+  assert.ok(original);
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          files: {
+            [target]: {
+              stat: stat({
+                uid: 0,
+                gid: 0,
+                mode: 0o555,
+                size: original.bytes.length,
+                ino: 102,
+              }),
+            },
+          },
+        }),
+      ),
+    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+  );
+}
+
+{
+  const target =
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1[3]
+      .installed_path;
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          badParentChains: [target],
+        }),
+      ),
+    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+  );
 }
 
 {
@@ -962,6 +1090,11 @@ console.log("continuity_attestation_missing_rejected=true");
 console.log("continuity_attestation_tamper_rejected=true");
 console.log("continuity_attestation_owner_mismatch_rejected=true");
 console.log("preexec_binary_chain_observed=true");
+console.log("runtime_bundle_qualification_required=true");
+console.log("runtime_bundle_exact_files_observed=8");
+console.log("runtime_bundle_hash_drift_rejected=true");
+console.log("runtime_bundle_mode_drift_rejected=true");
+console.log("runtime_bundle_parent_chain_drift_rejected=true");
 console.log("host_witness_identity_bound=true");
 console.log("double_census_stability_required=true");
 console.log("content_addressed_receipt=true");
