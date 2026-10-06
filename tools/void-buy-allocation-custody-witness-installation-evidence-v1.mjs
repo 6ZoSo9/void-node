@@ -48,6 +48,10 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTH
     funds_movement: false,
   });
 
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 const RECEIPT_SCHEMA =
   "void_buy_void_allocation_custody_witness_installation_evidence_v1";
 const QUALIFICATION_SCHEMA =
@@ -275,7 +279,7 @@ function systemExecStatus(command, args, options = {}) {
 
 const SYSTEM_IO = Object.freeze({
   lstat(file) {
-    return io.lstat(file);
+    return fs.lstatSync(file, { bigint: true });
   },
   realpath(file) {
     return fs.realpathSync.native(file);
@@ -284,16 +288,43 @@ const SYSTEM_IO = Object.freeze({
     return fs.openSync(file, flags);
   },
   fstat(fd) {
-    return io.fstat(fd);
+    return fs.fstatSync(fd, { bigint: true });
   },
   read(fd, buffer, offset, length, position) {
     return fs.readSync(fd, buffer, offset, length, position);
   },
   close(fd) {
-    io.close(fd);
+    fs.closeSync(fd);
   },
-  readFile(file) {
-    return fs.readFileSync(file);
+  readFile(file, maxBytes = MAX_ENVIRON_BYTES) {
+    if (
+      !Number.isSafeInteger(maxBytes) ||
+      maxBytes < 1 ||
+      maxBytes > MAX_ENVIRON_BYTES
+    ) {
+      fail("witness_installation_evidence_read_limit_invalid");
+    }
+    const fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | Number(fs.constants.O_CLOEXEC || 0),
+    );
+    try {
+      const chunks = [];
+      let total = 0;
+      while (true) {
+        const chunk = Buffer.alloc(Math.min(8192, maxBytes + 1 - total));
+        const count = fs.readSync(fd, chunk, 0, chunk.length, null);
+        if (count <= 0) break;
+        total += count;
+        if (total > maxBytes) {
+          fail("witness_installation_evidence_read_limit_exceeded");
+        }
+        chunks.push(chunk.subarray(0, count));
+      }
+      return Buffer.concat(chunks, total);
+    } finally {
+      fs.closeSync(fd);
+    }
   },
   execStatus: systemExecStatus,
   nowMs() {
@@ -740,6 +771,9 @@ function normalizeConfig(raw) {
     value.repo_root,
     "witness_installation_evidence_config_invalid",
   );
+  if (repoRoot !== REPO_ROOT) {
+    fail("witness_installation_evidence_repo_root_mismatch");
+  }
   const evidenceGeneration = exactInteger(
     value.evidence_generation,
     1,
@@ -934,13 +968,25 @@ function collect(rawConfig, io = SYSTEM_IO) {
   if (!Number.isSafeInteger(sshdPid)) {
     fail("witness_installation_evidence_sshd_pid_invalid");
   }
-  const sshdEnvironmentBytes = io.readFile("/proc/" + String(sshdPid) + "/environ");
+  const sshdEnvironmentBytes = io.readFile(
+    "/proc/" + String(sshdPid) + "/environ",
+    MAX_ENVIRON_BYTES,
+  );
   const sshdEnvironment = parseNullEnvironment(sshdEnvironmentBytes);
   const dangerousAbsent = DANGEROUS_ENVIRONMENT_NAMES.filter(
     (name) => !sshdEnvironment.has(name),
   );
   if (dangerousAbsent.length !== DANGEROUS_ENVIRONMENT_NAMES.length) {
     fail("witness_installation_evidence_sshd_dangerous_environment_present");
+  }
+  const mainPidAfter = execText(
+    io,
+    SYSTEMCTL_PATH,
+    ["show", config.sshd_service_unit, "--property=MainPID", "--value", "--no-pager"],
+    "witness_installation_evidence_sshd_pid_recheck_failed",
+  ).trim();
+  if (mainPidAfter !== mainPidText) {
+    fail("witness_installation_evidence_sshd_pid_changed");
   }
 
   const originalCommandProbe = execStatus(
@@ -1139,6 +1185,7 @@ function collect(rawConfig, io = SYSTEM_IO) {
     transport_policy_sha256: policySha256,
     sshd_service_unit: config.sshd_service_unit,
     sshd_main_pid: sshdPid,
+    sshd_main_pid_revalidated: true,
     sshd_environment_sha256: sha256Id(sshdEnvironmentBytes),
     host_public_key_path: HOST_PUBLIC_KEY_PATH,
     host_public_key_blob_sha256: hostPublic.key_blob_sha256,
