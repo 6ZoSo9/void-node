@@ -47,8 +47,10 @@ The read-only inspector requires:
 - replacement objects disabled;
 - global/system Git config disabled;
 - repository-local include directives and filter configuration rejected before
-  any porcelain worktree observation, so repository-controlled clean/process
-  filters cannot execute as part of this read-only evidence path;
+  any porcelain worktree observation; when `extensions.worktreeConfig` is
+  enabled, the per-worktree `config.worktree` include/filter scope is rejected
+  by the same rule. Therefore repository-controlled clean/process filters cannot
+  execute as part of this read-only evidence path;
 - hooks, fsmonitor, global attributes, untracked cache, preloading, and submodule
   recursion disabled for the observation;
 - legacy `.git/info/grafts` rejected before ancestry evaluation;
@@ -142,8 +144,8 @@ The focused proof:
   still requires the live inspector to HOLD;
 - proves the observation plan resolves tree/blob/ancestry specs from one pinned
   commit and rejects a changed final HEAD;
-- installs a repository-local executable filter setting and requires HOLD before
-  porcelain observation can run;
+- installs both repository-local and per-worktree executable filter settings
+  and requires HOLD before porcelain observation can run;
 - installs a temporary legacy graft overlay and requires HOLD before ancestry is
   trusted;
 - swaps a regular proof file to a FIFO between lstat/open and requires bounded
