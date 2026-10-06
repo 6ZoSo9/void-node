@@ -96,7 +96,8 @@ witness mutation.
 Normal append writes only the exact new event bytes at EOF and fsyncs the witness.
 
 After exact reread/postcheck and #2502 append-response construction, the intent
-is removed and the authority directory is fsynced.
+is removed, the authority directory is fsynced, and the visible authority-root
+pathname is rebound to the retained directory identity before success.
 
 ## Crash recovery
 
