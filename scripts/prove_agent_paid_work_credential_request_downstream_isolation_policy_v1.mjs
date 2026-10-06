@@ -92,6 +92,8 @@ function validPolicy() {
       service_unit: "void-ai-agent-public-gateway-v1.service",
       listen_host: "127.0.0.1",
       listen_port: 4112,
+      ipv6_listener: false,
+      additional_listeners: [],
       credential_route_exposed: false,
       ordinary_routes_preserved: true,
     },
@@ -100,6 +102,7 @@ function validPolicy() {
       listen_host: "127.0.0.1",
       listen_port: 4190,
       ipv6_listener: false,
+      additional_listeners: [],
       credential_method: "POST",
       credential_route: credentialRoute,
       credential_route_only: true,
@@ -109,6 +112,8 @@ function validPolicy() {
     credential_gateway_upstream: {
       listen_host: "127.0.0.1",
       listen_port: 4113,
+      ipv6_listener: false,
+      additional_listeners: [],
       credential_route: credentialRoute,
       trusted_client_uid: 2102,
     },
@@ -199,6 +204,10 @@ assert.equal(
 );
 assert.equal(qualified.shared_gateway_credential_route_disabled, true);
 assert.equal(qualified.ordinary_shared_gateway_routes_preserved, true);
+assert.equal(qualified.closed_world_listener_sets_required, true);
+assert.equal(qualified.shared_gateway_ipv6_listener, false);
+assert.equal(qualified.dedicated_downstream_ipv6_listener, false);
+assert.equal(qualified.credential_gateway_upstream_ipv6_listener, false);
 assert.equal(qualified.dedicated_downstream_port, 4190);
 assert.equal(qualified.credential_gateway_upstream_port, 4113);
 assert.equal(qualified.adapter_uid, 2101);
@@ -218,6 +227,18 @@ expectHold(
 expectHold(
   (x) => {
     x.shared_gateway.ordinary_routes_preserved = false;
+  },
+  /shared_gateway_bypass_not_closed/u,
+);
+expectHold(
+  (x) => {
+    x.shared_gateway.ipv6_listener = true;
+  },
+  /shared_gateway_bypass_not_closed/u,
+);
+expectHold(
+  (x) => {
+    x.shared_gateway.additional_listeners = ["[::1]:4112"];
   },
   /shared_gateway_bypass_not_closed/u,
 );
@@ -246,6 +267,12 @@ expectHold(
 expectHold(
   (x) => {
     x.dedicated_credential_downstream.ipv6_listener = true;
+  },
+  /dedicated_listener_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.dedicated_credential_downstream.additional_listeners = ["127.0.0.1:4191"];
   },
   /dedicated_listener_invalid/u,
 );
@@ -283,6 +310,18 @@ expectHold(
 expectHold(
   (x) => {
     x.credential_gateway_upstream.listen_host = "0.0.0.0";
+  },
+  /credential_gateway_upstream_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.credential_gateway_upstream.ipv6_listener = true;
+  },
+  /credential_gateway_upstream_invalid/u,
+);
+expectHold(
+  (x) => {
+    x.credential_gateway_upstream.additional_listeners = ["[::1]:4113"];
   },
   /credential_gateway_upstream_invalid/u,
 );
@@ -422,6 +461,11 @@ console.log(
 console.log("parent_loopback_connector_policy_reused=true");
 console.log("shared_gateway_credential_route_must_be_disabled=true");
 console.log("ordinary_shared_gateway_routes_preserved=true");
+console.log("closed_world_listener_sets_required=true");
+console.log("shared_gateway_ipv6_listener=false");
+console.log("dedicated_downstream_ipv6_listener=false");
+console.log("credential_gateway_upstream_ipv6_listener=false");
+console.log("additional_listener_sets_empty=true");
 console.log("dedicated_credential_downstream_required=true");
 console.log("adapter_uid_only_downstream_connector_required=true");
 console.log("nonmatching_downstream_connector_drop_required=true");
