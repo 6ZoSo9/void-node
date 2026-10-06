@@ -62,6 +62,8 @@ const CONFIG_PATH =
   "/etc/void/buy-void-allocation-custody-witness-forced-command-v1.json";
 const NODE_PATH = "/usr/bin/node";
 const ENV_PATH = "/usr/bin/env";
+const AUTHORITY_ROOT =
+  "/var/lib/void-allocation-custody-witness-v1";
 const WITNESS_NAME =
   "buy-void-allocation-custody-high-water-witness-v1.jsonl";
 const FORCED_COMMAND =
@@ -445,9 +447,9 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
         NODE_PATH ||
       absolutePath(
         node.resolved_path,
-        null,
+        NODE_PATH,
         "witness_installation_node_invalid",
-      ).length < 2 ||
+      ) !== NODE_PATH ||
       node.uid !== 0 ||
       node.gid !== 0 ||
       node.root_owned !== true ||
@@ -515,7 +517,7 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
     );
     const authorityRoot = absolutePath(
       config.authority_root,
-      null,
+      AUTHORITY_ROOT,
       "witness_installation_config_invalid",
     );
 
@@ -561,7 +563,7 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
     }
     const authorizedKeysPath = absolutePath(
       authorizedKey.authorized_keys_path,
-      null,
+      "/var/lib/" + remoteUser + "/.ssh/authorized_keys",
       "witness_installation_authorized_key_invalid",
     );
     const forcedCommandSha256 = sha256Field(
