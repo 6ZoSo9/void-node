@@ -298,6 +298,10 @@ function gitSafetyArgs() {
     "-c", "core.attributesFile=/dev/null",
     "-c", "core.untrackedCache=false",
     "-c", "core.preloadIndex=false",
+    "-c", "core.ignoreStat=false",
+    "-c", "core.trustctime=true",
+    "-c", "core.checkStat=default",
+    "-c", "core.filemode=true",
     "-c", "submodule.recurse=false",
   ];
 }
@@ -447,6 +451,67 @@ function rejectRepositoryExecutionSettingsV1() {
       );
     }
   }
+}
+
+function repositoryCleanStateV1(head) {
+  if (!HEX40.test(head)) {
+    fail("source_binding_repository_head_invalid");
+  }
+
+  const indexFlags = String(
+    git(
+      ["ls-files", "-v", "-z"],
+      "source_binding_repository_index_flags_unavailable",
+    ).stdout || "",
+  );
+  for (const entry of indexFlags.split("\0")) {
+    if (!entry) continue;
+    if (!entry.startsWith("H ")) {
+      fail("source_binding_repository_index_flags_forbidden");
+    }
+  }
+
+  const staged = git(
+    [
+      "diff-index",
+      "--cached",
+      "--quiet",
+      "--no-ext-diff",
+      head,
+      "--",
+    ],
+    "source_binding_repository_index_check_failed",
+    { allowFail: true },
+  );
+  if (staged.status === 1) {
+    fail("source_binding_repository_index_not_clean");
+  }
+  if (staged.status !== 0) {
+    fail("source_binding_repository_index_check_failed");
+  }
+
+  const dirty = String(
+    git(
+      [
+        "ls-files",
+        "--modified",
+        "--deleted",
+        "--others",
+        "--exclude-standard",
+        "-z",
+      ],
+      "source_binding_repository_worktree_check_failed",
+    ).stdout || "",
+  );
+  if (dirty !== "") {
+    fail("source_binding_repository_worktree_not_clean");
+  }
+
+  return true;
+}
+
+export function testOnlyRepositoryCleanStateV1(head) {
+  return repositoryCleanStateV1(head);
 }
 
 function rejectLegacyGraftsV1() {
@@ -645,15 +710,8 @@ export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
           }),
         );
 
-    const status = gitText(
-      [
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-        "--no-renames",
-      ],
-      "source_binding_repository_status_unavailable",
-    );
+    const worktreeClean =
+      repositoryCleanStateV1(plan.head);
 
     const finalHead = gitText(
       ["rev-parse", "HEAD"],
@@ -668,7 +726,7 @@ export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
       repository_head_sha: plan.head,
       repository_tree_sha: tree,
       repository_origin: origin,
-      worktree_clean: status === "",
+      worktree_clean: worktreeClean,
       reviewed_base_is_ancestor: ancestor,
       source_blobs: sourceBlobs,
     });
