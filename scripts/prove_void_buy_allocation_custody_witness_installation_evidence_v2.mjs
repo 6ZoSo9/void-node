@@ -887,7 +887,8 @@ for (const badContext of [
   };
   assert.throws(
     () => collect(makeIo({ files: badFiles })),
-    /witness_installation_v2_handler_invalid/u,
+    /witness_installation_evidence_runtime_bundle_witness_runtime_bundle_file_invalid/u,
+    "handler byte drift must HOLD at the stronger runtime-bundle gate before V2 installation classification",
   );
 }
 
