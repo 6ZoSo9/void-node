@@ -229,10 +229,6 @@ function exactObject(value, keys, code) {
   }
   const out = Object.create(null);
   for (const key of keys) {
-    budget.bytes += Buffer.byteLength(key, "utf8");
-    if (budget.bytes > MAX_COLLECTOR_DECISION_BYTES) {
-      fail("receipt_continuity_collector_decision_too_large");
-    }
     const descriptor = descriptors[key];
     if (
       !descriptor ||
@@ -294,6 +290,10 @@ function snapshotPlain(
   }
   const out = Object.create(null);
   for (const key of keys) {
+    budget.bytes += Buffer.byteLength(key, "utf8");
+    if (budget.bytes > MAX_COLLECTOR_DECISION_BYTES) {
+      fail("receipt_continuity_collector_decision_too_large");
+    }
     const descriptor = descriptors[key];
     if (
       !descriptor ||
