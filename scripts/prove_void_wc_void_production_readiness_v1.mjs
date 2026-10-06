@@ -55,7 +55,7 @@ assert.equal(held.authority.funds_movement, false);
 assert.equal(candidate.market_vault_compiled_identity_committed, true);
 assert.equal(
   candidate.market_vault_compiled_identity_acceptance.packet_id,
-  "voidwcvcia1_cf17de1bb774c1c06f2f396063458c9b3a879a9022ffd73a611edafdee14d202",
+  "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05",
 );
 assert.equal(
   candidate.market_vault_compiled_identity_acceptance.identity_id,

@@ -8,7 +8,8 @@ import { Interface } from "ethers";
 
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
-} from "../tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+  loadWcVoidMarketVaultCompiledIdentityCurrentV2,
+} from "../tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   reconstructWcVoidMarketVaultRuntimeV1,
 } from "../tools/void-wc-void-market-vault-runtime-attestation-v1.mjs";
@@ -76,9 +77,9 @@ import {
 } from "../tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs";
 
 const LAUNCH=
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const VAULT_LAUNCH=
-  "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const TOKEN="0x470075b85352eb86f7d089fb9ba88945f12aad94";
 const PARTICIPANT="0x1111111111111111111111111111111111111111";
 const OTHER_PARTICIPANT="0x2222222222222222222222222222222222222222";
@@ -360,9 +361,7 @@ function ledgerImportFixture(){
   return {parent,dataDir,input:{expected,evidence:receipt}};
 }
 
-const acceptance=JSON.parse(fs.readFileSync(
-  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json","utf8",
-));
+const acceptance=loadWcVoidMarketVaultCompiledIdentityCurrentV2();
 const stateManifest=JSON.parse(fs.readFileSync(
   "public/public-node/evidence/economic-epoch2-client-neutral-state-manifest-v1.json","utf8",
 ));

@@ -60,7 +60,7 @@ export const VOID_WC_VOID_BOUNDED_CANARY_CANDIDATE_PROMOTION_AUTHORITY_V1 =
   });
 
 const CURRENT_LAUNCH =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REVIEWED_SOURCE_COMMIT =
   "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
@@ -95,19 +95,19 @@ const GIT_PROGRAM_OVERRIDE_ENV = Object.freeze([
 const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   semantic_promotion_tool: Object.freeze({
     path: "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs",
-    blob_sha1: "4b84dc9c90f368cf03d3b37c7be3afe566e4629a",
+    blob_sha1: "38fc89f07b1e328504aff60dc2d357cb1072cdb3",
   }),
   semantic_promotion_proof: Object.freeze({
     path: "scripts/prove_void_wc_void_bounded_canary_semantic_promotion_v1.mjs",
-    blob_sha1: "992b6ca4fc53ff4c3d903750640cd0271248f544",
+    blob_sha1: "55cb03312c2242d57e5a3db4a1d36a12f513f588",
   }),
   production_candidate: Object.freeze({
     path: "ops/mainnet0/wc-void-production-candidate-v1.json",
-    blob_sha1: "a3e07c0731b1e771a699f4c91f07206705b99efb",
+    blob_sha1: "43467c6cf03723ab8eb8e688d7b24c10bd681bad",
   }),
   coupled_candidate: Object.freeze({
     path: "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
-    blob_sha1: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+    blob_sha1: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
   }),
   successor_candidate: Object.freeze({
     path: "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
@@ -115,11 +115,11 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   production_classifier: Object.freeze({
     path: "tools/void-wc-void-production-readiness-v1.mjs",
-    blob_sha1: "a2ee87d5b5bf749f840aeb8d497008eba2d5beaa",
+    blob_sha1: "34e84c1f16452361e0e8d2c867e3bd4d63047061",
   }),
   coupled_classifier: Object.freeze({
     path: "tools/void-coupled-economic-successor-gate-v1.mjs",
-    blob_sha1: "ad8706419a233c5d186b9c81c0dfed3afbf2bf8f",
+    blob_sha1: "b565f3d8174d20e5e15c18085b97bc776e645efa",
   }),
   successor_classifier: Object.freeze({
     path: "tools/void-economic-evm-successor-migration-v1.mjs",
@@ -127,11 +127,11 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   semantic_bounded_canary_evidence: Object.freeze({
     path: "tools/void-wc-void-bounded-canary-evidence-v1.mjs",
-    blob_sha1: "b3b351771833d85286ca496606498aac7e6f4fc0",
+    blob_sha1: "209440e02102823053e27ccd49cece25ab07bba6",
   }),
   semantic_market_vault_at_use: Object.freeze({
     path: "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs",
-    blob_sha1: "9b415bc3ff7810debcb2ea217e6144ec46153237",
+    blob_sha1: "273b2eb4a496be499ca7d2982fdfa24fbedcf9aa",
   }),
   semantic_ledger_persistence_import: Object.freeze({
     path: "tools/void-wc-void-ledger-persistence-import-v1.mjs",
@@ -159,11 +159,15 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   semantic_participant_at_use: Object.freeze({
     path: "tools/void-participant-postpurchase-at-use-revalidation-v1.mjs",
-    blob_sha1: "2b4454742298e54f73a254d3085503ccfc757dec",
+    blob_sha1: "3f36f6bc4e6bafdb2820a3389b484246bdfb9d13",
   }),
   production_market_vault_identity_acceptance: Object.freeze({
-    path: "tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs",
-    blob_sha1: "96dc42543c57fd48ff4d7567d78bdaa800d45598",
+    path: "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
+    blob_sha1: "bcf7d4949b054599c643867b586b75a844f25cbc",
+  }),
+  production_market_vault_identity_correction: Object.freeze({
+    path: "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
+    blob_sha1: "4129e0dc5e34e08b9402169fcabfe4fba9a14973",
   }),
   production_settlement_adapter_review: Object.freeze({
     path: "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs",
@@ -203,11 +207,11 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
   }),
   semantic_market_vault_runtime_attestation: Object.freeze({
     path: "tools/void-wc-void-market-vault-runtime-attestation-v1.mjs",
-    blob_sha1: "64a7993a38f764d91a2071240b834fcd97770962",
+    blob_sha1: "69c0bb105fabd3de8bd5f970d76ec861393ec4a3",
   }),
   semantic_market_vault_runtime_attestation_import: Object.freeze({
     path: "tools/void-wc-void-market-vault-runtime-attestation-import-v1.mjs",
-    blob_sha1: "4d698202ccc1b82e555685454de97d34e81607db",
+    blob_sha1: "f4fff40f2dc4e1c558e2daa3fe32614db81436b1",
   }),
   semantic_ledger_persistence: Object.freeze({
     path: "tools/void-wc-void-ledger-persistence-v1.mjs",

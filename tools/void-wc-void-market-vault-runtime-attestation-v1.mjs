@@ -10,7 +10,7 @@ import {
 import {
   EXPECTED as COMPILED_IDENTITY_EXPECTED,
   verifyWcVoidMarketVaultCompiledIdentityAcceptanceV1,
-} from "./void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+} from "./void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 
 export const VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_V1 =
   "VOID_WC_VOID_MARKET_VAULT_RUNTIME_ATTESTATION_V1";

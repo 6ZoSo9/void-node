@@ -43,8 +43,8 @@ The importer independently requires:
 
 - marker/version/status for the runtime attestation;
 - Chain 2050 / execution epoch 2;
-- exact reviewed compiled-identity packet and identity IDs;
-- exact runtime byte length from the accepted compiled identity;
+- exact corrected current compiled-identity binding and retained identity IDs;
+- exact runtime byte length from the corrected current compiled identity;
 - recomputed `voidwcmvre1_<sha256>` evidence ID;
 - canonical Epoch-2 `VoidToken`
   `0x470075b85352eb86f7d089fb9ba88945f12aad94`;

@@ -1,6 +1,6 @@
 import {
   EXPECTED as MARKET_VAULT_COMPILED_IDENTITY_EXPECTED,
-} from "./void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs";
+} from "./void-wc-void-market-vault-compiled-identity-current-v2.mjs";
 import {
   EXPECTED as WC_SETTLEMENT_ADAPTER_REVIEW_EXPECTED,
 } from "./void-wc-void-opening-settlement-adapter-review-v1.mjs";

@@ -80,11 +80,12 @@ source contract. The candidate still records live persistence/custody as false
 until a separately authorized opening settlement or canary is actually appended
 and observed. The vault source/lock semantics and dual-authority terminal recovery path are
 now proven in `WCVoidMarketVaultV2`. The deterministic solc 0.8.24 / Paris
-dual-compiler gate is implemented and the exact reviewed compiler identity is
-now committed through
-`ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json`.
-The candidate's `market_vault_compiled_identity_committed=true` is accepted
-only together with that exact packet binding.
+dual-compiler gate is implemented and the retained reviewed compiler identity is
+now deployment-bound through the corrected current packet
+`ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json`.
+The historical V1 acceptance packet remains lineage evidence only. The
+candidate's `market_vault_compiled_identity_committed=true` is accepted only
+together with the exact corrected current binding.
 
 The opening WC settlement adapter is also independently source-reviewed through
 `ops/mainnet0/wc-void-opening-settlement-adapter-review-v1.json`.

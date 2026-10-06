@@ -17,7 +17,7 @@ import {
 } from "../../tools/void-wc-void-coupled-launch-readiness-v1.mjs";
 
 export const VOID_BUY_COUPLED_LAUNCH_ID_V1 =
-  "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26";
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 export const VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1 =
   "VOID_BUY_COUPLED_LIVE_ACTIVATION_RECEIPT_V1";
 export const VOID_BUY_COUPLED_LIVE_ACTIVATION_CONTROLLER_V1 =
