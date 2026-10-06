@@ -119,6 +119,7 @@ const baseline = {
     shell_mode: 0o755,
     shell_regular_file: true,
     shell_root_owned: true,
+    shell_root_owned_nonwritable_parent_chain: true,
     dedicated_account: true,
   },
   handler: {
@@ -146,6 +147,7 @@ const baseline = {
     regular_file: true,
     symlink: false,
     root_owned: true,
+    root_owned_nonwritable_parent_chain: true,
     node_major: 24,
     node_version: "v24.19.0",
   },
@@ -206,6 +208,14 @@ const baseline = {
   },
   preexec: {
     env_path: "/usr/bin/env",
+    env_resolved_path: "/usr/bin/env",
+    env_sha256: sha("c"),
+    env_uid: 0,
+    env_gid: 0,
+    env_mode: 0o755,
+    env_regular_file: true,
+    env_symlink: false,
+    env_root_owned_nonwritable_parent_chain: true,
     original_command_rejected_before_sanitization: true,
     environment_cleared_before_node: true,
     user_rc_executed: false,
@@ -339,6 +349,11 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.account.shell_root_owned_nonwritable_parent_chain = false;
+  expectHeld(value, /witness_installation_account_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.handler.source_git_blob_sha1 = "0".repeat(40);
   expectHeld(value, /witness_installation_handler_invalid/u);
 }
@@ -365,6 +380,11 @@ assert.equal(
 {
   const value = clone(policyOnly);
   value.node.resolved_path = "/opt/node/bin/node";
+  expectHeld(value, /witness_installation_node_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.node.root_owned_nonwritable_parent_chain = false;
   expectHeld(value, /witness_installation_node_invalid/u);
 }
 {
@@ -483,6 +503,21 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.preexec.env_resolved_path = "/tmp/env";
+  expectHeld(value, /witness_installation_preexec_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.preexec.env_mode = 0o644;
+  expectHeld(value, /witness_installation_preexec_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.preexec.env_root_owned_nonwritable_parent_chain = false;
+  expectHeld(value, /witness_installation_preexec_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.preexec.original_command_rejected_before_sanitization = false;
   expectHeld(value, /witness_installation_preexec_invalid/u);
 }
@@ -535,6 +570,8 @@ const trueKeys = new Set([
   "effective_authorized_keys_path_binding",
   "sshd_environment_restrictions_required",
   "preexec_original_command_rejection_required",
+  "preexec_binary_identity_binding",
+  "root_owned_execution_chain_required",
   "sanitized_node_environment_required",
   "pinned_host_key_required",
   "pinned_client_key_required",
@@ -552,6 +589,8 @@ console.log(
 console.log("transport_policy_binding=true");
 console.log("reviewed_handler_blob_binding=true");
 console.log("original_command_rejected_before_environment_sanitization=true");
+console.log("preexec_binary_identity_binding=true");
+console.log("root_owned_execution_chain_required=true");
 console.log("sanitized_node_environment_required=true");
 console.log("authorized_key_environment_options_allowed=false");
 console.log("authorized_keys_root_owned=true");
