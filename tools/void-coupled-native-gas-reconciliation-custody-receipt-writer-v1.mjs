@@ -590,7 +590,7 @@ function readPinnedNamedFile(
   }
 }
 
-function readOptionalPinnedNamedFile(
+function openOptionalPinnedNamedFileSnapshot(
   directory,
   name,
   maxBytes,
@@ -621,13 +621,35 @@ function readOptionalPinnedNamedFile(
     assertPinnedDirectoryVisible(directory, code + "_directory");
     return null;
   }
-  return readPinnedNamedFile(
+  return openPinnedNamedFileSnapshot(
     directory,
     name,
     maxBytes,
     allowEmpty,
     code,
   );
+}
+
+function readOptionalPinnedNamedFile(
+  directory,
+  name,
+  maxBytes,
+  allowEmpty,
+  code,
+) {
+  const snapshot = openOptionalPinnedNamedFileSnapshot(
+    directory,
+    name,
+    maxBytes,
+    allowEmpty,
+    code,
+  );
+  if (snapshot === null) return null;
+  try {
+    return Buffer.from(snapshot.bytes);
+  } finally {
+    closePinnedNamedFileSnapshot(snapshot);
+  }
 }
 
 function writeAll(fd, bytes, code) {
@@ -1214,23 +1236,83 @@ async function canonicalLock() {
   return module.withBuyVoidFilesystemBakeryLockAsyncExistingQueueV1;
 }
 
+function openIntentPairSnapshot(
+  roots,
+  afterJournalIntentReadHook = null,
+  afterHighWaterIntentReadHook = null,
+) {
+  let leftSnapshot = null;
+  let rightSnapshot = null;
+  try {
+    leftSnapshot = openOptionalPinnedNamedFileSnapshot(
+      roots.journal,
+      INTENT_NAME,
+      MAX_INTENT_BYTES,
+      false,
+      "receipt_writer_journal_intent",
+    );
+    if (typeof afterJournalIntentReadHook === "function") {
+      afterJournalIntentReadHook();
+    }
+    rightSnapshot = openOptionalPinnedNamedFileSnapshot(
+      roots.high_water,
+      INTENT_NAME,
+      MAX_INTENT_BYTES,
+      false,
+      "receipt_writer_high_water_intent",
+    );
+    if (typeof afterHighWaterIntentReadHook === "function") {
+      afterHighWaterIntentReadHook();
+    }
+    if (leftSnapshot === null && rightSnapshot === null) return null;
+    return {
+      left:
+        leftSnapshot === null ? null : Buffer.from(leftSnapshot.bytes),
+      right:
+        rightSnapshot === null ? null : Buffer.from(rightSnapshot.bytes),
+      left_snapshot: leftSnapshot,
+      right_snapshot: rightSnapshot,
+    };
+  } catch (error) {
+    if (rightSnapshot !== null) closePinnedNamedFileSnapshot(rightSnapshot);
+    if (leftSnapshot !== null) closePinnedNamedFileSnapshot(leftSnapshot);
+    throw error;
+  }
+}
+
+function closeIntentPairSnapshot(pair) {
+  if (!pair) return;
+  if (pair.right_snapshot !== null) {
+    closePinnedNamedFileSnapshot(pair.right_snapshot);
+  }
+  if (pair.left_snapshot !== null) {
+    closePinnedNamedFileSnapshot(pair.left_snapshot);
+  }
+}
+
+function assertIntentPairSnapshotVisible(roots, pair) {
+  if (!pair) fail("receipt_writer_intent_pair_empty");
+  assertRootsVisible(roots);
+  if (pair.left_snapshot !== null) {
+    assertPinnedNamedFileSnapshotVisible(pair.left_snapshot);
+  }
+  if (pair.right_snapshot !== null) {
+    assertPinnedNamedFileSnapshotVisible(pair.right_snapshot);
+  }
+  assertRootsVisible(roots);
+}
+
 function readIntentPair(roots) {
-  const left = readOptionalPinnedNamedFile(
-    roots.journal,
-    INTENT_NAME,
-    MAX_INTENT_BYTES,
-    false,
-    "receipt_writer_journal_intent",
-  );
-  const right = readOptionalPinnedNamedFile(
-    roots.high_water,
-    INTENT_NAME,
-    MAX_INTENT_BYTES,
-    false,
-    "receipt_writer_high_water_intent",
-  );
-  if (left === null && right === null) return null;
-  return Object.freeze({ left, right });
+  const pair = openIntentPairSnapshot(roots);
+  if (pair === null) return null;
+  try {
+    return Object.freeze({
+      left: pair.left === null ? null : Buffer.from(pair.left),
+      right: pair.right === null ? null : Buffer.from(pair.right),
+    });
+  } finally {
+    closeIntentPairSnapshot(pair);
+  }
 }
 
 function parseIntentPair(pair) {
@@ -1263,35 +1345,79 @@ function pendingIntentMatchesInput(intent, input) {
   );
 }
 
-function ensureRedundantIntent(roots, pair, markMutation) {
-  let left = pair.left;
-  let right = pair.right;
+function ensureRedundantIntentSnapshot(roots, pair, markMutation) {
   const parsed = parseIntentPair(pair);
   const selected = parsed.bytes;
-  if (left === null) {
-    createOnceFile(
-      roots.journal,
-      INTENT_NAME,
-      selected,
-      MAX_INTENT_BYTES,
-      "receipt_writer_journal_intent",
-    );
-    markMutation();
-    left = selected;
+  let leftSnapshot = pair.left_snapshot;
+  let rightSnapshot = pair.right_snapshot;
+  let createdLeft = null;
+  let createdRight = null;
+
+  assertIntentPairSnapshotVisible(roots, pair);
+  try {
+    if (pair.left === null) {
+      createOnceFile(
+        roots.journal,
+        INTENT_NAME,
+        selected,
+        MAX_INTENT_BYTES,
+        "receipt_writer_journal_intent",
+      );
+      markMutation();
+      createdLeft = openPinnedNamedFileSnapshot(
+        roots.journal,
+        INTENT_NAME,
+        MAX_INTENT_BYTES,
+        false,
+        "receipt_writer_journal_intent",
+      );
+      leftSnapshot = createdLeft;
+    }
+    if (pair.right === null) {
+      createOnceFile(
+        roots.high_water,
+        INTENT_NAME,
+        selected,
+        MAX_INTENT_BYTES,
+        "receipt_writer_high_water_intent",
+      );
+      markMutation();
+      createdRight = openPinnedNamedFileSnapshot(
+        roots.high_water,
+        INTENT_NAME,
+        MAX_INTENT_BYTES,
+        false,
+        "receipt_writer_high_water_intent",
+      );
+      rightSnapshot = createdRight;
+    }
+
+    const completed = {
+      left:
+        pair.left === null
+          ? Buffer.from(leftSnapshot.bytes)
+          : Buffer.from(pair.left),
+      right:
+        pair.right === null
+          ? Buffer.from(rightSnapshot.bytes)
+          : Buffer.from(pair.right),
+      left_snapshot: leftSnapshot,
+      right_snapshot: rightSnapshot,
+    };
+    const completedParsed = parseIntentPair(completed);
+    if (!completedParsed.bytes.equals(selected)) {
+      fail("receipt_writer_intent_pair_changed_during_redundancy");
+    }
+    assertIntentPairSnapshotVisible(roots, completed);
+    return Object.freeze({
+      pair: completed,
+      intent: completedParsed,
+    });
+  } catch (error) {
+    if (createdRight !== null) closePinnedNamedFileSnapshot(createdRight);
+    if (createdLeft !== null) closePinnedNamedFileSnapshot(createdLeft);
+    throw error;
   }
-  if (right === null) {
-    createOnceFile(
-      roots.high_water,
-      INTENT_NAME,
-      selected,
-      MAX_INTENT_BYTES,
-      "receipt_writer_high_water_intent",
-    );
-    markMutation();
-    right = selected;
-  }
-  assertRootsVisible(roots);
-  return parsed;
 }
 
 function createIntentPair(roots, bytes, crashAfter, markMutation) {
