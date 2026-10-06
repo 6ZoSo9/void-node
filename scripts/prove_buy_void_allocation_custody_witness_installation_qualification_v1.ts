@@ -124,6 +124,17 @@ const evidence = () => ({
     symlink: false,
     ancestor_chain_root_owned_nonwritable: true,
   },
+  shell_binary: {
+    path:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_ACCOUNT_SHELL_V1,
+    sha256: "e".repeat(64),
+    uid: 0,
+    gid: 0,
+    mode: "0755",
+    nlink: 1,
+    symlink: false,
+    ancestor_chain_root_owned_nonwritable: true,
+  },
   authorized_key: {
     line: authorizedLine,
     line_sha256: sha256Id(authorizedLine),
@@ -318,6 +329,18 @@ expectHeld(
     x.node_binary.path = "node";
   },
   "witness_installation_node_binary_invalid",
+);
+expectHeld(
+  (x) => {
+    x.shell_binary.path = "/bin/sh";
+  },
+  "witness_installation_shell_binary_invalid",
+);
+expectHeld(
+  (x) => {
+    x.shell_binary.symlink = true;
+  },
+  "witness_installation_shell_binary_invalid",
 );
 expectHeld(
   (x) => {
