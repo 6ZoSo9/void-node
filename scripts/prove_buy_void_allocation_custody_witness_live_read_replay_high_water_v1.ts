@@ -357,6 +357,33 @@ assert.match(
   /witness_live_read_replay_high_water_state_invalid/u,
 );
 
+const invalidUtf8HighWater = Buffer.from(
+  issued.high_water_json,
+  "utf8",
+);
+const schemaNeedle = Buffer.from(
+  "void_buy_void_allocation_custody_witness_live_read_replay_high_water_v1",
+  "utf8",
+);
+const schemaOffset = invalidUtf8HighWater.indexOf(schemaNeedle);
+assert.ok(schemaOffset >= 0);
+invalidUtf8HighWater[schemaOffset] = 0x80;
+const invalidUtf8Binding =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+    {
+      journal_jsonl: issue1.next_journal_jsonl,
+      high_water_json: invalidUtf8HighWater,
+    },
+  );
+assert.equal(invalidUtf8Binding.ok, false);
+if (invalidUtf8Binding.ok) {
+  throw new Error("invalid UTF-8 high-water unexpectedly bound");
+}
+assert.equal(
+  invalidUtf8Binding.reason,
+  "witness_live_read_replay_high_water_utf8_invalid",
+);
+
 const noncanonicalHighWater =
   issued.high_water_json.replace('{"schema"', '{ "schema"');
 const noncanonicalBinding =
@@ -505,6 +532,7 @@ console.log("journal_rollback_rejected=true");
 console.log("alternate_same_generation_branch_rejected=true");
 console.log("multi_event_jump_rejected=true");
 console.log("pending_identity_tamper_rejected=true");
+console.log("fatal_high_water_utf8_required=true");
 console.log("noncanonical_high_water_rejected=true");
 console.log("rollback_resistance_proven=false");
 console.log("protected_high_water_custody_proven=false");
