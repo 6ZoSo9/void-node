@@ -73,8 +73,11 @@ qualification_generation_binding_proven=true
 collector_generation_binding_proven=true
 ```
 
-The content-addressed `source_binding_id` also binds the observed repository
-HEAD/tree and the reviewed 21-blob manifest.
+The content-addressed `source_generation_id` is derived only from the reviewed
+21-blob manifest and is therefore stable across unrelated descendant commits
+that leave the reviewed closure exact. The separate `source_binding_id` also
+binds the observed repository HEAD/tree, so an individual observation remains
+content-addressed to its exact checkout.
 
 This is source-generation evidence only. It is not a deployed-artifact
 attestation.
