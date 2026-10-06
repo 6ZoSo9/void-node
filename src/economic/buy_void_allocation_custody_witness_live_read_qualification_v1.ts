@@ -322,6 +322,21 @@ function installationReceipt(input: unknown) {
   ) {
     fail("witness_live_read_installation_receipt_authority_invalid");
   }
+  const hostIdentity = exactObject(
+    receipt.host_identity,
+    ["hostname", "machine_id_sha256"],
+    "witness_live_read_installation_host_identity_invalid",
+  );
+  if (
+    typeof hostIdentity.hostname !== "string" ||
+    hostIdentity.hostname.length < 1 ||
+    hostIdentity.hostname.length > 255 ||
+    hostIdentity.hostname !== hostIdentity.hostname.trim() ||
+    !SHA256_ID.test(String(hostIdentity.machine_id_sha256 || ""))
+  ) {
+    fail("witness_live_read_installation_host_identity_invalid");
+  }
+
   const context = exactObject(
     receipt.sshd_connection_context,
     ["source_address", "source_host", "local_address", "local_port"],
@@ -376,6 +391,10 @@ function installationReceipt(input: unknown) {
   if (
     typeof witness.authority_root !== "string" ||
     typeof witness.witness_path !== "string" ||
+    typeof witness.witness_hostname !== "string" ||
+    witness.witness_hostname.length < 1 ||
+    witness.witness_hostname.length > 255 ||
+    witness.witness_hostname !== witness.witness_hostname.trim() ||
     !SHA256_ID.test(String(witness.witness_sha256 || "")) ||
     !SHA256_ID.test(String(witness.tip_event_sha256 || "")) ||
     integer(
@@ -396,6 +415,9 @@ function installationReceipt(input: unknown) {
   }
   return Object.freeze({
     receipt,
+    host: Object.freeze({
+      hostname: String(hostIdentity.hostname),
+    }),
     context: Object.freeze({
       source_address: context.source_address as string,
       source_host: context.source_host as string,
@@ -403,6 +425,7 @@ function installationReceipt(input: unknown) {
       local_port: context.local_port as number,
     }),
     witness: Object.freeze({
+      hostname: String(witness.witness_hostname),
       witness_sha256: String(witness.witness_sha256),
       event_count: Number(witness.event_count),
       tip_event_sha256: String(witness.tip_event_sha256),
@@ -533,6 +556,13 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(
       );
     }
     const policy = policyDecision.policy;
+    if (
+      installation.host.hostname.toLowerCase() !== policy.remote_host ||
+      installation.witness.hostname.toLowerCase() !== policy.remote_host
+    ) {
+      fail("witness_live_read_remote_host_identity_mismatch");
+    }
+
     const knownHostsBytes = canonicalBase64(
       input?.client_known_hosts_base64,
       MAX_KNOWN_HOSTS_BYTES,
@@ -650,6 +680,8 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(
         VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
       transport_policy_sha256: policyDecision.policy_sha256,
       remote_host: policy.remote_host,
+      installation_hostname: installation.host.hostname,
+      witness_hostname: installation.witness.hostname,
       remote_port: policy.remote_port,
       remote_user: policy.remote_user,
       known_hosts_sha256: knownHosts.sha256,
