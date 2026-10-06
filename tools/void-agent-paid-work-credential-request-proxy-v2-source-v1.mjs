@@ -14,7 +14,7 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_AUTHORITY_V1
     parser_result_brand_required: true,
     source_port_excluded_from_limiter_identity: true,
     spoofable_forwarding_headers_trusted: false,
-    trusted_source_header_replaced: true,
+    source_identity_forwarded_to_gateway: false,
     per_source_rate_limit_planning: true,
     rotation_resistant_fairness_proven: false,
     nat_independent_participant_isolation_proven: false,
@@ -41,9 +41,6 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_AUTHORITY_V1
     funds_movement: false,
   });
 
-export const VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1 =
-  "x-void-trusted-funnel-source-v1";
-
 const SIGNATURE = Buffer.from([
   0x0d, 0x0a, 0x0d, 0x0a, 0x00, 0x0d,
   0x0a, 0x51, 0x55, 0x49, 0x54, 0x0a,
@@ -67,7 +64,7 @@ const SPOOFABLE_HEADERS = Object.freeze(new Set([
   "x-forwarded-host",
   "x-forwarded-proto",
   "x-real-ip",
-  VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1,
+  "x-void-trusted-funnel-source-v1",
 ]));
 
 function fail(code) {
@@ -349,9 +346,6 @@ export function sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
       out[name] = value;
     }
 
-    out[VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1] =
-      trustedSource.limiter_source_key;
-
     return Object.freeze({
       ok: true,
       status: "HEADERS_SANITIZED_NOT_TRUSTED",
@@ -359,9 +353,8 @@ export function sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
       version: 1,
       headers: Object.freeze({ ...out }),
       removed_spoofable_headers: Object.freeze([...removed].sort()),
-      trusted_source_header:
-        VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1,
-      trusted_source_value: trustedSource.limiter_source_key,
+      limiter_source_key: trustedSource.limiter_source_key,
+      source_identity_forwarded_to_gateway: false,
       local_transport_trust_proven: false,
       runtime_integration: false,
       authority:
