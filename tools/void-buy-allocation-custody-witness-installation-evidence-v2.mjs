@@ -348,12 +348,17 @@ function defaultIo() {
         ) {
           fail("witness_installation_evidence_ancestor_invalid");
         }
-        const nextFd = fs.openSync(
-          path.join("/proc/self/fd", String(directoryFd), component),
-          fs.constants.O_RDONLY |
-            fs.constants.O_DIRECTORY |
-            fs.constants.O_NOFOLLOW,
-        );
+        let nextFd = -1;
+        try {
+          nextFd = fs.openSync(
+            path.join("/proc/self/fd", String(directoryFd), component),
+            fs.constants.O_RDONLY |
+              fs.constants.O_DIRECTORY |
+              fs.constants.O_NOFOLLOW,
+          );
+        } catch {
+          fail("witness_installation_evidence_ancestor_invalid");
+        }
         const next = fs.fstatSync(nextFd, { bigint: true });
         if (!next.isDirectory() || next.isSymbolicLink()) {
           fs.closeSync(nextFd);
@@ -373,10 +378,14 @@ function defaultIo() {
       ) {
         fail("witness_installation_evidence_file_invalid");
       }
-      fd = fs.openSync(
-        path.join("/proc/self/fd", String(directoryFd), basename),
-        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
-      );
+      try {
+        fd = fs.openSync(
+          path.join("/proc/self/fd", String(directoryFd), basename),
+          fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+        );
+      } catch {
+        fail("witness_installation_evidence_file_path_not_bound");
+      }
       const opened = fs.fstatSync(fd, { bigint: true });
       if (
         !opened.isFile() ||
