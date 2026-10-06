@@ -2,6 +2,10 @@ import crypto from "node:crypto";
 import { isIP } from "node:net";
 
 import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+} from "./buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.js";
+import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1,
   classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
@@ -292,8 +296,10 @@ function installationReceipt(input: unknown) {
     );
   }
   if (
-    typeof receipt.runtime_bundle_manifest_id !== "string" ||
-    receipt.runtime_bundle_manifest_id.length < 1 ||
+    receipt.runtime_bundle_manifest_id !==
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1 ||
+    receipt.runtime_bundle_manifest_sha256 !==
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1 ||
     receipt.runtime_bundle_qualification_observed !== true ||
     receipt.runtime_bundle_evidence_collector_observed !== true ||
     receipt.host_key_observed !== true ||
