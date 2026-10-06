@@ -1921,6 +1921,66 @@ export async function inspectCoupledNativeGasReconciliationCustodyReceiptWriterV
   }
 }
 
+export async function testOnlyRecoverCoupledNativeGasReconciliationCustodyReceiptWriterIntentFileSwapV1(
+  input,
+  which = "journal",
+) {
+  if (which !== "journal" && which !== "high_water") {
+    return held("receipt_writer_test_intent_swap_target_invalid", false);
+  }
+  let target = null;
+  let displaced = null;
+  let replacementCreated = false;
+  let mutationPerformed = false;
+  const markMutation = () => {
+    mutationPerformed = true;
+  };
+  try {
+    return await withWriterLock(input, async (roots) => {
+      normalizeReviewedTemps(roots, markMutation);
+      const directory =
+        which === "high_water" ? roots.high_water : roots.journal;
+      target = path.join(directory.path, INTENT_NAME);
+      displaced =
+        target + ".test-intent-displaced-" + process.pid + "-" + which;
+      const replace = () => {
+        const bytes = fs.readFileSync(target);
+        fs.renameSync(target, displaced);
+        fs.writeFileSync(target, bytes, { mode: 0o600 });
+        replacementCreated = true;
+      };
+      return recoverLocked(
+        roots,
+        markMutation,
+        null,
+        null,
+        {
+          afterJournalIntentReadHook:
+            which === "journal" ? replace : null,
+          afterHighWaterIntentReadHook:
+            which === "high_water" ? replace : null,
+        },
+      );
+    });
+  } catch (error) {
+    return held(
+      error instanceof Error ? error.message : String(error),
+      mutationPerformed,
+    );
+  } finally {
+    try {
+      if (replacementCreated && target && fs.existsSync(target)) {
+        fs.unlinkSync(target);
+      }
+      if (displaced && target && fs.existsSync(displaced)) {
+        fs.renameSync(displaced, target);
+      }
+    } catch (error) {
+      void error;
+    }
+  }
+}
+
 export async function testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
   input,
   phase,
