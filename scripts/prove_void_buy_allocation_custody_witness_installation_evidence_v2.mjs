@@ -13,12 +13,12 @@ import {
 } from "../tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
-} from "../src/economic/buy_void_allocation_custody_witness_transport_v1.js";
+} from "../dist/economic/buy_void_allocation_custody_witness_transport_v1.js";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V2,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_SHA256_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_ID_V1,
-} from "../src/economic/buy_void_allocation_custody_witness_installation_qualification_v2.js";
+} from "../dist/economic/buy_void_allocation_custody_witness_installation_qualification_v2.js";
 
 const HANDLER_PATH =
   "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs";
