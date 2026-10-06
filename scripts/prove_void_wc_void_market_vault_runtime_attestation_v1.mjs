@@ -497,7 +497,7 @@ for (const [key, value] of Object.entries(
       min_confirmations: "3",
       transport: t.transport,
     }),
-    /WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_NOT_ACCEPTED/,
+    /current_identity_packet_identity_invalid/,
   );
 }
 
