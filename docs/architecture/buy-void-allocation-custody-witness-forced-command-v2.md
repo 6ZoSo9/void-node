@@ -65,17 +65,30 @@ The same V2 host/continuity identity check is used by normal reads, fresh
 appends and durable append-intent recovery, but **recovery authority is
 append-only**.
 
-Before any recovery mutation, the handler validates enough of the canonical
-request envelope to bind the reviewed transport marker/version, exact policy
-SHA-256 and requested operation. Only an explicit `append` request may enter
-`recoverIntentUnderLock(...)`.
+Before any recovery mutation, the handler runs the same pure canonical request
+parser used by the transport server contract. That preflight requires canonical
+JSON, the exact closed read/append key set, marker/version, current policy
+SHA-256, challenge SHA-256, a recomputed `voidwreq1_` request ID, canonical
+append-line encoding, and all typed append fields. A partial append-shaped
+envelope is therefore not recovery authority.
 
-A `read` request never truncates, appends or cleans up an append intent. If a
-durable append intent exists, read HOLDs with
-`witness_forced_command_nonappend_blocked_by_pending_intent` before witness
-or intent mutation. The focused proof exercises intent-only, torn-partial and
-full-append-before-cleanup states and requires exact witness and intent bytes
-to remain unchanged after the read HOLD.
+Only a fully canonical `append` request may enter
+`recoverIntentUnderLock(...)`. If a durable intent exists, its retained
+canonical request bytes must also be byte-identical to the request currently
+asking for recovery before any truncate, append, fsync or cleanup may occur.
+A different but otherwise valid append request cannot recover another request's
+intent.
+
+A `read`, unknown, malformed or mismatched append request never truncates,
+appends or cleans up an append intent. With a durable intent present these cases
+HOLD before witness or intent mutation. The focused proof covers:
+- intent-only, torn-partial and full-append-before-cleanup read attempts;
+- extra-key and missing-field append envelopes;
+- a bad request ID; and
+- a canonical/recomputed-ID append whose transition fields differ from the
+  request that created the pending intent.
+
+Every HOLD requires the witness bytes and pending intent bytes to remain exact.
 
 For successor identity append recovery, a missing or invalid attestation still
 HOLDs before truncate, append or intent cleanup. The V2 proof creates a torn
