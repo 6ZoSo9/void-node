@@ -351,6 +351,49 @@ function installationReceipt(input: unknown) {
   if (expectedReceiptSha !== receipt.collector_receipt_sha256) {
     fail("witness_live_read_installation_receipt_digest_mismatch");
   }
+  const witness = exactObject(
+    receipt.witness_storage,
+    [
+      "authority_root",
+      "root_dev",
+      "root_ino",
+      "root_uid",
+      "root_gid",
+      "root_mode",
+      "witness_path",
+      "witness_sha256",
+      "witness_bytes",
+      "event_count",
+      "tip_event_sha256",
+      "witness_hostname",
+      "witness_machine_id_sha256",
+      "witness_root_disk_serial",
+      "witness_root_disk_wwn",
+      "intent_present",
+    ],
+    "witness_live_read_installation_witness_invalid",
+  );
+  if (
+    typeof witness.authority_root !== "string" ||
+    typeof witness.witness_path !== "string" ||
+    !SHA256_ID.test(String(witness.witness_sha256 || "")) ||
+    !SHA256_ID.test(String(witness.tip_event_sha256 || "")) ||
+    integer(
+      witness.witness_bytes,
+      1,
+      16 * 1024 * 1024,
+      "witness_live_read_installation_witness_invalid",
+    ) !== witness.witness_bytes ||
+    integer(
+      witness.event_count,
+      1,
+      100_001,
+      "witness_live_read_installation_witness_invalid",
+    ) !== witness.event_count ||
+    witness.intent_present !== false
+  ) {
+    fail("witness_live_read_installation_witness_invalid");
+  }
   return Object.freeze({
     receipt,
     context: Object.freeze({
@@ -358,6 +401,11 @@ function installationReceipt(input: unknown) {
       source_host: context.source_host as string,
       local_address: context.local_address as string,
       local_port: context.local_port as number,
+    }),
+    witness: Object.freeze({
+      witness_sha256: String(witness.witness_sha256),
+      event_count: Number(witness.event_count),
+      tip_event_sha256: String(witness.tip_event_sha256),
     }),
   });
 }
@@ -577,6 +625,13 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(
       validated.external_witness_storage_proven !== false
     ) {
       fail("witness_live_read_response_authority_invalid");
+    }
+    if (
+      validated.witness_sha256 !== installation.witness.witness_sha256 ||
+      validated.event_count !== installation.witness.event_count ||
+      validated.tip_event_sha256 !== installation.witness.tip_event_sha256
+    ) {
+      fail("witness_live_read_installation_remote_witness_mismatch");
     }
 
     const normalized = Object.freeze({
