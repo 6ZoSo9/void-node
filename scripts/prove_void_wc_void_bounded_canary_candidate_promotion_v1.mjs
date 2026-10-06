@@ -23,7 +23,7 @@ const COUPLED =
 const SUCCESSOR =
   "ops/mainnet0/economic-evm-successor-migration-candidate-v1.json";
 const REVIEWED_SOURCE_COMMIT =
-  "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
+  "dd9a1c45067176f2b841b57aff527333059a18b2";
 const EXPECTED_BLOBS = Object.freeze({
   semantic_promotion_tool: "38fc89f07b1e328504aff60dc2d357cb1072cdb3",
   semantic_promotion_proof: "55cb03312c2242d57e5a3db4a1d36a12f513f588",
