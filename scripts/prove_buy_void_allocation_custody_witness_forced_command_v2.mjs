@@ -1305,6 +1305,8 @@ for (const token of [
   "O_DIRECTORY",
   "/proc/self/fd",
   "root_owned_nonwritable_config_parent_required",
+  "root_owned_read_only_config_file_required",
+  "validateRootOwnedReadOnlyFile",
   "root_owned_nonwritable",
   "testOnlyReadVoidBuyAllocationCustodyWitnessForcedCommandConfigFromPrivateDirectoryV2",
   "fs.fsyncSync",
@@ -1317,6 +1319,17 @@ for (const token of [
     token,
   );
 }
+
+assert.match(
+  source,
+  /readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV2\(\s*configPath,\s*openPinnedRootOwnedNonWritableDirectory,\s*validateRootOwnedReadOnlyFile/u,
+  "production config reader must compose root-owned parent + root-owned read-only file",
+);
+assert.match(
+  source,
+  /testOnlyReadVoidBuyAllocationCustodyWitnessForcedCommandConfigFromPrivateDirectoryV2[\s\S]*openPinnedDirectory,\s*validatePrivateFile/u,
+  "private account config-file validation must remain test-only",
+);
 
 for (
   const [key, value] of Object.entries(
@@ -1353,7 +1366,7 @@ console.log(
   "VOID_BUY_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_V2_PROOF_GREEN",
 );
 console.log("server_controlled_policy_contract=true");
-console.log("root_owned_nonwritable_config_parent_required=true");
+console.log("root_owned_nonwritable_config_parent_required=true");\nconsole.log("root_owned_read_only_config_file_required=true");\nconsole.log("production_config_file_account_mutability=false");
 console.log("production_config_reader_rejects_private_account_parent=true");
 console.log("authority_root_private_account_policy_preserved=true");
 console.log("descriptor_pinned_authority_root=true");
