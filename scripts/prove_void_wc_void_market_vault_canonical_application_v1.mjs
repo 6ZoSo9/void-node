@@ -732,6 +732,8 @@ for(const dependency of [
   "tools/void-reviewed-node-package-runtime-v1.mjs",
   "ops/security/reviewed-node-package-runtime-ethers-v1.json",
   "tools/void-wc-void-market-vault-reviewed-runtime-bridge-v1.mjs",
+  "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
+  "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
   "scripts/prove_void_reviewed_node_package_runtime_v1.mjs",
 ]){
   const token=`- "${dependency}"`;
