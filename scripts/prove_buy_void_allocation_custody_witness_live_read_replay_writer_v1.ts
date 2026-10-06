@@ -294,9 +294,9 @@ function issue(f: ReturnType<typeof fixture>) {
     if (rolledJournal.ok) {
       throw new Error("journal rollback unexpectedly accepted");
     }
-    assert.equal(
+    assert.match(
       rolledJournal.reason,
-      "witness_live_read_replay_writer_high_water_journal_mismatch",
+      /witness_live_read_replay_high_water_binding_mismatch/u,
     );
   } finally {
     cleanup(f);
@@ -324,9 +324,9 @@ function issue(f: ReturnType<typeof fixture>) {
     if (rolledHighWater.ok) {
       throw new Error("high-water rollback unexpectedly accepted");
     }
-    assert.equal(
+    assert.match(
       rolledHighWater.reason,
-      "witness_live_read_replay_writer_high_water_journal_mismatch",
+      /witness_live_read_replay_high_water_binding_mismatch/u,
     );
   } finally {
     cleanup(f);
