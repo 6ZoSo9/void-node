@@ -71,7 +71,10 @@ This is **not** proof that supplied entropy is random or secret:
 
 ### Genesis
 
-An empty journal is the only V1 genesis representation:
+An **explicit** empty string / zero-byte journal is the only V1 genesis
+representation. Missing, null, undefined, non-string/non-buffer input is not
+coerced to genesis and HOLDS. Non-empty journal bytes must decode as fatal
+UTF-8 before JSONL parsing.
 
 ```text
 generation = 0
@@ -198,7 +201,9 @@ git diff --check
 
 The focused proof covers:
 
-- deterministic empty genesis;
+- missing-journal rejection;
+- fatal UTF-8 rejection;
+- deterministic explicit empty genesis;
 - first issue / consume;
 - duplicate issue HOLD while pending;
 - consumed challenge replay rejection;
