@@ -16,6 +16,10 @@ import {
   testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueCrashV1,
   testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueFinalSnapshotV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.js";
+import {
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1,
+  deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1,
+} from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
 
 const JOURNAL_NAME = "live-read-replay-v1.jsonl";
 const HIGH_WATER_NAME = "live-read-replay-high-water-v1.json";
@@ -25,6 +29,31 @@ const sha = (hex: string): string =>
   "sha256:" + hex.repeat(64);
 const requestId = (hex: string): string =>
   "voidwreq1_" + hex.repeat(64);
+
+{
+  const writerGenesis =
+    buildBuyVoidAllocationCustodyWitnessLiveReadReplayGenesisHighWaterV1();
+  const canonicalGenesis =
+    deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1(
+      Buffer.alloc(0),
+    );
+  assert.equal(canonicalGenesis.ok, true);
+  if (!canonicalGenesis.ok) {
+    throw new Error("canonical replay high-water genesis held");
+  }
+  assert.equal(
+    writerGenesis.high_water_bytes.toString("utf8"),
+    canonicalGenesis.high_water_json,
+  );
+  assert.equal(
+    writerGenesis.high_water_sha256,
+    canonicalGenesis.high_water_sha256,
+  );
+  assert.deepEqual(
+    writerGenesis.high_water,
+    canonicalGenesis.high_water,
+  );
+}
 
 function fixture() {
   const root = fs.mkdtempSync(
@@ -127,6 +156,36 @@ function issue(f: ReturnType<typeof fixture>) {
     );
     assert.equal(issued.operation_performed, true);
     assert.equal(issued.recovery_performed, false);
+    const issuedJournal = fs.readFileSync(
+      path.join(f.journalRoot, JOURNAL_NAME),
+    );
+    const issuedHighWater = fs.readFileSync(
+      path.join(f.highWaterRoot, HIGH_WATER_NAME),
+    );
+    const issuedCanonical =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+        {
+          journal_jsonl: issuedJournal,
+          high_water_json: issuedHighWater,
+        },
+      );
+    assert.equal(issuedCanonical.ok, true);
+    if (!issuedCanonical.ok) {
+      throw new Error("issued canonical high-water binding held");
+    }
+    assert.equal(
+      issued.high_water_sha256,
+      issuedCanonical.high_water_sha256,
+    );
+    assert.equal(
+      issued.pending_challenge_id,
+      issuedCanonical.high_water.pending_challenge_id,
+    );
+    assert.equal(
+      issued.pending_expires_at_ms,
+      issuedCanonical.high_water.pending_expires_at_ms,
+    );
+    assert.equal(issued.ready_for_issue, false);
     assert.equal(
       fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
       false,
@@ -152,6 +211,27 @@ function issue(f: ReturnType<typeof fixture>) {
     assert.equal(consumed.sequence, 2);
     assert.equal(consumed.event_count, 2);
     assert.equal(consumed.pending, false);
+    const consumedCanonical =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+        {
+          journal_jsonl: fs.readFileSync(
+            path.join(f.journalRoot, JOURNAL_NAME),
+          ),
+          high_water_json: fs.readFileSync(
+            path.join(f.highWaterRoot, HIGH_WATER_NAME),
+          ),
+        },
+      );
+    assert.equal(consumedCanonical.ok, true);
+    if (!consumedCanonical.ok) {
+      throw new Error("consumed canonical high-water binding held");
+    }
+    assert.equal(
+      consumed.high_water_sha256,
+      consumedCanonical.high_water_sha256,
+    );
+    assert.equal(consumed.last_terminal_state, "consumed");
+    assert.equal(consumed.ready_for_issue, true);
 
     const duplicate =
       persistBuyVoidAllocationCustodyWitnessLiveReadReplayTerminalV1({
@@ -535,6 +615,7 @@ for (const key of [
   "dual_root_serialization_lock",
   "redundant_transaction_intent",
   "canonical_replay_planner_required",
+  "canonical_replay_high_water_required",
   "journal_first_publication_order",
   "atomic_journal_publication",
   "atomic_high_water_publication",
@@ -569,6 +650,20 @@ assert.match(
   source,
   /planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1/u,
 );
+assert.match(
+  source,
+  /deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1/u,
+);
+assert.match(
+  source,
+  /classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1/u,
+);
+assert.match(source, /canonical_replay_high_water_required:\s*true/u);
+assert.match(source, /before_high_water_json/u);
+assert.match(source, /after_high_water_json/u);
+assert.doesNotMatch(source, /const HIGH_WATER_SCHEMA/u);
+assert.doesNotMatch(source, /const HIGH_WATER_MARKER/u);
+assert.doesNotMatch(source, /voidwlrhw1_/u);
 assert.match(source, /redundant_transaction_intent:\s*true/u);
 assert.match(source, /journal_first_publication_order:\s*true/u);
 assert.match(source, /function assertPinnedRootsVisible\(/u);
@@ -589,6 +684,8 @@ console.log("preprovisioned_storage_required=true");
 console.log("dual_root_serialization=true");
 console.log("redundant_transaction_intent=true");
 console.log("canonical_replay_planner_composed=true");
+console.log("canonical_replay_high_water_composed=true");
+console.log("private_high_water_schema_fork=false");
 console.log("journal_first_publication=true");
 console.log("atomic_journal_publication=true");
 console.log("atomic_high_water_publication=true");
