@@ -23,17 +23,23 @@ The collector imports the canonical merged runtime-bundle contract and uses
 only its reviewed constants:
 
 - manifest ID
-  `voidwfb1_3a680125403ce20ff3f20c37b9f6aae7a3cbf550c2d0b1883a7fc9130e6a7f21`;
+  `voidwfb1_678ceef8c06d554f7879d48c25e3814300ac542c5053100a75303f0b0d305c6c`;
 - manifest SHA-256
-  `sha256:887543aac385cc9bba9535de145548efdbfa97590837ba6048d210fd527f3940`;
+  `sha256:a70f31be513b56adeb6c0a6846cbc31169de55f5ad479263695a4d0eb18038ad`;
 - census source commit
-  `8a5c7ab1543b9270164adac11a40de46df5388e2`; and
+  `e14747b6f3a7647baa580c3a87d6f57945486e30`; and
 - the exact eight installed absolute paths and SHA-256 values.
 
-The reviewed source/build provenance behind that census remains unchanged:
-the V2 handler, the seven TypeScript sources that emit the reviewed runtime
-modules, `package.json`, `package-lock.json`, and `tsconfig.build.json`
-remain byte-identical to the census generation.
+The reviewed source/build provenance behind this successor census is exact:
+the repaired V2 handler and the compiled witness-transport module are the
+reviewed runtime byte changes. The other six compiled runtime modules,
+`package.json`, `package-lock.json`, and `tsconfig.build.json` remain
+byte-identical to the reviewed predecessor closure.
+
+Any receipt produced for the predecessor manifest
+`voidwfb1_3a680125403ce20ff3f20c37b9f6aae7a3cbf550c2d0b1883a7fc9130e6a7f21`
+is historical evidence only. It cannot satisfy this successor bundle
+qualification.
 
 ## Descriptor-bound evidence
 
@@ -131,12 +137,15 @@ Nimo/SSH/runtime/economic mutation.
 
 ## Next gate
 
-After merge, the next source boundary is a conjunctive qualification packet
-that binds:
+After merge, the next live-evidence boundary requires fresh receipts collected
+from the exact repaired installation. A later conjunctive qualification packet
+must bind:
 
-1. the merged V2 installation-evidence receipt;
-2. this exact runtime-bundle evidence receipt;
+1. a fresh V2 installation-evidence receipt that pins the repaired handler;
+2. a fresh receipt for this exact successor runtime-bundle manifest;
 3. trusted live evidence origin and client-side host-key material; and
 4. authenticated external read/append qualification.
 
-Neither receipt alone closes #2452.
+The predecessor #2516 receipts remain historical and are not reusable. Neither
+fresh receipt alone closes #2452, and this source lane does not authorize the
+reinstall or collection ceremony.
