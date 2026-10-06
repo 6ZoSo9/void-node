@@ -115,9 +115,12 @@ Within one supplied chain, these must remain exact:
 
 The root-storage digest is rederived for every newly planned receipt from the
 embedded qualified root path, device, inode, mount ID and mount-instance
-fingerprint. A same-path root replacement/remount therefore requires a
-separately reviewed bootstrap or migration boundary rather than silently
-continuing the chain.
+fingerprint. Historical supplied-journal classification has only the compact
+digest, so it validates that digest's canonical SHA-256 shape and requires exact
+cross-record equality; it does not recreate a discarded historical
+qualification receipt. A same-path root replacement/remount presented to the
+planner therefore requires a separately reviewed bootstrap or migration
+boundary rather than silently continuing the chain.
 
 A changed boot ID is allowed. Reboot is not equivalent to machine replacement.
 
