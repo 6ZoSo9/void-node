@@ -10,6 +10,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportAppendResponseV1,
   classifyBuyVoidAllocationCustodyWitnessTransportPolicyV1,
+  classifyBuyVoidAllocationCustodyWitnessTransportRequestEnvelopeV1,
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_transport_v1.js";
 import {
@@ -1133,7 +1134,12 @@ function appendDeltaWithHooks(
   }
 }
 
-function recoverIntentUnderLock(directory, config, hostFacts) {
+function recoverIntentUnderLock(
+  directory,
+  config,
+  hostFacts,
+  expectedRequestBytes,
+) {
   const intentBytes = readOptionalPinnedNamedFile(
     directory,
     INTENT_NAME,
@@ -1150,6 +1156,13 @@ function recoverIntentUnderLock(directory, config, hostFacts) {
   }
 
   const intent = parseIntent(intentBytes);
+
+  if (
+    !Buffer.isBuffer(expectedRequestBytes) ||
+    !intent.request_bytes.equals(expectedRequestBytes)
+  ) {
+    fail("witness_forced_command_pending_intent_request_mismatch");
+  }
 
   if (intent.policy_sha256 !== config.policy_sha256) {
     fail("witness_forced_command_intent_policy_mismatch");
@@ -1312,37 +1325,15 @@ function requestOperationBeforeRecovery(
   config,
   requestBytes,
 ) {
-  if (
-    requestBytes.length < 3 ||
-    requestBytes.length > MAX_REQUEST_BYTES ||
-    requestBytes.at(-1) !== 0x0a
-  ) {
+  const classified =
+    classifyBuyVoidAllocationCustodyWitnessTransportRequestEnvelopeV1({
+      policy: config.policy,
+      request_json: requestBytes,
+    });
+  if (classified.ok !== true) {
     return "unknown";
   }
-  const text = requestBytes.toString("utf8");
-  let raw;
-  try {
-    raw = JSON.parse(text.slice(0, -1));
-  } catch {
-    return "unknown";
-  }
-  if (
-    !raw ||
-    typeof raw !== "object" ||
-    Array.isArray(raw) ||
-    canonicalLine(raw) !== text ||
-    raw.schema !==
-      "void_buy_void_allocation_custody_witness_transport_request_v1" ||
-    raw.marker !==
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1 ||
-    raw.version !== 1 ||
-    raw.policy_sha256 !== config.policy_sha256
-  ) {
-    return "unknown";
-  }
-  if (raw.operation === "append") return "append";
-  if (raw.operation === "read") return "read";
-  return "unknown";
+  return classified.operation;
 }
 
 function handleUnderLock(
@@ -1373,6 +1364,7 @@ function handleUnderLock(
         directory,
         config,
         hostFacts,
+        requestBytes,
       );
   } else {
     const pendingIntent = readOptionalPinnedNamedFile(
