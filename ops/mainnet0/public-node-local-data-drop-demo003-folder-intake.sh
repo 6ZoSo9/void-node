@@ -32,6 +32,7 @@ LATEST_REPLACED_EXISTING=0
 LATEST_PRIOR_KIND=""
 LATEST_PRIOR_IDENTITY=""
 LATEST_NEW_IDENTITY=""
+LATEST_ROLLBACK_UNCERTAIN=0
 INTAKE_COMMITTED=0
 
 umask 0077
@@ -163,6 +164,7 @@ rollback_demo003_latest() {
   if [ "$LATEST_REPLACED_EXISTING" = "1" ]; then
     mode="replace"
   fi
+  rollback_output="$(
   python3 - \
     "$LATEST_STAGE" \
     "$LATEST" \
@@ -280,6 +282,13 @@ finally:
 
 print("latest_publish_rollback_restored=true")
 PY
+  )"
+  rollback_rc=$?
+  printf '%s\n' "$rollback_output"
+  if [ "$rollback_rc" -ne 0 ]; then
+    LATEST_ROLLBACK_UNCERTAIN=1
+    return "$rollback_rc"
+  fi
   LATEST_PUBLISHED=0
   LATEST_REPLACED_EXISTING=0
   LATEST_PRIOR_KIND=""
@@ -348,18 +357,26 @@ cleanup_demo003_intake() {
   set +e
   if [ "$rc" -ne 0 ] &&
      [ "$INTAKE_COMMITTED" != "1" ] &&
-     [ "$LATEST_PUBLISHED" = "1" ]; then
+     [ "$LATEST_PUBLISHED" = "1" ] &&
+     [ "$LATEST_ROLLBACK_UNCERTAIN" != "1" ]; then
     if ! rollback_demo003_latest; then
       echo "status=demo003_folder_intake_rollback_failed" >&2
       echo "hold_reason=latest_publish_rollback_failed" >&2
       rc=2
     fi
   fi
-  if [ "$LATEST_REPLACED_EXISTING" != "1" ] &&
+  if [ "$LATEST_ROLLBACK_UNCERTAIN" = "1" ]; then
+    echo "rollback_uncertain_evidence_preserved=true" >&2
+    echo "rollback_uncertain_latest_stage=$LATEST_STAGE" >&2
+    echo "rollback_uncertain_archive=$ARCHIVE" >&2
+  fi
+  if [ "$LATEST_ROLLBACK_UNCERTAIN" != "1" ] &&
+     [ "$LATEST_REPLACED_EXISTING" != "1" ] &&
      { [ -e "$LATEST_STAGE" ] || [ -L "$LATEST_STAGE" ]; }; then
     rm -rf -- "$LATEST_STAGE"
   fi
-  if [ "$rc" -ne 0 ] &&
+  if [ "$LATEST_ROLLBACK_UNCERTAIN" != "1" ] &&
+     [ "$rc" -ne 0 ] &&
      [ "$LATEST_PUBLISHED" != "1" ] &&
      { [ -e "$ARCHIVE" ] || [ -L "$ARCHIVE" ]; }; then
     rm -rf -- "$ARCHIVE"
@@ -554,6 +571,7 @@ if find "$LATEST_STAGE" -type f -perm /022 -print -quit | grep -q .; then
 fi
 echo "latest_stage_modes_normalized=true"
 
+set +e
 PUBLISH_OUTPUT="$(
 python3 - "$LATEST_STAGE" "$LATEST" <<'PY'
 import ctypes
@@ -691,6 +709,15 @@ except BaseException:
                 os.rename(latest, stage)
             os.fsync(parent_fd)
         except BaseException as rollback_error:
+            print("latest_publish_failure_state=rollback_uncertain")
+            print(
+                "latest_publish_failure_replaced_existing=" +
+                ("true" if replaced else "false")
+            )
+            print("latest_publish_failure_prior_kind=" + prior_kind)
+            print("latest_publish_failure_prior_identity=" + prior_identity)
+            print("latest_publish_failure_new_identity=" + stage_identity)
+            sys.stdout.flush()
             raise RuntimeError(
                 "latest_publish_failed_and_internal_rollback_failed:"
                 + str(rollback_error)
@@ -708,7 +735,18 @@ print("latest_prior_identity=" + (prior_identity if replaced else "none"))
 print("latest_new_identity=" + stage_identity)
 PY
 )"
+PUBLISH_RC=$?
+set -e
 printf '%s\n' "$PUBLISH_OUTPUT"
+if [ "$PUBLISH_RC" -ne 0 ]; then
+  if printf '%s\n' "$PUBLISH_OUTPUT" |
+       grep -Fxq "latest_publish_failure_state=rollback_uncertain"; then
+    LATEST_ROLLBACK_UNCERTAIN=1
+    echo "status=demo003_folder_intake_publish_rollback_uncertain" >&2
+    echo "hold_reason=latest_publish_internal_rollback_failed" >&2
+  fi
+  exit "$PUBLISH_RC"
+fi
 LATEST_REPLACED_EXISTING="$(
   printf '%s\n' "$PUBLISH_OUTPUT" |
     sed -n 's/^latest_replaced_existing=\(true\|false\)$/\1/p'
