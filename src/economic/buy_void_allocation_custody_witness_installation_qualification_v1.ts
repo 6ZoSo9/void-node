@@ -246,13 +246,6 @@ function canonicalJson(value: unknown): string {
   fail("witness_installation_noncanonical_value");
 }
 
-function sha256Id(value: string): string {
-  return (
-    "sha256:" +
-    crypto.createHash("sha256").update(value, "utf8").digest("hex")
-  );
-}
-
 function exactObject(
   value: unknown,
   keys: readonly string[],
@@ -276,15 +269,6 @@ function exactObject(
 function exactString(value: unknown, reason: string): string {
   if (typeof value !== "string") fail(reason);
   return value;
-}
-
-function exactBoolean(
-  value: unknown,
-  expected: boolean,
-  reason: string,
-): boolean {
-  if (value !== expected) fail(reason);
-  return expected;
 }
 
 function exactInteger(
@@ -459,9 +443,8 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
     ) {
       fail("witness_installation_node_invalid");
     }
-    exactInteger(
+    exactMode(
       node.mode,
-      0o500,
       0o755,
       "witness_installation_node_invalid",
     );
