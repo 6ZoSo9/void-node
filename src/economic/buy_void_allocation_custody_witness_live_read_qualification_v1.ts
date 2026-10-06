@@ -20,6 +20,9 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_AUTHORITY_V1 =
     source_contract: true,
     pure_packet_validation: true,
     installation_receipt_binding_required: true,
+    installation_normalized_qualification_required: true,
+    installation_normalized_qualification_commitment_required: true,
+    installation_transport_policy_binding_required: true,
     client_known_hosts_content_required: true,
     canonical_transport_policy_required: true,
     canonical_transport_read_request_required: true,
@@ -496,6 +499,58 @@ function installationReceipt(input: unknown) {
   });
 }
 
+function installationNormalizedQualification(
+  input: unknown,
+  receipt: Record<string, any>,
+) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    fail("witness_live_read_installation_normalized_shape_invalid");
+  }
+  const normalized = input as Record<string, unknown>;
+  const canonical = canonicalJson(normalized);
+  const digest = sha256Id(Buffer.from(canonical, "utf8"));
+  const qualificationId =
+    "voidwiq2_" + digest.slice("sha256:".length);
+
+  if (
+    digest !== receipt.normalized_qualification_sha256 ||
+    qualificationId !== receipt.installation_qualification_id
+  ) {
+    fail("witness_live_read_installation_normalized_commitment_mismatch");
+  }
+  if (
+    normalized.schema !==
+      "void_buy_void_allocation_custody_witness_installation_qualification_v2" ||
+    normalized.marker !==
+      "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION_V2" ||
+    normalized.version !== 2 ||
+    typeof normalized.remote_user !== "string" ||
+    normalized.remote_user.length < 1 ||
+    typeof normalized.transport_policy_sha256 !== "string" ||
+    !SHA256_ID.test(normalized.transport_policy_sha256) ||
+    typeof normalized.host_key_sha256 !== "string" ||
+    !SHA256_ID.test(normalized.host_key_sha256) ||
+    typeof normalized.known_hosts_sha256 !== "string" ||
+    !SHA256_ID.test(normalized.known_hosts_sha256) ||
+    typeof normalized.client_public_key_sha256 !== "string" ||
+    !SHA256_ID.test(normalized.client_public_key_sha256)
+  ) {
+    fail("witness_live_read_installation_normalized_identity_invalid");
+  }
+
+  return Object.freeze({
+    sha256: digest,
+    qualification_id: qualificationId,
+    transport_policy_sha256:
+      normalized.transport_policy_sha256 as string,
+    remote_user: normalized.remote_user,
+    host_key_sha256: normalized.host_key_sha256 as string,
+    known_hosts_sha256: normalized.known_hosts_sha256 as string,
+    client_public_key_sha256:
+      normalized.client_public_key_sha256 as string,
+  });
+}
+
 function canonicalBase64(
   value: unknown,
   maxBytes: number,
@@ -591,6 +646,7 @@ function parseEd25519KnownHosts(
 export function classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(
   input: {
     installation_receipt: unknown;
+    installation_normalized_qualification: unknown;
     transport_policy: unknown;
     client_known_hosts_base64: unknown;
     challenge_sha256: unknown;
@@ -619,6 +675,22 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(
       );
     }
     const policy = policyDecision.policy;
+    const installationNormalized =
+      installationNormalizedQualification(
+        input?.installation_normalized_qualification,
+        installation.receipt,
+      );
+    if (
+      installationNormalized.transport_policy_sha256 !==
+        policyDecision.policy_sha256 ||
+      installationNormalized.remote_user !== policy.remote_user ||
+      installationNormalized.host_key_sha256 !== policy.host_key_sha256 ||
+      installationNormalized.known_hosts_sha256 !== policy.known_hosts_sha256 ||
+      installationNormalized.client_public_key_sha256 !==
+        policy.client_public_key_sha256
+    ) {
+      fail("witness_live_read_installation_transport_binding_invalid");
+    }
     if (
       installation.host.hostname.toLowerCase() !== policy.remote_host ||
       installation.witness.hostname.toLowerCase() !== policy.remote_host
@@ -737,6 +809,8 @@ export function classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1(
         installation.receipt.collector_receipt_sha256,
       installation_qualification_id:
         installation.receipt.installation_qualification_id,
+      installation_normalized_qualification_sha256:
+        installationNormalized.sha256,
       runtime_bundle_collector_receipt_sha256:
         installation.receipt.runtime_bundle_collector_receipt_sha256,
       transport_marker:
