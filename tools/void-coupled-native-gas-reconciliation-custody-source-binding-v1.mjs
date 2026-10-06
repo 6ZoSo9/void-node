@@ -453,6 +453,61 @@ function rejectRepositoryExecutionSettingsV1() {
   }
 }
 
+function rawSymlinkGitBlobSha1V1(relativePath) {
+  const absolute = path.resolve(ROOT, relativePath);
+  const relative = path.relative(ROOT, absolute);
+  if (
+    !relative ||
+    relative === ".." ||
+    relative.startsWith(".." + path.sep) ||
+    path.isAbsolute(relative)
+  ) {
+    fail("source_binding_worktree_path_invalid:" + relativePath);
+  }
+  const before = fs.lstatSync(absolute, { bigint: true });
+  if (!before.isSymbolicLink()) {
+    fail("source_binding_worktree_mode_invalid:" + relativePath);
+  }
+  const bytes = fs.readlinkSync(absolute, { encoding: "buffer" });
+  const after = fs.lstatSync(absolute, { bigint: true });
+  if (
+    !after.isSymbolicLink() ||
+    !stableFileCore(before, after) ||
+    before.size !== after.size ||
+    before.mtimeNs !== after.mtimeNs ||
+    before.ctimeNs !== after.ctimeNs
+  ) {
+    fail("source_binding_worktree_file_changed:" + relativePath);
+  }
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from("blob " + String(bytes.length) + "\0", "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+function trackedWorktreeGitBlobSha1V1(relativePath, indexMode) {
+  const absolute = path.resolve(ROOT, relativePath);
+  if (indexMode === "120000") {
+    return rawSymlinkGitBlobSha1V1(relativePath);
+  }
+  if (indexMode !== "100644" && indexMode !== "100755") {
+    fail("source_binding_repository_index_mode_unsupported:" + relativePath);
+  }
+  const listed = fs.lstatSync(absolute, { bigint: true });
+  if (!listed.isFile() || listed.isSymbolicLink()) {
+    fail("source_binding_worktree_mode_invalid:" + relativePath);
+  }
+  const executable = (listed.mode & 0o111n) !== 0n;
+  if (
+    (indexMode === "100755" && !executable) ||
+    (indexMode === "100644" && executable)
+  ) {
+    fail("source_binding_worktree_mode_invalid:" + relativePath);
+  }
+  return worktreeGitBlobSha1(relativePath);
+}
+
 function repositoryCleanStateV1(head) {
   if (!HEX40.test(head)) {
     fail("source_binding_repository_head_invalid");
@@ -490,20 +545,51 @@ function repositoryCleanStateV1(head) {
     fail("source_binding_repository_index_check_failed");
   }
 
-  const dirty = String(
+  const stageRows = String(
+    git(
+      ["ls-files", "--stage", "-z"],
+      "source_binding_repository_index_manifest_unavailable",
+    ).stdout || "",
+  ).split("\0").filter(Boolean);
+
+  for (const row of stageRows) {
+    const match =
+      /^(100644|100755|120000) ([0-9a-f]{40}) ([0-3])\t([\s\S]+)$/u.exec(row);
+    if (!match || match[3] !== "0") {
+      fail("source_binding_repository_index_record_invalid");
+    }
+    const indexMode = match[1];
+    const indexBlob = match[2];
+    const relativePath = match[4];
+    let worktreeBlob;
+    try {
+      worktreeBlob =
+        trackedWorktreeGitBlobSha1V1(relativePath, indexMode);
+    } catch (error) {
+      fail(
+        "source_binding_repository_worktree_not_clean:" +
+          relativePath +
+          ":" +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
+    if (worktreeBlob !== indexBlob) {
+      fail("source_binding_repository_worktree_not_clean:" + relativePath);
+    }
+  }
+
+  const untracked = String(
     git(
       [
         "ls-files",
-        "--modified",
-        "--deleted",
         "--others",
         "--exclude-standard",
         "-z",
       ],
-      "source_binding_repository_worktree_check_failed",
+      "source_binding_repository_untracked_check_failed",
     ).stdout || "",
   );
-  if (dirty !== "") {
+  if (untracked !== "") {
     fail("source_binding_repository_worktree_not_clean");
   }
 
