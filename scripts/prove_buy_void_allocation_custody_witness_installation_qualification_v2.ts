@@ -309,6 +309,19 @@ const ok = requireOk(
 assert.equal(ok.status, "source_installation_evidence_qualified_v2");
 assert.match(ok.qualification_id, /^voidwiq2_[0-9a-f]{64}$/u);
 assert.match(ok.parent_qualification_id, /^voidwiq1_[0-9a-f]{64}$/u);
+assert.equal(
+  ok.normalized.schema,
+  "void_buy_void_allocation_custody_witness_installation_qualification_v2",
+);
+assert.equal(
+  ok.normalized.marker,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION_V2,
+);
+assert.equal(ok.normalized.version, 2);
+assert.equal(
+  ok.normalized.parent_qualification_id,
+  ok.parent_qualification_id,
+);
 assert.equal(ok.operation_performed, false);
 assert.equal(ok.live_evidence_origin_proven, false);
 assert.equal(ok.live_continuity_attestation_installed, false);
