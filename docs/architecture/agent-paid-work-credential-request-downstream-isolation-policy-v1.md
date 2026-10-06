@@ -43,16 +43,18 @@ port.
 
 ## Why this boundary exists
 
-Current source still mounts the credential POST on the general public-gateway
+At the exact PR base `c81ae09af8484b89a272b30158aa69f1cbacf229`,
+the public-gateway source mounts the credential POST on the general shared
 listener. The reviewed inner credential gateway is also a loopback TCP service
 (with example port `4113`) whose per-remote limiter acts as the global wall.
 Without a local-origin restriction, an ordinary local process could either
 address the shared 4112 route directly or consume the inner global bucket
 without traversing the future PROXY-v2 source-address metering path.
 
-Therefore the focused proof explicitly models both missing boundaries:
+Therefore the focused proof explicitly models both unsafe pre-integration
+boundaries without claiming it observed a live/current host:
 
-- current shared-4112 credential exposure requires HOLD on
+- modeled shared-4112 credential exposure requires HOLD on
   `downstream_isolation_shared_gateway_bypass_not_closed`;
 - omission of the inner credential-gateway non-gateway drop requires HOLD on
   the exact four-rule firewall contract.
