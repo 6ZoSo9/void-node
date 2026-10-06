@@ -63,7 +63,7 @@ const CURRENT_LAUNCH =
   "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REVIEWED_SOURCE_COMMIT =
-  "c3ff2ce141fa88a53eafe7a28c3f6614cadaaa71";
+  "dd9a1c45067176f2b841b57aff527333059a18b2";
 const PROMOTION_TOOL_REL =
   "tools/void-wc-void-bounded-canary-candidate-promotion-v1.mjs";
 const GIT_EXECUTABLE = "/usr/bin/git";
