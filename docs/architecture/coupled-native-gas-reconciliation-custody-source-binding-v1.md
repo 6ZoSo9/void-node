@@ -30,7 +30,7 @@ The manifest contains 21 exact Git blobs:
 - the custody qualification classifier;
 - the host-evidence collector and its allocation-custody mountinfo helper; and
 - `package.json`, `package-lock.json`, and `tsconfig.build.json` as reviewed
-  build context.
+  package/TypeScript context.
 
 The closure was mechanically derived from Git objects. No relative import was
 left unresolved.
@@ -79,8 +79,10 @@ that leave the reviewed closure exact. The separate `source_binding_id` also
 binds the observed repository HEAD/tree, so an individual observation remains
 content-addressed to its exact checkout.
 
-This is source-generation evidence only. It is not a deployed-artifact
-attestation.
+This is source-generation evidence only. The package/lock/`tsconfig.build.json`
+inputs are bound as selected dependency/compiler context; this v1 does not claim
+that every script or input capable of affecting emitted artifacts is bound.
+`deployed_artifact_generation_verified=false` remains authoritative.
 
 ## Deliberately false boundaries
 
