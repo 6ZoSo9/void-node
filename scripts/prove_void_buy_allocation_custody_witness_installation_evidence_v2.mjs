@@ -370,7 +370,7 @@ const baseFiles = new Map([
   [NODE_PATH, { bytes: nodeBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: nodeBytes.length, ino: 11 }) }],
   [ENV_PATH, { bytes: envBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: envBytes.length, ino: 12 }) }],
   [DASH_PATH, { bytes: dashBytes, stat: stat({ uid: 0, gid: 0, mode: 0o755, size: dashBytes.length, ino: 13 }) }],
-  [CONFIG_PATH, { bytes: configBytes, stat: stat({ uid: 1201, gid: 1201, mode: 0o600, size: configBytes.length, ino: 14 }) }],
+  [CONFIG_PATH, { bytes: configBytes, stat: stat({ uid: 0, gid: 0, mode: 0o444, size: configBytes.length, ino: 14 }) }],
   [AUTHORIZED_KEYS, { bytes: authorizedKeysBytes, stat: stat({ uid: 0, gid: 0, mode: 0o444, size: authorizedKeysBytes.length, ino: 15 }) }],
   [HOST_KEY, { bytes: hostKeyBytes, stat: stat({ uid: 0, gid: 0, mode: 0o644, size: hostKeyBytes.length, ino: 16 }) }],
   [path.join(AUTHORITY_ROOT, WITNESS_NAME), { bytes: witnessBytes, stat: stat({ uid: 1201, gid: 1201, mode: 0o600, size: witnessBytes.length, ino: 18 }) }],
@@ -450,9 +450,15 @@ function makeIo(options = {}) {
       if (file === "/bin/sh") return DASH_PATH;
       return file;
     },
-    readFileNoFollow(file) {
+    readFileNoFollow(file, maxBytes = 16 * 1024 * 1024) {
+      if (options.readLimits instanceof Map) {
+        options.readLimits.set(file, maxBytes);
+      }
       const value = files.get(file);
       if (!value) throw new Error("missing_fake_file:" + file);
+      if (value.bytes.length > maxBytes) {
+        throw new Error("synthetic_max_bytes_exceeded:" + file);
+      }
       if (file === NODE_PATH && options.nodeDrift === true) {
         nodeReads += 1;
         if (nodeReads > 1) {
@@ -565,7 +571,19 @@ function collect(io = makeIo()) {
   );
 }
 
-const baseline = collect();
+const baselineReadLimits = new Map();
+const baseline = collect(makeIo({ readLimits: baselineReadLimits }));
+assert.equal(baselineReadLimits.get(NODE_PATH), 256 * 1024 * 1024);
+assert.equal(baselineReadLimits.get(ENV_PATH), 256 * 1024 * 1024);
+assert.equal(baselineReadLimits.get(DASH_PATH), 256 * 1024 * 1024);
+assert.equal(baselineReadLimits.get(CONFIG_PATH), 256 * 1024);
+assert.equal(
+  baselineReadLimits.get(
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1[1]
+      .installed_path,
+  ),
+  16 * 1024 * 1024,
+);
 assert.equal(
   baseline.marker,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2,
@@ -673,6 +691,39 @@ assert.equal(
     .runtime_bundle_evidence_collector_observed,
   true,
 );
+
+for (const configStat of [
+  stat({ uid: 1201, gid: 1201, mode: 0o600, size: configBytes.length, ino: 14 }),
+  stat({ uid: 0, gid: 0, mode: 0o600, size: configBytes.length, ino: 14 }),
+  stat({ uid: 0, gid: 0, mode: 0o644, size: configBytes.length, ino: 14 }),
+  stat({ uid: 0, gid: 0, mode: 0o444, nlink: 2, size: configBytes.length, ino: 14 }),
+]) {
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          files: {
+            [CONFIG_PATH]: {
+              stat: configStat,
+            },
+          },
+        }),
+      ),
+    /witness_installation_evidence_config_protection_invalid|witness_installation_evidence_parent_witness_installation_v2_config_invalid/u,
+  );
+}
+
+{
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          badParentChains: [CONFIG_PATH],
+        }),
+      ),
+    /witness_installation_evidence_config_protection_invalid|witness_installation_evidence_parent_witness_installation_v2_config_invalid/u,
+  );
+}
 
 {
   const historical = collect(
@@ -1087,6 +1138,15 @@ assert.match(source, /\/proc\/self\/fd/u);
 assert.match(source, /fs\.constants\.O_DIRECTORY/u);
 assert.match(source, /fs\.constants\.O_NOFOLLOW/u);
 assert.match(source, /parentChainRootOwnedNonWritable/u);
+assert.match(source, /const MAX_EXECUTABLE_BYTES = 256 \* 1024 \* 1024;/u);
+assert.match(
+  source,
+  /function executableEvidence\(io, file\) \{\s*const observed = inspectFixedFile\(io, file, MAX_EXECUTABLE_BYTES\);/u,
+);
+assert.match(
+  source,
+  /function inspectFixedFile\(io, file, maxBytes = MAX_FILE_BYTES\)/u,
+);
 assert.match(source, /witness_installation_evidence_original_command_probe_failed/u);
 assert.match(source, /witness_installation_evidence_environment_probe_failed/u);
 assert.match(source, /witness_installation_evidence_startup_hook_probe_failed/u);
@@ -1116,6 +1176,8 @@ console.log("effective_sshd_policy_observed=true");
 console.log("sshd_connection_context_bound=true");
 console.log("live_sshd_connection_context_proven=false");
 console.log("v2_handler_config_command_bound=true");
+console.log("config_root_owned_read_only_mode_0444_observed=true");
+console.log("config_account_owned_mutable_rejected=true");
 console.log("continuity_attestation_observed=true");
 console.log("continuity_attestation_missing_rejected=true");
 console.log("continuity_attestation_tamper_rejected=true");
@@ -1137,6 +1199,9 @@ console.log("preexec_runtime_execution_observed=true");
 console.log("descriptor_bound_ancestor_walk=true");
 console.log("descriptor_read_exact_opened_size=true");
 console.log("descriptor_growth_after_open_rejected=true");
+console.log("executable_read_ceiling_bytes=268435456");
+console.log("generic_file_read_ceiling_bytes=16777216");
+console.log("config_read_ceiling_bytes=262144");
 console.log("historical_machine_id_continuity_consumed=true");
 console.log("original_command_negative_probe=true");
 console.log("environment_clear_probe=true");

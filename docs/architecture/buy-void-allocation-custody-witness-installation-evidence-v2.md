@@ -77,6 +77,19 @@ The parent-chain ownership claim is separately descriptor-walked and requires
 every claimed root-owned parent to remain the same directory identity, owned by
 UID 0 and not group/world writable.
 
+### Executable read ceiling
+
+The generic descriptor-bound evidence ceiling remains 16 MiB, and the forced-command
+config remains capped at 256 KiB. Executable identity observation uses a separate
+256 MiB ceiling only for fixed executable paths such as `/usr/bin/node`,
+`/usr/bin/env`, and the resolved shell. This accommodates large packaged Node
+binaries without widening the bounds for runtime-bundle files, witness storage,
+keys, config, or continuity evidence.
+
+The designated Nimo host was observed with a direct root-owned single-link
+`/usr/bin/node` v22.23.2 binary of 124,836,408 bytes, which exceeds the generic
+16 MiB evidence ceiling but remains below the executable-only 256 MiB ceiling.
+
 Symlinked ancestors therefore cannot redirect the evidence read while still
 producing a qualified parent-chain claim. The focused proof also grows a
 temporary file after descriptor open and requires deterministic HOLD, so the
@@ -88,9 +101,13 @@ The collector observes and passes to
 `classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV2(...)`:
 
 - the dedicated witness account and shell identity;
+- the fixed forced-command config as root:root, mode `0444`, single-link,
+  regular/no-symlink policy evidence below a root-owned non-writable parent
+  chain; dedicated-account ownership or any writable config mode HOLDS;
 - exact V2 handler path and Git-blob identity;
 - exact Node and `/usr/bin/env` executable identity;
-- canonical protected V2 config;
+- canonical protected V2 config, observed as a root:root, mode-`0444`,
+  single-link regular file under a root-owned non-writable parent chain;
 - exact root-owned restrictive `AuthorizedKeysFile` entry;
 - effective `sshd -T -C` policy for the exact supplied source-host/source-
   address/local-address/local-port tuple;
@@ -99,9 +116,11 @@ The collector observes and passes to
 - exact reviewed continuity-attestation bytes and metadata; and
 - collection timestamp/evidence generation as observed integers.
 
-A successful collector run requires the canonical V2 qualifier to return a
-`voidwiq2_...` qualification ID. The collector does not replace that
-qualifier with its own interpretation.
+A successful collector run requires the config observation itself to reject
+dedicated-account ownership, writable modes, extra links, symlinks, or a
+writable/untrusted parent chain before the canonical V2 qualifier is invoked.
+The canonical V2 qualifier must then return a `voidwiq2_...` qualification ID.
+The collector does not replace that qualifier with its own interpretation.
 
 ## Runtime-bundle evidence
 

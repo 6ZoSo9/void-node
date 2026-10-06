@@ -23,11 +23,11 @@ The collector imports the canonical merged runtime-bundle contract and uses
 only its reviewed constants:
 
 - manifest ID
-  `voidwfb1_678ceef8c06d554f7879d48c25e3814300ac542c5053100a75303f0b0d305c6c`;
+  `voidwfb1_2a729229f63c10a1562050924ddc279d8255a35603542967431a584977f1f6b7`;
 - manifest SHA-256
-  `sha256:a70f31be513b56adeb6c0a6846cbc31169de55f5ad479263695a4d0eb18038ad`;
+  `sha256:2190e7ab944436200b03e46285fa5ba4cda1b90d915cfda05b320d1b1dc7ebe2`;
 - census source commit
-  `e14747b6f3a7647baa580c3a87d6f57945486e30`; and
+  `e390424c1d31cd87dcf3551cc0d2d610a24e12f8`; and
 - the exact eight installed absolute paths and SHA-256 values.
 
 The reviewed source/build provenance behind this successor census is exact:

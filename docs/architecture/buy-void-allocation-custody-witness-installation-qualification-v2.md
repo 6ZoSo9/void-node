@@ -21,14 +21,20 @@ V2 independently validates the fields that changed from V1:
 - exact V2 handler path and Git blob;
 - exact V2 forced-command string and SHA-256;
 - exact V2 sanitized Node environment marker;
-- exact V2 config path; and
+- exact V2 config path plus root:root ownership, mode `0444`, single-link
+  regular-file/no-symlink metadata and root-owned non-writable parent chain; and
 - exact installed continuity-attestation path, reviewed SHA-256, attestation ID,
   census receipt reference, ownership, mode, link count, regular-file status,
   and no-symlink status.
 
-After those checks, V2 maps only those reviewed substitutions back to the V1
-representation and calls
+After those checks, V2 maps only reviewed compatibility substitutions back to
+the V1 representation and calls
 `classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV1(...)`.
+For the config specifically, the current V2 truth remains root:root mode
+`0444`; only the temporary compatibility object supplied to V1 uses the
+historical dedicated-account UID/GID and mode `0600`. The V2 normalized result
+explicitly restores/reports `config_uid=0`, `config_gid=0`,
+`config_mode=0444`, and `config_root_owned_read_only=true`.
 
 All unchanged V1 evidence therefore remains governed by the canonical V1
 classifier:
@@ -51,7 +57,7 @@ V2 never converts a failed V1 decision into success.
 
 Handler source Git blob:
 
-`f808f8e4085fab3292274a83b418b8e01f4a9387`
+`f82f76fb6e7b90378857799429e50bb1f23524f7`
 
 Handler path:
 
@@ -79,6 +85,10 @@ Reviewed continuity attestation ID:
 
 The attestation file must be a single-link mode-0600 regular file owned by the
 same dedicated account UID/GID as the witness service evidence.
+
+The forced-command config is different: it is policy, not writable witness
+state, and must be root:root mode `0444` under the protected `/etc/void`
+parent. The dedicated witness account must not own that config inode.
 
 ## Mandatory runtime-bundle successor gate
 

@@ -126,6 +126,7 @@ const FORCED_COMMAND =
   'test -z "$SSH_ORIGINAL_COMMAND" || exit 3; exec /usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1 /usr/bin/node /usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs --config=/etc/void/buy-void-allocation-custody-witness-forced-command-v2.json';
 
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
+const MAX_EXECUTABLE_BYTES = 256 * 1024 * 1024;
 const MAX_CONFIG_BYTES = 256 * 1024;
 const SAFE_SOURCE_HOST =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/u;
@@ -876,7 +877,11 @@ function accountEvidence(io, user) {
   const account = passwdEntry(io, user);
   const shellPathStat = io.lstat(SHELL_PATH);
   const shellResolvedPath = path.resolve(io.realpath(SHELL_PATH));
-  const shell = inspectFixedFile(io, shellResolvedPath, MAX_FILE_BYTES);
+  const shell = inspectFixedFile(
+    io,
+    shellResolvedPath,
+    MAX_EXECUTABLE_BYTES,
+  );
   return Object.freeze({
     remote_user: user,
     uid: account.uid,
@@ -915,7 +920,7 @@ function handlerEvidence(io) {
 }
 
 function executableEvidence(io, file) {
-  const observed = inspectFixedFile(io, file, MAX_FILE_BYTES);
+  const observed = inspectFixedFile(io, file, MAX_EXECUTABLE_BYTES);
   const resolved = path.resolve(io.realpath(file));
   if (resolved !== file) {
     fail("witness_installation_evidence_executable_symlink");
@@ -980,11 +985,22 @@ function parseCanonicalConfig(bytes) {
   });
 }
 
-function configEvidence(io, expectedPolicySha256, account) {
+function configEvidence(io, expectedPolicySha256) {
   const config = inspectFixedFile(io, CONFIG_PATH, MAX_CONFIG_BYTES);
   const parsed = parseCanonicalConfig(config.bytes);
   if (parsed.policy_sha256 !== expectedPolicySha256) {
     fail("witness_installation_evidence_config_policy_mismatch");
+  }
+  if (
+    config.uid !== 0 ||
+    config.gid !== 0 ||
+    config.mode !== 0o444 ||
+    config.nlink !== 1 ||
+    config.regular_file !== true ||
+    config.symlink !== false ||
+    config.root_owned_nonwritable_parent_chain !== true
+  ) {
+    fail("witness_installation_evidence_config_protection_invalid");
   }
   return Object.freeze({
     path: CONFIG_PATH,
@@ -1000,8 +1016,6 @@ function configEvidence(io, expectedPolicySha256, account) {
     authority_root: AUTHORITY_ROOT,
     witness_filename: WITNESS_NAME,
     policy_sha256: parsed.policy_sha256,
-    owner_matches_account:
-      config.uid === account.uid && config.gid === account.gid,
   });
 }
 
@@ -1451,11 +1465,7 @@ function collectOnce(config, io, observedAtMs) {
   const configFile = configEvidence(
     io,
     config.transport_policy_sha256,
-    account,
   );
-  if (!configFile.owner_matches_account) {
-    fail("witness_installation_evidence_config_owner_invalid");
-  }
   const authorizedKey = authorizedKeyEvidence(
     io,
     policy.remote_user,

@@ -17,7 +17,7 @@ import {
 const sha256 = (bytes: Buffer): string => "sha256:" + crypto.createHash("sha256").update(bytes).digest("hex");
 
 const DERIVED_CENSUS_SOURCE_COMMIT =
-  "e14747b6f3a7647baa580c3a87d6f57945486e30";
+  "e390424c1d31cd87dcf3551cc0d2d610a24e12f8";
 const args = process.argv.slice(2);
 const deriveOnly = args.length === 1 && args[0] === "--derive";
 assert.equal(
