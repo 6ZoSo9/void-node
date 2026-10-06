@@ -199,6 +199,7 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
         "listen_host",
         "listen_port",
         "ipv6_listener",
+        "credential_method",
         "credential_route",
         "credential_route_only",
         "trusted_connector_uid",
@@ -216,6 +217,7 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       dedicated.service_unit !== upstream.gateway_service_unit ||
       dedicated.listen_host !== TARGET_HOST ||
       dedicated.ipv6_listener !== false ||
+      dedicated.credential_method !== "POST" ||
       dedicated.credential_route !== CREDENTIAL_ROUTE ||
       dedicated.credential_route_only !== true ||
       dedicated.trusted_connector_uid !== upstream.adapter_uid ||
