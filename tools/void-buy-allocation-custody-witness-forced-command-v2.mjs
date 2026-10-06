@@ -28,6 +28,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_AUTHORITY_V
     source_handler: true,
     forced_command_boundary: true,
     protected_server_config_contract: true,
+    root_owned_nonwritable_config_parent_required: true,
     server_controlled_policy_origin_contract: true,
     fixed_witness_filename: true,
     caller_selected_policy: false,
@@ -222,6 +223,17 @@ function validatePrivateDirectory(stat, reason) {
   }
 }
 
+function validateRootOwnedNonWritableDirectory(stat, reason) {
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== 0n ||
+    (Number(stat.mode) & 0o022) !== 0
+  ) {
+    fail(reason);
+  }
+}
+
 function validatePrivateFile(stat, maxBytes, allowEmpty, reason) {
   const uid = BigInt(process.getuid());
   if (
@@ -286,6 +298,82 @@ function openPinnedDirectory(rawPath, reason) {
       fd,
       stat: opened,
       proc_path: "/proc/self/fd/" + String(fd),
+      trust_policy: "private_account",
+    });
+    fd = -1;
+    return result;
+  } finally {
+    if (fd >= 0) fs.closeSync(fd);
+  }
+}
+
+function openPinnedRootOwnedNonWritableDirectory(rawPath, reason) {
+  const resolved = path.resolve(String(rawPath ?? ""));
+  if (
+    !path.isAbsolute(resolved) ||
+    resolved === path.parse(resolved).root ||
+    resolved.includes("\0")
+  ) {
+    fail(reason);
+  }
+
+  const visible = fs.lstatSync(resolved, { bigint: true });
+  validateRootOwnedNonWritableDirectory(visible, reason);
+
+  const parsed = path.parse(resolved);
+  const parts = resolved
+    .slice(parsed.root.length)
+    .split(path.sep)
+    .filter(Boolean);
+
+  let fd = fs.openSync(
+    parsed.root,
+    fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+  );
+  let current = parsed.root;
+
+  try {
+    for (const part of parts) {
+      const openedCurrent = fs.fstatSync(fd, { bigint: true });
+      const visibleCurrent = fs.lstatSync(current, { bigint: true });
+      validateRootOwnedNonWritableDirectory(
+        openedCurrent,
+        reason + "_ancestor_invalid",
+      );
+      validateRootOwnedNonWritableDirectory(
+        visibleCurrent,
+        reason + "_ancestor_invalid",
+      );
+      if (!sameDirectory(openedCurrent, visibleCurrent)) {
+        fail(reason + "_ancestor_changed");
+      }
+
+      const next = fs.openSync(
+        path.join("/proc/self/fd", String(fd), part),
+        fs.constants.O_RDONLY | O_DIRECTORY | O_NOFOLLOW,
+      );
+      fs.closeSync(fd);
+      fd = next;
+      current = path.join(current, part);
+    }
+
+    const opened = fs.fstatSync(fd, { bigint: true });
+    const visibleFinal = fs.lstatSync(resolved, { bigint: true });
+    validateRootOwnedNonWritableDirectory(opened, reason);
+    validateRootOwnedNonWritableDirectory(visibleFinal, reason);
+    if (
+      !sameDirectory(visible, opened) ||
+      !sameDirectory(opened, visibleFinal)
+    ) {
+      fail(reason + "_changed");
+    }
+
+    const result = Object.freeze({
+      path: resolved,
+      fd,
+      stat: opened,
+      proc_path: "/proc/self/fd/" + String(fd),
+      trust_policy: "root_owned_nonwritable",
     });
     fd = -1;
     return result;
@@ -297,8 +385,17 @@ function openPinnedDirectory(rawPath, reason) {
 function assertPinnedDirectoryVisible(directory, reason) {
   const opened = fs.fstatSync(directory.fd, { bigint: true });
   const visible = fs.lstatSync(directory.path, { bigint: true });
-  validatePrivateDirectory(opened, reason);
-  validatePrivateDirectory(visible, reason);
+
+  if (directory.trust_policy === "private_account") {
+    validatePrivateDirectory(opened, reason);
+    validatePrivateDirectory(visible, reason);
+  } else if (directory.trust_policy === "root_owned_nonwritable") {
+    validateRootOwnedNonWritableDirectory(opened, reason);
+    validateRootOwnedNonWritableDirectory(visible, reason);
+  } else {
+    fail(reason + "_trust_policy_invalid");
+  }
+
   if (
     !sameDirectory(directory.stat, opened) ||
     !sameDirectory(opened, visible)
@@ -592,8 +689,9 @@ function parseConfig(value) {
   });
 }
 
-export function readVoidBuyAllocationCustodyWitnessForcedCommandConfigV2(
+function readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV2(
   configPath,
+  openConfigParent,
 ) {
   const resolved = path.resolve(String(configPath ?? ""));
   if (
@@ -604,7 +702,11 @@ export function readVoidBuyAllocationCustodyWitnessForcedCommandConfigV2(
     fail("witness_forced_command_config_path_invalid");
   }
 
-  const parent = openPinnedDirectory(
+  if (typeof openConfigParent !== "function") {
+    fail("witness_forced_command_config_parent_opener_invalid");
+  }
+
+  const parent = openConfigParent(
     path.dirname(resolved),
     "witness_forced_command_config_parent_invalid",
   );
@@ -645,6 +747,25 @@ export function readVoidBuyAllocationCustodyWitnessForcedCommandConfigV2(
   } finally {
     fs.closeSync(parent.fd);
   }
+}
+
+
+export function readVoidBuyAllocationCustodyWitnessForcedCommandConfigV2(
+  configPath,
+) {
+  return readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV2(
+    configPath,
+    openPinnedRootOwnedNonWritableDirectory,
+  );
+}
+
+export function testOnlyReadVoidBuyAllocationCustodyWitnessForcedCommandConfigFromPrivateDirectoryV2(
+  configPath,
+) {
+  return readVoidBuyAllocationCustodyWitnessForcedCommandConfigWithParentOpenerV2(
+    configPath,
+    openPinnedDirectory,
+  );
 }
 
 function parseIntent(bytes) {

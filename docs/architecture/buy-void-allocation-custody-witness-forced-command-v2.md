@@ -142,3 +142,25 @@ a separate operator-authorized reinstall/requalification of the exact reviewed
 handler and bundle before a fresh read-only live observation can count.
 Installation and transport-key authorization remain separate operator
 ceremonies.
+
+## Config-parent trust-domain correction
+
+The forced-command config is an immutable policy input, not writable witness
+state. Its fixed live parent `/etc/void` must therefore remain root-owned and
+not group/world writable.
+
+The writable witness authority root remains a separate trust domain owned by
+the dedicated witness account at mode `0700`.
+
+V2 uses distinct descriptor-pinned directory policies for these two roles:
+
+- config parent: root-owned, non-group/world-writable, symlink-free;
+- witness authority root: executing-account-owned, mode `0700`, symlink-free.
+
+The production config reader always uses the root-owned policy. A separately
+named test-only reader preserves non-root temporary fixture coverage and is not
+used by the forced-command CLI path.
+
+This corrects the previously inconsistent state in which the installation
+qualification required a root-owned config parent while the handler attempted
+to validate that same parent as account-owned private state.
