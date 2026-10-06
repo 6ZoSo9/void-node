@@ -77,6 +77,19 @@ The parent-chain ownership claim is separately descriptor-walked and requires
 every claimed root-owned parent to remain the same directory identity, owned by
 UID 0 and not group/world writable.
 
+### Executable read ceiling
+
+The generic descriptor-bound evidence ceiling remains 16 MiB, and the forced-command
+config remains capped at 256 KiB. Executable identity observation uses a separate
+256 MiB ceiling only for fixed executable paths such as `/usr/bin/node`,
+`/usr/bin/env`, and the resolved shell. This accommodates large packaged Node
+binaries without widening the bounds for runtime-bundle files, witness storage,
+keys, config, or continuity evidence.
+
+The designated Nimo host was observed with a direct root-owned single-link
+`/usr/bin/node` v22.23.2 binary of 124,836,408 bytes, which exceeds the generic
+16 MiB evidence ceiling but remains below the executable-only 256 MiB ceiling.
+
 Symlinked ancestors therefore cannot redirect the evidence read while still
 producing a qualified parent-chain claim. The focused proof also grows a
 temporary file after descriptor open and requires deterministic HOLD, so the
@@ -158,7 +171,12 @@ The collector runs only local, bounded, non-mutating probes:
    dangerous variable is passed to the exact `env -i` sanitization shape.
    The resulting child environment must contain exactly:
    `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, and
-   `VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1`.
+   `VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1`. Loader-sensitive poison such
+   as `LD_PRELOAD` or `LD_AUDIT` may cause the parent executable's dynamic
+   loader to emit diagnostics before `env -i` runs; those diagnostics are
+   non-authoritative. Qualification still requires exit status 0 and an exact
+   four-variable child environment, so any forbidden variable reaching the
+   sanitized child remains a deterministic HOLD.
 3. **Shell startup hook rejection.** The configured `/bin/sh` is invoked
    non-interactively with `ENV` and `BASH_ENV` pointing at probe input. The
    injected hook marker must not execute.
