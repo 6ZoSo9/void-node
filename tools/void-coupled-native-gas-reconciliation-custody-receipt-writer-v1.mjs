@@ -1110,15 +1110,41 @@ function readIntentPair(roots) {
   return Object.freeze({ left, right });
 }
 
+function parseIntentPair(pair) {
+  if (!pair || (pair.left === null && pair.right === null)) {
+    fail("receipt_writer_intent_pair_empty");
+  }
+  if (
+    pair.left !== null &&
+    pair.right !== null &&
+    !pair.left.equals(pair.right)
+  ) {
+    fail("receipt_writer_intent_pair_mismatch");
+  }
+  return parseIntent(pair.left ?? pair.right);
+}
+
+function pendingIntentMatchesInput(intent, input) {
+  const planned =
+    planCoupledNativeGasReconciliationCustodyReceiptV1({
+      journal_jsonl: intent.before_journal,
+      collector_decision: input?.collector_decision,
+      source_binding: input?.source_binding,
+    });
+  if (planned.ok !== true) return false;
+  const append = Buffer.from(planned.append_jsonl, "utf8");
+  return (
+    append.equals(Buffer.from(intent.value.append_jsonl, "utf8")) &&
+    planned.generation === intent.value.generation &&
+    planned.receipt_sha256 === intent.value.receipt_sha256
+  );
+}
+
 function ensureRedundantIntent(roots, pair, markMutation) {
   let left = pair.left;
   let right = pair.right;
-  if (left !== null && right !== null && !left.equals(right)) {
-    fail("receipt_writer_intent_pair_mismatch");
-  }
-  const selected = left ?? right;
-  if (selected === null) fail("receipt_writer_intent_pair_empty");
-  parseIntent(selected);
+  const parsed = parseIntentPair(pair);
+  const selected = parsed.bytes;
   if (left === null) {
     createOnceFile(
       roots.journal,
@@ -1142,7 +1168,7 @@ function ensureRedundantIntent(roots, pair, markMutation) {
     right = selected;
   }
   assertRootsVisible(roots);
-  return parseIntent(selected);
+  return parsed;
 }
 
 function createIntentPair(roots, bytes, crashAfter, markMutation) {
@@ -1411,6 +1437,13 @@ async function persistInternal(input, crashAfter = null) {
       normalizeReviewedTemps(roots, markMutation);
       const pending = readIntentPair(roots);
       if (pending !== null) {
+        const parsedPending = parseIntentPair(pending);
+        if (!pendingIntentMatchesInput(parsedPending, input)) {
+          return held(
+            "receipt_writer_pending_intent_input_mismatch",
+            mutationPerformed,
+          );
+        }
         return recoverLocked(
           roots,
           markMutation,
