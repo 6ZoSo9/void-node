@@ -12,7 +12,9 @@ import {
   inspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterV1,
   persistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueV1,
   persistBuyVoidAllocationCustodyWitnessLiveReadReplayTerminalV1,
+  testOnlyInspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterSnapshotV1,
   testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueCrashV1,
+  testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueFinalSnapshotV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_writer_v1.js";
 
 const JOURNAL_NAME = "live-read-replay-v1.jsonl";
@@ -61,6 +63,26 @@ function fixture() {
 
 function cleanup(f: ReturnType<typeof fixture>) {
   fs.rmSync(f.root, { recursive: true, force: true });
+}
+
+function replaceVisibleRoot(
+  f: ReturnType<typeof fixture>,
+  which: "journal" | "high-water",
+  label: string,
+): void {
+  const visible =
+    which === "journal" ? f.journalRoot : f.highWaterRoot;
+  const detached = path.join(f.root, label + "-detached");
+  fs.renameSync(visible, detached);
+  fs.mkdirSync(visible, { mode: 0o700 });
+  fs.chmodSync(visible, 0o700);
+  const name =
+    which === "journal" ? JOURNAL_NAME : HIGH_WATER_NAME;
+  fs.copyFileSync(
+    path.join(detached, name),
+    path.join(visible, name),
+  );
+  fs.chmodSync(path.join(visible, name), 0o600);
 }
 
 function issue(f: ReturnType<typeof fixture>) {
@@ -220,6 +242,112 @@ function issue(f: ReturnType<typeof fixture>) {
       rolledHighWater.reason,
       "witness_live_read_replay_writer_high_water_journal_mismatch",
     );
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const replaceRoot of ["journal", "high-water"] as const) {
+  const f = fixture();
+  try {
+    let injected = false;
+    const result =
+      testOnlyInspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterSnapshotV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+        },
+        () => {
+          injected = true;
+          replaceVisibleRoot(
+            f,
+            replaceRoot,
+            "inspect-" + replaceRoot,
+          );
+        },
+      );
+    assert.equal(injected, true, replaceRoot);
+    assert.equal(result.ok, false, replaceRoot);
+    if (result.ok) {
+      throw new Error("root-swap inspect unexpectedly succeeded");
+    }
+    assert.match(result.reason, /_root_changed$/u, replaceRoot);
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const replaceRoot of ["journal", "high-water"] as const) {
+  const f = fixture();
+  try {
+    const crashed =
+      testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueCrashV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+          entropy_sha256: sha("4"),
+          issued_at_ms: 20_000,
+          expires_at_ms: 58_000,
+        },
+        "after_intents",
+      );
+    assert.equal(crashed.ok, false, replaceRoot);
+
+    let injected = false;
+    const recovered =
+      testOnlyInspectBuyVoidAllocationCustodyWitnessLiveReadReplayWriterSnapshotV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+        },
+        () => {
+          injected = true;
+          replaceVisibleRoot(
+            f,
+            replaceRoot,
+            "recovery-" + replaceRoot,
+          );
+        },
+      );
+    assert.equal(injected, true, replaceRoot);
+    assert.equal(recovered.ok, false, replaceRoot);
+    if (recovered.ok) {
+      throw new Error("root-swap recovery unexpectedly succeeded");
+    }
+    assert.match(recovered.reason, /_root_changed$/u, replaceRoot);
+  } finally {
+    cleanup(f);
+  }
+}
+
+for (const replaceRoot of ["journal", "high-water"] as const) {
+  const f = fixture();
+  try {
+    let injected = false;
+    const persisted =
+      testOnlyPersistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueFinalSnapshotV1(
+        {
+          journal_root: f.journalRoot,
+          high_water_root: f.highWaterRoot,
+          entropy_sha256: sha("5"),
+          issued_at_ms: 30_000,
+          expires_at_ms: 68_000,
+        },
+        () => {
+          injected = true;
+          replaceVisibleRoot(
+            f,
+            replaceRoot,
+            "persist-" + replaceRoot,
+          );
+        },
+      );
+    assert.equal(injected, true, replaceRoot);
+    assert.equal(persisted.ok, false, replaceRoot);
+    if (persisted.ok) {
+      throw new Error("root-swap persistence unexpectedly succeeded");
+    }
+    assert.match(persisted.reason, /_root_changed$/u, replaceRoot);
   } finally {
     cleanup(f);
   }
@@ -443,6 +571,11 @@ assert.match(
 );
 assert.match(source, /redundant_transaction_intent:\s*true/u);
 assert.match(source, /journal_first_publication_order:\s*true/u);
+assert.match(source, /function assertPinnedRootsVisible\(/u);
+assert.match(
+  source,
+  /assertPinnedRootsVisible\(journalDirectory, highWaterDirectory\);/u,
+);
 
 assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1,
@@ -463,6 +596,10 @@ console.log("file_fsync=true");
 console.log("directory_fsync=true");
 console.log("crash_recovery_all_cutpoints=true");
 console.log("single_root_rollback_detected=true");
+console.log("terminal_paired_root_revalidation=true");
+console.log("inspect_root_swap_after_journal_snapshot_holds=true");
+console.log("recovery_root_swap_after_journal_snapshot_holds=true");
+console.log("persist_root_swap_after_journal_snapshot_holds=true");
 console.log("tampered_intent_rejected=true");
 console.log("symlink_root_rejected=true");
 console.log("live_durable_storage_proven=false");
