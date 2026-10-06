@@ -502,7 +502,7 @@ function makeIo(options = {}) {
           stdout: options.environmentProbeLeak
             ? clean + "LD_PRELOAD=VOID_FORBIDDEN_ENV_VALUE\n"
             : clean,
-          stderr: "",
+          stderr: options.environmentProbeStderr ?? "",
         });
       }
       if (
@@ -904,6 +904,19 @@ for (const key of [
 }
 
 {
+  const loaderWarning =
+    "ERROR: ld.so: object 'VOID_FORBIDDEN_ENV_VALUE' from LD_PRELOAD cannot be preloaded: ignored.\n";
+  const withLoaderStderr = collect(
+    makeIo({ environmentProbeStderr: loaderWarning }),
+  );
+  assert.deepEqual(
+    withLoaderStderr,
+    baseline,
+    "loader diagnostics before env -i must not weaken exact child-environment proof",
+  );
+}
+
+{
   assert.throws(
     () => collect(makeIo({ startupHookRuns: true })),
     /witness_installation_evidence_startup_hook_probe_failed/u,
@@ -1205,6 +1218,7 @@ console.log("config_read_ceiling_bytes=262144");
 console.log("historical_machine_id_continuity_consumed=true");
 console.log("original_command_negative_probe=true");
 console.log("environment_clear_probe=true");
+console.log("environment_probe_loader_stderr_non_authoritative=true");
 console.log("shell_startup_hook_probe=true");
 console.log("live_evidence_origin_proven=false");
 console.log("external_transport_authenticated=false");

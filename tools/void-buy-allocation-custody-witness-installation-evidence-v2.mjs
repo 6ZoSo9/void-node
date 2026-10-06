@@ -1391,9 +1391,12 @@ function preexecEvidence(io, envExec) {
     "PATH=/usr/bin:/bin",
     "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1",
   ].sort();
+  // Loader-sensitive poison such as LD_PRELOAD can produce parent-process
+  // diagnostics before /usr/bin/env -i clears the environment. The security
+  // property is the exact successful child environment below, not empty
+  // stderr from the deliberately poisoned parent executable.
   if (
     sanitized.status !== 0 ||
-    sanitized.stderr !== "" ||
     environmentLines.length !== expectedLines.length ||
     environmentLines.some(
       (line, index) => line !== expectedLines[index],
