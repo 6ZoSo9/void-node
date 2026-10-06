@@ -312,6 +312,28 @@ assert.equal(
   "witness_live_read_replay_high_water_binding_mismatch",
 );
 
+const tamperedPendingExpiry = tamperHighWater(
+  issued.high_water_json,
+  (value) => {
+    value.pending_expires_at_ms = 38_999;
+  },
+);
+const tamperedPendingExpiryBinding =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+    {
+      journal_jsonl: issue1.next_journal_jsonl,
+      high_water_json: tamperedPendingExpiry,
+    },
+  );
+assert.equal(tamperedPendingExpiryBinding.ok, false);
+if (tamperedPendingExpiryBinding.ok) {
+  throw new Error("tampered pending expiry unexpectedly bound");
+}
+assert.equal(
+  tamperedPendingExpiryBinding.reason,
+  "witness_live_read_replay_high_water_binding_mismatch",
+);
+
 const tamperedDigest = tamperHighWater(
   issued.high_water_json,
   (value) => {
@@ -532,6 +554,7 @@ console.log("journal_rollback_rejected=true");
 console.log("alternate_same_generation_branch_rejected=true");
 console.log("multi_event_jump_rejected=true");
 console.log("pending_identity_tamper_rejected=true");
+console.log("pending_expiry_tamper_rejected=true");
 console.log("fatal_high_water_utf8_required=true");
 console.log("noncanonical_high_water_rejected=true");
 console.log("rollback_resistance_proven=false");
