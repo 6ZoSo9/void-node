@@ -16,10 +16,13 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_EDGE_COMPOSITION_AUTHORITY_V
     proxy_v2_source_required: true,
     proxy_v2_source_contract_reused: true,
     http_request_line_bound: true,
+    public_tls_destination_port_bound: true,
     all_forwarded_headers_sanitized: true,
+    http_parser_stream_binding_proven: false,
     credential_route_source_rate_planning: true,
     noncredential_route_passthrough: true,
     credential_route_limits_bound: true,
+    credential_route_limits_enforced: false,
     rate_state_custody_proven: false,
     concurrent_rate_state_serialization_proven: false,
     gateway_runtime_configuration_verified: false,
@@ -29,6 +32,8 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_EDGE_COMPOSITION_AUTHORITY_V
     nat_independent_participant_isolation_proven: false,
     source_address_stability_proven: false,
     local_transport_trust_proven: false,
+    http_parser_stream_binding_proven: false,
+    credential_route_limits_enforced: false,
     tailscale_funnel_configuration_verified: false,
     listener_created: false,
     public_gateway_modified: false,
@@ -195,6 +200,9 @@ export function classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1(
     );
     if (parsedSource.ok !== true) {
       throw new Error("edge_" + parsedSource.reason);
+    }
+    if (parsedSource.destination_port !== 443) {
+      throw new Error("edge_proxy_destination_port_invalid");
     }
     const requestLine = parseHttpRequestLine(
       input.connection_prefix,
