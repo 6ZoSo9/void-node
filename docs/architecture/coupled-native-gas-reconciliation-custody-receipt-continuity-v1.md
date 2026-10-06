@@ -36,6 +36,15 @@ collector blobs, repository identity fields, and self-derived
 `source_binding_id`. A self-rehashed lookalike with altered authority semantics
 HOLDS.
 
+That exact validation happens when planning a new receipt. Historical journal
+classification only verifies that each record commits a syntactically valid
+`source_binding_id` under the stable reviewed `source_generation_id`; it cannot
+reconstruct the original #2503 binding object from the compact receipt alone.
+Accordingly the authority reports
+`source_binding_validation_required_for_plan=true`,
+`source_binding_id_committed_in_receipt=true`, and
+`historical_source_binding_revalidation=false`.
+
 The collector decision must retain every negative authority boundary from the
 merged host collector and qualifier. In particular it must **not** claim a
 trusted collector, trusted clock, external bootstrap trust, live-host
