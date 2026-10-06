@@ -116,7 +116,7 @@ inventory, treasury/liquidity, or funds.
 npm ci --ignore-scripts --no-audit --no-fund
 npm run build
 node --check tools/void-buy-allocation-custody-witness-runtime-bundle-evidence-v1.mjs
-node --check scripts/prove_void_buy_allocation_custody_witness-runtime-bundle-evidence-v1.mjs
+node --check scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs
 node scripts/prove_void_buy_allocation_custody_witness_runtime_bundle_evidence_v1.mjs
 npx tsx scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts
 git diff --check
