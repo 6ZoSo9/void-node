@@ -84,9 +84,18 @@ The redundant intent permits forward-only recovery from:
 
 Unknown journal bytes, unknown high-water bytes, mismatched intent copies, or
 intent bytes that do not reconstruct valid #2530 prior/next states HOLD.
-When only one intent copy exists, current journal/high-water bytes must first
-classify as exact prior/next endpoints before the missing redundant copy may be
-recreated; unknown state causes zero redundancy mutation.
+When only one intent copy exists, the surviving intent is retained through a
+no-follow file descriptor and rebound to its visible pathname before the
+missing redundant copy may be recreated. The recreated copy is then opened and
+both exact intent copies remain descriptor-pinned through pair equality,
+intent parsing, current-input binding (for ordinary `persist(...)`), recovery
+phase classification, and each journal/high-water publication decision.
+Unknown state or a replaced surviving intent causes zero redundancy mutation.
+
+When both intent copies already exist, both descriptors remain open through the
+same recovery decision window. Replacing only the journal-root intent after its
+read, or only the high-water-root intent after its read, HOLDS before canonical
+journal/high-water publication.
 
 Recovery never invents a receipt or accepts caller-selected journal bytes.
 
@@ -111,6 +120,14 @@ retained file identities immediately before success, and both roots/queues are
 revalidated around that final paired-file check. Replacing only the journal
 file after its read, or only the high-water file after its read, therefore
 HOLDs even when both storage roots and lock queues remain unchanged.
+
+Crash-recovery intent reads use the same retained-descriptor principle. Existing
+intent copies are not reduced to unbound cached bytes before a recovery
+mutation: their descriptors remain open and their visible path identities are
+rechecked before redundancy completion and before authoritative state
+publication. This is present-tense intent snapshot binding, not a claim that a
+same-UID or privileged actor cannot alter storage outside the admitted
+publication interval.
 
 The journal and high-water authority renames also revalidate **both** visible
 roots immediately before each authoritative rename. Replacing only one visible
@@ -178,6 +195,11 @@ The proof covers:
   and queues unchanged;
 - high-water-file replacement after its retained-descriptor read HOLD with roots
   and queues unchanged;
+- journal-only pending-intent replacement after retained read HOLD with
+  journal/high-water bytes unchanged;
+- high-water-only pending-intent replacement after retained read HOLD with
+  journal/high-water bytes unchanged;
+- one-sided intent survivor binding before redundant-copy recreation;
 - cross-process one-root-replacement serialization for both roots: a valid
   contender must enqueue on the unchanged shared queue, cannot publish while
   the holder owns it, and may publish exactly once after release;
