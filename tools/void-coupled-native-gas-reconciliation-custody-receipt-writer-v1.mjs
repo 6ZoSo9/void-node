@@ -1956,6 +1956,7 @@ export async function testOnlyRecoverCoupledNativeGasReconciliationCustodyReceip
         roots,
         markMutation,
         null,
+        null,
         mutationPerformed,
         {
           afterJournalIntentReadHook:
