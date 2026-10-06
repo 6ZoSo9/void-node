@@ -294,6 +294,7 @@ function gitEnv() {
     GIT_NO_REPLACE_OBJECTS: "1",
     GIT_NO_LAZY_FETCH: "1",
     GIT_GRAFT_FILE: "/dev/null",
+    GIT_ALLOW_PROTOCOL: "file",
   };
 }
 
