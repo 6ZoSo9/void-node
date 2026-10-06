@@ -264,6 +264,31 @@ assert.equal(sanitized.local_transport_trust_proven, false);
 
 expectHeld(
   sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
+    { Host: "voidchain.example" },
+    {
+      ...a,
+      limiter_source_key: "voidcrsrc1_" + "0".repeat(64),
+    },
+  ),
+  "proxy_v2_trusted_source_invalid",
+);
+
+expectHeld(
+  planVoidAgentCredentialRequestProxyV2RateLimitV1({
+    parsed_source: {
+      ...a,
+      limiter_source_key: "voidcrsrc1_" + "0".repeat(64),
+    },
+    now_ms: 1_800_000_000_000,
+    window_ms: 60_000,
+    max_requests_per_source: 3,
+    prior_events: [],
+  }),
+  "proxy_v2_trusted_source_invalid",
+);
+
+expectHeld(
+  sanitizeVoidAgentCredentialRequestProxyV2HeadersV1(
     {
       Host: "one.example",
       host: "two.example",
@@ -284,7 +309,7 @@ const priorEvents = [
 
 const aLimited =
   planVoidAgentCredentialRequestProxyV2RateLimitV1({
-    source_key: a.limiter_source_key,
+    parsed_source: a,
     now_ms: now,
     window_ms: 60_000,
     max_requests_per_source: 3,
@@ -307,7 +332,7 @@ assert.equal(
 
 const aRotatedPortLimited =
   planVoidAgentCredentialRequestProxyV2RateLimitV1({
-    source_key: aPortRotated.limiter_source_key,
+    parsed_source: aPortRotated,
     now_ms: now,
     window_ms: 60_000,
     max_requests_per_source: 3,
@@ -317,7 +342,7 @@ assert.equal(aRotatedPortLimited.ok, false);
 
 const bAllowed = requireOk(
   planVoidAgentCredentialRequestProxyV2RateLimitV1({
-    source_key: b.limiter_source_key,
+    parsed_source: b,
     now_ms: now,
     window_ms: 60_000,
     max_requests_per_source: 3,
