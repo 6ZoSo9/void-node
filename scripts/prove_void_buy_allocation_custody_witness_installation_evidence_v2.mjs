@@ -2,12 +2,14 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2,
   collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2,
+  testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2,
 } from "../tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
@@ -143,12 +145,17 @@ assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V2,
 );
 
-const machineId = "1".repeat(32);
-const witnessMachineIdSha = sha256Id(Buffer.from(machineId, "utf8"));
+const HISTORICAL_MACHINE_ID_SHA256 =
+  "sha256:318e4b68f99f27982112de8b2279949f685f27bef0854feea47178618e5580da";
+const SUCCESSOR_MACHINE_ID_SHA256 =
+  "sha256:48a3554126d621d6460385ebacf3d41b454157337271cb7405af012158f203d4";
+const REVIEWED_HOSTKEY_FINGERPRINT =
+  "SHA256:3c9mfrwEQ9RKbVwL8pw/kvbCFt5imaj3QCK79yynkvk";
+
 const genesisBody = {
   allocation_tip_sha256: "sha256:" + "0".repeat(64),
   custody_uuid: "c61906ed-0b7e-441b-a44a-a97730198a18",
-  deployment_head: "f0e89ae93a73a7f859e58dc088487a229cc70188",
+  deployment_head: "63082114b957e4b1ba58348b17e144e954452c1f",
   high_water_bytes: 430,
   high_water_sha256:
     "sha256:121741f865301c62cf2ecd967e286de4bd2e2bdc31404dfbdf11f97c26fca13d",
@@ -163,24 +170,37 @@ const genesisBody = {
   reserved_void_total: "0",
   sequence: 1,
   service_source_sha256:
-    "sha256:" + "b".repeat(64),
-  source_custody_disk_wwn: "eui.source-custody-0001",
-  source_hostname: "precision.test",
-  source_ledger_disk_wwn: "eui.source-ledger-0001",
-  source_machine_id_sha256: "sha256:" + "a".repeat(64),
+    "sha256:bbc42447cc5b21f524cb7d1fb76a94c6322ffd36c901b5e5b2a8cbfe09918cd5",
+  source_custody_disk_wwn: "eui.e8238fa6bf530001001b448b42e66c36",
+  source_hostname: "zoso-Precision-Tower-7810",
+  source_ledger_disk_wwn: "0x500a0751e9c796d8",
+  source_machine_id_sha256:
+    "sha256:11be124fb6d2d08003b89e467cef7e8b17d6dfb73592ccbe0984545ff1bcb0e2",
   version: 1,
   witness_hostname: "Nimo",
-  witness_machine_id_sha256: witnessMachineIdSha,
-  witness_root_disk_serial: "SERIAL1",
-  witness_root_disk_wwn: "WWN1",
+  witness_machine_id_sha256: HISTORICAL_MACHINE_ID_SHA256,
+  witness_root_disk_serial: "50026B76873B25AB",
+  witness_root_disk_wwn:
+    "eui.00000000000000000026b76873b25ab5",
   writer_source_blob_sha1: "2db8493d1ee84878ef5fa2b0f655070622335d0d",
 };
 const genesisEvent = Object.freeze({
   ...genesisBody,
   event_sha256: sha256Id(Buffer.from(canonicalJson(genesisBody), "utf8")),
 });
-const witnessBytes = Buffer.from(canonicalJson(genesisEvent) + "\n", "utf8");
-
+const witnessBytes = Buffer.from(
+  canonicalJson(genesisEvent) + "\n",
+  "utf8",
+);
+assert.equal(
+  genesisEvent.event_sha256,
+  "sha256:2092c92ac3117ae4ec1cd4d55627ff9e46e3bd4e3b20d1bbd848e1189d5d4654",
+);
+assert.equal(
+  sha256Id(witnessBytes),
+  "sha256:a73c8c674bea5ed473938ddbf4275a651272fefd4e75d212d3d2bb8c8e5cbe1a",
+);
+assert.equal(witnessBytes.length, 1411);
 
 const continuityAttestationBody = Object.freeze({
   schema:
@@ -314,7 +334,6 @@ const baseFiles = new Map([
   [CONFIG_PATH, { bytes: configBytes, stat: stat({ uid: 1201, gid: 1201, mode: 0o600, size: configBytes.length, ino: 14 }) }],
   [AUTHORIZED_KEYS, { bytes: authorizedKeysBytes, stat: stat({ uid: 0, gid: 0, mode: 0o444, size: authorizedKeysBytes.length, ino: 15 }) }],
   [HOST_KEY, { bytes: hostKeyBytes, stat: stat({ uid: 0, gid: 0, mode: 0o644, size: hostKeyBytes.length, ino: 16 }) }],
-  [MACHINE_ID_PATH, { bytes: Buffer.from(machineId + "\n", "utf8"), stat: stat({ uid: 0, gid: 0, mode: 0o444, size: 33, ino: 17 }) }],
   [path.join(AUTHORITY_ROOT, WITNESS_NAME), { bytes: witnessBytes, stat: stat({ uid: 1201, gid: 1201, mode: 0o600, size: witnessBytes.length, ino: 18 }) }],
   [CONTINUITY_ATTESTATION, { bytes: continuityAttestationBytes, stat: stat({ uid: 1201, gid: 1201, mode: 0o600, size: continuityAttestationBytes.length, ino: 19 }) }],
 ]);
@@ -369,6 +388,15 @@ function makeIo(options = {}) {
     hostname() {
       return options.hostname || "Nimo";
     },
+    machineIdSha256() {
+      return options.machineIdSha256 || SUCCESSOR_MACHINE_ID_SHA256;
+    },
+    hostKeyOpenSshFingerprint() {
+      return options.hostKeyFingerprint || REVIEWED_HOSTKEY_FINGERPRINT;
+    },
+    parentChainRootOwnedNonWritable(file) {
+      return !(options.badParentChains || []).includes(file);
+    },
     lstat(file) {
       if (file === "/bin/sh") {
         return stat({ type: "symlink", uid: 0, gid: 0, mode: 0o777, ino: 40 });
@@ -400,6 +428,56 @@ function makeIo(options = {}) {
         stat: value.stat,
       });
     },
+    runProbe(command, args, probeOptions = {}) {
+      if (
+        command === "/bin/sh" &&
+        args.length === 2 &&
+        args[0] === "-c" &&
+        args[1] === FORCED_COMMAND
+      ) {
+        return Object.freeze({
+          status: options.originalCommandProbeStatus ?? 3,
+          stdout: options.originalCommandProbeStdout ?? "",
+          stderr: options.originalCommandProbeStderr ?? "",
+        });
+      }
+      if (
+        command === ENV_PATH &&
+        args[0] === "-i" &&
+        args.at(-1) === ENV_PATH
+      ) {
+        const clean = [
+          "PATH=/usr/bin:/bin",
+          "LANG=C",
+          "LC_ALL=C",
+          "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1",
+        ].join("\n") + "\n";
+        return Object.freeze({
+          status: 0,
+          stdout: options.environmentProbeLeak
+            ? clean + "LD_PRELOAD=VOID_FORBIDDEN_ENV_VALUE\n"
+            : clean,
+          stderr: "",
+        });
+      }
+      if (
+        command === "/bin/sh" &&
+        args.length === 2 &&
+        args[0] === "-c" &&
+        args[1].includes("VOID_PREEXEC_SAFE")
+      ) {
+        return Object.freeze({
+          status: 0,
+          stdout: options.startupHookRuns
+            ? "VOID_PREEXEC_HOOK_RAN\nVOID_PREEXEC_SAFE\n"
+            : "VOID_PREEXEC_SAFE\n",
+          stderr: "",
+        });
+      }
+      throw new Error(
+        "unexpected_fake_probe:" + command + ":" + args.join(" "),
+      );
+    },
     run(command, args) {
       if (command === "/usr/bin/getent") {
         assert.deepEqual(args, ["passwd", "voidwitness"]);
@@ -419,7 +497,7 @@ function makeIo(options = {}) {
         return "nvme0n1\n";
       }
       if (command === "/usr/bin/lsblk" && args[1] === "SERIAL,WWN") {
-        return (options.diskIdentity || "SERIAL1 WWN1") + "\n";
+        return (options.diskIdentity || "50026B76873B25AB eui.00000000000000000026b76873b25ab5") + "\n";
       }
       throw new Error("unexpected_fake_command:" + command + ":" + args.join(" "));
     },
@@ -449,7 +527,7 @@ assert.equal(baseline.effective_sshd_policy_observed, true);
 assert.equal(baseline.continuity_attestation_observed, true);
 assert.match(baseline.installation_qualification_id, /^voidwiq2_[0-9a-f]{64}$/u);
 assert.equal(baseline.client_known_hosts_content_observed, false);
-assert.equal(baseline.preexec_runtime_execution_observed, false);
+assert.equal(baseline.preexec_runtime_execution_observed, true);
 assert.equal(baseline.live_evidence_origin_proven, false);
 assert.equal(baseline.external_transport_authenticated, false);
 assert.equal(baseline.external_witness_storage_proven, false);
@@ -464,18 +542,53 @@ assert.equal(baseline.funds_movement, false);
 assert.equal(baseline.host_identity.hostname, "Nimo");
 assert.equal(
   baseline.host_identity.machine_id_sha256,
-  witnessMachineIdSha,
+  SUCCESSOR_MACHINE_ID_SHA256,
 );
 assert.equal(baseline.witness_storage.witness_hostname, "Nimo");
 assert.equal(
   baseline.witness_storage.witness_machine_id_sha256,
-  witnessMachineIdSha,
+  HISTORICAL_MACHINE_ID_SHA256,
 );
 assert.equal(baseline.witness_storage.root_disk_serial, undefined);
 assert.equal(
   baseline.witness_storage.witness_root_disk_serial,
-  "SERIAL1",
+  "50026B76873B25AB",
 );
+assert.equal(
+  baseline.witness_storage.witness_root_disk_wwn,
+  "eui.00000000000000000026b76873b25ab5",
+);
+assert.equal(
+  baseline.witness_identity_path,
+  "reviewed_machine_id_continuity",
+);
+assert.equal(baseline.continuity_attestation_consumed, true);
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_AUTHORITY_V2
+    .preexec_runtime_execution_observed,
+  true,
+);
+
+{
+  const historical = collect(
+    makeIo({ machineIdSha256: HISTORICAL_MACHINE_ID_SHA256 }),
+  );
+  assert.equal(historical.witness_identity_path, "historical_exact");
+  assert.equal(historical.continuity_attestation_consumed, false);
+}
+
+{
+  assert.throws(
+    () =>
+      collect(
+        makeIo({
+          machineIdSha256: "sha256:" + "f".repeat(64),
+        }),
+      ),
+    /witness_installation_evidence_host_witness_identity_mismatch/u,
+  );
+}
+
 
 for (const key of [
   "filesystem_write",
@@ -553,6 +666,28 @@ for (const key of [
     /witness_installation_evidence_sshd_invalid/u,
   );
 }
+
+{
+  assert.throws(
+    () => collect(makeIo({ originalCommandProbeStatus: 0 })),
+    /witness_installation_evidence_original_command_probe_failed/u,
+  );
+}
+
+{
+  assert.throws(
+    () => collect(makeIo({ environmentProbeLeak: true })),
+    /witness_installation_evidence_environment_probe_failed/u,
+  );
+}
+
+{
+  assert.throws(
+    () => collect(makeIo({ startupHookRuns: true })),
+    /witness_installation_evidence_startup_hook_probe_failed/u,
+  );
+}
+
 
 {
   const bad = makeIo({
@@ -667,6 +802,37 @@ for (const key of [
   );
 }
 
+{
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-witness-installation-evidence-v2-"),
+  );
+  try {
+    const real = path.join(root, "real");
+    const linked = path.join(root, "linked");
+    const file = path.join(real, "evidence.txt");
+    fs.mkdirSync(real, { mode: 0o700 });
+    fs.writeFileSync(file, "descriptor-bound\n", { mode: 0o600 });
+    fs.symlinkSync(real, linked);
+    assert.equal(
+      testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2(
+        file,
+        4096,
+      ).toString("utf8"),
+      "descriptor-bound\n",
+    );
+    assert.throws(
+      () =>
+        testOnlyReadBuyVoidAllocationCustodyWitnessInstallationEvidenceFileV2(
+          path.join(linked, "evidence.txt"),
+          4096,
+        ),
+      /witness_installation_evidence_/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 const source = fs.readFileSync(
   "tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs",
   "utf8",
@@ -680,7 +846,14 @@ assert.doesNotMatch(
   /spawnSync\(\s*["']\/usr\/bin\/ssh["']/u,
 );
 assert.match(source, /client_known_hosts_content_observed:\s*false/u);
-assert.match(source, /preexec_runtime_execution_observed:\s*false/u);
+assert.match(source, /preexec_runtime_execution_observed:\s*true/u);
+assert.match(source, /\/proc\/self\/fd/u);
+assert.match(source, /fs\.constants\.O_DIRECTORY/u);
+assert.match(source, /fs\.constants\.O_NOFOLLOW/u);
+assert.match(source, /parentChainRootOwnedNonWritable/u);
+assert.match(source, /witness_installation_evidence_original_command_probe_failed/u);
+assert.match(source, /witness_installation_evidence_environment_probe_failed/u);
+assert.match(source, /witness_installation_evidence_startup_hook_probe_failed/u);
 assert.match(
   source,
   /witness_installation_evidence_host_witness_identity_mismatch/u,
@@ -702,7 +875,12 @@ console.log("host_witness_identity_bound=true");
 console.log("double_census_stability_required=true");
 console.log("content_addressed_receipt=true");
 console.log("client_known_hosts_content_observed=false");
-console.log("preexec_runtime_execution_observed=false");
+console.log("preexec_runtime_execution_observed=true");
+console.log("descriptor_bound_ancestor_walk=true");
+console.log("historical_machine_id_continuity_consumed=true");
+console.log("original_command_negative_probe=true");
+console.log("environment_clear_probe=true");
+console.log("shell_startup_hook_probe=true");
 console.log("live_evidence_origin_proven=false");
 console.log("external_transport_authenticated=false");
 console.log("external_witness_storage_proven=false");
