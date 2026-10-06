@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_AUTHORITY_V1,
   VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_SOURCE_IDENTITY_V1,
-  VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1,
   parseVoidAgentCredentialRequestProxyV2SourceV1,
   planVoidAgentCredentialRequestProxyV2RateLimitV1,
   sanitizeVoidAgentCredentialRequestProxyV2HeadersV1,
@@ -272,13 +271,15 @@ assert.deepEqual(
 );
 assert.equal(sanitized.headers.host, "voidchain.example");
 assert.equal(
-  sanitized.headers[VOID_AGENT_CREDENTIAL_REQUEST_TRUSTED_SOURCE_HEADER_V1],
-  a.limiter_source_key,
+  sanitized.headers["x-void-trusted-funnel-source-v1"],
+  undefined,
 );
 assert.equal(
   sanitized.headers["x-forwarded-for"],
   undefined,
 );
+assert.equal(sanitized.limiter_source_key, a.limiter_source_key);
+assert.equal(sanitized.source_identity_forwarded_to_gateway, false);
 assert.equal(sanitized.local_transport_trust_proven, false);
 
 expectHeld(
@@ -417,7 +418,6 @@ const trueKeys = new Set([
   "raw_source_address_bound",
   "parser_result_brand_required",
   "source_port_excluded_from_limiter_identity",
-  "trusted_source_header_replaced",
   "per_source_rate_limit_planning",
 ]);
 for (const [key, value] of Object.entries(
@@ -438,6 +438,7 @@ console.log("source_port_bucket_rotation=false");
 console.log("bounded_proxy_v2_header=true");
 console.log("proxy_v2_tlv_framing_validated=true");
 console.log("spoofed_forwarding_headers_trusted=false");
+console.log("source_identity_forwarded_to_gateway=false");
 console.log("parser_result_brand_required=true");
 console.log("per_source_rate_limit_isolation=true");
 console.log("rotation_resistant_fairness_proven=false");
