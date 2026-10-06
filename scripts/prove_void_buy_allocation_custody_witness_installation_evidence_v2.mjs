@@ -715,7 +715,7 @@ for (const key of [
   };
   assert.throws(
     () => collect(makeIo({ files: badFiles })),
-    /witness_installation_handler_invalid/u,
+    /witness_installation_v2_handler_invalid/u,
   );
 }
 
