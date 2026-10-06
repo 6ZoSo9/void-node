@@ -382,6 +382,18 @@ for (const [label, collector] of [
 
 {
   const bad = structuredClone(firstCollector);
+  bad.untrusted_padding = "x".repeat(8 * 1024 * 1024 + 1);
+  expectHeld(
+    planReceipt({
+      journal_jsonl: "",
+      collector_decision: bad,
+    }),
+    "receipt_continuity_collector_decision_too_large",
+  );
+}
+
+{
+  const bad = structuredClone(firstCollector);
   bad.trusted_collector_proven = true;
   expectHeld(
     planReceipt({
@@ -562,6 +574,7 @@ const trueKeys = new Set([
   "exact_source_generation_bound",
   "exact_supplied_source_binding_validated",
   "exact_live_collector_decision_hash_bound",
+  "collector_decision_canonical_bytes_bounded",
   "exact_qualification_receipt_bound",
   "predecessor_receipt_binding_required",
   "supplied_chain_generation_monotonicity_proven",
