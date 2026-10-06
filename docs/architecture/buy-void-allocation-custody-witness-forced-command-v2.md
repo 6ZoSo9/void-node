@@ -61,13 +61,26 @@ authorization primitive.
 
 ## Recovery boundary
 
-The same V2 identity check is used by normal reads, fresh appends and durable
-intent recovery.
+The same V2 host/continuity identity check is used by normal reads, fresh
+appends and durable append-intent recovery, but **recovery authority is
+append-only**.
 
-For successor identity recovery, a missing or invalid attestation therefore
+Before any recovery mutation, the handler validates enough of the canonical
+request envelope to bind the reviewed transport marker/version, exact policy
+SHA-256 and requested operation. Only an explicit `append` request may enter
+`recoverIntentUnderLock(...)`.
+
+A `read` request never truncates, appends or cleans up an append intent. If a
+durable append intent exists, read HOLDs with
+`witness_forced_command_nonappend_blocked_by_pending_intent` before witness
+or intent mutation. The focused proof exercises intent-only, torn-partial and
+full-append-before-cleanup states and requires exact witness and intent bytes
+to remain unchanged after the read HOLD.
+
+For successor identity append recovery, a missing or invalid attestation still
 HOLDs before truncate, append or intent cleanup. The V2 proof creates a torn
 append, removes the attestation, proves witness/intent bytes remain unchanged,
-then restores the exact attestation and completes recovery.
+then restores the exact attestation and completes append recovery.
 
 ## Fixed later installation name
 
@@ -110,6 +123,9 @@ funds_movement=false
 
 ## Next gate
 
-After exact-head CI and merge, stage the exact reviewed attestation and V2
-handler for a **read-only Nimo installation qualification**. Installation and
-transport-key authorization remain separate operator ceremonies.
+This handler-byte change invalidates the prior installed-handler and
+runtime-bundle identities. After exact-head CI and merge, any Nimo use requires
+a separate operator-authorized reinstall/requalification of the exact reviewed
+handler and bundle before a fresh read-only live observation can count.
+Installation and transport-key authorization remain separate operator
+ceremonies.
