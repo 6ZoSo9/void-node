@@ -1343,7 +1343,7 @@ function recoverLocked(roots, markMutation, crashAfter = null) {
     const state = coherentState(roots);
     return success("clean", state, false, false);
   }
-  const intent = ensureRedundantIntent(roots, pair, markMutation);
+  const parsedIntent = parseIntentPair(pair);
   const currentJournal = readPinnedNamedFile(
     roots.journal,
     JOURNAL_NAME,
@@ -1360,16 +1360,18 @@ function recoverLocked(roots, markMutation, crashAfter = null) {
   );
   const journalPhase = bytesState(
     currentJournal,
-    intent.before_journal,
-    intent.after_journal,
+    parsedIntent.before_journal,
+    parsedIntent.after_journal,
     "receipt_writer_recovery_journal_unknown",
   );
   const highWaterPhase = bytesState(
     currentHighWater,
-    intent.before_high_water,
-    intent.after_high_water,
+    parsedIntent.before_high_water,
+    parsedIntent.after_high_water,
     "receipt_writer_recovery_high_water_unknown",
   );
+
+  const intent = ensureRedundantIntent(roots, pair, markMutation);
 
   if (journalPhase === "before") {
     publishJournal(
