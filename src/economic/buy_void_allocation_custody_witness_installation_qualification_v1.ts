@@ -17,6 +17,8 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION
     dedicated_account_required: true,
     protected_config_required: true,
     restrictive_authorized_key_required: true,
+    root_owned_authorized_keys_required: true,
+    effective_authorized_keys_path_binding: true,
     sshd_environment_restrictions_required: true,
     preexec_original_command_rejection_required: true,
     sanitized_node_environment_required: true,
@@ -62,6 +64,7 @@ const CONFIG_PATH =
   "/etc/void/buy-void-allocation-custody-witness-forced-command-v1.json";
 const NODE_PATH = "/usr/bin/node";
 const ENV_PATH = "/usr/bin/env";
+const AUTHORIZED_KEYS_ROOT = "/etc/ssh/authorized_keys";
 const AUTHORITY_ROOT =
   "/var/lib/void-allocation-custody-witness-v1";
 const WITNESS_NAME =
@@ -77,7 +80,7 @@ const GIT_SHA1 = /^[0-9a-f]{40}$/u;
 const USER = /^[a-z_][a-z0-9_-]{0,31}$/u;
 const SAFE_ABSOLUTE =
   /^\/(?:[A-Za-z0-9._+-]+\/)*[A-Za-z0-9._+-]+$/u;
-const VERSION = /^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9._-]+)?$/u;
+const VERSION = /^v?([0-9]+)\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9._-]+)?$/u;
 
 const DANGEROUS_ENVIRONMENT_NAMES = Object.freeze([
   "BASH_ENV",
@@ -168,7 +171,7 @@ const AUTHORIZED_KEY_KEYS = Object.freeze([
   "authorized_keys_gid",
   "authorized_keys_mode",
   "authorized_keys_nlink",
-  "authorized_keys_parent_private",
+  "authorized_keys_root_owned_nonwritable_parent_chain",
   "authorized_keys_path",
   "authorized_keys_regular_file",
   "authorized_keys_symlink",
@@ -192,11 +195,13 @@ const AUTHORIZED_KEY_KEYS = Object.freeze([
 const SSHD_KEYS = Object.freeze([
   "accept_env",
   "authorized_keys_environment_allowed",
+  "authorized_keys_file",
   "effective_config_sha256",
   "kbd_interactive_authentication",
   "password_authentication",
   "permit_user_environment",
   "publickey_only",
+  "strict_modes",
 ]);
 const PREEXEC_KEYS = Object.freeze([
   "dangerous_environment_absent",
@@ -521,7 +526,11 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       node.node_version,
       "witness_installation_node_invalid",
     );
-    if (!VERSION.test(nodeVersion)) {
+    const nodeVersionMatch = VERSION.exec(nodeVersion);
+    if (
+      !nodeVersionMatch ||
+      Number(nodeVersionMatch[1]) !== nodeMajor
+    ) {
       fail("witness_installation_node_invalid");
     }
     const nodeSha256 = sha256Field(
@@ -599,18 +608,18 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       authorizedKey.permit_port_forwarding !== false ||
       authorizedKey.permit_x11_forwarding !== false ||
       authorizedKey.permit_user_rc !== false ||
-      authorizedKey.authorized_keys_uid !== uid ||
-      authorizedKey.authorized_keys_gid !== gid ||
+      authorizedKey.authorized_keys_uid !== 0 ||
+      authorizedKey.authorized_keys_gid !== 0 ||
       authorizedKey.authorized_keys_nlink !== 1 ||
       authorizedKey.authorized_keys_regular_file !== true ||
       authorizedKey.authorized_keys_symlink !== false ||
-      authorizedKey.authorized_keys_parent_private !== true
+      authorizedKey.authorized_keys_root_owned_nonwritable_parent_chain !== true
     ) {
       fail("witness_installation_authorized_key_invalid");
     }
     exactMode(
       authorizedKey.authorized_keys_mode,
-      0o600,
+      0o444,
       "witness_installation_authorized_key_invalid",
     );
     const environmentOptions = exactStringArray(
@@ -622,7 +631,7 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
     }
     const authorizedKeysPath = absolutePath(
       authorizedKey.authorized_keys_path,
-      "/var/lib/" + remoteUser + "/.ssh/authorized_keys",
+      AUTHORIZED_KEYS_ROOT + "/" + remoteUser,
       "witness_installation_authorized_key_invalid",
     );
     const forcedCommandSha256 = sha256Field(
@@ -647,7 +656,13 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       sshd.authorized_keys_environment_allowed !== false ||
       sshd.publickey_only !== true ||
       sshd.password_authentication !== false ||
-      sshd.kbd_interactive_authentication !== false
+      sshd.kbd_interactive_authentication !== false ||
+      sshd.strict_modes !== true ||
+      absolutePath(
+        sshd.authorized_keys_file,
+        AUTHORIZED_KEYS_ROOT + "/" + remoteUser,
+        "witness_installation_sshd_invalid",
+      ) !== AUTHORIZED_KEYS_ROOT + "/" + remoteUser
     ) {
       fail("witness_installation_sshd_invalid");
     }
