@@ -604,6 +604,71 @@ for (const [hookName, expectedPerformed] of [
   clean(fixture);
 }
 
+for (const hookName of [
+  "interrupt_after_intent",
+  "interrupt_after_partial_append",
+  "interrupt_after_full_append",
+]) {
+  const fixture = makeFixture();
+
+  assert.throws(
+    () =>
+      handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV1(
+        fixture.config,
+        appendRequest.request_json,
+        {
+          ...dependencies,
+          hooks: {
+            [hookName]: true,
+          },
+        },
+      ),
+    /witness_forced_command_test_interrupt/u,
+  );
+
+  const intentPath = path.join(
+    fixture.root,
+    "buy-void-allocation-custody-witness-append-intent-v1.json",
+  );
+  assert.equal(fs.existsSync(intentPath), true);
+
+  const witnessBeforeMismatchedRecovery =
+    fs.readFileSync(fixture.witness);
+  const intentBeforeMismatchedRecovery =
+    fs.readFileSync(intentPath);
+
+  assert.throws(
+    () =>
+      handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV1(
+        fixture.config,
+        appendRequest.request_json,
+        {
+          read_host_facts_impl: () => ({
+            ...hostFacts,
+            witness_root_disk_serial:
+              "different-disk",
+          }),
+        },
+      ),
+    /witness_forced_command_host_identity_mismatch/u,
+  );
+
+  assert.ok(
+    fs.readFileSync(fixture.witness).equals(
+      witnessBeforeMismatchedRecovery,
+    ),
+    hookName + " host mismatch must not mutate witness recovery state",
+  );
+  assert.ok(
+    fs.readFileSync(intentPath).equals(
+      intentBeforeMismatchedRecovery,
+    ),
+    hookName + " host mismatch must retain the durable intent exactly",
+  );
+
+  clean(fixture);
+}
+
 {
   const fixture = makeFixture();
 
@@ -733,6 +798,8 @@ console.log("witness_fsync=true");
 console.log("authority_directory_fsync=true");
 console.log("post_mutation_path_rebind=true");
 console.log("host_identity_mismatch_rejected=true");
+console.log("recovery_host_identity_checked_before_mutation=true");
+console.log("mismatched_recovery_preserves_witness_and_intent=true");
 console.log("symlink_witness_rejected=true");
 console.log("original_remote_command_rejected=true");
 console.log("live_nimo_installed=false");
