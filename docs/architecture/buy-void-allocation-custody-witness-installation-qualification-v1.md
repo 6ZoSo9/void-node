@@ -67,7 +67,8 @@ root-owned non-writable ancestor chain.
 The evidence additionally binds:
 
 - exact config SHA-256;
-- exact authority-root path;
+- the fixed authority-root path
+  `/var/lib/void-allocation-custody-witness-v1`;
 - fixed witness filename;
 - the complete parent transport-policy SHA-256.
 
@@ -84,7 +85,8 @@ Execution is pinned to:
 
 Evidence must bind:
 
-- its resolved absolute path;
+- its resolved absolute path, which must equal `/usr/bin/node` because this
+  profile does not admit a symlinked Node launcher;
 - root ownership;
 - regular/non-symlink identity;
 - exact mode `0755`;
@@ -97,8 +99,9 @@ This is content binding, not live process attestation.
 ## Authorized-key boundary
 
 The evidence must bind a private mode-`0600`, single-link
-`authorized_keys` file owned by the dedicated witness account and a
-content-addressed exact key line.
+`authorized_keys` file owned by the dedicated witness account at exactly
+`/var/lib/<remote_user>/.ssh/authorized_keys`, plus a content-addressed exact
+key line.
 
 The key must:
 
