@@ -32,8 +32,6 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_PROXY_V2_EDGE_COMPOSITION_AUTHORITY_V
     nat_independent_participant_isolation_proven: false,
     source_address_stability_proven: false,
     local_transport_trust_proven: false,
-    http_parser_stream_binding_proven: false,
-    credential_route_limits_enforced: false,
     tailscale_funnel_configuration_verified: false,
     listener_created: false,
     public_gateway_modified: false,
@@ -77,6 +75,8 @@ function held(reason) {
     rate_state_custody_proven: false,
     concurrent_rate_state_serialization_proven: false,
     gateway_runtime_configuration_verified: false,
+    http_parser_stream_binding_proven: false,
+    credential_route_limits_enforced: false,
     runtime_integration: false,
     funds_movement: false,
     authority:
@@ -177,6 +177,8 @@ function baseSuccess(parsedSource, sanitized, requestLine) {
     rate_state_custody_proven: false,
     concurrent_rate_state_serialization_proven: false,
     gateway_runtime_configuration_verified: false,
+    http_parser_stream_binding_proven: false,
+    credential_route_limits_enforced: false,
     runtime_integration: false,
     funds_movement: false,
     authority:
