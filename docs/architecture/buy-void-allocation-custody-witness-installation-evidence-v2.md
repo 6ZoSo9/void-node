@@ -88,9 +88,13 @@ The collector observes and passes to
 `classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV2(...)`:
 
 - the dedicated witness account and shell identity;
+- the fixed forced-command config as root:root, mode `0444`, single-link,
+  regular/no-symlink policy evidence below a root-owned non-writable parent
+  chain; dedicated-account ownership or any writable config mode HOLDS;
 - exact V2 handler path and Git-blob identity;
 - exact Node and `/usr/bin/env` executable identity;
-- canonical protected V2 config;
+- canonical protected V2 config, observed as a root:root, mode-`0444`,
+  single-link regular file under a root-owned non-writable parent chain;
 - exact root-owned restrictive `AuthorizedKeysFile` entry;
 - effective `sshd -T -C` policy for the exact supplied source-host/source-
   address/local-address/local-port tuple;
@@ -99,9 +103,11 @@ The collector observes and passes to
 - exact reviewed continuity-attestation bytes and metadata; and
 - collection timestamp/evidence generation as observed integers.
 
-A successful collector run requires the canonical V2 qualifier to return a
-`voidwiq2_...` qualification ID. The collector does not replace that
-qualifier with its own interpretation.
+A successful collector run requires the config observation itself to reject
+dedicated-account ownership, writable modes, extra links, symlinks, or a
+writable/untrusted parent chain before the canonical V2 qualifier is invoked.
+The canonical V2 qualifier must then return a `voidwiq2_...` qualification ID.
+The collector does not replace that qualifier with its own interpretation.
 
 ## Runtime-bundle evidence
 

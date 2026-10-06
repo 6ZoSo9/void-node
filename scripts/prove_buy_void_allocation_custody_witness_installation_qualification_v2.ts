@@ -244,9 +244,9 @@ const baseline = {
     path:
       "/etc/void/buy-void-allocation-custody-witness-forced-command-v2.json",
     sha256: expectedConfigSha256,
-    uid: 1201,
-    gid: 1201,
-    mode: 0o600,
+    uid: 0,
+    gid: 0,
+    mode: 0o444,
     nlink: 1,
     regular_file: true,
     symlink: false,
@@ -379,6 +379,10 @@ assert.equal(
   ok.normalized.continuity_attestation_sha256,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_SHA256_V1,
 );
+assert.equal(ok.normalized.config_uid, 0);
+assert.equal(ok.normalized.config_gid, 0);
+assert.equal(ok.normalized.config_mode, 0o444);
+assert.equal(ok.normalized.config_root_owned_read_only, true);
 
 const same = requireOk(
   classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV2(
@@ -416,6 +420,19 @@ for (const mutate of [
   const value = clone(baseline);
   value.config.path =
     "/etc/void/buy-void-allocation-custody-witness-forced-command-v1.json";
+  expectHeld(value, /witness_installation_v2_config_invalid/u);
+}
+for (const [field, replacement] of [
+  ["uid", 1201],
+  ["gid", 1201],
+  ["mode", 0o600],
+  ["nlink", 2],
+  ["regular_file", false],
+  ["symlink", true],
+  ["root_owned_nonwritable_parent_chain", false],
+] as const) {
+  const value = clone(baseline) as any;
+  value.config[field] = replacement;
   expectHeld(value, /witness_installation_v2_config_invalid/u);
 }
 {
@@ -521,6 +538,7 @@ const trueKeys = new Set([
   "continuity_attestation_binding",
   "dedicated_account_required",
   "protected_config_required",
+  "root_owned_read_only_config_file_required",
   "restrictive_authorized_key_required",
   "root_owned_authorized_keys_required",
   "effective_authorized_keys_path_binding",
@@ -547,6 +565,7 @@ console.log("v2_handler_blob_binding=true");
 console.log("v2_forced_command_binding=true");
 console.log("continuity_attestation_binding=true");
 console.log("continuity_attestation_account_owned_mode_0600=true");
+console.log("config_root_owned_read_only_mode_0444=true");
 console.log("root_owned_authorized_keys_required=true");
 console.log("sshd_strict_modes=true");
 console.log("original_command_rejected_before_environment_sanitization=true");

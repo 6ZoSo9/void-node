@@ -21,6 +21,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION
     continuity_attestation_binding: true,
     dedicated_account_required: true,
     protected_config_required: true,
+    root_owned_read_only_config_file_required: true,
     restrictive_authorized_key_required: true,
     root_owned_authorized_keys_required: true,
     effective_authorized_keys_path_binding: true,
@@ -62,7 +63,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_QUALIFICATION
   });
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V2 =
-  "f808f8e4085fab3292274a83b418b8e01f4a9387";
+  "742cf489d8a785aa155a0e1bd12b65e94e07d1f1";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_CONTINUITY_ATTESTATION_SHA256_V1 =
   "sha256:12a6f037d1297c89f017f4d4ed3ca96c2ffadae820dd6d1b170f3966183481eb";
@@ -341,7 +342,14 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
         config.path,
         CONFIG_PATH_V2,
         "witness_installation_v2_config_invalid",
-      ) !== CONFIG_PATH_V2
+      ) !== CONFIG_PATH_V2 ||
+      config.uid !== 0 ||
+      config.gid !== 0 ||
+      config.mode !== 0o444 ||
+      config.nlink !== 1 ||
+      config.regular_file !== true ||
+      config.symlink !== false ||
+      config.root_owned_nonwritable_parent_chain !== true
     ) {
       fail("witness_installation_v2_config_invalid");
     }
@@ -429,6 +437,9 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
     mapped.handler.installed_git_blob_sha1 =
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V1;
     mapped.config.path = CONFIG_PATH_V1;
+    mapped.config.uid = accountUid;
+    mapped.config.gid = accountGid;
+    mapped.config.mode = 0o600;
     mapped.authorized_key.forced_command = FORCED_COMMAND_V1;
     mapped.authorized_key.forced_command_sha256 =
       sha256Id(FORCED_COMMAND_V1);
@@ -458,6 +469,10 @@ export function classifyBuyVoidAllocationCustodyWitnessInstallationQualification
       handler_git_blob_sha1:
         VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_SOURCE_GIT_BLOB_SHA1_V2,
       config_path: CONFIG_PATH_V2,
+      config_uid: 0,
+      config_gid: 0,
+      config_mode: 0o444,
+      config_root_owned_read_only: true as const,
       forced_command_sha256: sha256Id(FORCED_COMMAND_V2),
       node_environment: Object.freeze({
         PATH: "/usr/bin:/bin",
