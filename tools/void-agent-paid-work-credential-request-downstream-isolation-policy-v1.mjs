@@ -179,6 +179,8 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
         "service_unit",
         "listen_host",
         "listen_port",
+        "ipv6_listener",
+        "additional_listeners",
         "credential_route_exposed",
         "ordinary_routes_preserved",
       ],
@@ -188,6 +190,9 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       shared.service_unit !== upstream.gateway_service_unit ||
       shared.listen_host !== TARGET_HOST ||
       shared.listen_port !== SHARED_GATEWAY_PORT ||
+      shared.ipv6_listener !== false ||
+      !Array.isArray(shared.additional_listeners) ||
+      shared.additional_listeners.length !== 0 ||
       shared.credential_route_exposed !== false ||
       shared.ordinary_routes_preserved !== true
     ) {
@@ -203,6 +208,7 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
         "listen_host",
         "listen_port",
         "ipv6_listener",
+        "additional_listeners",
         "credential_method",
         "credential_route",
         "credential_route_only",
@@ -221,6 +227,8 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       dedicated.service_unit !== upstream.gateway_service_unit ||
       dedicated.listen_host !== TARGET_HOST ||
       dedicated.ipv6_listener !== false ||
+      !Array.isArray(dedicated.additional_listeners) ||
+      dedicated.additional_listeners.length !== 0 ||
       dedicated.credential_method !== "POST" ||
       dedicated.credential_route !== CREDENTIAL_ROUTE ||
       dedicated.credential_route_only !== true ||
@@ -239,6 +247,8 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       [
         "listen_host",
         "listen_port",
+        "ipv6_listener",
+        "additional_listeners",
         "credential_route",
         "trusted_client_uid",
       ],
@@ -252,6 +262,9 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
     );
     if (
       upstreamGateway.listen_host !== TARGET_HOST ||
+      upstreamGateway.ipv6_listener !== false ||
+      !Array.isArray(upstreamGateway.additional_listeners) ||
+      upstreamGateway.additional_listeners.length !== 0 ||
       upstreamGateway.credential_route !== CREDENTIAL_ROUTE ||
       upstreamGateway.trusted_client_uid !== upstream.gateway_uid ||
       upstreamGatewayPort === SHARED_GATEWAY_PORT ||
@@ -354,6 +367,10 @@ export function classifyVoidAgentCredentialRequestDownstreamIsolationPolicyV1(
       downstream_gateway_bypass_policy_shape_qualified: true,
       shared_gateway_credential_route_disabled: true,
       ordinary_shared_gateway_routes_preserved: true,
+      closed_world_listener_sets_required: true,
+      shared_gateway_ipv6_listener: false,
+      dedicated_downstream_ipv6_listener: false,
+      credential_gateway_upstream_ipv6_listener: false,
       dedicated_credential_downstream_required: true,
       credential_route: CREDENTIAL_ROUTE,
       shared_gateway_host: TARGET_HOST,
