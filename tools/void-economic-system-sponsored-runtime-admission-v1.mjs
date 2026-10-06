@@ -29,6 +29,10 @@ import {
   listEconomicSystemSponsoredReservationsV1,
   persistEconomicSystemSponsoredReservationV1,
 } from "./void-economic-system-sponsored-reservation-store-v1.mjs";
+import {
+  VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1,
+  createVoidEconomicEpoch2DurableReplayStoreV1,
+} from "./void-economic-epoch2-durable-replay-store-v1.mjs";
 
 export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_V1 =
   "VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_V1";
@@ -69,7 +73,12 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_AUTHORITY_V1 =
     preview_denial_does_not_advance_time: true,
     durable_observe_required_after_preview_allow: true,
     valid_denied_request_time_growth_bounded: true,
-    execution_replay_store_bound: false,
+    execution_replay_store_bound: true,
+    read_only_execution_replay_inspection: true,
+    consumed_execution_replay_rejected_before_time: true,
+    execution_replay_negative_freshness_authorized: false,
+    execution_replay_atomic_consume_performed: false,
+    execution_replay_execution_authorized: false,
     runtime_route_active: false,
     runtime_enforcement_verified: false,
     gas_sponsorship_performed: false,
@@ -93,6 +102,7 @@ const CONSTRUCTOR_KEYS = Object.freeze([
   "trustedClock",
   "time_root",
   "reservation_root",
+  "replay_root",
   "allowed_targets",
 ]);
 const REQUEST_KEYS = Object.freeze([
@@ -598,11 +608,27 @@ function preflightCandidate(request, policies, allowedTargets) {
   });
 }
 
+function executionReplayMetadata(preflight) {
+  const intent = preflight.signed_submission.intent;
+  return Object.freeze({
+    chain_id: 2050,
+    execution_epoch: intent.execution_epoch,
+    gateway_id: intent.gateway_id,
+    signer: intent.signer,
+    nonce: intent.nonce,
+    target: intent.target,
+    calldata_keccak256: intent.calldata_keccak256,
+    expires_at_unix: intent.expires_at_unix,
+  });
+}
+
 function held(
   reason,
   {
     reservationStorePreflightVerified = false,
     preflightVerified = false,
+    replayInspectionVerified = false,
+    replayKnownConsumed = null,
     currentCandidateVerified = false,
     previewVerified = false,
     previewBudgetVerified = false,
@@ -622,6 +648,12 @@ function held(
     reservation_store_preflight_verified:
       reservationStorePreflightVerified,
     preflight_verified: preflightVerified,
+    replay_inspection_verified: replayInspectionVerified,
+    replay_known_consumed: replayKnownConsumed,
+    replay_mutation_performed: false,
+    replay_atomic_consume_performed: false,
+    replay_negative_freshness_authorized: false,
+    replay_execution_authorized: false,
     current_candidate_verified: currentCandidateVerified,
     time_preview_verified: previewVerified,
     preview_budget_verified: previewBudgetVerified,
@@ -664,6 +696,12 @@ function success(
     intent_id: preflight.intent_id,
     sponsorship_id: preflight.sponsorship_id,
     signed_submission_digest: preflight.signed_submission_digest,
+    replay_inspection_verified: true,
+    replay_known_consumed: false,
+    replay_mutation_performed: false,
+    replay_atomic_consume_performed: false,
+    replay_negative_freshness_authorized: false,
+    replay_execution_authorized: false,
     reservation_store_preflight_verified: true,
     preflight_verified: true,
     current_candidate_verified: true,
@@ -719,7 +757,15 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
     binding.reservation_root,
     "SPONSORED_RUNTIME_RESERVATION_ROOT_INVALID",
   );
-  if (pathsOverlap(timeRoot, reservationRoot)) {
+  const replayRoot = exactPath(
+    binding.replay_root,
+    "SPONSORED_RUNTIME_REPLAY_ROOT_INVALID",
+  );
+  if (
+    pathsOverlap(timeRoot, reservationRoot) ||
+    pathsOverlap(timeRoot, replayRoot) ||
+    pathsOverlap(reservationRoot, replayRoot)
+  ) {
     fail("SPONSORED_RUNTIME_AUTHORITY_ROOTS_NOT_DISJOINT");
   }
   const allowedTargets = exactTargets(binding.allowed_targets);
@@ -731,6 +777,10 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
     createVoidEconomicSystemSponsoredObservationTimeStoreV1({
       root_dir: timeRoot,
       trustedClock,
+    });
+  const replayStore =
+    createVoidEconomicEpoch2DurableReplayStoreV1({
+      root: replayRoot,
     });
 
   return Object.freeze({
@@ -746,6 +796,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
     async admit(inputRequest) {
       let reservationStorePreflightVerified = false;
       let preflight = null;
+      let replayInspectionVerified = false;
+      let replayKnownConsumed = null;
       let currentCandidateVerified = false;
       let previewVerified = false;
       let previewBudgetVerified = false;
@@ -760,6 +812,54 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
           policies,
           allowedTargets,
         );
+
+        let replayInspection;
+        try {
+          replayInspection = replayStore.inspectConsumed(
+            preflight.signed_submission_digest,
+            executionReplayMetadata(preflight),
+          );
+        } catch (error) {
+          return held(
+            error instanceof Error
+              ? error.message
+              : "SPONSORED_RUNTIME_REPLAY_INSPECTION_HELD",
+            {
+              preflightVerified: true,
+              replayInspectionVerified: false,
+            },
+          );
+        }
+        if (
+          !replayInspection ||
+          typeof replayInspection !== "object" ||
+          typeof replayInspection.known_consumed !== "boolean" ||
+          typeof replayInspection.audit_receipt_present !== "boolean" ||
+          replayInspection.mutation_performed !== false ||
+          replayInspection.atomic_consume_performed !== false ||
+          replayInspection.negative_freshness_authorized !== false ||
+          replayInspection.execution_authorized !== false
+        ) {
+          return held(
+            "SPONSORED_RUNTIME_REPLAY_INSPECTION_CONTRACT_INVALID",
+            {
+              preflightVerified: true,
+              replayInspectionVerified: false,
+            },
+          );
+        }
+        replayInspectionVerified = true;
+        replayKnownConsumed = replayInspection.known_consumed;
+        if (replayKnownConsumed) {
+          return held(
+            "SPONSORED_RUNTIME_EXECUTION_REPLAY_ALREADY_CONSUMED",
+            {
+              preflightVerified: true,
+              replayInspectionVerified: true,
+              replayKnownConsumed: true,
+            },
+          );
+        }
 
         const structural =
           inspectEconomicSystemSponsoredReservationStoreV1({
@@ -785,6 +885,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: false,
               preflightVerified: true,
+              replayInspectionVerified,
+              replayKnownConsumed,
             },
           );
         }
@@ -805,6 +907,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              replayInspectionVerified,
+              replayKnownConsumed,
               previewVerified: false,
               previewObservedAtMs:
                 Number.isSafeInteger(preview?.accepted_observed_at_ms)
@@ -845,6 +949,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              replayInspectionVerified,
+              replayKnownConsumed,
               previewVerified: true,
               previewObservedAtMs,
             },
@@ -870,6 +976,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              replayInspectionVerified,
+              replayKnownConsumed,
               previewVerified: true,
               previewObservedAtMs,
             },
@@ -952,6 +1060,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              replayInspectionVerified,
+              replayKnownConsumed,
               previewVerified: true,
               previewBudgetVerified: true,
               previewObservedAtMs,
@@ -999,6 +1109,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              replayInspectionVerified,
+              replayKnownConsumed,
               previewVerified: true,
               previewBudgetVerified: true,
               previewObservedAtMs,
@@ -1039,6 +1151,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
             {
               reservationStorePreflightVerified: true,
               preflightVerified: true,
+              replayInspectionVerified,
+              replayKnownConsumed,
               currentCandidateVerified: true,
               previewVerified: true,
               previewBudgetVerified: true,
@@ -1068,6 +1182,8 @@ export function createVoidEconomicSystemSponsoredRuntimeAdmissionV1(
           {
             reservationStorePreflightVerified,
             preflightVerified: preflight !== null,
+            replayInspectionVerified,
+            replayKnownConsumed,
             currentCandidateVerified,
             previewVerified,
             previewBudgetVerified,
@@ -1095,4 +1211,6 @@ export const VOID_ECONOMIC_SYSTEM_SPONSORED_RUNTIME_ADMISSION_DEPENDENCIES_V1 =
       VOID_ECONOMIC_SYSTEM_SPONSORED_OBSERVATION_TIME_STORE_V1,
     reservation_store_marker:
       VOID_ECONOMIC_SYSTEM_SPONSORED_RESERVATION_STORE_V1,
+    replay_store_marker:
+      VOID_ECONOMIC_EPOCH2_DURABLE_REPLAY_STORE_V1,
   });
