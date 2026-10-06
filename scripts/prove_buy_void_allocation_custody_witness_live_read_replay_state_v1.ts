@@ -16,6 +16,117 @@ const sha = (hex: string): string =>
 const requestId = (hex: string): string =>
   "voidwreq1_" + hex.repeat(64);
 
+function canonicalJson(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalJson).join(",") + "]";
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return (
+      "{" +
+      Object.keys(record)
+        .sort()
+        .map(
+          (key) =>
+            JSON.stringify(key) + ":" + canonicalJson(record[key]),
+        )
+        .join(",") +
+      "}"
+    );
+  }
+  throw new Error("noncanonical proof value");
+}
+
+function hashId(value: string): string {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(value, "utf8").digest("hex")
+  );
+}
+
+function buildLimitJournal(): string {
+  const lines: string[] = [];
+  let previousEventSha: string | null = null;
+  let sequence = 0;
+  for (let generation = 1; generation <= 4096; generation += 1) {
+    const entropySha = sha("a");
+    const issuedAt = generation * 100_000;
+    const expiresAt = issuedAt + 1;
+    const challengeMaterial = {
+      domain:
+        "void:mainnet-0:buy-void-allocation-custody-witness-live-read-challenge-v1",
+      generation,
+      previous_event_sha256: previousEventSha,
+      entropy_sha256: entropySha,
+      issued_at_ms: issuedAt,
+      expires_at_ms: expiresAt,
+    };
+    const challengeHex = crypto
+      .createHash("sha256")
+      .update(canonicalJson(challengeMaterial), "utf8")
+      .digest("hex");
+    const challengeSha = "sha256:" + challengeHex;
+    const challengeId = "voidwlrc1_" + challengeHex;
+
+    sequence += 1;
+    const issuedBody = {
+      marker:
+        "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EVENT_V1",
+      version: 1,
+      sequence,
+      previous_event_sha256: previousEventSha,
+      generation,
+      state: "issued",
+      entropy_sha256: entropySha,
+      challenge_sha256: challengeSha,
+      challenge_id: challengeId,
+      issued_at_ms: issuedAt,
+      expires_at_ms: expiresAt,
+      request_id: null,
+      response_sha256: null,
+      terminal_at_ms: null,
+    };
+    const issued = {
+      ...issuedBody,
+      event_sha256: hashId(canonicalJson(issuedBody)),
+    };
+    lines.push(canonicalJson(issued));
+    previousEventSha = issued.event_sha256;
+
+    sequence += 1;
+    const abandonedBody = {
+      marker:
+        "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EVENT_V1",
+      version: 1,
+      sequence,
+      previous_event_sha256: previousEventSha,
+      generation,
+      state: "abandoned",
+      entropy_sha256: entropySha,
+      challenge_sha256: challengeSha,
+      challenge_id: challengeId,
+      issued_at_ms: issuedAt,
+      expires_at_ms: expiresAt,
+      request_id: null,
+      response_sha256: null,
+      terminal_at_ms: issuedAt,
+    };
+    const abandoned = {
+      ...abandonedBody,
+      event_sha256: hashId(canonicalJson(abandonedBody)),
+    };
+    lines.push(canonicalJson(abandoned));
+    previousEventSha = abandoned.event_sha256;
+  }
+  return lines.join("\n") + "\n";
+}
+
 const missingJournal =
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
     undefined as unknown as string,
@@ -310,6 +421,50 @@ assert.equal(
   "witness_live_read_replay_journal_newline_invalid",
 );
 
+const oversizedJournal =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
+    Buffer.alloc(8 * 1024 * 1024 + 1, 0x20),
+  );
+assert.equal(oversizedJournal.ok, false);
+if (oversizedJournal.ok) {
+  throw new Error("oversized journal unexpectedly green");
+}
+assert.equal(
+  oversizedJournal.reason,
+  "witness_live_read_replay_journal_too_large",
+);
+
+const eventLimitJournal = buildLimitJournal();
+assert.ok(
+  Buffer.byteLength(eventLimitJournal, "utf8") < 8 * 1024 * 1024,
+  "event-limit proof journal must remain below byte limit",
+);
+const eventLimitState =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
+    eventLimitJournal,
+  );
+assert.equal(eventLimitState.ok, true);
+if (!eventLimitState.ok) throw new Error("event-limit journal held");
+assert.equal(eventLimitState.event_count, 8192);
+assert.equal(eventLimitState.generation, 4096);
+assert.equal(eventLimitState.ready_for_issue, true);
+
+const eventLimitIssue =
+  planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1({
+    journal_jsonl: eventLimitJournal,
+    entropy_sha256: sha("b"),
+    issued_at_ms: 409_600_001,
+    expires_at_ms: 409_600_002,
+  });
+assert.equal(eventLimitIssue.ok, false);
+if (eventLimitIssue.ok) {
+  throw new Error("8193rd event unexpectedly planned");
+}
+assert.equal(
+  eventLimitIssue.reason,
+  "witness_live_read_replay_event_limit_reached",
+);
+
 const repeatedA =
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayStateV1(
     abandon2.next_journal_jsonl,
@@ -390,6 +545,8 @@ console.log("time_regression_rejected=true");
 console.log("ttl_bound_ms=38000");
 console.log("canonical_jsonl_required=true");
 console.log("event_chain_content_addressed=true");
+console.log("journal_byte_limit_enforced=true");
+console.log("journal_event_limit_enforced=true");
 console.log("durable_persistence_proven=false");
 console.log("rollback_resistance_proven=false");
 console.log("trusted_verification_clock_proven=false");
