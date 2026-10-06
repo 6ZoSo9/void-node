@@ -291,6 +291,11 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.node.resolved_path = "/opt/node/bin/node";
+  expectHeld(value, /witness_installation_node_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.node.node_major = 20;
   expectHeld(value, /witness_installation_node_invalid/u);
 }
@@ -311,7 +316,18 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.config.authority_root = "/var/lib/alternate-witness-root";
+  expectHeld(value, /witness_installation_config_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.authorized_key.environment_options = ["NODE_OPTIONS=--require=/tmp/x.js"];
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.authorized_key.authorized_keys_path =
+    "/tmp/authorized_keys";
   expectHeld(value, /witness_installation_authorized_key_invalid/u);
 }
 {
