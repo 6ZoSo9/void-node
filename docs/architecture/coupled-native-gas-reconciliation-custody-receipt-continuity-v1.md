@@ -112,7 +112,11 @@ Within one supplied chain, these must remain exact:
 
 A changed boot ID is allowed. Reboot is not equivalent to machine replacement.
 
-One exact collector-decision digest may appear only once.
+One exact collector-decision digest may appear only once. The exact embedded
+qualification-receipt SHA-256 is independently one-time as well. This prevents
+the same host-evidence/qualification receipt from being replayed by wrapping it
+in otherwise-ignored bounded collector-decision fields that merely change the
+outer collector hash.
 
 A host/payer/root/machine replacement requires a separately reviewed bootstrap
 or migration boundary; this contract does not silently continue across it.
@@ -194,6 +198,9 @@ The proof covers:
 - lower untrusted collector time/evidence-generation on the second receipt;
 - changed boot identity;
 - duplicate collector-decision replay;
+- same qualification receipt replayed under a differently hashed bounded
+  collector wrapper;
+- duplicate qualification-receipt hash inside a supplied journal;
 - host, payer, payer-domain, root and machine drift;
 - synthetic collector rejection;
 - attempted trusted-collector promotion;
