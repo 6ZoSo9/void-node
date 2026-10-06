@@ -36,8 +36,11 @@ The event line itself must also be canonical JSON bytes. Equivalent JSON with
 different whitespace/key order is rejected so one accepted event cannot have
 multiple journal byte representations.
 
-The journal is bounded to 8 MiB / 8192 events in V1. Reaching the bound HOLDS;
-this source contract does not define production journal rotation.
+The journal is bounded to 8 MiB / 8192 events in V1. Both classification and
+planning are fail-closed at those bounds: a valid 8192-event idle journal may
+classify successfully, but the planner refuses an 8193rd event even when byte
+capacity remains. This source contract does not define production journal
+rotation.
 
 ## Challenge derivation
 
@@ -216,7 +219,9 @@ The focused proof covers:
 - forbidden abandon payload;
 - canonical JSONL enforcement;
 - event digest tamper rejection;
-- missing final newline rejection; and
+- missing final newline rejection;
+- direct >8 MiB journal rejection;
+- one valid 8192-event journal plus 8193rd-event planning HOLD; and
 - all negative live/runtime/custody/economic authority flags.
 
 ## Next gate
