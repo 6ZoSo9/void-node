@@ -762,10 +762,13 @@ function parseReceiptLine(line, expectedGeneration, expectedPrevious) {
   }
   return Object.freeze({
     ...normalized,
-    source_binding_id: safeId(
-      receipt.source_binding_id,
-      "receipt_continuity_source_binding_id_invalid",
-    ),
+    source_binding_id: (() => {
+      const value = String(receipt.source_binding_id ?? "").trim();
+      if (!SOURCE_BINDING_ID.test(value)) {
+        fail("receipt_continuity_source_binding_id_invalid");
+      }
+      return value;
+    })(),
     source_generation_id: SOURCE_GENERATION_ID,
     receipt_sha256: receiptSha,
     record: receipt,
