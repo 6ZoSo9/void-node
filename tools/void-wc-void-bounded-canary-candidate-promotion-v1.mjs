@@ -165,6 +165,10 @@ const REVIEWED_SOURCE_BINDINGS = Object.freeze({
     path: "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
     blob_sha1: "bcf7d4949b054599c643867b586b75a844f25cbc",
   }),
+  production_market_vault_identity_correction: Object.freeze({
+    path: "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
+    blob_sha1: "4129e0dc5e34e08b9402169fcabfe4fba9a14973",
+  }),
   production_settlement_adapter_review: Object.freeze({
     path: "tools/void-wc-void-opening-settlement-adapter-review-v1.mjs",
     blob_sha1: "c19a2e42e8d722eade864c7742af2dcaf3c7b11f",
