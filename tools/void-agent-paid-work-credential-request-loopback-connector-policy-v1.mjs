@@ -17,6 +17,8 @@ export const VOID_AGENT_CREDENTIAL_REQUEST_LOOPBACK_CONNECTOR_POLICY_AUTHORITY_V
     originating_socket_uid_policy_required: true,
     nonmatching_connector_drop_required: true,
     connector_root_uid_required: true,
+    canonical_service_units_required: true,
+    dedicated_adapter_gateway_identities_required: true,
     adapter_nonroot_required: true,
     gateway_nonroot_required: true,
     adapter_cap_net_admin_forbidden: true,
@@ -59,6 +61,10 @@ const TABLE_NAME = "void_credential_edge_v1";
 const CHAIN_NAME = "output";
 const TARGET_HOST = "127.0.0.1";
 const PUBLIC_TLS_PORT = 443;
+const CONNECTOR_SERVICE_UNIT = "tailscaled.service";
+const ADAPTER_SERVICE_UNIT =
+  "void-agent-credential-request-proxy-v2-edge-v1.service";
+const GATEWAY_SERVICE_UNIT = "void-ai-agent-public-gateway-v1.service";
 
 function held(reason) {
   return Object.freeze({
@@ -201,6 +207,9 @@ export function classifyVoidAgentCredentialRequestLoopbackConnectorPolicyV1(
       "loopback_policy_adapter_shape_invalid",
     );
     name(adapter.service_unit, "loopback_policy_adapter_service_invalid");
+    if (adapter.service_unit !== ADAPTER_SERVICE_UNIT) {
+      throw new Error("loopback_policy_adapter_service_invalid");
+    }
     const adapterPort = integer(
       adapter.listen_port,
       1024,
@@ -250,6 +259,9 @@ export function classifyVoidAgentCredentialRequestLoopbackConnectorPolicyV1(
       "loopback_policy_gateway_shape_invalid",
     );
     name(gateway.service_unit, "loopback_policy_gateway_service_invalid");
+    if (gateway.service_unit !== GATEWAY_SERVICE_UNIT) {
+      throw new Error("loopback_policy_gateway_service_invalid");
+    }
     integer(
       gateway.effective_uid,
       1,
@@ -282,7 +294,7 @@ export function classifyVoidAgentCredentialRequestLoopbackConnectorPolicyV1(
       ],
       "loopback_policy_connector_shape_invalid",
     );
-    if (connector.service_unit !== "tailscaled.service") {
+    if (connector.service_unit !== CONNECTOR_SERVICE_UNIT) {
       throw new Error("loopback_policy_connector_service_invalid");
     }
     if (connector.effective_uid !== 0 || connector.effective_gid !== 0) {
@@ -293,6 +305,13 @@ export function classifyVoidAgentCredentialRequestLoopbackConnectorPolicyV1(
       connector.effective_uid === gateway.effective_uid
     ) {
       throw new Error("loopback_policy_connector_uid_not_isolated");
+    }
+    if (
+      adapter.service_unit === gateway.service_unit ||
+      adapter.effective_uid === gateway.effective_uid ||
+      adapter.effective_gid === gateway.effective_gid
+    ) {
+      throw new Error("loopback_policy_adapter_gateway_identity_not_dedicated");
     }
 
     if (
@@ -370,7 +389,11 @@ export function classifyVoidAgentCredentialRequestLoopbackConnectorPolicyV1(
       adapter_host: TARGET_HOST,
       adapter_port: adapterPort,
       connector_service_unit: connector.service_unit,
+      adapter_service_unit: adapter.service_unit,
+      gateway_service_unit: gateway.service_unit,
       connector_uid: connector.effective_uid,
+      adapter_uid: adapter.effective_uid,
+      gateway_uid: gateway.effective_uid,
       firewall_table: TABLE_NAME,
       firewall_chain: CHAIN_NAME,
       root_equivalent_bypass_out_of_scope: true,
