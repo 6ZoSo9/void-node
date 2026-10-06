@@ -1,0 +1,189 @@
+# Buy VOID allocation custody witness installation evidence v2
+
+## Scope
+
+`VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_V2`
+is a read-only designated-host evidence collector for the merged V2 witness
+installation qualification contract.
+
+It observes an already-installed host. It does not install or modify SSH keys,
+`authorized_keys`, sshd, the V2 forced-command handler, its config, the
+continuity attestation, witness storage, services, mounts, permissions, runtime
+state, wallets, keys, transactions, allocation state, activation, inventory,
+treasury/liquidity, or funds.
+
+The collector's output is content-addressed but is **not** live authority.
+Trusted collection time, monotonic evidence generation, client-side
+`known_hosts` content, authenticated external transport, independent external
+witness storage, runtime integration, protected high-water custody and
+production readiness remain separate gates.
+
+## Input
+
+The only caller-supplied configuration is:
+
+```json
+{
+  "schema": "void_buy_void_allocation_custody_witness_installation_evidence_config_v2",
+  "marker": "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_INSTALLATION_EVIDENCE_CONFIG_V2",
+  "version": 2,
+  "transport_policy": {}
+}
+```
+
+The transport policy must pass the merged canonical witness transport
+classifier. Host paths, handler path, config path, witness path, continuity
+attestation path, Node path, `env` path, sshd path and host-key path are fixed
+by source; a caller cannot select an alternate file or command.
+
+## Descriptor-bound file evidence
+
+Security-sensitive files are not opened by pathname alone.
+
+The live collector:
+
+1. captures the visible final-file identity;
+2. opens the filesystem root with `O_DIRECTORY|O_NOFOLLOW`;
+3. walks each ancestor descriptor-relative through
+   `/proc/self/fd/<dirfd>/<component>` with
+   `O_DIRECTORY|O_NOFOLLOW`;
+4. opens the final basename from the retained parent with
+   `O_NOFOLLOW`;
+5. requires the visible identity and opened descriptor identity to match;
+6. reads from that exact descriptor;
+7. re-`fstat`s and rebinds the visible final path after the read.
+
+The parent-chain ownership claim is separately descriptor-walked and requires
+every claimed root-owned parent to remain the same directory identity, owned by
+UID 0 and not group/world writable.
+
+Symlinked ancestors therefore cannot redirect the evidence read while still
+producing a qualified parent-chain claim.
+
+## V2 installation evidence
+
+The collector observes and passes to
+`classifyBuyVoidAllocationCustodyWitnessInstallationQualificationV2(...)`:
+
+- the dedicated witness account and shell identity;
+- exact V2 handler path and Git-blob identity;
+- exact Node and `/usr/bin/env` executable identity;
+- canonical protected V2 config;
+- exact root-owned restrictive `AuthorizedKeysFile` entry;
+- effective `sshd -T` policy;
+- pinned host-key and authorized client-key identities;
+- exact V2 forced-command string;
+- exact reviewed continuity-attestation bytes and metadata; and
+- collection timestamp/evidence generation as observed integers.
+
+A successful collector run requires the canonical V2 qualifier to return a
+`voidwiq2_...` qualification ID. The collector does not replace that
+qualifier with its own interpretation.
+
+## Local pre-exec probes
+
+The V1/V2 installation evidence contains claims about behavior before Node
+executes. V2 does not fabricate those booleans.
+
+The collector runs only local, bounded, non-mutating probes:
+
+1. **Original command rejection.** The exact reviewed forced-command shell text
+   is invoked with a non-empty `SSH_ORIGINAL_COMMAND`. It must terminate with
+   exit status 3 and no output, before the Node handler can execute.
+2. **Environment clearing.** A hostile environment containing every reviewed
+   dangerous variable is passed to the exact `env -i` sanitization shape.
+   The resulting child environment must contain exactly:
+   `PATH=/usr/bin:/bin`, `LANG=C`, `LC_ALL=C`, and
+   `VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2=1`.
+3. **Shell startup hook rejection.** The configured `/bin/sh` is invoked
+   non-interactively with `ENV` and `BASH_ENV` pointing at probe input. The
+   injected hook marker must not execute.
+
+These are local pre-exec observations only. They do not perform SSH and do not
+run the witness handler.
+
+## Machine-ID continuity
+
+V2 exists specifically because the reviewed Nimo witness has an immutable
+historical predecessor identity while the designated host now has a reviewed
+successor machine ID.
+
+The collector mirrors the merged V2 handler's identity rule.
+
+Hostname and root-disk serial/WWN must remain equal to the witness identity and
+to the exact reviewed continuity attestation. The observed host key must also
+match the attestation's reviewed ED25519 OpenSSH fingerprint.
+
+Two identity paths are accepted:
+
+- `historical_exact`: current host machine ID equals the current witness-tip
+  machine ID; the continuity attestation is still installed and qualified but
+  is not needed to bridge identity for that observation.
+- `reviewed_machine_id_continuity`: the witness tip uses the exact historical
+  machine-ID SHA-256, the live host uses the exact reviewed successor
+  machine-ID SHA-256, and the witness begins with the exact historical
+  1411-byte predecessor journal whose full SHA-256, event count and tip event
+  hash are reviewed. The exact installed continuity attestation must bind those
+  predecessor/successor identities and the stable hostname/disk/host key.
+
+Any other machine-ID drift, hostname drift, disk drift, host-key drift,
+historical-prefix drift, missing/tampered continuity attestation or ownership
+mismatch HOLDs.
+
+## Double census and receipt
+
+The collector performs two complete observations at one captured timestamp.
+Canonical installation evidence, host identity, witness storage summary and
+identity-path classification must be byte-identical between the two observations.
+
+The receipt binds:
+
+- V2 installation qualification ID;
+- SHA-256 of the exact V2 qualification evidence;
+- SHA-256 of the qualifier's normalized result;
+- host identity;
+- witness storage identity;
+- selected machine-ID continuity path;
+- whether the continuity attestation was consumed for identity bridging;
+- observed host-key/client-key/sshd/continuity/pre-exec facts; and
+- explicit false live/runtime/custody/funds authority flags.
+
+`collector_receipt_sha256` is the SHA-256 of the canonical receipt body.
+
+## Authority boundary
+
+Even a successful receipt reports:
+
+- `live_evidence_origin_proven=false`;
+- `trusted_verification_clock_proven=false`;
+- `evidence_generation_monotonicity_proven=false`;
+- `client_known_hosts_content_observed=false`;
+- `external_transport_authenticated=false`;
+- `external_witness_storage_proven=false`;
+- `protected_high_water_custody_proven=false`;
+- `independent_custody_proven=false`;
+- `runtime_integration=false`;
+- `production_gate_ready=false`; and
+- `funds_movement=false`.
+
+This source lane does not authorize a live Nimo run. A later explicit operator
+gate must install/inspect the designated host, collect live evidence, bind
+trusted time and monotonic generation, validate client-side known-hosts
+material, and perform authenticated external read/append qualification before
+#2452 can close.
+
+## Focused proof
+
+```bash
+npm run build
+node --check tools/void-buy-allocation-custody-witness-installation-evidence-v2.mjs
+node scripts/prove_void_buy_allocation_custody_witness_installation_evidence_v2.mjs
+npx tsx scripts/prove_buy_void_allocation_custody_witness_installation_qualification_v2.ts
+npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
+node scripts/prove_buy_void_allocation_custody_witness_forced_command_v2.mjs
+git diff --check
+```
+
+The synthetic proof uses injected host I/O only. It performs no live SSH,
+service, mount, permission, witness, payment, key, transaction, activation or
+funds mutation.
