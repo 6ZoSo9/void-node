@@ -20,6 +20,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHO
     clean_worktree_required: true,
     reviewed_base_ancestry_required: true,
     exact_reviewed_git_blobs_required: true,
+    exact_reviewed_worktree_bytes_required: true,
     reviewed_package_tsconfig_context_bound: true,
     writer_generation_binding_proven_on_success: true,
     qualification_generation_binding_proven_on_success: true,
