@@ -12,6 +12,10 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_AUTHO
   Object.freeze({
     source_only_contract: true,
     git_repository_identity_read: true,
+    subprocess_git_read: true,
+    filesystem_read: true,
+    filesystem_write: false,
+    network_access: false,
     clean_worktree_required: true,
     reviewed_base_ancestry_required: true,
     exact_reviewed_git_blobs_required: true,
@@ -178,7 +182,7 @@ function normalizeObserved(input) {
   return Object.freeze({ head, tree, origin });
 }
 
-export function classifyCoupledNativeGasReconciliationCustodySourceBindingV1(
+export function testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1(
   input,
 ) {
   try {
@@ -337,7 +341,7 @@ export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
             ),
           }),
         );
-    return classifyCoupledNativeGasReconciliationCustodySourceBindingV1({
+    return testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
       repository_head_sha: head,
       repository_tree_sha: tree,
       repository_origin: origin,
