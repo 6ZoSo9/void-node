@@ -154,9 +154,11 @@ durable replay writer:
   -> exact consume/abandon publication
 ```
 
-#2521 must still terminalize the repaired non-mutating witness read, and #2519
-must still be repinned/requalified to the final #2521 installation/runtime
-identities. This source contract does not bypass those dependencies.
+#2521 is merged and fixes the source-level non-mutating witness-read boundary.
+#2519 still requires reconciliation to that final handler/runtime-bundle
+generation plus fresh installation/runtime-bundle evidence before any live
+read packet can become authoritative. This source contract does not bypass
+those dependencies.
 
 ## Focused proof
 
@@ -183,9 +185,11 @@ The proof covers:
 - alternate same-generation journal branch;
 - multi-event jump;
 - pending challenge identity tamper;
+- pending challenge expiry tamper;
 - journal digest tamper;
 - inconsistent pending/ready fields;
 - extra high-water key;
+- fatal invalid-UTF-8 high-water rejection;
 - noncanonical high-water bytes; and
 - all negative durability/custody/runtime/economic authority flags.
 
