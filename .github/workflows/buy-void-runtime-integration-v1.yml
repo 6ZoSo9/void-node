@@ -77,9 +77,7 @@ jobs:
           for proof in scripts/prove_buy_void_*.ts
           do
             case "$proof" in
-              scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts|scripts/prove_buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.ts)
-                # The witness runtime-bundle proof binds emitted dist/ bytes and
-                # is exercised by its dedicated workflow after npm run build.
+              scripts/prove_buy_void_source_finality_generation_provenance_v4.ts|scripts/prove_buy_void_source_finality_generation_provenance_v4_deadline.ts)
                 continue
                 ;;
             esac
