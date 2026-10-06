@@ -339,6 +339,23 @@ export function testOnlyPinnedObservationPlanV1(head) {
   return pinnedObservationPlan(head);
 }
 
+function requireObservationHeadUnchangedV1(initialHead, finalHead) {
+  if (!HEX40.test(initialHead) || !HEX40.test(finalHead)) {
+    fail("source_binding_repository_identity_invalid");
+  }
+  if (initialHead !== finalHead) {
+    fail("source_binding_repository_head_changed_during_observation");
+  }
+  return initialHead;
+}
+
+export function testOnlyRequireObservationHeadUnchangedV1(
+  initialHead,
+  finalHead,
+) {
+  return requireObservationHeadUnchangedV1(initialHead, finalHead);
+}
+
 function rejectRepositoryExecutionSettingsV1() {
   for (const [args, reason] of [
     [
@@ -574,9 +591,10 @@ export function inspectCoupledNativeGasReconciliationCustodySourceBindingV1() {
       ["rev-parse", "HEAD"],
       "source_binding_repository_final_head_unavailable",
     );
-    if (finalHead !== plan.head) {
-      fail("source_binding_repository_head_changed_during_observation");
-    }
+    requireObservationHeadUnchangedV1(
+      plan.head,
+      finalHead,
+    );
 
     return testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1({
       repository_head_sha: plan.head,
