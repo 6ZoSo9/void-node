@@ -12,11 +12,11 @@ Live installation requires both the V2 installation qualification and this runti
 
 The reviewed census found 8 runtime files, 11 static relative-import edges, zero dynamic `import()` calls, and zero CommonJS `require()` calls.
 
-Manifest ID: `voidwfb1_3a680125403ce20ff3f20c37b9f6aae7a3cbf550c2d0b1883a7fc9130e6a7f21`
+Manifest ID: `voidwfb1_d8216a536e9e53035aa5216fd6c2023b0de9ee6a003bc67783da77d954cb38c9`
 
-Manifest SHA-256: `sha256:887543aac385cc9bba9535de145548efdbfa97590837ba6048d210fd527f3940`
+Manifest SHA-256: `sha256:a2b669873302ebe674376e438692b051affb9d1cb25ce36e05e6c29f4262c54d`
 
-Census source commit: `8a5c7ab1543b9270164adac11a40de46df5388e2`
+Census source commit: `1c69eff28485e5af7c1f9514d4825f637c418c12`
 
 ## Installed layout
 
