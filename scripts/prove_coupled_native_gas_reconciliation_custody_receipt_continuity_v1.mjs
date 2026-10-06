@@ -276,6 +276,19 @@ expectHeld(
   );
 }
 
+{
+  const bad = structuredClone(sourceBinding);
+  bad.source_binding_id = "voidngrcsb1_" + "f".repeat(64);
+  expectHeld(
+    planReceiptRaw({
+      journal_jsonl: "",
+      collector_decision: firstCollector,
+      source_binding: bad,
+    }),
+    "receipt_continuity_source_binding_id_mismatch",
+  );
+}
+
 const firstPlan = requireOk(
   planReceipt({
     journal_jsonl: "",
@@ -724,6 +737,7 @@ console.log(
 );
 console.log("source_generation_bound=true");
 console.log("source_binding_validation_required_for_plan=true");
+console.log("source_binding_id_rederived=true");
 console.log("source_binding_id_committed_in_receipt=true");
 console.log("historical_source_binding_revalidation=false");
 console.log("qualification_receipt_self_hash_bound=true");
