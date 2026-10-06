@@ -38,21 +38,34 @@ Accordingly `rollback_resistance_proven=false`,
 
 ## Canonical high-water record
 
-The high-water record content-addresses the exact replay journal state:
+The writer does **not** define a second high-water schema. It composes the
+merged #2529
+`VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1`
+contract directly.
+
+Every persisted high-water byte sequence is the exact canonical #2529 JSON
+projection over the replay journal, binding:
 
 - generation;
-- sequence;
-- event count;
+- sequence and event count;
 - pending state;
-- pending challenge SHA-256;
+- pending challenge SHA-256, challenge ID, and expiry;
 - tip event SHA-256;
-- journal SHA-256;
-- journal byte length; and
-- `voidwlrhw1_...` identifier over the canonical high-water body.
+- last terminal state;
+- `ready_for_issue`;
+- exact journal SHA-256 and byte length; and
+- the canonical high-water SHA-256 returned by #2529.
+
+The writer's redundant transaction intent stores the exact canonical
+`before_high_water_json` and `after_high_water_json` strings. Recovery
+classifies both journal endpoints through #2529 before any forward repair; it
+does not independently parse or reinterpret a competing V1 high-water object.
 
 An idle genesis installation consists of an explicit zero-byte journal and the
-canonical generation-zero high-water record returned by
-`buildBuyVoidAllocationCustodyWitnessLiveReadReplayGenesisHighWaterV1()`.
+canonical generation-zero high-water bytes returned by #2529. The convenience
+helper
+`buildBuyVoidAllocationCustodyWitnessLiveReadReplayGenesisHighWaterV1()`
+must return byte-for-byte the same projection and SHA-256.
 
 The writer does not bootstrap these files on its own.
 
@@ -68,6 +81,10 @@ Consume/abandon operations call
 
 Only the canonical event line and next journal returned by those planners can
 enter the persistence transaction.
+
+The current and proposed journal states are projected and rebound through the
+canonical #2529 high-water contract before publication. No writer-local
+high-water identity or alternate V1 field set is accepted.
 
 This preserves the replay state's generation increment, single-pending-
 challenge, one-terminal-transition, expiry, request-ID, response-SHA, and
@@ -86,8 +103,8 @@ lock-order inversion.
 One transition creates a content-addressed redundant intent containing:
 
 - operation: issue / consumed / abandoned;
-- exact before high-water;
-- exact after high-water;
+- exact canonical #2529 `before_high_water_json`;
+- exact canonical #2529 `after_high_water_json`;
 - exact canonical event JSONL line; and
 - `voidwlri1_...` intent identifier.
 
@@ -127,8 +144,8 @@ Accepted crash states are:
 - journal/high-water both at **after**.
 
 The writer reconstructs an unfinished journal transition only by appending the
-intent's exact canonical event line to the exact before journal and proving the
-derived high-water equals the intent's after high-water.
+intent's exact canonical event line to the exact before journal and proving
+both before and after endpoints through #2529's binding classifier.
 
 An impossible state where the high-water is already **after** while the journal
 is still **before** HOLDS as a publication-order violation.
@@ -155,6 +172,7 @@ be claimed.
 
 Even after a successful source-level write:
 
+- `canonical_replay_high_water_required=true`;
 - `validated_packet_binding_proven=false`;
 - `live_durable_storage_proven=false`;
 - `rollback_resistance_proven=false`;
@@ -179,12 +197,17 @@ npm run typecheck
 npm run build
 npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_writer_v1.ts
 npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_state_v1.ts
+npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_high_water_v1.ts
 npx tsx scripts/prove_buy_void_filesystem_bakery_lock_async_v1.ts
 git diff --check
 ```
 
 The proof uses temporary local directories only. It covers:
 
+- writer genesis byte/SHA equality with canonical #2529;
+- canonical #2529 high-water binding after issue and consume;
+- static rejection of a private writer high-water schema/marker or
+  `voidwlrhw1_` identity;
 - explicit preprovisioned genesis;
 - issue and consume persistence;
 - duplicate consume rejection;
