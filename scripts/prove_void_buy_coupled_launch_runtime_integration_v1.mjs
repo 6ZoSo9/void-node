@@ -18,6 +18,9 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = relative => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const index = read("src/index.ts");
+const coupledLaunchGate = read(
+  "src/economic/buy_void_coupled_launch_gate_v1.mjs",
+);
 const docker = read("Dockerfile");
 const compose = read("docker-compose.yml");
 const capacityAdmission = read(
@@ -43,7 +46,10 @@ const gitBlobSha1 = bytes => crypto.createHash("sha1")
 
 assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
 assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
-assert.ok(index.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1));
+assert.ok(
+  coupledLaunchGate.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1),
+  "coupled launch ID must be owned by the imported gate module",
+);
 assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
 assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
