@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 
 import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1,
@@ -18,7 +20,10 @@ const observed = () => ({
   reviewed_base_is_ancestor: true,
   source_blobs:
     VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1
-      .map((row) => ({ ...row })),
+      .map((row) => ({
+        ...row,
+        worktree_git_blob_sha1: row.git_blob_sha1,
+      })),
 });
 
 const baseline =
@@ -82,6 +87,24 @@ for (let index = 0; index <
   assert.equal(
     held.reason,
     "source_binding_reviewed_source_drift:" +
+      candidate.source_blobs[index].path,
+  );
+}
+
+for (let index = 0; index <
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1.length;
+  index += 1
+) {
+  const candidate = observed();
+  candidate.source_blobs[index].worktree_git_blob_sha1 =
+    "0".repeat(40);
+  const held =
+    testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindingV1(candidate);
+  assert.equal(held.ok, false, candidate.source_blobs[index].path);
+  if (held.ok) throw new Error("expected worktree source drift HOLD");
+  assert.equal(
+    held.reason,
+    "source_binding_reviewed_source_worktree_drift:" +
       candidate.source_blobs[index].path,
   );
 }
@@ -175,6 +198,62 @@ try {
   for (const [key, value] of Object.entries(poison)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
+  }
+}
+
+for (const [flag, clearFlag] of [
+  ["--assume-unchanged", "--no-assume-unchanged"],
+  ["--skip-worktree", "--no-skip-worktree"],
+]) {
+  const target = "package.json";
+  const original = fs.readFileSync(target);
+  const runGit = (args) =>
+    spawnSync("/usr/bin/git", args, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        PATH: "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+      },
+    });
+  try {
+    const marked = runGit(["update-index", flag, target]);
+    assert.equal(marked.status, 0, String(marked.stderr || ""));
+
+    fs.writeFileSync(
+      target,
+      Buffer.concat([
+        original,
+        Buffer.from("\n", "utf8"),
+      ]),
+    );
+
+    const hiddenStatus = runGit([
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ]);
+    assert.equal(hiddenStatus.status, 0);
+    assert.equal(
+      String(hiddenStatus.stdout || "").trim(),
+      "",
+      flag + " must reproduce hidden worktree drift",
+    );
+
+    const held =
+      inspectCoupledNativeGasReconciliationCustodySourceBindingV1();
+    assert.equal(held.ok, false, flag);
+    if (held.ok) throw new Error("expected hidden worktree drift HOLD");
+    assert.equal(
+      held.reason,
+      "source_binding_reviewed_source_worktree_drift:" + target,
+      flag,
+    );
+  } finally {
+    fs.writeFileSync(target, original);
+    const cleared = runGit(["update-index", clearFlag, target]);
+    assert.equal(cleared.status, 0, String(cleared.stderr || ""));
   }
 }
 
