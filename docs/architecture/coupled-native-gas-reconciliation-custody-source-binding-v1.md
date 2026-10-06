@@ -64,10 +64,16 @@ The read-only inspector requires:
   reviewed Git blob, and reviewed-base ancestry are all resolved against that
   exact commit rather than a moving `HEAD`;
 - the visible `HEAD` must equal the captured commit again at observation end;
-- canonical VOID repository origin;
+- canonical VOID repository origin, repository execution settings, and reviewed
+  ancestry are revalidated again before the final HEAD acceptance;
 - a clean reviewed checkout with no assume-unchanged/skip-worktree index
   suppression flags, no staged delta from the pinned commit, and no ordinary
   unstaged/deleted/untracked paths;
+- the exact index flags and stage-0 manifest are captured around the raw tracked
+  worktree census, required byte-identical afterward, and the pinned-HEAD
+  cached-index comparison is repeated after that census. A stage/index mutation
+  that lands after the first clean check therefore cannot become the accepted
+  manifest generation;
 - reviewed base commit ancestry against the pinned commit; and
 - exact `<pinned-commit>:<path>` Git blob identity for all 21 bindings; and
 - exact no-follow/nonblocking working-tree bytes for every reviewed path,
@@ -75,7 +81,10 @@ The read-only inspector requires:
   Reads use the original descriptor size as a hard 16-MiB cap, positional reads,
   an EOF growth probe, and stable descriptor/path identity checks. This prevents
   `assume-unchanged` / `skip-worktree` flags from hiding byte drift and makes
-  regular-file-to-FIFO replacement fail closed without blocking on FIFO open.
+  regular-file-to-FIFO replacement fail closed without blocking on FIFO open;
+- every reviewed worktree path is rehashed again after the full repository-clean
+  census and must equal the first reviewed observation, preventing a reviewed
+  source from changing underneath the broader tracked-file scan.
 
 The contract does not require the checkout branch itself to be `main`.
 A reviewed feature or later descendant generation may pass only while all
@@ -153,6 +162,10 @@ The focused proof:
   authority;
 - proves the observation plan resolves tree/blob/ancestry specs from one pinned
   commit and rejects a changed final HEAD;
+- stages a modified reviewed file after the initial cached-index clean check but
+  before the stage manifest is read, and requires
+  `source_binding_repository_index_changed_during_observation` rather than
+  accepting the newer staged/worktree generation;
 - installs both repository-local and per-worktree executable filter settings
   and requires HOLD before source inspection;
 - separately arms a repository clean filter after the config-check boundary and
