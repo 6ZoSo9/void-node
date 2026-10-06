@@ -24,8 +24,8 @@ A positive source-policy result then additionally requires:
 3. ordinary noncredential gateway routes remain available there;
 4. the same reviewed public-gateway service owns a separate IPv4-loopback-only
    credential downstream listener on a distinct nonprivileged port;
-5. that listener serves only
-   `POST /__void/agents/paid-work/credential-requests/v1`;
+5. that listener binds method `POST` and serves only
+   `/__void/agents/paid-work/credential-requests/v1`;
 6. only the #2513 adapter UID is trusted to connect to that downstream port;
 7. source identity is not forwarded as a downstream header or authority;
 8. a separate root-owned nftables OUTPUT policy allows that adapter UID to the
