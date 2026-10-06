@@ -467,7 +467,14 @@ for (const [label, collector] of [
 
 {
   const first = JSON.parse(firstPlan.append_jsonl);
-  const noncanonical = JSON.stringify(first, null, 2) + "\n";
+  const canonicalLine = JSON.stringify(first);
+  const colon = canonicalLine.indexOf(":");
+  assert.ok(colon > 0);
+  const noncanonical =
+    canonicalLine.slice(0, colon + 1) +
+    " " +
+    canonicalLine.slice(colon + 1) +
+    "\n";
   expectHeld(
     classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1(
       noncanonical,
