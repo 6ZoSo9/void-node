@@ -474,6 +474,49 @@ for (const phase of [
 {
   const f = fixture();
   try {
+    const originalInput = inputFor(f);
+    const crashed = requireHeld(
+      await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
+        originalInput,
+        "after_high_water_intent",
+      ),
+    );
+    assert.match(crashed.reason, /test_crash_after_high_water_intent/u);
+    const alternate = requireHeld(
+      await persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        inputFor(
+          f,
+          makeCollector({ observed: 1_800_000_001_000 }),
+        ),
+      ),
+      "receipt_writer_pending_intent_input_mismatch",
+    );
+    assert.equal(alternate.operation_performed, false);
+    assert.equal(
+      fs.existsSync(path.join(f.journalRoot, INTENT_NAME)),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)),
+      true,
+    );
+    const exactRetry = requireOk(
+      await persistCoupledNativeGasReconciliationCustodyReceiptWriterV1(
+        originalInput,
+      ),
+      "exact pending intent retry",
+    );
+    assert.equal(exactRetry.status, "recovered");
+    assert.equal(exactRetry.recovery_performed, true);
+    assert.equal(exactRetry.generation, 1);
+  } finally {
+    cleanup(f);
+  }
+}
+
+{
+  const f = fixture();
+  try {
     const crashed = requireHeld(
       await testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterCrashV1(
         inputFor(f),
@@ -747,6 +790,7 @@ console.log("high_water_exact_journal_binding=true");
 console.log("exact_post_reclassification=true");
 console.log("exact_terminal_idempotent_retry=true");
 console.log("intent_bound_high_water_ahead_recovery=true");
+console.log("pending_intent_exact_input_binding=true");
 console.log("storage_bootstrap=false");
 console.log("rollback_resistance_proven=false");
 console.log("protected_custody_proven=false");
