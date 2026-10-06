@@ -70,6 +70,24 @@ function canonicalJson(value) {
   throw new Error("noncanonical_test_value");
 }
 
+function canonicalLine(value) {
+  return canonicalJson(value) + "\n";
+}
+
+function requestWithRecomputedId(body) {
+  const requestBody = { ...body };
+  delete requestBody.request_id;
+  return Object.freeze({
+    ...requestBody,
+    request_id:
+      "voidwreq1_" +
+      crypto
+        .createHash("sha256")
+        .update(canonicalJson(requestBody))
+        .digest("hex"),
+  });
+}
+
 function requireOk(value) {
   if (value?.ok !== true) {
     throw new Error(value?.reason || "unexpected_hold");
@@ -742,6 +760,120 @@ for (const hookName of [
   clean(fixture);
 }
 
+{
+  const extraKey = {
+    ...appendRequest.request,
+    unexpected_field: true,
+  };
+  const missingField = {
+    ...appendRequest.request,
+  };
+  delete missingField.next_tip_event_sha256;
+
+  const currentRequestId = appendRequest.request.request_id;
+  const lastIdChar = currentRequestId.at(-1);
+  const badRequestId =
+    currentRequestId.slice(0, -1) +
+    (lastIdChar === "0" ? "1" : "0");
+
+  const malformedDelta = {
+    ...appendRequest.request,
+    next_event_count:
+      appendRequest.request.next_event_count + 1,
+  };
+
+  const malformedCases = [
+    [
+      "extra_key",
+      Buffer.from(canonicalLine(extraKey), "utf8"),
+      /witness_forced_command_nonappend_blocked_by_pending_intent/u,
+    ],
+    [
+      "missing_append_field",
+      Buffer.from(canonicalLine(missingField), "utf8"),
+      /witness_forced_command_nonappend_blocked_by_pending_intent/u,
+    ],
+    [
+      "bad_request_id",
+      Buffer.from(
+        canonicalLine({
+          ...appendRequest.request,
+          request_id: badRequestId,
+        }),
+        "utf8",
+      ),
+      /witness_forced_command_nonappend_blocked_by_pending_intent/u,
+    ],
+    [
+      "malformed_append_delta",
+      Buffer.from(
+        canonicalLine(
+          requestWithRecomputedId(malformedDelta),
+        ),
+        "utf8",
+      ),
+      /witness_forced_command_pending_intent_request_mismatch/u,
+    ],
+  ];
+
+  for (const [label, malformedRequest, expectedError] of
+    malformedCases) {
+    const fixture = makeFixture();
+
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV2(
+          fixture.config,
+          appendRequest.request_json,
+          {
+            ...dependencies,
+            hooks: {
+              interrupt_after_partial_append: true,
+            },
+          },
+        ),
+      /witness_forced_command_test_interrupt/u,
+    );
+
+    const intentPath = path.join(
+      fixture.root,
+      "buy-void-allocation-custody-witness-append-intent-v1.json",
+    );
+    assert.equal(fs.existsSync(intentPath), true);
+
+    const witnessBeforeMalformed =
+      fs.readFileSync(fixture.witness);
+    const intentBeforeMalformed =
+      fs.readFileSync(intentPath);
+
+    assert.throws(
+      () =>
+        handleVoidBuyAllocationCustodyWitnessForcedCommandRequestV2(
+          fixture.config,
+          malformedRequest,
+          dependencies,
+        ),
+      expectedError,
+      label + " must HOLD before pending-intent recovery mutation",
+    );
+
+    assert.ok(
+      fs.readFileSync(fixture.witness).equals(
+        witnessBeforeMalformed,
+      ),
+      label + " must preserve witness bytes",
+    );
+    assert.ok(
+      fs.readFileSync(intentPath).equals(
+        intentBeforeMalformed,
+      ),
+      label + " must preserve pending intent bytes",
+    );
+
+    clean(fixture);
+  }
+}
+
 for (const hookName of [
   "interrupt_after_intent",
   "interrupt_after_partial_append",
@@ -1152,7 +1284,9 @@ const source =
 for (const token of [
   "VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V2",
   "requestOperationBeforeRecovery",
+  "classifyBuyVoidAllocationCustodyWitnessTransportRequestEnvelopeV1",
   "witness_forced_command_nonappend_blocked_by_pending_intent",
+  "witness_forced_command_pending_intent_request_mismatch",
   "SSH_ORIGINAL_COMMAND",
   "withBuyVoidFilesystemBakeryLockV1",
   "classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1",
@@ -1229,6 +1363,8 @@ console.log("recovery_host_identity_checked_before_mutation=true");
 console.log("read_pending_intent_holds_without_mutation=true");
 console.log("read_intent_only_recovery_mutation=false");
 console.log("read_torn_append_recovery_mutation=false");
+console.log("malformed_append_pending_intent_recovery_mutation=false");
+console.log("pending_intent_recovery_exact_request_bound=true");
 console.log("read_full_append_cleanup_mutation=false");
 console.log("mismatched_recovery_preserves_witness_and_intent=true");
 console.log("symlink_witness_rejected=true");
