@@ -416,6 +416,14 @@ assert.equal(baseline.transport_read_packet_qualified, true);
 assert.equal(baseline.normalized.remote_host, "nimo");
 assert.equal(baseline.normalized.installation_hostname, "Nimo");
 assert.equal(baseline.normalized.witness_hostname, "Nimo");
+assert.equal(
+  baseline.normalized.witness_identity_path,
+  "reviewed_machine_id_continuity",
+);
+assert.equal(
+  baseline.normalized.continuity_attestation_consumed,
+  true,
+);
 assert.equal(baseline.bounded_time_order_qualified, true);
 assert.equal(baseline.monotonic_generation_order_qualified, true);
 assert.equal(baseline.installation_network_context_qualified, true);
@@ -458,6 +466,37 @@ for (const key of [
       installation_receipt: tampered,
     }),
     /witness_live_read_installation_receipt_digest_mismatch/u,
+  );
+}
+
+{
+  const tampered = installationReceipt({
+    witness_identity_path: "historical_exact",
+    continuity_attestation_consumed: true,
+  });
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_receipt: tampered,
+    }),
+    /witness_live_read_installation_identity_path_invalid/u,
+  );
+}
+
+{
+  const original = baseInput.installation_receipt as any;
+  const tampered = installationReceipt({
+    witness_storage: {
+      ...original.witness_storage,
+      root_mode: 0o755,
+    },
+  });
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_receipt: tampered,
+    }),
+    /witness_live_read_installation_witness_invalid/u,
   );
 }
 
@@ -708,6 +747,8 @@ console.log("installation_receipt_digest_recomputed=true");
 console.log("installation_receipt_schema_matches_merged_collector=true");
 console.log("installation_authority_matches_merged_collector=true");
 console.log("runtime_bundle_manifest_identity_bound=true");
+console.log("installation_identity_path_coherence_bound=true");
+console.log("installation_witness_storage_shape_bound=true");
 console.log("installation_witness_state_rebound=true");
 console.log("client_known_hosts_content_qualified=true");
 console.log("known_hosts_host_and_ed25519_key_bound=true");
