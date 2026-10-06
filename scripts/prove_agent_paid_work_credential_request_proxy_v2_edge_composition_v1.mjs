@@ -107,6 +107,13 @@ const baseRate = {
   prior_events: [],
 };
 
+function exhaustedEvents(sourceKey) {
+  return [
+    { source_key: sourceKey, at_ms: 90_000 },
+    { source_key: sourceKey, at_ms: 95_000 },
+  ];
+}
+
 const a = classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
   connection_prefix: proxy4({
     source: "203.0.113.10",
@@ -193,16 +200,7 @@ const aExhausted =
     now_ms: 100_000,
     window_ms: 60_000,
     max_requests_per_source: 2,
-    prior_events: [
-      {
-        source_key: a.edge_limiter_source_key,
-        at_ms: 90_000,
-      },
-      {
-        source_key: a.edge_limiter_source_key,
-        at_ms: 95_000,
-      },
-    ],
+    prior_events: exhaustedEvents(a.edge_limiter_source_key),
   });
 assert.equal(aExhausted.ok, false);
 assert.equal(aExhausted.status, "RATE_LIMITED");
@@ -257,6 +255,115 @@ assert.notEqual(
   v6.edge_limiter_source_key,
   a.edge_limiter_source_key,
   "TCP6 source identity must remain distinct from TCP4",
+);
+
+const normalizationAliases = [
+  VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1 + "?",
+  "/__void/agents/paid-work/./credential-requests/v1",
+  "/__void/agents/paid-work/%2e/credential-requests/v1",
+  "/__void/agents/paid-work/x/%2e%2e/credential-requests/v1",
+  "/__void/agents/paid-work\\credential-requests/v1",
+];
+
+for (const target of normalizationAliases) {
+  const alias4 =
+    classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
+      connection_prefix: proxy4({
+        source: "203.0.113.10",
+        sourcePort: 47000,
+        requestLine: "POST " + target + " HTTP/1.1",
+      }),
+      headers: { Host: "voidchain.org" },
+      now_ms: 100_000,
+      window_ms: 60_000,
+      max_requests_per_source: 2,
+      prior_events: exhaustedEvents(a.edge_limiter_source_key),
+    });
+  assert.equal(alias4.ok, false, target);
+  assert.equal(alias4.status, "HOLD", target);
+  assert.equal(
+    alias4.reason,
+    "edge_credential_request_target_noncanonical",
+    target,
+  );
+
+  const alias6 =
+    classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
+      connection_prefix: proxy6({
+        sourcePort: 47001,
+        requestLine: "POST " + target + " HTTP/1.1",
+      }),
+      headers: { Host: "voidchain.org" },
+      now_ms: 100_000,
+      window_ms: 60_000,
+      max_requests_per_source: 2,
+      prior_events: exhaustedEvents(v6.edge_limiter_source_key),
+    });
+  assert.equal(alias6.ok, false, target);
+  assert.equal(alias6.status, "HOLD", target);
+  assert.equal(
+    alias6.reason,
+    "edge_credential_request_target_noncanonical",
+    target,
+  );
+}
+
+const nonEmptyQueryUnderExhaustedSource =
+  classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
+    connection_prefix: proxy4({
+      source: "203.0.113.10",
+      sourcePort: 47002,
+      requestLine:
+        "POST " +
+        VOID_AGENT_CREDENTIAL_REQUEST_PATH_V1 +
+        "?bad=1 HTTP/1.1",
+    }),
+    headers: { Host: "voidchain.org" },
+    now_ms: 100_000,
+    window_ms: 60_000,
+    max_requests_per_source: 2,
+    prior_events: exhaustedEvents(a.edge_limiter_source_key),
+  });
+assert.equal(nonEmptyQueryUnderExhaustedSource.ok, true);
+assert.equal(
+  nonEmptyQueryUnderExhaustedSource.status,
+  "FORWARD_SANITIZED_NOT_TRUSTED",
+);
+assert.equal(
+  nonEmptyQueryUnderExhaustedSource.credential_source_rate_applied,
+  false,
+);
+assert.equal(
+  nonEmptyQueryUnderExhaustedSource.rate_event_state_mutation_required,
+  false,
+);
+
+const genuineNonCredentialUnderExhaustedSource =
+  classifyVoidAgentCredentialRequestProxyV2EdgeCompositionV1({
+    connection_prefix: proxy4({
+      source: "203.0.113.10",
+      sourcePort: 47003,
+      requestLine:
+        "GET /public-node/agents/discovery-v1.json HTTP/1.1",
+    }),
+    headers: { Host: "voidchain.org" },
+    now_ms: 100_000,
+    window_ms: 60_000,
+    max_requests_per_source: 2,
+    prior_events: exhaustedEvents(a.edge_limiter_source_key),
+  });
+assert.equal(genuineNonCredentialUnderExhaustedSource.ok, true);
+assert.equal(
+  genuineNonCredentialUnderExhaustedSource.status,
+  "FORWARD_SANITIZED_NOT_TRUSTED",
+);
+assert.equal(
+  genuineNonCredentialUnderExhaustedSource.credential_source_rate_applied,
+  false,
+);
+assert.equal(
+  genuineNonCredentialUnderExhaustedSource.next_rate_events,
+  null,
 );
 
 for (const [method, target] of [
@@ -416,6 +523,7 @@ assert.deepEqual(
     all_forwarded_headers_sanitized: true,
     http_parser_stream_binding_proven: false,
     credential_route_source_rate_planning: true,
+    credential_route_normalization_aliases_rejected: true,
     noncredential_route_passthrough: true,
     credential_route_limits_bound: true,
     credential_route_limits_enforced: false,
@@ -471,6 +579,9 @@ console.log("public_tls_destination_port_bound=true");
 console.log("tcp4_tcp6_composition=true");
 console.log("all_forwarded_headers_sanitized=true");
 console.log("credential_route_source_isolation=true");
+console.log("credential_route_normalization_aliases_rejected=true");
+console.log("ipv4_ipv6_exhausted_source_alias_bypass_rejected=true");
+console.log("nonempty_query_downstream_rejection_preserved=true");
 console.log("other_routes_preserved=true");
 console.log("credential_max_body_bytes=65536");
 console.log("credential_timeout_ms=15000");
