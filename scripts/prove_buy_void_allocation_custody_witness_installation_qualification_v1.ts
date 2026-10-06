@@ -119,6 +119,7 @@ const baseline = {
     shell_mode: 0o755,
     shell_regular_file: true,
     shell_root_owned: true,
+    shell_root_owned_nonwritable_parent_chain: true,
     dedicated_account: true,
   },
   handler: {
@@ -146,6 +147,7 @@ const baseline = {
     regular_file: true,
     symlink: false,
     root_owned: true,
+    root_owned_nonwritable_parent_chain: true,
     node_major: 24,
     node_version: "v24.19.0",
   },
@@ -167,14 +169,14 @@ const baseline = {
       "sha256:1c8a9a4d144e28d585e38c41f21576e72ccb76eec89ecec0f641c46d12c9c720",
   },
   authorized_key: {
-    authorized_keys_path: "/var/lib/voidwitness/.ssh/authorized_keys",
-    authorized_keys_uid: 1201,
-    authorized_keys_gid: 1201,
-    authorized_keys_mode: 0o600,
+    authorized_keys_path: "/etc/ssh/authorized_keys/voidwitness",
+    authorized_keys_uid: 0,
+    authorized_keys_gid: 0,
+    authorized_keys_mode: 0o444,
     authorized_keys_nlink: 1,
     authorized_keys_regular_file: true,
     authorized_keys_symlink: false,
-    authorized_keys_parent_private: true,
+    authorized_keys_root_owned_nonwritable_parent_chain: true,
     line_sha256: sha("6"),
     key_algorithm: "ssh-ed25519",
     public_key_sha256: sha("3"),
@@ -196,14 +198,24 @@ const baseline = {
   sshd: {
     permit_user_environment: false,
     accept_env: [],
+    authorized_keys_file: "/etc/ssh/authorized_keys/voidwitness",
     publickey_only: true,
     password_authentication: false,
     kbd_interactive_authentication: false,
     authorized_keys_environment_allowed: false,
+    strict_modes: true,
     effective_config_sha256: sha("8"),
   },
   preexec: {
     env_path: "/usr/bin/env",
+    env_resolved_path: "/usr/bin/env",
+    env_sha256: sha("c"),
+    env_uid: 0,
+    env_gid: 0,
+    env_mode: 0o755,
+    env_regular_file: true,
+    env_symlink: false,
+    env_root_owned_nonwritable_parent_chain: true,
     original_command_rejected_before_sanitization: true,
     environment_cleared_before_node: true,
     user_rc_executed: false,
@@ -337,6 +349,11 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.account.shell_root_owned_nonwritable_parent_chain = false;
+  expectHeld(value, /witness_installation_account_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.handler.source_git_blob_sha1 = "0".repeat(40);
   expectHeld(value, /witness_installation_handler_invalid/u);
 }
@@ -367,7 +384,17 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.node.root_owned_nonwritable_parent_chain = false;
+  expectHeld(value, /witness_installation_node_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.node.node_major = 20;
+  expectHeld(value, /witness_installation_node_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.node.node_version = "v22.19.0";
   expectHeld(value, /witness_installation_node_invalid/u);
 }
 {
@@ -408,6 +435,22 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.authorized_key.authorized_keys_uid = 1201;
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.authorized_key.authorized_keys_mode = 0o600;
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.authorized_key.authorized_keys_root_owned_nonwritable_parent_chain =
+    false;
+  expectHeld(value, /witness_installation_authorized_key_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.authorized_key.restrict = false;
   expectHeld(value, /witness_installation_authorized_key_invalid/u);
 }
@@ -434,6 +477,17 @@ assert.equal(
 }
 {
   const value = clone(policyOnly);
+  value.sshd.authorized_keys_file =
+    "/var/lib/voidwitness/.ssh/authorized_keys";
+  expectHeld(value, /witness_installation_sshd_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.sshd.strict_modes = false;
+  expectHeld(value, /witness_installation_sshd_invalid/u);
+}
+{
+  const value = clone(policyOnly);
   value.sshd.permit_user_environment = true;
   expectHeld(value, /witness_installation_sshd_invalid/u);
 }
@@ -446,6 +500,21 @@ assert.equal(
   const value = clone(policyOnly);
   value.sshd.publickey_only = false;
   expectHeld(value, /witness_installation_sshd_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.preexec.env_resolved_path = "/tmp/env";
+  expectHeld(value, /witness_installation_preexec_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.preexec.env_mode = 0o644;
+  expectHeld(value, /witness_installation_preexec_invalid/u);
+}
+{
+  const value = clone(policyOnly);
+  value.preexec.env_root_owned_nonwritable_parent_chain = false;
+  expectHeld(value, /witness_installation_preexec_invalid/u);
 }
 {
   const value = clone(policyOnly);
@@ -497,8 +566,12 @@ const trueKeys = new Set([
   "dedicated_account_required",
   "protected_config_required",
   "restrictive_authorized_key_required",
+  "root_owned_authorized_keys_required",
+  "effective_authorized_keys_path_binding",
   "sshd_environment_restrictions_required",
   "preexec_original_command_rejection_required",
+  "preexec_binary_identity_binding",
+  "root_owned_execution_chain_required",
   "sanitized_node_environment_required",
   "pinned_host_key_required",
   "pinned_client_key_required",
@@ -516,8 +589,15 @@ console.log(
 console.log("transport_policy_binding=true");
 console.log("reviewed_handler_blob_binding=true");
 console.log("original_command_rejected_before_environment_sanitization=true");
+console.log("preexec_binary_identity_binding=true");
+console.log("root_owned_execution_chain_required=true");
 console.log("sanitized_node_environment_required=true");
 console.log("authorized_key_environment_options_allowed=false");
+console.log("authorized_keys_root_owned=true");
+console.log("authorized_keys_account_writable=false");
+console.log("sshd_authorized_keys_file_bound=true");
+console.log("sshd_strict_modes=true");
+console.log("node_major_matches_version=true");
 console.log("permit_user_environment=false");
 console.log("accept_env_empty=true");
 console.log("live_evidence_origin_proven=false");

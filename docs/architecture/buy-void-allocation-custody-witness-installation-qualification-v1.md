@@ -51,8 +51,11 @@ The dedicated SSH account must:
 
 - equal the remote user in the canonical witness transport policy;
 - have a non-root UID/GID;
-- be explicitly classified as dedicated; and
-- use the fixed shell identity `/bin/sh`.
+- be explicitly classified as dedicated;
+- use the fixed shell identity `/bin/sh`;
+- bind the resolved shell target by exact SHA-256/owner/mode; and
+- require the resolved shell target's ancestor chain to be root-owned and
+  non-writable by the witness account.
 
 The protected config path is fixed:
 
@@ -91,17 +94,24 @@ Evidence must bind:
 - regular/non-symlink identity;
 - exact mode `0755`;
 - exact binary SHA-256;
-- exact semantic version; and
-- a reviewed major in `22`, `24`, or `26`.
+- exact semantic version;
+- a reviewed major in `22`, `24`, or `26`;
+- agreement between the semantic-version major and the separately reported
+  major; and
+- a root-owned, non-writable ancestor chain for the executable path.
 
 This is content binding, not live process attestation.
 
 ## Authorized-key boundary
 
-The evidence must bind a private mode-`0600`, single-link
-`authorized_keys` file owned by the dedicated witness account at exactly
-`/var/lib/<remote_user>/.ssh/authorized_keys`, plus a content-addressed exact
-key line.
+The evidence must bind a single-link, root-owned mode-`0444`
+`authorized_keys` file at exactly
+`/etc/ssh/authorized_keys/<remote_user>`, under a root-owned non-writable
+ancestor chain, plus a content-addressed exact key line.
+
+The dedicated witness account must **not** own or be able to rewrite this file.
+Otherwise code running as the forced-command account could broaden its own SSH
+authorization boundary by installing an unrestricted key.
 
 The key must:
 
@@ -145,6 +155,8 @@ shell syntax.
 
 The effective sshd evidence must require:
 
+- `AuthorizedKeysFile=/etc/ssh/authorized_keys/<remote_user>`;
+- `StrictModes=yes`;
 - `PermitUserEnvironment=no`;
 - empty `AcceptEnv` for the witness account profile;
 - public-key-only authentication;
@@ -169,6 +181,11 @@ OPENSSL_CONF
 PS4
 SHELLOPTS
 ```
+
+The `/usr/bin/env` executable itself is part of the pre-exec trust chain.
+Evidence must bind it to the exact non-symlink path `/usr/bin/env`, root
+ownership, mode `0755`, exact SHA-256, and a root-owned non-writable ancestor
+chain.
 
 After the original-command rejection, `env -i` must provide Node exactly:
 
@@ -262,10 +279,13 @@ git diff --check
 
 The proof covers a valid synthetic packet plus adversaries for handler source
 drift, installed-handler drift, alternate handler path, writable handler
-ancestry, non-executable Node identity, unsupported Node major, config-owner
-mismatch, transport-policy mismatch, alternate authority root form,
-authorized-key environment injection, missing `restrict`, alternate forced
-command/digest, user-rc/forwarding authority, unsafe sshd environment policy,
+ancestry, mutable shell ancestry, non-executable Node identity, unsupported or
+version-inconsistent Node major, mutable Node ancestry, config-owner mismatch,
+transport-policy mismatch, alternate authority root form, witness-owned or
+writable `authorized_keys`, alternate effective `AuthorizedKeysFile`,
+disabled `StrictModes`, authorized-key environment injection, missing
+`restrict`, alternate forced command/digest, user-rc/forwarding authority,
+unsafe sshd environment policy, alternate/mutable `/usr/bin/env` identity,
 missing pre-exec original-command rejection, missing environment sanitization,
 startup-hook evidence, missing dangerous-environment denial, extra Node
 environment keys, host-key mismatch, account mismatch, and non-integer evidence
