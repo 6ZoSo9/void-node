@@ -46,16 +46,26 @@ The read-only inspector requires:
 - a closed Git subprocess environment;
 - replacement objects disabled;
 - global/system Git config disabled;
-- hooks, fsmonitor, attributes, untracked cache, preloading, and submodule
+- repository-local include directives and filter configuration rejected before
+  any porcelain worktree observation, so repository-controlled clean/process
+  filters cannot execute as part of this read-only evidence path;
+- hooks, fsmonitor, global attributes, untracked cache, preloading, and submodule
   recursion disabled for the observation;
+- legacy `.git/info/grafts` rejected before ancestry evaluation;
+- one immutable 40-hex commit captured at observation start; its tree, every
+  reviewed Git blob, and reviewed-base ancestry are all resolved against that
+  exact commit rather than a moving `HEAD`;
+- the visible `HEAD` must equal the captured commit again at observation end;
 - canonical VOID repository origin;
 - a clean worktree;
-- reviewed base commit ancestry; and
-- exact `HEAD:<path>` Git blob identity for all 21 bindings; and
-- exact no-follow working-tree bytes for every reviewed path, rehashed with the
-  Git blob algorithm and required to equal the reviewed blob. This prevents
-  `assume-unchanged` / `skip-worktree` index flags from hiding executable
-  worktree drift behind a clean porcelain status.
+- reviewed base commit ancestry against the pinned commit; and
+- exact `<pinned-commit>:<path>` Git blob identity for all 21 bindings; and
+- exact no-follow/nonblocking working-tree bytes for every reviewed path,
+  rehashed with the Git blob algorithm and required to equal the reviewed blob.
+  Reads use the original descriptor size as a hard 16-MiB cap, positional reads,
+  an EOF growth probe, and stable descriptor/path identity checks. This prevents
+  `assume-unchanged` / `skip-worktree` flags from hiding byte drift and makes
+  regular-file-to-FIFO replacement fail closed without blocking on FIFO open.
 
 The contract does not require the checkout branch itself to be `main`.
 A reviewed feature or later descendant generation may pass only while all
@@ -130,6 +140,14 @@ The focused proof:
 - reproduces hidden worktree drift under both `assume-unchanged` and
   `skip-worktree`, requires porcelain status to remain deceptively clean, and
   still requires the live inspector to HOLD;
+- proves the observation plan resolves tree/blob/ancestry specs from one pinned
+  commit and rejects a changed final HEAD;
+- installs a repository-local executable filter setting and requires HOLD before
+  porcelain observation can run;
+- installs a temporary legacy graft overlay and requires HOLD before ancestry is
+  trusted;
+- swaps a regular proof file to a FIFO between lstat/open and requires bounded
+  HOLD, and grows a file after open so the EOF growth probe must reject it;
 - rejects dirty worktree, wrong repository origin, missing reviewed ancestry,
   malformed repository identity, missing records, and duplicate records;
 - requires every non-allowlisted authority bit to remain false; and
