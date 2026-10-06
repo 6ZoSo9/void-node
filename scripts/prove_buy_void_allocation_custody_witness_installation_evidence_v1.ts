@@ -137,6 +137,21 @@ function escapeAuthorizedCommand(value: string): string {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
+function sshEd25519Blob(rawKey: Buffer): Buffer {
+  assert.equal(rawKey.length, 32);
+  const algorithm = Buffer.from("ssh-ed25519", "ascii");
+  const firstLength = Buffer.alloc(4);
+  firstLength.writeUInt32BE(algorithm.length, 0);
+  const secondLength = Buffer.alloc(4);
+  secondLength.writeUInt32BE(rawKey.length, 0);
+  return Buffer.concat([
+    firstLength,
+    algorithm,
+    secondLength,
+    rawKey,
+  ]);
+}
+
 function makeFixture() {
   const handlerBytes = fs.readFileSync(
     "tools/void-buy-allocation-custody-witness-forced-command-v1.mjs",
@@ -148,8 +163,10 @@ function makeFixture() {
     "current merged forced-command source must match the qualification pin",
   );
 
-  const clientBlob = Buffer.alloc(32, 0x11);
-  const hostBlob = Buffer.alloc(32, 0x22);
+  const clientBlob = sshEd25519Blob(Buffer.alloc(32, 0x11));
+  const hostBlob = sshEd25519Blob(Buffer.alloc(32, 0x22));
+  assert.equal(clientBlob.length, 51);
+  assert.equal(hostBlob.length, 51);
   const clientEncoded = clientBlob.toString("base64");
   const hostEncoded = hostBlob.toString("base64");
   const clientSha = sha256Id(clientBlob);
@@ -485,6 +502,37 @@ const parsedKey = testOnlyParseBuyVoidWitnessAuthorizedKeyV1(
 assert.equal(parsedKey.command, FORCED_COMMAND);
 assert.equal(parsedKey.option_names.includes("restrict"), true);
 assert.equal(parsedKey.environment_options.length, 0);
+assert.match(parsedKey.public_key_sha256, /^sha256:[0-9a-f]{64}$/u);
+
+assert.throws(
+  () =>
+    testOnlyParseBuyVoidWitnessAuthorizedKeyV1(
+      'restrict,command="' +
+        escapeAuthorizedCommand(FORCED_COMMAND) +
+        '" ssh-ed25519 ' +
+        Buffer.alloc(32, 0x33).toString("base64") +
+        " malformed\n",
+    ),
+  /witness_installation_evidence_authorized_key_invalid/u,
+  "arbitrary base64 bytes must not masquerade as an OpenSSH ED25519 blob",
+);
+
+const malformedWire = Buffer.concat([
+  sshEd25519Blob(Buffer.alloc(32, 0x44)),
+  Buffer.from([0]),
+]);
+assert.throws(
+  () =>
+    testOnlyParseBuyVoidWitnessAuthorizedKeyV1(
+      'restrict,command="' +
+        escapeAuthorizedCommand(FORCED_COMMAND) +
+        '" ssh-ed25519 ' +
+        malformedWire.toString("base64") +
+        " trailing\n",
+    ),
+  /witness_installation_evidence_authorized_key_invalid/u,
+  "OpenSSH key blobs with trailing wire bytes must HOLD",
+);
 
 const parsedSshd = testOnlyParseBuyVoidWitnessSshdEffectiveV1(
   fixture.state.sshdText,
@@ -507,7 +555,7 @@ expectCollectHold(
   (value) => {
     value.state.sourceBlob = "0".repeat(40);
   },
-  /witness_installation_evidence_key_policy_mismatch|witness_installation_evidence_source_blob/u,
+  /witness_installation_evidence_handler_blob_mismatch/u,
 );
 
 expectCollectHold(
@@ -528,7 +576,7 @@ expectCollectHold(
       }),
     );
   },
-  /witness_installation_evidence_key_policy_mismatch|witness_installation_evidence_file/u,
+  /witness_installation_evidence_handler_blob_mismatch/u,
 );
 
 expectCollectHold(
