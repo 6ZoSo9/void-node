@@ -1,0 +1,85 @@
+name: Coupled native-gas reconciliation custody receipt continuity v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-coupled-native-gas-reconciliation-custody-receipt-continuity-v1.mjs"
+      - "scripts/prove_coupled_native_gas_reconciliation_custody_receipt_continuity_v1.mjs"
+      - "docs/architecture/coupled-native-gas-reconciliation-custody-receipt-continuity-v1.md"
+      - ".github/workflows/coupled-native-gas-reconciliation-custody-receipt-continuity-v1.yml"
+      - "tools/void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs"
+      - "tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs"
+      - "src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coupled-native-gas-reconciliation-custody-receipt-continuity-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: receipt continuity / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Syntax-check receipt continuity source
+        run: |
+          node --check tools/void-coupled-native-gas-reconciliation-custody-receipt-continuity-v1.mjs
+          node --check scripts/prove_coupled_native_gas_reconciliation_custody_receipt_continuity_v1.mjs
+
+      - name: Prove custody receipt continuity
+        run: node scripts/prove_coupled_native_gas_reconciliation_custody_receipt_continuity_v1.mjs
+
+      - name: Preserve source-generation binding
+        run: node scripts/prove_coupled_native_gas_reconciliation_custody_source_binding_v1.mjs
+
+      - name: Repository typecheck
+        run: npm run typecheck
+
+      - name: Repository build
+        run: npm run build
+
+      - name: Diff hygiene
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if test -n "${BASE_SHA:-}" && test -n "${HEAD_SHA:-}"; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff --check HEAD^ HEAD
+          fi
