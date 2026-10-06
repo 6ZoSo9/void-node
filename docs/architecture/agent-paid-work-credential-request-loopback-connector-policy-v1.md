@@ -53,6 +53,9 @@ compromise is explicitly outside this policy's threat model.
 
 ### Adapter
 
+The adapter service unit is fixed to
+`void-agent-credential-request-proxy-v2-edge-v1.service`.
+
 The adapter must:
 
 - listen only on `127.0.0.1:<adapter-port>`;
@@ -63,10 +66,16 @@ The adapter must:
 
 ### Existing public gateway
 
+The gateway service unit is fixed to
+`void-ai-agent-public-gateway-v1.service`.
+
 The existing public gateway must also run as non-root, have
 `NoNewPrivileges=true`, and have no `CAP_NET_ADMIN`.
 
-The adapter and gateway do not receive authority to change the firewall.
+The adapter and gateway must use distinct non-root UID/GID identities. Sharing
+either identity fails the source policy because it weakens the later
+process/service isolation boundary. Neither service receives authority to
+change the firewall.
 
 ### nftables
 
@@ -187,7 +196,9 @@ The synthetic proof covers a canonical policy and adversaries for:
 - wrong public TLS port;
 - wrong loopback target;
 - public/wildcard or IPv6 adapter exposure;
+- wrong adapter or gateway service unit;
 - root adapter identity;
+- shared adapter/gateway UID or GID;
 - adapter/gateway CAP_NET_ADMIN;
 - missing NoNewPrivileges;
 - wrong connector service/UID;
