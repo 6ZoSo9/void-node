@@ -571,6 +571,13 @@ if find "$LATEST_STAGE" -type f -perm /022 -print -quit | grep -q .; then
 fi
 echo "latest_stage_modes_normalized=true"
 
+# Fail closed before the publisher can exchange stage/latest. The child may
+# terminate after mutating names but before emitting any parseable result.
+# Cleanup must preserve stage/archive evidence unless a complete success record
+# is validated below.
+LATEST_ROLLBACK_UNCERTAIN=1
+echo "latest_publish_uncertainty_armed_before_child=true"
+
 set +e
 PUBLISH_OUTPUT="$(
 python3 - "$LATEST_STAGE" "$LATEST" <<'PY'
@@ -789,6 +796,8 @@ else
   LATEST_REPLACED_EXISTING=0
 fi
 LATEST_PUBLISHED=1
+LATEST_ROLLBACK_UNCERTAIN=0
+echo "latest_publish_uncertainty_cleared_after_validated_success=true"
 
 python3 - "$LATEST/intake.json" <<'PY'
 import json, sys
