@@ -7,7 +7,8 @@ is a **pure packet classifier** for the next source-only #2452 boundary.
 
 It binds four already-reviewed domains into one deterministic qualification:
 
-1. one canonical V2 witness-installation evidence receipt;
+1. one canonical V2 witness-installation evidence receipt plus its exact
+   normalized V2 qualification object;
 2. one canonical witness transport policy;
 3. exact client-side `known_hosts` bytes for the reviewed ED25519 host key; and
 4. one challenge-bound read request/response packet with explicit observation
@@ -45,11 +46,25 @@ boundary from the merged collector, including:
 - all live-origin, external-transport/storage, runtime, custody, production and
   funds authority still false.
 
+The classifier also requires
+`installation_normalized_qualification`, the exact normalized object emitted
+by the V2 installation qualifier. Its canonical SHA-256 must equal the
+receipt's `normalized_qualification_sha256`, and the same digest must
+reconstruct the receipt's `voidwiq2_<sha256>` installation qualification ID.
+
+Only after that commitment is proven does the classifier compare the normalized
+installation's `transport_policy_sha256`, `remote_user`,
+`host_key_sha256`, `known_hosts_sha256`, and
+`client_public_key_sha256` to the separately supplied canonical transport
+policy. A self-consistent installation receipt for a different SSH policy
+therefore HOLDS instead of being combined with the live-read packet.
+
 The receipt's witness digest, event count and tip event SHA-256 are rebound to
 the subsequently validated transport response.
 
 This classifier does **not** rerun the host collector and therefore does not
-promote a self-consistent receipt into live-origin evidence.
+promote a self-consistent receipt or normalized qualification into live-origin
+evidence.
 
 ## Witness host identity
 
@@ -153,6 +168,7 @@ For identical accepted packet inputs, the classifier deterministically emits a
 `voidwlrq1_<sha256>` qualification ID over a normalized object containing:
 
 - installation collector receipt SHA-256 and qualification ID;
+- exact normalized installation-qualification SHA-256;
 - nested runtime-bundle collector receipt SHA-256;
 - transport marker and policy SHA-256;
 - remote user/host/port;
@@ -200,10 +216,12 @@ npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
 git diff --check
 ```
 
-The proof covers receipt digest/authority drift, installation/witness hostname
-drift, known-hosts host/key/digest drift, challenge-age ordering, generation
-ordering, connection-context drift, request-byte drift, response/challenge
-binding, deterministic reclassification and all negative authority flags.
+The proof covers receipt digest/authority drift, normalized-installation
+commitment mismatch, self-consistent installation/transport-policy mismatch,
+installation/witness hostname drift, known-hosts host/key/digest drift,
+challenge-age ordering, generation ordering, connection-context drift,
+request-byte drift, response/challenge binding, deterministic reclassification
+and all negative authority flags.
 
 ## Next gate
 
