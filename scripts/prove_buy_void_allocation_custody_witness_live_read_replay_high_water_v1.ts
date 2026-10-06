@@ -356,6 +356,96 @@ assert.equal(
   "witness_live_read_replay_high_water_binding_mismatch",
 );
 
+const tamperedPendingSha = tamperHighWater(
+  issued.high_water_json,
+  (value) => {
+    value.pending_challenge_sha256 = sha("d");
+  },
+);
+const tamperedPendingShaBinding =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+    {
+      journal_jsonl: issue1.next_journal_jsonl,
+      high_water_json: tamperedPendingSha,
+    },
+  );
+assert.equal(tamperedPendingShaBinding.ok, false);
+if (tamperedPendingShaBinding.ok) {
+  throw new Error("tampered pending challenge digest unexpectedly bound");
+}
+assert.equal(
+  tamperedPendingShaBinding.reason,
+  "witness_live_read_replay_high_water_binding_mismatch",
+);
+
+for (const [label, tampered] of [
+  [
+    "sequence_and_event_count",
+    tamperHighWater(issued.high_water_json, (value) => {
+      value.sequence = 2;
+      value.event_count = 2;
+    }),
+  ],
+  [
+    "generation",
+    tamperHighWater(issued.high_water_json, (value) => {
+      value.generation = 2;
+    }),
+  ],
+  [
+    "tip",
+    tamperHighWater(issued.high_water_json, (value) => {
+      value.tip_event_sha256 = sha("e");
+    }),
+  ],
+  [
+    "journal_bytes",
+    tamperHighWater(issued.high_water_json, (value) => {
+      value.journal_bytes =
+        Number(value.journal_bytes) + 1;
+    }),
+  ],
+] as const) {
+  const result =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+      {
+        journal_jsonl: issue1.next_journal_jsonl,
+        high_water_json: tampered,
+      },
+    );
+  assert.equal(result.ok, false, label + " unexpectedly bound");
+  if (result.ok) {
+    throw new Error(label + " unexpectedly bound");
+  }
+  assert.equal(
+    result.reason,
+    "witness_live_read_replay_high_water_binding_mismatch",
+    label + " must fail exact high-water binding",
+  );
+}
+
+const tamperedTerminalState = tamperHighWater(
+  consumed.high_water_json,
+  (value) => {
+    value.last_terminal_state = "abandoned";
+  },
+);
+const tamperedTerminalStateBinding =
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1(
+    {
+      journal_jsonl: consume1.next_journal_jsonl,
+      high_water_json: tamperedTerminalState,
+    },
+  );
+assert.equal(tamperedTerminalStateBinding.ok, false);
+if (tamperedTerminalStateBinding.ok) {
+  throw new Error("tampered terminal state unexpectedly bound");
+}
+assert.equal(
+  tamperedTerminalStateBinding.reason,
+  "witness_live_read_replay_high_water_binding_mismatch",
+);
+
 const inconsistentPending = tamperHighWater(
   issued.high_water_json,
   (value) => {
@@ -554,7 +644,13 @@ console.log("journal_rollback_rejected=true");
 console.log("alternate_same_generation_branch_rejected=true");
 console.log("multi_event_jump_rejected=true");
 console.log("pending_identity_tamper_rejected=true");
+console.log("pending_digest_tamper_rejected=true");
 console.log("pending_expiry_tamper_rejected=true");
+console.log("sequence_event_count_tamper_rejected=true");
+console.log("generation_tamper_rejected=true");
+console.log("tip_tamper_rejected=true");
+console.log("journal_bytes_tamper_rejected=true");
+console.log("terminal_state_tamper_rejected=true");
 console.log("fatal_high_water_utf8_required=true");
 console.log("noncanonical_high_water_rejected=true");
 console.log("rollback_resistance_proven=false");
