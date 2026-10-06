@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "tools/void-buy-allocation-custody-witness-forced-command-v1.mjs"
-      - "scripts/prove_buy_void_allocation_custody_witness-forced-command-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_forced_command_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-witness-forced-command-v1.md"
       - ".github/workflows/buy-void-allocation-custody-witness-forced-command-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
@@ -21,7 +21,7 @@ on:
     branches: [main]
     paths:
       - "tools/void-buy-allocation-custody-witness-forced-command-v1.mjs"
-      - "scripts/prove_buy_void_allocation_custody_witness-forced-command-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_witness_forced_command_v1.mjs"
       - "docs/architecture/buy-void-allocation-custody-witness-forced-command-v1.md"
       - ".github/workflows/buy-void-allocation-custody-witness-forced-command-v1.yml"
       - "src/economic/buy_void_allocation_custody_witness_transport_v1.ts"
