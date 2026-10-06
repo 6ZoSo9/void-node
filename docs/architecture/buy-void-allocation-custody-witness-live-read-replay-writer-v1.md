@@ -137,18 +137,23 @@ authority can be claimed.
 
 Recovery runs under both locks before any new transition.
 
-Accepted crash states are:
+Accepted crash/recovery states are:
 
 - one or both intents present, journal/high-water both at **before**;
 - journal at **after**, high-water at **before**;
+- journal at **before**, high-water at the exact intent-bound **after** state
+  (**high-water committed**, recovery-only); and
 - journal/high-water both at **after**.
 
 The writer reconstructs an unfinished journal transition only by appending the
 intent's exact canonical event line to the exact before journal and proving
 both before and after endpoints through #2529's binding classifier.
 
-An impossible state where the high-water is already **after** while the journal
-is still **before** HOLDS as a publication-order violation.
+The **high-water committed** state does not change normal publication order.
+It exists only to converge forward when an exact durable intent proves the
+reviewed before/after pair but the high-water is observed at the exact next
+state before the journal. Recovery writes only the exact intent-bound journal
+append in that state; arbitrary high-water-ahead bytes still HOLD.
 
 Any journal or high-water state matching neither intent endpoint HOLDS.
 Mismatched or tampered redundant intents HOLD.
@@ -215,6 +220,7 @@ The proof uses temporary local directories only. It covers:
 - crash recovery after both intents;
 - crash recovery after journal publication;
 - crash recovery after high-water publication;
+- recovery from exact intent-bound high-water-committed state;
 - journal-only rollback detection;
 - high-water-only rollback detection;
 - clean-inspection root swap after the final journal snapshot HOLDS;
