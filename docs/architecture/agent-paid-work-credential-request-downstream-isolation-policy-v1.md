@@ -19,18 +19,21 @@ change Tailscale/systemd.
 The classifier first reuses the exact merged #2513 loopback connector policy.
 A positive source-policy result then additionally requires:
 
-1. the ordinary public gateway remains on exact `127.0.0.1:4112`;
+1. the ordinary public gateway remains on exact `127.0.0.1:4112`, has
+   no IPv6 listener, and reports no additional/secondary listener;
 2. the credential-request route is **not** exposed on that shared listener;
 3. ordinary noncredential gateway routes remain available there;
 4. the same reviewed public-gateway service owns a separate IPv4-loopback-only
-   credential downstream listener on a distinct nonprivileged port;
+   credential downstream listener on a distinct nonprivileged port, with no
+   IPv6 or additional/secondary listener;
 5. that listener binds method `POST` and serves only
    `/__void/agents/paid-work/credential-requests/v1`;
 6. only the #2513 adapter UID is trusted to connect to that downstream port;
 7. source identity is not forwarded as a downstream header or authority;
 8. the loopback credential-request gateway that owns the independent global
-   rate wall is separately bound on a distinct loopback port and trusts only
-   the reviewed public-gateway UID as its local connector; and
+   rate wall is separately bound on one exact IPv4 loopback port, has no IPv6
+   or additional/secondary listener, and trusts only the reviewed public-gateway
+   UID as its local connector; and
 9. one root-owned nftables OUTPUT policy:
    - allows the adapter UID to the dedicated public-gateway credential port,
      then drops every non-adapter local origin to that port; and
@@ -76,6 +79,9 @@ It may truthfully report:
 - `downstream_gateway_bypass_policy_shape_qualified=true`;
 - `shared_gateway_credential_route_disabled=true`;
 - `ordinary_shared_gateway_routes_preserved=true`;
+- `closed_world_listener_sets_required=true`;
+- all three modeled credential-path listener surfaces require
+  `ipv6_listener=false` and empty `additional_listeners`;
 - `dedicated_credential_downstream_required=true`;
 - source policy requires the inner global wall to accept only the reviewed
   public-gateway UID and drop other local origins.
@@ -99,13 +105,15 @@ The focused proof rejects:
 - removal of ordinary shared routes;
 - dedicated listener reuse of `4112`;
 - dedicated listener reuse of the Funnel-facing adapter port;
-- wildcard or IPv6 listener drift;
+- shared-gateway IPv6 or additional-listener drift;
+- dedicated-listener wildcard, IPv6 or additional-listener drift;
 - wrong credential route or non-exclusive routing;
 - wrong trusted connector UID;
 - forwarding source identity downstream;
 - firewall allow under the gateway UID instead of adapter UID;
 - missing non-adapter drop;
 - inner credential-gateway wildcard/bad-port/wrong-client-UID drift;
+- inner credential-gateway IPv6 or additional-listener drift;
 - inner global-wall allow under the adapter UID instead of gateway UID;
 - missing inner non-gateway drop;
 - missing firewall rule;
