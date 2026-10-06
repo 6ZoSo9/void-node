@@ -143,7 +143,7 @@ actual commands remain fixed `/usr/bin/findmnt` and `/usr/bin/lsblk`.
 The executable CLI:
 
 - requires `VOID_BUY_VOID_WITNESS_FORCED_COMMAND_V1=1`;
-- rejects non-empty `SSH_ORIGINAL_COMMAND`;
+- rejects any non-empty `SSH_ORIGINAL_COMMAND`, including whitespace-only caller commands;
 - accepts exactly one fixed config argument;
 - accepts exactly one newline-terminated request on stdin; and
 - emits only the canonical #2502 response on stdout.
