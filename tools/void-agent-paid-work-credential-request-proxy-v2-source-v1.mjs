@@ -299,8 +299,7 @@ function normalizeHeaderValue(value) {
   } else {
     fail("proxy_v2_http_header_value_invalid");
   }
-  if (/[ -
--]/u.test(normalized)) {
+  if (/[\u0000-\u0008\u000a-\u001f\u007f]/u.test(normalized)) {
     fail("proxy_v2_http_header_value_invalid");
   }
   return normalized;
