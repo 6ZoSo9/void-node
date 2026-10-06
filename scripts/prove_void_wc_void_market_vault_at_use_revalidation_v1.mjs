@@ -344,7 +344,7 @@ await rejectsCollect(
       artifact:bad,
       evaluation_time_utc:bad.collection_completed_at_utc,
     }),
-    /WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_NOT_ACCEPTED/u,
+    /current_identity_packet_identity_invalid/u,
   );
 }
 
