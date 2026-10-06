@@ -96,6 +96,27 @@ function ipv4Display(bytes) {
   return Array.from(bytes).join(".");
 }
 
+function validateProxyV2Tlvs(payload, addressBytes) {
+  let offset = addressBytes;
+  let count = 0;
+  while (offset < payload.length) {
+    if (payload.length - offset < 3) {
+      fail("proxy_v2_tlv_invalid");
+    }
+    const valueBytes = payload.readUInt16BE(offset + 1);
+    const next = offset + 3 + valueBytes;
+    if (next > payload.length) {
+      fail("proxy_v2_tlv_invalid");
+    }
+    count += 1;
+    if (count > 64) {
+      fail("proxy_v2_tlv_count_exceeded");
+    }
+    offset = next;
+  }
+  return count;
+}
+
 function sourceIdentity(family, sourceAddressHex) {
   const material = Buffer.from(
     "void-agent-credential-request-proxy-v2-source-v1\0" +
@@ -154,9 +175,14 @@ export function parseVoidAgentCredentialRequestProxyV2SourceV1(input) {
       fail("proxy_v2_header_truncated");
     }
 
-    const address = input.subarray(
+    const payload = input.subarray(
       HEADER_FIXED_BYTES,
-      HEADER_FIXED_BYTES + addressBytes,
+      totalHeaderBytes,
+    );
+    const address = payload.subarray(0, addressBytes);
+    const tlvCount = validateProxyV2Tlvs(
+      payload,
+      addressBytes,
     );
 
     let sourceAddress;
@@ -202,6 +228,7 @@ export function parseVoidAgentCredentialRequestProxyV2SourceV1(input) {
       limiter_source_key: sourceKey,
       consumed_bytes: totalHeaderBytes,
       tlv_bytes: payloadBytes - addressBytes,
+      tlv_count: tlvCount,
       source_port_in_limiter_identity: false,
       spoofable_forwarding_headers_trusted: false,
       local_transport_trust_proven: false,
