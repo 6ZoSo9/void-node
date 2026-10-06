@@ -62,6 +62,8 @@ const CONFIG_MARKER =
   "VOID_BUY_ALLOCATION_CUSTODY_WITNESS_FORCED_COMMAND_CONFIG_V1";
 const HANDLER_RELATIVE_PATH =
   "tools/void-buy-allocation-custody-witness-forced-command-v1.mjs";
+const REVIEWED_HANDLER_GIT_BLOB_SHA1 =
+  "e19fa1094981b10cea6052ac86281fd6e760b800";
 const HANDLER_PATH =
   "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v1.mjs";
 const CONFIG_PATH =
@@ -478,17 +480,42 @@ function parsePublicKeyFields(text, code) {
   if (fields.length < 2) fail(code);
   const algorithm = fields[0];
   const encoded = fields[1];
-  if (algorithm !== "ssh-ed25519" || !/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded)) {
+  if (
+    algorithm !== "ssh-ed25519" ||
+    !/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded)
+  ) {
     fail(code);
   }
   const keyBlob = Buffer.from(encoded, "base64");
-  if (keyBlob.length < 32 || keyBlob.toString("base64") !== encoded) {
+  if (keyBlob.toString("base64") !== encoded || keyBlob.length !== 51) {
     fail(code);
   }
+
+  let offset = 0;
+  const readString = () => {
+    if (offset + 4 > keyBlob.length) fail(code);
+    const length = keyBlob.readUInt32BE(offset);
+    offset += 4;
+    if (offset + length > keyBlob.length) fail(code);
+    const value = keyBlob.subarray(offset, offset + length);
+    offset += length;
+    return value;
+  };
+  const blobAlgorithm = readString();
+  const rawPublicKey = readString();
+  if (
+    blobAlgorithm.toString("ascii") !== "ssh-ed25519" ||
+    rawPublicKey.length !== 32 ||
+    offset !== keyBlob.length
+  ) {
+    fail(code);
+  }
+
   return Object.freeze({
     algorithm,
     encoded,
     key_blob_sha256: sha256Id(keyBlob),
+    raw_public_key_sha256: sha256Id(rawPublicKey),
   });
 }
 
@@ -788,6 +815,13 @@ function collect(rawConfig, io = SYSTEM_IO) {
 
   const handlerFile = stableReadFile(io, HANDLER_PATH, MAX_SMALL_FILE_BYTES);
   const installedBlob = gitBlobSha1(handlerFile.bytes);
+  if (
+    sourceBlob !== REVIEWED_HANDLER_GIT_BLOB_SHA1 ||
+    installedBlob !== REVIEWED_HANDLER_GIT_BLOB_SHA1 ||
+    installedBlob !== sourceBlob
+  ) {
+    fail("witness_installation_evidence_handler_blob_mismatch");
+  }
 
   const nodeVisible = io.lstat(NODE_PATH);
   const nodeResolved = io.realpath(NODE_PATH);
@@ -1099,6 +1133,7 @@ function collect(rawConfig, io = SYSTEM_IO) {
 
   const derivation = Object.freeze({
     source_head_sha: sourceHead,
+    handler_reviewed_git_blob_sha1: REVIEWED_HANDLER_GIT_BLOB_SHA1,
     handler_source_git_blob_sha1: sourceBlob,
     handler_installed_git_blob_sha1: installedBlob,
     transport_policy_sha256: policySha256,
