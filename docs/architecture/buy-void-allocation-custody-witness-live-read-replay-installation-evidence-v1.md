@@ -112,9 +112,19 @@ Journal and high-water roots must be path-disjoint and differ in all of:
 
 This gate is deliberately stronger than merely requiring two partitions.
 
-For each mount source the collector resolves the parent block device through
-`lsblk -ndo PKNAME`, then requires a non-empty
-`lsblk -ndo SERIAL,WWN` identity.
+For each mount source the collector first resolves the canonical `/dev/...`
+node and requires it to remain the same block-device inode/device identity
+across observation. Its device number from `stat -Lc %t:%T` is converted to
+decimal and must equal the mount's exact `major:minor` value from
+`/proc/self/mountinfo`; a stale or rebound device node therefore HOLDS.
+
+The collector then resolves the parent through `lsblk -ndo PKNAME`.
+An empty parent means the mount source itself is the terminal block device.
+Otherwise the output must be exactly one safe parent token. Multi-line,
+multi-parent, or otherwise ambiguous parent topology HOLDS instead of falling
+back to the mount source. The selected parent block-device node is likewise
+revalidated across the `lsblk -ndo SERIAL,WWN` observation, which must return
+one non-empty serial and one non-empty WWN.
 
 The two roots must additionally differ in all of:
 
@@ -212,6 +222,9 @@ The proof covers:
 - same major:minor HOLD;
 - same mount-source HOLD;
 - same resolved mount-source HOLD;
+- mount-source device-number binding to mountinfo;
+- ambiguous/multi-parent block topology rejection;
+- stable parent block-device observation across `lsblk`;
 - same parent device HOLD;
 - same disk serial HOLD;
 - same disk WWN HOLD;
