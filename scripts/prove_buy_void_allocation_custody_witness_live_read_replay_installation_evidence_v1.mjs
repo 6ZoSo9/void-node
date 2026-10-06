@@ -7,10 +7,10 @@ import path from "node:path";
 
 import {
   deriveBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterV1,
-} from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
+} from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
 import {
   planBuyVoidAllocationCustodyWitnessLiveReadChallengeIssueV1,
-} from "../src/economic/buy_void_allocation_custody_witness_live_read_replay_state_v1.js";
+} from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_state_v1.js";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
