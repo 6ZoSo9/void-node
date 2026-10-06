@@ -169,6 +169,9 @@ function baseSuccess(parsedSource, sanitized, requestLine) {
     rotation_resistant_fairness_proven: false,
     nat_independent_participant_isolation_proven: false,
     source_address_stability_proven: false,
+    rate_state_custody_proven: false,
+    concurrent_rate_state_serialization_proven: false,
+    gateway_runtime_configuration_verified: false,
     runtime_integration: false,
     funds_movement: false,
     authority:
