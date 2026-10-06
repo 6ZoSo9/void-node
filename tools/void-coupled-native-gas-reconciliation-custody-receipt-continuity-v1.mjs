@@ -25,6 +25,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_A
     predecessor_receipt_binding_required: true,
     supplied_chain_generation_monotonicity_proven: true,
     collector_decision_replay_rejected: true,
+    qualification_receipt_replay_rejected: true,
     host_payer_machine_continuity_required: true,
     boot_identity_may_advance: true,
     collector_clock_used_as_authority: false,
@@ -840,6 +841,7 @@ function classifyInternal(journalInput) {
 
   const records = [];
   const collectorHashes = new Set();
+  const qualificationReceiptHashes = new Set();
   let previous = ZERO_SHA256;
   let identity = null;
   for (let index = 0; index < lines.length; index += 1) {
@@ -847,7 +849,17 @@ function classifyInternal(journalInput) {
     if (collectorHashes.has(record.collector_decision_sha256)) {
       fail("receipt_continuity_collector_decision_replayed");
     }
+    if (
+      qualificationReceiptHashes.has(
+        record.qualification_receipt_sha256,
+      )
+    ) {
+      fail("receipt_continuity_qualification_receipt_replayed");
+    }
     collectorHashes.add(record.collector_decision_sha256);
+    qualificationReceiptHashes.add(
+      record.qualification_receipt_sha256,
+    );
     const currentIdentity = [
       record.host_id,
       record.payer_address,
@@ -960,6 +972,15 @@ export function planCoupledNativeGasReconciliationCustodyReceiptV1({
       )
     ) {
       fail("receipt_continuity_collector_decision_replayed");
+    }
+    if (
+      current.records.some(
+        (record) =>
+          record.qualification_receipt_sha256 ===
+          collector.qualification_receipt_sha256,
+      )
+    ) {
+      fail("receipt_continuity_qualification_receipt_replayed");
     }
     if (current.record_count > 0) {
       if (
