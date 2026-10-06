@@ -9,6 +9,10 @@ import {
   classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1,
 } from "../src/economic/buy_void_allocation_custody_witness_live_read_qualification_v1.js";
 import {
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
+} from "../src/economic/buy_void_allocation_custody_witness_runtime_bundle_qualification_v1.js";
+import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_ENDPOINT_V1,
   buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1,
   classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1,
@@ -308,8 +312,9 @@ function installationReceipt(overrides: Record<string, unknown> = {}) {
     installation_evidence_sha256: sha("2"),
     normalized_qualification_sha256: sha("3"),
     runtime_bundle_manifest_id:
-      "voidwfbm1_" + "4".repeat(64),
-    runtime_bundle_manifest_sha256: sha("5"),
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_ID_V1,
+    runtime_bundle_manifest_sha256:
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SHA256_V1,
     runtime_bundle_qualification_id:
       "voidwfbq1_" + "6".repeat(64),
     runtime_bundle_evidence_sha256: sha("7"),
@@ -453,6 +458,32 @@ for (const key of [
       installation_receipt: tampered,
     }),
     /witness_live_read_installation_receipt_digest_mismatch/u,
+  );
+}
+
+{
+  const tampered = installationReceipt({
+    runtime_bundle_manifest_id: "voidwfb1_" + "f".repeat(64),
+  });
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_receipt: tampered,
+    }),
+    /witness_live_read_installation_receipt_authority_invalid/u,
+  );
+}
+
+{
+  const tampered = installationReceipt({
+    runtime_bundle_manifest_sha256: sha("f"),
+  });
+  expectHeld(
+    classifyBuyVoidAllocationCustodyWitnessLiveReadQualificationV1({
+      ...baseInput,
+      installation_receipt: tampered,
+    }),
+    /witness_live_read_installation_receipt_authority_invalid/u,
   );
 }
 
@@ -676,6 +707,7 @@ console.log(
 console.log("installation_receipt_digest_recomputed=true");
 console.log("installation_receipt_schema_matches_merged_collector=true");
 console.log("installation_authority_matches_merged_collector=true");
+console.log("runtime_bundle_manifest_identity_bound=true");
 console.log("installation_witness_state_rebound=true");
 console.log("client_known_hosts_content_qualified=true");
 console.log("known_hosts_host_and_ed25519_key_bound=true");
