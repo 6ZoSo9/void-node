@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1,
+  VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V1,
 } from "./void-coupled-native-gas-reconciliation-custody-source-binding-v1.mjs";
 
 export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_V1 =
@@ -14,6 +15,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_A
     source_only_contract: true,
     pure_receipt_chain_classification: true,
     exact_source_generation_bound: true,
+    exact_supplied_source_binding_validated: true,
     exact_live_collector_decision_hash_bound: true,
     exact_qualification_receipt_bound: true,
     predecessor_receipt_binding_required: true,
@@ -90,6 +92,7 @@ const RECEIPT_KEYS = Object.freeze([
   "qualification_receipt_sha256",
   "receipt_sha256",
   "schema",
+  "source_binding_id",
   "source_generation_id",
   "version",
 ]);
@@ -118,6 +121,51 @@ const QUALIFICATION_RECEIPT_KEYS = Object.freeze([
   "service_unit_sha256",
   "version",
 ]);
+
+const SOURCE_BINDING_KEYS = Object.freeze([
+  "authority",
+  "bootstrap_receipt_external_trust_proven",
+  "collector_generation_binding_proven",
+  "collector_source_git_blob_sha1",
+  "deployed_artifact_generation_verified",
+  "evidence_generation_monotonicity_proven",
+  "funds_movement",
+  "live_host_qualification_performed",
+  "marker",
+  "ok",
+  "production_gate_ready",
+  "qualification_generation_binding_proven",
+  "qualification_source_git_blob_sha1",
+  "repository",
+  "repository_head_sha",
+  "repository_origin",
+  "repository_tree_sha",
+  "reviewed_base_commit_sha",
+  "reviewed_source_count",
+  "reviewed_source_manifest_sha256",
+  "runtime_integration",
+  "source_binding_id",
+  "source_generation_id",
+  "status",
+  "storage_bootstrap",
+  "trusted_collector_proven",
+  "verification_clock_authority_proven",
+  "version",
+  "writer_generation_binding_proven",
+  "writer_source_git_blob_sha1",
+]);
+
+const SOURCE_BINDING_ID = /^voidngrcsb1_[0-9a-f]{64}$/u;
+const HEX40 = /^[0-9a-f]{40}$/u;
+const HEX64 = /^[0-9a-f]{64}$/u;
+const REVIEWED_BASE_COMMIT =
+  "70faa71371eed9a8a0de4ffeb6c20e2c737cbc66";
+const WRITER_SOURCE_BLOB =
+  "d8f17a770ea79c6abc868737fc1d7e4f1850d6dc";
+const QUALIFICATION_SOURCE_BLOB =
+  "5360a55bed6fccbe8d0dc242273264f2de94bea1";
+const COLLECTOR_SOURCE_BLOB =
+  "96700dfa3d4973e038aaafd91dbf3f6fa6667034";
 
 function fail(code) {
   throw new Error(code);
@@ -154,6 +202,13 @@ function sha256Id(value) {
     ? value
     : Buffer.from(String(value), "utf8");
   return "sha256:" + crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+function sha256Hex(value) {
+  const bytes = Buffer.isBuffer(value)
+    ? value
+    : Buffer.from(String(value), "utf8");
+  return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
 function exactObject(value, keys, code) {
@@ -360,6 +415,72 @@ function validateQualificationReceipt(input) {
     observed_at_ms: observedAt,
     expires_at_ms: expiresAt,
     boot_id_sha256: bootId,
+  });
+}
+
+function normalizeSourceBinding(input) {
+  const binding = exactObject(
+    snapshotPlain(input),
+    SOURCE_BINDING_KEYS,
+    "receipt_continuity_source_binding_shape_invalid",
+  );
+  if (
+    binding.ok !== true ||
+    binding.status !== "SOURCE_GENERATION_BOUND_NOT_TRUSTED" ||
+    binding.marker !==
+      VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_SOURCE_BINDING_V1 ||
+    binding.version !== 1 ||
+    binding.repository !== "6ZoSo9/void-node" ||
+    binding.repository_origin !==
+      "https://github.com/6ZoSo9/void-node.git" ||
+    binding.reviewed_base_commit_sha !== REVIEWED_BASE_COMMIT ||
+    binding.reviewed_source_count !== 21 ||
+    binding.reviewed_source_manifest_sha256 !==
+      VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1 ||
+    binding.source_generation_id !== SOURCE_GENERATION_ID ||
+    binding.writer_source_git_blob_sha1 !== WRITER_SOURCE_BLOB ||
+    binding.qualification_source_git_blob_sha1 !==
+      QUALIFICATION_SOURCE_BLOB ||
+    binding.collector_source_git_blob_sha1 !== COLLECTOR_SOURCE_BLOB ||
+    binding.writer_generation_binding_proven !== true ||
+    binding.qualification_generation_binding_proven !== true ||
+    binding.collector_generation_binding_proven !== true ||
+    binding.deployed_artifact_generation_verified !== false ||
+    binding.trusted_collector_proven !== false ||
+    binding.bootstrap_receipt_external_trust_proven !== false ||
+    binding.evidence_generation_monotonicity_proven !== false ||
+    binding.verification_clock_authority_proven !== false ||
+    binding.live_host_qualification_performed !== false ||
+    binding.storage_bootstrap !== false ||
+    binding.runtime_integration !== false ||
+    binding.production_gate_ready !== false ||
+    binding.funds_movement !== false ||
+    !HEX40.test(String(binding.repository_head_sha ?? "")) ||
+    !HEX40.test(String(binding.repository_tree_sha ?? "")) ||
+    !HEX64.test(String(binding.reviewed_source_manifest_sha256 ?? ""))
+  ) {
+    fail("receipt_continuity_source_binding_invalid");
+  }
+  const sourceBindingId = String(binding.source_binding_id ?? "").trim();
+  if (!SOURCE_BINDING_ID.test(sourceBindingId)) {
+    fail("receipt_continuity_source_binding_id_invalid");
+  }
+  const material = Object.create(null);
+  for (const key of SOURCE_BINDING_KEYS) {
+    if (key !== "ok" && key !== "source_binding_id") {
+      material[key] = binding[key];
+    }
+  }
+  const expectedId =
+    "voidngrcsb1_" + sha256Hex(canonical(material));
+  if (sourceBindingId !== expectedId) {
+    fail("receipt_continuity_source_binding_id_mismatch");
+  }
+  return Object.freeze({
+    source_binding_id: sourceBindingId,
+    source_generation_id: SOURCE_GENERATION_ID,
+    repository_head_sha: binding.repository_head_sha,
+    repository_tree_sha: binding.repository_tree_sha,
   });
 }
 
@@ -641,6 +762,10 @@ function parseReceiptLine(line, expectedGeneration, expectedPrevious) {
   }
   return Object.freeze({
     ...normalized,
+    source_binding_id: safeId(
+      receipt.source_binding_id,
+      "receipt_continuity_source_binding_id_invalid",
+    ),
     source_generation_id: SOURCE_GENERATION_ID,
     receipt_sha256: receiptSha,
     record: receipt,
@@ -783,6 +908,7 @@ export function classifyCoupledNativeGasReconciliationCustodyReceiptContinuityV1
 export function planCoupledNativeGasReconciliationCustodyReceiptV1({
   journal_jsonl,
   collector_decision,
+  source_binding,
 } = {}) {
   try {
     const journalBytes = normalizeJournalBytes(journal_jsonl);
@@ -791,6 +917,7 @@ export function planCoupledNativeGasReconciliationCustodyReceiptV1({
       fail("receipt_continuity_journal_record_count_invalid");
     }
     const collector = normalizeCollectorDecision(collector_decision);
+    const sourceBinding = normalizeSourceBinding(source_binding);
     if (
       current.records.some(
         (record) =>
@@ -819,6 +946,7 @@ export function planCoupledNativeGasReconciliationCustodyReceiptV1({
       version: 1,
       generation: current.generation + 1,
       previous_receipt_sha256: current.tip_receipt_sha256,
+      source_binding_id: sourceBinding.source_binding_id,
       source_generation_id: SOURCE_GENERATION_ID,
       collector_decision_sha256:
         collector.collector_decision_sha256,
@@ -866,6 +994,7 @@ export function planCoupledNativeGasReconciliationCustodyReceiptV1({
         VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_RECEIPT_CONTINUITY_V1,
       version: 1,
       operation_performed: false,
+      source_binding_id: sourceBinding.source_binding_id,
       source_generation_id: SOURCE_GENERATION_ID,
       generation: record.generation,
       previous_receipt_sha256: record.previous_receipt_sha256,
