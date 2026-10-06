@@ -58,7 +58,10 @@ descriptor with `O_NOFOLLOW`. Each file must be:
 - within the canonical byte ceiling.
 
 The reader captures the opened file identity, reads exactly the accepted size,
-probes one byte at EOF, and rebinds the visible pathname after the read.
+probes one byte at EOF, and rebinds the visible pathname after the read. The
+public census binds each file's filesystem device, inode, mtime-nanoseconds and
+ctime-nanoseconds in addition to digest/length/ownership/mode/link count. Each
+file's filesystem device must equal the qualified root's filesystem device.
 
 Before returning success, the collector revalidates both root descriptors and
 both visible files again. A same-UID root or file replacement during the
@@ -144,7 +147,7 @@ including:
 - hostname;
 - root inode/device/mount identities;
 - parent-disk identities;
-- file identities;
+- file filesystem device/inode identities and mtime/ctime nanoseconds;
 - journal SHA-256;
 - high-water SHA-256; and
 - intent absence.
@@ -234,6 +237,10 @@ The proof covers:
 - wrong file mode HOLD;
 - pending publication-intent HOLD;
 - journal byte/digest drift HOLD;
+- file storage-domain mismatch HOLD;
+- journal inode replacement between census snapshots changes the stable census;
+- high-water file ctime/identity drift between census snapshots changes the
+  stable census;
 - stale high-water binding HOLD;
 - synthetic evidence unable to claim live proof;
 - collector source contains no filesystem mutation or SSH path; and
