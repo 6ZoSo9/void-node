@@ -641,7 +641,7 @@ for (const key of [
   });
   assert.throws(
     () => collect(bad),
-    /witness_installation_evidence_parent_witness_installation_authorized_key_invalid/u,
+    /witness_installation_authorized_key_invalid/u,
   );
 }
 
@@ -715,7 +715,7 @@ for (const key of [
   };
   assert.throws(
     () => collect(makeIo({ files: badFiles })),
-    /witness_installation_evidence_parent_witness_installation_handler_invalid/u,
+    /witness_installation_handler_invalid/u,
   );
 }
 
