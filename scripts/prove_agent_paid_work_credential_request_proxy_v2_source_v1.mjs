@@ -251,7 +251,13 @@ const sanitized = requireOk(
       "X-Forwarded-For": "198.51.100.99",
       "x-forwarded-host": "evil.example",
       "x-forwarded-proto": "http",
+      "X-FoRwArDeD-Client-Cert": "spoofed-cert",
+      "x-forwarded-by": "spoofed-edge",
+      "X-FORWARDED-PORT": "8443",
+      "x-forwarded-server": "evil-edge.example",
       "X-Real-IP": "198.51.100.99",
+      "CF-Connecting-IP": "198.51.100.98",
+      "True-Client-IP": "198.51.100.97",
       "X-Void-Trusted-Funnel-Source-V1":
         "voidcrsrc1_" + "0".repeat(64),
     },
@@ -261,10 +267,16 @@ const sanitized = requireOk(
 assert.deepEqual(
   sanitized.removed_spoofable_headers,
   [
+    "cf-connecting-ip",
     "forwarded",
+    "true-client-ip",
+    "x-forwarded-by",
+    "x-forwarded-client-cert",
     "x-forwarded-for",
     "x-forwarded-host",
+    "x-forwarded-port",
     "x-forwarded-proto",
+    "x-forwarded-server",
     "x-real-ip",
     "x-void-trusted-funnel-source-v1",
   ],
@@ -278,6 +290,20 @@ assert.equal(
   sanitized.headers["x-forwarded-for"],
   undefined,
 );
+for (const name of [
+  "x-forwarded-client-cert",
+  "x-forwarded-by",
+  "x-forwarded-port",
+  "x-forwarded-server",
+  "cf-connecting-ip",
+  "true-client-ip",
+]) {
+  assert.equal(
+    sanitized.headers[name],
+    undefined,
+    name + " must not survive source-hint sanitization",
+  );
+}
 assert.equal(sanitized.limiter_source_key, a.limiter_source_key);
 assert.equal(sanitized.source_identity_forwarded_to_gateway, false);
 assert.equal(sanitized.local_transport_trust_proven, false);
@@ -410,6 +436,69 @@ assert.equal(
   "caller B admission must not consume or reset caller A's bucket",
 );
 
+const capacitySources = Array.from({ length: 7 }, (_, index) =>
+  requireOk(
+    parseVoidAgentCredentialRequestProxyV2SourceV1(
+      tcp4Frame({
+        source: "203.0.113." + String(20 + index),
+        sourcePort: 51000 + index,
+      }),
+    ),
+  ),
+);
+const capacityCounts = [999, 999, 999, 999, 99];
+const nearCapacityEvents = [];
+for (let index = 0; index < capacityCounts.length; index += 1) {
+  const source = capacitySources[index];
+  for (let count = 0; count < capacityCounts[index]; count += 1) {
+    nearCapacityEvents.push({
+      source_key: source.limiter_source_key,
+      at_ms: now,
+    });
+  }
+}
+assert.equal(nearCapacityEvents.length, 4095);
+const fillsLastGlobalSlot = requireOk(
+  planVoidAgentCredentialRequestProxyV2RateLimitV1({
+    parsed_source: capacitySources[5],
+    now_ms: now,
+    window_ms: 60_000,
+    max_requests_per_source: 1000,
+    prior_events: nearCapacityEvents,
+  }),
+);
+assert.equal(fillsLastGlobalSlot.next_events.length, 4096);
+assert.equal(fillsLastGlobalSlot.source_request_count_before, 0);
+assert.equal(fillsLastGlobalSlot.source_request_count_after, 1);
+
+expectHeld(
+  planVoidAgentCredentialRequestProxyV2RateLimitV1({
+    parsed_source: capacitySources[6],
+    now_ms: now,
+    window_ms: 60_000,
+    max_requests_per_source: 1000,
+    prior_events: fillsLastGlobalSlot.next_events,
+  }),
+  "proxy_v2_rate_event_capacity_exceeded",
+);
+
+const capacityRecoveredAfterExpiry = requireOk(
+  planVoidAgentCredentialRequestProxyV2RateLimitV1({
+    parsed_source: capacitySources[6],
+    now_ms: now + 60_000,
+    window_ms: 60_000,
+    max_requests_per_source: 1000,
+    prior_events: fillsLastGlobalSlot.next_events,
+  }),
+);
+assert.equal(capacityRecoveredAfterExpiry.source_request_count_before, 0);
+assert.equal(capacityRecoveredAfterExpiry.source_request_count_after, 1);
+assert.equal(
+  capacityRecoveredAfterExpiry.next_events.length,
+  1,
+  "expired shared history must release the global event-capacity wall",
+);
+
 const trueKeys = new Set([
   "source_contract",
   "proxy_protocol_v2_parse",
@@ -438,6 +527,10 @@ console.log("source_port_bucket_rotation=false");
 console.log("bounded_proxy_v2_header=true");
 console.log("proxy_v2_tlv_framing_validated=true");
 console.log("spoofed_forwarding_headers_trusted=false");
+console.log("x_forwarded_wildcard_stripped=true");
+console.log("known_source_hint_headers_stripped=true");
+console.log("shared_rate_history_capacity_fail_closed=true");
+console.log("shared_rate_history_capacity_recovers_after_expiry=true");
 console.log("source_identity_forwarded_to_gateway=false");
 console.log("parser_result_brand_required=true");
 console.log("per_source_rate_limit_isolation=true");
