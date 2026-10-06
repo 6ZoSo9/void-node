@@ -10,7 +10,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_MANIFEST_SH
   "sha256:a2b669873302ebe674376e438692b051affb9d1cb25ce36e05e6c29f4262c54d";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_CENSUS_SOURCE_COMMIT_V1 =
-  "2c1f5e0bcf324ef4b17ffeb79ead67d63f525cc0";
+  "1c69eff28485e5af7c1f9514d4825f637c418c12";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_AUTHORITY_V1 =
   Object.freeze({
@@ -49,7 +49,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_AUTHORITY_V
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_RUNTIME_BUNDLE_FILES_V1 =
   Object.freeze([
-    Object.freeze({ source_path: "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs", installed_path: "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs", sha256: "sha256:573b4ff9c0a3b7fb49230da78686f0f9a0f7e71687b55010f2dba4e3312af5e9" }),
+    Object.freeze({ source_path: "tools/void-buy-allocation-custody-witness-forced-command-v2.mjs", installed_path: "/usr/local/libexec/void/void-buy-allocation-custody-witness-forced-command-v2.mjs", sha256: "sha256:8338e4e950c75bd81da6549bcf44d64bb51e062c043a30bef3ddc2348bef8858" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_custody_external_witness_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_custody_external_witness_v1.js", sha256: "sha256:35d80f00a9ec0ce57bb457596d27e8c86a70d76efe310372e1fff796a92d43ca" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_custody_witness_transport_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_custody_witness_transport_v1.js", sha256: "sha256:c04c16bea2ab627719becbc30945d8bc8c8c0a0df19ade302ee933160bb7958c" }),
     Object.freeze({ source_path: "dist/economic/buy_void_allocation_reservation_high_water_v1.js", installed_path: "/usr/local/libexec/dist/economic/buy_void_allocation_reservation_high_water_v1.js", sha256: "sha256:1999015c9e0770a5a94b3b4d29f5aa6a47036406754673adb2ed5829c5e406e9" }),
