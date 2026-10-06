@@ -91,6 +91,9 @@ assert.equal(a.credential_source_rate_applied, true);
 assert.equal(a.source_identity_forwarded_to_gateway, false);
 assert.equal(a.local_transport_trust_proven, false);
 assert.equal(a.rotation_resistant_fairness_proven, false);
+assert.equal(a.rate_state_custody_proven, false);
+assert.equal(a.concurrent_rate_state_serialization_proven, false);
+assert.equal(a.gateway_runtime_configuration_verified, false);
 assert.equal(a.runtime_integration, false);
 assert.equal(a.credential_route_limits.max_body_bytes, 64 * 1024);
 assert.equal(
@@ -331,6 +334,9 @@ assert.deepEqual(
     credential_route_source_rate_planning: true,
     noncredential_route_passthrough: true,
     credential_route_limits_bound: true,
+    rate_state_custody_proven: false,
+    concurrent_rate_state_serialization_proven: false,
+    gateway_runtime_configuration_verified: false,
     source_identity_forwarded_to_gateway: false,
     upstream_loopback_limiter_modified: false,
     rotation_resistant_fairness_proven: false,
@@ -384,6 +390,9 @@ console.log("credential_timeout_ms=15000");
 console.log("credential_max_response_bytes=4194304");
 console.log("source_identity_forwarded_to_gateway=false");
 console.log("upstream_loopback_limiter_modified=false");
+console.log("rate_state_custody_proven=false");
+console.log("concurrent_rate_state_serialization_proven=false");
+console.log("gateway_runtime_configuration_verified=false");
 console.log("rotation_resistant_fairness_proven=false");
 console.log("nat_independent_participant_isolation_proven=false");
 console.log("source_address_stability_proven=false");
