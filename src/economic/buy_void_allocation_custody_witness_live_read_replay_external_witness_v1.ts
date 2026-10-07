@@ -245,9 +245,10 @@ function safeText(
   value: unknown,
   reason: string,
 ): string {
-  const text = String(value ?? "");
-  if (!SAFE_TEXT.test(text)) fail(reason);
-  return text;
+  if (typeof value !== "string" || !SAFE_TEXT.test(value)) {
+    fail(reason);
+  }
+  return value;
 }
 
 function shaField(
