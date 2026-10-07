@@ -138,12 +138,47 @@ async function main(): Promise<void> {
       4,
     ),
   );
-  await expectReject("region boundary coordinate overflow", () =>
+  const maximumRegionOrigin =
+    nodeCoordinateToMicrocellOriginV1(maximumNodeCoordinate);
+  assertCondition(
+    maximumRegionOrigin === maximumEnumeratedOrigin,
+    "maximum node origin does not align with the final safe microcell",
+  );
+  assertCondition(
     placementFitsRegionV1(
-      { ...region, maximum_x: Number.MAX_SAFE_INTEGER },
+      {
+        ...region,
+        minimum_x: maximumNodeCoordinate,
+        maximum_x: maximumNodeCoordinate,
+        minimum_y: maximumNodeCoordinate,
+        maximum_y: maximumNodeCoordinate,
+        minimum_z: maximumNodeCoordinate,
+        maximum_z: maximumNodeCoordinate,
+      },
+      {
+        x: maximumRegionOrigin,
+        y: maximumRegionOrigin,
+        z: maximumRegionOrigin,
+      },
+      4,
+    ),
+    "final safe standard-node placement did not fit its exact region",
+  );
+  assertCondition(
+    placementFitsRegionV1(
+      {
+        ...region,
+        minimum_x: 0,
+        maximum_x: Number.MAX_SAFE_INTEGER,
+        minimum_y: 0,
+        maximum_y: 0,
+        minimum_z: 0,
+        maximum_z: 0,
+      },
       { x: 0, y: 0, z: 0 },
       1,
     ),
+    "safe-integer region boundary was not compared exactly",
   );
   assertCondition(
     placementOriginIsAlignedV1({ x: -4, y: 0, z: 4 }, 4) &&
