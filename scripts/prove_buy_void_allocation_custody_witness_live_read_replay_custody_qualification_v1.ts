@@ -414,6 +414,28 @@ function rebuildReceipt(
 }
 
 {
+  const forged = structuredClone(
+    placementFor(journal0),
+  ) as Record<string, any>;
+  forged.normalized.high_water_root.parent_device =
+    forged.normalized.journal_root.parent_device;
+  forged.normalized.high_water_root.disk_serial =
+    forged.normalized.journal_root.disk_serial;
+  forged.normalized.high_water_root.disk_wwn =
+    forged.normalized.journal_root.disk_wwn;
+  forged.qualification_id =
+    "voidwlrie1_" +
+    crypto
+      .createHash("sha256")
+      .update(canonicalJson(forged.normalized), "utf8")
+      .digest("hex");
+  expectHeld(
+    classify(journal0, null, forged),
+    "witness_replay_custody_placement_storage_not_distinct",
+  );
+}
+
+{
   const corrupted = {
     ...genesis.receipt,
     receipt_sha256: entropy("f"),
@@ -500,6 +522,7 @@ console.log(
 );
 console.log("genesis_receipt_epoch_zero=true");
 console.log("placement_qualification_id_recomputed=true");
+console.log("fabricated_same_disk_placement_rejected=true");
 console.log("placement_current_state_binding=true");
 console.log("storage_policy_fingerprint_bound=true");
 console.log("evidence_refresh_does_not_advance_custody_epoch=true");
