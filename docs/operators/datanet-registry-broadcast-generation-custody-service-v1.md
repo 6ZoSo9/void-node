@@ -34,6 +34,9 @@ Server configuration fixes:
 - one socket IPC group GID.
 
 Requests cannot select a path, filename, generation, or arbitrary bytes.
+All fence identifiers, receipt digests, and decimal device/inode observations
+must be JSON strings matching their exact grammars. Arrays that stringify to
+valid-looking identifiers are rejected before any create-only record write.
 
 The exact request envelope supports only:
 
@@ -113,6 +116,8 @@ has:
 - bounded response/inactivity timeout;
 - the caller's stricter total deadline;
 - exact request/response digest binding;
+- successful responses bound to the exact method, fence ID, and (for
+  `assert`) original custody receipt;
 - bounded response bytes; and
 - mandatory `AbortSignal` handling that destroys the socket.
 

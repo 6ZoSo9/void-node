@@ -205,7 +205,14 @@ const HELD_DECISION_KEYS=Object.freeze([
   "funds_movement",
 ]);
 
-function validateDecision(decision){
+function validateDecision(decision,expectedMethod,expectedFenceId,expectedReceipt){
+  if(
+    !["claim","assert"].includes(expectedMethod)||
+    typeof expectedFenceId!=="string"||
+    !FENCE_ID.test(expectedFenceId)
+  ){
+    fail("datanet_broadcast_generation_custody_client_response_invalid");
+  }
   if(!decision||typeof decision!=="object"||Array.isArray(decision)){
     fail("datanet_broadcast_generation_custody_client_response_invalid");
   }
@@ -217,9 +224,18 @@ function validateDecision(decision){
     );
     const expectedOperationPerformed=value.status==="created";
     if(
-      !["created","exists","asserted"].includes(value.status)||
-      !FENCE_ID.test(String(value.broadcast_generation_fence_id||""))||
-      !SHA256_ID.test(String(value.custody_receipt_sha256||""))||
+      (
+        expectedMethod==="claim"
+          ? !["created","exists"].includes(value.status)
+          : value.status!=="asserted"
+      )||
+      value.broadcast_generation_fence_id!==expectedFenceId||
+      typeof value.custody_receipt_sha256!=="string"||
+      !SHA256_ID.test(value.custody_receipt_sha256)||
+      (
+        expectedMethod==="assert"&&
+        value.custody_receipt_sha256!==expectedReceipt
+      )||
       value.source_service_contract_proven!==true||
       value.independent_custody_proven!==false||
       value.live_host_qualification_performed!==false||
@@ -256,7 +272,13 @@ function validateDecision(decision){
   return Object.freeze({...value});
 }
 
-function validateResponse(raw,requestSha256){
+function validateResponse(
+  raw,
+  requestSha256,
+  expectedMethod,
+  expectedFenceId,
+  expectedReceipt,
+){
   if(!raw||typeof raw!=="object"||Array.isArray(raw)){
     fail("datanet_broadcast_generation_custody_client_response_invalid");
   }
@@ -278,7 +300,12 @@ function validateResponse(raw,requestSha256){
   ){
     fail("datanet_broadcast_generation_custody_client_response_invalid");
   }
-  return validateDecision(raw.decision);
+  return validateDecision(
+    raw.decision,
+    expectedMethod,
+    expectedFenceId,
+    expectedReceipt,
+  );
 }
 
 async function request(options,envelope,rawContext){
@@ -409,7 +436,13 @@ async function request(options,envelope,rawContext){
       }
       let decision;
       try{
-        decision=validateResponse(parsed,requestSha256);
+        decision=validateResponse(
+          parsed,
+          requestSha256,
+          envelope.method,
+          envelope.fence.broadcast_generation_fence_id,
+          envelope.custody_receipt_sha256,
+        );
       }catch(error){
         finish(error);
         return;
@@ -452,7 +485,8 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyTransportV1(
       if(
         !claim||
         typeof claim!=="object"||
-        !SHA256_ID.test(String(claim.custody_receipt_sha256||""))
+        typeof claim.custody_receipt_sha256!=="string"||
+        !SHA256_ID.test(claim.custody_receipt_sha256)
       ){
         fail("datanet_broadcast_generation_custody_client_claim_invalid");
       }
@@ -464,7 +498,7 @@ export function createVoidDatanetRegistryBroadcastGenerationCustodyTransportV1(
           version:1,
           method:"assert",
           fence,
-          custody_receipt_sha256:String(claim.custody_receipt_sha256),
+          custody_receipt_sha256:claim.custody_receipt_sha256,
         },
         context,
       );

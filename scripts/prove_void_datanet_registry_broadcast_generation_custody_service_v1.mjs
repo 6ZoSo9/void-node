@@ -486,6 +486,74 @@ try{
   assert.equal(injected.decision.ok,false);
   assert.equal(injected.decision.operation_performed,false);
 
+  const strictStringFields=[
+    "broadcast_operation_id",
+    "broadcast_authorization_id",
+    "broadcast_authorization_request_id",
+    "signed_transaction_id",
+    "signed_transaction_hash",
+    "state_store_realpath_sha256",
+    "broadcast_generation_fence_id",
+    "observed_consumption_record_id",
+    "observed_state_store_root_dev",
+    "observed_state_store_root_ino",
+  ];
+  const generationLocalFields=new Set([
+    "observed_consumption_record_id",
+    "observed_state_store_root_dev",
+    "observed_state_store_root_ino",
+  ]);
+  for(const field of strictStringFields){
+    const invalidFence={
+      ...firstFence,
+      [field]:[firstFence[field]],
+    };
+    if(
+      field!=="broadcast_generation_fence_id"&&
+      !generationLocalFields.has(field)
+    ){
+      const {
+        broadcast_generation_fence_id:_ignoredFenceId,
+        observed_consumption_record_id:_ignoredConsumption,
+        observed_state_store_root_dev:_ignoredDev,
+        observed_state_store_root_ino:_ignoredIno,
+        ...stableIdentity
+      }=invalidFence;
+      invalidFence.broadcast_generation_fence_id=
+        "voiddrbgf1_"+sha256(Buffer.from(canonicalJson(stableIdentity)));
+    }
+    const rejected=
+      await handleVoidDatanetRegistryBroadcastGenerationCustodyEnvelopeV1(
+        options,
+        {
+          ...stickyClientEnvelope,
+          fence:invalidFence,
+        },
+      );
+    assert.equal(rejected.decision.ok,false,field);
+    assert.equal(rejected.decision.operation_performed,false,field);
+    if(typeof invalidFence.broadcast_generation_fence_id==="string"){
+      assert.equal(
+        fs.existsSync(path.join(
+          fenceRoot,
+          invalidFence.broadcast_generation_fence_id+".json",
+        )),
+        generationLocalFields.has(field),
+        field+" must not create a malformed new fence record",
+      );
+    }
+  }
+  const arrayReceipt=await handleVoidDatanetRegistryBroadcastGenerationCustodyEnvelopeV1(
+    options,
+    {
+      ...stickyClientEnvelope,
+      method:"assert",
+      custody_receipt_sha256:[first.custody_receipt_sha256],
+    },
+  );
+  assert.equal(arrayReceipt.decision.ok,false);
+  assert.equal(arrayReceipt.decision.operation_performed,false);
+
   const secondFence=fence("c");
   const second=await transport.claim(secondFence,{
     signal:new AbortController().signal,
@@ -740,6 +808,120 @@ assert.match(
   /datanet_broadcast_generation_custody_direct_executable_activation_not_authorized/u,
 );
 
+const malformedParent=path.join(root,"malformed-response-run");
+fs.mkdirSync(malformedParent,{mode:0o750});
+fs.chmodSync(malformedParent,0o750);
+const malformedSocket=path.join(malformedParent,"custody.sock");
+let responseMutation=null;
+const malformedServer=net.createServer((socket)=>{
+  socket.setEncoding("utf8");
+  let input="";
+  socket.on("error",(error)=>{void error;});
+  socket.on("data",(chunk)=>{
+    input+=chunk;
+    const newline=input.indexOf("\n");
+    if(newline<0) return;
+    const envelope=JSON.parse(input.slice(0,newline));
+    const response={
+      schema:"void_datanet_registry_broadcast_generation_custody_response_v1",
+      marker:VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1,
+      version:1,
+      request_sha256:"sha256:"+sha256(Buffer.from(canonicalJson(envelope))),
+      decision:responseMutation({
+        ok:true,
+        status:envelope.method==="claim"?"created":"asserted",
+        broadcast_generation_fence_id:
+          envelope.fence.broadcast_generation_fence_id,
+        custody_receipt_sha256:
+          envelope.method==="claim"
+            ? "sha256:"+"b".repeat(64)
+            : envelope.custody_receipt_sha256,
+        source_service_contract_proven:true,
+        independent_custody_proven:false,
+        live_host_qualification_performed:false,
+        operation_performed:envelope.method==="claim",
+        rpc_access:false,
+        transaction_broadcast:false,
+        funds_movement:false,
+      }),
+    };
+    socket.end(JSON.stringify(response)+"\n");
+  });
+});
+await new Promise((resolve,reject)=>{
+  malformedServer.once("error",reject);
+  malformedServer.listen(malformedSocket,resolve);
+});
+fs.chmodSync(malformedSocket,0o660);
+if(typeof process.getuid==="function"){
+  fs.chownSync(malformedSocket,-1,socketGroup);
+}
+try{
+  const malformedTransport=
+    createVoidDatanetRegistryBroadcastGenerationCustodyTransportV1({
+      socket_path:malformedSocket,
+      connect_timeout_ms:500,
+      response_timeout_ms:500,
+      max_response_bytes:64*1024,
+    });
+  const responseCases=[
+    {
+      label:"claim_cannot_be_asserted",
+      method:"claim",
+      mutate:(decision)=>({
+        ...decision,
+        status:"asserted",
+        operation_performed:false,
+      }),
+    },
+    {
+      label:"claim_cannot_cross_fence",
+      method:"claim",
+      mutate:(decision)=>({
+        ...decision,
+        broadcast_generation_fence_id:"voiddrbgf1_"+"d".repeat(64),
+      }),
+    },
+    {
+      label:"assert_cannot_be_created",
+      method:"assert",
+      mutate:(decision)=>({
+        ...decision,
+        status:"created",
+        operation_performed:true,
+      }),
+    },
+    {
+      label:"assert_cannot_change_receipt",
+      method:"assert",
+      mutate:(decision)=>({
+        ...decision,
+        custody_receipt_sha256:"sha256:"+"f".repeat(64),
+      }),
+    },
+  ];
+  for(const testCase of responseCases){
+    responseMutation=testCase.mutate;
+    const call=testCase.method==="claim"
+      ? malformedTransport.claim(
+        fence("e"),
+        {signal:new AbortController().signal,timeout_ms:1000},
+      )
+      : malformedTransport.assert(
+        {custody_receipt_sha256:"sha256:"+"a".repeat(64)},
+        fence("e"),
+        {signal:new AbortController().signal,timeout_ms:1000},
+      );
+    await assert.rejects(
+      call,
+      /datanet_broadcast_generation_custody_client_response_invalid/u,
+      testCase.label,
+    );
+  }
+}finally{
+  await new Promise((resolve)=>malformedServer.close(()=>resolve()));
+}
+
 const accessorOptions={
   socket_path:socketPath,
   connect_timeout_ms:500,
@@ -845,6 +1027,9 @@ console.log("record_tamper_holds=true");
 console.log("record_exact_schema_required=true");
 console.log("nested_record_exact_schema_required=true");
 console.log("caller_selected_path=false");
+console.log("malformed_fence_identifier_arrays_rejected=true");
+console.log("malformed_assert_receipt_array_rejected=true");
+console.log("cross_method_and_cross_fence_success_rejected=true");
 console.log("concurrent_start_stop_single_owner=true");
 console.log("concurrent_lifecycle_private_listener_leak=false");
 console.log("replacement_socket_preserved_on_old_listener_close=true");

@@ -304,6 +304,10 @@ function fenceIdentity(fence){
   });
 }
 
+function typedStringMatches(value,pattern){
+  return typeof value==="string"&&pattern.test(value);
+}
+
 function normalizeFence(raw){
   const value=directObject(
     raw,
@@ -313,25 +317,25 @@ function normalizeFence(raw){
   if(
     value.marker!=="VOID_DATANET_REGISTRY_BROADCAST_GENERATION_FENCE_V1"||
     value.version!==1||
-    !OP_ID.test(String(value.broadcast_operation_id||""))||
-    !AUTH_ID.test(String(value.broadcast_authorization_id||""))||
-    !REQUEST_ID.test(String(value.broadcast_authorization_request_id||""))||
-    !SIGNED_ID.test(String(value.signed_transaction_id||""))||
-    !HASH.test(String(value.signed_transaction_hash||""))||
-    !SHA256.test(String(value.state_store_realpath_sha256||""))||
+    !typedStringMatches(value.broadcast_operation_id,OP_ID)||
+    !typedStringMatches(value.broadcast_authorization_id,AUTH_ID)||
+    !typedStringMatches(value.broadcast_authorization_request_id,REQUEST_ID)||
+    !typedStringMatches(value.signed_transaction_id,SIGNED_ID)||
+    !typedStringMatches(value.signed_transaction_hash,HASH)||
+    !typedStringMatches(value.state_store_realpath_sha256,SHA256)||
     value.one_submission_attempt_only!==true||
     value.automatic_retry_authorized!==false||
     value.replacement_transaction_authorized!==false||
-    !FENCE_ID.test(String(value.broadcast_generation_fence_id||""))||
-    !CONSUMPTION_ID.test(String(value.observed_consumption_record_id||""))||
-    !DECIMAL.test(String(value.observed_state_store_root_dev||""))||
-    !DECIMAL.test(String(value.observed_state_store_root_ino||""))
+    !typedStringMatches(value.broadcast_generation_fence_id,FENCE_ID)||
+    !typedStringMatches(value.observed_consumption_record_id,CONSUMPTION_ID)||
+    !typedStringMatches(value.observed_state_store_root_dev,DECIMAL)||
+    !typedStringMatches(value.observed_state_store_root_ino,DECIMAL)
   ){
     fail("datanet_broadcast_generation_custody_fence_invalid");
   }
   const normalized=Object.freeze({
     ...value,
-    signed_transaction_hash:String(value.signed_transaction_hash).toLowerCase(),
+    signed_transaction_hash:value.signed_transaction_hash.toLowerCase(),
   });
   const expected=
     "voiddrbgf1_"+sha256Hex(Buffer.from(canonicalJson(fenceIdentity(normalized))));
@@ -360,7 +364,7 @@ function normalizeEnvelope(raw){
     (value.method==="claim"&&value.custody_receipt_sha256!==null)||
     (
       value.method==="assert"&&
-      !SHA256_ID.test(String(value.custody_receipt_sha256||""))
+      !typedStringMatches(value.custody_receipt_sha256,SHA256_ID)
     )
   ){
     fail("datanet_broadcast_generation_custody_request_invalid");
@@ -373,7 +377,7 @@ function normalizeEnvelope(raw){
     fence,
     custody_receipt_sha256:
       value.method==="assert"
-        ? String(value.custody_receipt_sha256)
+        ? value.custody_receipt_sha256
         : null,
   });
 }
@@ -443,11 +447,12 @@ function assertRecord(record,fence){
     policy.one_submission_attempt_only!==true||
     policy.automatic_retry_authorized!==false||
     policy.replacement_transaction_authorized!==false||
-    !CONSUMPTION_ID.test(
-      String(observation.observed_consumption_record_id||""),
+    !typedStringMatches(
+      observation.observed_consumption_record_id,
+      CONSUMPTION_ID,
     )||
-    !DECIMAL.test(String(observation.observed_state_store_root_dev||""))||
-    !DECIMAL.test(String(observation.observed_state_store_root_ino||""))
+    !typedStringMatches(observation.observed_state_store_root_dev,DECIMAL)||
+    !typedStringMatches(observation.observed_state_store_root_ino,DECIMAL)
   ){
     fail("datanet_broadcast_generation_custody_record_invalid");
   }
