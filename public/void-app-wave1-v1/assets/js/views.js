@@ -583,7 +583,7 @@ function buyView() {
           <div class="activity-list">
             <div class="activity-row"><div class="activity-copy"><strong>Pricing</strong><small>Pool price discovery; no fixed WC→VOID redemption rate.</small></div><div class="activity-value">Market</div></div>
             <div class="activity-row"><div class="activity-copy"><strong>Trading</strong><small>No trade button is exposed until the reviewed market runtime is live.</small></div><div class="activity-value">HOLD</div></div>
-            <div class="activity-row"><div class="activity-copy"><strong>Launch order</strong><small>Presale activation remains the immediate gate; WC/VOID can follow its bounded activation ceremony.</small></div><div class="activity-value">Prepared</div></div>
+            <div class="activity-row"><div class="activity-copy"><strong>Launch order</strong><small>Presale intake and WC/VOID market activation are one coupled opening; neither may open alone.</small></div><div class="activity-value">Prepared</div></div>
           </div>
           <div class="alert alert--warning">
             <span class="alert__icon">!</span>
