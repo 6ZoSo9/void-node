@@ -1241,12 +1241,9 @@ for (const dependencyPath of [
   "tools/void-economic-epoch2-durable-replay-store-v1.mjs",
   "scripts/prove_void_economic_epoch2_durable_replay_store_v1.mjs",
 ]) {
-  assert.match(
-    pushTriggerSource,
-    new RegExp(dependencyPath.replace(/[.*+?^$()|[\]\\]/gu, "\\const source = fs.readFileSync(
-  "tools/void-economic-system-sponsored-runtime-admission-v1.mjs",
-  "utf8",
-);"), "u"),
+  assert.equal(
+    pushTriggerSource.includes(dependencyPath),
+    true,
     "main-push trigger must include replay dependency: " + dependencyPath,
   );
 }
