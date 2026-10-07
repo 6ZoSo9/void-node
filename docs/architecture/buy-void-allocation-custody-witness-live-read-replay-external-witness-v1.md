@@ -201,6 +201,15 @@ npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_state
 git diff --check
 ```
 
+Witness storage is bounded coherently with the accepted identity domain:
+
+- each canonical witness JSONL record is at most **4 KiB**, including its newline;
+- at most **8,193** witness events are accepted;
+- total witness capacity is therefore **33,558,528 bytes** (`8,193 × 4 KiB`);
+- the focused boundary proof uses all eight `SAFE_TEXT` identity fields at their
+  permitted 300-character maximum and still completes the full 8,193-event
+  witness history.
+
 The focused proof covers:
 
 - exact external genesis;
