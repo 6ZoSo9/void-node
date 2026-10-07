@@ -43,6 +43,13 @@ The policy file must be:
 The policy bytes are reread after the live storage reobservation and must retain
 the same file identity, SHA-256 and exact canonical content.
 
+After the terminal storage census, the collector re-reads the local clock and
+requires the observation to still be inside the exact parent-policy expiry
+window. A clock regression below the original observation time or a terminal
+time after expiry HOLDS instead of returning stale `LIVE_ROLLBACK_POLICY_OBSERVED`
+evidence. Verification-clock authority remains false; this check only prevents
+the collector itself from outliving the bounded policy lease it just derived.
+
 ## Stable control configuration
 
 The installed file contains stable control declarations only:
@@ -225,7 +232,9 @@ The proof covers:
 - shared rollback-controller rejection;
 - shared restore-credential rejection;
 - forged live storage identity rejection;
-- synthetic evidence cannot claim live observation; and
+- synthetic evidence cannot claim live observation;
+- terminal observation-time equality is accepted;
+- clock regression and terminal observation after expiry are rejected; and
 - all negative enforcement/custody/runtime/economic authority flags.
 
 ## Next gate
