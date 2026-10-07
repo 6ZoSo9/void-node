@@ -419,6 +419,7 @@ need(
 );
 
 const installThenThrowPostApp = new InstallThenThrowPostApp();
+let ambiguousRequestFetchCalls = 0;
 let requestPostInstallFailed = false;
 try {
   registerSteamReadonlyBridgeRuntimeV2(
@@ -426,6 +427,10 @@ try {
     {
       env,
       authorize_operator: () => true,
+      fetch_impl: async () => {
+        ambiguousRequestFetchCalls += 1;
+        throw new Error("ambiguous request handler reached fetch");
+      },
     },
   );
 } catch (error) {
@@ -463,6 +468,44 @@ need(
       (count) => count === 1,
     ),
   "held request retry duplicated the ambiguous route set",
+);
+
+const retainedRequestIndeterminateStatus = await invoke(
+  installThenThrowPostApp.getHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
+  ),
+  undefined,
+);
+need(
+  retainedRequestIndeterminateStatus.status === 503,
+  "status route reported ready while request registration was indeterminate",
+);
+
+const retainedIndeterminateRequest = await invoke(
+  installThenThrowPostApp.postHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+  ),
+  {
+    confirmation:
+      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_CONFIRMATION,
+    operation: "player_summaries",
+    steamids: ["76561198000000000"],
+  },
+);
+need(
+  retainedIndeterminateRequest.status === 503,
+  "retained indeterminate request handler did not HOLD",
+);
+need(
+  asObject(
+    retainedIndeterminateRequest.body,
+    "retained indeterminate request response missing",
+  ).error === "steam_readonly_bridge_registration_indeterminate",
+  "retained indeterminate request error mismatch",
+);
+need(
+  ambiguousRequestFetchCalls === 0,
+  "retained indeterminate request handler reached Steam fetch",
 );
 
 const app = new FakeApp();
