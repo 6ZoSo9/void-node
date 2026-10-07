@@ -238,6 +238,92 @@ const baseDependencies={
   now:()=>now,
 };
 
+const malformedRoot=path.join(parent,"malformed-custody-state");
+fs.mkdirSync(malformedRoot,{mode:0o700});
+fs.chmodSync(malformedRoot,0o700);
+writeConsumptionForRoot(malformedRoot);
+let malformedClaimRpcCalls=0;
+const malformedClaim=
+  await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+    {
+      broadcast_request:request,
+      broadcast_authorization:authorization,
+      prebroadcast_observation:observation,
+      signed_transaction:signed,
+      state_dir:malformedRoot,
+      confirmation:authorization.required_confirmation,
+    },
+    {
+      ...baseDependencies,
+      claim_generation_fence:async()=>Object.freeze({status:"created"}),
+      rpc:async()=>{
+        malformedClaimRpcCalls+=1;
+        throw new Error("malformed_custody_claim_must_not_reach_rpc");
+      },
+    },
+  );
+assert.equal(malformedClaim.ok,false);
+assert.equal(
+  malformedClaim.reason,
+  "registry_broadcast_execution_generation_fence_failed",
+);
+assert.equal(malformedClaimRpcCalls,0);
+assert.equal(
+  fs.existsSync(path.join(malformedRoot,"broadcast-attempts")),
+  false,
+);
+
+const revalidationRoot=path.join(parent,"revalidation-hold-state");
+fs.mkdirSync(revalidationRoot,{mode:0o700});
+fs.chmodSync(revalidationRoot,0o700);
+writeConsumptionForRoot(revalidationRoot);
+let revalidationRpcCalls=0;
+const revalidationHold=
+  await submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
+    {
+      broadcast_request:request,
+      broadcast_authorization:authorization,
+      prebroadcast_observation:observation,
+      signed_transaction:signed,
+      state_dir:revalidationRoot,
+      confirmation:authorization.required_confirmation,
+    },
+    {
+      ...baseDependencies,
+      claim_generation_fence:async(fence)=>Object.freeze({
+        status:"created",
+        broadcast_generation_fence_id:
+          fence.broadcast_generation_fence_id,
+        custody_receipt_sha256:
+          "sha256:"+
+          sha256(Buffer.from("revalidation:"+canonicalJson(fence))),
+        independent_custody_proven:true,
+      }),
+      assert_generation_fence:async()=>false,
+      rpc:async()=>{
+        revalidationRpcCalls+=1;
+        throw new Error("failed_custody_revalidation_must_not_reach_rpc");
+      },
+    },
+  );
+assert.equal(revalidationHold.ok,false);
+assert.equal(
+  revalidationHold.reason,
+  "registry_broadcast_execution_final_pre_send_gate_failed",
+);
+assert.equal(revalidationHold.transaction_submission_performed,false);
+assert.equal(revalidationRpcCalls,0);
+assert.equal(
+  fs.existsSync(
+    path.join(
+      revalidationRoot,
+      "broadcast-attempts",
+      operationId+".intent.json",
+    ),
+  ),
+  true,
+);
+
 const firstDependencies={
   ...baseDependencies,
   rpc:async (method)=>{
@@ -434,6 +520,8 @@ try{
   console.log("generation_fence_identity_stable_across_retry_time=true");
   console.log("generation_fence_identity_stable_across_root_generation=true");
   console.log("production_wrapper_fail_closed_without_custody=true");
+  console.log("malformed_external_custody_claim_zero_rpc=true");
+  console.log("failed_external_custody_revalidation_zero_rpc=true");
   console.log("original_attempt_directory_descriptor_bound=true");
   console.log("root_replacement_after_final_gate_simulated=true");
   console.log("first_simulated_network_send_count=1");
