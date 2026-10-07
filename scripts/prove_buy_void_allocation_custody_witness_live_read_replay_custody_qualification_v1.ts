@@ -100,8 +100,8 @@ let inodeCounter = 1000;
 function placementFor(
   journal: string,
   options: {
-    journalRoot?: Record<string, unknown>;
-    highWaterRoot?: Record<string, unknown>;
+    journalRoot?: Record<string, any>;
+    highWaterRoot?: Record<string, any>;
     dynamicSalt?: number;
   } = {},
 ) {
@@ -212,7 +212,7 @@ function expectHeld(
 function classify(
   journal: string,
   priorReceipt: unknown | null,
-  placement = placementFor(journal),
+  placement: unknown = placementFor(journal),
 ) {
   const derived = highWater(journal);
   return classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCustodyQualificationV1({
@@ -436,6 +436,16 @@ function rebuildReceipt(
 }
 
 {
+  const inconsistent = rebuildReceipt(genesis.receipt, {
+    generation: 7,
+  });
+  expectHeld(
+    classify(journal0, inconsistent),
+    "witness_replay_custody_prior_receipt_state_mismatch",
+  );
+}
+
+{
   const corrupted = {
     ...genesis.receipt,
     receipt_sha256: entropy("f"),
@@ -532,6 +542,7 @@ console.log("multi_event_jump_forbidden=true");
 console.log("stale_placement_rejected=true");
 console.log("storage_policy_drift_rejected=true");
 console.log("receipt_self_hash_required=true");
+console.log("receipt_high_water_state_consistency_required=true");
 console.log("placement_external_trust_proven=false");
 console.log("prior_receipt_external_trust_proven=false");
 console.log("rollback_resistance_proven=false");
