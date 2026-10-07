@@ -269,7 +269,7 @@ if (
     AGENT_PAID_WORK_CREDENTIAL_REQUEST_UPSTREAM_GLOBAL_LIMIT_PER_MINUTE
 ) {
   fail(
-    "credential request public applicant rate must reserve capacity for a second applicant",
+    "credential request public signing-key rate must reserve room for two signing-key buckets under the global wall",
   );
 }
 const AGENT_PAID_WORK_CREDENTIAL_REQUEST_PUBLIC_EDGE_SOURCE_CONFIGURED =
