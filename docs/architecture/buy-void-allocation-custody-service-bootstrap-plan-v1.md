@@ -97,11 +97,12 @@ specifier** against that explicit complete allowlist. It rejects new relative
 helpers, third-party packages, built-ins or other specifiers instead of silently
 discarding imports outside `../dist/`. For Node versions exposing
 `moduleRequests`, each dependency must also have the ordinary
-`phase=evaluation` and **empty import attributes**. The older Node 22
-`dependencySpecifiers` fallback cannot expose those fields, so the proof
-conservatively rejects import-attribute `with { ... }` syntax even when
-comments/newlines separate the tokens, and rejects non-evaluation import-phase
-forms by syntax or module-request metadata. Synthetic adversaries cover each
+`phase=evaluation` and **empty import attributes**. Node 22 minors may provide only `dependencySpecifiers`, or
+`moduleRequests` entries with incomplete metadata. **Only Node 22** may omit
+these metadata fields; its proof conservatively rejects import-attribute
+`with { ... }` syntax and `import source`/`import defer` phases even with
+interposed comments/newlines. Node 24/26 require complete ordinary request
+metadata. Unsupported phase syntax or altered request metadata always HOLDs. Synthetic adversaries cover each
 case. An independent full service-byte digest also detects changes that a
 parser might not enumerate. The current source
 pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
