@@ -583,6 +583,28 @@ try{
     false,
     "application tool must not statically import mutable worktree promotion source",
   );
+  {
+    const verifyAt=source.indexOf(
+      "export function verifyVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1",
+    );
+    const branchGuardAt=source.indexOf(
+      'if(repo.branch!=="main") fail("OPENING_DURABLE_APPLICATION_APPLIED_BRANCH_NOT_MAIN")',
+      verifyAt,
+    );
+    const appliedProductionAt=source.indexOf(
+      'const production=headFile(PRODUCTION_REL,"APPLIED_PRODUCTION")',
+      verifyAt,
+    );
+    assert.ok(verifyAt>=0);
+    assert.ok(
+      branchGuardAt>verifyAt,
+      "canonical application must check main-branch authority",
+    );
+    assert.ok(
+      appliedProductionAt>branchGuardAt,
+      "main-branch authority must be checked before applied-source blobs",
+    );
+  }
   for(const required of [
     "--no-replace-objects",
     "core.fsmonitor=false",
