@@ -6,9 +6,14 @@
 is the pure source verifier/planner for an independently retained replay
 high-water witness.
 
-Its purpose is to make coordinated rollback of both Precision replay-storage
-roots detectable against a separately retained monotonic sequence on another
-host such as Nimo.
+Its purpose is to define the canonical witness history needed for a later
+authenticated rollback detector using a separately retained monotonic sequence
+on another host such as Nimo.
+
+This source-only contract does **not** treat an unauthenticated witness that is
+ahead of local replay as proof of rollback. That claim becomes available only
+after the later transport/storage layer authenticates the external witness
+provenance.
 
 This contract performs no filesystem access, SSH, network operation, key access,
 remote append, service mutation, payment, transaction, activation, or funds
@@ -67,10 +72,15 @@ historical replay prefix from the supplied current canonical journal:
 - and so on.
 
 Each locally available reconstructed prefix is passed through the merged
-canonical replay high-water derivation before any rollback classification is
-allowed. If the external witness is ahead of local replay, the complete local
-common prefix must still rebind exactly. A malformed or forged ahead witness is
-therefore a history conflict, not rollback evidence.
+canonical replay high-water derivation before any comparison is allowed. If the
+external witness is ahead of local replay, the complete local common prefix must
+still rebind exactly.
+
+A divergent shared prefix is a history conflict. An ahead tail beyond the local
+reconstructable prefix is **unverified external state**, even when its JSONL
+hash chain and event shapes are internally valid. Because this contract has no
+authenticated transport or proven witness storage, neither a canonical-looking
+ahead tail nor a forged self-consistent ahead tail is rollback evidence.
 
 A syntactically valid mixed history such as:
 
@@ -105,7 +115,9 @@ This is not authority to treat the new local replay state as rollback anchored.
 The classifier HOLDs for:
 
 - local replay sequence behind a witness whose complete locally available
-  prefix rebinds exactly: rollback detected;
+  prefix rebinds exactly: `witness_replay_external_witness_ahead_unverified`,
+  with `rollback_regression_detected=false` until external provenance is
+  authenticated;
 - forged/mixed/divergent historical prefixes, including an ahead witness whose
   shared genesis/history does not match local canonical replay;
 - internally impossible pending challenge state, including a challenge ID whose
@@ -126,7 +138,7 @@ returns external witness event 1.
 For a non-empty witness:
 
 - exact local/witness equality is idempotent;
-- local rollback HOLDS;
+- unauthenticated witness-ahead state HOLDS without a rollback claim;
 - divergent history HOLDS;
 - otherwise the planner returns **exactly one** next external event corresponding
   to `witness_tip_replay_sequence + 1`.
@@ -190,8 +202,11 @@ The focused proof covers:
 - update-required classification;
 - idempotence;
 - sequential catch-up;
-- local rollback detection only after canonical common-prefix rebinding;
-- forged-ahead witness rejection without false rollback classification;
+- unauthenticated ahead-witness HOLD with no rollback claim, even when the
+  complete locally available common prefix rebinds exactly;
+- valid-shared-prefix / forged-future-tail rejection without false rollback
+  classification;
+- forged shared-prefix rejection without false rollback classification;
 - pending challenge ID/digest mismatch rejection, including in unavailable
   future witness prefixes;
 - mixed-history conflict rejection;
@@ -216,5 +231,6 @@ That handler must:
 7. bind Nimo host/storage identity; and
 8. expose no generic write/delete/rename/service-control primitive.
 
-Only after that live transport/storage gate is qualified should the replay
-rollback policy treat Nimo as the high-water second-control domain.
+Only after that live transport/storage gate authenticates the external witness
+provenance should the replay rollback policy treat Nimo as the high-water
+second-control domain or set `rollback_regression_detected=true`.
