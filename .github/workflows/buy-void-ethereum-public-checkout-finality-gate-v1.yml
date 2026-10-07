@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/buy-void-ethereum-public-checkout-finality-gate-v1.yml"
+      - "src/index.ts"
       - "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts"
       - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
       - "src/economic/buy_void_source_finality_generation_provenance_v5.ts"
