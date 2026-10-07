@@ -61,10 +61,16 @@ jobs:
         run: npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_high_water_v1.ts
       - name: Preserve external compare handler
         run: node scripts/prove_buy_void_allocation_custody_witness_live_read_replay_external_forced_command_v1.mjs
-      - name: Diff hygiene
+      - name: Diff hygiene (pull request)
+        if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           git diff --check "$BASE_SHA" "$HEAD_SHA"
+      - name: Diff hygiene (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          git diff --check HEAD^ HEAD
