@@ -107,6 +107,32 @@ function reconstructV3Candidate(predecessor) {
     predecessor.predecessor.enforcement_artifact_set_sha256,
   );
 
+  const v1Path = String(v2?.predecessor?.manifest_path || "");
+  const v1Blob = String(
+    v2?.predecessor?.manifest_git_blob_sha1 || "",
+  );
+  assert.equal(
+    v1Path,
+    "docs/architecture/buy-void-enforcement-artifact-attestation-v1.json",
+    "V2 predecessor must retain the canonical V1 manifest path",
+  );
+  assert.match(
+    v1Blob,
+    /^[0-9a-f]{40}$/u,
+    "V2 predecessor V1 blob must be commit-shaped",
+  );
+  const v1 = parseBoundJson(v1Path, v1Blob);
+  assert.equal(
+    v1.schema,
+    "void_buy_void_enforcement_artifact_attestation_v1",
+  );
+  assert.equal(v1.version, 1);
+  assert.equal(
+    v1.enforcement_artifact_set_sha256,
+    v2.predecessor.enforcement_artifact_set_sha256,
+    "V1 enforcement set must match the V2 predecessor claim",
+  );
+
   const artifacts = v2.artifacts.map((record) => clone(record));
   const inputs = v2.inputs.map((record) => clone(record));
 
