@@ -28,7 +28,7 @@ The corresponding content-addressed policy binds:
 - coupled launch ID;
 - Chain 2050 / execution epoch 2 / `WC_VOID`;
 - deployed market-vault address and runtime-code SHA-256;
-- exact accepted market-vault compiled identity;
+- exact corrected current market-vault compiled identity;
 - exact WC settlement adapter;
 - maximum canary participant count;
 - maximum settled WC;
@@ -54,7 +54,7 @@ and bind all of:
 
 - exact reviewed canary policy ID;
 - exact coupled launch;
-- exact deployed vault/runtime and compiled identity;
+- exact deployed vault/runtime and corrected current compiled identity;
 - content-addressed vault/runtime-verification evidence;
 - content-addressed inventory-lock evidence;
 - exact settlement adapter;

@@ -45,11 +45,11 @@ const EXPECTED_EXECUTION_BLOBS = Object.freeze({
     "2026b9be59216b0c52cf4d978b7fc91b7f7592e1",
 });
 const EXPECTED_COUPLED_BLOB =
-  "d78bc88dd26c47921a54c081a79ceefc0d5abcee";
+  "fbbc3174406f76077c8cb2fc11df9545938c0c8f";
 const EXPECTED_SHARED_V2_BLOB =
   "bcfff9c2981e713a7053ff51a39145eb06b7238b";
 const EXPECTED_RECONCILIATION_ID =
-  "sha256:522ff84c2fff69ef477085a253b666cb450a8dbd89d372633fdfe883e58851ba";
+  "sha256:9b74e695f3988b4bcaa7abcdbdb767ea927fc294440a1ff2ecfbcd4db9bf7f04";
 
 function contentId(value) {
   return `sha256:${crypto

@@ -4,12 +4,19 @@ on:
   pull_request:
     paths:
       - ".github/workflows/wc-void-coupled-launch-regeneration-census-v2.yml"
+      - ".github/workflows/void-wc-void-market-vault-role-deployment-qualification-v1.yml"
       - "tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs"
+      - "src/index.ts"
       - "scripts/prove_void_wc_void_coupled_launch_regeneration_census_v2.mjs"
       - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "tools/void-wc-void-production-readiness-v1.mjs"
@@ -35,12 +42,19 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/wc-void-coupled-launch-regeneration-census-v2.yml"
+      - ".github/workflows/void-wc-void-market-vault-role-deployment-qualification-v1.yml"
       - "tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs"
+      - "src/index.ts"
       - "scripts/prove_void_wc_void_coupled_launch_regeneration_census_v2.mjs"
       - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs"
       - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
       - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
+      - "tools/void-wc-void-market-vault-compiler-identity-v1.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
       - "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json"
       - "ops/mainnet0/wc-void-production-candidate-v1.json"
       - "tools/void-wc-void-production-readiness-v1.mjs"
@@ -86,11 +100,17 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Syntax
         run: |
           node --check tools/void-wc-void-coupled-launch-regeneration-census-v2.mjs
           node --check tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs
+          node --check tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs
+          node --check scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs
           node --check scripts/prove_void_wc_void_coupled_launch_regeneration_census_v2.mjs
+      - name: Prove corrected current vault identity
+        run: node scripts/prove_void_wc_void_market_vault_compiled_identity_current_v2.mjs
       - name: Prove corrected generation census
         run: node scripts/prove_void_wc_void_coupled_launch_regeneration_census_v2.mjs
       - name: Emit review census

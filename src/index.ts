@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { listDirectDirectoryNamesV1 as ldn, readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
+import { classifyVoidDemo003PublicServingSetV1, VOID_DEMO003_CANONICAL_PAYLOADS_V1 as d3p, VOID_DEMO003_CONTROL_MAX_BYTES_V1 as d3c } from "./http/void_demo003_public_serving_contract_v1.js";
 import {
   runVoidNativeBlockExecutionPrecommitIntegrationV1,
 } from "./chain/native_block_execution_precommit_integration_v1.js";
@@ -107,7 +108,7 @@ import { executeOrderStatusReadonlyHttpIntegrationFromEnvironmentV1 } from "../t
 import { AgentPick2JsonlSemanticIndexV1, appendAgentPick2JsonlCanonicalV1 } from "./http/agent_pick2_jsonl_semantic_index_v1.js"; // VOID_AGENT_PICK2_JSONL_SEMANTIC_INDEX_V1_IMPORT
 
 // VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1
-let __BL:any;void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26")__BL=m}).catch(()=>0);
+let __BL:any;void import("../src/economic/buy_void_coupled_launch_gate_v1.mjs").then((m:any)=>{if(m.VOID_BUY_COUPLED_LAUNCH_ID_V1==="sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d")__BL=m}).catch(()=>0);
 const __bld=()=>{try{return __BL?.readBuyLaunchGateV1()||{ready:0}}catch{return{ready:0}}},__blo=(r:any)=>{try{return __BL?.buyLaunchRequestAuthorityMatchesV1(r,__bld())}catch{return false}},__blm=(r:any,f:any)=>__BL.withBuyLaunchRequestAuthorityMutationV1(r,f);
 
 // __VOID_TS_DECLARES_V1__
@@ -58662,28 +58663,74 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
   const path = require("path");
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const latest = path.join(dataDir, "public-node", "local-data-drop-demo003-folder-fixtures", "latest");
-  const manifestPath = path.join(latest, "manifest.json");
-  const intakePath = path.join(latest, "intake.json");
-  let manifestBytes:Buffer|null;
-  try{manifestBytes=rf(manifestPath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_unsafe_manifest",object_set_id:"demo003-folder-fixture-v1"});}
-  if(!manifestBytes){
-    return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_missing_manifest",object_set_id:"demo003-folder-fixture-v1",policy:{public_upload:false,operator_local_import_only:true,public_read_only:true,trusted_as_network_truth:false}});
+  const marker = "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1";
+  const hold = (statusCode:any, status:any) => res.status(statusCode).json({
+    marker,
+    status,
+    object_set_id: "demo003-folder-fixture-v1",
+    source_contract_verified: false,
+    verified_content_authority: "none",
+    serving_authority: "canonical_demo003_source_contract_v1",
+    visible_extraction_tree_trusted: false,
+    trusted_as_network_truth: false
+  });
+  const paths:any = {
+    manifest: path.join(latest, "manifest.json"),
+    checksums: path.join(latest, "sha256sums.txt"),
+    intake: path.join(latest, "intake.json"),
+    readme: path.join(latest, "files", "README.txt"),
+    index: path.join(latest, "files", "index.html"),
+    metadata: path.join(latest, "files", "metadata.json")
+  };
+  let manifestBytes:Buffer|null, checksumBytes:Buffer|null, intakeBytes:Buffer|null;
+  let readmeBytes:Buffer|null, indexBytes:Buffer|null, metadataBytes:Buffer|null;
+  try {
+    manifestBytes=rf(paths.manifest,d3c);
+    checksumBytes=rf(paths.checksums,d3c);
+    intakeBytes=rf(paths.intake,d3c);
+    readmeBytes=rf(paths.readme,d3p["README.txt"].bytes);
+    indexBytes=rf(paths.index,d3p["index.html"].bytes);
+    metadataBytes=rf(paths.metadata,d3p["metadata.json"].bytes);
+  } catch (_e) {
+    return hold(503, "demo003_folder_fixture_unsafe_storage");
   }
-  let manifest:any;
-  try{manifest=JSON.parse(manifestBytes.toString("utf8"));}
-  catch(_e){return res.status(422).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_invalid_manifest",object_set_id:"demo003-folder-fixture-v1"});}
-  let intake:any=null; let ib:Buffer|null;
-  try{ib=rf(intakePath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_unsafe_intake",object_set_id:"demo003-folder-fixture-v1"});}
-  if(ib){try{intake=JSON.parse(ib.toString("utf8"));}catch(_e){return res.status(422).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",status:"demo003_folder_fixture_invalid_intake",object_set_id:"demo003-folder-fixture-v1"});}}
+  if(!manifestBytes){
+    return hold(404, "demo003_folder_fixture_missing_manifest");
+  }
+  if(!checksumBytes||!intakeBytes||!readmeBytes||!indexBytes||!metadataBytes){
+    return hold(503, "demo003_folder_fixture_source_contract_incomplete");
+  }
+  let contract:any;
+  try {
+    contract=classifyVoidDemo003PublicServingSetV1({
+      manifestBytes,
+      checksumBytes,
+      intakeBytes,
+      payloadBytes: {
+        "README.txt": readmeBytes,
+        "index.html": indexBytes,
+        "metadata.json": metadataBytes
+      }
+    });
+  } catch (_e) {
+    return hold(503, "demo003_folder_fixture_source_contract_hold");
+  }
   return res.json({
-    marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_MANIFEST_ROUTE_V1",
+    marker,
     status:"demo003_folder_fixture_served",
     object_set_id:"demo003-folder-fixture-v1",
-    manifest,
-    intake_marker:intake&&intake.marker||null,
-    offline_verified:!!(intake&&intake.offline_verified===true),
-    network_fetch_during_import:!!(intake&&intake.network_fetch_during_import===true),
-    trusted_as_network_truth:!!(intake&&intake.trusted_as_network_truth===true),
+    manifest:contract.manifest,
+    intake_marker:contract.intake_marker,
+    offline_verified:contract.offline_verified,
+    network_fetch_during_import:contract.network_fetch_during_import,
+    trusted_as_network_truth:contract.trusted_as_network_truth,
+    verified_content_authority:contract.verified_content_authority,
+    intake_verified_content_authority:contract.intake_verified_content_authority,
+    serving_authority:"canonical_demo003_source_contract_v1",
+    source_contract_verified:true,
+    source_contract_sha256:contract.source_contract_sha256,
+    sealed_snapshot_set_sha256:contract.sealed_snapshot_set_sha256,
+    visible_extraction_tree_trusted:false,
     files:{
       index_html:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/index.html",
       readme_txt:"/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/README.txt",
@@ -58694,37 +58741,90 @@ APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/manifest.
 });
 
 APP.get("/public-node/local-data-drop/folder/demo003-folder-fixture-v1/files/:fileName", (req:any, res:any) => { // VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1
-  const fs = require("fs");
   const path = require("path");
   const dataDir = String(process.env.DATA_DIR || ".runtime/mainnet0");
   const latest = path.join(dataDir, "public-node", "local-data-drop-demo003-folder-fixtures", "latest");
   const fileName = String(req.params.fileName || "");
+  const marker = "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1";
   const allowed:any = {
     "index.html": "text/html; charset=utf-8",
     "README.txt": "text/plain; charset=utf-8",
     "metadata.json": "application/json; charset=utf-8"
   };
-
   if (!Object.prototype.hasOwnProperty.call(allowed, fileName)) {
     return res.status(404).json({
-      marker: "VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",
+      marker,
       status: "demo003_folder_file_not_allowed",
       object_set_id: "demo003-folder-fixture-v1",
       file_name: fileName,
-      public_read_only: true
+      public_read_only: true,
+      visible_extraction_tree_trusted: false
     });
   }
-
-  const filesDir = path.join(latest, "files");
-  const filePath = path.join(filesDir, fileName);
-
-  let buf:Buffer|null;
-  try{buf=rf(filePath);}catch(_e){return res.status(503).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",status:"demo003_folder_file_unsafe_storage",object_set_id:"demo003-folder-fixture-v1",file_name:fileName,public_read_only:true});}
-  if(!buf){return res.status(404).json({marker:"VOID_PUBLIC_NODE_LOCAL_DATA_DROP_DEMO003_FOLDER_FILE_ROUTE_V1",status:"demo003_folder_file_missing",object_set_id:"demo003-folder-fixture-v1",file_name:fileName,public_read_only:true});}
-
+  const hold = (status:any) => res.status(503).json({
+    marker,
+    status,
+    object_set_id: "demo003-folder-fixture-v1",
+    file_name: fileName,
+    public_read_only: true,
+    source_contract_verified: false,
+    verified_content_authority: "none",
+    serving_authority: "canonical_demo003_source_contract_v1",
+    visible_extraction_tree_trusted: false,
+    trusted_as_network_truth: false
+  });
+  const paths:any = {
+    manifest: path.join(latest, "manifest.json"),
+    checksums: path.join(latest, "sha256sums.txt"),
+    intake: path.join(latest, "intake.json"),
+    readme: path.join(latest, "files", "README.txt"),
+    index: path.join(latest, "files", "index.html"),
+    metadata: path.join(latest, "files", "metadata.json")
+  };
+  let manifestBytes:Buffer|null, checksumBytes:Buffer|null, intakeBytes:Buffer|null;
+  let readmeBytes:Buffer|null, indexBytes:Buffer|null, metadataBytes:Buffer|null;
+  try {
+    manifestBytes=rf(paths.manifest,d3c);
+    checksumBytes=rf(paths.checksums,d3c);
+    intakeBytes=rf(paths.intake,d3c);
+    readmeBytes=rf(paths.readme,d3p["README.txt"].bytes);
+    indexBytes=rf(paths.index,d3p["index.html"].bytes);
+    metadataBytes=rf(paths.metadata,d3p["metadata.json"].bytes);
+  } catch (_e) {
+    return hold("demo003_folder_file_unsafe_storage");
+  }
+  if(!manifestBytes||!checksumBytes||!intakeBytes||!readmeBytes||!indexBytes||!metadataBytes){
+    return hold("demo003_folder_file_source_contract_incomplete");
+  }
+  let contract:any;
+  try {
+    contract=classifyVoidDemo003PublicServingSetV1({
+      manifestBytes,
+      checksumBytes,
+      intakeBytes,
+      payloadBytes: {
+        "README.txt": readmeBytes,
+        "index.html": indexBytes,
+        "metadata.json": metadataBytes
+      }
+    });
+  } catch (_e) {
+    return hold("demo003_folder_file_source_contract_hold");
+  }
+  const selected:any = {
+    "README.txt": readmeBytes,
+    "index.html": indexBytes,
+    "metadata.json": metadataBytes
+  };
   res.setHeader("Content-Type", allowed[fileName]);
   res.setHeader("Cache-Control", "no-store");
-  return res.send(buf);
+  res.setHeader("X-VOID-Demo003-Serving-Authority", "canonical_demo003_source_contract_v1");
+  res.setHeader("X-VOID-Demo003-Verified-Content-Authority", contract.verified_content_authority);
+  res.setHeader("X-VOID-Demo003-Intake-Verified-Content-Authority", contract.intake_verified_content_authority);
+  res.setHeader("X-VOID-Demo003-Source-Contract-SHA256", contract.source_contract_sha256);
+  res.setHeader("X-VOID-Demo003-Sealed-Snapshot-Set-SHA256", contract.sealed_snapshot_set_sha256);
+  res.setHeader("X-VOID-Demo003-Visible-Extraction-Tree-Trusted", "false");
+  return res.send(selected[fileName]);
 });
 
 

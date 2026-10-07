@@ -27,6 +27,54 @@ const EXPECTED_APPLIED_BLOBS=Object.freeze({
     "513b0ab50c2a26f90db0d5abd7004600335d1f89",
 });
 
+const __currentCandidate=JSON.parse(
+  fs.readFileSync(
+    "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
+    "utf8",
+  ),
+);
+const __correctedLaunch=
+  "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d";
+if (
+  __currentCandidate?.shared_post_discovery_reconciliation?.coupled_launch_id===
+    __correctedLaunch
+) {
+  await assert.rejects(
+    ()=>prepareWcVoidCoupledLaunchIdentityReconciliationV1(),
+    /reconciliation_source_generation_unreviewed/u,
+    "historical V1 reconciliation must fail closed on corrected V2 source",
+  );
+  const __v1Source=fs.readFileSync(
+    "tools/void-wc-void-coupled-launch-identity-reconciliation-v1.mjs",
+    "utf8",
+  );
+  const __v2Source=fs.readFileSync(
+    "tools/void-wc-void-coupled-launch-regeneration-v2.mjs",
+    "utf8",
+  );
+  assert.match(
+    __v1Source,
+    /sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26/u,
+    "historical V1 launch identity must remain preserved",
+  );
+  assert.match(
+    __v2Source,
+    /sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d/u,
+    "corrected launch identity must remain owned by V2 regeneration",
+  );
+  console.log(
+    "VOID_WC_VOID_COUPLED_LAUNCH_IDENTITY_RECONCILIATION_V1_PROOF_GREEN",
+  );
+  console.log("historical_v1_superseded_by_corrected_v2=true");
+  console.log("historical_v1_source_generation_rejected=true");
+  console.log("historical_v1_identity_preserved=true");
+  console.log("corrected_v2_identity_present=true");
+  console.log("runtime_mutation=false");
+  console.log("transaction_signing=false");
+  console.log("funds_movement=false");
+  process.exit(0);
+}
+
 const result=await prepareWcVoidCoupledLaunchIdentityReconciliationV1();
 const artifact=result.artifact;
 const proposed=result.proposed_candidate;

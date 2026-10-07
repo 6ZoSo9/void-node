@@ -74,7 +74,7 @@ Before either executes, the tool requires a clean repository and binds exact
 - market-vault at-use revalidation;
 - runtime attestation;
 - runtime-attestation import;
-- compiled-identity acceptance;
+- corrected current compiled-identity binding;
 - compiler identity;
 - production readiness;
 - opening settlement-adapter review;
@@ -211,11 +211,12 @@ Resetting those five values must reproduce the exact input candidate.
 
 No other source field may move.
 
-In particular, the nested
-`market_vault_compiled_identity_acceptance` object is intentionally unchanged.
-That object is the immutable reviewed **compiled-identity acceptance packet**;
-the current production-readiness classifier expects its deployment/funding
-booleans to remain the pre-deployment acceptance values:
+In particular, the compatibility-named nested
+`market_vault_compiled_identity_acceptance` object is intentionally retained.
+Its contents now carry the reviewed **corrected current V2 compiled-identity
+binding**, not the superseded V1 deployment bytes. The current
+production-readiness classifier expects its deployment/funding booleans to
+remain the pre-deployment binding values:
 
 ```text
 deployment_attested=false

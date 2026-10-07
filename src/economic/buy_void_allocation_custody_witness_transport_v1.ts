@@ -957,6 +957,39 @@ function readResponse(
   return line;
 }
 
+export function classifyBuyVoidAllocationCustodyWitnessTransportRequestEnvelopeV1(
+  input: {
+    policy: unknown;
+    request_json: string | Buffer;
+  },
+) {
+  try {
+    const parsed = parseRequest(
+      input?.policy,
+      input?.request_json,
+    );
+    return Object.freeze({
+      ok: true as const,
+      status: "request_envelope_valid" as const,
+      marker: VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_V1,
+      version: 1 as const,
+      operation: parsed.request.operation,
+      request_id: parsed.request.request_id,
+      policy_sha256: parsed.policy_sha256,
+      operation_performed: false as const,
+      remote_filesystem_write_authorized: false as const,
+      authority:
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_TRANSPORT_AUTHORITY_V1,
+    });
+  } catch (error) {
+    return held(
+      error instanceof Error
+        ? error.message
+        : "allocation_custody_witness_transport_request_envelope_failed",
+    );
+  }
+}
+
 export function classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1(
   input: {
     policy: unknown;

@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { inflateRawSync } from "node:zlib";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_V1 =
@@ -65,6 +66,10 @@ const ACCEPTANCE_REL =
   "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json";
 const CORRECTION_REL =
   "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json";
+const CURRENT_BINDING_REL =
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json";
+const ARCHIVE_REL =
+  "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64";
 const COUPLED_REL =
   "ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json";
 const SOVEREIGN_REL =
@@ -91,12 +96,14 @@ export const VOID_WC_VOID_MARKET_VAULT_ROLE_DEPLOYMENT_QUALIFICATION_SOURCE_BLOB
   Object.freeze({
     [ACCEPTANCE_REL]: "c85b6bc59caac6bc765cb8e969cb980386161d12",
     [CORRECTION_REL]: "fe18c83b041e035be6e9db91bab440dbe6e8efcf",
-    [COUPLED_REL]: "d78bc88dd26c47921a54c081a79ceefc0d5abcee",
+    [CURRENT_BINDING_REL]: "1009c41250a40bb793c88057a7187cec01c8704b",
+    [ARCHIVE_REL]: "e200f79d5899e3ed697fcd964224e0c7baf10ec9",
+    [COUPLED_REL]: "fbbc3174406f76077c8cb2fc11df9545938c0c8f",
     [SOVEREIGN_REL]: "ab51f2095aee1537a417a13014fa5b973c4c0645",
     [WALLET_REL]: "0999f773bdc4befb3e82676304f0d69f5cab42ef",
     [CONTRACT_REL]: "bd11190e2c22f58ac60918ecdf603f53427cadd0",
-    [ATTESTATION_REL]: "64a7993a38f764d91a2071240b834fcd97770962",
-    [CONTROL_REL]: "a17a6da5f85a740c5c38b0c4fb3377c7df05d270",
+    [ATTESTATION_REL]: "69c0bb105fabd3de8bd5f970d76ec861393ec4a3",
+    [CONTROL_REL]: "663a90c0886ab001df2a6d2b2fcc560503aecfe1",
     [PACKAGE_REL]: "f28c3e9446c7623ef203da36a9642d046e5f34ee",
     [PACKAGE_LOCK_REL]: "b2671f0149f522b2489247016df0a5ec4bb72b8b",
     [REVIEWED_RUNTIME_TOOL_REL]:
@@ -109,9 +116,9 @@ const EXPECTED = Object.freeze({
   chain_id: 2050,
   execution_epoch: 2,
   coupled_launch_id:
-    "sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+    "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
   coupled_launch_id_bytes32:
-    "0xfe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26",
+    "0xb893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d",
   void_token: "0x470075b85352eb86f7d089fb9ba88945f12aad94",
   compiled_identity_id:
     "voidwcvci1_51841520b1db294e44023c127bbe7caa28d8f87a97c788109b6609222941125a",
@@ -120,13 +127,13 @@ const EXPECTED = Object.freeze({
   contract_source_sha256:
     "2ac773c7580f5a5d477d12da62e1a597d64c174395af8b20b721873a63138925",
   creation_bytecode_sha256:
-    "9fae041d06d317b326fd1a9cee6efc34fa0e214b74a9447e44131969d886a5af",
+    "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540",
   creation_bytecode_keccak256:
-    "0xc6ac291ad2557039055c8baf79d2ba085d4ecaffe8e474d5d932602a2fae4b1c",
+    "0xa741a938f6570d3b8de727e7487460a0dda04244e6e45a79ab22756b16369c41",
   runtime_template_sha256:
-    "421f6e2ecbea1ccf02e20a52119323014a0f65906ff08d060d602ebebb327409",
+    "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e",
   runtime_template_keccak256:
-    "0xf5850c03e88aa44017c1894784c23d1359ddcdd13acbebee64ae9e5b17cb713c",
+    "0xea29fc4564e552b4b16a824f9f9566edc82d886b81d908f6205091cbe6ce24af",
   immutable_layout_sha256:
     "61de8af4e7f5a960227cb76383b7e48d52ddceb305d043f6905812deeb02d33b",
   settlement_executor: "0xc884f631c3881b8b672bfcbf019c856146cd7f73",
@@ -743,14 +750,58 @@ function quotedField(source, field, code) {
   return match[1];
 }
 
+function readSingleDeflatedZipEntryV1(zipBytes, expectedName) {
+  if (!Buffer.isBuffer(zipBytes) || zipBytes.length < 64) {
+    fail("compiled_identity_archive_invalid");
+  }
+  if (zipBytes.readUInt32LE(0) !== 0x04034b50) {
+    fail("compiled_identity_archive_header_invalid");
+  }
+  const flags = zipBytes.readUInt16LE(6);
+  const method = zipBytes.readUInt16LE(8);
+  const nameLength = zipBytes.readUInt16LE(26);
+  const extraLength = zipBytes.readUInt16LE(28);
+  if ((flags & 0x0008) !== 0x0008 || (flags & ~0x0808) !== 0 || method !== 8) {
+    fail("compiled_identity_archive_contract_invalid");
+  }
+  const name = zipBytes.subarray(30, 30 + nameLength).toString("utf8");
+  if (name !== expectedName) fail("compiled_identity_archive_entry_invalid");
+  const dataStart = 30 + nameLength + extraLength;
+  const central = zipBytes.indexOf(Buffer.from("PK\x01\x02", "binary"));
+  if (central <= dataStart + 16) fail("compiled_identity_archive_central_missing");
+  const descriptor = central - 16;
+  if (zipBytes.readUInt32LE(descriptor) !== 0x08074b50) {
+    fail("compiled_identity_archive_descriptor_invalid");
+  }
+  const compressedSize = zipBytes.readUInt32LE(descriptor + 8);
+  const uncompressedSize = zipBytes.readUInt32LE(descriptor + 12);
+  if (dataStart + compressedSize !== descriptor) {
+    fail("compiled_identity_archive_size_invalid");
+  }
+  const inflated = inflateRawSync(
+    zipBytes.subarray(dataStart, dataStart + compressedSize),
+  );
+  if (
+    inflated.length !== uncompressedSize ||
+    zipBytes.indexOf(Buffer.from("PK\x03\x04", "binary"), dataStart) !== -1
+  ) {
+    fail("compiled_identity_archive_entries_invalid");
+  }
+  return inflated;
+}
+
 function deriveCurrentRoleAndVaultSources(source) {
-  const acceptance = parseJsonBytes(
+  const superseded = parseJsonBytes(
     source.bytes[ACCEPTANCE_REL],
-    "compiled_identity_acceptance",
+    "compiled_identity_acceptance_v1",
   );
   const correction = parseJsonBytes(
     source.bytes[CORRECTION_REL],
     "compiled_identity_correction_v2",
+  );
+  const binding = parseJsonBytes(
+    source.bytes[CURRENT_BINDING_REL],
+    "compiled_identity_current_binding_v2",
   );
   if (
     correction?.marker !==
@@ -760,17 +811,82 @@ function deriveCurrentRoleAndVaultSources(source) {
       "COMPILED_IDENTITY_V1_BYTECODE_SUPERSEDED_DEPLOYMENT_HOLD" ||
     correction?.accepted_identity?.identity_id !== EXPECTED.compiled_identity_id ||
     correction?.canonical_compiler_artifacts?.creation_bytecode_sha256 !==
-      "84bbf44ee873c9e8b271271d8d3dc10bf6bb58d38b0d7da26558275510c0d540" ||
+      EXPECTED.creation_bytecode_sha256 ||
     correction?.canonical_compiler_artifacts?.runtime_template_sha256 !==
-      "99a7179850af5a6e13c1a1b24cf873b011a98fcc8d54479722c20fc254188f7e" ||
+      EXPECTED.runtime_template_sha256 ||
+    correction?.canonical_compiler_artifacts?.creation_bytecode_keccak256 !==
+      EXPECTED.creation_bytecode_keccak256 ||
+    correction?.canonical_compiler_artifacts?.runtime_template_keccak256 !==
+      EXPECTED.runtime_template_keccak256 ||
     correction?.coupled_launch_effect?.corrected_coupled_launch_id !==
-      "sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d" ||
+      EXPECTED.coupled_launch_id ||
+    correction?.coupled_launch_effect?.corrected_vault_bytes32 !==
+      EXPECTED.coupled_launch_id_bytes32 ||
     correction?.decision?.v1_acceptance_deployment_artifact_superseded !== true ||
     correction?.decision?.deployment_authorized !== false
   ) {
     fail("compiled_identity_correction_v2_invalid");
   }
-  fail("compiled_identity_v1_superseded_by_correction_v2");
+  if (
+    superseded?.artifacts?.creation_bytecode_sha256 !==
+      correction?.superseded_v1?.creation_bytecode_sha256 ||
+    superseded?.artifacts?.runtime_template_sha256 !==
+      correction?.superseded_v1?.runtime_template_sha256
+  ) {
+    fail("compiled_identity_v1_lineage_invalid");
+  }
+  if (
+    binding?.marker !==
+      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_CURRENT_BINDING_V2" ||
+    binding?.version !== 2 ||
+    binding?.status !==
+      "COMPILED_IDENTITY_CURRENT_CORRECTED_DEPLOYMENT_HOLD" ||
+    binding?.binding_id !==
+      "voidwcvcurrent2_bdc7c36595dd819924342a51cd38ed645edf304945ec773cc8877e07e767ca05" ||
+    binding?.correction_id !== correction.correction_id ||
+    binding?.corrected_coupled_launch_id !== EXPECTED.coupled_launch_id ||
+    binding?.corrected_vault_bytes32 !== EXPECTED.coupled_launch_id_bytes32 ||
+    binding?.identity?.identity_id !== EXPECTED.compiled_identity_id ||
+    binding?.archive?.zip_bytes !== 11283 ||
+    binding?.archive?.zip_sha256 !==
+      "d8707b0a5abc530f888639bffb2079b2d193d147bacfc4a65c3e704858bcb2fc" ||
+    binding?.archive?.identity_json_bytes !== 57245 ||
+    binding?.archive?.identity_json_sha256 !== EXPECTED.identity_json_sha256 ||
+    binding?.artifacts?.creation_bytecode_sha256 !==
+      EXPECTED.creation_bytecode_sha256 ||
+    binding?.artifacts?.runtime_template_sha256 !==
+      EXPECTED.runtime_template_sha256
+  ) {
+    fail("compiled_identity_current_binding_v2_invalid");
+  }
+
+  const archiveText = source.bytes[ARCHIVE_REL].toString("utf8").trim();
+  if (
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
+      .test(archiveText)
+  ) {
+    fail("compiled_identity_archive_base64_invalid");
+  }
+  const archive = Buffer.from(archiveText, "base64");
+  if (
+    archive.toString("base64") !== archiveText ||
+    archive.length !== binding.archive.zip_bytes ||
+    sha256(archive) !== binding.archive.zip_sha256
+  ) {
+    fail("compiled_identity_archive_digest_invalid");
+  }
+  const identityBytes =
+    readSingleDeflatedZipEntryV1(archive, binding.archive.identity_entry);
+  if (
+    identityBytes.length !== binding.archive.identity_json_bytes ||
+    sha256(identityBytes) !== binding.archive.identity_json_sha256
+  ) {
+    fail("compiled_identity_archive_identity_digest_invalid");
+  }
+  const currentIdentity = parseJsonBytes(
+    identityBytes,
+    "compiled_identity_current_archive",
+  );
   const coupled = parseJsonBytes(source.bytes[COUPLED_REL], "coupled_candidate");
   const sovereign = parseJsonBytes(
     source.bytes[SOVEREIGN_REL],
@@ -780,30 +896,23 @@ function deriveCurrentRoleAndVaultSources(source) {
   const contractSource = source.bytes[CONTRACT_REL].toString("utf8");
 
   if (
-    acceptance?.marker !==
-      "VOID_WC_VOID_MARKET_VAULT_COMPILED_IDENTITY_ACCEPTANCE_PACKET_V1" ||
-    acceptance?.status !==
-      "COMPILED_IDENTITY_ACCEPTED_HELD_ON_CHAIN2050_DEPLOYMENT_ATTESTATION" ||
-    acceptance?.accepted_identity?.identity_id !== EXPECTED.compiled_identity_id ||
-    acceptance?.accepted_identity?.identity_json_sha256 !==
-      EXPECTED.identity_json_sha256 ||
-    acceptance?.source?.contract_name !== "WCVoidMarketVaultV2" ||
-    acceptance?.source?.contract_path !== CONTRACT_REL ||
-    acceptance?.source?.contract_source_sha256 !== EXPECTED.contract_source_sha256 ||
-    acceptance?.artifacts?.creation_bytecode_sha256 !==
+    currentIdentity?.marker !== "VOID_WC_VOID_MARKET_VAULT_COMPILER_IDENTITY_V1" ||
+    currentIdentity?.identity_id !== EXPECTED.compiled_identity_id ||
+    currentIdentity?.source?.contract_name !== "WCVoidMarketVaultV2" ||
+    currentIdentity?.source?.contract_path !== CONTRACT_REL ||
+    currentIdentity?.source?.contract_source_sha256 !== EXPECTED.contract_source_sha256 ||
+    currentIdentity?.artifacts?.creation_bytecode_bytes !== 9441 ||
+    currentIdentity?.artifacts?.creation_bytecode_sha256 !==
       EXPECTED.creation_bytecode_sha256 ||
-    acceptance?.artifacts?.creation_bytecode_keccak256 !==
-      EXPECTED.creation_bytecode_keccak256 ||
-    acceptance?.artifacts?.runtime_template_sha256 !==
+    currentIdentity?.artifacts?.runtime_template_bytes !== 8342 ||
+    currentIdentity?.artifacts?.runtime_template_sha256 !==
       EXPECTED.runtime_template_sha256 ||
-    acceptance?.artifacts?.runtime_template_keccak256 !==
-      EXPECTED.runtime_template_keccak256 ||
-    acceptance?.artifacts?.immutable_layout_sha256 !==
+    currentIdentity?.artifacts?.immutable_layout_sha256 !==
       EXPECTED.immutable_layout_sha256 ||
-    acceptance?.deployment_identity_requirements?.constructor_signature !==
+    currentIdentity?.deployment_identity_requirements?.constructor_signature !==
       "constructor(address,address,address,address,bytes32)" ||
     canonicalJson(
-      acceptance?.deployment_identity_requirements?.constructor_order,
+      currentIdentity?.deployment_identity_requirements?.constructor_order,
     ) !==
       canonicalJson([
         "void_token",
@@ -812,11 +921,11 @@ function deriveCurrentRoleAndVaultSources(source) {
         "closeout_controller",
         "coupled_launch_id",
       ]) ||
-    acceptance?.deployment_identity_requirements
+    currentIdentity?.deployment_identity_requirements
       ?.live_opening_inventory_atoms_must_equal !==
       "10000000000000000000000000"
   ) {
-    fail("compiled_identity_acceptance_drift");
+    fail("compiled_identity_current_archive_drift");
   }
   if (sha256(Buffer.from(contractSource, "utf8")) !== EXPECTED.contract_source_sha256) {
     fail("contract_source_sha256_mismatch");
@@ -885,7 +994,7 @@ function deriveCurrentRoleAndVaultSources(source) {
     fail("settlement_executor_identity_drift");
   }
 
-  const creationHex = String(acceptance.artifacts.creation_bytecode_hex || "");
+  const creationHex = String(currentIdentity.artifacts.creation_bytecode_hex || "");
   if (
     !/^0x[0-9a-f]+$/u.test(creationHex) ||
     creationHex.length % 2 !== 0
@@ -894,14 +1003,14 @@ function deriveCurrentRoleAndVaultSources(source) {
   }
   const creationBytes = Buffer.from(creationHex.slice(2), "hex");
   if (
-    creationBytes.length !== acceptance.artifacts.creation_bytecode_bytes ||
+    creationBytes.length !== 9441 ||
     sha256(creationBytes) !== EXPECTED.creation_bytecode_sha256
   ) {
     fail("creation_bytecode_identity_mismatch");
   }
 
   return Object.freeze({
-    acceptance,
+    current_identity_binding_id: binding.binding_id,
     creation_hex: creationHex,
     settlement_executor: walletExpected,
     settlement_credential_id: credentialId,

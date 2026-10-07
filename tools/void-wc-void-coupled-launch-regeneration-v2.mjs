@@ -309,7 +309,11 @@ function assertCandidateBaseline(candidate) {
     candidate?.execution_epoch !== 2 ||
     candidate?.presale_wc_void_coupled_launch_required !== true ||
     candidate?.shared_post_discovery_reconciliation?.coupled_launch_id !==
-      OLD_LAUNCH
+      EXPECTED_NEW_LAUNCH ||
+    candidate?.shared_post_discovery_reconciliation?.wc_opening_state_id !==
+      EXPECTED_NEW_OPENING_STATE_ID ||
+    candidate?.shared_post_discovery_reconciliation?.reconciliation_id !==
+      EXPECTED_NEW_RECONCILIATION_ID
   ) {
     fail("regeneration_candidate_baseline_invalid");
   }
@@ -381,14 +385,8 @@ export function deriveVoidWcVoidCoupledLaunchRegenerationV2() {
   assertCandidateBaseline(candidate);
   assertPresaleSource(presaleSource);
 
-  const currentState = deriveSharedSourceModelV2(OLD_LAUNCH);
-  const currentSummary = sharedCandidateSummaryV2(currentState);
-  if (
-    canonicalJson(currentSummary) !==
-      canonicalJson(candidate.shared_post_discovery_reconciliation)
-  ) {
-    fail("regeneration_current_generation_rederivation_mismatch");
-  }
+  const supersededState = deriveSharedSourceModelV2(OLD_LAUNCH);
+  const supersededSummary = sharedCandidateSummaryV2(supersededState);
 
   const commitment = buildCorrectedCommitment(candidate, correction);
   const correctedLaunchId = digest(commitment);
@@ -409,20 +407,26 @@ export function deriveVoidWcVoidCoupledLaunchRegenerationV2() {
     correctedSummary.coupled_launch_id !== correctedLaunchId ||
     correctedSummary.wc_opening_state_id !== EXPECTED_NEW_OPENING_STATE_ID ||
     correctedSummary.reconciliation_id !== EXPECTED_NEW_RECONCILIATION_ID ||
-    correctedSummary.reconciliation_id === currentSummary.reconciliation_id ||
-    correctedSummary.wc_opening_state_id === currentSummary.wc_opening_state_id
+    correctedSummary.reconciliation_id === supersededSummary.reconciliation_id ||
+    correctedSummary.wc_opening_state_id === supersededSummary.wc_opening_state_id
   ) {
     fail("regeneration_corrected_shared_state_invalid");
+  }
+  if (
+    canonicalJson(correctedSummary) !==
+      canonicalJson(candidate.shared_post_discovery_reconciliation)
+  ) {
+    fail("regeneration_corrected_candidate_rederivation_mismatch");
   }
 
   const body = Object.freeze({
     marker: VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_V2,
     version: 2,
-    status: "CORRECTED_COUPLED_LAUNCH_GENERATION_DERIVED_NOT_APPLIED",
+    status: "CORRECTED_COUPLED_LAUNCH_GENERATION_DERIVED_CANDIDATE_APPLIED",
     superseded_generation: Object.freeze({
       coupled_launch_id: OLD_LAUNCH,
-      reconciliation_id: currentSummary.reconciliation_id,
-      wc_opening_state_id: currentSummary.wc_opening_state_id,
+      reconciliation_id: supersededSummary.reconciliation_id,
+      wc_opening_state_id: supersededSummary.wc_opening_state_id,
     }),
     corrected_generation: Object.freeze({
       coupled_launch_id: correctedLaunchId,
@@ -439,13 +443,13 @@ export function deriveVoidWcVoidCoupledLaunchRegenerationV2() {
     }),
     candidate_application: Object.freeze({
       canonical_candidate_file: CANDIDATE_REL,
-      application_performed: false,
+      application_performed: true,
       classifier_update_performed: false,
       signer_domain_update_performed: false,
     }),
     authority: VOID_WC_VOID_COUPLED_LAUNCH_REGENERATION_AUTHORITY_V2,
     next_gate:
-      "pin_corrected_generation_then_atomically_update_all_coupled_launch_dependencies",
+      "prove_atomic_downstream_rebind_then_fresh_corrected_generation_control",
   });
 
   return Object.freeze({
@@ -482,7 +486,7 @@ if (
     "corrected_reconciliation_id=" +
       result.corrected_generation.reconciliation_id,
   );
-  console.log("candidate_application_performed=false");
+  console.log("candidate_application_performed=true");
   console.log("transaction_signing=false");
   console.log("transaction_broadcast=false");
   console.log("deployment=false");
