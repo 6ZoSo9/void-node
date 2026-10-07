@@ -10,6 +10,7 @@ import {spawnSync} from "node:child_process";
 
 import {
   testOnlyMaterializeReviewedSourcesV1,
+  testOnlyPrepareReviewedExecutionPrivateTreeAbaV1,
   testOnlyPrepareReviewedExecutionV1,
   testOnlyReadExactHeadSourceV1,
   testOnlyReviewedGitHeadV1,
@@ -257,6 +258,7 @@ assert.match(reviewedLauncher.sha256,/^[0-9a-f]{64}$/u);
   }
 }
 
+let reviewedAbaExecution;
 let reviewedExecution;
 let reviewedPreparationHttpCalls=0;
 const originalHttpRequest=http.request;
@@ -269,6 +271,8 @@ http.request=(...args)=>{
 };
 syncBuiltinESMExports();
 try{
+  reviewedAbaExecution=
+    await testOnlyPrepareReviewedExecutionPrivateTreeAbaV1();
   reviewedExecution=await testOnlyPrepareReviewedExecutionV1();
 }finally{
   http.request=originalHttpRequest;
@@ -295,6 +299,26 @@ assert.match(
   /^[0-9a-f]{64}$/u,
 );
 assert.equal(reviewedExecution.private_exact_head_tree,true);
+assert.equal(reviewedExecution.private_tree_execution,false);
+assert.equal(reviewedExecution.in_memory_exact_head_execution,true);
+assert.equal(
+  reviewedExecution.private_tree_aba_sentinel_observed,
+  false,
+);
+assert.match(
+  reviewedExecution.reviewed_ethers_standalone_sha256,
+  /^[0-9a-f]{64}$/u,
+);
+assert.ok(reviewedExecution.reviewed_ethers_standalone_bytes>0);
+assert.equal(
+  reviewedAbaExecution.private_tree_aba_sentinel_observed,
+  false,
+  "private-tree ABA mutation must not become executable module code",
+);
+assert.equal(
+  reviewedAbaExecution.in_memory_exact_head_execution,
+  true,
+);
 assert.equal(reviewedExecution.execution_network_isolation_provided,false);
 
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-registry-broadcast-exec-v1-"));
@@ -664,6 +688,11 @@ try{
     "reviewed_launcher_git_blob_mismatch",
     "VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1",
     "reviewed_source_closure_mismatch",
+    "registerReviewedModuleGraphV1",
+    "registerExactReviewedFileModuleV1",
+    "reviewedEthersStandaloneBundleV1",
+    "in_memory_exact_head_execution=true",
+    "private_tree_execution=false",
     "execution_network_isolation_provided=false",
   ]){
     assert.ok(runnerSource.includes(required),required);
@@ -707,6 +736,10 @@ try{
   console.log("reviewed_launcher_hidden_worktree_drift_excluded=true");
   console.log("reviewed_source_hidden_worktree_drift_excluded=true");
   console.log("reviewed_private_source_drift_rejected=true");
+  console.log("reviewed_private_tree_aba_execution_excluded=true");
+  console.log("reviewed_runtime_helper_in_memory=true");
+  console.log("reviewed_source_graph_in_memory=true");
+  console.log("reviewed_ethers_standalone_in_memory=true");
   console.log("reviewed_ethers_runtime_verified=true");
   console.log("reviewed_network_capable_module_count=1");
   console.log("reviewed_preparation_http_calls=0");
