@@ -12,6 +12,7 @@
       reasons = []
 */
 const G = globalThis;
+const MOUNT_STATE_KEY = "__void_ready_bridge_v3_mount_state";
 
 function getApp() { try { return G.__void_http_app; } catch { return null; } }
 
@@ -53,6 +54,7 @@ function mountOnce() {
   const app = getApp();
   if (!app || typeof app.use !== "function") return false;
   if (G.__void_ready_bridge_v3_mounted) return true;
+  if (G[MOUNT_STATE_KEY] === "indeterminate") return true;
 
   const middleware = (req, res, next) => {
     const url = (req.originalUrl || req.url || "");
@@ -71,12 +73,14 @@ function mountOnce() {
     return next();
   };
 
+  G[MOUNT_STATE_KEY] = "indeterminate";
   try {
     app.use(middleware);
   } catch (_err) {
-    return false;
+    return true;
   }
   G.__void_ready_bridge_v3_mounted = true;
+  G[MOUNT_STATE_KEY] = "mounted";
 
   try { console.error("[ready_bridge_v3] mounted (minimal robust)"); } catch (__void_diag_pack5_err) { __voidSrcDiagPack5Visible("VOID_SRC_DIAG_HEAD_SHIM_RESIDUAL_PACK5_READY_BRIDGE_V3_CJS_4_1_VISIBLE", __void_diag_pack5_err); }
   return true;
