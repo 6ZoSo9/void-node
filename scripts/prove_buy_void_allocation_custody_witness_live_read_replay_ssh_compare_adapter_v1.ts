@@ -191,11 +191,13 @@ assert.throws(
 }
 
 assert.equal(typeof createBuyVoidAllocationCustodyWitnessLiveReadReplaySshCompareAdapterV1(),"function");
+assert.equal(VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_SSH_COMPARE_ADAPTER_AUTHORITY_V1.private_key_access,true);
 assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_SSH_COMPARE_ADAPTER_V1,
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_SSH_COMPARE_ADAPTER_V1",
 );
 for(const key of [
+  "ssh_identity_private_key_used_if_installed",
   "no_caller_selected_host_key_or_target",
   "designated_custody_uid_gid_required",
   "separate_custody_ssh_key_required",
@@ -222,7 +224,7 @@ for(const key of [
   "independent_custody_proven",
   "production_gate_ready",
   "wallet_or_signer_access",
-  "private_key_access",
+  "private_key_material_read_by_adapter_js",
   "transaction_construction",
   "transaction_signing",
   "transaction_broadcast",
