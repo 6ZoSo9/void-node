@@ -784,6 +784,21 @@ expectHeld(
   "custody_source_binding_invalid",
 );
 
+// Prior reviewed writer bytes are historical evidence, not a current
+// custody-qualified implementation after the terminal root-swap repair.
+expectHeld(
+  classify(
+    "",
+    emptyHigh.high_water_json,
+    null,
+    hostEvidence(),
+    VOID_BUY_VOID_ALLOCATION_CUSTODY_REVIEWED_WRITER_HEAD_V1,
+    "2db8493d1ee84878ef5fa2b0f655070622335d0d",
+    "sha256:620ccfbdc26268b0f09e0282776ef88a9848a8f4307f71b5f7f7894558ae1cfb",
+  ),
+  "custody_source_binding_invalid",
+);
+
 {
   const host = hostEvidence();
   let getterReads = 0;

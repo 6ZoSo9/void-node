@@ -968,6 +968,20 @@ function success(
   });
 }
 
+function verifiedSuccess(
+  status: WriterSuccessV1["status"],
+  operationPerformed: boolean,
+  ledger: Buffer,
+  ledgerDirectory: PinnedDirectoryV1,
+  highWaterDirectory: PinnedDirectoryV1,
+): WriterSuccessV1 {
+  const result = success(status, operationPerformed, ledger);
+  // Success must not outlive either pinned root's visible pathname.
+  // This is an end-of-operation check, not independent custody authority.
+  assertWriterRootsVisible(ledgerDirectory, highWaterDirectory);
+  return result;
+}
+
 function recoverUnderLock(
   ledgerDirectory: PinnedDirectoryV1,
   highWaterDirectory: PinnedDirectoryV1,
@@ -1132,7 +1146,7 @@ function withWriterRoots<T>(
       if (left.directory.stat.ino > right.directory.stat.ino) return 1;
       return left.directory.path.localeCompare(right.directory.path);
     });
-    return withBuyVoidFilesystemBakeryLockV1(
+    const result = withBuyVoidFilesystemBakeryLockV1(
       orderedLocks[0].lock_path,
       () =>
         withBuyVoidFilesystemBakeryLockV1(
@@ -1149,6 +1163,15 @@ function withWriterRoots<T>(
           },
         ),
     );
+    // Both bakery-lock release/finally paths have completed here, while both
+    // pinned root descriptors are still retained by this wrapper. A visible
+    // root replacement during lock release must therefore HOLD before any
+    // public success can escape.
+    assertWriterRootsVisible(
+      ledgerDirectory,
+      highWaterDirectory,
+    );
+    return result;
   } finally {
     if (highWaterDirectory) {
       try {
@@ -1197,10 +1220,12 @@ export function recoverBuyVoidAllocationReservationPublicationWriterV1(
           ledgerDirectory,
           highWaterDirectory,
         );
-        return success(
+        return verifiedSuccess(
           recovered.recovered ? "recovered" : "clean",
           recovered.recovered,
           recovered.ledger,
+          ledgerDirectory,
+          highWaterDirectory,
         );
       },
     );
@@ -1238,7 +1263,10 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
           highWaterDirectory,
         );
         if (recovered.recovered) {
-          return success("recovered", true, recovered.ledger);
+          return verifiedSuccess(
+            "recovered", true, recovered.ledger,
+            ledgerDirectory, highWaterDirectory,
+          );
         }
 
         let ledger = recovered.ledger;
@@ -1246,7 +1274,10 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
 
         if (ledger.equals(nextLedger)) {
           requireCurrentBinding(ledger, highWater);
-          return success("idempotent", false, ledger);
+          return verifiedSuccess(
+            "idempotent", false, ledger,
+            ledgerDirectory, highWaterDirectory,
+          );
         }
 
         const nextClassified =
@@ -1382,10 +1413,12 @@ export function persistBuyVoidAllocationReservationPublicationWriterV1(
     intent,
   );
 
-        return success(
+        return verifiedSuccess(
           "persisted",
           true,
           ledger,
+          ledgerDirectory,
+          highWaterDirectory,
         );
       },
     );

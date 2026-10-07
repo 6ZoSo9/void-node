@@ -162,7 +162,7 @@ const source=fs.readFileSync(sourcePath,"utf8");
 assert.equal(source.includes('classifyVoidDemo003PublicServingSetV1, VOID_DEMO003_CANONICAL_PAYLOADS_V1 as d3p, VOID_DEMO003_CONTROL_MAX_BYTES_V1 as d3c'),true,"Demo003 route cap imports must remain bound");
 const reader=fs.readFileSync(readerPath,"utf8");
 const sourceBytes=Buffer.byteLength(source,"utf8");
-assert.ok(sourceBytes<=3851076,"src/index.ts size guard exceeded");
+assert.ok(sourceBytes<=3852487,"src/index.ts size guard exceeded");
 const oldGrammar="^[a-zA-Z0-9._-]{1,160}$";
 const grammar="^[\\w.:-]{1,160}$";
 

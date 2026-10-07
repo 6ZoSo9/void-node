@@ -897,6 +897,113 @@ assert.doesNotMatch(
   "gate must not write or synthesize a payment_verified event",
 );
 
+const runtimeIndex = fs.readFileSync("src/index.ts", "utf8");
+const configStart = runtimeIndex.indexOf("function __voidBuyVoidConfigV1(){");
+const configEnd = runtimeIndex.indexOf(
+  "// VOID_BUY_VOID_POOL_ACCOUNTING_V1",
+  configStart,
+);
+assert.ok(configStart >= 0 && configEnd > configStart);
+const runtimeConfig = runtimeIndex.slice(configStart, configEnd);
+assert.match(
+  runtimeConfig,
+  /readBuyVoidEthereumPublicCheckoutReadinessV1\(process\.env\)/u,
+);
+assert.match(
+  runtimeConfig,
+  /ethereum_requests_enabled=ethereum_requested&&ethereum_finality\?\.ok===true&&ethereum_finality\.payment_instructions_finality_gate_ready===true/u,
+);
+
+const verifierStart = runtimeIndex.indexOf(
+  "// VOID_BUY_VOID_CANONICAL_VERIFIED_PAYMENT_V2_ROUTE_V1",
+);
+const verifierEnd = runtimeIndex.indexOf(
+  'app.get("/__void/buy-void/operator/mark.json"',
+  verifierStart,
+);
+assert.ok(verifierStart >= 0 && verifierEnd > verifierStart);
+const runtimeVerifier = runtimeIndex.slice(verifierStart, verifierEnd);
+assert.match(runtimeVerifier, /if\(chainCfg\.chain==="ethereum"\)\{/u);
+assert.match(
+  runtimeVerifier,
+  /runBuyVoidEthereumPublicCheckoutPreAttemptFinalityV1\(\{request:found,env:process\.env\}\)/u,
+);
+assert.match(
+  runtimeVerifier,
+  /const verifiedEvent:any=finality\.canonical_verified_payment_event/u,
+);
+assert.match(runtimeVerifier, /error:"ethereum_source_finality_hold"/u);
+
+const ethereumBranchStart = runtimeVerifier.indexOf(
+  'if(chainCfg.chain==="ethereum"){',
+);
+const baseBranchStart = runtimeVerifier.indexOf(
+  "}else{",
+  ethereumBranchStart,
+);
+const commonMutationStart = runtimeVerifier.indexOf(
+  'if(!__blo(found))throw new Error("request_launch_authority_expired_or_superseded");',
+  baseBranchStart,
+);
+assert.ok(
+  ethereumBranchStart >= 0 &&
+    baseBranchStart > ethereumBranchStart &&
+    commonMutationStart > baseBranchStart,
+);
+const ethereumRuntimeBranch = runtimeVerifier.slice(
+  ethereumBranchStart,
+  baseBranchStart,
+);
+const baseRuntimeBranch = runtimeVerifier.slice(
+  baseBranchStart,
+  commonMutationStart,
+);
+assert.doesNotMatch(
+  ethereumRuntimeBranch,
+  /__voidBuyVoidRpcV1\(chainCfg,"eth_getTransactionReceipt"/u,
+  "Ethereum runtime must not authorize from the legacy receipt-only path",
+);
+assert.match(
+  baseRuntimeBranch,
+  /__voidBuyVoidRpcV1\(chainCfg,"eth_getTransactionReceipt"/u,
+  "Base receipt verifier behavior must remain present",
+);
+assert.match(
+  baseRuntimeBranch,
+  /buildBuyVoidVerifiedPaymentEventV2/u,
+  "Base canonical verified-payment builder must remain present",
+);
+assert.match(
+  runtimeVerifier.slice(commonMutationStart),
+  /__voidWriteBuyVoidOperatorEventV1\(event,found\)/u,
+  "both rails must converge on the existing launch/capacity/duplicate mutation writer",
+);
+
+const requestStart = runtimeIndex.indexOf(
+  'app.post("/__void/buy-void/request"',
+);
+const requestEnd = runtimeIndex.indexOf(
+  'app.get("/__void/buy-void/status.json"',
+  requestStart,
+);
+assert.ok(requestStart >= 0 && requestEnd > requestStart);
+const requestRuntime = runtimeIndex.slice(requestStart, requestEnd);
+assert.match(
+  requestRuntime,
+  /!ethereum\|\|!cfg\.ethereum_requests_enabled/u,
+  "new Ethereum requests must follow the finality-gated config state",
+);
+
+const buyLive = fs.readFileSync(
+  "public/void-app-wave1-v1/assets/js/buy-live.js",
+  "utf8",
+);
+assert.match(
+  buyLive,
+  /config\.ethereum_requests_enabled/u,
+  "browser rail state must remain sourced from the server config",
+);
+
 console.log(
   "VOID_BUY_VOID_ETHEREUM_PUBLIC_CHECKOUT_FINALITY_GATE_V1_PROOF_GREEN",
 );
@@ -907,7 +1014,7 @@ console.log("v5_runtime_source_filesystem_write_must_remain_false=true");
 console.log("v5_caller_generation_assertion_must_remain_false=true");
 console.log("partial_v5_capability_promotion_can_open_instructions=false");
 console.log("current_production_source_finality_capability_ready=false");
-console.log("ethereum_payment_instructions_currently_hold=true");
+console.log("ethereum_payment_instructions_runtime_finality_gated=true");
 console.log("existing_payment_reconciliation_survives_intake_disable=true");
 console.log("canonical_source_finality_preflight_required=true");
 console.log("pre_attempt_request_level_v5_bridge_present=true");
@@ -925,8 +1032,8 @@ console.log("pre_attempt_forbidden_side_effects_required=true");
 console.log("pre_attempt_execution_attempt_circularity_removed=true");
 console.log("pre_attempt_current_production_authority=false");
 console.log("synthetic_finality_production_authority=false");
-console.log("base_behavior_modified=false");
-console.log("payment_verified_event_write_performed=false");
+console.log("base_behavior_preserved=true");
+console.log("ethereum_payment_verified_requires_canonical_finality=true");
 console.log("inventory_reservation_write_performed=false");
 console.log("transaction_broadcast=false");
 console.log("funds_movement=false");

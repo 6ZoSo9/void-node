@@ -14,7 +14,7 @@ on:
       - "scripts/prove_void_node_clone_and_run_v1.mjs"
       - "scripts/prove_public_earn_validator_onboarding_v1.mjs"
       - "docs/public/clone-and-run-v1.md"
-      - ".github/workflows/**"
+      - ".github/workflows/node22-repository-contract-v1.yml"
   push:
     branches:
       - main
@@ -30,14 +30,14 @@ on:
       - "scripts/prove_void_node_clone_and_run_v1.mjs"
       - "scripts/prove_public_earn_validator_onboarding_v1.mjs"
       - "docs/public/clone-and-run-v1.md"
-      - ".github/workflows/**"
+      - ".github/workflows/node22-repository-contract-v1.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: node-compatibility-repository-contract-v2-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   prove:

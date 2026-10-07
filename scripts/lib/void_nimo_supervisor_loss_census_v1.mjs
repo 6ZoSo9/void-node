@@ -26,15 +26,33 @@ export function boundedRead(file, maximum) {
     assert.fail("census read ceiling");
   } finally { fs.closeSync(fd); }
 }
-function statIdentity(pid, expectedStart) {
+function statIdentity(pid, expectedStart, readStat = boundedRead) {
   let stat;
-  try { stat = boundedRead(`/proc/${pid}/stat`, 4096).toString(); }
-  catch (error) { if (error.code === "ENOENT") return { pid, alive: false, absent: true }; throw error; }
+  try { stat = readStat(`/proc/${pid}/stat`, 4096).toString(); }
+  catch (error) {
+    if (["ENOENT", "ESRCH"].includes(error.code)) return { pid, alive: false, absent: true };
+    throw error;
+  }
   const fields = stat.slice(stat.lastIndexOf(") ") + 2).trim().split(/\s+/);
   const base = { pid, parent_pid: Number(fields[1]), start_ticks: fields[19], state: fields[0] };
   if (expectedStart !== null && fields[19] !== expectedStart) return { ...base, alive: false, replaced: true };
   if (["Z", "X"].includes(fields[0])) return { ...base, alive: false, zombie: true };
   return { ...base, alive: true };
+}
+export function testOnlyClassifyStatIdentityReadErrorV1(code) {
+  const error = new Error("synthetic stat read error");
+  error.code = code;
+  try {
+    return Object.freeze({
+      threw: false,
+      result: statIdentity(424242, null, () => { throw error; }),
+    });
+  } catch (caught) {
+    return Object.freeze({
+      threw: true,
+      code: caught?.code ?? null,
+    });
+  }
 }
 export function processCensus(pid, expectedStart = null) {
   assert(Number.isInteger(pid) && pid > 0);

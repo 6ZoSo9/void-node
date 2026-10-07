@@ -45,32 +45,52 @@ function requireOkProof<T extends { ok: boolean }>(
 }
 
 if (process.argv[2] === "--dual-root-lock-child") {
-  const [ledgerRoot, highWaterRoot, startedPath, enteredPath, releasePath] =
-    process.argv.slice(3);
+  const [
+    ledgerRoot,
+    highWaterRoot,
+    startedPath,
+    enteredPath,
+    releasePath,
+    expectedHold,
+  ] = process.argv.slice(3);
   assert.ok(ledgerRoot);
   assert.ok(highWaterRoot);
   assert.ok(startedPath);
   assert.ok(enteredPath);
   assert.ok(releasePath);
+  assert.ok(expectedHold);
   fs.writeFileSync(startedPath, "started\n", { mode: 0o600 });
-  const result =
-    testOnlyWithBuyVoidAllocationReservationPublicationWriterLocksV1(
-      { ledger_root: ledgerRoot, high_water_root: highWaterRoot },
-      () => {
-        fs.writeFileSync(enteredPath, "entered\n", { mode: 0o600 });
-        if (releasePath !== "-") {
-          const deadline = Date.now() + 10_000;
-          while (!fs.existsSync(releasePath)) {
-            if (Date.now() >= deadline) {
-              throw new Error("dual_root_lock_child_release_timeout");
+  try {
+    const result =
+      testOnlyWithBuyVoidAllocationReservationPublicationWriterLocksV1(
+        { ledger_root: ledgerRoot, high_water_root: highWaterRoot },
+        () => {
+          fs.writeFileSync(enteredPath, "entered\n", { mode: 0o600 });
+          if (releasePath !== "-") {
+            const deadline = Date.now() + 10_000;
+            while (!fs.existsSync(releasePath)) {
+              if (Date.now() >= deadline) {
+                throw new Error("dual_root_lock_child_release_timeout");
+              }
+              sleepSync(10);
             }
-            sleepSync(10);
           }
-        }
-        return "done";
-      },
+          return "done";
+        },
+      );
+    assert.equal(
+      expectedHold,
+      "-",
+      "replaced lock holder must not return success",
     );
-  assert.equal(result, "done");
+    assert.equal(result, "done");
+  } catch (error) {
+    if (expectedHold === "-") throw error;
+    assert.equal(
+      error instanceof Error ? error.message : String(error),
+      expectedHold,
+    );
+  }
   process.exit(0);
 }
 
@@ -114,6 +134,7 @@ function spawnLockChild(
   startedPath: string,
   enteredPath: string,
   releasePath: string,
+  expectedHold: string,
 ): LockChildV1 {
   assert.equal(
     fs.existsSync(TSX_BIN),
@@ -132,6 +153,7 @@ function spawnLockChild(
       startedPath,
       enteredPath,
       releasePath,
+      expectedHold,
     ],
     { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -1228,6 +1250,159 @@ function provePostRevalidationRootSwapRecovery(
 provePostRevalidationRootSwapRecovery("high-water");
 provePostRevalidationRootSwapRecovery("ledger");
 
+function proveTerminalRootSwapCannotReturnSuccess(
+  replaced: "ledger" | "high-water",
+): void {
+  const f = fixture();
+  const originalFsync = fs.fsyncSync;
+  const oldRoot = replaced === "ledger" ? f.ledgerRoot : f.highWaterRoot;
+  const detached = path.join(
+    f.root,
+    "terminal-" + replaced + "-detached",
+  );
+  let injected = false;
+  try {
+    // Inject after the last intent-unlink directory fsync has completed.
+    // Before this repair, the writer could return "persisted" even though
+    // one visible authority path had already been replaced.
+    (fs as any).fsyncSync = (fd: number) => {
+      originalFsync(fd);
+      if (
+        injected ||
+        fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)) ||
+        fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)) ||
+        fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8") !== ledger1 ||
+        fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME), "utf8") !== nextHighWater
+      ) {
+        return;
+      }
+      injected = true;
+      fs.renameSync(oldRoot, detached);
+      fs.mkdirSync(oldRoot, { mode: 0o700 });
+      fs.writeFileSync(
+        path.join(
+          oldRoot,
+          replaced === "ledger" ? LEDGER_NAME : HIGH_WATER_NAME,
+        ),
+        replaced === "ledger" ? "" : genesisHighWater,
+        { mode: 0o600 },
+      );
+    };
+    const outcome =
+      persistBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+        next_ledger_jsonl: ledger1,
+      });
+    assert.equal(injected, true, "terminal root replacement must be exercised");
+    assert.equal(outcome.ok, false, "replaced visible root must never return success");
+    if (outcome.ok !== false) {
+      throw new Error("expected terminal root replacement HOLD");
+    }
+    assert.equal(
+      outcome.reason,
+      replaced === "ledger"
+        ? "allocation_reservation_writer_ledger_directory_changed"
+        : "allocation_reservation_writer_high_water_directory_changed",
+    );
+  } finally {
+    (fs as any).fsyncSync = originalFsync;
+    cleanup(f);
+  }
+}
+
+proveTerminalRootSwapCannotReturnSuccess("ledger");
+proveTerminalRootSwapCannotReturnSuccess("high-water");
+
+function proveLockReleaseRootSwapCannotReturnSuccess(
+  replaced: "ledger" | "high-water",
+): void {
+  const f = fixture();
+  const originalFsync = fs.fsyncSync;
+  const oldRoot =
+    replaced === "ledger" ? f.ledgerRoot : f.highWaterRoot;
+  const detached = path.join(
+    f.root,
+    "lock-release-" + replaced + "-detached",
+  );
+  let injected = false;
+  try {
+    // Target the bakery queue directory fsync that runs from the lock's
+    // release/finally path. At this point the publication and intent cleanup
+    // have completed and the former in-lock success check has already run.
+    (fs as any).fsyncSync = (fd: number) => {
+      originalFsync(fd);
+      if (injected) return;
+      let target = "";
+      try {
+        target = fs.readlinkSync("/proc/self/fd/" + String(fd));
+      } catch {
+        return;
+      }
+      if (
+        !target.endsWith(
+          ".allocation-reservation-publication-v1.queue",
+        ) ||
+        fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)) ||
+        fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)) ||
+        fs.readFileSync(
+          path.join(f.ledgerRoot, LEDGER_NAME),
+          "utf8",
+        ) !== ledger1 ||
+        fs.readFileSync(
+          path.join(f.highWaterRoot, HIGH_WATER_NAME),
+          "utf8",
+        ) !== nextHighWater
+      ) {
+        return;
+      }
+      injected = true;
+      fs.renameSync(oldRoot, detached);
+      fs.mkdirSync(oldRoot, { mode: 0o700 });
+      fs.writeFileSync(
+        path.join(
+          oldRoot,
+          replaced === "ledger" ? LEDGER_NAME : HIGH_WATER_NAME,
+        ),
+        replaced === "ledger" ? "" : genesisHighWater,
+        { mode: 0o600 },
+      );
+    };
+
+    const outcome =
+      persistBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+        next_ledger_jsonl: ledger1,
+      });
+    assert.equal(
+      injected,
+      true,
+      "lock-release root replacement must be exercised",
+    );
+    assert.equal(
+      outcome.ok,
+      false,
+      "root replacement during lock release must never return success",
+    );
+    if (outcome.ok !== false) {
+      throw new Error("expected lock-release root replacement HOLD");
+    }
+    assert.equal(
+      outcome.reason,
+      replaced === "ledger"
+        ? "allocation_reservation_writer_ledger_directory_changed"
+        : "allocation_reservation_writer_high_water_directory_changed",
+    );
+  } finally {
+    (fs as any).fsyncSync = originalFsync;
+    cleanup(f);
+  }
+}
+
+proveLockReleaseRootSwapCannotReturnSuccess("ledger");
+proveLockReleaseRootSwapCannotReturnSuccess("high-water");
+
 async function proveSingleRootReplacementLock(
   replaceRoot: "ledger" | "high-water",
 ): Promise<void> {
@@ -1247,7 +1422,14 @@ async function proveSingleRootReplacementLock(
   try {
     fs.writeFileSync(nextLedgerPath, ledger1, { mode: 0o600 });
     first = spawnLockChild(
-      f.ledgerRoot, f.highWaterRoot, aStarted, aEntered, aRelease,
+      f.ledgerRoot,
+      f.highWaterRoot,
+      aStarted,
+      aEntered,
+      aRelease,
+      replaceRoot === "ledger"
+        ? "allocation_reservation_writer_ledger_directory_changed"
+        : "allocation_reservation_writer_high_water_directory_changed",
     );
     await waitForPath(aStarted, first, replaceRoot + "_first_started");
     await waitForPath(aEntered, first, replaceRoot + "_first_entered");
@@ -1369,8 +1551,11 @@ console.log("dual_root_serialization_lock=true");
 console.log("high_water_root_replacement_keeps_shared_lock=true");
 console.log("ledger_root_replacement_keeps_shared_lock=true");
 console.log("single_root_replacement_blocks_valid_competing_publication=true");
+console.log("replaced_lock_holder_holds_after_release=true");
 console.log("redundant_publication_intent=true");
 console.log("single_root_mid_publication_recovery=true");
+console.log("terminal_visible_root_revalidation=true");
+console.log("post_lock_release_visible_root_revalidation=true");
 console.log("post_admission_root_path_stability_proven=false");
 console.log("single_root_post_publication_recovery=false");
 console.log("divergent_intent_copies_hold=true");
