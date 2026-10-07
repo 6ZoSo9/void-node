@@ -1223,6 +1223,71 @@ function coherentState(
   }
 }
 
+function assertStatePairSnapshotVisible(roots, pair) {
+  if (!pair?.journal_snapshot || !pair?.high_water_snapshot) {
+    fail("receipt_writer_state_pair_snapshot_invalid");
+  }
+  assertRootsVisible(roots);
+  assertPinnedNamedFileSnapshotVisible(pair.journal_snapshot);
+  assertPinnedNamedFileSnapshotVisible(pair.high_water_snapshot);
+  assertRootsVisible(roots);
+}
+
+function closeStatePairSnapshot(pair) {
+  if (!pair) return;
+  if (pair.high_water_snapshot) {
+    closePinnedNamedFileSnapshot(pair.high_water_snapshot);
+  }
+  if (pair.journal_snapshot) {
+    closePinnedNamedFileSnapshot(pair.journal_snapshot);
+  }
+}
+
+function openStatePairSnapshot(
+  roots,
+  expectedJournal,
+  expectedHighWater,
+) {
+  let journalSnapshot = null;
+  let highWaterSnapshot = null;
+  try {
+    journalSnapshot = openPinnedNamedFileSnapshot(
+      roots.journal,
+      JOURNAL_NAME,
+      MAX_JOURNAL_BYTES,
+      true,
+      "receipt_writer_journal_state",
+    );
+    highWaterSnapshot = openPinnedNamedFileSnapshot(
+      roots.high_water,
+      HIGH_WATER_NAME,
+      MAX_HIGH_WATER_BYTES,
+      false,
+      "receipt_writer_high_water_state",
+    );
+    if (!journalSnapshot.bytes.equals(expectedJournal)) {
+      fail("receipt_writer_journal_state_snapshot_bytes_mismatch");
+    }
+    if (!highWaterSnapshot.bytes.equals(expectedHighWater)) {
+      fail("receipt_writer_high_water_state_snapshot_bytes_mismatch");
+    }
+    const pair = Object.freeze({
+      journal_snapshot: journalSnapshot,
+      high_water_snapshot: highWaterSnapshot,
+    });
+    assertStatePairSnapshotVisible(roots, pair);
+    return pair;
+  } catch (error) {
+    if (highWaterSnapshot) {
+      closePinnedNamedFileSnapshot(highWaterSnapshot);
+    }
+    if (journalSnapshot) {
+      closePinnedNamedFileSnapshot(journalSnapshot);
+    }
+    throw error;
+  }
+}
+
 async function canonicalLock() {
   const module = await import(
     "../dist/economic/buy_void_filesystem_bakery_lock_v1.js"
@@ -1662,6 +1727,8 @@ function recoverLocked(
   {
     afterJournalIntentReadHook = null,
     afterHighWaterIntentReadHook = null,
+    afterRecoveryJournalStateSnapshotHook = null,
+    afterRecoveryHighWaterStateSnapshotHook = null,
   } = {},
 ) {
   let pair = null;
@@ -1727,27 +1794,70 @@ function recoverLocked(
     }
 
     if (journalPhase === "before") {
-      assertIntentPairSnapshotVisible(roots, pair);
-      publishJournal(
-        roots,
-        parsedIntent.before_journal,
-        parsedIntent.after_journal,
-        markMutation,
-        () => assertIntentPairSnapshotVisible(roots, pair),
-      );
+      let journalBoundary = null;
+      try {
+        journalBoundary = openStatePairSnapshot(
+          roots,
+          parsedIntent.before_journal,
+          highWaterPhase === "before"
+            ? parsedIntent.before_high_water
+            : parsedIntent.after_high_water,
+        );
+        if (afterRecoveryJournalStateSnapshotHook !== null) {
+          if (typeof afterRecoveryJournalStateSnapshotHook !== "function") {
+            fail("receipt_writer_test_recovery_journal_state_hook_invalid");
+          }
+          afterRecoveryJournalStateSnapshotHook(roots, journalBoundary);
+        }
+        assertIntentPairSnapshotVisible(roots, pair);
+        publishJournal(
+          roots,
+          parsedIntent.before_journal,
+          parsedIntent.after_journal,
+          markMutation,
+          () => {
+            assertIntentPairSnapshotVisible(roots, pair);
+            assertStatePairSnapshotVisible(roots, journalBoundary);
+          },
+        );
+      } finally {
+        closeStatePairSnapshot(journalBoundary);
+      }
       if (crashAfter === "after_recovery_journal") {
         fail("receipt_writer_test_crash_after_recovery_journal");
       }
     }
     if (highWaterPhase === "before") {
-      assertIntentPairSnapshotVisible(roots, pair);
-      publishHighWater(
-        roots,
-        parsedIntent.before_high_water,
-        parsedIntent.after_high_water,
-        markMutation,
-        () => assertIntentPairSnapshotVisible(roots, pair),
-      );
+      let highWaterBoundary = null;
+      try {
+        highWaterBoundary = openStatePairSnapshot(
+          roots,
+          parsedIntent.after_journal,
+          parsedIntent.before_high_water,
+        );
+        if (afterRecoveryHighWaterStateSnapshotHook !== null) {
+          if (typeof afterRecoveryHighWaterStateSnapshotHook !== "function") {
+            fail("receipt_writer_test_recovery_high_water_state_hook_invalid");
+          }
+          afterRecoveryHighWaterStateSnapshotHook(
+            roots,
+            highWaterBoundary,
+          );
+        }
+        assertIntentPairSnapshotVisible(roots, pair);
+        publishHighWater(
+          roots,
+          parsedIntent.before_high_water,
+          parsedIntent.after_high_water,
+          markMutation,
+          () => {
+            assertIntentPairSnapshotVisible(roots, pair);
+            assertStatePairSnapshotVisible(roots, highWaterBoundary);
+          },
+        );
+      } finally {
+        closeStatePairSnapshot(highWaterBoundary);
+      }
       if (crashAfter === "after_recovery_high_water") {
         fail("receipt_writer_test_crash_after_recovery_high_water");
       }
@@ -1828,7 +1938,11 @@ export async function testOnlyWithCoupledNativeGasReconciliationCustodyReceiptWr
 async function persistInternal(
   input,
   crashAfter = null,
-  { afterFreshIntentPairSnapshotHook = null } = {},
+  {
+    afterFreshIntentPairSnapshotHook = null,
+    afterJournalStateSnapshotHook = null,
+    afterHighWaterStateSnapshotHook = null,
+  } = {},
 ) {
   let mutationPerformed = false;
   const markMutation = () => {
@@ -1898,26 +2012,67 @@ async function persistInternal(
         const assertFreshIntent = () =>
           assertIntentPairSnapshotVisible(roots, freshIntentPair);
 
-        assertFreshIntent();
-        publishJournal(
-          roots,
-          state.journal,
-          nextJournal,
-          markMutation,
-          assertFreshIntent,
-        );
+        let journalBoundary = null;
+        try {
+          journalBoundary = openStatePairSnapshot(
+            roots,
+            state.journal,
+            state.high_water,
+          );
+          if (afterJournalStateSnapshotHook !== null) {
+            if (typeof afterJournalStateSnapshotHook !== "function") {
+              fail("receipt_writer_test_journal_state_hook_invalid");
+            }
+            afterJournalStateSnapshotHook(roots, journalBoundary);
+          }
+          assertFreshIntent();
+          publishJournal(
+            roots,
+            state.journal,
+            nextJournal,
+            markMutation,
+            () => {
+              assertFreshIntent();
+              assertStatePairSnapshotVisible(roots, journalBoundary);
+            },
+          );
+        } finally {
+          closeStatePairSnapshot(journalBoundary);
+        }
         if (crashAfter === "after_journal_write") {
           fail("receipt_writer_test_crash_after_journal_write");
         }
 
-        assertFreshIntent();
-        publishHighWater(
-          roots,
-          state.high_water,
-          nextHighWater,
-          markMutation,
-          assertFreshIntent,
-        );
+        let highWaterBoundary = null;
+        try {
+          highWaterBoundary = openStatePairSnapshot(
+            roots,
+            nextJournal,
+            state.high_water,
+          );
+          if (afterHighWaterStateSnapshotHook !== null) {
+            if (typeof afterHighWaterStateSnapshotHook !== "function") {
+              fail("receipt_writer_test_high_water_state_hook_invalid");
+            }
+            afterHighWaterStateSnapshotHook(
+              roots,
+              highWaterBoundary,
+            );
+          }
+          assertFreshIntent();
+          publishHighWater(
+            roots,
+            state.high_water,
+            nextHighWater,
+            markMutation,
+            () => {
+              assertFreshIntent();
+              assertStatePairSnapshotVisible(roots, highWaterBoundary);
+            },
+          );
+        } finally {
+          closeStatePairSnapshot(highWaterBoundary);
+        }
         if (crashAfter === "after_high_water_write") {
           fail("receipt_writer_test_crash_after_high_water_write");
         }
@@ -2113,6 +2268,75 @@ export async function testOnlyPersistCoupledNativeGasReconciliationCustodyReceip
           fs.fsyncSync(directory.fd);
           replacementCreated = true;
         },
+      },
+    );
+  } finally {
+    try {
+      if (replacementCreated && target && fs.existsSync(target)) {
+        fs.unlinkSync(target);
+      }
+      if (displaced && target && fs.existsSync(displaced)) {
+        fs.renameSync(displaced, target);
+      }
+    } catch (error) {
+      void error;
+    }
+  }
+}
+
+export async function testOnlyPersistCoupledNativeGasReconciliationCustodyReceiptWriterPeerStateSwapV1(
+  input,
+  phase = "before_journal",
+) {
+  if (phase !== "before_journal" && phase !== "before_high_water") {
+    return held("receipt_writer_test_peer_state_swap_phase_invalid", false);
+  }
+  let target = null;
+  let displaced = null;
+  let replacementCreated = false;
+  try {
+    return await persistInternal(
+      input,
+      null,
+      {
+        afterJournalStateSnapshotHook:
+          phase === "before_journal"
+            ? (roots) => {
+                target = path.join(
+                  roots.high_water.path,
+                  HIGH_WATER_NAME,
+                );
+                displaced =
+                  target +
+                  ".test-peer-state-displaced-" +
+                  process.pid +
+                  "-high-water";
+                const bytes = fs.readFileSync(target);
+                fs.renameSync(target, displaced);
+                fs.writeFileSync(target, bytes, { mode: 0o600 });
+                fs.fsyncSync(roots.high_water.fd);
+                replacementCreated = true;
+              }
+            : null,
+        afterHighWaterStateSnapshotHook:
+          phase === "before_high_water"
+            ? (roots) => {
+                target = path.join(
+                  roots.journal.path,
+                  JOURNAL_NAME,
+                );
+                displaced =
+                  target +
+                  ".test-peer-state-displaced-" +
+                  process.pid +
+                  "-journal";
+                const bytes = fs.readFileSync(target);
+                fs.renameSync(target, displaced);
+                fs.writeFileSync(target, bytes, { mode: 0o600 });
+                fs.fsyncSync(roots.journal.fd);
+                replacementCreated = true;
+              }
+            : null,
       },
     );
   } finally {
