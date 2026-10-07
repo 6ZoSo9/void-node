@@ -363,7 +363,11 @@ try {
     installThenThrowGetApp as unknown as Express,
     {
       env,
-      authorize_operator: () => true,
+      authorize_operator: (request) =>
+        Boolean(
+          (request.body as { proof_auth?: boolean } | undefined)
+            ?.proof_auth === true,
+        ),
     },
   );
 } catch (error) {
@@ -426,7 +430,11 @@ try {
     installThenThrowPostApp as unknown as Express,
     {
       env,
-      authorize_operator: () => true,
+      authorize_operator: (request) =>
+        Boolean(
+          (request.body as { proof_auth?: boolean } | undefined)
+            ?.proof_auth === true,
+        ),
       fetch_impl: async () => {
         ambiguousRequestFetchCalls += 1;
         throw new Error("ambiguous request handler reached fetch");
