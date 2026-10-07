@@ -70,10 +70,17 @@ assert.deepEqual(decision.candidate.service_policy_target.ReadWritePaths, [
   "/var/lib/void-allocation-custody-v1",
   "/var/lib/void-allocation-ledger-v1",
 ]);
+assert.equal(
+  decision.candidate.service_source_sha256,
+  "sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d",
+);
+assert.equal(
+  decision.candidate.service_contract_sha256,
+  "sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477",
+);
 assert.deepEqual(decision.candidate.top_level_source_imports, [
   "../dist/economic/buy_void_allocation_reservation_ledger_v1.js",
   "../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
-  "../dist/economic/buy_void_allocation_reservation_publication_writer_v1.js",
 ]);
 
 // Fail closed when a future security repair changes the checked-out service's
@@ -82,6 +89,28 @@ assert.deepEqual(decision.candidate.top_level_source_imports, [
 const serviceSource = readFileSync(path.resolve(
   here, "../tools/void-buy-allocation-custody-service-v1.mjs",
 ), "utf8");
+const serviceContractSource = readFileSync(path.resolve(
+  here, "../docs/architecture/buy-void-allocation-custody-service-contract-v1.json",
+), "utf8");
+const sourceSha256 = (value) =>
+  "sha256:" + createHash("sha256").update(value, "utf8").digest("hex");
+assert.equal(
+  sourceSha256(serviceSource),
+  decision.candidate.service_source_sha256,
+  "checked-out custody service bytes must match the frozen candidate SHA-256",
+);
+assert.equal(
+  sourceSha256(serviceContractSource),
+  decision.candidate.service_contract_sha256,
+  "checked-out custody service contract bytes must match the frozen candidate SHA-256",
+);
+const parsedServiceContract = JSON.parse(serviceContractSource);
+assert.equal(
+  parsedServiceContract.service_source_sha256,
+  decision.candidate.service_source_sha256,
+  "machine contract must bind the exact same custody service source bytes",
+);
+
 function observedCompiledImports(sourceText) {
   // Dynamic loaders are outside the reviewed closure and HOLD outright.
   // This is deliberately lexical/fail-closed: even a commented future loader
@@ -126,20 +155,31 @@ process.stdout.write(JSON.stringify(requests));
 const expectedCompiledImports = [...decision.candidate.top_level_source_imports].sort();
 assert.deepEqual(observedCompiledImports(serviceSource), expectedCompiledImports);
 const changedImport = serviceSource.replace(
-  "../dist/economic/buy_void_allocation_reservation_publication_writer_v1.js",
-  "../dist/economic/unreviewed_writer_v1.js",
+  "../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+  "../dist/economic/unreviewed_high_water_v1.js",
 );
 assert.notEqual(changedImport, serviceSource);
+assert.notEqual(
+  sourceSha256(changedImport),
+  decision.candidate.service_source_sha256,
+  "any service-source mutation must break the exact source pin",
+);
 assert.notDeepEqual(observedCompiledImports(changedImport), expectedCompiledImports);
+
 const droppedImport = serviceSource.replace(
-  /^import\s*\{[^;]*\}\s*from\s*["']\.\.\/dist\/economic\/buy_void_allocation_reservation_publication_writer_v1\.js["'];/mu,
+  /^import\s*\{[^;]*\}\s*from\s*["']\.\.\/dist\/economic\/buy_void_allocation_reservation_high_water_v1\.js["'];/mu,
   "",
 );
 assert.notEqual(droppedImport, serviceSource);
+assert.notEqual(sourceSha256(droppedImport), decision.candidate.service_source_sha256);
 assert.notDeepEqual(observedCompiledImports(droppedImport), expectedCompiledImports);
 
 const semicolonlessImport =
   serviceSource + '\nimport "../dist/economic/unreviewed_semicolonless_v1.js"\n';
+assert.notEqual(
+  sourceSha256(semicolonlessImport),
+  decision.candidate.service_source_sha256,
+);
 assert.notDeepEqual(
   observedCompiledImports(semicolonlessImport),
   expectedCompiledImports,
@@ -149,15 +189,35 @@ assert.notDeepEqual(
 const exportFromDependency =
   serviceSource +
   '\nexport { default as unreviewed } from "../dist/economic/unreviewed_export_v1.js"\n';
+assert.notEqual(
+  sourceSha256(exportFromDependency),
+  decision.candidate.service_source_sha256,
+);
 assert.notDeepEqual(
   observedCompiledImports(exportFromDependency),
   expectedCompiledImports,
   "export-from dependency must alter the compiled dependency census",
 );
 
+const dynamicImport =
+  serviceSource + '\nvoid import/*review-evasion*/("./dynamic.mjs");\n';
+assert.notEqual(
+  sourceSha256(dynamicImport),
+  decision.candidate.service_source_sha256,
+  "comment-separated dynamic import must break the primary exact-source pin",
+);
+
+const dynamicRequire =
+  serviceSource + '\nvoid require/*review-evasion*/("./dynamic.cjs");\n';
+assert.notEqual(
+  sourceSha256(dynamicRequire),
+  decision.candidate.service_source_sha256,
+  "comment-separated require must break the primary exact-source pin",
+);
+
 assert.throws(
   () => observedCompiledImports(serviceSource + '\nvoid import("./dynamic.mjs");\n'),
-  "dynamic import must fail closed before static dependency acceptance",
+  "ordinary dynamic import must also fail the secondary loader guard",
 );
 assert.equal(decision.candidate.reviewed_compiled_transitive_closure_proven, false);
 assert.equal(decision.candidate.production_gate_ready, false);
@@ -288,6 +348,9 @@ console.log("separate_host_service_needed=true");
 console.log("mutable_repo_execstart_not_emitted=true");
 console.log("systemd_socket_unit_not_claimed=true");
 console.log("protected_executable_import_closure_required=true");
+console.log("exact_service_source_sha256_bound=true");
+console.log("exact_service_contract_sha256_bound=true");
+console.log("contract_and_service_source_sha256_agree=true");
 console.log("current_service_compiled_imports_match_candidate=true");
 console.log("module_parser_static_import_census=true");
 console.log("semicolonless_and_export_from_dependencies_bound=true");
