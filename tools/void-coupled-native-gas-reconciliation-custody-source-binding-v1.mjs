@@ -78,7 +78,7 @@ export const VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_V1 =
     ["src/economic/coupled_native_gas_reconciliation_custody_qualification_v1.ts", "5360a55bed6fccbe8d0dc242273264f2de94bea1"],
     ["src/economic/coupled_native_gas_reconciliation_evidence_resolver_v1.ts", "5143267b7b7381e1b9e7f561d1832a63308f1fae"],
     ["src/economic/coupled_native_gas_reconciliation_storage_v1.ts", "08841a3db71e5dc31c1c628de72796cf825157a2"],
-    ["src/economic/coupled_native_gas_reconciliation_writer_v1.ts", "d8f17a770ea79c6abc868737fc1d7e4f1850d6dc"],
+    ["src/economic/coupled_native_gas_reconciliation_writer_v1.ts", "67517092b5c94733c50135ef7ce7e5679b641a0e"],
     ["src/economic/coupled_native_gas_terminal_cost_evidence_v1.ts", "7fe177f0e5d2e26dc4d32c25077e3f00da609c97"],
     ["tools/void-buy-void-allocation-custody-preflight-v1.mjs", "eeefceb07f46ca4fda4249d87230d8a2874808f4"],
     ["tools/void-coupled-native-gas-reconciliation-custody-host-evidence-v1.mjs", "96700dfa3d4973e038aaafd91dbf3f6fa6667034"],
@@ -224,7 +224,7 @@ export function testOnlyClassifyCoupledNativeGasReconciliationCustodySourceBindi
         "voidngrcsg1_" +
         VOID_COUPLED_NATIVE_GAS_RECONCILIATION_CUSTODY_REVIEWED_SOURCE_MANIFEST_SHA256_V1,
       writer_source_git_blob_sha1:
-        "d8f17a770ea79c6abc868737fc1d7e4f1850d6dc",
+        "67517092b5c94733c50135ef7ce7e5679b641a0e",
       qualification_source_git_blob_sha1:
         "5360a55bed6fccbe8d0dc242273264f2de94bea1",
       collector_source_git_blob_sha1:
