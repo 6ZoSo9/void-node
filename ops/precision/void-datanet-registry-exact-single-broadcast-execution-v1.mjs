@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {spawnSync} from "node:child_process";
+import {register} from "node:module";
 import {pathToFileURL} from "node:url";
 
 const ROOT=fs.realpathSync.native(process.cwd());
@@ -18,6 +19,10 @@ const CANONICAL_ORIGINS=new Set([
 const MAX_JSON=24*1024*1024;
 const MAX_RPC_RESPONSE=64*1024;
 const MAX_SOURCE_BYTES=8*1024*1024;
+const MAX_PACKAGE_FILE_BYTES=32*1024*1024;
+const MAX_PACKAGE_TOTAL_BYTES=256*1024*1024;
+const MAX_PACKAGE_FILES=16384;
+const ETHERS_STANDALONE_REL="dist/ethers.min.js";
 const LAUNCHER_REL="ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const TOOL_REL="tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const RPC_REL="tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs";
@@ -66,6 +71,21 @@ function fail(reason){
 }
 function sha256(bytes){
   return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+function canonicalJsonV1(value){
+  if(value===null) return "null";
+  if(typeof value==="string") return JSON.stringify(value);
+  if(typeof value==="boolean") return value?"true":"false";
+  if(typeof value==="number"&&Number.isSafeInteger(value)) return String(value);
+  if(Array.isArray(value)){
+    return "["+value.map(canonicalJsonV1).join(",")+"]";
+  }
+  if(value&&typeof value==="object"){
+    return "{"+Object.keys(value).sort().map(
+      key=>JSON.stringify(key)+":"+canonicalJsonV1(value[key]),
+    ).join(",")+"}";
+  }
+  fail("reviewed_canonical_json_invalid");
 }
 function gitBlobSha1(bytes){
   return crypto.createHash("sha1")
@@ -385,6 +405,233 @@ function stableFileBytes(file,label,maxBytes=MAX_SOURCE_BYTES){
     return bytes;
   }finally{fs.closeSync(fd);}
 }
+function reviewedEthersStandaloneBundleV1(profile,runtimeRoot){
+  const packageRow=profile.packages.find(
+    row=>row?.lock_key==="node_modules/ethers"&&row?.name==="ethers",
+  );
+  if(!packageRow) fail("reviewed_ethers_profile_row_missing");
+  const base=path.join(runtimeRoot,"node_modules","ethers");
+  if(
+    fs.realpathSync.native(base)!==base||
+    !fs.lstatSync(base).isDirectory()
+  ){
+    fail("reviewed_ethers_package_root_invalid");
+  }
+  const members=[];
+  let total=0;
+  let count=0;
+  let bundleBytes=null;
+  function walk(dir,relative,depth){
+    if(depth>48) fail("reviewed_ethers_package_depth_exceeded");
+    const entries=fs.readdirSync(dir,{withFileTypes:true})
+      .sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0);
+    for(const entry of entries){
+      const rel=relative?relative+"/"+entry.name:entry.name;
+      if(
+        rel.length>768||
+        !entry.name||
+        entry.name==="."||
+        entry.name===".."
+      ){
+        fail("reviewed_ethers_package_path_invalid");
+      }
+      const file=path.join(dir,entry.name);
+      const stat=fs.lstatSync(file);
+      if(stat.isSymbolicLink()){
+        fail("reviewed_ethers_package_symlink_forbidden");
+      }
+      if(stat.isDirectory()){
+        if(entry.name==="node_modules") continue;
+        walk(file,rel,depth+1);
+        continue;
+      }
+      if(!stat.isFile()||stat.nlink!==1){
+        fail("reviewed_ethers_package_entry_invalid");
+      }
+      if(++count>MAX_PACKAGE_FILES){
+        fail("reviewed_ethers_package_file_count_exceeded");
+      }
+      const bytes=stableFileBytes(
+        file,
+        "reviewed_ethers_package_file",
+        MAX_PACKAGE_FILE_BYTES,
+      );
+      total+=bytes.length;
+      if(total>MAX_PACKAGE_TOTAL_BYTES){
+        fail("reviewed_ethers_package_bytes_exceeded");
+      }
+      members.push(Object.freeze({
+        path:rel,
+        bytes:bytes.length,
+        sha256:sha256(bytes),
+      }));
+      if(rel===ETHERS_STANDALONE_REL){
+        if(bundleBytes!==null) fail("reviewed_ethers_bundle_duplicate");
+        bundleBytes=Buffer.from(bytes);
+      }
+    }
+  }
+  walk(base,"",0);
+  const aggregate=sha256(
+    Buffer.from(canonicalJsonV1(members),"utf8"),
+  );
+  const packageJson=members.find(row=>row.path==="package.json");
+  if(
+    members.length!==packageRow.file_count||
+    total!==packageRow.bytes||
+    aggregate!==packageRow.aggregate_sha256||
+    !packageJson||
+    packageJson.sha256!==packageRow.package_json_sha256||
+    !Buffer.isBuffer(bundleBytes)
+  ){
+    fail("reviewed_ethers_package_inventory_mismatch");
+  }
+  const source=bundleBytes.toString("utf8");
+  if(
+    !Buffer.from(source,"utf8").equals(bundleBytes)||
+    staticImportSpecifiers(source).length!==0
+  ){
+    fail("reviewed_ethers_standalone_not_self_contained");
+  }
+  return Object.freeze({
+    source,
+    sha256:sha256(bundleBytes),
+    bytes:bundleBytes.length,
+    package_aggregate_sha256:aggregate,
+  });
+}
+
+const EXACT_FILE_HOOK_SOURCE=String.raw`
+let reviewedUrl="";
+let reviewedSource="";
+export function initialize(data){
+  reviewedUrl=String(data?.url||"");
+  reviewedSource=String(data?.source||"");
+  if(!reviewedUrl.startsWith("file:")||reviewedSource.length<1){
+    throw new Error("reviewed_exact_file_hook_init_invalid");
+  }
+}
+export async function resolve(specifier,context,nextResolve){
+  if(specifier===reviewedUrl){
+    return {url:reviewedUrl,shortCircuit:true};
+  }
+  return nextResolve(specifier,context);
+}
+export async function load(url,context,nextLoad){
+  if(url===reviewedUrl){
+    return {format:"module",source:reviewedSource,shortCircuit:true};
+  }
+  return nextLoad(url,context);
+}
+`;
+
+function registerExactReviewedFileModuleV1(relativePath,source,identity){
+  const url=
+    "file:///__void_reviewed_"+identity+"/"+
+    relativePath.split("/").map(encodeURIComponent).join("/");
+  const hookUrl=
+    "data:text/javascript;base64,"+
+    Buffer.from(EXACT_FILE_HOOK_SOURCE,"utf8").toString("base64");
+  register(hookUrl,{
+    parentURL:import.meta.url,
+    data:{url,source},
+  });
+  return url;
+}
+
+const REVIEWED_GRAPH_HOOK_SOURCE=String.raw`
+import path from "node:path";
+let prefix="";
+let sources=Object.create(null);
+let ethersSource="";
+const PACKAGE_URL="void-reviewed-package:ethers";
+export function initialize(data){
+  prefix=String(data?.prefix||"");
+  sources=Object.assign(Object.create(null),data?.sources||{});
+  ethersSource=String(data?.ethersSource||"");
+  if(!prefix.startsWith("void-reviewed:")||ethersSource.length<1){
+    throw new Error("reviewed_graph_hook_init_invalid");
+  }
+}
+function reviewedPath(url){
+  if(!url.startsWith(prefix)) return null;
+  const relative=url.slice(prefix.length);
+  if(!Object.hasOwn(sources,relative)){
+    throw new Error("reviewed_graph_module_missing:"+relative);
+  }
+  return relative;
+}
+export async function resolve(specifier,context,nextResolve){
+  if(specifier.startsWith(prefix)){
+    reviewedPath(specifier);
+    return {url:specifier,shortCircuit:true};
+  }
+  if(context.parentURL&&context.parentURL.startsWith(prefix)){
+    const parent=reviewedPath(context.parentURL);
+    if(specifier==="ethers"){
+      return {url:PACKAGE_URL,shortCircuit:true};
+    }
+    if(specifier.startsWith(".")){
+      const resolved=path.posix.normalize(
+        path.posix.join(path.posix.dirname(parent),specifier),
+      );
+      if(
+        resolved.startsWith("../")||
+        resolved===".."||
+        !Object.hasOwn(sources,resolved)
+      ){
+        throw new Error("reviewed_graph_relative_import_invalid:"+specifier);
+      }
+      return {url:prefix+resolved,shortCircuit:true};
+    }
+    if(specifier.startsWith("node:")){
+      return nextResolve(specifier,context);
+    }
+    throw new Error("reviewed_graph_bare_import_forbidden:"+specifier);
+  }
+  return nextResolve(specifier,context);
+}
+export async function load(url,context,nextLoad){
+  if(url===PACKAGE_URL){
+    return {format:"module",source:ethersSource,shortCircuit:true};
+  }
+  if(url.startsWith(prefix)){
+    const relative=reviewedPath(url);
+    return {format:"module",source:sources[relative],shortCircuit:true};
+  }
+  return nextLoad(url,context);
+}
+`;
+
+function registerReviewedModuleGraphV1(plan,ethersBundle,head){
+  const sources={};
+  for(const row of plan.rows){
+    const source=plan.sources.get(row.relative_path);
+    const text=source.bytes.toString("utf8");
+    if(!Buffer.from(text,"utf8").equals(source.bytes)){
+      fail("reviewed_source_utf8_invalid:"+row.relative_path);
+    }
+    sources[row.relative_path]=text;
+  }
+  const prefix="void-reviewed:"+head+"/";
+  const hookUrl=
+    "data:text/javascript;base64,"+
+    Buffer.from(REVIEWED_GRAPH_HOOK_SOURCE,"utf8").toString("base64");
+  register(hookUrl,{
+    parentURL:import.meta.url,
+    data:{
+      prefix,
+      sources,
+      ethersSource:ethersBundle.source,
+    },
+  });
+  return Object.freeze({
+    tool_url:prefix+TOOL_REL,
+    rpc_url:prefix+RPC_REL,
+    source_count:Object.keys(sources).length,
+  });
+}
+
 function materializeReviewedSourcesV1(plan,destinationRoot){
   if(fs.existsSync(destinationRoot)) fail("reviewed_source_destination_exists");
   fs.mkdirSync(destinationRoot,{mode:0o700});
@@ -450,14 +697,16 @@ async function prepareReviewedExecutionV1(head){
   try{
     fs.mkdirSync(bootstrapRoot,{mode:0o700});
     const runtimeToolSource=exactHeadFileV1(head,REVIEWED_RUNTIME_TOOL_REL);
-    const runtimeToolPath=path.join(
-      bootstrapRoot,
-      ...REVIEWED_RUNTIME_TOOL_REL.split("/"),
+    const runtimeToolText=runtimeToolSource.bytes.toString("utf8");
+    if(!Buffer.from(runtimeToolText,"utf8").equals(runtimeToolSource.bytes)){
+      fail("reviewed_runtime_tool_utf8_invalid");
+    }
+    const runtimeToolUrl=registerExactReviewedFileModuleV1(
+      REVIEWED_RUNTIME_TOOL_REL,
+      runtimeToolText,
+      runtimeToolSource.blob,
     );
-    writeExactFile(runtimeToolPath,runtimeToolSource.bytes,0o400);
-    const runtime=await import(
-      pathToFileURL(runtimeToolPath).href+"?reviewed_head="+head
-    );
+    const runtime=await import(runtimeToolUrl);
     for(const name of [
       "readReviewedNodePackageRuntimeProfileV1",
       "verifyReviewedNodePackageRuntimeV1",
@@ -501,14 +750,20 @@ async function prepareReviewedExecutionV1(head){
       destinationRoot:runtimeRoot,
       repoRoot:ROOT,
     });
-    const toolPath=path.join(runtimeRoot,...TOOL_REL.split("/"));
-    const rpcPath=path.join(runtimeRoot,...RPC_REL.split("/"));
-    const tool=await import(
-      pathToFileURL(toolPath).href+"?reviewed_head="+head
+    const ethersBundle=reviewedEthersStandaloneBundleV1(
+      profileSource.profile,
+      runtimeRoot,
     );
-    const rpcModule=await import(
-      pathToFileURL(rpcPath).href+"?reviewed_head="+head
+    const graph=registerReviewedModuleGraphV1(
+      plan,
+      ethersBundle,
+      head,
     );
+    if(graph.source_count!==plan.rows.length){
+      fail("reviewed_in_memory_source_count_mismatch");
+    }
+    const tool=await import(graph.tool_url);
+    const rpcModule=await import(graph.rpc_url);
     if(
       typeof tool.submitVoidDatanetRegistryExactSingleBroadcastV1!=="function"||
       rpcModule.PRIVATE_SUCCESSOR_RPC_V1!==EXPECTED_RPC
@@ -539,7 +794,11 @@ async function prepareReviewedExecutionV1(head){
         reviewed_runtime_profile_id:profileSource.profile.profile_id,
         reviewed_runtime_packages_aggregate_sha256:
           profileSource.profile.packages_aggregate_sha256,
+        reviewed_ethers_standalone_sha256:ethersBundle.sha256,
+        reviewed_ethers_standalone_bytes:ethersBundle.bytes,
         private_exact_head_tree:true,
+        private_tree_execution:false,
+        in_memory_exact_head_execution:true,
         execution_network_isolation_provided:false,
       }),
       reverify(){
@@ -801,7 +1060,11 @@ async function main(){
       prepared.binding.reviewed_runtime_profile_id);
     console.log("reviewed_runtime_packages_aggregate_sha256="+
       prepared.binding.reviewed_runtime_packages_aggregate_sha256);
-    console.log("private_exact_head_execution=true");
+    console.log("private_exact_head_materialization_verified=true");
+    console.log("private_tree_execution=false");
+    console.log("in_memory_exact_head_execution=true");
+    console.log("reviewed_ethers_standalone_sha256="+
+      prepared.binding.reviewed_ethers_standalone_sha256);
     console.log("execution_network_isolation_provided=false");
     console.log("broadcaster_access_performed="+String(result.broadcaster_access_performed===true));
     console.log("transaction_submission_performed="+
