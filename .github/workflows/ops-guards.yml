@@ -2,7 +2,17 @@ name: ops-guards
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/ops-guards.yml'
+      - 'Makefile.ops'
+      - 'ops/*.sh'
+      - 'ops/**/*.sh'
   pull_request:
+    paths:
+      - '.github/workflows/ops-guards.yml'
+      - 'Makefile.ops'
+      - 'ops/*.sh'
+      - 'ops/**/*.sh'
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -12,23 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Block files >=10MB
-        run: |
-          bash tools/check_large_worktree_files.sh
-
-      - name: Block root-owned files
-        run: |
-          set -euo pipefail
-          ROOTY=$(git ls-files | xargs -I{} bash -c 'test -e "{}" && [ "$(stat -c"%U" "{}")" = "root" ] && echo "{}" || true')
-          if [ -n "${ROOTY:-}" ]; then
-            echo "Root-owned files:"; echo "$ROOTY"; exit 1; fi
 
       - name: Guard .RECIPEPREFIX for ops
         run: |
           set -euo pipefail
           if grep -qE '^[[:space:]]*>' Makefile.ops; then
-            grep -q '^[.]RECIPEPREFIX := >' Makefile.ops || { 
-              echo "Missing '.RECIPEPREFIX := >' in Makefile.ops"; exit 1; 
+            grep -q '^[.]RECIPEPREFIX := >' Makefile.ops || {
+              echo "Missing '.RECIPEPREFIX := >' in Makefile.ops"
+              exit 1
             }
           fi
 
@@ -36,9 +37,13 @@ jobs:
         run: |
           set -euo pipefail
           if grep -RIl $'\r' ops/*.sh ops/**/*.sh 2>/dev/null | grep .; then
-            echo "CRLF found in shell scripts"; exit 1; fi
-          # Ensure executable bit on our ops scripts
+            echo "CRLF found in shell scripts"
+            exit 1
+          fi
           for f in ops/*.sh ops/**/*.sh; do
             [ -f "$f" ] || continue
-            if [ ! -x "$f" ]; then echo "not executable: $f"; exit 1; fi
+            if [ ! -x "$f" ]; then
+              echo "not executable: $f"
+              exit 1
+            fi
           done

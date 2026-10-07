@@ -2,7 +2,40 @@ name: Ops Guards (autostart)
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/ops-guards-autostart.yml'
+      - 'ops/systemd/user/void-node.service.d/**'
+      - 'scripts/prove_proposer_auto_start_mutation_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_auto_stop_shadow_route_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'ops/run-void-node-live-v1.sh'
+      - 'scripts/void_health.sh'
+      - 'scripts/void-heal-ready.sh'
+      - 'ops/bin/void-proposer-auto.sh'
+      - 'ops/bin/void-noop-drip.sh'
+      - 'ops/bin/void-proposer-autostart-http.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
   pull_request:
+    paths:
+      - '.github/workflows/ops-guards-autostart.yml'
+      - 'ops/systemd/user/void-node.service.d/**'
+      - 'scripts/prove_proposer_auto_start_mutation_confirmation_guard_v1.ts'
+      - 'scripts/prove_proposer_auto_stop_shadow_route_v1.ts'
+      - 'src/index.ts'
+      - 'src/index.js'
+      - 'ops/run-void-node-live-v1.sh'
+      - 'scripts/void_health.sh'
+      - 'scripts/void-heal-ready.sh'
+      - 'ops/bin/void-proposer-auto.sh'
+      - 'ops/bin/void-noop-drip.sh'
+      - 'ops/bin/void-proposer-autostart-http.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
