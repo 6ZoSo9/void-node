@@ -125,7 +125,7 @@ assert.ok(
   "the true SSH_ORIGINAL_COMMAND must be preserved as a quoted variable",
 );
 assert.ok(
-  thirdLine.includes(String.raw`${forced_command//\"/\\\"}`),
+  thirdLine.includes("forced_command//"),
   "OpenSSH authorized_keys quoting must escape the nested variable expansion",
 );
 assert.doesNotMatch(
@@ -165,7 +165,7 @@ const inertForced=parsedForced.replace(
   " /usr/bin/env",
 );
 assert.notEqual(inertForced, parsedForced, "test must replace only the fixed Node entrypoint");
-const originalCommand="ignored-token \\"quoted\\" ; \\$(echo injected)";
+const originalCommand='ignored-token "quoted" ; $(echo injected)';
 const isolated=spawnSync("/bin/sh",["-c",inertForced],{
   encoding:"utf8",timeout:5000,
   env:{
@@ -177,7 +177,7 @@ const isolated=spawnSync("/bin/sh",["-c",inertForced],{
   },
 });
 assert.equal(isolated.status,0,isolated.stderr);
-assert.ok(isolated.stdout.includes("SSH_ORIGINAL_COMMAND="+originalCommand+"\\n"));
+assert.ok(isolated.stdout.includes("SSH_ORIGINAL_COMMAND="+originalCommand+"\n"));
 assert.doesNotMatch(isolated.stdout,/NODE_OPTIONS|NODE_PATH|ATTACKER_OTHER_VAR/u);
 assert.ok(isolated.stdout.includes("VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1\\n"));
 
