@@ -68,6 +68,26 @@ AUTHORITY_KEYS = {
     "buy_void_fulfillment_authority_granted",
 }
 
+SAFE_GATEWAY_ERROR_CODES = {
+    401: frozenset({
+        "applicant_auth_invalid",
+    }),
+    412: frozenset({
+        "gateway_instance_mismatch",
+    }),
+    429: frozenset({
+        "credential_request_preauth_rate_limit_exceeded",
+        "applicant_rate_limit_exceeded",
+        "public_credential_request_global_rate_limit_exceeded",
+        "rate_limit_exceeded",
+    }),
+    503: frozenset({
+        "agent_paid_work_credential_request_gateway_unavailable",
+        "applicant_rate_limit_capacity",
+        "applicant_auth_replay_capacity",
+    }),
+}
+
 
 def fail(message: str) -> "NoReturn":
     raise ValueError(message)
@@ -430,13 +450,31 @@ def validate_gateway_response(
     response: Any,
     request_id: str,
 ) -> dict[str, Any]:
+    if not isinstance(response, dict):
+        fail("gateway response must be an object")
+
+    if status in SAFE_GATEWAY_ERROR_CODES:
+        if (
+            set(response) != {"ok", "error"}
+            or response.get("ok") is not False
+            or not isinstance(
+                response.get("error"),
+                str,
+            )
+            or response["error"]
+            not in SAFE_GATEWAY_ERROR_CODES[status]
+        ):
+            fail("gateway error response mismatch")
+
+        return {
+            "ok": False,
+            "error": response["error"],
+        }
+
     if status not in {200, 202}:
         fail(
             f"credential request gateway returned HTTP {status}"
         )
-
-    if not isinstance(response, dict):
-        fail("gateway response must be an object")
 
     duplicate = response.get("duplicate")
 
@@ -842,6 +880,35 @@ def command_submit(
         output_path,
         output,
     )
+
+    if response.get("ok") is False:
+        print(
+            json.dumps(
+                {
+                    "submitted": False,
+                    "http_status": status,
+                    "request_id": request[
+                        "request_id"
+                    ],
+                    "gateway_error": response[
+                        "error"
+                    ],
+                    "automatic_retry": False,
+                    "output": str(
+                        output_path
+                    ),
+                    "credential_created": False,
+                    "raw_token_read": False,
+                    "applicant_identity_private_key_access": True,
+                    "wallet_key_access": False,
+                },
+                indent=2,
+            )
+        )
+        print(
+            "VOID_EXTERNAL_AGENT_CREDENTIAL_REQUEST_V1_HELD"
+        )
+        return 2
 
     print(
         json.dumps(
