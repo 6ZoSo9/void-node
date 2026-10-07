@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 import process from "node:process";
 
 export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1 =
@@ -353,9 +355,10 @@ async function main() {
   process.stdout.write(result.response_json);
 }
 
-if (process.argv[1] && import.meta.url === new URL(
-  "file://" + process.argv[1],
-).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   main().catch((error) => {
     process.stderr.write(
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1 +
