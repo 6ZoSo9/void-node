@@ -245,6 +245,31 @@ assert.deepEqual(
   VOID_WC_VOID_COUPLED_LAUNCH_NON_AUTHORITY_SOURCE_PATHS_V2,
 );
 assert.equal(census.all_authoritative_rebindings_complete, true);
+
+const currentIdentityWorkflowDependencies = Object.freeze([
+  "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json",
+  "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json",
+  "tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
+  "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
+]);
+for (const workflowPath of [
+  ".github/workflows/void-wc-void-market-vault-runtime-attestation-v1.yml",
+  ".github/workflows/void-wc-void-market-vault-at-use-revalidation-v1.yml",
+  ".github/workflows/void-wc-void-bounded-canary-evidence-v1.yml"
+]) {
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  for (const dependency of currentIdentityWorkflowDependencies) {
+    const occurrences = workflow.split('"' + dependency + '"').length - 1;
+    assert.equal(
+      occurrences,
+      2,
+      workflowPath + ": dependency must trigger both pull_request and push: " + dependency,
+    );
+  }
+}
+
 assert.equal(census.canonical_candidate_update_authorized, false);
 assert.equal(census.controller_resigning_authorized, false);
 assert.equal(census.live_activation_receipt_reuse_authorized, false);
