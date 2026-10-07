@@ -1,106 +1,134 @@
 # DataNet Registry Broadcast Send Generation Fence v1
 
-Status: source/proof only. This document does **not** authorize a live RPC send,
-credential/key access, signing, transaction broadcast, deployment, Chain-2050
-mutation, activation, inventory, treasury/liquidity action, or funds movement.
+Status: **fail-closed source seam; external custody integration still required**.
+
+This document does **not** authorize a live RPC send, credential/key access,
+signing, transaction broadcast, deployment, Chain-2050 mutation, activation,
+inventory, treasury/liquidity action, or funds movement.
 
 ## Problem
 
-The exact-single DataNet registry broadcaster already publishes a durable
-one-shot attempt intent and rechecks the state-root generation immediately
-before eth_sendRawTransaction.
+The exact-single DataNet registry broadcaster records a durable attempt intent
+inside a private state root and rechecks that root immediately before
+`eth_sendRawTransaction`. A same-UID process can nevertheless rename the root
+after the final check. Any fence stored inside that root—or in another
+same-UID-controlled sibling—can be renamed with it and recreated.
 
-That check alone does not serialize the pathname namespace through the send.
-A same-UID process can rename the validated state root after the final
-generation check. The already-running process may still make its one permitted
-send using previously validated inputs, while the durable attempt intent remains
-inside the now-detached old state tree. A compatible replacement at the same
-pathname could otherwise omit that intent and reopen the exact operation.
+Therefore pathname separation is not custody independence.
 
-## Source boundary
+## Source repair in this generation
 
-The transaction core now adds two complementary custody boundaries.
+The transaction core no longer creates or trusts
+`.void-datanet-registry-broadcast-generation-fences-v1` beside the state
+root.
 
-### External operation fence
+Instead, the dependency-injected execution core requires two explicit
+capabilities:
 
-Before the state-root attempt directory is created or used, the broadcaster
-publishes one create-only operation fence under the state-root parent in:
+- `claim_generation_fence(fence)`
+- `assert_generation_fence(claim, fence)`
 
-    .void-datanet-registry-broadcast-generation-fences-v1/
-      <sha256(absolute-state-root-path)>/
-        <broadcast-operation-id>.json
+A successful claim must return an exact closed object containing:
 
-The path hash intentionally binds the stable state-root pathname rather than the
-current state-root inode. If that pathname is later replaced by a different
-directory generation, the replacement resolves to the same external fence
-namespace.
+- `status = created | exists`;
+- the exact content-addressed `broadcast_generation_fence_id`;
+- one `sha256:...` custody receipt; and
+- `independent_custody_proven=true`.
 
-The fence binds the exact operation, consumed authorization, request and
-transaction identity, the original state-root path digest/device/inode, and
-the one-attempt/no-retry/no-replacement policy.
+The custody key is the stable state-root pathname digest plus the exact
+broadcast operation. A replacement inode at the same pathname therefore maps
+to the same custody slot.
 
-The fence is create-only and directory-fsynced before any state-root attempt
-intent is admitted. Existing fence state fails closed before a replacement
-state root can create another attempt store.
+An existing claim fails closed before a replacement state root can create a new
+`broadcast-attempts` namespace. A newly created claim is revalidated again
+immediately before the single send admission.
 
-### Descriptor-bound original attempt store
+The attempt directory itself remains descriptor-pinned to the original state
+generation so an in-flight root rename cannot redirect intent/result
+publication.
 
-After the external fence is durable, the current state root is revalidated.
-The broadcast-attempts directory is then opened as a private no-follow
-directory and retained through intent publication, final checks, the single
-RPC send attempt, reconciliation, and terminal result publication.
+## Production fail-closed boundary
 
-Intent and result records are created through /proc/self/fd/<dirfd>/... and
-the retained directory FD is fsynced directly. A root rename therefore cannot
-redirect the in-flight process's result into a replacement state tree.
+The normal exported production wrapper
+`submitVoidDatanetRegistryExactSingleBroadcastV1(...)` now returns:
 
-## Failure semantics
+`registry_broadcast_execution_external_generation_custody_required`
 
-A fence that already exists is treated as an already-recorded exact operation.
-No RPC method is invoked. If a new fence is durable and a later pre-send step
-fails, the fence is intentionally not removed: uncertainty must not become a
-retry opportunity.
+It cannot submit a transaction until a separately reviewed external custody
+service is integrated.
 
-The existing operation-bound confirmation, runtime window, exact signed
-transaction binding, one-send invariant, reconciliation classification, and
-no-retry/no-replacement policy remain unchanged.
+This deliberately downgrades the prior false closure claim. Source can prove
+the broadcaster consumes an independent-custody seam, but this PR does not
+claim that a live host has installed or qualified that custody authority.
+
+The dependency-injected function remains available for deterministic source
+proofs and future trusted composition.
 
 ## Focused adversary
 
-The dedicated proof uses synthetic inputs and an injected fake RPC. At the fake
-send boundary it renames the validated state root, installs a compatible
-replacement at the same pathname, and allows exactly one simulated send. It
-then proves that intent/result records remain in the descriptor-pinned detached
-original generation and that the replacement generation is stopped by the
-external fence before any RPC or new attempt-store creation.
+The proof now keeps the authoritative fence in a synthetic external custody
+store and separately creates the old same-UID sibling namespace as a decoy.
 
-This proves the #2549 permitted outcome: a rename can race the first send, but
-the replacement generation cannot reopen the same one-shot operation.
+At the fake send boundary it:
 
-## Scope and remaining limits
+1. renames the validated state root;
+2. renames the legacy sibling fence directory too;
+3. installs compatible replacements at both original pathnames; and
+4. permits exactly one simulated send.
 
-This repair closes the state-root pathname-replacement replay gap described by
-#2549. It is not a claim that an arbitrary same-UID actor cannot delete or
-roll back every independent host-state namespace. Broader host rollback,
-backup/snapshot custody, OS-user compromise, RPC correctness, and externally
-observed deployment truth remain separate gates.
+A second invocation at the replacement state-root pathname receives
+`status=exists` from the external custody authority, performs zero RPC calls,
+and creates no replacement attempt store.
 
-## Relationship to #2547
+The proof also requires the normal production wrapper to HOLD with zero
+transaction submission while no live custody service is integrated.
 
-#2547 reviews the broadcaster executable-source provenance. Its reviewed
-27-module closure includes this transaction core even though #2547 does not
-edit this path. The lanes are path-disjoint but semantically ordered:
+## Required next gate
 
-1. merge/reconcile #2547 first, then reconcile #2549 onto that source; or
-2. if #2549 lands first, regenerate #2547 exact reviewed closure and hosted
-   evidence before #2547 disposition.
+Issue #2549 remains open.
 
-Do not merge both stale exact heads independently.
+The required live closure is a dedicated privilege-separated custody service,
+following the repository's existing allocation-custody pattern:
+
+```text
+DataNet broadcast runtime UID
+  -> bounded AF_UNIX claim/assert request
+  -> dedicated broadcast-fence custody UID
+       -> protected create-only operation-fence root
+```
+
+The socket path and fence root must be server-controlled. The public runtime
+must not be able to write, rename, recreate, remount, or service-control the
+custody authority. Ancestors must be root-owned, direct, non-symlink, and
+non-writable by group/other. A designated-host evidence gate must prove those
+facts before live broadcast authority can be restored.
+
+A same-UID writable directory, alternate path under the same user-owned
+ancestor, advisory lock, or sibling namespace is not sufficient.
+
+## Relationship to reviewed execution provenance
+
+The isolated reviewed child from merged #2547 remains the only supported
+execution boundary. With this source generation its normal broadcaster call
+fails closed until external generation custody is integrated.
+
+The reviewed source/provenance boundary does not itself provide durable
+generation custody, and this lane does not weaken the null-stdio/no-IPC child
+isolation.
+
+## Authority boundary
+
+Source/proof/docs/CI only.
+
+No live RPC endpoint, production signed artifact, credential, private key,
+wallet, signer, transaction construction/signing/broadcast, Chain-2050
+mutation, deployment, inventory, market/presale activation, treasury/liquidity,
+or funds movement is authorized or performed.
 
 ## Verification
 
-Dedicated workflow: VOID DataNet registry broadcast send generation fence v1.
-It runs Node.js 22, 24, and 26, syntax checks the core/proof, executes the
-deterministic root-replacement adversary, and runs git diff --check.
+The focused workflow runs Node 22, 24, and 26 on the exact PR head. It syntax
+checks the core/proof, executes the root + sibling-fence replacement adversary,
+checks the production fail-closed wrapper, and runs diff hygiene.
 
-No live RPC endpoint is used by the focused proof.
+Fresh repository-wide CI and review remain required before merge.

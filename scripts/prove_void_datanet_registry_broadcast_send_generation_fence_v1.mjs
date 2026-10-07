@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  submitVoidDatanetRegistryExactSingleBroadcastV1,
   submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1,
 } from "../tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 import {
@@ -39,8 +40,15 @@ const parent=fs.mkdtempSync(
 fs.chmodSync(parent,0o700);
 const root=path.join(parent,"state");
 const detached=path.join(parent,"detached-state");
+const legacyFenceRoot=path.join(
+  parent,
+  ".void-datanet-registry-broadcast-generation-fences-v1",
+);
+const detachedLegacyFenceRoot=path.join(parent,"detached-legacy-fence");
 fs.mkdirSync(root,{mode:0o700});
 fs.chmodSync(root,0o700);
+fs.mkdirSync(legacyFenceRoot,{mode:0o700});
+fs.chmodSync(legacyFenceRoot,0o700);
 
 const now=Date.parse("2030-01-01T00:00:30.000Z");
 const request={
@@ -190,11 +198,43 @@ writeConsumptionForRoot(root);
 let simulatedNetworkSends=0;
 let rootReplacementPerformed=false;
 let replacementConsumption=null;
+const externalFenceStore=new Map();
+
+function externalFenceKey(fence){
+  return fence.state_store_realpath_sha256+":"+fence.broadcast_operation_id;
+}
+async function claimGenerationFence(fence){
+  const key=externalFenceKey(fence);
+  const existing=externalFenceStore.get(key);
+  if(existing){
+    return Object.freeze({...existing,status:"exists"});
+  }
+  const claim=Object.freeze({
+    status:"created",
+    broadcast_generation_fence_id:fence.broadcast_generation_fence_id,
+    custody_receipt_sha256:
+      "sha256:"+sha256(Buffer.from("external-custody:"+canonicalJson(fence))),
+    independent_custody_proven:true,
+  });
+  externalFenceStore.set(key,claim);
+  return claim;
+}
+async function assertGenerationFence(claim,fence){
+  const existing=externalFenceStore.get(externalFenceKey(fence));
+  return (
+    existing?.broadcast_generation_fence_id===
+      claim.broadcast_generation_fence_id&&
+    existing?.custody_receipt_sha256===claim.custody_receipt_sha256&&
+    existing?.independent_custody_proven===true
+  );
+}
 
 const baseDependencies={
   validate_runtime:()=>({request,authorization}),
   validate_observation:()=>observation,
   validate_signed_transaction:()=>signed,
+  claim_generation_fence:claimGenerationFence,
+  assert_generation_fence:assertGenerationFence,
   now:()=>now,
 };
 
@@ -204,7 +244,9 @@ const firstDependencies={
     if(method==="eth_sendRawTransaction"){
       assert.equal(rootReplacementPerformed,false);
       fs.renameSync(root,detached);
+      fs.renameSync(legacyFenceRoot,detachedLegacyFenceRoot);
       fs.mkdirSync(root,{mode:0o700});
+      fs.mkdirSync(legacyFenceRoot,{mode:0o700});
       fs.chmodSync(root,0o700);
       replacementConsumption=writeConsumptionForRoot(root);
       rootReplacementPerformed=true;
@@ -251,25 +293,22 @@ try{
   assert.equal(first.replacement_transaction_created,false);
   assert(replacementConsumption);
 
-  const fenceRoot=path.join(
-    parent,
-    ".void-datanet-registry-broadcast-generation-fences-v1",
+  assert.equal(externalFenceStore.size,1);
+  const storedClaim=externalFenceStore.get(
+    sha256(root)+":"+operationId,
   );
-  const rootFence=path.join(fenceRoot,sha256(root));
-  const fenceFile=path.join(rootFence,operationId+".json");
-  assert.equal(fenceFile.startsWith(root+path.sep),false);
-  assert.equal(fs.existsSync(fenceFile),true);
-  const fence=JSON.parse(fs.readFileSync(fenceFile,"utf8"));
+  assert(storedClaim);
   assert.equal(
-    fence.marker,
-    "VOID_DATANET_REGISTRY_BROADCAST_GENERATION_FENCE_V1",
-  );
-  assert.equal(fence.broadcast_operation_id,operationId);
-  assert.equal(
-    fence.broadcast_generation_fence_id,
+    storedClaim.broadcast_generation_fence_id,
     first.broadcast_generation_fence_id,
   );
-  assert.equal(fence.signed_transaction_hash,signed.signed_transaction_hash);
+  assert.equal(first.independent_generation_custody_proven,true);
+  assert.equal(
+    first.generation_fence_custody_receipt_sha256,
+    storedClaim.custody_receipt_sha256,
+  );
+  assert.equal(fs.existsSync(detachedLegacyFenceRoot),true);
+  assert.equal(fs.readdirSync(legacyFenceRoot).length,0);
 
   const detachedAttempts=path.join(detached,"broadcast-attempts");
   assert.equal(fs.existsSync(detachedAttempts),true);
@@ -335,6 +374,7 @@ try{
   assert.equal(second.transaction_submission_performed,false);
   assert.equal(second.transaction_broadcast_performed,false);
   assert.equal(second.operation_fence_recorded,true);
+  assert.equal(second.independent_generation_custody_proven,true);
   assert.equal(secondRpcCalls,0);
   assert.equal(simulatedNetworkSends,1);
   assert.equal(
@@ -348,12 +388,13 @@ try{
     "utf8",
   );
   for(const required of [
-    "GENERATION_FENCE_NAMESPACE",
-    "atomicCreatePinnedRecordV1",
-    "assertPinnedRecordV1",
-    "operationFenceDirectoryV1(root)",
+    "claim_generation_fence",
+    "assert_generation_fence",
+    "normalizeExternalGenerationFenceClaimV1",
     "broadcast_generation_fence_id",
+    "generation_fence_custody_receipt_sha256",
     "operation_fence_recorded:true",
+    "independent_generation_custody_proven:true",
     "state_generation_descriptor_bound:true",
     "eth_sendRawTransaction",
     "automatic_retry_performed:false",
@@ -361,15 +402,27 @@ try{
   ]){
     assert.ok(core.includes(required),required);
   }
-  assert.ok(
-    core.indexOf("operationFenceDirectoryV1(root)") <
-      core.indexOf('ensurePrivateDir(root.realpath,"broadcast-attempts")'),
-    "external operation fence must be durable before state-root attempt namespace",
+  assert.doesNotMatch(core,/GENERATION_FENCE_NAMESPACE/u);
+  assert.doesNotMatch(core,/operationFenceDirectoryV1\(root\)/u);
+  assert.match(
+    core,
+    /registry_broadcast_execution_external_generation_custody_required/u,
   );
 
+  const productionHold=
+    await submitVoidDatanetRegistryExactSingleBroadcastV1({});
+  assert.equal(productionHold.ok,false);
+  assert.equal(
+    productionHold.reason,
+    "registry_broadcast_execution_external_generation_custody_required",
+  );
+  assert.equal(productionHold.transaction_submission_performed,false);
+
   console.log(MARKER);
-  console.log("operation_fence_external_to_state_root=true");
+  console.log("external_generation_custody_dependency_required=true");
   console.log("operation_fence_durable_before_attempt_intent=true");
+  console.log("legacy_sibling_fence_rename_does_not_reopen_operation=true");
+  console.log("production_wrapper_fail_closed_without_custody=true");
   console.log("original_attempt_directory_descriptor_bound=true");
   console.log("root_replacement_after_final_gate_simulated=true");
   console.log("first_simulated_network_send_count=1");

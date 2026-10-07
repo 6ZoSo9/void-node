@@ -26,8 +26,7 @@ const OBS_ID=/^voiddrpbo1_[0-9a-f]{64}$/u;
 const OP_ID=/^voiddrbo1_[0-9a-f]{64}$/u;
 const CONSUMPTION_ID=/^voiddrbac1_[0-9a-f]{64}$/u;
 const GENERATION_FENCE_ID=/^voiddrbgf1_[0-9a-f]{64}$/u;
-const GENERATION_FENCE_NAMESPACE=
-  ".void-datanet-registry-broadcast-generation-fences-v1";
+const CUSTODY_RECEIPT_SHA256=/^sha256:[0-9a-f]{64}$/u;
 
 function sha256(value){
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -69,6 +68,52 @@ function held(reason,extra={}){
     replacement_transaction_created:false,
     ...extra,
   });
+}
+function normalizeExternalGenerationFenceClaimV1(raw,expectedFence){
+  if(!raw||typeof raw!=="object"||Array.isArray(raw)){
+    throw new Error("registry_broadcast_execution_generation_custody_claim_invalid");
+  }
+  const proto=Object.getPrototypeOf(raw);
+  if(proto!==Object.prototype&&proto!==null){
+    throw new Error("registry_broadcast_execution_generation_custody_claim_invalid");
+  }
+  const descriptors=Object.getOwnPropertyDescriptors(raw);
+  const keys=Reflect.ownKeys(descriptors);
+  const expectedKeys=[
+    "status",
+    "broadcast_generation_fence_id",
+    "custody_receipt_sha256",
+    "independent_custody_proven",
+  ].sort();
+  if(
+    keys.some((key)=>typeof key!=="string")||
+    keys.length!==expectedKeys.length||
+    keys.map(String).sort().some((key,index)=>key!==expectedKeys[index])
+  ){
+    throw new Error("registry_broadcast_execution_generation_custody_claim_invalid");
+  }
+  const value={};
+  for(const key of expectedKeys){
+    const descriptor=descriptors[key];
+    if(
+      !descriptor||
+      descriptor.enumerable!==true||
+      !Object.hasOwn(descriptor,"value")
+    ){
+      throw new Error("registry_broadcast_execution_generation_custody_claim_invalid");
+    }
+    value[key]=descriptor.value;
+  }
+  if(
+    !["created","exists"].includes(value.status)||
+    value.broadcast_generation_fence_id!==
+      expectedFence.broadcast_generation_fence_id||
+    !CUSTODY_RECEIPT_SHA256.test(String(value.custody_receipt_sha256||""))||
+    value.independent_custody_proven!==true
+  ){
+    throw new Error("registry_broadcast_execution_generation_custody_claim_invalid");
+  }
+  return Object.freeze(value);
 }
 function assertNoSymlinkAncestors(target){
   const resolved=path.resolve(target);
@@ -284,11 +329,6 @@ function assertPinnedRecordV1(pinned,name,expectedSha256){
     fs.closeSync(fd);
   }
 }
-function operationFenceDirectoryV1(root){
-  const parent=path.dirname(root.realpath);
-  const fenceRoot=ensurePrivateDir(parent,GENERATION_FENCE_NAMESPACE);
-  return ensurePrivateDir(fenceRoot,root.realpath_sha256);
-}
 function ensurePrivateDir(parent,name){
   const dir=path.join(parent,name);
   try{
@@ -465,6 +505,8 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     typeof dependencies.validate_runtime!=="function"||
     typeof dependencies.validate_observation!=="function"||
     typeof dependencies.validate_signed_transaction!=="function"||
+    typeof dependencies.claim_generation_fence!=="function"||
+    typeof dependencies.assert_generation_fence!=="function"||
     typeof dependencies.rpc!=="function"||
     typeof dependencies.now!=="function"
   ){
@@ -573,8 +615,8 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     automatic_retry_authorized:false,
     replacement_transaction_authorized:false,
     created_at_utc:new Date(dependencies.now()).toISOString(),
-  };
-  const generationFence={
+  });
+  const generationFence=Object.freeze({
     ...fenceMaterial,
     broadcast_generation_fence_id:
       "voiddrbgf1_"+sha256(Buffer.from(canonicalJson(fenceMaterial))),
@@ -585,38 +627,31 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     });
   }
 
-  let fencePinned=null;
   let attemptsPinned=null;
   try{
-    let fenceDir;
+    let fenceClaim;
     try{
-      fenceDir=operationFenceDirectoryV1(root);
-      fencePinned=openPinnedPrivateDirectoryV1(
-        fenceDir,
-        "registry_broadcast_execution_generation_fence",
-      );
-      const fencePublished=atomicCreatePinnedRecordV1(
-        fencePinned,
-        operationId+".json",
+      fenceClaim=normalizeExternalGenerationFenceClaimV1(
+        await dependencies.claim_generation_fence(generationFence),
         generationFence,
       );
-      if(fencePublished.status==="exists"){
+      if(fenceClaim.status==="exists"){
         return held("registry_broadcast_execution_attempt_already_recorded",{
           broadcast_operation_id:operationId,
+          broadcast_generation_fence_id:
+            generationFence.broadcast_generation_fence_id,
+          generation_fence_custody_receipt_sha256:
+            fenceClaim.custody_receipt_sha256,
           operation_fence_recorded:true,
+          independent_generation_custody_proven:true,
         });
       }
-      generationFence.record_sha256=fencePublished.sha256;
-      assertPinnedRecordV1(
-        fencePinned,
-        operationId+".json",
-        fencePublished.sha256,
-      );
       assertStateGeneration(root);
     }catch(error){
       return held("registry_broadcast_execution_generation_fence_failed",{
         error:safeError(error),
         broadcast_operation_id:operationId,
+        external_generation_custody_required:true,
       });
     }
 
@@ -645,6 +680,8 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
       broadcast_operation_id:operationId,
       broadcast_generation_fence_id:
         generationFence.broadcast_generation_fence_id,
+      generation_fence_custody_receipt_sha256:
+        fenceClaim.custody_receipt_sha256,
       consumption_record_id:consumption.consumption_record_id,
       broadcast_authorization_id:authorization.broadcast_authorization_id,
       broadcast_authorization_request_id:
@@ -699,11 +736,16 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     try{
       assertRuntimeWindow(authorization,observation,dependencies.now());
       assertStateGeneration(root);
-      assertPinnedRecordV1(
-        fencePinned,
-        operationId+".json",
-        generationFence.record_sha256,
-      );
+      if(
+        await dependencies.assert_generation_fence(
+          fenceClaim,
+          generationFence,
+        )!==true
+      ){
+        throw new Error(
+          "registry_broadcast_execution_generation_custody_revalidation_failed",
+        );
+      }
       assertPinnedRecordV1(
         attemptsPinned,
         operationId+".intent.json",
@@ -776,6 +818,8 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
       broadcast_operation_id:operationId,
       broadcast_generation_fence_id:
         generationFence.broadcast_generation_fence_id,
+      generation_fence_custody_receipt_sha256:
+        fenceClaim.custody_receipt_sha256,
       submission_intent_id:intent.submission_intent_id,
       consumption_record_id:consumption.consumption_record_id,
       broadcast_authorization_id:authorization.broadcast_authorization_id,
@@ -820,6 +864,7 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
         reason:"registry_broadcast_execution_result_publication_failed_after_attempt",
         error:safeError(error),
         operation_fence_recorded:true,
+        independent_generation_custody_proven:true,
         state_generation_descriptor_bound:true,
         broadcaster_access_performed:sendCount===1,
         transaction_submission_performed:sendCount===1,
@@ -831,6 +876,7 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
       ok:true,
       ...result,
       operation_fence_recorded:true,
+      independent_generation_custody_proven:true,
       state_generation_descriptor_bound:true,
       broadcaster_access_performed:sendCount===1,
       transaction_submission_performed:sendCount===1,
@@ -838,19 +884,15 @@ export async function submitVoidDatanetRegistryExactSingleBroadcastWithDependenc
     });
   }finally{
     closePinnedPrivateDirectoryV1(attemptsPinned);
-    closePinnedPrivateDirectoryV1(fencePinned);
   }
 }
 
-export async function submitVoidDatanetRegistryExactSingleBroadcastV1(input){
-  return submitVoidDatanetRegistryExactSingleBroadcastWithDependenciesV1(
-    input,
+export async function submitVoidDatanetRegistryExactSingleBroadcastV1(_input){
+  return held(
+    "registry_broadcast_execution_external_generation_custody_required",
     {
-      validate_runtime:validateVoidDatanetRegistryBroadcastRuntimeArtifactsV1,
-      validate_observation:validateVoidDatanetRegistryPrebroadcastObservationV1,
-      validate_signed_transaction:validateVoidDatanetRegistrySignedTransactionV1,
-      rpc:input?.rpc,
-      now:input?.now??(()=>Date.now()),
+      external_generation_custody_required:true,
+      independent_generation_custody_proven:false,
     },
   );
 }

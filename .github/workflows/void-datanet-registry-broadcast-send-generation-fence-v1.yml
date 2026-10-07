@@ -5,6 +5,7 @@ on:
     paths:
       - "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
       - "scripts/prove_void_datanet_registry_broadcast_send_generation_fence_v1.mjs"
+      - "scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs"
       - "docs/operators/datanet-registry-broadcast-send-generation-fence-v1.md"
       - ".github/workflows/void-datanet-registry-broadcast-send-generation-fence-v1.yml"
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - "tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
       - "scripts/prove_void_datanet_registry_broadcast_send_generation_fence_v1.mjs"
+      - "scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs"
       - "docs/operators/datanet-registry-broadcast-send-generation-fence-v1.md"
       - ".github/workflows/void-datanet-registry-broadcast-send-generation-fence-v1.yml"
 
@@ -34,8 +36,17 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 2
+
+      - name: Bind exact checkout identity
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Use supported Node.js major
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
