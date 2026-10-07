@@ -564,10 +564,10 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     app.get(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
       async (request: Request, response: Response) => {
-        if (holdIndeterminateRegistration(response)) {
+        if (!(await authorized(request, response, retainedDependencies))) {
           return;
         }
-        if (!(await authorized(request, response, retainedDependencies))) {
+        if (holdIndeterminateRegistration(response)) {
           return;
         }
         response.json({
@@ -592,10 +592,10 @@ export function registerSteamReadonlyBridgeRuntimeV2(
     app.post(
       VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
       async (request: Request, response: Response) => {
-        if (holdIndeterminateRegistration(response)) {
+        if (!(await authorized(request, response, retainedDependencies))) {
           return;
         }
-        if (!(await authorized(request, response, retainedDependencies))) {
+        if (holdIndeterminateRegistration(response)) {
           return;
         }
 
