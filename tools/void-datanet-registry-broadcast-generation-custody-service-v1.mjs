@@ -510,6 +510,10 @@ function readRecord(pinned,fence){
       fail("datanet_broadcast_generation_custody_record_invalid");
     }
     assertRecord(parsed,fence);
+    const canonicalBytes=serializeRecord(parsed);
+    if(!bytes.equals(canonicalBytes)){
+      fail("datanet_broadcast_generation_custody_record_noncanonical");
+    }
     return Object.freeze({
       record:parsed,
       custody_receipt_sha256:sha256Id(bytes),
