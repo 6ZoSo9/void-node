@@ -53,9 +53,11 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const CHALLENGE_ID = /^voidwlrc1_[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[A-Za-z0-9._:@/+~-]{1,300}$/u;
-const MAX_WITNESS_BYTES = 24 * 1024 * 1024;
 const MAX_WITNESS_EVENTS = 8193;
 const MAX_REPLAY_EVENTS = 8192;
+const MAX_WITNESS_EVENT_BYTES = 4 * 1024;
+const MAX_WITNESS_BYTES =
+  MAX_WITNESS_EVENTS * MAX_WITNESS_EVENT_BYTES;
 
 const IDENTITY_KEYS = Object.freeze([
   "source_hostname",
@@ -597,7 +599,12 @@ export function parseBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnes
   if (
     lines.length < 1 ||
     lines.length > MAX_WITNESS_EVENTS ||
-    lines.some((line) => line.length === 0)
+    lines.some(
+      (line) =>
+        line.length === 0 ||
+        Buffer.byteLength(line, "utf8") + 1 >
+          MAX_WITNESS_EVENT_BYTES,
+    )
   ) {
     fail("witness_replay_external_witness_lines_invalid");
   }
