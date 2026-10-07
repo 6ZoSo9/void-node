@@ -37,12 +37,40 @@ class FakeApp {
   }
 }
 
+class FailOnceGetApp extends FakeApp {
+  getAttempts = 0;
+
+  get(pathname: string, handler: Handler): this {
+    this.getAttempts += 1;
+    if (this.getAttempts === 1) {
+      throw new Error("synthetic status-route registration failure");
+    }
+    return super.get(pathname, handler);
+  }
+}
+
+class FailOncePostApp extends FakeApp {
+  postAttempts = 0;
+
+  post(pathname: string, handler: Handler): this {
+    this.postAttempts += 1;
+    if (this.postAttempts === 1) {
+      throw new Error("synthetic request-route registration failure");
+    }
+    return super.post(pathname, handler);
+  }
+}
+
 function need(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(
       `VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_FAIL: ${message}`,
     );
   }
+}
+
+function routeCounts(app: FakeApp): readonly [number, number] {
+  return [app.getHandlers.size, app.postHandlers.size];
 }
 
 function responseCapture(): {
@@ -322,6 +350,110 @@ need(
   asObject(denied.body, "unauthorized response missing").error ===
     "operator_authentication_required",
   "unauthorized error mismatch",
+);
+
+const failOnceGetApp = new FailOnceGetApp();
+let initialRegistrationFailed = false;
+try {
+  registerSteamReadonlyBridgeRuntimeV2(
+    failOnceGetApp as unknown as Express,
+    {
+      env,
+      authorize_operator: () => true,
+    },
+  );
+} catch (error) {
+  initialRegistrationFailed =
+    error instanceof Error &&
+    error.message === "synthetic status-route registration failure";
+}
+need(initialRegistrationFailed, "initial registration did not fail");
+need(
+  routeCounts(failOnceGetApp).every((count) => count === 0),
+  "failed initial registration retained a route",
+);
+
+const retriedInitialRegistration = registerSteamReadonlyBridgeRuntimeV2(
+  failOnceGetApp as unknown as Express,
+  {
+    env,
+    authorize_operator: () => true,
+  },
+);
+need(
+  retriedInitialRegistration.registered === true,
+  "initial registration retry did not resume",
+);
+need(
+  failOnceGetApp.getAttempts === 2 &&
+    routeCounts(failOnceGetApp).every((count) => count === 1),
+  "initial registration retry did not install both routes once",
+);
+
+const failOnceApp = new FailOncePostApp();
+let partialRegistrationFailed = false;
+try {
+  registerSteamReadonlyBridgeRuntimeV2(
+    failOnceApp as unknown as Express,
+    {
+      env,
+      authorize_operator: () => true,
+    },
+  );
+} catch (error) {
+  partialRegistrationFailed =
+    error instanceof Error &&
+    error.message === "synthetic request-route registration failure";
+}
+need(partialRegistrationFailed, "partial registration did not fail");
+need(
+  failOnceApp.getHandlers.size === 1,
+  "status route missing after partial registration",
+);
+need(
+  failOnceApp.postHandlers.size === 0,
+  "failed request route was retained",
+);
+
+const resumedRegistration = registerSteamReadonlyBridgeRuntimeV2(
+  failOnceApp as unknown as Express,
+  {
+    env,
+    authorize_operator: () => true,
+  },
+);
+need(
+  resumedRegistration.registered === true,
+  "partial registration retry did not resume",
+);
+need(
+  failOnceApp.getHandlers.size === 1,
+  "partial registration retry duplicated the status route",
+);
+need(
+  failOnceApp.postHandlers.has(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+  ),
+  "partial registration retry did not install the request route",
+);
+need(
+  failOnceApp.postAttempts === 2,
+  "partial registration retry used an unexpected request-route attempt count",
+);
+const resumedDuplicate = registerSteamReadonlyBridgeRuntimeV2(
+  failOnceApp as unknown as Express,
+  {
+    env,
+    authorize_operator: () => true,
+  },
+);
+need(
+  resumedDuplicate.registered === false,
+  "completed partial-registration retry was not idempotent",
+);
+need(
+  routeCounts(failOnceApp).every((count) => count === 1),
+  "duplicate retry changed the completed route set",
 );
 
 const app = new FakeApp();
