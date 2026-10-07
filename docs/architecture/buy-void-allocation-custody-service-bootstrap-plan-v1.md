@@ -93,17 +93,20 @@ buy_void_allocation_reservation_high_water_v1.js
 Its other **static** ESM imports are exactly the reviewed built-ins
 `node:crypto`, `node:fs`, `node:net`, `node:path` and `node:url`.
 The source-only proof uses Node's ESM parser to compare **every static module
-specifier** against that explicit complete allowlist.
-It also disallows **import attributes and non-evaluation import phases** even
-when the module specifier is already allowed. Node 24/26 expose import-request
-metadata directly; Node 22 checks attributes through an inert vm.Module linker
-**even if its partial `moduleRequests` API is present without `phase` fields**,
-without evaluating the custody service or imported modules. Parser/metadata
-incompatibility HOLDs rather than trusting a reduced specifier list.
-The census rejects new relative helpers, third-party packages, built-ins or
-other specifiers instead of silently
-discarding imports outside `../dist/`; an independent full service-byte digest
-also detects changes that this parser might not enumerate. The current source
+specifier** against that explicit complete allowlist. It rejects new relative
+helpers, third-party packages, built-ins or other specifiers instead of silently
+discarding imports outside `../dist/`. For Node 24/26, every `moduleRequests` entry must have
+`phase=evaluation` and **empty import attributes**. Node 22 minors may supply
+only `dependencySpecifiers`, or partial `moduleRequests` without phase.
+**Node 22 therefore always uses an inert `vm.Module.link` callback** to inspect
+`extra.attributes` even when that partial API exists, without evaluating the
+service or dependencies. The source-only proof separately rejects
+`with { ... }` attributes and `import source`/`import defer` phases even
+with interposed comments/newlines, as defense in depth. The legacy linker
+must agree exactly with the parser's static dependency list; any mismatch,
+unsupported major or missing modern request metadata HOLDs. Synthetic adversaries cover each
+case. An independent full service-byte digest also detects changes that a
+parser might not enumerate. The current source
 pins `service_source_sha256=sha256:cccc37795507bb5ccf659f28374bafae27f93e56ef3ecbf2f72fd79b05e6185d`
 and contract
 `service_contract_sha256=sha256:461c97c7f65cce4a96cab7977222fcf9edb4cdd2d89b231709d13a9d1b7f3477`.

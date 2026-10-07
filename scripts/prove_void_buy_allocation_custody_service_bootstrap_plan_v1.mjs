@@ -117,6 +117,21 @@ function observedCompiledImports(sourceText) {
   // must be removed or explicitly reviewed rather than silently ignored.
   assert.doesNotMatch(sourceText, /\bimport\s*\(/u);
   assert.doesNotMatch(sourceText, /\brequire\s*\(/u);
+  // Node 22 exposes only dependencySpecifiers and silently omits import
+  // attributes. Reject their syntax (including interposed comments) before
+  // trusting the legacy specifier-only fallback on any supported Node.
+  assert.doesNotMatch(
+    sourceText,
+    /\bwith\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*\{/u,
+    "import attributes are outside the reviewed custody service closure",
+  );
+  // Node 22.x may expose moduleRequests without its newer phase metadata.
+  // Reject alternate import phases lexically before using that reduced API.
+  assert.doesNotMatch(
+    sourceText,
+    /\bimport\b(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*(?:\r?\n|$))*(?:source|defer)\b/u,
+    "non-evaluation import phases are outside the reviewed closure",
+  );
 
   // Use Node's parser rather than formatting-sensitive regexes so valid static
   // ESM forms such as semicolonless imports and export ... from declarations
@@ -127,18 +142,16 @@ let source = "";
 process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) source += chunk;
 const module = new vm.SourceTextModule(source, { identifier: "custody-service.mjs" });
-let requests;
-// Node 22.23.x may expose moduleRequests without a phase field. Do not
-// mistake that partial API for the modern complete metadata contract.
 const major = Number(process.versions.node.split(".")[0]);
 if (![22, 24, 26].includes(major)) {
   throw new Error("custody_bootstrap_plan_unsupported_node_major_hold");
 }
+let requests;
 if (major >= 24) {
+  // Complete moduleRequests metadata is mandatory on Node 24 and 26.
   if (!Array.isArray(module.moduleRequests)) {
     throw new Error("custody_bootstrap_plan_modern_requests_unavailable_hold");
   }
-  // Node 24/26 must expose the full host module-request descriptor.
   requests = module.moduleRequests.map((request) => {
     if (typeof request?.specifier !== "string" ||
         !request.attributes || typeof request.attributes !== "object" ||
@@ -149,8 +162,8 @@ if (major >= 24) {
     return request.specifier;
   });
 } else {
-  // Node 22 exposes only dependencySpecifiers. Its linker still receives
-  // import attributes; link to inert synthetic modules without evaluation.
+  // Node 22.23 may expose moduleRequests with no phase: always use the
+  // legacy linker callback to inspect attributes instead of downgrading.
   if (!Array.isArray(module.dependencySpecifiers)) {
     throw new Error("custody_bootstrap_plan_requests_unavailable_hold");
   }
@@ -188,10 +201,11 @@ process.stdout.write(JSON.stringify(requests));
       stdio: ["pipe", "pipe", "pipe"],
     },
   );
-  if (parsed.status !== 0) {
-    const explanation = String(parsed.stderr || "").trim().slice(0, 2000);
-    throw new Error("custody_bootstrap_plan_service_module_request_hold: " + explanation);
-  }
+  assert.equal(
+    parsed.status,
+    0,
+    ["custody service module parse failed", parsed.stderr].join("\n"),
+  );
   const specifiers = JSON.parse(parsed.stdout);
   assert.ok(Array.isArray(specifiers));
   assert.ok(specifiers.every((value) => typeof value === "string"));
@@ -277,39 +291,44 @@ for (const [label, extraSpecifier] of [
   );
 }
 
-// Attributes on an ALREADY-ALLOWLISTED import leave its specifier unchanged.
-// They must still HOLD. Node 22 uses inert linker metadata; newer Node
-// exposes explicit request.attributes and request.phase.
-const existingImport = 'import crypto from "node:crypto";';
-assert.ok(serviceSource.includes(existingImport));
-for (const [label, altered] of [
-  ["existing import attributes",
-    'import crypto from "node:crypto" with { type: "json" };'],
-  ["comment-separated attributes",
-    'import crypto from "node:crypto" with /* comment */ { type: "json" };'],
-  ["source-phase import",
-    'import source crypto from "node:crypto";'],
+// Attributes and non-evaluation phases must not silently preserve the old
+// static-specifier census. Node 22 only exposes dependencySpecifiers, so these
+// adversaries must also HOLD under its reduced metadata API.
+for (const [label, injected] of [
+  ["attributed allowed import",
+    serviceSource.replace(
+      'import crypto from "node:crypto";',
+      'import crypto from "node:crypto" with { type: "json" };',
+    )],
+  ["comment-separated attribute",
+    serviceSource.replace(
+      'import crypto from "node:crypto";',
+      'import crypto from "node:crypto" with/*review-evasion*/{ type: "json" };',
+    )],
+  ["line-comment-separated attribute",
+    serviceSource.replace(
+      'import crypto from "node:crypto";',
+      'import crypto from "node:crypto" with // review-evasion\n { type: "json" };',
+    )],
+  ["attributed re-export",
+    serviceSource + '\nexport * from "node:crypto" with { type: "json" };\n'],
+  ["source phase import",
+    serviceSource + '\nimport source externalModule from "node:crypto";\n'],
+  ["deferred phase import",
+    serviceSource + '\nimport defer * as externalModule from "node:crypto";\n'],
 ]) {
-  const changed = serviceSource.replace(existingImport, altered);
-  assert.notEqual(changed, serviceSource, label);
-  assert.throws(
-    () => observedCompiledImports(changed),
-    /custody_bootstrap_plan_service_module_request_hold/u,
-    label + " must HOLD even if the specifier is unchanged",
+  assert.notEqual(injected, serviceSource, label + " fixture must change source");
+  assert.notEqual(
+    sourceSha256(injected),
+    decision.candidate.service_source_sha256,
+    label + " must break the independent full-byte source pin",
   );
-  assert.notEqual(sourceSha256(changed), decision.candidate.service_source_sha256);
+  assert.throws(
+    () => observedCompiledImports(injected),
+    label + " must HOLD even if its specifier is otherwise allowlisted",
+  );
 }
-const attributedReexport = serviceSource +
-  '\nexport { default as extra } from "node:crypto" with { type: "json" };\n';
-assert.throws(
-  () => observedCompiledImports(attributedReexport),
-  /custody_bootstrap_plan_service_module_request_hold/u,
-  "static re-export with attributes must HOLD",
-);
-assert.notEqual(
-  sourceSha256(attributedReexport),
-  decision.candidate.service_source_sha256,
-);
+
 const dynamicImport =
   serviceSource + '\nvoid import/*review-evasion*/("./dynamic.mjs");\n';
 assert.notEqual(
@@ -464,7 +483,6 @@ console.log("exact_service_contract_sha256_bound=true");
 console.log("contract_and_service_source_sha256_agree=true");
 console.log("current_service_compiled_imports_match_candidate=true");
 console.log("all_static_service_imports_exact_allowlist=true");
-console.log("import_attributes_and_non_evaluation_phases_hold_all_node_majors=true");
 console.log("relative_package_builtin_and_data_imports_rejected=true");
 console.log("module_parser_static_import_census=true");
 console.log("semicolonless_and_export_from_dependencies_bound=true");
