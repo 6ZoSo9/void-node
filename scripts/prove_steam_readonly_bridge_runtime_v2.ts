@@ -539,6 +539,21 @@ const retainedRequest = await invoke(
   },
 );
 need(retainedRequest.status === 200, "retained request generation failed");
+const retainedRequestBody = asObject(
+  retainedRequest.body,
+  "retained request body missing",
+);
+const retainedRequestReceipt = asObject(
+  retainedRequestBody.receipt,
+  "retained request receipt missing",
+);
+need(
+  retainedRequestReceipt.credential_reference_id_sha256 ===
+    crypto.createHash("sha256")
+      .update(String(firstGenerationEnv.VOID_STEAM_WEB_API_KEY_REFERENCE_ID))
+      .digest("hex"),
+  "request route drifted from generation A env",
+);
 need(
   retryGenerationCalls.includes("auth:A") &&
     retryGenerationCalls.includes("fetch:A") &&
