@@ -145,6 +145,37 @@ const syntheticCensusedNetworkBuiltin=
     {networkCapable:true},
   );
 assert.equal(syntheticCensusedNetworkBuiltin.default,true);
+
+if(typeof process.getBuiltinModule==="function"){
+  await assert.rejects(
+    ()=>testOnlyImportSyntheticReviewedModuleV1(
+      'export default process.getBuiltinModule("node:net");',
+    ),
+    /reviewed_ambient_get_builtin_module_forbidden/u,
+    "reviewed module must not bypass resolver through process.getBuiltinModule",
+  );
+}
+
+for(const [label,source] of [
+  [
+    "computed global fetch",
+    'export default globalThis["fetch"]("data:text/plain,reviewed");',
+  ],
+  [
+    "fetch.call",
+    'export default fetch.call(null,"data:text/plain,reviewed");',
+  ],
+  [
+    "aliased fetch",
+    'const request=fetch; export default request("data:text/plain,reviewed");',
+  ],
+]){
+  await assert.rejects(
+    ()=>testOnlyImportSyntheticReviewedModuleV1(source),
+    /reviewed_ambient_fetch_forbidden/u,
+    label+" must not bypass reviewed network authority",
+  );
+}
 assert.match(reviewedPlan.closure_aggregate_sha256,/^[0-9a-f]{64}$/u);
 assert.ok(reviewedPlan.closure.includes(REVIEWED_TOOL_REL));
 
