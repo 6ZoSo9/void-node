@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { isIP } from "node:net";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_AUTHORITY_V1,
@@ -129,6 +130,12 @@ const REQUEST_ID = /^voidwreq1_[0-9a-f]{64}$/u;
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;
 const CHALLENGE_ID = /^voidwlrc1_[0-9a-f]{64}$/u;
 const MAX_LIVE_READ_CHALLENGE_AGE_MS = 38_000;
+const MAX_REPLAY_JOURNAL_BYTES = 8 * 1024 * 1024;
+const MAX_REPLAY_HIGH_WATER_BYTES = 16 * 1024;
+const LOCAL_REPLAY_STORAGE_FS_TYPES = new Set(["ext4", "xfs", "btrfs"]);
+const SAFE_REPLAY_DEVICE_PATH = /^\/dev\/[A-Za-z0-9._:+/-]{1,300}$/u;
+const SAFE_REPLAY_DISK_TOKEN = /^[A-Za-z0-9._:+-]{1,300}$/u;
+const SAFE_REPLAY_HOSTNAME = /^[A-Za-z0-9._-]{1,255}$/u;
 
 const STORAGE_KEYS = Object.freeze([
   "ok",
@@ -180,6 +187,24 @@ const STORAGE_NORMALIZED_KEYS = Object.freeze([
   "pending_expires_at_ms",
   "last_terminal_state",
   "ready_for_issue",
+]);
+
+const STORAGE_ROOT_KEYS = Object.freeze([
+  "path",
+  "dev",
+  "ino",
+  "uid",
+  "gid",
+  "mode",
+  "mount_id",
+  "major_minor",
+  "fs_type",
+  "mount_source",
+  "mount_source_resolved",
+  "mount_point",
+  "parent_device",
+  "disk_serial",
+  "disk_wwn",
 ]);
 
 const STORAGE_FILE_KEYS = Object.freeze([
@@ -480,6 +505,113 @@ function storageParent(input: unknown) {
   if (sequence !== eventCount) {
     fail("witness_live_read_replay_composition_storage_sequence_invalid");
   }
+  if (
+    typeof normalized.hostname !== "string" ||
+    !SAFE_REPLAY_HOSTNAME.test(normalized.hostname) ||
+    !(
+      normalized.last_terminal_state === null ||
+      normalized.last_terminal_state === "consumed" ||
+      normalized.last_terminal_state === "abandoned"
+    ) ||
+    (generation === 0 && normalized.last_terminal_state !== null)
+  ) {
+    fail("witness_live_read_replay_composition_storage_invalid");
+  }
+
+  const journalRoot = exactObject(
+    normalized.journal_root,
+    STORAGE_ROOT_KEYS,
+    "witness_live_read_replay_composition_storage_journal_root_invalid",
+  );
+  const highWaterRoot = exactObject(
+    normalized.high_water_root,
+    STORAGE_ROOT_KEYS,
+    "witness_live_read_replay_composition_storage_high_water_root_invalid",
+  );
+  const validateStorageRoot = (
+    root: Record<string, any>,
+    reason: string,
+  ) => {
+    if (
+      typeof root.path !== "string" ||
+      !path.isAbsolute(root.path) ||
+      path.resolve(root.path) !== root.path ||
+      typeof root.dev !== "string" ||
+      !/^[0-9]+$/u.test(root.dev) ||
+      typeof root.ino !== "string" ||
+      !/^[1-9][0-9]*$/u.test(root.ino) ||
+      !Number.isSafeInteger(root.uid) ||
+      root.uid < 0 ||
+      !Number.isSafeInteger(root.gid) ||
+      root.gid < 0 ||
+      root.mode !== 0o700 ||
+      !Number.isSafeInteger(root.mount_id) ||
+      root.mount_id < 1 ||
+      typeof root.major_minor !== "string" ||
+      !/^[0-9]+:[0-9]+$/u.test(root.major_minor) ||
+      !LOCAL_REPLAY_STORAGE_FS_TYPES.has(root.fs_type) ||
+      typeof root.mount_source !== "string" ||
+      !SAFE_REPLAY_DEVICE_PATH.test(root.mount_source) ||
+      typeof root.mount_source_resolved !== "string" ||
+      !SAFE_REPLAY_DEVICE_PATH.test(root.mount_source_resolved) ||
+      typeof root.mount_point !== "string" ||
+      !path.isAbsolute(root.mount_point) ||
+      path.resolve(root.mount_point) !== root.mount_point ||
+      !(
+        root.mount_point === "/" ||
+        root.path === root.mount_point ||
+        root.path.startsWith(root.mount_point + path.sep)
+      ) ||
+      typeof root.parent_device !== "string" ||
+      !SAFE_REPLAY_DEVICE_PATH.test(root.parent_device) ||
+      typeof root.disk_serial !== "string" ||
+      !SAFE_REPLAY_DISK_TOKEN.test(root.disk_serial) ||
+      typeof root.disk_wwn !== "string" ||
+      !SAFE_REPLAY_DISK_TOKEN.test(root.disk_wwn)
+    ) {
+      fail(reason);
+    }
+  };
+  validateStorageRoot(
+    journalRoot,
+    "witness_live_read_replay_composition_storage_journal_root_invalid",
+  );
+  validateStorageRoot(
+    highWaterRoot,
+    "witness_live_read_replay_composition_storage_high_water_root_invalid",
+  );
+  const pathAncestor = (left: string, right: string) =>
+    right === left ||
+    right.startsWith(left.endsWith(path.sep) ? left : left + path.sep);
+  if (
+    journalRoot.uid !== highWaterRoot.uid ||
+    journalRoot.gid !== highWaterRoot.gid
+  ) {
+    fail("witness_live_read_replay_composition_storage_root_owner_mismatch");
+  }
+  if (
+    pathAncestor(journalRoot.path, highWaterRoot.path) ||
+    pathAncestor(highWaterRoot.path, journalRoot.path)
+  ) {
+    fail("witness_live_read_replay_composition_storage_roots_not_path_disjoint");
+  }
+  if (
+    journalRoot.dev === highWaterRoot.dev ||
+    journalRoot.mount_id === highWaterRoot.mount_id ||
+    journalRoot.major_minor === highWaterRoot.major_minor ||
+    journalRoot.mount_source === highWaterRoot.mount_source ||
+    journalRoot.mount_source_resolved === highWaterRoot.mount_source_resolved
+  ) {
+    fail("witness_live_read_replay_composition_storage_mount_domains_not_distinct");
+  }
+  if (
+    journalRoot.parent_device === highWaterRoot.parent_device ||
+    journalRoot.disk_serial === highWaterRoot.disk_serial ||
+    journalRoot.disk_wwn === highWaterRoot.disk_wwn
+  ) {
+    fail("witness_live_read_replay_composition_storage_parent_disks_not_distinct");
+  }
+
   const journalFile = exactObject(
     normalized.journal_file,
     STORAGE_FILE_KEYS,
@@ -492,16 +624,19 @@ function storageParent(input: unknown) {
   );
   const validateStorageFile = (
     file: Record<string, any>,
+    root: Record<string, any>,
+    expectedName: string,
+    maxBytes: number,
     allowEmpty: boolean,
     reason: string,
   ) => {
     if (
-      typeof file.path !== "string" ||
-      file.path.length < 1 ||
+      file.path !== path.join(root.path, expectedName) ||
       typeof file.dev !== "string" ||
       !/^[0-9]+$/u.test(file.dev) ||
+      file.dev !== root.dev ||
       typeof file.ino !== "string" ||
-      !/^[0-9]+$/u.test(file.ino) ||
+      !/^[1-9][0-9]*$/u.test(file.ino) ||
       typeof file.mtime_ns !== "string" ||
       !/^[0-9]+$/u.test(file.mtime_ns) ||
       typeof file.ctime_ns !== "string" ||
@@ -510,10 +645,9 @@ function storageParent(input: unknown) {
       !SHA256_ID.test(file.sha256) ||
       !Number.isSafeInteger(file.bytes) ||
       file.bytes < (allowEmpty ? 0 : 1) ||
-      !Number.isSafeInteger(file.uid) ||
-      file.uid < 0 ||
-      !Number.isSafeInteger(file.gid) ||
-      file.gid < 0 ||
+      file.bytes > maxBytes ||
+      file.uid !== root.uid ||
+      file.gid !== root.gid ||
       file.mode !== 0o600 ||
       file.nlink !== 1 ||
       file.regular_file !== true ||
@@ -528,11 +662,17 @@ function storageParent(input: unknown) {
   };
   const journalIdentity = validateStorageFile(
     journalFile,
+    journalRoot,
+    "live-read-replay-v1.jsonl",
+    MAX_REPLAY_JOURNAL_BYTES,
     true,
     "witness_live_read_replay_composition_storage_journal_file_invalid",
   );
   const highWaterIdentity = validateStorageFile(
     highWaterFile,
+    highWaterRoot,
+    "live-read-replay-high-water-v1.json",
+    MAX_REPLAY_HIGH_WATER_BYTES,
     false,
     "witness_live_read_replay_composition_storage_high_water_file_invalid",
   );
