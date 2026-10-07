@@ -10,6 +10,7 @@ import {spawnSync} from "node:child_process";
 
 import {
   testOnlyMaterializeReviewedSourcesV1,
+  testOnlyPrepareAndRecheckReviewedAuthorityV1,
   testOnlyPrepareReviewedExecutionPrivateTreeAbaV1,
   testOnlyPrepareReviewedExecutionV1,
   testOnlyReadExactHeadSourceV1,
@@ -260,6 +261,7 @@ assert.match(reviewedLauncher.sha256,/^[0-9a-f]{64}$/u);
 
 let reviewedAbaExecution;
 let reviewedExecution;
+let reviewedAuthorityRecheck;
 let reviewedPreparationHttpCalls=0;
 const originalHttpRequest=http.request;
 http.request=(...args)=>{
@@ -274,6 +276,8 @@ try{
   reviewedAbaExecution=
     await testOnlyPrepareReviewedExecutionPrivateTreeAbaV1();
   reviewedExecution=await testOnlyPrepareReviewedExecutionV1();
+  reviewedAuthorityRecheck=
+    await testOnlyPrepareAndRecheckReviewedAuthorityV1();
 }finally{
   http.request=originalHttpRequest;
   syncBuiltinESMExports();
@@ -283,6 +287,31 @@ assert.equal(
   0,
   "reviewed source/package preparation and module import must not invoke the live fee-funding observer transport",
 );
+assert.equal(
+  reviewedAuthorityRecheck.before.launcher_git_blob_sha1,
+  reviewedLauncher.blob,
+);
+assert.equal(
+  reviewedAuthorityRecheck.after.launcher_git_blob_sha1,
+  reviewedLauncher.blob,
+);
+assert.equal(
+  reviewedAuthorityRecheck.before.head,
+  reviewedAuthorityRecheck.after.head,
+);
+assert.equal(
+  reviewedAuthorityRecheck.before.tree,
+  reviewedAuthorityRecheck.after.tree,
+);
+assert.equal(
+  reviewedAuthorityRecheck.binding.repository_head_sha,
+  reviewedHead,
+);
+assert.equal(
+  reviewedAuthorityRecheck.transaction_submission_performed,
+  false,
+);
+assert.equal(reviewedAuthorityRecheck.rpc_send_invocation_count,0);
 assert.equal(reviewedExecution.repository_head_sha,reviewedHead);
 assert.equal(reviewedExecution.closure_count,27);
 assert.deepEqual(reviewedExecution.bare_packages,["ethers"]);
@@ -686,6 +715,8 @@ try{
     "reviewed_git_object_bootstrap_required",
     "reviewed_bootstrap_environment_not_sanitized",
     "reviewed_launcher_git_blob_mismatch",
+    "authority.launcher_git_blob_sha1",
+    "testOnlyPrepareAndRecheckReviewedAuthorityV1",
     "VOID_DATANET_REGISTRY_REVIEWED_LAUNCHER_BLOB_SHA1",
     "reviewed_source_closure_mismatch",
     "registerReviewedModuleGraphV1",
@@ -743,6 +774,8 @@ try{
   console.log("reviewed_ethers_runtime_verified=true");
   console.log("reviewed_network_capable_module_count=1");
   console.log("reviewed_preparation_http_calls=0");
+  console.log("reviewed_post_preparation_authority_recheck=true");
+  console.log("reviewed_post_preparation_launcher_blob_bound=true");
   console.log("execution_network_isolation_provided=false");
 }finally{
   fs.rmSync(root,{recursive:true,force:true});
