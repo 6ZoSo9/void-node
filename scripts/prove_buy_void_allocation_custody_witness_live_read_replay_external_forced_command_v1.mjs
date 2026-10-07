@@ -325,6 +325,7 @@ const deps = Object.freeze({
       );
     assert.equal(parsed2.event_count, 2);
     assert.equal(parsed2.tip.replay_sequence, 1);
+    const witness2 = fs.readFileSync(f.witness);
 
     const compareMatched = buildRequest({
       operation: "compare",
@@ -346,7 +347,7 @@ const deps = Object.freeze({
     assert.equal(matchedResponse.exact_live_match, true);
     assert.equal(matchedResponse.external_witness_update_required, false);
     assert.equal(matchedResponse.rollback_regression_detected, false);
-    assert.deepEqual(fs.readFileSync(f.witness), witness1.length === 0 ? witness1 : fs.readFileSync(f.witness));
+    assert.deepEqual(fs.readFileSync(f.witness), witness2);
 
     const compareWitnessAhead = buildRequest({
       operation: "compare",
@@ -371,6 +372,7 @@ const deps = Object.freeze({
       false,
     );
     assert.equal(witnessAheadResponse.rollback_regression_detected, true);
+    assert.deepEqual(fs.readFileSync(f.witness), witness2);
 
     const terminal =
       planBuyVoidAllocationCustodyWitnessLiveReadChallengeTerminalV1({
@@ -410,6 +412,7 @@ const deps = Object.freeze({
     assert.equal(localAheadResponse.exact_live_match, false);
     assert.equal(localAheadResponse.external_witness_update_required, true);
     assert.equal(localAheadResponse.rollback_regression_detected, false);
+    assert.deepEqual(fs.readFileSync(f.witness), witness2);
   } finally {
     cleanup(f);
   }
