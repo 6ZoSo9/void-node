@@ -63,6 +63,7 @@ export const VOID_WC_VOID_COUPLED_LAUNCH_AUTHORITATIVE_REBIND_PATHS_V2 =
     CANDIDATE_REL,
     "tools/void-coupled-economic-successor-gate-v1.mjs",
     "src/economic/buy_void_coupled_launch_gate_v1.mjs",
+    "src/index.ts",
     "tools/void-wc-void-market-vault-at-use-revalidation-v1.mjs",
     "tools/void-wc-void-coupled-launch-policy-bundle-v1.mjs",
     "tools/void-wc-void-bounded-canary-semantic-promotion-v1.mjs",
@@ -184,6 +185,9 @@ const SOURCE_SCAN_ROOTS_V2 = Object.freeze([
   Object.freeze({ path: "ops/nimo", recursive: true }),
   Object.freeze({ path: "ops/mainnet0", recursive: false }),
 ]);
+const SOURCE_SCAN_FILES_V2 = Object.freeze([
+  "src/index.ts",
+]);
 const SOURCE_SCAN_EXTENSIONS_V2 =
   new Set([".cjs", ".js", ".json", ".mjs", ".sh", ".ts"]);
 const MAX_SOURCE_SCAN_FILES_V2 = 10_000;
@@ -302,6 +306,9 @@ export function discoverVoidWcVoidSupersededGenerationSourcePathsV2() {
   for (const root of SOURCE_SCAN_ROOTS_V2) {
     walk(root.path, root.recursive);
   }
+  for (const relativePath of SOURCE_SCAN_FILES_V2) {
+    inspectFile(relativePath);
+  }
   return Object.freeze([...new Set(found)].sort());
 }
 
@@ -379,6 +386,9 @@ export function discoverVoidWcVoidSupersededCompiledIdentitySourcePathsV2() {
     }
   };
   for (const root of SOURCE_SCAN_ROOTS_V2) walk(root.path, root.recursive);
+  for (const relativePath of SOURCE_SCAN_FILES_V2) {
+    inspectFile(relativePath);
+  }
   return Object.freeze([...new Set(found)].sort());
 }
 
