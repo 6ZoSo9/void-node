@@ -123,11 +123,12 @@ it must establish one exact source authority:
    only the bare package `ethers`;
 5. record both network-capable dependency modules explicitly instead of
    claiming a network-free closure:
-   - `tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs`
-     through imported Node HTTP capability; and
-   - `tools/void-datanet-registry-prebroadcast-observer-v1.mjs` through
-     direct/global `fetch()`;
-   the reviewed closure also carries an exact closed Node built-in census:
+   - `tools/void-datanet-registry-deployment-fee-funding-observer-v1.mjs`;
+   - `tools/void-datanet-registry-prebroadcast-observer-v1.mjs`;
+   both use the exact approved `node:http` capability against the reviewed
+   loopback RPC. Ambient/global `fetch` is not part of reviewed network
+   authority. The reviewed closure also carries an exact closed Node built-in
+   census:
    - non-network built-ins: `node:crypto`, `node:fs`, `node:path`;
    - approved network built-in: `node:http`;
    - any other `node:` import (including `node:http2`, `node:https`,
@@ -174,15 +175,30 @@ the already selected in-memory module source. Hidden worktree drift such as
 resolution therefore cannot become the selected launcher/core/package bytes.
 
 The reviewed closure contains two modules that can perform live network
-observation in other workflows (one through the only approved network built-in,
-`node:http`, and one through global `fetch`). Unknown Node built-ins fail
-reviewed-source planning and are rejected again by the execution resolver, so
-comment-separated static imports and dynamic-import syntax cannot turn an
-uncensused built-in into runtime authority. The focused proof executes those
-bypass forms against `node:net`, requires an uncensused-parent HOLD for
-`node:http`, and retains the `http.request` and `globalThis.fetch` traps
-for the complete approved network-capable surface. This lane intentionally
-reports:
+observation in other workflows, and both obtain that capability only through
+the approved `node:http` built-in from explicitly censused parent modules.
+Unknown Node built-ins fail reviewed-source planning and are rejected again by
+the execution resolver, so comment-separated static imports and
+dynamic-import syntax cannot turn an uncensused built-in into runtime
+authority.
+
+Resolver control alone is not treated as sufficient because reviewed code runs
+in the same Node realm as the launcher. During reviewed module evaluation and
+during the reviewed submission call, the launcher therefore also replaces
+ambient `globalThis.fetch` and, where Node exposes it,
+`process.getBuiltinModule` with fail-closed stubs and restores them in a
+`finally` boundary. The launcher-owned RPC client itself uses explicit
+`node:http`, so the guard does not need to reopen a global network primitive.
+
+The focused proof executes comment-separated `node:net` imports, an
+uncensused-parent `node:http` import, direct
+`process.getBuiltinModule("node:net")`, computed
+`globalThis["fetch"]`, `fetch.call(...)`, and aliased `fetch`, and
+requires each uncensused route to HOLD. Positive controls retain approved
+`node:crypto` and censused-parent `node:http`.
+
+This remains a bounded capability fence rather than a claim that the process is
+a fully isolated JavaScript sandbox. This lane intentionally reports:
 
 ```text
 execution_network_isolation_provided=false
