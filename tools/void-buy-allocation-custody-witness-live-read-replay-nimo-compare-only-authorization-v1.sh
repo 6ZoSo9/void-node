@@ -15,6 +15,7 @@ intent=/var/lib/void-replay-external-witness-v1/buy-void-allocation-custody-witn
 auth=/etc/ssh/authorized_keys/voidwitness
 authdir=/etc/ssh/authorized_keys
 runtime=/usr/local/libexec/void-replay-witness-v1/void
+trusted_self=/root/.void-replay-compare-only-nimo-authorization-v1.sh
 
 handler_sha=511ffe6ee55e0ef3ac2e8582ffdc94b3d294884408d55c174875fed928a18831
 wrapper_blob=309b4de7c40c5b8a21bbc956cc445f6600a33215
@@ -27,10 +28,177 @@ hold() {
   exit 2
 }
 
+compare_pub_snapshot=''
+compare_public=''
+tmpwrapper=''
+tmpauth=''
+backup=''
+committed=false
+finished=false
+old_two_sha=''
+original_auth_sha=''
+
+snapshot_compare_public_key_v1() {
+  local source="$1"
+  local snapshot_dir="$2"
+  local expected_fpr="$3"
+  local force_source_swap="${4:-false}"
+  local replacement_source="${5:-}"
+  local uid gid algorithm public comment
+
+  uid="$(id -u)"
+  gid="$(id -g)"
+  compare_pub_snapshot="$(mktemp "$snapshot_dir/.void-replay-compare-key.XXXXXXXX.pub")" ||
+    return 1
+  install -o "$uid" -g "$gid" -m 0400 -- "$source" "$compare_pub_snapshot" ||
+    return 1
+
+  if [[ "$force_source_swap" == true ]]; then
+    [[ -n "$replacement_source" ]] || return 1
+    cat -- "$replacement_source" > "$source" || return 1
+  fi
+
+  [[ "$(stat -c '%u:%g:%a:%h:%F' "$compare_pub_snapshot")" ==
+      "$uid:$gid:400:1:regular file" ]] || return 1
+  [[ "$(awk 'END {print NR}' "$compare_pub_snapshot")" == 1 ]] || return 1
+  [[ "$(ssh-keygen -lf "$compare_pub_snapshot" | awk 'NR==1 {print $2}')" ==
+      "$expected_fpr" ]] || return 1
+  read -r algorithm public comment < "$compare_pub_snapshot"
+  [[ "$algorithm" == ssh-ed25519 &&
+     "$public" =~ ^[A-Za-z0-9+/]+={0,2}$ &&
+     "$comment" == void-replay-compare-only-v1 ]] || return 1
+  compare_public="$public"
+}
+
+attempt_authorized_keys_restore_v1() {
+  local source_backup="$1"
+  local target_auth="$2"
+  local target_dir="$3"
+  local expected_two_sha="$4"
+  local expected_full_sha="$5"
+  local force_rename_failure="${6:-false}"
+  local uid gid restore_tmp=''
+
+  uid="$(id -u)"
+  gid="$(id -g)"
+  [[ -f "$source_backup" && ! -L "$source_backup" ]] || return 1
+  [[ "$(head -n 2 "$source_backup" | sha256sum | awk '{print $1}')" ==
+      "$expected_two_sha" ]] || return 1
+  [[ "$(sha256sum "$source_backup" | awk '{print $1}')" ==
+      "$expected_full_sha" ]] || return 1
+
+  restore_tmp="$(mktemp "$target_dir/.voidwitness.compare.restore.XXXXXXXX")" ||
+    return 1
+  if ! install -o "$uid" -g "$gid" -m 0444 -- "$source_backup" "$restore_tmp"; then
+    rm -f -- "$restore_tmp"
+    return 1
+  fi
+  if [[ "$(sha256sum "$restore_tmp" | awk '{print $1}')" != "$expected_full_sha" ]]; then
+    rm -f -- "$restore_tmp"
+    return 1
+  fi
+  if [[ "$force_rename_failure" == true ]]; then
+    rm -f -- "$restore_tmp"
+    return 1
+  fi
+  if ! mv -T -- "$restore_tmp" "$target_auth"; then
+    rm -f -- "$restore_tmp"
+    return 1
+  fi
+  [[ "$(sha256sum "$target_auth" | awk '{print $1}')" ==
+      "$expected_full_sha" ]] || return 1
+}
+
+cleanup() {
+  set +e
+  local restore_ok=false
+
+  if [[ "$finished" != true && "$committed" == true &&
+        -n "$backup" && -e "$backup" ]]; then
+    if attempt_authorized_keys_restore_v1       "$backup" "$auth" "$authdir" "$old_two_sha" "$original_auth_sha" false; then
+      rm -f -- "$backup"
+      backup=''
+      restore_ok=true
+      echo "authorized_keys_rollback_attempted=true" >&2
+    else
+      printf 'URGENT_AUTHORIZED_KEYS_MANUAL_RESTORE_REQUIRED=true\nAUTHORIZED_KEYS_RECOVERY_BACKUP=%s\n'         "$backup" >&2
+    fi
+  fi
+
+  for p in "$tmpwrapper" "$tmpauth" "$compare_pub_snapshot"; do
+    if [[ -n "$p" && -e "$p" ]]; then rm -f -- "$p"; fi
+  done
+
+  if [[ -n "$backup" && -e "$backup" ]]; then
+    if [[ "$finished" == true || "$committed" != true || "$restore_ok" == true ]]; then
+      rm -f -- "$backup"
+      backup=''
+    fi
+  fi
+}
+
+run_source_self_test_v1() {
+  local root trusted key_a key_b stage_key expected_fpr expected_public
+  local auth_test backup_test old_two full_before mismatch_backup rename_backup
+  root="$(mktemp -d)"
+  trap 'rm -rf -- "$root"' RETURN
+  chmod 0700 "$root"
+  trusted="$root/trusted"
+  mkdir -m 0700 "$trusted"
+
+  key_a="$root/key-a"
+  key_b="$root/key-b"
+  ssh-keygen -q -t ed25519 -N '' -C void-replay-compare-only-v1 -f "$key_a"
+  ssh-keygen -q -t ed25519 -N '' -C void-replay-compare-only-v1 -f "$key_b"
+  stage_key="$root/id_ed25519.pub"
+  cp -- "$key_a.pub" "$stage_key"
+  expected_fpr="$(ssh-keygen -lf "$key_a.pub" | awk 'NR==1 {print $2}')"
+  read -r _ expected_public _ < "$key_a.pub"
+
+  compare_pub_snapshot=''
+  compare_public=''
+  snapshot_compare_public_key_v1     "$stage_key" "$trusted" "$expected_fpr" true "$key_b.pub" ||
+    return 1
+  [[ "$compare_public" == "$expected_public" ]] || return 1
+  [[ "$(ssh-keygen -lf "$stage_key" | awk 'NR==1 {print $2}')" != "$expected_fpr" ]] ||
+    return 1
+  rm -f -- "$compare_pub_snapshot"
+  compare_pub_snapshot=''
+
+  auth_test="$root/authorized_keys"
+  printf 'first-key\nsecond-key\nthird-key\n' > "$auth_test"
+  old_two="$(head -n 2 "$auth_test" | sha256sum | awk '{print $1}')"
+  full_before="$(sha256sum "$auth_test" | awk '{print $1}')"
+
+  mismatch_backup="$root/mismatch.backup"
+  cp -- "$auth_test" "$mismatch_backup"
+  printf 'tampered\n' >> "$mismatch_backup"
+  if attempt_authorized_keys_restore_v1     "$mismatch_backup" "$auth_test" "$root" "$old_two" "$full_before" false; then
+    return 1
+  fi
+  [[ -f "$mismatch_backup" ]] || return 1
+
+  rename_backup="$root/rename-failure.backup"
+  cp -- "$auth_test" "$rename_backup"
+  if attempt_authorized_keys_restore_v1     "$rename_backup" "$auth_test" "$root" "$old_two" "$full_before" true; then
+    return 1
+  fi
+  [[ -f "$rename_backup" ]] || return 1
+  [[ "$(sha256sum "$auth_test" | awk '{print $1}')" == "$full_before" ]] || return 1
+
+  echo "staged_key_swap_bound_to_root_snapshot=true"
+  echo "mismatched_recovery_backup_preserved=true"
+  echo "failed_restore_rename_backup_preserved=true"
+}
+
 if [[ "$#" -eq 1 && "$1" == --help ]]; then
   echo "$marker"
   echo "Nimo-only: install exact compare wrapper and third restricted public key."
   echo "No replay, witness, config, sshd, signer, transaction or funds mutation."
+  exit 0
+fi
+if [[ "$#" -eq 1 && "$1" == --self-test-cleanup ]]; then
+  run_source_self_test_v1
   exit 0
 fi
 [[ "$#" -eq 0 ]] || hold invalid_arguments
@@ -48,9 +216,15 @@ echo "funds_moved=false"
 [[ "$(id -u)" -eq 0 && "$(hostname)" == Nimo ]] ||
   hold root_nimo_required
 for cmd in git node ssh-keygen stat sha256sum getent awk grep sed head cat \
-  chown chmod install mktemp mv realpath; do
+  chown chmod install mktemp mv realpath rm; do
   command -v "$cmd" >/dev/null 2>&1 || hold "missing_command:$cmd"
 done
+[[ "$(realpath -e -- "$0")" == "$trusted_self" ]] ||
+  hold installer_not_root_trusted_path
+[[ "$(stat -c '%u:%g:%a:%h:%F' "$trusted_self")" == "0:0:500:1:regular file" ]] ||
+  hold installer_trusted_metadata_changed
+[[ "$(stat -c '%u:%g:%a:%F' /root)" == "0:0:700:directory" ]] ||
+  hold root_directory_custody_changed
 [[ "$(getent passwd 997 | awk -F: '{print $1 ":" $4}')" == "voidwitness:984" ]] ||
   hold voidwitness_identity_changed
 
@@ -90,15 +264,9 @@ for f in "$wrapper_source" "$compare_pub"; do
   [[ "$(stat -c '%h:%F' "$f")" == "1:regular file" ]] ||
     hold staged_file_metadata_invalid
 done
-[[ "$(awk 'END {print NR}' "$compare_pub")" == 1 ]] ||
-  hold compare_pub_line_count_invalid
-[[ "$(ssh-keygen -lf "$compare_pub" | awk 'NR==1 {print $2}')" == "$compare_fpr" ]] ||
-  hold compare_public_fingerprint_mismatch
-read -r algorithm public comment < "$compare_pub"
-[[ "$algorithm" == ssh-ed25519 &&
-   "$public" =~ ^[A-Za-z0-9+/]+={0,2}$ &&
-   "$comment" == void-replay-compare-only-v1 ]] ||
-  hold compare_pub_noncanonical
+snapshot_compare_public_key_v1   "$compare_pub" /root "$compare_fpr" false '' ||
+  hold compare_public_snapshot_or_fingerprint_invalid
+public="$compare_public"
 
 forced_command="/usr/bin/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 /usr/bin/node $wrapper"
 third="restrict,command=\"$forced_command\" ssh-ed25519 $public void-replay-compare-only-v1"
@@ -117,27 +285,6 @@ fi
 
 original_auth_sha="$(sha256sum "$auth" | awk '{print $1}')"
 old_two_sha="$(head -n 2 "$auth" | sha256sum | awk '{print $1}')"
-tmpwrapper=''
-tmpauth=''
-backup=''
-committed=false
-finished=false
-cleanup() {
-  if [[ "$finished" != true && "$committed" == true &&
-        -n "$backup" && -e "$backup" ]]; then
-    if [[ "$(head -n 2 "$backup" | sha256sum | awk '{print $1}')" == "$old_two_sha" ]]; then
-      mv -T -- "$backup" "$auth" ||
-        echo "URGENT_AUTHORIZED_KEYS_MANUAL_RESTORE_REQUIRED=true" >&2
-      backup=''
-      echo "authorized_keys_rollback_attempted=true" >&2
-    else
-      echo "URGENT_AUTHORIZED_KEYS_MANUAL_RESTORE_REQUIRED=true" >&2
-    fi
-  fi
-  for p in "$tmpwrapper" "$tmpauth" "$backup"; do
-    if [[ -n "$p" && -e "$p" ]]; then rm -f -- "$p"; fi
-  done
-}
 trap cleanup EXIT
 
 echo "=== install or verify fixed compare-only wrapper ==="
