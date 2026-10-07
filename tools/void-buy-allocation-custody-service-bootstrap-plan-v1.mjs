@@ -131,6 +131,9 @@ const CANDIDATE = Object.freeze({
   requested_exec_start: null,
   reviewed_root_owned_code_closure_selected: false,
   service_source: "tools/void-buy-allocation-custody-service-v1.mjs",
+  // This exact source-byte digest is a historical planning-drift guard only:
+  // it is NOT authenticated Git/host/freshness/executable-closure evidence.
+  service_source_sha256_expected: "sha256:bf9befd0974db3e1bcc928336f5cc3f1a0f1086ace061cdbd71d607171647690",
   service_contract: "docs/architecture/buy-void-allocation-custody-service-contract-v1.json",
   top_level_source_imports: Object.freeze([
     "../dist/economic/buy_void_allocation_reservation_ledger_v1.js",
