@@ -173,6 +173,16 @@ try {
   const replacement = clone(rawConfig);
   (replacement.entries as any[])[0].id = "replacement-direct-ipv4";
   const replacementBytes = JSON.stringify(replacement) + "\n";
+  const sameSizeReplacement = clone(rawConfig);
+  (sameSizeReplacement.entries as any[])[0].id =
+    "alternate-direct-ipv4";
+  const sameSizeReplacementBytes =
+    JSON.stringify(sameSizeReplacement) + "\n";
+  assert.equal(
+    Buffer.byteLength(sameSizeReplacementBytes, "utf8"),
+    Buffer.byteLength(canonicalBytes, "utf8"),
+    "in-place mutation adversary must preserve exact file length",
+  );
 
   fs.writeFileSync(replacementPath, replacementBytes);
   fs.symlinkSync(replacementPath, configPath);
@@ -204,7 +214,7 @@ try {
       testOnlyLoadVoidPublicP2PBootstrapIntroductionsAfterFstatV1(
         configReadRoot,
         (target) => {
-          fs.writeFileSync(target, replacementBytes);
+          fs.writeFileSync(target, sameSizeReplacementBytes);
         },
     ),
     /changed during descriptor read/,
