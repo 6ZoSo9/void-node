@@ -238,6 +238,35 @@ The receipt binds:
 
 `collector_receipt_sha256` is the SHA-256 of the canonical receipt body.
 
+## Evidence packet export
+
+The legacy collector API remains:
+
+`collectBuyVoidAllocationCustodyWitnessInstallationEvidenceV2(...)`
+
+and still returns exactly the existing V2 content-addressed receipt.
+
+For later live-read composition, V2 additionally exports:
+
+`collectBuyVoidAllocationCustodyWitnessInstallationEvidencePacketV2(...)`
+
+which returns:
+
+- `receipt`: the exact legacy collector receipt; and
+- `normalized_installation_qualification`: the exact normalized object
+  produced by the canonical V2 installation qualifier during the same
+  double-census observation.
+
+The normalized object's canonical SHA-256 must equal the receipt's
+`normalized_qualification_sha256`, and that digest reconstructs the receipt's
+`voidwiq2_...` installation qualification ID.
+
+This does not add authority. It only preserves an artifact that was already
+computed and committed by the receipt but previously discarded by the
+collector API.
+
+The CLI remains receipt-only for backward compatibility.
+
 ## Authority boundary
 
 Even a successful receipt reports:
@@ -274,6 +303,10 @@ npx tsx scripts/prove_buy_void_allocation_custody_witness_transport_v1.ts
 node scripts/prove_buy_void_allocation_custody_witness_forced_command_v2.mjs
 git diff --check
 ```
+
+The synthetic proof also requires the packet receipt to equal the legacy
+collector result exactly, binds the exported normalized qualification to the
+receipt digest/qualification ID, and preserves receipt-only CLI behavior.
 
 The synthetic proof uses injected host I/O only. It performs no live SSH,
 service, mount, permission, witness, payment, key, transaction, activation or
