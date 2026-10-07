@@ -72,8 +72,6 @@ const trueAuthority = new Set([
   "exact_request_schema_required",
   "exact_response_schema_required",
   "canonical_high_water_binding_reused",
-  "canonical_publication_writer_reused",
-  "recovery_terminal_before_new_transition",
 ]);
 for (const [key, value] of Object.entries(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_AUTHORITY_V1,
@@ -319,8 +317,10 @@ async function decision(f, method, request) {
     assert.equal(retry.ok, false);
     assert.equal(retry.reason, forged.reason);
     assert.equal(retry.operation_performed, false);
-    const clean = requireOk(await decision(f, "recover", {}));
-    assert.equal(clean.status, "clean");
+    const clean = await decision(f, "recover", {});
+    assert.equal(clean.ok, false);
+    assert.equal(clean.reason,
+      "allocation_custody_service_verified_payment_recovery_not_bound");
     assert.equal(clean.operation_performed, false);
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
@@ -364,13 +364,18 @@ async function decision(f, method, request) {
     assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), true);
     assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), true);
     assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
-    const recovered = requireOk(await decision(f, "recover", {}));
-    assert.equal(recovered.status, "recovered");
-    assert.equal(recovered.operation_performed, true);
-    assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), false);
-    assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), false);
-    assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"),
-      plan.next_ledger_jsonl);
+    // A legacy intent, even if publication-valid, is not payment provenance.
+    // The caller cannot cause it to be committed by invoking recover.
+    const recovered = await decision(f, "recover", {});
+    assert.equal(recovered.ok, false);
+    assert.equal(recovered.reason,
+      "allocation_custody_service_verified_payment_recovery_not_bound");
+    assert.equal(recovered.operation_performed, false);
+    assert.equal(fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)), true);
+    assert.equal(fs.existsSync(path.join(f.custodyRoot, INTENT_NAME)), true);
+    assert.equal(fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8"), "");
+    assert.equal(fs.readFileSync(path.join(f.custodyRoot, HIGH_WATER_NAME), "utf8"),
+      f.genesisHighWater);
     const retry = await decision(f, "reserve", { ...baseCandidate });
     assert.equal(retry.ok, false);
     assert.equal(retry.reason, forged.reason);
@@ -487,6 +492,12 @@ async function decision(f, method, request) {
     assert.equal(repeat.decision.ok, false);
     assert.equal(repeat.decision.reason, forged.decision.reason);
     assert.equal(repeat.decision.operation_performed, false);
+    const recoverLine = canonicalWireJson(envelope("recover", {})) + "\n";
+    const recover = await socketExchange(f.options.socket_path, recoverLine);
+    assert.equal(recover.decision.ok, false);
+    assert.equal(recover.decision.reason,
+      "allocation_custody_service_verified_payment_recovery_not_bound");
+    assert.equal(recover.decision.operation_performed, false);
     await service.stop();
     assert.equal(fs.existsSync(f.options.socket_path), false);
   } finally {
@@ -529,10 +540,10 @@ assert.doesNotMatch(source, /planBuyVoidAllocationReservationV1/u);
 assert.doesNotMatch(source,
   /persistBuyVoidAllocationReservationPublicationWriterV1/u);
 assert.match(source, /allocation_custody_service_verified_payment_provenance_not_bound/u);
-assert.match(
-  source,
-  /recoverBuyVoidAllocationReservationPublicationWriterV1/u,
-);
+assert.doesNotMatch(source,
+  /recoverBuyVoidAllocationReservationPublicationWriterV1/u);
+assert.match(source,
+  /allocation_custody_service_verified_payment_recovery_not_bound/u);
 
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_SERVICE_V1_PROOF_GREEN");
 console.log("exact_service_source_bound=true");
@@ -541,10 +552,10 @@ console.log("caller_selected_path=false");
 console.log("caller_selected_generation=false");
 console.log("arbitrary_bytes_write=false");
 console.log("caller_asserted_payment_evidence_not_trusted=true");
-console.log("canonical_writer_reused=true");
+console.log("canonical_writer_reused=false");
 console.log("reserve_ipc_default_hold=true");
-console.log("explicit_intent_recovery_preserved=true");
-console.log("recovery_terminal_before_new_transition=true");
+console.log("unverified_intent_recovery_ipc_held=true");
+console.log("no_publication_writer_imported=true");
 console.log("service_started_by_import=false");
 console.log("socket_parent_mode_0750_proven=true");
 console.log("socket_mode_0660_proven=true");
