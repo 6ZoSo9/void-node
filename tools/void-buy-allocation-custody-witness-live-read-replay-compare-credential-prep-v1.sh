@@ -95,10 +95,8 @@ if [[ "$private_exists" == "false" ]]; then
 else
   echo "existing_compare_key_reused_after_identity_check=true"
 fi
-[[ "$(sudo -n stat -c '%u:%g:%a:%F' "$key")" ==
-   "994:981:600:regular file" ]] || hold private_key_identity_invalid
-[[ "$(sudo -n stat -c '%u:%g:%F' "$pub")" ==
-   "994:981:regular file" ]] || hold public_key_identity_invalid
+[[ "$(sudo -n stat -c '%u:%g:%a:%F' "$key")" == "994:981:600:regular file" ]] || hold private_key_identity_invalid
+[[ "$(sudo -n stat -c '%u:%g:%F' "$pub")" == "994:981:regular file" ]] || hold public_key_identity_invalid
 pubmode="$(sudo -n stat -c '%a' "$pub")"
 [[ "$pubmode" == "600" || "$pubmode" == "644" ]] ||
   hold public_key_permissions_invalid
