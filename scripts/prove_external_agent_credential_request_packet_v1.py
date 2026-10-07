@@ -330,6 +330,112 @@ try:
             original_descriptor_root
         )
 
+    inaccessible_descriptor_identity_key = (
+        temporary
+        / "inaccessible-descriptor-identity.pem"
+    )
+    original_run_openssl = (
+        auth_module.run_openssl
+    )
+    descriptor_probe_observed: dict[str, Any] = {
+        "probe_calls": 0,
+        "genpkey_calls": 0,
+    }
+
+    def inaccessible_descriptor_run_openssl(
+        arguments: list[str],
+        **kwargs: Any,
+    ) -> bytes:
+        if (
+            len(arguments) >= 1
+            and arguments[0] == "genpkey"
+        ):
+            descriptor_probe_observed[
+                "genpkey_calls"
+            ] += 1
+
+        if (
+            len(arguments) >= 4
+            and arguments[0:3]
+            == [
+                "dgst",
+                "-sha256",
+                "-binary",
+            ]
+            and isinstance(
+                arguments[3],
+                str,
+            )
+            and arguments[3].startswith(
+                "/proc/self/fd/"
+            )
+        ):
+            descriptor_probe_observed[
+                "probe_calls"
+            ] += 1
+            pass_fds = kwargs.get(
+                "pass_fds"
+            )
+            if (
+                not isinstance(
+                    pass_fds,
+                    tuple,
+                )
+                or len(pass_fds) != 1
+                or arguments[3]
+                != (
+                    "/proc/self/fd/"
+                    + str(
+                        pass_fds[0]
+                    )
+                )
+            ):
+                raise RuntimeError(
+                    "descriptor preflight inheritance mismatch"
+                )
+            raise ValueError(
+                "descriptor-bound identity key access unavailable"
+            )
+
+        return original_run_openssl(
+            arguments,
+            **kwargs,
+        )
+
+    auth_module.run_openssl = (
+        inaccessible_descriptor_run_openssl
+    )
+    try:
+        try:
+            module.generate_identity_key(
+                inaccessible_descriptor_identity_key
+            )
+        except ValueError as error:
+            if (
+                "descriptor-bound identity key access unavailable"
+                not in str(error)
+            ):
+                raise
+        else:
+            raise RuntimeError(
+                "inaccessible inherited descriptor was accepted"
+            )
+    finally:
+        auth_module.run_openssl = (
+            original_run_openssl
+        )
+
+    if (
+        descriptor_probe_observed["probe_calls"]
+        != 1
+        or descriptor_probe_observed["genpkey_calls"]
+        != 0
+        or inaccessible_descriptor_identity_key.exists()
+    ):
+        raise RuntimeError(
+            "descriptor preflight failed to hold before key creation"
+        )
+
     identity_key = (
         temporary
         / "credential-request-ed25519.pem"
@@ -727,6 +833,10 @@ try:
             "rate_limit_exceeded",
         ),
         (
+            502,
+            "agent_paid_work_credential_request_gateway_upstream_failed",
+        ),
+        (
             503,
             "agent_paid_work_credential_request_gateway_unavailable",
         ),
@@ -895,73 +1005,98 @@ try:
             + "\n",
             encoding="utf-8",
         )
-        held_output = (
-            temporary
-            / "held-submit-result.json"
-        )
-        FakeConnection.response_status = 429
-        FakeConnection.response_body = (
-            json.dumps(
-                {
-                    "ok": False,
-                    "error": "rate_limit_exceeded",
-                }
-            )
-            + "\n"
-        ).encode("utf-8")
-        FakeConnection.requests.clear()
 
-        held_rc = module.command_submit(
-            module.argparse.Namespace(
-                request=str(
-                    request_path
-                ),
-                identity_key=str(
-                    identity_key
-                ),
-                output=str(
-                    held_output
-                ),
+        for (
+            held_status,
+            held_error,
+            held_label,
+        ) in [
+            (
+                429,
+                "rate_limit_exceeded",
+                "rate-limit",
+            ),
+            (
+                502,
+                "agent_paid_work_credential_request_gateway_upstream_failed",
+                "upstream-failure",
+            ),
+        ]:
+            held_output = (
+                temporary
+                / (
+                    "held-submit-result-"
+                    + held_label
+                    + ".json"
+                )
             )
-        )
-        held_value = json.loads(
-            held_output.read_text(
-                encoding="utf-8"
+            FakeConnection.response_status = (
+                held_status
             )
-        )
-        if (
-            held_rc != 2
-            or held_value.get(
-                "http_status"
+            FakeConnection.response_body = (
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": held_error,
+                    }
+                )
+                + "\n"
+            ).encode("utf-8")
+            FakeConnection.requests.clear()
+
+            held_rc = module.command_submit(
+                module.argparse.Namespace(
+                    request=str(
+                        request_path
+                    ),
+                    identity_key=str(
+                        identity_key
+                    ),
+                    output=str(
+                        held_output
+                    ),
+                )
             )
-            != 429
-            or held_value.get(
-                "response"
+            held_value = json.loads(
+                held_output.read_text(
+                    encoding="utf-8"
+                )
             )
-            != {
-                "ok": False,
-                "error": "rate_limit_exceeded",
-            }
-            or held_value.get(
-                "submitted"
-            )
-            is not False
-            or held_value.get(
-                "gateway_error"
-            )
-            != "rate_limit_exceeded"
-            or held_value.get(
-                "automatic_retry"
-            )
-            is not False
-            or len(
-                FakeConnection.requests
-            )
-            != 1
-        ):
-            raise RuntimeError(
-                "held submission result contract mismatch"
-            )
+            if (
+                held_rc != 2
+                or held_value.get(
+                    "http_status"
+                )
+                != held_status
+                or held_value.get(
+                    "response"
+                )
+                != {
+                    "ok": False,
+                    "error": held_error,
+                }
+                or held_value.get(
+                    "submitted"
+                )
+                is not False
+                or held_value.get(
+                    "gateway_error"
+                )
+                != held_error
+                or held_value.get(
+                    "automatic_retry"
+                )
+                is not False
+                or len(
+                    FakeConnection.requests
+                )
+                != 1
+            ):
+                raise RuntimeError(
+                    "held submission result contract mismatch: "
+                    + held_label
+                )
+
     finally:
         FakeConnection.response_status = 202
         FakeConnection.response_body = (
