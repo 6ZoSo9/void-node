@@ -560,9 +560,11 @@ export const clearWalletViewV1 = ({
   input?.focus();
 };
 
-const loadAccount = async (account, button) => {
+export const loadWalletAccountV1 = async (account, button) => {
   const value = String(account || '').trim();
   if (!ACCOUNT_PATTERN.test(value)) {
+    invalidateWalletRequest('wallet request replaced by invalid account');
+    restoreWalletLoadControlV1(button);
     renderWalletErrorV1('Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.');
     return;
   }
@@ -660,7 +662,7 @@ const bindWalletView = () => {
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    loadAccount(input?.value, button);
+    loadWalletAccountV1(input?.value, button);
   });
 
   const clear = form.querySelector('[data-wallet-clear]');

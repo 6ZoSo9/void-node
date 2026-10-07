@@ -15,6 +15,7 @@ import {
   WALLET_SNAPSHOT_MAX_AGE_MS,
   WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   clearWalletViewV1,
+  loadWalletAccountV1,
   renderWalletErrorV1,
   renderWalletLoadingV1,
   renderWalletV1,
@@ -727,6 +728,106 @@ assert.equal(
   rendered.get("[data-wallet-message]")?.textContent,
   "Wallet presence and lock state could not be checked. Independently available accounting balances remain read-only.",
 );
+
+const racedRender = new Map<string, { textContent: string; className: string }>();
+const racedStorageWrites: Array<[string, string]> = [];
+const racedButton = { disabled: false };
+const originalRaceDocument = (globalThis as any).document;
+const originalRaceWindow = (globalThis as any).window;
+const originalRaceSessionStorage = (globalThis as any).sessionStorage;
+const originalRaceFetch = globalThis.fetch;
+const originalRaceDateNow = Date.now;
+let resolveOlderFetch!: (response: Response) => void;
+let signalOlderFetchStarted!: () => void;
+const olderFetchStarted = new Promise<void>((resolve) => {
+  signalOlderFetchStarted = resolve;
+});
+try {
+  (globalThis as any).document = {
+    querySelector: (selector: string) => {
+      if (!racedRender.has(selector)) {
+        racedRender.set(selector, { textContent: "", className: "" });
+      }
+      return racedRender.get(selector);
+    },
+  };
+  (globalThis as any).window = {
+    location: {
+      hash: "#/wallet",
+      origin: "http://localhost",
+    },
+  };
+  (globalThis as any).sessionStorage = {
+    setItem: (key: string, value: string) => {
+      racedStorageWrites.push([key, value]);
+    },
+  };
+  globalThis.fetch = (() => {
+    signalOlderFetchStarted();
+    return new Promise<Response>((resolve) => {
+      resolveOlderFetch = resolve;
+    });
+  }) as typeof fetch;
+  Date.now = () => PROOF_NOW_MS;
+
+  const olderLoad = loadWalletAccountV1("account-A", racedButton);
+  await olderFetchStarted;
+  assert.equal(racedButton.disabled, true);
+
+  await loadWalletAccountV1("bad account", racedButton);
+  assert.equal(racedButton.disabled, false);
+  assert.equal(
+    racedRender.get("[data-wallet-state-chip]")?.textContent,
+    "Account unavailable",
+  );
+  assert.equal(
+    racedRender.get("[data-wallet-message]")?.textContent,
+    "Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.",
+  );
+  for (const selector of [
+    "[data-wallet-account-id]",
+    "[data-wallet-address]",
+    "[data-wallet-native-gas]",
+    "[data-wallet-void-balance]",
+    "[data-wallet-ledger-wc]",
+    "[data-wallet-production-wc]",
+  ]) {
+    assert.equal(racedRender.get(selector)?.textContent, "—");
+  }
+  assert.deepEqual(racedStorageWrites, []);
+
+  resolveOlderFetch(responseAt(
+    "http://localhost/__void/ui/wave3/wallet.json?account=account-A",
+    JSON.stringify(validSnapshot("account-A")),
+    {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    },
+  ));
+  await olderLoad;
+
+  assert.equal(
+    racedRender.get("[data-wallet-state-chip]")?.textContent,
+    "Account unavailable",
+  );
+  assert.equal(
+    racedRender.get("[data-wallet-message]")?.textContent,
+    "Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.",
+  );
+  assert.deepEqual(racedStorageWrites, []);
+} finally {
+  Date.now = originalRaceDateNow;
+  globalThis.fetch = originalRaceFetch;
+  if (originalRaceDocument === undefined) delete (globalThis as any).document;
+  else (globalThis as any).document = originalRaceDocument;
+  if (originalRaceWindow === undefined) delete (globalThis as any).window;
+  else (globalThis as any).window = originalRaceWindow;
+  if (originalRaceSessionStorage === undefined) {
+    delete (globalThis as any).sessionStorage;
+  } else {
+    (globalThis as any).sessionStorage = originalRaceSessionStorage;
+  }
+}
 assert.equal(
   rendered.get("[data-wallet-address]")?.textContent,
   "Unavailable",
@@ -828,6 +929,9 @@ for (const marker of [
   "AbortSignal.timeout(WALLET_REQUEST_TIMEOUT_MS)",
   "const invalidateWalletRequest = (reason) =>",
   "walletRequestOwner.cancel(reason)",
+  "export const loadWalletAccountV1 =",
+  "invalidateWalletRequest('wallet request replaced by invalid account')",
+  "restoreWalletLoadControlV1(button)",
   "export const clearWalletViewV1 =",
   "clearWalletViewV1({ input, button });",
   "invalidateWalletRequest('wallet route left')",
@@ -867,6 +971,7 @@ console.log("browser_available_evidence_source_bound=true");
 console.log("browser_native_gas_wallet_bound=true");
 console.log("browser_wallet_source_unavailable_truthful=true");
 console.log("browser_wallet_stale_evidence_cleared=true");
+console.log("browser_wallet_invalid_input_supersedes_active_request=true");
 console.log("browser_wallet_generated_at_canonical=true");
 console.log("browser_wallet_snapshot_max_age_ms=30000");
 console.log("browser_wallet_snapshot_max_future_skew_ms=5000");

@@ -22,7 +22,7 @@
   "repository_hash_self_reference_excluded": "scripts/prove_void_ui_wave3_wallet_readonly_v1.ts",
   "repository_hashes": {
     "docs/public/void-ui-wave1-foundation-v1/source-manifest.json": "9deca57d7e14f411933b6dea1de17d7845b58977135d2cd81a513bdad00575d2",
-    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "04af954021be89092ea9609cb377e7012e7495ce11e70d9f5d6e0840aaa28b08",
+    "docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json": "0be4490eeb6ac1b6e49e26bd26744dd0a5fce5a3357980612f634fb19b7a370f",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ACCEPTANCE_CRITERIA.md": "cadc91f6196136e1f817088af378832f7e2f14d5e9e556cd8b8f3d4f57ff5331",
     "docs/public/void-ui-wave3-wallet-readonly-v1/ADAPTER_CONTRACT.md": "06b4c2b8f2be0177f1d9a856ed2fa055e3645414ba514fed07e289a16c7f3e46",
     "docs/public/void-ui-wave3-wallet-readonly-v1/README.md": "3ede1b145055c64685c0a918d920ddd651dfc8c46b965a7250d30f359c0ff323",
@@ -32,7 +32,7 @@
     "public/void-app-wave1-v1/assets/css/views.css": "f09b736ba9129cd1249479a61b54b22a967a008716bdad34b90ea93fa0d62b86",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "d87eecb9679d6e92707cc6973de487302c3313958e25b5d6ec74381e6c9a779b",
     "public/void-app-wave1-v1/assets/js/views.js": "7a1b1aa188ffe98e4cd7c7a71e758663018302349e9a65c147c3c0e877123972",
-    "public/void-app-wave1-v1/assets/js/wallet-live.js": "adc7ba5fb871dd1d7b723ff53b8164f9a5a8c500e4a76b8dbca09d049dd33e15",
+    "public/void-app-wave1-v1/assets/js/wallet-live.js": "4ff26ddbfb30fe0f35fbfea4950c4dff1b952d8dcd55ca365f555b6686389ebe",
     "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
@@ -63,5 +63,6 @@
   "earn_backend_source_deadline_timer_ref_refresh_date": "2026-09-30",
   "earn_backend_source_content_length_refresh_date": "2026-09-30",
   "wallet_unavailable_evidence_coherence_refresh_date": "2026-10-06",
-  "wallet_stale_evidence_clear_refresh_date": "2026-10-07"
+  "wallet_stale_evidence_clear_refresh_date": "2026-10-07",
+  "wallet_invalid_input_supersession_refresh_date": "2026-10-07"
 }
