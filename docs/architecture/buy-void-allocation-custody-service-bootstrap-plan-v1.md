@@ -93,7 +93,12 @@ buy_void_allocation_reservation_high_water_v1.js
 Its other **static** ESM imports are exactly the reviewed built-ins
 `node:crypto`, `node:fs`, `node:net`, `node:path` and `node:url`.
 The source-only proof uses Node's ESM parser to compare **every static module
-specifier** against that explicit complete allowlist. It rejects new relative
+specifier** against that explicit complete allowlist.
+It also disallows **import attributes and non-evaluation import phases** even
+when the module specifier is already allowed. Node 24/26 expose import-request
+metadata directly; Node 22 checks attributes through an inert vm.Module linker,
+without evaluating the custody service or imported modules. Parser/metadata
+incompatibility HOLDs rather than trusting a reduced specifier list. It rejects new relative
 helpers, third-party packages, built-ins or other specifiers instead of silently
 discarding imports outside `../dist/`; an independent full service-byte digest
 also detects changes that this parser might not enumerate. The current source
