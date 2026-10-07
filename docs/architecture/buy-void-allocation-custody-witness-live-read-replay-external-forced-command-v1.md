@@ -79,7 +79,10 @@ Before any append the handler writes a durable same-root intent binding:
 - exact planner-produced next JSONL line;
 - expected next witness SHA-256/byte count/event count/tip/replay sequence.
 
-The intent is fsynced before witness mutation.
+The intent is fsynced before witness mutation. Its exact bytes are then
+descriptor/path rebound immediately before witness mutation and again after a
+fsynced append. Final intent removal fsyncs the directory and revalidates the
+visible authority-root pathname before success may return.
 
 The intent-size ceiling is derived from the 12 MiB canonical request ceiling,
 one maximal 4 KiB witness event, and bounded metadata. It is intentionally
@@ -89,23 +92,43 @@ canonical request bytes again. A near-capacity valid replay state must not pass
 planning and then fail solely because its crash-recovery intent cannot represent
 the accepted request.
 
-Recovery first re-runs the canonical #2551 external-witness planner against
-the exact reconstructed prior witness and the exact request bound by the
-intent. The stored next line, complete next witness bytes, replay sequence,
-event count, tip, and digest must all equal that fresh planner result before any
-truncate, append, or intent cleanup may occur.
+When a durable intent exists, recovery re-runs the canonical #2551
+external-witness planner against the exact reconstructed prior witness and the
+exact request bytes bound by that intent. The stored next line, complete next
+witness bytes, replay sequence, event count, tip, and digest must all equal that
+fresh planner result before any truncate, append, or intent cleanup may occur.
 
-Recovery accepts only:
+Intent-backed recovery accepts only:
 
 - exact prior witness;
 - an exact prefix of the intended next line after a torn append; or
 - the exact complete intended next witness before intent cleanup.
 
 A torn append is truncated back to the exact prior byte count, fsynced, then the
-same intent-bound line is appended. Unknown/mismatched bytes HOLD.
+same intent-bound line is appended. Unknown/mismatched bytes HOLD. A different
+append request cannot recover an existing intent. Non-append requests HOLD while
+an intent is pending.
 
-Recovery is request-bound. A different append request cannot recover an
-existing intent. Non-append requests HOLD while an intent is pending.
+The same-UID authority root is not claimed to make the intent pathname
+undeletable. If the intent is missing and the witness contains a torn final
+line, only an `append` request may attempt orphan-torn recovery. The handler:
+
+1. takes the bytes through the last complete newline as the candidate prior
+   witness;
+2. requires that prior witness to parse and bind the configured source/witness
+   identity;
+3. re-runs the canonical planner using the supplied replay journal/high-water
+   and that exact prior witness;
+4. requires the observed torn tail to be a non-empty strict byte prefix of the
+   freshly planned one-event line;
+5. requires the fresh next witness to equal prior bytes plus that exact line;
+6. recreates and rebinds a durable intent before truncating or appending; and
+7. postchecks the exact final witness before intent cleanup.
+
+This orphan path is **planner/source-state bound**, not caller-request-ID
+authority: the forced-command request ID is not an input to the witness planner.
+A `read` never repairs an orphan torn witness and performs no mutation. Any
+tail not reproduced exactly by the canonical planner HOLDS.
 
 ## Identity enforcement
 
@@ -156,10 +179,13 @@ git diff --check
 
 The proof covers empty read, canonical genesis append, one-event advance,
 idempotence, intent-only crash, torn append, full append before intent cleanup,
-read HOLD with pending intent, mismatched recovery request, canonical-but-forged
-intent rejection before witness mutation, host-identity drift, caller path
-injection, root-owned descriptor-walked config ancestry and file binding, the
-nested-base64 near-capacity request/intent bound, and negative live/economic
+read HOLD with pending intent, mismatched intent-backed recovery request,
+canonical-but-forged intent rejection before witness mutation, deletion of the
+just-created intent before append with zero witness bytes written, orphan-torn
+recovery after intentional intent loss, nonmutating read against that orphan
+torn state, final-cleanup authority-root rebind, host-identity drift, caller
+path injection, root-owned descriptor-walked config ancestry and file binding,
+the nested-base64 near-capacity request/intent bound, and negative live/economic
 authority flags.
 
 ## Next gate
