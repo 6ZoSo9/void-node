@@ -653,19 +653,18 @@ function parseRequest(input) {
       fail("witness_replay_external_forced_command_read_payload_forbidden");
     }
   } else {
-    for (const value of [
-      raw.source_journal_json_base64,
-      raw.source_high_water_json_base64,
-    ]) {
-      if (
-        typeof value !== "string" ||
-        value.length < 4 ||
-        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
-          value,
-        )
-      ) {
-        fail("witness_replay_external_forced_command_append_payload_invalid");
-      }
+    if (
+      typeof raw.source_journal_json_base64 !== "string" ||
+      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
+        raw.source_journal_json_base64,
+      ) ||
+      typeof raw.source_high_water_json_base64 !== "string" ||
+      raw.source_high_water_json_base64.length < 4 ||
+      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
+        raw.source_high_water_json_base64,
+      )
+    ) {
+      fail("witness_replay_external_forced_command_append_payload_invalid");
     }
     journal = Buffer.from(raw.source_journal_json_base64, "base64");
     highWater = Buffer.from(raw.source_high_water_json_base64, "base64");
