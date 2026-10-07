@@ -188,7 +188,7 @@ try {
   fs.symlinkSync(replacementPath, configPath);
   assert.throws(
     () => loadVoidPublicP2PBootstrapIntroductionsV1(configReadRoot),
-    /descriptor-openable non-symlink regular file/,
+    /descriptor-openable non-symlink directories and file/,
   );
 
   fs.unlinkSync(configPath);
@@ -225,6 +225,29 @@ try {
     () => loadVoidPublicP2PBootstrapIntroductionsV1(configReadRoot),
     /bounded regular file/,
   );
+
+  const outsideRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "void-public-p2p-config-outside-v1-"),
+  );
+  try {
+    const outsideConfigDir = path.join(outsideRoot, "config");
+    fs.mkdirSync(outsideConfigDir);
+    fs.writeFileSync(
+      path.join(
+        outsideConfigDir,
+        "void-public-p2p-bootstrap-introductions-v1.json",
+      ),
+      canonicalBytes,
+    );
+    fs.rmSync(configDir, { recursive: true, force: true });
+    fs.symlinkSync(outsideConfigDir, configDir);
+    assert.throws(
+      () => loadVoidPublicP2PBootstrapIntroductionsV1(configReadRoot),
+      /descriptor-openable non-symlink directories and file/,
+    );
+  } finally {
+    fs.rmSync(outsideRoot, { recursive: true, force: true });
+  }
 } finally {
   fs.rmSync(configReadRoot, { recursive: true, force: true });
 }

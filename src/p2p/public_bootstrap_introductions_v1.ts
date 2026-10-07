@@ -361,22 +361,51 @@ function loadVoidPublicP2PBootstrapIntroductionsFromOpenedFileV1(
   }
 
   const noFollow = fs.constants.O_NOFOLLOW;
-  if (typeof noFollow !== "number") {
+  const directoryOnly = fs.constants.O_DIRECTORY;
+  if (
+    typeof noFollow !== "number" ||
+    typeof directoryOnly !== "number"
+  ) {
     throw new Error(
       "public P2P bootstrap introductions descriptor safety is unavailable",
     );
   }
 
+  const directoryFlags =
+    fs.constants.O_RDONLY |
+    noFollow |
+    directoryOnly |
+    fs.constants.O_NONBLOCK;
+  let rootDescriptor = -1;
+  let configDescriptor = -1;
   let descriptor = -1;
   try {
     try {
+      rootDescriptor = fs.openSync(root, directoryFlags);
+      configDescriptor = fs.openSync(
+        `/proc/self/fd/${rootDescriptor}/${path.dirname(
+          VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_PATH_V1,
+        )}`,
+        directoryFlags,
+      );
       descriptor = fs.openSync(
-        target,
+        `/proc/self/fd/${configDescriptor}/${path.basename(
+          VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_PATH_V1,
+        )}`,
         fs.constants.O_RDONLY | noFollow | fs.constants.O_NONBLOCK,
       );
     } catch {
       throw new Error(
-        "public P2P bootstrap introductions must be a descriptor-openable non-symlink regular file",
+        "public P2P bootstrap introductions path must use descriptor-openable non-symlink directories and file",
+      );
+    }
+
+    if (
+      !fs.fstatSync(rootDescriptor).isDirectory() ||
+      !fs.fstatSync(configDescriptor).isDirectory()
+    ) {
+      throw new Error(
+        "public P2P bootstrap introductions path must remain directory-rooted",
       );
     }
 
@@ -432,6 +461,8 @@ function loadVoidPublicP2PBootstrapIntroductionsFromOpenedFileV1(
     );
   } finally {
     if (descriptor >= 0) fs.closeSync(descriptor);
+    if (configDescriptor >= 0) fs.closeSync(configDescriptor);
+    if (rootDescriptor >= 0) fs.closeSync(rootDescriptor);
   }
 }
 
