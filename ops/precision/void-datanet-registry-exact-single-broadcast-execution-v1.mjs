@@ -371,7 +371,12 @@ function writeExactFile(file,bytes,mode=0o400){
     fs.fsyncSync(fd);
   }finally{fs.closeSync(fd);}
 }
-function stableFileBytes(file,label,maxBytes=MAX_SOURCE_BYTES){
+function stableFileBytes(
+  file,
+  label,
+  maxBytes=MAX_SOURCE_BYTES,
+  {allowEmpty=false}={},
+){
   const fd=fs.openSync(
     file,
     fs.constants.O_RDONLY|Number(fs.constants.O_NOFOLLOW||0),
@@ -381,7 +386,7 @@ function stableFileBytes(file,label,maxBytes=MAX_SOURCE_BYTES){
     if(
       !before.isFile()||
       before.nlink!==1n||
-      before.size<1n||
+      before.size<(allowEmpty?0n:1n)||
       before.size>BigInt(maxBytes)
     ){
       fail(label+"_invalid");
@@ -455,6 +460,7 @@ function reviewedEthersStandaloneBundleV1(profile,runtimeRoot){
         file,
         "reviewed_ethers_package_file",
         MAX_PACKAGE_FILE_BYTES,
+        {allowEmpty:true},
       );
       total+=bytes.length;
       if(total>MAX_PACKAGE_TOTAL_BYTES){
