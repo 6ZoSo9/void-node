@@ -12,6 +12,7 @@ import { Node } from "../src/node_core.js";
 import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import {
   loadVoidPublicP2PBootstrapIntroductionsV1,
+  testOnlyLoadVoidPublicP2PBootstrapIntroductionsAfterFstatV1,
   validateVoidPublicP2PBootstrapIntroductionsV1,
   voidPublicP2PBootstrapIntroductionsEnabledV1,
   voidTorP2PSocksOptionsFromEnvV1,
@@ -155,6 +156,68 @@ assert.equal(
   ),
   false,
 );
+
+const configReadRoot = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-public-p2p-config-read-v1-"),
+);
+try {
+  const configDir = path.join(configReadRoot, "config");
+  const configPath = path.join(
+    configDir,
+    "void-public-p2p-bootstrap-introductions-v1.json",
+  );
+  const replacementPath = path.join(configReadRoot, "replacement.json");
+  fs.mkdirSync(configDir, { recursive: true });
+
+  const canonicalBytes = JSON.stringify(rawConfig) + "\n";
+  const replacement = clone(rawConfig);
+  (replacement.entries as any[])[0].id = "replacement-direct-ipv4";
+  const replacementBytes = JSON.stringify(replacement) + "\n";
+
+  fs.writeFileSync(replacementPath, replacementBytes);
+  fs.symlinkSync(replacementPath, configPath);
+  assert.throws(
+    () => loadVoidPublicP2PBootstrapIntroductionsV1(configReadRoot),
+    /descriptor-openable non-symlink regular file/,
+  );
+
+  fs.unlinkSync(configPath);
+  fs.writeFileSync(configPath, canonicalBytes);
+  assert.throws(
+    () =>
+      testOnlyLoadVoidPublicP2PBootstrapIntroductionsAfterFstatV1(
+        configReadRoot,
+        (target) => {
+          fs.renameSync(replacementPath, target);
+        },
+      ),
+    /changed during descriptor read/,
+  );
+  assert.equal(
+    JSON.parse(fs.readFileSync(configPath, "utf8")).entries[0].id,
+    "replacement-direct-ipv4",
+  );
+
+  fs.writeFileSync(configPath, canonicalBytes);
+  assert.throws(
+    () =>
+      testOnlyLoadVoidPublicP2PBootstrapIntroductionsAfterFstatV1(
+        configReadRoot,
+        (target) => {
+          fs.writeFileSync(target, replacementBytes);
+        },
+    ),
+    /changed during descriptor read/,
+  );
+
+  fs.writeFileSync(configPath, Buffer.alloc(64 * 1024 + 1, 0x20));
+  assert.throws(
+    () => loadVoidPublicP2PBootstrapIntroductionsV1(configReadRoot),
+    /bounded regular file/,
+  );
+} finally {
+  fs.rmSync(configReadRoot, { recursive: true, force: true });
+}
 
 const duplicateNode = clone(rawConfig);
 (duplicateNode.entries as any[])[1].expected_node_id = PRECISION_ID;
