@@ -6,9 +6,13 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 import {
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1,
   parseBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessJournalV1,
   planBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessAdvanceV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_external_witness_v1.js";
+import {
+  classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1,
+} from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_high_water_v1.js";
 import {
   withBuyVoidFilesystemBakeryLockV1,
 } from "../dist/economic/buy_void_filesystem_bakery_lock_v1.js";
@@ -44,6 +48,10 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_
     authority_directory_fsync: true,
     post_mutation_path_rebind: true,
     server_observed_witness_identity_required: true,
+    server_side_compare_operation: true,
+    server_side_compare_read_only: true,
+    compare_shared_history_rebinding_required: true,
+    compare_rollback_regression_candidate: true,
     original_remote_command_rejected: true,
     shell_access: false,
     generic_write_primitive: false,
@@ -84,6 +92,10 @@ const RESPONSE_SCHEMA =
   "void_buy_void_allocation_custody_witness_live_read_replay_external_forced_command_response_v1";
 const RESPONSE_MARKER =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_FORCED_COMMAND_RESPONSE_V1";
+const COMPARE_RESPONSE_SCHEMA =
+  "void_buy_void_allocation_custody_witness_live_read_replay_external_forced_command_compare_response_v1";
+const COMPARE_RESPONSE_MARKER =
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_EXTERNAL_FORCED_COMMAND_COMPARE_RESPONSE_V1";
 const INTENT_SCHEMA =
   "void_buy_void_allocation_custody_witness_live_read_replay_external_forced_command_intent_v1";
 const INTENT_MARKER =
@@ -669,7 +681,9 @@ function parseRequest(input) {
     raw.schema !== REQUEST_SCHEMA ||
     raw.marker !== REQUEST_MARKER ||
     raw.version !== 1 ||
-    (raw.operation !== "read" && raw.operation !== "append") ||
+    (raw.operation !== "read" &&
+      raw.operation !== "append" &&
+      raw.operation !== "compare") ||
     typeof raw.request_id !== "string" ||
     !REQUEST_ID.test(raw.request_id)
   ) {
@@ -685,6 +699,10 @@ function parseRequest(input) {
       fail("witness_replay_external_forced_command_read_payload_forbidden");
     }
   } else {
+    const payloadError =
+      raw.operation === "append"
+        ? "witness_replay_external_forced_command_append_payload_invalid"
+        : "witness_replay_external_forced_command_compare_payload_invalid";
     if (
       typeof raw.source_journal_json_base64 !== "string" ||
       !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
@@ -696,7 +714,7 @@ function parseRequest(input) {
         raw.source_high_water_json_base64,
       )
     ) {
-      fail("witness_replay_external_forced_command_append_payload_invalid");
+      fail(payloadError);
     }
     journal = Buffer.from(raw.source_journal_json_base64, "base64");
     highWater = Buffer.from(raw.source_high_water_json_base64, "base64");
@@ -707,7 +725,7 @@ function parseRequest(input) {
       highWater.length < 2 ||
       highWater.length > MAX_HIGH_WATER_BYTES
     ) {
-      fail("witness_replay_external_forced_command_append_payload_invalid");
+      fail(payloadError);
     }
   }
   const normalized = Object.freeze({
@@ -878,6 +896,107 @@ function response(requestId, state, operationPerformed, recoveredIntent) {
       production_gate_ready: false,
       funds_movement: false,
     }),
+  );
+}
+
+function compareResponse(
+  requestId,
+  state,
+  localReplaySequence,
+  comparisonStatus,
+) {
+  const matched = comparisonStatus === "matched";
+  const localAhead = comparisonStatus === "local_ahead";
+  const witnessAhead = comparisonStatus === "witness_ahead";
+  if (!matched && !localAhead && !witnessAhead) {
+    fail("witness_replay_external_forced_command_compare_status_invalid");
+  }
+  return canonicalLine(
+    Object.freeze({
+      schema: COMPARE_RESPONSE_SCHEMA,
+      marker: COMPARE_RESPONSE_MARKER,
+      version: 1,
+      request_id: requestId,
+      comparison_status: comparisonStatus,
+      initialized: state.initialized,
+      witness_sha256: state.witness_sha256,
+      witness_bytes: state.witness_bytes,
+      event_count: state.event_count,
+      tip_event_sha256: state.tip_event_sha256,
+      witnessed_replay_sequence: state.witnessed_replay_sequence,
+      local_replay_sequence: localReplaySequence,
+      exact_live_match: matched,
+      external_witness_update_required: localAhead,
+      rollback_regression_candidate: witnessAhead,
+      rollback_regression_detected: false,
+      mutation_admission_allowed: matched,
+      operation_performed: false,
+      recovered_intent: false,
+      server_controlled_witness_observed: true,
+      external_transport_authenticated: false,
+      external_witness_storage_proven: false,
+      production_gate_ready: false,
+      funds_movement: false,
+    }),
+  );
+}
+
+function compareWitnessAgainstPresentedReplay(
+  current,
+  request,
+  identity,
+) {
+  if (current.length === 0) {
+    fail("witness_replay_external_forced_command_compare_witness_uninitialized");
+  }
+  const local =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayHighWaterBindingV1({
+      journal_jsonl: request.journal,
+      high_water_json: request.high_water,
+    });
+  if (local.ok !== true) {
+    fail(
+      "witness_replay_external_forced_command_compare_local_" +
+        String(local.reason || "invalid"),
+    );
+  }
+
+  const compared =
+    classifyBuyVoidAllocationCustodyWitnessLiveReadReplayExternalWitnessV1({
+      witness_jsonl: current,
+      current_journal_jsonl: request.journal,
+      current_high_water_json: request.high_water,
+      identity,
+    });
+
+  if (compared.ok === true && compared.status === "matched") {
+    return Object.freeze({
+      comparison_status: "matched",
+      local_replay_sequence: local.high_water.sequence,
+    });
+  }
+  if (
+    compared.ok === true &&
+    compared.status === "external_witness_update_required"
+  ) {
+    return Object.freeze({
+      comparison_status: "local_ahead",
+      local_replay_sequence: local.high_water.sequence,
+    });
+  }
+  if (
+    compared.ok === false &&
+    compared.reason ===
+      "witness_replay_external_witness_ahead_unverified"
+  ) {
+    return Object.freeze({
+      comparison_status: "witness_ahead",
+      local_replay_sequence: local.high_water.sequence,
+    });
+  }
+  fail(
+    "witness_replay_external_forced_command_compare_" +
+      String(compared.reason || compared.status || "invalid"),
   );
 }
 
@@ -1477,6 +1596,28 @@ function handleUnderLock(directory, config, request, dependencies) {
       ),
       operation_performed: recovered.operation_performed,
       recovered_intent: recovered.recovered,
+    });
+  }
+
+  if (request.value.operation === "compare") {
+    if (recovered.operation_performed || recovered.recovered) {
+      fail("witness_replay_external_forced_command_compare_recovery_forbidden");
+    }
+    const compared = compareWitnessAgainstPresentedReplay(
+      current,
+      request,
+      identity,
+    );
+    const state = witnessState(current);
+    return Object.freeze({
+      response_json: compareResponse(
+        request.value.request_id,
+        state,
+        compared.local_replay_sequence,
+        compared.comparison_status,
+      ),
+      operation_performed: false,
+      recovered_intent: false,
     });
   }
 

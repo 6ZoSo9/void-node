@@ -191,6 +191,24 @@ if (homeStart < 0 || homeEnd < 0) {
 }
 const homeViewText = views.slice(homeStart, homeEnd);
 
+const buyStart = views.indexOf("function buyView() {");
+const buyEnd = views.indexOf("\n\nfunction marketView()", buyStart);
+if (buyStart < 0 || buyEnd < 0) {
+  fail("could not isolate the Buy view");
+}
+const buyViewText = views.slice(buyStart, buyEnd);
+
+const coupledOpeningCopy =
+  "Presale intake and WC/VOID market activation are one coupled opening; neither may open alone.";
+if (!buyViewText.includes(coupledOpeningCopy)) {
+  fail("Buy launch copy does not preserve the coupled opening");
+}
+if (buyViewText.includes(
+  "Presale activation remains the immediate gate; WC/VOID can follow its bounded activation ceremony."
+)) {
+  fail("Buy launch copy still implies a sequential opening");
+}
+
 for (const fake of [
   "Good morning, ZoSo.",
   "0x8c99…bed7",

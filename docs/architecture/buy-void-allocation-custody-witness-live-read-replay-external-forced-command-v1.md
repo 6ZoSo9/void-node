@@ -42,7 +42,7 @@ intent files must be single-link mode-0600 regular files.
 
 Exactly one canonical JSON line is accepted.
 
-Two operations exist:
+Three operations exist:
 
 ### read
 
@@ -50,6 +50,31 @@ The request carries no replay payload and performs no mutation. It returns the
 current witness state only when no durable append intent is pending. If any
 durable append intent exists, read HOLDS before intent recovery; the exact
 append retry owns recovery and cleanup.
+
+### compare
+
+The request carries canonical Precision replay-journal bytes and canonical
+replay-high-water bytes as base64, but performs no mutation. Under the same
+server-controlled witness path, host identity checks, and cross-process lock,
+the handler validates the presented local replay pair and compares it with the
+complete retained Nimo witness history.
+
+The compare response uses a distinct response schema so existing `read` and
+`append` response bytes remain compatible. It reports exactly one of:
+
+- `matched`: local replay and Nimo witness tip are identical;
+- `local_ahead`: the presented local replay is canonically ahead and the Nimo
+  witness must be advanced before another protected mutation is admitted; or
+- `witness_ahead`: the Nimo witness is canonically ahead of the presented
+  local replay across their complete shared history.
+
+`witness_ahead` is emitted as a server-side rollback-regression candidate.
+The source handler still reports
+`external_transport_authenticated=false`; only a later authenticated client
+transport/runtime gate may promote that candidate to live rollback authority.
+
+Compare is read-only. It never creates or recovers append intent state, never
+repairs a torn append, and HOLDS while a durable append intent is pending.
 
 ### append
 
@@ -127,8 +152,8 @@ line, only an `append` request may attempt orphan-torn recovery. The handler:
 
 This orphan path is **planner/source-state bound**, not caller-request-ID
 authority: the forced-command request ID is not an input to the witness planner.
-A `read` never repairs an orphan torn witness and performs no mutation. Any
-tail not reproduced exactly by the canonical planner HOLDS.
+A `read` or `compare` never repairs an orphan torn witness and performs no
+mutation. Any tail not reproduced exactly by the canonical planner HOLDS.
 
 ## Identity enforcement
 
@@ -177,8 +202,10 @@ npx tsx scripts/prove_buy_void_allocation_custody_witness_live_read_replay_high_
 git diff --check
 ```
 
-The proof covers empty read, canonical genesis append, one-event advance,
-idempotence, intent-only crash, torn append, full append before intent cleanup,
+The proof covers empty read, nonmutating compare for exact match, local-ahead
+catch-up requirement, witness-ahead rollback-regression candidate, canonical
+genesis append, one-event advance, idempotence, intent-only crash, torn append,
+full append before intent cleanup,
 read HOLD with pending intent, mismatched intent-backed recovery request,
 canonical-but-forged intent rejection before witness mutation, deletion of the
 just-created intent before append with zero witness bytes written, orphan-torn
@@ -190,6 +217,12 @@ authority flags.
 
 ## Next gate
 
-After #2551 and this stacked source contract are both merged, a separate
-operator gate may install the exact handler/config/storage on Nimo and perform a
-read-only authenticated qualification before any append is authorized.
+The reviewed handler is already installed on Nimo from the earlier operator
+ceremony. After this compare-capable source update is merged, an operator gate
+may install the exact updated handler without changing the witness/config/key
+identity, then perform an authenticated `compare` against the current
+Precision replay state.
+
+A later runtime admission gate should require authenticated `matched` before
+any protected replay mutation. Authenticated `witness_ahead` must fail closed
+as rollback regression; `local_ahead` must fail closed until Nimo catches up.

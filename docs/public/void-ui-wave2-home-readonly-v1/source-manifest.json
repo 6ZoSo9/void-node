@@ -20,7 +20,7 @@
   "payload_sha256": {
     "home-live.js": "26a7bbf35f4716a409ed586c79759f711d958864913fd008d8352ed27f35800e",
     "void_app_wave2_home_readonly_v1.ts": "b0bb57d6d17006843ed0592137511d7a7279ab5ea1e6d6faad3819d6dc0848c6",
-    "prove_void_ui_wave2_home_readonly_v1.ts": "7ad6745d0c1bc5e6f2daa25cdafff11769b025899e431d6b76e8f24e795c188f",
+    "prove_void_ui_wave2_home_readonly_v1.ts": "943aafbc021dd1e967c92d9b86bc013a119091ed4746af77bc89aabc8dc6cb8a",
     "home-view-fragment.txt": "93808d3c81349ba0282ec05fbce7227c825b238ca12bb3dbdca13af7d271e719",
     "README.md": "a39455817d4657f004e3652d57f339639c08a037fde7961aa7bc727c93f374c4",
     "ADAPTER_CONTRACT.md": "f0e623daabd67a920a275f803c92f199b4acf452f6a45e5e6760bccdf9728e57",
@@ -49,11 +49,11 @@
     "public/void-app-wave1-v1/assets/css/views.css": "f09b736ba9129cd1249479a61b54b22a967a008716bdad34b90ea93fa0d62b86",
     "public/void-app-wave1-v1/assets/js/earn-live.js": "d87eecb9679d6e92707cc6973de487302c3313958e25b5d6ec74381e6c9a779b",
     "public/void-app-wave1-v1/assets/js/home-live.js": "c41092b10b50cb902df02649684bf82f993183d408940f5b4453c693d689c0a9",
-    "public/void-app-wave1-v1/assets/js/views.js": "7a1b1aa188ffe98e4cd7c7a71e758663018302349e9a65c147c3c0e877123972",
+    "public/void-app-wave1-v1/assets/js/views.js": "b12d5b61ae05d70e4608d76e542bd0c8781dbb90bd66f43214ef0d59188d2fbb",
     "public/void-app-wave1-v1/assets/js/wallet-live.js": "4ff26ddbfb30fe0f35fbfea4950c4dff1b952d8dcd55ca365f555b6686389ebe",
     "public/void-app-wave1-v1/index.html": "bd7988e23c6e812f441d440b1175b46262f7ba73fb4eee51ef58faf18fef2411",
     "scripts/prove_void_ui_wave1_repository_foundation_v1.ts": "4a58e22098423e34fcf4da5914e69ce3eb270ecbaa82c3acb43a3611456b8874",
-    "src/index.ts": "e3445e38b01447f0d680e9d6977a624e5d464f128a7a219131ce7f061a72f123",
+    "src/index.ts": "54e50f871aee006f1ce612a0f79e973c8432b99a5c6e333bc766208563afa5cd",
     "src/ui/void_app_wave1_foundation_v1.ts": "4d1ff0baab67765c5aee290c9c8b8ac2f1ffc51b91e759ad49daec28022d32b1",
     "src/ui/void_app_wave2_home_readonly_v1.ts": "11607daafb5550f8e6f92736a2a0655f99e6ce3fa90a73a67e71e85775bba901",
     "src/ui/void_app_wave2_home_source_fetch_v1.ts": "0c4cd33cc7c0f2eaa890b127a615b3e632c14a7a04e1bc75676df9535e1253d3",
@@ -123,7 +123,7 @@
   "modal_background_direct_body_surface_refresh_date": "2026-09-27",
   "wallet_account_query_type_strict_refresh_date": "2026-09-27",
   "wallet_snapshot_freshness_refresh_date": "2026-09-29",
-  "repository_hashes_reconciled_current_main_date": "2026-09-29",
+  "repository_hashes_reconciled_current_main_date": "2026-10-07",
   "earn_snapshot_identity_freshness_refresh_date": "2026-09-29",
   "earn_transport_lifetime_refresh_date": "2026-09-29",
   "earn_snapshot_schema_closure_refresh_date": "2026-09-29",
@@ -134,5 +134,6 @@
   "earn_backend_source_content_length_refresh_date": "2026-09-30",
   "wallet_unavailable_evidence_coherence_refresh_date": "2026-10-06",
   "wallet_stale_evidence_clear_refresh_date": "2026-10-07",
-  "wallet_invalid_input_supersession_refresh_date": "2026-10-07"
+  "wallet_invalid_input_supersession_refresh_date": "2026-10-07",
+  "coupled_opening_copy_refresh_date": "2026-10-07"
 }

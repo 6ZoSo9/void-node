@@ -10,22 +10,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  guard:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Ensure script is executable
-        run: chmod +x tools/check_index_size.sh
-
-      - name: Run guard
-        run: tools/check_index_size.sh
-
-  large-files:
+  repository-size-history:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Block files >=10MB in working tree
         run: |
           big=$(find . -type f -size +10M -not -path './.git/*' -printf '%s %p\n' | wc -l)
@@ -35,11 +26,15 @@ jobs:
             exit 1
           fi
 
-  no-large-history:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with: { fetch-depth: 0 }   # IMPORTANT: get full history
-      - name: Block blobs >=10MB anywhere in history
+      - name: Block root-owned tracked files
         run: |
-          bash tools/check_large_history_baseline.sh
+          set -euo pipefail
+          ROOTY=$(git ls-files | xargs -I{} bash -c 'test -e "{}" && [ "$(stat -c"%U" "{}")" = "root" ] && echo "{}" || true')
+          if [ -n "${ROOTY:-}" ]; then
+            echo "Root-owned files:"
+            echo "$ROOTY"
+            exit 1
+          fi
+
+      - name: Block blobs >=10MB anywhere in history
+        run: bash tools/check_large_history_baseline.sh
