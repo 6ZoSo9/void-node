@@ -943,7 +943,7 @@ try{
     "utf8",
   );
   const packageRuntimeSource=fs.readFileSync(
-    "tools/void-reviewed-node-package-runtime-v1.mjs",
+    "tools/void-datanet-reviewed-node-package-runtime-v1.mjs",
     "utf8",
   );
   assert.match(

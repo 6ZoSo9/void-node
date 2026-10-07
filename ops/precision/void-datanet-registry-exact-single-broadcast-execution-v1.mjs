@@ -27,7 +27,7 @@ const ETHERS_STANDALONE_REL="dist/ethers.min.js";
 const LAUNCHER_REL="ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const TOOL_REL="tools/void-datanet-registry-exact-single-broadcast-execution-v1.mjs";
 const RPC_REL="tools/void-datanet-registry-deployer-activation-bound-observer-v1.mjs";
-const REVIEWED_RUNTIME_TOOL_REL="tools/void-reviewed-node-package-runtime-v1.mjs";
+const REVIEWED_RUNTIME_TOOL_REL="tools/void-datanet-reviewed-node-package-runtime-v1.mjs";
 const REVIEWED_RUNTIME_PROFILE_REL=
   "ops/security/reviewed-node-package-runtime-ethers-v1.json";
 const EXPECTED_RPC="http://127.0.0.1:18553/";

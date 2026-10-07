@@ -6,7 +6,7 @@ on:
       - "tools/void-datanet-registry-*.mjs"
       - "tools/datanet-content-commitment-*.mjs"
       - "tools/void-economic-epoch2-*.mjs"
-      - "tools/void-reviewed-node-package-runtime-v1.mjs"
+      - "tools/void-datanet-reviewed-node-package-runtime-v1.mjs"
       - "ops/security/reviewed-node-package-runtime-ethers-v1.json"
       - "ops/precision/void-datanet-registry-exact-single-broadcast-execution-v1.mjs"
       - "scripts/prove_void_datanet_registry_exact_single_broadcast_execution_v1.mjs"

@@ -125,18 +125,27 @@ function requireCleanRepository(root){
   if(status!=="") fail("reviewed_node_runtime_repository_not_clean");
 }
 
-function gitBlob(root,relative){
+function reviewedCommitish(value){
+  const commitish=String(value||"HEAD");
+  if(commitish!=="HEAD"&&!SHA40.test(commitish)){
+    fail("reviewed_node_runtime_reviewed_head_invalid");
+  }
+  return commitish;
+}
+
+function gitBlob(root,relative,reviewedHead="HEAD"){
+  const commitish=reviewedCommitish(reviewedHead);
   const blob=git(
     root,
-    ["rev-parse","HEAD:"+relative],
+    ["rev-parse",commitish+":"+relative],
     "reviewed_node_runtime_git_blob_unavailable",
   ).trim();
   if(!SHA40.test(blob)) fail("reviewed_node_runtime_git_blob_invalid");
   return blob;
 }
 
-function gitBlobBytes(root,relative){
-  const blob=gitBlob(root,relative);
+function gitBlobBytes(root,relative,reviewedHead="HEAD"){
+  const blob=gitBlob(root,relative,reviewedHead);
   const bytes=git(
     root,
     ["cat-file","blob",blob],
@@ -173,8 +182,8 @@ function stableRegularBytes(file,code,maxBytes=MAX_FILE_BYTES){
   }finally{fs.closeSync(fd);}
 }
 
-function exactHeadMetadata(root,relative){
-  const head=gitBlobBytes(root,relative);
+function exactHeadMetadata(root,relative,reviewedHead="HEAD"){
+  const head=gitBlobBytes(root,relative,reviewedHead);
   const working=stableRegularBytes(
     path.join(root,relative),
     "reviewed_node_runtime_"+relative.replaceAll("/","_"),
@@ -439,12 +448,13 @@ function packageJsonIdentity(root,lockRow){
   });
 }
 
-function collectInternal(root,rootPackages){
+function collectInternal(root,rootPackages,reviewedHead="HEAD"){
+  const commitish=reviewedCommitish(reviewedHead);
   const realRoot=fs.realpathSync.native(root);
   if(realRoot!==path.resolve(root)) fail("reviewed_node_runtime_repo_root_not_canonical");
   requireCleanRepository(realRoot);
-  const packageMeta=exactHeadMetadata(realRoot,"package.json");
-  const lockMeta=exactHeadMetadata(realRoot,"package-lock.json");
+  const packageMeta=exactHeadMetadata(realRoot,"package.json",commitish);
+  const lockMeta=exactHeadMetadata(realRoot,"package-lock.json",commitish);
   const packageBytes=stableRegularBytes(
     path.join(realRoot,"package.json"),
     "reviewed_node_runtime_package_json_stable_read",
@@ -521,8 +531,8 @@ function collectInternal(root,rootPackages){
       fail("reviewed_node_runtime_dependency_tree_changed_during_collection:"+row.lock_key);
     }
   }
-  const packageMetaAfter=exactHeadMetadata(realRoot,"package.json");
-  const lockMetaAfter=exactHeadMetadata(realRoot,"package-lock.json");
+  const packageMetaAfter=exactHeadMetadata(realRoot,"package.json",commitish);
+  const lockMetaAfter=exactHeadMetadata(realRoot,"package-lock.json",commitish);
   if(
     canonicalJson(packageMetaAfter)!==canonicalJson(packageMeta)||
     canonicalJson(lockMetaAfter)!==canonicalJson(lockMeta)
@@ -696,6 +706,7 @@ function assertExactProfile(actual,expected){
 export function readReviewedNodePackageRuntimeProfileV1({
   relativePath,
   repoRoot=ROOT,
+  reviewedHead="HEAD",
 }={}){
   if(
     typeof relativePath!=="string"||
@@ -708,7 +719,7 @@ export function readReviewedNodePackageRuntimeProfileV1({
   }
   const root=fs.realpathSync.native(repoRoot);
   requireCleanRepository(root);
-  const source=exactHeadMetadata(root,relativePath);
+  const source=exactHeadMetadata(root,relativePath,reviewedHead);
   const bytes=stableRegularBytes(
     path.join(root,...relativePath.split("/")),
     "reviewed_node_runtime_profile_file",
@@ -734,9 +745,10 @@ export function readReviewedNodePackageRuntimeProfileV1({
 export function verifyReviewedNodePackageRuntimeV1({
   profile,
   repoRoot=ROOT,
+  reviewedHead="HEAD",
 }={}){
   if(!plain(profile)) fail("reviewed_node_runtime_profile_required");
-  const actual=collectInternal(repoRoot,profile.root_packages).profile;
+  const actual=collectInternal(repoRoot,profile.root_packages,reviewedHead).profile;
   assertExactProfile(actual,profile);
   return Object.freeze({
     ok:true,
@@ -899,9 +911,10 @@ export function materializeReviewedNodePackageRuntimeV1({
   profile,
   repoRoot=ROOT,
   destinationRoot,
+  reviewedHead="HEAD",
 }={}){
   if(!plain(profile)) fail("reviewed_node_runtime_profile_required");
-  const current=collectInternal(repoRoot,profile.root_packages);
+  const current=collectInternal(repoRoot,profile.root_packages,reviewedHead);
   assertExactProfile(current.profile,profile);
   const root=fs.realpathSync.native(repoRoot);
   ensurePrivateDestination(destinationRoot,root);
