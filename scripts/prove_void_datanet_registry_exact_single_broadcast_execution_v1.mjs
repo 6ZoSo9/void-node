@@ -17,6 +17,7 @@ import {
   testOnlyPrepareReviewedExecutionV1,
   testOnlyReadExactHeadSourceV1,
   testOnlyReviewedGitHeadV1,
+  testOnlyRpcFactoryV1,
   testOnlyReviewedSourcePlanV1,
   testOnlyStaticImportSpecifiersV1,
   testOnlyVerifyReviewedSourcesV1,
@@ -944,9 +945,61 @@ try{
     "runner must pass confirmation into dangerous API boundary",
   );
   assert.ok(
-    runnerSource.includes('redirect:"error"'),
-    "loopback RPC fetch must reject redirects",
+    runnerSource.includes('const req=http.request({'),
+    "reviewed loopback RPC must use the fixed node:http request transport",
   );
+  assert.ok(
+    runnerSource.includes('finish(new Error("rpc_http_status_"+String(res.statusCode)))'),
+    "reviewed loopback RPC must reject every non-2xx response",
+  );
+  let redirectTargetRequests=0;
+  const redirectTarget=http.createServer((_req,res)=>{
+    redirectTargetRequests+=1;
+    res.writeHead(200,{"content-type":"application/json"});
+    res.end('{"jsonrpc":"2.0","id":1,"result":"0x"}');
+  });
+  await new Promise((resolve,reject)=>{
+    redirectTarget.once("error",reject);
+    redirectTarget.listen(0,"127.0.0.1",resolve);
+  });
+  const targetAddress=redirectTarget.address();
+  assert.ok(targetAddress&&typeof targetAddress!=="string");
+
+  let reviewedEndpointRequests=0;
+  const redirectingRpc=http.createServer((_req,res)=>{
+    reviewedEndpointRequests+=1;
+    res.writeHead(302,{
+      location:"http://127.0.0.1:"+String(targetAddress.port)+"/redirect-target",
+      "content-type":"text/plain",
+    });
+    res.end("redirect denied\n");
+  });
+
+  try{
+    await new Promise((resolve,reject)=>{
+      redirectingRpc.once("error",reject);
+      redirectingRpc.listen(18553,"127.0.0.1",resolve);
+    });
+    const reviewedRpc=testOnlyRpcFactoryV1();
+    await assert.rejects(
+      ()=>reviewedRpc("eth_getCode",["0x"+"11".repeat(20),"latest"]),
+      /rpc_http_status_302/u,
+      "reviewed RPC transport must reject 3xx and must not follow Location",
+    );
+    assert.equal(reviewedEndpointRequests,1);
+    await new Promise((resolve)=>setTimeout(resolve,50));
+    assert.equal(
+      redirectTargetRequests,
+      0,
+      "reviewed RPC transport must never issue the redirected request",
+    );
+  }finally{
+    await Promise.all([
+      new Promise((resolve)=>redirectingRpc.close(()=>resolve())),
+      new Promise((resolve)=>redirectTarget.close(()=>resolve())),
+    ]);
+  }
+
   assert.doesNotMatch(
     runnerSource,
     /from\s+["']\.\.\/\.\.\/tools\//u,
@@ -995,7 +1048,8 @@ try{
     assert.equal(toolSource.includes(forbidden),false,forbidden);
   }
 
-  console.log("VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_EXECUTION_V1_PROOF_GREEN");
+  console.log("reviewed_rpc_3xx_rejected_without_redirect_follow=true");
+console.log("VOID_DATANET_REGISTRY_EXACT_SINGLE_BROADCAST_EXECUTION_V1_PROOF_GREEN");
   console.log("durable_attempt_intent_before_rpc=true");
   console.log("eth_sendRawTransaction_maximum_invocations_per_attempt=1");
   console.log("duplicate_invocation_rpc_send_count=0");
