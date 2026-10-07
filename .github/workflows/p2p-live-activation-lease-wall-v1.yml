@@ -3,7 +3,29 @@ name: P2P Live Activation Lease Wall v1
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/p2p-*.yml'
+      - 'scripts/prove_p2p_*'
+      - 'src/p2p/**'
+      - 'ops/mainnet0/*p2p*'
+      - 'docs/architecture/p2p-*.md'
+      - 'src/index.ts'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
   pull_request:
+    paths:
+      - '.github/workflows/p2p-*.yml'
+      - 'scripts/prove_p2p_*'
+      - 'src/p2p/**'
+      - 'ops/mainnet0/*p2p*'
+      - 'docs/architecture/p2p-*.md'
+      - 'src/index.ts'
+      - 'tools/check_index_size.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
 
 permissions:
   contents: read
