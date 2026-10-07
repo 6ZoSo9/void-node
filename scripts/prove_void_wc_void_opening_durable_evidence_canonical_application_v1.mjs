@@ -316,13 +316,30 @@ try{
   assert.equal(pure.coupled_activation_ready,false);
 
   const planBytes=prettyBytes(plan);
-  assert.throws(
-    ()=>verifyVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1({
+  const currentBranch=String(
+    git(["branch","--show-current"]).stdout||"",
+  ).trim();
+  const verifySyntheticUnappliedPlan=()=>(
+    verifyVoidWcVoidOpeningDurableEvidenceCanonicalApplicationV1({
       application_plan_bytes:planBytes,
       application_plan_file_sha256:sha256(planBytes),
-    }),
-    /OPENING_DURABLE_APPLICATION_APPLIED_BRANCH_NOT_MAIN/u,
+    })
   );
+  if(currentBranch==="main"){
+    // Push-to-main runs intentionally exercise the applied-source guard:
+    // this synthetic promotion plan is not the canonical applied candidate.
+    assert.throws(
+      verifySyntheticUnappliedPlan,
+      /OPENING_DURABLE_APPLICATION_PRODUCTION_BLOB_NOT_APPLIED/u,
+    );
+  }else{
+    // Pull-request and named feature-branch runs exercise the earlier branch
+    // authority guard before any applied-source comparison.
+    assert.throws(
+      verifySyntheticUnappliedPlan,
+      /OPENING_DURABLE_APPLICATION_APPLIED_BRANCH_NOT_MAIN/u,
+    );
+  }
 
   {
     const bad=structuredClone(promotion);
@@ -602,6 +619,7 @@ try{
   console.log("git_replacement_refs_ignored=true");
   console.log("canonical_source_prestates_bound=true");
   console.log("forged_application_plan_held=true");
+  console.log("contextual_branch_and_main_unapplied_guards_verified=true");
   console.log("exact_three_field_delta_prepared=true");
   console.log("bounded_canary_green=false");
   console.log("coupled_activation_ready=false");
