@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import fs from "node:fs";
+import * as http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import {spawnSync} from "node:child_process";
@@ -756,6 +757,49 @@ function registerReviewedModuleGraphV1(plan,ethersBundle,head){
   });
 }
 
+async function withReviewedAmbientCapabilityGuardV1(operation){
+  if(typeof operation!=="function"){
+    fail("reviewed_ambient_guard_operation_invalid");
+  }
+  const restorers=[];
+  const install=(target,key,reason,{optional=false}={})=>{
+    const descriptor=Object.getOwnPropertyDescriptor(target,key);
+    if(!descriptor){
+      if(optional) return;
+      fail("reviewed_ambient_guard_unavailable:"+key);
+    }
+    if(
+      !Object.hasOwn(descriptor,"value")||
+      typeof descriptor.value!=="function"||
+      (descriptor.configurable!==true&&descriptor.writable!==true)
+    ){
+      fail("reviewed_ambient_guard_unavailable:"+key);
+    }
+    const denied=()=>{throw new Error(reason);};
+    if(descriptor.configurable===true){
+      Object.defineProperty(target,key,{...descriptor,value:denied});
+      restorers.push(()=>Object.defineProperty(target,key,descriptor));
+    }else{
+      target[key]=denied;
+      restorers.push(()=>{target[key]=descriptor.value;});
+    }
+  };
+  install(globalThis,"fetch","reviewed_ambient_fetch_forbidden");
+  install(
+    process,
+    "getBuiltinModule",
+    "reviewed_ambient_get_builtin_module_forbidden",
+    {optional:true},
+  );
+  try{
+    return await operation();
+  }finally{
+    for(let index=restorers.length-1;index>=0;index-=1){
+      restorers[index]();
+    }
+  }
+}
+
 function materializeReviewedSourcesV1(plan,destinationRoot){
   if(fs.existsSync(destinationRoot)) fail("reviewed_source_destination_exists");
   fs.mkdirSync(destinationRoot,{mode:0o700});
@@ -917,8 +961,10 @@ async function prepareReviewedExecutionV1(
     let tool;
     let rpcModule;
     try{
-      tool=await import(graph.tool_url);
-      rpcModule=await import(graph.rpc_url);
+      await withReviewedAmbientCapabilityGuardV1(async()=>{
+        tool=await import(graph.tool_url);
+        rpcModule=await import(graph.rpc_url);
+      });
     }finally{
       if(Buffer.isBuffer(privateToolOriginal)){
         fs.chmodSync(privateToolPath,0o600);
@@ -942,7 +988,9 @@ async function prepareReviewedExecutionV1(
       parent,
       runtime_root:runtimeRoot,
       plan,
-      submit:tool.submitVoidDatanetRegistryExactSingleBroadcastV1,
+      submit:(...args)=>withReviewedAmbientCapabilityGuardV1(
+        ()=>tool.submitVoidDatanetRegistryExactSingleBroadcastV1(...args),
+      ),
       rpc_url:rpcModule.PRIVATE_SUCCESSOR_RPC_V1,
       binding:Object.freeze({
         repository_head_sha:head,
@@ -1088,40 +1136,83 @@ function rpcFactory(rpcUrl){
       "eth_getTransactionCount",
     ]);
     if(!allowed.has(method)) fail("rpc_method_not_allowed:"+method);
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),8000);
-    let response;
-    let text;
-    try{
-      response=await fetch(rpcUrl,{
+    const requestId=++id;
+    const body=JSON.stringify({
+      jsonrpc:"2.0",
+      id:requestId,
+      method,
+      params,
+    });
+    return await new Promise((resolve,reject)=>{
+      let settled=false;
+      const finish=(error,value)=>{
+        if(settled) return;
+        settled=true;
+        if(error) reject(error);
+        else resolve(value);
+      };
+      const req=http.request({
+        protocol:"http:",
+        hostname:"127.0.0.1",
+        port:18553,
+        path:"/",
         method:"POST",
-        headers:{"content-type":"application/json"},
-        body:JSON.stringify({
-          jsonrpc:"2.0",
-          id:++id,
-          method,
-          params,
-        }),
-        signal:controller.signal,
-        redirect:"error",
+        family:4,
+        agent:false,
+        headers:{
+          Accept:"application/json",
+          "Content-Type":"application/json",
+          "Content-Length":String(Buffer.byteLength(body)),
+          Connection:"close",
+          "User-Agent":"void-datanet-registry-reviewed-broadcast-v1",
+        },
+      },(res)=>{
+        const chunks=[];
+        let total=0;
+        res.on("data",(chunk)=>{
+          const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
+          total+=bytes.length;
+          if(total>MAX_RPC_RESPONSE){
+            req.destroy(new Error("rpc_response_too_large"));
+            return;
+          }
+          chunks.push(bytes);
+        });
+        res.on("end",()=>{
+          const status=Number(res.statusCode);
+          if(!Number.isInteger(status)||status<200||status>=300){
+            finish(new Error("rpc_http_status_"+String(res.statusCode)));
+            return;
+          }
+          let parsed;
+          try{
+            parsed=JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          }catch{
+            finish(new Error("rpc_json_invalid"));
+            return;
+          }
+          if(parsed?.error){
+            const error=new Error("rpc_error");
+            if(Number.isInteger(parsed.error.code)) error.code=parsed.error.code;
+            finish(error);
+            return;
+          }
+          if(
+            parsed?.jsonrpc!=="2.0"||
+            parsed?.id!==requestId||
+            !Object.hasOwn(parsed,"result")
+          ){
+            finish(new Error("rpc_result_invalid"));
+            return;
+          }
+          finish(null,parsed.result);
+        });
       });
-      if(response.redirected) fail("rpc_redirect_forbidden");
-      text=await response.text();
-    }finally{
-      clearTimeout(timer);
-    }
-    if(Buffer.byteLength(text||"","utf8")>MAX_RPC_RESPONSE){
-      fail("rpc_response_too_large");
-    }
-    if(!response.ok) fail("rpc_http_status_"+String(response.status));
-    const parsed=JSON.parse(text);
-    if(parsed?.error){
-      const error=new Error("rpc_error");
-      if(Number.isInteger(parsed.error.code)) error.code=parsed.error.code;
-      throw error;
-    }
-    if(!Object.hasOwn(parsed,"result")) fail("rpc_result_missing");
-    return parsed.result;
+      req.setTimeout(8000);
+      req.on("timeout",()=>req.destroy(new Error("rpc_timeout")));
+      req.on("error",(error)=>finish(error));
+      req.end(body);
+    });
   };
 }
 
@@ -1172,7 +1263,9 @@ export async function testOnlyImportSyntheticReviewedModuleV1(
     Object.freeze({source:"export default Object.freeze({});"}),
     syntheticHead,
   );
-  return import(graph.tool_url);
+  return await withReviewedAmbientCapabilityGuardV1(
+    ()=>import(graph.tool_url),
+  );
 }
 
 export function testOnlyReviewedSourcePlanV1(){
