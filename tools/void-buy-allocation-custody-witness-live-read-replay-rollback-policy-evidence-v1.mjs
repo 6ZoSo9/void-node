@@ -30,6 +30,7 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_
     double_storage_census_required: true,
     policy_file_double_read_stability_required: true,
     terminal_storage_reobservation_required: true,
+    terminal_policy_rebind_required: true,
     installation_storage_rebound: false,
     live_policy_observation_proven: false,
     policy_file_installation_proven: false,
@@ -666,6 +667,47 @@ function installationCommitment(value) {
   });
 }
 
+function assertObservationSequenceStable({
+  first_installation,
+  second_installation,
+  terminal_installation,
+  first_policy,
+  second_policy,
+  terminal_policy,
+}) {
+  const firstCommitment = installationCommitment(first_installation);
+  if (
+    firstCommitment !== installationCommitment(second_installation) ||
+    firstCommitment !== installationCommitment(terminal_installation) ||
+    !samePolicyObservation(
+      normalizePolicyObservation(first_policy),
+      normalizePolicyObservation(second_policy),
+    ) ||
+    !samePolicyObservation(
+      normalizePolicyObservation(first_policy),
+      normalizePolicyObservation(terminal_policy),
+    )
+  ) {
+    fail(
+      "witness_replay_rollback_policy_evidence_changed_during_observation",
+    );
+  }
+  return true;
+}
+
+export function testOnlyAssertBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyObservationSequenceV1(
+  input,
+) {
+  return assertObservationSequenceStable({
+    first_installation: input?.first_installation,
+    second_installation: input?.second_installation,
+    terminal_installation: input?.terminal_installation,
+    first_policy: input?.first_policy,
+    second_policy: input?.second_policy,
+    terminal_policy: input?.terminal_policy,
+  });
+}
+
 function classifyObserved({
   installation_evidence,
   policy_file,
@@ -842,16 +884,15 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPoli
       );
     }
 
-    const firstCommitment = installationCommitment(firstInstallation);
-    if (
-      firstCommitment !== installationCommitment(secondInstallation) ||
-      firstCommitment !== installationCommitment(terminalInstallation) ||
-      !samePolicyObservation(firstPolicy, secondPolicy)
-    ) {
-      fail(
-        "witness_replay_rollback_policy_evidence_changed_during_observation",
-      );
-    }
+    const terminalPolicy = readRootOwnedPolicyFile();
+    assertObservationSequenceStable({
+      first_installation: firstInstallation,
+      second_installation: secondInstallation,
+      terminal_installation: terminalInstallation,
+      first_policy: firstPolicy,
+      second_policy: secondPolicy,
+      terminal_policy: terminalPolicy,
+    });
 
     assertPolicyObservationWindowFresh(
       nowMs,
