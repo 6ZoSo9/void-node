@@ -93,8 +93,20 @@ The reviewed contract fixes:
 - maximum request bytes: 65,536;
 - maximum response bytes: 65,536;
 - response timeout: 5,000 ms;
-- one newline-delimited request per connection;
+- exactly one **canonical JSON** request line per connection, terminated by
+  a single newline and the peer's write-side EOF (half-close);
+- no reservation or other custody operation before write-side EOF;
+- any trailing bytes, second frame, missing newline, or duplicate JSON member
+  HOLDs without an allocation write;
 - AF_UNIX transport only.
+
+The service uses a half-open-capable UNIX socket to send its one response
+*after* the client finishes writing. A client must send the canonical
+sorted-key JSON envelope plus `\\n`, call `socket.end()` on its write side,
+and then read the single response line. A client that waits for a response
+without closing its write side receives a bounded timeout/HOLD instead.
+This is a source-only framing rule; no public runtime or IPC client has been
+activated by the change.
 
 Responses contain no wallet/private key/signer material, raw transactions,
 arbitrary filesystem content, or funds authority.
@@ -188,6 +200,9 @@ The proof uses temporary private roots only. It covers:
 - exact replay idempotence;
 - clean recovery;
 - a pre-existing durable publication intent recovered before a new reservation;
+- full UNIX-socket request/write-EOF round trips;
+- a split second frame and duplicate-member JSON rejection before reservation;
+- a missing newline rejection and a valid reserve/duplicate round trip;
 - terminal `recovered_retry_required` behavior;
 - rejection of caller path injection;
 - rejection of caller generation injection;
