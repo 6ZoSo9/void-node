@@ -173,7 +173,8 @@ The focused proof covers:
 - missing high-water second control rejection;
 - future/stale/overlong policy-window rejection;
 - zero policy-generation rejection;
-- accessor/getter evidence rejection without getter execution; and
+- accessor/getter evidence rejection without getter execution, including nested
+  installation file evidence traversed by the qualification hash; and
 - all negative live/runtime/custody/economic authority flags.
 
 ## Next gate
