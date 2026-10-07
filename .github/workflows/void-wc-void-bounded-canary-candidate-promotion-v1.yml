@@ -45,6 +45,12 @@ on:
       - "contracts/mainnet/WCVoidMarketVaultV2.sol"
       - "package.json"
       - "package-lock.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
   push:
     branches: [main]
     paths:
@@ -91,6 +97,12 @@ on:
       - "package.json"
       - "package-lock.json"
 
+      - "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json"
+      - "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json"
+      - "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json"
+      - "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
 permissions:
   contents: read
 

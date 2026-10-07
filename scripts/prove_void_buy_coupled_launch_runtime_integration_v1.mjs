@@ -8,8 +8,8 @@ import {
   derive as deriveBuyVoidEnforcementArtifactAttestationV1,
 } from "./prove_buy_void_enforcement_artifact_attestation_v1.mjs";
 import {
-  deriveBuyVoidEnforcementArtifactAttestationV3,
-} from "./prove_buy_void_enforcement_artifact_attestation_v3.mjs";
+  deriveBuyVoidEnforcementArtifactAttestationV4,
+} from "./prove_buy_void_enforcement_artifact_attestation_v4.mjs";
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   readBuyLaunchGateV1,
@@ -18,8 +18,14 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = relative => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const index = read("src/index.ts");
+const coupledLaunchGate = read(
+  "src/economic/buy_void_coupled_launch_gate_v1.mjs",
+);
 const docker = read("Dockerfile");
 const compose = read("docker-compose.yml");
+const launchWorkflow = read(
+  ".github/workflows/buy-void-coupled-launch-gate-v1.yml",
+);
 const capacityAdmission = read(
   "src/economic/buy_void_verified_payment_capacity_admission_v1.ts",
 );
@@ -43,7 +49,10 @@ const gitBlobSha1 = bytes => crypto.createHash("sha1")
 
 assert.ok(index.includes("VOID_BUY_COUPLED_LAUNCH_RUNTIME_BINDING_V1"));
 assert.ok(index.includes('../src/economic/buy_void_coupled_launch_gate_v1.mjs'));
-assert.ok(index.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1));
+assert.ok(
+  coupledLaunchGate.includes(VOID_BUY_COUPLED_LAUNCH_ID_V1),
+  "coupled launch ID must be owned by the imported gate module",
+);
 assert.ok(index.includes("readBuyLaunchGateV1()"));
 assert.ok(index.includes("launch_authority:launch.request_authority"));
 assert.ok(index.includes("expires_at_ms:launch.request_authority.expires_at_ms"));
@@ -300,6 +309,8 @@ for (const required of [
   "/app/tools/void-wc-void-coupled-launch-readiness-v1.mjs",
   "/app/tools/void-wc-void-production-readiness-v1.mjs",
   "/app/tools/void-wc-void-market-vault-compiled-identity-acceptance-v1.mjs",
+  "/app/tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
+  "/app/tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
   "/app/tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
   "/app/tools/void-wc-void-opening-settlement-adapter-review-v1.mjs",
   "/app/tools/void-coupled-economic-successor-gate-v1.mjs",
@@ -314,6 +325,10 @@ for (const required of [
   "/app/tools/void-wc-void-public-quote-disclosure-v1.mjs",
   "/app/tools/void-economic-intent-ttl-caps-policy-v1.mjs",
   "/app/tools/void-economic-system-sponsored-anti-grief-policy-contract-v1.mjs",
+  "/app/ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json",
+  "/app/ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json",
+  "/app/ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
+  "/app/ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64",
   "/app/ops/mainnet0/wc-void-production-candidate-v1.json",
   "/app/ops/mainnet0/coupled-economic-successor-gate-candidate-v1.json",
   "/app/ops/mainnet0/economic-evm-successor-migration-candidate-v1.json",
@@ -321,6 +336,26 @@ for (const required of [
 ]) {
   assert.ok(docker.includes(required), required);
 }
+const currentIdentityRuntimeDependencies = Object.freeze([
+  "tools/void-wc-void-market-vault-compiled-identity-current-v2.mjs",
+  "tools/void-wc-void-market-vault-compiled-identity-correction-v2.mjs",
+  "tools/void-wc-void-market-vault-compiler-identity-v1.mjs",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-current-binding-v2.json",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-correction-v2.json",
+  "ops/mainnet0/wc-void-market-vault-compiled-identity-acceptance-v1.json",
+  "ops/mainnet0/wc-void-market-vault-compiler-identity-v1-artifact.zip.b64"
+]);
+for (const dependency of currentIdentityRuntimeDependencies) {
+  const occurrences =
+    launchWorkflow.split('"' + dependency + '"').length - 1;
+  assert.equal(
+    occurrences,
+    2,
+    "Buy coupled-launch workflow must trigger on current identity dependency: " +
+      dependency,
+  );
+}
+
 assert.ok(docker.includes("USER root"));
 assert.equal(
   docker.includes('VOLUME ["/root/.local/state/void-node-authority-v1"]'),
@@ -407,19 +442,19 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
   const manifest =
     deriveBuyVoidEnforcementArtifactAttestationV1(ROOT);
   const expectedSuccessor =
-    deriveBuyVoidEnforcementArtifactAttestationV3(ROOT);
+    deriveBuyVoidEnforcementArtifactAttestationV4(ROOT);
   const committedSuccessor = JSON.parse(read(
-    "docs/architecture/buy-void-enforcement-artifact-attestation-v3.json",
+    "docs/architecture/buy-void-enforcement-artifact-attestation-v4.json",
   ));
   assert.deepEqual(
     committedSuccessor,
     expectedSuccessor,
-    "committed enforcement V3 successor must match current closure",
+    "committed enforcement V4 successor must match current closure",
   );
   assert.equal(
     committedSuccessor.current_enforcement.enforcement_artifact_set_sha256,
     manifest.enforcement_artifact_set_sha256,
-    "runtime integration must bind the V3-attested current enforcement closure",
+    "runtime integration must bind the V4-attested current enforcement closure",
   );
   const dockerBytes = fs.readFileSync(path.join(ROOT, "Dockerfile"));
   const lockBytes = fs.readFileSync(

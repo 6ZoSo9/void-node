@@ -65,7 +65,7 @@ checked.
 The current reviewed coupled launch is:
 
 ```text
-sha256:fe02b5c813adea98f55e8587759df9316f7a8d5f1123114dc851cbad863fdc26
+sha256:b893f68c8202cb1a8ea25792fb0c032876bbac85ba11a15f4e95dad1f1d75a3d
 ```
 
 ## Market-vault evidence

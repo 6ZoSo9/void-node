@@ -8,12 +8,17 @@ import {
   fetchVoidUiWave3WalletSourceJsonV1,
   walletAccountIdV1,
   walletFiniteNumberV1,
+  walletNativeGasDisplayV1,
   walletNonNegativeSafeIntegerV1,
 } from "../src/ui/void_app_wave3_wallet_readonly_v1.js";
 import {
   WALLET_SNAPSHOT_MAX_AGE_MS,
   WALLET_SNAPSHOT_MAX_FUTURE_SKEW_MS,
   clearWalletViewV1,
+  loadWalletAccountV1,
+  renderWalletErrorV1,
+  renderWalletLoadingV1,
+  renderWalletV1,
   validateWalletSnapshotV1,
 } from "../public/void-app-wave1-v1/assets/js/wallet-live.js";
 
@@ -153,6 +158,34 @@ for (const wrong of [null, true, "0", -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
 }
 assert.equal(walletNonNegativeSafeIntegerV1(0), 0);
 assert.equal(walletNonNegativeSafeIntegerV1(42), 42);
+
+for (const invalidNativeGas of [
+  null,
+  undefined,
+  0,
+  "unlimited",
+  "1 ETH",
+  "+1",
+  "-1",
+  "1e3",
+  "1,000",
+  "01",
+  ".5",
+  "1.",
+  "0." + "1".repeat(19),
+]) {
+  assert.equal(walletNativeGasDisplayV1(invalidNativeGas), null);
+}
+for (const validNativeGas of [
+  "0",
+  "0.0",
+  "1",
+  "1.0",
+  "0.500000000",
+  "1." + "0".repeat(18),
+]) {
+  assert.equal(walletNativeGasDisplayV1(validNativeGas), validNativeGas);
+}
 
 for (const wrong of [
   null,
@@ -441,6 +474,110 @@ const statusString = validSnapshot() as any;
 statusString.sources.wallet_status.status = "200";
 assert.throws(() => validateWalletAt(statusString));
 
+for (const [ok, status] of [[false, 200], [true, 503]] as const) {
+  const value = validSnapshot() as any;
+  value.sources.wallet_status.ok = ok;
+  value.sources.wallet_status.status = status;
+  assert.throws(
+    () => validateWalletAt(value),
+    /HTTP outcome mismatch/,
+  );
+}
+
+for (const balanceKey of ["ledger_wc", "production_wc"] as const) {
+  const value = validSnapshot() as any;
+  value.balances[balanceKey].available = false;
+  value.balances[balanceKey].balance = null;
+  value.balances[balanceKey].entries = null;
+  value.balances[balanceKey].display = "999";
+  assert.throws(
+    () => validateWalletAt(value),
+    /unavailable evidence must remain null and undisplayed/,
+  );
+}
+
+for (const balanceKey of ["ledger_wc", "production_wc"] as const) {
+  const value = validSnapshot() as any;
+  value.balances[balanceKey].display = "999";
+  assert.throws(
+    () => validateWalletAt(value),
+    /display does not match balance/,
+  );
+}
+
+const inventedVoidDisplay = validSnapshot() as any;
+inventedVoidDisplay.balances.void.display = "999 VOID";
+assert.throws(
+  () => validateWalletAt(inventedVoidDisplay),
+  /VOID balance boundary mismatch/,
+);
+
+const unavailableWalletEvidence = validSnapshot() as any;
+unavailableWalletEvidence.wallet.source_available = false;
+assert.throws(
+  () => validateWalletAt(unavailableWalletEvidence),
+  /unavailable source exposed wallet evidence/,
+);
+
+const unavailableNativeGasDisplay = validSnapshot() as any;
+unavailableNativeGasDisplay.wallet.native_gas_available = false;
+assert.throws(
+  () => validateWalletAt(unavailableNativeGasDisplay),
+  /native gas availability mismatch/,
+);
+
+const nativeGasWithoutWallet = validSnapshot() as any;
+nativeGasWithoutWallet.wallet.has_wallet = false;
+nativeGasWithoutWallet.wallet.address = "";
+nativeGasWithoutWallet.wallet.unlocked = false;
+assert.throws(
+  () => validateWalletAt(nativeGasWithoutWallet),
+  /native gas availability mismatch/,
+);
+
+for (const invalidNativeGasDisplay of [
+  "unlimited",
+  "1 ETH",
+  "+1",
+  "-1",
+  "1e3",
+  "1,000",
+  "01",
+  ".5",
+  "1.",
+  "0." + "1".repeat(19),
+]) {
+  const invalidNativeGas = validSnapshot() as any;
+  invalidNativeGas.wallet.native_gas_display =
+    invalidNativeGasDisplay;
+  assert.throws(
+    () => validateWalletAt(invalidNativeGas),
+    /native gas display invalid/,
+  );
+}
+
+for (const validNativeGasDisplay of [
+  "0",
+  "0.0",
+  "1",
+  "1.0",
+  "0.500000000",
+  "1." + "0".repeat(18),
+]) {
+  const validNativeGas = validSnapshot() as any;
+  validNativeGas.wallet.native_gas_display =
+    validNativeGasDisplay;
+  assert.doesNotThrow(() => validateWalletAt(validNativeGas));
+}
+
+const ledgerWithoutSource = validSnapshot() as any;
+ledgerWithoutSource.sources.ledger_wc.ok = false;
+ledgerWithoutSource.sources.ledger_wc.status = 503;
+assert.throws(
+  () => validateWalletAt(ledgerWithoutSource),
+  /ledger WC available without its source/,
+);
+
 const fractionalCount = validSnapshot() as any;
 fractionalCount.balances.ledger_wc.entries = 1.5;
 assert.throws(() => validateWalletAt(fractionalCount));
@@ -453,7 +590,264 @@ const absent = validSnapshot() as any;
 absent.wallet.has_wallet = false;
 absent.wallet.unlocked = false;
 absent.wallet.address = "";
+absent.wallet.native_gas_available = false;
+absent.wallet.native_gas_display = "—";
 assert.doesNotThrow(() => validateWalletAt(absent));
+
+const unavailableSource = validSnapshot() as any;
+unavailableSource.wallet.source_available = false;
+unavailableSource.wallet.has_wallet = false;
+unavailableSource.wallet.address = "";
+unavailableSource.wallet.unlocked = false;
+unavailableSource.wallet.native_gas_available = false;
+unavailableSource.wallet.native_gas_display = "—";
+unavailableSource.sources.wallet_status.ok = false;
+unavailableSource.sources.wallet_status.status = 503;
+
+const rendered = new Map<string, { textContent: string; className: string }>();
+const originalDocument = (globalThis as any).document;
+const originalDateNow = Date.now;
+try {
+  (globalThis as any).document = {
+    querySelector: (selector: string) => {
+      if (!rendered.has(selector)) {
+        rendered.set(selector, { textContent: "", className: "" });
+      }
+      return rendered.get(selector);
+    },
+  };
+  Date.now = () => PROOF_NOW_MS;
+  assert.doesNotThrow(() =>
+    renderWalletV1(validSnapshot(), "account-A", PROOF_NOW_MS),
+  );
+  assert.equal(
+    rendered.get("[data-wallet-address]")?.textContent,
+    "0x" + "a".repeat(40),
+  );
+  assert.equal(rendered.get("[data-wallet-native-gas]")?.textContent, "1");
+  assert.equal(rendered.get("[data-wallet-ledger-wc]")?.textContent, "3");
+  assert.equal(
+    rendered.get("[data-wallet-source-status]")?.textContent,
+    "Available",
+  );
+
+  renderWalletLoadingV1();
+  assert.equal(
+    rendered.get("[data-wallet-state-chip]")?.textContent,
+    "Loading account",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-message]")?.textContent,
+    "Reading three fixed local sources.",
+  );
+  for (const selector of [
+    "[data-wallet-account-id]",
+    "[data-wallet-address]",
+    "[data-wallet-native-gas]",
+    "[data-wallet-void-balance]",
+    "[data-wallet-ledger-wc]",
+    "[data-wallet-production-wc]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "—");
+  }
+  for (const selector of [
+    "[data-wallet-local-status]",
+    "[data-wallet-lock-state]",
+    "[data-wallet-source-status]",
+    "[data-wallet-source-ledger]",
+    "[data-wallet-source-production]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "Not checked");
+  }
+  assert.equal(
+    rendered.get("[data-wallet-ledger-meta]")?.textContent,
+    "No account loaded",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-production-meta]")?.textContent,
+    "No account loaded",
+  );
+
+  assert.doesNotThrow(() =>
+    renderWalletV1(validSnapshot(), "account-A", PROOF_NOW_MS),
+  );
+  renderWalletErrorV1("Proof adapter failure");
+  assert.equal(
+    rendered.get("[data-wallet-state-chip]")?.textContent,
+    "Account unavailable",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-message]")?.textContent,
+    "Proof adapter failure",
+  );
+  for (const selector of [
+    "[data-wallet-account-id]",
+    "[data-wallet-address]",
+    "[data-wallet-native-gas]",
+    "[data-wallet-void-balance]",
+    "[data-wallet-ledger-wc]",
+    "[data-wallet-production-wc]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "—");
+  }
+  for (const selector of [
+    "[data-wallet-local-status]",
+    "[data-wallet-lock-state]",
+    "[data-wallet-source-status]",
+    "[data-wallet-source-ledger]",
+    "[data-wallet-source-production]",
+  ]) {
+    assert.equal(rendered.get(selector)?.textContent, "Not checked");
+  }
+  assert.equal(
+    rendered.get("[data-wallet-ledger-meta]")?.textContent,
+    "No account loaded",
+  );
+  assert.equal(
+    rendered.get("[data-wallet-production-meta]")?.textContent,
+    "No account loaded",
+  );
+
+  assert.doesNotThrow(() =>
+    renderWalletV1(unavailableSource, "account-A", PROOF_NOW_MS),
+  );
+} finally {
+  Date.now = originalDateNow;
+  if (originalDocument === undefined) delete (globalThis as any).document;
+  else (globalThis as any).document = originalDocument;
+}
+assert.equal(
+  rendered.get("[data-wallet-state-chip]")?.textContent,
+  "Wallet status unavailable",
+);
+assert.equal(
+  rendered.get("[data-wallet-state-chip]")?.className,
+  "status-chip status-chip--warning",
+);
+assert.equal(
+  rendered.get("[data-wallet-message]")?.textContent,
+  "Wallet presence and lock state could not be checked. Independently available accounting balances remain read-only.",
+);
+
+const racedRender = new Map<string, { textContent: string; className: string }>();
+const racedStorageWrites: Array<[string, string]> = [];
+const racedButton = { disabled: false };
+const originalRaceDocument = (globalThis as any).document;
+const originalRaceWindow = (globalThis as any).window;
+const originalRaceSessionStorage = (globalThis as any).sessionStorage;
+const originalRaceFetch = globalThis.fetch;
+const originalRaceDateNow = Date.now;
+let resolveOlderFetch!: (response: Response) => void;
+let signalOlderFetchStarted!: () => void;
+const olderFetchStarted = new Promise<void>((resolve) => {
+  signalOlderFetchStarted = resolve;
+});
+try {
+  (globalThis as any).document = {
+    querySelector: (selector: string) => {
+      if (!racedRender.has(selector)) {
+        racedRender.set(selector, { textContent: "", className: "" });
+      }
+      return racedRender.get(selector);
+    },
+  };
+  (globalThis as any).window = {
+    location: {
+      hash: "#/wallet",
+      origin: "http://localhost",
+    },
+  };
+  (globalThis as any).sessionStorage = {
+    setItem: (key: string, value: string) => {
+      racedStorageWrites.push([key, value]);
+    },
+  };
+  globalThis.fetch = (() => {
+    signalOlderFetchStarted();
+    return new Promise<Response>((resolve) => {
+      resolveOlderFetch = resolve;
+    });
+  }) as typeof fetch;
+  Date.now = () => PROOF_NOW_MS;
+
+  const olderLoad = loadWalletAccountV1("account-A", racedButton);
+  await olderFetchStarted;
+  assert.equal(racedButton.disabled, true);
+
+  await loadWalletAccountV1("bad account", racedButton);
+  assert.equal(racedButton.disabled, false);
+  assert.equal(
+    racedRender.get("[data-wallet-state-chip]")?.textContent,
+    "Account unavailable",
+  );
+  assert.equal(
+    racedRender.get("[data-wallet-message]")?.textContent,
+    "Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.",
+  );
+  for (const selector of [
+    "[data-wallet-account-id]",
+    "[data-wallet-address]",
+    "[data-wallet-native-gas]",
+    "[data-wallet-void-balance]",
+    "[data-wallet-ledger-wc]",
+    "[data-wallet-production-wc]",
+  ]) {
+    assert.equal(racedRender.get(selector)?.textContent, "—");
+  }
+  assert.deepEqual(racedStorageWrites, []);
+
+  resolveOlderFetch(responseAt(
+    "http://localhost/__void/ui/wave3/wallet.json?account=account-A",
+    JSON.stringify(validSnapshot("account-A")),
+    {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    },
+  ));
+  await olderLoad;
+
+  assert.equal(
+    racedRender.get("[data-wallet-state-chip]")?.textContent,
+    "Account unavailable",
+  );
+  assert.equal(
+    racedRender.get("[data-wallet-message]")?.textContent,
+    "Use 1–128 letters, numbers, periods, underscores, colons, or hyphens.",
+  );
+  assert.deepEqual(racedStorageWrites, []);
+} finally {
+  Date.now = originalRaceDateNow;
+  globalThis.fetch = originalRaceFetch;
+  if (originalRaceDocument === undefined) delete (globalThis as any).document;
+  else (globalThis as any).document = originalRaceDocument;
+  if (originalRaceWindow === undefined) delete (globalThis as any).window;
+  else (globalThis as any).window = originalRaceWindow;
+  if (originalRaceSessionStorage === undefined) {
+    delete (globalThis as any).sessionStorage;
+  } else {
+    (globalThis as any).sessionStorage = originalRaceSessionStorage;
+  }
+}
+assert.equal(
+  rendered.get("[data-wallet-address]")?.textContent,
+  "Unavailable",
+);
+assert.equal(
+  rendered.get("[data-wallet-local-status]")?.textContent,
+  "Unavailable",
+);
+assert.equal(
+  rendered.get("[data-wallet-lock-state]")?.textContent,
+  "Not checked",
+);
+assert.equal(
+  rendered.get("[data-wallet-ledger-wc]")?.textContent,
+  "3",
+);
+assert.equal(
+  rendered.get("[data-wallet-production-wc]")?.textContent,
+  "1.5",
+);
 
 let clearGeneration = 7;
 const pendingGeneration = clearGeneration;
@@ -535,6 +929,9 @@ for (const marker of [
   "AbortSignal.timeout(WALLET_REQUEST_TIMEOUT_MS)",
   "const invalidateWalletRequest = (reason) =>",
   "walletRequestOwner.cancel(reason)",
+  "export const loadWalletAccountV1 =",
+  "invalidateWalletRequest('wallet request replaced by invalid account')",
+  "restoreWalletLoadControlV1(button)",
   "export const clearWalletViewV1 =",
   "clearWalletViewV1({ input, button });",
   "invalidateWalletRequest('wallet route left')",
@@ -567,6 +964,14 @@ console.log("server_final_url_exact=true");
 console.log("browser_schema_closed=true");
 console.log("browser_account_request_response_bound=true");
 console.log("browser_status_type_strict=true");
+console.log("browser_source_outcome_coherent=true");
+console.log("browser_unavailable_evidence_undisplayed=true");
+console.log("browser_available_display_balance_bound=true");
+console.log("browser_available_evidence_source_bound=true");
+console.log("browser_native_gas_wallet_bound=true");
+console.log("browser_wallet_source_unavailable_truthful=true");
+console.log("browser_wallet_stale_evidence_cleared=true");
+console.log("browser_wallet_invalid_input_supersedes_active_request=true");
 console.log("browser_wallet_generated_at_canonical=true");
 console.log("browser_wallet_snapshot_max_age_ms=30000");
 console.log("browser_wallet_snapshot_max_future_skew_ms=5000");

@@ -2,8 +2,18 @@ name: VOID public-safe background loop backpressure v1
 
 on:
   pull_request:
+    paths:
+      - '.github/workflows/void-public-safe-background-loop-backpressure-v1.yml'
+      - 'scripts/prove_public_safe_background_loop_backpressure_v1.cjs'
+      - 'src/http/agent_pick2_jsonl_semantic_index_v1.ts'
+      - 'src/index.ts'
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/void-public-safe-background-loop-backpressure-v1.yml'
+      - 'scripts/prove_public_safe_background_loop_backpressure_v1.cjs'
+      - 'src/http/agent_pick2_jsonl_semantic_index_v1.ts'
+      - 'src/index.ts'
 
 permissions:
   contents: read
