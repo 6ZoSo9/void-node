@@ -108,11 +108,79 @@ assert.match(
   /URGENT_AUTHORIZED_KEYS_MANUAL_RESTORE_REQUIRED=true[\s\S]*AUTHORIZED_KEYS_RECOVERY_BACKUP=%s/u,
   "manual recovery path must preserve and report the backup",
 );
+const forcedLine = s.split("\n").find((line) => line.startsWith("forced_command="));
+const thirdLine = s.split("\n").find((line) => line.startsWith("third="));
+assert.ok(forcedLine, "forced command assignment required");
+assert.ok(thirdLine, "third key assignment required");
+assert.ok(
+  forcedLine.includes("/usr/bin/env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C HOME=/var/lib/voidwitness"),
+  "compare-only Node must start from an empty allowlisted environment",
+);
+assert.ok(
+  forcedLine.includes("VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1"),
+  "compare-only marker must be preserved",
+);
+assert.ok(
+  forcedLine.includes(String.raw`SSH_ORIGINAL_COMMAND=\"\${SSH_ORIGINAL_COMMAND-}\"`),
+  "the true SSH_ORIGINAL_COMMAND must be preserved as a quoted variable",
+);
+assert.ok(
+  thirdLine.includes(String.raw`${forced_command//\"/\\\"}`),
+  "OpenSSH authorized_keys quoting must escape the nested variable expansion",
+);
+assert.doesNotMatch(
+  s,
+  /forced_command="\/usr\/bin\/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1/u,
+  "ambient environment must never reach the compare-only Node entry point",
+);
 assert.match(
   s,
-  /forced_command="\/usr\/bin\/env VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1 \/usr\/bin\/node \$wrapper"/u,
-  "third key must invoke only the fixed compare-only wrapper",
+  /committed=true\s+if ! mv -T -- "\$tmpauth" "\$auth"/u,
+  "rollback obligation must be set before atomic authorized_keys publication",
 );
+for (const signal of ["HUP", "INT", "TERM"]) {
+  assert.ok(s.includes("trap 'exit " + ({HUP:129, INT:130, TERM:143})[signal] + "' " + signal));
+}
+const forcedProof = spawnSync("/usr/bin/bash", [
+  "-c",
+  [
+    "wrapper=/usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs",
+    "public=TESTPUBKEY",
+    forcedLine,
+    thirdLine,
+    "printf '%s\\n' \"$third\"",
+  ].join("\n"),
+], {
+  encoding: "utf8",
+  timeout: 5000,
+  env: {PATH:"/usr/bin:/bin"},
+});
+assert.equal(forcedProof.status, 0, forcedProof.stderr);
+const authLine=forcedProof.stdout.trim();
+const authMatch=authLine.match(/^restrict,command="((?:\\.|[^"])*)" ssh-ed25519 TESTPUBKEY void-replay-compare-only-v1$/u);
+assert.ok(authMatch, "third authorized-key entry must contain a valid quoted forced command");
+const parsedForced=authMatch[1].replaceAll('\\\"','"');
+const inertForced=parsedForced.replace(
+  " /usr/bin/node /usr/local/libexec/void-replay-witness-v1/void/void-buy-allocation-custody-witness-live-read-replay-compare-only-forced-command-v1.mjs",
+  " /usr/bin/env",
+);
+assert.notEqual(inertForced, parsedForced, "test must replace only the fixed Node entrypoint");
+const originalCommand="ignored-token \\"quoted\\" ; \\$(echo injected)";
+const isolated=spawnSync("/bin/sh",["-c",inertForced],{
+  encoding:"utf8",timeout:5000,
+  env:{
+    PATH:"/usr/bin:/bin",
+    SSH_ORIGINAL_COMMAND:originalCommand,
+    NODE_OPTIONS:"--require /nonexistent/evil-node-options.js",
+    NODE_PATH:"/nonexistent/injected",
+    ATTACKER_OTHER_VAR:"present",
+  },
+});
+assert.equal(isolated.status,0,isolated.stderr);
+assert.ok(isolated.stdout.includes("SSH_ORIGINAL_COMMAND="+originalCommand+"\\n"));
+assert.doesNotMatch(isolated.stdout,/NODE_OPTIONS|NODE_PATH|ATTACKER_OTHER_VAR/u);
+assert.ok(isolated.stdout.includes("VOID_BUY_VOID_REPLAY_COMPARE_ONLY_FORCED_COMMAND_V1=1\\n"));
+
 assert.doesNotMatch(s, /(?:ssh|sshd)\s+-[A-Za-z]*R\b/u);
 assert.doesNotMatch(s, /\brm\s+-rf\b/u);
 assert.doesNotMatch(s, /\beval\s/u);
@@ -120,9 +188,36 @@ assert.doesNotMatch(s, /\beval\s/u);
 const operatorGuide =
   "docs/architecture/buy-void-allocation-custody-witness-live-read-replay-nimo-compare-only-authorization-v1.md";
 const guide = fs.readFileSync(operatorGuide, "utf8");
-assert.match(
-  guide,
-  /installer_blob=cca3328322b99401ec0ec983dc9f65425f34fa14/u,
+const blobResult = spawnSync("/usr/bin/git", ["hash-object", script], {
+  encoding: "utf8",
+  timeout: 5000,
+});
+assert.equal(blobResult.status, 0, blobResult.stderr);
+const actualInstallerBlob = blobResult.stdout.trim();
+assert.match(actualInstallerBlob, /^[0-9a-f]{40}$/u);
+const installerGuidePinned = (content) =>
+  content.includes("installer_blob=" + actualInstallerBlob) &&
+  content.includes("expected_blob=" + actualInstallerBlob);
+assert.equal(
+  installerGuidePinned(guide),
+  true,
+  "both operator and Nimo installer pins must match the current reviewed source bytes",
+);
+assert.equal(
+  installerGuidePinned(guide.replace(
+    "installer_blob=" + actualInstallerBlob,
+    "installer_blob=" + "0".repeat(40),
+  )),
+  false,
+  "stale operator installer pin must be rejected",
+);
+assert.equal(
+  installerGuidePinned(guide.replace(
+    "expected_blob=" + actualInstallerBlob,
+    "expected_blob=" + "0".repeat(40),
+  )),
+  false,
+  "stale root-copy installer pin must be rejected",
 );
 assert.match(
   guide,
