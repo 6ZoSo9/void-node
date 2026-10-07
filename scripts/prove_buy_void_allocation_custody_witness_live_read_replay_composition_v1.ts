@@ -317,6 +317,36 @@ const knownHostsBytes = Buffer.from(
   "utf8",
 );
 
+function replayStorageEvidenceForState(
+  baseEvidence: ReturnType<typeof replayStorageEvidence>,
+  journalBytes: Buffer,
+  highWaterBytes: Buffer,
+) {
+  const next = mutableClone(baseEvidence);
+  const highWater = JSON.parse(highWaterBytes.toString("utf8"));
+  next.normalized.journal_file.sha256 = sha256Id(journalBytes);
+  next.normalized.journal_file.bytes = journalBytes.length;
+  next.normalized.high_water_file.sha256 = sha256Id(highWaterBytes);
+  next.normalized.high_water_file.bytes = highWaterBytes.length;
+  next.normalized.high_water_sha256 = sha256Id(highWaterBytes);
+  next.normalized.generation = highWater.generation;
+  next.normalized.sequence = highWater.sequence;
+  next.normalized.event_count = highWater.event_count;
+  next.normalized.pending = highWater.pending;
+  next.normalized.pending_challenge_sha256 =
+    highWater.pending_challenge_sha256;
+  next.normalized.pending_challenge_id =
+    highWater.pending_challenge_id;
+  next.normalized.pending_expires_at_ms =
+    highWater.pending_expires_at_ms;
+  next.normalized.last_terminal_state =
+    highWater.last_terminal_state;
+  next.normalized.ready_for_issue = highWater.ready_for_issue;
+  next.qualification_id =
+    contentId("voidwlrie1_", next.normalized);
+  return Object.freeze(next);
+}
+
 const transportPolicy = Object.freeze({
   transport: "ssh",
   remote_host: "nimo",
@@ -542,14 +572,20 @@ const installationPackage = installationEvidencePackage();
 function liveReadQualification({
   challengeSha256,
   requestId,
+  challengeIssuedAtMs = 1_000,
   responseObservedAtMs,
+  priorEvidenceGeneration = 0,
+  evidenceGeneration = 1,
   witnessSha256,
   eventCount,
   tipEventSha256,
 }: {
   challengeSha256: string;
   requestId: string;
+  challengeIssuedAtMs?: number;
   responseObservedAtMs: number;
+  priorEvidenceGeneration?: number;
+  evidenceGeneration?: number;
   witnessSha256: string;
   eventCount: number;
   tipEventSha256: string;
@@ -587,11 +623,12 @@ function liveReadQualification({
       transportPolicy.client_public_key_sha256,
     challenge_sha256: challengeSha256,
     request_id: requestId,
-    challenge_issued_at_ms: 1_000,
+    challenge_issued_at_ms: challengeIssuedAtMs,
     response_observed_at_ms: responseObservedAtMs,
-    challenge_age_ms: responseObservedAtMs - 1_000,
-    prior_evidence_generation: 0,
-    evidence_generation: 1,
+    challenge_age_ms:
+      responseObservedAtMs - challengeIssuedAtMs,
+    prior_evidence_generation: priorEvidenceGeneration,
+    evidence_generation: evidenceGeneration,
     observed_client_address: "100.64.0.10",
     observed_remote_address: "100.64.0.20",
     witness_sha256: witnessSha256,
@@ -748,6 +785,140 @@ try {
   assert.equal(green.live_remote_read_performed, false);
   assert.equal(green.production_gate_ready, false);
   assert.equal(green.funds_movement, false);
+
+  {
+    const laterJournalBytes = fs.readFileSync(
+      path.join(f.journalRoot, "live-read-replay-v1.jsonl"),
+    );
+    const laterHighWaterBytes = fs.readFileSync(
+      path.join(
+        f.highWaterRoot,
+        "live-read-replay-high-water-v1.json",
+      ),
+    );
+    const laterStorage = replayStorageEvidenceForState(
+      baseInput.replay_storage_evidence,
+      laterJournalBytes,
+      laterHighWaterBytes,
+    );
+    assert.equal(
+      laterStorage.normalized.last_terminal_state,
+      "consumed",
+    );
+    assert.equal(laterStorage.normalized.generation, 1);
+    assert.equal(laterStorage.normalized.sequence, 2);
+
+    const issue2 =
+      persistBuyVoidAllocationCustodyWitnessLiveReadReplayIssueV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+        entropy_sha256: sha("c"),
+        issued_at_ms: 3_000,
+        expires_at_ms: 41_000,
+      });
+    assert.equal(issue2.ok, true);
+    if (!issue2.ok) throw new Error("second issue fixture held");
+    assert.equal(issue2.last_terminal_state, "consumed");
+
+    const built2 =
+      buildBuyVoidAllocationCustodyWitnessTransportReadRequestV1({
+        policy: transportPolicy,
+        challenge_sha256: issue2.transition_challenge_sha256,
+      });
+    assert.equal(built2.ok, true);
+    if (!built2.ok) throw new Error("second read request fixture held");
+
+    const server2 =
+      classifyBuyVoidAllocationCustodyWitnessTransportServerRequestV1({
+        policy: transportPolicy,
+        request_json: built2.request_json,
+        current_witness_jsonl: witnessBytes,
+      });
+    assert.equal(server2.ok, true);
+    if (!server2.ok || server2.operation !== "read") {
+      throw new Error("second read server fixture held");
+    }
+    const responseBytes2 = Buffer.from(
+      server2.response_json,
+      "utf8",
+    );
+    const validated2 =
+      validateBuyVoidAllocationCustodyWitnessTransportResponseV1({
+        policy: transportPolicy,
+        request_json: built2.request_json,
+        response_json: responseBytes2,
+      });
+    assert.equal(validated2.ok, true);
+    if (!validated2.ok) {
+      throw new Error("second response fixture held");
+    }
+
+    const liveRead2 = liveReadQualification({
+      challengeSha256: issue2.transition_challenge_sha256,
+      requestId: built2.request_id,
+      challengeIssuedAtMs: 3_000,
+      responseObservedAtMs: 4_000,
+      priorEvidenceGeneration: 1,
+      evidenceGeneration: 2,
+      witnessSha256: validated2.witness_sha256,
+      eventCount: validated2.event_count,
+      tipEventSha256: validated2.tip_event_sha256,
+    });
+    const responseSha2562 = sha256Id(responseBytes2);
+    const consume2 =
+      persistBuyVoidAllocationCustodyWitnessLiveReadReplayTerminalV1({
+        journal_root: f.journalRoot,
+        high_water_root: f.highWaterRoot,
+        outcome: "consumed",
+        request_id: built2.request_id,
+        response_sha256: responseSha2562,
+        terminal_at_ms: 4_000,
+      });
+    assert.equal(consume2.ok, true);
+    if (!consume2.ok) {
+      throw new Error("second consume fixture held");
+    }
+
+    const secondCycle =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: laterStorage,
+        issue_result: issue2,
+        live_read_qualification: liveRead2,
+        consume_result: consume2,
+        read_request_json: built2.request_json,
+        read_response_json: responseBytes2,
+      });
+    assert.equal(secondCycle.ok, true);
+    if (!secondCycle.ok) {
+      throw new Error("second-cycle composition held");
+    }
+    assert.equal(secondCycle.normalized.prior_generation, 1);
+    assert.equal(secondCycle.normalized.issue_generation, 2);
+
+    const mismatchedIssue = mutableClone(issue2);
+    mismatchedIssue.last_terminal_state = "abandoned";
+    const held =
+      classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+        ...baseInput,
+        replay_storage_evidence: laterStorage,
+        issue_result: mismatchedIssue,
+        live_read_qualification: liveRead2,
+        consume_result: consume2,
+        read_request_json: built2.request_json,
+        read_response_json: responseBytes2,
+      });
+    assert.equal(held.ok, false);
+    if (held.ok) {
+      throw new Error(
+        "retained terminal state mismatch unexpectedly green",
+      );
+    }
+    assert.equal(
+      held.reason,
+      "witness_live_read_replay_composition_issue_terminal_state_mismatch",
+    );
+  }
 
   {
     const badId =
@@ -1296,6 +1467,7 @@ console.log(
 console.log("installation_evidence_package_bound=true");
 console.log("canonical_live_read_reclassified=true");
 console.log("challenge_id_derived_from_digest=true");
+console.log("later_cycle_retained_terminal_state_bound=true");
 console.log("installation_machine_identity_substitution_rejected=true");
 console.log("live_storage_prestate_bound=true");
 console.log("exact_storage_issue_prestate_digest_binding=true");
