@@ -205,11 +205,21 @@ In either case one exact intent copy survives, the missing copy is restored
 under the newly pinned replacement root, and #2446 permits only the exact
 forward transition needed to converge to the reviewed next pair.
 
+A successful persistence or recovery result now revalidates both pinned
+storage-root identities against their visible paths once more after
+publication-intent cleanup and before returning to the caller. The focused
+proof injects a root replacement *after the final intent-directory fsync* for
+each root and requires a deterministic HOLD rather than a false successful
+publication claim.
+
 This still does **not** prove arbitrary pathname stability or rollback-resistant
 custody after a completed publication, and it does not cover simultaneous
-replacement/rollback of both roots. A later designated-host gate must prove
-those stronger custody properties using mount/storage policy, external
-anchoring, or another reviewed host-level monotonic mechanism.
+replacement/rollback of both roots. The authority flags
+`post_admission_root_path_stability_proven=false` and
+`single_root_post_publication_recovery=false` remain unchanged. A later
+designated-host gate must prove those stronger custody properties using
+mount/storage policy, external anchoring, or another reviewed host-level
+monotonic mechanism.
 ## Focused proof
 
 \`\`\`bash

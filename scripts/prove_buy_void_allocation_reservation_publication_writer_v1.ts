@@ -1228,6 +1228,70 @@ function provePostRevalidationRootSwapRecovery(
 provePostRevalidationRootSwapRecovery("high-water");
 provePostRevalidationRootSwapRecovery("ledger");
 
+function proveTerminalRootSwapCannotReturnSuccess(
+  replaced: "ledger" | "high-water",
+): void {
+  const f = fixture();
+  const originalFsync = fs.fsyncSync;
+  const oldRoot = replaced === "ledger" ? f.ledgerRoot : f.highWaterRoot;
+  const detached = path.join(
+    f.root,
+    "terminal-" + replaced + "-detached",
+  );
+  let injected = false;
+  try {
+    // Inject after the last intent-unlink directory fsync has completed.
+    // Before this repair, the writer could return "persisted" even though
+    // one visible authority path had already been replaced.
+    (fs as any).fsyncSync = (fd: number) => {
+      originalFsync(fd);
+      if (
+        injected ||
+        fs.existsSync(path.join(f.ledgerRoot, INTENT_NAME)) ||
+        fs.existsSync(path.join(f.highWaterRoot, INTENT_NAME)) ||
+        fs.readFileSync(path.join(f.ledgerRoot, LEDGER_NAME), "utf8") !== ledger1 ||
+        fs.readFileSync(path.join(f.highWaterRoot, HIGH_WATER_NAME), "utf8") !== nextHighWater
+      ) {
+        return;
+      }
+      injected = true;
+      fs.renameSync(oldRoot, detached);
+      fs.mkdirSync(oldRoot, { mode: 0o700 });
+      fs.writeFileSync(
+        path.join(
+          oldRoot,
+          replaced === "ledger" ? LEDGER_NAME : HIGH_WATER_NAME,
+        ),
+        replaced === "ledger" ? "" : genesisHighWater,
+        { mode: 0o600 },
+      );
+    };
+    const outcome =
+      persistBuyVoidAllocationReservationPublicationWriterV1({
+        ledger_root: f.ledgerRoot,
+        high_water_root: f.highWaterRoot,
+        next_ledger_jsonl: ledger1,
+      });
+    assert.equal(injected, true, "terminal root replacement must be exercised");
+    assert.equal(outcome.ok, false, "replaced visible root must never return success");
+    if (outcome.ok !== false) {
+      throw new Error("expected terminal root replacement HOLD");
+    }
+    assert.equal(
+      outcome.reason,
+      replaced === "ledger"
+        ? "allocation_reservation_writer_ledger_directory_changed"
+        : "allocation_reservation_writer_high_water_directory_changed",
+    );
+  } finally {
+    (fs as any).fsyncSync = originalFsync;
+    cleanup(f);
+  }
+}
+
+proveTerminalRootSwapCannotReturnSuccess("ledger");
+proveTerminalRootSwapCannotReturnSuccess("high-water");
+
 async function proveSingleRootReplacementLock(
   replaceRoot: "ledger" | "high-water",
 ): Promise<void> {
@@ -1371,6 +1435,7 @@ console.log("ledger_root_replacement_keeps_shared_lock=true");
 console.log("single_root_replacement_blocks_valid_competing_publication=true");
 console.log("redundant_publication_intent=true");
 console.log("single_root_mid_publication_recovery=true");
+console.log("terminal_visible_root_revalidation=true");
 console.log("post_admission_root_path_stability_proven=false");
 console.log("single_root_post_publication_recovery=false");
 console.log("divergent_intent_copies_hold=true");
