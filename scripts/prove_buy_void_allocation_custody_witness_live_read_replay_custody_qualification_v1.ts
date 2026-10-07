@@ -380,6 +380,32 @@ function rebuildReceipt(
 }
 
 {
+  const forgedGenesisPredecessor = rebuildReceipt(
+    genesis.receipt,
+    {
+      previous_receipt_sha256: entropy("e"),
+    },
+  );
+  expectHeld(
+    classify(journal0, forgedGenesisPredecessor),
+    "witness_replay_custody_receipt_chain_invalid",
+  );
+}
+
+{
+  const forgedMissingPredecessor = rebuildReceipt(
+    epoch1.receipt,
+    {
+      previous_receipt_sha256: null,
+    },
+  );
+  expectHeld(
+    classify(journal1, forgedMissingPredecessor),
+    "witness_replay_custody_receipt_chain_invalid",
+  );
+}
+
+{
   const forged = rebuildReceipt(genesis.receipt, {
     journal_sha256: entropy("f"),
   });
@@ -542,6 +568,8 @@ console.log("multi_event_jump_forbidden=true");
 console.log("stale_placement_rejected=true");
 console.log("storage_policy_drift_rejected=true");
 console.log("receipt_self_hash_required=true");
+console.log("receipt_genesis_predecessor_absent_required=true");
+console.log("receipt_non_genesis_predecessor_required=true");
 console.log("receipt_high_water_state_consistency_required=true");
 console.log("placement_external_trust_proven=false");
 console.log("prior_receipt_external_trust_proven=false");
