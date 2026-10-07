@@ -395,14 +395,63 @@ need(
 );
 
 const failOnceApp = new FailOncePostApp();
+const retryGenerationCalls: string[] = [];
+const firstGenerationEnv: NodeJS.ProcessEnv = {
+  ...env,
+  VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
+    "voidsteamref1_" + "a".repeat(64),
+};
+const secondGenerationEnv: NodeJS.ProcessEnv = {
+  ...env,
+  VOID_STEAM_WEB_API_KEY_REFERENCE_ID:
+    "voidsteamref1_" + "b".repeat(64),
+};
+const firstGeneration = {
+  env: firstGenerationEnv,
+  authorize_operator: () => {
+    retryGenerationCalls.push("auth:A");
+    return true;
+  },
+  now: () => {
+    retryGenerationCalls.push("now:A");
+    return 1_754_150_100_000;
+  },
+  fetch_impl: async (input: RequestInfo | URL, init?: RequestInit) => {
+    retryGenerationCalls.push("fetch:A");
+    return responseWithFinalUrl(
+      mockBody,
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": String(Buffer.byteLength(mockBody)),
+        },
+      },
+      String(input),
+    );
+  },
+};
+const secondGeneration = {
+  env: secondGenerationEnv,
+  authorize_operator: () => {
+    retryGenerationCalls.push("auth:B");
+    return false;
+  },
+  now: () => {
+    retryGenerationCalls.push("now:B");
+    return 1_754_150_200_000;
+  },
+  fetch_impl: async () => {
+    retryGenerationCalls.push("fetch:B");
+    throw new Error("generation B fetch must never run");
+  },
+};
+
 let partialRegistrationFailed = false;
 try {
   registerSteamReadonlyBridgeRuntimeV2(
     failOnceApp as unknown as Express,
-    {
-      env,
-      authorize_operator: () => true,
-    },
+    firstGeneration,
   );
 } catch (error) {
   partialRegistrationFailed =
@@ -421,10 +470,7 @@ need(
 
 const resumedRegistration = registerSteamReadonlyBridgeRuntimeV2(
   failOnceApp as unknown as Express,
-  {
-    env,
-    authorize_operator: () => true,
-  },
+  secondGeneration,
 );
 need(
   resumedRegistration.registered === true,
@@ -444,6 +490,52 @@ need(
 need(
   resumedAttempts[1] === 2,
   "partial registration retry used an unexpected request-route attempt count",
+);
+
+const retainedStatus = await invoke(
+  failOnceApp.getHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
+  ),
+  undefined,
+);
+need(retainedStatus.status === 200, "retained status generation failed");
+const retainedStatusBody = asObject(
+  retainedStatus.body,
+  "retained status body missing",
+);
+const retainedCredential = asObject(
+  retainedStatusBody.credential_reference,
+  "retained credential reference missing",
+);
+need(
+  retainedCredential.reference_id_sha256 ===
+    crypto.createHash("sha256")
+      .update(String(firstGenerationEnv.VOID_STEAM_WEB_API_KEY_REFERENCE_ID))
+      .digest("hex"),
+  "status route drifted from generation A env",
+);
+
+const retainedRequest = await invoke(
+  failOnceApp.postHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_REQUEST_PATH,
+  ),
+  {
+    confirmation:
+      VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_CONFIRMATION,
+    operation: "player_summaries",
+    steamids: ["76561198000000000"],
+  },
+);
+need(retainedRequest.status === 200, "retained request generation failed");
+need(
+  retryGenerationCalls.includes("auth:A") &&
+    retryGenerationCalls.includes("fetch:A") &&
+    retryGenerationCalls.includes("now:A"),
+  "generation A providers were not retained",
+);
+need(
+  retryGenerationCalls.every((entry) => !entry.endsWith(":B")),
+  "retry mixed dependency generation B into resumed routes",
 );
 const resumedDuplicate = registerSteamReadonlyBridgeRuntimeV2(
   failOnceApp as unknown as Express,
@@ -636,4 +728,6 @@ need(
   "receipt locator binding mismatch",
 );
 
+console.log("retry_dependency_generation_retained=true");
+console.log("retry_dependency_generation_split_rejected=true");
 console.log("VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_GREEN");
