@@ -400,6 +400,23 @@ need(
     registrationAttempts(installThenThrowGetApp)[0] === 1,
   "held status retry duplicated or extended the ambiguous route set",
 );
+const retainedIndeterminateStatus = await invoke(
+  installThenThrowGetApp.getHandlers.get(
+    VOID_STEAM_READONLY_BRIDGE_RUNTIME_V2_STATUS_PATH,
+  ),
+  undefined,
+);
+need(
+  retainedIndeterminateStatus.status === 503,
+  "retained indeterminate status handler did not HOLD",
+);
+need(
+  asObject(
+    retainedIndeterminateStatus.body,
+    "retained indeterminate status response missing",
+  ).error === "steam_readonly_bridge_registration_indeterminate",
+  "retained indeterminate status error mismatch",
+);
 
 const installThenThrowPostApp = new InstallThenThrowPostApp();
 let requestPostInstallFailed = false;
