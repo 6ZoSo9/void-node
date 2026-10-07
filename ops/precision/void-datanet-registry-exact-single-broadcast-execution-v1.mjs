@@ -1237,6 +1237,10 @@ function rpcFactory(rpcUrl){
 
 let testSyntheticReviewedGraphCounterV1=0;
 
+export function testOnlyRpcFactoryV1(){
+  return rpcFactory(EXPECTED_RPC);
+}
+
 export function testOnlyClassifyReviewedNodeBuiltinV1(specifier){
   return classifyReviewedNodeBuiltinV1(specifier);
 }
