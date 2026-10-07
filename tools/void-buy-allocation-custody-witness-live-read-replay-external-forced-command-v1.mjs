@@ -182,14 +182,20 @@ function sameDirectory(left, right) {
   );
 }
 
-function sameFile(left, right) {
+function sameFileIdentity(left, right) {
   return (
     left.dev === right.dev &&
     left.ino === right.ino &&
     left.uid === right.uid &&
     left.gid === right.gid &&
     left.mode === right.mode &&
-    left.nlink === right.nlink &&
+    left.nlink === right.nlink
+  );
+}
+
+function sameFile(left, right) {
+  return (
+    sameFileIdentity(left, right) &&
     left.size === right.size &&
     left.mtimeNs === right.mtimeNs &&
     left.ctimeNs === right.ctimeNs
@@ -483,7 +489,10 @@ function assertWitnessStillBound(directory, witness) {
     true,
     "witness_replay_external_forced_command_witness_invalid",
   );
-  if (!sameFile(witness.opened, opened) || !sameFile(opened, visible)) {
+  if (
+    !sameFileIdentity(witness.opened, opened) ||
+    !sameFile(opened, visible)
+  ) {
     fail("witness_replay_external_forced_command_witness_changed");
   }
   assertPrivateDirectoryVisible(
