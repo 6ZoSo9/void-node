@@ -177,38 +177,83 @@ function normalizeContext(raw){
   return Object.freeze({signal,timeout_ms:timeoutMs});
 }
 
+const SUCCESS_DECISION_KEYS=Object.freeze([
+  "ok",
+  "status",
+  "broadcast_generation_fence_id",
+  "custody_receipt_sha256",
+  "source_service_contract_proven",
+  "independent_custody_proven",
+  "live_host_qualification_performed",
+  "operation_performed",
+  "rpc_access",
+  "transaction_broadcast",
+  "funds_movement",
+]);
+const HELD_DECISION_KEYS=Object.freeze([
+  "ok",
+  "status",
+  "reason",
+  "broadcast_generation_fence_id",
+  "custody_receipt_sha256",
+  "source_service_contract_proven",
+  "independent_custody_proven",
+  "live_host_qualification_performed",
+  "operation_performed",
+  "rpc_access",
+  "transaction_broadcast",
+  "funds_movement",
+]);
+
 function validateDecision(decision){
   if(!decision||typeof decision!=="object"||Array.isArray(decision)){
     fail("datanet_broadcast_generation_custody_client_response_invalid");
   }
   if(decision.ok===true){
+    const value=directObject(
+      decision,
+      SUCCESS_DECISION_KEYS,
+      "datanet_broadcast_generation_custody_client_response_invalid",
+    );
+    const expectedOperationPerformed=value.status==="created";
     if(
-      !["created","exists","asserted"].includes(decision.status)||
-      !FENCE_ID.test(String(decision.broadcast_generation_fence_id||""))||
-      !SHA256_ID.test(String(decision.custody_receipt_sha256||""))||
-      decision.source_service_contract_proven!==true||
-      decision.independent_custody_proven!==false||
-      decision.live_host_qualification_performed!==false||
-      decision.rpc_access!==false||
-      decision.transaction_broadcast!==false||
-      decision.funds_movement!==false
+      !["created","exists","asserted"].includes(value.status)||
+      !FENCE_ID.test(String(value.broadcast_generation_fence_id||""))||
+      !SHA256_ID.test(String(value.custody_receipt_sha256||""))||
+      value.source_service_contract_proven!==true||
+      value.independent_custody_proven!==false||
+      value.live_host_qualification_performed!==false||
+      value.operation_performed!==expectedOperationPerformed||
+      value.rpc_access!==false||
+      value.transaction_broadcast!==false||
+      value.funds_movement!==false
     ){
       fail("datanet_broadcast_generation_custody_client_response_invalid");
     }
-    return decision;
+    return Object.freeze({...value});
   }
+  const value=directObject(
+    decision,
+    HELD_DECISION_KEYS,
+    "datanet_broadcast_generation_custody_client_response_invalid",
+  );
   if(
-    decision.ok!==false||
-    decision.status!=="held"||
-    typeof decision.reason!=="string"||
-    decision.independent_custody_proven!==false||
-    decision.live_host_qualification_performed!==false||
-    decision.transaction_broadcast!==false||
-    decision.funds_movement!==false
+    value.ok!==false||
+    value.status!=="held"||
+    !/^[a-z][a-z0-9_]{2,179}$/u.test(String(value.reason||""))||
+    value.broadcast_generation_fence_id!==null||
+    value.custody_receipt_sha256!==null||
+    value.source_service_contract_proven!==true||
+    value.independent_custody_proven!==false||
+    value.live_host_qualification_performed!==false||
+    value.operation_performed!==false||
+    value.rpc_access!==false||
+    value.transaction_broadcast!==false||
+    value.funds_movement!==false
   ){
     fail("datanet_broadcast_generation_custody_client_response_invalid");
   }
-  return decision;
+  return Object.freeze({...value});
 }
 
 function validateResponse(raw,requestSha256){

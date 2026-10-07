@@ -140,9 +140,19 @@ async function proveStartupRollback(failureKind){
   await retry.stop();
   assert.equal(
     fs.existsSync(failedSocket),
-    false,
-    failureKind+" cleanup must leave the same path reusable",
+    true,
+    failureKind+" successful stop retains the advertised stale link",
   );
+  await assert.rejects(
+    new Promise((resolve,reject)=>{
+      const socket=net.createConnection(failedSocket);
+      socket.once("connect",()=>resolve());
+      socket.once("error",reject);
+    }),
+    (error)=>error?.code==="ECONNREFUSED",
+    failureKind+" stopped stale socket must fail closed",
+  );
+  fs.unlinkSync(failedSocket);
 }
 
 await proveStartupRollback("chmod");
@@ -339,6 +349,20 @@ try{
 }finally{
   await service.stop();
 }
+assert.equal(
+  fs.existsSync(socketPath),
+  true,
+  "normal stop must retain the advertised stale socket link",
+);
+await assert.rejects(
+  new Promise((resolve,reject)=>{
+    const socket=net.createConnection(socketPath);
+    socket.once("connect",()=>resolve());
+    socket.once("error",reject);
+  }),
+  (error)=>error?.code==="ECONNREFUSED",
+  "stopped advertised socket must fail closed",
+);
 
 const hungParent=path.join(root,"hung-run");
 fs.mkdirSync(hungParent,{mode:0o750});
@@ -400,6 +424,71 @@ try{
   await new Promise((resolve)=>hungServer.close(()=>resolve()));
 }
 
+const malformedHeldParent=path.join(root,"malformed-held-run");
+fs.mkdirSync(malformedHeldParent,{mode:0o750});
+fs.chmodSync(malformedHeldParent,0o750);
+const malformedHeldSocket=path.join(malformedHeldParent,"custody.sock");
+const malformedHeldServer=net.createServer((socket)=>{
+  socket.setEncoding("utf8");
+  let input="";
+  socket.on("data",(chunk)=>{
+    input+=chunk;
+    const newline=input.indexOf("\n");
+    if(newline<0) return;
+    const envelope=JSON.parse(input.slice(0,newline));
+    const requestSha256=
+      "sha256:"+sha256(Buffer.from(canonicalJson(envelope)));
+    socket.end(JSON.stringify({
+      schema:
+        "void_datanet_registry_broadcast_generation_custody_response_v1",
+      marker:VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_V1,
+      version:1,
+      request_sha256:requestSha256,
+      decision:{
+        ok:false,
+        status:"held",
+        reason:"synthetic_hold",
+        broadcast_generation_fence_id:null,
+        custody_receipt_sha256:null,
+        source_service_contract_proven:true,
+        independent_custody_proven:false,
+        live_host_qualification_performed:false,
+        operation_performed:true,
+        rpc_access:true,
+        transaction_broadcast:false,
+        funds_movement:false,
+        extra_field:"forbidden",
+      },
+    })+"\n");
+  });
+});
+await new Promise((resolve,reject)=>{
+  malformedHeldServer.once("error",reject);
+  malformedHeldServer.listen(malformedHeldSocket,resolve);
+});
+fs.chmodSync(malformedHeldSocket,0o660);
+if(typeof process.getuid==="function"){
+  fs.chownSync(malformedHeldSocket,-1,socketGroup);
+}
+try{
+  const malformedHeldTransport=
+    createVoidDatanetRegistryBroadcastGenerationCustodyTransportV1({
+      socket_path:malformedHeldSocket,
+      connect_timeout_ms:500,
+      response_timeout_ms:500,
+      max_response_bytes:64*1024,
+    });
+  await assert.rejects(
+    malformedHeldTransport.claim(fence("e"),{
+      signal:new AbortController().signal,
+      timeout_ms:1000,
+    }),
+    /client_response_invalid/u,
+  );
+}finally{
+  await new Promise((resolve)=>malformedHeldServer.close(()=>resolve()));
+}
+
 const accessorOptions={
   socket_path:socketPath,
   connect_timeout_ms:500,
@@ -438,6 +527,8 @@ for(const required of [
   "server_controlled_fence_root:true",
   "freshBoundListenPath",
   "fs.linkSync(boundListenPath,options.socket_path)",
+  "advertised_socket_policy_before_publish:true",
+  "advertised_socket_unlink_on_stop:false",
   "independent_custody_proven:false",
 ]){
   assert.ok(serviceSource.includes(required),required);
@@ -455,6 +546,7 @@ for(const required of [
   "connect_timeout_ms",
   "response_timeout_ms",
   "caller_selected_socket_per_request:false",
+  "HELD_DECISION_KEYS",
 ]){
   assert.ok(clientSource.includes(required),required);
 }
@@ -494,6 +586,10 @@ console.log("same_path_replacement_maps_to_existing_slot=true");
 console.log("record_tamper_holds=true");
 console.log("caller_selected_path=false");
 console.log("replacement_socket_preserved_on_old_listener_close=true");
+console.log("advertised_socket_policy_before_publish=true");
+console.log("advertised_socket_unlink_on_stop=false");
+console.log("stopped_advertised_socket_fails_closed=true");
+console.log("held_response_exact_schema_required=true");
 console.log("abort_signal_destroys_unresponsive_socket=true");
 console.log("startup_chmod_failure_rolls_back_all_resources=true");
 console.log("startup_chown_failure_rolls_back_all_resources=true");

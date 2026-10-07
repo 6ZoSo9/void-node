@@ -77,11 +77,17 @@ client pathname as a hard link to that exact Unix-socket inode. This makes
 Node's internal `server.close()` cleanup target the private listen pathname,
 never the advertised client pathname.
 
-On shutdown, the service closes the private listener first. It removes the
-advertised pathname only when its dev/inode still match the service's recorded
-bound socket identity. If another socket has replaced the advertised pathname,
-cleanup leaves that successor untouched. No check-then-rename restoration is
-performed, so cleanup cannot overwrite a newly bound endpoint.
+The private socket inode is chmod/chown-qualified **before** the advertised
+hard link is created. Publication uses `linkSync`, which fails rather than
+overwriting an occupied advertised pathname.
+
+On shutdown, the service closes only the private listener and never unlinks or
+renames the advertised pathname. If another socket has replaced that pathname,
+it is therefore untouched. If the pathname still refers to this service's old
+inode, it remains as a stale filesystem link and connection attempts fail
+closed with no listener. Safe stale-link removal/restart requires the later
+host-exclusive installation/lifecycle gate; this source service deliberately
+does not perform a path-mutating cleanup race.
 
 ## Client transport
 
@@ -126,7 +132,9 @@ A later designated-host qualification/composition gate must establish:
 - runtime inability to control the custody service;
 - exact installed service source identity;
 - exact systemd hardening and writable-path allowlist; and
-- bounded AF_UNIX client transport using this AbortSignal contract.
+- bounded AF_UNIX client transport using this AbortSignal contract;
+- exclusive stale advertised-socket cleanup/restart authority outside the
+  running service.
 
 Only that qualified composition may adapt a service result into #2554's
 `independent_custody_proven=true` dependency seam. This PR does not perform
@@ -146,8 +154,10 @@ The deterministic proof:
 7. creates a second operation and proves a distinct slot;
 8. replaces a still-live old service socket pathname with a successor server,
    stops the old service, and proves the successor inode/listener still works;
-   and
-9. uses a real non-responding Unix socket to prove an AbortSignal destroys the
+9. proves normal stop retains its stale advertised link and that connecting to
+   the stopped endpoint fails closed;
+10. rejects a malformed held response with extra/contradictory fields; and
+11. uses a real non-responding Unix socket to prove an AbortSignal destroys the
    client connection.
 
 The proof makes no live RPC request and uses no signed artifact or credential.

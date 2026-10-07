@@ -19,6 +19,9 @@ export const VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_AUTHORIT
     stable_fence_identity_rederived:true,
     create_only_record:true,
     descriptor_pinned_fence_root:true,
+    advertised_socket_policy_before_publish:true,
+    advertised_socket_unlink_on_stop:false,
+    stale_advertised_socket_cleanup_external:true,
     caller_selected_path:false,
     arbitrary_path_write:false,
     arbitrary_bytes_write:false,
@@ -732,20 +735,6 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
     closePinnedRoot(pinned);
     pinned=null;
 
-    if(boundSocketIdentity!==null){
-      try{
-        const visible=fs.lstatSync(options.socket_path,{bigint:true});
-        if(
-          visible.isSocket()&&
-          sameSocketIdentity(boundSocketIdentity,visible)
-        ){
-          fs.unlinkSync(options.socket_path);
-        }
-      }catch(error){
-        if(error?.code!=="ENOENT") throw error;
-      }
-    }
-
     if(boundListenPath!==null){
       try{
         const hidden=fs.lstatSync(boundListenPath,{bigint:true});
@@ -907,32 +896,47 @@ function createVoidDatanetRegistryBroadcastGenerationCustodyServiceInternalV1(
         ino:String(hidden.ino),
       });
 
-      fs.linkSync(boundListenPath,options.socket_path);
-      const advertised=fs.lstatSync(options.socket_path,{bigint:true});
-      if(
-        !advertised.isSocket()||
-        advertised.isSymbolicLink()||
-        !sameSocketIdentity(boundSocketIdentity,advertised)||
-        advertised.nlink<2n
-      ){
-        fail(
-          "datanet_broadcast_generation_custody_advertised_socket_binding_invalid",
-        );
-      }
-
       if(testOnlySocketPolicyFailure==="chmod"){
         fail("test_only_datanet_broadcast_generation_custody_chmod_failure");
       }
-      fs.chmodSync(options.socket_path,0o660);
+      fs.chmodSync(boundListenPath,0o660);
 
       if(testOnlySocketPolicyFailure==="chown"){
         fail("test_only_datanet_broadcast_generation_custody_chown_failure");
       }
       if(typeof process.getuid==="function"){
         fs.chownSync(
-          options.socket_path,
+          boundListenPath,
           -1,
           options.socket_group_gid,
+        );
+      }
+
+      const configured=fs.lstatSync(boundListenPath,{bigint:true});
+      if(
+        !configured.isSocket()||
+        configured.isSymbolicLink()||
+        !sameSocketIdentity(boundSocketIdentity,configured)||
+        Number(configured.mode&0o777n)!==0o660||
+        configured.gid!==BigInt(options.socket_group_gid)
+      ){
+        fail(
+          "datanet_broadcast_generation_custody_private_socket_policy_invalid",
+        );
+      }
+
+      fs.linkSync(boundListenPath,options.socket_path);
+      const advertised=fs.lstatSync(options.socket_path,{bigint:true});
+      if(
+        !advertised.isSocket()||
+        advertised.isSymbolicLink()||
+        !sameSocketIdentity(boundSocketIdentity,advertised)||
+        advertised.nlink<2n||
+        Number(advertised.mode&0o777n)!==0o660||
+        advertised.gid!==BigInt(options.socket_group_gid)
+      ){
+        fail(
+          "datanet_broadcast_generation_custody_advertised_socket_binding_invalid",
         );
       }
 
@@ -1017,6 +1021,9 @@ export const VOID_DATANET_REGISTRY_BROADCAST_GENERATION_CUSTODY_SERVICE_CONTRACT
     caller_selected_path:false,
     arbitrary_bytes_write:false,
     source_service_contract_only:true,
+    advertised_socket_policy_before_publish:true,
+    advertised_socket_unlink_on_stop:false,
+    stale_advertised_socket_cleanup_external:true,
     independent_custody_proven:false,
     live_host_qualification_performed:false,
   });
