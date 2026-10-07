@@ -896,6 +896,60 @@ try {
     assert.equal(secondCycle.normalized.prior_generation, 1);
     assert.equal(secondCycle.normalized.issue_generation, 2);
 
+    {
+      const impossibleCountStorage = mutableClone(laterStorage);
+      impossibleCountStorage.normalized.generation = 2;
+      impossibleCountStorage.qualification_id =
+        contentId("voidwlrie1_", impossibleCountStorage.normalized);
+      const heldCount =
+        classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+          ...baseInput,
+          replay_storage_evidence: impossibleCountStorage,
+          issue_result: issue2,
+          live_read_qualification: liveRead2,
+          consume_result: consume2,
+          read_request_json: built2.request_json,
+          read_response_json: responseBytes2,
+        });
+      assert.equal(heldCount.ok, false);
+      if (heldCount.ok) {
+        throw new Error(
+          "ready-state generation/count mismatch unexpectedly green",
+        );
+      }
+      assert.equal(
+        heldCount.reason,
+        "witness_live_read_replay_composition_storage_generation_count_invalid",
+      );
+    }
+
+    {
+      const nullTerminalStorage = mutableClone(laterStorage);
+      nullTerminalStorage.normalized.last_terminal_state = null;
+      nullTerminalStorage.qualification_id =
+        contentId("voidwlrie1_", nullTerminalStorage.normalized);
+      const heldTerminal =
+        classifyBuyVoidAllocationCustodyWitnessLiveReadReplayCompositionV1({
+          ...baseInput,
+          replay_storage_evidence: nullTerminalStorage,
+          issue_result: issue2,
+          live_read_qualification: liveRead2,
+          consume_result: consume2,
+          read_request_json: built2.request_json,
+          read_response_json: responseBytes2,
+        });
+      assert.equal(heldTerminal.ok, false);
+      if (heldTerminal.ok) {
+        throw new Error(
+          "post-genesis null terminal state unexpectedly green",
+        );
+      }
+      assert.equal(
+        heldTerminal.reason,
+        "witness_live_read_replay_composition_storage_invalid",
+      );
+    }
+
     const mismatchedIssue = mutableClone(issue2);
     mismatchedIssue.last_terminal_state = "abandoned";
     const held =
@@ -1323,7 +1377,7 @@ try {
     }
     assert.equal(
       held.reason,
-      "witness_live_read_replay_composition_issue_invalid",
+      "witness_live_read_replay_composition_issue_terminal_state_mismatch",
     );
   }
 
