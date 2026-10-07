@@ -162,6 +162,13 @@ function contentId(prefix: string, value: unknown): string {
   );
 }
 
+function sha256Id(value: string | Buffer): string {
+  return (
+    "sha256:" +
+    crypto.createHash("sha256").update(value).digest("hex")
+  );
+}
+
 function exactObject(
   value: unknown,
   keys: readonly string[],
