@@ -3,7 +3,15 @@ name: ops-verify
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/ops-verify.yml'
+      - 'Makefile'
+      - 'ops/prom-verify.sh'
   pull_request:
+    paths:
+      - '.github/workflows/ops-verify.yml'
+      - 'Makefile'
+      - 'ops/prom-verify.sh'
 
 permissions:
   contents: read
